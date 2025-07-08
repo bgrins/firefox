@@ -15,6 +15,43 @@ import requests
 USER_AGENT = "mach-intermittent-failures/1.0"
 
 
+def resolve_wpt_path(shortpath):
+    """
+    Resolve WPT (Web Platform Test) paths to their full path.
+    
+    Args:
+        shortpath: WPT path (typically starting with /)
+        
+    Returns:
+        Resolved full path
+    """
+    # Remove leading slash if present
+    if shortpath.startswith("/"):
+        shortpath = shortpath[1:]
+    
+    # Constants for WPT path resolution (from skipfails.py)
+    WP = "testing/web-platform/"
+    WPT0 = WP + "tests/infrastructure"
+    WPT1 = WP + "tests"
+    WPT2 = WP + "mozilla/tests"
+    WPT_MOZILLA = "_mozilla"
+    
+    # Path resolution logic from skipfails.get_wpt_path_meta
+    if shortpath.startswith(WPT0):
+        path = shortpath
+    elif shortpath.startswith(WPT1):
+        path = shortpath
+    elif shortpath.startswith(WPT2):
+        path = shortpath
+    elif shortpath.startswith(WPT_MOZILLA):
+        shortpath = shortpath[len(WPT_MOZILLA) + 1:]  # +1 for the /
+        path = WPT2 + shortpath
+    else:
+        path = WPT1 + "/" + shortpath
+    
+    return path
+
+
 class BugzillaFailure(TypedDict):
     bug_id: int
     bug_count: int
@@ -37,6 +74,7 @@ class IntermittentFailure(TypedDict):
     status: str
     resolution: str
     test_path: Optional[str]
+    resolved_test_path: Optional[str]  # Full path for WPT tests
     creation_time: Optional[str]
     last_change_time: Optional[str]
     comment_count: Optional[int]
@@ -77,6 +115,7 @@ class IntermittentFailuresFetcher:
                     "status": bug.get("status", "UNKNOWN"),
                     "resolution": bug.get("resolution", ""),
                     "test_path": None,
+                    "resolved_test_path": None,
                     "creation_time": bug.get("creation_time"),
                     "last_change_time": bug.get("last_change_time"),
                     "comment_count": bug.get("comment_count"),
@@ -88,10 +127,13 @@ class IntermittentFailuresFetcher:
                     )
                     if match:
                         result["test_path"] = match[0]
+                        # Keep resolved_test_path as None - will be resolved in the command if needed
+                        result["resolved_test_path"] = None
 
                 results.append(result)
 
         return results
+
 
     def get_single_tracking_bugs_with_paths(
         self, branch: str = "trunk"

@@ -6,7 +6,7 @@ import json
 import logging
 import sys
 
-from intermittent_failures import IntermittentFailuresFetcher
+from intermittent_failures import IntermittentFailuresFetcher, resolve_wpt_path
 from mach.decorators import Command, CommandArgument, SubCommand
 
 
@@ -103,6 +103,15 @@ def list_intermittents(
             "Error fetching failures: {error}",
         )
         return 1
+    
+    # Resolve WPT paths
+    for result in results:
+        if result.get("test_path") and result["test_path"].startswith("/"):
+            # This is a WPT path, resolve it
+            result["resolved_test_path"] = resolve_wpt_path(result["test_path"])
+        else:
+            # Non-WPT path, use as-is
+            result["resolved_test_path"] = result.get("test_path")
 
     if not all:
         results = [
@@ -142,7 +151,9 @@ def list_intermittents(
         for i, result in enumerate(results, 1):
             print(f"{i}. Bug {result['bug_id']}: {result['failure_count']} failures")
             if result.get("test_path"):
-                print(f"   Test: {result['test_path']}")
+                # Show resolved path if available, otherwise show original
+                display_path = result.get("resolved_test_path") or result["test_path"]
+                print(f"   Test: {display_path}")
             print(f"   Summary: {result['summary']}")
             print(f"   Status: {result['status']}", end="")
             if result.get("resolution"):

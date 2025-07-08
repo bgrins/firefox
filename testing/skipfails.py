@@ -2,6 +2,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+from intermittent_failures import resolve_wpt_path
+
 import gzip
 import json
 import logging
@@ -1678,22 +1680,24 @@ class Skipfails:
                 pass  # Fault expected: Failed to fetch key 9372091 from network storage: The specified key does not exist.
 
     def get_wpt_path_meta(self, shortpath: str):
+        # Use the shared function for path resolution
+        path = resolve_wpt_path(shortpath)
+        
+        # Now handle the metadata path
+        if shortpath.startswith("/"):
+            shortpath = shortpath[1:]
+            
         if shortpath.startswith(WPT0):
-            path = shortpath
             meta = shortpath.replace(WPT0, WPT_META0, 1)
         elif shortpath.startswith(WPT1):
-            path = shortpath
             meta = shortpath.replace(WPT1, WPT_META1, 1)
         elif shortpath.startswith(WPT2):
-            path = shortpath
             meta = shortpath.replace(WPT2, WPT_META2, 1)
         elif shortpath.startswith(WPT_MOZILLA):
             shortpath = shortpath[len(WPT_MOZILLA) :]
-            path = WPT2 + shortpath
             meta = WPT_META2 + shortpath
         else:
-            path = WPT1 + shortpath
-            meta = WPT_META1 + shortpath
+            meta = WPT_META1 + "/" + shortpath
         return (path, meta)
 
     def wpt_paths(
