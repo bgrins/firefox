@@ -11,6 +11,59 @@ import {
 } from "chrome://global/content/vendor/lit.all.mjs";
 
 /**
+ * BrowserChrome object provides access to browser-specific APIs
+ * that are available in Firefox but need shimming for web usage.
+ */
+export const BrowserChrome = {
+  // Services object for preferences, etc.
+  get Services() {
+    if (window.document.nodePrincipal?.isSystemPrincipal) {
+      return Services;
+    }
+    // Return shimmed Services for web/Storybook
+    return {
+      prefs: {
+        getIntPref(name, defaultValue) {
+          // Map Firefox prefs to web-compatible defaults
+          const prefs = {
+            'ui.key.menuAccessKey': navigator.platform.includes("Mac") ? 0 : 1
+          };
+          return prefs[name] ?? defaultValue;
+        },
+        getComplexValue(name, type) {
+          // Return mock localized strings
+          const values = {
+            'intl.menuitems.insertseparatorbeforeaccesskeys': 'true',
+            'intl.menuitems.alwaysappendaccesskeys': 'true'
+          };
+          return { data: values[name] || 'true' };
+        }
+      }
+    };
+  },
+  
+  // Ci interfaces
+  get Ci() {
+    if (window.document.nodePrincipal?.isSystemPrincipal) {
+      return Ci;
+    }
+    // Return shimmed Ci for web/Storybook
+    return {
+      nsIPrefLocalizedString: class {}
+    };
+  },
+  
+  // Check if running in Storybook
+  get IS_STORYBOOK() {
+    if (window.document.nodePrincipal?.isSystemPrincipal) {
+      return window.IS_STORYBOOK;
+    }
+    // Always return true for web usage
+    return true;
+  },
+};
+
+/**
  * Helper for our replacement of @query. Used with `static queries` property.
  *
  * https://github.com/lit/lit/blob/main/packages/reactive-element/src/decorators/query.ts

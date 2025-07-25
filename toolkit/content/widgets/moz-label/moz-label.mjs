@@ -2,6 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { BrowserChrome } from "chrome://global/content/lit-utils.mjs";
+const { Services, Ci, IS_STORYBOOK } = BrowserChrome;
+
 /**
  * An extension of the label element that provides accesskey styling and
  * formatting as well as click handling logic.
@@ -33,7 +36,7 @@ class MozTextLabel extends HTMLLabelElement {
   }
 
   #register() {
-    if (window.IS_STORYBOOK) {
+    if (IS_STORYBOOK) {
       MozTextLabel.#underlineAccesskey = true;
     } else if (typeof Services !== "undefined") {
       MozTextLabel.#underlineAccesskey = !!Services.prefs.getIntPref(
