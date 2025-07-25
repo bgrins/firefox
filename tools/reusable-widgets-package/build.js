@@ -11,23 +11,145 @@ const FIREFOX_TOOLKIT_PATH = '../../toolkit';
 const SRC_WIDGETS_DIR = path.join(__dirname, 'src/widgets');
 const DIST_DIR = path.join(__dirname, 'dist');
 
+// Build metadata tracking
+const buildMetadata = {
+  timestamp: new Date().toISOString(),
+  chromeUrlMappings: {},
+  filesProcessed: [],
+  warnings: []
+};
+
+/**
+ * Create a map of all files in the dist directory for chrome:// URL resolution
+ */
+async function buildFileMap(dir, baseDir = dir, map = {}) {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    const relativePath = path.relative(baseDir, fullPath);
+    
+    if (entry.isDirectory()) {
+      await buildFileMap(fullPath, baseDir, map);
+    } else if (entry.isFile()) {
+      // Store by filename for easy lookup
+      const filename = entry.name;
+      if (!map[filename]) {
+        map[filename] = [];
+      }
+      map[filename].push(relativePath);
+    }
+  }
+  
+  return map;
+}
+
+/**
+ * Get the relative path from one file to another
+ */
+function getRelativePath(fromFile, toFile) {
+  // Normalize paths
+  const from = fromFile.split('/').filter(Boolean);
+  const to = toFile.split('/').filter(Boolean);
+  
+  // If toFile is just a filename, it's in the root
+  if (to.length === 1) {
+    // If fromFile is in a subdirectory, need to go up
+    return from.length > 1 ? '../'.repeat(from.length - 1) + to[0] : './' + to[0];
+  }
+  
+  // If both are in subdirectories
+  if (from.length > 1 && to.length > 1) {
+    // Check if they're in the same directory
+    const fromDir = from.slice(0, -1).join('/');
+    const toDir = to.slice(0, -1).join('/');
+    
+    if (fromDir === toDir) {
+      return './' + to[to.length - 1];
+    }
+  }
+  
+  // Otherwise, go up to root and then down to target
+  const upCount = from.length - 1;
+  return '../'.repeat(upCount) + to.join('/');
+}
+
+/**
+ * Resolve a chrome:// URL to a relative path based on file map
+ */
+function resolveChromeUrl(chromeUrl, currentFilePath, fileMap) {
+  // Extract the filename from the chrome URL
+  const urlMatch = chromeUrl.match(/([^/]+\.(mjs|css))$/);
+  if (!urlMatch) {
+    const warning = `Could not extract filename from chrome URL: ${chromeUrl}`;
+    console.warn(warning);
+    buildMetadata.warnings.push({ file: currentFilePath, warning, chromeUrl });
+    return chromeUrl;
+  }
+  
+  const filename = urlMatch[1];
+  const possiblePaths = fileMap[filename];
+  
+  if (!possiblePaths || possiblePaths.length === 0) {
+    const warning = `No file found for: ${filename} from ${chromeUrl}`;
+    console.warn(warning);
+    buildMetadata.warnings.push({ file: currentFilePath, warning, chromeUrl });
+    return chromeUrl;
+  }
+  
+  let targetPath;
+  
+  // If there's only one match, use it
+  if (possiblePaths.length === 1) {
+    targetPath = possiblePaths[0];
+  } else {
+    // If multiple matches, try to be smart about which one to use
+    // For chrome://global/content/elements/ URLs, prefer files in component subdirectories
+    if (chromeUrl.includes('/elements/')) {
+      const componentMatch = possiblePaths.find(p => p.includes('/'));
+      if (componentMatch) {
+        targetPath = componentMatch;
+      }
+    }
+    
+    // Otherwise use the first match
+    if (!targetPath) {
+      targetPath = possiblePaths[0];
+    }
+  }
+  
+  const relativePath = getRelativePath(currentFilePath, targetPath);
+  
+  // Track the mapping
+  if (!buildMetadata.chromeUrlMappings[currentFilePath]) {
+    buildMetadata.chromeUrlMappings[currentFilePath] = [];
+  }
+  buildMetadata.chromeUrlMappings[currentFilePath].push({
+    from: chromeUrl,
+    to: relativePath,
+    targetFile: targetPath,
+    possibleMatches: possiblePaths.length
+  });
+  
+  return relativePath;
+}
+
 /**
  * Transform file content by replacing Firefox chrome:// URLs with relative paths
  * and fixing imports for the web environment
  */
-async function transformContent(content, isComponent = false) {
-  // Replace chrome:// URLs with relative paths
-  const urlReplacements = [
-    [/chrome:\/\/global\/content\/elements\//g, './'],
-    [/chrome:\/\/global\/content\/widgets\//g, './'],
-    [/chrome:\/\/global\/content\//g, './'],
-    [/chrome:\/\/global\/skin\/in-content\//g, './'],
-    [/chrome:\/\/global\/skin\/design-system\//g, './']
-  ];
+async function transformContent(content, filePath, fileMap) {
+  // Track that we're processing this file
+  buildMetadata.filesProcessed.push(filePath);
   
-  for (const [pattern, replacement] of urlReplacements) {
-    content = content.replace(pattern, replacement);
-  }
+  // Replace all chrome:// URLs with relative paths
+  content = content.replace(
+    /((?:import\s+(?:.*?\s+from\s+)?|href=|stylesheetUrl\s*=\s*)["'])(chrome:\/\/[^"']+)(["'])/g,
+    (match, prefix, chromeUrl, suffix) => {
+      const relativePath = resolveChromeUrl(chromeUrl, filePath, fileMap);
+      return prefix + relativePath + suffix;
+    }
+  );
 
   // Fix Text.isInstance usage for web compatibility
   content = content.replace(
@@ -39,11 +161,16 @@ async function transformContent(content, isComponent = false) {
   if (content.includes('BUILDTIME_REPLACE_WITH_PATH_RESOLUTION')) {
     const pathResolutionCode = `
   if (!BrowserChrome.IS_CHROME && !BrowserChrome.IS_STORYBOOK) {
-    // For web usage, use import.meta.url to find where we are
-    // lit-utils.mjs is at the same level as components/ directory
-    const cssFilename = stylesheetUrl.split('/').pop();
-    const baseUrl = new URL('./components/', import.meta.url).href;
-    resolvedUrl = new URL(cssFilename, baseUrl).href;
+    // For web usage, resolve the stylesheet URL based on the original path
+    if (stylesheetUrl.startsWith("chrome://")) {
+      // Extract the component directory and filename from the chrome URL
+      const match = stylesheetUrl.match(/chrome:\\/\\/global\\/content\\/elements\\/(moz-[^\\/]+)\\/(.*\\.css)$/);
+      if (match) {
+        const [, componentDir, cssFile] = match;
+        const baseUrl = new URL('./', import.meta.url).href;
+        resolvedUrl = new URL(\`\${componentDir}/\${cssFile}\`, baseUrl).href;
+      }
+    }
   }`;
     content = content.replace(
       '  // BUILDTIME_REPLACE_WITH_PATH_RESOLUTION',
@@ -139,7 +266,7 @@ async function copyWidgetFilesFromFirefox() {
 /**
  * Transform and copy all moz-* components maintaining directory structure
  */
-async function buildComponents() {
+async function buildComponents(fileMap) {
   const entries = await fs.readdir(SRC_WIDGETS_DIR, { withFileTypes: true });
   
   console.log('\nBuilding moz-* components...');
@@ -156,7 +283,8 @@ async function buildComponents() {
         if (file.endsWith('.mjs') || file.endsWith('.css')) {
           const srcPath = path.join(srcDir, file);
           const content = await fs.readFile(srcPath, 'utf-8');
-          const transformedContent = await transformContent(content, true);
+          const relativePath = `${entry.name}/${file}`;
+          const transformedContent = await transformContent(content, relativePath, fileMap);
           
           await fs.writeFile(path.join(destDir, file), transformedContent);
         }
@@ -175,7 +303,7 @@ async function buildSharedFiles() {
   // Transform and copy lit-utils.mjs
   const litUtilsPath = path.join(SRC_WIDGETS_DIR, 'lit-utils.mjs');
   const litUtilsContent = await fs.readFile(litUtilsPath, 'utf-8');
-  const transformedLitUtils = await transformContent(litUtilsContent);
+  const transformedLitUtils = await transformContent(litUtilsContent, 'lit-utils.mjs');
   await fs.writeFile(path.join(DIST_DIR, 'lit-utils.mjs'), transformedLitUtils);
   console.log('  ✓ lit-utils.mjs');
   
@@ -185,7 +313,7 @@ async function buildSharedFiles() {
     try {
       const cssPath = path.join(SRC_WIDGETS_DIR, cssFile);
       const cssContent = await fs.readFile(cssPath, 'utf-8');
-      const transformedCss = await transformContent(cssContent);
+      const transformedCss = await transformContent(cssContent, cssFile);
       await fs.writeFile(path.join(DIST_DIR, cssFile), transformedCss);
       console.log(`  ✓ ${cssFile}`);
     } catch (error) {
@@ -204,7 +332,7 @@ async function buildSharedFiles() {
     for (const file of vendorFiles) {
       if (file.endsWith('.mjs') || file.endsWith('.css')) {
         const content = await fs.readFile(path.join(vendorSource, file), 'utf-8');
-        const transformedContent = await transformContent(content);
+        const transformedContent = await transformContent(content, `vendor/${file}`);
         await fs.writeFile(path.join(vendorDest, file), transformedContent);
       }
     }
