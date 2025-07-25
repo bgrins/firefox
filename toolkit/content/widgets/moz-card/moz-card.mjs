@@ -7,8 +7,8 @@ import {
   html,
   ifDefined,
   when,
-} from "chrome://global/content/vendor/lit.all.mjs";
-import { MozLitElement } from "chrome://global/content/lit-utils.mjs";
+} from "../vendor/lit.all.mjs";
+import { MozLitElement } from "../lit-utils.mjs";
 
 /**
  * Cards contain content and actions about a single subject.

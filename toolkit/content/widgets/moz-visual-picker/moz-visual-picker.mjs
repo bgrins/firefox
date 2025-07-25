@@ -2,13 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { html, nothing } from "chrome://global/content/vendor/lit.all.mjs";
+import { html, nothing, ifDefined } from "../vendor/lit.all.mjs";
 import {
   SelectControlItemMixin,
   SelectControlBaseElement,
 } from "../lit-select-control.mjs";
 import { MozLitElement } from "../lit-utils.mjs";
-import { ifDefined } from "../vendor/lit.all.mjs";
 
 /**
  * An element that groups related items and allows a user to navigate between

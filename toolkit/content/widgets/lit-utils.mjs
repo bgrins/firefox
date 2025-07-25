@@ -8,7 +8,7 @@ import {
   ifDefined,
   nothing,
   classMap,
-} from "chrome://global/content/vendor/lit.all.mjs";
+} from "./vendor/lit.all.mjs";
 
 /**
  * BrowserChrome object provides access to browser-specific APIs
@@ -53,15 +53,59 @@ export const BrowserChrome = {
     };
   },
   
+  // Check if running in Chrome/Firefox
+  get IS_CHROME() {
+    return window.document.nodePrincipal?.isSystemPrincipal ?? false;
+  },
+  
   // Check if running in Storybook
   get IS_STORYBOOK() {
-    if (window.document.nodePrincipal?.isSystemPrincipal) {
+    if (this.IS_CHROME) {
       return window.IS_STORYBOOK;
     }
     // Always return true for web usage
     return true;
   },
 };
+
+/**
+ * Helper function to insert a stylesheet link if it hasn't been added already.
+ * This centralizes the logic for loading component stylesheets.
+ * 
+ * @param {Element} element - The custom element instance
+ * @param {string} stylesheetUrl - The URL/path to the stylesheet
+ */
+export function insertStylesheetIfNeeded(element, stylesheetUrl) {
+  let root = element.getRootNode();
+  let resolvedUrl = stylesheetUrl;
+  
+  // Do not remove the following comment, as it's used to fix paths at build time for published components:
+  // BUILDTIME_REPLACE_WITH_PATH_RESOLUTION
+
+  // Use a more specific property name based on the resolved URL
+  const addedProp = `__stylesheetAdded_${resolvedUrl.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  
+  if (root[addedProp]) {
+    return;
+  }
+
+  let container = root.head ?? root;
+
+  // Check if stylesheet is already present
+  for (let link of container.querySelectorAll("link")) {
+    if (link.getAttribute("href") === resolvedUrl) {
+      root[addedProp] = true;
+      return;
+    }
+  }
+
+  // Add the stylesheet
+  let style = document.createElement("link");
+  style.rel = "stylesheet";
+  style.href = resolvedUrl;
+  container.appendChild(style);
+  root[addedProp] = true;
+}
 
 /**
  * Helper for our replacement of @query. Used with `static queries` property.

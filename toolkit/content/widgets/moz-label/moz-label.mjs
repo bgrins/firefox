@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { BrowserChrome } from "chrome://global/content/lit-utils.mjs";
+import { BrowserChrome, insertStylesheetIfNeeded } from "chrome://global/content/lit-utils.mjs";
 const { Services, Ci, IS_STORYBOOK } = BrowserChrome;
 
 /**
@@ -69,7 +69,7 @@ class MozTextLabel extends HTMLLabelElement {
   }
 
   connectedCallback() {
-    this.#setStyles();
+    insertStylesheetIfNeeded(this, this.constructor.stylesheetUrl);
     this.formatAccessKey();
     if (!this.#observer) {
       this.#observer = new MutationObserver(() => {
@@ -85,28 +85,6 @@ class MozTextLabel extends HTMLLabelElement {
     }
   }
 
-  // Bug 1820588 - we may want to generalize this into
-  // MozHTMLElement.insertCssIfNeeded(style)
-  #setStyles() {
-    let root = this.getRootNode();
-    if (root.__mozLabelCssAdded) {
-      return;
-    }
-
-    let container = root.head ?? root;
-
-    for (let link of container.querySelectorAll("link")) {
-      if (link.getAttribute("href") == this.constructor.stylesheetUrl) {
-        return;
-      }
-    }
-
-    let style = document.createElement("link");
-    style.rel = "stylesheet";
-    style.href = this.constructor.stylesheetUrl;
-    container.appendChild(style);
-    root.__mozLabelCssAdded = true;
-  }
 
   set textContent(val) {
     super.textContent = val;
