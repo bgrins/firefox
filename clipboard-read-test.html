@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clipboard Read Test - Firefox</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            padding-bottom: 40px;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+        h1 {
+            margin: 0 0 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #0052a3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .output {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+        }
+        .error {
+            color: #d32f2f;
+        }
+        .success {
+            color: #2e7d32;
+        }
+        .warning {
+            color: #f57c00;
+        }
+        #pasteArea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 2px dashed #1976d2;
+            border-radius: 4px;
+            font-family: inherit;
+            margin: 10px 0;
+        }
+        #pasteArea:focus {
+            outline: none;
+            border-color: #0066cc;
+            background: #f0f8ff;
+        }
+        .controls-section {
+            flex-shrink: 0;
+        }
+        .output-section {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Clipboard Read/Write Test</h1>
+    
+    <div class="controls-section">
+        <div style="display: flex; gap: 20px; margin-bottom: 10px;">
+            <div style="flex: 1;">
+                <h3 style="margin-top: 0;">Copy with Metadata</h3>
+                <div style="border: 2px solid #4CAF50; padding: 15px; border-radius: 4px; background: #f9f9f9;">
+                    <p id="copyContent" style="margin: 0 0 10px 0;">
+                        This is sample content. Select and copy this text to see how we embed metadata!
+                    </p>
+                    <button onclick="copyWithMetadata()" style="background: #4CAF50;">Copy with Source Info</button>
+                </div>
+            </div>
+            
+            <div style="flex: 1;">
+                <h3 style="margin-top: 0;">Paste Event</h3>
+                <textarea id="pasteArea" placeholder="Click & paste (Ctrl/Cmd+V)" style="width: 100%; height: 60px;"></textarea>
+            </div>
+            
+            <div style="flex: 1;">
+                <h3 style="margin-top: 0;">Async API</h3>
+                <button onclick="readClipboardText()" style="display: block; margin-bottom: 5px;">Read Text</button>
+                <button onclick="readClipboardItems()" style="display: block;">Read Full Items</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="output-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0;">Output</h3>
+            <button onclick="clearOutput()" style="background: #666;">Clear</button>
+        </div>
+        <div id="output" class="output">Ready for clipboard operations...</div>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        const pasteArea = document.getElementById('pasteArea');
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function log(message, type = 'info', isNewEvent = false) {
+            const timestamp = new Date().toTimeString().split(' ')[0];
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            
+            // Add visual separator for new events
+            if (isNewEvent && output.innerHTML.trim() !== '' && output.innerHTML !== 'Ready for clipboard operations...') {
+                output.innerHTML += '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+            }
+            
+            // Escape the message to prevent HTML rendering
+            const escapedMessage = escapeHtml(message);
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${escapedMessage}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearOutput() {
+            output.innerHTML = 'Output cleared.\n';
+        }
+
+        // Check clipboard API availability
+        window.addEventListener('load', () => {
+            log('=== Browser Capabilities ===');
+            log(`Browser: ${navigator.userAgent.includes('Firefox') ? 'Firefox detected' : 'Not Firefox'}`);
+            log(`Secure context: ${window.isSecureContext}`);
+            log(`navigator.clipboard exists: ${!!navigator.clipboard}`);
+            log(`navigator.clipboard.read exists: ${!!navigator.clipboard?.read}`);
+            log(`navigator.clipboard.readText exists: ${!!navigator.clipboard?.readText}`);
+            log(`navigator.permissions exists: ${!!navigator.permissions}`);
+            log('');
+        });
+
+        // Method 1: Paste event listener
+        pasteArea.addEventListener('paste', async (e) => {
+            e.preventDefault();
+            log('=== PASTE EVENT TRIGGERED ===', 'success', true);
+            
+            try {
+                // Method 1a: Using clipboardData from event
+                if (e.clipboardData) {
+                    log('clipboardData available on event:');
+                    log(`  Available types: [${Array.from(e.clipboardData.types).join(', ')}]`);
+                    log(`  Items count: ${e.clipboardData.items.length}`);
+                    log(`  Files count: ${e.clipboardData.files.length}`);
+                    
+                    // Deep inspection of the event object
+                    log('\n  === DEEP EVENT INSPECTION ===');
+                    log('  Checking all event properties...');
+                    
+                    // Check for any origin/source properties on the event
+                    const eventProps = ['origin', 'source', 'srcElement', 'currentTarget', 'target'];
+                    eventProps.forEach(prop => {
+                        if (e[prop]) {
+                            log(`    e.${prop}: ${e[prop]}`);
+                        }
+                    });
+                    
+                    // Check clipboardData properties
+                    log('\n  ClipboardData properties:');
+                    for (let prop in e.clipboardData) {
+                        if (typeof e.clipboardData[prop] !== 'function') {
+                            log(`    clipboardData.${prop}: ${e.clipboardData[prop]}`);
+                        }
+                    }
+                    
+                    // Read each available type
+                    for (const type of e.clipboardData.types) {
+                        try {
+                            const data = e.clipboardData.getData(type);
+                            log(`\n  Type "${type}":`);
+                            log(`    Length: ${data.length} characters`);
+                            
+                            if (type === 'text/html') {
+                                // Show full HTML as text
+                                log(`    Full HTML:\n${data}`);
+                            } else if (type === 'text/uri-list') {
+                                log(`    URI List: ${data}`);
+                            } else {
+                                log(`    Data: ${data.substring(0, 200)}${data.length > 200 ? '...' : ''}`);
+                            }
+                        } catch (err) {
+                            log(`    Error reading ${type}: ${err}`, 'error');
+                        }
+                    }
+                    
+                    // Check for files
+                    if (e.clipboardData.files.length > 0) {
+                        log('\n  Files pasted:');
+                        for (let i = 0; i < e.clipboardData.files.length; i++) {
+                            const file = e.clipboardData.files[i];
+                            log(`    File ${i + 1}: ${file.name}`);
+                            log(`      Type: ${file.type}`);
+                            log(`      Size: ${file.size} bytes`);
+                            log(`      Last modified: ${new Date(file.lastModified).toISOString()}`);
+                            
+                            // Check all file properties
+                            for (let prop in file) {
+                                if (typeof file[prop] !== 'function' && !['name', 'type', 'size', 'lastModified'].includes(prop)) {
+                                    log(`      ${prop}: ${file[prop]}`);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Check DataTransferItemList in detail
+                    if (e.clipboardData.items) {
+                        log('\n  DataTransferItems detailed:');
+                        for (let i = 0; i < e.clipboardData.items.length; i++) {
+                            const item = e.clipboardData.items[i];
+                            log(`    Item ${i}: kind=${item.kind}, type=${item.type}`);
+                            
+                            // Try to get as file
+                            if (item.kind === 'file') {
+                                const file = item.getAsFile();
+                                if (file) {
+                                    log(`      As file: ${file.name}`);
+                                }
+                            }
+                            
+                            // Try to get as string for all types
+                            if (item.kind === 'string') {
+                                item.getAsString((str) => {
+                                    log(`      String data (${item.type}): ${str.substring(0, 100)}...`);
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Method 1b: Try async clipboard API as fallback
+                if (navigator.clipboard?.read) {
+                    try {
+                        log('\n  === ASYNC CLIPBOARD READ ===');
+                        const items = await navigator.clipboard.read();
+                        log(`  Found ${items.length} items`, 'success');
+                        
+                        for (let i = 0; i < items.length; i++) {
+                            const item = items[i];
+                            log(`\n  Async Item ${i + 1}:`);
+                            log(`    Available types: [${item.types.join(', ')}]`);
+                            
+                            // Check for any additional properties on the ClipboardItem
+                            log('    ClipboardItem properties:');
+                            for (let prop in item) {
+                                if (typeof item[prop] !== 'function' && prop !== 'types') {
+                                    log(`      ${prop}: ${item[prop]}`);
+                                }
+                            }
+                            
+                            // Read all available types
+                            for (const type of item.types) {
+                                try {
+                                    const blob = await item.getType(type);
+                                    const text = await blob.text();
+                                    log(`\n    Type "${type}":`);
+                                    log(`      Blob size: ${blob.size} bytes`);
+                                    log(`      Blob type: ${blob.type}`);
+                                    
+                                    // Check blob properties
+                                    for (let prop in blob) {
+                                        if (typeof blob[prop] !== 'function' && !['size', 'type'].includes(prop)) {
+                                            log(`      Blob.${prop}: ${blob[prop]}`);
+                                        }
+                                    }
+                                    
+                                    if (type === 'text/html') {
+                                        log(`      Full content:\n${text}`);
+                                    } else {
+                                        log(`      Content: ${text.substring(0, 200)}${text.length > 200 ? '...' : ''}`);
+                                    }
+                                } catch (err) {
+                                    log(`      Error reading ${type}: ${err}`, 'error');
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        log(`  Async read failed: ${err.message}`, 'warning');
+                    }
+                }
+                
+                // Show what we got in the textarea
+                const textData = e.clipboardData?.getData('text/plain') || '';
+                pasteArea.value = textData;
+                
+            } catch (err) {
+                log(`Paste error: ${err}`, 'error');
+            }
+        });
+
+
+        // Method 2b: Read clipboard text
+        async function readClipboardText() {
+            log('=== Reading Clipboard Text ===', 'info', true);
+            
+            if (!navigator.clipboard?.readText) {
+                log('navigator.clipboard.readText not available', 'error');
+                return;
+            }
+            
+            try {
+                log('Attempting to read clipboard text...');
+                const text = await navigator.clipboard.readText();
+                log(`Success! Text length: ${text.length} characters`, 'success');
+                log(`Text content: ${text.substring(0, 200)}${text.length > 200 ? '...' : ''}`);
+            } catch (err) {
+                log(`Failed to read text: ${err}`, 'error');
+                log('Tip: Make sure you clicked the button (user activation required)', 'warning');
+                log('Tip: Firefox may show a permission prompt', 'warning');
+            }
+        }
+
+        // Method 2c: Read clipboard items
+        async function readClipboardItems() {
+            log('=== Reading Clipboard Items ===', 'info', true);
+            
+            if (!navigator.clipboard?.read) {
+                log('navigator.clipboard.read not available', 'error');
+                return;
+            }
+            
+            try {
+                log('Attempting to read clipboard items...');
+                const items = await navigator.clipboard.read();
+                log(`Success! Found ${items.length} clipboard item(s)`, 'success');
+                
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    log(`\nItem ${i + 1}:`);
+                    log(`  Available types: [${item.types.join(', ')}]`);
+                    
+                    // Deep inspect the ClipboardItem object
+                    log('  ClipboardItem properties:');
+                    for (let prop in item) {
+                        if (typeof item[prop] !== 'function' && prop !== 'types') {
+                            log(`    ${prop}: ${item[prop]}`);
+                        }
+                    }
+                    
+                    // Check if there's a presentationStyle property (Chrome specific)
+                    if ('presentationStyle' in item) {
+                        log(`  Presentation style: ${item.presentationStyle}`);
+                    }
+                    
+                    for (const type of item.types) {
+                        try {
+                            const blob = await item.getType(type);
+                            const text = await blob.text();
+                            log(`\n  Type "${type}":`);
+                            log(`    Blob size: ${blob.size} bytes`);
+                            log(`    Blob type: ${blob.type}`);
+                            
+                            // Check all blob properties
+                            for (let prop in blob) {
+                                if (typeof blob[prop] !== 'function' && !['size', 'type'].includes(prop)) {
+                                    log(`    Blob.${prop}: ${blob[prop]}`);
+                                }
+                            }
+                            
+                            if (type === 'text/html') {
+                                // Show full HTML as text
+                                log(`    Full HTML content:\n${text}`);
+                            } else if (type === 'text/uri-list') {
+                                log(`    URI List content: ${text}`);
+                            } else {
+                                log(`    Content preview: ${text.substring(0, 200)}${text.length > 200 ? '...' : ''}`);
+                            }
+                        } catch (err) {
+                            log(`  Error reading ${type}: ${err}`, 'error');
+                        }
+                    }
+                }
+            } catch (err) {
+                log(`Failed to read items: ${err}`, 'error');
+                log('Tip: Firefox may require HTTPS for clipboard.read()', 'warning');
+                log('Tip: Try using the paste event method instead', 'warning');
+            }
+        }
+
+
+        // Add keyboard shortcut hint
+        pasteArea.addEventListener('focus', () => {
+            log('Textarea focused - press Ctrl+V (Cmd+V on Mac) to paste', 'success');
+        });
+        
+        // Add copy event listener to intercept manual copying
+        document.getElementById('copyContent').addEventListener('copy', (e) => {
+            e.preventDefault();
+            
+            const selection = window.getSelection().toString();
+            if (!selection) return;
+            
+            log('=== COPY EVENT INTERCEPTED ===', 'success', true);
+            log(`Selected text: "${selection}"`);
+            
+            // Create HTML with embedded metadata
+            const html = `
+<!-- Source: ${window.location.href} -->
+<!-- Copied at: ${new Date().toISOString()} -->
+<!-- User Agent: ${navigator.userAgent} -->
+<div data-source-url="${window.location.href}" 
+     data-copy-timestamp="${new Date().toISOString()}"
+     data-source-title="${document.title}">
+    <p>${escapeHtml(selection)}</p>
+    <hr>
+    <small>Copied from: <a href="${window.location.href}">${window.location.href}</a> at ${new Date().toLocaleString()}</small>
+</div>`;
+            
+            // Set both plain text and HTML versions
+            e.clipboardData.setData('text/plain', selection);
+            e.clipboardData.setData('moz_context', "my custom data");
+            e.clipboardData.setData('text/html', html.trim());
+            
+            log('Embedded metadata in clipboard:');
+            log(`  - Source URL: ${window.location.href}`);
+            log(`  - Timestamp: ${new Date().toISOString()}`);
+            log(`  - Page title: ${document.title}`);
+            log('HTML with metadata has been copied to clipboard!', 'success');
+        });
+        
+        // Programmatic copy with metadata
+        async function copyWithMetadata() {
+            log('=== PROGRAMMATIC COPY WITH METADATA ===', 'success', true);
+            
+            const text = document.getElementById('copyContent').textContent.trim();
+            
+            // Create rich HTML with lots of metadata
+            const html = `
+<!-- BEGIN CLIPBOARD METADATA -->
+<!-- Source URL: ${window.location.href} -->
+<!-- Source Domain: ${window.location.hostname} -->
+<!-- Copy Timestamp: ${new Date().toISOString()} -->
+<!-- Page Title: ${document.title} -->
+<!-- User Agent: ${navigator.userAgent} -->
+<!-- END CLIPBOARD METADATA -->
+
+<meta name="source-url" content="${window.location.href}">
+<meta name="copy-date" content="${new Date().toISOString()}">
+<meta property="og:url" content="${window.location.href}">
+
+<div class="clipboard-content" 
+     data-source="${window.location.href}"
+     data-domain="${window.location.hostname}"
+     data-timestamp="${Date.now()}"
+     data-iso-date="${new Date().toISOString()}"
+     data-page-title="${escapeHtml(document.title)}"
+     style="font-family: system-ui, -apple-system, sans-serif;">
+    
+    <h4 style="margin: 0 0 10px 0; color: #333;">${escapeHtml(text)}</h4>
+    
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #666;">
+        <p style="margin: 5px 0;">
+            <strong>Source:</strong> <a href="${window.location.href}" style="color: #1976d2;">${window.location.href}</a>
+        </p>
+        <p style="margin: 5px 0;">
+            <strong>Copied on:</strong> ${new Date().toLocaleString()}
+        </p>
+        <p style="margin: 5px 0;">
+            <strong>Page:</strong> ${escapeHtml(document.title)}
+        </p>
+    </div>
+</div>`;
+            
+            try {
+                // Use modern Clipboard API
+                const htmlBlob = new Blob([html], { type: 'text/html' });
+                const textBlob = new Blob([text], { type: 'text/plain' });
+                
+                await navigator.clipboard.write([
+                    new ClipboardItem({
+                        'text/html': htmlBlob,
+                        'text/plain': textBlob
+                    })
+                ]);
+                
+                log('Successfully copied with metadata!', 'success');
+                log('Metadata embedded:');
+                log(`  - Source URL: ${window.location.href}`);
+                log(`  - Domain: ${window.location.hostname}`);
+                log(`  - Timestamp: ${new Date().toISOString()}`);
+                log(`  - Page title: ${document.title}`);
+                log('  - HTML comments with metadata');
+                log('  - Meta tags with source info');
+                log('  - Data attributes on wrapper div');
+                log('  - Visual attribution in HTML');
+                log('\nPaste anywhere to see the embedded metadata!', 'success');
+                
+            } catch (err) {
+                log(`Copy failed: ${err}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clipboard API Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #0052a3;
+        }
+        .output {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+        }
+        .section {
+            margin: 30px 0;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+        .error {
+            color: #d32f2f;
+        }
+        .success {
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <h1>Clipboard API Test Page</h1>
+    
+    <div class="section">
+        <h2>Write to Clipboard</h2>
+        <textarea id="writeText" placeholder="Enter text to copy to clipboard">Sample text with metadata</textarea>
+        <br>
+        <button onclick="writeText()">Write Plain Text</button>
+        <button onclick="writeHTML()">Write HTML</button>
+        <button onclick="writeCustom()">Write with Custom Types</button>
+    </div>
+
+    <div class="section">
+        <h2>Read from Clipboard</h2>
+        <button onclick="readClipboard()">Read Clipboard (async)</button>
+        <button onclick="readClipboardItems()">Read Clipboard Items</button>
+        <button onclick="pasteHandler()">Enable Paste Listener</button>
+    </div>
+
+    <div class="section">
+        <h2>Output</h2>
+        <div id="output" class="output">Click buttons to test clipboard operations...</div>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearOutput() {
+            output.innerHTML = '';
+        }
+
+        async function writeText() {
+            try {
+                const text = document.getElementById('writeText').value;
+                await navigator.clipboard.writeText(text);
+                log('✓ Text written to clipboard', 'success');
+            } catch (err) {
+                log(`✗ Failed to write text: ${err}`, 'error');
+            }
+        }
+
+        async function writeHTML() {
+            try {
+                const text = document.getElementById('writeText').value;
+                const htmlBlob = new Blob([`<p>${text}</p>`], { type: 'text/html' });
+                const textBlob = new Blob([text], { type: 'text/plain' });
+                
+                const clipboardItem = new ClipboardItem({
+                    'text/html': htmlBlob,
+                    'text/plain': textBlob
+                });
+                
+                await navigator.clipboard.write([clipboardItem]);
+                log('✓ HTML written to clipboard', 'success');
+            } catch (err) {
+                log(`✗ Failed to write HTML: ${err}`, 'error');
+            }
+        }
+
+        async function writeCustom() {
+            try {
+                const text = document.getElementById('writeText').value;
+                const customData = {
+                    sourceUrl: window.location.href,
+                    timestamp: new Date().toISOString(),
+                    userAgent: navigator.userAgent,
+                    customMetadata: 'This is custom metadata'
+                };
+                
+                const items = {
+                    'text/plain': new Blob([text], { type: 'text/plain' }),
+                    'application/json': new Blob([JSON.stringify(customData)], { type: 'application/json' })
+                };
+                
+                // Try to add custom type if supported
+                try {
+                    items['web text/x-custom-metadata'] = new Blob([JSON.stringify(customData)], { type: 'web text/x-custom-metadata' });
+                } catch (e) {
+                    log('Note: Custom MIME type not supported', 'info');
+                }
+                
+                const clipboardItem = new ClipboardItem(items);
+                await navigator.clipboard.write([clipboardItem]);
+                log('✓ Custom data written to clipboard', 'success');
+            } catch (err) {
+                log(`✗ Failed to write custom data: ${err}`, 'error');
+            }
+        }
+
+        async function readClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                log(`Clipboard text:\n${text}`, 'success');
+            } catch (err) {
+                log(`✗ Failed to read clipboard: ${err}`, 'error');
+            }
+        }
+
+        async function readClipboardItems() {
+            try {
+                const items = await navigator.clipboard.read();
+                log(`Found ${items.length} clipboard item(s):`, 'success');
+                
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    log(`\nItem ${i + 1}:`);
+                    log(`  Available types: ${item.types.join(', ')}`);
+                    
+                    // Try to read each type
+                    for (const type of item.types) {
+                        try {
+                            const blob = await item.getType(type);
+                            const text = await blob.text();
+                            
+                            log(`  ${type}:`);
+                            if (type === 'application/json' || type.includes('json')) {
+                                try {
+                                    const parsed = JSON.parse(text);
+                                    log(`    ${JSON.stringify(parsed, null, 2)}`);
+                                } catch {
+                                    log(`    ${text}`);
+                                }
+                            } else {
+                                log(`    ${text.substring(0, 200)}${text.length > 200 ? '...' : ''}`);
+                            }
+                        } catch (err) {
+                            log(`    ✗ Error reading ${type}: ${err}`, 'error');
+                        }
+                    }
+                }
+            } catch (err) {
+                log(`✗ Failed to read clipboard items: ${err}`, 'error');
+            }
+        }
+
+        function pasteHandler() {
+            document.addEventListener('paste', async (e) => {
+                log('\n=== Paste Event Detected ===', 'success');
+                
+                // Check clipboardData
+                if (e.clipboardData) {
+                    log('ClipboardData available:');
+                    log(`  Types: ${Array.from(e.clipboardData.types).join(', ')}`);
+                    log(`  Items length: ${e.clipboardData.items.length}`);
+                    log(`  Files length: ${e.clipboardData.files.length}`);
+                    
+                    // Read each type
+                    for (const type of e.clipboardData.types) {
+                        const data = e.clipboardData.getData(type);
+                        if (data) {
+                            log(`  ${type}: ${data.substring(0, 100)}${data.length > 100 ? '...' : ''}`);
+                        }
+                    }
+                    
+                    // Check for files
+                    if (e.clipboardData.files.length > 0) {
+                        log('\nFiles detected:');
+                        for (let i = 0; i < e.clipboardData.files.length; i++) {
+                            const file = e.clipboardData.files[i];
+                            log(`  File ${i + 1}: ${file.name} (${file.type}, ${file.size} bytes)`);
+                        }
+                    }
+                }
+                
+                // Try to get additional info via async API
+                try {
+                    const items = await navigator.clipboard.read();
+                    log('\nAsync clipboard read:');
+                    for (const item of items) {
+                        log(`  Types: ${item.types.join(', ')}`);
+                    }
+                } catch (err) {
+                    log(`  ✗ Async read failed: ${err}`, 'error');
+                }
+            });
+            
+            log('✓ Paste event listener enabled. Try pasting something!', 'success');
+        }
+
+        // Check clipboard API availability
+        window.addEventListener('load', () => {
+            log('=== Clipboard API Support ===');
+            log(`navigator.clipboard: ${!!navigator.clipboard}`);
+            log(`navigator.clipboard.write: ${!!navigator.clipboard?.write}`);
+            log(`navigator.clipboard.writeText: ${!!navigator.clipboard?.writeText}`);
+            log(`navigator.clipboard.read: ${!!navigator.clipboard?.read}`);
+            log(`navigator.clipboard.readText: ${!!navigator.clipboard?.readText}`);
+            log(`Secure context: ${window.isSecureContext}`);
+            log('');
+        });
+    </script>
+</body>
+</html>
