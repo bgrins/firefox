@@ -6,27 +6,6 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Configuration for components to build
-const COMPONENTS = {
-  'moz-label': {
-    source: '../../toolkit/content/widgets/moz-label/moz-label.mjs',
-    css: '../../toolkit/content/widgets/moz-label/moz-label.css',
-    exports: ['MozTextLabel']
-  }
-  // Add more components here as needed
-};
-
-
-async function readSourceFile(filePath) {
-  try {
-    const fullPath = path.join(__dirname, filePath);
-    return await fs.readFile(fullPath, 'utf-8');
-  } catch (error) {
-    console.error(`Error reading ${filePath}:`, error);
-    return null;
-  }
-}
-
 async function transformFile(filePath, isComponent = false, componentConfig = null) {
   const fullPath = path.join(__dirname, 'src/widgets', filePath);
   let content = await fs.readFile(fullPath, 'utf-8');
@@ -51,32 +30,27 @@ async function transformFile(filePath, isComponent = false, componentConfig = nu
   return content;
 }
 
-async function transformComponent(componentName, config) {
-  console.log(`Building ${componentName}...`);
-  
+async function copyAllMozComponents() {
+  const srcWidgetsDir = path.join(__dirname, 'src/widgets');
   const distDir = path.join(__dirname, 'dist');
-  await fs.mkdir(distDir, { recursive: true });
+  const entries = await fs.readdir(srcWidgetsDir, { withFileTypes: true });
   
-  // Transform the main JS file
-  const jsPath = `${componentName}/${componentName}.mjs`;
-  const jsContent = await transformFile(jsPath, true, config);
+  console.log('\nCopying moz-* components...');
   
-  if (jsContent) {
-    await fs.writeFile(path.join(distDir, `${componentName}.mjs`), jsContent);
-  }
-  
-  // Copy CSS file if it exists
-  if (config.css) {
-    const cssPath = `${componentName}/${componentName}.css`;
-    try {
-      const cssContent = await transformFile(cssPath);
-      await fs.writeFile(path.join(distDir, `${componentName}.css`), cssContent);
-      console.log(`✓ Built ${componentName} (JS + CSS)`);
-    } catch (error) {
-      console.log(`✓ Built ${componentName} (JS only)`);
+  for (const entry of entries) {
+    if (entry.isDirectory() && entry.name.startsWith('moz-')) {
+      const componentDir = path.join(srcWidgetsDir, entry.name);
+      const files = await fs.readdir(componentDir);
+      
+      for (const file of files) {
+        if (file.endsWith('.mjs') || file.endsWith('.css')) {
+          const srcPath = path.join(componentDir, file);
+          const content = await transformFile(`${entry.name}/${file}`);
+          await fs.writeFile(path.join(distDir, file), content);
+        }
+      }
+      console.log(`  ✓ ${entry.name}`);
     }
-  } else {
-    console.log(`✓ Built ${componentName}`);
   }
 }
 
@@ -205,30 +179,58 @@ async function copyAndTransformSharedFiles() {
   }
 }
 
+async function generateIndex() {
+  const distDir = path.join(__dirname, 'dist');
+  const files = await fs.readdir(distDir);
+  const imports = [];
+  
+  // Look for all moz-*.mjs files
+  for (const file of files) {
+    if (file.startsWith('moz-') && file.endsWith('.mjs')) {
+      // Read file to check for customElements.define
+      const content = await fs.readFile(path.join(distDir, file), 'utf-8');
+      if (content.includes('customElements.define')) {
+        imports.push(`import './${file}';`);
+      }
+    }
+  }
+  
+  const indexContent = `// Auto-generated index of all Mozilla components
+${imports.join('\n')}
+
+// Export utility modules
+export { BrowserChrome } from './lit-utils.mjs';
+`;
+  
+  await fs.writeFile(path.join(distDir, 'index.mjs'), indexContent);
+}
+
 async function build() {
   console.log('Building Mozilla components for web...\n');
   
   const distDir = path.join(__dirname, 'dist');
+  
+  // Clean dist directory
+  try {
+    await fs.rm(distDir, { recursive: true, force: true });
+    console.log('Cleaned dist directory');
+  } catch (error) {
+    // Directory might not exist, that's ok
+  }
+  
   await fs.mkdir(distDir, { recursive: true });
   
   // First, copy all widget files locally
   await copyWidgetFiles();
   
-  
   // Transform and copy shared files
   await copyAndTransformSharedFiles();
   
-  // Build all components
-  for (const [name, config] of Object.entries(COMPONENTS)) {
-    await transformComponent(name, config);
-  }
+  // Copy all moz-* components
+  await copyAllMozComponents();
   
-  // Create index file in dist directory
-  const indexContent = Object.entries(COMPONENTS).map(([name, config]) => 
-    `export { ${config.exports.join(', ')} } from './${name}.mjs';`
-  ).join('\n');
-  
-  await fs.writeFile(path.join(distDir, 'index.mjs'), indexContent);
+  // Generate index file
+  await generateIndex();
   
   console.log('\n✓ Build complete!');
 }
