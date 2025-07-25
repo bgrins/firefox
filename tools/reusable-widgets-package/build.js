@@ -33,6 +33,9 @@ async function transformFile(filePath, isComponent = false, componentConfig = nu
 async function copyAllMozComponents() {
   const srcWidgetsDir = path.join(__dirname, 'src/widgets');
   const distDir = path.join(__dirname, 'dist');
+  const componentsDir = path.join(distDir, 'components');
+  await fs.mkdir(componentsDir, { recursive: true });
+  
   const entries = await fs.readdir(srcWidgetsDir, { withFileTypes: true });
   
   console.log('\nCopying moz-* components...');
@@ -45,8 +48,13 @@ async function copyAllMozComponents() {
       for (const file of files) {
         if (file.endsWith('.mjs') || file.endsWith('.css')) {
           const srcPath = path.join(componentDir, file);
-          const content = await transformFile(`${entry.name}/${file}`);
-          await fs.writeFile(path.join(distDir, file), content);
+          let content = await transformFile(`${entry.name}/${file}`);
+          
+          // The transformFile already converts ../ imports correctly
+          // No additional import path changes needed since components will be in components/ subdirectory
+          // and will need to use ../ to access vendor/ and lit-utils.mjs
+          
+          await fs.writeFile(path.join(componentsDir, file), content);
         }
       }
       console.log(`  ✓ ${entry.name}`);
@@ -181,16 +189,17 @@ async function copyAndTransformSharedFiles() {
 
 async function generateIndex() {
   const distDir = path.join(__dirname, 'dist');
-  const files = await fs.readdir(distDir);
+  const componentsDir = path.join(distDir, 'components');
+  const files = await fs.readdir(componentsDir);
   const imports = [];
   
-  // Look for all moz-*.mjs files
+  // Look for all moz-*.mjs files in components directory
   for (const file of files) {
     if (file.startsWith('moz-') && file.endsWith('.mjs')) {
       // Read file to check for customElements.define
-      const content = await fs.readFile(path.join(distDir, file), 'utf-8');
+      const content = await fs.readFile(path.join(componentsDir, file), 'utf-8');
       if (content.includes('customElements.define')) {
-        imports.push(`import './${file}';`);
+        imports.push(`import './components/${file}';`);
       }
     }
   }
@@ -231,6 +240,21 @@ async function build() {
   
   // Generate index file
   await generateIndex();
+  
+  // Copy HTML demo files to dist
+  console.log('\nCopying demo files...');
+  const htmlFiles = ['example.html', 'kitchensink.html'];
+  for (const file of htmlFiles) {
+    try {
+      let content = await fs.readFile(path.join(__dirname, file), 'utf-8');
+      // Update paths to remove dist/ prefix since these will be served from package root
+      content = content.replace(/\.\/dist\//g, './');
+      await fs.writeFile(path.join(distDir, file), content);
+      console.log(`  ✓ ${file}`);
+    } catch (error) {
+      console.warn(`  Warning: Could not copy ${file}:`, error.message);
+    }
+  }
   
   console.log('\n✓ Build complete!');
 }
