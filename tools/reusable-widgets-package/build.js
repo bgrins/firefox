@@ -297,15 +297,26 @@ async function buildComponents(fileMap) {
 /**
  * Transform and copy shared files (lit-utils, CSS, vendor)
  */
-async function buildSharedFiles() {
+async function buildSharedFiles(fileMap) {
   console.log('\nBuilding shared files...');
   
   // Transform and copy lit-utils.mjs
   const litUtilsPath = path.join(SRC_WIDGETS_DIR, 'lit-utils.mjs');
   const litUtilsContent = await fs.readFile(litUtilsPath, 'utf-8');
-  const transformedLitUtils = await transformContent(litUtilsContent, 'lit-utils.mjs');
+  const transformedLitUtils = await transformContent(litUtilsContent, 'lit-utils.mjs', fileMap);
   await fs.writeFile(path.join(DIST_DIR, 'lit-utils.mjs'), transformedLitUtils);
   console.log('  ✓ lit-utils.mjs');
+  
+  // Transform and copy lit-select-control.mjs
+  try {
+    const litSelectPath = path.join(SRC_WIDGETS_DIR, 'lit-select-control.mjs');
+    const litSelectContent = await fs.readFile(litSelectPath, 'utf-8');
+    const transformedLitSelect = await transformContent(litSelectContent, 'lit-select-control.mjs', fileMap);
+    await fs.writeFile(path.join(DIST_DIR, 'lit-select-control.mjs'), transformedLitSelect);
+    console.log('  ✓ lit-select-control.mjs');
+  } catch (error) {
+    console.warn('  Warning: Could not transform lit-select-control.mjs:', error.message);
+  }
   
   // Transform and copy CSS files
   const cssFiles = ['moz-input-common.css', 'text-and-typography.css'];
@@ -313,7 +324,7 @@ async function buildSharedFiles() {
     try {
       const cssPath = path.join(SRC_WIDGETS_DIR, cssFile);
       const cssContent = await fs.readFile(cssPath, 'utf-8');
-      const transformedCss = await transformContent(cssContent, cssFile);
+      const transformedCss = await transformContent(cssContent, cssFile, fileMap);
       await fs.writeFile(path.join(DIST_DIR, cssFile), transformedCss);
       console.log(`  ✓ ${cssFile}`);
     } catch (error) {
@@ -332,7 +343,7 @@ async function buildSharedFiles() {
     for (const file of vendorFiles) {
       if (file.endsWith('.mjs') || file.endsWith('.css')) {
         const content = await fs.readFile(path.join(vendorSource, file), 'utf-8');
-        const transformedContent = await transformContent(content, `vendor/${file}`);
+        const transformedContent = await transformContent(content, `vendor/${file}`, fileMap);
         await fs.writeFile(path.join(vendorDest, file), transformedContent);
       }
     }
