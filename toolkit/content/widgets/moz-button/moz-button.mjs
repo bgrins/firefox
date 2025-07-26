@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { html, ifDefined, classMap } from "../vendor/lit.all.mjs";
-import { MozLitElement } from "../lit-utils.mjs";
+import { MozLitElement, insertStylesheetIfNeeded } from "../lit-utils.mjs";
 
 // eslint-disable-next-line import/no-unassigned-import
 import "chrome://global/content/elements/moz-label.mjs";
@@ -76,6 +76,14 @@ export default class MozButton extends MozLitElement {
     this.iconPosition = "start";
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    insertStylesheetIfNeeded(
+      this,
+      "chrome://global/content/elements/moz-button.css"
+    );
+  }
+
   // Delegate clicks on host to the button element.
   click() {
     this.buttonEl.click();
@@ -103,10 +111,6 @@ export default class MozButton extends MozLitElement {
 
   render() {
     return html`
-      <link
-        rel="stylesheet"
-        href="chrome://global/content/elements/moz-button.css"
-      />
       <button
         ?disabled=${this.disabled}
         title=${ifDefined(this.title || this.tooltipText)}
