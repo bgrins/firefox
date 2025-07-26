@@ -304,12 +304,14 @@ async function build() {
     },
     {
       source: path.join(__dirname, '../../toolkit/themes/shared/design-system/text-and-typography.css'),
-      dest: path.join(DIST_DIR, 'text-and-typography.css')
+      dest: path.join(DIST_DIR, 'design-system/text-and-typography.css')
     }
   ];
   
   for (const file of filesToCopy) {
     try {
+      // Ensure destination directory exists
+      await fs.mkdir(path.dirname(file.dest), { recursive: true });
       await fs.copyFile(file.source, file.dest);
       console.log(`  Copied: ${path.basename(file.dest)}`);
     } catch (error) {

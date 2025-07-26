@@ -321,15 +321,17 @@ async function build() {
     ['lit-select-control.mjs', FIREFOX_TOOLKIT_PATH],
     ['moz-input-common.css', FIREFOX_TOOLKIT_PATH],
     ['moz-box-common.css', FIREFOX_TOOLKIT_PATH],
-    ['text-and-typography.css', path.join(__dirname, '../../toolkit/themes/shared/design-system')]
+    ['design-system/text-and-typography.css', path.join(__dirname, '../../toolkit/themes/shared/design-system')]
   ];
   
   for (const [filename, sourceDir] of individualFiles) {
     try {
-      await fs.copyFile(
-        path.join(sourceDir, filename),
-        path.join(DIST_DIR, filename)
-      );
+      const sourcePath = path.join(sourceDir, path.basename(filename));
+      const destPath = path.join(DIST_DIR, filename);
+      
+      // Ensure destination directory exists
+      await fs.mkdir(path.dirname(destPath), { recursive: true });
+      await fs.copyFile(sourcePath, destPath);
       console.log(`  Copied: ${filename}`);
     } catch (error) {
       console.warn(`  Warning: Could not copy ${filename}: ${error.message}`);
