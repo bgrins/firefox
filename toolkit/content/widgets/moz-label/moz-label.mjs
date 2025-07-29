@@ -2,6 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import {
+  IS_STORYBOOK,
+  insertStylesheetIfNeeded,
+} from "../lit-utils.mjs";
+
 /**
  * An extension of the label element that provides accesskey styling and
  * formatting as well as click handling logic.
@@ -33,7 +38,7 @@ class MozTextLabel extends HTMLLabelElement {
   }
 
   #register() {
-    if (window.IS_STORYBOOK) {
+    if (IS_STORYBOOK) {
       MozTextLabel.#underlineAccesskey = true;
     } else if (typeof Services !== "undefined") {
       MozTextLabel.#underlineAccesskey = !!Services.prefs.getIntPref(
@@ -66,7 +71,7 @@ class MozTextLabel extends HTMLLabelElement {
   }
 
   connectedCallback() {
-    this.#setStyles();
+    insertStylesheetIfNeeded(this, this.constructor.stylesheetUrl);
     this.formatAccessKey();
     if (!this.#observer) {
       this.#observer = new MutationObserver(() => {
@@ -80,29 +85,6 @@ class MozTextLabel extends HTMLLabelElement {
       this.#observer.disconnect();
       this.#observer = null;
     }
-  }
-
-  // Bug 1820588 - we may want to generalize this into
-  // MozHTMLElement.insertCssIfNeeded(style)
-  #setStyles() {
-    let root = this.getRootNode();
-    if (root.__mozLabelCssAdded) {
-      return;
-    }
-
-    let container = root.head ?? root;
-
-    for (let link of container.querySelectorAll("link")) {
-      if (link.getAttribute("href") == this.constructor.stylesheetUrl) {
-        return;
-      }
-    }
-
-    let style = document.createElement("link");
-    style.rel = "stylesheet";
-    style.href = this.constructor.stylesheetUrl;
-    container.appendChild(style);
-    root.__mozLabelCssAdded = true;
   }
 
   set textContent(val) {

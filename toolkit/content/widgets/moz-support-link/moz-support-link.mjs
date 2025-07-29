@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { IS_STORYBOOK } from "../lit-utils.mjs";
+
 window.MozXULElement?.insertFTLIfNeeded("toolkit/global/mozSupportLink.ftl");
 
 /**
@@ -47,7 +49,7 @@ export default class MozSupportLink extends HTMLAnchorElement {
         null,
         val => Services.urlFormatter.formatURL(val)
       );
-    } else if (!window.IS_STORYBOOK) {
+    } else if (!IS_STORYBOOK) {
       MozSupportLink.SUPPORT_URL = window.RPMGetFormatURLPref(
         "app.support.baseURL"
       );

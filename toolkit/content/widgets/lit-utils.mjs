@@ -10,6 +10,43 @@ import {
   classMap,
 } from "chrome://global/content/vendor/lit.all.mjs";
 
+export const IS_STORYBOOK = window.document.nodePrincipal?.isSystemPrincipal ? window.IS_STORYBOOK : true;
+
+/**
+ * Helper function to insert a stylesheet link if it hasn't been added already.
+ *
+ * @param {Element} element - The custom element instance
+ * @param {string} stylesheetUrl - The URL/path to the stylesheet
+ */
+export function insertStylesheetIfNeeded(element, stylesheetUrl) {
+  let root = element.getRootNode();
+  let resolvedUrl = stylesheetUrl;
+
+  // Use a more specific property name based on the resolved URL
+  const addedProp = `__stylesheetAdded_${resolvedUrl.replace(/[^a-zA-Z0-9]/g, "_")}`;
+
+  if (root[addedProp]) {
+    return;
+  }
+
+  let container = root.head ?? root;
+
+  // Check if stylesheet is already present
+  for (let link of container.querySelectorAll("link")) {
+    if (link.getAttribute("href") === resolvedUrl) {
+      root[addedProp] = true;
+      return;
+    }
+  }
+
+  // Add the stylesheet
+  let style = document.createElement("link");
+  style.rel = "stylesheet";
+  style.href = resolvedUrl;
+  container.appendChild(style);
+  root[addedProp] = true;
+}
+
 /**
  * Helper for our replacement of @query. Used with `static queries` property.
  *
