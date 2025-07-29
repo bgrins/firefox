@@ -867,6 +867,18 @@ nsresult LocalAccessible::HandleAccEvent(AccEvent* aEvent) {
     if (ipcDoc) {
       uint64_t id = aEvent->GetAccessible()->ID();
 
+      auto getCaretRect = [aEvent] {
+        HyperTextAccessible* ht = aEvent->GetAccessible()->AsHyperText();
+        if (ht) {
+          auto [rect, widget] = ht->GetCaretRect();
+          // Remove doc offset and reapply in parent.
+          LayoutDeviceIntRect docBounds = ht->Document()->Bounds();
+          rect.MoveBy(-docBounds.X(), -docBounds.Y());
+          return rect;
+        }
+        return LayoutDeviceIntRect();
+      };
+
       switch (aEvent->GetEventType()) {
         case nsIAccessibleEvent::EVENT_SHOW:
           ipcDoc->ShowEvent(downcast_accEvent(aEvent));
@@ -913,9 +925,9 @@ nsresult LocalAccessible::HandleAccEvent(AccEvent* aEvent) {
         case nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED: {
           AccCaretMoveEvent* event = downcast_accEvent(aEvent);
           ipcDoc->SendCaretMoveEvent(
-              id, event->GetCaretOffset(), event->IsSelectionCollapsed(),
-              event->IsAtEndOfLine(), event->GetGranularity(),
-              event->IsFromUserInput());
+              id, getCaretRect(), event->GetCaretOffset(),
+              event->IsSelectionCollapsed(), event->IsAtEndOfLine(),
+              event->GetGranularity(), event->IsFromUserInput());
           break;
         }
         case nsIAccessibleEvent::EVENT_TEXT_INSERTED:
@@ -936,7 +948,7 @@ nsresult LocalAccessible::HandleAccEvent(AccEvent* aEvent) {
           break;
         }
         case nsIAccessibleEvent::EVENT_FOCUS:
-          ipcDoc->SendFocusEvent(id);
+          ipcDoc->SendFocusEvent(id, getCaretRect());
           break;
         case nsIAccessibleEvent::EVENT_SCROLLING_END:
         case nsIAccessibleEvent::EVENT_SCROLLING: {
@@ -1037,16 +1049,9 @@ nsresult LocalAccessible::HandleAccEvent(AccEvent* aEvent) {
     }
     case nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED: {
       AccCaretMoveEvent* event = downcast_accEvent(aEvent);
-      LayoutDeviceIntRect rect;
-      // The caret rect is only used on Windows, so just pass an empty rect on
-      // other platforms.
-      // XXX We pass an empty rect on Windows as well because
-      // AccessibleWrap::UpdateSystemCaretFor currently needs to call
-      // HyperTextAccessible::GetCaretRect again to get the widget and there's
-      // no point calling it twice.
-      PlatformCaretMoveEvent(
-          target, event->GetCaretOffset(), event->IsSelectionCollapsed(),
-          event->GetGranularity(), rect, event->IsFromUserInput());
+      PlatformCaretMoveEvent(target, event->GetCaretOffset(),
+                             event->IsSelectionCollapsed(),
+                             event->GetGranularity(), event->IsFromUserInput());
       break;
     }
     case nsIAccessibleEvent::EVENT_TEXT_INSERTED:
@@ -1067,16 +1072,7 @@ nsresult LocalAccessible::HandleAccEvent(AccEvent* aEvent) {
       break;
     }
     case nsIAccessibleEvent::EVENT_FOCUS: {
-      LayoutDeviceIntRect rect;
-      // The caret rect is only used on Windows, so just pass an empty rect on
-      // other platforms.
-#ifdef XP_WIN
-      if (HyperTextAccessible* text = target->AsHyperText()) {
-        nsIWidget* widget = nullptr;
-        rect = text->GetCaretRect(&widget);
-      }
-#endif
-      PlatformFocusEvent(target, rect);
+      PlatformFocusEvent(target);
       break;
     }
 #if defined(ANDROID)
@@ -1265,7 +1261,7 @@ already_AddRefed<AccAttributes> LocalAccessible::NativeAttributes() {
     // This is here only to guarantee that we do the same as getComputedStyle
     // does, so that we don't hit precision errors in tests.
     const auto margin =
-        f->StyleMargin()->GetMargin(aSide, f->StyleDisplay()->mPosition);
+        f->StyleMargin()->GetMargin(aSide, AnchorPosResolutionParams::From(f));
     if (margin->ConvertsToLength()) {
       return margin->AsLengthPercentage().ToLengthInCSSPixels();
     }

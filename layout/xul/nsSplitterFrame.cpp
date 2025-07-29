@@ -599,9 +599,9 @@ nsresult nsSplitterFrameInner::MouseDown(Event* aMouseEvent) {
         }
 
         // We need to check for hidden attribute too, since treecols with
-        // the hidden="true" attribute are not really hidden, just collapsed
+        // the hidden attribute are not really hidden, just collapsed
         if (element->GetXULBoolAttr(nsGkAtoms::fixed) ||
-            element->GetXULBoolAttr(nsGkAtoms::hidden)) {
+            element->GetBoolAttr(nsGkAtoms::hidden)) {
           return false;
         }
       }
@@ -640,18 +640,16 @@ nsresult nsSplitterFrameInner::MouseDown(Event* aMouseEvent) {
     const auto& pos = *childBox->StylePosition();
     const auto anchorResolutionParams =
         AnchorPosResolutionParams::From(childBox);
-    nsSize minSize = ToLengthWithFallback(
-        *pos.GetMinWidth(anchorResolutionParams.mPosition),
-        *pos.GetMinHeight(anchorResolutionParams.mPosition));
+    nsSize minSize =
+        ToLengthWithFallback(*pos.GetMinWidth(anchorResolutionParams),
+                             *pos.GetMinHeight(anchorResolutionParams));
     nsSize maxSize = ToLengthWithFallback(
-        *pos.GetMaxWidth(anchorResolutionParams.mPosition),
-        *pos.GetMaxHeight(anchorResolutionParams.mPosition),
-        NS_UNCONSTRAINEDSIZE);
-    nsSize prefSize(
-        ToLengthWithFallback(*pos.GetWidth(anchorResolutionParams.mPosition),
-                             curSize.width),
-        ToLengthWithFallback(*pos.GetHeight(anchorResolutionParams.mPosition),
-                             curSize.height));
+        *pos.GetMaxWidth(anchorResolutionParams),
+        *pos.GetMaxHeight(anchorResolutionParams), NS_UNCONSTRAINEDSIZE);
+    nsSize prefSize(ToLengthWithFallback(*pos.GetWidth(anchorResolutionParams),
+                                         curSize.width),
+                    ToLengthWithFallback(*pos.GetHeight(anchorResolutionParams),
+                                         curSize.height));
 
     maxSize.width = std::max(maxSize.width, minSize.width);
     maxSize.height = std::max(maxSize.height, minSize.height);

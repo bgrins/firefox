@@ -41,7 +41,7 @@ void MacroAssembler::clampDoubleToUint8(FloatRegister input, Register output) {
 }
 
 bool MacroAssemblerLOONG64Compat::buildOOLFakeExitFrame(void* fakeReturnAddr) {
-  asMasm().Push(FrameDescriptor(FrameType::IonJS));  // descriptor_
+  asMasm().PushFrameDescriptor(FrameType::IonJS);  // descriptor_
   asMasm().Push(ImmPtr(fakeReturnAddr));
   asMasm().Push(FramePointer);
   return true;
@@ -942,6 +942,20 @@ void MacroAssemblerLOONG64Compat::computeScaledAddress(const BaseIndex& address,
     as_alsl_d(dest, index, base, shift - 1);
   } else {
     as_add_d(dest, base, index);
+  }
+}
+
+void MacroAssemblerLOONG64Compat::computeScaledAddress32(
+    const BaseIndex& address, Register dest) {
+  Register base = address.base;
+  Register index = address.index;
+  int32_t shift = Imm32::ShiftOf(address.scale).value;
+
+  if (shift) {
+    MOZ_ASSERT(shift <= 4);
+    as_alsl_w(dest, index, base, shift - 1);
+  } else {
+    as_add_w(dest, base, index);
   }
 }
 
@@ -3025,27 +3039,29 @@ FaultingCodeOffset MacroAssembler::wasmTrapInstruction() {
 }
 
 void MacroAssembler::wasmBoundsCheck32(Condition cond, Register index,
-                                       Register boundsCheckLimit, Label* ok) {
-  ma_b(index, boundsCheckLimit, ok, cond);
+                                       Register boundsCheckLimit,
+                                       Label* label) {
+  ma_b(index, boundsCheckLimit, label, cond);
 }
 
 void MacroAssembler::wasmBoundsCheck32(Condition cond, Register index,
-                                       Address boundsCheckLimit, Label* ok) {
+                                       Address boundsCheckLimit, Label* label) {
   SecondScratchRegisterScope scratch2(asMasm());
   load32(boundsCheckLimit, scratch2);
-  ma_b(index, Register(scratch2), ok, cond);
+  ma_b(index, Register(scratch2), label, cond);
 }
 
 void MacroAssembler::wasmBoundsCheck64(Condition cond, Register64 index,
-                                       Register64 boundsCheckLimit, Label* ok) {
-  ma_b(index.reg, boundsCheckLimit.reg, ok, cond);
+                                       Register64 boundsCheckLimit,
+                                       Label* label) {
+  ma_b(index.reg, boundsCheckLimit.reg, label, cond);
 }
 
 void MacroAssembler::wasmBoundsCheck64(Condition cond, Register64 index,
-                                       Address boundsCheckLimit, Label* ok) {
+                                       Address boundsCheckLimit, Label* label) {
   SecondScratchRegisterScope scratch2(asMasm());
   loadPtr(boundsCheckLimit, scratch2);
-  ma_b(index.reg, scratch2, ok, cond);
+  ma_b(index.reg, scratch2, label, cond);
 }
 
 // FTINTRZ behaves as follows:

@@ -370,19 +370,13 @@ export class BaseContent extends React.PureComponent {
   async updateWallpaper() {
     const prefs = this.props.Prefs.values;
     const selectedWallpaper = prefs["newtabWallpapers.wallpaper"];
-    const { wallpaperList, uploadedWallpaper } = this.props.Wallpapers;
+    const { wallpaperList, uploadedWallpaper: uploadedWallpaperUrl } =
+      this.props.Wallpapers;
     let lightWallpaper = {};
     let darkWallpaper = {};
 
-    if (selectedWallpaper === "custom" && uploadedWallpaper) {
-      // revoke ObjectURL to prevent memory leaks
-      if (this.uploadedWallpaperUrl) {
-        URL.revokeObjectURL(this.uploadedWallpaperUrl);
-      }
-
+    if (selectedWallpaper === "custom" && uploadedWallpaperUrl) {
       try {
-        const uploadedWallpaperUrl = URL.createObjectURL(uploadedWallpaper);
-
         global.document?.body.style.setProperty(
           "--newtab-wallpaper",
           `url(${uploadedWallpaperUrl})`
@@ -558,8 +552,6 @@ export class BaseContent extends React.PureComponent {
     const { initialized, customizeMenuVisible } = App;
     const prefs = props.Prefs.values;
 
-    const shortcutsRefresh = prefs["newtabShortcuts.refresh"];
-
     const activeWallpaper = prefs[`newtabWallpapers.wallpaper`];
     const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     const weatherEnabled = prefs.showWeather;
@@ -658,7 +650,6 @@ export class BaseContent extends React.PureComponent {
       prefs.showSearch ? "has-search" : "no-search",
       // layoutsVariantAEnabled ? "layout-variant-a" : "", // Layout experiment variant A
       // layoutsVariantBEnabled ? "layout-variant-b" : "", // Layout experiment variant B
-      shortcutsRefresh ? "shortcuts-refresh" : "", // Shortcuts refresh experiment
       pocketEnabled ? "has-recommended-stories" : "no-recommended-stories",
       sectionsEnabled ? "has-sections-grid" : "",
     ]

@@ -20,6 +20,7 @@
 #include "nsContainerFrame.h"
 #include "nsGkAtoms.h"
 #include "nsGridContainerFrame.h"
+#include "nsIFrameInlines.h"
 #include "nsPlaceholderFrame.h"
 #include "nsPresContext.h"
 
@@ -167,11 +168,19 @@ void nsAbsoluteContainingBlock::Reflow(nsContainerFrame* aDelegatingFrame,
   nsOverflowContinuationTracker tracker(aDelegatingFrame, true);
   for (kidFrame = mAbsoluteFrames.FirstChild(); kidFrame;
        kidFrame = kidFrame->GetNextSibling()) {
+    AnchorPosReferencedAnchors* referencedAnchors = nullptr;
+    if (kidFrame->HasAnchorPosReference()) {
+      referencedAnchors = kidFrame->SetOrUpdateDeletableProperty(
+          nsIFrame::AnchorPosReferences());
+    } else {
+      kidFrame->RemoveProperty(nsIFrame::AnchorPosReferences());
+    }
+
     bool kidNeedsReflow =
         reflowAll || kidFrame->IsSubtreeDirty() ||
         FrameDependsOnContainer(
             kidFrame, !!(aFlags & AbsPosReflowFlags::CBWidthChanged),
-            !!(aFlags & AbsPosReflowFlags::CBHeightChanged));
+            !!(aFlags & AbsPosReflowFlags::CBHeightChanged), referencedAnchors);
 
     if (kidFrame->IsSubtreeDirty()) {
       MaybeMarkAncestorsAsHavingDescendantDependentOnItsStaticPos(
@@ -214,7 +223,8 @@ void nsAbsoluteContainingBlock::Reflow(nsContainerFrame* aDelegatingFrame,
       // Reflow the frame
       nsReflowStatus kidStatus;
       ReflowAbsoluteFrame(aDelegatingFrame, aPresContext, aReflowInput, cb,
-                          aFlags, kidFrame, kidStatus, aOverflowAreas);
+                          aFlags, kidFrame, kidStatus, aOverflowAreas,
+                          referencedAnchors);
       MOZ_ASSERT(!kidStatus.IsInlineBreakBefore(),
                  "ShouldAvoidBreakInside should prevent this from happening");
       nsIFrame* nextFrame = kidFrame->GetNextInFlow();
@@ -288,9 +298,9 @@ static inline bool IsFixedOffset(const AnchorResolvedInset& aInset) {
   return aInset->ConvertsToLength();
 }
 
-bool nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
-                                                        bool aCBWidthChanged,
-                                                        bool aCBHeightChanged) {
+bool nsAbsoluteContainingBlock::FrameDependsOnContainer(
+    nsIFrame* f, bool aCBWidthChanged, bool aCBHeightChanged,
+    AnchorPosReferencedAnchors* aReferencedAnchors) {
   const nsStylePosition* pos = f->StylePosition();
   // See if f's position might have changed because it depends on a
   // placeholder's position.
@@ -304,7 +314,8 @@ bool nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
   const nsStylePadding* padding = f->StylePadding();
   const nsStyleMargin* margin = f->StyleMargin();
   WritingMode wm = f->GetWritingMode();
-  const auto anchorResolutionParams = AnchorPosResolutionParams::From(f);
+  const auto anchorResolutionParams =
+      AnchorPosResolutionParams::From(f, aReferencedAnchors);
   if (wm.IsVertical() ? aCBHeightChanged : aCBWidthChanged) {
     // See if f's inline-size might have changed.
     // If margin-inline-start/end, padding-inline-start/end,
@@ -313,11 +324,11 @@ bool nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
     // Note that borders never depend on the parent isize.
     // XXX All of the enumerated values except -moz-available are ok too.
     if (nsStylePosition::ISizeDependsOnContainer(
-            pos->ISize(wm, anchorResolutionParams.mPosition)) ||
+            pos->ISize(wm, anchorResolutionParams)) ||
         nsStylePosition::MinISizeDependsOnContainer(
-            pos->MinISize(wm, anchorResolutionParams.mPosition)) ||
+            pos->MinISize(wm, anchorResolutionParams)) ||
         nsStylePosition::MaxISizeDependsOnContainer(
-            pos->MaxISize(wm, anchorResolutionParams.mPosition)) ||
+            pos->MaxISize(wm, anchorResolutionParams)) ||
         !IsFixedPaddingSize(padding->mPadding.GetIStart(wm)) ||
         !IsFixedPaddingSize(padding->mPadding.GetIEnd(wm))) {
       return true;
@@ -326,10 +337,10 @@ bool nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
     // See if f's position might have changed. If we're RTL then the
     // rules are slightly different. We'll assume percentage or auto
     // margins will always induce a dependency on the size
-    if (!IsFixedMarginSize(margin->GetMargin(
-            LogicalSide::IStart, wm, anchorResolutionParams.mPosition)) ||
-        !IsFixedMarginSize(margin->GetMargin(
-            LogicalSide::IEnd, wm, anchorResolutionParams.mPosition))) {
+    if (!IsFixedMarginSize(margin->GetMargin(LogicalSide::IStart, wm,
+                                             anchorResolutionParams)) ||
+        !IsFixedMarginSize(
+            margin->GetMargin(LogicalSide::IEnd, wm, anchorResolutionParams))) {
       return true;
     }
   }
@@ -343,7 +354,7 @@ bool nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
     //
     // FIXME(emilio): Should the BSize(wm).IsAuto() check also for the extremum
     // lengths?
-    const auto bSize = pos->BSize(wm, anchorResolutionParams.mPosition);
+    const auto bSize = pos->BSize(wm, anchorResolutionParams);
     const auto anchorOffsetResolutionParams =
         AnchorPosOffsetResolutionParams::UseCBFrameSize(anchorResolutionParams);
     if ((nsStylePosition::BSizeDependsOnContainer(bSize) &&
@@ -355,19 +366,19 @@ bool nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
                                         anchorOffsetResolutionParams)
                 ->IsAuto())) ||
         nsStylePosition::MinBSizeDependsOnContainer(
-            pos->MinBSize(wm, anchorResolutionParams.mPosition)) ||
+            pos->MinBSize(wm, anchorResolutionParams)) ||
         nsStylePosition::MaxBSizeDependsOnContainer(
-            pos->MaxBSize(wm, anchorResolutionParams.mPosition)) ||
+            pos->MaxBSize(wm, anchorResolutionParams)) ||
         !IsFixedPaddingSize(padding->mPadding.GetBStart(wm)) ||
         !IsFixedPaddingSize(padding->mPadding.GetBEnd(wm))) {
       return true;
     }
 
     // See if f's position might have changed.
-    if (!IsFixedMarginSize(margin->GetMargin(
-            LogicalSide::BStart, wm, anchorResolutionParams.mPosition)) ||
-        !IsFixedMarginSize(margin->GetMargin(
-            LogicalSide::BEnd, wm, anchorResolutionParams.mPosition))) {
+    if (!IsFixedMarginSize(margin->GetMargin(LogicalSide::BStart, wm,
+                                             anchorResolutionParams)) ||
+        !IsFixedMarginSize(
+            margin->GetMargin(LogicalSide::BEnd, wm, anchorResolutionParams))) {
       return true;
     }
   }
@@ -787,24 +798,20 @@ void nsAbsoluteContainingBlock::ResolveAutoMarginsAfterLayout(
     ReflowInput::ComputeAbsPosInlineAutoMargin(
         availMarginSpace, outerWM,
         styleMargin
-            ->GetMargin(LogicalSide::IStart, outerWM,
-                        anchorResolutionParams.mPosition)
+            ->GetMargin(LogicalSide::IStart, outerWM, anchorResolutionParams)
             ->IsAuto(),
         styleMargin
-            ->GetMargin(LogicalSide::IEnd, outerWM,
-                        anchorResolutionParams.mPosition)
+            ->GetMargin(LogicalSide::IEnd, outerWM, anchorResolutionParams)
             ->IsAuto(),
         aMargin, aOffsets);
   } else {
     ReflowInput::ComputeAbsPosBlockAutoMargin(
         availMarginSpace, outerWM,
         styleMargin
-            ->GetMargin(LogicalSide::BStart, outerWM,
-                        anchorResolutionParams.mPosition)
+            ->GetMargin(LogicalSide::BStart, outerWM, anchorResolutionParams)
             ->IsAuto(),
         styleMargin
-            ->GetMargin(LogicalSide::BEnd, outerWM,
-                        anchorResolutionParams.mPosition)
+            ->GetMargin(LogicalSide::BEnd, outerWM, anchorResolutionParams)
             ->IsAuto(),
         aMargin, aOffsets);
   }
@@ -816,11 +823,10 @@ void nsAbsoluteContainingBlock::ResolveAutoMarginsAfterLayout(
       aKidReflowInput.mFrame->GetProperty(nsIFrame::UsedMarginProperty());
   // InitOffsets should've created a UsedMarginProperty for us, if any margin is
   // auto.
-  MOZ_ASSERT_IF(styleMargin->HasInlineAxisAuto(
-                    outerWM, anchorResolutionParams.mPosition) ||
-                    styleMargin->HasBlockAxisAuto(
-                        outerWM, anchorResolutionParams.mPosition),
-                propValue);
+  MOZ_ASSERT_IF(
+      styleMargin->HasInlineAxisAuto(outerWM, anchorResolutionParams) ||
+          styleMargin->HasBlockAxisAuto(outerWM, anchorResolutionParams),
+      propValue);
   if (propValue) {
     *propValue = aMargin.GetPhysicalMargin(outerWM);
   }
@@ -838,7 +844,8 @@ void nsAbsoluteContainingBlock::ReflowAbsoluteFrame(
     nsIFrame* aDelegatingFrame, nsPresContext* aPresContext,
     const ReflowInput& aReflowInput, const nsRect& aContainingBlock,
     AbsPosReflowFlags aFlags, nsIFrame* aKidFrame, nsReflowStatus& aStatus,
-    OverflowAreas* aOverflowAreas) {
+    OverflowAreas* aOverflowAreas,
+    AnchorPosReferencedAnchors* aReferencedAnchors) {
   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
 
 #ifdef DEBUG
@@ -915,7 +922,8 @@ void nsAbsoluteContainingBlock::ReflowAbsoluteFrame(
 
   ReflowInput kidReflowInput(aPresContext, aReflowInput, aKidFrame,
                              LogicalSize(wm, availISize, availBSize),
-                             Some(logicalCBSize), initFlags);
+                             Some(logicalCBSize), initFlags, {}, {},
+                             aReferencedAnchors);
 
   if (nscoord kidAvailBSize = kidReflowInput.AvailableBSize();
       kidAvailBSize != NS_UNCONSTRAINEDSIZE) {
@@ -968,7 +976,7 @@ void nsAbsoluteContainingBlock::ReflowAbsoluteFrame(
     const auto* stylePos = aKidFrame->StylePosition();
     const auto anchorResolutionParams =
         AnchorPosOffsetResolutionParams::UseCBFrameSize(
-            AnchorPosResolutionParams::From(aKidFrame));
+            AnchorPosResolutionParams::From(aKidFrame, aReferencedAnchors));
     const bool iInsetAuto =
         stylePos
             ->GetAnchorResolvedInset(LogicalSide::IStart, outerWM,

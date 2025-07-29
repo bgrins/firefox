@@ -13,6 +13,7 @@ import androidx.annotation.UiContext
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.FragmentManager
+import androidx.navigation.NavController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -33,7 +34,9 @@ import mozilla.components.support.ktx.android.content.appVersionName
 import mozilla.components.ui.widgets.withCenterAlignedButtons
 import org.mozilla.fenix.BuildConfig
 import org.mozilla.fenix.R
+import org.mozilla.fenix.addons.AddonsManagementFragmentDirections
 import org.mozilla.fenix.ext.components
+import org.mozilla.fenix.ext.pixelSizeFor
 import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.theme.ThemeManager
 
@@ -45,6 +48,7 @@ class WebExtensionPromptFeature(
     @param:UiContext private val context: Context,
     private val fragmentManager: FragmentManager,
     private val onLinkClicked: (String, Boolean) -> Unit,
+    private val navController: NavController,
     private val addonManager: AddonManager = context.components.addonManager,
 ) : LifecycleAwareFeature {
 
@@ -269,9 +273,9 @@ class WebExtensionPromptFeature(
         permissions: List<String> = emptyList(),
         origins: List<String> = emptyList(),
         dataCollectionPermissions: List<String> = emptyList(),
-    ) {
+    ): PermissionsDialogFragment? {
         if (isInstallationInProgress || hasExistingPermissionDialogFragment()) {
-            return
+            return null
         }
 
         val dialog = PermissionsDialogFragment.newInstance(
@@ -299,8 +303,7 @@ class WebExtensionPromptFeature(
                     R.attr.textActionPrimaryDisabled,
                     context,
                 ),
-                confirmButtonRadius =
-                (context.resources.getDimensionPixelSize(R.dimen.tab_corner_radius)).toFloat(),
+                confirmButtonRadius = context.pixelSizeFor(R.dimen.tab_corner_radius).toFloat(),
                 learnMoreLinkTextColor = ThemeManager.resolveAttribute(
                     R.attr.textAccent,
                     context,
@@ -332,10 +335,9 @@ class WebExtensionPromptFeature(
                 )
             },
         )
-        dialog.show(
-            fragmentManager,
-            PERMISSIONS_DIALOG_FRAGMENT_TAG,
-        )
+        dialog.show(fragmentManager, PERMISSIONS_DIALOG_FRAGMENT_TAG)
+
+        return dialog
     }
 
     private fun tryToReAttachButtonHandlersToPreviousDialog() {
@@ -437,7 +439,8 @@ class WebExtensionPromptFeature(
         ) as? AddonInstallationDialogFragment
     }
 
-    private fun showPostInstallationDialog(addon: Addon) {
+    @VisibleForTesting
+    internal fun showPostInstallationDialog(addon: Addon): AddonInstallationDialogFragment? {
         if (!isInstallationInProgress && !hasExistingAddonPostInstallationDialogFragment()) {
             val dialog = AddonInstallationDialogFragment.newInstance(
                 addon = addon,
@@ -452,8 +455,7 @@ class WebExtensionPromptFeature(
                         R.attr.textActionPrimary,
                         context,
                     ),
-                    confirmButtonRadius =
-                    (context.resources.getDimensionPixelSize(R.dimen.tab_corner_radius)).toFloat(),
+                    confirmButtonRadius = context.pixelSizeFor(R.dimen.tab_corner_radius).toFloat(),
                 ),
                 onDismissed = {
                     consumePromptRequest()
@@ -461,9 +463,19 @@ class WebExtensionPromptFeature(
                 onConfirmButtonClicked = { _ ->
                     consumePromptRequest()
                 },
+                onExtensionSettingsLinkClicked = {
+                    navController.navigate(
+                        AddonsManagementFragmentDirections.actionGlobalToInstalledAddonDetailsFragment(it),
+                    )
+                    consumePromptRequest()
+                },
             )
             dialog.show(fragmentManager, POST_INSTALLATION_DIALOG_FRAGMENT_TAG)
+
+            return dialog
         }
+
+        return null
     }
 
     @VisibleForTesting

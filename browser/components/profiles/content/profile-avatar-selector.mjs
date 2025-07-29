@@ -3,8 +3,39 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { MozLitElement } from "chrome://global/content/lit-utils.mjs";
-import { html } from "chrome://global/content/vendor/lit.all.mjs";
+import { html, ifDefined } from "chrome://global/content/vendor/lit.all.mjs";
 import { Region, ViewDimensions } from "./avatarSelectionHelpers.mjs";
+
+const AVATARS = [
+  "barbell",
+  "bike",
+  "book",
+  "briefcase",
+  "canvas",
+  "craft",
+  "default-favicon",
+  "diamond",
+  "flower",
+  "folder",
+  "hammer",
+  "heart",
+  "heart-rate",
+  "history",
+  "leaf",
+  "lightbulb",
+  "makeup",
+  "message",
+  "musical-note",
+  "palette",
+  "paw-print",
+  "plane",
+  "present",
+  "shopping",
+  "soccer",
+  "sparkle-single",
+  "star",
+  "video-game-controller",
+];
 
 const VIEWS = {
   ICON: "icon",
@@ -17,6 +48,8 @@ const STATES = {
   RESIZING: "resizing",
 };
 
+const SCROLL_BY_EDGE = 20;
+
 /**
  * Element used for displaying an avatar on the about:editprofile and about:newprofile pages.
  */
@@ -26,6 +59,8 @@ export class ProfileAvatarSelector extends MozLitElement {
   static properties = {
     value: { type: String },
     view: { type: String },
+    state: { type: String },
+    avatarLabels: { type: Object, state: true },
   };
 
   static queries = {
@@ -41,6 +76,8 @@ export class ProfileAvatarSelector extends MozLitElement {
     topRightMover: "#mover-topRight",
     bottomLeftMover: "#mover-bottomLeft",
     bottomRightMover: "#mover-bottomRight",
+    avatarPicker: "#avatars",
+    avatars: { all: "moz-visual-picker-item" },
   };
 
   constructor() {
@@ -51,6 +88,26 @@ export class ProfileAvatarSelector extends MozLitElement {
     this.avatarRegion = new Region(this.viewDimensions);
 
     this.state = STATES.SELECTED;
+    this.avatarLabels = {};
+  }
+
+  async connectedCallback() {
+    super.connectedCallback();
+
+    await this.loadAvatarLabels();
+  }
+
+  async loadAvatarLabels() {
+    const avatarL10nData = await document.l10n.formatValues(
+      AVATARS.map(avatar => this.getAvatarL10nId(avatar))
+    );
+
+    this.avatarLabels = {};
+    for (let i = 0; i < AVATARS.length; i++) {
+      this.avatarLabels[AVATARS[i]] = avatarL10nData[i];
+    }
+
+    this.requestUpdate();
   }
 
   setView(newView) {
@@ -72,6 +129,42 @@ export class ProfileAvatarSelector extends MozLitElement {
     }
   }
 
+  toggleHidden(force = null) {
+    if (force === true) {
+      this.hidden = true;
+    } else if (force === false) {
+      this.hidden = false;
+    } else {
+      this.hidden = !this.hidden;
+    }
+
+    // Add or remove event listeners as necessary
+    if (this.hidden) {
+      document.removeEventListener("click", this);
+      window.removeEventListener("keydown", this);
+    } else {
+      document.addEventListener("click", this);
+      window.addEventListener("keydown", this);
+    }
+  }
+
+  show() {
+    this.toggleHidden(false);
+  }
+
+  hide() {
+    this.toggleHidden(true);
+  }
+
+  maybeHide() {
+    if (this.view === VIEWS.CROP) {
+      this.setView(VIEWS.CUSTOM);
+      return;
+    }
+
+    this.hide();
+  }
+
   cropViewStart() {
     window.addEventListener("pointerdown", this);
     window.addEventListener("pointermove", this);
@@ -88,21 +181,75 @@ export class ProfileAvatarSelector extends MozLitElement {
 
   getAvatarL10nId(value) {
     switch (value) {
+      case "barbell":
+        return "barbell-avatar";
+      case "bike":
+        return "bike-avatar";
       case "book":
         return "book-avatar";
       case "briefcase":
         return "briefcase-avatar";
+      case "canvas":
+        return "canvas-avatar";
+      case "craft":
+        return "craft-avatar";
+      case "default-favicon":
+        return "default-favicon-avatar";
+      case "diamond":
+        return "diamond-avatar";
       case "flower":
         return "flower-avatar";
+      case "folder":
+        return "folder-avatar";
+      case "hammer":
+        return "hammer-avatar";
       case "heart":
         return "heart-avatar";
+      case "heart-rate":
+        return "heart-rate-avatar";
+      case "history":
+        return "history-avatar";
+      case "leaf":
+        return "leaf-avatar";
+      case "lightbulb":
+        return "lightbulb-avatar";
+      case "makeup":
+        return "makeup-avatar";
+      case "message":
+        return "message-avatar";
+      case "musical-note":
+        return "musical-note-avatar";
+      case "palette":
+        return "palette-avatar";
+      case "paw-print":
+        return "paw-print-avatar";
+      case "plane":
+        return "plane-avatar";
+      case "present":
+        return "present-avatar";
       case "shopping":
         return "shopping-avatar";
+      case "soccer":
+        return "soccer-avatar";
+      case "sparkle-single":
+        return "sparkle-single-avatar";
       case "star":
         return "star-avatar";
+      case "video-game-controller":
+        return "video-game-controller-avatar";
+      default:
+        return "custom-avatar";
     }
+  }
 
-    return "";
+  handleAvatarChange() {
+    const selectedAvatar = this.avatarPicker.value;
+
+    document.dispatchEvent(
+      new CustomEvent("Profiles:AvatarSelected", {
+        detail: { avatar: selectedAvatar },
+      })
+    );
   }
 
   handleTabClick(event) {
@@ -115,52 +262,18 @@ export class ProfileAvatarSelector extends MozLitElement {
   }
 
   iconTabContentTemplate() {
-    let avatars = [
-      "star",
-      "flower",
-      "briefcase",
-      "heart",
-      "book",
-      "shopping",
-      "present",
-      "plane",
-      "barbell",
-      "bike",
-      "craft",
-      "diamond",
-      "hammer",
-      "heart-rate",
-      "leaf",
-      "makeup",
-      "palette",
-      "musical-note",
-      "paw-print",
-      "sparkle-single",
-      "soccer",
-      "video-game-controller",
-      "default-favicon",
-      "canvas",
-      "history",
-      "folder",
-      "message",
-      "lightbulb",
-    ];
-
-    // TODO: Bug 1966951 should remove the line below.
-    // The browser_custom_avatar_test.js test will crash because the icon
-    // files don't exist.
-    avatars = avatars.slice(0, 6);
-
     return html`<moz-visual-picker
+      type="listbox"
       value=${this.avatar}
       name="avatar"
       id="avatars"
       @change=${this.handleAvatarChange}
-      >${avatars.map(
+      >${AVATARS.map(
         avatar =>
           html`<moz-visual-picker-item
-            l10nId=${this.getAvatarL10nId(avatar)}
+            aria-label=${ifDefined(this.avatarLabels[avatar])}
             value=${avatar}
+            ?checked=${this.value === avatar}
             ><moz-button
               class="avatar-button"
               type="ghost"
@@ -197,10 +310,15 @@ export class ProfileAvatarSelector extends MozLitElement {
   }
 
   customTabViewImageTemplate() {
-    return html`<div class="custom-avatar-crop-header">
+    return html`<div
+        class="custom-avatar-crop-header"
+        data-l10n-id="custom-avatar-crop-view"
+      >
         <moz-button
           id="back-button"
           @click=${this.handleCancelClick}
+          @keydown=${this.handleBackKeyDown}
+          data-l10n-id="custom-avatar-crop-back-button"
           type="icon ghost"
           iconSrc="chrome://global/skin/icons/arrow-left.svg"
         ></moz-button>
@@ -209,10 +327,16 @@ export class ProfileAvatarSelector extends MozLitElement {
       </div>
       <div class="custom-avatar-crop-area">
         <div id="avatar-selection-container">
-          <div id="highlight" class="highlight" tabindex="0">
+          <div
+            id="highlight"
+            class="highlight"
+            tabindex="0"
+            data-l10n-id="custom-avatar-crop-area"
+          >
             <div id="highlight-background"></div>
             <div
               id="mover-topLeft"
+              data-l10n-id="custom-avatar-drag-handle"
               class="mover-target direction-topLeft"
               tabindex="0"
             >
@@ -221,6 +345,7 @@ export class ProfileAvatarSelector extends MozLitElement {
 
             <div
               id="mover-topRight"
+              data-l10n-id="custom-avatar-drag-handle"
               class="mover-target direction-topRight"
               tabindex="0"
             >
@@ -229,6 +354,7 @@ export class ProfileAvatarSelector extends MozLitElement {
 
             <div
               id="mover-bottomRight"
+              data-l10n-id="custom-avatar-drag-handle"
               class="mover-target direction-bottomRight"
               tabindex="0"
             >
@@ -237,6 +363,7 @@ export class ProfileAvatarSelector extends MozLitElement {
 
             <div
               id="mover-bottomLeft"
+              data-l10n-id="custom-avatar-drag-handle"
               class="mover-target direction-bottomLeft"
               tabindex="0"
             >
@@ -253,12 +380,14 @@ export class ProfileAvatarSelector extends MozLitElement {
       <moz-button-group class="custom-avatar-actions"
         ><moz-button
           @click=${this.handleCancelClick}
+          @keydown=${this.handleCancelKeyDown}
           data-l10n-id="avatar-selector-cancel-button"
         ></moz-button
         ><moz-button
           type="primary"
           id="save-button"
           @click=${this.handleSaveClick}
+          @keydown=${this.handleSaveKeyDown}
           data-l10n-id="avatar-selector-save-button"
         ></moz-button
       ></moz-button-group>`;
@@ -272,6 +401,27 @@ export class ProfileAvatarSelector extends MozLitElement {
       URL.revokeObjectURL(this.blobURL);
     }
     this.file = null;
+  }
+
+  handleBackKeyDown(event) {
+    if (event.code === "Enter" || event.code === "Space") {
+      event.preventDefault();
+      this.handleCancelClick(event);
+    }
+  }
+
+  handleCancelKeyDown(event) {
+    if (event.code === "Enter" || event.code === "Space") {
+      event.preventDefault();
+      this.handleCancelClick(event);
+    }
+  }
+
+  handleSaveKeyDown(event) {
+    if (event.code === "Enter" || event.code === "Space") {
+      event.preventDefault();
+      this.handleSaveClick(event);
+    }
   }
 
   async handleSaveClick(event) {
@@ -337,7 +487,7 @@ export class ProfileAvatarSelector extends MozLitElement {
     }
 
     this.setView(VIEWS.CUSTOM);
-    this.hidden = true;
+    this.hide();
   }
 
   updateViewDimensions() {
@@ -359,13 +509,14 @@ export class ProfileAvatarSelector extends MozLitElement {
   imageLoaded() {
     this.updateViewDimensions();
     this.setInitialAvatarSelection();
+    this.highlight.focus({ focusVisible: true });
   }
 
   setInitialAvatarSelection() {
-    let diameter = Math.min(
-      this.viewDimensions.width,
-      this.viewDimensions.height
-    );
+    // Make initial size a little smaller than the view so the movers aren't
+    // behind the scrollbar
+    let diameter =
+      Math.min(this.viewDimensions.width, this.viewDimensions.height) - 20;
 
     let left =
       Math.floor(this.viewDimensions.width / 2) - Math.floor(diameter / 2);
@@ -396,20 +547,40 @@ export class ProfileAvatarSelector extends MozLitElement {
   }
 
   handleEvent(event) {
-    if (this.view !== VIEWS.CROP) {
-      return;
-    }
-
     switch (event.type) {
-      case "pointerdown":
+      case "pointerdown": {
         this.handlePointerDown(event);
         break;
-      case "pointermove":
+      }
+      case "pointermove": {
         this.handlePointerMove(event);
         break;
-      case "pointerup":
+      }
+      case "pointerup": {
         this.handlePointerUp(event);
         break;
+      }
+      case "keydown": {
+        this.handleKeyDown(event);
+        break;
+      }
+      case "click": {
+        if (this.view === VIEWS.CROP) {
+          return;
+        }
+
+        let element = event.originalTarget;
+        while (element && element !== this) {
+          element = element?.getRootNode()?.host;
+        }
+
+        if (element === this) {
+          return;
+        }
+
+        this.hide();
+        break;
+      }
     }
   }
 
@@ -490,8 +661,11 @@ export class ProfileAvatarSelector extends MozLitElement {
         );
         break;
       }
+      default:
+        return;
     }
 
+    this.scrollIfByEdge(x, y);
     this.drawSelectionContainer();
   }
 
@@ -499,6 +673,282 @@ export class ProfileAvatarSelector extends MozLitElement {
     this.state = STATES.SELECTED;
     this.#moverId = "";
     this.avatarRegion.sortCoords();
+  }
+
+  handleKeyDown(event) {
+    if (event.key === "Escape") {
+      this.maybeHide();
+    }
+
+    if (this.view !== VIEWS.CROP) {
+      return;
+    }
+
+    switch (event.key) {
+      case "ArrowLeft":
+        this.handleArrowLeftKeyDown(event);
+        break;
+      case "ArrowUp":
+        this.handleArrowUpKeyDown(event);
+        break;
+      case "ArrowRight":
+        this.handleArrowRightKeyDown(event);
+        break;
+      case "ArrowDown":
+        this.handleArrowDownKeyDown(event);
+        break;
+      case "Tab":
+        return;
+      default:
+        event.preventDefault();
+        return;
+    }
+    event.preventDefault();
+    this.drawSelectionContainer();
+  }
+
+  handleArrowLeftKeyDown(event) {
+    let targetId = event.originalTarget.id;
+    switch (targetId) {
+      case "highlight":
+        this.avatarRegion.left -= 1;
+        this.avatarRegion.right -= 1;
+
+        this.scrollIfByEdge(
+          this.avatarRegion.left,
+          this.viewDimensions.height / 2
+        );
+        break;
+      case "mover-topLeft":
+        this.avatarRegion.left -= 1;
+        this.avatarRegion.top -= 1;
+
+        this.scrollIfByEdge(this.avatarRegion.left, this.avatarRegion.top);
+        break;
+      case "mover-bottomLeft":
+        this.avatarRegion.left -= 1;
+        this.avatarRegion.bottom += 1;
+
+        this.scrollIfByEdge(this.avatarRegion.left, this.avatarRegion.bottom);
+        break;
+      case "mover-topRight":
+        this.avatarRegion.right -= 1;
+        this.avatarRegion.top += 1;
+
+        if (
+          this.avatarRegion.x1 >= this.avatarRegion.x2 ||
+          this.avatarRegion.y1 >= this.avatarRegion.y2
+        ) {
+          this.avatarRegion.sortCoords();
+          this.bottomLeftMover.focus({ focusVisible: true });
+        }
+        break;
+      case "mover-bottomRight":
+        this.avatarRegion.right -= 1;
+        this.avatarRegion.bottom -= 1;
+
+        if (
+          this.avatarRegion.x1 >= this.avatarRegion.x2 ||
+          this.avatarRegion.y1 >= this.avatarRegion.y2
+        ) {
+          this.avatarRegion.sortCoords();
+          this.topLeftMover.focus({ focusVisible: true });
+        }
+        break;
+      default:
+        return;
+    }
+
+    this.avatarRegion.forceSquare(targetId);
+  }
+
+  handleArrowUpKeyDown(event) {
+    let targetId = event.originalTarget.id;
+    switch (targetId) {
+      case "highlight":
+        this.avatarRegion.top -= 1;
+        this.avatarRegion.bottom -= 1;
+
+        this.scrollIfByEdge(
+          this.viewDimensions.width / 2,
+          this.avatarRegion.top
+        );
+        break;
+      case "mover-topLeft":
+        this.avatarRegion.left -= 1;
+        this.avatarRegion.top -= 1;
+
+        this.scrollIfByEdge(this.avatarRegion.left, this.avatarRegion.top);
+        break;
+      case "mover-bottomLeft":
+        this.avatarRegion.left += 1;
+        this.avatarRegion.bottom -= 1;
+
+        if (
+          this.avatarRegion.x1 >= this.avatarRegion.x2 ||
+          this.avatarRegion.y1 >= this.avatarRegion.y2
+        ) {
+          this.avatarRegion.sortCoords();
+          this.topRightMover.focus({ focusVisible: true });
+        }
+        break;
+      case "mover-topRight":
+        this.avatarRegion.right += 1;
+        this.avatarRegion.top -= 1;
+
+        this.scrollIfByEdge(this.avatarRegion.right, this.avatarRegion.top);
+        break;
+      case "mover-bottomRight":
+        this.avatarRegion.right -= 1;
+        this.avatarRegion.bottom -= 1;
+
+        if (
+          this.avatarRegion.x1 >= this.avatarRegion.x2 ||
+          this.avatarRegion.y1 >= this.avatarRegion.y2
+        ) {
+          this.avatarRegion.sortCoords();
+          this.topLeftMover.focus({ focusVisible: true });
+        }
+        break;
+      default:
+        return;
+    }
+
+    this.avatarRegion.forceSquare(targetId);
+  }
+
+  handleArrowRightKeyDown(event) {
+    let targetId = event.originalTarget.id;
+    switch (targetId) {
+      case "highlight":
+        this.avatarRegion.left += 1;
+        this.avatarRegion.right += 1;
+
+        this.scrollIfByEdge(
+          this.avatarRegion.right,
+          this.viewDimensions.height / 2
+        );
+        break;
+      case "mover-topLeft":
+        this.avatarRegion.left += 1;
+        this.avatarRegion.top += 1;
+
+        if (
+          this.avatarRegion.x1 >= this.avatarRegion.x2 ||
+          this.avatarRegion.y1 >= this.avatarRegion.y2
+        ) {
+          this.avatarRegion.sortCoords();
+          this.bottomRightMover.focus({ focusVisible: true });
+        }
+        break;
+      case "mover-bottomLeft":
+        this.avatarRegion.left += 1;
+        this.avatarRegion.bottom -= 1;
+
+        if (
+          this.avatarRegion.x1 >= this.avatarRegion.x2 ||
+          this.avatarRegion.y1 >= this.avatarRegion.y2
+        ) {
+          this.avatarRegion.sortCoords();
+          this.topRightMover.focus({ focusVisible: true });
+        }
+        break;
+      case "mover-topRight":
+        this.avatarRegion.right += 1;
+        this.avatarRegion.top -= 1;
+
+        this.scrollIfByEdge(this.avatarRegion.right, this.avatarRegion.top);
+        break;
+      case "mover-bottomRight":
+        this.avatarRegion.right += 1;
+        this.avatarRegion.bottom += 1;
+
+        this.scrollIfByEdge(this.avatarRegion.right, this.avatarRegion.bottom);
+        break;
+      default:
+        return;
+    }
+
+    this.avatarRegion.forceSquare(targetId);
+  }
+
+  handleArrowDownKeyDown(event) {
+    let targetId = event.originalTarget.id;
+    switch (targetId) {
+      case "highlight":
+        this.avatarRegion.top += 1;
+        this.avatarRegion.bottom += 1;
+
+        this.scrollIfByEdge(
+          this.viewDimensions.width / 2,
+          this.avatarRegion.bottom
+        );
+        break;
+      case "mover-topLeft":
+        this.avatarRegion.left += 1;
+        this.avatarRegion.top += 1;
+
+        if (
+          this.avatarRegion.x1 >= this.avatarRegion.x2 ||
+          this.avatarRegion.y1 >= this.avatarRegion.y2
+        ) {
+          this.avatarRegion.sortCoords();
+          this.bottomRightMover.focus({ focusVisible: true });
+        }
+        break;
+      case "mover-bottomLeft":
+        this.avatarRegion.left -= 1;
+        this.avatarRegion.bottom += 1;
+
+        this.scrollIfByEdge(this.avatarRegion.left, this.avatarRegion.bottom);
+        break;
+      case "mover-topRight":
+        this.avatarRegion.right -= 1;
+        this.avatarRegion.top += 1;
+
+        if (
+          this.avatarRegion.x1 >= this.avatarRegion.x2 ||
+          this.avatarRegion.y1 >= this.avatarRegion.y2
+        ) {
+          this.avatarRegion.sortCoords();
+          this.bottomLeftMover.focus({ focusVisible: true });
+        }
+        break;
+      case "mover-bottomRight":
+        this.avatarRegion.right += 1;
+        this.avatarRegion.bottom += 1;
+
+        this.scrollIfByEdge(this.avatarRegion.right, this.avatarRegion.bottom);
+        break;
+      default:
+        return;
+    }
+
+    this.avatarRegion.forceSquare(targetId);
+  }
+
+  scrollIfByEdge(viewX, viewY) {
+    const { width, height } = this.viewDimensions.dimensions;
+
+    if (viewY <= SCROLL_BY_EDGE) {
+      // Scroll up
+      this.scrollView(0, -(SCROLL_BY_EDGE - viewY));
+    } else if (height - viewY < SCROLL_BY_EDGE) {
+      // Scroll down
+      this.scrollView(0, SCROLL_BY_EDGE - (height - viewY));
+    }
+
+    if (viewX <= SCROLL_BY_EDGE) {
+      // Scroll left
+      this.scrollView(-(SCROLL_BY_EDGE - viewX), 0);
+    } else if (width - viewX <= SCROLL_BY_EDGE) {
+      // Scroll right
+      this.scrollView(SCROLL_BY_EDGE - (width - viewX), 0);
+    }
+  }
+
+  scrollView(x, y) {
+    this.customAvatarCropArea.scrollBy(x, y);
   }
 
   handleFileUpload(event) {

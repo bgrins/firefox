@@ -298,8 +298,12 @@ class EventStateManager : public nsSupportsWeakReference, public nsIObserver {
   nsIContent* GetActiveContent() const { return mActiveContent; }
 
   void NativeAnonymousContentRemoved(nsIContent* aAnonContent);
-  MOZ_CAN_RUN_SCRIPT_BOUNDARY void ContentRemoved(dom::Document* aDocument,
-                                                  nsIContent* aContent);
+  void ContentInserted(nsIContent* aChild, const ContentInsertInfo& aInfo);
+  void ContentAppended(nsIContent* aFirstNewContent,
+                       const ContentAppendInfo& aInfo);
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY void ContentRemoved(
+      dom::Document* aDocument, nsIContent* aContent,
+      const ContentRemoveInfo& aInfo);
 
   /**
    * Called when a native anonymous <div> element which is root element of
@@ -1205,7 +1209,7 @@ class EventStateManager : public nsSupportsWeakReference, public nsIObserver {
       dom::DataTransfer* aDataTransfer, bool* aAllowEmptyDataTransfer,
       dom::Selection** aSelection,
       dom::RemoteDragStartData** aRemoteDragStartData, nsIContent** aTargetNode,
-      nsIPrincipal** aPrincipal, nsIContentSecurityPolicy** aCsp,
+      nsIPrincipal** aPrincipal, nsIPolicyContainer** aPolicyContainer,
       nsICookieJarSettings** aCookieJarSettings);
 
   /*
@@ -1226,12 +1230,15 @@ class EventStateManager : public nsSupportsWeakReference, public nsIObserver {
    *                      from browser chrome or OS.
    */
   MOZ_CAN_RUN_SCRIPT
-  bool DoDefaultDragStart(
-      nsPresContext* aPresContext, WidgetDragEvent* aDragEvent,
-      dom::DataTransfer* aDataTransfer, bool aAllowEmptyDataTransfer,
-      nsIContent* aDragTarget, dom::Selection* aSelection,
-      dom::RemoteDragStartData* aDragStartData, nsIPrincipal* aPrincipal,
-      nsIContentSecurityPolicy* aCsp, nsICookieJarSettings* aCookieJarSettings);
+  bool DoDefaultDragStart(nsPresContext* aPresContext,
+                          WidgetDragEvent* aDragEvent,
+                          dom::DataTransfer* aDataTransfer,
+                          bool aAllowEmptyDataTransfer, nsIContent* aDragTarget,
+                          dom::Selection* aSelection,
+                          dom::RemoteDragStartData* aDragStartData,
+                          nsIPrincipal* aPrincipal,
+                          nsIPolicyContainer* aPolicyContainer,
+                          nsICookieJarSettings* aCookieJarSettings);
 
   /**
    * Set the fields of aEvent to reflect the mouse position and modifier keys

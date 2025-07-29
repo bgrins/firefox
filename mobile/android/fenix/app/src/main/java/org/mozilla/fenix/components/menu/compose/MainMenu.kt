@@ -119,8 +119,6 @@ import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU_ITEM
  * @param onHistoryMenuClick Invoked when the user clicks on the history menu item.
  * @param onDownloadsMenuClick Invoked when the user clicks on the downloads menu item.
  * @param onPasswordsMenuClick Invoked when the user clicks on the passwords menu item.
- * @param onCustomizeHomepageMenuClick Invoked when the user clicks on the customize
- * homepage menu item.
  * @param onQuitMenuClick Invoked when the user clicks on the quit menu item.
  * @param onBackButtonClick Invoked when the user clicks on the back button.
  * @param onForwardButtonClick Invoked when the user clicks on the forward button.
@@ -168,7 +166,6 @@ fun MainMenu(
     onHistoryMenuClick: () -> Unit,
     onDownloadsMenuClick: () -> Unit,
     onPasswordsMenuClick: () -> Unit,
-    onCustomizeHomepageMenuClick: () -> Unit,
     onQuitMenuClick: () -> Unit,
     onBackButtonClick: (longPress: Boolean) -> Unit,
     onForwardButtonClick: (longPress: Boolean) -> Unit,
@@ -232,7 +229,6 @@ fun MainMenu(
 
         if (accessPoint == MenuAccessPoint.Home) {
             HomepageMenuGroup(
-                onCustomizeHomepageMenuClick = onCustomizeHomepageMenuClick,
                 onExtensionsMenuClick = onExtensionsMenuClick,
                 isExtensionsProcessDisabled = isExtensionsProcessDisabled,
                 isExtensionsExpanded = isExtensionsExpanded,
@@ -365,7 +361,7 @@ private fun ExtensionsMenuItem(
             Row(
                 modifier = Modifier
                     .background(
-                        color = FirefoxTheme.colors.layerSearch,
+                        color = FirefoxTheme.colors.layer2,
                         shape = RoundedCornerShape(16.dp),
                     )
                     .padding(start = leftPadding, top = 2.dp, bottom = 2.dp, end = 2.dp),
@@ -491,7 +487,7 @@ private fun ToolsAndActionsMenuGroup(
             menuItemState = if (isPdf) MenuItemState.DISABLED else MenuItemState.ACTIVE
         } else {
             badgeText = stringResource(id = R.string.browser_feature_desktop_site_off)
-            badgeBackgroundColor = FirefoxTheme.colors.layerSearch
+            badgeBackgroundColor = FirefoxTheme.colors.layer2
             menuItemState = if (isPdf) MenuItemState.DISABLED else MenuItemState.ENABLED
         }
 
@@ -526,7 +522,7 @@ private fun ToolsAndActionsMenuGroup(
             },
             label = stringResource(id = labelId),
             stateDescription = badgeText,
-            beforeIconPainter = painterResource(id = R.drawable.mozac_ic_device_mobile_24),
+            beforeIconPainter = painterResource(id = R.drawable.mozac_ic_device_desktop_24),
             state = menuItemState,
             onClick = onSwitchToDesktopSiteMenuClick,
         ) {
@@ -586,7 +582,7 @@ private fun MoreMenuButtonGroup(
         Row(
             modifier = Modifier
                 .background(
-                    color = FirefoxTheme.colors.layerSearch,
+                    color = FirefoxTheme.colors.layer2,
                     shape = RoundedCornerShape(16.dp),
                 )
                 .padding(2.dp),
@@ -701,17 +697,10 @@ private fun HomepageMenuGroup(
     webExtensionMenuCount: Int,
     allWebExtensionsDisabled: Boolean,
     onExtensionsMenuClick: () -> Unit,
-    onCustomizeHomepageMenuClick: () -> Unit,
     extensionSubmenu: @Composable ColumnScope.() -> Unit,
     extensionsMenuItemDescription: String?,
 ) {
     MenuGroup {
-        MenuItem(
-            label = stringResource(id = R.string.browser_menu_customize_home_1),
-            beforeIconPainter = painterResource(id = R.drawable.mozac_ic_tool_24),
-            onClick = onCustomizeHomepageMenuClick,
-        )
-
         ExtensionsMenuItem(
             isExtensionsProcessDisabled = isExtensionsProcessDisabled,
             isExtensionsExpanded = isExtensionsExpanded,
@@ -749,7 +738,7 @@ internal fun MozillaAccountMenuItem(
         Authenticated -> {
             label = account?.displayName ?: account?.email
                 ?: stringResource(id = R.string.browser_menu_account_settings)
-            description = null
+            description = stringResource(id = R.string.browser_menu_signed_in_caption)
         }
 
         is Authenticating -> {
@@ -997,7 +986,6 @@ private fun MenuDialogPreview() {
                 onHistoryMenuClick = {},
                 onDownloadsMenuClick = {},
                 onPasswordsMenuClick = {},
-                onCustomizeHomepageMenuClick = {},
                 onQuitMenuClick = {},
                 onBackButtonClick = {},
                 onForwardButtonClick = {},
@@ -1058,7 +1046,6 @@ private fun MenuDialogPrivatePreview(
                 onHistoryMenuClick = {},
                 onDownloadsMenuClick = {},
                 onPasswordsMenuClick = {},
-                onCustomizeHomepageMenuClick = {},
                 onQuitMenuClick = {},
                 onBackButtonClick = {},
                 onForwardButtonClick = {},

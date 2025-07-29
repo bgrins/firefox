@@ -11,20 +11,26 @@ import android.text.InputType.TYPE_CLASS_TEXT
 import android.text.InputType.TYPE_TEXT_VARIATION_URI
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
+import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.annotation.ColorInt
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.toColorInt
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat.Type.ime
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,18 +57,23 @@ private const val TEXT_SIZE = 15f
 private const val TEXT_HIGHLIGHT_COLOR = "#5C592ACB"
 private const val AUTOCOMPLETE_QUERY_THREADS = 3
 private const val AUTOCOMPLETE_THREADS_FACTORY_NAME = "EditToolbar"
+private const val LETTER_SPACING_SP = 0.5f
 
 /**
  * Sub-component of the [BrowserEditToolbar] responsible for displaying a text field that is
  * capable of inline autocompletion.
  */
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalLayoutApi::class)
 @Composable
+@Suppress("LongMethod")
 internal fun InlineAutocompleteTextField(
     query: String,
+    hint: String,
     showQueryAsPreselected: Boolean,
     autocompleteProviders: List<AutocompleteProvider>,
     modifier: Modifier = Modifier,
     onUrlEdit: (String) -> Unit = {},
+    onUrlEditAborted: () -> Unit = {},
     onUrlCommitted: (String) -> Unit = {},
     onUrlSuggestionAutocompleted: (String) -> Unit = {},
 ) {
@@ -138,11 +149,18 @@ internal fun InlineAutocompleteTextField(
                 background = backgroundDrawable
                 autoCompleteBackgroundColor = autocompletedTextColor
                 setTextColor(textColor.toArgb())
+                this.hint = hint
                 setHintTextColor(hintColor.toArgb())
+
+                // Used to match the same style that is used for Compose texts to ensure a smooth transition
+                letterSpacing = TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_SP,
+                    LETTER_SPACING_SP, context.resources.displayMetrics,
+                    ) / textSize
 
                 updateText(query)
                 if (showQueryAsPreselected && query.isNotBlank()) {
-                    selectAll()
+                    post { selectAll() }
                 }
 
                 setOnCommitListener {
@@ -151,6 +169,13 @@ internal fun InlineAutocompleteTextField(
 
                 setOnTextChangeListener { text, _ ->
                     onUrlEdit(text)
+                }
+
+                setOnDispatchKeyEventPreImeListener { event ->
+                    if (event?.keyCode == KeyEvent.KEYCODE_BACK && isImeVisible()) {
+                        onUrlEditAborted()
+                    }
+                    false
                 }
             }.also {
                 editText = it
@@ -161,6 +186,10 @@ internal fun InlineAutocompleteTextField(
             if (query != it.originalText) {
                 it.updateText(query)
                 it.refreshAutocompleteSuggestions()
+            }
+            if (it.hint != hint) {
+                it.hint = hint
+                it.setHintTextColor(hintColor.toArgb())
             }
         },
     )
@@ -259,6 +288,8 @@ private fun buildBackground(
     }
 }
 
+private fun View.isImeVisible() = ViewCompat.getRootWindowInsets(this)?.isVisible(ime()) == true
+
 private fun InlineAutocompleteEditText.updateText(newText: String) {
     // Avoid running the code for focusing this if the updated text is the one user already typed.
     // But ensure focusing this if just starting to type.
@@ -281,6 +312,7 @@ private fun InlineAutocompleteEditText.updateText(newText: String) {
 private fun BrowserEditToolbarPreview() {
     InlineAutocompleteTextField(
         query = "http://www.mozilla.org",
+        hint = "",
         showQueryAsPreselected = false,
         autocompleteProviders = emptyList(),
     )

@@ -63,6 +63,7 @@ let patterns: string[];
 - [`onSearch`](#onsearch)
 - [`sidebarToolOpened`](#sidebartoolopened)
 - [`elementClicked`](#elementclicked)
+- [`ipProtectionReady`](#ipprotectionready)
 
 ### `openArticleURL`
 
@@ -76,9 +77,11 @@ Does not filter by host or patterns.
 
 ### `frequentVisits`
 
-Happens every time a user navigates (or switches tab to) to any of the `hosts` or `patterns` arguments
-provided. Additionally it stores timestamps of these visits that are provided back to the targeting context.
-They can be used inside of the targeting expression:
+Happens every time a user navigates (or switches tab) to any of the `hosts`
+or `patterns` arguments provided. This trigger adds an item to the targeting
+context called `recentVisits`. It is a sorted array of timestamps for recent
+visits to the hosts provided in the `hosts` property.
+This can be used inside of the targeting expression:
 
 ```javascript
 // Has at least 3 visits in the past hour
@@ -144,7 +147,7 @@ Does not filter by host or patterns.
 
 The event it reports back is one of two things:
  * A combination of OR-ed [nsIWebProgressListener](https://searchfox.org/mozilla-central/source/uriloader/base/nsIWebProgressListener.idl) `STATE_BLOCKED_*` flags
- * A string constants, such as [`"ContentBlockingMilestone"`](https://searchfox.org/mozilla-central/rev/8a2d8d26e25ef70c98c6036612aad534b76b9815/toolkit/components/antitracking/TrackingDBService.jsm#327-334)
+ * A string constant, such as [`"ContentBlockingMilestone"`](https://searchfox.org/mozilla-central/rev/8a2d8d26e25ef70c98c6036612aad534b76b9815/toolkit/components/antitracking/TrackingDBService.jsm#327-334)
 
 
 ### `defaultBrowserCheck`
@@ -163,8 +166,10 @@ let willShowDefaultPrompt = boolean | undefined;
 ```
 
 #### Examples
+
 * Only trigger on startup, not on newtab/homepage
 * Don't show if the built-in prompt is going to be shown
+
 ```js
 {
   trigger: { id: "defaultBrowserCheck" },
@@ -417,5 +422,20 @@ The `elementId` string context variable is also available in targeting, and will
     params: ["element1-id", "element2-id"]
   },
   targeting: "elementId == 'element1-id'"
+}
+```
+
+### `ipProtectionReady`
+
+Fired once the IP protection widget is created and available. Used as a trigger for the IP protection feature introduction callout, which anchors to the widget.
+
+Targets users with the `browser.ipProtection.enabled` pref set to true, along with frequency caps.
+
+```js
+
+{
+  trigger: { "ipProtectionReady" },
+  targeting: "'browser.ipProtection.enabled' | preferenceValue && !(messageImpressions.IP_PROTECTION_INTRODUCTION_CALLOUT[messageImpressions.IP_PROTECTION_INTRODUCTION_CALLOUT | length - 1] < currentDate|date - (3600000 * 24))",
+
 }
 ```

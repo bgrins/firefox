@@ -77,6 +77,7 @@
 #include "mozilla/dom/Attr.h"
 #include "mozilla/dom/BindContext.h"
 #include "mozilla/dom/BindingDeclarations.h"
+#include "mozilla/dom/ChildIterator.h"
 #include "mozilla/dom/CloseWatcher.h"
 #include "mozilla/dom/CustomElementRegistry.h"
 #include "mozilla/dom/CSPViolationData.h"
@@ -107,12 +108,15 @@
 #include "mozilla/dom/NodeInfo.h"
 #include "mozilla/dom/nsCSPUtils.h"
 #include "mozilla/dom/PointerEventHandler.h"
+#include "mozilla/dom/PolicyContainer.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/Sanitizer.h"
 #include "mozilla/dom/SVGElement.h"
 #include "mozilla/dom/ScriptLoader.h"
 #include "mozilla/dom/ShadowRoot.h"
+#include "mozilla/dom/StylePropertyMapReadOnly.h"
 #include "mozilla/dom/Text.h"
+#include "mozilla/dom/TreeIterator.h"
 #include "mozilla/dom/TrustedHTML.h"
 #include "mozilla/dom/TrustedTypesConstants.h"
 #include "mozilla/dom/TrustedTypeUtils.h"
@@ -1533,7 +1537,7 @@ void Element::UnattachShadow() {
     // can only call ClearFocus when removing iframes and so on...)
     [&]() MOZ_CAN_RUN_SCRIPT_BOUNDARY {
       if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
-        fm->ContentRemoved(doc, shadowRoot);
+        fm->ContentRemoved(doc, shadowRoot, {});
       }
     }();
   }
@@ -1700,12 +1704,15 @@ already_AddRefed<nsIPrincipal> Element::CreateDevtoolsPrincipal() {
   RefPtr<ExpandedPrincipal> dtPrincipal = ExpandedPrincipal::Create(
       allowList, NodePrincipal()->OriginAttributesRef());
 
-  if (nsIContentSecurityPolicy* csp = GetCsp()) {
-    RefPtr<nsCSPContext> dtCsp = new nsCSPContext();
-    dtCsp->InitFromOther(static_cast<nsCSPContext*>(csp));
-    dtCsp->SetSkipAllowInlineStyleCheck(true);
+  if (nsIPolicyContainer* policyContainer = GetPolicyContainer()) {
+    if (nsIContentSecurityPolicy* csp =
+            PolicyContainer::Cast(policyContainer)->CSP()) {
+      RefPtr<nsCSPContext> dtCsp = new nsCSPContext();
+      dtCsp->InitFromOther(static_cast<nsCSPContext*>(csp));
+      dtCsp->SetSkipAllowInlineStyleCheck(true);
 
-    dtPrincipal->SetCsp(dtCsp);
+      dtPrincipal->SetCsp(dtCsp);
+    }
   }
 
   return dtPrincipal.forget();
@@ -2126,11 +2133,10 @@ void Element::GetExplicitlySetAttrElements(
 }
 
 void Element::GetElementsWithGrid(nsTArray<RefPtr<Element>>& aElements) {
-  nsINode* cur = this;
-  while (cur) {
+  dom::TreeIterator<dom::StyleChildrenIterator> iter(*this);
+  while (nsIContent* cur = iter.GetCurrent()) {
     if (cur->IsElement()) {
       Element* elem = cur->AsElement();
-
       if (elem->GetPrimaryFrame()) {
         // See if this has a GridContainerFrame. Use the same method that
         // nsGridContainerFrame uses, which deals with some edge cases.
@@ -2143,14 +2149,14 @@ void Element::GetElementsWithGrid(nsTArray<RefPtr<Element>>& aElements) {
       // Only allow the traversal to go through the children if the element
       // does have a display.
       if (elem->HasServoData()) {
-        cur = cur->GetNextNode(this);
+        iter.GetNext();
         continue;
       }
     }
 
     // Either this isn't an element, or it has `display: none`.
     // Continue with the traversal but ignore all the children.
-    cur = cur->GetNextNonChildNode(this);
+    iter.GetNextSkippingChildren();
   }
 }
 
@@ -2195,7 +2201,8 @@ nsresult Element::BindToTree(BindContext& aContext, nsINode& aParent) {
   }
   MOZ_ASSERT(!!GetParent() == aParent.IsContent());
 
-  MOZ_ASSERT(!HasAnyOfFlags(Element::kAllServoDescendantBits));
+  MOZ_ASSERT_IF(!aContext.IsMove(),
+                !HasAnyOfFlags(Element::kAllServoDescendantBits));
 
   // Finally, set the document
   if (aParent.IsInUncomposedDoc() || aParent.IsInShadowTree()) {
@@ -2230,7 +2237,9 @@ nsresult Element::BindToTree(BindContext& aContext, nsINode& aParent) {
     if (CustomElementData* data = GetCustomElementData()) {
       if (data->mState == CustomElementData::State::eCustom) {
         nsContentUtils::EnqueueLifecycleCallback(
-            ElementCallbackType::eConnected, this, {});
+            aContext.IsMove() ? ElementCallbackType::eConnectedMove
+                              : ElementCallbackType::eConnected,
+            this, {});
       } else {
         // Step 7.7.2.2 https://dom.spec.whatwg.org/#concept-node-insert
         nsContentUtils::TryToUpgradeElement(this);
@@ -2349,7 +2358,7 @@ void Element::UnbindFromTree(UnbindContext& aContext) {
   if (HasPointerLock()) {
     PointerLockManager::Unlock("Element::UnbindFromTree");
   }
-  if (mState.HasState(ElementState::FULLSCREEN)) {
+  if (!aContext.IsMove() && mState.HasState(ElementState::FULLSCREEN)) {
     // The element being removed is an ancestor of the fullscreen element,
     // exit fullscreen state.
     nsContentUtils::ReportToConsole(nsIScriptError::warningFlag, "DOM"_ns,
@@ -2360,8 +2369,9 @@ void Element::UnbindFromTree(UnbindContext& aContext) {
   }
 
   MOZ_ASSERT_IF(HasServoData(), document);
-  MOZ_ASSERT_IF(HasServoData(), IsInNativeAnonymousSubtree());
-  if (document) {
+  MOZ_ASSERT_IF(HasServoData() && !aContext.IsMove(),
+                IsInNativeAnonymousSubtree());
+  if (document && !aContext.IsMove()) {
     ClearServoData(document);
   }
 
@@ -2376,8 +2386,10 @@ void Element::UnbindFromTree(UnbindContext& aContext) {
   //
   // FIXME(bug 522599): Need a test for this.
   // FIXME(emilio): Why not clearing the effect set as well?
-  if (auto* data = GetAnimationData()) {
-    data->ClearAllAnimationCollections();
+  if (!aContext.IsMove()) {
+    if (auto* data = GetAnimationData()) {
+      data->ClearAllAnimationCollections();
+    }
   }
 
   if (nullParent) {
@@ -2434,8 +2446,10 @@ void Element::UnbindFromTree(UnbindContext& aContext) {
     // disconnected.
     if (CustomElementData* data = GetCustomElementData()) {
       if (data->mState == CustomElementData::State::eCustom) {
-        nsContentUtils::EnqueueLifecycleCallback(
-            ElementCallbackType::eDisconnected, this, {});
+        if (!aContext.IsMove()) {
+          nsContentUtils::EnqueueLifecycleCallback(
+              ElementCallbackType::eDisconnected, this, {});
+        }
       } else {
         // Remove an unresolved custom element that is a candidate for upgrade
         // when a custom element is disconnected.
@@ -2473,8 +2487,9 @@ void Element::UnbindFromTree(UnbindContext& aContext) {
     shadowRoot->Unbind();
   }
 
-  MOZ_ASSERT(!HasAnyOfFlags(kAllServoDescendantBits));
-  MOZ_ASSERT(!document || document->GetServoRestyleRoot() != this);
+  MOZ_ASSERT_IF(!aContext.IsMove(), !HasAnyOfFlags(kAllServoDescendantBits));
+  MOZ_ASSERT_IF(!aContext.IsMove(),
+                !document || document->GetServoRestyleRoot() != this);
 }
 
 UniquePtr<SMILAttr> Element::GetAnimatedAttr(int32_t aNamespaceID,
@@ -5343,6 +5358,16 @@ void Element::GetHTML(const GetHTMLOptions& aOptions, nsAString& aResult) {
         this, true, aResult, aOptions.mSerializableShadowRoots,
         aOptions.mShadowRoots);
   }
+}
+
+StylePropertyMapReadOnly* Element::ComputedStyleMap() {
+  nsDOMSlots* slots = DOMSlots();
+
+  if (!slots->mComputedStyleMap) {
+    slots->mComputedStyleMap = MakeRefPtr<StylePropertyMapReadOnly>(this);
+  }
+
+  return slots->mComputedStyleMap;
 }
 
 bool Element::Translate() const {

@@ -50,6 +50,7 @@
 #include "wasm/WasmBuiltins.h"
 #include "wasm/WasmCodegenConstants.h"
 #include "wasm/WasmCodegenTypes.h"
+#include "wasm/WasmInstance.h"
 #include "wasm/WasmInstanceData.h"
 #include "wasm/WasmMemory.h"
 #include "wasm/WasmTypeDef.h"
@@ -3453,31 +3454,6 @@ void MacroAssembler::loadResizableArrayBufferViewLengthIntPtr(
   bind(&done);
 }
 
-void MacroAssembler::loadResizableTypedArrayByteOffsetMaybeOutOfBoundsIntPtr(
-    Register obj, Register output, Register scratch) {
-  // Inline implementation of TypedArrayObject::byteOffsetMaybeOutOfBounds(),
-  // when the input is guaranteed to be a resizable typed array object.
-
-  loadArrayBufferViewByteOffsetIntPtr(obj, output);
-
-  // TypedArray is neither detached nor out-of-bounds when byteOffset non-zero.
-  Label done;
-  branchPtr(Assembler::NotEqual, output, ImmWord(0), &done);
-
-  // We're done when the initial byteOffset is zero.
-  loadPrivate(Address(obj, ArrayBufferViewObject::initialByteOffsetOffset()),
-              output);
-  branchPtr(Assembler::Equal, output, ImmWord(0), &done);
-
-  // If the buffer is attached, return initialByteOffset.
-  branchIfHasAttachedArrayBuffer(obj, scratch, &done);
-
-  // Otherwise return zero to match the result for fixed-length TypedArrays.
-  movePtr(ImmWord(0), output);
-
-  bind(&done);
-}
-
 void MacroAssembler::dateFillLocalTimeSlots(
     Register obj, Register scratch, const LiveRegisterSet& volatileRegs) {
   // Inline implementation of the cache check from
@@ -3871,7 +3847,7 @@ void MacroAssembler::generateBailoutTail(Register scratch,
             FramePointer);
 
     // Enter exit frame for the FinishBailoutToBaseline call.
-    push(FrameDescriptor(FrameType::BaselineJS));
+    pushFrameDescriptor(FrameType::BaselineJS);
     push(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeAddr)));
     push(FramePointer);
     // No GC things to mark on the stack, push a bare token.
@@ -3927,42 +3903,25 @@ void MacroAssembler::loadJitCodeRaw(Register func, Register dest) {
   loadPtr(Address(dest, BaseScript::offsetOfJitCodeRaw()), dest);
 }
 
-void MacroAssembler::loadJitCodeRawNoIon(Register func, Register dest,
-                                         Register scratch) {
-  // This is used when calling a trial-inlined script using a private
-  // ICScript to collect callsite-specific CacheIR. Ion doesn't use
-  // the baseline ICScript, so we want to enter at the highest
-  // available non-Ion tier.
-
-  Label useJitCodeRaw, done;
+void MacroAssembler::loadBaselineJitCodeRaw(Register func, Register dest,
+                                            Label* failure) {
+  // Load JitScript
   loadPrivate(Address(func, JSFunction::offsetOfJitInfoOrScript()), dest);
-  branchIfScriptHasNoJitScript(dest, &useJitCodeRaw);
-  loadJitScript(dest, scratch);
+  if (failure) {
+    branchIfScriptHasNoJitScript(dest, failure);
+  }
+  loadJitScript(dest, dest);
 
-  // If we have an IonScript, jitCodeRaw_ will point to it, so we have
-  // to load the baseline entry out of the BaselineScript.
-  branchPtr(Assembler::BelowOrEqual,
-            Address(scratch, JitScript::offsetOfIonScript()),
-            ImmPtr(IonCompilingScriptPtr), &useJitCodeRaw);
-  loadPtr(Address(scratch, JitScript::offsetOfBaselineScript()), scratch);
+  // Load BaselineScript
+  loadPtr(Address(dest, JitScript::offsetOfBaselineScript()), dest);
+  if (failure) {
+    static_assert(DisabledScript < CompilingScript);
+    branchPtr(Assembler::BelowOrEqual, dest, ImmWord(CompilingScript), failure);
+  }
 
-#ifdef DEBUG
-  // If we have an IonScript, we must also have a BaselineScript.
-  Label hasBaselineScript;
-  branchPtr(Assembler::Above, scratch, ImmPtr(BaselineCompilingScriptPtr),
-            &hasBaselineScript);
-  assumeUnreachable("JitScript has IonScript without BaselineScript");
-  bind(&hasBaselineScript);
-#endif
-
-  loadPtr(Address(scratch, BaselineScript::offsetOfMethod()), scratch);
-  loadPtr(Address(scratch, JitCode::offsetOfCode()), dest);
-  jump(&done);
-
-  // If there's no IonScript, we can just use jitCodeRaw_.
-  bind(&useJitCodeRaw);
-  loadPtr(Address(dest, BaseScript::offsetOfJitCodeRaw()), dest);
-  bind(&done);
+  // Load Baseline jitcode
+  loadPtr(Address(dest, BaselineScript::offsetOfMethod()), dest);
+  loadPtr(Address(dest, JitCode::offsetOfCode()), dest);
 }
 
 void MacroAssembler::loadBaselineFramePtr(Register framePtr, Register dest) {
@@ -3970,6 +3929,10 @@ void MacroAssembler::loadBaselineFramePtr(Register framePtr, Register dest) {
     movePtr(framePtr, dest);
   }
   subPtr(Imm32(BaselineFrame::Size()), dest);
+}
+
+void MacroAssembler::storeICScriptInJSContext(Register icScript) {
+  storePtr(icScript, AbsoluteAddress(runtime()->addressOfInlinedICScript()));
 }
 
 void MacroAssembler::handleFailure() {
@@ -6354,9 +6317,7 @@ CodeOffset MacroAssembler::asmCallIndirect(const wasm::CallSiteDesc& desc,
 
 void MacroAssembler::wasmCallIndirect(const wasm::CallSiteDesc& desc,
                                       const wasm::CalleeDesc& callee,
-                                      Label* boundsCheckFailedLabel,
                                       Label* nullCheckFailedLabel,
-                                      mozilla::Maybe<uint32_t> tableSize,
                                       CodeOffset* fastCallOffset,
                                       CodeOffset* slowCallOffset) {
   static_assert(sizeof(wasm::FunctionTableElem) == 2 * sizeof(void*),
@@ -6366,28 +6327,6 @@ void MacroAssembler::wasmCallIndirect(const wasm::CallSiteDesc& desc,
   const int shift = sizeof(wasm::FunctionTableElem) == 8 ? 3 : 4;
   const Register calleeScratch = WasmTableCallScratchReg0;
   const Register index = WasmTableCallIndexReg;
-
-  // Check the table index and throw if out-of-bounds.
-  //
-  // Frequently the table size is known, so optimize for that.  Otherwise
-  // compare with a memory operand when that's possible.  (There's little sense
-  // in hoisting the load of the bound into a register at a higher level and
-  // reusing that register, because a hoisted value would either have to be
-  // spilled and re-loaded before the next call_indirect, or would be abandoned
-  // because we could not trust that a hoisted value would not have changed.)
-
-  if (boundsCheckFailedLabel) {
-    if (tableSize.isSome()) {
-      branch32(Assembler::Condition::AboveOrEqual, index, Imm32(*tableSize),
-               boundsCheckFailedLabel);
-    } else {
-      branch32(
-          Assembler::Condition::BelowOrEqual,
-          Address(InstanceReg, wasm::Instance::offsetInData(
-                                   callee.tableLengthInstanceDataOffset())),
-          index, boundsCheckFailedLabel);
-    }
-  }
 
   // Write the functype-id into the ABI functype-id register.
 
@@ -6492,9 +6431,7 @@ void MacroAssembler::wasmCallIndirect(const wasm::CallSiteDesc& desc,
 
 void MacroAssembler::wasmReturnCallIndirect(
     const wasm::CallSiteDesc& desc, const wasm::CalleeDesc& callee,
-    Label* boundsCheckFailedLabel, Label* nullCheckFailedLabel,
-    mozilla::Maybe<uint32_t> tableSize,
-    const ReturnCallAdjustmentInfo& retCallInfo) {
+    Label* nullCheckFailedLabel, const ReturnCallAdjustmentInfo& retCallInfo) {
   static_assert(sizeof(wasm::FunctionTableElem) == 2 * sizeof(void*),
                 "Exactly two pointers or index scaling won't work correctly");
   MOZ_ASSERT(callee.which() == wasm::CalleeDesc::WasmTable);
@@ -6502,28 +6439,6 @@ void MacroAssembler::wasmReturnCallIndirect(
   const int shift = sizeof(wasm::FunctionTableElem) == 8 ? 3 : 4;
   const Register calleeScratch = WasmTableCallScratchReg0;
   const Register index = WasmTableCallIndexReg;
-
-  // Check the table index and throw if out-of-bounds.
-  //
-  // Frequently the table size is known, so optimize for that.  Otherwise
-  // compare with a memory operand when that's possible.  (There's little sense
-  // in hoisting the load of the bound into a register at a higher level and
-  // reusing that register, because a hoisted value would either have to be
-  // spilled and re-loaded before the next call_indirect, or would be abandoned
-  // because we could not trust that a hoisted value would not have changed.)
-
-  if (boundsCheckFailedLabel) {
-    if (tableSize.isSome()) {
-      branch32(Assembler::Condition::AboveOrEqual, index, Imm32(*tableSize),
-               boundsCheckFailedLabel);
-    } else {
-      branch32(
-          Assembler::Condition::BelowOrEqual,
-          Address(InstanceReg, wasm::Instance::offsetInData(
-                                   callee.tableLengthInstanceDataOffset())),
-          index, boundsCheckFailedLabel);
-    }
-  }
 
   // Write the functype-id into the ABI functype-id register.
 
@@ -7272,7 +7187,8 @@ void MacroAssembler::branchValueConvertsToWasmAnyRefInline(
   bind(&checkDouble);
   {
     unboxDouble(src, scratchFloat);
-    convertDoubleToInt32(scratchFloat, scratchInt, &fallthrough);
+    convertDoubleToInt32(scratchFloat, scratchInt, &fallthrough,
+                         /*negativeZeroCheck=*/false);
     branch32(Assembler::GreaterThan, scratchInt,
              Imm32(wasm::AnyRef::MaxI31Value), &fallthrough);
     branch32(Assembler::LessThan, scratchInt, Imm32(wasm::AnyRef::MinI31Value),
@@ -7301,7 +7217,8 @@ void MacroAssembler::convertValueToWasmAnyRef(ValueOperand src, Register dest,
   bind(&doubleValue);
   {
     unboxDouble(src, scratchFloat);
-    convertDoubleToInt32(scratchFloat, dest, oolConvert);
+    convertDoubleToInt32(scratchFloat, dest, oolConvert,
+                         /*negativeZeroCheck=*/false);
     branch32(Assembler::GreaterThan, dest, Imm32(wasm::AnyRef::MaxI31Value),
              oolConvert);
     branch32(Assembler::LessThan, dest, Imm32(wasm::AnyRef::MinI31Value),
@@ -7380,6 +7297,13 @@ void MacroAssembler::wasmNewStructObject(Register instance, Register result,
   jump(fail);
 #endif
 
+  // Don't execute the inline path if there is an allocation metadata builder
+  // on the realm.
+  branchPtr(
+      Assembler::NotEqual,
+      Address(instance, wasm::Instance::offsetOfAllocationMetadataBuilder()),
+      ImmWord(0), fail);
+
 #ifdef JS_GC_ZEAL
   // Don't execute the inline path if gc zeal or tracing are active.
   loadPtr(Address(instance, wasm::Instance::offsetOfAddressOfGCZealModeBits()),
@@ -7429,6 +7353,13 @@ void MacroAssembler::wasmNewArrayObject(Register instance, Register result,
 #ifdef JS_GC_PROBES
   jump(fail);
 #endif
+
+  // Don't execute the inline path if there is an allocation metadata builder
+  // on the realm.
+  branchPtr(
+      Assembler::NotEqual,
+      Address(instance, wasm::Instance::offsetOfAllocationMetadataBuilder()),
+      ImmWord(0), fail);
 
 #ifdef JS_GC_ZEAL
   // Don't execute the inline path if gc zeal or tracing are active.
@@ -7586,6 +7517,13 @@ void MacroAssembler::wasmNewArrayObjectFixed(
 #ifdef JS_GC_PROBES
   jump(fail);
 #endif
+
+  // Don't execute the inline path if there is an allocation metadata builder
+  // on the realm.
+  branchPtr(
+      Assembler::NotEqual,
+      Address(instance, wasm::Instance::offsetOfAllocationMetadataBuilder()),
+      ImmWord(0), fail);
 
 #ifdef JS_GC_ZEAL
   // Don't execute the inline path if gc zeal or tracing are active.

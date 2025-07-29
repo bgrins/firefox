@@ -7,14 +7,18 @@ import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
-  getPlacesSemanticHistoryManager:
-    "resource://gre/modules/PlacesSemanticHistoryManager.sys.mjs",
   Interactions: "moz-src:///browser/components/places/Interactions.sys.mjs",
+  ProviderSemanticHistorySearch:
+    "resource:///modules/UrlbarProviderSemanticHistorySearch.sys.mjs",
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
   UrlbarProvidersManager: "resource:///modules/UrlbarProvidersManager.sys.mjs",
   UrlbarTokenizer: "resource:///modules/UrlbarTokenizer.sys.mjs",
   UrlbarUtils: "resource:///modules/UrlbarUtils.sys.mjs",
 });
+
+ChromeUtils.defineLazyGetter(lazy, "logger", () =>
+  lazy.UrlbarUtils.getLogger({ prefix: "Controller" })
+);
 
 const NOTIFICATIONS = {
   QUERY_STARTED: "onQueryStarted",
@@ -82,10 +86,6 @@ export class UrlbarController {
     this.engagementEvent = new TelemetryEvent(
       this,
       options.eventTelemetryCategory
-    );
-
-    ChromeUtils.defineLazyGetter(this, "logger", () =>
-      lazy.UrlbarUtils.getLogger({ prefix: "Controller" })
     );
   }
 
@@ -352,7 +352,7 @@ export class UrlbarController {
         }
       // Fall through, we want the SPACE key to activate this element.
       case KeyEvent.DOM_VK_RETURN:
-        this.logger.debug(`Enter pressed${executeAction ? "" : " delayed"}`);
+        lazy.logger.debug(`Enter pressed${executeAction ? "" : " delayed"}`);
         if (executeAction) {
           this.input.handleCommand(event);
         }
@@ -412,6 +412,8 @@ export class UrlbarController {
         let allowTabbingThroughResults =
           this.input.focusedViaMousedown ||
           this.input.searchMode?.isPreview ||
+          this.input.searchMode?.source ==
+            lazy.UrlbarUtils.RESULT_SOURCE.ACTIONS ||
           this.view.selectedElement ||
           (this.input.value &&
             this.input.getAttribute("pageproxystate") != "valid");
@@ -930,9 +932,14 @@ class TelemetryEvent {
       // enter search mode are picked. We should find a generalized way to
       // determine this instead of listing all the cases like this.
       details.isSessionOngoing = !!(
-        ["dismiss", "inaccurate_location", "show_less_frequently"].includes(
-          details.selType
-        ) || details.result?.payload.providesSearchMode
+        [
+          "dismiss",
+          "dismiss_all",
+          "inaccurate_location",
+          "not_now",
+          "show_less_frequently",
+        ].includes(details.selType) ||
+        details.result?.payload.providesSearchMode
       );
     }
 
@@ -1151,21 +1158,29 @@ class TelemetryEvent {
       return;
     }
 
-    this._controller.logger.info(`${method} event:`, eventInfo);
+    lazy.logger.info(`${method} event:`, eventInfo);
 
     Glean.urlbar[method].record(eventInfo);
   }
 
   /**
    * Retrieves available semantic search sources.
+   * Ensure it is the provider initializing the semantic manager, since it
+   * provides the right configuration for the singleton.
    *
    * @returns {Array<string>} Array of found sources, will contain just "none"
    *   if no sources were found.
    */
   #getAvailableSemanticSources() {
     let sources = [];
-    if (lazy.getPlacesSemanticHistoryManager().canUseSemanticSearch) {
-      sources.push("history");
+    try {
+      if (
+        lazy.ProviderSemanticHistorySearch.semanticManager.canUseSemanticSearch
+      ) {
+        sources.push("history");
+      }
+    } catch (e) {
+      lazy.logger.error("Error getting the semantic manager:", e);
     }
     if (!sources.length) {
       sources.push("none");
@@ -1200,7 +1215,7 @@ class TelemetryEvent {
       // Record the `keyword_exposure` event if there's a keyword.
       if (keyword) {
         let data = { keyword, terminal, result: resultType };
-        this._controller.logger.debug("Recording keyword_exposure event", data);
+        lazy.logger.debug("Recording keyword_exposure event", data);
         Glean.urlbar.keywordExposure.record(data);
         keywordExposureRecorded = true;
       }
@@ -1212,7 +1227,7 @@ class TelemetryEvent {
       results: tuples.map(t => t[0]).join(","),
       terminal: tuples.map(t => t[1]).join(","),
     };
-    this._controller.logger.debug("Recording exposure event", exposure);
+    lazy.logger.debug("Recording exposure event", exposure);
     Glean.urlbar.exposure.record(exposure);
 
     // Submit the `urlbar-keyword-exposure` ping if any keyword exposure events

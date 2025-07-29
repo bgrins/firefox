@@ -239,7 +239,6 @@ enum class Trap;
 namespace jit {
 
 // Defined in JitFrames.h
-class FrameDescriptor;
 enum class ExitFrameType : uint8_t;
 
 class AutoSaveLiveRegisters;
@@ -557,8 +556,6 @@ class MacroAssembler : public MacroAssemblerSpecific {
   void PushEmptyRooted(VMFunctionData::RootType rootType);
   inline CodeOffset PushWithPatch(ImmWord word);
   inline CodeOffset PushWithPatch(ImmPtr imm);
-
-  using MacroAssemblerSpecific::push;
 
   void Pop(const Operand op) DEFINED_ON(x86_shared);
   void Pop(Register reg) PER_SHARED_ARCH;
@@ -895,17 +892,17 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
   // The frame descriptor is the second field of all Jit frames, pushed before
   // calling the Jit function. See CommonFrameLayout::descriptor_.
-  inline void push(FrameDescriptor descriptor);
-  inline void Push(FrameDescriptor descriptor);
+  inline void pushFrameDescriptor(FrameType type);
+  inline void PushFrameDescriptor(FrameType type);
 
   // For JitFrameLayout, the descriptor also stores the number of arguments
   // passed by the caller. See MakeFrameDescriptorForJitCall.
+  inline void pushFrameDescriptorForJitCall(FrameType type, uint32_t argc);
   inline void pushFrameDescriptorForJitCall(FrameType type, Register argc,
-                                            Register scratch,
-                                            bool hasInlineICScript = false);
+                                            Register scratch);
+  inline void PushFrameDescriptorForJitCall(FrameType type, uint32_t argc);
   inline void PushFrameDescriptorForJitCall(FrameType type, Register argc,
-                                            Register scratch,
-                                            bool hasInlineICScript = false);
+                                            Register scratch);
 
   // Load the number of actual arguments from the frame's JitFrameLayout.
   inline void loadNumActualArgs(Register framePtr, Register dest);
@@ -3720,16 +3717,18 @@ class MacroAssembler : public MacroAssemblerSpecific {
   // limited to something much larger.
 
   void wasmBoundsCheck32(Condition cond, Register index,
-                         Register boundsCheckLimit, Label* ok) PER_SHARED_ARCH;
+                         Register boundsCheckLimit,
+                         Label* label) PER_SHARED_ARCH;
 
   void wasmBoundsCheck32(Condition cond, Register index,
-                         Address boundsCheckLimit, Label* ok) PER_SHARED_ARCH;
+                         Address boundsCheckLimit,
+                         Label* label) PER_SHARED_ARCH;
 
   void wasmBoundsCheck64(Condition cond, Register64 index,
-                         Register64 boundsCheckLimit, Label* ok) PER_ARCH;
+                         Register64 boundsCheckLimit, Label* label) PER_ARCH;
 
   void wasmBoundsCheck64(Condition cond, Register64 index,
-                         Address boundsCheckLimit, Label* ok) PER_ARCH;
+                         Address boundsCheckLimit, Label* label) PER_ARCH;
 
   // Each wasm load/store instruction appends its own wasm::Trap::OutOfBounds.
   void wasmLoad(const wasm::MemoryAccessDesc& access, Operand srcAddr,
@@ -3905,10 +3904,8 @@ class MacroAssembler : public MacroAssemblerSpecific {
   // null check into the rest of the call instructions.
   void wasmCallIndirect(const wasm::CallSiteDesc& desc,
                         const wasm::CalleeDesc& callee,
-                        Label* boundsCheckFailedLabel,
-                        Label* nullCheckFailedLabel,
-                        mozilla::Maybe<uint32_t> tableSize,
-                        CodeOffset* fastCallOffset, CodeOffset* slowCallOffset);
+                        Label* nullCheckFailedLabel, CodeOffset* fastCallOffset,
+                        CodeOffset* slowCallOffset);
 
   // WasmTableCallIndexReg must contain the index of the indirect call.  This is
   // for wasm calls only.
@@ -3918,9 +3915,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
   // null check into the rest of the call instructions.
   void wasmReturnCallIndirect(const wasm::CallSiteDesc& desc,
                               const wasm::CalleeDesc& callee,
-                              Label* boundsCheckFailedLabel,
                               Label* nullCheckFailedLabel,
-                              mozilla::Maybe<uint32_t> tableSize,
                               const ReturnCallAdjustmentInfo& retCallInfo);
 
   // This function takes care of loading the callee's instance and address from
@@ -5759,9 +5754,6 @@ class MacroAssembler : public MacroAssemblerSpecific {
                                              sync, obj, output, scratch);
   }
 
-  void loadResizableTypedArrayByteOffsetMaybeOutOfBoundsIntPtr(
-      Register obj, Register output, Register scratch);
-
   void dateFillLocalTimeSlots(Register obj, Register scratch,
                               const LiveRegisterSet& volatileRegs);
 
@@ -5891,7 +5883,9 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
  public:
   void loadJitCodeRaw(Register func, Register dest);
-  void loadJitCodeRawNoIon(Register func, Register dest, Register scratch);
+  void loadBaselineJitCodeRaw(Register func, Register dest,
+                              Label* failure = nullptr);
+  void storeICScriptInJSContext(Register icScript);
 
   void loadBaselineFramePtr(Register framePtr, Register dest);
 

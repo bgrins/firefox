@@ -2382,10 +2382,16 @@
 #endif
   mir_op: AtomicTypedArrayElementBinop
 
-- name: EffectiveAddress
+- name: EffectiveAddress3
   result_type: WordSized
   operands:
     base: WordSized
+    index: WordSized
+  mir_op: true
+
+- name: EffectiveAddress2
+  result_type: WordSized
+  operands:
     index: WordSized
   mir_op: true
 
@@ -3121,6 +3127,24 @@
   operands:
     ptr: Int64
     boundsCheckLimit: Int64
+  mir_op: WasmBoundsCheck
+
+- name: WasmBoundsCheckInstanceField
+  result_type: WordSized
+  operands:
+    instance: WordSized
+    ptr: WordSized
+  arguments:
+    offset: uint32_t
+  mir_op: WasmBoundsCheck
+
+- name: WasmBoundsCheckInstanceField64
+  result_type: Int64
+  operands:
+    instance: WordSized
+    ptr: Int64
+  arguments:
+    offset: uint32_t
   mir_op: WasmBoundsCheck
 
 - name: WasmExtendU32Index

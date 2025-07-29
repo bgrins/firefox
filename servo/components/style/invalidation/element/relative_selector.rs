@@ -189,12 +189,13 @@ impl<'a, E: TElement> OptimizationContext<'a, E> {
                 dependency.next.is_some(),
                 "No relative selector outer dependency?"
             );
-            return dependency.next.as_ref().map_or(false, |par| {
+            return dependency.next.as_ref().map_or(false, |deps| {
                 // ... However, if the standin sibling can be the anchor, we can't skip it, since
                 // that sibling should be invlidated to become the anchor.
+                let next = &deps.as_ref().slice()[0];
                 !matches_selector(
-                    &par.selector,
-                    par.selector_offset,
+                    &next.selector,
+                    next.selector_offset,
                     None,
                     &sibling,
                     &mut matching_context,
@@ -349,7 +350,11 @@ impl<'a, E: TElement + 'a> Default for ToInvalidate<'a, E> {
     }
 }
 
-fn invalidation_can_collapse(a: &Dependency, b: &Dependency, invalidations_in_subtree: bool) -> bool {
+fn invalidation_can_collapse(
+    a: &Dependency,
+    b: &Dependency,
+    allow_indexed_selectors: bool,
+) -> bool {
     // We want to detect identical dependencies that occur at different
     // compounds but has the identical compound in the same selector,
     // e.g. :has(.item .item).
@@ -368,11 +373,13 @@ fn invalidation_can_collapse(a: &Dependency, b: &Dependency, invalidations_in_su
     // TODO(dshin): @scope probably brings more subtleties...
     let mut a_next = a.next.as_ref();
     let mut b_next = b.next.as_ref();
-    while let (Some(a_n), Some(b_n)) = (a_next, b_next) {
+    while let (Some(a_deps), Some(b_deps)) = (a_next, b_next) {
         // This is a bit subtle - but we don't need to do the checks we do at higher levels.
         // Cases like `:is(.item .foo) :is(.item .foo)` where `.item` invalidates would
         // point to different dependencies, pointing to the same outer selector, but
         // differing in selector offset.
+        let a_n = &a_deps.as_ref().slice()[0];
+        let b_n = &b_deps.as_ref().slice()[0];
         if SelectorKey::new(&a_n.selector) != SelectorKey::new(&b_n.selector) {
             return false;
         }
@@ -403,9 +410,7 @@ fn invalidation_can_collapse(a: &Dependency, b: &Dependency, invalidations_in_su
             return false;
         }
         let Some(component) = a_component else { return true };
-        // If we're in the subtree of DOM manipulation - worrying the about positioning of this element
-        // is irrelevant, because the DOM structure is either completely new or about to go away.
-        if !invalidations_in_subtree && component.has_indexed_selector_in_subject() {
+        if !allow_indexed_selectors && component.has_indexed_selector_in_subject() {
             // The element's positioning matters, so can't collapse.
             return false;
         }
@@ -433,8 +438,17 @@ where
     ) {
         let in_subtree = element != self.top;
         if let Some(entry) = self.invalidations.iter_mut().find(|entry| {
+            // If we're in the subtree of DOM manipulation - worrying the about positioning of this element
+            // is irrelevant, because the DOM structure is either completely new or about to go away.
             let both_in_subtree = in_subtree && entry.element != self.top;
-            invalidation_can_collapse(dependency, entry.dependency, both_in_subtree)
+            // If we're considering the same element for invalidation, their evaluation of the indexed selector
+            // is identical by definition.
+            let same_element = element == entry.element;
+            invalidation_can_collapse(
+                dependency,
+                entry.dependency,
+                both_in_subtree || same_element,
+            )
         }) {
             entry.update(element, host, dependency)
         } else {
@@ -499,7 +513,7 @@ where
                             continue;
                         }
                     }
-                    let dependency = invalidation.dependency.next.as_ref().unwrap();
+                    let dependency = &invalidation.dependency.next.as_ref().unwrap().slice()[0];
                     result.invalidations.push(RelativeSelectorInvalidation {
                         kind,
                         host: invalidation.host,
@@ -984,7 +998,7 @@ where
         );
 
         if let Some(x) = outer_dependency.next.as_ref() {
-            if !Self::is_subject(x.as_ref()) {
+            if !Self::is_subject(&x.as_ref().slice()[0]) {
                 // Not subject in outer selector.
                 return false;
             }
@@ -1075,8 +1089,8 @@ where
                 }
                 let invalidation_kind = d.normal_invalidation_kind();
                 if matches!(invalidation_kind, NormalDependencyInvalidationKind::Element) {
-                    if let Some(ref next) = d.next {
-                        d = next;
+                    if let Some(ref deps) = d.next {
+                        d = &deps.as_ref().slice()[0];
                         continue;
                     }
                     break true;
@@ -1204,7 +1218,7 @@ where
                 self.note_dependency(
                     element,
                     scope,
-                    next,
+                    &next.as_ref().slice()[0],
                     descendant_invalidations,
                     sibling_invalidations,
                 );
@@ -1297,7 +1311,7 @@ where
             RelativeSelectorInvalidation {
                 host: self.matching_context.current_host,
                 kind,
-                dependency: dep.next.as_ref().unwrap(),
+                dependency: &dep.next.as_ref().unwrap().as_ref().slice()[0],
             },
         ));
     }

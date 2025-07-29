@@ -69,6 +69,9 @@ class CellAllocator {
   template <typename T, AllowGC allowGC>
   static T* NewBigInt(JSContext* cx, Heap heap);
 
+  template <typename T, AllowGC allowGC, typename... Args>
+  static T* NewGetterSetter(JSContext* cx, Heap heap, Args&&... args);
+
   template <typename T, AllowGC allowGC>
   static T* NewObject(JSContext* cx, AllocKind kind, Heap heap,
                       const JSClass* clasp, AllocSite* site = nullptr);
@@ -121,8 +124,8 @@ size_t GetGoodPower2AllocSize(size_t requiredBytes);
 size_t GetGoodElementCount(size_t requiredCount, size_t elementSize);
 size_t GetGoodPower2ElementCount(size_t requiredCount, size_t elementSize);
 void* AllocBuffer(JS::Zone* zone, size_t bytes, bool nurseryOwned);
-void* ReallocBuffer(JS::Zone* zone, void* alloc, size_t bytes,
-                    bool nurseryOwned);
+void* ReallocBuffer(JS::Zone* zone, void* alloc, size_t oldBytes,
+                    size_t newBytes, bool nurseryOwned);
 void FreeBuffer(JS::Zone* zone, void* alloc);
 
 // Indicate whether |alloc| is a buffer allocation as opposed to a fixed size GC
@@ -131,6 +134,8 @@ bool IsBufferAlloc(void* alloc);
 
 bool IsNurseryOwned(JS::Zone* zone, void* alloc);
 
+// Get the size of the |alloc| in bytes. Must not be called while sweeping is
+// happening.
 size_t GetAllocSize(JS::Zone* zone, void* alloc);
 
 // Buffer allocator GC-internal API.

@@ -706,12 +706,50 @@ class MarkerSchema {
     Uint64,
     Uint32,
     Uint8,
+    Int64,
+    Int32,
+    Int8,
+    Double,
     Boolean,
     CString,
     String,
     TimeStamp,
     TimeDuration
   };
+
+  template <typename T>
+  static constexpr InputType getDefaultInputTypeForType() {
+    using CleanT = std::remove_cv_t<std::remove_pointer_t<T>>;
+
+    if constexpr (std::is_same_v<CleanT, bool>) {
+      return InputType::Boolean;
+    } else if constexpr (std::is_same_v<CleanT, double>) {
+      return InputType::Double;
+    } else if constexpr (std::is_unsigned_v<CleanT> && sizeof(CleanT) == 4) {
+      return InputType::Uint32;
+    } else if constexpr (std::is_unsigned_v<CleanT> && sizeof(CleanT) == 8) {
+      return InputType::Uint64;
+    } else if constexpr (std::is_unsigned_v<CleanT> && sizeof(CleanT) == 1) {
+      return InputType::Uint8;
+    } else if constexpr (std::is_signed_v<CleanT> &&
+                         std::is_integral_v<CleanT> && sizeof(CleanT) == 4) {
+      return InputType::Int32;
+    } else if constexpr (std::is_signed_v<CleanT> &&
+                         std::is_integral_v<CleanT> && sizeof(CleanT) == 8) {
+      return InputType::Int64;
+    } else if constexpr (std::is_signed_v<CleanT> &&
+                         std::is_integral_v<CleanT> && sizeof(CleanT) == 1) {
+      return InputType::Int8;
+    } else if constexpr (std::is_same_v<CleanT, TimeStamp>) {
+      return InputType::TimeStamp;
+    } else if constexpr (std::is_same_v<CleanT, TimeDuration>) {
+      return InputType::TimeDuration;
+    } else if constexpr (std::is_same_v<CleanT, ProfilerString8View>) {
+      return InputType::CString;
+    } else {
+      static_assert(sizeof(T) == 0, "Unsupported type");
+    }
+  }
 
   enum class Location : unsigned {
     MarkerChart,
@@ -793,6 +831,25 @@ class MarkerSchema {
     // a marker with a field of this type.
     TerminatingFlow
   };
+
+  template <typename T>
+  static constexpr Format getDefaultFormatForType() {
+    using CleanT = std::remove_cv_t<T>;
+
+    if constexpr (std::is_integral_v<CleanT> || std::is_same_v<CleanT, bool>) {
+      return Format::Integer;
+    } else if constexpr (std::is_same_v<CleanT, double>) {
+      return Format::Decimal;
+    } else if constexpr (std::is_same_v<CleanT, TimeStamp>) {
+      return Format::Time;
+    } else if constexpr (std::is_same_v<CleanT, TimeDuration>) {
+      return Format::Duration;
+    } else if constexpr (std::is_same_v<CleanT, ProfilerString8View>) {
+      return Format::SanitizedString;
+    } else {
+      static_assert(sizeof(T) == 0, "Unsupported type");
+    }
+  }
 
   // This represents groups of markers which MarkerTypes can expose to indicate
   // what group they belong to (multiple groups are allowed combined in bitwise
@@ -1003,7 +1060,14 @@ template <typename PayloadType>
 static void StreamPayload(baseprofiler::SpliceableJSONWriter& aWriter,
                           const Span<const char> aKey,
                           const PayloadType& aPayload) {
-  aWriter.StringProperty(aKey, aPayload);
+  using CleanT = std::remove_cv_t<PayloadType>;
+  if constexpr (std::is_integral_v<CleanT>) {
+    aWriter.IntProperty(aKey, aPayload);
+  } else if constexpr (std::is_same_v<CleanT, double>) {
+    aWriter.DoubleProperty(aKey, aPayload);
+  } else {
+    aWriter.StringProperty(aKey, aPayload);
+  }
 }
 
 template <typename PayloadType>
@@ -1022,13 +1086,6 @@ inline void StreamPayload<bool>(baseprofiler::SpliceableJSONWriter& aWriter,
                                 const Span<const char> aKey,
                                 const bool& aPayload) {
   aWriter.BoolProperty(aKey, aPayload);
-}
-
-template <>
-inline void StreamPayload<ProfilerString8View>(
-    baseprofiler::SpliceableJSONWriter& aWriter, const Span<const char> aKey,
-    const ProfilerString8View& aPayload) {
-  aWriter.StringProperty(aKey, aPayload);
 }
 
 template <>

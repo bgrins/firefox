@@ -178,6 +178,45 @@ export const INITIAL_STATE = {
     suggestions: [],
     collapsed: false,
   },
+  // Widgets
+  ListsWidget: {
+    // value pointing to last selectled list
+    selected: "taskList",
+    // Default state of an empty task list
+    lists: {
+      taskList: {
+        label: "Task List",
+        tasks: [],
+      },
+    },
+    // Keeping this separate from `lists` so that it isn't rendered
+    // in the same way
+    completed: {
+      label: "Completed",
+      tasks: [],
+    },
+  },
+  TimerWidget: {
+    // The timer will have 2 types of states, focus and break.
+    // Focus will the default state
+    timerType: "focus",
+    focus: {
+      // Timer duration set by user
+      duration: 0,
+      // Initial duration - also set by the user; does not update until timer ends or user resets timer
+      initialDuration: 0,
+      // the Date.now() value when a user starts/resumes a timer
+      startTime: null,
+      // Boolean indicating if timer is currently running
+      isRunning: false,
+    },
+    break: {
+      duration: 0,
+      initialDuration: 0,
+      startTime: null,
+      isRunning: false,
+    },
+  },
 };
 
 function App(prevState = INITIAL_STATE.App, action) {
@@ -926,9 +965,6 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
           ...prevState.report,
           card_type: action.data?.card_type,
           corpus_item_id: action.data?.corpus_item_id,
-          is_section_followed: action.data?.is_section_followed,
-          received_rank: action.data?.received_rank,
-          recommended_at: action.data?.recommended_at,
           scheduled_corpus_item_id: action.data?.scheduled_corpus_item_id,
           section_position: action.data?.section_position,
           section: action.data?.section,
@@ -1076,6 +1112,92 @@ function TrendingSearch(prevState = INITIAL_STATE.TrendingSearch, action) {
   }
 }
 
+function TimerWidget(prevState = INITIAL_STATE.TimerWidget, action) {
+  // fallback to current timerType in state if not provided in action
+  const timerType = action.data?.timerType || prevState.timerType;
+  switch (action.type) {
+    case at.WIDGETS_TIMER_SET:
+      return {
+        ...prevState,
+        ...action.data,
+      };
+    case at.WIDGETS_TIMER_SET_TYPE:
+      return {
+        ...prevState,
+        timerType: action.data.timerType,
+      };
+    case at.WIDGETS_TIMER_SET_DURATION:
+      return {
+        ...prevState,
+        [timerType]: {
+          // setting a dynamic key assignment to let us dynamically update timer type's state based on what is set
+          duration: action.data.duration,
+          initialDuration: action.data.duration,
+          startTime: null,
+          isRunning: false,
+        },
+      };
+    case at.WIDGETS_TIMER_PLAY:
+      return {
+        ...prevState,
+        [timerType]: {
+          ...prevState[timerType],
+          startTime: Math.floor(Date.now() / 1000), // reflected in seconds
+          isRunning: true,
+        },
+      };
+    case at.WIDGETS_TIMER_PAUSE:
+      if (prevState[timerType]?.isRunning) {
+        return {
+          ...prevState,
+          [timerType]: {
+            ...prevState[timerType],
+            duration: action.data.duration,
+            // setting startTime to null on pause because we need to check the exact time the user presses play,
+            // whether it's when the user starts or resumes the timer. This helps get accurate results
+            startTime: null,
+            isRunning: false,
+          },
+        };
+      }
+      return prevState;
+    case at.WIDGETS_TIMER_RESET:
+      return {
+        ...prevState,
+        [timerType]: {
+          duration: 0,
+          initialDuration: 0,
+          startTime: null,
+          isRunning: false,
+        },
+      };
+    case at.WIDGETS_TIMER_END:
+      return {
+        ...prevState,
+        [timerType]: {
+          ...prevState[timerType],
+          duration: 0,
+          initialDuration: 0,
+          startTime: null,
+          isRunning: false,
+        },
+      };
+    default:
+      return prevState;
+  }
+}
+
+function ListsWidget(prevState = INITIAL_STATE.ListsWidget, action) {
+  switch (action.type) {
+    case at.WIDGETS_LISTS_SET:
+      return { ...prevState, lists: action.data };
+    case at.WIDGETS_LISTS_CHANGE_SELECTED:
+      return { ...prevState, selected: action.data };
+    default:
+      return prevState;
+  }
+}
+
 export const reducers = {
   TopSites,
   App,
@@ -1090,6 +1212,8 @@ export const reducers = {
   InferredPersonalization,
   DiscoveryStream,
   Search,
+  TimerWidget,
+  ListsWidget,
   TrendingSearch,
   Wallpapers,
   Weather,

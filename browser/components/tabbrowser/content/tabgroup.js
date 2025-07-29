@@ -23,6 +23,9 @@
       `;
 
     /** @type {string} */
+    #defaultGroupName = "";
+
+    /** @type {string} */
     #label;
 
     /** @type {MozTextLabel} */
@@ -76,6 +79,17 @@
       this.appendChild(this.constructor.fragment);
       this.initializeAttributeInheritance();
 
+      Services.obs.addObserver(
+        this.resetDefaultGroupName,
+        "intl:app-locales-changed"
+      );
+      window.addEventListener("unload", () => {
+        Services.obs.removeObserver(
+          this.resetDefaultGroupName,
+          "intl:app-locales-changed"
+        );
+      });
+
       this.addEventListener("click", this);
 
       this.#labelElement = this.querySelector(".tab-group-label");
@@ -83,6 +97,8 @@
       this.#labelElement.container = gBrowser.tabContainer;
       this.#labelElement.group = this;
 
+      this.#labelElement.addEventListener("mouseover", this);
+      this.#labelElement.addEventListener("mouseout", this);
       this.#labelElement.addEventListener("contextmenu", e => {
         e.preventDefault();
         gBrowser.tabGroupMenu.openEditModal(this);
@@ -114,6 +130,12 @@
       this.#wasCreatedByAdoption = false;
     }
 
+    resetDefaultGroupName = () => {
+      this.#defaultGroupName = "";
+      this.#updateLabelAriaAttributes();
+      this.#updateTooltip();
+    };
+
     disconnectedCallback() {
       this.ownerGlobal.removeEventListener("TabSelect", this);
       this.#tabChangeObserver?.disconnect();
@@ -125,7 +147,7 @@
 
     #observeTabChanges() {
       if (!this.#tabChangeObserver) {
-        this.#tabChangeObserver = new window.MutationObserver(() => {
+        this.#tabChangeObserver = new window.MutationObserver(mutations => {
           if (!this.tabs.length) {
             this.dispatchEvent(
               new CustomEvent("TabGroupRemoved", { bubbles: true })
@@ -156,11 +178,35 @@
               ".tab-group-overflow-count"
             );
             if (tabCount > 1) {
-              overflowCountLabel.textContent = `+${tabCount - 1}`;
+              gBrowser.tabLocalization
+                .formatValue("tab-group-overflow-count", {
+                  tabCount: tabCount - 1,
+                })
+                .then(result => (overflowCountLabel.textContent = result));
+              gBrowser.tabLocalization
+                .formatValue("tab-group-overflow-count-tooltip", {
+                  tabCount: tabCount - 1,
+                })
+                .then(result => {
+                  overflowCountLabel.setAttribute("tooltiptext", result);
+                  overflowCountLabel.setAttribute("aria-description", result);
+                });
               this.toggleAttribute("hasmultipletabs", true);
             } else {
               overflowCountLabel.textContent = "";
               this.toggleAttribute("hasmultipletabs", false);
+            }
+          }
+          for (const mutation of mutations) {
+            for (const addedNode of mutation.addedNodes) {
+              if (addedNode.tagName == "tab") {
+                this.#updateTabAriaHidden(addedNode);
+              }
+            }
+            for (const removedNode of mutation.removedNodes) {
+              if (removedNode.tagName == "tab") {
+                this.#updateTabAriaHidden(removedNode);
+              }
             }
           }
         });
@@ -194,6 +240,15 @@
       }
     }
 
+    get defaultGroupName() {
+      if (!this.#defaultGroupName) {
+        this.#defaultGroupName = gBrowser.tabLocalization.formatValueSync(
+          "tab-group-name-default"
+        );
+      }
+      return this.#defaultGroupName;
+    }
+
     get id() {
       return this.getAttribute("id");
     }
@@ -221,10 +276,8 @@
       // If the group name is empty, use a zero width space so we
       // always create a text node and get consistent layout.
       this.setAttribute("label", val || "\u200b");
-
-      this.dataset.tooltip = val;
-
       this.#updateLabelAriaAttributes();
+      this.#updateTooltip();
       if (diff) {
         this.dispatchEvent(
           new CustomEvent("TabGroupUpdate", { bubbles: true })
@@ -257,6 +310,10 @@
       }
       this.toggleAttribute("collapsed", val);
       this.#updateCollapsedAriaAttributes();
+      this.#updateTooltip();
+      for (const tab of this.tabs) {
+        this.#updateTabAriaHidden(tab);
+      }
       const eventName = val ? "TabGroupCollapse" : "TabGroupExpand";
       this.dispatchEvent(new CustomEvent(eventName, { bubbles: true }));
     }
@@ -270,12 +327,7 @@
     }
 
     async #updateLabelAriaAttributes() {
-      let tabGroupName = this.#label;
-      if (!tabGroupName) {
-        tabGroupName = await gBrowser.tabLocalization.formatValue(
-          "tab-group-name-default"
-        );
-      }
+      let tabGroupName = this.#label || this.defaultGroupName;
 
       let tabGroupDescription = await gBrowser.tabLocalization.formatValue(
         "tab-group-description",
@@ -293,6 +345,31 @@
       this.#labelElement?.setAttribute("aria-expanded", ariaExpanded);
     }
 
+    async #updateTooltip() {
+      let tabGroupName = this.#label || this.defaultGroupName;
+      let tooltipKey = this.collapsed
+        ? "tab-group-label-tooltip-collapsed"
+        : "tab-group-label-tooltip-expanded";
+      await gBrowser.tabLocalization
+        .formatValue(tooltipKey, {
+          tabGroupName,
+        })
+        .then(result => {
+          this.dataset.tooltip = result;
+        });
+    }
+
+    /**
+     * @param {MozTabbrowserTab} tab
+     */
+    #updateTabAriaHidden(tab) {
+      if (tab.group?.collapsed && !tab.selected) {
+        tab.setAttribute("aria-hidden", "true");
+      } else {
+        tab.removeAttribute("aria-hidden");
+      }
+    }
+
     get tabs() {
       return Array.from(this.children).filter(node => node.matches("tab"));
     }
@@ -302,6 +379,10 @@
      */
     get labelElement() {
       return this.#labelElement;
+    }
+
+    get overflowCountLabel() {
+      return this.#overflowCountLabel;
     }
 
     /**
@@ -399,8 +480,37 @@
       }
     }
 
+    /**
+     * @param {CustomEvent} event
+     */
+    on_mouseover(event) {
+      if (event.target === this.#labelElement) {
+        this.#labelElement.dispatchEvent(
+          new CustomEvent("TabGroupLabelHoverStart", { bubbles: true })
+        );
+      }
+    }
+
+    /**
+     * @param {CustomEvent} event
+     */
+    on_mouseout(event) {
+      if (event.target === this.#labelElement) {
+        this.#labelElement.dispatchEvent(
+          new CustomEvent("TabGroupLabelHoverEnd", { bubbles: true })
+        );
+      }
+    }
+
     on_TabSelect(event) {
+      const { previousTab } = event.detail;
       this.hasActiveTab = event.target.group === this;
+      if (this.hasActiveTab) {
+        this.#updateTabAriaHidden(event.target);
+      }
+      if (previousTab.group === this) {
+        this.#updateTabAriaHidden(previousTab);
+      }
     }
 
     /**

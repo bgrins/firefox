@@ -446,9 +446,17 @@ class EditorDOMPointBase final {
     return nsCRT::IsAsciiSpace(ch) || ch == 0x00A0;
   }
   MOZ_NEVER_INLINE_DEBUG bool IsCharNewLine() const { return Char() == '\n'; }
+
+  /**
+   * Return true if pointing "\n" and it should be rendered as a line break.
+   * Be aware that even if this returns false, the "\n" may be rendered as a
+   * non-collapsible white-space.
+   */
   MOZ_NEVER_INLINE_DEBUG bool IsCharPreformattedNewLine() const;
+
   MOZ_NEVER_INLINE_DEBUG bool
   IsCharPreformattedNewLineCollapsedWithWhiteSpaces() const;
+
   /**
    * IsCharCollapsibleASCIISpace(), IsCharCollapsibleNBSP() and
    * IsCharCollapsibleASCIISpaceOrNBSP() checks whether the white-space is
@@ -493,9 +501,17 @@ class EditorDOMPointBase final {
   MOZ_NEVER_INLINE_DEBUG bool IsPreviousCharNewLine() const {
     return PreviousChar() == '\n';
   }
+
+  /**
+   * Return true if pointing next character of "\n" and it should be rendered as
+   * a line break.  Be aware that even if this returns false, the "\n" may be
+   * rendered as a non-collapsible white-space.
+   */
   MOZ_NEVER_INLINE_DEBUG bool IsPreviousCharPreformattedNewLine() const;
+
   MOZ_NEVER_INLINE_DEBUG bool
   IsPreviousCharPreformattedNewLineCollapsedWithWhiteSpaces() const;
+
   /**
    * IsPreviousCharCollapsibleASCIISpace(), IsPreviousCharCollapsibleNBSP() and
    * IsPreviousCharCollapsibleASCIISpaceOrNBSP() checks whether the white-space
@@ -524,9 +540,17 @@ class EditorDOMPointBase final {
   MOZ_NEVER_INLINE_DEBUG bool IsNextCharNewLine() const {
     return NextChar() == '\n';
   }
+
+  /**
+   * Return true if pointing previous character of "\n" and it should be
+   * rendered as a line break.  Be aware that even if this returns false, the
+   * "\n" may be rendered as a non-collapsible white-space.
+   */
   MOZ_NEVER_INLINE_DEBUG bool IsNextCharPreformattedNewLine() const;
+
   MOZ_NEVER_INLINE_DEBUG bool
   IsNextCharPreformattedNewLineCollapsedWithWhiteSpaces() const;
+
   /**
    * IsNextCharCollapsibleASCIISpace(), IsNextCharCollapsibleNBSP() and
    * IsNextCharCollapsibleASCIISpaceOrNBSP() checks whether the white-space is
@@ -1065,20 +1089,6 @@ class EditorDOMPointBase final {
     return mOffset.value() == mParent->Length() - 1;
   }
 
-  bool IsBRElementAtEndOfContainer() const {
-    if (NS_WARN_IF(!mParent)) {
-      return false;
-    }
-    if (!mParent->IsContainerNode()) {
-      return false;
-    }
-    const_cast<SelfType*>(this)->EnsureChild();
-    if (!mChild || mChild->GetNextSibling()) {
-      return false;
-    }
-    return mChild->IsHTMLElement(nsGkAtoms::br);
-  }
-
   /**
    * Return a point in text node if "this" points around a text node.
    * EditorDOMPointType can always be EditorDOMPoint or EditorRawDOMPoint,
@@ -1320,12 +1330,16 @@ class EditorDOMPointBase final {
       if (parentAsText && parentAsText->TextDataLength()) {
         nsAutoString data;
         parentAsText->AppendTextTo(data);
+        if (data.Length() > 10) {
+          data.Truncate(10);
+        }
+        data.ReplaceSubstring(u"\n", u"\\n");
+        data.ReplaceSubstring(u"\r", u"\\r");
+        data.ReplaceSubstring(u"\t", u"\\t");
+        data.ReplaceSubstring(u"\f", u"\\f");
+        data.ReplaceSubstring(u"\u00A0", u"&nbsp;");
         aStream << " (" << *parentAsText << ", (begins with=\""
-                << NS_ConvertUTF16toUTF8(
-                       Substring(
-                           data,
-                           std::min(static_cast<uint32_t>(data.Length()), 5u)))
-                       .get()
+                << NS_ConvertUTF16toUTF8(data).get()
                 << "\"), Length()=" << parentAsText->TextDataLength() << ")";
       } else {
         aStream << " (" << *aDOMPoint.mParent

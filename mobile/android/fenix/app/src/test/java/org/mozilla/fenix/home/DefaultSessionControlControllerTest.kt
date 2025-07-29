@@ -10,9 +10,7 @@ import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import io.mockk.mockkStatic
 import io.mockk.spyk
-import io.mockk.unmockkStatic
 import io.mockk.verify
 import mozilla.components.browser.state.action.SearchAction
 import mozilla.components.browser.state.action.TabListAction
@@ -24,7 +22,6 @@ import mozilla.components.browser.state.state.SearchState
 import mozilla.components.browser.state.state.createTab
 import mozilla.components.browser.state.state.recover.RecoverableTab
 import mozilla.components.browser.state.state.recover.TabState
-import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.concept.engine.Engine
 import mozilla.components.feature.session.SessionUseCases
@@ -62,6 +59,7 @@ import org.mozilla.fenix.components.accounts.FenixFxAEntryPoint
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.components.appstate.setup.checklist.ChecklistItem
+import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.helpers.FenixGleanTestRule
@@ -75,7 +73,6 @@ import org.mozilla.fenix.onboarding.WallpaperOnboardingDialogFragment.Companion.
 import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.tabstray.TabManagementFeatureHelper
 import org.mozilla.fenix.utils.Settings
-import org.mozilla.fenix.utils.maybeShowAddSearchWidgetPrompt
 import org.mozilla.fenix.wallpapers.Wallpaper
 import org.mozilla.fenix.wallpapers.WallpaperState
 import org.robolectric.RobolectricTestRunner
@@ -104,6 +101,7 @@ class DefaultSessionControlControllerTest {
     private val selectTabUseCase: TabsUseCases = mockk(relaxed = true)
     private val topSitesUseCases: TopSitesUseCases = mockk(relaxed = true)
     private val marsUseCases: MARSUseCases = mockk(relaxed = true)
+    private val fenixBrowserUseCases: FenixBrowserUseCases = mockk(relaxed = true)
     private val settings: Settings = mockk(relaxed = true)
     private val analytics: Analytics = mockk(relaxed = true)
     private val scope = coroutinesTestRule.scope
@@ -135,9 +133,11 @@ class DefaultSessionControlControllerTest {
 
     private lateinit var store: BrowserStore
     private val appState: AppState = mockk(relaxed = true)
+    private var showAddSearchWidgetPromptCalled = false
 
     @Before
     fun setup() {
+        showAddSearchWidgetPromptCalled = false
         store = BrowserStore(
             BrowserState(
                 search = SearchState(
@@ -188,7 +188,9 @@ class DefaultSessionControlControllerTest {
     }
 
     @Test
-    fun `handleCollectionOpenTabClicked onFailure`() {
+    fun `GIVEN browsing mode is private and collection tab cannot be restored WHEN a collection tab is opened THEN open collection in a new private tab`() {
+        every { appStore.state.mode } returns BrowsingMode.Private
+
         val tab = mockk<ComponentTab> {
             every { url } returns "https://mozilla.org"
             every { restore(filesDir, engine, restoreSessionId = false) } returns null
@@ -201,10 +203,36 @@ class DefaultSessionControlControllerTest {
         assertEquals(null, recordedEvents.single().extra)
 
         verify {
-            activity.openToBrowserAndLoad(
+            navController.navigate(R.id.browserFragment)
+            fenixBrowserUseCases.loadUrlOrSearch(
                 searchTermOrURL = "https://mozilla.org",
                 newTab = true,
-                from = BrowserDirection.FromHome,
+                private = true,
+            )
+        }
+    }
+
+    @Test
+    fun `GIVEN homepage as a new tab is enabled and collection tab cannot be restored WHEN a collection tab is opened THEN open collection tab in existing tab`() {
+        every { settings.enableHomepageAsNewTab } returns true
+
+        val tab = mockk<ComponentTab> {
+            every { url } returns "https://mozilla.org"
+            every { restore(filesDir, engine, restoreSessionId = false) } returns null
+        }
+        createController().handleCollectionOpenTabClicked(tab)
+
+        assertNotNull(Collections.tabRestored.testGetValue())
+        val recordedEvents = Collections.tabRestored.testGetValue()!!
+        assertEquals(1, recordedEvents.size)
+        assertEquals(null, recordedEvents.single().extra)
+
+        verify {
+            navController.navigate(R.id.browserFragment)
+            fenixBrowserUseCases.loadUrlOrSearch(
+                searchTermOrURL = "https://mozilla.org",
+                newTab = false,
+                private = false,
             )
         }
     }
@@ -242,7 +270,7 @@ class DefaultSessionControlControllerTest {
         assertEquals(1, recordedEvents.size)
         assertEquals(null, recordedEvents.single().extra)
 
-        verify { activity.openToBrowser(BrowserDirection.FromHome) }
+        verify { navController.navigate(R.id.browserFragment) }
         verify { selectTabUseCase.selectTab.invoke(restoredTab.id) }
         verify { reloadUrlUseCase.reload.invoke(restoredTab.id) }
     }
@@ -277,7 +305,7 @@ class DefaultSessionControlControllerTest {
         assertEquals(1, recordedEvents.size)
         assertEquals(null, recordedEvents.single().extra)
 
-        verify { activity.openToBrowser(BrowserDirection.FromHome) }
+        verify { navController.navigate(R.id.browserFragment) }
         verify { selectTabUseCase.selectTab.invoke(restoredTab.id) }
         verify { reloadUrlUseCase.reload.invoke(restoredTab.id) }
     }
@@ -741,25 +769,17 @@ class DefaultSessionControlControllerTest {
 
         every { controller.getAvailableSearchEngines() } returns listOf(googleSearchEngine)
 
-        try {
-            mockkStatic("mozilla.components.browser.state.state.SearchStateKt")
+        controller.handleSelectTopSite(topSite, position = 0)
 
-            every { any<SearchState>().selectedOrDefaultSearchEngine } returns googleSearchEngine
+        assertNotNull(Events.performedSearch.testGetValue())
 
-            controller.handleSelectTopSite(topSite, position = 0)
+        assertNotNull(TopSites.openDefault.testGetValue())
+        assertEquals(1, TopSites.openDefault.testGetValue()!!.size)
+        assertNull(TopSites.openDefault.testGetValue()!!.single().extra)
 
-            assertNotNull(Events.performedSearch.testGetValue())
-
-            assertNotNull(TopSites.openDefault.testGetValue())
-            assertEquals(1, TopSites.openDefault.testGetValue()!!.size)
-            assertNull(TopSites.openDefault.testGetValue()!!.single().extra)
-
-            assertNotNull(TopSites.openGoogleSearchAttribution.testGetValue())
-            assertEquals(1, TopSites.openGoogleSearchAttribution.testGetValue()!!.size)
-            assertNull(TopSites.openGoogleSearchAttribution.testGetValue()!!.single().extra)
-        } finally {
-            unmockkStatic("mozilla.components.browser.state.state.SearchStateKt")
-        }
+        assertNotNull(TopSites.openGoogleSearchAttribution.testGetValue())
+        assertEquals(1, TopSites.openGoogleSearchAttribution.testGetValue()!!.size)
+        assertNull(TopSites.openGoogleSearchAttribution.testGetValue()!!.single().extra)
     }
 
     @Test
@@ -779,17 +799,9 @@ class DefaultSessionControlControllerTest {
             duckDuckGoSearchEngine,
         )
 
-        try {
-            mockkStatic("mozilla.components.browser.state.state.SearchStateKt")
+        controller.handleSelectTopSite(topSite, position = 0)
 
-            every { any<SearchState>().selectedOrDefaultSearchEngine } returns googleSearchEngine
-
-            controller.handleSelectTopSite(topSite, position = 0)
-
-            assertNotNull(Events.performedSearch.testGetValue())
-        } finally {
-            unmockkStatic("mozilla.components.browser.state.state.SearchStateKt")
-        }
+        assertNotNull(Events.performedSearch.testGetValue())
     }
 
     @Test
@@ -1086,28 +1098,6 @@ class DefaultSessionControlControllerTest {
         assertNotNull(TopSites.remove.testGetValue())
         assertEquals(1, TopSites.remove.testGetValue()!!.size)
         assertNull(TopSites.remove.testGetValue()!!.single().extra)
-    }
-
-    @Test
-    fun `WHEN top site is removed THEN the undo snackbar is called`() {
-        val mozillaTopSite = TopSite.Default(
-            id = 1L,
-            title = "Mozilla",
-            url = "https://mozilla.org",
-            null,
-        )
-        var undoSnackbarCalled = false
-        var undoSnackbarShownFor = "TopSiteName"
-
-        createController(
-            showUndoSnackbarForTopSite = { topSite ->
-                undoSnackbarCalled = true
-                undoSnackbarShownFor = topSite.title.toString()
-            },
-        ).handleRemoveTopSiteClicked(mozillaTopSite)
-
-        assertEquals(true, undoSnackbarCalled)
-        assertEquals("Mozilla", undoSnackbarShownFor)
     }
 
     @Test
@@ -1515,17 +1505,14 @@ class DefaultSessionControlControllerTest {
 
     @Test
     fun `WHEN install search widget task THEN navigationActionFor calls the add search widget prompt`() {
+        assertFalse("flag is false at test start", showAddSearchWidgetPromptCalled)
         val controller = createController()
         val task = mockk<ChecklistItem.Task>()
-        mockkStatic("org.mozilla.fenix.utils.AddSearchWidgetPromptKt")
-        every { maybeShowAddSearchWidgetPrompt(activity) } just Runs
         every { task.type } returns ChecklistItem.Task.Type.INSTALL_SEARCH_WIDGET
 
         controller.navigationActionFor(task)
 
-        verify {
-            maybeShowAddSearchWidgetPrompt(activity)
-        }
+        assertTrue("showAddSearchWidgetPrompt should have been called", showAddSearchWidgetPromptCalled)
     }
 
     @Test
@@ -1560,7 +1547,6 @@ class DefaultSessionControlControllerTest {
         registerCollectionStorageObserver: () -> Unit = { },
         showTabTray: () -> Unit = { },
         removeCollectionWithUndo: (tabCollection: TabCollection) -> Unit = { },
-        showUndoSnackbarForTopSite: (topSite: TopSite) -> Unit = { },
     ): DefaultSessionControlController {
         return DefaultSessionControlController(
             activityRef = WeakReference(activity),
@@ -1575,6 +1561,7 @@ class DefaultSessionControlControllerTest {
             reloadUrlUseCase = reloadUrlUseCase.reload,
             topSitesUseCases = topSitesUseCases,
             marsUseCases = marsUseCases,
+            fenixBrowserUseCases = fenixBrowserUseCases,
             appStore = appStore,
             navControllerRef = WeakReference(navController),
             viewLifecycleScope = scope,
@@ -1588,6 +1575,7 @@ class DefaultSessionControlControllerTest {
                 override val enhancementsEnabled: Boolean
                     get() = false
             },
+            showAddSearchWidgetPrompt = { showAddSearchWidgetPromptCalled = true },
         ).apply {
             registerCallback(object : SessionControlControllerCallback {
                 override fun registerCollectionStorageObserver() {
@@ -1596,10 +1584,6 @@ class DefaultSessionControlControllerTest {
 
                 override fun removeCollectionWithUndo(tabCollection: TabCollection) {
                     removeCollectionWithUndo(tabCollection)
-                }
-
-                override fun showUndoSnackbarForTopSite(topSite: TopSite) {
-                    showUndoSnackbarForTopSite(topSite)
                 }
 
                 override fun showTabTray() {

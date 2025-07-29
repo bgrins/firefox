@@ -101,7 +101,6 @@ namespace webgl {
 template <typename T>
 struct QueueParamTraits;
 class TexUnpackBytes;
-class TexUnpackImage;
 class TexUnpackSurface;
 }  // namespace webgl
 
@@ -1009,6 +1008,17 @@ inline Maybe<T> MaybeAs(const U val) {
 }
 
 // -
+
+inline GLenum IsTexMipmapFilter(const GLenum texFilter) {
+  switch (texFilter) {
+    case LOCAL_GL_NEAREST_MIPMAP_NEAREST:
+    case LOCAL_GL_LINEAR_MIPMAP_NEAREST:
+    case LOCAL_GL_NEAREST_MIPMAP_LINEAR:
+    case LOCAL_GL_LINEAR_MIPMAP_LINEAR:
+      return true;
+  }
+  return false;
+}
 
 inline GLenum IsTexImageTarget(const GLenum imageTarget) {
   switch (imageTarget) {

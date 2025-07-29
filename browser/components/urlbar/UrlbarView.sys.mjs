@@ -481,7 +481,10 @@ export class UrlbarView {
           icon: "chrome://branding/content/icon32.png",
         }
       ),
-      { rowLabel: this.#rowLabel(row) }
+      {
+        rowLabel: this.#rowLabel(row),
+        richSuggestionIconSize: 32,
+      }
     );
     this.#updateRow(row, tip);
     this.#updateIndices();
@@ -909,6 +912,10 @@ export class UrlbarView {
   openResultMenu(result, anchor) {
     this.#resultMenuResult = result;
 
+    let event = new CustomEvent("ResultMenuTriggered", {
+      detail: { target: anchor },
+    });
+
     if (AppConstants.platform == "macosx") {
       // `openPopup(anchor)` doesn't use a native context menu, which is very
       // noticeable on Mac. Use `openPopup()` with x and y coords instead. See
@@ -923,9 +930,13 @@ export class UrlbarView {
       this.resultMenu.openPopup(null, {
         x: rect.x,
         y: rect.y + rect.height,
+        triggerEvent: event,
       });
     } else {
-      this.resultMenu.openPopup(anchor, "bottomright topright");
+      this.resultMenu.openPopup(anchor, {
+        position: "bottomright topright",
+        triggerEvent: event,
+      });
     }
 
     anchor.toggleAttribute("open", true);
@@ -1220,7 +1231,8 @@ export class UrlbarView {
       results = results.slice(1);
     }
     let rowIndex = 0;
-    let resultIndex = 0;
+    // Make a copy of results, as we'll consume it along the way.
+    let resultsToInsert = results.slice();
     let visibleSpanCount = 0;
     let seenMisplacedResult = false;
     let seenSearchSuggestion = false;
@@ -1228,17 +1240,14 @@ export class UrlbarView {
     // Update each row with the next new result until we either encounter a row
     // that can't be updated or run out of new results. At that point, mark
     // remaining rows as stale.
-    while (
-      rowIndex < this.#rows.children.length &&
-      resultIndex < results.length
-    ) {
+    while (rowIndex < this.#rows.children.length && resultsToInsert.length) {
       let row = this.#rows.children[rowIndex];
       if (this.#isElementVisible(row)) {
         visibleSpanCount += lazy.UrlbarUtils.getSpanForResult(row.result);
       }
 
       if (!seenMisplacedResult) {
-        let result = results[resultIndex];
+        let result = resultsToInsert[0];
         seenSearchSuggestion =
           seenSearchSuggestion ||
           (!row.result.heuristic && this.#resultIsSearchSuggestion(row.result));
@@ -1246,7 +1255,7 @@ export class UrlbarView {
           this.#rowCanUpdateToResult(rowIndex, result, seenSearchSuggestion)
         ) {
           // We can replace the row's current result with the new one.
-          resultIndex++;
+          resultsToInsert.shift();
 
           if (result.isHiddenExposure) {
             // Don't increment `rowIndex` because we're not actually updating
@@ -1288,8 +1297,7 @@ export class UrlbarView {
     }
 
     // Add remaining results, if we have fewer rows than results.
-    for (; resultIndex < results.length; ++resultIndex) {
-      let result = results[resultIndex];
+    for (let result of resultsToInsert) {
       if (
         !seenMisplacedResult &&
         result.hasSuggestedIndex &&
@@ -1384,7 +1392,7 @@ export class UrlbarView {
     // These are used to cleanup result specific entities when row contents are
     // cleared to reuse the row for a different result.
     item._sharedAttributes = new Set(
-      [...item.attributes].map(v => v.name).concat(["stale", "id"])
+      [...item.attributes].map(v => v.name).concat(["stale", "id", "hidden"])
     );
     item._sharedClassList = new Set(item.classList);
 
@@ -1627,11 +1635,18 @@ export class UrlbarView {
   }
 
   #addRowButtons(item, result) {
+    let container = this.#createElement("div");
+    container.className = "urlbarView-row-buttons";
+    item._elements.set("buttons", container);
+    item.appendChild(container);
+
     for (let i = 0; i < result.payload.buttons?.length; i++) {
-      this.#addRowButton(item, {
-        name: i.toString(),
-        ...result.payload.buttons[i],
-      });
+      let button = result.payload.buttons[i];
+      // We hold the name to each button data in payload to enable to get the
+      // data from button element by the name. This name is mainly used for
+      // button that has menu (Split Button).
+      button.name ??= i.toString();
+      this.#addRowButton(item, button);
     }
 
     // TODO: `buttonText` is intended only for WebExtensions. We should remove
@@ -1646,7 +1661,8 @@ export class UrlbarView {
 
     if (this.#getResultMenuCommands(result)) {
       this.#addRowButton(item, {
-        name: "menu",
+        name: "result-menu",
+        classList: ["urlbarView-button-menu"],
         l10n: {
           id: result.showFeedbackMenu
             ? "urlbar-result-menu-button-feedback"
@@ -1661,11 +1677,18 @@ export class UrlbarView {
     }
   }
 
-  #addRowButton(item, { name, command, l10n, url, attributes }) {
+  #addRowButton(
+    item,
+    { name, command, l10n, url, attributes, menu, classList = [] }
+  ) {
     let button = this.#createElement("span");
     this.#setDynamicAttributes(button, attributes);
     button.id = `${item.id}-button-${name}`;
-    button.classList.add("urlbarView-button", "urlbarView-button-" + name);
+    button.classList.add(
+      "urlbarView-button",
+      "urlbarView-button-" + name,
+      ...classList
+    );
     button.setAttribute("role", "button");
     button.dataset.name = name;
     if (l10n) {
@@ -1678,7 +1701,35 @@ export class UrlbarView {
       button.dataset.url = url;
     }
     item._buttons.set(name, button);
-    item.appendChild(button);
+
+    if (!menu) {
+      item._elements.get("buttons").appendChild(button);
+      return;
+    }
+
+    // Split Button.
+    let container = this.#createElement("span");
+    container.classList.add("urlbarView-splitbutton");
+
+    button.classList.add("urlbarView-splitbutton-main");
+    container.appendChild(button);
+
+    let dropmarker = this.#createElement("span");
+    dropmarker.classList.add(
+      "urlbarView-button",
+      "urlbarView-button-menu",
+      "urlbarView-splitbutton-dropmarker"
+    );
+    this.#l10nCache.setElementL10n(dropmarker, {
+      id: "urlbar-splitbutton-dropmarker",
+    });
+    dropmarker.setAttribute("role", "button");
+    let icon = this.#createElement("img");
+    icon.src = "chrome://global/skin/icons/arrow-down-12.svg";
+    dropmarker.appendChild(icon);
+    container.appendChild(dropmarker);
+
+    item._elements.get("buttons").appendChild(container);
   }
 
   #createSecondaryAction(action, global = false) {
@@ -2187,7 +2238,10 @@ export class UrlbarView {
   }
 
   #updateRowForRichSuggestion(item, result) {
-    this.#setRowSelectable(item, true);
+    this.#setRowSelectable(
+      item,
+      result.type != lazy.UrlbarUtils.RESULT_TYPE.TIP
+    );
 
     let favicon = item._elements.get("favicon");
     if (result.richSuggestionIconSize) {
@@ -2460,7 +2514,8 @@ export class UrlbarView {
   }
 
   #setRowVisibility(row, visible) {
-    row.style.display = visible ? "" : "none";
+    row.toggleAttribute("hidden", !visible);
+
     if (
       !visible &&
       row.result.type != lazy.UrlbarUtils.RESULT_TYPE.TIP &&
@@ -2491,7 +2546,7 @@ export class UrlbarView {
       return false;
     }
     let row = this.#getRowFromElement(element);
-    return row && row.style.display != "none";
+    return row && !row.hasAttribute("hidden");
   }
 
   #removeStaleRows() {
@@ -3263,15 +3318,15 @@ export class UrlbarView {
     return rv;
   }
 
-  #populateResultMenu(
-    menupopup = this.resultMenu,
-    commands = this.#getResultMenuCommands(this.#resultMenuResult)
-  ) {
+  #populateResultMenu({ menupopup = this.resultMenu, commands } = {}) {
     menupopup.textContent = "";
     for (let data of commands) {
       if (data.children) {
         let popup = this.document.createXULElement("menupopup");
-        this.#populateResultMenu(popup, data.children);
+        this.#populateResultMenu({
+          menupopup: popup,
+          commands: data.children,
+        });
         let menu = this.document.createXULElement("menu");
         this.#l10nCache.setElementL10n(menu, data.l10n);
         menu.appendChild(popup);
@@ -3596,7 +3651,23 @@ export class UrlbarView {
 
   on_popupshowing(event) {
     if (event.target == this.resultMenu) {
-      this.#populateResultMenu();
+      let commands;
+
+      let splitButton = event.triggerEvent?.detail.target?.closest(
+        ".urlbarView-splitbutton"
+      );
+      if (splitButton) {
+        // Show the commands the are defined in its Split Button.
+        let mainButton = splitButton.firstElementChild;
+        let name = mainButton.dataset.name;
+        commands = this.#resultMenuResult.payload.buttons.find(
+          b => b.name == name
+        ).menu;
+      } else {
+        commands = this.#getResultMenuCommands(this.#resultMenuResult);
+      }
+
+      this.#populateResultMenu({ commands });
     }
   }
 }

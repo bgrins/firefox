@@ -6,10 +6,12 @@ use api::{CompositeOperator, FilterPrimitive, FilterPrimitiveInput, FilterPrimit
 use api::{LineStyle, LineOrientation, ClipMode, MixBlendMode, ColorF, ColorSpace, FilterOpGraphPictureBufferId};
 use api::MAX_RENDER_TASK_SIZE;
 use api::units::*;
+use std::time::Duration;
 use crate::box_shadow::BLUR_SAMPLE_SCALE;
 use crate::clip::{ClipDataStore, ClipItemKind, ClipStore, ClipNodeRange};
 use crate::command_buffer::{CommandBufferIndex, QuadFlags};
 use crate::pattern::{PatternKind, PatternShaderInput};
+use crate::profiler::{add_text_marker};
 use crate::spatial_tree::SpatialNodeIndex;
 use crate::filterdata::SFilterData;
 use crate::frame_builder::FrameBuilderConfig;
@@ -1977,6 +1979,7 @@ impl RenderTask {
             //
             // Also look up the child tasks while we are here.
             let mut used_subregion = LayoutRect::zero();
+            let mut combined_input_subregion = LayoutRect::zero();
             let node_inputs: Vec<(FilterGraphPictureReference, RenderTaskId)> = node.inputs.iter().map(|input| {
                 let (subregion, task) =
                     match input.buffer_id {
@@ -2014,6 +2017,7 @@ impl RenderTask {
                         ),
                     );
                 used_subregion = used_subregion.union(&target_subregion);
+                combined_input_subregion = combined_input_subregion.union(&subregion);
                 (FilterGraphPictureReference{
                     buffer_id: input.buffer_id,
                     // Apply offset to the placement of the input subregion.
@@ -2062,12 +2066,8 @@ impl RenderTask {
                 FilterGraphOp::SVGFEBlendScreen => {},
                 FilterGraphOp::SVGFEBlendSoftLight => {},
                 FilterGraphOp::SVGFEColorMatrix{values} => {
-                    if values[3] != 0.0 ||
-                        values[7] != 0.0 ||
-                        values[11] != 0.0 ||
-                        values[15] != 1.0 ||
-                        values[19] != 0.0 {
-                        // Manipulating alpha can easily create new
+                    if values[19] > 0.0 {
+                        // Manipulating alpha offset can easily create new
                         // pixels outside of input subregions
                         used_subregion = full_subregion;
                     }
@@ -2193,6 +2193,12 @@ impl RenderTask {
                 },
             }
 
+            add_text_marker(
+                "SVGFEGraph",
+                &format!("{}({})", op.kind(), filter_index),
+                Duration::from_micros((used_subregion.width() * used_subregion.height() / 1000.0) as u64),
+            );
+
             // SVG spec requires that a later node sampling pixels outside
             // this node's subregion will receive a transparent black color
             // for those samples, we achieve this by adding a 1 pixel inflate
@@ -2227,7 +2233,7 @@ impl RenderTask {
                         std_deviation_y.ceil() * BLUR_SAMPLE_SCALE)
                 }
                 _ => used_subregion,
-            };
+            }.union(&combined_input_subregion);
             while
                 padded_subregion.scale(device_to_render_scale, device_to_render_scale).round().width() + node_inflate as f32 * 2.0 > MAX_SURFACE_SIZE as f32 ||
                 padded_subregion.scale(device_to_render_scale, device_to_render_scale).round().height() + node_inflate as f32 * 2.0 > MAX_SURFACE_SIZE as f32 {

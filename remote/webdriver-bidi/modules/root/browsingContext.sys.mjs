@@ -679,7 +679,7 @@ class BrowsingContextModule extends RootBiDiModule {
       }
       case "tab": {
         // The window to open the new tab in.
-        let window = Services.wm.getMostRecentWindow(null);
+        let window = Services.wm.getMostRecentBrowserWindow();
 
         let referenceTab;
         if (referenceContext !== null) {
@@ -1918,18 +1918,15 @@ class BrowsingContextModule extends RootBiDiModule {
 
   #hasConfigurationForContext(userContext) {
     const internalId = lazy.UserContextManager.getInternalIdById(userContext);
-    // The following should be refactored into a method on SessionData (bug 1972865)
-    for (const sessionDataItem of this.messageHandler.sessionData._data) {
-      const { contextDescriptor, moduleName } = sessionDataItem;
-      if (
-        moduleName == "_configuration" &&
-        contextDescriptor.type === lazy.ContextDescriptorType.UserContext &&
-        contextDescriptor.id == internalId
-      ) {
-        return true;
-      }
-    }
-    return false;
+    const contextDescriptor = {
+      type: lazy.ContextDescriptorType.UserContext,
+      id: internalId,
+    };
+    return this.messageHandler.sessionData.hasSessionData(
+      "_configuration",
+      undefined,
+      contextDescriptor
+    );
   }
 
   #onContextAttached = async (eventName, data = {}) => {

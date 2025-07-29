@@ -108,7 +108,7 @@ pub struct SearchUrlParam {
 }
 
 /// Defines an individual search engine URL.
-#[derive(Debug, uniffi::Record, PartialEq, Deserialize, Clone, Default)]
+#[derive(Debug, uniffi::Record, PartialEq, Deserialize, Clone)]
 pub struct SearchEngineUrl {
     /// The PrePath and FilePath of the URL. May include variables for engines
     /// which have a variable FilePath, e.g. `{searchTerms}` for when a search
@@ -126,6 +126,11 @@ pub struct SearchEngineUrl {
     /// appended to the end of the query. This may be skipped if `{searchTerms}`
     /// is included in the base.
     pub search_term_param_name: Option<String>,
+
+    /// The display name of the URL, if any. This is useful if the URL
+    /// corresponds to a brand name distinct from the engine's brand name.
+    #[uniffi(default = None)]
+    pub display_name: Option<String>,
 }
 
 /// The URLs associated with the search engine.
@@ -142,6 +147,9 @@ pub struct SearchEngineUrls {
 
     /// The URL of the search engine homepage.
     pub search_form: Option<SearchEngineUrl>,
+
+    /// The URL to use for visual searches.
+    pub visual_search: Option<SearchEngineUrl>,
 }
 
 /// The list of acceptable classifications for a search engine.
@@ -182,6 +190,10 @@ pub struct SearchEngineDefinition {
     /// identifier, e.g. for saving the user's settings for the engine. It is
     /// also used to form the base telemetry id and may be extended by telemetrySuffix.
     pub identifier: String,
+
+    /// Indicates the date until which the engine variant or subvariant is considered new
+    /// (format: YYYY-MM-DD).
+    pub is_new_until: Option<String>,
 
     /// The user visible name of the search engine.
     pub name: String,

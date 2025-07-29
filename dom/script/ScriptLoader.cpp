@@ -42,7 +42,8 @@
 #include "mozilla/dom/DocGroup.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/JSExecutionUtils.h"  // mozilla::dom::Compile, mozilla::dom::InstantiateStencil, mozilla::dom::EvaluationExceptionToNSResult
-#include "mozilla/dom/ScriptDecoding.h"    // mozilla::dom::ScriptDecoding
+#include "mozilla/dom/PolicyContainer.h"
+#include "mozilla/dom/ScriptDecoding.h"  // mozilla::dom::ScriptDecoding
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/SRILogHelper.h"
 #include "mozilla/dom/WindowContext.h"
@@ -1039,7 +1040,8 @@ bool ScriptLoader::PreloadURIComparator::Equals(const PreloadInfo& aPi,
 static bool CSPAllowsInlineScript(nsIScriptElement* aElement,
                                   const nsAString& aNonce,
                                   Document* aDocument) {
-  nsCOMPtr<nsIContentSecurityPolicy> csp = aDocument->GetCsp();
+  nsCOMPtr<nsIContentSecurityPolicy> csp =
+      PolicyContainer::GetCSP(aDocument->GetPolicyContainer());
   if (!csp) {
     // no CSP --> allow
     return true;
@@ -1818,6 +1820,7 @@ void ScriptLoader::CancelAndClearScriptLoadRequests() {
   mOffThreadCompilingRequests.CancelRequestsAndClear();
 
   if (mModuleLoader) {
+    mModuleLoader->CancelFetchingModules();
     mModuleLoader->CancelAndClearDynamicImports();
   }
 
@@ -2390,7 +2393,8 @@ nsresult ScriptLoader::ProcessRequest(ScriptLoadRequest* aRequest) {
       return NS_OK;
     }
 
-    if (request->mModuleScript) {
+    if (request->mModuleScript &&
+        !request->mModuleScript->HasErrorToRethrow()) {
       if (!request->InstantiateModuleGraph()) {
         request->mModuleScript = nullptr;
       }
@@ -4098,8 +4102,6 @@ void ScriptLoader::ReportPreloadErrorsToConsole(ScriptLoadRequest* aRequest) {
     ReportErrorToConsole(
         aRequest, aRequest->GetScriptLoadContext()->mUnreportedPreloadError);
     aRequest->GetScriptLoadContext()->mUnreportedPreloadError = NS_OK;
-    MOZ_ASSERT_IF(aRequest->IsModuleRequest(),
-                  aRequest->AsModuleRequest()->mImports.IsEmpty());
   }
 
   // TODO:
@@ -4392,7 +4394,7 @@ nsresult ScriptLoader::PrepareLoadedRequest(ScriptLoadRequest* aRequest,
       ReferrerPolicy policy =
           nsContentUtils::GetReferrerPolicyFromChannel(httpChannel);
       if (policy != ReferrerPolicy::_empty) {
-        aRequest->UpdateReferrerPolicy(policy);
+        aRequest->AsModuleRequest()->UpdateReferrerPolicy(policy);
       }
     }
 

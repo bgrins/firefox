@@ -51,35 +51,37 @@ static bool CanUseWMFHwEncoder(CodecType aCodec) {
   }
 }
 
-EncodeSupportSet CanCreateWMFEncoder(
-    CodecType aCodec, const gfx::IntSize& aFrameSize,
-    const EncoderConfig::CodecSpecific& aCodecSpecific) {
+EncodeSupportSet CanCreateWMFEncoder(const EncoderConfig& aConfig) {
   EncodeSupportSet supports;
   mscom::EnsureMTA([&]() {
     if (!wmf::MediaFoundationInitializer::HasInitialized()) {
       return;
     }
-    // Try HW encoder if allowed.
-    if (CanUseWMFHwEncoder(aCodec)) {
+    // Try HW encoder if allowed by graphics and not disallowed by the caller.
+    if (CanUseWMFHwEncoder(aConfig.mCodec) &&
+        aConfig.mHardwarePreference == HardwarePreference::RequireSoftware) {
       auto hwEnc =
           MakeRefPtr<MFTEncoder>(MFTEncoder::HWPreference::HardwareOnly);
-      if (SUCCEEDED(hwEnc->Create(CodecToSubtype(aCodec), aFrameSize,
-                                  aCodecSpecific))) {
+      if (SUCCEEDED(hwEnc->Create(CodecToSubtype(aConfig.mCodec), aConfig.mSize,
+                                  aConfig.mCodecSpecific))) {
         supports += EncodeSupport::HardwareEncode;
       }
     }
-    // Try SW encoder.
-    auto swEnc = MakeRefPtr<MFTEncoder>(MFTEncoder::HWPreference::SoftwareOnly);
-    if (SUCCEEDED(swEnc->Create(CodecToSubtype(aCodec), aFrameSize,
-                                aCodecSpecific))) {
-      supports += EncodeSupport::SoftwareEncode;
+    if (aConfig.mHardwarePreference != HardwarePreference::RequireHardware) {
+      // Try SW encoder if not disallowed by the caller.
+      auto swEnc =
+          MakeRefPtr<MFTEncoder>(MFTEncoder::HWPreference::SoftwareOnly);
+      if (SUCCEEDED(swEnc->Create(CodecToSubtype(aConfig.mCodec), aConfig.mSize,
+                                  aConfig.mCodecSpecific))) {
+        supports += EncodeSupport::SoftwareEncode;
+      }
     }
   });
   return supports;
 }
 
 static already_AddRefed<MediaByteBuffer> ParseH264Parameters(
-    nsTArray<uint8_t>& aHeader, const bool aAsAnnexB) {
+    const nsTArray<uint8_t>& aHeader, const bool aAsAnnexB) {
   size_t length = aHeader.Length();
   auto annexB = MakeRefPtr<MediaByteBuffer>(length);
   PodCopy(annexB->Elements(), aHeader.Elements(), length);

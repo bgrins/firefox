@@ -20,6 +20,8 @@ import { TOP_SITES_MAX_SITES_PER_ROW } from "common/Reducers.sys.mjs";
 import { ContextMenuButton } from "content-src/components/ContextMenu/ContextMenuButton";
 import { TopSiteImpressionWrapper } from "./TopSiteImpressionWrapper";
 import { connect } from "react-redux";
+import { MessageWrapper } from "../MessageWrapper/MessageWrapper";
+import { ShortcutFeatureHighlight } from "../DiscoveryStreamComponents/FeatureHighlight/ShortcutFeatureHighlight";
 
 const SPOC_TYPE = "SPOC";
 const NEWTAB_SOURCE = "newtab";
@@ -39,6 +41,7 @@ export class TopSiteLink extends React.PureComponent {
     this.state = { screenshotImage: null };
     this.onDragEvent = this.onDragEvent.bind(this);
     this.onKeyPress = this.onKeyPress.bind(this);
+    this.shouldShowOMCHighlight = this.shouldShowOMCHighlight.bind(this);
   }
 
   /*
@@ -249,6 +252,14 @@ export class TopSiteLink extends React.PureComponent {
     };
   }
 
+  shouldShowOMCHighlight(componentId) {
+    const messageData = this.props.Messages?.messageData;
+    if (!messageData || Object.keys(messageData).length === 0) {
+      return false;
+    }
+    return messageData?.content?.messageType === componentId;
+  }
+
   render() {
     const {
       children,
@@ -258,7 +269,6 @@ export class TopSiteLink extends React.PureComponent {
       onClick,
       title,
       isAddButton,
-      shortcutsRefresh,
     } = this.props;
 
     const topSiteOuterClassName = `top-site-outer${
@@ -280,6 +290,10 @@ export class TopSiteLink extends React.PureComponent {
     };
     const addButtonTitlel10n = {
       "data-l10n-id": "newtab-topsites-add-shortcut-title",
+    };
+    const addPinnedTitlel10n = {
+      "data-l10n-id": "topsite-label-pinned",
+      "data-l10n-args": JSON.stringify({ title }),
     };
 
     let draggableProps = {};
@@ -368,13 +382,14 @@ export class TopSiteLink extends React.PureComponent {
             onClick={onClick}
             draggable={true}
             data-is-sponsored-link={!!link.sponsored_tile_id}
-            title={title}
             onFocus={this.props.onFocus}
+            aria-label={link.isPinned ? undefined : title}
             {...(isAddButton && { ...addButtonTitlel10n })}
+            {...(!isAddButton && { title })}
+            {...(link.isPinned && { ...addPinnedTitlel10n })}
+            data-l10n-args={JSON.stringify({ title })}
           >
-            {shortcutsRefresh && link.isPinned && (
-              <div className="icon icon-pin-small" />
-            )}
+            {link.isPinned && <div className="icon icon-pin-small" />}
             <div className="tile" aria-hidden={true}>
               <div
                 className={
@@ -394,9 +409,6 @@ export class TopSiteLink extends React.PureComponent {
                   />
                 )}
               </div>
-              {!shortcutsRefresh && link.searchTopSite && (
-                <div className="top-site-icon search-topsite" />
-              )}
             </div>
             <div
               className={`title${link.isPinned ? " has-icon pinned" : ""}${
@@ -410,10 +422,7 @@ export class TopSiteLink extends React.PureComponent {
                 dir="auto"
                 {...(isAddButton && { ...addButtonLabell10n })}
               >
-                {!shortcutsRefresh && link.isPinned && (
-                  <div className="icon icon-pin-small" />
-                )}
-                {shortcutsRefresh && link.searchTopSite && (
+                {link.searchTopSite && (
                   <div className="top-site-icon search-topsite" />
                 )}
                 {title || <br />}
@@ -424,6 +433,18 @@ export class TopSiteLink extends React.PureComponent {
               />
             </div>
           </a>
+          {isAddButton && this.shouldShowOMCHighlight("ShortcutHighlight") && (
+            <MessageWrapper
+              dispatch={this.props.dispatch}
+              onClick={e => e.stopPropagation()}
+            >
+              <ShortcutFeatureHighlight
+                dispatch={this.props.dispatch}
+                feature="FEATURE_SHORTCUT_HIGHLIGHT"
+                position="inset-block-end inset-inline-start"
+              />
+            </MessageWrapper>
+          )}
           {children}
           {impressionStats}
         </div>
@@ -925,8 +946,6 @@ export class _TopSiteList extends React.PureComponent {
 
   render() {
     const { props } = this;
-    const prefs = props.Prefs.values;
-    const shortcutsRefresh = prefs["newtabShortcuts.refresh"];
     const topSites = this.state.topSitesPreview || this._getTopSites();
     const topSitesUI = [];
     const commonProps = {
@@ -984,6 +1003,7 @@ export class _TopSiteList extends React.PureComponent {
             onFocus={() => {
               this.onTopsiteFocus(i);
             }}
+            Messages={this.props.Messages}
           />
         );
       } else {
@@ -995,7 +1015,6 @@ export class _TopSiteList extends React.PureComponent {
             {...slotProps}
             {...commonProps}
             colors={props.colors}
-            shortcutsRefresh={shortcutsRefresh}
             setRef={
               i === this.state.focusedIndex
                 ? el => {
@@ -1036,5 +1055,6 @@ export class _TopSiteList extends React.PureComponent {
 
 export const TopSiteList = connect(state => ({
   App: state.App,
+  Messages: state.Messages,
   Prefs: state.Prefs,
 }))(_TopSiteList);

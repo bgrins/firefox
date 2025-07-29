@@ -179,12 +179,22 @@ abstract class AbstractFetchDownloadService : Service() {
                     }
 
                     ACTION_RESUME -> {
-                        setDownloadJobStatus(currentDownloadJobState, DOWNLOADING)
+                        if (!File(currentDownloadJobState.state.filePath).exists()) {
+                            currentDownloadJobState.lastNotificationUpdate =
+                                System.currentTimeMillis()
+                            currentDownloadJobState.createdTime = System.currentTimeMillis()
+                            currentDownloadJobState.notifiedStopped = false
 
-                        currentDownloadJobState.job = CoroutineScope(IO).launch {
-                            startDownloadJob(currentDownloadJobState)
+                            setDownloadJobStatus(currentDownloadJobState, FAILED)
+
+                            updateDownloadNotification()
+                        } else {
+                            setDownloadJobStatus(currentDownloadJobState, DOWNLOADING)
+
+                            currentDownloadJobState.job = CoroutineScope(IO).launch {
+                                startDownloadJob(currentDownloadJobState)
+                            }
                         }
-
                         emitNotificationResumeFact()
                         logger.debug("ACTION_RESUME for ${currentDownloadJobState.state.id}")
                     }
@@ -1151,14 +1161,17 @@ abstract class AbstractFetchDownloadService : Service() {
                 while (cursor.moveToNext()) {
                     val relativePath =
                         cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH))
-                    if (!limitToDownloadsFolder || relativePath == "Downloads/") {
+                    if (!limitToDownloadsFolder || isPathInDownloadsDirectory(relativePath)) {
                         val idColumnIndex = cursor.getColumnIndex(MediaStore.Downloads._ID)
                         return ContentUris.withAppendedId(collection, cursor.getLong(idColumnIndex))
                     }
                 }
             }
-
             return null
+        }
+
+        private fun isPathInDownloadsDirectory(relativePath: String): Boolean {
+            return relativePath == "Downloads/" || relativePath == "Download/"
         }
 
         @VisibleForTesting

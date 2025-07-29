@@ -111,7 +111,7 @@ bool ZoneAllocator::addSharedMemory(void* mem, size_t nbytes, MemoryUse use) {
     ptr->value().nbytes = nbytes;
   }
 
-  maybeTriggerGCOnMalloc();
+  maybeTriggerGCAfterMalloc();
 
   return true;
 }
@@ -165,6 +165,7 @@ JS::Zone::Zone(JSRuntime* rt, Kind kind)
       allocNurseryObjects_(true),
       allocNurseryStrings_(true),
       allocNurseryBigInts_(true),
+      allocNurseryGetterSetters_(true),
       pretenuring(this),
       crossZoneStringWrappers_(this),
       shapeZone_(this),
@@ -607,15 +608,11 @@ void Zone::prepareForMovingGC() {
 
   MOZ_ASSERT(!isPreservingCode());
   forceDiscardJitCode(gcx);
-
-  // We must always call fixupAfterMovingGC after this point.
-  bufferAllocator.prepareForMovingGC();
 }
 
 void Zone::fixupAfterMovingGC() {
   ZoneAllocator::fixupAfterMovingGC();
   shapeZone().fixupPropMapShapeTableAfterMovingGC();
-  bufferAllocator.fixupAfterMovingGC();
 }
 
 void Zone::purgeAtomCache() {

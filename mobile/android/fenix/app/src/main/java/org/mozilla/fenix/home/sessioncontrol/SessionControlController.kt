@@ -56,6 +56,7 @@ import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.components.appstate.setup.checklist.ChecklistItem
 import org.mozilla.fenix.components.metrics.MetricsUtils
+import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.home.HomeFragment
@@ -67,7 +68,6 @@ import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.tabstray.DefaultTabManagementFeatureHelper
 import org.mozilla.fenix.tabstray.TabManagementFeatureHelper
 import org.mozilla.fenix.utils.Settings
-import org.mozilla.fenix.utils.maybeShowAddSearchWidgetPrompt
 import org.mozilla.fenix.wallpapers.Wallpaper
 import org.mozilla.fenix.wallpapers.WallpaperState
 import java.lang.ref.WeakReference
@@ -226,11 +226,6 @@ interface SessionControlControllerCallback {
     fun removeCollectionWithUndo(tabCollection: TabCollection)
 
     /**
-     * Callback to show undo snack bar for top site.
-     */
-    fun showUndoSnackbarForTopSite(topSite: TopSite)
-
-    /**
      * Callback to show tab tray.
      */
     fun showTabTray()
@@ -250,10 +245,12 @@ class DefaultSessionControlController(
     private val reloadUrlUseCase: SessionUseCases.ReloadUrlUseCase,
     private val topSitesUseCases: TopSitesUseCases,
     private val marsUseCases: MARSUseCases,
+    private val fenixBrowserUseCases: FenixBrowserUseCases,
     private val appStore: AppStore,
     private val navControllerRef: WeakReference<NavController>,
     private val viewLifecycleScope: CoroutineScope,
     private val tabManagementFeatureHelper: TabManagementFeatureHelper = DefaultTabManagementFeatureHelper,
+    private val showAddSearchWidgetPrompt: () -> Unit,
 ) : SessionControlController {
 
     private var callback: SessionControlControllerCallback? = null
@@ -285,15 +282,16 @@ class DefaultSessionControlController(
             engine,
             tab,
             onTabRestored = {
-                activity.openToBrowser(BrowserDirection.FromHome)
+                navController.navigate(R.id.browserFragment)
                 selectTabUseCase.invoke(it)
                 reloadUrlUseCase.invoke(it)
             },
             onFailure = {
-                activity.openToBrowserAndLoad(
+                navController.navigate(R.id.browserFragment)
+                fenixBrowserUseCases.loadUrlOrSearch(
                     searchTermOrURL = tab.url,
-                    newTab = true,
-                    from = BrowserDirection.FromHome,
+                    newTab = !settings.enableHomepageAsNewTab,
+                    private = appStore.state.mode.isPrivate,
                 )
             },
         )
@@ -452,8 +450,6 @@ class DefaultSessionControlController(
                 removeTopSites(topSite)
             }
         }
-
-        callback?.showUndoSnackbarForTopSite(topSite)
     }
 
     override fun handleRenameCollectionTapped(collection: TabCollection) {
@@ -726,7 +722,7 @@ class DefaultSessionControlController(
         ChecklistItem.Task.Type.CHANGE_TOOLBAR_PLACEMENT ->
             navigateTo(HomeFragmentDirections.actionGlobalCustomizationFragment())
 
-        ChecklistItem.Task.Type.INSTALL_SEARCH_WIDGET -> maybeShowAddSearchWidgetPrompt(activity)
+        ChecklistItem.Task.Type.INSTALL_SEARCH_WIDGET -> showAddSearchWidgetPrompt()
 
         ChecklistItem.Task.Type.EXPLORE_EXTENSION ->
             navigateTo(HomeFragmentDirections.actionGlobalAddonsManagementFragment())

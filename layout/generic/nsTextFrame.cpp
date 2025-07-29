@@ -1914,8 +1914,8 @@ bool BuildTextRunsScanner::ContinueTextRunAcrossFrames(nsTextFrame* aFrame1,
         //
         // 1. Any of margin/border/padding separating the two typographic
         //    character units in the inline axis is non-zero.
-        const auto margin = ctx->StyleMargin()->GetMargin(
-            aSide, anchorResolutionParams.mPosition);
+        const auto margin =
+            ctx->StyleMargin()->GetMargin(aSide, anchorResolutionParams);
         if (!margin->ConvertsToLength() ||
             margin->AsLengthPercentage().ToLength() != 0) {
           return true;
@@ -4864,6 +4864,36 @@ static bool IsUnderlineRight(const ComputedStyle& aStyle) {
          nsStyleUtil::MatchesLanguagePrefix(langAtom, u"mn");
 }
 
+static bool FrameStopsLineDecorationPropagation(nsIFrame* aFrame,
+                                                nsCompatibility aCompatMode) {
+  // In all modes, if we're on an inline-block/table/grid/flex, we're done.
+  // If we're on a ruby frame other than ruby text container, we
+  // should continue.
+  mozilla::StyleDisplay display = aFrame->GetDisplay();
+  if (!display.IsInlineFlow() &&
+      (!display.IsRuby() ||
+       display == mozilla::StyleDisplay::RubyTextContainer) &&
+      display.IsInlineOutside()) {
+    return true;
+  }
+  // In quirks mode, if we're on an HTML table element, we're done.
+  if (aCompatMode == eCompatibility_NavQuirks &&
+      aFrame->GetContent()->IsHTMLElement(nsGkAtoms::table)) {
+    return true;
+  }
+  // If we're on an absolutely-positioned element or a floating
+  // element, we're done.
+  if (aFrame->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW)) {
+    return true;
+  }
+  // If we're an outer <svg> element, which is classified as an atomic
+  // inline-level element, we're done.
+  if (aFrame->IsSVGOuterSVGFrame()) {
+    return true;
+  }
+  return false;
+}
+
 void nsTextFrame::GetTextDecorations(
     nsPresContext* aPresContext,
     nsTextFrame::TextDecorationColorResolution aColorResolution,
@@ -5035,34 +5065,7 @@ void nsTextFrame::GetTextDecorations(
             !ignoreSubproperties));
       }
     }
-
-    // In all modes, if we're on an inline-block/table/grid/flex (or
-    // -moz-inline-box), we're done.
-    // If we're on a ruby frame other than ruby text container, we
-    // should continue.
-    mozilla::StyleDisplay display = f->GetDisplay();
-    if (!display.IsInlineFlow() &&
-        (!display.IsRuby() ||
-         display == mozilla::StyleDisplay::RubyTextContainer) &&
-        display.IsInlineOutside()) {
-      break;
-    }
-
-    // In quirks mode, if we're on an HTML table element, we're done.
-    if (compatMode == eCompatibility_NavQuirks &&
-        f->GetContent()->IsHTMLElement(nsGkAtoms::table)) {
-      break;
-    }
-
-    // If we're on an absolutely-positioned element or a floating
-    // element, we're done.
-    if (f->IsFloating() || f->IsAbsolutelyPositioned()) {
-      break;
-    }
-
-    // If we're an outer <svg> element, which is classified as an atomic
-    // inline-level element, we're done.
-    if (f->IsSVGOuterSVGFrame()) {
+    if (FrameStopsLineDecorationPropagation(f, compatMode)) {
       break;
     }
   }

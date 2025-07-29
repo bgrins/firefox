@@ -17,6 +17,9 @@ ChromeUtils.defineESModuleGetters(lazy, {
 ChromeUtils.defineLazyGetter(lazy, "SearchModeSwitcherL10n", () => {
   return new Localization(["browser/browser.ftl"]);
 });
+ChromeUtils.defineLazyGetter(lazy, "searchModeNewBadge", () => {
+  return lazy.SearchModeSwitcherL10n.formatValue("urlbar-searchmode-new");
+});
 
 // The maximum number of openSearch engines available to install
 // to display.
@@ -35,6 +38,9 @@ export class SearchModeSwitcher {
   #input;
   #toolbarbutton;
 
+  /**
+   * @param {UrlbarInput} input
+   */
   constructor(input) {
     this.#input = input;
 
@@ -367,6 +373,7 @@ export class SearchModeSwitcher {
       console.error("Failed to fetch engines");
     }
 
+    let today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD" format
     for (let engine of engines) {
       if (engine.hideOneOffButton) {
         continue;
@@ -375,6 +382,12 @@ export class SearchModeSwitcher {
       let menuitem = this.#createButton(engine.name, icon);
       menuitem.classList.add("searchmode-switcher-installed");
       menuitem.setAttribute("label", engine.name);
+
+      let isNew = engine.isNewUntil && today <= engine.isNewUntil;
+      if (isNew && engine.isAppProvided) {
+        menuitem.setAttribute("badge", await lazy.searchModeNewBadge);
+      }
+
       menuitem.addEventListener("command", e => {
         this.search({ engine, openEngineHomePage: e.shiftKey });
       });
@@ -417,13 +430,13 @@ export class SearchModeSwitcher {
 
   search({ engine = null, restrict = null, openEngineHomePage = false } = {}) {
     let search = "";
+    /** @type {Parameters<UrlbarInput["search"]>[1]} */
     let opts = null;
     if (engine) {
       search = this.#input.value;
       opts = {
         searchEngine: engine,
         searchModeEntry: "searchbutton",
-        openEngineHomePage,
       };
     } else if (restrict) {
       search = restrict + " " + this.#input.value;
@@ -522,7 +535,7 @@ export class SearchModeSwitcher {
     await lazy.SearchUIUtils.addOpenSearchEngine(
       engine.uri,
       engine.icon,
-      this.#input.browsingContext
+      this.#input.window.gBrowser.selectedBrowser.browsingContext
     );
   }
 }

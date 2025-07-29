@@ -783,12 +783,11 @@ class MOZ_RAII InlinableNativeIRGenerator {
   AttachDecision tryAttachMathPow();
   AttachDecision tryAttachMathMinMax(bool isMax);
   AttachDecision tryAttachSpreadMathMinMax(bool isMax);
+  AttachDecision tryAttachTypedArraySet();
+  AttachDecision tryAttachTypedArraySubarray();
   AttachDecision tryAttachIsTypedArray(bool isPossiblyWrapped);
   AttachDecision tryAttachIsTypedArrayConstructor();
-  AttachDecision tryAttachTypedArrayByteOffset();
-  AttachDecision tryAttachTypedArrayElementSize();
-  AttachDecision tryAttachTypedArrayLength(bool isPossiblyWrapped,
-                                           bool allowOutOfBounds);
+  AttachDecision tryAttachTypedArrayLength(bool isPossiblyWrapped);
   AttachDecision tryAttachIsConstructing();
   AttachDecision tryAttachGetNextMapSetEntryForIterator(bool isMap);
   AttachDecision tryAttachNewArrayIterator();
@@ -799,6 +798,9 @@ class MOZ_RAII InlinableNativeIRGenerator {
   AttachDecision tryAttachObjectConstructor();
   AttachDecision tryAttachArrayConstructor();
   AttachDecision tryAttachTypedArrayConstructor();
+  AttachDecision tryAttachTypedArrayConstructorFromLength();
+  AttachDecision tryAttachTypedArrayConstructorFromArrayBuffer();
+  AttachDecision tryAttachTypedArrayConstructorFromArray();
   AttachDecision tryAttachMapSetConstructor(InlinableNative native);
   AttachDecision tryAttachNumber();
   AttachDecision tryAttachNumberParseInt();

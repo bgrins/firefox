@@ -14,8 +14,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.mozilla.fenix.customannotations.SmokeTest
 import org.mozilla.fenix.helpers.AppAndSystemHelper.assertExternalAppOpens
+import org.mozilla.fenix.helpers.AppAndSystemHelper.assertNativeAppOpens
 import org.mozilla.fenix.helpers.AppAndSystemHelper.deleteDownloadedFileOnStorage
 import org.mozilla.fenix.helpers.AppAndSystemHelper.setNetworkEnabled
+import org.mozilla.fenix.helpers.Constants
+import org.mozilla.fenix.helpers.Constants.PackageName.GMAIL_APP
 import org.mozilla.fenix.helpers.Constants.PackageName.GOOGLE_APPS_PHOTOS
 import org.mozilla.fenix.helpers.Constants.PackageName.GOOGLE_DOCS
 import org.mozilla.fenix.helpers.HomeActivityTestRule
@@ -417,6 +420,7 @@ class DownloadTest : TestSetup() {
     }
 
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/2987000
+    @Ignore("Failing, see https://bugzilla.mozilla.org/show_bug.cgi?id=1979472")
     @Test
     fun shareDownloadedFileTest() {
         downloadRobot {
@@ -430,7 +434,8 @@ class DownloadTest : TestSetup() {
             clickDownloadItemMenuIcon(activityTestRule, "web_icon.png")
         }.shareDownloadedItem(activityTestRule, "web_icon.png") {
             verifyAndroidShareLayout()
-            verifySharingWithSelectedApp(appName = "Gmail", "", "")
+            clickSharingApp("Gmail")
+            assertNativeAppOpens(GMAIL_APP)
         }
     }
 }

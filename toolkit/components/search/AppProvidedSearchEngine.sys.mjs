@@ -37,6 +37,9 @@ const lazy = XPCOMUtils.declareLazy({
     }),
 });
 
+// If a user used a search engine at least once, we'll toggle a boolean.
+const HAS_BEEN_USED = "hasBeenUsed";
+
 // After the user has been idle for 30s, we'll update icons if we need to.
 const ICON_UPDATE_ON_IDLE_DELAY = 30;
 
@@ -400,6 +403,7 @@ export class AppProvidedSearchEngine extends SearchEngine {
     ["suggestions", lazy.SearchUtils.URL_TYPE.SUGGEST_JSON],
     ["trending", lazy.SearchUtils.URL_TYPE.TRENDING_JSON],
     ["searchForm", lazy.SearchUtils.URL_TYPE.SEARCH_FORM],
+    ["visualSearch", lazy.SearchUtils.URL_TYPE.VISUAL_SEARCH],
   ]);
   static iconHandler = new IconHandler();
 
@@ -598,6 +602,31 @@ export class AppProvidedSearchEngine extends SearchEngine {
   }
 
   /**
+   * Marks the search engine has having been used.
+   */
+  markAsUsed() {
+    this.setAttr(HAS_BEEN_USED, true, true);
+  }
+
+  /**
+   * Whether this search engine has ever been used. This returns true if
+   * `markAsUsed()` has been called at least once for this engine.
+   *
+   * @returns {boolean}
+   */
+  get hasBeenUsed() {
+    return this.getAttr(HAS_BEEN_USED) ?? false;
+  }
+
+  /**
+   * Clears the usage record for this search engine. The property hasBeenUsed
+   * will return false unless `markAsUsed()` is called again.
+   */
+  clearUsage() {
+    this.clearAttr(HAS_BEEN_USED);
+  }
+
+  /**
    * Creates a JavaScript object that represents this engine.
    *
    * @returns {object}
@@ -645,6 +674,8 @@ export class AppProvidedSearchEngine extends SearchEngine {
     this._definedAliases =
       engineConfig.aliases?.map(alias => `@${alias}`) ?? [];
     this.#partnerCode = engineConfig.partnerCode ?? "";
+    /** @type {string} */
+    this.isNewUntil = engineConfig.isNewUntil ?? "";
 
     for (const [type, urlData] of Object.entries(engineConfig.urls)) {
       if (urlData) {
@@ -674,7 +705,8 @@ export class AppProvidedSearchEngine extends SearchEngine {
     let engineURL = new EngineURL(
       urlType,
       urlData.method || "GET",
-      urlData.base
+      urlData.base,
+      urlData.displayName
     );
 
     if (urlData.params) {

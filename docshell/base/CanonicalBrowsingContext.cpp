@@ -156,6 +156,8 @@ CanonicalBrowsingContext::~CanonicalBrowsingContext() {
   if (mSessionHistory) {
     mSessionHistory->SetBrowsingContext(nullptr);
   }
+
+  mActiveEntryList.clear();
 }
 
 /* static */
@@ -618,9 +620,10 @@ CanonicalBrowsingContext::ReplaceLoadingSessionHistoryEntryForLoad(
   MOZ_ASSERT(aInfo);
   MOZ_ASSERT(aNewChannel);
 
-  SessionHistoryInfo newInfo = SessionHistoryInfo(
-      aNewChannel, aInfo->mInfo.LoadType(),
-      aInfo->mInfo.GetPartitionedPrincipalToInherit(), aInfo->mInfo.GetCsp());
+  SessionHistoryInfo newInfo =
+      SessionHistoryInfo(aNewChannel, aInfo->mInfo.LoadType(),
+                         aInfo->mInfo.GetPartitionedPrincipalToInherit(),
+                         aInfo->mInfo.GetPolicyContainer());
 
   for (size_t i = 0; i < mLoadingEntries.Length(); ++i) {
     if (mLoadingEntries[i].mLoadId == aInfo->mLoadId) {
@@ -3491,16 +3494,16 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(CanonicalBrowsingContext,
   if (tmp->mSessionHistory) {
     tmp->mSessionHistory->SetBrowsingContext(nullptr);
   }
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(
-      mSessionHistory, mCurrentBrowserParent, mWebProgress,
-      mSessionStoreSessionStorageUpdateTimer, mActiveEntryList)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mSessionHistory, mCurrentBrowserParent,
+                                  mWebProgress,
+                                  mSessionStoreSessionStorageUpdateTimer)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(CanonicalBrowsingContext,
                                                   BrowsingContext)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(
-      mSessionHistory, mCurrentBrowserParent, mWebProgress,
-      mSessionStoreSessionStorageUpdateTimer, mActiveEntryList)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSessionHistory, mCurrentBrowserParent,
+                                    mWebProgress,
+                                    mSessionStoreSessionStorageUpdateTimer)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(CanonicalBrowsingContext,

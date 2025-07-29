@@ -398,7 +398,6 @@ def setup_browsertime(config, tasks):
                     "win32-geckodriver",
                     "win32-node",
                 ],
-                "windows.*-32.*": ["browsertime", "win32-geckodriver", "win32-node"],
                 "windows.*-64.*": ["browsertime", "win64-geckodriver", "win64-node"],
             },
         }
@@ -415,7 +414,6 @@ def setup_browsertime(config, tasks):
                 "macosx1400.*": ["mac64-ffmpeg-7.1"],
                 "macosx1500.*": ["mac64-ffmpeg-7.1"],
                 "windows.*aarch64.*": ["win64-ffmpeg-7.1"],
-                "windows.*-32.*": ["win64-ffmpeg-7.1"],
                 "windows.*-64.*": ["win64-ffmpeg-7.1"],
             },
         }
@@ -747,6 +745,8 @@ def handle_tier(config, tasks):
                 "windows11-32-24h2/debug",
                 "windows11-32-24h2/opt",
                 "windows11-32-24h2-shippable/opt",
+                "windows11-64-24h2-hw-ref/opt",
+                "windows11-64-24h2-hw-ref-shippable/opt",
                 "windows11-64-24h2/opt",
                 "windows11-64-24h2/debug",
                 "windows11-64-24h2-shippable/opt",

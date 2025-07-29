@@ -217,28 +217,18 @@ document.addEventListener(
           }
           gContextMenu.addSearchFieldAsEngine().catch(console.error);
           break;
-        case "context-searchselect": {
-          let { searchTerms, usePrivate, principal, csp } = event.target;
-          SearchUIUtils.loadSearchFromContext(
-            window,
-            searchTerms,
-            usePrivate,
-            principal,
-            csp,
-            event
-          );
+        case "context-searchselect":
+        case "context-searchselect-private":
+          gContextMenu.loadSearch({ event });
           break;
-        }
-        case "context-searchselect-private": {
-          let { searchTerms, principal, csp } = event.target;
-          SearchUIUtils.loadSearchFromContext(
-            window,
-            searchTerms,
-            true,
-            principal,
-            csp,
-            event
+        case "context-visual-search": {
+          let { SearchUtils } = ChromeUtils.importESModule(
+            "moz-src:///toolkit/components/search/SearchUtils.sys.mjs"
           );
+          gContextMenu.loadSearch({
+            event,
+            searchUrlType: SearchUtils.URL_TYPE.VISUAL_SEARCH,
+          });
           break;
         }
         case "context-translate-selection":

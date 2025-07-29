@@ -80,6 +80,14 @@ newtab-confirm-delete-history-p2 = This action cannot be undone.
 
 newtab-topsite-sponsored = Sponsored
 
+## Label used by screen readers for pinned top sites
+
+# Variables:
+#   $title (string) - The label or hostname of the site.
+topsite-label-pinned =
+    .aria-label = { $title } (pinned)
+    .title = { $title }
+
 ## Context Menu - Action Tooltips.
 
 # General tooltip for context menus.
@@ -493,11 +501,11 @@ newtab-custom-wallpaper-title = Custom wallpapers are here
 newtab-custom-wallpaper-subtitle = Upload your own wallpaper or pick a custom color to make { -brand-product-name } yours.
 newtab-custom-wallpaper-cta = Try it
 
-## Alternative strings for custom wallpaper highlight
+## Strings for new user activation custom wallpaper highlight
 
-newtab-custom-wallpaper-alt-title = Your browser. Your wallpaper
-newtab-custom-wallpaper-alt-subtitle = Pick a wallpaper or color to match your mood.
-newtab-custom-wallpaper-alt-cta = Try it now
+newtab-new-user-custom-wallpaper-title = Choose a wallpaper to make { -brand-product-name } yours
+newtab-new-user-custom-wallpaper-subtitle = Make every new tab feel like home with custom wallpapers and colors.
+newtab-new-user-custom-wallpaper-cta = Try it now
 
 ## Strings for download mobile highlight
 

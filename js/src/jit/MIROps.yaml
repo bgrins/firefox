@@ -1778,19 +1778,6 @@
   clone: true
   generate_lir: true
 
-# Implements the TypedArrayByteOffset intrinsic for resizable typed arrays,
-# which calls TypedArrayObject::byteOffsetMaybeOutOfBounds().
-- name: ResizableTypedArrayByteOffsetMaybeOutOfBounds
-  operands:
-    object: Object
-  result_type: IntPtr
-  movable: true
-  congruent_to: if_operands_equal
-  alias_set: custom
-  compute_range: custom
-  generate_lir: true
-  lir_temps: 1
-
 # Read the length of a resizable typed array.
 - name: ResizableTypedArrayLength
   operands:
@@ -1870,6 +1857,41 @@
   movable: true
   congruent_to: if_operands_equal
   alias_set: custom
+
+# Inlined TypedArray.prototype.set
+- name: TypedArraySet
+  operands:
+    target: Object
+    source: Object
+    offset: IntPtr
+  arguments:
+    canUseBitwiseCopy: bool
+  alias_set: custom
+  possibly_calls: true
+  generate_lir: true
+
+- name: GuardTypedArraySetOffset
+  operands:
+    offset: IntPtr
+    targetLength: IntPtr
+    sourceLength: IntPtr
+  result_type: IntPtr
+  guard: true
+  movable: true
+  congruent_to: if_operands_equal
+  alias_set: none
+  generate_lir: true
+  lir_temps: 1
+
+# Inlined TypedArray.prototype.subarray
+- name: TypedArraySubarray
+  operands:
+    object: Object
+    start: IntPtr
+    end: IntPtr
+  result_type: Object
+  possibly_calls: true
+  generate_lir: true
 
 - name: GuardNumberToIntPtrIndex
   gen_boilerplate: false
@@ -2052,7 +2074,10 @@
 - name: StoreTypedArrayElementHole
   gen_boilerplate: false
 
-- name: EffectiveAddress
+- name: EffectiveAddress3
+  gen_boilerplate: false
+
+- name: EffectiveAddress2
   gen_boilerplate: false
 
 - name: ClampToUint8
@@ -2430,7 +2455,7 @@
 - name: NurseryObject
   arguments:
     # Index in the Vector of objects stored in the WarpSnapshot.
-    nurseryIndex: uint32_t
+    nurseryObjectIndex: uint32_t
   result_type: Object
   movable: true
   congruent_to: custom
@@ -3312,7 +3337,7 @@
     object: Object
   arguments:
     propId: jsid
-    getterSetter: GetterSetter*
+    getterSetterValue: ValueOrNurseryValueIndex
   result_type: Object
   guard: true
   movable: true
@@ -3338,6 +3363,17 @@
   congruent_to: if_operands_equal
   folds_to: custom
   alias_set: none
+
+- name: GuardIntPtrIsNonNegative
+  operands:
+    index: IntPtr
+  result_type: IntPtr
+  guard: true
+  movable: true
+  congruent_to: if_operands_equal
+  folds_to: custom
+  alias_set: none
+  generate_lir: true
 
 - name: GuardInt32Range
   operands:

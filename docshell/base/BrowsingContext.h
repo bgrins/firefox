@@ -19,6 +19,7 @@
 #include "mozilla/dom/BindingDeclarations.h"
 #include "mozilla/dom/LocationBase.h"
 #include "mozilla/dom/MaybeDiscarded.h"
+#include "mozilla/dom/NavigationBinding.h"
 #include "mozilla/dom/PopupBlocker.h"
 #include "mozilla/dom/UserActivation.h"
 #include "mozilla/dom/BrowsingContextBinding.h"
@@ -239,6 +240,7 @@ struct EmbedderColorSchemes {
   FIELD(MediumOverride, nsString)                                             \
   /* DevTools override for prefers-color-scheme */                            \
   FIELD(PrefersColorSchemeOverride, dom::PrefersColorSchemeOverride)          \
+  FIELD(LanguageOverride, nsString)                                           \
   /* DevTools override for forced-colors */                                   \
   FIELD(ForcedColorsOverride, dom::ForcedColorsOverride)                      \
   /* prefers-color-scheme override based on the color-scheme style of our     \
@@ -449,6 +451,10 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
                    bool aSetNavigating = false);
 
   nsresult InternalLoad(nsDocShellLoadState* aLoadState);
+
+  void Navigate(nsIURI* aURI, nsIPrincipal& aSubjectPrincipal, ErrorResult& aRv,
+                NavigationHistoryBehavior aHistoryHandling =
+                    NavigationHistoryBehavior::Auto);
 
   // Removes the root document for this BrowsingContext tree from the BFCache,
   // if it is cached, and returns true if it was.
@@ -962,6 +968,10 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
     aOverride = GetMediumOverride();
   }
 
+  void GetLanguageOverride(nsAString& aLanguageOverride) const {
+    aLanguageOverride = GetLanguageOverride();
+  }
+
   dom::PrefersColorSchemeOverride PrefersColorSchemeOverride() const {
     return GetPrefersColorSchemeOverride();
   }
@@ -1019,6 +1029,12 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
                                        bool aHasPostData);
 
  private:
+  // Check whether it's OK to load the given url with the given subject
+  // principal, and if so construct the right nsDocShellLoadInfo for the load
+  // and return it.
+  already_AddRefed<nsDocShellLoadState> CheckURLAndCreateLoadState(
+      nsIURI* aURI, nsIPrincipal& aSubjectPrincipal, ErrorResult& aRv);
+
   bool AddSHEntryWouldIncreaseLength(SessionHistoryInfo* aCurrentEntry) const;
 
   // Assert that this BrowsingContext is coherent relative to related
@@ -1122,6 +1138,11 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
     return IsTop();
   }
 
+  bool CanSet(FieldIndex<IDX_LanguageOverride>, const nsString&,
+              ContentParent*) {
+    return IsTop();
+  }
+
   bool CanSet(FieldIndex<IDX_MediumOverride>, const nsString&, ContentParent*) {
     return IsTop();
   }
@@ -1157,6 +1178,8 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
   template <typename Callback>
   void WalkPresContexts(Callback&&);
   void PresContextAffectingFieldChanged();
+
+  void DidSet(FieldIndex<IDX_LanguageOverride>, nsString&& aOldValue);
 
   void DidSet(FieldIndex<IDX_MediumOverride>, nsString&& aOldValue);
 
@@ -1381,6 +1404,8 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
   RefPtr<WindowContext> mCurrentWindowContext;
 
   RefPtr<nsGeolocationService> mGeolocationServiceOverride;
+
+  JS::UniqueChars mDefaultLocale;
 
   // This is not a strong reference, but using a JS::Heap for that should be
   // fine. The JSObject stored in here should be a proxy with a

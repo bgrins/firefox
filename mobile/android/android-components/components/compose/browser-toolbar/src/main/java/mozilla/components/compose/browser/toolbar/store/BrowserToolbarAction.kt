@@ -4,6 +4,7 @@
 
 package mozilla.components.compose.browser.toolbar.store
 
+import androidx.annotation.StringRes
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin
 import mozilla.components.concept.toolbar.AutocompleteProvider
 import mozilla.components.lib.state.Action
@@ -21,16 +22,25 @@ sealed interface BrowserToolbarAction : Action {
     data class ToggleEditMode(val editMode: Boolean) : BrowserToolbarAction
 
     /**
+     * The toolbar was moved to a different position on screen.
+     *
+     * @property gravity [ToolbarGravity] for where the toolbar is positioned on the screen.
+     */
+    data class ToolbarGravityUpdated(val gravity: ToolbarGravity) : BrowserToolbarAction
+
+    /**
      * Initialize the toolbar with the provided data.
      *
      * @property mode The initial mode of the toolbar.
      * @property displayState The initial state of the display toolbar.
      * @property editState The initial state of the edit toolbar.
+     * @property gravity The initial gravity of the toolbar.
      */
     data class Init(
         val mode: Mode = Mode.DISPLAY,
         val displayState: DisplayState = DisplayState(),
         val editState: EditState = EditState(),
+        val gravity: ToolbarGravity = ToolbarGravity.Top,
     ) : BrowserToolbarAction
 
     /**
@@ -116,6 +126,12 @@ sealed class BrowserEditToolbarAction : BrowserToolbarAction {
     ) : BrowserEditToolbarAction()
 
     /**
+     * Indicates that the user has aborted editing the URL/text.
+     * This callback works only up until Android API 33.
+     */
+    data object SearchAborted : BrowserEditToolbarAction()
+
+    /**
      * Indicates that a new url suggestion has been autocompleted in the search toolbar.
      */
     data class UrlSuggestionAutocompleted(val url: String) : BrowserEditToolbarAction()
@@ -144,4 +160,9 @@ sealed class BrowserEditToolbarAction : BrowserToolbarAction {
      * @property actions The new list of [ToolbarAction]s.
      */
     data class SearchActionsEndUpdated(val actions: List<ToolbarAction>) : BrowserEditToolbarAction()
+
+    /**
+     * Update the placeholder hint resource ID in edit mode.
+     */
+    data class HintUpdated(@param:StringRes val hint: Int) : BrowserEditToolbarAction()
 }

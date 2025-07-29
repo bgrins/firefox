@@ -213,6 +213,11 @@ XPCOMUtils.defineLazyScriptGetter(
 );
 XPCOMUtils.defineLazyScriptGetter(
   this,
+  "gTrustPanelHandler",
+  "chrome://browser/content/browser-trustPanel.js"
+);
+XPCOMUtils.defineLazyScriptGetter(
+  this,
   ["gGestureSupport", "gHistorySwipeAnimation"],
   "chrome://browser/content/browser-gestureSupport.js"
 );
@@ -615,6 +620,13 @@ customElements.setElementCreationCallback("screenshots-buttons", () => {
 customElements.setElementCreationCallback("fxa-menu-message", () => {
   ChromeUtils.importESModule(
     "chrome://browser/content/asrouter/components/fxa-menu-message.mjs",
+    { global: "current" }
+  );
+});
+
+customElements.setElementCreationCallback("webrtc-preview", () => {
+  ChromeUtils.importESModule(
+    "chrome://browser/content/webrtc/webrtc-preview.mjs",
     { global: "current" }
   );
 });
@@ -1293,7 +1305,7 @@ function HandleAppCommandEvent(evt) {
   evt.preventDefault();
 }
 
-function loadOneOrMoreURIs(aURIString, aTriggeringPrincipal, aCsp) {
+function loadOneOrMoreURIs(aURIString, aTriggeringPrincipal, aPolicyContainer) {
   // we're not a browser window, pass the URI string to a new browser window
   if (window.location.href != AppConstants.BROWSER_CHROME_URL) {
     window.openDialog(
@@ -1312,7 +1324,7 @@ function loadOneOrMoreURIs(aURIString, aTriggeringPrincipal, aCsp) {
       inBackground: false,
       replace: true,
       triggeringPrincipal: aTriggeringPrincipal,
-      csp: aCsp,
+      policyContainer: aPolicyContainer,
     });
   } catch (e) {}
 }
@@ -2486,6 +2498,13 @@ var XULBrowserWindow = {
       this._event // previous content blocking event
     );
 
+    gTrustPanelHandler.onContentBlockingEvent(
+      aEvent,
+      aWebProgress,
+      aIsSimulated,
+      this._event // previous content blocking event
+    );
+
     // We need the state of the previous content blocking event, so update
     // event after onContentBlockingEvent is called.
     this._event = aEvent;
@@ -2514,6 +2533,7 @@ var XULBrowserWindow = {
       uri = Services.io.createExposableURI(uri);
     } catch (e) {}
     gIdentityHandler.updateIdentity(aState, uri);
+    gTrustPanelHandler.updateIdentity(aState, uri);
   },
 
   // simulate all change notifications after switching tabs
@@ -3059,14 +3079,14 @@ function setToolbarVisibility(
     }
   }
 
-  if (toolbar.getAttribute(hidingAttribute) == (!isVisible).toString()) {
+  if (toolbar.hasAttribute(hidingAttribute) != isVisible) {
     // If this call will not result in a visibility change, return early
     // since dispatching toolbarvisibilitychange will cause views to get rebuilt.
     return;
   }
 
   toolbar.classList.toggle("instant", !animated);
-  toolbar.setAttribute(hidingAttribute, !isVisible);
+  toolbar.toggleAttribute(hidingAttribute, !isVisible);
   // For the bookmarks toolbar, we will have saved state above. For other
   // toolbars, we need to do it after setting the attribute, or we might
   // save the wrong state.
@@ -3488,7 +3508,7 @@ function handleLinkClick(event, href, linkNode) {
     originPrincipal: doc.nodePrincipal,
     originStoragePrincipal: doc.effectiveStoragePrincipal,
     triggeringPrincipal: doc.nodePrincipal,
-    csp: doc.csp,
+    policyContainer: doc.policyContainer,
     frameID,
   };
 
@@ -3551,7 +3571,7 @@ function middleMousePaste(event) {
         ignoreButton: true,
         allowInheritPrincipal: data.mayInheritPrincipal,
         triggeringPrincipal: gBrowser.selectedBrowser.contentPrincipal,
-        csp: gBrowser.selectedBrowser.csp,
+        policyContainer: gBrowser.selectedBrowser.policyContainer,
       });
     }
   });

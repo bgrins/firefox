@@ -4,7 +4,9 @@ title: Changelog
 permalink: /changelog/
 ---
 
-# 142.0 (In Development)
+# 143.0 (In Development)
+
+# 142.0
 * **feature-tabs**:
   * Updated `LastTabFeature` to not close the current tab when there's no history. [Bug 1813413](https://bugzilla.mozilla.org/show_bug.cgi?id=1813413).
 * **feature-downloads**:
@@ -12,10 +14,16 @@ permalink: /changelog/
 * **concept-engine** and **browser-engine-gecko**
   * 🌟️ Added `TrackingProtectionPolicy.bounceTrackingProtectionMode` it allows configuring the Bounce Tracking Protection feature, disabled by default. [Bug 1963445](https://bugzilla.mozilla.org/show_bug.cgi?id=1963445)
   * ⚠️ Options to get, set, and clear browser preferences now require opt in for additional safety.
+  * 🌟️ Added `TrackingProtectionPolicy.allowListBaselineTrackingProtection` and `TrackingProtectionPolicy.allowListConvenienceTrackingProtection`.  Url-classifier(tracking-protection, tracking-annotation, etc) exception entries are categorized into baseline and convenience. The new member variables specify whether exception entries from the corresponding categories are applied. [Bug 1970632](https://bugzilla.mozilla.org/show_bug.cgi?id=1970632)
 * **browser-state**
   * Removed `ContentState.isProductUrl` and related internal changes.
+* **support-ktx**
+  * Remove API level check for `setupPersistentInsets` and add a new option to consume insets; the default is the same current behaviour. [Bug 1977270](https://bugzilla.mozilla.org/show_bug.cgi?id=1977270) and [Bug 1976746](https://bugzilla.mozilla.org/show_bug.cgi?id=1976746).
+  * Remove API level check for `ImeInsetsSynchronizer`. [Bug 1977270](https://bugzilla.mozilla.org/show_bug.cgi?id=1977270)
 * **All components**
   * ⚠️ Introduced `@ExperimentalAndroidComponentsApi` to indicate an API requires special care. Opt in via `@OptIn(ExperimentalAndroidComponentsApi::class)`.
+* **service-firefox-accounts**
+  * Renamed `withConstellation` to `withConstellationIfExists` to signify the block execution is dependant on the account being authenticated first. [Bug 1794207](https://bugzilla.mozilla.org/show_bug.cgi?id=1794207)
 
 # 141.0
 =======

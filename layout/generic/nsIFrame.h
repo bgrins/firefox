@@ -620,7 +620,9 @@ enum class LayoutFrameClassFlags : uint16_t {
   SVG = 1 << 3,
   SVGContainer = 1 << 4,
   BidiInlineContainer = 1 << 5,
-  // The frame is for a replaced element, such as an image
+  // The frame is for a replaced element, such as an image. Note that HTML
+  // <button> elements don't have this flag but still behave as replaced, see
+  // nsIFrame::IsReplaced().
   Replaced = 1 << 6,
   // A replaced element that has replaced-element sizing characteristics (i.e.,
   // like images or iframes), as opposed to inline-block sizing characteristics
@@ -1416,6 +1418,8 @@ class nsIFrame : public nsQueryFrame {
 
   NS_DECLARE_FRAME_PROPERTY_DELETABLE(UsedMarginProperty, nsMargin)
   NS_DECLARE_FRAME_PROPERTY_DELETABLE(UsedPaddingProperty, nsMargin)
+  NS_DECLARE_FRAME_PROPERTY_DELETABLE(AnchorPosReferences,
+                                      AnchorPosReferencedAnchors);
 
   // This tracks the start and end page value for a frame.
   //
@@ -3290,8 +3294,8 @@ class nsIFrame : public nsQueryFrame {
   // Returns true iff this frame's computed block-size property is one of the
   // intrinsic-sizing keywords.
   bool HasIntrinsicKeywordForBSize() const {
-    const auto bSize =
-        StylePosition()->BSize(GetWritingMode(), StyleDisplay()->mPosition);
+    const auto bSize = StylePosition()->BSize(
+        GetWritingMode(), AnchorPosResolutionParams::From(this));
     return IsIntrinsicKeyword(*bSize);
   }
 
@@ -3565,7 +3569,6 @@ class nsIFrame : public nsQueryFrame {
   CLASS_FLAG_METHOD(IsSVGContainerFrame, SVGContainer);
   CLASS_FLAG_METHOD(IsBidiInlineContainer, BidiInlineContainer);
   CLASS_FLAG_METHOD(IsLineParticipant, LineParticipant);
-  CLASS_FLAG_METHOD(IsReplaced, Replaced);
   CLASS_FLAG_METHOD(HasReplacedSizing, ReplacedSizing);
   CLASS_FLAG_METHOD(IsTablePart, TablePart);
   CLASS_FLAG_METHOD0(CanContainOverflowContainers)
@@ -3602,6 +3605,8 @@ class nsIFrame : public nsQueryFrame {
 #ifdef __clang__
 #  pragma clang diagnostic pop
 #endif
+
+  bool IsReplaced() const;
 
   /**
    * Returns a transformation matrix that converts points in this frame's
@@ -4510,6 +4515,30 @@ class nsIFrame : public nsQueryFrame {
     mProperties.Remove(aProperty, this);
   }
 
+  /**
+   * Set the deletable property with a given value if it doesn't already exist;
+   * otherwise, allocate a copy of the passed-in value and insert that as a new
+   * value. Returns the pointer to the property, guaranteed non-null, value that
+   * then can be used to update the property value further.
+   *
+   * Note: As the name suggests, this will behave properly only for properties
+   * declared with NS_DECLARE_FRAME_PROPERTY_DELETABLE!
+   */
+  template <typename T, typename... Params>
+  FrameProperties::PropertyType<T> SetOrUpdateDeletableProperty(
+      FrameProperties::Descriptor<T> aProperty, Params&&... aParams) {
+    bool found;
+    using DataType = std::remove_pointer_t<FrameProperties::PropertyType<T>>;
+    DataType* storedValue = GetProperty(aProperty, &found);
+    if (!found) {
+      storedValue = new DataType{aParams...};
+      AddProperty(aProperty, storedValue);
+    } else {
+      *storedValue = DataType{aParams...};
+    }
+    return storedValue;
+  }
+
   void RemoveAllProperties() { mProperties.RemoveAll(this); }
 
   // nsIFrames themselves are in the nsPresArena, and so are not measured here.
@@ -4759,6 +4788,9 @@ class nsIFrame : public nsQueryFrame {
   // Like IsColumnSpan(), but this also checks whether the frame has a
   // multi-column ancestor or not.
   inline bool IsColumnSpanInMulticolSubtree() const;
+
+  // Returns true if this frame makes any reference to anchors.
+  inline bool HasAnchorPosReference() const;
 
   /**
    * Returns the vertical-align value to be used for layout, if it is one
@@ -5891,8 +5923,8 @@ inline nsIFrame* nsFrameList::BackwardFrameTraversal::Prev(nsIFrame* aFrame) {
 }
 
 inline AnchorPosResolutionParams AnchorPosResolutionParams::From(
-    const nsIFrame* aFrame) {
-  return {aFrame, aFrame->StyleDisplay()->mPosition};
+    const nsIFrame* aFrame, AnchorPosReferencedAnchors* aReferencedAnchors) {
+  return {aFrame, aFrame->StyleDisplay()->mPosition, aReferencedAnchors};
 }
 
 #endif /* nsIFrame_h___ */

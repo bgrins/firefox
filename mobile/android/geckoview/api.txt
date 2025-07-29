@@ -558,6 +558,8 @@ package org.mozilla.geckoview {
   }
 
   @AnyThread public static class ContentBlocking.Settings extends RuntimeSettings {
+    method public boolean getAllowListBaselineTrackingProtection();
+    method public boolean getAllowListConvenienceTrackingProtection();
     method public int getAntiTrackingCategories();
     method public int getBounceTrackingProtectionMode();
     method public boolean getCookieBannerDetectOnlyMode();
@@ -580,6 +582,8 @@ package org.mozilla.geckoview {
     method @NonNull public String[] getSafeBrowsingPhishingTable();
     method @NonNull public Collection<ContentBlocking.SafeBrowsingProvider> getSafeBrowsingProviders();
     method public boolean getStrictSocialTrackingProtection();
+    method @NonNull public ContentBlocking.Settings setAllowListBaselineTrackingProtection(boolean);
+    method @NonNull public ContentBlocking.Settings setAllowListConvenienceTrackingProtection(boolean);
     method @NonNull public ContentBlocking.Settings setAntiTracking(int);
     method @NonNull public ContentBlocking.Settings setBounceTrackingProtectionMode(int);
     method @NonNull public ContentBlocking.Settings setCookieBannerDetectOnlyMode(boolean);
@@ -607,6 +611,8 @@ package org.mozilla.geckoview {
 
   @AnyThread public static class ContentBlocking.Settings.Builder extends RuntimeSettings.Builder<ContentBlocking.Settings> {
     ctor public Builder();
+    method @NonNull public ContentBlocking.Settings.Builder allowListBaselineTrackingProtection(boolean);
+    method @NonNull public ContentBlocking.Settings.Builder allowListConvenienceTrackingProtection(boolean);
     method @NonNull public ContentBlocking.Settings.Builder antiTracking(int);
     method @NonNull public ContentBlocking.Settings.Builder bounceTrackingProtectionMode(int);
     method @NonNull public ContentBlocking.Settings.Builder cookieBannerGlobalRulesEnabled(boolean);
@@ -716,7 +722,6 @@ package org.mozilla.geckoview {
     method @AnyThread @NonNull public static GeckoResult<String> sendCrashReport(@NonNull Context, @NonNull Intent, @NonNull String);
     method @AnyThread @NonNull public static GeckoResult<String> sendCrashReport(@NonNull Context, @NonNull Bundle, @NonNull String);
     method @AnyThread @NonNull public static GeckoResult<String> sendCrashReport(@NonNull Context, @NonNull File, @NonNull File, @NonNull String);
-    method @AnyThread @NonNull public static GeckoResult<String> sendCrashReport(@NonNull String, @NonNull File, @NonNull JSONObject);
   }
 
   @Documented @Retention(value=RetentionPolicy.RUNTIME) @Target(value={ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.LOCAL_VARIABLE, ElementType.METHOD, ElementType.PACKAGE, ElementType.PARAMETER, ElementType.TYPE}) public interface DeprecationSchedule {
@@ -794,6 +799,7 @@ package org.mozilla.geckoview {
     method @AnyThread @NonNull public static GeckoResult<Void> setGeckoPref(@NonNull String, @NonNull String, int);
     method @AnyThread @NonNull public static GeckoResult<Void> setGeckoPref(@NonNull String, @NonNull Integer, int);
     method @AnyThread @NonNull public static GeckoResult<Void> setGeckoPref(@NonNull String, @NonNull Boolean, int);
+    method @AnyThread @NonNull public static GeckoResult<Map<String,Boolean>> setGeckoPrefs(@NonNull List<GeckoPreferenceController.SetGeckoPreference<?>>);
     field public static final int PREF_BRANCH_DEFAULT = 1;
     field public static final int PREF_BRANCH_USER = 0;
     field public static final int PREF_TYPE_BOOL = 128;
@@ -827,6 +833,16 @@ package org.mozilla.geckoview {
   }
 
   @Retention(value=RetentionPolicy.SOURCE) public static interface GeckoPreferenceController.PrefType {
+  }
+
+  public static class GeckoPreferenceController.SetGeckoPreference<T> {
+    method @AnyThread @NonNull public static GeckoPreferenceController.SetGeckoPreference<Boolean> setBoolPref(@NonNull String, @NonNull Boolean, int);
+    method @AnyThread @NonNull public static GeckoPreferenceController.SetGeckoPreference<Integer> setIntPref(@NonNull String, @NonNull Integer, int);
+    method @AnyThread @NonNull public static GeckoPreferenceController.SetGeckoPreference<String> setStringPref(@NonNull String, @NonNull String, int);
+    field public final int branch;
+    field @NonNull public final String pref;
+    field public final int type;
+    field @NonNull public final T value;
   }
 
   @AnyThread public class GeckoResult<T> {
@@ -2921,7 +2937,8 @@ package org.mozilla.geckoview {
     method @Nullable default public GeckoResult<WebExtension.PermissionPromptResponse> onInstallPromptRequest(@NonNull WebExtension, @NonNull String[], @NonNull String[], @NonNull String[]);
     method @Deprecated @DeprecationSchedule(id="web-extension-on-optional-prompt",version=144) @Nullable default public GeckoResult<AllowOrDeny> onOptionalPrompt(@NonNull WebExtension, @NonNull String[], @NonNull String[]);
     method @Nullable default public GeckoResult<AllowOrDeny> onOptionalPrompt(@NonNull WebExtension, @NonNull String[], @NonNull String[], @NonNull String[]);
-    method @Nullable default public GeckoResult<AllowOrDeny> onUpdatePrompt(@NonNull WebExtension, @NonNull WebExtension, @NonNull String[], @NonNull String[]);
+    method @Deprecated @DeprecationSchedule(id="web-extension-on-update-prompt",version=144) @Nullable default public GeckoResult<AllowOrDeny> onUpdatePrompt(@NonNull WebExtension, @NonNull WebExtension, @NonNull String[], @NonNull String[]);
+    method @Nullable default public GeckoResult<AllowOrDeny> onUpdatePrompt(@NonNull WebExtension, @NonNull String[], @NonNull String[], @NonNull String[]);
   }
 
   @AnyThread public abstract class WebMessage {
@@ -2944,6 +2961,7 @@ package org.mozilla.geckoview {
     field @NonNull public final WebNotificationAction[] actions;
     field @Nullable public final String imageUrl;
     field @Nullable public final String lang;
+    field @NonNull public final String origin;
     field public final boolean privateBrowsing;
     field public final boolean requireInteraction;
     field public final boolean silent;

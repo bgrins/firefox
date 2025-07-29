@@ -545,7 +545,7 @@ bool HTMLEditUtils::IsAnyTableElementButNotTable(nsINode* aNode) {
 /**
  * IsTable() returns true if aNode is an html table.
  */
-bool HTMLEditUtils::IsTable(nsINode* aNode) {
+bool HTMLEditUtils::IsTable(const nsINode* aNode) {
   return aNode && aNode->IsHTMLElement(nsGkAtoms::table);
 }
 
@@ -808,7 +808,9 @@ EditorDOMPoint HTMLEditUtils::LineRequiresPaddingLineBreakToBeVisible(
           {EmptyCheckOption::TreatSingleBRElementAsVisible})) {
     EditorDOMPoint pointToInsertLineBreak =
         HTMLEditUtils::GetDeepestEditableEndPointOf<EditorDOMPoint>(
-            *maybeNonEditableBlock);
+            *maybeNonEditableBlock,
+            {EditablePointOption::RecognizeInvisibleWhiteSpaces,
+             EditablePointOption::StopAtComment});
     if (pointToInsertLineBreak.IsInTextNode()) {
       pointToInsertLineBreak.SetAfterContainer();
     }
@@ -1306,8 +1308,8 @@ uint32_t HTMLEditUtils::GetInvisibleWhiteSpaceCount(
     // If the white-space sequence follows a preformatted linebreak, ASCII
     // spaces at start are invisible.
     if (aOffset &&
-        textFragment.CharAt(aOffset - 1u) == HTMLEditUtils::kNewLine) {
-      MOZ_ASSERT(EditorUtils::IsNewLinePreformatted(aText));
+        textFragment.CharAt(aOffset - 1u) == HTMLEditUtils::kNewLine &&
+        EditorUtils::IsNewLinePreformatted(aText)) {
       for (const uint32_t offset : IntegerRange(aOffset, endOffset)) {
         if (textFragment.CharAt(offset) == HTMLEditUtils::kNBSP) {
           return offset;
@@ -1327,8 +1329,8 @@ uint32_t HTMLEditUtils::GetInvisibleWhiteSpaceCount(
     // If the white-spaces are followed by a preformatted line break, ASCII
     // spaces at end are invisible.
     if (endOffset < textFragment.GetLength() &&
-        textFragment.CharAt(endOffset) == HTMLEditUtils::kNewLine) {
-      MOZ_ASSERT(EditorUtils::IsNewLinePreformatted(aText));
+        textFragment.CharAt(endOffset) == HTMLEditUtils::kNewLine &&
+        EditorUtils::IsNewLinePreformatted(aText)) {
       for (const uint32_t offset : Reversed(IntegerRange(aOffset, endOffset))) {
         if (textFragment.CharAt(offset) == HTMLEditUtils::kNBSP) {
           return offset + 1u;
@@ -2351,6 +2353,7 @@ Element* HTMLEditUtils::GetAncestorElement(
     const Element* aAncestorLimiter /* = nullptr */) {
   MOZ_ASSERT(
       aAncestorTypes.contains(AncestorType::ClosestBlockElement) ||
+      aAncestorTypes.contains(AncestorType::ClosestContainerElement) ||
       aAncestorTypes.contains(AncestorType::MostDistantInlineElementInBlock) ||
       aAncestorTypes.contains(AncestorType::ButtonElement) ||
       aAncestorTypes.contains(AncestorType::AllowRootOrAncestorLimiterElement));
@@ -2366,6 +2369,8 @@ Element* HTMLEditUtils::GetAncestorElement(
       aAncestorTypes.contains(AncestorType::EditableElement);
   const bool lookingForClosestBlockElement =
       aAncestorTypes.contains(AncestorType::ClosestBlockElement);
+  const bool lookingForClosestContainerElement =
+      aAncestorTypes.contains(AncestorType::ClosestContainerElement);
   const bool lookingForMostDistantInlineElementInBlock =
       aAncestorTypes.contains(AncestorType::MostDistantInlineElementInBlock);
   const bool ignoreHRElement =
@@ -2374,7 +2379,7 @@ Element* HTMLEditUtils::GetAncestorElement(
       aAncestorTypes.contains(AncestorType::ButtonElement);
   const bool lookingForAnyElement =
       aAncestorTypes.contains(AncestorType::AllowRootOrAncestorLimiterElement);
-  auto IsSearchingElementType = [&](const nsIContent& aContent) -> bool {
+  const auto IsSearchingElementType = [&](const nsIContent& aContent) -> bool {
     if (lookingForAnyElement) {
       return aContent.IsElement();
     }
@@ -2388,6 +2393,8 @@ Element* HTMLEditUtils::GetAncestorElement(
     }
     return (lookingForClosestBlockElement &&
             HTMLEditUtils::IsBlockElement(aContent, aBlockInlineCheck)) ||
+           (lookingForClosestContainerElement && aContent.IsElement() &&
+            HTMLEditUtils::IsContainerNode(aContent)) ||
            (lookingForMostDistantInlineElementInBlock &&
             HTMLEditUtils::IsInlineContent(aContent, aBlockInlineCheck)) ||
            (lookingForButtonElement &&
@@ -2411,6 +2418,10 @@ Element* HTMLEditUtils::GetAncestorElement(
     }
     if (lookingForButtonElement && element->IsHTMLElement(nsGkAtoms::button)) {
       return element;  // closest button element
+    }
+    if (lookingForClosestContainerElement &&
+        HTMLEditUtils::IsContainerNode(*element)) {
+      return element;  // closest container element
     }
     if (HTMLEditUtils::IsBlockElement(*element, aBlockInlineCheck)) {
       if (lookingForClosestBlockElement) {
@@ -2442,6 +2453,7 @@ Element* HTMLEditUtils::GetInclusiveAncestorElement(
     const Element* aAncestorLimiter /* = nullptr */) {
   MOZ_ASSERT(
       aAncestorTypes.contains(AncestorType::ClosestBlockElement) ||
+      aAncestorTypes.contains(AncestorType::ClosestContainerElement) ||
       aAncestorTypes.contains(AncestorType::MostDistantInlineElementInBlock) ||
       aAncestorTypes.contains(AncestorType::ButtonElement) ||
       aAncestorTypes.contains(AncestorType::AllowRootOrAncestorLimiterElement));
@@ -2452,6 +2464,8 @@ Element* HTMLEditUtils::GetInclusiveAncestorElement(
       aAncestorTypes.contains(AncestorType::EditableElement);
   const bool lookingForClosestBlockElement =
       aAncestorTypes.contains(AncestorType::ClosestBlockElement);
+  const bool lookingForClosestContainerElement =
+      aAncestorTypes.contains(AncestorType::ClosestContainerElement);
   const bool lookingForMostDistantInlineElementInBlock =
       aAncestorTypes.contains(AncestorType::MostDistantInlineElementInBlock);
   const bool lookingForButtonElement =
@@ -2474,11 +2488,17 @@ Element* HTMLEditUtils::GetInclusiveAncestorElement(
     }
     return (lookingForClosestBlockElement &&
             HTMLEditUtils::IsBlockElement(aContent, aBlockInlineCheck)) ||
+           (lookingForClosestContainerElement && aContent.IsElement() &&
+            HTMLEditUtils::IsContainerNode(aContent)) ||
            (lookingForMostDistantInlineElementInBlock &&
             HTMLEditUtils::IsInlineContent(aContent, aBlockInlineCheck)) ||
            (lookingForButtonElement &&
             aContent.IsHTMLElement(nsGkAtoms::button));
   };
+
+  if (&aContent == aAncestorLimiter && lookingForAnyElement) {
+    return const_cast<Element*>(aAncestorLimiter);
+  }
 
   // If aContent is the body element or the document element, we shouldn't climb
   // up to its parent.
@@ -2490,6 +2510,11 @@ Element* HTMLEditUtils::GetInclusiveAncestorElement(
   }
 
   if (lookingForButtonElement && aContent.IsHTMLElement(nsGkAtoms::button)) {
+    return const_cast<Element*>(aContent.AsElement());
+  }
+
+  if (lookingForClosestContainerElement && aContent.IsElement() &&
+      HTMLEditUtils::IsContainerNode(aContent)) {
     return const_cast<Element*>(aContent.AsElement());
   }
 
@@ -2510,7 +2535,7 @@ Element* HTMLEditUtils::GetInclusiveAncestorElement(
   if (!aContent.GetParent() ||
       (editableElementOnly && !EditorUtils::IsEditableContent(
                                   *aContent.GetParent(), EditorType::HTML)) ||
-      (!lookingForClosestBlockElement &&
+      (!lookingForClosestBlockElement && !lookingForClosestContainerElement &&
        HTMLEditUtils::IsBlockElement(*aContent.GetParent(),
                                      aBlockInlineCheck) &&
        !(ignoreHRElement &&
@@ -3147,6 +3172,37 @@ bool HTMLEditUtils::IsTransparentCSSColor(const nsAString& aColor) {
   return GetNormalizedCSSColorValue(aColor, ZeroAlphaColor::TransparentKeyword,
                                     normalizedCSSColorValue) &&
          normalizedCSSColorValue.EqualsASCII("transparent");
+}
+
+/******************************************************************************
+ * operator<<() for enum classes of HTMLEditUtils
+ ******************************************************************************/
+
+std::ostream& operator<<(std::ostream& aStream,
+                         const HTMLEditUtils::EditablePointOption& aOption) {
+  constexpr static const char* names[] = {
+      "RecognizeInvisibleWhiteSpaces",
+      "StopAtComment",
+      "StopAtListElement",
+      "StopAtListItemElement",
+      "StopAtTableElement",
+      "StopAtAnyTableElement",
+  };
+  return aStream << names[static_cast<uint32_t>(aOption)];
+}
+
+std::ostream& operator<<(std::ostream& aStream,
+                         const HTMLEditUtils::EditablePointOptions& aOptions) {
+  aStream << "{";
+  bool first = true;
+  for (const auto option : aOptions) {
+    if (!first) {
+      aStream << ", ";
+    }
+    aStream << ToString(option).c_str();
+    first = false;
+  }
+  return aStream << "}";
 }
 
 /******************************************************************************

@@ -7,7 +7,7 @@
 const Rule = require("resource://devtools/client/inspector/rules/models/rule.js");
 const UserProperties = require("resource://devtools/client/inspector/rules/models/user-properties.js");
 const {
-  style: { ELEMENT_STYLE },
+  style: { ELEMENT_STYLE, PRES_HINTS },
 } = require("resource://devtools/shared/constants.js");
 
 loader.lazyRequireGetter(
@@ -563,17 +563,15 @@ class ElementStyle {
    *
    * @param {TextProperty} declaration
    *        A TextProperty of a rule.
-   * @param {Set<>String} variableNamesSet
+   * @param {Set<String>} variableNamesSet
    *        A Set of CSS variable names that have been updated.
    */
   _hasUpdatedCSSVariable(declaration, variableNamesSet) {
-    for (const variableName of variableNamesSet) {
-      if (declaration.hasCSSVariable(variableName)) {
-        return true;
-      }
+    if (variableNamesSet.size === 0) {
+      return false;
     }
 
-    return false;
+    return !variableNamesSet.isDisjointFrom(declaration.usedVariables);
   }
 
   /**
@@ -633,12 +631,16 @@ class ElementStyle {
         rule.pseudoElement !== "" && isInherited;
 
       const isElementStyle = rule.domRule.type === ELEMENT_STYLE;
+      const isElementAttributesStyle = rule.domRule.type === PRES_HINTS;
 
       const filterCondition =
         isNestedDeclarations ||
         (pseudo && isMatchingPseudoElementRule) ||
         (pseudo === "" &&
-          (isStyleRule || isElementStyle || isInheritedPseudoElementRule));
+          (isStyleRule ||
+            isElementStyle ||
+            isElementAttributesStyle ||
+            isInheritedPseudoElementRule));
 
       // Collect all relevant CSS declarations (aka TextProperty instances).
       if (filterCondition) {

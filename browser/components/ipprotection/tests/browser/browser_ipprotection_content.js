@@ -12,6 +12,18 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "resource:///modules/ipprotection/IPProtectionPanel.sys.mjs",
 });
 
+async function setAndUpdateIsSignedIn(content, isSignedIn) {
+  content.state.isSignedIn = isSignedIn;
+  content.requestUpdate();
+  await content.updateComplete;
+}
+
+async function resetStateToObj(content, originalState) {
+  content.state = originalState;
+  content.requestUpdate();
+  await content.updateComplete;
+}
+
 /**
  * Tests that the ip protection main panel view has the correct content.
  */
@@ -28,10 +40,14 @@ add_task(async function test_main_content() {
   await panelShownPromise;
 
   let content = panelView.querySelector(lazy.IPProtectionPanel.CONTENT_TAGNAME);
+
+  await setAndUpdateIsSignedIn(content, true);
+
   Assert.ok(
     BrowserTestUtils.isVisible(content),
     "ipprotection content component should be present"
   );
+  Assert.ok(content.statusCardEl, "Status card should be present");
   Assert.ok(content.upgradeEl, "Upgrade vpn element should be present");
   Assert.ok(
     content.upgradeEl.querySelector("#upgrade-vpn-title"),
@@ -45,6 +61,143 @@ add_task(async function test_main_content() {
     content.upgradeEl.querySelector("#upgrade-vpn-button"),
     "Upgrade vpn button should be present"
   );
+
+  // Close the panel
+  let panelHiddenPromise = waitForPanelEvent(document, "popuphidden");
+  EventUtils.synthesizeKey("KEY_Escape");
+  await panelHiddenPromise;
+});
+
+/**
+ * Tests UI updates to the status card in the panel after enable/disable.
+ */
+add_task(async function test_status_card() {
+  const l10nIdOn = "ipprotection-connection-status-on";
+  const l10nIdOff = "ipprotection-connection-status-off";
+  const mockLocationName = "Planet Earth";
+  let originalState = null;
+
+  let button = document.getElementById(lazy.IPProtectionWidget.WIDGET_ID);
+  let panelView = PanelMultiView.getViewNode(
+    document,
+    lazy.IPProtectionWidget.PANEL_ID
+  );
+
+  let panelShownPromise = waitForPanelEvent(document, "popupshown");
+  // Open the panel
+  button.click();
+  await panelShownPromise;
+
+  let content = panelView.querySelector(lazy.IPProtectionPanel.CONTENT_TAGNAME);
+
+  Assert.ok(
+    BrowserTestUtils.isVisible(content),
+    "ipprotection content component should be present"
+  );
+
+  originalState = structuredClone(content.state);
+
+  await setAndUpdateIsSignedIn(content, true);
+
+  Assert.ok(content.statusCardEl, "Status card should be present");
+  Assert.equal(
+    content.connectionTitleEl?.getAttribute("data-l10n-id"),
+    l10nIdOff,
+    "Status card connection toggle data-l10n-id should be correct by default"
+  );
+
+  // Verify UI updates based on state
+  content.state.location = mockLocationName;
+  content.requestUpdate();
+  await content.updateComplete;
+
+  let locationName = content.shadowRoot.getElementById("location-name");
+  Assert.equal(
+    locationName?.textContent,
+    mockLocationName,
+    "Location name should be present and correct"
+  );
+
+  // Set state as if protection is enabled
+  content.state.isProtectionEnabled = true;
+  content.requestUpdate();
+  await content.updateComplete;
+
+  Assert.equal(
+    content.connectionTitleEl?.getAttribute("data-l10n-id"),
+    l10nIdOn,
+    "Status card connection toggle data-l10n-id should be correct when protection is enabled"
+  );
+
+  // Set state as if protection is disabled
+  content.state.isProtectionEnabled = false;
+  content.requestUpdate();
+  await content.updateComplete;
+
+  Assert.equal(
+    content.connectionTitleEl?.getAttribute("data-l10n-id"),
+    l10nIdOff,
+    "Status card connection toggle data-l10n-id should be correct when protection is disabled"
+  );
+
+  // To be safe, reset the entire state
+  await resetStateToObj(content, originalState);
+
+  // Close the panel
+  let panelHiddenPromise = waitForPanelEvent(document, "popuphidden");
+  EventUtils.synthesizeKey("KEY_Escape");
+  await panelHiddenPromise;
+});
+
+/**
+ * Tests that the correct IPProtection events are dispatched on toggle.
+ */
+add_task(async function test_ipprotection_events_on_toggle() {
+  const userEnableEventName = "IPProtection:UserEnable";
+  const userDisableEventName = "IPProtection:UserDisable";
+
+  let button = document.getElementById(lazy.IPProtectionWidget.WIDGET_ID);
+  let panelView = PanelMultiView.getViewNode(
+    document,
+    lazy.IPProtectionWidget.PANEL_ID
+  );
+
+  let panelShownPromise = waitForPanelEvent(document, "popupshown");
+  // Open the panel
+  button.click();
+  await panelShownPromise;
+
+  let content = panelView.querySelector(lazy.IPProtectionPanel.CONTENT_TAGNAME);
+
+  await setAndUpdateIsSignedIn(content, true);
+
+  Assert.ok(
+    BrowserTestUtils.isVisible(content),
+    "ipprotection content component should be present"
+  );
+  Assert.ok(content.statusCardEl, "Status card should be present");
+  Assert.ok(
+    content.connectionToggleEl,
+    "Status card connection toggle should be present"
+  );
+
+  let enableEventPromise = BrowserTestUtils.waitForEvent(
+    window,
+    userEnableEventName
+  );
+  content.connectionToggleEl.click();
+
+  await enableEventPromise;
+  Assert.ok("Enable event was found after clicking the toggle");
+
+  let disableEventPromise = BrowserTestUtils.waitForEvent(
+    window,
+    userDisableEventName
+  );
+  content.connectionToggleEl.click();
+
+  await disableEventPromise;
+  Assert.ok("Disable event was found after clicking the toggle");
 
   // Close the panel
   let panelHiddenPromise = waitForPanelEvent(document, "popuphidden");

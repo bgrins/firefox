@@ -635,7 +635,8 @@
   args:
     obj: ObjId
     id: IdField
-    getterSetter: WeakGetterSetterField
+    # The expected GetterSetter* stored as PrivateGCThingValue.
+    getterSetter: WeakValueField
 
 - name: GuardInt32IsNonNegative
   shared: true
@@ -643,6 +644,13 @@
   cost_estimate: 1
   args:
     index: Int32Id
+
+- name: GuardIntPtrIsNonNegative
+  shared: true
+  transpile: true
+  cost_estimate: 1
+  args:
+    index: IntPtrId
 
 - name: GuardIndexIsValidUpdateOrAdd
   shared: true
@@ -1248,20 +1256,6 @@
   args:
     obj: ObjId
 
-- name: ResizableTypedArrayByteOffsetMaybeOutOfBoundsInt32Result
-  shared: true
-  transpile: true
-  cost_estimate: 2
-  args:
-    obj: ObjId
-
-- name: ResizableTypedArrayByteOffsetMaybeOutOfBoundsDoubleResult
-  shared: true
-  transpile: true
-  cost_estimate: 2
-  args:
-    obj: ObjId
-
 - name: TypedArrayByteLengthInt32Result
   shared: true
   transpile: true
@@ -1298,13 +1292,6 @@
     obj: ObjId
 
 - name: ResizableTypedArrayLengthDoubleResult
-  shared: true
-  transpile: true
-  cost_estimate: 2
-  args:
-    obj: ObjId
-
-- name: TypedArrayElementSizeResult
   shared: true
   transpile: true
   cost_estimate: 2
@@ -1359,6 +1346,25 @@
   cost_estimate: 2
   args:
     obj: ObjId
+
+- name: TypedArraySetResult
+  shared: true
+  transpile: true
+  cost_estimate: 4
+  args:
+    target: ObjId
+    source: ObjId
+    offset: IntPtrId
+    canUseBitwiseCopy: BoolImm
+
+- name: TypedArraySubarrayResult
+  shared: true
+  transpile: true
+  cost_estimate: 5
+  args:
+    obj: ObjId
+    start: IntPtrId
+    end: IntPtrId
 
 - name: NewArrayIteratorResult
   shared: true
@@ -2439,6 +2445,14 @@
   args:
     obj: ObjId
 
+- name: LoadArrayBufferViewLength
+  shared: true
+  transpile: true
+  cost_estimate: 1
+  args:
+    obj: ObjId
+    result: IntPtrId
+
 - name: LinearizeForCharAccess
   shared: true
   transpile: true
@@ -2678,6 +2692,14 @@
   args:
     val: RawInt32Field
     result: Int32Id
+
+- name: LoadInt32AsIntPtrConstant
+  shared: true
+  transpile: true
+  cost_estimate: 1
+  args:
+    val: RawInt32Field
+    result: IntPtrId
 
 - name: LoadDoubleConstant
   shared: true

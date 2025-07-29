@@ -663,7 +663,17 @@ void CodeGeneratorX86Shared::emitUndoALUOperationOOL(LInstruction* ins) {
 
 void CodeGenerator::visitAddI(LAddI* ins) {
   if (ins->rhs()->isConstant()) {
-    masm.addl(Imm32(ToInt32(ins->rhs())), ToOperand(ins->lhs()));
+    if (MOZ_UNLIKELY(ins->numDefs() == 1 &&
+                     ins->getDef(0)->policy() !=
+                         LDefinition::MUST_REUSE_INPUT &&
+                     ToRegister(ins->lhs()) != ToRegister(ins->output()))) {
+      MOZ_ASSERT(!ins->snapshot());
+      // Special case to lower the add to LEA instruction.
+      masm.add32(Imm32(ToInt32(ins->rhs())), ToRegister(ins->lhs()),
+                 ToRegister(ins->output()));
+    } else {
+      masm.addl(Imm32(ToInt32(ins->rhs())), ToOperand(ins->lhs()));
+    }
   } else {
     masm.addl(ToOperand(ins->rhs()), ToRegister(ins->lhs()));
   }
@@ -1777,12 +1787,23 @@ void CodeGenerator::visitNearbyIntF(LNearbyIntF* lir) {
   masm.nearbyIntFloat32(roundingMode, input, output);
 }
 
-void CodeGenerator::visitEffectiveAddress(LEffectiveAddress* ins) {
-  const MEffectiveAddress* mir = ins->mir();
+void CodeGenerator::visitEffectiveAddress3(LEffectiveAddress3* ins) {
+  const MEffectiveAddress3* mir = ins->mir();
   Register base = ToRegister(ins->base());
   Register index = ToRegister(ins->index());
   Register output = ToRegister(ins->output());
+  // Regarding performance, we rely on the fact that, if `mir->displacement()`
+  // is zero, `masm` will generate a 2-addend `leal`, and not a 3-addend one
+  // with a zero constant, since that is slower on some processors.
+  // See comments in EffectiveAddressAnalysis.cpp.
   masm.leal(Operand(base, index, mir->scale(), mir->displacement()), output);
+}
+
+void CodeGenerator::visitEffectiveAddress2(LEffectiveAddress2* ins) {
+  const MEffectiveAddress2* mir = ins->mir();
+  Register index = ToRegister(ins->index());
+  Register output = ToRegister(ins->output());
+  masm.leal(Operand(index, mir->scale(), mir->displacement()), output);
 }
 
 void CodeGeneratorX86Shared::generateInvalidateEpilogue() {

@@ -6581,13 +6581,6 @@ AliasSet MGuardHasAttachedArrayBuffer::getAliasSet() const {
   return AliasSet::Load(AliasSet::ObjectFields | AliasSet::FixedSlot);
 }
 
-AliasSet MResizableTypedArrayByteOffsetMaybeOutOfBounds::getAliasSet() const {
-  // Loads the byteOffset and additionally checks for detached buffers, so the
-  // alias set also has to include |ObjectFields| and |FixedSlot|.
-  return AliasSet::Load(AliasSet::ArrayBufferViewLengthOrOffset |
-                        AliasSet::ObjectFields | AliasSet::FixedSlot);
-}
-
 AliasSet MResizableTypedArrayLength::getAliasSet() const {
   // Loads the length and byteOffset slots, the shared-elements flag, the
   // auto-length fixed slot, and the shared raw-buffer length.
@@ -6656,6 +6649,18 @@ AliasSet MGuardResizableArrayBufferViewInBoundsOrDetached::getAliasSet() const {
                         AliasSet::ObjectFields | AliasSet::FixedSlot);
 }
 
+AliasSet MTypedArraySet::getAliasSet() const {
+  // Loads typed array length and elements.
+  constexpr auto load =
+      AliasSet::Load(AliasSet::ArrayBufferViewLengthOrOffset |
+                     AliasSet::ObjectFields | AliasSet::UnboxedElement);
+
+  // Stores into typed array elements.
+  constexpr auto store = AliasSet::Store(AliasSet::UnboxedElement);
+
+  return load | store;
+}
+
 AliasSet MArrayPush::getAliasSet() const {
   return AliasSet::Store(AliasSet::ObjectFields | AliasSet::Element);
 }
@@ -6722,7 +6727,7 @@ AliasSet MHomeObjectSuperBase::getAliasSet() const {
 
 MDefinition* MGuardValue::foldsTo(TempAllocator& alloc) {
   if (MConstant* cst = value()->maybeConstantValue()) {
-    if (cst->toJSValue() == expected()) {
+    if (expected().isValue() && cst->toJSValue() == expected().toValue()) {
       return value();
     }
   }
@@ -6775,8 +6780,8 @@ MDefinition* MGuardObjectIdentity::foldsTo(TempAllocator& alloc) {
 
   if (!bailOnEquality() && object()->isNurseryObject() &&
       expected()->isNurseryObject()) {
-    uint32_t objIndex = object()->toNurseryObject()->nurseryIndex();
-    uint32_t otherIndex = expected()->toNurseryObject()->nurseryIndex();
+    uint32_t objIndex = object()->toNurseryObject()->nurseryObjectIndex();
+    uint32_t otherIndex = expected()->toNurseryObject()->nurseryObjectIndex();
     if (objIndex == otherIndex) {
       return object();
     }
@@ -6795,8 +6800,8 @@ MDefinition* MGuardSpecificFunction::foldsTo(TempAllocator& alloc) {
   }
 
   if (function()->isNurseryObject() && expected()->isNurseryObject()) {
-    uint32_t funIndex = function()->toNurseryObject()->nurseryIndex();
-    uint32_t otherIndex = expected()->toNurseryObject()->nurseryIndex();
+    uint32_t funIndex = function()->toNurseryObject()->nurseryObjectIndex();
+    uint32_t otherIndex = expected()->toNurseryObject()->nurseryObjectIndex();
     if (funIndex == otherIndex) {
       return function();
     }
@@ -7052,7 +7057,7 @@ bool MNurseryObject::congruentTo(const MDefinition* ins) const {
   if (!ins->isNurseryObject()) {
     return false;
   }
-  return nurseryIndex() == ins->toNurseryObject()->nurseryIndex();
+  return nurseryObjectIndex() == ins->toNurseryObject()->nurseryObjectIndex();
 }
 
 AliasSet MGuardFunctionIsNonBuiltinCtor::getAliasSet() const {
@@ -7435,7 +7440,8 @@ bool MGuardHasGetterSetter::congruentTo(const MDefinition* ins) const {
   if (ins->toGuardHasGetterSetter()->propId() != propId()) {
     return false;
   }
-  if (ins->toGuardHasGetterSetter()->getterSetter() != getterSetter()) {
+  if (ins->toGuardHasGetterSetter()->getterSetterValue() !=
+      getterSetterValue()) {
     return false;
   }
   return congruentIfOperandsEqual(ins);
@@ -7473,6 +7479,16 @@ MDefinition* MGuardInt32IsNonNegative::foldsTo(TempAllocator& alloc) {
 
   MDefinition* input = index();
   if (!input->isConstant() || input->toConstant()->toInt32() < 0) {
+    return this;
+  }
+  return input;
+}
+
+MDefinition* MGuardIntPtrIsNonNegative::foldsTo(TempAllocator& alloc) {
+  MOZ_ASSERT(index()->type() == MIRType::IntPtr);
+
+  MDefinition* input = index();
+  if (!input->isConstant() || input->toConstant()->toIntPtr() < 0) {
     return this;
   }
   return input;
@@ -7889,8 +7905,7 @@ MDefinition* MNormalizeSliceTerm::foldsTo(TempAllocator& alloc) {
 
     // Minimum of |value| and |length|.
     if (valueConst > 0) {
-      bool isMax = false;
-      return MMinMax::New(alloc, value, length, MIRType::Int32, isMax);
+      return MMinMax::NewMin(alloc, value, length, MIRType::Int32);
     }
 
     // Maximum of |value + length| and zero.
@@ -7902,8 +7917,7 @@ MDefinition* MNormalizeSliceTerm::foldsTo(TempAllocator& alloc) {
       auto* zero = MConstant::New(alloc, Int32Value(0));
       block()->insertBefore(this, zero);
 
-      bool isMax = true;
-      return MMinMax::New(alloc, add, zero, MIRType::Int32, isMax);
+      return MMinMax::NewMax(alloc, add, zero, MIRType::Int32);
     }
 
     // Directly return the value when it's zero.

@@ -32,9 +32,9 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.mozilla.fenix.R
-import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.FindInPageIntegration
 import org.mozilla.fenix.components.toolbar.BottomToolbarContainerView
+import org.mozilla.fenix.components.toolbar.BrowserNavigationBar
 import org.mozilla.fenix.components.toolbar.BrowserToolbarView
 import org.mozilla.fenix.components.toolbar.ToolbarContainerView
 import org.mozilla.fenix.ext.components
@@ -55,7 +55,9 @@ class BaseBrowserFragmentTest {
         fragment = spyk(TestBaseBrowserFragment())
         swipeRefreshLayout = mockk(relaxed = true)
         engineView = mockk(relaxed = true)
-        settings = mockk(relaxed = true)
+        settings = mockk(relaxed = true) {
+            every { isTabStripEnabled } returns false
+        }
         testContext = mockk(relaxed = true)
 
         every {
@@ -358,10 +360,8 @@ class BaseBrowserFragmentTest {
 
         safeMockkStatic(
             View::isKeyboardVisible,
-            Context::isTabStripEnabled,
         ) {
             every { any<View>().isKeyboardVisible() } returns false
-            every { testContext.isTabStripEnabled() } returns false
 
             fragment.configureEngineViewWithDynamicToolbarsMaxHeight()
         }
@@ -386,10 +386,8 @@ class BaseBrowserFragmentTest {
 
         safeMockkStatic(
             View::isKeyboardVisible,
-            Context::isTabStripEnabled,
         ) {
             every { any<View>().isKeyboardVisible() } returns false
-            every { testContext.isTabStripEnabled() } returns false
 
             fragment.configureEngineViewWithDynamicToolbarsMaxHeight()
         }
@@ -417,10 +415,8 @@ class BaseBrowserFragmentTest {
 
         safeMockkStatic(
             View::isKeyboardVisible,
-            Context::isTabStripEnabled,
         ) {
             every { any<View>().isKeyboardVisible() } returns false
-            every { testContext.isTabStripEnabled() } returns false
 
             fragment.configureEngineViewWithDynamicToolbarsMaxHeight()
         }
@@ -450,10 +446,8 @@ class BaseBrowserFragmentTest {
 
         safeMockkStatic(
             View::isKeyboardVisible,
-            Context::isTabStripEnabled,
         ) {
             every { any<View>().isKeyboardVisible() } returns false
-            every { testContext.isTabStripEnabled() } returns false
 
             fragment.configureEngineViewWithDynamicToolbarsMaxHeight()
         }
@@ -486,10 +480,8 @@ class BaseBrowserFragmentTest {
 
         safeMockkStatic(
             View::isKeyboardVisible,
-            Context::isTabStripEnabled,
         ) {
             every { any<View>().isKeyboardVisible() } returns false
-            every { testContext.isTabStripEnabled() } returns false
 
             fragment.configureEngineViewWithDynamicToolbarsMaxHeight()
         }
@@ -514,10 +506,8 @@ class BaseBrowserFragmentTest {
 
         safeMockkStatic(
             View::isKeyboardVisible,
-            Context::isTabStripEnabled,
         ) {
             every { any<View>().isKeyboardVisible() } returns false
-            every { testContext.isTabStripEnabled() } returns false
 
             fragment.configureEngineViewWithDynamicToolbarsMaxHeight()
         }
@@ -545,10 +535,8 @@ class BaseBrowserFragmentTest {
 
         safeMockkStatic(
             View::isKeyboardVisible,
-            Context::isTabStripEnabled,
         ) {
             every { any<View>().isKeyboardVisible() } returns false
-            every { testContext.isTabStripEnabled() } returns false
 
             fragment.configureEngineViewWithDynamicToolbarsMaxHeight()
         }
@@ -573,10 +561,8 @@ class BaseBrowserFragmentTest {
 
         safeMockkStatic(
             View::isKeyboardVisible,
-            Context::isTabStripEnabled,
         ) {
             every { any<View>().isKeyboardVisible() } returns false
-            every { testContext.isTabStripEnabled() } returns false
 
             fragment.configureEngineViewWithDynamicToolbarsMaxHeight()
         }
@@ -605,10 +591,8 @@ class BaseBrowserFragmentTest {
 
         safeMockkStatic(
             View::isKeyboardVisible,
-            Context::isTabStripEnabled,
         ) {
             every { any<View>().isKeyboardVisible() } returns false
-            every { testContext.isTabStripEnabled() } returns false
 
             fragment.configureEngineViewWithDynamicToolbarsMaxHeight()
         }
@@ -634,10 +618,8 @@ class BaseBrowserFragmentTest {
 
         safeMockkStatic(
             View::isKeyboardVisible,
-            Context::isTabStripEnabled,
         ) {
             every { any<View>().isKeyboardVisible() } returns true
-            every { testContext.isTabStripEnabled() } returns false
 
             fragment.configureEngineViewWithDynamicToolbarsMaxHeight()
         }
@@ -666,10 +648,8 @@ class BaseBrowserFragmentTest {
 
         safeMockkStatic(
             View::isKeyboardVisible,
-            Context::isTabStripEnabled,
         ) {
             every { any<View>().isKeyboardVisible() } returns true
-            every { testContext.isTabStripEnabled() } returns false
 
             fragment.configureEngineViewWithDynamicToolbarsMaxHeight()
         }
@@ -682,14 +662,18 @@ class BaseBrowserFragmentTest {
         val browserToolbarView = mockk<BrowserToolbarView>(relaxed = true)
         val toolbarContainerView = mockk<ToolbarContainerView>(relaxed = true)
         val bottomToolbarContainerView = mockk<BottomToolbarContainerView>()
+        val browserNavigationBar = mockk<BrowserNavigationBar>(relaxed = true)
         every { bottomToolbarContainerView.toolbarContainerView } returns toolbarContainerView
         fragment._browserToolbarView = browserToolbarView
         fragment._bottomToolbarContainerView = bottomToolbarContainerView
+        fragment.browserNavigationBar = browserNavigationBar
 
         fragment.expandBrowserView()
 
         verify { browserToolbarView.collapse() }
         verify { browserToolbarView.gone() }
+        verify { browserNavigationBar.collapse() }
+        verify { browserNavigationBar.gone() }
         verify { toolbarContainerView.collapse() }
         verify { toolbarContainerView.isVisible = false }
         val browserViewParams = swipeRefreshLayout.layoutParams as CoordinatorLayout.LayoutParams
@@ -708,9 +692,11 @@ class BaseBrowserFragmentTest {
         val browserToolbarView = mockk<BrowserToolbarView>(relaxed = true)
         val toolbarContainerView = mockk<ToolbarContainerView>(relaxed = true)
         val bottomToolbarContainerView = mockk<BottomToolbarContainerView>()
+        val browserNavigationBar = mockk<BrowserNavigationBar>(relaxed = true)
         every { bottomToolbarContainerView.toolbarContainerView } returns toolbarContainerView
         fragment._browserToolbarView = browserToolbarView
         fragment._bottomToolbarContainerView = bottomToolbarContainerView
+        fragment.browserNavigationBar = browserNavigationBar
 
         fragment.collapseBrowserView()
 
@@ -718,6 +704,7 @@ class BaseBrowserFragmentTest {
         verify { browserToolbarView.visible() }
         verify { toolbarContainerView.isVisible = true }
         verify { browserToolbarView.expand() }
+        verify { browserNavigationBar.expand() }
         verify { toolbarContainerView.expand() }
     }
 
@@ -745,11 +732,7 @@ class BaseBrowserFragmentTest {
         every { settings.getTopToolbarHeight(any()) } returns 11
         every { settings.getBottomToolbarHeight() } returns 5
 
-        safeMockkStatic(Context::isTabStripEnabled) {
-            every { testContext.isTabStripEnabled() } returns false
-
-            fragment.reinitializeEngineView()
-        }
+        fragment.reinitializeEngineView()
 
         verify { fragment.initializeEngineView(11, 5) }
     }
@@ -760,11 +743,7 @@ class BaseBrowserFragmentTest {
         every { settings.getTopToolbarHeight(any()) } returns 11
         every { settings.getBottomToolbarHeight() } returns 5
 
-        safeMockkStatic(Context::isTabStripEnabled) {
-            every { testContext.isTabStripEnabled() } returns false
-
-            fragment.reinitializeEngineView()
-        }
+        fragment.reinitializeEngineView()
 
         verify { fragment.initializeEngineView(0, 0) }
     }

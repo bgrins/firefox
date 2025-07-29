@@ -22,6 +22,7 @@
 #include "gc/Memory.h"
 #include "irregexp/RegExpTypes.h"
 #include "js/ContextOptions.h"  // JS::ContextOptions
+#include "js/Debug.h"           // JS::CustomObjectSummaryCallback
 #include "js/Exception.h"
 #include "js/GCVector.h"
 #include "js/Interrupt.h"
@@ -53,6 +54,7 @@ class ExecutionTracer;
 #endif
 
 namespace jit {
+class ICScript;
 class JitActivation;
 class JitContext;
 class DebugModeOSRVolatileJitFrameIter;
@@ -398,6 +400,10 @@ struct JS_PUBLIC_API JSContext : public JS::RootingContext,
     return offsetof(JSContext, inUnsafeCallWithABI);
   }
 #endif
+
+  static size_t offsetOfInlinedICScript() {
+    return offsetof(JSContext, inlinedICScript_);
+  }
 
  public:
   js::InterpreterStack& interpreterStack() {
@@ -868,6 +874,12 @@ struct JS_PUBLIC_API JSContext : public JS::RootingContext,
   }
   void clearPendingInterrupt(js::InterruptReason reason);
 
+  // For JIT use. Points to the inlined ICScript for a baseline script
+  // being invoked as part of a trial inlining.  Contains nullptr at
+  // all times except for the brief moment between being set in the
+  // caller and read in the callee's prologue.
+  js::ContextData<js::jit::ICScript*> inlinedICScript_;
+
  public:
   void* addressOfInterruptBits() { return &interruptBits_; }
   void* addressOfJitStackLimit() { return &jitStackLimit; }
@@ -877,6 +889,8 @@ struct JS_PUBLIC_API JSContext : public JS::RootingContext,
   void* addressOfZone() { return &zone_; }
 
   const void* addressOfRealm() const { return &realm_; }
+
+  void* addressOfInlinedICScript() { return &inlinedICScript_; }
 
   const void* addressOfJitActivation() const { return &jitActivation; }
 
@@ -956,6 +970,8 @@ struct JS_PUBLIC_API JSContext : public JS::RootingContext,
 
 #ifdef MOZ_EXECUTION_TRACING
  private:
+  CustomObjectSummaryCallback customObjectSummaryCallback_ = nullptr;
+
   // This holds onto the JS execution tracer, a system which when turned on
   // records function calls and other information about the JS which has been
   // run under this context.
@@ -972,6 +988,15 @@ struct JS_PUBLIC_API JSContext : public JS::RootingContext,
   js::ExecutionTracer& getExecutionTracer() {
     MOZ_ASSERT(hasExecutionTracer());
     return *executionTracer_;
+  }
+
+  CustomObjectSummaryCallback getCustomObjectSummaryCallback() {
+    MOZ_ASSERT(hasExecutionTracer());
+    return customObjectSummaryCallback_;
+  }
+
+  void setCustomObjectSummaryCallback(CustomObjectSummaryCallback cb) {
+    customObjectSummaryCallback_ = cb;
   }
 
   // See the latter clause of the comment over executionTracer_

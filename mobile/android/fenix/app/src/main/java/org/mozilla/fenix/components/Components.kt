@@ -8,6 +8,7 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.NotificationManagerCompat
 import com.google.android.play.core.review.ReviewManagerFactory
@@ -34,7 +35,6 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.autofill.AutofillConfirmActivity
 import org.mozilla.fenix.autofill.AutofillSearchActivity
 import org.mozilla.fenix.autofill.AutofillUnlockActivity
-import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.components.appstate.setup.checklist.SetupChecklistState
@@ -53,7 +53,8 @@ import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.filterState
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.ext.sort
-import org.mozilla.fenix.home.PocketUpdatesMiddleware
+import org.mozilla.fenix.home.PocketMiddleware
+import org.mozilla.fenix.home.SettingsBackedPocketSettings
 import org.mozilla.fenix.home.blocklist.BlocklistHandler
 import org.mozilla.fenix.home.blocklist.BlocklistMiddleware
 import org.mozilla.fenix.home.middleware.HomeTelemetryMiddleware
@@ -101,7 +102,9 @@ class Components(private val context: Context) {
         )
     }
     val services by lazyMonitored { Services(context, core.store, backgroundServices.accountManager) }
-    val core by lazyMonitored { Core(context, analytics.crashReporter, strictMode) }
+    val core by lazyMonitored {
+        Core(context, analytics.crashReporter, strictMode, performance.visualCompletenessQueue)
+    }
 
     val useCases by lazyMonitored {
         UseCases(
@@ -192,7 +195,7 @@ class Components(private val context: Context) {
         AddonManager(core.store, core.engine, addonsProvider, addonUpdater)
     }
 
-    val analytics by lazyMonitored { Analytics(context, performance.visualCompletenessQueue.queue) }
+    val analytics by lazyMonitored { Analytics(context, nimbus, performance.visualCompletenessQueue) }
     val nimbus by lazyMonitored { NimbusComponents(context) }
     val publicSuffixList by lazyMonitored { PublicSuffixList(context) }
     val clipboardHandler by lazyMonitored { ClipboardHandler(context) }
@@ -213,13 +216,6 @@ class Components(private val context: Context) {
 
     val settings by lazyMonitored { Settings(context) }
     val fenixOnboarding by lazyMonitored { FenixOnboarding(context) }
-
-    val reviewPromptController by lazyMonitored {
-        ReviewPromptController(
-            playStoreReviewPromptController = playStoreReviewPromptController,
-            reviewSettings = FenixReviewSettings(settings),
-        )
-    }
 
     val playStoreReviewPromptController by lazyMonitored {
         PlayStoreReviewPromptController(
@@ -268,9 +264,11 @@ class Components(private val context: Context) {
             ).run { filterState(blocklistHandler) },
             middlewares = listOf(
                 BlocklistMiddleware(blocklistHandler),
-                PocketUpdatesMiddleware(
+                PocketMiddleware(
                     lazyMonitored { core.pocketStoriesService },
                     context.pocketStoriesSelectedCategoriesDataStore,
+                    SettingsBackedPocketSettings(settings),
+                    performance.visualCompletenessQueue,
                 ),
                 MessagingMiddleware(
                     controller = nimbus.messaging,
@@ -288,6 +286,7 @@ class Components(private val context: Context) {
                 SetupChecklistPreferencesMiddleware(DefaultSetupChecklistRepository(context)),
                 SetupChecklistTelemetryMiddleware(),
                 ReviewPromptMiddleware(settings),
+                AppVisualCompletenessMiddleware(performance.visualCompletenessQueue),
             ),
         ).also {
             it.dispatch(AppAction.SetupChecklistAction.Init)
@@ -301,7 +300,7 @@ class Components(private val context: Context) {
             checklistItems = getSetupChecklistCollection(
                 settings = settings,
                 collection = type,
-                tabStripEnabled = context.isTabStripEnabled(),
+                tabStripEnabled = settings.isTabStripEnabled,
             ),
         )
     } else {
@@ -340,4 +339,5 @@ class Components(private val context: Context) {
  */
 val components: Components
     @Composable
+    @ReadOnlyComposable
     get() = LocalContext.current.components

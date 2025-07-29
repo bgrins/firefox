@@ -13,6 +13,13 @@ exclude: true
 
 ⚠️  breaking change and deprecation notices
 
+## v143
+- Added an option to set multiple preferences on [`GeckoPreferenceController`][140.1] as [`checkStateAndSetGeckoPrefs`][143.1].
+- Added [`WebNotification.origin`][143.2] that shows the origin of the notification. ([bug 1976269]({{bugzilla}}1976269))
+
+[143.1]: {{javadoc_uri}}/GeckoPreferenceController.html#setGeckoPrefs(java.util.List)
+[143.2]: {{javadoc_uri}}/WebNotification.html#origin
+
 ## v142
 - Added support for data collection permissions to [`WebExtensionController.onOptionalPrompt`][142.1] ([bug 1964999]({{bugzilla}}1964999))
 - ⚠️ Removed deprecated functions that were scheduled for removal in GeckoView 142. ([bug 1963053]({{bugzilla}}1963053))
@@ -21,11 +28,16 @@ exclude: true
 - Added the list of data collection permission names to [`WebExtension`][142.3] ([bug 1972228]({{bugzilla}}1972228))
 - Added [`@ExperimentalGeckoViewApi`][142.4] to annotate APIs that need special care. Opt in via `@OptIn(markerClass = ExperimentalGeckoViewApi.class)` to accept the risks.
 - ⚠️ [`GeckoPreferenceController`][140.1] is now annotated with `@ExperimentalGeckoViewApi`.
+- Added `setAllowListBaselineTrackingProtection`, `getAllowListBaselineTrackingProtection`, `setAllowListConvenienceTrackingProtection`, `setAllowListConvenienceTrackingProtection` to [`ContentBlocking.Settings`][142.5].
+  ([bug 1970649]({{bugzilla}}1970649))
+- Added support for data collection permissions to [`WebExtensionController.onUpdatePrompt`][142.6] ([bug 1974742]({{bugzilla}}1974742))
 
-[142.1]: {{javadoc_uri}}/WebExtensionController.html#onOptionalPrompt
+[142.1]: {{javadoc_uri}}/WebExtensionController.PromptDelegate.html#onOptionalPrompt(org.mozilla.geckoview.WebExtension,java.lang.String[],java.lang.String[],java.lang.String[])
 [142.2]: {{javadoc_uri}}/ContentBlocking.html
 [142.3]: {{javadoc_uri}}/WebExtension.html
 [142.4]: {{javadoc_uri}}/ExperimentalGeckoViewApi.html
+[142.5]: {{javadoc_uri}}/ContentBlocking.html
+[142.6]: {{javadoc_uri}}/WebExtensionController.PromptDelegate.html#onUpdatePrompt(org.mozilla.geckoview.WebExtension,java.lang.String[],java.lang.String[],java.lang.String[])
 
 ## v141
 - Changed the methods in [`ProfilerController`][141.1] to static.
@@ -1793,4 +1805,4 @@ to allow adding gecko profiler markers.
 [65.24]: {{javadoc_uri}}/CrashReporter.html#sendCrashReport(android.content.Context,android.os.Bundle,java.lang.String)
 [65.25]: {{javadoc_uri}}/GeckoResult.html
 
-[api-version]: 14401951480946651574f370aa7d3fc3990f3679
+[api-version]: 8c09851793015cc778fa17daeef90bbb5952bc0f

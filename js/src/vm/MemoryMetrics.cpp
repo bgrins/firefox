@@ -470,7 +470,12 @@ static void StatsCellCallback(JSRuntime* rt, void* data, JS::GCCellPtr cellptr,
     }
 
     case JS::TraceKind::GetterSetter: {
-      zStats->getterSettersGCHeap += thingSize;
+      GetterSetter* gs = &cellptr.as<GetterSetter>();
+      size_t size = thingSize;
+      if (!gs->isTenured()) {
+        size += Nursery::nurseryCellHeaderSize();
+      }
+      zStats->getterSettersGCHeap += size;
       break;
     }
 
@@ -523,13 +528,6 @@ static void StatsCellCallback(JSRuntime* rt, void* data, JS::GCCellPtr cellptr,
       zStats->regExpSharedsGCHeap += thingSize;
       zStats->regExpSharedsMallocHeap +=
           regexp->sizeOfExcludingThis(rtStats->mallocSizeOf_);
-      break;
-    }
-
-    case JS::TraceKind::SmallBuffer: {
-      // Note that this overlaps with memory that is also reported as part of
-      // the owning cell.
-      zStats->smallBuffersGCHeap += thingSize;
       break;
     }
 

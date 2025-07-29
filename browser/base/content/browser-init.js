@@ -89,17 +89,19 @@ var gBrowserInit = {
         document.documentElement.setAttribute("sizemode", "maximized");
       }
     }
-    if (!Services.appinfo.nativeMenubar) {
+    {
       const toolbarMenubar = document.getElementById("toolbar-menubar");
-      // set a default value
-      if (!toolbarMenubar.hasAttribute("autohide")) {
-        toolbarMenubar.setAttribute("autohide", true);
+      const nativeMenubar = Services.appinfo.nativeMenubar;
+      toolbarMenubar.collapsed = nativeMenubar;
+      if (nativeMenubar) {
+        toolbarMenubar.removeAttribute("autohide");
+      } else {
+        document.l10n.setAttributes(
+          toolbarMenubar,
+          "toolbar-context-menu-menu-bar-cmd"
+        );
+        toolbarMenubar.setAttribute("data-l10n-attrs", "toolbarname");
       }
-      document.l10n.setAttributes(
-        toolbarMenubar,
-        "toolbar-context-menu-menu-bar-cmd"
-      );
-      toolbarMenubar.setAttribute("data-l10n-attrs", "toolbarname");
     }
     // If opening a Taskbar Tab window, add an attribute to the top-level element
     // to inform window styling.
@@ -340,6 +342,9 @@ var gBrowserInit = {
       "resource://gre/modules/TelemetryTimestamps.sys.mjs"
     );
     TelemetryTimestamps.add("delayedStartupStarted");
+    Glean.browserTimings.startupTimeline.delayedStartupStarted.set(
+      Services.telemetry.msSinceProcessStart()
+    );
 
     this._cancelDelayedStartup();
 
@@ -413,6 +418,7 @@ var gBrowserInit = {
     BookmarkingUI.init();
     gURLBar.delayedStartupInit();
     gProtectionsHandler.init();
+    gTrustPanelHandler.init();
 
     let safeMode = document.getElementById("helpSafeMode");
     if (Services.appinfo.inSafeMode) {
@@ -638,6 +644,9 @@ var gBrowserInit = {
     _resolveDelayedStartup();
     Services.obs.notifyObservers(window, "browser-delayed-startup-finished");
     TelemetryTimestamps.add("delayedStartupFinished");
+    Glean.browserTimings.startupTimeline.delayedStartupFinished.set(
+      Services.telemetry.msSinceProcessStart()
+    );
     // We've announced that delayed startup has finished. Do not add code past this point.
   },
 
@@ -725,7 +734,7 @@ var gBrowserInit = {
               window.arguments[8] ||
               Services.scriptSecurityManager.getSystemPrincipal(),
             allowInheritPrincipal: window.arguments[9],
-            csp: window.arguments[10],
+            policyContainer: window.arguments[10],
             fromExternal: true,
           });
         } catch (e) {}
@@ -739,7 +748,7 @@ var gBrowserInit = {
         //                 [7]: originStoragePrincipal (nsIPrincipal)
         //                 [8]: triggeringPrincipal (nsIPrincipal)
         //                 [9]: allowInheritPrincipal (bool)
-        //                 [10]: csp (nsIContentSecurityPolicy)
+        //                 [10]: policyContainer (nsIPolicyContainer)
         //                 [11]: nsOpenWindowInfo
         let userContextId =
           window.arguments[5] != undefined
@@ -810,7 +819,7 @@ var gBrowserInit = {
             // TODO fix allowInheritPrincipal to default to false.
             // Default to true unless explicitly set to false because of bug 1475201.
             allowInheritPrincipal: window.arguments[9] !== false,
-            csp: window.arguments[10],
+            policyContainer: window.arguments[10],
             forceAboutBlankViewerInCurrent: !!window.arguments[6],
             forceAllowDataURI,
             hasValidUserGestureActivation,
@@ -1068,6 +1077,7 @@ var gBrowserInit = {
       ctrlTab.uninit();
       gBrowserThumbnails.uninit();
       gProtectionsHandler.uninit();
+      gTrustPanelHandler.uninit();
       FullZoom.destroy();
 
       Services.obs.removeObserver(gIdentityHandler, "perm-changed");

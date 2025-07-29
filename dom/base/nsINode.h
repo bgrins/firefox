@@ -51,6 +51,7 @@ class nsIHTMLCollection;
 class nsMultiMutationObserver;
 class nsINode;
 class nsINodeList;
+class nsIPolicyContainer;
 class nsIPrincipal;
 class nsIURI;
 class nsNodeSupportsWeakRefTearoff;
@@ -1001,9 +1002,12 @@ class nsINode : public mozilla::dom::EventTarget {
    *        this one constraint, this doesn't do any checking on whether aKid is
    *        a valid child of |this|.
    *        Throw NS_ERROR_OUT_OF_MEMORY in some cases (from BindToTree).
+   * @param aOldParent In case the method is called as part of moveBefore,
+   *        the argument tells which node used to be the parent of aKid.
    */
   virtual void InsertChildBefore(nsIContent* aKid, nsIContent* aBeforeThis,
-                                 bool aNotify, mozilla::ErrorResult& aRv);
+                                 bool aNotify, mozilla::ErrorResult& aRv,
+                                 nsINode* aOldParent = nullptr);
 
   /**
    * Append a content node to the end of the child list.  This method handles
@@ -1049,9 +1053,12 @@ class nsINode : public mozilla::dom::EventTarget {
    * @param aNotify whether to notify the document (current document for
    *        nsIContent, and |this| for Document) that the remove has occurred
    * @param BatchRemovalState The current state of our batch removal.
+   * @param aNewParent In case the method is called as part of moveBefore,
+   *        the argument tells which node will be aKid's new parent.
    */
   virtual void RemoveChildNode(nsIContent* aKid, bool aNotify,
-                               const BatchRemovalState* = nullptr);
+                               const BatchRemovalState* = nullptr,
+                               nsINode* aNewParent = nullptr);
 
   /**
    * Get a property associated with this node.
@@ -1130,9 +1137,9 @@ class nsINode : public mozilla::dom::EventTarget {
   }
 
   /**
-   * Return the CSP of this node's document, if any.
+   * Return the Policy Container of this node's document, if any.
    */
-  nsIContentSecurityPolicy* GetCsp() const;
+  nsIPolicyContainer* GetPolicyContainer() const;
 
   /**
    * Get the parent nsIContent for this node.
@@ -2411,6 +2418,9 @@ class nsINode : public mozilla::dom::EventTarget {
   MOZ_CAN_RUN_SCRIPT void ReplaceChildren(
       const Sequence<OwningNodeOrString>& aNodes, ErrorResult& aRv);
   MOZ_CAN_RUN_SCRIPT void ReplaceChildren(nsINode* aNode, ErrorResult& aRv);
+
+  MOZ_CAN_RUN_SCRIPT void MoveBefore(nsINode& aNode, nsINode* aChild,
+                                     ErrorResult& aRv);
 
   void GetBoxQuads(const BoxQuadOptions& aOptions,
                    nsTArray<RefPtr<DOMQuad>>& aResult, CallerType aCallerType,

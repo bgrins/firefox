@@ -1678,7 +1678,7 @@ nsresult nsRFPService::GenerateCanvasKeyFromImageData(
       StaticPrefs::
           privacy_resistFingerprinting_randomization_canvas_use_siphash()) {
     // Hash the canvas data to generate the image data hash.
-    mozilla::HashNumber imageHashData = mozilla::HashString(aImageData, aSize);
+    mozilla::HashNumber imageHashData = mozilla::HashBytes(aImageData, aSize);
 
     // Then, we use the SipHash seeded by the first half of the random key to
     // generate a hash result using the image hash data. Our sipHash is
@@ -2691,12 +2691,7 @@ CSSIntRect nsRFPService::GetSpoofedScreenAvailSize(const nsRect& aRect,
 
 /* static */
 uint64_t nsRFPService::GetSpoofedStorageLimit() {
-  uint64_t gib = 1024ULL * 1024ULL * 1024ULL;  // 1 GiB
-#ifdef ANDROID
-  uint64_t limit = 32ULL * gib;  // 32 GiB
-#else
-  uint64_t limit = 50ULL * gib;  // 50 GiB
-#endif
+  uint64_t limit = 50ULL * 1024ULL * 1024ULL * 1024ULL;  // 50 GiB
   MOZ_ASSERT(limit / 5 ==
              dom::quota::QuotaManager::GetGroupLimitForLimit(limit));
 
@@ -2746,4 +2741,14 @@ bool nsRFPService::IsWebCodecsRFPTargetEnabled(JSContext* aCx) {
 
   return nsContentUtils::ShouldResistFingerprinting_dangerous(
       principal, "Principal is the best context we have", RFPTarget::WebCodecs);
+}
+
+uint32_t nsRFPService::CollapseMaxTouchPoints(uint32_t aMaxTouchPoints) {
+  if (aMaxTouchPoints <= 1) {
+    return aMaxTouchPoints;
+  }
+  // Android reports 5 as the max value, if a device supports multi-touch at all
+  // collapse them all to 5. A minority of devices (mostly desktop devices)
+  // will report uncommon values like 2, 3, 8, etc
+  return 5;
 }

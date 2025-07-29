@@ -194,7 +194,7 @@ static nsresult GetTargetGeometry(gfxRect* aBBox,
 
   // Sanity check
   if (IncludeBBoxScale(aViewBox, aPatternContentUnits, aPatternUnits) &&
-      (aBBox->Width() <= 0 || aBBox->Height() <= 0)) {
+      aBBox->IsEmpty()) {
     return NS_ERROR_FAILURE;
   }
 
@@ -326,7 +326,7 @@ already_AddRefed<SourceSurface> SVGPatternFrame::PaintPattern(
   // box for the pattern tile.
   gfxRect bbox =
       GetPatternRect(patternUnits, callerBBox, aContextMatrix, aSource);
-  if (bbox.Width() <= 0.0 || bbox.Height() <= 0.0) {
+  if (bbox.IsEmpty()) {
     return nullptr;
   }
 
@@ -581,10 +581,11 @@ gfxRect SVGPatternFrame::GetPatternRect(uint16_t aPatternUnits,
   tmpWidth = GetLengthValue(SVGPatternElement::ATTR_WIDTH);
 
   if (aPatternUnits == SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    x = SVGUtils::ObjectSpace(aTargetBBox, tmpX);
-    y = SVGUtils::ObjectSpace(aTargetBBox, tmpY);
-    width = SVGUtils::ObjectSpace(aTargetBBox, tmpWidth);
-    height = SVGUtils::ObjectSpace(aTargetBBox, tmpHeight);
+    SVGElementMetrics metrics(SVGElement::FromNode(GetContent()));
+    x = SVGUtils::ObjectSpace(aTargetBBox, metrics, tmpX);
+    y = SVGUtils::ObjectSpace(aTargetBBox, metrics, tmpY);
+    width = SVGUtils::ObjectSpace(aTargetBBox, metrics, tmpWidth);
+    height = SVGUtils::ObjectSpace(aTargetBBox, metrics, tmpHeight);
   } else {
     if (aTarget->IsTextFrame()) {
       aTarget = aTarget->GetParent();

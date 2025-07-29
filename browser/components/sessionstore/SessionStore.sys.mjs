@@ -1249,6 +1249,9 @@ var SessionStoreInternal = {
     }
 
     TelemetryTimestamps.add("sessionRestoreInitialized");
+    Glean.sessionRestore.startupTimeline.sessionRestoreInitialized.set(
+      Services.telemetry.msSinceProcessStart()
+    );
     OBSERVING.forEach(function (aTopic) {
       Services.obs.addObserver(this, aTopic, true);
     }, this);
@@ -2069,6 +2072,9 @@ var SessionStoreInternal = {
           this._deferredAllWindowsRestored.resolve();
         } else {
           TelemetryTimestamps.add("sessionRestoreRestoring");
+          Glean.sessionRestore.startupTimeline.sessionRestoreRestoring.set(
+            Services.telemetry.msSinceProcessStart()
+          );
           this._restoreCount = aInitialState.windows
             ? aInitialState.windows.length
             : 0;
@@ -3532,9 +3538,11 @@ var SessionStoreInternal = {
   saveClosedTabData(winData, closedTabs, tabData, saveAction = true) {
     // Find the index of the first tab in the list
     // of closed tabs that was closed before our tab.
-    let index = closedTabs.findIndex(tab => {
-      return tab.closedAt < tabData.closedAt;
-    });
+    let index = tabData.closedInTabGroupId
+      ? closedTabs.length
+      : closedTabs.findIndex(tab => {
+          return tab.closedAt < tabData.closedAt;
+        });
 
     // If we found no tab closed before our
     // tab then just append it to the list.

@@ -13,7 +13,6 @@
 #include "jit/JitOptions.h"
 #include "js/HeapAPI.h"
 #include "js/Utility.h"
-#include "vm/JSContext.h"
 
 #ifdef MOZ_MEMORY
 #  include "mozmemory_stall.h"
@@ -465,39 +464,6 @@ void InitMemorySubsystem() {
   MOZ_ASSERT(gMappedMemorySizeBytes == 0);
 }
 
-void MapStack(size_t stackSize) {
-  // Main thread only of the main runtime only.
-  MOZ_ASSERT(js::CurrentThreadIsMainThread());
-  MOZ_ASSERT(MaybeGetJSContext()->runtime()->isMainRuntime());
-
-#if defined(FUZZING) && defined(__linux__)
-  // Allocate the full maximum allowed stack region immediately, to prevent heap
-  // mmaps from grabbing pages from within this region when virtual memory gets
-  // tight.
-  uintptr_t stackTop = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
-  uintptr_t stackBase = stackTop - stackSize;
-  size_t pageSize = js::gc::SystemPageSize();
-  MOZ_ASSERT(pageSize > 0);
-
-  // Back up a page: the stack pointer was grabbed up above (in stackTop),
-  // but it may get decremented before and while calling mmap, and mmapping
-  // the page containing sp and beyond (the live stack) will corrupt it.
-  stackTop -= pageSize;
-
-  stackBase = RoundDown(stackBase, pageSize);
-  stackTop = RoundDown(stackTop, pageSize);
-
-  void* result = mmap(
-      reinterpret_cast<void*>(stackBase), stackTop - stackBase,
-      PROT_READ | PROT_WRITE,
-      MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS | MAP_GROWSDOWN | MAP_NORESERVE,
-      -1, 0);
-  if (result == MAP_FAILED) {
-    MOZ_CRASH("mmap of stack failed");
-  }
-#endif
-}
-
 void CheckMemorySubsystemOnShutDown() {
   MOZ_ASSERT(gMappedMemorySizeBytes == 0);
 }
@@ -642,7 +608,16 @@ static void* MapAlignedPagesRandom(size_t length, size_t alignment) {
   for (size_t i = 1; i <= 1024; ++i) {
     if (i & 0xf) {
       uint64_t desired = alignment * GetNumberInRange(minNum, maxNum);
+#  if defined(__FreeBSD__)
+      int flags = MAP_PRIVATE | MAP_ANON |
+                  MAP_ALIGNED(mozilla::CeilingLog2Size(alignment));
+      region = MozTaggedAnonymousMmap((void*)(uintptr_t)desired, length,
+                                      int(PageAccess::ReadWrite), flags, -1, 0,
+                                      "js-gc-heap");
+#  else
       region = MapMemoryAtFuzzy(reinterpret_cast<void*>(desired), length);
+
+#  endif
       if (!region) {
         continue;
       }
@@ -847,7 +822,7 @@ static bool TryToAlignChunk(void** aRegion, void** aRetainedRegion,
       auto* lowerStart =
           reinterpret_cast<void*>(uintptr_t(regionStart) - offsetLower);
       auto* lowerEnd = reinterpret_cast<void*>(uintptr_t(lowerStart) + length);
-      if (MapMemoryAt(lowerStart, offsetLower)) {
+      if (lowerStart && MapMemoryAt(lowerStart, offsetLower)) {
         UnmapInternal(lowerEnd, offsetLower);
         if (directionUncertain) {
           --growthDirection;

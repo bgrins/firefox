@@ -74,6 +74,42 @@ legacy.telemetry:
       - BASELINE_PING
     send_in_pings: *client_id_pings
 
+  session_id:
+    type: uuid
+    lifetime: application
+    description: |
+      Legacy Telemetry's session identifier.
+      Set near startup and stable until shutdown.
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1972836
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1972836
+    data_sensitivity:
+      - technical
+    notification_emails:
+      - chutten@mozilla.com
+      - glean-team@mozilla.com
+    expires: never
+
+  session_start_date:
+    type: datetime
+    time_unit: hour
+    lifetime: application
+    description: |
+      Legacy Telemetry's session start time.
+      The time at which the Telemetry session started.
+      Likely near to the (wall-clock) time that the application started.
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1972836
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1972836
+    data_sensitivity:
+      - technical
+    notification_emails:
+      - chutten@mozilla.com
+      - glean-team@mozilla.com
+    expires: never
+
 telemetry:
   data_upload_optin:
     type: boolean
@@ -1215,6 +1251,41 @@ onboarding_opt_out:
           branchSlug:
             type: string
 
+termsofuse:
+  version:
+    type: quantity
+    description: >
+      The version of the Terms of Use the user accepted.
+    unit: version
+    lifetime: application
+    send_in_pings:
+      - metrics
+    notification_emails:
+      - mviar@mozilla.com
+      - omc@mozilla.com
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1971184
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1974150
+    expires: never
+
+  date:
+    type: datetime
+    description: >
+      The timestamp when the user accepted the Terms of Use.
+    time_unit: millisecond
+    lifetime: application
+    send_in_pings:
+      - metrics
+    notification_emails:
+      - mviar@mozilla.com
+      - omc@mozilla.com
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1971184
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1974150
+    expires: never
+
 third.party.modules:
   blocked_modules:
     type: string_list
@@ -1380,3 +1451,46 @@ third.party.modules:
                     type: array
                     items:
                       type: number
+
+startup.io:
+  read:
+    type: labeled_quantity
+    unit: bytes
+    description: |
+      Windows-only.
+      Cumulative bytes read by the application according to the OS, per startup
+      phase.
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1972836
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1972836
+    expires: never
+    data_sensitivity:
+      - technical
+    notification_emails:
+      - chutten@mozilla.com
+      - perf-telemetry-alerts@mozilla.com
+    labels:
+      - sessionRestore
+      - windowVisible
+
+  write:
+    type: labeled_quantity
+    unit: bytes
+    description: |
+      Windows-only.
+      Cumulative bytes written by the application according to the OS, per startup
+      phase.
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1972836
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1972836
+    expires: never
+    data_sensitivity:
+      - technical
+    notification_emails:
+      - chutten@mozilla.com
+      - perf-telemetry-alerts@mozilla.com
+    labels:
+      - sessionRestore
+      - windowVisible

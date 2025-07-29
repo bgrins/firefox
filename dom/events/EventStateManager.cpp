@@ -2218,13 +2218,13 @@ void EventStateManager::DispatchCrossProcessEvent(WidgetEvent* aEvent,
       uint32_t dropEffect = nsIDragService::DRAGDROP_ACTION_NONE;
       uint32_t action = nsIDragService::DRAGDROP_ACTION_NONE;
       nsCOMPtr<nsIPrincipal> principal;
-      nsCOMPtr<nsIContentSecurityPolicy> csp;
+      nsCOMPtr<nsIPolicyContainer> policyContainer;
 
       if (dragSession) {
         dragSession->DragEventDispatchedToChildProcess();
         dragSession->GetDragAction(&action);
         dragSession->GetTriggeringPrincipal(getter_AddRefs(principal));
-        dragSession->GetCsp(getter_AddRefs(csp));
+        dragSession->GetPolicyContainer(getter_AddRefs(policyContainer));
         RefPtr<DataTransfer> initialDataTransfer =
             dragSession->GetDataTransfer();
         if (initialDataTransfer) {
@@ -2233,7 +2233,7 @@ void EventStateManager::DispatchCrossProcessEvent(WidgetEvent* aEvent,
       }
 
       browserParent->SendRealDragEvent(*aEvent->AsDragEvent(), action,
-                                       dropEffect, principal, csp);
+                                       dropEffect, principal, policyContainer);
       return;
     }
     default: {
@@ -2761,7 +2761,7 @@ void EventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
   RefPtr<Selection> selection;
   RefPtr<RemoteDragStartData> remoteDragStartData;
   nsCOMPtr<nsIPrincipal> principal;
-  nsCOMPtr<nsIContentSecurityPolicy> csp;
+  nsCOMPtr<nsIPolicyContainer> policyContainer;
   nsCOMPtr<nsICookieJarSettings> cookieJarSettings;
   nsCOMPtr<nsIContent> eventContent =
       mCurrentTarget->GetContentForEvent(aEvent);
@@ -2789,7 +2789,7 @@ void EventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
         window, eventContent, dataTransfer, &allowEmptyDataTransfer,
         getter_AddRefs(selection), getter_AddRefs(remoteDragStartData),
         getter_AddRefs(targetContent), getter_AddRefs(principal),
-        getter_AddRefs(csp), getter_AddRefs(cookieJarSettings));
+        getter_AddRefs(policyContainer), getter_AddRefs(cookieJarSettings));
   }
 
   // Stop tracking the drag gesture now. This should stop us from
@@ -2858,8 +2858,8 @@ void EventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
     if (status != nsEventStatus_eConsumeNoDefault) {
       bool dragStarted = DoDefaultDragStart(
           aPresContext, event, dataTransfer, allowEmptyDataTransfer,
-          targetContent, selection, remoteDragStartData, principal, csp,
-          cookieJarSettings);
+          targetContent, selection, remoteDragStartData, principal,
+          policyContainer, cookieJarSettings);
       if (dragStarted) {
         sActiveESM = nullptr;
         aEvent->StopPropagation();
@@ -2885,7 +2885,7 @@ void EventStateManager::DetermineDragTargetAndDefaultData(
     DataTransfer* aDataTransfer, bool* aAllowEmptyDataTransfer,
     Selection** aSelection, RemoteDragStartData** aRemoteDragStartData,
     nsIContent** aTargetNode, nsIPrincipal** aPrincipal,
-    nsIContentSecurityPolicy** aCsp,
+    nsIPolicyContainer** aPolicyContainer,
     nsICookieJarSettings** aCookieJarSettings) {
   *aTargetNode = nullptr;
   *aAllowEmptyDataTransfer = false;
@@ -2901,8 +2901,8 @@ void EventStateManager::DetermineDragTargetAndDefaultData(
     if (mGestureDownDragStartData) {
       // A child process started a drag so use any data it assigned for the dnd
       // session.
-      mGestureDownDragStartData->AddInitialDnDDataTo(aDataTransfer, aPrincipal,
-                                                     aCsp, aCookieJarSettings);
+      mGestureDownDragStartData->AddInitialDnDDataTo(
+          aDataTransfer, aPrincipal, aPolicyContainer, aCookieJarSettings);
       mGestureDownDragStartData.forget(aRemoteDragStartData);
       *aAllowEmptyDataTransfer = true;
     }
@@ -2919,7 +2919,7 @@ void EventStateManager::DetermineDragTargetAndDefaultData(
     bool wasAlt = (mGestureModifiers & MODIFIER_ALT) != 0;
     nsresult rv = nsContentAreaDragDrop::GetDragData(
         aWindow, mGestureDownContent, aSelectionTarget, wasAlt, aDataTransfer,
-        &canDrag, aSelection, getter_AddRefs(dragDataNode), aCsp,
+        &canDrag, aSelection, getter_AddRefs(dragDataNode), aPolicyContainer,
         aCookieJarSettings);
     if (NS_FAILED(rv) || !canDrag) {
       return;
@@ -2987,7 +2987,8 @@ bool EventStateManager::DoDefaultDragStart(
     DataTransfer* aDataTransfer, bool aAllowEmptyDataTransfer,
     nsIContent* aDragTarget, Selection* aSelection,
     RemoteDragStartData* aDragStartData, nsIPrincipal* aPrincipal,
-    nsIContentSecurityPolicy* aCsp, nsICookieJarSettings* aCookieJarSettings) {
+    nsIPolicyContainer* aPolicyContainer,
+    nsICookieJarSettings* aCookieJarSettings) {
   nsCOMPtr<nsIDragService> dragService =
       do_GetService("@mozilla.org/widget/dragservice;1");
   if (!dragService) return false;
@@ -3082,17 +3083,17 @@ bool EventStateManager::DoDefaultDragStart(
   // other than a selection is being dragged.
   if (!dragImage && aSelection) {
     dragService->InvokeDragSessionWithSelection(
-        aSelection, aPrincipal, aCsp, aCookieJarSettings, transArray, action,
-        event, dataTransfer, dragTarget);
+        aSelection, aPrincipal, aPolicyContainer, aCookieJarSettings,
+        transArray, action, event, dataTransfer, dragTarget);
   } else if (aDragStartData) {
     MOZ_ASSERT(XRE_IsParentProcess());
     dragService->InvokeDragSessionWithRemoteImage(
-        dragTarget, aPrincipal, aCsp, aCookieJarSettings, transArray, action,
-        aDragStartData, event, dataTransfer);
+        dragTarget, aPrincipal, aPolicyContainer, aCookieJarSettings,
+        transArray, action, aDragStartData, event, dataTransfer);
   } else {
     dragService->InvokeDragSessionWithImage(
-        dragTarget, aPrincipal, aCsp, aCookieJarSettings, transArray, action,
-        dragImage, imageX, imageY, event, dataTransfer);
+        dragTarget, aPrincipal, aPolicyContainer, aCookieJarSettings,
+        transArray, action, dragImage, imageX, imageY, event, dataTransfer);
   }
 
   return true;
@@ -4837,7 +4838,7 @@ static CursorImage ComputeCustomCursor(nsPresContext* aPresContext,
                           : Nothing();
     gfx::IntPoint hotspot = ComputeHotspot(container, specifiedHotspot);
     CursorImage result{hotspot, std::move(container),
-                       image.image.GetResolution(style), loading};
+                       image.image.GetResolution(&style), loading};
     if (ShouldBlockCustomCursor(aPresContext, aEvent, result)) {
       continue;
     }
@@ -6723,8 +6724,22 @@ void EventStateManager::NativeAnonymousContentRemoved(nsIContent* aContent) {
   }
 }
 
+void EventStateManager::ContentInserted(nsIContent* aChild,
+                                        const ContentInsertInfo& aInfo) {
+  if (nsFocusManager* fm = nsFocusManager::GetFocusManager()) {
+    fm->ContentInserted(aChild, aInfo);
+  }
+}
+void EventStateManager::ContentAppended(nsIContent* aFirstNewContent,
+                                        const ContentAppendInfo& aInfo) {
+  if (nsFocusManager* fm = nsFocusManager::GetFocusManager()) {
+    fm->ContentAppended(aFirstNewContent, aInfo);
+  }
+}
+
 void EventStateManager::ContentRemoved(Document* aDocument,
-                                       nsIContent* aContent) {
+                                       nsIContent* aContent,
+                                       const ContentRemoveInfo& aInfo) {
   /*
    * Anchor and area elements when focused or hovered might make the UI to show
    * the current link. We want to make sure that the UI gets informed when they
@@ -6748,7 +6763,7 @@ void EventStateManager::ContentRemoved(Document* aDocument,
   // inform the focus manager that the content is being removed. If this
   // content is focused, the focus will be removed without firing events.
   if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
-    fm->ContentRemoved(aDocument, aContent);
+    fm->ContentRemoved(aDocument, aContent, aInfo);
   }
 
   RemoveNodeFromChainIfNeeded(ElementState::HOVER, aContent, true);
@@ -6761,7 +6776,9 @@ void EventStateManager::ContentRemoved(Document* aDocument,
     sDragOverContent = nullptr;
   }
 
-  PointerEventHandler::ReleaseIfCaptureByDescendant(aContent);
+  if (!aInfo.mNewParent) {
+    PointerEventHandler::ReleaseIfCaptureByDescendant(aContent);
+  }
 
   if (mMouseEnterLeaveHelper) {
     const bool hadMouseOutTarget =

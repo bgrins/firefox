@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CollectionInfo
@@ -83,12 +84,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 import mozilla.appservices.places.BookmarkRoot
+import mozilla.components.browser.state.action.AwesomeBarAction
 import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.compose.base.Divider
 import mozilla.components.compose.base.annotation.FlexibleWindowLightDarkPreview
 import mozilla.components.compose.base.textfield.TextField
 import mozilla.components.compose.base.textfield.TextFieldColors
 import mozilla.components.compose.base.theme.AcornTheme
+import mozilla.components.compose.base.utils.BackInvokedHandler
 import mozilla.components.compose.browser.awesomebar.AwesomeBar
 import mozilla.components.compose.browser.awesomebar.AwesomeBarDefaults
 import mozilla.components.compose.browser.awesomebar.AwesomeBarOrientation
@@ -97,6 +100,7 @@ import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.lib.state.ext.observeAsState
+import mozilla.components.support.ktx.android.view.hideKeyboard
 import org.mozilla.fenix.R
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.appstate.AppAction
@@ -222,6 +226,7 @@ private fun BookmarksList(
     bookmarksSearchEngine: SearchEngine?,
     useNewSearchUX: Boolean = false,
 ) {
+    val browserStore = components.core.store
     val state by store.observeAsState(store.state) { it }
     val searchState = searchStore.observeAsComposableState { it }.value
     val awesomebarBackground = AcornTheme.colors.layer1
@@ -236,6 +241,7 @@ private fun BookmarksList(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { AcornSnackbarHostState() }
 
+    val view = LocalView.current
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -296,17 +302,22 @@ private fun BookmarksList(
         when (state.isSearching) {
             true -> {
                 bookmarksSearchEngine?.let {
-                    appStore.dispatch(AppAction.SearchEngineSelected(it, false))
+                    appStore.dispatch(AppAction.SearchAction.SearchEngineSelected(it, false))
                 }
-                appStore.dispatch(AppAction.UpdateSearchBeingActiveState(true))
+                appStore.dispatch(AppAction.SearchAction.SearchStarted())
             }
             false -> {
-                appStore.dispatch(AppAction.UpdateSearchBeingActiveState(false))
+                appStore.dispatch(AppAction.SearchAction.SearchEnded)
                 toolbarStore.dispatch(BrowserEditToolbarAction.SearchQueryUpdated(""))
+                browserStore.dispatch(AwesomeBarAction.EngagementFinished(abandoned = true))
                 focusManager.clearFocus()
                 keyboardController?.hide()
             }
         }
+    }
+
+    BackInvokedHandler(state.isSearching) {
+        store.dispatch(SearchDismissed)
     }
 
     WarnDialog(store = store)
@@ -329,19 +340,19 @@ private fun BookmarksList(
             }
         },
         floatingActionButton = {
-            FloatingActionButton(
-                icon = painterResource(R.drawable.mozac_ic_search_24),
-                contentDescription = stringResource(R.string.bookmark_search_button_content_description),
-                onClick = { store.dispatch(SearchClicked) },
-            )
+            if (!state.isLoading && state.emptyListState() == null) {
+                FloatingActionButton(
+                    icon = painterResource(R.drawable.mozac_ic_search_24),
+                    contentDescription = stringResource(R.string.bookmark_search_button_content_description),
+                    onClick = { store.dispatch(SearchClicked) },
+                )
+            }
         },
         topBar = {
-            Box {
+            if (useNewSearchUX && state.isSearching) {
+                BrowserToolbar(toolbarStore)
+            } else {
                 BookmarksListTopBar(store = store)
-
-                if (useNewSearchUX && state.isSearching) {
-                    BrowserToolbar(toolbarStore)
-                }
             }
         },
         containerColor = FirefoxTheme.colors.layer1,
@@ -496,11 +507,13 @@ private fun BookmarksList(
             Box(
                 modifier = Modifier
                     .background(awesomebarScrim)
+                    .padding(paddingValues)
                     .fillMaxSize()
                     .pointerInput(WindowInsets.isImeVisible) {
                         detectTapGestures(
-                            // Hide the keyboard for any touches in the empty area of the awesomebar
+                            // Exit search for any touches in the empty area of the awesomebar.
                             onPress = {
+                                focusManager.clearFocus()
                                 keyboardController?.hide()
                                 store.dispatch(SearchDismissed)
                             },
@@ -525,7 +538,7 @@ private fun BookmarksList(
                         searchStore.dispatch(SuggestionSelected(suggestion))
                     },
                     onVisibilityStateUpdated = {},
-                    onScroll = { keyboardController?.hide() },
+                    onScroll = { view.hideKeyboard() },
                     profiler = components.core.engine.profiler,
                 )
             }
@@ -699,6 +712,10 @@ private fun BookmarksListTopBar(
                     }
                 }
             },
+            windowInsets = WindowInsets(
+                top = 0.dp,
+                bottom = 0.dp,
+            ),
         )
     }
 }
@@ -895,6 +912,10 @@ private fun SelectFolderTopBar(
                 }
             }
         },
+        windowInsets = WindowInsets(
+            top = 0.dp,
+            bottom = 0.dp,
+        ),
     )
 }
 
@@ -1237,6 +1258,10 @@ private fun EditFolderTopBar(
                 )
             }
         },
+        windowInsets = WindowInsets(
+            top = 0.dp,
+            bottom = 0.dp,
+        ),
     )
 }
 
@@ -1316,6 +1341,10 @@ private fun AddFolderTopBar(onBackClick: () -> Unit) {
                 )
             }
         },
+        windowInsets = WindowInsets(
+            top = 0.dp,
+            bottom = 0.dp,
+        ),
     )
 }
 
@@ -1504,6 +1533,10 @@ private fun EditBookmarkTopBar(
                 )
             }
         },
+        windowInsets = WindowInsets(
+            top = 0.dp,
+            bottom = 0.dp,
+        ),
     )
 }
 

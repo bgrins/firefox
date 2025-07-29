@@ -219,6 +219,7 @@
 #include "mozilla/dom/PageTransitionEventBinding.h"
 #include "mozilla/dom/Performance.h"
 #include "mozilla/dom/PermissionMessageUtils.h"
+#include "mozilla/dom/PolicyContainer.h"
 #include "mozilla/dom/PostMessageEvent.h"
 #include "mozilla/dom/ProcessingInstruction.h"
 #include "mozilla/dom/Promise.h"
@@ -2421,6 +2422,17 @@ void Document::AccumulatePageLoadTelemetry(
   }
 #endif
 
+  nsCOMPtr<nsICacheInfoChannel> cacheInfoChannel =
+      do_QueryInterface(GetChannel());
+  if (cacheInfoChannel) {
+    nsICacheInfoChannel::CacheDisposition disposition =
+        nsICacheInfoChannel::kCacheUnknown;
+    nsresult rv = cacheInfoChannel->GetCacheDisposition(&disposition);
+    if (NS_SUCCEEDED(rv)) {
+      aEventTelemetryDataOut.cacheDisposition = mozilla::Some(disposition);
+    }
+  }
+
   aEventTelemetryDataOut.features = mozilla::Some(mPageloadEventFeatures);
 }
 
@@ -3688,10 +3700,16 @@ nsresult Document::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
   // Not calling it here results in the mSelfURI being the current mSelfURI and
   // not the previous which breaks said inheritance.
   // https://bugzilla.mozilla.org/show_bug.cgi?id=1793560#ch-8
-  nsCOMPtr<nsIContentSecurityPolicy> cspToInherit = loadInfo->GetCspToInherit();
+  nsCOMPtr<nsIPolicyContainer> policyContainer =
+      loadInfo->GetPolicyContainerToInherit();
+  nsCOMPtr<nsIContentSecurityPolicy> cspToInherit =
+      PolicyContainer::GetCSP(policyContainer);
   if (cspToInherit) {
     cspToInherit->EnsureIPCPoliciesRead();
   }
+
+  rv = InitPolicyContainer(aChannel);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = InitCSP(aChannel);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -3756,15 +3774,6 @@ void Document::SetLoadedAsData(bool aLoadedAsData,
   }
 }
 
-nsIContentSecurityPolicy* Document::GetCsp() const { return mCSP; }
-
-void Document::SetCsp(nsIContentSecurityPolicy* aCSP) {
-  mCSP = aCSP;
-  mHasPolicyWithRequireTrustedTypesForDirective =
-      aCSP && aCSP->GetRequireTrustedTypesForDirectiveState() !=
-                  RequireTrustedTypesForDirectiveState::NONE;
-}
-
 nsIContentSecurityPolicy* Document::GetPreloadCsp() const {
   return mPreloadCSP;
 }
@@ -3776,12 +3785,13 @@ void Document::SetPreloadCsp(nsIContentSecurityPolicy* aPreloadCSP) {
 void Document::GetCspJSON(nsString& aJSON) {
   aJSON.Truncate();
 
-  if (!mCSP) {
+  nsIContentSecurityPolicy* csp = PolicyContainer::GetCSP(mPolicyContainer);
+  if (!csp) {
     dom::CSPPolicies jsonPolicies;
     jsonPolicies.ToJSON(aJSON);
     return;
   }
-  mCSP->ToJSON(aJSON);
+  csp->ToJSON(aJSON);
 }
 
 void Document::SendToConsole(nsCOMArray<nsISecurityConsoleMessage>& aMessages) {
@@ -3802,13 +3812,14 @@ void Document::SendToConsole(nsCOMArray<nsISecurityConsoleMessage>& aMessages) {
 void Document::ApplySettingsFromCSP(bool aSpeculative) {
   nsresult rv = NS_OK;
   if (!aSpeculative) {
+    nsIContentSecurityPolicy* csp = PolicyContainer::GetCSP(mPolicyContainer);
     // 1) apply settings from regular CSP
-    if (mCSP) {
+    if (csp) {
       // Set up 'block-all-mixed-content' if not already inherited
       // from the parent context or set by any other CSP.
       if (!mBlockAllMixedContent) {
         bool block = false;
-        rv = mCSP->GetBlockAllMixedContent(&block);
+        rv = csp->GetBlockAllMixedContent(&block);
         NS_ENSURE_SUCCESS_VOID(rv);
         mBlockAllMixedContent = block;
       }
@@ -3820,7 +3831,7 @@ void Document::ApplySettingsFromCSP(bool aSpeculative) {
       // from the parent context or set by any other CSP.
       if (!mUpgradeInsecureRequests) {
         bool upgrade = false;
-        rv = mCSP->GetUpgradeInsecureRequests(&upgrade);
+        rv = csp->GetUpgradeInsecureRequests(&upgrade);
         NS_ENSURE_SUCCESS_VOID(rv);
         mUpgradeInsecureRequests = upgrade;
       }
@@ -3853,9 +3864,39 @@ void Document::ApplySettingsFromCSP(bool aSpeculative) {
   }
 }
 
+nsresult Document::InitPolicyContainer(nsIChannel* aChannel) {
+  bool shouldInherit = CSP_ShouldResponseInheritCSP(aChannel);
+  if (shouldInherit) {
+    nsCOMPtr<nsILoadInfo> loadInfo = aChannel->LoadInfo();
+    nsCOMPtr<nsIPolicyContainer> policyContainer =
+        loadInfo->GetPolicyContainerToInherit();
+    mPolicyContainer = PolicyContainer::Cast(policyContainer);
+  }
+
+  if (!mPolicyContainer) {
+    mPolicyContainer = new PolicyContainer();
+  }
+
+  return NS_OK;
+}
+
+void Document::SetPolicyContainer(nsIPolicyContainer* aPolicyContainer) {
+  mPolicyContainer = PolicyContainer::Cast(aPolicyContainer);
+  nsIContentSecurityPolicy* csp = PolicyContainer::GetCSP(mPolicyContainer);
+  mHasPolicyWithRequireTrustedTypesForDirective =
+      csp && csp->GetRequireTrustedTypesForDirectiveState() !=
+                 RequireTrustedTypesForDirectiveState::NONE;
+}
+
+nsIPolicyContainer* Document::GetPolicyContainer() const {
+  return mPolicyContainer;
+}
+
 nsresult Document::InitCSP(nsIChannel* aChannel) {
   MOZ_ASSERT(!mScriptGlobalObject,
              "CSP must be initialized before mScriptGlobalObject is set!");
+  MOZ_ASSERT(mPolicyContainer,
+             "Policy container must be initialized before CSP!");
 
   // If this is a data document - no need to set CSP.
   if (mLoadedAsData) {
@@ -3872,34 +3913,26 @@ nsresult Document::InitCSP(nsIChannel* aChannel) {
     return NS_OK;
   }
 
-  MOZ_ASSERT(!mCSP, "where did mCSP get set if not here?");
-
-  // If there is a CSP that needs to be inherited from whatever
-  // global is considered the client of the document fetch then
-  // we query it here from the loadinfo in case the newly created
-  // document needs to inherit the CSP. See:
-  // https://w3c.github.io/webappsec-csp/#initialize-document-csp
-  bool inheritedCSP = CSP_ShouldResponseInheritCSP(aChannel);
-  if (inheritedCSP) {
-    mCSP = loadInfo->GetCspToInherit();
-  }
+  nsIContentSecurityPolicy* csp = PolicyContainer::GetCSP(mPolicyContainer);
+  bool inheritedCSP = !!csp;
 
   // If there is no CSP to inherit, then we create a new CSP here so
   // that history entries always have the right reference in case a
   // Meta CSP gets dynamically added after the history entry has
   // already been created.
-  if (!mCSP) {
-    mCSP = new nsCSPContext();
+  if (!csp) {
+    csp = new nsCSPContext();
+    mPolicyContainer->SetCSP(csp);
     mHasPolicyWithRequireTrustedTypesForDirective = false;
   } else {
     mHasPolicyWithRequireTrustedTypesForDirective =
-        mCSP->GetRequireTrustedTypesForDirectiveState() !=
+        csp->GetRequireTrustedTypesForDirectiveState() !=
         RequireTrustedTypesForDirectiveState::NONE;
   }
 
   // Always overwrite the requesting context of the CSP so that any new
   // 'self' keyword added to an inherited CSP translates correctly.
-  nsresult rv = mCSP->SetRequestContextWithDocument(this);
+  nsresult rv = csp->SetRequestContextWithDocument(this);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -3947,21 +3980,21 @@ nsresult Document::InitCSP(nsIChannel* aChannel) {
 
   // ----- if the doc is an addon, apply its CSP.
   if (addonPolicy) {
-    mCSP->AppendPolicy(addonPolicy->BaseCSP(), false, false);
+    csp->AppendPolicy(addonPolicy->BaseCSP(), false, false);
 
-    mCSP->AppendPolicy(addonPolicy->ExtensionPageCSP(), false, false);
+    csp->AppendPolicy(addonPolicy->ExtensionPageCSP(), false, false);
   }
 
   // ----- if there's a full-strength CSP header, apply it.
   if (!cspHeaderValue.IsEmpty()) {
     mHasCSPDeliveredThroughHeader = true;
-    rv = CSP_AppendCSPFromHeader(mCSP, cspHeaderValue, false);
+    rv = CSP_AppendCSPFromHeader(csp, cspHeaderValue, false);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // ----- if there's a report-only CSP header, apply it.
   if (!cspROHeaderValue.IsEmpty()) {
-    rv = CSP_AppendCSPFromHeader(mCSP, cspROHeaderValue, true);
+    rv = CSP_AppendCSPFromHeader(csp, cspROHeaderValue, true);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -3971,7 +4004,7 @@ nsresult Document::InitCSP(nsIChannel* aChannel) {
   // directive, intersect the CSP sandbox flags with the existing flags. This
   // corresponds to the _least_ permissive policy.
   uint32_t cspSandboxFlags = SANDBOXED_NONE;
-  rv = mCSP->GetCSPSandboxFlags(&cspSandboxFlags);
+  rv = csp->GetCSPSandboxFlags(&cspSandboxFlags);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Probably the iframe sandbox attribute already caused the creation of a
@@ -3999,9 +4032,13 @@ nsresult Document::InitIntegrityPolicy(nsIChannel* aChannel) {
   MOZ_ASSERT(!mScriptGlobalObject,
              "Integrity Policy must be initialized before mScriptGlobalObject "
              "is set!");
+  MOZ_ASSERT(mPolicyContainer,
+             "Policy container must be initialized before IntegrityPolicy!");
 
-  MOZ_ASSERT(!mIntegrityPolicy,
-             "where did mIntegrityPolicy get set if not here?");
+  if (mPolicyContainer->IntegrityPolicy()) {
+    // We inherited the integrity policy.
+    return NS_OK;
+  }
 
   nsAutoCString headerValue, headerROValue;
   nsCOMPtr<nsIHttpChannel> httpChannel;
@@ -4018,8 +4055,13 @@ nsresult Document::InitIntegrityPolicy(nsIChannel* aChannel) {
                                              headerROValue);
   }
 
-  return IntegrityPolicy::ParseHeaders(headerValue, headerROValue,
-                                       getter_AddRefs(mIntegrityPolicy));
+  RefPtr<IntegrityPolicy> integrityPolicy;
+  rv = IntegrityPolicy::ParseHeaders(headerValue, headerROValue,
+                                     getter_AddRefs(integrityPolicy));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mPolicyContainer->SetIntegrityPolicy(integrityPolicy);
+  return NS_OK;
 }
 
 static FeaturePolicy* GetFeaturePolicyFromElement(Element* aElement) {
@@ -7730,7 +7772,8 @@ Element* Document::GetRootElementInternal() const {
 }
 
 void Document::InsertChildBefore(nsIContent* aKid, nsIContent* aBeforeThis,
-                                 bool aNotify, ErrorResult& aRv) {
+                                 bool aNotify, ErrorResult& aRv,
+                                 nsINode* aOldParent) {
   const bool isElementInsertion = aKid->IsElement();
   if (isElementInsertion && GetRootElement()) {
     NS_WARNING("Inserting root element when we already have one");
@@ -7738,14 +7781,15 @@ void Document::InsertChildBefore(nsIContent* aKid, nsIContent* aBeforeThis,
     return;
   }
 
-  nsINode::InsertChildBefore(aKid, aBeforeThis, aNotify, aRv);
+  nsINode::InsertChildBefore(aKid, aBeforeThis, aNotify, aRv, aOldParent);
   if (isElementInsertion && !aRv.Failed()) {
     CreateCustomContentContainerIfNeeded();
   }
 }
 
 void Document::RemoveChildNode(nsIContent* aKid, bool aNotify,
-                               const BatchRemovalState* aState) {
+                               const BatchRemovalState* aState,
+                               nsINode* aNewParent) {
   Maybe<mozAutoDocUpdate> updateBatch;
   const bool removingRoot = aKid->IsElement();
   if (removingRoot) {
@@ -7756,7 +7800,10 @@ void Document::RemoveChildNode(nsIContent* aKid, bool aNotify,
     // Notify early so that we can clear the cached element after notifying,
     // without having to slow down nsINode::RemoveChildNode.
     if (aNotify) {
-      MutationObservers::NotifyContentWillBeRemoved(this, aKid, {aState});
+      ContentRemoveInfo info;
+      info.mBatchRemovalState = aState;
+      info.mNewParent = aNewParent;
+      MutationObservers::NotifyContentWillBeRemoved(this, aKid, info);
       aNotify = false;
     }
 
@@ -7771,7 +7818,7 @@ void Document::RemoveChildNode(nsIContent* aKid, bool aNotify,
     mCachedRootElement = nullptr;
   }
 
-  nsINode::RemoveChildNode(aKid, aNotify);
+  nsINode::RemoveChildNode(aKid, aNotify, nullptr, aNewParent);
   MOZ_ASSERT(mCachedRootElement != aKid,
              "Stale pointer in mCachedRootElement, after we tried to clear it "
              "(maybe somebody called GetRootElement() too early?)");
@@ -8262,8 +8309,9 @@ void Document::SetScriptGlobalObject(
   // Now that we know what our window is, we can flush the CSP errors to the
   // Web Console. We are flushing all messages that occurred and were stored in
   // the queue prior to this point.
-  if (mCSP) {
-    static_cast<nsCSPContext*>(mCSP.get())->flushConsoleMessages();
+  if (nsIContentSecurityPolicy* csp =
+          PolicyContainer::GetCSP(mPolicyContainer)) {
+    nsCSPContext::Cast(csp)->flushConsoleMessages();
   }
 
   nsCOMPtr<nsIHttpChannelInternal> internalChannel =
@@ -8761,7 +8809,7 @@ void Document::CreateCustomContentContainerIfNeeded() {
     return;
   }
   RefPtr root = GetRootElement();
-  if (NS_WARN_IF(!root)) {
+  if (!root) {
     // We'll deal with it when we get a root element, if needed.
     return;
   }
@@ -12084,7 +12132,7 @@ void Document::Destroy() {
   RemoveCustomContentContainer();
 
   ReportDocumentUseCounters();
-  ReportShadowedHTMLDocumentProperties();
+  ReportShadowedProperties();
   ReportLCP();
   SetDevToolsWatchingDOMMutations(false);
 
@@ -12683,7 +12731,7 @@ nsresult Document::CloneDocHelper(Document* clone) const {
           mTiming->CloneNavigationTime(nsDocShell::Cast(clone->GetDocShell()));
       clone->SetNavigationTiming(timing);
     }
-    clone->SetCsp(mCSP);
+    clone->SetPolicyContainer(mPolicyContainer);
   }
 
   // Now ensure that our clone has the same URI, base URI, and principal as us.
@@ -17042,6 +17090,13 @@ void Document::PropagateImageUseCounters(Document* aReferencingDocument) {
   aReferencingDocument->mChildDocumentUseCounters |= mChildDocumentUseCounters;
 }
 
+void Document::CollectShadowedHTMLFormElementProperty(const nsAString& aName) {
+  if (mShadowedHTMLFormElementProperties.Length() <= 10 &&
+      !mShadowedHTMLFormElementProperties.Contains(aName)) {
+    mShadowedHTMLFormElementProperties.AppendElement(aName);
+  }
+}
+
 bool Document::HasScriptsBlockedBySandbox() const {
   return mSandboxFlags & SANDBOXED_SCRIPTS;
 }
@@ -17177,7 +17232,7 @@ void Document::ReportDocumentUseCounters() {
   }
 }
 
-void Document::ReportShadowedHTMLDocumentProperties() {
+void Document::ReportShadowedProperties() {
   if (!ShouldIncludeInTelemetry()) {
     return;
   }
@@ -17186,6 +17241,13 @@ void Document::ReportShadowedHTMLDocumentProperties() {
     glean::security::ShadowedHtmlDocumentPropertyAccessExtra extra = {};
     extra.name = Some(NS_ConvertUTF16toUTF8(property));
     glean::security::shadowed_html_document_property_access.Record(Some(extra));
+  }
+
+  for (const nsString& property : mShadowedHTMLFormElementProperties) {
+    glean::security::ShadowedHtmlFormElementPropertyAccessExtra extra = {};
+    extra.name = Some(NS_ConvertUTF16toUTF8(property));
+    glean::security::shadowed_html_form_element_property_access.Record(
+        Some(extra));
   }
 }
 
@@ -17920,9 +17982,22 @@ bool Document::HasScrollLinkedEffect() const {
 
 void Document::SetSHEntryHasUserInteraction(bool aHasInteraction) {
   if (RefPtr<WindowContext> topWc = GetTopLevelWindowContext()) {
-    // Setting has user interction on a discarded browsing context has
+    // Setting has user interaction on a discarded browsing context has
     // no effect.
     Unused << topWc->SetSHEntryHasUserInteraction(aHasInteraction);
+  }
+
+  // For when SHIP is not enabled, we need to get the current entry
+  // directly from the docshell.
+  nsIDocShell* docShell = GetDocShell();
+  if (docShell) {
+    nsCOMPtr<nsISHEntry> currentEntry;
+    bool oshe;
+    nsresult rv =
+        docShell->GetCurrentSHEntry(getter_AddRefs(currentEntry), &oshe);
+    if (!NS_WARN_IF(NS_FAILED(rv)) && currentEntry) {
+      currentEntry->SetHasUserInteraction(aHasInteraction);
+    }
   }
 }
 
@@ -17950,16 +18025,6 @@ void Document::SetUserHasInteracted() {
   // Thus, whenever we create a new SH entry for this document,
   // this flag is reset.
   if (!GetSHEntryHasUserInteraction()) {
-    nsIDocShell* docShell = GetDocShell();
-    if (docShell) {
-      nsCOMPtr<nsISHEntry> currentEntry;
-      bool oshe;
-      nsresult rv =
-          docShell->GetCurrentSHEntry(getter_AddRefs(currentEntry), &oshe);
-      if (!NS_WARN_IF(NS_FAILED(rv)) && currentEntry) {
-        currentEntry->SetHasUserInteraction(true);
-      }
-    }
     SetSHEntryHasUserInteraction(true);
   }
 
@@ -18032,8 +18097,8 @@ void Document::NotifyUserGestureActivation(
     wc->NotifyUserGestureActivation(aModifiers);
   });
 
-  // If there has been a user activation, mark the current session history
-  // entry as having been interacted with.
+  // If there has been a user activation, mark the current session history entry
+  // as having been interacted with.
   SetSHEntryHasUserInteraction(true);
 }
 

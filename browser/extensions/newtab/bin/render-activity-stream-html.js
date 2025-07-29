@@ -126,6 +126,22 @@ function templateHTML(options) {
       type="module"
       src="chrome://global/content/elements/moz-radio-group.mjs"
     ></script>
+    <script
+      async
+      type="module"
+      src="chrome://global/content/elements/moz-select.mjs"
+    ></script>
+    <script
+      async
+      type="module"
+      src="chrome://global/content/elements/moz-reorderable-list.mjs"
+    ></script>
+    </script>
+      <script
+      async
+      type="module"
+      src="chrome://global/content/elements/panel-list.js"
+    ></script>
   </body>
 </html>
 `.trimLeft();

@@ -2592,6 +2592,12 @@
   value: true
   mirror: always
 
+# Enable relaxed Custom Element names
+- name: dom.custom_elements.relaxed_names.enabled
+  type: bool
+  value: true
+  mirror: always
+
 # Disable custom highlight API; implementation pending.
 - name: dom.customHighlightAPI.enabled
   type: RelaxedAtomicBool
@@ -2616,19 +2622,19 @@
   value: false
   mirror: always
 
-# Disable cookie-store API
+# Enable cookie-store API
 - name: dom.cookieStore.enabled
   type: RelaxedAtomicBool
   value: true
   mirror: always
 
-# Disable cookie-store manager API
+# Enable cookie-store manager API
 - name: dom.cookieStore.manager.enabled
   type: RelaxedAtomicBool
   value: true
   mirror: always
 
-# Disable extra cookie-store properties
+# Enable extra cookie-store properties
 - name: dom.cookieStore.extra.enabled
   type: RelaxedAtomicBool
   value: @IS_NIGHTLY_BUILD@
@@ -3628,6 +3634,12 @@
   value: true
   mirror: always
 
+# Enable ParentNode.moveBefore().
+- name: dom.movebefore.enabled
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # Whether to dispatch mutation events.
 - name: dom.mutation_events.enabled
   type: bool
@@ -3732,7 +3744,7 @@
 # information should be collected / submitted.
 - name: dom.private-attribution.submission.enabled
   type: bool
-  value: @IS_NOT_ANDROID@
+  value: false
   mirror: always
 
 # Is support for Window.paintWorklet enabled?
@@ -3912,11 +3924,7 @@
 # See bug 1953860 for background and additional details.
 - name: dom.quotaManager.loadQuotaFromSecondaryCache
   type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) && !defined(ANDROID)
-  value: true
-#else
-  value: false
-#endif
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Should we check build ID as part of the cache validation?
@@ -4051,11 +4059,7 @@
 # L2 cache to all users on all platforms in the release channel.
 - name: dom.quotaManager.originInitialization.updateOriginMetadata
   type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) && !defined(ANDROID)
-  value: true
-#else
-  value: false
-#endif
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # A pref that is used to slow down origin initialization for testing purposes.
@@ -4562,18 +4566,6 @@
   value: false
   mirror: always
 
-# pref controls "heavyweight" network discoverable `identity` credentials being exposed
-- name: dom.security.credentialmanagement.identity.heavyweight.enabled
-  type: bool
-  value: false
-  mirror: always
-
-# pref controls storable "lightweight" `identity` credentials being exposed
-- name: dom.security.credentialmanagement.identity.lightweight.enabled
-  type: bool
-  value: false
-  mirror: always
-
 # pref controls `identity` credential UI for testing. When true, UI is not shown and
 # the first option in the account and provider lists are chosen
 - name: dom.security.credentialmanagement.identity.select_first_in_ui_lists
@@ -4598,12 +4590,6 @@
 - name: dom.security.credentialmanagement.identity.reject_delay.duration_ms
   type: uint32_t
   value: 120000
-  mirror: always
-
-# Enforce origin check whenever a content process tries to set a document URI
-- name: dom.security.setdocumenturi
-  type: bool
-  value: true
   mirror: always
 
 # Whether or not selection events on text controls are enabled.
@@ -4636,6 +4622,11 @@
   type: bool
   value: true
   mirror: once
+
+- name: dom.serviceworkers.loadingCachedScriptOnWorkerThread.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 - name: dom.serviceWorkers.enabled
   type: RelaxedAtomicBool
@@ -4721,11 +4712,6 @@
 - name: dom.workers.throttling.enabled
   type: bool
   value: @IS_NIGHTLY_BUILD@
-  mirror: once
-
-- name: dom.workers.timeoutmanager
-  type: bool
-  value: true
   mirror: once
 
 - name: dom.workers.serialized-sab-access
@@ -4929,12 +4915,6 @@
 - name: dom.storage.requestFinalization.pauseOnDOMFileThreadMs
   type: RelaxedAtomicUint32
   value: 0
-  mirror: always
-
-# This enables the SVGPathSegment APIs
-- name: dom.svg.pathSegment.enabled
-  type: bool
-  value: true
   mirror: always
 
 # For area and anchor elements with target=_blank and no rel set to
@@ -5475,7 +5455,7 @@
 # This is based on https://github.com/mfreed7/shadow-dom-selection
 - name: dom.shadowdom.selection_across_boundary.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Mimic Chrome's window.getSelection().toString() behaviour
@@ -7277,6 +7257,11 @@
   value: false
 #endif
 
+# Enable dithering in DrawTargetSkia
+- name: gfx.skia.dithering
+  type: bool
+  value: false
+  mirror: once
 
 # Log severe performance warnings to the error console and profiles.
 # This should be use to quickly find which slow paths are used by test cases.
@@ -8027,6 +8012,11 @@
 
 #if defined(MOZ_WAYLAND)
 - name: gfx.wayland.hdr
+  type: bool
+  value: false
+  mirror: once
+
+- name: gfx.wayland.hdr.force-enabled
   type: bool
   value: false
   mirror: once
@@ -9144,11 +9134,7 @@
 # both unrolling and peeling.
 - name: javascript.options.wasm_unroll_loops
   type: bool
-#ifdef NIGHTLY_BUILD
   value: true
-#else
-  value: false
-#endif
   mirror: always
   set_spidermonkey_pref: always
 
@@ -9261,6 +9247,15 @@
 #else
   value: true
 #endif
+  mirror: always
+  set_spidermonkey_pref: always
+
+
+# Whether to treat "ducktyped" error objects like `{message: "<message>", fileName: "foo", lineNumber: 1}`
+# as real Error objects during exception handling.
+- name: javascript.options.ducktyped_errors
+  type: bool
+  value: false
   mirror: always
   set_spidermonkey_pref: always
 
@@ -9672,20 +9667,6 @@
   mirror: always
   rust: true
 
-# Whether to respect align-content on blocks.
-- name: layout.css.align-content.blocks.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Whether content-box and stroke-box are enabled for transform-box.
-- name: layout.css.transform-box-content-stroke.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Whether @starting-style is enabled?
 - name: layout.css.starting-style-at-rules.enabled
   type: RelaxedAtomicBool
@@ -9722,6 +9703,19 @@
   value: false
   mirror: always
   rust: true
+
+# Whether the `-moz-appearance` property is exposed to content.
+- name: layout.css.moz-appearance.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+  rust: true
+
+# Whether the `-moz-appearance` property is exposed to CSSStyleProperties.
+- name: layout.css.moz-appearance.webidl.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 # This pref controls whether the `prefers-color-scheme` value of iframes images
 # reacts to the embedder `color-scheme` in content.
@@ -9776,12 +9770,6 @@
 - name: layout.css.accent-color.darkening-target-contrast-ratio
   type: AtomicFloat
   value: 6.0
-  mirror: always
-
-# Whether the `animation-composition` in css-animations-2 is enabled.
-- name: layout.css.animation-composition.enabled
-  type: bool
-  value: true
   mirror: always
 
 # Is the codepath for using cached scrollbar styles enabled?
@@ -9863,13 +9851,6 @@
   mirror: always
   rust: true
 
-# Whether the `contain-intrinsic-size` CSS property is enabled
-- name: layout.css.contain-intrinsic-size.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Is support for GeometryUtils.convert*FromNode enabled?
 - name: layout.css.convertFromNode.enabled
   type: bool
@@ -9921,13 +9902,6 @@
 
 # Is support for variation fonts enabled?
 - name: layout.css.font-variations.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Is support for the size-adjust @font-face descriptor enabled?
-- name: layout.css.size-adjust.enabled
   type: RelaxedAtomicBool
   value: true
   mirror: always
@@ -10012,26 +9986,6 @@
   mirror: always
   rust: true
 
-# Is support for :has() enabled?
-- name: layout.css.has-selector.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Whether the `:has-slotted` pseudo class is enabled
-- name: layout.css.has-slotted-selector.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Is support for CSS hyphenate-limit-chars enabled?
-- name: layout.css.hyphenate-limit-chars.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Is support for CSS initial-letter property enabled?
 - name: layout.css.initial-letter.enabled
   type: bool
@@ -10093,15 +10047,9 @@
 # Is support for CSS overflow: -moz-hidden-unscrollable enabled
 - name: layout.css.overflow-moz-hidden-unscrollable.enabled
   type: RelaxedAtomicBool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: false
   mirror: always
   rust: true
-
-# Is support for overscroll-behavior enabled?
-- name: layout.css.overscroll-behavior.enabled
-  type: bool
-  value: true
-  mirror: always
 
 # Enables support for @margin rules.
 - name: layout.css.margin-rules.enabled
@@ -10239,6 +10187,13 @@
   value: 0.750f
   mirror: always
 
+# Whether container scroll-state queries are enabled.
+- name: layout.css.scroll-state.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
+
 # Stylo thread-pool size.
 # Negative means auto, 0 disables the thread-pool (main-thread styling), other
 # numbers override as specified.
@@ -10310,22 +10265,10 @@
   value: 50 # 50%
   mirror: always
 
-# Whether the `hanging` and `each-line` keywords are supported by `text-indent`
-- name: layout.css.text-indent-keywords.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Whether the "modern" uppercase mapping of ß to ẞ (rather than SS) is used.
 - name: layout.css.text-transform.uppercase-eszett.enabled
   type: bool
   value: false
-  mirror: always
-
-- name: layout.css.text-wrap-balance.enabled
-  type: bool
-  value: true
   mirror: always
 
 # Maximum number of lines to try balancing.
@@ -10739,13 +10682,6 @@
   mirror: always
   rust: true
 
-# Is 'content:none' supported on (non-pseudo) elements?
-- name: layout.css.element-content-none.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-  rust: true
-
 # Whether we want scrollbar-width: thin to behave as scrollbar-width: auto.
 - name: layout.css.scrollbar-width-thin.disabled
   type: RelaxedAtomicBool
@@ -10757,13 +10693,6 @@
   type: RelaxedAtomicBool
   value: false
   mirror: always
-
-# Whether supports() conditions in @import is enabled
-- name: layout.css.import-supports.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
 
 # Whether :-moz-broken is supported in content.
 - name: layout.css.moz-broken.content.enabled
@@ -10879,12 +10808,6 @@
   value: false
   mirror: always
 
-# Whether to draw images in CSS backgrounds if we only have a partial frame.
-- name: layout.display_partial_background_images
-  type: bool
-  value: true
-  mirror: always
-
 # Controls whether nsRefreshDriver::IsInHighRateMode() may ever return true.
 - name: layout.expose_high_rate_mode_from_refreshdriver
   type: bool
@@ -10947,6 +10870,12 @@
 # Whether to disable support for stretching operators with STIXGeneral fonts.
 # macos still has the deprecated STIXGeneral font pre-installed.
 - name: mathml.stixgeneral_operator_stretching.disabled
+  type: bool
+  value: true
+  mirror: always
+
+# Whether to render all unknown mathml elements as <mrow>
+- name: mathml.unknown_mrow.enabled
   type: bool
   value: true
   mirror: always
@@ -13150,7 +13079,7 @@
 # but still checks for capacity overflow and reports telemetry
 - name: network.cookie.chips.partitionLimitDryRun
   type: bool
-  value: true
+  value: false
   mirror: always
 
 # The actual CHIPS parition limit in bytes
@@ -13237,6 +13166,13 @@
 - name: network.cookie.block_nameless_with_equal_char
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# A Enable a workaround for XPCShell tests to avoid setting the cookies via
+# HttpChannelParent actor
+- name: network.cookie.skip_browsing_context_check_in_parent_for_testing
+  type: bool
+  value: false
   mirror: always
 
 # If we should attempt to race the cache and network.
@@ -14277,10 +14213,10 @@
   value: true
   mirror: always
 
-# This preference controls blocking requests for Local Network Access (LNA) failures.
+# This preference controls if we need to fail transactions for Local Network Access (LNA) failures.
 - name: network.lna.blocking
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # When this pref is true, loads triggered by scripts classified as trackers
@@ -14679,7 +14615,7 @@
 # Whether to use the connection info that is generated asynchronously.
 - name: network.trr.async_connInfo
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # If true, a failed TRR request that contains an extended DNS error
@@ -15007,6 +14943,22 @@
   mirror: always
   rust: true
 
+# Maximum number of UDP segments in a single UDP GSO send. Noop if
+# network.http.http3.use_nspr_for_io is true.
+- name: network.http.http3.max_gso_segments
+  type: RelaxedAtomicUint32
+#ifdef XP_WIN
+  # Disable GSO on Windows.
+  #
+  # See https://bugzilla.mozilla.org/show_bug.cgi?id=1979279 for details.
+  value: 1
+#else
+  # Current industry standard. Likely worth tuning.
+  value: 10
+#endif
+  mirror: always
+  rust: true
+
 - name: network.http.http3.enable_qlog
   type: RelaxedAtomicBool
   value: false
@@ -15122,6 +15074,14 @@
 
 # When network.http.http3.sni-slicing is set, TLS SNI slicing is enabled.
 - name: network.http.http3.sni-slicing
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+  rust: true
+
+# Whether to enable Zlib for H3/QUIC certificate compression.
+# Has no effect unless security.tls.enable_certificate_compression_zlib is true.
+- name: network.http.http3.enable_certificate_compression_zlib
   type: RelaxedAtomicBool
   value: true
   mirror: always
@@ -15967,7 +15927,8 @@
   mirror: always
 
 # Enable the "convenience" allow-list for less severe site breakage (e.g. embeds
-# or images missing).
+# or images missing). "convenience" can only be enabled if "baseline" is
+# enabled. When "baseline" is false this pref is ignored.
 - name: privacy.trackingprotection.allow_list.convenience.enabled
   type: bool
   value: true
@@ -16527,12 +16488,6 @@
   value: 100
   mirror: always
 
-# Time span in seconds for reporting limit.
-- name: security.csp.reporting.limit.timespan
-  type: uint32_t
-  value: 2
-  mirror: always
-
 # Enable/disable CSP reporting (report-uri and report-to)
 - name: security.csp.reporting.enabled
   type: bool
@@ -16608,26 +16563,8 @@
   value: false
   mirror: always
 
-# Prerequisite pref for mixed display content upgrading (images, audio, video).
+# Pref for mixed display content upgrading (images, audio, video).
 - name: security.mixed_content.upgrade_display_content
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Upgrade images when the upgrading is enabled.
-- name: security.mixed_content.upgrade_display_content.image
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Upgrade audio when the upgrading is enabled.
-- name: security.mixed_content.upgrade_display_content.audio
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Upgrade videos when the upgrading is enabled.
-- name: security.mixed_content.upgrade_display_content.video
   type: RelaxedAtomicBool
   value: true
   mirror: always
@@ -17313,12 +17250,12 @@
 
 - name: security.integrity_policy.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 - name: security.integrity_policy.stylesheet.enabled
   type: RelaxedAtomicBool
-  value: true
+  value: false
   mirror: always
 
 # Which mechanism the secret decoder ring should use for encryption. Decryption
@@ -17391,13 +17328,6 @@
   value: false
   mirror: always
 
-# This pref controls whether the `prefers-color-scheme` value of SVG images
-# reacts to the embedder `color-scheme` in content.
-- name: svg.embedder-prefers-color-scheme.content.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Enables the 'context-fill' and 'context-stroke' keywords for particular
 # domains. We expect this list to be Mozilla-controlled properties, since the
 # 'context-*' keywords are not part of any spec. We expect to remove this
@@ -17422,12 +17352,6 @@
 - name: svg.Moz2D.strokeBounds.enabled
   type: bool
   value: @IS_NIGHTLY_BUILD@
-  mirror: always
-
-# Whether SVGGraphicsElement.nearestViewportElement and SVGGraphicsElement.farthestViewportElement are enabled.
-- name: svg.nearestAndFarthestViewportElement.enabled
-  type: bool
-  value: false
   mirror: always
 
 # Whether SVGAElement.text is enabled.
@@ -17476,12 +17400,6 @@
 - name: svg.use-element.recursive-clone-limit
   type: uint32_t
   value: 8
-  mirror: always
-
-# Whether <svg:use> with a data: URL as href is allowed
-- name: svg.use-element.data-url-href.allowed
-  type: bool
-  value: false
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -18961,6 +18879,28 @@
 - name: widget.windows.window_occlusion_tracking_session_lock.enabled
   type: bool
   value: true
+  mirror: always
+
+# tiltX and tiltY are supported only by expensive pen tablet devices.  For
+# testing the feature, enabling this pref overrides tiltX and tiltY values to
+# non-zero values.
+- name: widget.windows.pen.tilt_override.enabled
+  type: bool
+  value: false
+  mirror: always
+
+# twist is supported only by expensive pen tablet devices.  For testing the
+# feature, enabling this overrides twist value to non-zero values.
+- name: widget.windows.pen.twist_override.enabled
+  type: bool
+  value: false
+  mirror: always
+
+# How frequently updates the value of tiltX, tiltY and/or twist value of pen
+# input which can be enabled by the above prefs.
+- name: widget.widnows.pen.override.number_of_preserver_value
+  type: RelaxedAtomicUint32
+  value: 75
   mirror: always
 
 # Whether this device is capable of entering tablet mode. (Win11+ only.)

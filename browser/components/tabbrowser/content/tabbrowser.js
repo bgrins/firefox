@@ -1859,7 +1859,7 @@
         tabGroup,
         targetTab,
         triggeringPrincipal,
-        csp,
+        policyContainer,
         userContextId,
         fromExternal,
       } = {}
@@ -1932,7 +1932,7 @@
             loadFlags,
             postData: postDatas && postDatas[0],
             triggeringPrincipal,
-            csp,
+            policyContainer,
           });
         } catch (e) {
           // Ignore failure in case a URI is wrong, so we can continue
@@ -1948,7 +1948,7 @@
           userContextId,
           triggeringPrincipal,
           bulkOrderedOpen: multiple,
-          csp,
+          policyContainer,
           fromExternal,
           tabGroup,
         };
@@ -1971,7 +1971,7 @@
           userContextId,
           triggeringPrincipal,
           bulkOrderedOpen: true,
-          csp,
+          policyContainer,
           fromExternal,
           tabGroup,
         };
@@ -2026,11 +2026,16 @@
       // Unhook our progress listener.
       let filter = this._tabFilters.get(tab);
       let listener = this._tabListeners.get(tab);
-      aBrowser.webProgress.removeProgressListener(filter);
-      filter.removeProgressListener(listener);
+      // We should always have a filter, but if we fail to create a content
+      // process when creating a new tab, we can end up here trying to switch
+      // remoteness to load about:tabcrashed, without a filter/listener.
+      if (filter) {
+        aBrowser.webProgress.removeProgressListener(filter);
+        filter.removeProgressListener(listener);
+      }
 
       // We'll be creating a new listener, so destroy the old one.
-      listener.destroy();
+      listener?.destroy();
 
       let oldDroppedLinkHandler = aBrowser.droppedLinkHandler;
       let oldUserTypedValue = aBrowser.userTypedValue;
@@ -2078,6 +2083,12 @@
       // load
       listener = new TabProgressListener(tab, aBrowser, true, false);
       this._tabListeners.set(tab, listener);
+      if (!filter) {
+        filter = Cc[
+          "@mozilla.org/appshell/component/browser-status-filter;1"
+        ].createInstance(Ci.nsIWebProgress);
+        this._tabFilters.set(tab, filter);
+      }
       filter.addProgressListener(listener, Ci.nsIWebProgress.NOTIFY_ALL);
 
       // Restore the progress listener.
@@ -2701,7 +2712,7 @@
         tabGroup,
         triggeringPrincipal,
         userContextId,
-        csp,
+        policyContainer,
         skipLoad = createLazyBrowser,
         insertTab = true,
         globalHistoryOptions,
@@ -2891,7 +2902,7 @@
           referrerInfo,
           charset,
           postData,
-          csp,
+          policyContainer,
           globalHistoryOptions,
           triggeringRemoteType,
           schemelessInput,
@@ -3473,7 +3484,7 @@
         referrerInfo,
         charset,
         postData,
-        csp,
+        policyContainer,
         globalHistoryOptions,
         triggeringRemoteType,
         schemelessInput,
@@ -3539,7 +3550,7 @@
             referrerInfo,
             charset,
             postData,
-            csp,
+            policyContainer,
             globalHistoryOptions,
             triggeringRemoteType,
             schemelessInput,
@@ -6237,7 +6248,6 @@
         return;
       }
 
-      aGroup.collapsed = false;
       this.#handleTabMove(aTab, () => aGroup.appendChild(aTab), metricsContext);
       this.removeFromMultiSelectedTabs(aTab);
       this.tabContainer._notifyBackgroundTab(aTab);
@@ -9158,6 +9168,12 @@ var TabContextMenu = {
     contextUnpinSelectedTabs.hidden =
       !this.contextTab.pinned || !this.multiselected;
 
+    // Build Ask Chat items
+    TabContextMenu.GenAI.buildTabMenu(
+      document.getElementById("context_askChat"),
+      this
+    );
+
     // Move Tab items
     let contextMoveTabOptions = document.getElementById(
       "context_moveTabOptions"
@@ -9525,3 +9541,7 @@ var TabContextMenu = {
     }
   },
 };
+
+ChromeUtils.defineESModuleGetters(TabContextMenu, {
+  GenAI: "resource:///modules/GenAI.sys.mjs",
+});

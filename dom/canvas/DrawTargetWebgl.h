@@ -18,6 +18,7 @@
 #include "mozilla/ipc/SharedMemoryMapping.h"
 #include "mozilla/layers/LayersTypes.h"
 
+#include <memory>
 #include <vector>
 
 namespace WGR {
@@ -38,6 +39,7 @@ class WebGLVertexArray;
 
 namespace gl {
 class GLContext;
+class SharedSurface;
 }  // namespace gl
 
 namespace layers {
@@ -97,6 +99,13 @@ class SharedContextWebgl : public mozilla::RefCounted<SharedContextWebgl>,
   void OnMemoryPressure();
 
   void ClearCaches();
+
+  std::shared_ptr<gl::SharedSurface> ExportSharedSurface(
+      layers::TextureType aTextureType, SourceSurface* aSurface);
+
+  already_AddRefed<SourceSurface> ImportSurfaceDescriptor(
+      const layers::SurfaceDescriptor& aDesc, const gfx::IntSize& aSize,
+      SurfaceFormat aFormat);
 
  private:
   SharedContextWebgl();
@@ -200,6 +209,8 @@ class SharedContextWebgl : public mozilla::RefCounted<SharedContextWebgl>,
   RefPtr<WebGLFramebuffer> mScratchFramebuffer;
   // Scratch framebuffer used to wrap textures for sub-targets.
   RefPtr<WebGLFramebuffer> mTargetFramebuffer;
+  // Scratch framebuffer used to wrap textures for export.
+  RefPtr<WebGLFramebuffer> mExportFramebuffer;
   // Buffer filled with zero data for initializing textures.
   RefPtr<WebGLBuffer> mZeroBuffer;
   size_t mZeroSize = 0;
@@ -213,6 +224,8 @@ class SharedContextWebgl : public mozilla::RefCounted<SharedContextWebgl>,
   CompositionOp mLastCompositionOp = CompositionOp::OP_SOURCE;
   // The constant blend color used for the blending operation.
   Maybe<DeviceColor> mLastBlendColor;
+  // The blend stage of the current blending operation.
+  uint8_t mLastBlendStage = 0;
 
   // The cached scissor state. Operations that rely on scissor state should
   // take care to enable or disable the cached scissor state as necessary.
@@ -259,7 +272,10 @@ class SharedContextWebgl : public mozilla::RefCounted<SharedContextWebgl>,
 
   void BlendFunc(GLenum aSrcFactor, GLenum aDstFactor);
   void SetBlendState(CompositionOp aOp,
-                     const Maybe<DeviceColor>& aColor = Nothing());
+                     const Maybe<DeviceColor>& aColor = Nothing(),
+                     uint8_t aStage = 0);
+  uint8_t RequiresMultiStageBlend(const DrawOptions& aOptions,
+                                  DrawTargetWebgl* aDT = nullptr);
 
   void SetClipRect(const Rect& aClipRect);
   void SetClipRect(const IntRect& aClipRect) { SetClipRect(Rect(aClipRect)); }
@@ -296,7 +312,7 @@ class SharedContextWebgl : public mozilla::RefCounted<SharedContextWebgl>,
 
   bool SupportsPattern(const Pattern& aPattern);
 
-  void EnableScissor(const IntRect& aRect);
+  void EnableScissor(const IntRect& aRect, bool aForce = false);
   void DisableScissor(bool aForce = false);
 
   void SetTexFilter(WebGLTexture* aTex, bool aFilter);
@@ -313,7 +329,8 @@ class SharedContextWebgl : public mozilla::RefCounted<SharedContextWebgl>,
       const IntRect& aRect, TextureHandle* aHandle = nullptr);
 
   already_AddRefed<WebGLTexture> GetCompatibleSnapshot(
-      SourceSurface* aSurface, RefPtr<TextureHandle>* aHandle = nullptr) const;
+      SourceSurface* aSurface, RefPtr<TextureHandle>* aHandle = nullptr,
+      bool aCheckTarget = true) const;
   bool IsCompatibleSurface(SourceSurface* aSurface) const;
 
   bool UploadSurface(DataSourceSurface* aData, SurfaceFormat aFormat,
@@ -342,7 +359,8 @@ class SharedContextWebgl : public mozilla::RefCounted<SharedContextWebgl>,
                      bool aAccelOnly = false, bool aForceUpdate = false,
                      const StrokeOptions* aStrokeOptions = nullptr,
                      const PathVertexRange* aVertexRange = nullptr,
-                     const Matrix* aRectXform = nullptr);
+                     const Matrix* aRectXform = nullptr,
+                     uint8_t aBlendStage = 0);
   bool BlurRectPass(const Rect& aDestRect, const Point& aSigma,
                     bool aHorizontal, const RefPtr<SourceSurface>& aSurface,
                     const IntRect& aSourceRect,
@@ -679,6 +697,10 @@ class DrawTargetWebgl : public DrawTarget, public SupportsWeakPtr {
       layers::TextureType aTextureType, layers::RemoteTextureId aId,
       layers::RemoteTextureOwnerId aOwnerId,
       layers::RemoteTextureOwnerClient* aOwnerClient = nullptr);
+
+  already_AddRefed<SourceSurface> ImportSurfaceDescriptor(
+      const layers::SurfaceDescriptor& aDesc, const gfx::IntSize& aSize,
+      SurfaceFormat aFormat) override;
 
   void OnMemoryPressure() { mSharedContext->OnMemoryPressure(); }
 

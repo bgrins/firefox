@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.Intent.ACTION_MAIN
 import android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -54,7 +55,6 @@ import mozilla.components.browser.state.action.MediaSessionAction
 import mozilla.components.browser.state.action.SearchAction
 import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.browser.state.selector.getNormalOrPrivateTabs
-import mozilla.components.browser.state.selector.privateTabs
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.WebExtensionState
 import mozilla.components.concept.engine.EngineSession
@@ -163,8 +163,6 @@ import org.mozilla.fenix.theme.ThemeManager
 import org.mozilla.fenix.utils.AccessibilityUtils.announcePrivateModeForAccessibility
 import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.utils.changeAppLauncherIcon
-import java.lang.Math
-import java.lang.System
 import java.lang.ref.WeakReference
 import java.util.Locale
 
@@ -199,6 +197,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             store = components.core.store,
             context = this@HomeActivity,
             fragmentManager = supportFragmentManager,
+            navController = navHost.navController,
             onLinkClicked = { url, shouldOpenInBrowser ->
                 if (shouldOpenInBrowser) {
                     openToBrowserAndLoad(
@@ -215,6 +214,13 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
                     )
                 }
             },
+        )
+    }
+
+    private val aboutHomeBinding by lazy {
+        AboutHomeBinding(
+            browserStore = components.core.store,
+            navController = navHost.navController,
         )
     }
 
@@ -425,12 +431,6 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         setContentView(binding.root)
         ProfilerMarkers.addListenerForOnGlobalLayout(components.core.engine, this, binding.root)
 
-        // Must be after we set the content view
-        if (isVisuallyComplete) {
-            components.performance.visualCompletenessQueue
-                .attachViewToRunVisualCompletenessQueueLater(WeakReference(binding.rootContainer))
-        }
-
         privateNotificationObserver = PrivateNotificationFeature(
             applicationContext,
             components.core.store,
@@ -498,6 +498,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             extensionsProcessDisabledForegroundController,
             extensionsProcessDisabledBackgroundController,
             serviceWorkerSupport,
+            aboutHomeBinding,
             crashReporterBinding,
             TopSitesRefresher(
                 settings = settings(),
@@ -526,7 +527,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         components.core.requestInterceptor.setNavigationController(navHost.navController)
 
         supportFragmentManager.registerFragmentLifecycleCallbacks(
-            StatusBarColorManager(themeManager, this),
+            StatusBarColorManager(themeManager, this, settings().isTabStripEnabled),
             true,
         )
 
@@ -537,22 +538,6 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         if (!settings().hiddenEnginesRestored) {
             settings().hiddenEnginesRestored = true
             components.useCases.searchUseCases.restoreHiddenSearchEngines.invoke()
-        }
-
-        // To assess whether the Pocket stories are to be downloaded or not multiple SharedPreferences
-        // are read possibly needing to load them on the current thread. Move that to a background thread.
-        lifecycleScope.launch(IO) {
-            if (settings().showPocketRecommendationsFeature) {
-                components.core.pocketStoriesService.startPeriodicContentRecommendationsRefresh()
-            }
-
-            if (!settings().hasPocketSponsoredStoriesProfileMigrated) {
-                migratePocketSponsoredStoriesProfile(components.core.pocketStoriesService)
-            }
-
-            if (settings().showPocketSponsoredStories) {
-                components.core.pocketStoriesService.startPeriodicSponsoredContentsRefresh()
-            }
         }
 
         components.backgroundServices.accountManagerAvailableQueue.runIfReadyOrQueue {
@@ -610,16 +595,6 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         openSetDefaultBrowserOption()
     }
 
-    /**
-     * Deletes the user's existing sponsored stories profile as part of the migration to the
-     * MARS API.
-     */
-    @VisibleForTesting
-    internal fun migratePocketSponsoredStoriesProfile(pocketStoriesService: PocketStoriesService) {
-        pocketStoriesService.deleteProfile()
-        settings().hasPocketSponsoredStoriesProfileMigrated = true
-    }
-
     private fun checkAndExitPiP() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode && intent != null) {
             // Exit PiP mode
@@ -637,6 +612,26 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             safeIntent,
             binding.rootContainer,
         )
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        when (requestCode) {
+            REQUEST_CODE_CAMERA_PERMISSIONS -> {
+                if (grantResults.isNotEmpty() &&
+                    grantResults[0] == PackageManager.PERMISSION_DENIED
+                    ) {
+                    // if denied, do not relaunch QR Scanner
+                    components.appStore.dispatch(AppAction.QrScannerAction.QrScannerRequestConsumed)
+                } else {
+                    components.appStore.dispatch(AppAction.QrScannerAction.QrScannerRequested)
+                }
+            }
+            else -> super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        }
     }
 
     @CallSuper
@@ -1267,17 +1262,16 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             intent = intent,
             store = components.core.store,
             settings = components.settings,
-            modeDidChange = { newMode ->
+            onModeChange = { newMode ->
                 updateSecureWindowFlags(newMode)
-                addPrivateHomepageTabIfNecessary(newMode)
-                themeManager.currentTheme = newMode
-            },
-            updateAppStateMode = { newMode ->
+
+                if (::themeManager.isInitialized) {
+                    themeManager.currentTheme = newMode
+                }
+
                 components.appStore.dispatch(AppAction.BrowsingModeManagerModeChanged(mode = newMode))
             },
-        ).also {
-            updateSecureWindowFlags(it.mode)
-        }
+        )
     }
 
     private fun updateSecureWindowFlags(mode: BrowsingMode = browsingModeManager.mode) {
@@ -1285,22 +1279,6 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             window.addFlags(FLAG_SECURE)
         } else {
             window.clearFlags(FLAG_SECURE)
-        }
-    }
-
-    /**
-     * When switching to private mode, add a private homepage tab if there are
-     * no private tabs available.
-     *
-     * @param mode The new [BrowsingMode] that is being swapped to.
-     */
-    @VisibleForTesting
-    internal fun addPrivateHomepageTabIfNecessary(mode: BrowsingMode) {
-        if (settings().enableHomepageAsNewTab &&
-            mode.isPrivate &&
-            components.core.store.state.privateTabs.isEmpty()
-        ) {
-            components.useCases.fenixBrowserUseCases.addNewHomepageTab(private = true)
         }
     }
 
@@ -1415,20 +1393,14 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
     }
 
     @VisibleForTesting
-    internal fun showCrashReporter(crashIDs: Array<String>?, ctxt: Context) {
+    internal fun showCrashReporter(crashIDs: List<String>?, ctxt: Context) {
         if (!settings().useNewCrashReporterDialog) {
-            return
-        }
-
-        var now = Math.round(System.currentTimeMillis() / DateUtils.SECOND_IN_MILLIS * 1.0)
-        if (now < settings().crashPullDontShowBefore) {
             return
         }
 
         UnsubmittedCrashDialog(
             dispatcher = { action ->
                 components.appStore.dispatch(AppAction.CrashActionWrapper(action))
-                settings().crashPullDontShowBefore = now + CRASH_PULL_SILENCE_FOR_DAYS_IN_S
             },
             crashIDs = crashIDs,
             localContext = ctxt,
@@ -1448,6 +1420,6 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         // telemetry purposes.
         private const val PWA_RECENTLY_USED_THRESHOLD = DateUtils.DAY_IN_MILLIS * 30L
 
-        private const val CRASH_PULL_SILENCE_FOR_DAYS_IN_S = 7L * 86400L
+        private const val REQUEST_CODE_CAMERA_PERMISSIONS = 1
     }
 }

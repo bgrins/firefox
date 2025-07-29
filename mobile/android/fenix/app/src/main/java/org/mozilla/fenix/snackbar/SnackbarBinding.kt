@@ -5,6 +5,7 @@
 package org.mozilla.fenix.snackbar
 
 import android.content.Context
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.NavController
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.CoroutineDispatcher
@@ -81,6 +82,15 @@ class SnackbarBinding(
                 when (state) {
                     is SnackbarState.BookmarkAdded -> {
                         showBookmarkAddedSnackbarFor(state)
+                    }
+
+                    is SnackbarState.ReportSent -> {
+                        snackbarDelegate.show(
+                            text = R.string.crash_reporting_snack_bar_message,
+                            duration = Snackbar.LENGTH_SHORT,
+                        )
+
+                        appStore.dispatch(SnackbarAction.SnackbarShown)
                     }
 
                     is SnackbarState.BookmarkDeleted -> {
@@ -295,6 +305,7 @@ class SnackbarBinding(
                         snackbarDelegate.show(
                             text = context.getString(R.string.download_item_status_failed),
                             subText = state.fileName,
+                            subTextOverflow = TextOverflow.MiddleEllipsis,
                             duration = DOWNLOAD_SNACKBAR_DURATION_MS,
                             action = if (FeatureFlags.showLiveDownloads) {
                                 context.getString(R.string.download_failed_snackbar_action_details)
@@ -315,6 +326,7 @@ class SnackbarBinding(
                         snackbarDelegate.show(
                             text = context.getString(R.string.download_completed_snackbar),
                             subText = state.downloadState.fileName,
+                            subTextOverflow = TextOverflow.MiddleEllipsis,
                             duration = DOWNLOAD_SNACKBAR_DURATION_MS,
                             action = context.getString(R.string.download_completed_snackbar_action_open),
                         ) {
@@ -338,7 +350,7 @@ class SnackbarBinding(
                         snackbarDelegate.show(
                             text = getCannotOpenFileErrorMessage(
                                 context,
-                                state.downloadState,
+                                state.downloadState.filePath,
                             ),
                             duration = DOWNLOAD_SNACKBAR_DURATION_MS,
                         )
@@ -352,7 +364,7 @@ class SnackbarBinding(
                         appStore.dispatch(SnackbarAction.SnackbarShown)
                     }
 
-                    SnackbarState.None -> Unit
+                    is SnackbarState.None -> Unit
                 }
             }
     }

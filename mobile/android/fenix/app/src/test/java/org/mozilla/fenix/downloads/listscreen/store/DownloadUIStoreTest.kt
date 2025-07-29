@@ -111,7 +111,7 @@ class DownloadUIStoreTest {
     }
 
     @Test
-    fun `WHEN all items are visible and all items selected for removal THEN all items are selected`() {
+    fun `WHEN all items are visible and all items are selected for removal THEN all completed download items are selected`() {
         val inProgressFileItem = fileItem(status = FileItem.Status.Downloading(progress = 0.5f))
         val pausedFileItem = fileItem(status = FileItem.Status.Paused(progress = 0.5f))
         val failedFileItem = fileItem(status = FileItem.Status.Failed)
@@ -134,12 +134,7 @@ class DownloadUIStoreTest {
             items = listOf(
                 fileItem1, fileItem2, inProgressFileItem, pausedFileItem, failedFileItem, initiatedFileItem,
             ),
-            mode = DownloadUIState.Mode.Editing(
-                setOf(
-                    fileItem1, fileItem2, inProgressFileItem, pausedFileItem, failedFileItem,
-                    initiatedFileItem,
-                ),
-            ),
+            mode = DownloadUIState.Mode.Editing(selectedItems = setOf(fileItem1, fileItem2)),
             pendingDeletionIds = emptySet(),
         )
 
@@ -924,7 +919,7 @@ class DownloadUIStoreTest {
     }
 
     @Test
-    fun `WHEN PauseDownload action is dispatched on a downloading download THEN only its item status is PAUSED`() {
+    fun `WHEN the PauseDownload action is dispatched on a downloading download THEN the state remains the same`() {
         val fileItems = listOf(
             fileItem(
                 id = "1",
@@ -945,32 +940,12 @@ class DownloadUIStoreTest {
         )
         val store = DownloadUIStore(initialState)
 
-        val expectedFileItems = listOf(
-            fileItem(
-                id = "1",
-                status = FileItem.Status.Paused(progress = 0.5f),
-            ),
-            fileItem(
-                id = "2",
-                status = FileItem.Status.Downloading(progress = 0.5f),
-            ),
-        )
-        val expectedState = DownloadUIState(
-            items = expectedFileItems,
-            mode = DownloadUIState.Mode.Normal,
-            pendingDeletionIds = emptySet(),
-            userSelectedContentTypeFilter = FileItem.ContentTypeFilter.All,
-            searchQuery = "",
-        )
-
-        store.dispatch(
-            DownloadUIAction.PauseDownload(downloadId = "1"),
-        )
-        assertEquals(expectedState, store.state)
+        store.dispatch(DownloadUIAction.PauseDownload(downloadId = "1"))
+        assertEquals(initialState, store.state)
     }
 
     @Test
-    fun `WHEN ResumeDownload action is dispatched on a paused download THEN only its item status is DOWNLOADING`() {
+    fun `WHEN the ResumeDownload action is dispatched on a paused download THEN the state remains the same`() {
         val fileItems = listOf(
             fileItem(
                 id = "1",
@@ -991,32 +966,12 @@ class DownloadUIStoreTest {
         )
         val store = DownloadUIStore(initialState)
 
-        val expectedFileItems = listOf(
-            fileItem(
-                id = "1",
-                status = FileItem.Status.Downloading(progress = 0.5f),
-            ),
-            fileItem(
-                id = "2",
-                status = FileItem.Status.Downloading(progress = 0.5f),
-            ),
-        )
-        val expectedState = DownloadUIState(
-            items = expectedFileItems,
-            mode = DownloadUIState.Mode.Normal,
-            pendingDeletionIds = emptySet(),
-            userSelectedContentTypeFilter = FileItem.ContentTypeFilter.All,
-            searchQuery = "",
-        )
-
-        store.dispatch(
-            DownloadUIAction.ResumeDownload(downloadId = "1"),
-        )
-        assertEquals(expectedState, store.state)
+        store.dispatch(DownloadUIAction.ResumeDownload(downloadId = "1"))
+        assertEquals(initialState, store.state)
     }
 
     @Test
-    fun `WHEN CancelDownload action is dispatched on an initiated download THEN only its item status is CANCELLED`() {
+    fun `WHEN the CancelDownload action is dispatched on an initiated download THEN the state remains the same`() {
         val fileItems = listOf(
             fileItem(
                 id = "1",
@@ -1037,30 +992,12 @@ class DownloadUIStoreTest {
         )
         val store = DownloadUIStore(initialState)
 
-        val expectedFileItems = listOf(
-            fileItem(
-                id = "1",
-                status = FileItem.Status.Cancelled,
-            ),
-            fileItem(
-                id = "2",
-                status = FileItem.Status.Downloading(progress = 0.5f),
-            ),
-        )
-        val expectedState = DownloadUIState(
-            items = expectedFileItems,
-            mode = DownloadUIState.Mode.Normal,
-            pendingDeletionIds = emptySet(),
-            userSelectedContentTypeFilter = FileItem.ContentTypeFilter.All,
-            searchQuery = "",
-        )
-
         store.dispatch(DownloadUIAction.CancelDownload("1"))
-        assertEquals(expectedState, store.state)
+        assertEquals(initialState, store.state)
     }
 
     @Test
-    fun `WHEN CancelDownload action is dispatched on a downloading download THEN only its item status is CANCELLED`() {
+    fun `WHEN the CancelDownload action is dispatched on a downloading download THEN the state remains the same`() {
         val fileItems = listOf(
             fileItem(
                 id = "1",
@@ -1081,30 +1018,12 @@ class DownloadUIStoreTest {
         )
         val store = DownloadUIStore(initialState)
 
-        val expectedFileItems = listOf(
-            fileItem(
-                id = "1",
-                status = FileItem.Status.Cancelled,
-            ),
-            fileItem(
-                id = "2",
-                status = FileItem.Status.Downloading(progress = 0.5f),
-            ),
-        )
-        val expectedState = DownloadUIState(
-            items = expectedFileItems,
-            mode = DownloadUIState.Mode.Normal,
-            pendingDeletionIds = emptySet(),
-            userSelectedContentTypeFilter = FileItem.ContentTypeFilter.All,
-            searchQuery = "",
-        )
-
         store.dispatch(DownloadUIAction.CancelDownload("1"))
-        assertEquals(expectedState, store.state)
+        assertEquals(initialState, store.state)
     }
 
     @Test
-    fun `WHEN CancelDownload action is dispatched on a paused download THEN only its item status is CANCELLED`() {
+    fun `WHEN the CancelDownload action is dispatched on a paused download THEN the state remains the same`() {
         val fileItems = listOf(
             fileItem(
                 id = "1",
@@ -1125,30 +1044,12 @@ class DownloadUIStoreTest {
         )
         val store = DownloadUIStore(initialState)
 
-        val expectedFileItems = listOf(
-            fileItem(
-                id = "1",
-                status = FileItem.Status.Cancelled,
-            ),
-            fileItem(
-                id = "2",
-                status = FileItem.Status.Downloading(progress = 0.5f),
-            ),
-        )
-        val expectedState = DownloadUIState(
-            items = expectedFileItems,
-            mode = DownloadUIState.Mode.Normal,
-            pendingDeletionIds = emptySet(),
-            userSelectedContentTypeFilter = FileItem.ContentTypeFilter.All,
-            searchQuery = "",
-        )
-
         store.dispatch(DownloadUIAction.CancelDownload("1"))
-        assertEquals(expectedState, store.state)
+        assertEquals(initialState, store.state)
     }
 
     @Test
-    fun `WHEN CancelDownload action is dispatched on a failed download THEN only its item status is CANCELLED`() {
+    fun `WHEN the CancelDownload action is dispatched on a failed download THEN the state remains the same`() {
         val fileItems = listOf(
             fileItem(
                 id = "1",
@@ -1169,30 +1070,12 @@ class DownloadUIStoreTest {
         )
         val store = DownloadUIStore(initialState)
 
-        val expectedFileItems = listOf(
-            fileItem(
-                id = "1",
-                status = FileItem.Status.Cancelled,
-            ),
-            fileItem(
-                id = "2",
-                status = FileItem.Status.Downloading(progress = 0.5f),
-            ),
-        )
-        val expectedState = DownloadUIState(
-            items = expectedFileItems,
-            mode = DownloadUIState.Mode.Normal,
-            pendingDeletionIds = emptySet(),
-            userSelectedContentTypeFilter = FileItem.ContentTypeFilter.All,
-            searchQuery = "",
-        )
-
         store.dispatch(DownloadUIAction.CancelDownload("1"))
-        assertEquals(expectedState, store.state)
+        assertEquals(initialState, store.state)
     }
 
     @Test
-    fun `WHEN RetryDownload action is dispatched on a failed download THEN only its item status is DOWNLOADING`() {
+    fun `WHEN the RetryDownload action is dispatched on a failed download THEN the state remains the same`() {
         val fileItems = listOf(
             fileItem(
                 id = "1",
@@ -1212,27 +1095,9 @@ class DownloadUIStoreTest {
             searchQuery = "",
         )
         val store = DownloadUIStore(initialState)
-
-        val expectedFileItems = listOf(
-            fileItem(
-                id = "1",
-                status = FileItem.Status.Initiated,
-            ),
-            fileItem(
-                id = "2",
-                status = FileItem.Status.Downloading(progress = 0.5f),
-            ),
-        )
-        val expectedState = DownloadUIState(
-            items = expectedFileItems,
-            mode = DownloadUIState.Mode.Normal,
-            pendingDeletionIds = emptySet(),
-            userSelectedContentTypeFilter = FileItem.ContentTypeFilter.All,
-            searchQuery = "",
-        )
 
         store.dispatch(DownloadUIAction.RetryDownload("1"))
-        assertEquals(expectedState, store.state)
+        assertEquals(initialState, store.state)
     }
 
     private fun provideDownloadUIStore(

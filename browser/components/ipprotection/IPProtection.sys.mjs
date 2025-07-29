@@ -7,9 +7,12 @@ import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  ASRouter: "resource:///modules/asrouter/ASRouter.sys.mjs",
   CustomizableUI: "resource:///modules/CustomizableUI.sys.mjs",
   IPProtectionPanel:
     "resource:///modules/ipprotection/IPProtectionPanel.sys.mjs",
+  requestIdleCallback: "resource://gre/modules/Timer.sys.mjs",
+  cancelIdleCallback: "resource://gre/modules/Timer.sys.mjs",
 });
 
 const FXA_WIDGET_ID = "fxa-toolbar-menu-button";
@@ -38,15 +41,16 @@ class IPProtectionWidget {
 
   constructor() {
     this.updateEnabled = this.#updateEnabled.bind(this);
+    this.sendReadyTrigger = this.#sendReadyTrigger.bind(this);
   }
 
   /**
    * Creates the widget if the feature is enabled and
    * the widget has not already been created.
    *
-   * @param {Window} window - new browser window.
+   * @param {Window} _window - new browser window.
    */
-  init(window) {
+  init(_window) {
     if (!this.isEnabled) {
       return;
     }
@@ -54,8 +58,6 @@ class IPProtectionWidget {
     if (!this.#created) {
       this.#createWidget();
     }
-
-    lazy.IPProtectionPanel.loadCustomElements(window);
   }
 
   /**
@@ -63,6 +65,7 @@ class IPProtectionWidget {
    */
   uninit() {
     this.#destroyWidget();
+    this.#panels = new WeakMap();
     this.#destroyed = true;
   }
 
@@ -137,17 +140,22 @@ class IPProtectionWidget {
     this.#destroyPanels();
     lazy.CustomizableUI.destroyWidget(IPProtectionWidget.WIDGET_ID);
     this.#created = false;
+    if (this.readyTriggerIdleCallback) {
+      lazy.cancelIdleCallback(this.readyTriggerIdleCallback);
+    }
   }
 
   /**
-   * Remove all panels.
+   * Remove all panels content, but maintains state for if the widget is
+   * re-enabled in the same window.
+   *
+   * Panels will only be removed from the WeakMap if their window is closed.
    */
   #destroyPanels() {
     let panels = ChromeUtils.nondeterministicGetWeakMapKeys(this.#panels);
     for (let panel of panels) {
       this.#panels.get(panel).destroy();
     }
-    this.#panels = new WeakMap();
   }
 
   /**
@@ -198,8 +206,10 @@ class IPProtectionWidget {
    */
   #onBeforeCreated(doc) {
     let { ownerGlobal } = doc;
-    let panel = new lazy.IPProtectionPanel(ownerGlobal);
-    this.#panels.set(ownerGlobal, panel);
+    if (!this.#panels.has(ownerGlobal)) {
+      let panel = new lazy.IPProtectionPanel(ownerGlobal);
+      this.#panels.set(ownerGlobal, panel);
+    }
   }
 
   /**
@@ -208,7 +218,21 @@ class IPProtectionWidget {
    *
    * @param {XULElement} _toolbaritem - the widget toolbaritem.
    */
-  #onCreated(_toolbaritem) {}
+  #onCreated(_toolbaritem) {
+    this.readyTriggerIdleCallback = lazy.requestIdleCallback(
+      this.sendReadyTrigger
+    );
+  }
+
+  async #sendReadyTrigger() {
+    await lazy.ASRouter.waitForInitialized;
+    const win = Services.wm.getMostRecentBrowserWindow();
+    const browser = win?.gBrowser?.selectedBrowser;
+    await lazy.ASRouter.sendTriggerMessage({
+      browser,
+      id: "ipProtectionReady",
+    });
+  }
 }
 
 const IPProtection = new IPProtectionWidget();

@@ -35,6 +35,7 @@ export class PrefsFeed {
     this.onPocketExperimentUpdated = this.onPocketExperimentUpdated.bind(this);
     this.onSmartShortcutsExperimentUpdated =
       this.onSmartShortcutsExperimentUpdated.bind(this);
+    this.onWidgetsUpdated = this.onWidgetsUpdated.bind(this);
   }
 
   onPrefChanged(name, value) {
@@ -133,6 +134,22 @@ export class PrefsFeed {
     );
   }
 
+  /**
+   * Handler for when widget experiment data updates.
+   */
+  onWidgetsUpdated() {
+    const value = lazy.NimbusFeatures.newtabWidgets.getAllVariables() || {};
+    this.store.dispatch(
+      ac.BroadcastToContent({
+        type: at.PREF_CHANGED,
+        data: {
+          name: "widgetsConfig",
+          value,
+        },
+      })
+    );
+  }
+
   init() {
     this._prefs.observeBranch(this);
     lazy.NimbusFeatures.newtab.onUpdate(this.onExperimentUpdated);
@@ -140,6 +157,7 @@ export class PrefsFeed {
     lazy.NimbusFeatures.newtabSmartShortcuts.onUpdate(
       this.onSmartShortcutsExperimentUpdated
     );
+    lazy.NimbusFeatures.newtabWidgets.onUpdate(this.onWidgetsUpdated);
 
     // Get the initial value of each activity stream pref
     const values = {};
@@ -205,6 +223,8 @@ export class PrefsFeed {
       lazy.NimbusFeatures.pocketNewtab.getAllVariables() || {};
     values.smartShortcutsConfig =
       lazy.NimbusFeatures.newtabSmartShortcuts.getAllVariables() || {};
+    values.widgetsConfig =
+      lazy.NimbusFeatures.newtabWidgets.getAllVariables() || {};
     this._setBoolPref(values, "logowordmark.alwaysVisible", false);
     this._setBoolPref(values, "feeds.section.topstories", false);
     this._setBoolPref(values, "discoverystream.enabled", false);
@@ -216,7 +236,11 @@ export class PrefsFeed {
     this._setBoolPref(values, "discoverystream.isCollectionDismissible", false);
     this._setBoolPref(values, "discoverystream.hardcoded-basic-layout", false);
     this._setBoolPref(values, "discoverystream.personalization.enabled", false);
-    this._setBoolPref(values, "discoverystream.personalization.override");
+    this._setBoolPref(
+      values,
+      "discoverystream.personalization.override",
+      false
+    );
     this._setStringPref(
       values,
       "discoverystream.personalization.modelKeys",
@@ -249,6 +273,7 @@ export class PrefsFeed {
     lazy.NimbusFeatures.newtabSmartShortcuts.offUpdate(
       this.onSmartShortcutsExperimentUpdated
     );
+    lazy.NimbusFeatures.newtabWidgets.offUpdate(this.onWidgetsUpdated);
     if (this.geo === "") {
       Services.obs.removeObserver(this, lazy.Region.REGION_TOPIC);
     }

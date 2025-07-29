@@ -26,6 +26,7 @@ import mozilla.components.feature.sitepermissions.SitePermissionsRules.AutoplayA
 import mozilla.components.lib.crash.store.CrashReportOption
 import mozilla.components.support.ktx.android.content.PreferencesHolder
 import mozilla.components.support.ktx.android.content.booleanPreference
+import mozilla.components.support.ktx.android.content.doesDeviceHaveHinge
 import mozilla.components.support.ktx.android.content.floatPreference
 import mozilla.components.support.ktx.android.content.intPreference
 import mozilla.components.support.ktx.android.content.longPreference
@@ -39,7 +40,6 @@ import org.mozilla.fenix.FeatureFlags
 import org.mozilla.fenix.GleanMetrics.TopSites
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
-import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.settings.counterPreference
 import org.mozilla.fenix.components.settings.featureFlagPreference
 import org.mozilla.fenix.components.settings.lazyFeatureFlagPreference
@@ -47,8 +47,10 @@ import org.mozilla.fenix.components.toolbar.ToolbarPosition
 import org.mozilla.fenix.debugsettings.addresses.SharedPrefsAddressesDebugLocalesRepository
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.getPreferenceKey
+import org.mozilla.fenix.ext.pixelSizeFor
 import org.mozilla.fenix.home.pocket.ContentRecommendationsFeatureHelper
 import org.mozilla.fenix.home.topsites.TopSitesConfigConstants.TOP_SITES_MAX_COUNT
+import org.mozilla.fenix.iconpicker.AppIcon
 import org.mozilla.fenix.nimbus.CookieBannersSection
 import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.nimbus.HomeScreenSection
@@ -568,10 +570,15 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     // this setting for the duration of the session only, i.e. `SecretDebugMenuTrigger` should never
     // be able to (indirectly) change the value of the shared pref.
     var showSecretDebugMenuThisSession: Boolean = false
-        get() = field || preferences.getBoolean(
-            appContext.getPreferenceKey(R.string.pref_key_persistent_debug_menu),
-            false,
-        )
+        get() = field || isDebugMenuPersistentlyRevealed
+
+    /**
+     * Preference for determining whether the debug menu setting is revealed persistently
+     */
+    val isDebugMenuPersistentlyRevealed: Boolean by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_persistent_debug_menu),
+        Config.channel.isDebug,
+    )
 
     val shouldShowSecurityPinWarningSync: Boolean
         get() = loginsSecureWarningSyncCount.underMaxCount()
@@ -1012,6 +1019,26 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         false,
     )
 
+    var strictAllowListBaselineTrackingProtection by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tracking_protection_strict_allow_list_baseline),
+        true,
+    )
+
+    var strictAllowListConvenienceTrackingProtection by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tracking_protection_strict_allow_list_convenience),
+        false,
+    )
+
+    var customAllowListBaselineTrackingProtection by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tracking_protection_custom_allow_list_baseline),
+        true,
+    )
+
+    var customAllowListConvenienceTrackingProtection by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tracking_protection_custom_allow_list_convenience),
+        false,
+    )
+
     @VisibleForTesting(otherwise = PRIVATE)
     fun setStrictETP() {
         preferences.edit {
@@ -1203,14 +1230,14 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         persistDefaultIfNotExists = true,
     )
 
-    var shouldUseSimpleToolbar by booleanPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_toolbar_simple),
-        default = true,
+    var shouldUseExpandedToolbar by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_toolbar_expanded),
+        default = false,
         persistDefaultIfNotExists = true,
     )
 
     val toolbarPosition: ToolbarPosition
-        get() = if (appContext.isTabStripEnabled()) {
+        get() = if (isTabStripEnabled) {
             ToolbarPosition.TOP
         } else if (shouldUseBottomToolbar) {
             ToolbarPosition.BOTTOM
@@ -1756,6 +1783,12 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         default = true,
     )
 
+    var isTabStripEnabled by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tab_strip_show),
+        default = FxNimbus.features.tabStrip.value().enabled &&
+                (isTabStripEligible(appContext) || FxNimbus.features.tabStrip.value().allowOnAllDevices),
+    )
+
     var isDynamicToolbarEnabled by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_dynamic_toolbar),
         default = true,
@@ -1780,6 +1813,18 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         default = true,
         featureFlag = isAddressFeatureEnabled(appContext),
     )
+
+    /**
+     * Returns true if the the device has the prerequisites to enable the tab strip.
+     */
+    private fun isTabStripEligible(context: Context): Boolean {
+        // Tab Strip is currently disabled on foldable devices, while we work on improving the
+        // Homescreen / Toolbar / Browser screen to better support the feature. There is also
+        // an emulator bug that causes the doesDeviceHaveHinge check to return true on emulators,
+        // causing it to be disabled on emulator tablets for API 34 and below.
+        // https://issuetracker.google.com/issues/296162661
+        return context.isLargeScreenSize() && !context.doesDeviceHaveHinge()
+    }
 
     /**
      * Show the Addresses autofill feature.
@@ -2063,15 +2108,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     /**
-     * Indicates if the Compose Homepage is enabled.
-     */
-    var enableComposeHomepage by lazyFeatureFlagPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_enable_compose_homepage),
-        default = { FxNimbus.features.composeHomepage.value().enabled },
-        featureFlag = true,
-    )
-
-    /**
      * Indicates if the menu redesign is enabled.
      */
     var enableMenuRedesign by lazyFeatureFlagPreference(
@@ -2247,19 +2283,19 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         val isToolbarAtBottom = toolbarPosition == ToolbarPosition.BOTTOM
 
         val microsurveyHeight = if (isMicrosurveyEnabled) {
-            appContext.resources.getDimensionPixelSize(R.dimen.browser_microsurvey_height)
+            appContext.pixelSizeFor(R.dimen.browser_microsurvey_height)
         } else {
             0
         }
 
         val toolbarHeight = if (isToolbarAtBottom) {
-            appContext.resources.getDimensionPixelSize(R.dimen.browser_toolbar_height)
+            browserToolbarHeight
         } else {
             0
         }
 
-        val navBarHeight = if (!shouldUseSimpleToolbar) {
-            appContext.resources.getDimensionPixelSize(R.dimen.browser_navbar_height)
+        val navBarHeight = if (shouldUseExpandedToolbar) {
+            appContext.pixelSizeFor(R.dimen.browser_navbar_height)
         } else {
             0
         }
@@ -2274,16 +2310,27 @@ class Settings(private val appContext: Context) : PreferencesHolder {
      */
     fun getTopToolbarHeight(includeTabStrip: Boolean): Int {
         val isToolbarAtTop = toolbarPosition == ToolbarPosition.TOP
-        val toolbarHeight = appContext.resources.getDimensionPixelSize(R.dimen.browser_toolbar_height)
+        val toolbarHeight = browserToolbarHeight
 
         return if (isToolbarAtTop && includeTabStrip) {
-            toolbarHeight + appContext.resources.getDimensionPixelSize(R.dimen.tab_strip_height)
+            toolbarHeight + appContext.pixelSizeFor(R.dimen.tab_strip_height)
         } else if (isToolbarAtTop) {
             toolbarHeight
         } else {
             0
         }
     }
+
+    /**
+     * Returns the height of the browser toolbar height.
+     */
+    val browserToolbarHeight: Int
+        get() = appContext.pixelSizeFor(
+            when (shouldUseComposableToolbar) {
+                true -> R.dimen.composable_browser_toolbar_height
+                false -> R.dimen.browser_toolbar_height
+            },
+        )
 
     /**
      * Returns the height of the bottom toolbar container.
@@ -2295,13 +2342,13 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         val isMicrosurveyEnabled = shouldShowMicrosurveyPrompt
 
         val microsurveyHeight = if (isMicrosurveyEnabled) {
-            appContext.resources.getDimensionPixelSize(R.dimen.browser_microsurvey_height)
+            appContext.pixelSizeFor(R.dimen.browser_microsurvey_height)
         } else {
             0
         }
 
-        val navBarHeight = if (!shouldUseSimpleToolbar) {
-            appContext.resources.getDimensionPixelSize(R.dimen.browser_navbar_height)
+        val navBarHeight = if (shouldUseExpandedToolbar) {
+            appContext.pixelSizeFor(R.dimen.browser_navbar_height)
         } else {
             0
         }
@@ -2398,15 +2445,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var crashReportCutoffDate by longPreference(
         appContext.getPreferenceKey(R.string.pref_key_crash_reporting_cutoff_date),
         default = 0,
-    )
-
-    /**
-     * A user preference indicating that crash reports should always be automatically sent. This can be updated
-     * through the unsubmitted crash dialog or through data choice preferences.
-     */
-    var crashReportAlwaysSend by booleanPreference(
-        appContext.getPreferenceKey(R.string.pref_key_crash_reporting_always_report),
-        default = false,
     )
 
     /**
@@ -2580,6 +2618,14 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var distributionId by stringPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_distribution_id),
         default = "",
+    )
+
+    /**
+     * Suffix of the currently selected app icon (launcher alias).
+     */
+    var selectedAppIcon by stringPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_selected_app_icon),
+        default = AppIcon.AppDefault.aliasSuffix,
     )
 
     /**

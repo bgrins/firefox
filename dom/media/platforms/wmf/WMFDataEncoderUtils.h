@@ -22,6 +22,9 @@
   MOZ_LOG(                                        \
       mozilla::sPEMLog, mozilla::LogLevel::Error, \
       ("WMFMediaDataEncoder(0x%p)::%s: " arg, this, __func__, ##__VA_ARGS__))
+#define WMF_ENC_SLOGE(arg, ...)                       \
+  MOZ_LOG(mozilla::sPEMLog, mozilla::LogLevel::Error, \
+          ("WMFMediaDataEncoder: %s" arg, __func__, ##__VA_ARGS__))
 
 namespace mozilla {
 
@@ -31,12 +34,10 @@ extern LazyLogModule sPEMLog;
 
 GUID CodecToSubtype(CodecType aCodec);
 
-media::EncodeSupportSet CanCreateWMFEncoder(
-    CodecType aCodec, const gfx::IntSize& aFrameSize,
-    const EncoderConfig::CodecSpecific& aCodecSpecific);
+media::EncodeSupportSet CanCreateWMFEncoder(const EncoderConfig& aConfig);
 
 already_AddRefed<MediaByteBuffer> ParseH264Parameters(
-    nsTArray<uint8_t>& aHeader, const bool aAsAnnexB);
+    const nsTArray<uint8_t>& aHeader, const bool aAsAnnexB);
 uint32_t GetProfile(H264_PROFILE aProfileLevel);
 
 already_AddRefed<IMFMediaType> CreateInputType(EncoderConfig& aConfig);

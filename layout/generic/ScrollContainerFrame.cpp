@@ -73,6 +73,7 @@
 #include "mozilla/layers/ScrollingInteractionContext.h"
 #include "nsBidiPresUtils.h"
 #include "nsBidiUtils.h"
+#include "nsBlockFrame.h"
 #include "nsCOMPtr.h"
 #include "nsContainerFrame.h"
 #include "nsContentCreatorFunctions.h"
@@ -1396,7 +1397,7 @@ BaselineSharingGroup ScrollContainerFrame::GetDefaultBaselineSharingGroup()
 
 nscoord ScrollContainerFrame::SynthesizeFallbackBaseline(
     mozilla::WritingMode aWM, BaselineSharingGroup aBaselineGroup) const {
-  // Marign-end even for central baselines.
+  // Margin-end even for central baselines.
   if (aWM.IsLineInverted()) {
     return -GetLogicalUsedMargin(aWM).BStart(aWM);
   }
@@ -1408,17 +1409,19 @@ nscoord ScrollContainerFrame::SynthesizeFallbackBaseline(
 Maybe<nscoord> ScrollContainerFrame::GetNaturalBaselineBOffset(
     WritingMode aWM, BaselineSharingGroup aBaselineGroup,
     BaselineExportContext aExportContext) const {
-  // Block containers that are scrollable always have a last baseline
-  // that are synthesized from block-end margin edge.
+  // Block containers (except buttons) that are scrollable always have a last
+  // baseline that are synthesized from block-end margin edge.
   // Note(dshin): This behaviour is really only relevant to `inline-block`
   // alignment context. In the context of table/flex/grid alignment, first/last
   // baselines are calculated through `GetFirstLineBaseline`, which does
   // calculations of its own.
   // https://drafts.csswg.org/css-align/#baseline-export
   if (aExportContext == BaselineExportContext::LineLayout &&
-      aBaselineGroup == BaselineSharingGroup::Last &&
-      mScrolledFrame->IsBlockFrameOrSubclass()) {
-    return Some(SynthesizeFallbackBaseline(aWM, aBaselineGroup));
+      aBaselineGroup == BaselineSharingGroup::Last) {
+    if (nsBlockFrame* bf = do_QueryFrame(mScrolledFrame);
+        bf && !bf->IsButtonLike()) {
+      return Some(SynthesizeFallbackBaseline(aWM, aBaselineGroup));
+    }
   }
 
   if (StyleDisplay()->IsContainLayout()) {
@@ -3642,14 +3645,16 @@ class MOZ_RAII AutoContainsBlendModeCapturer {
   explicit AutoContainsBlendModeCapturer(nsDisplayListBuilder& aBuilder)
       : mBuilder(aBuilder),
         mSavedContainsBlendMode(aBuilder.ContainsBlendMode()) {
-    mBuilder.SetContainsBlendMode(false);
+    mBuilder.ClearStackingContextBits(
+        StackingContextBits::ContainsMixBlendMode);
   }
 
   bool CaptureContainsBlendMode() {
     // "Capture" the flag by extracting and clearing the ContainsBlendMode flag
     // on the builder.
-    bool capturedBlendMode = mBuilder.ContainsBlendMode();
-    mBuilder.SetContainsBlendMode(false);
+    const bool capturedBlendMode = mBuilder.ContainsBlendMode();
+    mBuilder.ClearStackingContextBits(
+        StackingContextBits::ContainsMixBlendMode);
     return capturedBlendMode;
   }
 
@@ -3661,8 +3666,13 @@ class MOZ_RAII AutoContainsBlendModeCapturer {
     // mode. In that case, we set the flag on the DL builder so that we restore
     // state to what it would have been without this RAII class on the stack.
     bool uncapturedContainsBlendMode = mBuilder.ContainsBlendMode();
-    mBuilder.SetContainsBlendMode(mSavedContainsBlendMode ||
-                                  uncapturedContainsBlendMode);
+    if (mSavedContainsBlendMode || uncapturedContainsBlendMode) {
+      mBuilder.SetStackingContextBits(
+          StackingContextBits::ContainsMixBlendMode);
+    } else {
+      mBuilder.ClearStackingContextBits(
+          StackingContextBits::ContainsMixBlendMode);
+    }
   }
 };
 

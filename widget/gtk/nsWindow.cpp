@@ -1957,7 +1957,8 @@ void nsWindow::UpdateWaylandPopupHierarchy() {
         // popups are adjacent.
         return false;
       }
-      if (popup->WaylandPopupFitsToplevelWindow()) {
+      if (popup->WaylandPopupIsFirst() &&
+          popup->WaylandPopupFitsToplevelWindow()) {
         // Avoid move-to-rect if our requested rect fits the toplevel.
         // This serves as an optimization, but also as a workaround for
         // https://gitlab.gnome.org/GNOME/gtk/-/issues/1986
@@ -1973,6 +1974,7 @@ void nsWindow::UpdateWaylandPopupHierarchy() {
         // Use it for first popups only due to another mutter bug
         // https://gitlab.gnome.org/GNOME/gtk/-/issues/5089
         // https://bugzilla.mozilla.org/show_bug.cgi?id=1784873
+        // And so that we can move-to-rect nested popups, see below.
         return false;
       }
       if (!popup->WaylandPopupIsFirst() &&
@@ -2301,16 +2303,14 @@ void nsWindow::NativeMoveResizeWaylandPopup(bool aMove, bool aResize) {
   mResizedAfterMoveToRect = false;
 
   bool trackedInHierarchy = WaylandPopupConfigure();
-
   // Read popup position from layout if it was moved or newly created.
   // This position is used by move-to-rect method as we need anchor and other
   // info to place popup correctly.
   // We need WaylandPopupConfigure() to be called before to have all needed
   // popup info in place (mainly the anchored flag).
-  if (aMove) {
+  if (aMove || !mPopupMoveToRectParams.mAnchorSet) {
     mPopupMoveToRectParams = WaylandPopupGetPositionFromLayout();
   }
-
   if (!trackedInHierarchy) {
     WaylandPopupSetDirectPosition();
     return;
@@ -3387,10 +3387,9 @@ void nsWindow::RecomputeBounds(MayChangeCsdMargin aMayChangeCsdMargin) {
   }
 
   // Sometimes the window manager gives us garbage sizes (way past the maximum
-  // texture size) causing crashes if we don't enforce size constraints again
-  // here.
+  // texture size) causing crashes if we don't enforce sane sizes here.
   auto unconstrainedBounds = mBounds;
-  ConstrainSize(&mBounds.width, &mBounds.height);
+  mBounds.SizeTo(GetSafeWindowSize(mBounds.Size()));
 
   LOG("bounds: %s -> %s (%s unconstrained)", ToString(oldBounds).c_str(),
       ToString(mBounds).c_str(), ToString(unconstrainedBounds).c_str());
@@ -4014,8 +4013,7 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
   // Our bounds may have changed after calling WillPaintWindow.  Clip
   // to the new bounds here.  The region is relative to this
   // window.
-  region.And(region,
-             LayoutDeviceIntRect(LayoutDeviceIntPoint(), GetClientSize()));
+  region.AndWith(LayoutDeviceIntRect(LayoutDeviceIntPoint(), GetClientSize()));
   if (region.IsEmpty()) {
     LOG("quit, region.IsEmpty()");
     return TRUE;
@@ -5514,8 +5512,17 @@ void nsWindow::OnWindowStateEvent(GtkWidget* aWidget,
   if (mSizeMode != oldSizeMode || mIsTiled != oldIsTiled) {
     RecomputeBounds(MayChangeCsdMargin::No);
   }
-  if (mSizeMode != oldSizeMode && mWidgetListener) {
-    mWidgetListener->SizeModeChanged(mSizeMode);
+  if (mSizeMode != oldSizeMode) {
+    if (mWidgetListener) {
+      mWidgetListener->SizeModeChanged(mSizeMode);
+    }
+    if (mSizeMode == nsSizeMode_Fullscreen ||
+        oldSizeMode == nsSizeMode_Fullscreen) {
+      if (mCompositorWidgetDelegate) {
+        mCompositorWidgetDelegate->NotifyFullscreenChanged(
+            mSizeMode == nsSizeMode_Fullscreen);
+      }
+    }
   }
 }
 
@@ -5577,21 +5584,21 @@ void nsWindow::RefreshScale(bool aRefreshScreen) {
   LOG("nsWindow::RefreshScale() GdkWindow scale %d refresh %d",
       gdk_window_get_scale_factor(mGdkWindow), aRefreshScreen);
 
+  MOZ_DIAGNOSTIC_ASSERT(mIsMapped && mGdkWindow);
+  int ceiledScale = gdk_window_get_scale_factor(mGdkWindow);
+  const bool scaleChanged = GdkCeiledScaleFactor() != ceiledScale;
+
 #ifdef MOZ_WAYLAND
   if (GdkIsWaylandDisplay()) {
     WaylandSurfaceLock lock(mSurface);
-    mSurface->SetCeiledScaleLocked(lock,
-                                   gdk_window_get_scale_factor(mGdkWindow));
+    mSurface->SetCeiledScaleLocked(lock, ceiledScale);
   }
 #endif
+  mCeiledScaleFactor = ceiledScale;
 
-  MOZ_DIAGNOSTIC_ASSERT(mIsMapped && mGdkWindow);
-  int ceiledScale = gdk_window_get_scale_factor(mGdkWindow);
-  bool scaleChanged = (mCeiledScaleFactor != ceiledScale);
   if (!scaleChanged) {
     return;
   }
-  mCeiledScaleFactor = ceiledScale;
 
   NotifyAPZOfDPIChange();
 
@@ -7059,8 +7066,14 @@ void nsWindow::UpdateOpaqueRegionInternal() {
 
       region = cairo_region_create();
 
+      const auto clientRegion =
+          LayoutDeviceIntRect(LayoutDeviceIntPoint(), GetClientSize());
       for (auto iter = mOpaqueRegion.RectIter(); !iter.Done(); iter.Next()) {
-        auto gdkRect = DevicePixelsToGdkRectRoundIn(iter.Get());
+        auto thisRect = iter.Get().Intersect(clientRegion);
+        if (thisRect.IsEmpty()) {
+          continue;
+        }
+        auto gdkRect = DevicePixelsToGdkRectRoundIn(thisRect);
         cairo_rectangle_int_t rect = {gdkRect.x + offset.x,
                                       gdkRect.y + offset.y, gdkRect.width,
                                       gdkRect.height};

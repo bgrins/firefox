@@ -190,12 +190,12 @@ class MOZ_RAII WarpCacheIRTranspiler : public WarpBuilderShared {
   uint64_t uint64StubField(uint32_t offset) {
     return static_cast<uint64_t>(stubInfo_->getStubRawInt64(stubData_, offset));
   }
-  Value valueStubField(uint32_t offset) {
+  ValueOrNurseryValueIndex valueStubField(uint32_t offset) {
     uint64_t raw =
         static_cast<uint64_t>(stubInfo_->getStubRawInt64(stubData_, offset));
     Value val = Value::fromRawBits(raw);
     MOZ_ASSERT_IF(val.isGCThing(), val.toGCThing()->isTenured());
-    return val;
+    return ValueOrNurseryValueIndex::fromValueOrNurseryIndex(val);
   }
   double doubleStubField(uint32_t offset) {
     uint64_t raw =
@@ -467,59 +467,16 @@ bool WarpCacheIRTranspiler::emitGuardShape(ObjOperandId objId,
   return true;
 }
 
-template <auto FuseMember, CompilationDependency::Type DepType>
-struct RealmFuseDependency final : public CompilationDependency {
-  RealmFuseDependency() : CompilationDependency(DepType) {}
-
-  virtual bool registerDependency(JSContext* cx,
-                                  const IonScriptKey& ionScript) override {
-    MOZ_ASSERT(checkDependency(cx));
-
-    return (cx->realm()->realmFuses.*FuseMember)
-        .addFuseDependency(cx, ionScript);
-  }
-
-  virtual UniquePtr<CompilationDependency> clone() const override {
-    return MakeUnique<RealmFuseDependency<FuseMember, DepType>>();
-  }
-
-  virtual bool checkDependency(JSContext* cx) override {
-    return (cx->realm()->realmFuses.*FuseMember).intact();
-  }
-
-  virtual bool operator==(const CompilationDependency& dep) const override {
-    return dep.type == type;
-  }
-};
-
 bool WarpCacheIRTranspiler::emitGuardFuse(RealmFuses::FuseIndex fuseIndex) {
-  // Register a compilation dependency (for invalidating realm fuses) or add a
-  // fuse guard (for other fuses).
   switch (fuseIndex) {
-    case RealmFuses::FuseIndex::OptimizeGetIteratorFuse: {
-      using Dependency =
-          RealmFuseDependency<&RealmFuses::optimizeGetIteratorFuse,
-                              CompilationDependency::Type::GetIterator>;
-      return mirGen().tracker.addDependency(Dependency());
-    }
-    case RealmFuses::FuseIndex::OptimizeArraySpeciesFuse: {
-      using Dependency =
-          RealmFuseDependency<&RealmFuses::optimizeArraySpeciesFuse,
-                              CompilationDependency::Type::ArraySpecies>;
-      return mirGen().tracker.addDependency(Dependency());
-    }
-    case RealmFuses::FuseIndex::OptimizeRegExpPrototypeFuse: {
-      using Dependency =
-          RealmFuseDependency<&RealmFuses::optimizeRegExpPrototypeFuse,
-                              CompilationDependency::Type::RegExpPrototype>;
-      return mirGen().tracker.addDependency(Dependency());
-    }
-    case RealmFuses::FuseIndex::OptimizeStringPrototypeSymbolsFuse: {
-      using Dependency = RealmFuseDependency<
-          &RealmFuses::optimizeStringPrototypeSymbolsFuse,
-          CompilationDependency::Type::StringPrototypeSymbols>;
-      return mirGen().tracker.addDependency(Dependency());
-    }
+    case RealmFuses::FuseIndex::OptimizeGetIteratorFuse:
+    case RealmFuses::FuseIndex::OptimizeArraySpeciesFuse:
+    case RealmFuses::FuseIndex::OptimizeTypedArraySpeciesFuse:
+    case RealmFuses::FuseIndex::OptimizeRegExpPrototypeFuse:
+    case RealmFuses::FuseIndex::OptimizeStringPrototypeSymbolsFuse:
+      // This is a no-op because WarpOracle has added a compilation dependency.
+      MOZ_ASSERT(RealmFuses::isInvalidatingFuse(fuseIndex));
+      return true;
     default:
       MOZ_ASSERT(!RealmFuses::isInvalidatingFuse(fuseIndex));
       auto* ins = MGuardFuse::New(alloc(), fuseIndex);
@@ -609,9 +566,10 @@ bool WarpCacheIRTranspiler::emitGuardHasGetterSetter(
     ObjOperandId objId, uint32_t idOffset, uint32_t getterSetterOffset) {
   MDefinition* obj = getOperand(objId);
   jsid id = idStubField(idOffset);
-  GetterSetter* gs = getterSetterStubField(getterSetterOffset);
+  ValueOrNurseryValueIndex val = valueStubField(getterSetterOffset);
+  MOZ_ASSERT_IF(val.isValue(), val.toValue().toGCThing()->is<GetterSetter>());
 
-  auto* ins = MGuardHasGetterSetter::New(alloc(), obj, id, gs);
+  auto* ins = MGuardHasGetterSetter::New(alloc(), obj, id, val);
   add(ins);
 
   setOperand(objId, ins);
@@ -1056,7 +1014,7 @@ bool WarpCacheIRTranspiler::emitGuardFixedSlotValue(ObjOperandId objId,
   MDefinition* obj = getOperand(objId);
 
   size_t offset = int32StubField(offsetOffset);
-  Value val = valueStubField(valOffset);
+  ValueOrNurseryValueIndex val = valueStubField(valOffset);
 
   uint32_t slotIndex = NativeObject::getFixedSlotIndexFromOffset(offset);
 
@@ -1074,7 +1032,7 @@ bool WarpCacheIRTranspiler::emitGuardDynamicSlotValue(ObjOperandId objId,
   MDefinition* obj = getOperand(objId);
 
   size_t offset = int32StubField(offsetOffset);
-  Value val = valueStubField(valOffset);
+  ValueOrNurseryValueIndex val = valueStubField(valOffset);
 
   size_t slotIndex = NativeObject::getDynamicSlotIndexFromOffset(offset);
 
@@ -1148,7 +1106,7 @@ bool WarpCacheIRTranspiler::emitGuardSpecificInt32(Int32OperandId numId,
 bool WarpCacheIRTranspiler::emitGuardSpecificValue(ValOperandId valId,
                                                    uint32_t expectedOffset) {
   MDefinition* val = getOperand(valId);
-  Value expected = valueStubField(expectedOffset);
+  ValueOrNurseryValueIndex expected = valueStubField(expectedOffset);
 
   auto* ins = MGuardValue::New(alloc(), val, expected);
   add(ins);
@@ -1478,6 +1436,16 @@ bool WarpCacheIRTranspiler::emitGuardInt32IsNonNegative(
   return true;
 }
 
+bool WarpCacheIRTranspiler::emitGuardIntPtrIsNonNegative(
+    IntPtrOperandId indexId) {
+  MDefinition* index = getOperand(indexId);
+
+  auto* ins = MGuardIntPtrIsNonNegative::New(alloc(), index);
+  add(ins);
+  setOperand(indexId, ins);
+  return true;
+}
+
 bool WarpCacheIRTranspiler::emitGuardIndexIsNotDenseElement(
     ObjOperandId objId, Int32OperandId indexId) {
   MDefinition* obj = getOperand(objId);
@@ -1715,6 +1683,14 @@ bool WarpCacheIRTranspiler::emitLoadInt32Constant(uint32_t valOffset,
                                                   Int32OperandId resultId) {
   int32_t val = int32StubField(valOffset);
   auto* valConst = constant(Int32Value(val));
+  return defineOperand(resultId, valConst);
+}
+
+bool WarpCacheIRTranspiler::emitLoadInt32AsIntPtrConstant(
+    uint32_t valOffset, IntPtrOperandId resultId) {
+  int32_t val = int32StubField(valOffset);
+  auto* valConst = MConstant::NewIntPtr(alloc(), intptr_t(val));
+  add(valConst);
   return defineOperand(resultId, valConst);
 }
 
@@ -2154,6 +2130,16 @@ bool WarpCacheIRTranspiler::emitLoadArrayBufferViewLengthDoubleResult(
   return true;
 }
 
+bool WarpCacheIRTranspiler::emitLoadArrayBufferViewLength(
+    ObjOperandId objId, IntPtrOperandId resultId) {
+  MDefinition* obj = getOperand(objId);
+
+  auto* length = MArrayBufferViewLength::New(alloc(), obj);
+  add(length);
+
+  return defineOperand(resultId, length);
+}
+
 bool WarpCacheIRTranspiler::emitLoadStringLengthResult(StringOperandId strId) {
   MDefinition* str = getOperand(strId);
 
@@ -2435,6 +2421,45 @@ bool WarpCacheIRTranspiler::emitLoadTypedArrayElementResult(
 
   pushResult(result);
   return true;
+}
+
+bool WarpCacheIRTranspiler::emitTypedArraySetResult(ObjOperandId targetId,
+                                                    ObjOperandId sourceId,
+                                                    IntPtrOperandId offsetId,
+                                                    bool canUseBitwiseCopy) {
+  MDefinition* target = getOperand(targetId);
+  MDefinition* source = getOperand(sourceId);
+  MDefinition* offset = getOperand(offsetId);
+
+  auto* targetLength = MArrayBufferViewLength::New(alloc(), target);
+  add(targetLength);
+
+  auto* sourceLength = MArrayBufferViewLength::New(alloc(), source);
+  add(sourceLength);
+
+  auto* guardedOffset = MGuardTypedArraySetOffset::New(
+      alloc(), offset, targetLength, sourceLength);
+  add(guardedOffset);
+
+  auto* ins = MTypedArraySet::New(alloc(), target, source, guardedOffset,
+                                  canUseBitwiseCopy);
+  addEffectful(ins);
+
+  pushResult(constant(UndefinedValue()));
+  return resumeAfter(ins);
+}
+
+bool WarpCacheIRTranspiler::emitTypedArraySubarrayResult(
+    ObjOperandId objId, IntPtrOperandId startId, IntPtrOperandId endId) {
+  MDefinition* obj = getOperand(objId);
+  MDefinition* start = getOperand(startId);
+  MDefinition* end = getOperand(endId);
+
+  auto* ins = MTypedArraySubarray::New(alloc(), obj, start, end);
+  addEffectful(ins);
+
+  pushResult(ins);
+  return resumeAfter(ins);
 }
 
 bool WarpCacheIRTranspiler::emitLinearizeForCharAccess(
@@ -4539,38 +4564,6 @@ bool WarpCacheIRTranspiler::emitArrayBufferViewByteOffsetDoubleResult(
   return true;
 }
 
-bool WarpCacheIRTranspiler::
-    emitResizableTypedArrayByteOffsetMaybeOutOfBoundsInt32Result(
-        ObjOperandId objId) {
-  MDefinition* obj = getOperand(objId);
-
-  auto* byteOffset =
-      MResizableTypedArrayByteOffsetMaybeOutOfBounds::New(alloc(), obj);
-  add(byteOffset);
-
-  auto* byteOffsetInt32 = MNonNegativeIntPtrToInt32::New(alloc(), byteOffset);
-  add(byteOffsetInt32);
-
-  pushResult(byteOffsetInt32);
-  return true;
-}
-
-bool WarpCacheIRTranspiler::
-    emitResizableTypedArrayByteOffsetMaybeOutOfBoundsDoubleResult(
-        ObjOperandId objId) {
-  MDefinition* obj = getOperand(objId);
-
-  auto* byteOffset =
-      MResizableTypedArrayByteOffsetMaybeOutOfBounds::New(alloc(), obj);
-  add(byteOffset);
-
-  auto* byteOffsetDouble = MIntPtrToDouble::New(alloc(), byteOffset);
-  add(byteOffsetDouble);
-
-  pushResult(byteOffsetDouble);
-  return true;
-}
-
 bool WarpCacheIRTranspiler::emitResizableTypedArrayLengthInt32Result(
     ObjOperandId objId) {
   MDefinition* obj = getOperand(objId);
@@ -4711,17 +4704,6 @@ bool WarpCacheIRTranspiler::emitResizableTypedArrayByteLengthDoubleResult(
 
   pushResult(postConversion);
   return resumeAfterUnchecked(postConversion);
-}
-
-bool WarpCacheIRTranspiler::emitTypedArrayElementSizeResult(
-    ObjOperandId objId) {
-  MDefinition* obj = getOperand(objId);
-
-  auto* ins = MTypedArrayElementSize::New(alloc(), obj);
-  add(ins);
-
-  pushResult(ins);
-  return true;
 }
 
 bool WarpCacheIRTranspiler::emitResizableDataViewByteLengthInt32Result(

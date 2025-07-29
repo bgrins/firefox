@@ -886,6 +886,12 @@ export class TelemetryFeed {
         // Note that Feature Highlight CLICK events are covered via newtab.tooltipClick Glean event
         const { feature } = action.data.value ?? {};
 
+        if (!feature) {
+          throw new Error(
+            `Feature ID parameter is missing from ${action.data?.event}`
+          );
+        }
+
         if (action.data.event === "FEATURE_HIGHLIGHT_DISMISS") {
           Glean.newtab.featureHighlightDismiss.record({
             newtab_visit_id: session.session_id,
@@ -1307,9 +1313,6 @@ export class TelemetryFeed {
     const {
       card_type,
       corpus_item_id,
-      is_section_followed,
-      received_rank,
-      recommended_at,
       report_reason,
       scheduled_corpus_item_id,
       section_position,
@@ -1321,19 +1324,24 @@ export class TelemetryFeed {
 
     if (session) {
       switch (action.type) {
-        case "REPORT_CONTENT_OPEN":
-          Glean.newtab.reportContentOpen.record({
-            newtab_visit_id: session.session_id,
-          });
+        case "REPORT_CONTENT_OPEN": {
+          if (!this.privatePingEnabled) {
+            return;
+          }
+
+          const gleanData = {
+            corpus_item_id,
+            scheduled_corpus_item_id,
+          };
+
+          Glean.newtabContent.reportContentOpen.record(gleanData);
+
           break;
-        case "REPORT_CONTENT_SUBMIT":
-          Glean.newtab.reportContentSubmit.record({
+        }
+        case "REPORT_CONTENT_SUBMIT": {
+          const gleanData = {
             card_type,
             corpus_item_id,
-            is_section_followed,
-            newtab_visit_id: session.session_id,
-            received_rank,
-            recommended_at,
             report_reason,
             scheduled_corpus_item_id,
             section_position,
@@ -1341,8 +1349,13 @@ export class TelemetryFeed {
             title,
             topic,
             url,
-          });
+          };
+
+          if (this.privatePingEnabled) {
+            Glean.newtabContent.reportContentSubmit.record(gleanData);
+          }
           break;
+        }
       }
     }
   }

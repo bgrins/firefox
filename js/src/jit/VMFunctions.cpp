@@ -187,7 +187,6 @@ struct TypeToRootType<Handle<T*>> {
       case TraceKind::RegExpShared:
       case TraceKind::GetterSetter:
       case TraceKind::PropMap:
-      case TraceKind::SmallBuffer:
         MOZ_CRASH("Unexpected trace kind");
     }
   }
@@ -947,7 +946,7 @@ void PostWriteBarrier(JSRuntime* rt, js::gc::Cell* cell) {
   rt->gc.storeBuffer().putWholeCellDontCheckLast(cell);
 }
 
-static const size_t MAX_WHOLE_CELL_BUFFER_SIZE = 4096;
+static const size_t MAX_WHOLE_CELL_BUFFER_SIZE = 256;
 
 void PostWriteElementBarrier(JSRuntime* rt, JSObject* obj, int32_t index) {
   AutoUnsafeCallWithABI unsafe;

@@ -19,6 +19,7 @@
 #include "mozilla/RandomNum.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/ScopeExit.h"
+#include "mozilla/glean/NetwerkMetrics.h"
 #include "mozilla/glean/NetwerkProtocolHttpMetrics.h"
 #include "mozilla/net/DNS.h"
 #include "nsHttpHandler.h"
@@ -393,6 +394,12 @@ Http3Session::~Http3Session() {
 
   glean::http3::trans_sending_blocked_by_flow_control_per_conn
       .AccumulateSingleSample(mTransactionsSenderBlockedByFlowControlCount);
+
+  if (mTrrStreams) {
+    mozilla::glean::networking::trr_request_count_per_conn
+        .Get(nsPrintfCString("%s_h3", mConnInfo->Origin()))
+        .Add(static_cast<int32_t>(mTrrStreams));
+  }
 
   Shutdown();
 }
@@ -1913,6 +1920,7 @@ void Http3Session::CloseStream(Http3StreamBase* aStream, nsresult aResult) {
       mConnInfo->GetIsTrrServiceChannel()) {
     // save time of last successful response
     mLastTRRResponseTime = TimeStamp::Now();
+    mTrrStreams++;
   }
 
   aStream->Close(aResult);

@@ -5,7 +5,9 @@
 /* import-globals-from mochitest-e10s-utils.js */
 
 // Test timeout (seconds)
-var gTimeoutSeconds = 45;
+var gTimeoutSeconds = Services.prefs.getIntPref(
+  "testing.browserTestHarness.timeout"
+);
 var gConfig;
 
 var { AppConstants } = ChromeUtils.importESModule(
@@ -95,16 +97,10 @@ function testInit() {
 
   if (gConfig.testRoot == "browser") {
     // Make sure to launch the test harness for the first opened window only
-    var prefs = Services.prefs;
-    if (prefs.prefHasUserValue("testing.browserTestHarness.running")) {
+    if (Services.prefs.prefHasUserValue("testing.browserTestHarness.running")) {
       return;
     }
-
-    prefs.setBoolPref("testing.browserTestHarness.running", true);
-
-    if (prefs.prefHasUserValue("testing.browserTestHarness.timeout")) {
-      gTimeoutSeconds = prefs.getIntPref("testing.browserTestHarness.timeout");
-    }
+    Services.prefs.setBoolPref("testing.browserTestHarness.running", true);
 
     var sstring = Cc["@mozilla.org/supports-string;1"].createInstance(
       Ci.nsISupportsString
@@ -146,11 +142,11 @@ function testInit() {
   if (gConfig.e10s) {
     e10s_init();
 
-    let processCount = prefs.getIntPref("dom.ipc.processCount", 1);
+    let processCount = Services.prefs.getIntPref("dom.ipc.processCount", 1);
     if (processCount > 1) {
       // Currently starting a content process is slow, to aviod timeouts, let's
       // keep alive content processes.
-      prefs.setIntPref("dom.ipc.keepProcessesAlive.web", processCount);
+      Services.prefs.setIntPref("dom.ipc.keepProcessesAlive.web", processCount);
     }
 
     Services.mm.loadFrameScript(
@@ -725,15 +721,6 @@ Tester.prototype = {
   },
 
   async checkPreferencesAfterTest() {
-    // This supports the --compare-preferences flag for browser tests.
-    // The implementation for plain mochitests is at
-    // https://searchfox.org/mozilla-central/rev/c25dbe453ff9ca10f2c6bdfb873893c515a29826/testing/mochitest/tests/SimpleTest/TestRunner.js#990-1012
-    if (!gConfig.comparePrefs) {
-      // Although the plain mochitest version of this logic resets preferences
-      // unconditionally, we do not, to minimize impact on the many existing
-      // tests. We only report failures when --compare-preferences is set.
-      return;
-    }
     if (!this._ignorePrefs) {
       const ignorePrefsFile = `chrome://mochikit/content/${gConfig.ignorePrefsFile}`;
       try {
@@ -751,10 +738,38 @@ Tester.prototype = {
     const failures = await window.SpecialPowers.comparePrefsToBaseline(
       this._ignorePrefs
     );
+
+    let testPath = this.currentTest.path;
+    if (testPath.startsWith("chrome://mochitests/content/browser/")) {
+      testPath = testPath.replace("chrome://mochitests/content/browser/", "");
+    }
+    let changedPrefs = [];
     for (let p of failures) {
       this.structuredLogger.error(
-        `TEST-UNEXPECTED-FAIL | ${this.currentTest.path} | changed preference: ${p}`
+        // We only report unexpected failures when --compare-preferences is set.
+        `TEST-${gConfig.comparePrefs ? "UN" : ""}EXPECTED-FAIL | ${testPath} | changed preference: ${p}`
       );
+      changedPrefs.push(p);
+    }
+
+    if (changedPrefs.length && Services.env.exists("MOZ_UPLOAD_DIR")) {
+      let modifiedPrefsPath = PathUtils.join(
+        Services.env.get("MOZ_UPLOAD_DIR"),
+        "modifiedPrefs.json"
+      );
+
+      if (!this._modifiedPrefs) {
+        try {
+          this._modifiedPrefs = JSON.parse(
+            await IOUtils.readUTF8(modifiedPrefsPath)
+          );
+        } catch (e) {
+          this._modifiedPrefs = {};
+        }
+      }
+
+      this._modifiedPrefs[testPath] = changedPrefs;
+      await IOUtils.writeJSON(modifiedPrefsPath, this._modifiedPrefs);
     }
   },
 
@@ -1360,6 +1375,12 @@ Tester.prototype = {
     }, true);
 
     this.ContentTask.setTestScope(currentScope);
+
+    // Import Mochia methods in the test scope
+    Services.scriptloader.loadSubScript(
+      "resource://testing-common/Mochia.js",
+      scope
+    );
 
     // Allow Assert.sys.mjs methods to be tacked to the current scope.
     scope.export_assertions = function () {
@@ -1996,11 +2017,3 @@ testScope.prototype = {
     return this.__signal;
   },
 };
-
-/* import-globals-from ../modules/Mochia.js */
-Services.scriptloader.loadSubScript(
-  "resource://testing-common/Mochia.js",
-  this
-);
-
-Mochia(testScope);

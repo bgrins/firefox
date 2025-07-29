@@ -20,7 +20,7 @@
 #  include "mozilla/TaskQueue.h"
 #  include "mozilla/layers/KnowsCompositor.h"
 #  include "mozilla/layers/LayersTypes.h"
-#  include "mozilla/ipc/UtilityAudioDecoder.h"
+#  include "mozilla/ipc/UtilityMediaService.h"
 #  include "nsTArray.h"
 #  include "PerformanceRecorder.h"
 
@@ -399,6 +399,8 @@ struct MaxEnumValue<::mozilla::CreateDecoderParams::Option> {
 class PlatformDecoderModule {
  public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(PlatformDecoderModule)
+
+  virtual const char* Name() const = 0;
 
   // Perform any per-instance initialization.
   // This is called on the decode task queue.

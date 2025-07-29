@@ -1261,7 +1261,6 @@ JS_PUBLIC_API void JS::AddAssociatedMemory(JSObject* obj, size_t nbytes,
   Zone* zone = obj->zone();
   MOZ_ASSERT(!IsInsideNursery(obj));
   zone->addCellMemory(obj, nbytes, js::MemoryUse(use));
-  zone->maybeTriggerGCOnMalloc();
 }
 
 JS_PUBLIC_API void JS::RemoveAssociatedMemory(JSObject* obj, size_t nbytes,
@@ -1558,10 +1557,6 @@ JS_PUBLIC_API void JS_SetNativeStackQuota(
   SetNativeStackSize(cx, JS::StackForSystemCode, systemCodeStackSize);
   SetNativeStackSize(cx, JS::StackForTrustedScript, trustedScriptStackSize);
   SetNativeStackSize(cx, JS::StackForUntrustedScript, untrustedScriptStackSize);
-
-  if (cx->runtime()->isMainRuntime()) {
-    js::gc::MapStack(systemCodeStackSize);
-  }
 
   cx->initJitStackLimit();
 }
@@ -4727,7 +4722,7 @@ void AutoFilename::setUnowned(const char* filename) {
 
 void AutoFilename::setOwned(UniqueChars&& filename) {
   MOZ_ASSERT(!get());
-  filename_ = AsVariant(std::move(filename));
+  filename_ = mozilla::AsVariant(std::move(filename));
 }
 
 const char* AutoFilename::get() const {

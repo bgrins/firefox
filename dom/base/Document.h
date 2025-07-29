@@ -132,6 +132,7 @@ class InfallibleAllocPolicy;
 class JSObject;
 class JSTracer;
 class PLDHashTable;
+class PolicyContainer;
 class gfxUserFontSet;
 class mozIDOMWindowProxy;
 class nsCachableElementsByNameNodeList;
@@ -167,7 +168,7 @@ class nsIInputStream;
 class nsILayoutHistoryState;
 class nsIObjectLoadingContent;
 class nsIPermissionDelegateHandler;
-class nsIRadioVisitor;
+class nsIPolicyContainer;
 class nsIRequest;
 class nsIRunnable;
 class nsIScriptGlobalObject;
@@ -705,9 +706,11 @@ class Document : public nsINode,
 
   // nsINode
   void InsertChildBefore(nsIContent* aKid, nsIContent* aBeforeThis,
-                         bool aNotify, ErrorResult& aRv) override;
+                         bool aNotify, ErrorResult& aRv,
+                         nsINode* aOldParent = nullptr) override;
   void RemoveChildNode(nsIContent* aKid, bool aNotify,
-                       const BatchRemovalState* = nullptr) final;
+                       const BatchRemovalState* = nullptr,
+                       nsINode* aNewParent = nullptr) final;
   nsresult Clone(dom::NodeInfo* aNodeInfo, nsINode** aResult) const override {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
@@ -778,9 +781,6 @@ class Document : public nsINode,
    * available yet, hence we sync CSP of document and Client when the
    * Client becomes available within nsGlobalWindowInner::EnsureClientSource().
    */
-  nsIContentSecurityPolicy* GetCsp() const;
-  void SetCsp(nsIContentSecurityPolicy* aCSP);
-
   nsIContentSecurityPolicy* GetPreloadCsp() const;
   void SetPreloadCsp(nsIContentSecurityPolicy* aPreloadCSP);
 
@@ -791,7 +791,8 @@ class Document : public nsINode,
    */
   void ApplySettingsFromCSP(bool aSpeculative);
 
-  IntegrityPolicy* GetIntegrityPolicy() const { return mIntegrityPolicy; }
+  nsIPolicyContainer* GetPolicyContainer() const;
+  void SetPolicyContainer(nsIPolicyContainer* aPolicyContainer);
 
   already_AddRefed<nsIParser> CreatorParserOrNull() {
     nsCOMPtr<nsIParser> parser = mParser;
@@ -1529,6 +1530,7 @@ class Document : public nsINode,
  protected:
   friend class nsUnblockOnloadEvent;
 
+  nsresult InitPolicyContainer(nsIChannel* aChannel);
   nsresult InitCSP(nsIChannel* aChannel);
   nsresult InitIntegrityPolicy(nsIChannel* aChannel);
   nsresult InitCOEP(nsIChannel* aChannel);
@@ -3717,10 +3719,11 @@ class Document : public nsINode,
   // effect once per document, and so is called during document destruction.
   void ReportDocumentUseCounters();
 
-  // Report the names of the HTMLDocument properties thad had been shadowed
-  // using id/name and were then accessed ("DOM clobbering"). This data is
-  // collected by nsHTMLDocument::NamedGetter and limited to 10 unique entries.
-  void ReportShadowedHTMLDocumentProperties();
+  // Report the names of the HTMLDocument/HTMLFormElement properties that had
+  // been shadowed using ID/name, and which were subsequently accessed
+  // ("DOM clobbering"). This data is collected by the corresponding NamedGetter
+  // methods and limited to 10 unique entries.
+  void ReportShadowedProperties();
 
   // Reports largest contentful paint via telemetry. We want the most up to
   // date value for LCP and so this is called during document destruction.
@@ -3754,6 +3757,8 @@ class Document : public nsINode,
   // referencing document's ReportUseCounters() like external resource documents
   // can.
   void PropagateImageUseCounters(Document* aReferencingDocument);
+
+  void CollectShadowedHTMLFormElementProperty(const nsAString& aName);
 
   // Called to track whether this document has had any interaction.
   // This is used to track whether we should permit "beforeunload".
@@ -5189,12 +5194,8 @@ class Document : public nsINode,
   // The channel that got passed to Document::StartDocumentLoad(), if any.
   nsCOMPtr<nsIChannel> mChannel;
 
-  // The CSP for every load lives in the Client within the LoadInfo. For all
-  // document-initiated subresource loads we can use that cached version of the
-  // CSP so we do not have to deserialize the CSP from the Client all the time.
-  nsCOMPtr<nsIContentSecurityPolicy> mCSP;
   nsCOMPtr<nsIContentSecurityPolicy> mPreloadCSP;
-  RefPtr<IntegrityPolicy> mIntegrityPolicy;
+  RefPtr<PolicyContainer> mPolicyContainer;
 
  private:
   nsCString mContentType;
@@ -5609,6 +5610,10 @@ class Document : public nsINode,
   // Used by the shadowed_html_document_property_access telemetry probe to
   // collected shadowed HTMLDocument properties. (Limited to 10 entries)
   nsTArray<nsString> mShadowedHTMLDocumentProperties;
+
+  // Used by the shadowed_html_form_element_property_access telemetry probe to
+  // collected shadowed HTMLFormElement properties. (Limited to 10 entries)
+  nsTArray<nsString> mShadowedHTMLFormElementProperties;
 
   // Bitfield to be collected in the pageload event, recording relevant features
   // used in the document

@@ -534,11 +534,36 @@ struct JSRuntime {
       JS::GCHashMap<js::PreBarriered<JSAtom*>, js::frontend::ScriptIndexRange,
                     js::DefaultHasher<JSAtom*>, js::SystemAllocPolicy>>
       selfHostScriptMap;
+
+  struct JitCacheKey {
+    JitCacheKey(JSAtom* name, bool isDebuggee)
+        : name(name), isDebuggee(isDebuggee) {}
+
+    js::PreBarriered<JSAtom*> name;
+    bool isDebuggee;
+
+    void trace(JSTracer* trc) {
+      TraceNullableEdge(trc, &name, "JitCacheKey::name");
+    }
+  };
+
+  struct JitCacheKeyHasher : public js::DefaultHasher<JitCacheKey> {
+    using PreBarrieredAtomHasher = DefaultHasher<js::PreBarriered<JSAtom*>>;
+
+    static js::HashNumber hash(const Lookup& key) {
+      return mozilla::HashGeneric(key.name->hash(), key.isDebuggee);
+    }
+
+    static bool match(const JitCacheKey& key, const Lookup& lookup) {
+      return PreBarrieredAtomHasher::match(key.name, lookup.name) &&
+             key.isDebuggee == lookup.isDebuggee;
+    }
+  };
+
   // A cache for a self-hosted function's JitCode (managed through a
-  // BaselineScript) keyed by script index.
-  js::MainThreadData<
-      js::GCHashMap<js::PreBarriered<JSAtom*>, js::jit::BaselineScript*,
-                    js::DefaultHasher<JSAtom*>, js::SystemAllocPolicy>>
+  // BaselineScript) keyed by script name and debuggee status.
+  js::MainThreadData<js::GCHashMap<JitCacheKey, js::jit::BaselineScript*,
+                                   JitCacheKeyHasher, js::SystemAllocPolicy>>
       selfHostJitCache;
 
   void clearSelfHostedJitCache();
@@ -1067,17 +1092,12 @@ struct JSRuntime {
   // for use.
   js::MainThreadData<uint32_t> moduleAsyncEvaluatingPostOrder;
 
-  // The implementation-defined abstract operation HostResolveImportedModule.
-  js::MainThreadData<JS::ModuleResolveHook> moduleResolveHook;
+  // The implementation-defined abstract operation HostLoadImportedModule.
+  js::MainThreadData<JS::ModuleLoadHook> moduleLoadHook;
 
   // A hook that implements the abstract operations
   // HostGetImportMetaProperties and HostFinalizeImportMeta.
   js::MainThreadData<JS::ModuleMetadataHook> moduleMetadataHook;
-
-  // A hook that implements the abstract operation
-  // HostImportModuleDynamically. This is also used to enable/disable dynamic
-  // module import and can accessed by off-thread parsing.
-  mozilla::Atomic<JS::ModuleDynamicImportHook> moduleDynamicImportHook;
 
   // Hooks called when script private references are created and destroyed.
   js::MainThreadData<JS::ScriptPrivateReferenceHook> scriptPrivateAddRefHook;

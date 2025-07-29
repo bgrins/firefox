@@ -258,52 +258,6 @@ class UnsharedOps {
   }
 };
 
-/**
- * Check if |targetType| and |sourceType| have compatible bit-level
- * representations to allow bitwise copying.
- */
-constexpr bool CanUseBitwiseCopy(Scalar::Type targetType,
-                                 Scalar::Type sourceType) {
-  switch (targetType) {
-    case Scalar::Int8:
-    case Scalar::Uint8:
-      return sourceType == Scalar::Int8 || sourceType == Scalar::Uint8 ||
-             sourceType == Scalar::Uint8Clamped;
-
-    case Scalar::Uint8Clamped:
-      return sourceType == Scalar::Uint8 || sourceType == Scalar::Uint8Clamped;
-
-    case Scalar::Int16:
-    case Scalar::Uint16:
-      return sourceType == Scalar::Int16 || sourceType == Scalar::Uint16;
-
-    case Scalar::Int32:
-    case Scalar::Uint32:
-      return sourceType == Scalar::Int32 || sourceType == Scalar::Uint32;
-
-    case Scalar::Float16:
-      return sourceType == Scalar::Float16;
-
-    case Scalar::Float32:
-      return sourceType == Scalar::Float32;
-
-    case Scalar::Float64:
-      return sourceType == Scalar::Float64;
-
-    case Scalar::BigInt64:
-    case Scalar::BigUint64:
-      return sourceType == Scalar::BigInt64 || sourceType == Scalar::BigUint64;
-
-    case Scalar::MaxTypedArrayViewType:
-    case Scalar::Int64:
-    case Scalar::Simd128:
-      // GCC8 doesn't like MOZ_CRASH in constexpr functions, so we can't use it
-      // here to catch invalid typed array types.
-      break;
-  }
-  return false;
-}
-
 template <typename T, typename Ops>
 class ElementSpecific {
   static constexpr bool canUseBitwiseCopy(Scalar::Type sourceType) {
@@ -398,10 +352,9 @@ class ElementSpecific {
    * Act as if the assignments occurred from a fresh copy of |source|, in
    * case the two memory ranges overlap.
    */
-  static bool setFromTypedArray(Handle<TypedArrayObject*> target,
-                                size_t targetLength,
-                                Handle<TypedArrayObject*> source,
-                                size_t sourceLength, size_t offset) {
+  static bool setFromTypedArray(TypedArrayObject* target, size_t targetLength,
+                                TypedArrayObject* source, size_t sourceLength,
+                                size_t offset) {
     // WARNING: |source| may be an unwrapped typed array from a different
     // compartment. Proceed with caution!
 
@@ -410,6 +363,8 @@ class ElementSpecific {
     MOZ_ASSERT(Scalar::isBigIntType(target->type()) ==
                    Scalar::isBigIntType(source->type()),
                "can't convert between BigInt and Number");
+    MOZ_ASSERT(!target->is<ImmutableTypedArrayObject>(),
+               "target is not an immutable typed array");
     MOZ_ASSERT(!target->hasDetachedBuffer(), "target isn't detached");
     MOZ_ASSERT(!source->hasDetachedBuffer(), "source isn't detached");
     MOZ_ASSERT(*target->length() >= targetLength, "target isn't shrunk");
@@ -460,6 +415,8 @@ class ElementSpecific {
                                    size_t offset = 0) {
     MOZ_ASSERT(target->type() == TypeIDOfType<T>::id,
                "target type and NativeType must match");
+    MOZ_ASSERT(!target->is<ImmutableTypedArrayObject>(),
+               "target is not an immutable typed array");
     MOZ_ASSERT(!source->is<TypedArrayObject>(),
                "use setFromTypedArray instead of this method");
     MOZ_ASSERT_IF(target->hasDetachedBuffer(), target->length().isNothing());
@@ -588,9 +545,9 @@ class ElementSpecific {
   }
 
  private:
-  static bool setFromOverlappingTypedArray(Handle<TypedArrayObject*> target,
+  static bool setFromOverlappingTypedArray(TypedArrayObject* target,
                                            size_t targetLength,
-                                           Handle<TypedArrayObject*> source,
+                                           TypedArrayObject* source,
                                            size_t sourceLength, size_t offset) {
     // WARNING: |source| may be an unwrapped typed array from a different
     // compartment. Proceed with caution!
