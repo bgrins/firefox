@@ -10,6 +10,28 @@ let searchKeyboardShortcut = null;
 
 const { topChromeWindow } = window.browsingContext;
 
+/**
+ * Check if AI Mode is active in the parent window
+ */
+function isAIModeActive() {
+  return topChromeWindow?.document?.documentElement?.hasAttribute("ai-mode");
+}
+
+/**
+ * Update the page based on AI Mode state
+ */
+function updateAIModeState() {
+  const isActive = isAIModeActive();
+  document.documentElement.toggleAttribute("ai-mode", isActive);
+  
+  if (isActive) {
+    // Hide all navigation and content when AI Mode is active
+    document.body.classList.add("ai-mode-active");
+  } else {
+    document.body.classList.remove("ai-mode-active");
+  }
+}
+
 function onHashChange() {
   let view = document.location?.hash.substring(1);
   if (!view || !pageList.includes(view)) {
@@ -111,6 +133,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   await updateSearchTextboxSize();
   await updateSearchKeyboardShortcut();
   updateSyncVisibility();
+  
+  // Check AI Mode state on initialization
+  updateAIModeState();
 
   if (Cu.isInAutomation) {
     Services.obs.notifyObservers(null, "firefoxview-entered");
@@ -120,6 +145,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     recordEnteredTelemetry();
+    // Update AI Mode state when Firefox View becomes visible
+    updateAIModeState();
     if (Cu.isInAutomation) {
       // allow all the component visibilitychange handlers to execute before notifying
       requestAnimationFrame(() => {
