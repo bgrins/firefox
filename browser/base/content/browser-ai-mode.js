@@ -115,11 +115,7 @@ var AIMode = {
    * Set up all event listeners
    */
   setupEventListeners() {
-    // Toggle button
-    const toggleButton = document.getElementById("ai-mode-toggle");
-    if (toggleButton) {
-      toggleButton.addEventListener("click", () => this.toggleAIMode());
-    }
+    // Toggle button is handled by navigator-toolbox.js command event
     
     // Search input
     const searchInput = document.getElementById("ai-mode-input");
@@ -216,14 +212,15 @@ var AIMode = {
    * @param {boolean} skipSave - Skip saving state (used during restore)
    */
   toggleAIMode(skipSave = false) {
-    this._aiModeActive = !this._aiModeActive;
+    console.log(`[AI Mode] toggleAIMode called, current state: ${this._aiModeActive}, skipSave: ${skipSave}`);
     
     const root = document.documentElement;
     const container = document.getElementById("ai-mode-container");
     const toggleButton = document.getElementById("ai-mode-toggle");
     
-    if (this._aiModeActive) {
+    if (!this._aiModeActive) {
       // Activate AI Mode
+      this._aiModeActive = true;
       root.setAttribute("ai-mode", "true");
       toggleButton?.setAttribute("checked", "true");
       
@@ -357,11 +354,11 @@ var AIMode = {
    * Handle Ask button click
    */
   handleAskButton() {
-    this.performSearch();
+    this.performAskAction();
   },
   
   /**
-   * Perform the AI search/query
+   * Perform the AI search/query from Enter key
    */
   performSearch() {
     const input = document.getElementById("ai-mode-input");
@@ -372,6 +369,23 @@ var AIMode = {
     }
     
     console.log("AI Mode search:", query);
+    
+    // For now, just log the search - don't exit AI Mode
+    // TODO: Implement actual search functionality within AI Mode
+  },
+  
+  /**
+   * Handle Ask button - exits AI Mode and opens sidebar
+   */
+  performAskAction() {
+    const input = document.getElementById("ai-mode-input");
+    const query = input?.value?.trim();
+    
+    if (!query) {
+      return;
+    }
+    
+    console.log("AI Mode Ask action:", query);
     
     // Store the query for the sidebar to use
     this._currentQuery = query;
@@ -396,10 +410,6 @@ var AIMode = {
    * Exit AI Mode and restore normal UI
    */
   exitAIMode() {
-    if (!this._aiModeActive) {
-      return;
-    }
-    
     const root = document.documentElement;
     const container = document.getElementById("ai-mode-container");
     const toggleButton = document.getElementById("ai-mode-toggle");

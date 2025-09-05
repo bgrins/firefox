@@ -43,6 +43,7 @@ document.addEventListener(
     function onCommand(event) {
       let element = event.target.closest(`
         #firefox-view-button,
+        #ai-mode-toggle,
         .content-analysis-indicator,
         #bookmarks-toolbar-button,
         #PlacesToolbar,
@@ -59,6 +60,12 @@ document.addEventListener(
       switch (element.id) {
         case "firefox-view-button":
           FirefoxViewHandler.openTab();
+          break;
+
+        case "ai-mode-toggle":
+          if (typeof AIMode !== "undefined") {
+            AIMode.toggleAIMode();
+          }
           break;
 
         case "bookmarks-toolbar-button":
