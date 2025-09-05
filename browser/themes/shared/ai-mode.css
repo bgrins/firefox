@@ -1,0 +1,390 @@
+/* Firefox AI Mode Theme - Based on Figma Design */
+/* This transforms Firefox UI to match the AI Mode interface design */
+
+/* ============================================
+   ENABLE AI MODE - Add this class to #main-window to activate
+   ============================================ */
+
+:root[ai-mode="true"] {
+  --ai-gradient-start: #ffc6ff;
+  --ai-gradient-mid: #e6b3ff;
+  --ai-gradient-end: #d6b4fd;
+  --ai-purple-accent: #d6b4fd;
+  --ai-purple-border: #eab2f7;
+  --ai-purple-glow: rgba(255, 82, 255, 0.15);
+  --ai-button-gradient: linear-gradient(135deg, #b88ff7 0%, #d6b4fd 100%);
+  --ai-suggestion-bg: rgba(191, 143, 204, 0.2);
+  --ai-suggestion-border: rgba(125, 32, 124, 0.15);
+}
+
+/* ============================================
+   BROWSER BACKGROUND GRADIENT
+   ============================================ */
+
+/* Apply gradient to the entire browser chrome */
+:root[ai-mode="true"] {
+  background: linear-gradient(
+    135deg,
+    var(--ai-gradient-start) 0%,
+    var(--ai-gradient-mid) 50%,
+    var(--ai-gradient-end) 100%
+  ) !important;
+}
+
+/* Make browser content area transparent to show gradient */
+:root[ai-mode="true"] #browser {
+  background: transparent !important;
+}
+
+:root[ai-mode="true"] #browser-bottombox {
+  background: transparent !important;
+}
+
+/* Make tab panels transparent */
+:root[ai-mode="true"] #tabbrowser-tabpanels {
+  background: transparent !important;
+}
+
+/* Make browser vbox transparent */
+:root[ai-mode="true"] .browserContainer {
+  background: transparent !important;
+}
+
+/* Make new tab page transparent */
+:root[ai-mode="true"] browser[type="content"] {
+  background: transparent !important;
+}
+
+/* Apply subtle overlay gradient for readability */
+:root[ai-mode="true"] #tabbrowser-tabpanels::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0) 7.468%,
+    rgba(255, 255, 255, 0.2) 64.142%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ============================================
+   HIDE DEFAULT NAVIGATION BAR IN AI MODE
+   ============================================ */
+
+:root[ai-mode="true"] #nav-bar {
+  opacity: 0;
+  pointer-events: none;
+  height: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ============================================
+   AI MODE TOGGLE BUTTON IN TAB BAR
+   ============================================ */
+
+#ai-mode-toggle {
+  -moz-appearance: none;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  margin: 4px;
+  padding: 8px;
+  background: white;
+  border: 1px solid white;
+  box-shadow: 0px 4px 14px 0px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#ai-mode-toggle:hover {
+  background: var(--ai-purple-accent);
+  transform: scale(1.05);
+}
+
+#ai-mode-toggle[checked="true"] {
+  background: var(--ai-purple-accent);
+}
+
+/* ============================================
+   CENTERED AI MODE INTERFACE
+   ============================================ */
+
+:root[ai-mode="true"] #ai-mode-container {
+  display: flex !important;
+  position: fixed;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  z-index: 10000;
+  pointer-events: auto;
+  /* Ensure it appears above all content */
+  isolation: isolate;
+}
+
+/* Firefox Logo with AI Mode */
+#ai-mode-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+#ai-mode-logo svg {
+  width: 62px;
+  height: 62px;
+}
+
+#ai-mode-logo-text {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-weight: 600;
+  font-size: 41.6px;
+  background: linear-gradient(135deg, #ff6b6b, #d6b4fd);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0px 3.2px 6.4px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
+   AI MODE SEARCH BOX
+   ============================================ */
+
+#ai-mode-searchbar {
+  background: white;
+  border-radius: 18px;
+  box-shadow: 
+    0px 0.25px 0.75px 0px rgba(0, 0, 0, 0.05),
+    0px 2px 20px 0px var(--ai-purple-glow);
+  border: 1px solid var(--ai-purple-border);
+  padding: 14px 17px;
+  width: 756px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Search input area */
+#ai-mode-input-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+}
+
+#ai-mode-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 15px;
+  color: #15141a;
+  background: transparent;
+  padding: 0;
+  min-height: 20px;
+}
+
+#ai-mode-input::placeholder {
+  color: rgba(21, 20, 26, 0.69);
+}
+
+/* Controls section */
+#ai-mode-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+  height: 36px;
+}
+
+/* Add button */
+#ai-mode-add-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 100px;
+  background: transparent;
+  border: none;
+}
+
+#ai-mode-add-text {
+  font-size: 13px;
+  color: #15141a;
+}
+
+/* Right controls */
+#ai-mode-right-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Mic button */
+#ai-mode-mic {
+  width: 36px;
+  height: 36px;
+  border-radius: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.5;
+  background: transparent;
+  border: none;
+}
+
+/* Ask button */
+#ai-mode-ask-button {
+  background: var(--ai-button-gradient);
+  border-radius: 24px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  cursor: pointer;
+  min-height: 32px;
+  box-shadow: 0px 1px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+#ai-mode-ask-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+#ai-mode-ask-button span {
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-weight: 590;
+  font-size: 15px;
+}
+
+/* ============================================
+   AI MODE SUGGESTION PILLS
+   ============================================ */
+
+#ai-mode-suggestions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.ai-mode-suggestion {
+  background: var(--ai-suggestion-bg);
+  border: 1px solid var(--ai-suggestion-border);
+  border-radius: 58px;
+  padding: 14px 17px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  cursor: pointer;
+  box-shadow: 
+    0px 0.25px 0.75px 0px rgba(0, 0, 0, 0.05),
+    0px 2px 6px 0px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.ai-mode-suggestion:hover {
+  background: rgba(191, 143, 204, 0.3);
+  transform: translateY(-1px);
+}
+
+.ai-mode-suggestion-emoji {
+  font-size: 14.5px;
+  width: 17px;
+  text-align: center;
+}
+
+.ai-mode-suggestion-text {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 13px;
+  color: #15141a;
+}
+
+/* ============================================
+   HIDE AI MODE WHEN NOT ACTIVE
+   ============================================ */
+
+#ai-mode-container {
+  display: none;
+}
+
+#ai-mode-toggle {
+  display: none;
+}
+
+/* Show toggle when feature is enabled */
+:root[ai-mode-enabled="true"] #ai-mode-toggle {
+  display: flex;
+}
+
+/* ============================================
+   TAB BAR MODIFICATIONS
+   ============================================ */
+
+:root[ai-mode="true"] #TabsToolbar {
+  background: transparent !important;
+}
+
+:root[ai-mode="true"] #titlebar {
+  background: transparent !important;
+}
+
+:root[ai-mode="true"] #navigator-toolbox {
+  background: transparent !important;
+}
+
+:root[ai-mode="true"] .tab-background {
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(10px);
+}
+
+:root[ai-mode="true"] .tabbrowser-tab {
+  opacity: 0.7;
+}
+
+:root[ai-mode="true"] .tabbrowser-tab[selected] {
+  opacity: 1;
+}
+
+:root[ai-mode="true"] .tabbrowser-tab[selected] .tab-background {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Make content area fully transparent */
+:root[ai-mode="true"] .browserStack {
+  background: transparent !important;
+}
+
+:root[ai-mode="true"] #appcontent {
+  background: transparent !important;
+}
+
+/* ============================================
+   SMOOTH TRANSITIONS
+   ============================================ */
+
+#nav-bar,
+#ai-mode-container,
+#browser::before {
+  transition: all 0.3s ease-in-out;
+}
