@@ -48,7 +48,12 @@ var AIMode = {
    */
   saveState() {
     try {
-      // SessionStore is available as a global from browser.js
+      // Check if window is ready for SessionStore
+      if (!window.__SSi || !SessionStore) {
+        console.log("[AI Mode] SessionStore not ready, skipping save");
+        return;
+      }
+      
       console.log(`[AI Mode] Saving state: ${this._aiModeActive}`);
       SessionStore.setCustomWindowValue(window, this.SESSION_STORE_KEY, String(this._aiModeActive));
       
@@ -65,9 +70,14 @@ var AIMode = {
    */
   restoreState() {
     try {
+      // Check if SessionStore is ready
+      if (!window.__SSi || !SessionStore) {
+        console.log("[AI Mode] SessionStore not ready for restore");
+        return;
+      }
+      
       console.log("[AI Mode] Attempting to restore state...");
       
-      // SessionStore is available as a global from browser.js
       const savedState = SessionStore.getCustomWindowValue(window, this.SESSION_STORE_KEY);
       console.log(`[AI Mode] Found saved state: "${savedState}"`);
       
@@ -190,12 +200,12 @@ var AIMode = {
       
       console.log("[AI Mode] Switched to Firefox View - AI Mode UI shown, sidebar closed");
     } else {
-      // Switching to regular tab - hide AI Mode UI and restore normal UI
+      // Switching to any other tab (including new tabs) - hide AI Mode UI and show normal UI
       if (container) {
         container.style.display = "none";
       }
       
-      // Restore normal toolbar
+      // Always show normal toolbar for non-Firefox View tabs
       if (navBar) {
         navBar.style.display = "";
       }
@@ -223,6 +233,12 @@ var AIMode = {
       this._aiModeActive = true;
       root.setAttribute("ai-mode", "true");
       toggleButton?.setAttribute("checked", "true");
+      
+      // Notify all new tabs about AI Mode state change
+      this.updateNewTabsAIModeState(true);
+      
+      // Notify Firefox View to update its content
+      this.notifyFirefoxViewOfModeChange(true);
       
       // Show AI Mode interface
       if (container) {
@@ -421,6 +437,9 @@ var AIMode = {
     root.removeAttribute("ai-mode");
     toggleButton?.removeAttribute("checked");
     
+    // Notify all new tabs about AI Mode state change
+    this.updateNewTabsAIModeState(false);
+    
     // Hide AI Mode interface
     if (container) {
       container.style.display = "none";
@@ -431,6 +450,9 @@ var AIMode = {
     if (navBar) {
       navBar.style.display = "";
     }
+    
+    // Notify Firefox View to update its content
+    this.notifyFirefoxViewOfModeChange(false);
     
     console.log("AI Mode exited, UI restored");
     
@@ -532,6 +554,56 @@ var AIMode = {
       
       // Optionally auto-submit
       setTimeout(() => this.performSearch(), 100);
+    }
+  },
+  
+  /**
+   * Notify Firefox View of AI Mode state change
+   */
+  notifyFirefoxViewOfModeChange(aiModeActive) {
+    // Find the Firefox View tab
+    if (FirefoxViewHandler?.tab?.linkedBrowser) {
+      try {
+        const browser = FirefoxViewHandler.tab.linkedBrowser;
+        // Send a message to Firefox View's content
+        browser.contentWindow.postMessage({
+          type: "ai-mode-changed",
+          aiModeActive: aiModeActive
+        }, "*");
+        console.log(`[AI Mode] Notified Firefox View of mode change: ${aiModeActive}`);
+      } catch (e) {
+        console.error("[AI Mode] Failed to notify Firefox View:", e);
+      }
+    }
+  },
+  
+  /**
+   * Update all new tabs with AI Mode state
+   */
+  updateNewTabsAIModeState(aiModeActive) {
+    console.log(`[AI Mode] Broadcasting AI Mode state to new tabs: ${aiModeActive}`);
+    // Notify all about:newtab tabs in current window
+    for (let tab of gBrowser.tabs) {
+      if (tab.linkedBrowser && tab.linkedBrowser.currentURI) {
+        const uri = tab.linkedBrowser.currentURI.spec;
+        console.log(`[AI Mode] Checking tab: ${uri}`);
+        
+        // Check for new tab pages (might be about:newtab or about:home)
+        if (uri.startsWith("about:newtab") || uri.startsWith("about:home") || uri === "about:blank") {
+          console.log(`[AI Mode] Found new tab to update: ${uri}`);
+          try {
+            const actor = tab.linkedBrowser.browsingContext?.currentWindowGlobal?.getActor("AboutNewTab");
+            if (actor) {
+              actor.sendAsyncMessage("UpdateAIModeState", { aiModeActive });
+              console.log("[AI Mode] Sent update to new tab");
+            } else {
+              console.log("[AI Mode] No actor found for tab");
+            }
+          } catch (e) {
+            console.log("[AI Mode] Error updating tab:", e);
+          }
+        }
+      }
     }
   },
   

@@ -124,6 +124,14 @@ window.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("card-container-view-all", function (event) {
     recordNavigationTelemetry("view-all", event.originalTarget);
   });
+  
+  // Listen for AI Mode state changes from parent
+  window.addEventListener("message", function(event) {
+    if (event.data && event.data.type === "ai-mode-changed") {
+      console.log(`[Firefox View] Received AI Mode change: ${event.data.aiModeActive}`);
+      updateAIModeState();
+    }
+  });
 
   viewsDeck.addEventListener("view-changed", onViewsDeckViewChange);
 

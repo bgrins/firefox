@@ -121,6 +121,11 @@ export class BaseContent extends React.PureComponent {
     this.toggleDownloadHighlight = this.toggleDownloadHighlight.bind(this);
     this.handleDismissDownloadHighlight =
       this.handleDismissDownloadHighlight.bind(this);
+    
+    // Check if we're in AI Mode
+    const isAIMode = document.documentElement.classList.contains("ai-mode-active") ||
+                     document.body.classList.contains("ai-mode-active");
+    
     this.state = {
       fixedSearch: false,
       firstVisibleTimestamp: null,
@@ -128,6 +133,7 @@ export class BaseContent extends React.PureComponent {
       fixedNavStyle: {},
       wallpaperTheme: "",
       showDownloadHighlightOverride: null,
+      isAIMode: isAIMode,
     };
   }
 
@@ -706,6 +712,28 @@ export class BaseContent extends React.PureComponent {
       this.state.showDownloadHighlightOverride ??
       this.shouldShowOMCHighlight("DownloadMobilePromoHighlight");
 
+    // If in AI Mode, only show the search bar
+    if (this.state.isAIMode) {
+      return (
+        <div className="ai-mode-newtab">
+          <div className="outer-wrapper ai-mode-wrapper">
+            <main className="newtab-main ai-mode-main">
+              <div className="non-collapsible-section ai-mode-search">
+                <ErrorBoundary>
+                  <Search
+                    showLogo={true}
+                    handoffEnabled={searchHandoffEnabled}
+                    {...props.Search}
+                  />
+                </ErrorBoundary>
+              </div>
+            </main>
+          </div>
+        </div>
+      );
+    }
+    
+    // Normal new tab rendering
     return (
       <div className={featureClassName}>
         {/* Floating menu for customize menu toggle */}

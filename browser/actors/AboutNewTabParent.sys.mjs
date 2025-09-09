@@ -42,6 +42,23 @@ export class AboutNewTabParent extends JSWindowActorParent {
 
   async receiveMessage(message) {
     switch (message.name) {
+      case "GetAIModeState": {
+        // Check if window is in AI Mode
+        console.log("[AboutNewTab] Parent received GetAIModeState request");
+        const browser = this.browsingContext.top.embedderElement;
+        if (browser) {
+          const window = browser.ownerGlobal;
+          const aiModeActive = window.document.documentElement.hasAttribute("ai-mode");
+          console.log(`[AboutNewTab] Parent sending AI Mode state: ${aiModeActive}`);
+          
+          // Send AI Mode state back to child
+          this.sendAsyncMessage("UpdateAIModeState", { aiModeActive });
+        } else {
+          console.log("[AboutNewTab] Parent: No browser element found");
+        }
+        break;
+      }
+      
       case "AboutNewTabVisible":
         {
           const browsingContext = this.browsingContext;

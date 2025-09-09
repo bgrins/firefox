@@ -32,6 +32,9 @@ export class AboutNewTabChild extends RemotePageChild {
         portID,
         url: this.contentWindow.document.documentURI.replace(/[\#|\?].*$/, ""),
       });
+      
+      // Check if window is in AI Mode and apply styling
+      this.checkAIModeState();
     } else if (event.type == "load") {
       this.sendAsyncMessage("Load");
     } else if (event.type == "DOMContentLoaded") {
@@ -85,6 +88,58 @@ export class AboutNewTabChild extends RemotePageChild {
         // But we're recording exposure events here.
         lazy.NimbusFeatures.newtab.recordExposureEvent({ once: true });
       }
+    }
+  }
+  
+  checkAIModeState() {
+    // Request AI Mode state from parent
+    console.log("[AboutNewTab] Checking AI Mode state from child");
+    this.sendAsyncMessage("GetAIModeState");
+  }
+  
+  receiveMessage(message) {
+    // Only log AI Mode related messages to avoid spam
+    if (message.name === "UpdateAIModeState") {
+      console.log(`[AboutNewTab] Child received AI Mode update:`, message.data);
+      this.updateAIModeStyle(message.data.aiModeActive);
+    }
+    
+    // Call parent's receiveMessage if it exists
+    return super.receiveMessage ? super.receiveMessage(message) : undefined;
+  }
+  
+  updateAIModeStyle(aiModeActive) {
+    console.log(`[AboutNewTab] Updating AI Mode style: ${aiModeActive}`);
+    const doc = this.contentWindow.document;
+    if (!doc || !doc.body) {
+      console.log("[AboutNewTab] Document not ready yet");
+      return;
+    }
+    
+    if (aiModeActive) {
+      // Apply minimal AI Mode styling - React code will handle the rest
+      console.log("[AboutNewTab] Applying AI Mode styling");
+      
+      // Add class for React to detect
+      doc.body.classList.add("ai-mode-active");
+      doc.documentElement.classList.add("ai-mode-active");
+      
+      // Apply gradient background
+      const gradient = "linear-gradient(135deg, #ffc6ff 0%, #e6b3ff 50%, #d6b4fd 100%)";
+      doc.documentElement.style.setProperty("background", gradient, "important");
+      doc.documentElement.style.setProperty("min-height", "100vh", "important");
+      doc.body.style.setProperty("background", "transparent", "important");
+      
+      console.log("[AboutNewTab] AI Mode styling applied - React will handle content");
+    } else {
+      // Remove AI Mode styling
+      console.log("[AboutNewTab] Removing AI Mode styling");
+      
+      doc.body.classList.remove("ai-mode-active");
+      doc.documentElement.classList.remove("ai-mode-active");
+      doc.documentElement.style.removeProperty("background");
+      doc.documentElement.style.removeProperty("min-height");
+      doc.body.style.removeProperty("background");
     }
   }
 }
