@@ -302,6 +302,14 @@ addEventListener("change", handleChange);
 // Expose a promise for loading and rendering the chat browser element
 var browserPromise = new Promise((resolve, reject) => {
   addEventListener("load", async () => {
+    // Check if in AI Mode and handle accordingly
+    if (isInAIMode()) {
+      console.log("[GenAI Chat] AI Mode detected on load");
+      loadAIModeUI();
+      resolve(null);
+      return;
+    }
+    
     try {
       node.chat = renderChat();
       node.provider = await renderProviders();
@@ -550,6 +558,76 @@ function showOnboarding(length) {
           break;
       }
     },
+  });
+}
+
+// Check if we're in AI Mode
+function isInAIMode() {
+  // Check if the parent window has AI Mode active
+  return topChromeWindow?.document?.documentElement?.hasAttribute("ai-mode");
+}
+
+// Track if we've already initialized AI Mode
+let aiModeInitialized = false;
+
+// Initialize appropriate UI based on mode
+function loadAIModeUI() {
+  // Prevent multiple initializations
+  if (aiModeInitialized) {
+    console.log("[GenAI Chat] AI Mode already initialized, skipping");
+    return;
+  }
+  
+  // Check if iframe already exists
+  const existingIframe = document.getElementById("ai-mode-chat-iframe");
+  if (existingIframe) {
+    console.log("[GenAI Chat] AI Mode iframe already exists, skipping");
+    return;
+  }
+  
+  aiModeInitialized = true;
+  
+  console.log("[GenAI Chat] Loading AI Mode chat UI");
+  
+  // Hide the existing UI elements
+  const header = document.getElementById("header");
+  const browserContainer = document.getElementById("browser-container");
+  const summarizeContainer = document.getElementById("summarize-btn-container");
+  
+  if (header) header.style.display = "none";
+  if (browserContainer) browserContainer.style.display = "none";
+  if (summarizeContainer) summarizeContainer.style.display = "none";
+  
+  // Create and add the iframe for AI Mode chat
+  const iframe = document.createElement("iframe");
+  iframe.id = "ai-mode-chat-iframe";
+  iframe.src = "chrome://browser/content/genai/ai-mode-chat.html";
+  iframe.style.width = "100%";
+  iframe.style.height = "100vh";
+  iframe.style.border = "none";
+  iframe.style.background = "transparent";
+  iframe.style.position = "absolute";
+  iframe.style.top = "0";
+  iframe.style.left = "0";
+  document.body.appendChild(iframe);
+  
+  // Pass any initial query to the iframe
+  iframe.addEventListener("load", () => {
+    window.addEventListener("ai-mode-query", (e) => {
+      iframe.contentWindow.postMessage({
+        type: "ai-mode-query",
+        detail: e.detail
+      }, "*");
+    });
+    
+    // Handle close message from iframe
+    window.addEventListener("message", (e) => {
+      if (e.data.type === "close-ai-sidebar") {
+        if (topChromeWindow?.SidebarController) {
+          topChromeWindow.SidebarController.hide();
+        }
+      }
+    });
   });
 }
 

@@ -11,6 +11,7 @@ import { ErrorBoundary } from "content-src/components/ErrorBoundary/ErrorBoundar
 import { CustomizeMenu } from "content-src/components/CustomizeMenu/CustomizeMenu";
 import React from "react";
 import { Search } from "content-src/components/Search/Search";
+import { AIModeSearch } from "content-src/components/AIModeSearch/AIModeSearch";
 import { Sections } from "content-src/components/Sections/Sections";
 import { Logo } from "content-src/components/Logo/Logo";
 import { Weather } from "content-src/components/Weather/Weather";
@@ -712,23 +713,13 @@ export class BaseContent extends React.PureComponent {
       this.state.showDownloadHighlightOverride ??
       this.shouldShowOMCHighlight("DownloadMobilePromoHighlight");
 
-    // If in AI Mode, only show the search bar
+    // If in AI Mode, show the custom AI Mode search interface
     if (this.state.isAIMode) {
       return (
         <div className="ai-mode-newtab">
-          <div className="outer-wrapper ai-mode-wrapper">
-            <main className="newtab-main ai-mode-main">
-              <div className="non-collapsible-section ai-mode-search">
-                <ErrorBoundary>
-                  <Search
-                    showLogo={true}
-                    handoffEnabled={searchHandoffEnabled}
-                    {...props.Search}
-                  />
-                </ErrorBoundary>
-              </div>
-            </main>
-          </div>
+          <ErrorBoundary>
+            <AIModeSearch {...props} />
+          </ErrorBoundary>
         </div>
       );
     }

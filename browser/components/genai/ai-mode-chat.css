@@ -1,0 +1,369 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+:root {
+  /* Figma Design System Colors */
+  background: none !important;
+  --ai-chat-text-primary: #15141a;
+  --ai-chat-text-deemphasized: rgba(21, 20, 26, 0.69);
+  --ai-chat-border-primary: rgba(189, 137, 213, 0.3);
+  --ai-chat-border-sidebar: rgba(189, 137, 213, 0.8);
+  --ai-chat-bg-white-75: rgba(255, 255, 255, 0.75);
+  --ai-chat-bg-white-90: rgba(255, 255, 255, 0.9);
+  --ai-chat-bg-white-50: rgba(255, 255, 255, 0.5);
+  --ai-chat-suggestion-bg: rgba(191, 143, 204, 0.2);
+  --ai-chat-suggestion-border: rgba(125, 32, 124, 0.15);
+  --ai-chat-purple-gradient: linear-gradient(135deg, #b88ff7, #d6b4fd);
+  
+  /* Shadow levels from Figma */
+  --ai-chat-shadow-level-2: 0px 0.25px 0.75px 0px rgba(0, 0, 0, 0.05), 0px 2px 6px 0px rgba(0, 0, 0, 0.1);
+  --ai-chat-shadow-level-4: 0px 0.5px 2px 0px rgba(0, 0, 0, 0.05), 0px 4px 16px 0px rgba(0, 0, 0, 0.1);
+  --ai-chat-shadow-sidebar: 0px 4px 14px 0px rgba(0, 0, 0, 0.1);
+  --ai-chat-shadow-input: 0px 0.25px 0.75px 0px rgba(0, 0, 0, 0.05), 0px 2px 15px 0px rgba(229, 146, 229, 0.15);
+  
+  /* Typography */
+  --ai-chat-font-family: "SF Pro", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --ai-chat-font-size-body: 15px;
+  --ai-chat-font-size-small: 13px;
+  --ai-chat-font-size-large: 17px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  background: transparent;
+  color: var(--ai-chat-text-primary);
+  font-family: var(--ai-chat-font-family);
+  font-size: var(--ai-chat-font-size-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#ai-chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: transparent;
+  border-radius: 12px;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+#ai-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 6px;
+  background: var(--ai-chat-bg-white-50);
+  border-bottom: 1px solid #f0f0f4;
+  flex-shrink: 0;
+}
+
+#ai-chat-header h1 {
+  margin: 0 0 0 8px;
+  font-size: var(--ai-chat-font-size-body);
+  font-weight: 400;
+  color: var(--ai-chat-text-primary);
+  flex: 1;
+}
+
+#ai-chat-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--ai-chat-text-primary);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+  opacity: 0.7;
+}
+
+#ai-chat-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+  opacity: 1;
+}
+
+#ai-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: transparent;
+}
+
+.ai-welcome-message {
+  text-align: left;
+  padding: 0;
+}
+
+.ai-welcome-message h2 {
+  margin: 0 0 12px;
+  font-size: var(--ai-chat-font-size-large);
+  font-weight: 400;
+  color: var(--ai-chat-text-primary);
+  line-height: 20px;
+}
+
+.ai-welcome-message p {
+  margin: 0;
+  font-size: var(--ai-chat-font-size-body);
+  color: var(--ai-chat-text-deemphasized);
+  line-height: 20px;
+}
+
+.message-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.message-prompt {
+  align-self: flex-end;
+  max-width: 100%;
+  padding: 14px 12px;
+  border-radius: 12px;
+  background: var(--ai-chat-bg-white-75);
+  border: 1px solid var(--ai-chat-border-primary);
+  box-shadow: var(--ai-chat-shadow-level-2);
+  font-size: var(--ai-chat-font-size-body);
+  line-height: 1;
+  color: var(--ai-chat-text-primary);
+}
+
+.message-response {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.message-line {
+  width: 1px;
+  min-height: 100%;
+  background: linear-gradient(to bottom, var(--ai-chat-border-primary) 0%, transparent 100%);
+  margin-top: 8px;
+}
+
+.message-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.message-text {
+  font-size: var(--ai-chat-font-size-large);
+  line-height: 20px;
+  color: var(--ai-chat-text-primary);
+}
+
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+#ai-chat-input-container {
+  padding: 16px;
+  border-top: 1px solid #f0f0f4;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.ai-chat-omnibox {
+  background: var(--ai-chat-bg-white-90);
+  border: 1px solid rgba(199, 199, 199, 0.5);
+  border-radius: 18px;
+  box-shadow: var(--ai-chat-shadow-input);
+  padding: 14px 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+#ai-chat-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+#ai-chat-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--ai-chat-text-primary);
+  font-size: var(--ai-chat-font-size-body);
+  font-family: var(--ai-chat-font-family);
+  resize: none;
+  outline: none;
+  min-height: 20px;
+  line-height: 20px;
+}
+
+#ai-chat-input::placeholder {
+  color: var(--ai-chat-text-deemphasized);
+}
+
+.ai-chat-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 10px 0;
+}
+
+.ai-chat-add-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.5;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--ai-chat-text-primary);
+  font-size: var(--ai-chat-font-size-small);
+  font-family: var(--ai-chat-font-family);
+}
+
+.ai-chat-add-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.ai-chat-right-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ai-chat-mic-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s ease;
+}
+
+.ai-chat-mic-button:hover {
+  opacity: 0.7;
+}
+
+#ai-chat-send {
+  padding: 8px 16px;
+  min-height: 32px;
+  border: none;
+  border-radius: 24px;
+  background: #ececec;
+  color: var(--ai-chat-text-primary);
+  font-size: var(--ai-chat-font-size-body);
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.5;
+}
+
+#ai-chat-send:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(138, 97, 255, 0.3);
+}
+
+#ai-chat-send:active {
+  transform: scale(0.98);
+}
+
+#ai-chat-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Suggestion Pills */
+.ai-chat-suggestions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.ai-chat-suggestion {
+  background: var(--ai-chat-suggestion-bg);
+  border: 1px solid var(--ai-chat-suggestion-border);
+  border-radius: 58px;
+  padding: 14px 17px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  cursor: pointer;
+  box-shadow: var(--ai-chat-shadow-level-2);
+  transition: all 0.2s ease;
+  mix-blend-mode: multiply;
+}
+
+.ai-chat-suggestion:hover {
+  background: rgba(191, 143, 204, 0.3);
+  transform: translateY(-1px);
+}
+
+.ai-chat-suggestion-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.ai-chat-suggestion-text {
+  font-size: var(--ai-chat-font-size-small);
+  color: var(--ai-chat-text-primary);
+  white-space: nowrap;
+}
+
+/* Keep consistent light theme regardless of system preference */"</invoke>
+
+/* Scrollbar styling */
+#ai-chat-messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+#ai-chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#ai-chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+#ai-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

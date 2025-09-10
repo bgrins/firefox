@@ -16,11 +16,39 @@
   --ai-suggestion-bg: rgba(191, 143, 204, 0.2);
   --ai-suggestion-border: rgba(125, 32, 124, 0.15);
   
-  /* Tab text colors for visibility against gradient */
-  --tab-selected-textcolor: #15141a; /* Dark text for selected tabs */
-  --toolbar-color: rgba(21, 20, 26, 0.9); /* Dark text for inactive tabs */
-  --lwt-text-color: #15141a; /* Override lightweight theme text color */
-  --lwt-tab-text: rgba(21, 20, 26, 0.85); /* Tab text color */
+  /* Dark text/icons for visibility against pink gradient */
+  --tab-selected-textcolor: #333333; /* Dark text for selected tabs */
+  --toolbar-color: #333333; /* Dark text/icons for toolbar */
+  --lwt-text-color: #333333; /* Override lightweight theme text color */
+  --lwt-tab-text: #555555; /* Slightly lighter for inactive tabs */
+  
+  /* Icon and button colors */
+  --toolbarbutton-icon-fill: #333333; /* Dark icons */
+  --toolbarbutton-icon-fill-attention: #6200ea; /* Purple for attention states */
+  --toolbar-field-color: #333333; /* URL bar text */
+  --toolbar-field-focus-color: #333333; /* URL bar text when focused */
+  
+  /* URL bar and popup backgrounds */
+  --toolbar-field-background-color: rgba(255, 255, 255, 0.9); /* Light background */
+  --toolbar-field-focus-background-color: rgba(255, 255, 255, 0.95); /* Lighter when focused */
+  --arrowpanel-background: white; /* Popup background */
+  --arrowpanel-color: #333333; /* Popup text color */
+  --panel-background: white; /* Panel background */
+  --panel-color: #333333; /* Panel text color */
+  --autocomplete-popup-background: white; /* Autocomplete dropdown */
+  --autocomplete-popup-color: #333333; /* Autocomplete text */
+  
+  /* Tab bar specific */
+  --tab-icon-overlay-fill: #333333; /* Tab icons */
+  --tab-close-fill: #555555; /* Tab close button */
+  --tab-close-fill-hover: #333333; /* Tab close button hover */
+  
+  /* Navigation buttons */
+  --toolbarbutton-hover-background: rgba(255, 255, 255, 0.3);
+  --toolbarbutton-active-background: rgba(255, 255, 255, 0.4);
+  
+  /* Ensure proper contrast for all text elements */
+  --chrome-content-separator-color: rgba(51, 51, 51, 0.2);
 }
 
 /* ============================================
@@ -103,6 +131,12 @@
   list-style-image: url("chrome://browser/skin/smart-window.svg");
 }
 
+/* Ensure dark icon color in AI Mode */
+:root[ai-mode="true"] #ai-mode-toggle {
+  fill: #333333 !important;
+  color: #333333 !important;
+}
+
 /* Remove checked background from AI mode toggle icon */
 #ai-mode-toggle[checked] > .toolbarbutton-icon {
   background-color: transparent !important;
@@ -112,6 +146,89 @@
 /* Keep hover state visible */
 #ai-mode-toggle:hover > .toolbarbutton-icon {
   background-color: var(--toolbarbutton-hover-background) !important;
+}
+
+/* ============================================
+   TOOLBAR ICONS IN AI MODE
+   ============================================ */
+
+/* Ensure all toolbar buttons use dark icons */
+:root[ai-mode="true"] .toolbarbutton-icon,
+:root[ai-mode="true"] .tab-icon-image,
+:root[ai-mode="true"] .tab-close-button,
+:root[ai-mode="true"] .tabbrowser-tab .tab-icon-overlay {
+  fill: #333333 !important;
+  color: #333333 !important;
+}
+
+/* Tab text colors */
+:root[ai-mode="true"] .tabbrowser-tab .tab-label {
+  color: #555555 !important;
+}
+
+:root[ai-mode="true"] .tabbrowser-tab[selected] .tab-label {
+  color: #333333 !important;
+}
+
+/* Navigation buttons (back, forward, reload, etc.) */
+:root[ai-mode="true"] #nav-bar .toolbarbutton-icon {
+  fill: #333333 !important;
+}
+
+/* URL bar text and icons */
+:root[ai-mode="true"] #urlbar {
+  color: #333333 !important;
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+:root[ai-mode="true"] #urlbar[focused] {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+:root[ai-mode="true"] #urlbar-input {
+  color: #333333 !important;
+}
+
+:root[ai-mode="true"] #urlbar-background {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* URL bar search mode switcher */
+:root[ai-mode="true"] #urlbar-searchmode-switcher {
+  background-color: transparent !important;
+}
+
+:root[ai-mode="true"] #urlbar-search-mode-indicator {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  color: #333333 !important;
+}
+
+:root[ai-mode="true"] #urlbar-label-box {
+  background-color: transparent !important;
+}
+
+/* URL bar dropdown/autocomplete */
+:root[ai-mode="true"] .urlbarView {
+  background-color: white !important;
+  color: #333333 !important;
+}
+
+:root[ai-mode="true"] .urlbarView-row:hover {
+  background-color: rgba(214, 180, 253, 0.1) !important;
+}
+
+/* Popup panels */
+:root[ai-mode="true"] panel,
+:root[ai-mode="true"] menupopup,
+:root[ai-mode="true"] .panel-arrowcontainer {
+  background-color: white !important;
+  color: #333333 !important;
+}
+
+/* Sidebar button */
+:root[ai-mode="true"] #sidebar-button {
+  fill: #333333 !important;
+  color: #333333 !important;
 }
 
 /* ============================================
@@ -447,6 +564,28 @@
 }
 
 /* AI Mode container visibility is controlled by JavaScript based on tab */
+
+/* ============================================
+   SIDEBAR TRANSPARENCY IN AI MODE
+   ============================================ */
+
+:root[ai-mode="true"] {
+  --sidebar-background-color: transparent !important;
+  --background-color-canvas: transparent !important;
+}
+
+:root[ai-mode="true"] #sidebar,
+:root[ai-mode="true"] #sidebar-box,
+:root[ai-mode="true"] #sidebar-main,
+:root[ai-mode="true"] .sidebar-panel {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+:root[ai-mode="true"] #sidebar browser {
+  background: transparent !important;
+  background-color: transparent !important;
+}
 
 /* ============================================
    SMOOTH TRANSITIONS
