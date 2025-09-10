@@ -37,8 +37,72 @@ var AIMode = {
     // Set up event listeners
     this.setupEventListeners();
     
-    // Restore AI Mode state from session storage
-    this.restoreState();
+    // Check if this window was opened with AI Mode active from parent window
+    let shouldActivateAIMode = false;
+    
+    // Debug logging
+    console.log("[AI Mode] Checking window.arguments for AI Mode state");
+    console.log("[AI Mode] window.arguments:", window.arguments);
+    console.log("[AI Mode] window.arguments length:", window.arguments?.length);
+    
+    // Check window.arguments[1] for extraOptions property bag
+    if (window.arguments && window.arguments.length >= 2 && window.arguments[1]) {
+      try {
+        const extraOptions = window.arguments[1];
+        console.log("[AI Mode] extraOptions:", extraOptions);
+        console.log("[AI Mode] extraOptions type:", typeof extraOptions);
+        console.log("[AI Mode] Is nsIPropertyBag2?", extraOptions instanceof Ci.nsIPropertyBag2);
+        
+        // Check if it's a property bag with our AI Mode flag
+        if (extraOptions instanceof Ci.nsIPropertyBag2) {
+          console.log("[AI Mode] Checking for aiModeActive key...");
+          if (extraOptions.hasKey("aiModeActive")) {
+            const aiModeActive = extraOptions.getPropertyAsBool("aiModeActive");
+            console.log("[AI Mode] aiModeActive value:", aiModeActive);
+            if (aiModeActive) {
+              console.log("[AI Mode] New window opened with AI Mode active from parent");
+              shouldActivateAIMode = true;
+            }
+          } else {
+            console.log("[AI Mode] No aiModeActive key found in extraOptions");
+          }
+        }
+      } catch (e) {
+        console.log("[AI Mode] Error checking window arguments:", e);
+      }
+    } else {
+      console.log("[AI Mode] No extraOptions found in window.arguments[1]");
+    }
+    
+    if (shouldActivateAIMode) {
+      // Activate AI Mode immediately for proper state
+      this._aiModeActive = true;
+      document.documentElement.setAttribute("ai-mode", "true");
+      
+      // Update UI elements
+      const toggleButton = document.getElementById("ai-mode-toggle");
+      toggleButton?.setAttribute("checked", "true");
+      
+      // Open Firefox View
+      this.openFirefoxView();
+      
+      // Notify all tabs and Firefox View after a brief delay to ensure they're ready
+      requestAnimationFrame(() => {
+        this.updateNewTabsAIModeState(true);
+        this.notifyFirefoxViewOfModeChange(true);
+        
+        // Focus the AI Mode input
+        const input = document.getElementById("ai-mode-input");
+        if (input) {
+          setTimeout(() => input.focus(), 100);
+        }
+      });
+      
+      console.log("[AI Mode] New window AI Mode activated");
+    } else {
+      // Otherwise restore AI Mode state from session storage
+      this.restoreState();
+    }
     
     console.log("AI Mode initialized");
   },
@@ -120,6 +184,7 @@ var AIMode = {
     // Initially hidden
     container.style.display = "none";
   },
+  
   
   /**
    * Set up all event listeners
@@ -391,7 +456,7 @@ var AIMode = {
   },
   
   /**
-   * Handle Ask button - exits AI Mode and opens sidebar
+   * Handle Ask button - opens new tab with sidebar
    */
   performAskAction() {
     const input = document.getElementById("ai-mode-input");
@@ -406,13 +471,7 @@ var AIMode = {
     // Store the query for the sidebar to use
     this._currentQuery = query;
     
-    // Exit AI Mode first to restore normal Firefox UI
-    // This will restore the URL bar and toolbar
-    if (this._aiModeActive) {
-      this.exitAIMode();
-    }
-    
-    // Open a new tab (regular new tab, not Firefox View)
+    // Open a new tab (will inherit AI Mode state)
     const newTab = gBrowser.addTrustedTab("about:newtab");
     gBrowser.selectedTab = newTab;
     
@@ -617,6 +676,11 @@ var AIMode = {
     // Clean up event listeners
     if (gBrowser) {
       gBrowser.tabContainer.removeEventListener("TabSelect", (e) => this.handleTabSwitch(e));
+    }
+    
+    // Restore OpenBrowserWindow if we overrode it
+    if (window.OpenBrowserWindow && window.OpenBrowserWindow.originalFunction) {
+      window.OpenBrowserWindow = window.OpenBrowserWindow.originalFunction;
     }
     
     // Restore sidebar if needed

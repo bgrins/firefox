@@ -1686,6 +1686,31 @@ function toOpenWindowByType(inType, uri, features) {
 function OpenBrowserWindow(options = {}) {
   let timerId = Glean.browserTimings.newWindow.start();
 
+  // Pass AI Mode state to new window
+  if (window.AIMode && window.AIMode._aiModeActive) {
+    // If no args exist, we need to pass the proper structure
+    // The default args seems to be just an nsISupportsArray or similar
+    // We need to create a proper args array with extraOptions at position 1
+    
+    // Create a new property bag for extra options
+    const extraOptions = Cc["@mozilla.org/hash-property-bag;1"].createInstance(
+      Ci.nsIWritablePropertyBag2
+    );
+    extraOptions.setPropertyAsBool("aiModeActive", true);
+    
+    // Create the args array with null URI and our extraOptions
+    // This matches the expected window.arguments structure
+    const argsArray = Cc["@mozilla.org/array;1"].createInstance(Ci.nsIMutableArray);
+    
+    // Add null for URI (position 0)
+    argsArray.appendElement(null);
+    // Add extraOptions (position 1)
+    argsArray.appendElement(extraOptions);
+    
+    options.args = argsArray;
+    console.log("[OpenBrowserWindow] Passing AI Mode state to new window via extraOptions");
+  }
+
   let win = BrowserWindowTracker.openWindow({
     openerWindow: window,
     ...options,
