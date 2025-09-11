@@ -25,26 +25,25 @@ let gNextPortID = 0;
 
 export class AboutNewTabChild extends RemotePageChild {
   receiveMessage(message) {
-    console.log(`[AboutNewTabChild] Received message: ${message.name}`, message.data);
-    
-    switch (message.name) {
-      case "UpdateSmartWindowState":
-        console.log("[AboutNewTabChild] Processing UpdateSmartWindowState:", message.data);
-        // Notify the content window about Smart Window state change
-        if (this.contentWindow) {
-          console.log("[AboutNewTabChild] Dispatching smart-window-changed event to content window");
-          this.contentWindow.dispatchEvent(
-            new this.contentWindow.CustomEvent("smart-window-changed", {
-              detail: { active: message.data.smartWindowActive },
-            })
-          );
-        } else {
-          console.log("[AboutNewTabChild] No content window available");
-        }
-        break;
-      default:
-        console.log(`[AboutNewTabChild] Unhandled message: ${message.name}`);
+    // Handle our custom messages
+    if (message.name === "UpdateSmartWindowState") {
+      console.log("[AboutNewTabChild] Processing UpdateSmartWindowState:", message.data);
+      // Notify the content window about Smart Window state change
+      if (this.contentWindow) {
+        console.log("[AboutNewTabChild] Dispatching smart-window-changed event to content window");
+        this.contentWindow.dispatchEvent(
+          new this.contentWindow.CustomEvent("smart-window-changed", {
+            detail: { active: message.data.smartWindowActive },
+          })
+        );
+      } else {
+        console.log("[AboutNewTabChild] No content window available");
+      }
+      return;
     }
+    
+    // Call parent's receiveMessage for all other messages
+    return super.receiveMessage(message);
   }
 
   handleEvent(event) {
@@ -56,43 +55,8 @@ export class AboutNewTabChild extends RemotePageChild {
         url: this.contentWindow.document.documentURI.replace(/[\#|\?].*$/, ""),
       });
       
-      // Check if parent window has Smart Window active and notify content
-      console.log("[AboutNewTabChild] Checking initial Smart Window state...");
-      try {
-        console.log("[AboutNewTabChild] contentWindow:", this.contentWindow);
-        console.log("[AboutNewTabChild] windowRoot:", this.contentWindow.windowRoot);
-        console.log("[AboutNewTabChild] ownerGlobal:", this.contentWindow.windowRoot?.ownerGlobal);
-        
-        const chromeWindow = this.contentWindow.windowRoot.ownerGlobal;
-        if (chromeWindow) {
-          console.log("[AboutNewTabChild] Got chrome window:", chromeWindow);
-          console.log("[AboutNewTabChild] Chrome document:", chromeWindow.document);
-          console.log("[AboutNewTabChild] Chrome documentElement:", chromeWindow.document?.documentElement);
-          
-          if (chromeWindow.document && chromeWindow.document.documentElement) {
-            const hasSmartWindow = chromeWindow.document.documentElement.hasAttribute("smart-window");
-            console.log("[AboutNewTabChild] Chrome window has smart-window attribute:", hasSmartWindow);
-            
-            if (hasSmartWindow) {
-              console.log("[AboutNewTabChild] Parent has Smart Window active, dispatching event");
-              this.contentWindow.dispatchEvent(
-                new this.contentWindow.CustomEvent("smart-window-changed", {
-                  detail: { active: true },
-                })
-              );
-              console.log("[AboutNewTabChild] Event dispatched successfully");
-            } else {
-              console.log("[AboutNewTabChild] Parent does not have Smart Window active");
-            }
-          } else {
-            console.log("[AboutNewTabChild] Chrome window document not accessible");
-          }
-        } else {
-          console.log("[AboutNewTabChild] No chrome window found");
-        }
-      } catch (e) {
-        console.log("[AboutNewTabChild] Error checking Smart Window state:", e.message, e.stack);
-      }
+      // The parent will send us the Smart Window state via actor messages
+      // We don't check the chrome window directly from content
     } else if (event.type == "load") {
       this.sendAsyncMessage("Load");
     } else if (event.type == "DOMContentLoaded") {

@@ -122,7 +122,7 @@ export class BaseContent extends React.PureComponent {
     this.toggleDownloadHighlight = this.toggleDownloadHighlight.bind(this);
     this.handleDismissDownloadHighlight =
       this.handleDismissDownloadHighlight.bind(this);
-    this.checkSmartWindow = this.checkSmartWindow.bind(this);
+    this.updateSmartWindowState = this.updateSmartWindowState.bind(this);
     this.state = {
       fixedSearch: false,
       firstVisibleTimestamp: null,
@@ -142,77 +142,44 @@ export class BaseContent extends React.PureComponent {
     }
   }
 
-  checkSmartWindow() {
-    console.log("[SmartWindow NewTab] checkSmartWindow called");
-    console.log("[SmartWindow NewTab] window.top:", window.top);
-    console.log("[SmartWindow NewTab] window.top === window:", window.top === window);
-    
-    // Check if we're in a Smart Window
-    let isSmartWindow = false;
-    
-    try {
-      // Try multiple ways to check for Smart Window state
-      
-      // Method 1: Check window.top
-      if (window.top && window.top.document && window.top.document.documentElement) {
-        const hasAttr = window.top.document.documentElement.hasAttribute("smart-window");
-        console.log("[SmartWindow NewTab] window.top smart-window attribute:", hasAttr);
-        if (hasAttr) {
-          isSmartWindow = true;
-        }
-      }
-      
-      // Method 2: Check windowRoot.ownerGlobal (chrome window)
-      if (!isSmartWindow && window.windowRoot && window.windowRoot.ownerGlobal) {
-        const chromeWindow = window.windowRoot.ownerGlobal;
-        console.log("[SmartWindow NewTab] Got chrome window via windowRoot:", chromeWindow);
-        if (chromeWindow.document && chromeWindow.document.documentElement) {
-          const hasAttr = chromeWindow.document.documentElement.hasAttribute("smart-window");
-          console.log("[SmartWindow NewTab] Chrome window smart-window attribute:", hasAttr);
-          if (hasAttr) {
-            isSmartWindow = true;
-          }
-        }
-      }
-    } catch (e) {
-      // Cross-origin or other access issues
-      console.log("[SmartWindow NewTab] Error checking Smart Window state:", e.message);
-    }
-    
-    console.log("[SmartWindow NewTab] Determined Smart Window state:", isSmartWindow);
+  updateSmartWindowState(isSmartWindow) {
+    console.log("[SmartWindow NewTab] Setting Smart Window state to:", isSmartWindow);
     console.log("[SmartWindow NewTab] Current state.isSmartWindow:", this.state.isSmartWindow);
     
-    if (this.state.isSmartWindow !== isSmartWindow) {
-      console.log("[SmartWindow NewTab] Updating state from", this.state.isSmartWindow, "to", isSmartWindow);
-      this.setState({ isSmartWindow });
-    }
+    // Always call setState to force re-render
+    console.log("[SmartWindow NewTab] Calling setState with isSmartWindow:", isSmartWindow);
+    this.setState({ isSmartWindow }, () => {
+      console.log("[SmartWindow NewTab] setState callback - new state.isSmartWindow:", this.state.isSmartWindow);
+      console.log("[SmartWindow NewTab] Force update after setState");
+      this.forceUpdate();
+    });
     
     // Add class to body for CSS debugging
     if (isSmartWindow) {
+      console.log("[SmartWindow NewTab] Adding smart-window-active class to body");
       document.body.classList.add("smart-window-active");
+      console.log("[SmartWindow NewTab] Body classes after add:", document.body.className);
     } else {
+      console.log("[SmartWindow NewTab] Removing smart-window-active class from body");
       document.body.classList.remove("smart-window-active");
+      console.log("[SmartWindow NewTab] Body classes after remove:", document.body.className);
     }
-    
-    console.log("[SmartWindow NewTab] Final Smart Window state:", isSmartWindow);
-    console.log("[SmartWindow NewTab] Body classes:", document.body.className);
   }
 
   componentDidMount() {
-    console.log("[SmartWindow NewTab] Component mounting, setting up listeners");
+    console.log("[SmartWindow NewTab] componentDidMount - component instance:", this);
     global.addEventListener("scroll", this.onWindowScroll);
     global.addEventListener("keydown", this.handleOnKeyDown);
 
-    // Initial check for Smart Window state
-    console.log("[SmartWindow NewTab] Performing initial Smart Window check");
-    this.checkSmartWindow();
-
-    // Listen for Smart Window state changes
-    console.log("[SmartWindow NewTab] Adding smart-window-changed event listener");
-    window.addEventListener("smart-window-changed", (event) => {
+    // Listen for Smart Window state changes from the actor
+    this.smartWindowListener = (event) => {
       console.log("[SmartWindow NewTab] Received smart-window-changed event:", event.detail);
-      this.checkSmartWindow();
-    });
+      console.log("[SmartWindow NewTab] Component instance in listener:", this);
+      if (event.detail && typeof event.detail.active === 'boolean') {
+        this.updateSmartWindowState(event.detail.active);
+      }
+    };
+    window.addEventListener("smart-window-changed", this.smartWindowListener);
     
     const prefs = this.props.Prefs.values;
     const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
@@ -848,6 +815,7 @@ export class BaseContent extends React.PureComponent {
         {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions*/}
         <div className={outerClassName} onClick={this.closeCustomizationMenu}>
           <main className="newtab-main" style={this.state.fixedNavStyle}>
+            {console.log("[SmartWindow NewTab] Rendering with isSmartWindow:", this.state.isSmartWindow)}
             {this.state.isSmartWindow ? (
               <ErrorBoundary>
                 <SmartWindowSearch />

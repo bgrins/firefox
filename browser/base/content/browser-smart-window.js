@@ -597,23 +597,17 @@ var SmartWindow = {
         if (uri.startsWith("about:newtab") || uri.startsWith("about:home")) {
           console.log(`[Smart Window] Found new tab to update: ${uri}`);
           try {
-            // Get the window global for this tab
-            const windowGlobal = tab.linkedBrowser.browsingContext?.currentWindowGlobal;
-            if (windowGlobal) {
-              console.log("[Smart Window] Got window global for tab");
-              
-              // Get the parent actor and call its method to send message to child
-              const parentActor = windowGlobal.getActor("AboutNewTab");
-              if (parentActor) {
-                console.log("[Smart Window] Got parent actor, calling updateSmartWindowState");
-                // Call the method we added to send message to child
-                parentActor.updateSmartWindowState(smartWindowActive);
-                console.log("[Smart Window] Called updateSmartWindowState on parent actor");
-              } else {
-                console.log("[Smart Window] No AboutNewTab actor found");
-              }
+            // Get the actor for this tab (same pattern as smart branch)
+            const actor = tab.linkedBrowser.browsingContext?.currentWindowGlobal?.getActor("AboutNewTab");
+            if (actor) {
+              console.log("[Smart Window] Got actor, sending UpdateSmartWindowState message");
+              // Send message to the parent actor, which will forward to child
+              actor.sendAsyncMessage("UpdateSmartWindowState", { 
+                smartWindowActive 
+              });
+              console.log("[Smart Window] Sent UpdateSmartWindowState message");
             } else {
-              console.log("[Smart Window] No window global found for tab");
+              console.log("[Smart Window] No AboutNewTab actor found for tab");
             }
           } catch (e) {
             console.log("[Smart Window] Error updating tab:", e);
