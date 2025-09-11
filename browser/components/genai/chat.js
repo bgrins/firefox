@@ -611,6 +611,16 @@ function loadAIModeUI() {
   iframe.style.left = "0";
   document.body.appendChild(iframe);
   
+  // Handle close message from iframe
+  window.addEventListener("message", (e) => {
+    if (e.data && e.data.type === "close-ai-sidebar") {
+      console.log("[GenAI Chat] Received close-ai-sidebar message");
+      if (topChromeWindow?.SidebarController) {
+        topChromeWindow.SidebarController.hide();
+      }
+    }
+  });
+  
   // Pass any initial query to the iframe
   iframe.addEventListener("load", () => {
     window.addEventListener("ai-mode-query", (e) => {
@@ -618,15 +628,6 @@ function loadAIModeUI() {
         type: "ai-mode-query",
         detail: e.detail
       }, "*");
-    });
-    
-    // Handle close message from iframe
-    window.addEventListener("message", (e) => {
-      if (e.data.type === "close-ai-sidebar") {
-        if (topChromeWindow?.SidebarController) {
-          topChromeWindow.SidebarController.hide();
-        }
-      }
     });
   });
 }

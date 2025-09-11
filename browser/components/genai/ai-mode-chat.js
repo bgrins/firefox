@@ -50,8 +50,26 @@ const AIModeChatUI = {
     
     if (closeButton) {
       closeButton.addEventListener("click", () => {
-        // Send message to parent to close the sidebar
+        console.log("[AI Mode Chat] Close button clicked");
+        
+        // Try to close the sidebar directly first
+        try {
+          // Access the top chrome window directly
+          const topWindow = window.browsingContext?.topChromeWindow || 
+                           window.top?.browsingContext?.topChromeWindow;
+          
+          if (topWindow?.SidebarController) {
+            console.log("[AI Mode Chat] Closing sidebar directly");
+            topWindow.SidebarController.hide();
+            return;
+          }
+        } catch (e) {
+          console.log("[AI Mode Chat] Direct close failed, using postMessage", e);
+        }
+        
+        // Fallback: Send message to parent to close the sidebar
         if (window.parent && window.parent !== window) {
+          console.log("[AI Mode Chat] Sending close message to parent");
           window.parent.postMessage({ type: "close-ai-sidebar" }, "*");
         }
       });
