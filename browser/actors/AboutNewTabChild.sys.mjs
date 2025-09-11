@@ -24,6 +24,21 @@ XPCOMUtils.defineLazyPreferenceGetter(
 let gNextPortID = 0;
 
 export class AboutNewTabChild extends RemotePageChild {
+  receiveMessage(message) {
+    switch (message.name) {
+      case "UpdateSmartWindowState":
+        // Notify the content window about Smart Window state change
+        if (this.contentWindow) {
+          this.contentWindow.dispatchEvent(
+            new this.contentWindow.CustomEvent("smart-window-changed", {
+              detail: { active: message.data.smartWindowActive },
+            })
+          );
+        }
+        break;
+    }
+  }
+
   handleEvent(event) {
     if (event.type == "DOMDocElementInserted") {
       let portID = Services.appinfo.processID + ":" + ++gNextPortID;
@@ -32,6 +47,21 @@ export class AboutNewTabChild extends RemotePageChild {
         portID,
         url: this.contentWindow.document.documentURI.replace(/[\#|\?].*$/, ""),
       });
+      
+      // Check if parent window has Smart Window active and notify content
+      try {
+        const chromeWindow = this.contentWindow.windowRoot.ownerGlobal;
+        if (chromeWindow && chromeWindow.document.documentElement.hasAttribute("smart-window")) {
+          console.log("[AboutNewTabChild] Parent has Smart Window active, notifying content");
+          this.contentWindow.dispatchEvent(
+            new this.contentWindow.CustomEvent("smart-window-changed", {
+              detail: { active: true },
+            })
+          );
+        }
+      } catch (e) {
+        console.log("[AboutNewTabChild] Error checking Smart Window state:", e);
+      }
     } else if (event.type == "load") {
       this.sendAsyncMessage("Load");
     } else if (event.type == "DOMContentLoaded") {

@@ -20,6 +20,7 @@ import { TopicSelection } from "content-src/components/DiscoveryStreamComponents
 import { DownloadMobilePromoHighlight } from "../DiscoveryStreamComponents/FeatureHighlight/DownloadMobilePromoHighlight";
 import { WallpaperFeatureHighlight } from "../DiscoveryStreamComponents/FeatureHighlight/WallpaperFeatureHighlight";
 import { MessageWrapper } from "content-src/components/MessageWrapper/MessageWrapper";
+import { SmartWindowSearch } from "content-src/components/SmartWindowSearch/SmartWindowSearch";
 
 const VISIBLE = "visible";
 const VISIBILITY_CHANGE_EVENT = "visibilitychange";
@@ -121,6 +122,7 @@ export class BaseContent extends React.PureComponent {
     this.toggleDownloadHighlight = this.toggleDownloadHighlight.bind(this);
     this.handleDismissDownloadHighlight =
       this.handleDismissDownloadHighlight.bind(this);
+    this.checkSmartWindow = this.checkSmartWindow.bind(this);
     this.state = {
       fixedSearch: false,
       firstVisibleTimestamp: null,
@@ -128,6 +130,7 @@ export class BaseContent extends React.PureComponent {
       fixedNavStyle: {},
       wallpaperTheme: "",
       showDownloadHighlightOverride: null,
+      isSmartWindow: false,
     };
   }
 
@@ -139,9 +142,44 @@ export class BaseContent extends React.PureComponent {
     }
   }
 
+  checkSmartWindow() {
+    // Check if we're in a Smart Window
+    let isSmartWindow = false;
+    
+    try {
+      // Try to check the parent window's document
+      if (window.top && window.top.document && window.top.document.documentElement) {
+        isSmartWindow = window.top.document.documentElement.hasAttribute("smart-window");
+        console.log("[SmartWindow NewTab] Checked parent window attribute:", isSmartWindow);
+      }
+    } catch (e) {
+      // Cross-origin or other access issues
+      console.log("[SmartWindow NewTab] Cannot access parent window:", e);
+    }
+    
+    this.setState({ isSmartWindow });
+    
+    // Add class to body for CSS debugging
+    if (isSmartWindow) {
+      document.body.classList.add("smart-window-active");
+    } else {
+      document.body.classList.remove("smart-window-active");
+    }
+    
+    console.log("[SmartWindow NewTab] Final Smart Window state:", isSmartWindow);
+  }
+
   componentDidMount() {
     global.addEventListener("scroll", this.onWindowScroll);
     global.addEventListener("keydown", this.handleOnKeyDown);
+
+    this.checkSmartWindow();
+
+    window.addEventListener("smart-window-changed", (event) => {
+      console.log("[SmartWindow NewTab] Received smart-window-changed event:", event.detail);
+      this.checkSmartWindow();
+    });
+    
     const prefs = this.props.Prefs.values;
     const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     if (this.props.document.visibilityState === VISIBLE) {
@@ -776,34 +814,42 @@ export class BaseContent extends React.PureComponent {
         {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions*/}
         <div className={outerClassName} onClick={this.closeCustomizationMenu}>
           <main className="newtab-main" style={this.state.fixedNavStyle}>
-            {prefs.showSearch && (
-              <div className="non-collapsible-section">
-                <ErrorBoundary>
-                  <Search
-                    showLogo={
-                      noSectionsEnabled || prefs["logowordmark.alwaysVisible"]
-                    }
-                    handoffEnabled={searchHandoffEnabled}
-                    {...props.Search}
-                  />
-                </ErrorBoundary>
-              </div>
+            {this.state.isSmartWindow ? (
+              <ErrorBoundary>
+                <SmartWindowSearch />
+              </ErrorBoundary>
+            ) : (
+              <>
+                    {prefs.showSearch && (
+                  <div className="non-collapsible-section">
+                    <ErrorBoundary>
+                      <Search
+                        showLogo={
+                          noSectionsEnabled || prefs["logowordmark.alwaysVisible"]
+                        }
+                        handoffEnabled={searchHandoffEnabled}
+                        {...props.Search}
+                      />
+                    </ErrorBoundary>
+                  </div>
+                )}
+                {/* Bug 1914055: Show logo regardless if search is enabled */}
+                {!prefs.showSearch && !noSectionsEnabled && <Logo />}
+                <div className={`body-wrapper${initialized ? " on" : ""}`}>
+                  {isDiscoveryStream ? (
+                    <ErrorBoundary className="borderless-error">
+                      <DiscoveryStreamBase
+                        locale={props.App.locale}
+                        mayHaveSponsoredStories={mayHaveSponsoredStories}
+                        firstVisibleTimestamp={this.state.firstVisibleTimestamp}
+                      />
+                    </ErrorBoundary>
+                  ) : (
+                    <Sections />
+                  )}
+                </div>
+              </>
             )}
-            {/* Bug 1914055: Show logo regardless if search is enabled */}
-            {!prefs.showSearch && !noSectionsEnabled && <Logo />}
-            <div className={`body-wrapper${initialized ? " on" : ""}`}>
-              {isDiscoveryStream ? (
-                <ErrorBoundary className="borderless-error">
-                  <DiscoveryStreamBase
-                    locale={props.App.locale}
-                    mayHaveSponsoredStories={mayHaveSponsoredStories}
-                    firstVisibleTimestamp={this.state.firstVisibleTimestamp}
-                  />
-                </ErrorBoundary>
-              ) : (
-                <Sections />
-              )}
-            </div>
             <ConfirmDialog />
             {wallpapersEnabled && this.renderWallpaperAttribution()}
           </main>
