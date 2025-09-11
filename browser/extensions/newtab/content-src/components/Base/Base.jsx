@@ -20,7 +20,6 @@ import { TopicSelection } from "content-src/components/DiscoveryStreamComponents
 import { DownloadMobilePromoHighlight } from "../DiscoveryStreamComponents/FeatureHighlight/DownloadMobilePromoHighlight";
 import { WallpaperFeatureHighlight } from "../DiscoveryStreamComponents/FeatureHighlight/WallpaperFeatureHighlight";
 import { MessageWrapper } from "content-src/components/MessageWrapper/MessageWrapper";
-import { SmartWindowSearch } from "content-src/components/SmartWindowSearch/SmartWindowSearch";
 
 const VISIBLE = "visible";
 const VISIBILITY_CHANGE_EVENT = "visibilitychange";
@@ -122,7 +121,6 @@ export class BaseContent extends React.PureComponent {
     this.toggleDownloadHighlight = this.toggleDownloadHighlight.bind(this);
     this.handleDismissDownloadHighlight =
       this.handleDismissDownloadHighlight.bind(this);
-    this.updateSmartWindowState = this.updateSmartWindowState.bind(this);
     this.state = {
       fixedSearch: false,
       firstVisibleTimestamp: null,
@@ -130,7 +128,6 @@ export class BaseContent extends React.PureComponent {
       fixedNavStyle: {},
       wallpaperTheme: "",
       showDownloadHighlightOverride: null,
-      isSmartWindow: false,
     };
   }
 
@@ -142,45 +139,9 @@ export class BaseContent extends React.PureComponent {
     }
   }
 
-  updateSmartWindowState(isSmartWindow) {
-    console.log("[SmartWindow NewTab] Setting Smart Window state to:", isSmartWindow);
-    console.log("[SmartWindow NewTab] Current state.isSmartWindow:", this.state.isSmartWindow);
-    
-    // Always call setState to force re-render
-    console.log("[SmartWindow NewTab] Calling setState with isSmartWindow:", isSmartWindow);
-    this.setState({ isSmartWindow }, () => {
-      console.log("[SmartWindow NewTab] setState callback - new state.isSmartWindow:", this.state.isSmartWindow);
-      console.log("[SmartWindow NewTab] Force update after setState");
-      this.forceUpdate();
-    });
-    
-    // Add class to body for CSS debugging
-    if (isSmartWindow) {
-      console.log("[SmartWindow NewTab] Adding smart-window-active class to body");
-      document.body.classList.add("smart-window-active");
-      console.log("[SmartWindow NewTab] Body classes after add:", document.body.className);
-    } else {
-      console.log("[SmartWindow NewTab] Removing smart-window-active class from body");
-      document.body.classList.remove("smart-window-active");
-      console.log("[SmartWindow NewTab] Body classes after remove:", document.body.className);
-    }
-  }
-
   componentDidMount() {
-    console.log("[SmartWindow NewTab] componentDidMount - component instance:", this);
     global.addEventListener("scroll", this.onWindowScroll);
     global.addEventListener("keydown", this.handleOnKeyDown);
-
-    // Listen for Smart Window state changes from the actor
-    this.smartWindowListener = (event) => {
-      console.log("[SmartWindow NewTab] Received smart-window-changed event:", event.detail);
-      console.log("[SmartWindow NewTab] Component instance in listener:", this);
-      if (event.detail && typeof event.detail.active === 'boolean') {
-        this.updateSmartWindowState(event.detail.active);
-      }
-    };
-    window.addEventListener("smart-window-changed", this.smartWindowListener);
-    
     const prefs = this.props.Prefs.values;
     const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     if (this.props.document.visibilityState === VISIBLE) {
@@ -815,43 +776,34 @@ export class BaseContent extends React.PureComponent {
         {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions*/}
         <div className={outerClassName} onClick={this.closeCustomizationMenu}>
           <main className="newtab-main" style={this.state.fixedNavStyle}>
-            {console.log("[SmartWindow NewTab] Rendering with isSmartWindow:", this.state.isSmartWindow)}
-            {this.state.isSmartWindow ? (
-              <ErrorBoundary>
-                <SmartWindowSearch />
-              </ErrorBoundary>
-            ) : (
-              <>
-                {prefs.showSearch && (
-                  <div className="non-collapsible-section">
-                    <ErrorBoundary>
-                      <Search
-                        showLogo={
-                          noSectionsEnabled || prefs["logowordmark.alwaysVisible"]
-                        }
-                        handoffEnabled={searchHandoffEnabled}
-                        {...props.Search}
-                      />
-                    </ErrorBoundary>
-                  </div>
-                )}
-                {/* Bug 1914055: Show logo regardless if search is enabled */}
-                {!prefs.showSearch && !noSectionsEnabled && <Logo />}
-                <div className={`body-wrapper${initialized ? " on" : ""}`}>
-                  {isDiscoveryStream ? (
-                    <ErrorBoundary className="borderless-error">
-                      <DiscoveryStreamBase
-                        locale={props.App.locale}
-                        mayHaveSponsoredStories={mayHaveSponsoredStories}
-                        firstVisibleTimestamp={this.state.firstVisibleTimestamp}
-                      />
-                    </ErrorBoundary>
-                  ) : (
-                    <Sections />
-                  )}
-                </div>
-              </>
+            {prefs.showSearch && (
+              <div className="non-collapsible-section">
+                <ErrorBoundary>
+                  <Search
+                    showLogo={
+                      noSectionsEnabled || prefs["logowordmark.alwaysVisible"]
+                    }
+                    handoffEnabled={searchHandoffEnabled}
+                    {...props.Search}
+                  />
+                </ErrorBoundary>
+              </div>
             )}
+            {/* Bug 1914055: Show logo regardless if search is enabled */}
+            {!prefs.showSearch && !noSectionsEnabled && <Logo />}
+            <div className={`body-wrapper${initialized ? " on" : ""}`}>
+              {isDiscoveryStream ? (
+                <ErrorBoundary className="borderless-error">
+                  <DiscoveryStreamBase
+                    locale={props.App.locale}
+                    mayHaveSponsoredStories={mayHaveSponsoredStories}
+                    firstVisibleTimestamp={this.state.firstVisibleTimestamp}
+                  />
+                </ErrorBoundary>
+              ) : (
+                <Sections />
+              )}
+            </div>
             <ConfirmDialog />
             {wallpapersEnabled && this.renderWallpaperAttribution()}
           </main>

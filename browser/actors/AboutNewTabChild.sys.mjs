@@ -24,28 +24,6 @@ XPCOMUtils.defineLazyPreferenceGetter(
 let gNextPortID = 0;
 
 export class AboutNewTabChild extends RemotePageChild {
-  receiveMessage(message) {
-    // Handle our custom messages
-    if (message.name === "UpdateSmartWindowState") {
-      console.log("[AboutNewTabChild] Processing UpdateSmartWindowState:", message.data);
-      // Notify the content window about Smart Window state change
-      if (this.contentWindow) {
-        console.log("[AboutNewTabChild] Dispatching smart-window-changed event to content window");
-        this.contentWindow.dispatchEvent(
-          new this.contentWindow.CustomEvent("smart-window-changed", {
-            detail: { active: message.data.smartWindowActive },
-          })
-        );
-      } else {
-        console.log("[AboutNewTabChild] No content window available");
-      }
-      return;
-    }
-    
-    // Call parent's receiveMessage for all other messages
-    return super.receiveMessage(message);
-  }
-
   handleEvent(event) {
     if (event.type == "DOMDocElementInserted") {
       let portID = Services.appinfo.processID + ":" + ++gNextPortID;
@@ -54,9 +32,6 @@ export class AboutNewTabChild extends RemotePageChild {
         portID,
         url: this.contentWindow.document.documentURI.replace(/[\#|\?].*$/, ""),
       });
-      
-      // The parent will send us the Smart Window state via actor messages
-      // We don't check the chrome window directly from content
     } else if (event.type == "load") {
       this.sendAsyncMessage("Load");
     } else if (event.type == "DOMContentLoaded") {

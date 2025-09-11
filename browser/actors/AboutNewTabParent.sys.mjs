@@ -42,12 +42,6 @@ export class AboutNewTabParent extends JSWindowActorParent {
 
   async receiveMessage(message) {
     switch (message.name) {
-      case "UpdateSmartWindowState":
-        // Forward the message to the child
-        console.log("[AboutNewTabParent] Forwarding UpdateSmartWindowState to child:", message.data);
-        this.sendAsyncMessage("UpdateSmartWindowState", message.data);
-        break;
-        
       case "AboutNewTabVisible":
         {
           const browsingContext = this.browsingContext;
