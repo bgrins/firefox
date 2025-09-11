@@ -22,6 +22,11 @@ export class AboutNewTabParent extends JSWindowActorParent {
     let browser = this.browsingContext.top.embedderElement;
     return browser ? gLoadedTabs.get(browser) : null;
   }
+  
+  // Method to send Smart Window state to child
+  updateSmartWindowState(smartWindowActive) {
+    this.sendAsyncMessage("UpdateSmartWindowState", { smartWindowActive });
+  }
 
   handleEvent(event) {
     if (event.type == "SwapDocShells") {

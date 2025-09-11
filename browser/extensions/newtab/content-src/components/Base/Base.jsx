@@ -143,21 +143,49 @@ export class BaseContent extends React.PureComponent {
   }
 
   checkSmartWindow() {
+    console.log("[SmartWindow NewTab] checkSmartWindow called");
+    console.log("[SmartWindow NewTab] window.top:", window.top);
+    console.log("[SmartWindow NewTab] window.top === window:", window.top === window);
+    
     // Check if we're in a Smart Window
     let isSmartWindow = false;
     
     try {
-      // Try to check the parent window's document
+      // Try multiple ways to check for Smart Window state
+      
+      // Method 1: Check window.top
       if (window.top && window.top.document && window.top.document.documentElement) {
-        isSmartWindow = window.top.document.documentElement.hasAttribute("smart-window");
-        console.log("[SmartWindow NewTab] Checked parent window attribute:", isSmartWindow);
+        const hasAttr = window.top.document.documentElement.hasAttribute("smart-window");
+        console.log("[SmartWindow NewTab] window.top smart-window attribute:", hasAttr);
+        if (hasAttr) {
+          isSmartWindow = true;
+        }
+      }
+      
+      // Method 2: Check windowRoot.ownerGlobal (chrome window)
+      if (!isSmartWindow && window.windowRoot && window.windowRoot.ownerGlobal) {
+        const chromeWindow = window.windowRoot.ownerGlobal;
+        console.log("[SmartWindow NewTab] Got chrome window via windowRoot:", chromeWindow);
+        if (chromeWindow.document && chromeWindow.document.documentElement) {
+          const hasAttr = chromeWindow.document.documentElement.hasAttribute("smart-window");
+          console.log("[SmartWindow NewTab] Chrome window smart-window attribute:", hasAttr);
+          if (hasAttr) {
+            isSmartWindow = true;
+          }
+        }
       }
     } catch (e) {
       // Cross-origin or other access issues
-      console.log("[SmartWindow NewTab] Cannot access parent window:", e);
+      console.log("[SmartWindow NewTab] Error checking Smart Window state:", e.message);
     }
     
-    this.setState({ isSmartWindow });
+    console.log("[SmartWindow NewTab] Determined Smart Window state:", isSmartWindow);
+    console.log("[SmartWindow NewTab] Current state.isSmartWindow:", this.state.isSmartWindow);
+    
+    if (this.state.isSmartWindow !== isSmartWindow) {
+      console.log("[SmartWindow NewTab] Updating state from", this.state.isSmartWindow, "to", isSmartWindow);
+      this.setState({ isSmartWindow });
+    }
     
     // Add class to body for CSS debugging
     if (isSmartWindow) {
@@ -167,14 +195,20 @@ export class BaseContent extends React.PureComponent {
     }
     
     console.log("[SmartWindow NewTab] Final Smart Window state:", isSmartWindow);
+    console.log("[SmartWindow NewTab] Body classes:", document.body.className);
   }
 
   componentDidMount() {
+    console.log("[SmartWindow NewTab] Component mounting, setting up listeners");
     global.addEventListener("scroll", this.onWindowScroll);
     global.addEventListener("keydown", this.handleOnKeyDown);
 
+    // Initial check for Smart Window state
+    console.log("[SmartWindow NewTab] Performing initial Smart Window check");
     this.checkSmartWindow();
 
+    // Listen for Smart Window state changes
+    console.log("[SmartWindow NewTab] Adding smart-window-changed event listener");
     window.addEventListener("smart-window-changed", (event) => {
       console.log("[SmartWindow NewTab] Received smart-window-changed event:", event.detail);
       this.checkSmartWindow();
@@ -820,7 +854,7 @@ export class BaseContent extends React.PureComponent {
               </ErrorBoundary>
             ) : (
               <>
-                    {prefs.showSearch && (
+                {prefs.showSearch && (
                   <div className="non-collapsible-section">
                     <ErrorBoundary>
                       <Search
