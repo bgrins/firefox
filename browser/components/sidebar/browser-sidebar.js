@@ -215,6 +215,15 @@ var SidebarController = {
         gleanEvent: Glean.contextualManager.sidebarToggle,
       }
     );
+    
+    // Register smart window sidebar (internal use)
+    this._sidebars.set("viewSmartWindowSidebar", {
+      name: "smartwindow",
+      url: "chrome://browser/content/smartwindow-sidebar.html",
+      title: "Smart Window",
+      // This is an internal sidebar, not shown in menus  
+      hidden: true,
+    });
 
     if (this.sidebarRevampEnabled) {
       this._sidebars.set("viewCustomizeSidebar", {

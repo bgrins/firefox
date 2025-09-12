@@ -190,6 +190,9 @@ var SmartWindow = {
       root.removeAttribute("smart-window");
       toggleButton?.removeAttribute("checked");
 
+      // Clean up any smart window sidebar state
+      this.cleanupSmartWindowSidebar();
+
       // Restore bookmarks toolbar visibility based on user preference
       updateBookmarkToolbarVisibility();
 
@@ -209,9 +212,71 @@ var SmartWindow = {
     return this._smartWindowActive;
   },
 
+  handleNewTabNavigation(url, event, where, params, resultDetails, browser) {
+    console.log("[Smart Window] Handling new tab navigation to:", url);
+    console.log("[Smart Window] Current browser URI:", browser.currentURI?.spec);
+    
+    // Get the current tab (which has the new tab page)
+    const currentTab = gBrowser.selectedTab;
+    
+    // Create a new tab with the URL
+    const newTab = gBrowser.addTab(url, {
+      triggeringPrincipal: params.triggeringPrincipal || 
+        Services.scriptSecurityManager.getSystemPrincipal(),
+      allowThirdPartyFixup: params.allowThirdPartyFixup,
+      relatedToCurrent: false, // Not related to preserve clean history
+      userContextId: params.userContextId,
+      fromExternal: params.fromExternal,
+      globalHistoryOptions: params.globalHistoryOptions,
+      referrerInfo: params.referrerInfo,
+      postData: params.postData,
+      allowInheritPrincipal: params.allowInheritPrincipal,
+    });
+    
+    // Switch to the new tab immediately
+    gBrowser.selectedTab = newTab;
+    
+    // Remove the original new tab
+    if (currentTab && !currentTab.closing && currentTab.parentNode) {
+      gBrowser.removeTab(currentTab, { animate: false });
+    }
+    
+    // Prepare sidebar arguments with the connected tab info
+    const sidebarArgs = {
+      smartWindowMode: true,
+      connectedTab: newTab  // The tab that was navigated to
+    };
+    
+    // Store the args and open sidebar
+    SidebarController._smartWindowArgs = sidebarArgs;
+    
+    // Open the smart window sidebar panel
+    SidebarController.show("viewSmartWindowSidebar").then(() => {
+      console.log("[Smart Window] Smart window sidebar opened with connected tab:", newTab.label);
+    });
+  },
+
   exitSmartWindow() {
     if (this.isSmartWindowActive()) {
+      // Clean up any smart window sidebar state
+      this.cleanupSmartWindowSidebar();
       this.toggleSmartWindow();
+    }
+  },
+  
+  cleanupSmartWindowSidebar() {
+    // Clear any pending smart window sidebar args
+    if (SidebarController._smartWindowArgs) {
+      delete SidebarController._smartWindowArgs;
+    }
+    
+    // If smart window sidebar is open, close it
+    if (
+      SidebarController.isOpen && 
+      SidebarController.currentID === "viewSmartWindowSidebar"
+    ) {
+      console.log("[Smart Window] Closing smart window sidebar");
+      SidebarController.hide();
     }
   },
 

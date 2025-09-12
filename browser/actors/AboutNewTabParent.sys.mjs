@@ -71,6 +71,7 @@ export class AboutNewTabParent extends JSWindowActorParent {
   }
 
   async receiveMessage(message) {
+    console.log("[AboutNewTabParent] Received message:", message.name, message.data);
     switch (message.name) {
       case "AboutNewTabVisible":
         {
@@ -165,6 +166,15 @@ export class AboutNewTabParent extends JSWindowActorParent {
         break;
       }
 
+      case "SmartWindow:ConnectedTab":
+        // Forward the connected tab info to the content
+        console.log("[AboutNewTabParent] Received SmartWindow:ConnectedTab", message.data);
+        this.sendAsyncMessage("ActivityStream:MainToContent", {
+          type: "SMART_WINDOW_CONNECTED_TAB",
+          data: message.data
+        });
+        break;
+        
       case "ActivityStream:ContentToMain":
         this.notifyActivityStreamChannel("onMessage", message);
         break;

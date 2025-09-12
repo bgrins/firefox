@@ -24,6 +24,63 @@ XPCOMUtils.defineLazyPreferenceGetter(
 let gNextPortID = 0;
 
 export class AboutNewTabChild extends RemotePageChild {
+  receiveMessage(message) {
+    console.log("[AboutNewTabChild] Received message:", message.name, message.data?.type);
+    
+    if (message.name === "ActivityStream:MainToContent") {
+      console.log("[AboutNewTabChild] ActivityStream message type:", message.data.type);
+      
+      if (message.data.type === "SMART_WINDOW_CONNECTED_TAB") {
+        // Display the connected tab info in the new tab
+        this.displayConnectedTabInfo(message.data.data);
+      } else if (message.data.type === "SMART_WINDOW_STATE_UPDATE") {
+        console.log("[AboutNewTabChild] Smart window state update:", message.data.data);
+        // The Activity Stream should handle this, but let's log it
+      }
+    }
+    return super.receiveMessage?.(message);
+  }
+  
+  displayConnectedTabInfo(tabInfo) {
+    console.log("[AboutNewTabChild] Displaying connected tab info:", tabInfo);
+    
+    // Create or update the smart window overlay
+    let overlay = this.contentWindow.document.getElementById("smart-window-overlay");
+    if (!overlay) {
+      overlay = this.contentWindow.document.createElement("div");
+      overlay.id = "smart-window-overlay";
+      overlay.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: var(--newtab-background-color-secondary, rgba(255, 255, 255, 0.95));
+        border: 1px solid var(--newtab-border-color, #ddd);
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        z-index: 10000;
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 300px;
+      `;
+      this.contentWindow.document.body.appendChild(overlay);
+    }
+    
+    overlay.innerHTML = `
+      <div style="font-size: 12px; color: var(--newtab-text-primary-color, #666); margin-bottom: 8px;">
+        Smart Window Context
+      </div>
+      <div style="font-weight: 600; margin-bottom: 4px; color: var(--newtab-text-primary-color, #333);">
+        ${tabInfo.title || "Untitled"}
+      </div>
+      <div style="font-size: 12px; color: var(--newtab-text-secondary-color, #999); word-break: break-all;">
+        ${tabInfo.url || "No URL"}
+      </div>
+      <div style="font-size: 10px; color: var(--newtab-text-secondary-color, #999); margin-top: 8px;">
+        Tab ID: ${tabInfo.tabId}
+      </div>
+    `;
+  }
+  
   handleEvent(event) {
     if (event.type == "DOMDocElementInserted") {
       let portID = Services.appinfo.processID + ":" + ++gNextPortID;

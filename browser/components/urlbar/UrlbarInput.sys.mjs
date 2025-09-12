@@ -3501,6 +3501,24 @@ export class UrlbarInput {
     resultDetails = null,
     browser = this.window.gBrowser.selectedBrowser
   ) {
+    // Check if we're in a smart window navigating from a new tab
+    if (
+      this.window.SmartWindow?.isSmartWindowActive?.() &&
+      openUILinkWhere == "current" &&
+      this.window.isBlankPageURL?.(browser.currentURI?.spec)
+    ) {
+      // Handle smart window new tab navigation specially
+      this.window.SmartWindow.handleNewTabNavigation(
+        url,
+        event,
+        openUILinkWhere,
+        params,
+        resultDetails,
+        browser
+      );
+      return;
+    }
+
     if (this.isAddressbar) {
       this.#prepareAddressbarLoad(
         url,
