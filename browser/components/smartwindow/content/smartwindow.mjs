@@ -777,10 +777,9 @@ class SmartWindowPage {
     }
 
     const type = query ? this.detectQueryType(query) : "search";
-    const icon = this.getQueryTypeIcon(type);
     const label = this.getQueryTypeLabel(type);
 
-    this.submitButton.innerHTML = `${icon} ${label}`;
+    this.submitButton.textContent = label;
     this.submitButton.disabled = !query.trim();
   }
 
@@ -810,6 +809,9 @@ class SmartWindowPage {
     if (!this.suggestionsContainer) {
       return;
     }
+
+    // Remove hidden class when showing suggestions
+    this.suggestionsContainer.classList.remove("hidden");
 
     // Add or remove the quick-prompts class
     if (isQuickPrompts) {
@@ -886,7 +888,7 @@ class SmartWindowPage {
 
   hideSuggestions() {
     if (this.suggestionsContainer) {
-      this.suggestionsContainer.style.display = "none";
+      this.suggestionsContainer.classList.add("hidden");
     }
     this.currentSuggestions = [];
     this.selectedSuggestionIndex = -1;
