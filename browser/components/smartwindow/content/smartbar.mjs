@@ -110,18 +110,46 @@ export function attachToElement(element, options = {}) {
     button.className = `suggestion-button suggestion-${suggestion.type}`;
     button.dataset.index = index;
 
-    const icon = document.createElement("span");
-    icon.className = "suggestion-icon";
-    icon.textContent = getQueryTypeIcon
-      ? getQueryTypeIcon(suggestion.type)
-      : "🔍";
+    // Handle favicon for tabs
+    let iconElement;
+    if (suggestion.icon && suggestion.icon.startsWith('data:') || suggestion.icon && suggestion.icon.startsWith('http')) {
+      iconElement = document.createElement("img");
+      iconElement.className = "suggestion-icon suggestion-favicon";
+      iconElement.src = suggestion.icon;
+      iconElement.onerror = function() {
+        this.style.display = 'none';
+        const fallback = document.createElement("span");
+        fallback.className = "suggestion-icon";
+        fallback.textContent = "🔗";
+        this.parentNode.replaceChild(fallback, this);
+      };
+    } else {
+      iconElement = document.createElement("span");
+      iconElement.className = "suggestion-icon";
+      iconElement.textContent = suggestion.icon || (getQueryTypeIcon ? getQueryTypeIcon(suggestion.type) : "🔍");
+    }
+
+    const textContainer = document.createElement("div");
+    textContainer.className = "suggestion-text-container";
 
     const text = document.createElement("span");
     text.className = "suggestion-text";
-    text.textContent = suggestion.text;
+    // For mention suggestions, use label; for regular suggestions use text
+    text.textContent = suggestion.label || suggestion.text || suggestion.title || "";
 
-    button.appendChild(icon);
-    button.appendChild(text);
+    // Add description if available
+    if (suggestion.description) {
+      const desc = document.createElement("span");
+      desc.className = "suggestion-description";
+      desc.textContent = suggestion.description;
+      textContainer.appendChild(text);
+      textContainer.appendChild(desc);
+    } else {
+      textContainer.appendChild(text);
+    }
+
+    button.appendChild(iconElement);
+    button.appendChild(textContainer);
 
     // Add event listeners
     button.addEventListener("mouseenter", () => {
@@ -130,9 +158,29 @@ export function attachToElement(element, options = {}) {
 
     button.addEventListener("click", e => {
       e.preventDefault();
-      editor.commands.setContent(suggestion.text);
-      if (onSuggestionSelect) {
-        onSuggestionSelect(suggestion);
+
+      // Check if this is a mention suggestion
+      if (currentMentionContext) {
+        // Clear the @ text
+        editor.chain()
+          .focus()
+          .deleteRange({ from: currentMentionContext.start, to: currentMentionContext.end })
+          .run();
+
+        // Clear mention context
+        currentMentionContext = null;
+        hideSuggestions();
+
+        // Call the callback to handle the mention selection (add to context)
+        if (onSuggestionSelect) {
+          onSuggestionSelect(suggestion);
+        }
+      } else {
+        // Regular suggestion - set content
+        editor.commands.setContent(suggestion.text);
+        if (onSuggestionSelect) {
+          onSuggestionSelect(suggestion);
+        }
       }
     });
 
@@ -262,7 +310,7 @@ export function attachToElement(element, options = {}) {
 
   // Return an object with the editor and helper functions
   return {
-    editor,
+    editor, // Expose editor for direct access when needed
 
     // Helper functions
     focus() {
@@ -325,62 +373,6 @@ export function attachToElement(element, options = {}) {
       return null;
     },
 
-    // Insert a mention at the current position
-    insertMention(mention) {
-      if (!currentMentionContext) return;
-
-      // Store mention data (escaping for HTML attributes)
-      const dataStr = mention.data ? encodeURIComponent(JSON.stringify(mention.data)) : '';
-
-      // Delete the @query text
-      editor.chain()
-        .focus()
-        .deleteRange({ from: currentMentionContext.start, to: currentMentionContext.end })
-        .insertContent(
-          `<span class="mention" data-mention-id="${mention.id}" data-mention-type="${mention.type}" data-mention-data="${dataStr}">@${mention.label}</span>&nbsp;`
-        )
-        .run();
-
-      // Clear mention context
-      currentMentionContext = null;
-      hideSuggestions();
-    },
-
-    // Get all mentions in the content
-    getMentions() {
-      const mentions = [];
-
-      // Get the HTML content and parse mentions from it
-      const htmlContent = editor.getHTML();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlContent, 'text/html');
-
-      // Find all mention spans
-      const mentionElements = doc.querySelectorAll('span.mention');
-      mentionElements.forEach(el => {
-        const id = el.getAttribute('data-mention-id');
-        const type = el.getAttribute('data-mention-type');
-        const dataStr = el.getAttribute('data-mention-data');
-        const label = el.textContent.replace('@', '');
-
-        const mention = { id, type, label };
-
-        // Decode data if present
-        if (dataStr) {
-          try {
-            mention.data = JSON.parse(decodeURIComponent(dataStr));
-          } catch (e) {
-            console.error('Failed to parse mention data:', e);
-          }
-        }
-
-        if (id && type) {
-          mentions.push(mention);
-        }
-      });
-
-      return mentions;
-    },
 
     // Suggestions API
     showSuggestions,
