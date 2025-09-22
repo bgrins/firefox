@@ -12,6 +12,7 @@ export function attachToElement(element, options = {}) {
   let currentSuggestions = [];
   let selectedSuggestionIndex = -1;
   let suggestionsContainer = null;
+  let currentMentionContext = null; // Track active mention being typed
 
   // Create suggestions container
   function createSuggestionsContainer() {
@@ -190,15 +191,46 @@ export function attachToElement(element, options = {}) {
     });
   }
 
+  function showMentionSuggestions(suggestions, mentionContext) {
+    if (!suggestionsContainer) {
+      return;
+    }
+
+    currentMentionContext = mentionContext;
+    suggestionsContainer.classList.remove("hidden");
+    suggestionsContainer.classList.add("mention-mode");
+    suggestionsContainer.classList.remove("quick-prompts", "user-edited");
+
+    currentSuggestions = suggestions;
+    selectedSuggestionIndex = -1;
+
+    // Update header for mentions
+    const header = suggestionsContainer.querySelector(".suggestions-title");
+    if (header) {
+      header.textContent = "Mention:";
+    }
+
+    // Clear and populate suggestions list
+    const suggestionsList = suggestionsContainer.querySelector(".suggestions-list");
+    suggestionsList.innerHTML = "";
+
+    suggestions.forEach((suggestion, index) => {
+      const suggestionButton = createSuggestionButton(suggestion, index);
+      suggestionButton.classList.add("mention-suggestion");
+      suggestionsList.appendChild(suggestionButton);
+    });
+  }
+
   function hideSuggestions() {
     if (!suggestionsContainer) {
       return;
     }
 
     suggestionsContainer.classList.add("hidden");
-    suggestionsContainer.classList.remove("quick-prompts", "user-edited");
+    suggestionsContainer.classList.remove("quick-prompts", "user-edited", "mention-mode");
     currentSuggestions = [];
     selectedSuggestionIndex = -1;
+    currentMentionContext = null;
   }
 
   function navigateSuggestions(direction) {
@@ -264,11 +296,99 @@ export function attachToElement(element, options = {}) {
       }
     },
 
+    // Cursor and selection methods
+    getSelection() {
+      return editor.state.selection;
+    },
+
+    getTextBeforeCursor(length = 50) {
+      const { from } = editor.state.selection;
+      return editor.state.doc.textBetween(Math.max(0, from - length), from);
+    },
+
+    getCursorPosition() {
+      return editor.state.selection.from;
+    },
+
+    // Mention detection
+    detectMention() {
+      const textBefore = this.getTextBeforeCursor();
+      const mentionMatch = textBefore.match(/@(\w*)$/);
+      if (mentionMatch) {
+        const from = this.getCursorPosition();
+        return {
+          query: mentionMatch[1],
+          start: from - mentionMatch[0].length,
+          end: from,
+        };
+      }
+      return null;
+    },
+
+    // Insert a mention at the current position
+    insertMention(mention) {
+      if (!currentMentionContext) return;
+
+      // Store mention data (escaping for HTML attributes)
+      const dataStr = mention.data ? encodeURIComponent(JSON.stringify(mention.data)) : '';
+
+      // Delete the @query text
+      editor.chain()
+        .focus()
+        .deleteRange({ from: currentMentionContext.start, to: currentMentionContext.end })
+        .insertContent(
+          `<span class="mention" data-mention-id="${mention.id}" data-mention-type="${mention.type}" data-mention-data="${dataStr}">@${mention.label}</span>&nbsp;`
+        )
+        .run();
+
+      // Clear mention context
+      currentMentionContext = null;
+      hideSuggestions();
+    },
+
+    // Get all mentions in the content
+    getMentions() {
+      const mentions = [];
+
+      // Get the HTML content and parse mentions from it
+      const htmlContent = editor.getHTML();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlContent, 'text/html');
+
+      // Find all mention spans
+      const mentionElements = doc.querySelectorAll('span.mention');
+      mentionElements.forEach(el => {
+        const id = el.getAttribute('data-mention-id');
+        const type = el.getAttribute('data-mention-type');
+        const dataStr = el.getAttribute('data-mention-data');
+        const label = el.textContent.replace('@', '');
+
+        const mention = { id, type, label };
+
+        // Decode data if present
+        if (dataStr) {
+          try {
+            mention.data = JSON.parse(decodeURIComponent(dataStr));
+          } catch (e) {
+            console.error('Failed to parse mention data:', e);
+          }
+        }
+
+        if (id && type) {
+          mentions.push(mention);
+        }
+      });
+
+      return mentions;
+    },
+
     // Suggestions API
     showSuggestions,
+    showMentionSuggestions,
     hideSuggestions,
     navigateSuggestions,
     getSelectedSuggestion,
     hasSuggestions,
+    getCurrentMentionContext: () => currentMentionContext,
   };
 }

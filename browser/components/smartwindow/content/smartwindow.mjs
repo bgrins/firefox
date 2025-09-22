@@ -238,6 +238,91 @@ class SmartWindowPage {
     return suggestions;
   }
 
+  // Mention Data Provider Methods
+  async getMentionSuggestions(query) {
+    const suggestions = [];
+    const lowerQuery = query.toLowerCase();
+
+    // Command mentions (for things like @tabs, @history)
+    if (!query || "tabs".startsWith(lowerQuery)) {
+      suggestions.push({
+        id: "cmd-tabs",
+        type: "command",
+        label: "tabs",
+        icon: "📑",
+        description: "Reference all open tabs",
+      });
+    }
+
+    if (!query || "history".startsWith(lowerQuery)) {
+      suggestions.push({
+        id: "cmd-history",
+        type: "command",
+        label: "history",
+        icon: "📜",
+        description: "Reference browser history",
+      });
+    }
+
+    if (!query || "bookmarks".startsWith(lowerQuery)) {
+      suggestions.push({
+        id: "cmd-bookmarks",
+        type: "command",
+        label: "bookmarks",
+        icon: "⭐",
+        description: "Reference bookmarks",
+      });
+    }
+
+    // Add specific tab mentions
+    if (this.recentTabs && this.recentTabs.length > 0) {
+      const tabMatches = this.recentTabs
+        .filter(tab => {
+          if (!query) return true;
+          const titleMatch = tab.title && tab.title.toLowerCase().includes(lowerQuery);
+          const urlMatch = tab.url && tab.url.toLowerCase().includes(lowerQuery);
+          return titleMatch || urlMatch;
+        })
+        .slice(0, 5)
+        .map(tab => ({
+          id: `tab-${tab.tabId}`,
+          type: "tab",
+          label: tab.title || tab.url,
+          icon: "🔗",
+          description: tab.url,
+          data: tab,
+        }));
+
+      suggestions.push(...tabMatches);
+    }
+
+    // Add context tab mentions
+    if (this.selectedTabContexts && this.selectedTabContexts.length > 0) {
+      const contextMatches = this.selectedTabContexts
+        .filter(tab => {
+          if (!query) return false; // Don't show by default
+          const titleMatch = tab.title && tab.title.toLowerCase().includes(lowerQuery);
+          const urlMatch = tab.url && tab.url.toLowerCase().includes(lowerQuery);
+          return titleMatch || urlMatch;
+        })
+        .slice(0, 3)
+        .map(tab => ({
+          id: `context-${tab.tabId}`,
+          type: "context-tab",
+          label: tab.title || tab.url,
+          icon: "📍",
+          description: "Current context",
+          data: tab,
+        }));
+
+      if (contextMatches.length > 0) {
+        suggestions.push(...contextMatches);
+      }
+    }
+
+    return suggestions.slice(0, 8); // Limit to 8 suggestions
+  }
+
   // Tab Context Management Methods
   initializeTabContextUI() {
     this.tabContextElements = {
@@ -683,6 +768,8 @@ class SmartWindowPage {
 
     if (this.smartbar && isSmartMode) {
       this.focusSearchInputWhenReady();
+      // Populate recent tabs for mention suggestions
+      this.getRecentTabs().catch(console.error);
     }
 
     if (this.smartbar) {
@@ -943,11 +1030,16 @@ class SmartWindowPage {
         // Only handle Enter without Shift (Shift+Enter creates new line)
         if (!e.shiftKey) {
           e.preventDefault();
-          const selectedSuggestion = this.smartbar
-            ? this.smartbar.getSelectedSuggestion()
-            : null;
-          if (selectedSuggestion) {
-            // Set the content before submitting when selecting a suggestion
+
+          // Check if we're in mention mode
+          const mentionContext = this.smartbar ? this.smartbar.getCurrentMentionContext() : null;
+          const selectedSuggestion = this.smartbar ? this.smartbar.getSelectedSuggestion() : null;
+
+          if (mentionContext && selectedSuggestion) {
+            // Insert the mention
+            this.smartbar.insertMention(selectedSuggestion);
+          } else if (selectedSuggestion) {
+            // Regular suggestion - set content and submit
             if (this.smartbar) {
               this.smartbar.setContent(selectedSuggestion.text);
             }
@@ -974,6 +1066,19 @@ class SmartWindowPage {
           e.preventDefault();
           if (this.smartbar) {
             this.smartbar.navigateSuggestions("up");
+          }
+        }
+        break;
+
+      case "Tab":
+        // Handle tab completion for mentions
+        if (this.smartbar) {
+          const mentionContext = this.smartbar.getCurrentMentionContext();
+          const selectedSuggestion = this.smartbar.getSelectedSuggestion();
+
+          if (mentionContext && selectedSuggestion) {
+            e.preventDefault();
+            this.smartbar.insertMention(selectedSuggestion);
           }
         }
         break;
@@ -1091,6 +1196,19 @@ class SmartWindowPage {
     if (this.suggestionDebounceTimer) {
       clearTimeout(this.suggestionDebounceTimer);
       this.suggestionDebounceTimer = null;
+    }
+
+    // Check for mention pattern
+    if (this.smartbar) {
+      const mentionContext = this.smartbar.detectMention();
+      if (mentionContext) {
+        // Handle mention suggestions
+        this.suggestionDebounceTimer = setTimeout(async () => {
+          const mentionSuggestions = await this.getMentionSuggestions(mentionContext.query);
+          this.smartbar.showMentionSuggestions(mentionSuggestions, mentionContext);
+        }, 100);
+        return;
+      }
     }
 
     if (!query.trim()) {
@@ -1306,8 +1424,13 @@ class SmartWindowPage {
 
     const type = this.detectQueryType(query);
 
-    // Hide suggestions after selection
+    // Extract mentions from the content
+    let mentions = [];
     if (this.smartbar) {
+      mentions = this.smartbar.getMentions();
+      console.log("Extracted mentions:", mentions);
+
+      // Hide suggestions after selection
       this.smartbar.hideSuggestions();
     }
 
@@ -1317,12 +1440,27 @@ class SmartWindowPage {
       this.showChatMode();
       if (this.chatBot) {
         const contextTabs = this.getAllContextTabs();
+
+        // Add any mentioned tabs to context
+        if (mentions.length > 0) {
+          mentions.forEach(mention => {
+            if (mention.type === "tab" && mention.data) {
+              // Add mentioned tab to context if not already there
+              const exists = contextTabs.some(tab => tab.tabId === mention.data.tabId);
+              if (!exists) {
+                contextTabs.push(mention.data);
+              }
+            }
+          });
+        }
+
         // Pass page text if current tab is in context
         const includePageText = this.isCurrentTabInContext();
         this.chatBot.submitPrompt(
           query,
           contextTabs,
-          includePageText ? this.currentTabPageText : ""
+          includePageText ? this.currentTabPageText : "",
+          mentions // Pass mentions to chat bot
         );
       }
       // For chat on smart window page (not sidebar), don't open sidebar
