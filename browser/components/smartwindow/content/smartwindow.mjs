@@ -2,6 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+const { XPCOMUtils } = ChromeUtils.importESModule(
+  "resource://gre/modules/XPCOMUtils.sys.mjs"
+);
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   UrlbarController:
@@ -38,6 +41,17 @@ class SmartWindowPage {
     this.recentTabs = [];
     this.tabContextElements = {};
     this.currentTabPageText = "";
+
+    this.keySetupContainer = null;
+    this.smartWindowContainer = null;
+    XPCOMUtils.defineLazyPreferenceGetter(
+      this,
+      "hasKey",
+      "browser.smartwindow.key",
+      null,
+      () => this.checkKey(),
+      v => !!v
+    );
 
     this.init();
   }
@@ -613,6 +627,12 @@ class SmartWindowPage {
 
   onDOMReady() {
     this.isSidebarMode = embedderElement.id == "smartwindow-browser";
+    this.keySetupContainer = document.getElementById("key-setup-container");
+    this.smartWindowContainer = document.getElementById(
+      "smart-window-container"
+    );
+    this.setupKeyUI();
+    this.checkKey();
 
     const editorDiv = document.getElementById("tiptap-editor");
 
@@ -667,6 +687,62 @@ class SmartWindowPage {
       // Don't await to avoid blocking initialization
       this.showQuickPrompts().catch(console.error);
     }
+  }
+
+  checkKey() {
+    if (this.hasKey) {
+      this.keySetupContainer.style.display = "none";
+      this.smartWindowContainer.style.display = "block";
+    } else {
+      this.keySetupContainer.style.display = "flex";
+      this.smartWindowContainer.style.display = "none";
+    }
+  }
+
+  setupKeyUI() {
+    // Setup key input event listeners
+    const keyInput = document.getElementById("key-input");
+    const keySubmit = document.getElementById("key-submit");
+    const keyError = document.getElementById("key-error");
+
+    const handleKeySubmit = async () => {
+      const key = keyInput.value.trim();
+      if (!key) {
+        keyError.textContent = "Please enter your API key";
+        keyError.style.display = "block";
+        return;
+      }
+
+      try {
+        Services.prefs.setStringPref(
+          "browser.smartwindow.endpoint",
+          "https://stage.llm-proxy.nonprod.dataservices.mozgcp.net/"
+        );
+        Services.prefs.setStringPref("browser.smartwindow.key", key);
+        Services.prefs.setStringPref(
+          "browser.smartwindow.model",
+          "qwen3-235b-a22b-instruct-2507-maas"
+        );
+        this.checkKey();
+        this.focusSearchInputWhenReady();
+      } catch (error) {
+        console.error("Key setup error:", error);
+        keyError.textContent = "Failed to setup key. Please try again.";
+        keyError.style.display = "block";
+      }
+    };
+
+    keySubmit.addEventListener("click", handleKeySubmit);
+    keyInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleKeySubmit();
+      }
+      // Hide error when user starts typing
+      if (keyError.style.display !== "none") {
+        keyError.style.display = "none";
+      }
+    });
   }
 
   focusSearchInputWhenReady() {

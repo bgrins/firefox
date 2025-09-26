@@ -1150,6 +1150,7 @@ pref("browser.bookmarks.defaultLocation", "toolbar");
 pref("browser.tabs.allow_transparent_browser", true);
 
 // Smart window feature
+pref("browser.smartwindow.access", "");
 pref("browser.smartwindow.enabled", true);
 pref("browser.smartwindow.endpoint", "https://api.openai.com/v1");
 pref("browser.smartwindow.key", "");
