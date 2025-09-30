@@ -12,6 +12,7 @@ export function attachToElement(element, options = {}) {
   let currentSuggestions = [];
   let selectedSuggestionIndex = -1;
   let suggestionsContainer = null;
+  let currentMentionContext = null; // Track active mention being typed
 
   // Create suggestions container
   function createSuggestionsContainer() {
@@ -109,18 +110,46 @@ export function attachToElement(element, options = {}) {
     button.className = `suggestion-button suggestion-${suggestion.type}`;
     button.dataset.index = index;
 
-    const icon = document.createElement("span");
-    icon.className = "suggestion-icon";
-    icon.textContent = getQueryTypeIcon
-      ? getQueryTypeIcon(suggestion.type)
-      : "🔍";
+    // Handle favicon for tabs
+    let iconElement;
+    if (suggestion.icon && suggestion.icon.startsWith('data:') || suggestion.icon && suggestion.icon.startsWith('http')) {
+      iconElement = document.createElement("img");
+      iconElement.className = "suggestion-icon suggestion-favicon";
+      iconElement.src = suggestion.icon;
+      iconElement.onerror = function() {
+        this.style.display = 'none';
+        const fallback = document.createElement("span");
+        fallback.className = "suggestion-icon";
+        fallback.textContent = "🔗";
+        this.parentNode.replaceChild(fallback, this);
+      };
+    } else {
+      iconElement = document.createElement("span");
+      iconElement.className = "suggestion-icon";
+      iconElement.textContent = suggestion.icon || (getQueryTypeIcon ? getQueryTypeIcon(suggestion.type) : "🔍");
+    }
+
+    const textContainer = document.createElement("div");
+    textContainer.className = "suggestion-text-container";
 
     const text = document.createElement("span");
     text.className = "suggestion-text";
-    text.textContent = suggestion.text;
+    // For mention suggestions, use label; for regular suggestions use text
+    text.textContent = suggestion.label || suggestion.text || suggestion.title || "";
 
-    button.appendChild(icon);
-    button.appendChild(text);
+    // Add description if available
+    if (suggestion.description) {
+      const desc = document.createElement("span");
+      desc.className = "suggestion-description";
+      desc.textContent = suggestion.description;
+      textContainer.appendChild(text);
+      textContainer.appendChild(desc);
+    } else {
+      textContainer.appendChild(text);
+    }
+
+    button.appendChild(iconElement);
+    button.appendChild(textContainer);
 
     // Add event listeners
     button.addEventListener("mouseenter", () => {
@@ -129,9 +158,29 @@ export function attachToElement(element, options = {}) {
 
     button.addEventListener("click", e => {
       e.preventDefault();
-      editor.commands.setContent(suggestion.text);
-      if (onSuggestionSelect) {
-        onSuggestionSelect(suggestion);
+
+      // Check if this is a mention suggestion
+      if (currentMentionContext) {
+        // Clear the @ text
+        editor.chain()
+          .focus()
+          .deleteRange({ from: currentMentionContext.start, to: currentMentionContext.end })
+          .run();
+
+        // Clear mention context
+        currentMentionContext = null;
+        hideSuggestions();
+
+        // Call the callback to handle the mention selection (add to context)
+        if (onSuggestionSelect) {
+          onSuggestionSelect(suggestion);
+        }
+      } else {
+        // Regular suggestion - set content
+        editor.commands.setContent(suggestion.text);
+        if (onSuggestionSelect) {
+          onSuggestionSelect(suggestion);
+        }
       }
     });
 
@@ -190,15 +239,46 @@ export function attachToElement(element, options = {}) {
     });
   }
 
+  function showMentionSuggestions(suggestions, mentionContext) {
+    if (!suggestionsContainer) {
+      return;
+    }
+
+    currentMentionContext = mentionContext;
+    suggestionsContainer.classList.remove("hidden");
+    suggestionsContainer.classList.add("mention-mode");
+    suggestionsContainer.classList.remove("quick-prompts", "user-edited");
+
+    currentSuggestions = suggestions;
+    selectedSuggestionIndex = -1;
+
+    // Update header for mentions
+    const header = suggestionsContainer.querySelector(".suggestions-title");
+    if (header) {
+      header.textContent = "Mention:";
+    }
+
+    // Clear and populate suggestions list
+    const suggestionsList = suggestionsContainer.querySelector(".suggestions-list");
+    suggestionsList.innerHTML = "";
+
+    suggestions.forEach((suggestion, index) => {
+      const suggestionButton = createSuggestionButton(suggestion, index);
+      suggestionButton.classList.add("mention-suggestion");
+      suggestionsList.appendChild(suggestionButton);
+    });
+  }
+
   function hideSuggestions() {
     if (!suggestionsContainer) {
       return;
     }
 
     suggestionsContainer.classList.add("hidden");
-    suggestionsContainer.classList.remove("quick-prompts", "user-edited");
+    suggestionsContainer.classList.remove("quick-prompts", "user-edited", "mention-mode");
     currentSuggestions = [];
     selectedSuggestionIndex = -1;
+    currentMentionContext = null;
   }
 
   function navigateSuggestions(direction) {
@@ -230,7 +310,7 @@ export function attachToElement(element, options = {}) {
 
   // Return an object with the editor and helper functions
   return {
-    editor,
+    editor, // Expose editor for direct access when needed
 
     // Helper functions
     focus() {
@@ -264,11 +344,43 @@ export function attachToElement(element, options = {}) {
       }
     },
 
+    // Cursor and selection methods
+    getSelection() {
+      return editor.state.selection;
+    },
+
+    getTextBeforeCursor(length = 50) {
+      const { from } = editor.state.selection;
+      return editor.state.doc.textBetween(Math.max(0, from - length), from);
+    },
+
+    getCursorPosition() {
+      return editor.state.selection.from;
+    },
+
+    // Mention detection
+    detectMention() {
+      const textBefore = this.getTextBeforeCursor();
+      const mentionMatch = textBefore.match(/@(\w*)$/);
+      if (mentionMatch) {
+        const from = this.getCursorPosition();
+        return {
+          query: mentionMatch[1],
+          start: from - mentionMatch[0].length,
+          end: from,
+        };
+      }
+      return null;
+    },
+
+
     // Suggestions API
     showSuggestions,
+    showMentionSuggestions,
     hideSuggestions,
     navigateSuggestions,
     getSelectedSuggestion,
     hasSuggestions,
+    getCurrentMentionContext: () => currentMentionContext,
   };
 }
