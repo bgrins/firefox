@@ -1023,7 +1023,8 @@ class SmartWindowPage {
     if (this.chatBot) {
       this.chatBot.addEventListener("search-suggested", e => {
         const query = e.detail.query;
-        this.performNavigation(query, "search");
+        const clickEvent = e.detail.clickEvent;
+        this.performNavigation(query, "search", clickEvent);
       });
     }
 
@@ -1430,7 +1431,7 @@ class SmartWindowPage {
     }
   }
 
-  performNavigation(query, type) {
+  performNavigation(query, type, clickEvent = null) {
     // Save chat messages for current tab before navigating
     if (this.chatBot && this.chatBot.messages && this.chatBot.messages.length) {
       topChromeWindow.SmartWindow.setChatMessages(
@@ -1454,9 +1455,19 @@ class SmartWindowPage {
       url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
     }
 
-    topChromeWindow.gBrowser.selectedBrowser.fixupAndLoadURIString(url, {
-      triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
-    });
+    // Check for cmd/ctrl+click to open in new tab
+    const openInNewTab = clickEvent && (clickEvent.metaKey || clickEvent.ctrlKey);
+
+    if (openInNewTab) {
+      topChromeWindow.gBrowser.addTab(url, {
+        triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+        relatedToCurrent: true,
+      });
+    } else {
+      topChromeWindow.gBrowser.selectedBrowser.fixupAndLoadURIString(url, {
+        triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+      });
+    }
   }
 
   handleAction(action) {
