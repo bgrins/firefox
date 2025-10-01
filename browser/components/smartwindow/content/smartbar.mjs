@@ -1,9 +1,143 @@
 import {
   Editor,
   StarterKit,
-  Link,
   Placeholder,
+  Mention,
+  floatingUI,
 } from "chrome://browser/content/smartwindow/tiptap-bundle.js";
+
+class MentionDropdown {
+  constructor() {
+    this.element = null;
+    this.items = [];
+    this.selectedIndex = 0;
+    this.onSelectCallback = null;
+  }
+
+  create(items, onSelect) {
+    this.items = items;
+    this.selectedIndex = 0;
+    this.onSelectCallback = onSelect;
+
+    this.element = document.createElement("div");
+    this.element.className = "mention-list";
+    this.render();
+
+    this.element.addEventListener("click", e => {
+      const item = e.target.closest(".mention-item");
+      if (item) {
+        const index = parseInt(item.dataset.index);
+        this.selectItem(index);
+      }
+    });
+
+    document.body.appendChild(this.element);
+    return this.element;
+  }
+
+  render() {
+    if (!this.element) {
+      return;
+    }
+
+    this.element.innerHTML = "";
+    this.items.forEach((item, index) => {
+      const div = document.createElement("div");
+      div.className = "mention-item";
+      if (index === this.selectedIndex) {
+        div.classList.add("is-selected");
+      }
+      div.textContent = item.label;
+      div.dataset.index = index;
+      this.element.appendChild(div);
+    });
+  }
+
+  update(items) {
+    this.items = items;
+    this.selectedIndex = Math.min(this.selectedIndex, items.length - 1);
+    this.render();
+  }
+
+  updatePosition(rect) {
+    if (!this.element) {
+      return;
+    }
+
+    const virtualEl = {
+      getBoundingClientRect: () => rect,
+    };
+
+    floatingUI
+      .computePosition(virtualEl, this.element, {
+        placement: "bottom-start",
+      })
+      .then(({ x, y }) => {
+        Object.assign(this.element.style, {
+          position: "absolute",
+          left: `${x}px`,
+          top: `${y}px`,
+        });
+      });
+  }
+
+  selectNext() {
+    this.selectedIndex = (this.selectedIndex + 1) % this.items.length;
+    this.render();
+    this.scrollToSelected();
+  }
+
+  selectPrevious() {
+    this.selectedIndex =
+      (this.selectedIndex - 1 + this.items.length) % this.items.length;
+    this.render();
+    this.scrollToSelected();
+  }
+
+  selectItem(index = this.selectedIndex) {
+    if (index >= 0 && index < this.items.length) {
+      this.onSelectCallback?.(this.items[index]);
+    }
+  }
+
+  scrollToSelected() {
+    const selected = this.element?.querySelector(".is-selected");
+    if (selected) {
+      selected.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      });
+    }
+  }
+
+  handleKeyDown(event) {
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      this.selectPrevious();
+      return true;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      this.selectNext();
+      return true;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      this.selectItem();
+      return true;
+    }
+
+    return false;
+  }
+
+  destroy() {
+    this.element?.remove();
+    this.element = null;
+  }
+}
+
 
 export function attachToElement(element, options = {}) {
   const { onKeyDown, onUpdate, onSuggestionSelect, getQueryTypeIcon } = options;
@@ -56,24 +190,77 @@ export function attachToElement(element, options = {}) {
   const suggestionsEl = createSuggestionsContainer();
   parentNode.appendChild(suggestionsEl);
 
+  let isMentionsOpen = false;
+  const mentionItems = [
+    { id: "1", label: "Alice Johnson" },
+    { id: "2", label: "Bob Smith" },
+    { id: "3", label: "Charlie Brown" },
+    { id: "4", label: "Diana Prince" },
+    { id: "5", label: "Eve Martinez" },
+  ];
   // Create editor instance
   const editor = new Editor({
     element,
     extensions: [
       StarterKit,
-      Link.configure({
-        openOnClick: false,
-      }),
       Placeholder.configure({
         placeholder: "Ask, search, or type a URL...",
         showOnlyWhenEditable: false,
+      }),
+      Mention.configure({
+        HTMLAttributes: {
+          class: "mention",
+        },
+        suggestion: {
+          items: ({ query }) => {
+            return mentionItems
+              .filter(item =>
+                item.label.toLowerCase().includes(query.toLowerCase())
+              )
+              .slice(0, 5);
+          },
+
+          render: () => {
+            let dropdown;
+
+            return {
+              onStart: props => {
+                isMentionsOpen = true;
+                hideSuggestions();
+                dropdown = new MentionDropdown();
+                dropdown.create(props.items, item => {
+                  props.command(item);
+                });
+                dropdown.updatePosition(props.clientRect());
+              },
+
+              onUpdate(props) {
+                dropdown?.update(props.items);
+                dropdown?.updatePosition(props.clientRect());
+              },
+
+              onKeyDown(props) {
+                return dropdown?.handleKeyDown(props.event) || false;
+              },
+
+              onExit() {
+                isMentionsOpen = false;
+                dropdown?.destroy();
+              },
+            };
+          },
+        },
       }),
     ],
     content: "",
     onUpdate: ({ editor: editorInstance }) => {
       const text = editorInstance.getText();
       // Hide suggestions if input is empty
-      if (!text.trim() && suggestionsContainer && !suggestionsContainer.classList.contains("hidden")) {
+      if (
+        !text.trim() &&
+        suggestionsContainer &&
+        !suggestionsContainer.classList.contains("hidden")
+      ) {
         hideSuggestions();
       }
       if (onUpdate) {
@@ -81,7 +268,11 @@ export function attachToElement(element, options = {}) {
       }
     },
     editorProps: {
-      handleKeyDown(view, event) {
+      handleKeyDown(_view, event) {
+        if (isMentionsOpen) {
+          return false;
+        }
+
         // Call the external key handler if provided
         if (onKeyDown) {
           onKeyDown(event);
@@ -162,7 +353,7 @@ export function attachToElement(element, options = {}) {
     }
 
     // Don't show suggestions if the input is empty
-    if (!editor.getText().trim()) {
+    if (!editor.getText().trim() || isMentionsOpen) {
       return;
     }
 
