@@ -4,8 +4,6 @@
 
 import { createEngine } from "chrome://global/content/ml/EngineProcess.sys.mjs";
 
-let queryIntentEngine = null;
-
 /**
  * Detects the type of query based on patterns in the text.
  * Uses navigate heuristics for URLs/domains, then ML model for chat/search classification.
@@ -29,17 +27,13 @@ export async function detectQueryType(query) {
 
   // Use ML model for chat vs search classification
   try {
-    if (!queryIntentEngine) {
-      queryIntentEngine = await createEngine({
-        engineId: "smart-intent",
-        modelId: "mozilla/query-intent-detection",
-        modelRevision: "v0.1.0",
-        taskName: "text-classification",
-      });
-    }
-    return (
-      await queryIntentEngine.run({ args: [[query]] })
-    )[0].label.toLowerCase();
+    const engine = await createEngine({
+      engineId: "smart-intent",
+      modelId: "mozilla/query-intent-detection",
+      modelRevision: "v0.1.0",
+      taskName: "text-classification",
+    });
+    return (await engine.run({ args: [[query]] }))[0].label.toLowerCase();
   } catch (error) {
     console.error("Error using intent detection model:", error);
     return "search";
@@ -88,6 +82,7 @@ export async function* fetchWithHistory(messages) {
     // Use runWithGenerator to get streaming chunks directly
     for await (const chunk of engineInstance.runWithGenerator({
       args: openAIMessages,
+      streamOptions: { enabled: true },
     })) {
       if (chunk.text) {
         yield chunk.text;

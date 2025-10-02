@@ -1,6 +1,7 @@
 import {
   Editor,
   StarterKit,
+  Link,
   Placeholder,
   Mention,
   floatingUI,
@@ -10,7 +11,6 @@ import {
   MentionDropdown,
   getMentionSuggestions,
 } from "chrome://browser/content/smartwindow/mentions.mjs";
-
 export function attachToElement(element, options = {}) {
   const { onKeyDown, onUpdate, onSuggestionSelect, getQueryTypeIcon } = options;
 
@@ -63,12 +63,14 @@ export function attachToElement(element, options = {}) {
   parentNode.appendChild(suggestionsEl);
 
   let isMentionsOpen = false;
-
   // Create editor instance
   const editor = new Editor({
     element,
     extensions: [
       StarterKit,
+      Link.configure({
+        openOnClick: false,
+      }),
       Placeholder.configure({
         placeholder: "Ask, search, or type a URL...",
         showOnlyWhenEditable: false,
@@ -137,7 +139,6 @@ export function attachToElement(element, options = {}) {
         if (isMentionsOpen) {
           return false;
         }
-
         // Call the external key handler if provided
         if (onKeyDown) {
           onKeyDown(event);

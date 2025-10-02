@@ -3226,18 +3226,6 @@
     }
 
     /**
-     * Removes the split view. This has the effect of closing all the tabs
-     * in the split view.
-     *
-     * @param {MozTabSplitViewWrapper} [splitView]
-     *   The split view to remove.
-     */
-    async removeSplitView(splitView) {
-      this.removeTabs(splitView.tabs);
-      splitView.remove();
-    }
-
-    /**
      * Removes a tab from a split view wrapper. This also removes the split view wrapper component
      *
      * @param {MozTabSplitViewWrapper} [splitView]
@@ -6580,7 +6568,7 @@
       }
 
       this.#handleTabMove(aTab, () =>
-        aSplitViewWrapper.wrapper.appendChild(aTab)
+        aSplitViewWrapper.container.appendChild(aTab)
       );
       this.removeFromMultiSelectedTabs(aTab);
       this.tabContainer._notifyBackgroundTab(aTab);
@@ -7480,7 +7468,6 @@
       }
 
       // Add a line to the tooltip with additional tab context (e.g. container
-      // membership, tab group membership) when applicable.
       let containerName = tab.userContextId
         ? ContextualIdentityService.getUserContextLabel(tab.userContextId)
         : "";
