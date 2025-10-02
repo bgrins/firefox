@@ -6,6 +6,12 @@ import {
   floatingUI,
 } from "chrome://browser/content/smartwindow/tiptap-bundle.js";
 
+const lazy = {};
+ChromeUtils.defineESModuleGetters(lazy, {
+  NonPrivateTabs: "resource:///modules/OpenTabs.sys.mjs",
+  PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
+});
+
 class MentionDropdown {
   constructor() {
     this.element = null;
@@ -41,16 +47,82 @@ class MentionDropdown {
     }
 
     this.element.innerHTML = "";
-    this.items.forEach((item, index) => {
-      const div = document.createElement("div");
-      div.className = "mention-item";
-      if (index === this.selectedIndex) {
-        div.classList.add("is-selected");
-      }
-      div.textContent = item.label;
-      div.dataset.index = index;
-      this.element.appendChild(div);
-    });
+
+    // Group items by type
+    const tabs = this.items.filter(item => item.type === "tab");
+    const history = this.items.filter(item => item.type === "history");
+
+    let itemIndex = 0;
+
+    // Render tabs section
+    if (tabs.length > 0) {
+      const tabHeader = document.createElement("div");
+      tabHeader.className = "mention-section-header";
+      tabHeader.textContent = "Tabs";
+      this.element.appendChild(tabHeader);
+
+      tabs.forEach(item => {
+        const div = this.createMentionItem(item, itemIndex);
+        this.element.appendChild(div);
+        itemIndex++;
+      });
+    }
+
+    // Render history section
+    if (history.length > 0) {
+      const historyHeader = document.createElement("div");
+      historyHeader.className = "mention-section-header";
+      historyHeader.textContent = "History";
+      this.element.appendChild(historyHeader);
+
+      history.forEach(item => {
+        const div = this.createMentionItem(item, itemIndex);
+        this.element.appendChild(div);
+        itemIndex++;
+      });
+    }
+  }
+
+  createMentionItem(item, index) {
+    const div = document.createElement("div");
+    div.className = "mention-item";
+    if (index === this.selectedIndex) {
+      div.classList.add("is-selected");
+    }
+    div.dataset.index = index;
+
+    // Create favicon/icon
+    const icon = document.createElement("img");
+    icon.className = "mention-icon";
+    if (item.favicon) {
+      icon.src = item.favicon;
+    } else {
+      icon.src = `page-icon:${item.url}`;
+    }
+    icon.onerror = () => {
+      // Fallback to generic icon if favicon fails
+      icon.style.display = "none";
+    };
+
+    // Create text container
+    const textContainer = document.createElement("div");
+    textContainer.className = "mention-text";
+
+    const title = document.createElement("div");
+    title.className = "mention-title";
+    title.textContent = item.label;
+
+    const url = document.createElement("div");
+    url.className = "mention-url";
+    url.textContent = item.url;
+
+    textContainer.appendChild(title);
+    textContainer.appendChild(url);
+
+    div.appendChild(icon);
+    div.appendChild(textContainer);
+
+    return div;
   }
 
   update(items) {
@@ -191,13 +263,97 @@ export function attachToElement(element, options = {}) {
   parentNode.appendChild(suggestionsEl);
 
   let isMentionsOpen = false;
-  const mentionItems = [
-    { id: "1", label: "Alice Johnson" },
-    { id: "2", label: "Bob Smith" },
-    { id: "3", label: "Charlie Brown" },
-    { id: "4", label: "Diana Prince" },
-    { id: "5", label: "Eve Martinez" },
-  ];
+
+  // Helper function to filter out internal URLs
+  function isValidUrl(url) {
+    return (
+      url &&
+      !url.startsWith("about:") &&
+      !url.startsWith("chrome:") &&
+      !url.startsWith("moz-extension:") &&
+      !url.startsWith("resource:") &&
+      url !== "about:blank"
+    );
+  }
+
+  // Get mention suggestions from tabs and history
+  async function getMentionSuggestions(query) {
+    const suggestions = [];
+    const lowerQuery = query.toLowerCase();
+
+    // Get open tabs
+    try {
+      const allTabs = lazy.NonPrivateTabs.getRecentTabs();
+      for (const tab of allTabs) {
+        const browser = tab.linkedBrowser;
+        const url = browser?.currentURI?.spec || "";
+        const title = tab.label || "";
+
+        if (!isValidUrl(url)) {
+          continue;
+        }
+
+        // Match query
+        if (
+          !query ||
+          title.toLowerCase().includes(lowerQuery) ||
+          url.toLowerCase().includes(lowerQuery)
+        ) {
+          suggestions.push({
+            id: url,
+            label: title || url,
+            type: "tab",
+            url,
+            favicon: tab.image || `page-icon:${url}`,
+          });
+
+          if (suggestions.length >= 5) {
+            break;
+          }
+        }
+      }
+    } catch (ex) {
+      console.error("Error getting tabs:", ex);
+    }
+
+    // If we don't have enough suggestions, add from history
+    if (suggestions.length < 5 && query) {
+      try {
+        const db = await lazy.PlacesUtils.promiseLargeCacheDBConnection();
+        const sql = `SELECT h.url, h.title, h.guid
+          FROM moz_places h
+          JOIN moz_historyvisits v ON v.place_id = h.id
+          WHERE (h.url LIKE :query OR h.title LIKE :query)
+          AND h.hidden = 0
+          GROUP BY h.url
+          ORDER BY MAX(v.visit_date) DESC
+          LIMIT :limit`;
+
+        const rows = await db.executeCached(sql, {
+          query: `%${query}%`,
+          limit: 5 - suggestions.length,
+        });
+
+        for (const row of rows) {
+          const url = row.getResultByName("url");
+          const title = row.getResultByName("title");
+          if (isValidUrl(url)) {
+            suggestions.push({
+              id: url,
+              label: title || url,
+              type: "history",
+              url,
+            });
+          }
+        }
+      } catch (ex) {
+        console.error("Error searching history:", ex);
+      }
+    }
+
+    return suggestions.slice(0, 5);
+  }
+
   // Create editor instance
   const editor = new Editor({
     element,
@@ -212,29 +368,28 @@ export function attachToElement(element, options = {}) {
           class: "mention",
         },
         suggestion: {
-          items: ({ query }) => {
-            return mentionItems
-              .filter(item =>
-                item.label.toLowerCase().includes(query.toLowerCase())
-              )
-              .slice(0, 5);
+          items: async ({ query }) => {
+            return await getMentionSuggestions(query);
           },
 
           render: () => {
             let dropdown;
+            let currentCommand;
 
             return {
               onStart: props => {
                 isMentionsOpen = true;
                 hideSuggestions();
                 dropdown = new MentionDropdown();
+                currentCommand = props.command;
                 dropdown.create(props.items, item => {
-                  props.command(item);
+                  currentCommand({ id: item.id, label: item.label });
                 });
                 dropdown.updatePosition(props.clientRect());
               },
 
               onUpdate(props) {
+                currentCommand = props.command;
                 dropdown?.update(props.items);
                 dropdown?.updatePosition(props.clientRect());
               },
