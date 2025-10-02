@@ -6,6 +6,9 @@ ChromeUtils.defineESModuleGetters(lazy, {
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
 });
 
+/**
+ *
+ */
 export class MentionDropdown {
   constructor() {
     this.element = null;
@@ -49,7 +52,7 @@ export class MentionDropdown {
     let itemIndex = 0;
 
     // Render tabs section
-    if (tabs.length > 0) {
+    if (tabs.length) {
       const tabHeader = document.createElement("div");
       tabHeader.className = "mention-section-header";
       tabHeader.textContent = "Tabs";
@@ -63,7 +66,7 @@ export class MentionDropdown {
     }
 
     // Render history section
-    if (history.length > 0) {
+    if (history.length) {
       const historyHeader = document.createElement("div");
       historyHeader.className = "mention-section-header";
       historyHeader.textContent = "History";
