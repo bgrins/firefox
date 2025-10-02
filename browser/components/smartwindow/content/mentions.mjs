@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
-
 import { floatingUI } from "chrome://browser/content/smartwindow/tiptap-bundle.js";
 
 const lazy = {};
@@ -10,9 +6,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
 });
 
-/**
- *
- */
 export class MentionDropdown {
   constructor() {
     this.element = null;
@@ -51,12 +44,12 @@ export class MentionDropdown {
 
     // Group items by type
     const tabs = this.items.filter(item => item.type === "tab");
-    const historyItems = this.items.filter(item => item.type === "history");
+    const history = this.items.filter(item => item.type === "history");
 
     let itemIndex = 0;
 
     // Render tabs section
-    if (tabs.length) {
+    if (tabs.length > 0) {
       const tabHeader = document.createElement("div");
       tabHeader.className = "mention-section-header";
       tabHeader.textContent = "Tabs";
@@ -70,13 +63,13 @@ export class MentionDropdown {
     }
 
     // Render history section
-    if (historyItems.length) {
+    if (history.length > 0) {
       const historyHeader = document.createElement("div");
       historyHeader.className = "mention-section-header";
       historyHeader.textContent = "History";
       this.element.appendChild(historyHeader);
 
-      historyItems.forEach(item => {
+      history.forEach(item => {
         const div = this.createMentionItem(item, itemIndex);
         this.element.appendChild(div);
         itemIndex++;

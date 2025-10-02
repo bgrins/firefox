@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
-
 import { html, css } from "chrome://global/content/vendor/lit.all.mjs";
 
 /**
@@ -165,9 +161,6 @@ Examples of Insight Tagging:
 
 /**
  * Deletes an insight from the INSIGHTS_DATA object
- *
- * @param insight
- * @param category
  */
 export function deleteInsight(insight, category) {
   if (INSIGHTS_DATA[category]) {
@@ -182,8 +175,6 @@ export function deleteInsight(insight, category) {
 
 /**
  * Detects insight tokens in content
- *
- * @param content
  */
 export function detectInsightTokens(content) {
   const insightRegex = /\[\[insight:\s*([^\]]+)\]\]/gi;
@@ -204,9 +195,6 @@ export function detectInsightTokens(content) {
 
 /**
  * Creates a clickable insight token element
- *
- * @param insight
- * @param onInsightClick
  */
 export function createClickableInsightToken(insight, onInsightClick) {
   return html`
@@ -222,10 +210,6 @@ export function createClickableInsightToken(insight, onInsightClick) {
 
 /**
  * Creates the insights overlay component
- *
- * @param onClose
- * @param usedInsights
- * @param onDeleteInsight
  */
 export function createInsightsOverlay(
   onClose,

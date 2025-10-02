@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
-
 /**
  * marked v15.0.9 - a markdown parser
  * Copyright (c) 2011-2025, Christopher Jeffrey. (MIT Licensed)
@@ -481,9 +477,6 @@
     }
     return { type: "image", raw: n, href: i, title: l, text: o };
   }
-  /**
-   *
-   */
   class se {
     options;
     rules;
@@ -1165,9 +1158,6 @@
       }
     }
   }
-  /**
-   *
-   */
   class re {
     tokens;
     options;
@@ -1459,9 +1449,6 @@
       return t;
     }
   }
-  /**
-   *
-   */
   class ie {
     options;
     parser;
@@ -1616,9 +1603,6 @@
           : W(e.text);
     }
   }
-  /**
-   *
-   */
   class le {
     strong({ text: e }) {
       return e;
@@ -1648,9 +1632,6 @@
       return "";
     }
   }
-  /**
-   *
-   */
   class oe {
     options;
     renderer;
@@ -1824,9 +1805,6 @@
       return n;
     }
   }
-  /**
-   *
-   */
   class ae {
     options;
     block;
@@ -1854,9 +1832,6 @@
       return this.block ? oe.parse : oe.parseInline;
     }
   }
-  /**
-   *
-   */
   class ce {
     defaults = {
       async: !1,
