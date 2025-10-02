@@ -1462,16 +1462,19 @@ class SmartWindowPage {
     }
 
     // Check for cmd/ctrl+click to open in new tab
-    const openInNewTab = clickEvent && (clickEvent.metaKey || clickEvent.ctrlKey);
+    const openInNewTab =
+      clickEvent && (clickEvent.metaKey || clickEvent.ctrlKey);
 
     if (openInNewTab) {
       topChromeWindow.gBrowser.addTab(url, {
-        triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+        triggeringPrincipal:
+          Services.scriptSecurityManager.getSystemPrincipal(),
         relatedToCurrent: true,
       });
     } else {
       topChromeWindow.gBrowser.selectedBrowser.fixupAndLoadURIString(url, {
-        triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+        triggeringPrincipal:
+          Services.scriptSecurityManager.getSystemPrincipal(),
       });
     }
   }
