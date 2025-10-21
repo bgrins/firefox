@@ -356,6 +356,33 @@ class SmartWindowPage {
     }
   }
 
+  async addMultipleTabsToContext(tabs) {
+    if (!tabs || tabs.length === 0) {
+      return;
+    }
+
+    // Save chat messages for the old context
+    await this.saveChatMessagesForCurrentContext();
+
+    // Add all tabs to context (excluding duplicates)
+    for (const tabInfo of tabs) {
+      const exists = this.selectedTabContexts.some(
+        tab => tab.tabId === tabInfo.tabId
+      );
+      if (!exists) {
+        this.selectedTabContexts.push(tabInfo);
+      }
+    }
+
+    this.updateTabContextUI();
+    this.updateQuickPromptsWithContext();
+
+    // Load chat messages for the new context
+    await this.loadChatMessagesForCurrentContext();
+
+    console.log(`[SmartWindow] Added ${tabs.length} tabs to context`);
+  }
+
   async removeTabFromContext(tabId) {
     // Save chat messages for the old context
     await this.saveChatMessagesForCurrentContext();
@@ -1118,6 +1145,8 @@ class SmartWindowPage {
       window.addEventListener("SmartWindowMessage", e => {
         if (e.detail.type === "TabUpdate") {
           this.updateTabStatus(e.detail.data);
+        } else if (e.detail.type === "AddTabsToContext") {
+          this.addMultipleTabsToContext(e.detail.data.tabs);
         }
       });
     }

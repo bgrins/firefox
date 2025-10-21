@@ -588,6 +588,14 @@
         event.target === this.#overflowCountLabel;
       if (isToggleElement && event.button === 0) {
         event.preventDefault();
+
+        // Alt+click: Create split view and open sidebar with all tabs
+        if (event.altKey) {
+          this.#createSplitViewAndOpenSidebar();
+          return;
+        }
+
+        // Regular click: Toggle collapse
         this.collapsed = !this.collapsed;
         gBrowser.tabGroupMenu.close();
 
@@ -597,6 +605,57 @@
           : Glean.tabgroup.groupInteractions.expand;
         interactionMetric.add(1);
       }
+    }
+
+    /**
+     * Create a split view with all tabs in the group and open sidebar with chat context
+     */
+    #createSplitViewAndOpenSidebar() {
+      const tabs = this.tabs;
+
+      if (!tabs || tabs.length === 0) {
+        return;
+      }
+
+      // Create split view with all tabs from the group
+      const splitView = gBrowser.addTabSplitView(tabs);
+
+      if (!splitView) {
+        console.error("[TabGroup] Failed to create split view");
+        return;
+      }
+
+      // Ensure smart window is active
+      if (!window.SmartWindow?.isSmartWindowActive()) {
+        console.log("[TabGroup] Smart window not active, opening sidebar anyway");
+      }
+
+      // Open the sidebar
+      if (window.SmartWindow) {
+        window.SmartWindow.showSidebar();
+
+        // Send all tabs to the sidebar to add them to chat context
+        const smartWindowBrowser = document.getElementById("smartwindow-browser");
+        if (smartWindowBrowser) {
+          const actor = smartWindowBrowser.browsingContext?.currentWindowGlobal?.getActor("SmartWindow");
+          if (actor) {
+            // Convert tabs to the format expected by the sidebar
+            const tabsInfo = tabs.map(tab => ({
+              url: tab.linkedBrowser.currentURI.spec,
+              title: tab.label,
+              favicon: tab.getAttribute("image") || "",
+              tabId: tab.linkedPanel,
+            }));
+
+            // Send all tabs at once to be added to the chat context
+            actor.sendAsyncMessage("SmartWindow:AddTabsToContext", {
+              tabs: tabsInfo,
+            });
+          }
+        }
+      }
+
+      console.log(`[TabGroup] Created split view with ${tabs.length} tabs and opened sidebar`);
     }
 
     /**

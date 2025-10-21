@@ -66,6 +66,18 @@ export class SmartWindowChild extends JSWindowActorChild {
           new this.contentWindow.CustomEvent("FocusSmartSearchInput")
         );
         break;
+
+      case "SmartWindow:AddTabsToContext":
+        // Add multiple tabs to the chat context
+        this.contentWindow.dispatchEvent(
+          new this.contentWindow.CustomEvent("SmartWindowMessage", {
+            detail: {
+              type: "AddTabsToContext",
+              data: message.data,
+            },
+          })
+        );
+        break;
     }
   }
 }
