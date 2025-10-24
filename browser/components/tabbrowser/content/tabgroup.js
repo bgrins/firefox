@@ -625,6 +625,12 @@
         return;
       }
 
+      // Enable smart window grid layout for the tabpanels
+      const tabpanels = gBrowser.tabpanels;
+      if (tabpanels && window.SmartWindow?.isSmartWindowActive()) {
+        tabpanels.setAttribute("smart-window-grid", "true");
+      }
+
       // Ensure smart window is active
       if (!window.SmartWindow?.isSmartWindowActive()) {
         console.log("[TabGroup] Smart window not active, opening sidebar anyway");

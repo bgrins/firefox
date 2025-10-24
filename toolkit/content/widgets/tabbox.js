@@ -399,6 +399,9 @@
         // Place splitter after first panel, so that it can be resized.
         const firstPanel = document.getElementById(this.splitViewPanels[0]);
         firstPanel?.after(this.#splitViewSplitter);
+      } else {
+        // Remove smart-window-grid attribute when split view is deactivated
+        this.removeAttribute("smart-window-grid");
       }
     }
   }
