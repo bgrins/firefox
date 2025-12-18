@@ -2042,6 +2042,24 @@ nsresult Selection::SelectFrames(nsPresContext* aPresContext,
     return NS_OK;
   }
 
+  // Fast path for "select all children" case:
+  const bool isFullElementSelection =
+      !isFirstContentTextNode && startContent == endNode &&
+      aRange.MayCrossShadowBoundaryStartOffset() == 0 &&
+      aRange.MayCrossShadowBoundaryEndOffset() == startContent->GetChildCount();
+
+  if (isFullElementSelection) {
+    // Directly iterate all descendants without range boundary checks.
+    PostContentIterator postOrderIter;
+    if (StaticPrefs::dom_shadowdom_selection_across_boundary_enabled()) {
+      SelectFramesOfFlattenedTreeOfContent(startContent, aSelect);
+    } else {
+      SelectFramesOfInclusiveDescendantsOfContent(postOrderIter, startContent,
+                                                  aSelect);
+    }
+    return NS_OK;
+  }
+
   ContentSubtreeIterator subtreeIter;
   nsresult rv = subtreeIter.InitWithAllowCrossShadowBoundary(&aRange);
   if (NS_FAILED(rv)) {
