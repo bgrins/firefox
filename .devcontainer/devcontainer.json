@@ -1,0 +1,37 @@
+{
+  "name": "Firefox Development (Safe YOLO Mode)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "TIMEZONE": "Etc/UTC",
+      "DEBIAN_VERSION": "bookworm"
+    }
+  },
+  "runArgs": [
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW"
+  ],
+  "mounts": [
+    "source=firefox-commandhistory,target=/commandhistory,type=volume",
+    "source=firefox-claude-config,target=/home/dev/.claude,type=volume",
+    "source=firefox-mozbuild,target=/home/dev/.mozbuild,type=volume",
+    "source=firefox-cargo,target=/home/dev/.cargo,type=volume",
+    "source=firefox-rustup,target=/home/dev/.rustup,type=volume"
+  ],
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "remoteUser": "dev",
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/dev/.claude",
+    "MOZBUILD_STATE_PATH": "/home/dev/.mozbuild"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": []
+    }
+  },
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "waitFor": "postStartCommand",
+  "features": {},
+  "forwardPorts": []
+}
