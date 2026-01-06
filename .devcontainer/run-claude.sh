@@ -9,7 +9,8 @@ docker run -it --rm \
   --cap-add=NET_RAW \
   -v "$(pwd):/workspace" \
   -v firefox-commandhistory:/commandhistory \
-  -v firefox-claude-config:/home/dev/.claude \
+  -v "$HOME/.claude:/home/dev/.claude" \
+  -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
   -v firefox-mozbuild:/home/dev/.mozbuild \
   -v firefox-cargo:/home/dev/.cargo \
   -v firefox-rustup:/home/dev/.rustup \

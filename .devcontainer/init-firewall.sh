@@ -3,8 +3,8 @@ set -euo pipefail
 
 echo "Initializing firewall"
 
-# Fix volume permissions
-chown -R dev:dev /home/dev/.claude /home/dev/.mozbuild /home/dev/.cargo /home/dev/.rustup /commandhistory 2>/dev/null || true
+# Fix volume permissions (for Docker volumes only, not bind mounts)
+chown -R dev:dev /home/dev/.mozbuild /home/dev/.cargo /home/dev/.rustup /commandhistory 2>/dev/null || true
 
 # Clean up existing rules
 iptables-save | grep docker | iptables-restore || true
