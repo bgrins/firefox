@@ -25,6 +25,7 @@ except Exception:
 
 import mozfile
 import mozpack.path as mozpath
+from mach.logging import StructuredHumanFormatter
 from mach.mixin.logging import LoggingMixin
 from mach.util import get_state_dir, get_virtualenv_base_dir
 from mozsystemmonitor.resourcemonitor import SystemResourceMonitor
@@ -648,7 +649,11 @@ class OutputManager(LoggingMixin):
         self._handler.footer = self.footer
 
         old = log_manager.replace_terminal_handler(self._handler)
-        self._handler.level = old.level
+
+        if hasattr(self, "_redirect_terminal_level"):
+            self._handler.setLevel(self._redirect_terminal_level)
+        else:
+            self._handler.setLevel(old.level)
 
     def __enter__(self):
         return self
@@ -679,11 +684,70 @@ class OutputManager(LoggingMixin):
 class BuildOutputManager(OutputManager):
     """Handles writing build output to a terminal, to logs, etc."""
 
-    def __init__(self, log_manager, monitor, footer):
+    def __init__(self, log_manager, monitor, footer, show="debug"):
         self.monitor = monitor
+        self.log_manager = log_manager
+        self.redirect_log_file = None
+        self.redirect_log_handler = None
+
+        # Handle filtered output mode before calling parent __init__
+        if show != "debug":
+            level_map = {
+                "info": logging.INFO,
+                "warning": logging.WARNING,
+                "error": logging.ERROR,
+            }
+            log_level = level_map[show]
+            self._setup_filtered_logging(log_manager, log_level, show)
+
         OutputManager.__init__(self, log_manager, footer)
 
+    def _setup_filtered_logging(self, log_manager, log_level, show_level_name):
+        """Set up dual logging: full output to file, filtered output to terminal."""
+
+        log_file_path = os.path.join(self.monitor.topobjdir, "last_build.txt")
+
+        self.redirect_log_file = open(log_file_path, "w", encoding="utf-8")
+
+        level_descriptions = {
+            "info": "info level and above",
+            "warning": "warnings and errors only",
+            "error": "errors only",
+        }
+        level_desc = level_descriptions[show_level_name]
+        sys.stdout.write(
+            f"Showing {level_desc}.\n"
+            f"Follow the full build output: {log_file_path}\n\n"
+        )
+        sys.stdout.flush()
+
+        self.redirect_log_handler = logging.FileHandler(
+            log_file_path, mode="w", encoding="utf-8"
+        )
+        formatter = StructuredHumanFormatter(log_manager.start_time)
+        self.redirect_log_handler.setFormatter(formatter)
+        self.redirect_log_handler.setLevel(logging.DEBUG)
+
+        for logger in log_manager.structured_loggers:
+            logger.addHandler(self.redirect_log_handler)
+
+        # No-TTY: configure existing handler (OutputManager.__init__ returns early)
+        if log_manager.terminal_handler:
+            log_manager.terminal_handler.setLevel(log_level)
+
+        # TTY: signal level for new handler created by OutputManager.__init__
+        self._redirect_terminal_level = log_level
+
     def __exit__(self, exc_type, exc_value, traceback):
+        if self.redirect_log_handler:
+            for logger in self.log_manager.structured_loggers:
+                logger.removeHandler(self.redirect_log_handler)
+
+            self.redirect_log_handler.close()
+
+        if self.redirect_log_file:
+            self.redirect_log_file.close()
+
         OutputManager.__exit__(self, exc_type, exc_value, traceback)
 
         # Ensure the resource monitor is stopped because leaving it running
@@ -1095,6 +1159,7 @@ class BuildDriver(MozbuildObject):
         keep_going=False,
         mach_context=None,
         append_env=None,
+        show="debug",
     ):
         warnings_path = self._get_state_filename("warnings.json")
         monitor = self._spawn(BuildMonitor)
@@ -1110,6 +1175,7 @@ class BuildDriver(MozbuildObject):
             keep_going,
             mach_context,
             append_env,
+            show,
         )
 
         record_usage = True
@@ -1135,6 +1201,7 @@ class BuildDriver(MozbuildObject):
         keep_going=False,
         mach_context=None,
         append_env=None,
+        show="debug",
     ):
         """Invoke the build backend.
 
@@ -1149,7 +1216,7 @@ class BuildDriver(MozbuildObject):
         # down builds.
         mkdir(self.topobjdir, not_indexed=True)
 
-        with BuildOutputManager(self.log_manager, monitor, footer) as output:
+        with BuildOutputManager(self.log_manager, monitor, footer, show) as output:
             monitor.start()
 
             if directory is not None and not what:
