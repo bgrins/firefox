@@ -49,6 +49,11 @@ class NotAGitRepositoryError(Exception):
     pass
 
 
+def is_running_under_coding_agent():
+    """Check if running under a coding agent environment."""
+    return bool(os.environ.get("CLAUDECODE"))
+
+
 def _open(path, mode):
     if "b" in mode:
         return open(path, mode)

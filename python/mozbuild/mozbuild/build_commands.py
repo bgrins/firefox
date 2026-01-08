@@ -5,6 +5,7 @@
 import argparse
 import os
 import subprocess
+import sys
 from urllib.parse import quote
 
 import mozpack.path as mozpath
@@ -12,7 +13,11 @@ from mach.decorators import Command, CommandArgument
 
 from mozbuild.backend import backends
 from mozbuild.mozconfig import MozconfigLoader
-from mozbuild.util import MOZBUILD_METRICS_PATH, ensure_l10n_central
+from mozbuild.util import (
+    MOZBUILD_METRICS_PATH,
+    ensure_l10n_central,
+    is_running_under_coding_agent,
+)
 
 BUILD_WHAT_HELP = """
 What to build. Can be a top-level make target or a relative directory. If
@@ -118,6 +123,13 @@ def _set_priority(priority, verbose):
     type=str,
     help="idle/less/normal/more/high. (Default idle)",
 )
+@CommandArgument(
+    "--show",
+    default="debug",
+    choices=["debug", "info", "warning", "error"],
+    help="Set the minimum log level to show on stdout. Full output is written to objdir/last_log.txt. "
+    "Choices: debug (show all, default), info, warning (warnings and errors), error (errors only).",
+)
 def build(
     command_context,
     what=None,
@@ -127,6 +139,7 @@ def build(
     verbose=False,
     keep_going=False,
     priority="idle",
+    show="debug",
 ):
     """Build the source tree.
 
@@ -151,6 +164,19 @@ def build(
     from mozbuild.controller.building import BuildDriver
 
     command_context.log_manager.enable_all_structured_loggers()
+
+    # Auto-set show level to warning for coding agents
+    if show == "debug" and is_running_under_coding_agent():
+        show = "warning"
+
+    # Verbose mode and show level are mutually exclusive - verbose takes precedence
+    if show != "debug" and verbose:
+        show = "debug"
+
+    # Error if trying to filter output in automation
+    if show != "debug" and bool(os.environ.get("MOZ_AUTOMATION")):
+        print("Error: --show is not supported in automation.", file=sys.stderr)
+        return 1
 
     loader = MozconfigLoader(command_context.topsrcdir)
     mozconfig = loader.read_mozconfig(loader.AUTODETECT)
@@ -191,6 +217,7 @@ def build(
             keep_going=keep_going,
             mach_context=command_context._mach_context,
             append_env=append_env,
+            show=show,
         )
         if status != 0:
             return status
@@ -233,6 +260,7 @@ def build(
         keep_going=keep_going,
         mach_context=command_context._mach_context,
         append_env=append_env,
+        show=show,
     )
 
 

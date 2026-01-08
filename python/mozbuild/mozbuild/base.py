@@ -200,10 +200,20 @@ class MozbuildObject(ProcessExecutionMixin):
 
     def build_out_of_date(self, output, dep_file):
         if not os.path.isfile(output):
-            print(" Output reference file not found: %s" % output)
+            self.log(
+                logging.INFO,
+                "build_output",
+                {"output": output},
+                "Output reference file not found: {output}",
+            )
             return True
         if not os.path.isfile(dep_file):
-            print(" Dependency file not found: %s" % dep_file)
+            self.log(
+                logging.INFO,
+                "build_output",
+                {"dep_file": dep_file},
+                "Dependency file not found: {dep_file}",
+            )
             return True
 
         deps = []
@@ -216,11 +226,21 @@ class MozbuildObject(ProcessExecutionMixin):
                 dep_mtime = os.path.getmtime(f)
             except OSError as e:
                 if e.errno == errno.ENOENT:
-                    print(" Input not found: %s" % f)
+                    self.log(
+                        logging.INFO,
+                        "build_output",
+                        {"input": f},
+                        "Input not found: {input}",
+                    )
                     return True
                 raise
             if dep_mtime > mtime:
-                print(" %s is out of date with respect to %s" % (output, f))
+                self.log(
+                    logging.INFO,
+                    "build_output",
+                    {"output": output, "dep": f},
+                    "{output} is out of date with respect to {dep}",
+                )
                 return True
         return False
 
@@ -750,10 +770,17 @@ class MozbuildObject(ProcessExecutionMixin):
                 mem_gb = psutil.virtual_memory().total / 1024**3
                 from_mem = round(mem_gb / job_size)
                 num_jobs = max(1, min(cpus, from_mem))
-                print(
-                    "  Parallelism determined by memory: using %d jobs for %d cores "
-                    "based on %.1f GiB RAM and estimated job size of %.1f GiB"
-                    % (num_jobs, cpus, mem_gb, job_size)
+                self.log(
+                    logging.INFO,
+                    "build_output",
+                    {
+                        "num_jobs": num_jobs,
+                        "cpus": cpus,
+                        "mem_gb": mem_gb,
+                        "job_size": job_size,
+                    },
+                    "Parallelism determined by memory: using {num_jobs} jobs for {cpus} cores "
+                    "based on {mem_gb:.1f} GiB RAM and estimated job size of {job_size:.1f} GiB",
                 )
 
         args.append("-j%d" % num_jobs)

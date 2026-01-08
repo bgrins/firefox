@@ -16,7 +16,7 @@ searchfox-cli --id AudioSink -l 150 --cpp # search for identifier audio sink in 
 - `./mach` is the main interface to the Mozilla build system and common developer tasks. Important commands are listed here, and you can run `./mach help` for a full list of commands. If you want additional details for a given command, you can run `./mach COMMAND --help`
 - `./mach lint`: Run linters. Run it without additional parameters to lint all the files you have modified
 - `./mach format`: Format code. Run it without additional parameters to format all the files you have modified
-- `./mach build`: Build the project
+- `./mach build`: Build the project. Full builds can take a long time, up to tens of minutes. By default, this will only output warnings and errors when the CLAUDECODE environment variable is set, with the full log written to a file you can keep an eye on. You can use `--show debug` to see all output, or `--show info/warning/error` to filter by log level.
 - `./mach test --auto`: Run tests
 - `./mach run`: Run the project
 - `treeherder-check`: Pull CI results for a try push
