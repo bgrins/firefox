@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from collections import Counter, OrderedDict, namedtuple
 from itertools import dropwhile, islice, takewhile
@@ -648,7 +649,12 @@ class OutputManager(LoggingMixin):
         self._handler.footer = self.footer
 
         old = log_manager.replace_terminal_handler(self._handler)
-        self._handler.level = old.level
+
+        # Check if redirect mode was requested by child class
+        if hasattr(self, "_redirect_terminal_level"):
+            self._handler.level = self._redirect_terminal_level
+        else:
+            self._handler.level = old.level
 
     def __enter__(self):
         return self
@@ -679,11 +685,76 @@ class OutputManager(LoggingMixin):
 class BuildOutputManager(OutputManager):
     """Handles writing build output to a terminal, to logs, etc."""
 
-    def __init__(self, log_manager, monitor, footer):
+    def __init__(self, log_manager, monitor, footer, redirect_output=False):
         self.monitor = monitor
+        self.log_manager = log_manager
+        self.redirect_log_file = None
+        self.redirect_log_handler = None
+
+        # Handle redirect output mode BEFORE calling parent __init__
+        if redirect_output:
+            self._setup_redirect_logging(log_manager)
+
         OutputManager.__init__(self, log_manager, footer)
 
+    def _setup_redirect_logging(self, log_manager):
+        """Set up dual logging for redirect mode: full output to file, warnings/errors to terminal."""
+        # Create a temporary file for full build output
+        # Use delete=False so we can keep it after the build completes
+        self.redirect_log_file = tempfile.NamedTemporaryFile(
+            mode="w",
+            prefix="mach_build_",
+            suffix=".log",
+            delete=False,
+            encoding="utf-8",
+        )
+
+        # Log the temp file path so users know where to find full output
+        # Use a direct write to stdout to ensure it's seen even before logging is fully set up
+        sys.stdout.write(
+            f"Printing warnings and errors only. Full build output: {self.redirect_log_file.name}\n\n"
+        )
+        sys.stdout.flush()
+
+        # Create a file handler for the temp file that captures ALL output
+        self.redirect_log_handler = logging.FileHandler(
+            self.redirect_log_file.name, mode="w", encoding="utf-8"
+        )
+
+        # Use the same formatter as terminal to maintain consistency
+        if log_manager.terminal_formatter:
+            self.redirect_log_handler.setFormatter(log_manager.terminal_formatter)
+        else:
+            # Fallback to basic formatter
+            formatter = logging.Formatter("%(message)s")
+            self.redirect_log_handler.setFormatter(formatter)
+
+        # Set to DEBUG level to capture everything
+        self.redirect_log_handler.setLevel(logging.DEBUG)
+
+        # Add the file handler to all structured loggers
+        for logger in log_manager.structured_loggers:
+            logger.addHandler(self.redirect_log_handler)
+
+        # Set terminal handler to WARNING level (applied in parent __init__)
+        # Warnings and errors go to terminal in redirect mode
+        self._redirect_terminal_level = logging.WARNING
+
     def __exit__(self, exc_type, exc_value, traceback):
+        # Clean up redirect mode logging first
+        if self.redirect_log_handler:
+            # Remove the file handler from all loggers
+            for logger in self.log_manager.structured_loggers:
+                logger.removeHandler(self.redirect_log_handler)
+
+            # Close the handler
+            self.redirect_log_handler.close()
+
+        if self.redirect_log_file:
+            # Close the file but don't delete it
+            self.redirect_log_file.close()
+
+        # Call parent __exit__
         OutputManager.__exit__(self, exc_type, exc_value, traceback)
 
         # Ensure the resource monitor is stopped because leaving it running
@@ -1095,6 +1166,7 @@ class BuildDriver(MozbuildObject):
         keep_going=False,
         mach_context=None,
         append_env=None,
+        redirect_output=False,
     ):
         warnings_path = self._get_state_filename("warnings.json")
         monitor = self._spawn(BuildMonitor)
@@ -1110,6 +1182,7 @@ class BuildDriver(MozbuildObject):
             keep_going,
             mach_context,
             append_env,
+            redirect_output,
         )
 
         record_usage = True
@@ -1135,6 +1208,7 @@ class BuildDriver(MozbuildObject):
         keep_going=False,
         mach_context=None,
         append_env=None,
+        redirect_output=False,
     ):
         """Invoke the build backend.
 
@@ -1143,17 +1217,30 @@ class BuildDriver(MozbuildObject):
         """
         self.metrics = metrics
         self.mach_context = mach_context
-        footer = BuildProgressFooter(self.log_manager.terminal, monitor)
+
+        # Disable footer when redirecting output - no progress updates wanted
+        footer = (
+            None
+            if redirect_output
+            else BuildProgressFooter(self.log_manager.terminal, monitor)
+        )
 
         # Disable indexing in objdir because it is not necessary and can slow
         # down builds.
         mkdir(self.topobjdir, not_indexed=True)
 
-        with BuildOutputManager(self.log_manager, monitor, footer) as output:
+        with BuildOutputManager(
+            self.log_manager, monitor, footer, redirect_output
+        ) as output:
             monitor.start()
 
             if directory is not None and not what:
-                print("Can only use -C/--directory with an explicit target " "name.")
+                self.log(
+                    logging.ERROR,
+                    "build_error",
+                    {},
+                    "Can only use -C/--directory with an explicit target name.",
+                )
                 return 1
 
             if directory is not None:
@@ -1201,7 +1288,12 @@ class BuildDriver(MozbuildObject):
                     clobber_requested = self._clobber_configure()
 
                 if config is None:
-                    print(" Config object not found by mach.")
+                    self.log(
+                        logging.INFO,
+                        "build_output",
+                        {},
+                        "Config object not found by mach.",
+                    )
 
                 config_rc = self.configure(
                     metrics,
@@ -1267,7 +1359,12 @@ class BuildDriver(MozbuildObject):
                     for backend in all_backends
                 ]
             ):
-                print("Build configuration changed. Regenerating backend.")
+                self.log(
+                    logging.INFO,
+                    "build_output",
+                    {},
+                    "Build configuration changed. Regenerating backend.",
+                )
                 args = [
                     config.substs["PYTHON3"],
                     mozpath.join(self.topobjdir, "config.status"),
@@ -1651,10 +1748,20 @@ class BuildDriver(MozbuildObject):
         if buildstatus_messages:
             line_handler("BUILDSTATUS TIER_FINISH configure")
         if status:
-            print('*** Fix above errors and then restart with "./mach build"')
+            self.log(
+                logging.ERROR,
+                "build_error",
+                {},
+                '*** Fix above errors and then restart with "./mach build"',
+            )
         else:
-            print("Configure complete!")
-            print("Be sure to run |mach build| to pick up any changes")
+            self.log(logging.INFO, "build_output", {}, "Configure complete!")
+            self.log(
+                logging.INFO,
+                "build_output",
+                {},
+                "Be sure to run |mach build| to pick up any changes",
+            )
 
         return status
 
@@ -1804,7 +1911,7 @@ class BuildDriver(MozbuildObject):
 
         if mozconfig_make_lines:
             self.log(
-                logging.WARNING,
+                logging.INFO,
                 "mozconfig_content",
                 {
                     "path": mozconfig["path"],
@@ -1860,7 +1967,10 @@ class BuildDriver(MozbuildObject):
         res = clobberer.maybe_do_clobber(os.getcwd(), auto_clobber, clobber_output)
         clobber_output.seek(0)
         for line in clobber_output.readlines():
-            self.log(logging.WARNING, "clobber", {"msg": line.rstrip()}, "{msg}")
+            msg = line.rstrip()
+            # Log "Clobber not needed" at INFO level, actual clobber actions at WARNING
+            level = logging.INFO if msg == "Clobber not needed." else logging.WARNING
+            self.log(level, "clobber", {"msg": msg}, "{msg}")
 
         clobber_required, clobber_performed, clobber_message = res
         if clobber_required and not clobber_performed:

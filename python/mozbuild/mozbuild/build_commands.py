@@ -118,6 +118,11 @@ def _set_priority(priority, verbose):
     type=str,
     help="idle/less/normal/more/high. (Default idle)",
 )
+@CommandArgument(
+    "--redirect-output",
+    action="store_true",
+    help="Redirect full build output to a temporary file. Warnings and errors are shown on stdout.",
+)
 def build(
     command_context,
     what=None,
@@ -127,6 +132,7 @@ def build(
     verbose=False,
     keep_going=False,
     priority="idle",
+    redirect_output=False,
 ):
     """Build the source tree.
 
@@ -151,6 +157,19 @@ def build(
     from mozbuild.controller.building import BuildDriver
 
     command_context.log_manager.enable_all_structured_loggers()
+
+    # Auto-enable redirect output for coding agents
+    if not redirect_output and bool(os.environ.get("CLAUDECODE")):
+        redirect_output = True
+
+    # Redirect output and verbose are mutually exclusive - verbose takes precedence
+    if redirect_output and verbose:
+        redirect_output = False
+
+    # Disable redirect output in automation
+    if redirect_output and bool(os.environ.get("MOZ_AUTOMATION")):
+        print("Warning: --redirect-output is not supported in automation. Disabling.")
+        redirect_output = False
 
     loader = MozconfigLoader(command_context.topsrcdir)
     mozconfig = loader.read_mozconfig(loader.AUTODETECT)
@@ -191,6 +210,7 @@ def build(
             keep_going=keep_going,
             mach_context=command_context._mach_context,
             append_env=append_env,
+            redirect_output=redirect_output,
         )
         if status != 0:
             return status
@@ -233,6 +253,7 @@ def build(
         keep_going=keep_going,
         mach_context=command_context._mach_context,
         append_env=append_env,
+        redirect_output=redirect_output,
     )
 
 
