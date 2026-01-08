@@ -11,6 +11,7 @@ docker run -it --rm \
   -v firefox-commandhistory:/commandhistory \
   -v "$HOME/.claude:/home/dev/.claude" \
   -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
+  -v "$HOME/macos-sdk:/xcode:ro" \
   -v firefox-mozbuild:/home/dev/.mozbuild \
   -v firefox-cargo:/home/dev/.cargo \
   -v firefox-rustup:/home/dev/.rustup \
