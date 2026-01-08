@@ -1153,7 +1153,12 @@ class BuildDriver(MozbuildObject):
             monitor.start()
 
             if directory is not None and not what:
-                print("Can only use -C/--directory with an explicit target " "name.")
+                self.log(
+                    logging.ERROR,
+                    "build_error",
+                    {},
+                    "Can only use -C/--directory with an explicit target name.",
+                )
                 return 1
 
             if directory is not None:
@@ -1201,7 +1206,12 @@ class BuildDriver(MozbuildObject):
                     clobber_requested = self._clobber_configure()
 
                 if config is None:
-                    print(" Config object not found by mach.")
+                    self.log(
+                        logging.INFO,
+                        "build_output",
+                        {},
+                        "Config object not found by mach.",
+                    )
 
                 config_rc = self.configure(
                     metrics,
@@ -1267,7 +1277,12 @@ class BuildDriver(MozbuildObject):
                     for backend in all_backends
                 ]
             ):
-                print("Build configuration changed. Regenerating backend.")
+                self.log(
+                    logging.INFO,
+                    "build_output",
+                    {},
+                    "Build configuration changed. Regenerating backend.",
+                )
                 args = [
                     config.substs["PYTHON3"],
                     mozpath.join(self.topobjdir, "config.status"),
@@ -1651,10 +1666,20 @@ class BuildDriver(MozbuildObject):
         if buildstatus_messages:
             line_handler("BUILDSTATUS TIER_FINISH configure")
         if status:
-            print('*** Fix above errors and then restart with "./mach build"')
+            self.log(
+                logging.ERROR,
+                "build_error",
+                {},
+                '*** Fix above errors and then restart with "./mach build"',
+            )
         else:
-            print("Configure complete!")
-            print("Be sure to run |mach build| to pick up any changes")
+            self.log(logging.INFO, "build_output", {}, "Configure complete!")
+            self.log(
+                logging.INFO,
+                "build_output",
+                {},
+                "Be sure to run |mach build| to pick up any changes",
+            )
 
         return status
 
@@ -1860,7 +1885,10 @@ class BuildDriver(MozbuildObject):
         res = clobberer.maybe_do_clobber(os.getcwd(), auto_clobber, clobber_output)
         clobber_output.seek(0)
         for line in clobber_output.readlines():
-            self.log(logging.WARNING, "clobber", {"msg": line.rstrip()}, "{msg}")
+            msg = line.rstrip()
+            # Log "Clobber not needed" at INFO level, actual clobber actions at WARNING
+            level = logging.INFO if msg == "Clobber not needed." else logging.WARNING
+            self.log(level, "clobber", {"msg": msg}, "{msg}")
 
         clobber_required, clobber_performed, clobber_message = res
         if clobber_required and not clobber_performed:
