@@ -102,19 +102,28 @@ export class MLEngineWorker {
    * @param {boolean} engineRunOptions.enableInferenceProgress - Whether to enable inference progress.
    */
   async run(request, requestId, engineRunOptions = {}) {
+    console.log(`[WorkerDebug] run() called for requestId=${requestId}, has args=${!!request?.args}, has messages=${!!request?.messages}`);
+
     if (request === "throw") {
       throw new Error(
         'Received the message "throw", so intentionally throwing an error.'
       );
     }
 
-    return await this.#pipeline.run(
-      request,
-      requestId,
-      engineRunOptions.enableInferenceProgress
-        ? data => self.callMainThread("onInferenceProgress", [data])
-        : null
-    );
+    try {
+      const result = await this.#pipeline.run(
+        request,
+        requestId,
+        engineRunOptions.enableInferenceProgress
+          ? data => self.callMainThread("onInferenceProgress", [data])
+          : null
+      );
+      console.log(`[WorkerDebug] run() succeeded for requestId=${requestId}, finalOutput.length=${result?.finalOutput?.length || 0}`);
+      return result;
+    } catch (error) {
+      console.error(`[WorkerDebug] run() failed for requestId=${requestId}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -134,11 +143,16 @@ export class MLEngineWorker {
     };
 
     self.callMainThread = worker.callMainThread.bind(worker);
-    self.addEventListener("message", msg => worker.handleMessage(msg));
-    self.addEventListener("unhandledrejection", function (error) {
+    self.addEventListener("message", msg => {
+      console.log(`[WorkerDebug] Received message type: ${msg?.data?.type || 'unknown'}`);
+      worker.handleMessage(msg);
+    });
+    self.addEventListener("unhandledrejection", function (event) {
+      console.error("[WorkerDebug] ⚠️ unhandledrejection event fired!", event);
+
       const reason =
-        error?.reason?.fail ??
-        error?.reason ??
+        event?.reason?.fail ??
+        event?.reason ??
         new Error("MLEngine.worker.mjs had an unhandled error.");
 
       if (reason) {
@@ -148,7 +162,13 @@ export class MLEngineWorker {
         console.error("MLEngine.worker.mjs had an unhandled error.", reason);
       }
 
-      throw reason;
+      // IMPORTANT: Prevent default behavior and don't re-throw!
+      // Re-throwing or letting the default behavior occur causes PromiseWorker to
+      // reject ALL pending promises for concurrent requests, not just the failed one.
+      // The individual promise rejection is already handled in the try/catch in run().
+      // Allowing the default would corrupt the message routing for unrelated concurrent requests.
+      event.preventDefault();
+      console.debug("[WorkerDebug] preventDefault() called to preserve concurrent request isolation");
     });
   }
 }

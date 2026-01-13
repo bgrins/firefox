@@ -540,9 +540,12 @@ class EngineDispatcher {
         }
         case "EnginePort:Run": {
           const { requestId, request, engineRunOptions } = data;
+          lazy.console.debug(`[ChildDebug] EnginePort:Run received for requestId=${requestId}, has args=${!!request?.args}, has messages=${!!request?.messages}`);
+
           try {
             await this.isReady();
           } catch (error) {
+            lazy.console.error(`[ChildDebug] isReady() failed for requestId=${requestId}:`, error);
             port.postMessage({
               type: "EnginePort:RunResponse",
               requestId,
@@ -564,13 +567,17 @@ class EngineDispatcher {
           this.#status = "RUNNING";
           const engine = await this.#engine;
           try {
+            lazy.console.debug(`[ChildDebug] Calling engine.run() for requestId=${requestId}`);
+            const response = await engine.run(request, requestId, engineRunOptions);
+            lazy.console.debug(`[ChildDebug] engine.run() succeeded for requestId=${requestId}, posting RunResponse with finalOutput.length=${response?.finalOutput?.length || 0}`);
             port.postMessage({
               type: "EnginePort:RunResponse",
               requestId,
-              response: await engine.run(request, requestId, engineRunOptions),
+              response,
               error: null,
             });
           } catch (error) {
+            lazy.console.error(`[ChildDebug] engine.run() failed for requestId=${requestId}:`, error);
             port.postMessage({
               type: "EnginePort:RunResponse",
               requestId,

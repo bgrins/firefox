@@ -65,8 +65,9 @@ export async function generateChatTitle(message, current_tab) {
     const inferenceParams = config?.parameters || {};
 
     // Call the LLM
+    // TEMPORARILY BUGGY: Using 'messages' instead of 'args' to test the unhandledrejection fix
     const response = await engine.run({
-      args: messages,  // OpenAIPipeline expects messages in the 'args' field
+      messages,  // ❌ BUG: Should be 'args: messages'
       fxAccountToken: await openAIEngine.getFxAccountToken(),
       ...inferenceParams,
     });
