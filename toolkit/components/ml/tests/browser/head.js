@@ -951,6 +951,43 @@ function startMockOpenAI({
       return;
     }
 
+    // Non-tool streaming: simple text generation
+    if (wantsStream && !askedForTools) {
+      startSSE();
+
+      // Send a moderate number of chunks to test streaming without excessive overhead
+      const numChunks = 25;
+
+      // Send all chunks synchronously
+      for (let i = 0; i < numChunks; i++) {
+        sendSSE({
+          id: `chatcmpl-stream-${i}`,
+          object: "chat.completion.chunk",
+          created: Math.floor(Date.now() / 1000),
+          model: "test-model",
+          choices: [
+            {
+              index: 0,
+              delta: i === 0 ? { role: "assistant", content: `Word${i} ` } : { content: `Word${i} ` },
+              finish_reason: null,
+            },
+          ],
+        });
+      }
+
+      // Final chunk with finish_reason
+      sendSSE({
+        id: `chatcmpl-stream-${numChunks}`,
+        object: "chat.completion.chunk",
+        created: Math.floor(Date.now() / 1000),
+        model: "test-model",
+        choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+      });
+
+      endSSE();
+      return;
+    }
+
     // ===========================
     // NON-STREAMING BRANCHES
     // ===========================

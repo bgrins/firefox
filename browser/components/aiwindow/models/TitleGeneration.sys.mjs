@@ -66,7 +66,7 @@ export async function generateChatTitle(message, current_tab) {
 
     // Call the LLM
     const response = await engine.run({
-      messages,
+      args: messages,  // OpenAIPipeline expects messages in the 'args' field
       fxAccountToken: await openAIEngine.getFxAccountToken(),
       ...inferenceParams,
     });

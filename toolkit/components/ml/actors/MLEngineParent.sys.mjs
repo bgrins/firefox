@@ -1006,6 +1006,14 @@ export class MLEngine {
   #requests = new Map();
 
   /**
+   * Track streaming requests that have received their final InitProgress "done" message.
+   * Used to coordinate cleanup between InitProgress and RunResponse handlers.
+   *
+   * @type {Set<number>}
+   */
+  #streamingRequestsWithDone = new Set();
+
+  /**
    * @type {"uninitialized" | "ready" | "error" | "closed" | "crashed"}
    */
   engineStatus = "uninitialized";
@@ -1362,6 +1370,9 @@ export class MLEngine {
       case "EnginePort:RunResponse": {
         const { response, error, requestId } = data;
         const request = this.#requests.get(requestId);
+        lazy.console.debug(
+          `[StreamingFix] RunResponse requestId=${requestId}, hasRequest=${!!request}, hasDoneMarker=${this.#streamingRequestsWithDone.has(requestId)}, response=${JSON.stringify(response).substring(0, 200)}`
+        );
         if (request) {
           if (error) {
             this.telemetry.recordRunInferenceFailure(error);
@@ -1377,17 +1388,40 @@ export class MLEngine {
                 this.engineId,
                 validatedResponse.metrics
               );
+              lazy.console.debug(
+                `[StreamingFix] Resolving requestId=${requestId} with finalOutput.length=${validatedResponse.finalOutput?.length}`
+              );
               request.resolve(validatedResponse);
             }
           }
+
+          // For streaming requests (those with resolveChunk), check if we've
+          // received the final InitProgress "done" message. If so, clean up now.
+          // Otherwise, leave the request for InitProgress to clean up later.
+          if ("resolveChunk" in request) {
+            if (this.#streamingRequestsWithDone.has(requestId)) {
+              lazy.console.debug(
+                `[StreamingFix] Cleaning up streaming request ${requestId} in RunResponse (done marker was already set)`
+              );
+              this.#requests.delete(requestId);
+              this.#streamingRequestsWithDone.delete(requestId);
+            } else {
+              lazy.console.debug(
+                `[StreamingFix] Leaving streaming request ${requestId} for InitProgress cleanup (no done marker yet)`
+              );
+            }
+          } else {
+            // Non-streaming requests can be deleted immediately
+            this.#requests.delete(requestId);
+          }
         } else {
-          lazy.console.error(
-            "Could not resolve response in the MLEngineParent",
+          // For streaming requests, the request may have already been deleted
+          // by the final InitProgress message. Only log an error for non-streaming.
+          lazy.console.debug(
+            "RunResponse received after request was already cleaned up (likely streaming request)",
             data
           );
         }
-
-        this.#requests.delete(requestId);
         break;
       }
       case "EnginePort:EngineTerminated": {
@@ -1403,6 +1437,15 @@ export class MLEngine {
         if (data.statusResponse.type === lazy.Progress.ProgressType.INFERENCE) {
           const requestId = data.statusResponse.metadata.requestId;
           const request = this.#requests.get(requestId);
+          const isDone =
+            data.statusResponse.statusText ===
+            lazy.Progress.ProgressStatusText.DONE;
+
+          if (isDone) {
+            lazy.console.debug(
+              `[StreamingFix] InitProgress DONE for requestId=${requestId}, hasRequest=${!!request}`
+            );
+          }
 
           if (request) {
             if (data.statusResponse.ok) {
@@ -1411,6 +1454,24 @@ export class MLEngine {
               }
             } else if ("rejectChunk" in request) {
               request.rejectChunk(statusResponse);
+            }
+
+            // For streaming requests, when we receive the final progress update
+            // with statusText:"done", mark it and clean up if RunResponse already arrived.
+            if (isDone) {
+              if (this.#requests.has(requestId)) {
+                // Mark that we've received the done message, but RunResponse hasn't arrived yet
+                lazy.console.debug(
+                  `[StreamingFix] Setting done marker for requestId=${requestId}, waiting for RunResponse to resolve and cleanup`
+                );
+                this.#streamingRequestsWithDone.add(requestId);
+              } else {
+                // RunResponse already happened, so just clean up the tracking set
+                lazy.console.debug(
+                  `[StreamingFix] Request ${requestId} already cleaned up by RunResponse, removing done marker`
+                );
+                this.#streamingRequestsWithDone.delete(requestId);
+              }
             }
           } else {
             lazy.console.error(
