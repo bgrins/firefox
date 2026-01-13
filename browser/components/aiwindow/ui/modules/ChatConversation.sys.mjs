@@ -398,9 +398,38 @@ export class ChatConversation {
         );
       })
       .map(message => {
+        const role = getRoleLabel(message.role).toLowerCase();
+        const body = message.content?.body ?? message.content;
+
+        // Handle assistant messages with tool calls specially
+        if (
+          message.role === MESSAGE_ROLE.ASSISTANT &&
+          message.content?.type === "function" &&
+          body?.tool_calls
+        ) {
+          return {
+            role,
+            content: null,
+            tool_calls: body.tool_calls,
+          };
+        }
+
+        // Handle tool messages specially
+        if (
+          message.role === MESSAGE_ROLE.TOOL &&
+          message.content?.tool_call_id
+        ) {
+          return {
+            role,
+            tool_call_id: message.content.tool_call_id,
+            content:
+              typeof body === "string" ? body : JSON.stringify(body || ""),
+          };
+        }
+
         return {
-          role: getRoleLabel(message.role).toLowerCase(),
-          content: message.content?.body ?? message.content,
+          role,
+          content: body,
         };
       });
   }
