@@ -1,0 +1,405 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src resource: chrome:; object-src 'none'; img-src chrome: data:; style-src chrome: 'unsafe-inline';"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <title>Harbor - MCP Tool Development</title>
+    <link rel="stylesheet" href="chrome://global/skin/in-content/common.css" />
+    <link
+      rel="stylesheet"
+      href="chrome://browser/content/aiwindow/harbor.css"
+    />
+    <script
+      type="module"
+      src="chrome://browser/content/aiwindow/harbor.mjs"
+    ></script>
+  </head>
+  <body>
+    <div id="harbor-container">
+      <header id="harbor-header" role="banner">
+        <h1>Harbor - MCP Development</h1>
+        <div id="harbor-status" role="status" aria-live="polite"></div>
+      </header>
+
+      <div id="harbor-main">
+        <!-- Left sidebar: MCP servers & tools -->
+        <aside id="harbor-sidebar" aria-label="MCP servers and tools">
+          <section id="mcp-servers" aria-labelledby="servers-heading">
+            <h2 id="servers-heading">MCP Servers</h2>
+            <div
+              id="server-list"
+              role="list"
+              aria-label="Registered MCP servers"
+            ></div>
+            <div class="server-actions">
+              <button
+                id="add-server-btn"
+                class="primary"
+                aria-label="Add new MCP server"
+              >
+                + Add Server
+              </button>
+              <div class="server-actions-secondary">
+                <button
+                  id="import-btn"
+                  class="small-btn"
+                  aria-label="Import server configurations from file"
+                >
+                  Import
+                </button>
+                <button
+                  id="export-btn"
+                  class="small-btn"
+                  aria-label="Export server configurations to file"
+                >
+                  Export
+                </button>
+                <button
+                  id="reset-btn"
+                  class="small-btn"
+                  aria-label="Reset to default servers"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+            <input
+              type="file"
+              id="import-file-input"
+              accept=".json"
+              hidden
+              aria-hidden="true"
+            />
+          </section>
+
+          <section id="mcp-tools" aria-labelledby="tools-heading">
+            <h2 id="tools-heading">Available Tools</h2>
+            <div
+              id="tool-list"
+              role="list"
+              aria-label="Available MCP tools"
+            ></div>
+          </section>
+        </aside>
+
+        <!-- Center: Chat interface -->
+        <main id="harbor-chat" aria-label="Chat interface">
+          <div
+            id="chat-messages"
+            role="log"
+            aria-live="polite"
+            aria-label="Chat messages"
+          ></div>
+          <div id="chat-input-container">
+            <textarea
+              id="chat-input"
+              placeholder="Test your MCP tools..."
+              rows="3"
+              aria-label="Chat message input"
+            ></textarea>
+            <button id="send-btn" class="primary" aria-label="Send message">
+              Send
+            </button>
+          </div>
+        </main>
+
+        <!-- Right sidebar: Tool inspector -->
+        <aside id="harbor-inspector" aria-label="Tool inspector">
+          <section id="model-info-section" aria-labelledby="model-heading">
+            <h2 id="model-heading">Model</h2>
+            <div id="model-info" aria-label="Model information">
+              <div class="model-info-row">
+                <span class="model-info-label" id="endpoint-label"
+                  >Endpoint</span
+                >
+                <span
+                  id="model-endpoint"
+                  class="model-info-value"
+                  aria-labelledby="endpoint-label"
+                  >-</span
+                >
+              </div>
+              <div class="model-info-row">
+                <span class="model-info-label" id="model-label">Model</span>
+                <select
+                  id="model-selector"
+                  class="model-selector"
+                  aria-labelledby="model-label"
+                >
+                  <option value="">Loading...</option>
+                </select>
+              </div>
+              <div class="model-info-row">
+                <span class="model-info-label" id="status-label">Status</span>
+                <span
+                  id="model-status"
+                  class="model-info-value"
+                  role="status"
+                  aria-labelledby="status-label"
+                  >-</span
+                >
+              </div>
+            </div>
+          </section>
+
+          <h2 id="inspector-heading">Tool Inspector</h2>
+          <div id="selected-tool-details" aria-labelledby="inspector-heading">
+            <p>Select a tool to view details</p>
+          </div>
+
+          <div id="console-log-section" aria-labelledby="console-heading">
+            <h2 id="console-heading">Console Output</h2>
+            <div
+              id="console-log"
+              role="log"
+              aria-live="polite"
+              aria-label="Sandbox console output"
+            >
+              <p class="log-placeholder">
+                Sandbox console output will appear here
+              </p>
+            </div>
+            <button
+              id="clear-console-btn"
+              class="small-btn"
+              aria-label="Clear console output"
+            >
+              Clear
+            </button>
+          </div>
+
+          <div id="execution-log-section" aria-labelledby="execution-heading">
+            <h2 id="execution-heading">Execution Log</h2>
+            <div
+              id="execution-log"
+              role="log"
+              aria-live="polite"
+              aria-label="Tool execution history"
+            >
+              <p class="log-placeholder">Tool executions will appear here</p>
+            </div>
+            <button
+              id="clear-log-btn"
+              class="small-btn"
+              aria-label="Clear execution log"
+            >
+              Clear Log
+            </button>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- Server Editor Dialog -->
+    <dialog
+      id="server-editor-dialog"
+      aria-labelledby="dialog-title"
+      aria-modal="true"
+    >
+      <form id="server-editor-form" aria-label="Server configuration">
+        <h2 id="dialog-title">Add Server</h2>
+
+        <div class="form-field">
+          <label for="server-name">Server Name</label>
+          <input
+            type="text"
+            id="server-name"
+            required
+            placeholder="My MCP Server"
+          />
+        </div>
+
+        <div class="form-field">
+          <label for="server-type">Server Type</label>
+          <select id="server-type">
+            <option value="sandbox">Sandbox (JavaScript)</option>
+            <option value="http">HTTP Server</option>
+          </select>
+        </div>
+
+        <div class="form-field" id="template-field">
+          <label for="server-template">Start from Template</label>
+          <select id="server-template">
+            <option value="">Blank</option>
+            <optgroup label="Basic">
+              <option value="hello">Hello World</option>
+              <option value="time">Time Server</option>
+              <option value="calculator">Calculator</option>
+              <option value="string-utils">String Utilities</option>
+              <option value="random">Random Generator</option>
+            </optgroup>
+            <optgroup label="Capabilities (require permissions)">
+              <option value="browser-tabs">Browser Tabs (browser-readonly)</option>
+              <option value="history-search">History Search (browser-readonly)</option>
+              <option value="file-reader">File Reader (workspace)</option>
+              <option value="clipboard">Clipboard (workspace)</option>
+            </optgroup>
+            <optgroup label="Testing">
+              <option value="security-test">Security Test (sandbox escape tests)</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="form-field" id="code-field">
+          <label for="server-code">Server Code</label>
+          <div id="code-error" class="code-error hidden"></div>
+          <div class="code-editor-wrapper">
+            <pre
+              class="code-highlight"
+              id="code-highlight"
+              aria-hidden="true"
+            ><code></code></pre>
+            <textarea
+              id="server-code"
+              rows="20"
+              spellcheck="false"
+              placeholder="// MCP Server code
+(function() {
+  const TOOLS = [{
+    name: 'my_tool',
+    description: 'My tool description',
+    inputSchema: { type: 'object', properties: {} }
+  }];
+
+  globalThis.handleMessage = function(message) {
+    const { method, params, id } = message;
+
+    if (method === 'initialize') {
+      sendToHost({
+        jsonrpc: '2.0',
+        result: {
+          protocolVersion: '2024-11-05',
+          serverInfo: { name: 'my-server', version: '1.0.0' },
+          capabilities: { tools: {} }
+        },
+        id
+      });
+    } else if (method === 'tools/list') {
+      sendToHost({ jsonrpc: '2.0', result: { tools: TOOLS }, id });
+    } else if (method === 'tools/call') {
+      // Handle tool calls here
+      sendToHost({
+        jsonrpc: '2.0',
+        result: { content: [{ type: 'text', text: 'Tool result' }] },
+        id
+      });
+    }
+  };
+})();"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="form-field hidden" id="url-field">
+          <label for="server-url">Server URL</label>
+          <input
+            type="url"
+            id="server-url"
+            placeholder="http://localhost:3000/mcp"
+          />
+          <p class="field-hint">
+            MCP server endpoint URL. HTTPS is required in production builds.
+          </p>
+        </div>
+
+        <div class="form-field hidden" id="token-field">
+          <label for="server-token">Bearer Token (optional)</label>
+          <input
+            type="password"
+            id="server-token"
+            placeholder="Enter bearer token for authentication"
+          />
+          <p class="field-hint">
+            Optional authentication token sent in the Authorization header.
+          </p>
+        </div>
+
+        <div class="form-field hidden" id="http-actions">
+          <button
+            type="button"
+            id="test-connection-btn"
+            class="secondary"
+            aria-label="Test server connection"
+          >
+            Test Connection
+          </button>
+          <span
+            id="connection-status"
+            class="connection-status"
+            role="status"
+            aria-live="polite"
+          ></span>
+        </div>
+
+        <div class="form-field">
+          <label class="checkbox-label">
+            <input type="checkbox" id="server-enabled" checked />
+            Start server automatically
+          </label>
+        </div>
+
+        <fieldset id="capabilities-section" class="capabilities-section">
+          <legend>Capabilities</legend>
+          <div class="form-field">
+            <label for="capability-level">Permission Level</label>
+            <select id="capability-level">
+              <option value="isolated">Isolated (No access)</option>
+              <option value="browser-readonly">Browser Read-only</option>
+              <option value="browser-full">Browser Full</option>
+              <option value="workspace">Workspace (Filesystem)</option>
+              <option value="developer">Developer (Full)</option>
+            </select>
+            <p class="field-hint" id="capability-level-description">
+              No system or browser access. Safe for pure computation.
+            </p>
+          </div>
+
+          <div id="capability-summary" class="capability-summary">
+            <div class="capability-group">
+              <strong>System:</strong>
+              <span id="cap-system-summary">None</span>
+            </div>
+            <div class="capability-group">
+              <strong>Browser:</strong>
+              <span id="cap-browser-summary">None</span>
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="dialog-buttons">
+          <button
+            type="button"
+            id="dialog-cancel-btn"
+            aria-label="Cancel and close dialog"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            id="dialog-delete-btn"
+            class="danger hidden"
+            aria-label="Delete this server"
+          >
+            Delete
+          </button>
+          <button
+            type="submit"
+            id="dialog-save-btn"
+            class="primary"
+            aria-label="Save server configuration"
+          >
+            Save
+          </button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>
