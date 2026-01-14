@@ -326,6 +326,12 @@ class JarFileReader:
         """
         self.uncompressed_data.close()
 
+    def flush(self):
+        """
+        No-op for compatibility with BufferedReader which expects this method.
+        """
+        pass
+
     @property
     def closed(self):
         return self.uncompressed_data.closed
