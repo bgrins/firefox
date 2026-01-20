@@ -2236,6 +2236,10 @@ pref("browser.ml.chat.shortcuts.longPress", 60000);
 pref("browser.ml.chat.shortcut.onboardingMouseoverCount", 0);
 pref("browser.ml.chat.sidebar", true);
 
+// Model Context Protocol (MCP) integration
+pref("browser.ml.mcp.enabled", false); // Disabled by default - Nightly only
+pref("browser.ml.mcp.allowInsecure", false); // Allow HTTP connections (dev only)
+
 pref("browser.ml.linkPreview.allowedLanguages", "en");
 pref("browser.ml.linkPreview.blockListEnabled", true);
 pref("browser.ml.linkPreview.collapsed", false);
@@ -2270,6 +2274,8 @@ pref("browser.aiwindow.firstrun.hasCompleted", false);
 pref("browser.aiwindow.firstrun.modelChoice", "");
 pref("browser.aiwindow.model", "qwen3-235b-a22b-instruct-2507-maas");
 pref("browser.aiwindow.preferences.enabled", false);
+pref("browser.aiwindow.harbor.servers", "[]");
+pref("browser.aiwindow.harbor.disabled", "[]");
 
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);

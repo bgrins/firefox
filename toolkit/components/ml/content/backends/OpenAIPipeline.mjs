@@ -377,8 +377,15 @@ export class OpenAIPipeline {
         model: modelId,
         messages: request.args,
         stream,
-        tools,
       };
+
+      // Only include tools if there are any, and add tool_choice if provided
+      if (tools.length > 0) {
+        completionParams.tools = tools;
+        if (request.tool_choice) {
+          completionParams.tool_choice = request.tool_choice;
+        }
+      }
 
       const args = {
         client,

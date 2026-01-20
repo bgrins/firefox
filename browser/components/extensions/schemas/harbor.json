@@ -1,0 +1,99 @@
+[
+  {
+    "namespace": "manifest",
+    "types": [
+      {
+        "$extend": "OptionalPermission",
+        "choices": [
+          {
+            "type": "string",
+            "enum": ["harbor"]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "namespace": "harbor",
+    "description": "API for extensions to act as MCP (Model Context Protocol) servers for Harbor.",
+    "permissions": ["harbor"],
+    "functions": [
+      {
+        "name": "registerMCPServer",
+        "type": "function",
+        "async": true,
+        "description": "Register this extension as an MCP server.",
+        "parameters": [
+          {
+            "name": "metadata",
+            "type": "object",
+            "description": "Server metadata.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Human-readable server name."
+              },
+              "version": {
+                "type": "string",
+                "description": "Server version.",
+                "optional": true
+              },
+              "description": {
+                "type": "string",
+                "description": "Server description.",
+                "optional": true
+              }
+            },
+            "required": ["name"]
+          }
+        ]
+      },
+      {
+        "name": "unregisterMCPServer",
+        "type": "function",
+        "async": true,
+        "description": "Unregister this extension as an MCP server.",
+        "parameters": []
+      },
+      {
+        "name": "sendMCPResponse",
+        "type": "function",
+        "async": false,
+        "description": "Send a response to an MCP request.",
+        "parameters": [
+          {
+            "name": "requestId",
+            "type": "string",
+            "description": "The request ID from the onMCPMessage event."
+          },
+          {
+            "name": "response",
+            "type": "object",
+            "description": "The JSON-RPC response object.",
+            "additionalProperties": true
+          }
+        ]
+      }
+    ],
+    "events": [
+      {
+        "name": "onMCPMessage",
+        "type": "function",
+        "description": "Fired when an MCP message is received. The extension should process the message and call sendMCPResponse with the result.",
+        "parameters": [
+          {
+            "name": "requestId",
+            "type": "string",
+            "description": "Unique ID for this request. Pass to sendMCPResponse."
+          },
+          {
+            "name": "message",
+            "type": "object",
+            "description": "The JSON-RPC 2.0 message.",
+            "additionalProperties": true
+          }
+        ]
+      }
+    ]
+  }
+]
