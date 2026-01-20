@@ -64,8 +64,9 @@ export async function generateChatTitle(message, current_tab) {
     const config = engine.getConfig(engine.feature);
     const inferenceParams = config?.parameters || {};
 
+    // Call the LLM
     const response = await engine.run({
-      args: messages,
+      messages,
       fxAccountToken: await openAIEngine.getFxAccountToken(),
       ...inferenceParams,
     });

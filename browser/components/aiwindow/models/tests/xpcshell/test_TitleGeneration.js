@@ -79,31 +79,30 @@ add_task(async function test_generateChatTitle_success() {
 
     // Verify the messages structure passed to the engine
     const callArgs = fakeEngineInstance.run.firstCall.args[0];
-    Assert.ok(callArgs.args, "Should pass args to the engine");
-    Assert.ok(!callArgs.messages, "Should not pass messages at top level");
+    Assert.ok(callArgs.messages, "Should pass messages to the engine");
     Assert.equal(
-      callArgs.args.length,
+      callArgs.messages.length,
       2,
       "Should have system and user messages"
     );
     Assert.equal(
-      callArgs.args[0].role,
+      callArgs.messages[0].role,
       "system",
       "First message should be system"
     );
     Assert.equal(
-      callArgs.args[1].role,
+      callArgs.messages[1].role,
       "user",
       "Second message should be user"
     );
     Assert.equal(
-      callArgs.args[1].content,
+      callArgs.messages[1].content,
       message,
       "User message should contain the input message"
     );
 
     // Verify the system prompt contains the tab information
-    const systemContent = callArgs.args[0].content;
+    const systemContent = callArgs.messages[0].content;
     Assert.ok(
       systemContent.includes(currentTab.url),
       "System prompt should include tab URL"
@@ -154,7 +153,7 @@ add_task(async function test_generateChatTitle_no_tab_info() {
 
     // Verify the system prompt handles null tab
     const callArgs = fakeEngineInstance.run.firstCall.args[0];
-    Assert.ok(callArgs.args, "Should pass args even with null tab");
+    Assert.ok(callArgs.messages, "Should pass messages even with null tab");
   } finally {
     sb.restore();
   }
@@ -193,7 +192,10 @@ add_task(async function test_generateChatTitle_empty_tab_fields() {
 
     // Verify the system prompt includes the empty tab object
     const callArgs = fakeEngineInstance.run.firstCall.args[0];
-    Assert.ok(callArgs.args, "Should pass args even with empty tab fields");
+    Assert.ok(
+      callArgs.messages,
+      "Should pass messages even with empty tab fields"
+    );
   } finally {
     sb.restore();
   }
