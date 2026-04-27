@@ -827,11 +827,15 @@ export class BaseContent extends React.PureComponent {
     const mayHaveWeatherWidget =
       prefs["widgets.system.weather.enabled"] ||
       prefs.trainhopConfig?.widgets?.weatherEnabled;
+    const mayHaveSokobanGame =
+      prefs["widgets.system.sokobanGame.enabled"] ||
+      prefs.trainhopConfig?.widgets?.sokobanGameEnabled;
 
     // These prefs set the initial values on the Customize panel toggle switches
     const enabledWidgets = {
       listsEnabled: prefs["widgets.lists.enabled"],
       timerEnabled: prefs["widgets.focusTimer.enabled"],
+      sokobanGameEnabled: prefs["widgets.sokobanGame.enabled"],
       weatherEnabled: novaEnabled
         ? prefs["widgets.weather.enabled"]
         : prefs.showWeather,
@@ -927,6 +931,7 @@ export class BaseContent extends React.PureComponent {
       const hasContentWidgets =
         (mayHaveListsWidget && enabledWidgets.listsEnabled) ||
         (mayHaveTimerWidget && enabledWidgets.timerEnabled) ||
+        (mayHaveSokobanGame && enabledWidgets.sokobanGameEnabled) ||
         (mayHaveWeatherWidget &&
           enabledWidgets.weatherEnabled &&
           !weatherGoesToSidebar);
@@ -1074,6 +1079,7 @@ export class BaseContent extends React.PureComponent {
               mayHaveWidgets={mayHaveWidgets}
               mayHaveTimerWidget={mayHaveTimerWidget}
               mayHaveListsWidget={mayHaveListsWidget}
+              mayHaveSokobanGame={mayHaveSokobanGame}
               mayHaveWeatherForecast={
                 prefs["widgets.system.weatherForecast.enabled"]
               }

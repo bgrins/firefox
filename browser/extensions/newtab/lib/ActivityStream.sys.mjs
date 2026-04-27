@@ -1122,7 +1122,7 @@ export const PREFS_CONFIG = new Map([
     "widgets.system.enabled",
     {
       title: "Enables visibility of all widgets and controls to enable them",
-      value: false,
+      value: true,
     },
   ],
   [
@@ -1206,10 +1206,24 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "widgets.sokobanGame.enabled",
+    {
+      title: "Enables the sokoban game widget",
+      value: true,
+    },
+  ],
+  [
     "widgets.system.focusTimer.enabled",
     {
       title: "Enables the focus timer widget experiment in Nimbus",
       value: false,
+    },
+  ],
+  [
+    "widgets.system.sokobanGame.enabled",
+    {
+      title: "Enables the sokoban game widget experiment in Nimbus",
+      value: true,
     },
   ],
   [
@@ -1288,6 +1302,13 @@ export const PREFS_CONFIG = new Map([
     "widgets.focusTimer.size",
     {
       title: "Size of the focus timer widget (medium or large)",
+      value: "",
+    },
+  ],
+  [
+    "widgets.sokobanGame.size",
+    {
+      title: "Size of the sokoban game widget (medium or large)",
       value: "",
     },
   ],
@@ -1620,7 +1641,7 @@ export const PREFS_CONFIG = new Map([
     "nova.enabled",
     {
       title: "Boolean flag to enable Nova",
-      value: false,
+      value: true,
     },
   ],
   [

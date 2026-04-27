@@ -137,10 +137,12 @@ function Widgets() {
   // registry or handled inside the Weather component itself.
   const listsWidget = WIDGET_REGISTRY.find(w => w.id === "lists");
   const timerWidget = WIDGET_REGISTRY.find(w => w.id === "focusTimer");
+  const sokobanWidget = WIDGET_REGISTRY.find(w => w.id === "sokobanGame");
   const weatherWidget = WIDGET_REGISTRY.find(w => w.id === "weather");
 
   const listsEnabled = isWidgetEnabled(listsWidget, prefs, widgetsEnabled);
   const timerEnabled = isWidgetEnabled(timerWidget, prefs, widgetsEnabled);
+  const sokobanEnabled = isWidgetEnabled(sokobanWidget, prefs, widgetsEnabled);
 
   // This weather forecast widget will only show when the following are true:
   // - The weather view is set to "detailed" (can be checked with the weather.display pref)
@@ -182,6 +184,7 @@ function Widgets() {
   const widgetEnabledMap = {
     lists: listsEnabled,
     focusTimer: timerEnabled,
+    sokobanGame: sokobanEnabled,
     weather: weatherEnabled && !weatherGoesToSidebar,
   };
 

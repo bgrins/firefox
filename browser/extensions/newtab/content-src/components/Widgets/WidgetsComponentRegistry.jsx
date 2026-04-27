@@ -6,6 +6,7 @@ import React from "react";
 import { useSelector } from "react-redux";
 import { Lists } from "./Lists/Lists";
 import { FocusTimer } from "./FocusTimer/FocusTimer";
+import { SokobanGame } from "./SokobanGame/SokobanGame";
 import { Weather as WeatherWidget } from "./Weather/Weather";
 import { WIDGET_REGISTRY, resolveWidgetSize } from "./WidgetsRegistry.mjs";
 
@@ -28,6 +29,7 @@ function WeatherSidebarWidget({ dispatch }) {
 export const WIDGET_ROW_COMPONENTS = {
   lists: Lists,
   focusTimer: FocusTimer,
+  sokobanGame: SokobanGame,
   weather: WeatherRowWidget,
 };
 

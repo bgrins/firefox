@@ -20,6 +20,7 @@ function WidgetsManagementPanel({
   mayHaveWeather,
   mayHaveTimerWidget,
   mayHaveListsWidget,
+  mayHaveSokobanGame,
   mayHaveWeatherForecast,
   weatherDisplay,
   setPref,
@@ -70,6 +71,9 @@ function WidgetsManagementPanel({
         case "WIDGET_TIMER":
           widgetName = "focus_timer";
           break;
+        case "WIDGET_SOKOBAN":
+          widgetName = "sokoban_game";
+          break;
       }
 
       if (widgetName) {
@@ -106,7 +110,7 @@ function WidgetsManagementPanel({
   };
 
   const { weatherEnabled } = enabledSections;
-  const { timerEnabled, listsEnabled } = enabledWidgets;
+  const { timerEnabled, listsEnabled, sokobanGameEnabled } = enabledWidgets;
   const isRTL = typeof document !== "undefined" && document.dir === "rtl";
   const arrowIconSrc = `chrome://global/skin/icons/shaft-arrow-${isRTL ? "right" : "left"}.svg`;
 
@@ -176,6 +180,19 @@ function WidgetsManagementPanel({
                     data-preference="widgets.lists.enabled"
                     data-event-source="WIDGET_LISTS"
                     data-l10n-id="newtab-custom-widget-lists-toggle"
+                  />
+                </div>
+              )}
+              {mayHaveSokobanGame && (
+                <div id="sokoban-widget-section" className="section">
+                  <moz-toggle
+                    id="sokoban-toggle"
+                    pressed={sokobanGameEnabled || null}
+                    ontoggle={onToggleWidget}
+                    onToggle={onToggleWidget}
+                    data-preference="widgets.sokobanGame.enabled"
+                    data-event-source="WIDGET_SOKOBAN"
+                    label="Kit's Sokoban"
                   />
                 </div>
               )}

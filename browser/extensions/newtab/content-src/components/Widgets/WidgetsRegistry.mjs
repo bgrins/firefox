@@ -75,15 +75,19 @@
 export const PREF_WIDGETS_LISTS_ENABLED = "widgets.lists.enabled";
 export const PREF_WIDGETS_TIMER_ENABLED = "widgets.focusTimer.enabled";
 export const PREF_WIDGETS_WEATHER_ENABLED = "widgets.weather.enabled";
+export const PREF_WIDGETS_GAME_ENABLED = "widgets.sokobanGame.enabled";
 export const PREF_LISTS_SIZE = "widgets.lists.size";
 export const PREF_FOCUS_TIMER_SIZE = "widgets.focusTimer.size";
 export const PREF_WEATHER_SIZE = "widgets.weather.size";
+export const PREF_GAME_SIZE = "widgets.sokobanGame.size";
 export const PREF_WIDGETS_ORDER = "widgets.order";
 export const PREF_WIDGETS_SYSTEM_LISTS_ENABLED = "widgets.system.lists.enabled";
 export const PREF_WIDGETS_SYSTEM_TIMER_ENABLED =
   "widgets.system.focusTimer.enabled";
 export const PREF_WIDGETS_SYSTEM_WEATHER_ENABLED =
   "widgets.system.weather.enabled";
+export const PREF_WIDGETS_SYSTEM_GAME_ENABLED =
+  "widgets.system.sokobanGame.enabled";
 
 /**
  * @typedef {object} WidgetRegistryEntry
@@ -129,6 +133,20 @@ export const WIDGET_REGISTRY = [
     systemEnabledPref: PREF_WIDGETS_SYSTEM_TIMER_ENABLED,
     trainhopEnabledKey: "timerEnabled",
     trainhopSizeKey: "timerSize",
+    trainhopSidebarKey: null,
+  },
+  {
+    id: "sokobanGame",
+    telemetryName: "sokoban_game",
+    order: 3,
+    enabledPref: PREF_WIDGETS_GAME_ENABLED,
+    sizePref: PREF_GAME_SIZE,
+    defaultSize: "large",
+    validSizes: ["medium", "large"],
+    hasSidebar: false,
+    systemEnabledPref: PREF_WIDGETS_SYSTEM_GAME_ENABLED,
+    trainhopEnabledKey: "sokobanGameEnabled",
+    trainhopSizeKey: "sokobanGameSize",
     trainhopSidebarKey: null,
   },
   {
