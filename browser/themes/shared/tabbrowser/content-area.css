@@ -152,6 +152,11 @@
   position: relative;
   z-index: var(--browser-area-z-index-tabbox);
   margin: 0;
+
+  &:has(> [tabcanvas-active]) {
+    z-index: 1001;
+    pointer-events: none;
+  }
 }
 
 /* We set large flex on both containers to allow the devtools toolbox to
@@ -226,6 +231,30 @@
   padding: 0;
   color-scheme: unset;
   display: flex;
+
+  &[tabcanvas-active] {
+    pointer-events: none;
+    background: transparent !important;
+  }
+
+  &[tabcanvas-active] > * {
+    -moz-subtree-hidden-only-visually: 0 !important;
+    visibility: visible !important;
+  }
+
+  &[tabcanvas-active] > *:has(browser[preloadedState]) {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  &[tabcanvas-active] .browserStack {
+    pointer-events: auto;
+  }
+
+  &[tabcanvas-active] .browserSidebarContainer,
+  &[tabcanvas-active] .browserContainer {
+    background: transparent !important;
+  }
 
   &[pendingpaint] {
     background-image: url("chrome://global/skin/icons/pendingpaint.png");

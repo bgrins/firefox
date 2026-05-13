@@ -4,16 +4,19 @@
 
 import InfiniteCanvas from "./canvas-engine.mjs";
 import SnapManager from "./snap-manager.mjs";
+import CanvasToolbar from "./canvas-toolbar.mjs";
 
 // Expose for Playwright tests
 window.InfiniteCanvas = InfiniteCanvas;
 window.SnapManager = SnapManager;
 
 {
-
   let container = document.getElementById("canvas-container");
   let canvas = new InfiniteCanvas(container, { gridSize: 8, snapEnabled: true });
-  window.__canvas = canvas; // Expose for testing
+  window.__canvas = canvas;
+
+  // Shared toolbar
+  let toolbar = new CanvasToolbar(canvas, document.getElementById("toolbar"));
 
   let nodeCount = 0;
   let colors = [
@@ -66,7 +69,6 @@ window.SnapManager = SnapManager;
 
   // Layout nodes within their groups
   canvas.autoLayout("group_1");
-  // Position group_2 below group_1 with breathing room
   let g1 = canvas._frames.get("group_1");
   let g2 = canvas._frames.get("group_2");
   g2.x = g1.x;
@@ -76,69 +78,19 @@ window.SnapManager = SnapManager;
 
   canvas.fitAll();
 
-  // ---- Toolbar wiring ----
-  let btnMove = document.getElementById("btn-move");
-  let btnHand = document.getElementById("btn-hand");
-  let btnAddNode = document.getElementById("btn-add-node");
-  let btnAddFrame = document.getElementById("btn-add-frame");
-  let btnSnap = document.getElementById("btn-snap");
-  let btnFit = document.getElementById("btn-fit");
-  let btnLog = document.getElementById("btn-log");
-  let zoomDisplay = document.getElementById("zoom-display");
-  let selectionDisplay = document.getElementById("selection-display");
+  // Event log (test page only - not part of shared toolbar)
   let eventLog = document.getElementById("event-log");
-
-  function updateToolButtons() {
-    btnMove.classList.toggle("active", canvas.activeTool === "move");
-    btnHand.classList.toggle("active", canvas.activeTool === "hand");
-    btnAddNode.classList.toggle("active", canvas.activeTool === "node");
-    btnAddFrame.classList.toggle("active", canvas.activeTool === "frame");
-  }
-  btnMove.addEventListener("click", () => { canvas.activeTool = "move"; updateToolButtons(); });
-  btnHand.addEventListener("click", () => { canvas.activeTool = "hand"; updateToolButtons(); });
-  canvas.on("tool-change", updateToolButtons);
-
-  btnAddNode.addEventListener("click", () => {
-    canvas.activeTool = "node";
-    updateToolButtons();
-  });
-
-  btnAddFrame.addEventListener("click", () => {
-    canvas.activeTool = "frame";
-    updateToolButtons();
-  });
-
-  btnSnap.addEventListener("click", () => {
-    canvas.snapEnabled = !canvas.snapEnabled;
-    btnSnap.textContent = "Snap: " + (canvas.snapEnabled ? "ON" : "OFF");
-    btnSnap.classList.toggle("active", canvas.snapEnabled);
-  });
-
-  btnFit.addEventListener("click", () => {
-    canvas.fitAll();
-  });
-
-  btnLog.addEventListener("click", () => {
-    eventLog.classList.toggle("visible");
-  });
-
   function log(eventName, data) {
     let entry = document.createElement("div");
     entry.className = "log-entry";
-    entry.innerHTML = `<span class="event-name">${eventName}</span> ${JSON.stringify(data)}`;
+    let nameSpan = document.createElement("span");
+    nameSpan.className = "event-name";
+    nameSpan.textContent = eventName;
+    entry.appendChild(nameSpan);
+    entry.appendChild(document.createTextNode(" " + JSON.stringify(data)));
     eventLog.appendChild(entry);
     eventLog.scrollTop = eventLog.scrollHeight;
   }
-
-  canvas.on("selection-change", data => {
-    selectionDisplay.textContent = data.selection.length ? data.selection.join(", ") : "none";
-    log("selection-change", data);
-  });
-
-  canvas.on("view-change", () => {
-    zoomDisplay.textContent = Math.round(canvas.zoom * 100) + "%";
-    log("view-change", { zoom: canvas.zoom });
-  });
 
   canvas.on("node-click", data => log("node-click", data));
   canvas.on("node-dblclick", data => log("node-dblclick", data));
@@ -147,10 +99,4 @@ window.SnapManager = SnapManager;
   canvas.on("node-delete", data => log("node-delete", data));
   canvas.on("frame-create", data => log("group-create", data));
   canvas.on("escape", () => log("escape", {}));
-
-  // Keep zoom display in sync with wheel zoom
-  let observer = new MutationObserver(() => {
-    zoomDisplay.textContent = Math.round(canvas.zoom * 100) + "%";
-  });
-  observer.observe(container.querySelector(".infinite-canvas-zoom-indicator"), { childList: true });
 }

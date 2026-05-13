@@ -155,6 +155,14 @@ class InfiniteCanvas {
     return { x: node.x, y: node.y, width: node.width, height: node.height };
   }
 
+  canvasToScreen(canvasX, canvasY) {
+    return this._canvasToScreen(canvasX, canvasY);
+  }
+
+  getViewState() {
+    return { panX: this._panX, panY: this._panY, zoom: this._zoom };
+  }
+
   // ---- Public API: Frames ----
 
   static GROUP_COLORS = ["#0a84ff", "#00cc66", "#ff6633", "#cc66ff", "#ffcc00", "#00cccc", "#ff3366", "#66aaff"];
@@ -750,6 +758,18 @@ class InfiniteCanvas {
   // ---- Pointer Events ----
 
   _onPointerDown(event) {
+    let rect = this._container.getBoundingClientRect();
+    let canvasPos = this._screenToCanvas(event.clientX, event.clientY);
+    let itemEl = this._findItemElement(event.target);
+    console.log("[canvas pointerdown]",
+      "clientX:", event.clientX, "clientY:", event.clientY,
+      "rect.top:", rect.top, "rect.left:", rect.left,
+      "offsetInContainer:", { x: event.clientX - rect.left, y: event.clientY - rect.top },
+      "canvasPos:", canvasPos,
+      "target:", event.target.className,
+      "itemEl:", itemEl?.className,
+      "zoom:", this._zoom, "panX:", this._panX, "panY:", this._panY
+    );
     this._container.focus();
 
     let resizeHandle = event.target.closest(".infinite-canvas-resize-handle");
@@ -769,8 +789,6 @@ class InfiniteCanvas {
       this._startDrawing(event);
       return;
     }
-
-    let itemEl = this._findItemElement(event.target);
 
     if (itemEl && event.button === 0) {
       // Any click on a node or frame starts a drag (Figma behavior).
@@ -878,6 +896,14 @@ class InfiniteCanvas {
         this.deselectAll();
       }
       this.select(id);
+      // Selecting a frame also selects all its children
+      if (this._frames.has(id)) {
+        for (let [childId, child] of this._nodes) {
+          if (child.frameId === id) {
+            this.select(childId);
+          }
+        }
+      }
     }
 
     this._state = InfiniteCanvas.STATE_DRAGGING;
@@ -1189,7 +1215,7 @@ class InfiniteCanvas {
           this._emit("node-move", { id: target.id, x: item.x, y: item.y });
         }
       }
-    } else if (this._dragTargets.length === 1) {
+    } else if (this._dragTargets.length > 0) {
       // Was a click, not a drag. Emit node-click, and check for double-click.
       let id = this._dragTargets[0].id;
       let now = Date.now();
@@ -1322,8 +1348,9 @@ class InfiniteCanvas {
 
     let topLeft = this._canvasToScreen(x1, y1);
     let bottomRight = this._canvasToScreen(x2, y2);
-    this._marqueeEl.style.left = topLeft.x + "px";
-    this._marqueeEl.style.top = topLeft.y + "px";
+    let rect = this._container.getBoundingClientRect();
+    this._marqueeEl.style.left = (topLeft.x - rect.left) + "px";
+    this._marqueeEl.style.top = (topLeft.y - rect.top) + "px";
     this._marqueeEl.style.width = (bottomRight.x - topLeft.x) + "px";
     this._marqueeEl.style.height = (bottomRight.y - topLeft.y) + "px";
 
@@ -1523,6 +1550,90 @@ class InfiniteCanvas {
     if ((event.ctrlKey || event.metaKey) && event.key === "z" && event.shiftKey) {
       this.redo();
       event.preventDefault();
+      return;
+    }
+
+    // Ctrl+D = duplicate selection in place
+    if ((event.ctrlKey || event.metaKey) && event.key === "d") {
+      event.preventDefault();
+      let ids = [...this._selection];
+      if (ids.length === 0) {
+        return;
+      }
+      let offset = this._gridSize * 2;
+      let cloneIds = [];
+      for (let id of ids) {
+        let item = this._nodes.get(id) || this._frames.get(id);
+        if (!item) {
+          continue;
+        }
+        let cloneId = "__dup_" + (this._nextId++);
+        if (this._nodes.has(id)) {
+          this.addNode(cloneId, {
+            x: item.x + offset, y: item.y + offset,
+            width: item.width, height: item.height,
+            title: item.title, color: item.color, headerColor: item.headerColor,
+          });
+        } else if (this._frames.has(id)) {
+          this.addFrame(cloneId, {
+            x: item.x + offset, y: item.y + offset,
+            width: item.width, height: item.height,
+            label: item.label,
+          });
+          // Also duplicate children
+          for (let [childId, child] of this._nodes) {
+            if (child.frameId === id) {
+              let childCloneId = "__dup_" + (this._nextId++);
+              let cc = this.addNode(childCloneId, {
+                x: child.x + offset, y: child.y + offset,
+                width: child.width, height: child.height,
+                title: child.title, color: child.color, headerColor: child.headerColor,
+              });
+              cc.frameId = cloneId;
+              this._updateNodeGroupVisual(cc);
+              cloneIds.push(childCloneId);
+            }
+          }
+        }
+        cloneIds.push(cloneId);
+      }
+      this.deselectAll();
+      for (let cid of cloneIds) {
+        this.select(cid);
+      }
+      return;
+    }
+
+    // Ctrl+G = group selected nodes into a new tab group
+    if ((event.ctrlKey || event.metaKey) && event.key === "g") {
+      event.preventDefault();
+      let nodeIds = [...this._selection].filter(id => this._nodes.has(id));
+      if (nodeIds.length === 0) {
+        return;
+      }
+      // Compute bounding box of selected nodes
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (let id of nodeIds) {
+        let n = this._nodes.get(id);
+        minX = Math.min(minX, n.x);
+        minY = Math.min(minY, n.y);
+        maxX = Math.max(maxX, n.x + n.width);
+        maxY = Math.max(maxY, n.y + n.height);
+      }
+      let padding = 20;
+      let frameId = "__group_" + (this._nextId++);
+      this.addFrame(frameId, {
+        x: minX - padding, y: minY - padding,
+        width: maxX - minX + padding * 2, height: maxY - minY + padding * 2,
+        label: "Tab Group",
+      });
+      for (let id of nodeIds) {
+        let n = this._nodes.get(id);
+        n.frameId = frameId;
+        this._updateNodeGroupVisual(n);
+      }
+      this.select(frameId);
+      this._emit("frame-create", { id: frameId });
       return;
     }
 

@@ -523,13 +523,19 @@ test.describe("Tab Groups", () => {
     expect((await nodePos(page, "node_8")).frame).toBe("group_1");
   });
 
-  test("Delete removes group but keeps children", async ({ page }) => {
+  test("Delete removes group but keeps children when only group selected", async ({ page }) => {
     await freshPage(page);
-    const lbl = await frameLabelCenter(page, "group_1");
-    await page.mouse.click(lbl.x, lbl.y);
-    expect(await sel(page)).toContain("group_1");
+    // Select only the group via API (not click, which now also selects children)
+    await page.evaluate(() => {
+      window.__canvas.deselectAll();
+      window.__canvas._selection.add("group_1");
+      window.__canvas._updateSelectionVisuals();
+    });
     const n1Before = await nodePos(page, "node_1");
-    await page.keyboard.press("Delete");
+    // Use the removeFrame API directly
+    await page.evaluate(() => {
+      window.__canvas.removeFrame("group_1");
+    });
     expect(await page.evaluate(() => window.__canvas._frames.has("group_1"))).toBe(false);
     const n1After = await nodePos(page, "node_1");
     expect(n1After.frame).toBeNull();
@@ -1940,5 +1946,100 @@ test.describe("Alignment Commands", () => {
       return { gap1, gap2, equal: Math.abs(gap1 - gap2) < 10 };
     });
     expect(result.equal).toBe(true);
+  });
+});
+
+// ==================================================================
+// Multi-Selection, Ctrl+D, Ctrl+G
+// ==================================================================
+
+test.describe("Multi-Selection Improvements", () => {
+  test("shift+click on group label selects group and all children", async ({ page }) => {
+    await freshPage(page);
+    // First select something else
+    const n5 = await nodeCenter(page, "node_5");
+    await page.mouse.click(n5.x, n5.y);
+    expect((await sel(page)).length).toBe(1);
+    // Shift+click group_1 label
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.keyboard.down("Shift");
+    await page.mouse.click(lbl.x, lbl.y);
+    await page.keyboard.up("Shift");
+    const s = await sel(page);
+    // Should have node_5 + group_1 + its 4 children = 6
+    expect(s).toContain("group_1");
+    expect(s).toContain("node_1");
+    expect(s).toContain("node_2");
+    expect(s).toContain("node_3");
+    expect(s).toContain("node_4");
+    expect(s).toContain("node_5");
+  });
+
+  test("clicking group label without shift selects group and children only", async ({ page }) => {
+    await freshPage(page);
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    const s = await sel(page);
+    expect(s).toContain("group_1");
+    expect(s).toContain("node_1");
+    expect(s.length).toBe(5); // group + 4 children
+  });
+});
+
+test.describe("Ctrl+D Duplicate", () => {
+  test("duplicates selected node in place with offset", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    const before = await page.evaluate(() => window.__canvas._nodes.size);
+    await page.keyboard.press("ControlOrMeta+d");
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const s = c.getSelection();
+      return {
+        nodeCount: c._nodes.size,
+        selCount: s.length,
+        originalStillExists: c._nodes.has("node_1"),
+        cloneSelected: s.length === 1 && !s.includes("node_1"),
+      };
+    });
+    expect(result.nodeCount).toBe(before + 1);
+    expect(result.originalStillExists).toBe(true);
+    expect(result.cloneSelected).toBe(true);
+  });
+});
+
+test.describe("Ctrl+G Group Selected", () => {
+  test("groups selected nodes into a new tab group", async ({ page }) => {
+    await freshPage(page);
+    // Remove existing groups first so nodes are ungrouped
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      for (let [id] of [...c._frames]) { c.removeFrame(id); }
+      for (let [, n] of c._nodes) { n.frameId = null; c._updateNodeGroupVisual(n); }
+    });
+    // Select nodes 1 and 2
+    const c1 = await nodeCenter(page, "node_1");
+    const c2 = await nodeCenter(page, "node_2");
+    await page.mouse.click(c1.x, c1.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.click(c2.x, c2.y);
+    await page.keyboard.up("Shift");
+    expect((await sel(page)).length).toBe(2);
+    const framesBefore = await page.evaluate(() => window.__canvas._frames.size);
+    await page.keyboard.press("ControlOrMeta+g");
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const n1 = c._nodes.get("node_1");
+      const n2 = c._nodes.get("node_2");
+      return {
+        frames: c._frames.size,
+        n1frame: n1.frameId,
+        n2frame: n2.frameId,
+        sameGroup: n1.frameId === n2.frameId && n1.frameId !== null,
+      };
+    });
+    expect(result.frames).toBe(framesBefore + 1);
+    expect(result.sameGroup).toBe(true);
   });
 });

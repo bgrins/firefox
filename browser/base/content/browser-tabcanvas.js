@@ -6,10 +6,14 @@ var { InfiniteCanvas } = ChromeUtils.importESModule(
   "chrome://browser/content/tabcanvas/canvas-engine.mjs",
   { global: "current" }
 );
+var { CanvasToolbar } = ChromeUtils.importESModule(
+  "chrome://browser/content/tabcanvas/canvas-toolbar.mjs",
+  { global: "current" }
+);
 
 /**
  * TabCanvas - Browser chrome adapter for InfiniteCanvas.
- * Connects gBrowser tabs to canvas nodes with thumbnails.
+ * Connects gBrowser tabs to canvas nodes with live browser content overlays.
  */
 var TabCanvas = {
   _overlay: null,
@@ -20,6 +24,9 @@ var TabCanvas = {
   // Map tab -> canvas node id
   _tabToId: new WeakMap(),
   _idToTab: new Map(),
+
+  // Header height in canvas-space pixels (padding 8+8 + 16 min-height)
+  _HEADER_HEIGHT: 32,
 
   get active() {
     return this._active;
@@ -33,6 +40,12 @@ var TabCanvas = {
       gridSize: 8,
       snapEnabled: true,
     });
+
+    // Shared toolbar
+    this._toolbar = new CanvasToolbar(
+      this._canvas,
+      document.getElementById("tab-canvas-toolbar")
+    );
 
     this._canvas.on("node-dblclick", ({ id }) => {
       let tab = this._idToTab.get(id);
@@ -59,6 +72,24 @@ var TabCanvas = {
     this._canvas.on("escape", () => {
       if (this._canvas.getSelection().length === 0) {
         this.hide();
+      }
+    });
+
+    this._canvas.on("view-change", () => {
+      if (this._active) {
+        this._updateAllBrowserOverlays();
+      }
+    });
+
+    this._canvas.on("node-move", () => {
+      if (this._active) {
+        this._updateAllBrowserOverlays();
+      }
+    });
+
+    this._canvas.on("node-resize", () => {
+      if (this._active) {
+        this._updateAllBrowserOverlays();
       }
     });
 
@@ -101,23 +132,35 @@ var TabCanvas = {
 
   show() {
     this._active = true;
+
+    // Capture native browser dimensions before we apply fixed positioning
+    let selectedStack = gBrowser.selectedBrowser?.closest(".browserStack");
+    if (selectedStack) {
+      this._browserNativeWidth = selectedStack.clientWidth || 1;
+      this._browserNativeHeight = selectedStack.clientHeight || 1;
+    }
+
     this._overlay.setAttribute("active", "true");
+    document.getElementById("tabbrowser-tabpanels")
+      .setAttribute("tabcanvas-active", "true");
 
     if (!this._initialized) {
-      // First show: build everything from scratch
       this._buildNodes();
       this._canvas.fitAll();
       this._initialized = true;
     } else {
-      // Subsequent shows: sync tabs (add new, remove closed) and refresh thumbnails
       this._syncNodes();
-      this._refreshAllThumbnails();
     }
+
+    this._updateAllBrowserOverlays();
   },
 
   hide() {
     this._active = false;
     this._overlay.removeAttribute("active");
+    document.getElementById("tabbrowser-tabpanels")
+      .removeAttribute("tabcanvas-active");
+    this._clearAllBrowserOverlays();
   },
 
   _buildNodes() {
@@ -137,7 +180,6 @@ var TabCanvas = {
     let currentTabs = new Set(gBrowser.tabs);
     let knownTabs = new Set();
 
-    // Remove nodes for tabs that no longer exist
     for (let [id, tab] of this._idToTab) {
       if (!currentTabs.has(tab)) {
         this._canvas.removeNode(id);
@@ -147,7 +189,6 @@ var TabCanvas = {
       }
     }
 
-    // Add nodes for new tabs
     let cols = 4;
     let existingCount = this._idToTab.size;
     for (let tab of currentTabs) {
@@ -157,22 +198,14 @@ var TabCanvas = {
       }
     }
 
-    // Update headers for all existing nodes (title/favicon may have changed)
     for (let [id, tab] of this._idToTab) {
       this._updateTabHeader(tab, id);
     }
 
-    // Update selection to match current tab
     this._canvas.deselectAll();
     let selId = this._tabToId.get(gBrowser.selectedTab);
     if (selId) {
       this._canvas.select(selId);
-    }
-  },
-
-  _refreshAllThumbnails() {
-    for (let [id, tab] of this._idToTab) {
-      this._captureThumbnail(tab, id);
     }
   },
 
@@ -192,8 +225,6 @@ var TabCanvas = {
       title: tab.label || "New Tab",
       headerContent: this._buildHeader(tab),
     });
-
-    this._captureThumbnail(tab, id);
 
     if (tab === gBrowser.selectedTab) {
       this._canvas.select(id);
@@ -225,25 +256,88 @@ var TabCanvas = {
     });
   },
 
-  async _captureThumbnail(tab, nodeId) {
-    try {
-      let browser = tab.linkedBrowser;
-      if (!browser?.browsingContext?.currentWindowGlobal) {
-        return;
+  _updateAllBrowserOverlays() {
+    let { zoom } = this._canvas.getViewState();
+    let browserW = this._browserNativeWidth;
+    let browserH = this._browserNativeHeight;
+
+    for (let [id, tab] of this._idToTab) {
+      let pos = this._canvas.getNodePosition(id);
+      if (!pos) {
+        continue;
       }
 
-      let thumbCanvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-      thumbCanvas.width = 280 * 2;
-      thumbCanvas.height = 180 * 2;
-      thumbCanvas.style.cssText = "width:100%;height:100%;display:block";
+      // Measure actual header height from the node's DOM element
+      let node = this._canvas.getNode(id);
+      let headerEl = node?.element?.querySelector(".infinite-canvas-node-header");
+      let headerH = headerEl ? headerEl.getBoundingClientRect().height / zoom : this._HEADER_HEIGHT;
 
-      let { PageThumbs } = ChromeUtils.importESModule(
-        "resource://gre/modules/PageThumbs.sys.mjs"
-      );
-      await PageThumbs.captureTabPreviewThumbnail(browser, thumbCanvas);
-      this._canvas.updateNode(nodeId, { bodyContent: thumbCanvas });
-    } catch (e) {
-      // Tab not ready
+      let bodyTop = pos.y + headerH;
+      let bodyHeight = pos.height - headerH;
+      if (bodyHeight <= 0) {
+        continue;
+      }
+
+      let screenPos = this._canvas.canvasToScreen(pos.x, bodyTop);
+      let screenW = pos.width * zoom;
+      let screenH = bodyHeight * zoom;
+
+      let browser = tab.linkedBrowser;
+      if (!browser) {
+        continue;
+      }
+
+      let stack = browser.closest(".browserStack");
+      if (!stack) {
+        continue;
+      }
+
+      let scaleFactor = screenW / browserW;
+
+      // Size the stack to the small screen-space node body dimensions
+      // so its hit area matches the visual bounds.
+      stack.style.position = "fixed";
+      stack.style.left = screenPos.x + "px";
+      stack.style.top = screenPos.y + "px";
+      stack.style.width = screenW + "px";
+      stack.style.height = screenH + "px";
+      stack.style.overflow = "hidden";
+      stack.style.zIndex = "1001";
+      stack.style.transform = "";
+      stack.style.transformOrigin = "";
+
+      // Scale the browser element inside to fit the small container
+      browser.style.width = browserW + "px";
+      browser.style.height = browserH + "px";
+      browser.style.transform = `scale(${scaleFactor})`;
+      browser.style.transformOrigin = "0 0";
+    }
+  },
+
+  _clearAllBrowserOverlays() {
+    for (let [, tab] of this._idToTab) {
+      let browser = tab.linkedBrowser;
+      if (!browser) {
+        continue;
+      }
+      let stack = browser.closest(".browserStack");
+      if (!stack) {
+        continue;
+      }
+      stack.style.position = "";
+      stack.style.left = "";
+      stack.style.top = "";
+      stack.style.width = "";
+      stack.style.height = "";
+      stack.style.transform = "";
+      stack.style.transformOrigin = "";
+      stack.style.overflow = "";
+      stack.style.zIndex = "";
+
+      browser.style.width = "";
+      browser.style.height = "";
+      browser.style.transform = "";
+      browser.style.transformOrigin = "";
     }
   },
 
@@ -274,6 +368,7 @@ var TabCanvas = {
     let tab = event.target;
     let index = Array.from(gBrowser.tabs).indexOf(tab);
     this._addTabNode(tab, index);
+    this._updateAllBrowserOverlays();
   },
 
   _onTabClose(event) {
@@ -282,6 +377,10 @@ var TabCanvas = {
     if (id) {
       this._canvas.removeNode(id);
       this._idToTab.delete(id);
+    }
+    if (this._active) {
+      this._clearAllBrowserOverlays();
+      this._updateAllBrowserOverlays();
     }
   },
 
