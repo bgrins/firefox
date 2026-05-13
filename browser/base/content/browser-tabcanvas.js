@@ -2,6 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+var { InfiniteCanvas } = ChromeUtils.importESModule(
+  "chrome://browser/content/tabcanvas/canvas-engine.mjs",
+  { global: "current" }
+);
+
 /**
  * TabCanvas - Browser chrome adapter for InfiniteCanvas.
  * Connects gBrowser tabs to canvas nodes with thumbnails.
@@ -10,6 +15,7 @@ var TabCanvas = {
   _overlay: null,
   _canvas: null,
   _active: false,
+  _initialized: false,
 
   // Map tab -> canvas node id
   _tabToId: new WeakMap(),
@@ -28,7 +34,6 @@ var TabCanvas = {
       snapEnabled: true,
     });
 
-    // Canvas events
     this._canvas.on("node-dblclick", ({ id }) => {
       let tab = this._idToTab.get(id);
       if (tab) {
@@ -57,14 +62,13 @@ var TabCanvas = {
       }
     });
 
-    // Tab events
     gBrowser.tabContainer.addEventListener("TabOpen", this);
     gBrowser.tabContainer.addEventListener("TabClose", this);
     gBrowser.tabContainer.addEventListener("TabAttrModified", this);
     gBrowser.tabContainer.addEventListener("TabSelect", this);
 
-    // Global keyboard shortcut
-    document.addEventListener("keydown", this);
+    // Capture phase to intercept before XUL key handlers
+    document.addEventListener("keydown", this, true);
   },
 
   handleEvent(event) {
@@ -98,8 +102,17 @@ var TabCanvas = {
   show() {
     this._active = true;
     this._overlay.setAttribute("active", "true");
-    this._buildNodes();
-    this._canvas.fitAll();
+
+    if (!this._initialized) {
+      // First show: build everything from scratch
+      this._buildNodes();
+      this._canvas.fitAll();
+      this._initialized = true;
+    } else {
+      // Subsequent shows: sync tabs (add new, remove closed) and refresh thumbnails
+      this._syncNodes();
+      this._refreshAllThumbnails();
+    }
   },
 
   hide() {
@@ -108,7 +121,6 @@ var TabCanvas = {
   },
 
   _buildNodes() {
-    // Remove old nodes
     for (let [id] of this._idToTab) {
       this._canvas.removeNode(id);
     }
@@ -121,6 +133,49 @@ var TabCanvas = {
     }
   },
 
+  _syncNodes() {
+    let currentTabs = new Set(gBrowser.tabs);
+    let knownTabs = new Set();
+
+    // Remove nodes for tabs that no longer exist
+    for (let [id, tab] of this._idToTab) {
+      if (!currentTabs.has(tab)) {
+        this._canvas.removeNode(id);
+        this._idToTab.delete(id);
+      } else {
+        knownTabs.add(tab);
+      }
+    }
+
+    // Add nodes for new tabs
+    let cols = 4;
+    let existingCount = this._idToTab.size;
+    for (let tab of currentTabs) {
+      if (!knownTabs.has(tab)) {
+        this._addTabNode(tab, existingCount, cols);
+        existingCount++;
+      }
+    }
+
+    // Update headers for all existing nodes (title/favicon may have changed)
+    for (let [id, tab] of this._idToTab) {
+      this._updateTabHeader(tab, id);
+    }
+
+    // Update selection to match current tab
+    this._canvas.deselectAll();
+    let selId = this._tabToId.get(gBrowser.selectedTab);
+    if (selId) {
+      this._canvas.select(selId);
+    }
+  },
+
+  _refreshAllThumbnails() {
+    for (let [id, tab] of this._idToTab) {
+      this._captureThumbnail(tab, id);
+    }
+  },
+
   _addTabNode(tab, index, cols = 4) {
     let id = "tab_" + (tab.linkedPanel || index);
     let col = index % cols;
@@ -129,7 +184,23 @@ var TabCanvas = {
     this._tabToId.set(tab, id);
     this._idToTab.set(id, tab);
 
-    // Build custom header content
+    this._canvas.addNode(id, {
+      x: col * 320,
+      y: row * 252,
+      width: 280,
+      height: 212,
+      title: tab.label || "New Tab",
+      headerContent: this._buildHeader(tab),
+    });
+
+    this._captureThumbnail(tab, id);
+
+    if (tab === gBrowser.selectedTab) {
+      this._canvas.select(id);
+    }
+  },
+
+  _buildHeader(tab) {
     let header = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
     header.style.cssText = "display:flex;align-items:center;gap:8px;width:100%";
 
@@ -144,22 +215,14 @@ var TabCanvas = {
     title.textContent = tab.label || "New Tab";
     header.appendChild(title);
 
-    this._canvas.addNode(id, {
-      x: col * 320,
-      y: row * 252,
-      width: 280,
-      height: 212,
+    return header;
+  },
+
+  _updateTabHeader(tab, id) {
+    this._canvas.updateNode(id, {
       title: tab.label || "New Tab",
-      headerContent: header,
+      headerContent: this._buildHeader(tab),
     });
-
-    // Capture thumbnail into the body
-    this._captureThumbnail(tab, id);
-
-    // Highlight selected tab
-    if (tab === gBrowser.selectedTab) {
-      this._canvas.select(id);
-    }
   },
 
   async _captureThumbnail(tab, nodeId) {
@@ -180,19 +243,27 @@ var TabCanvas = {
       await PageThumbs.captureTabPreviewThumbnail(browser, thumbCanvas);
       this._canvas.updateNode(nodeId, { bodyContent: thumbCanvas });
     } catch (e) {
-      // Tab not ready, leave body empty
+      // Tab not ready
     }
   },
 
   _onKeyDown(event) {
+    // Ctrl/Cmd+I to toggle (takes over Page Info shortcut)
     if (
-      event.key === "E" &&
-      event.shiftKey &&
+      event.key === "i" &&
+      !event.shiftKey &&
       (event.ctrlKey || event.metaKey)
     ) {
       event.preventDefault();
       event.stopPropagation();
       this.toggle();
+      return;
+    }
+
+    if (this._active) {
+      if (!event.ctrlKey && !event.metaKey) {
+        event.stopPropagation();
+      }
     }
   },
 
@@ -223,20 +294,7 @@ var TabCanvas = {
     if (!id) {
       return;
     }
-    this._canvas.updateNode(id, { title: tab.label || "New Tab" });
-    // Also rebuild header to update favicon
-    let header = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-    header.style.cssText = "display:flex;align-items:center;gap:8px;width:100%";
-    let favicon = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
-    favicon.style.cssText = "width:16px;height:16px;flex-shrink:0";
-    favicon.src = tab.iconImage || "chrome://global/skin/icons/defaultFavicon.svg";
-    favicon.draggable = false;
-    header.appendChild(favicon);
-    let title = document.createElementNS("http://www.w3.org/1999/xhtml", "span");
-    title.style.cssText = "color:#e0e0e0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1";
-    title.textContent = tab.label || "New Tab";
-    header.appendChild(title);
-    this._canvas.updateNode(id, { headerContent: header });
+    this._updateTabHeader(tab, id);
   },
 
   _onTabSelect() {

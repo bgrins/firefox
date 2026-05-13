@@ -1,207 +1,136 @@
 # Tab Canvas - State Management Design
 
-## The Problem
+## Principle: Keep It Simple
 
-The canvas has two worlds that need to stay in sync:
+The canvas engine already owns its state and works well. The browser adapter
+bridges events bidirectionally. We do NOT need a separate model layer at this
+stage. The adapter becomes slightly smarter about persistence and tab group
+mapping, but the fundamental architecture stays the same.
 
-1. **Canvas state**: Node positions, sizes, group membership, z-order, view state
-2. **Browser state**: Open tabs, tab groups, tab titles, favicons, loading state
-
-Changes can originate from either side:
-- User drags a tab card on the canvas -> canvas state changes
-- User closes a tab via the browser tab bar -> browser state changes
-- User creates a group on canvas -> needs to create a browser tab group
-- User moves a tab between groups on canvas -> needs to update browser tab group
-- External: a web page changes its title -> canvas card needs to update
-
-Undo/redo crosses both worlds: undoing a "close tab" on the canvas means
-re-opening the tab in the browser.
-
-## Design Options
-
-### Option A: Canvas is Source of Truth
-
-Canvas owns all state. Browser adapter reads from canvas and pushes changes
-to tabbrowser.
+## Architecture
 
 ```
-User action -> Canvas state change -> Emit event -> Adapter updates tabbrowser
-Tab event   -> Adapter updates canvas state
+  InfiniteCanvas (owns positions, groups, z-order, undo/redo)
+       |  emits events: node-move, node-delete, frame-create, etc.
+       |  provides: toJSON(), fromJSON()
+       v
+  BrowserAdapter (bridges canvas <-> tabbrowser)
+       |  listens to canvas events -> updates tabbrowser
+       |  listens to tab events -> updates canvas
+       |  persists layout via SessionStore
+       v
+  tabbrowser (owns tab existence, titles, loading state)
 ```
 
-**Pros**: Simple, canvas engine stays self-contained.
-**Cons**: Canvas doesn't know about browser-specific state (loading, audio, etc.).
-Undo/redo for browser operations (close tab) is complex because the canvas
-needs to re-create browser objects.
+**The canvas engine stays as-is.** It is NOT a "pure renderer." It owns all
+interaction logic (drag, resize, snap) and reports final results via events.
+The adapter does not intercept 60fps drag updates -- only the final `node-move`
+event after drag ends.
 
-### Option B: Browser is Source of Truth
+## Persistence
 
-Tabbrowser owns all state. Canvas is a pure view layer that reads from
-tabbrowser and renders.
-
-```
-User action -> Canvas dispatches intent -> Adapter modifies tabbrowser ->
-              tabbrowser fires event -> Canvas re-renders
-```
-
-**Pros**: Single source of truth. Browser state is always correct.
-**Cons**: Every canvas interaction has a round-trip through the adapter.
-Canvas engine can't work standalone (breaks our architecture).
-
-### Option C: Shared Model with Sync (Recommended)
-
-A shared data model (`TabCanvasModel`) sits between the canvas engine and
-the browser adapter. Both sides read/write to it. Changes are reconciled.
-
-```
-                    TabCanvasModel
-                   /              \
-     InfiniteCanvas                BrowserAdapter
-     (positions, groups,           (tabs, groups,
-      z-order, view state)          titles, thumbnails)
-```
-
-The model holds:
-- `tabs[]` - each tab has: id, canvasPosition, groupId, browserTab reference
-- `groups[]` - each group has: id, label, color, canvasPosition
-- `viewState` - pan, zoom
-
-**Change flow:**
-1. Canvas operation (move, resize, group) -> model update -> emit change event
-2. Browser event (tab open/close/modify) -> model update -> emit change event
-3. Canvas listens to model changes and updates its nodes
-4. Adapter listens to model changes and updates tabbrowser
-
-**Undo/redo:**
-The model maintains a command stack. Each command knows how to undo itself
-in both the canvas and browser worlds.
-
-## Recommended: Option C with Lazy Sync
-
-### The Model
+The adapter debounce-saves on significant events:
 
 ```js
-class TabCanvasModel {
-  constructor() {
-    this.tabs = new Map();      // tabId -> TabEntry
-    this.groups = new Map();    // groupId -> GroupEntry
-    this.viewState = { panX: 0, panY: 0, zoom: 1 };
-    this.undoStack = [];
-    this.redoStack = [];
-  }
-}
-
-class TabEntry {
-  constructor(id) {
-    this.id = id;               // stable ID (permanentKey)
-    this.x = 0;                 // canvas position
-    this.y = 0;
-    this.width = 280;
-    this.height = 212;
-    this.groupId = null;        // which group it belongs to
-    this.title = "";            // from browser
-    this.iconUrl = "";          // from browser
-    this.thumbnailData = null;  // captured thumbnail
-    this.browserTab = null;     // weak ref to actual tab (not serialized)
-  }
-}
-
-class GroupEntry {
-  constructor(id) {
-    this.id = id;
-    this.x = 0;
-    this.y = 0;
-    this.width = 600;
-    this.height = 400;
-    this.label = "Tab Group";
-    this.color = "#0a84ff";
-    this.browserTabGroup = null; // weak ref (not serialized)
-  }
+_scheduleSave() {
+  clearTimeout(this._saveTimer);
+  this._saveTimer = setTimeout(() => {
+    let data = this._canvas.toJSON();
+    SessionStore.setCustomWindowValue(window, "tabCanvasLayout", JSON.stringify(data));
+  }, 500);
 }
 ```
 
-### Sync Rules
+Events that trigger save: `node-move`, `node-resize`, `node-delete`,
+`frame-create`, `frame-label-change`, `selection-change` (for group membership).
 
-1. **Canvas -> Model -> Browser**
-   - User moves tab card: model.tabs[id].x/y updates, no browser change needed
-   - User deletes tab card: model removes tab, adapter calls gBrowser.removeTab()
-   - User creates group: model adds group, adapter creates tabGroup in browser
-   - User moves tab between groups: model updates groupId, adapter moves tab
+On startup, the adapter checks for saved layout:
+```js
+let saved = SessionStore.getCustomWindowValue(window, "tabCanvasLayout");
+if (saved) {
+  this._canvas.fromJSON(JSON.parse(saved));
+} else {
+  this._buildNodes(); // fresh grid layout
+}
+```
 
-2. **Browser -> Model -> Canvas**
-   - Tab opened: adapter creates TabEntry in model, canvas adds node
-   - Tab closed: adapter removes TabEntry from model, canvas removes node
-   - Tab title changed: adapter updates TabEntry.title, canvas updates node header
-   - Tab group changed externally: adapter updates groupId, canvas reparents
+## Tab Group Mapping
 
-3. **Conflict resolution**
-   - Browser wins for tab existence (if a tab is closed externally, it's gone)
-   - Canvas wins for positions (browser doesn't know about spatial layout)
-   - Groups sync bidirectionally (canvas groups map to browser tab groups)
-
-### Undo/Redo Strategy
-
-Commands are model-level operations:
+The adapter maintains a simple map:
 
 ```js
-class MoveCommand {
-  constructor(model, tabId, fromX, fromY, toX, toY) { ... }
-  execute() { model.tabs[tabId].x = toX; model.tabs[tabId].y = toY; }
-  undo() { model.tabs[tabId].x = fromX; model.tabs[tabId].y = fromY; }
-}
-
-class DeleteTabCommand {
-  constructor(model, adapter, tabId) { ... }
-  execute() {
-    this.snapshot = model.tabs[tabId].serialize();
-    model.removeTab(tabId);
-    adapter.closeTab(tabId);
-  }
-  undo() {
-    adapter.reopenTab(this.snapshot);  // SessionStore.undoCloseTab or similar
-    model.addTab(this.snapshot);
-  }
-}
-
-class ChangeGroupCommand {
-  constructor(model, adapter, tabId, fromGroup, toGroup) { ... }
-  execute() { model.setGroup(tabId, toGroup); adapter.moveTabToGroup(tabId, toGroup); }
-  undo() { model.setGroup(tabId, fromGroup); adapter.moveTabToGroup(tabId, fromGroup); }
-}
+this._canvasToTabGroup = new Map();  // canvasFrameId -> browserTabGroupId
+this._tabGroupToCanvas = new Map();  // browserTabGroupId -> canvasFrameId
 ```
 
-### Serialization
+**Canvas -> Browser sync:**
+- `frame-create` event: call `gBrowser.addTabGroup(tabs, { label, color })`
+- `frame-label-change` event: update browser tab group label
+- Node dropped into frame: call `tabGroup.addTab(tab)`
+- Node removed from frame: call `tabGroup.removeTab(tab)`
 
-The model serializes to JSON for SessionStore persistence:
+**Browser -> Canvas sync:**
+- Tab group created externally: `_onTabGroupCreated` -> `canvas.addFrame()`
+- Tab group removed externally: `_onTabGroupRemoved` -> `canvas.removeFrame()`
+- Tab moved between groups: update canvas node's frameId
+
+## Stable IDs
+
+Use `tab.permanentKey` (survives session restore) instead of `linkedPanel`:
 
 ```js
-model.toJSON() -> {
-  tabs: [{id, x, y, width, height, groupId}, ...],
-  groups: [{id, x, y, width, height, label, color}, ...],
-  viewState: {panX, panY, zoom}
+_addTabNode(tab, index) {
+  let id = "tab_" + tab.permanentKey;
+  // ...
 }
 ```
 
-Browser-specific references (browserTab, browserTabGroup) are NOT serialized.
-On restore, the adapter matches tabs by permanentKey.
+## Undo/Redo Boundary
 
-### Migration Path
+The canvas engine's undo/redo handles **canvas operations only**:
+- Move, resize, delete nodes/frames, create frames
 
-1. **Now**: InfiniteCanvas has its own internal state. No model layer.
-2. **Step 1**: Extract position/group data into a TabCanvasModel class.
-   Canvas engine becomes a pure renderer that reads from the model.
-3. **Step 2**: Adapter writes browser events to the model instead of
-   directly calling canvas methods.
-4. **Step 3**: Undo/redo moves from canvas engine to the model layer.
-5. **Step 4**: Persistence via model.toJSON() / fromJSON().
+For browser-side operations (close tab), the adapter can use Firefox's
+built-in `SessionStore.undoCloseTab()`. These are separate undo stacks.
+The canvas undo stack does NOT try to undo browser operations.
 
-### Impact on Current Code
+If a user deletes a tab on the canvas:
+1. Canvas records a delete command (for undo of the canvas node)
+2. Adapter calls `gBrowser.removeTab(tab)`
+3. If user presses Ctrl+Z on canvas, the canvas re-adds the node
+4. The adapter's undo handler re-opens the tab via `SessionStore.undoCloseTab()`
+   (searching by permanentKey, not index)
 
-- `canvas-engine.js` keeps its current API but becomes "dumb" about data.
-  The model calls `canvas.addNode()`, `canvas.removeNode()`, etc.
-- `browser-tabcanvas.js` becomes thinner: it creates the model, listens
-  to tab events, and connects model to canvas.
-- `snap-manager.js` unchanged (pure geometry, no state).
-- Undo/redo commands move from canvas engine to the model.
-- `toJSON`/`fromJSON` on the canvas engine can stay as a convenience
-  but the model is the authoritative serialization point.
+This is a pragmatic split: the canvas handles spatial undo, the adapter
+handles browser undo, and they coordinate via events.
+
+## What Changes While Canvas Is Hidden
+
+The adapter uses "lazy reconcile on show":
+- Tab opens/closes while hidden: NOT applied to canvas immediately
+- On next `show()`: `_syncNodes()` runs, adds new tabs, removes closed ones
+- Existing node positions are preserved
+- New nodes are placed in available empty space (not overlapping)
+
+## Special Tab Types
+
+- **Pinned tabs**: Visually distinct (smaller card, pin indicator).
+  Cannot be dragged into groups. Adapter checks `tab.pinned`.
+- **Container tabs**: Show container color via `tab.userContextId`.
+  Purely visual, no special handling needed.
+- **Lazy/unloaded tabs**: `tab.getAttribute("pending")` = true.
+  Skip live thumbnail capture, show cached thumbnail or placeholder.
+
+## Tab Ordering
+
+The canvas is a 2D spatial organizer, NOT a tab reorderer. Tab order in the
+browser tab strip remains authoritative. The canvas does not attempt to
+derive or change linear tab order from spatial positions.
+
+## Migration Path (Incremental)
+
+1. Switch to `permanentKey` IDs (one-line change in adapter)
+2. Add debounced persistence via SessionStore
+3. Add tab group bidirectional mapping
+4. Handle pinned/container/lazy tabs in adapter
+5. Improve `_syncNodes` for smarter new-tab placement

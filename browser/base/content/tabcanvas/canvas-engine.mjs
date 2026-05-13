@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import SnapManager from "./snap-manager.js";
+import SnapManager from "./snap-manager.mjs";
 
 /**
  * InfiniteCanvas - A Figma-style infinite canvas engine.

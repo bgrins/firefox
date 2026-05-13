@@ -27,7 +27,6 @@
   Services.scriptloader.loadSubScript("chrome://browser/content/tabbrowser/tabnote-menu.js", this);
   Services.scriptloader.loadSubScript("chrome://browser/content/tabbrowser/tabs.js", this);
   Services.scriptloader.loadSubScript("chrome://browser/content/tabbrowser/tabsplitview.js", this);
-  Services.scriptloader.loadSubScript("chrome://browser/content/tabcanvas/canvas-engine.js", this);
   Services.scriptloader.loadSubScript("chrome://browser/content/browser-tabcanvas.js", this);
   Services.scriptloader.loadSubScript("chrome://browser/content/places/places-menupopup.js", this);
   Services.scriptloader.loadSubScript("chrome://browser/content/search/autocomplete-popup.js", this);
