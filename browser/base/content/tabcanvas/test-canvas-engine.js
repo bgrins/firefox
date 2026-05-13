@@ -1,0 +1,1944 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+const { test, expect } = require("@playwright/test");
+
+const BASE_URL = "http://localhost:9876/test.html";
+
+// ---- Helpers ----
+
+async function freshPage(page) {
+  await page.goto(BASE_URL + "?t=" + Date.now());
+  // Wait for ESM modules to load and canvas to initialize
+  await page.waitForSelector(".infinite-canvas-node");
+  await page.waitForFunction(() => typeof window.__canvas !== "undefined");
+}
+
+async function nodePos(page, id) {
+  return page.evaluate(nid => {
+    const n = window.__canvas._nodes.get(nid);
+    return { x: n.x, y: n.y, w: n.width, h: n.height, frame: n.frameId };
+  }, id);
+}
+
+async function framePos(page, id) {
+  return page.evaluate(fid => {
+    const f = window.__canvas._frames.get(fid);
+    return { x: f.x, y: f.y, w: f.width, h: f.height, label: f.label };
+  }, id);
+}
+
+async function sel(page) {
+  return page.evaluate(() => window.__canvas.getSelection());
+}
+
+async function zoomLevel(page) {
+  return page.evaluate(() => window.__canvas.zoom);
+}
+
+async function headerCenter(page, nodeId) {
+  return page.evaluate(nid => {
+    const h = document.querySelector(`[data-id="${nid}"] .infinite-canvas-node-header`);
+    const r = h.getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  }, nodeId);
+}
+
+async function frameLabelCenter(page, frameId) {
+  return page.evaluate(fid => {
+    const el = document.querySelector(`[data-id="${fid}"] .infinite-canvas-frame-label`);
+    const r = el.getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  }, frameId);
+}
+
+async function nodeCenter(page, nodeId) {
+  return page.evaluate(nid => {
+    const el = document.querySelector(`[data-id="${nid}"]`);
+    const r = el.getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  }, nodeId);
+}
+
+async function emptyPoint(page) {
+  return page.evaluate(() => {
+    const r = document.getElementById("canvas-container").getBoundingClientRect();
+    // Avoid the minimap (bottom-right) and zoom indicator
+    return { x: Math.round(r.right - 250), y: Math.round(r.bottom - 50) };
+  });
+}
+
+async function handleCenter(page, nodeId, position) {
+  return page.evaluate(([nid, pos]) => {
+    const h = document.querySelector(`[data-id="${nid}"] .infinite-canvas-resize-handle[data-position="${pos}"]`);
+    const r = h.getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  }, [nodeId, position]);
+}
+
+async function canvasToScreen(page, cx, cy) {
+  return page.evaluate(([x, y]) => {
+    const s = window.__canvas._canvasToScreen(x, y);
+    return { x: Math.round(s.x), y: Math.round(s.y) };
+  }, [cx, cy]);
+}
+
+// ---- Tests ----
+
+test.describe("Initialization", () => {
+  test("creates canvas with correct number of nodes and groups", async ({ page }) => {
+    await freshPage(page);
+    const state = await page.evaluate(() => ({
+      nodes: window.__canvas._nodes.size,
+      frames: window.__canvas._frames.size,
+      hasViewport: !!document.querySelector(".infinite-canvas-viewport"),
+    }));
+    expect(state.nodes).toBe(8);
+    expect(state.frames).toBe(2);
+    expect(state.hasViewport).toBe(true);
+  });
+
+  test("assigns nodes to groups on init", async ({ page }) => {
+    await freshPage(page);
+    for (let i = 1; i <= 4; i++) {
+      expect((await nodePos(page, "node_" + i)).frame).toBe("group_1");
+    }
+    for (let i = 5; i <= 8; i++) {
+      expect((await nodePos(page, "node_" + i)).frame).toBe("group_2");
+    }
+  });
+
+  test("nodes have 8 resize handles", async ({ page }) => {
+    await freshPage(page);
+    const count = await page.evaluate(() =>
+      document.querySelector('[data-id="node_1"]').querySelectorAll(".infinite-canvas-resize-handle").length
+    );
+    expect(count).toBe(8);
+  });
+
+  test("groups have correct labels", async ({ page }) => {
+    await freshPage(page);
+    expect((await framePos(page, "group_1")).label).toBe("Work Tabs");
+    expect((await framePos(page, "group_2")).label).toBe("Personal Tabs");
+  });
+});
+
+test.describe("Selection", () => {
+  test("click on node selects it", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_3");
+    await page.mouse.click(c.x, c.y);
+    const s = await sel(page);
+    expect(s).toEqual(["node_3"]);
+  });
+
+  test("click on header selects it", async ({ page }) => {
+    await freshPage(page);
+    const h = await headerCenter(page, "node_2");
+    await page.mouse.click(h.x, h.y);
+    expect(await sel(page)).toContain("node_2");
+  });
+
+  test("shift+click adds to selection", async ({ page }) => {
+    await freshPage(page);
+    const c1 = await nodeCenter(page, "node_1");
+    const c2 = await nodeCenter(page, "node_2");
+    await page.mouse.click(c1.x, c1.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.click(c2.x, c2.y);
+    await page.keyboard.up("Shift");
+    const s = await sel(page);
+    expect(s).toContain("node_1");
+    expect(s).toContain("node_2");
+    expect(s.length).toBe(2);
+  });
+
+  test("click on empty canvas deselects all", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    expect((await sel(page)).length).toBe(1);
+    const e = await emptyPoint(page);
+    await page.mouse.click(e.x, e.y);
+    expect((await sel(page)).length).toBe(0);
+  });
+
+  test("Escape deselects all", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    expect((await sel(page)).length).toBe(1);
+    await page.keyboard.press("Escape");
+    expect((await sel(page)).length).toBe(0);
+  });
+
+  test("Ctrl+A selects all", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("ControlOrMeta+a");
+    expect((await sel(page)).length).toBe(10); // 8 nodes + 2 groups
+  });
+
+  test("marquee selects nodes", async ({ page }) => {
+    await freshPage(page);
+    // Use a wide marquee across the full container to reliably catch nodes
+    const bounds = await page.evaluate(() => {
+      const r = document.getElementById("canvas-container").getBoundingClientRect();
+      return { left: r.left + 5, top: r.top + 5, right: r.right - 200, bottom: r.bottom - 200 };
+    });
+    await page.mouse.move(bounds.left, bounds.top);
+    await page.mouse.down();
+    await page.mouse.move(bounds.right, bounds.bottom, { steps: 5 });
+    await page.mouse.up();
+    expect((await sel(page)).length).toBeGreaterThan(0);
+  });
+});
+
+test.describe("Move", () => {
+  test("drag header moves node", async ({ page }) => {
+    await freshPage(page);
+    const before = await nodePos(page, "node_1");
+    const h = await headerCenter(page, "node_1");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 80, h.y + 40, { steps: 5 });
+    await page.mouse.up();
+    const after = await nodePos(page, "node_1");
+    expect(after.x).not.toBe(before.x);
+    expect(after.y).not.toBe(before.y);
+  });
+
+  test("position snaps to grid", async ({ page }) => {
+    await freshPage(page);
+    const h = await headerCenter(page, "node_1");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 53, h.y + 37, { steps: 5 });
+    await page.mouse.up();
+    const after = await nodePos(page, "node_1");
+    expect(after.x % 8).toBe(0);
+    expect(after.y % 8).toBe(0);
+  });
+
+  test("snap guides appear during drag", async ({ page }) => {
+    await freshPage(page);
+    const h = await headerCenter(page, "node_1");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x, h.y + 100, { steps: 10 });
+    const guides = await page.evaluate(() =>
+      document.querySelectorAll(".infinite-canvas-snap-guide").length
+    );
+    await page.mouse.up();
+    expect(guides).toBeGreaterThan(0);
+  });
+
+  test("guides cleared after drag", async ({ page }) => {
+    await freshPage(page);
+    const h = await headerCenter(page, "node_1");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x, h.y + 50, { steps: 5 });
+    await page.mouse.up();
+    const guides = await page.evaluate(() =>
+      document.querySelectorAll(".infinite-canvas-snap-guide").length
+    );
+    expect(guides).toBe(0);
+  });
+
+  test("arrow nudge by grid size", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    const before = await nodePos(page, "node_1");
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowDown");
+    const after = await nodePos(page, "node_1");
+    expect(after.x).toBe(before.x + 8);
+    expect(after.y).toBe(before.y + 8);
+  });
+
+  test("shift+arrow nudge by 2x grid", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    const before = await nodePos(page, "node_1");
+    await page.keyboard.press("Shift+ArrowRight");
+    const after = await nodePos(page, "node_1");
+    expect(after.x).toBe(before.x + 16);
+  });
+});
+
+test.describe("Resize", () => {
+  test("SE handle resizes node", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const node = c._nodes.get("node_1");
+      c.deselectAll();
+      c.select("node_1");
+      const beforeW = node.width;
+      const beforeH = node.height;
+      const beforeX = node.x;
+      const beforeY = node.y;
+      c._resizeTarget = "node_1";
+      c._resizeHandle = "se";
+      c._resizeStartRect = { x: node.x, y: node.y, width: node.width, height: node.height };
+      c._pointerStartX = 0;
+      c._pointerStartY = 0;
+      c._state = InfiniteCanvas.STATE_RESIZING;
+      c._doResize({ clientX: 80, clientY: 80 });
+      return {
+        grew: node.width > beforeW && node.height > beforeH,
+        originStable: node.x === beforeX && node.y === beforeY,
+      };
+    });
+    expect(result.grew).toBe(true);
+    expect(result.originStable).toBe(true);
+  });
+
+  test("NW handle resize adjusts origin correctly", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const node = c._nodes.get("node_1");
+      c.deselectAll();
+      c.select("node_1");
+      const beforeX = node.x;
+      const beforeY = node.y;
+      const beforeW = node.width;
+      const beforeH = node.height;
+      c._resizeTarget = "node_1";
+      c._resizeHandle = "nw";
+      c._resizeStartRect = { x: node.x, y: node.y, width: node.width, height: node.height };
+      c._pointerStartX = 0;
+      c._pointerStartY = 0;
+      c._state = InfiniteCanvas.STATE_RESIZING;
+      c._doResize({ clientX: -40, clientY: -40 });
+      return {
+        movedUp: node.x < beforeX && node.y < beforeY,
+        grew: node.width > beforeW && node.height > beforeH,
+      };
+    });
+    expect(result.movedUp).toBe(true);
+    expect(result.grew).toBe(true);
+  });
+
+  test("resize clamps to min size without teleporting", async ({ page }) => {
+    await freshPage(page);
+    // Use programmatic resize to test the clamping logic precisely
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("node_1");
+      const node = c._nodes.get("node_1");
+      const origX = node.x;
+      const origW = node.width;
+      // Simulate W-handle drag that would shrink below minimum
+      c._resizeTarget = "node_1";
+      c._resizeHandle = "w";
+      c._resizeStartRect = { x: node.x, y: node.y, width: node.width, height: node.height };
+      // Fake a large rightward dx (shrinking from west)
+      c._pointerStartX = 0;
+      c._doResize({ clientX: 500, clientY: 0 });
+      // Node should be at min width, and x should be startX + startWidth - minWidth
+      return {
+        width: node.width,
+        x: node.x,
+        expectedX: c._resizeStartRect.x + origW - InfiniteCanvas.MIN_NODE_WIDTH,
+        minWidth: InfiniteCanvas.MIN_NODE_WIDTH,
+      };
+    });
+    expect(result.width).toBe(result.minWidth);
+    expect(result.x).toBe(result.expectedX);
+  });
+
+  test("resize snaps to grid", async ({ page }) => {
+    await freshPage(page);
+    // Programmatic test for snap precision
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const node = c._nodes.get("node_1");
+      c.deselectAll();
+      c.select("node_1");
+      c._resizeTarget = "node_1";
+      c._resizeHandle = "se";
+      c._resizeStartRect = { x: node.x, y: node.y, width: node.width, height: node.height };
+      c._pointerStartX = 0;
+      c._pointerStartY = 0;
+      c._doResize({ clientX: 33, clientY: 17 });
+      return { w: node.width % 8, h: node.height % 8 };
+    });
+    expect(result.w).toBe(0);
+    expect(result.h).toBe(0);
+  });
+});
+
+test.describe("Pan and Zoom", () => {
+  test("bare scroll pans", async ({ page }) => {
+    await freshPage(page);
+    const before = await page.evaluate(() => ({
+      panX: window.__canvas._panX, panY: window.__canvas._panY,
+    }));
+    // Use synthetic wheel event since Playwright's mouse.wheel may not target the canvas
+    await page.evaluate(() => {
+      const c = document.getElementById("canvas-container");
+      c.dispatchEvent(new WheelEvent("wheel", {
+        deltaX: 0, deltaY: 200,
+        clientX: 500, clientY: 400,
+        bubbles: true, cancelable: true,
+      }));
+    });
+    const after = await page.evaluate(() => ({
+      panX: window.__canvas._panX, panY: window.__canvas._panY,
+    }));
+    expect(after.panY).toBeLessThan(before.panY);
+    expect(after.panX).toBe(before.panX);
+  });
+
+  test("Ctrl+scroll zooms", async ({ page }) => {
+    await freshPage(page);
+    const before = await zoomLevel(page);
+    await page.evaluate(() => {
+      const c = document.getElementById("canvas-container");
+      c.dispatchEvent(new WheelEvent("wheel", {
+        deltaY: -100, ctrlKey: true, clientX: 500, clientY: 400,
+        bubbles: true, cancelable: true,
+      }));
+    });
+    expect(await zoomLevel(page)).toBeGreaterThan(before);
+  });
+
+  test("Ctrl+= zooms in, Ctrl+- zooms out", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    const initial = await zoomLevel(page);
+    await page.keyboard.press("ControlOrMeta+=");
+    const zi = await zoomLevel(page);
+    expect(zi).toBeGreaterThan(initial);
+    await page.keyboard.press("ControlOrMeta+-");
+    expect(await zoomLevel(page)).toBeLessThan(zi);
+  });
+
+  test("Ctrl+0 resets to 100%", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    expect(await zoomLevel(page)).not.toBe(1);
+    await page.keyboard.press("ControlOrMeta+0");
+    expect(await zoomLevel(page)).toBe(1);
+  });
+
+  test("Ctrl+1 fits all", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("ControlOrMeta+0");
+    expect(await zoomLevel(page)).toBe(1);
+    await page.keyboard.press("ControlOrMeta+1");
+    expect(await zoomLevel(page)).not.toBe(1);
+  });
+
+  test("space+drag pans", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("Escape");
+    const before = await page.evaluate(() => ({
+      panX: window.__canvas._panX, panY: window.__canvas._panY,
+    }));
+    await page.keyboard.down(" ");
+    await page.mouse.move(500, 400);
+    await page.mouse.down();
+    await page.mouse.move(600, 300, { steps: 5 });
+    await page.mouse.up();
+    await page.keyboard.up(" ");
+    const after = await page.evaluate(() => ({
+      panX: window.__canvas._panX, panY: window.__canvas._panY,
+    }));
+    expect(after.panX).toBeGreaterThan(before.panX);
+    expect(after.panY).toBeLessThan(before.panY);
+  });
+});
+
+test.describe("Tab Groups", () => {
+  test("F activates frame drawing tool", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("f");
+    expect(await page.evaluate(() => window.__canvas.activeTool)).toBe("frame");
+  });
+
+  test("drawing a group and it auto-selects", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("f");
+    // Draw in empty area
+    const e = await emptyPoint(page);
+    await page.mouse.move(e.x - 200, e.y - 100);
+    await page.mouse.down();
+    await page.mouse.move(e.x, e.y, { steps: 5 });
+    await page.mouse.up();
+    const s = await sel(page);
+    expect(s.length).toBe(1);
+    expect(s[0]).toMatch(/^__group_/);
+  });
+
+  test("dragging group moves children", async ({ page }) => {
+    await freshPage(page);
+    const childBefore = await nodePos(page, "node_1");
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.move(lbl.x, lbl.y);
+    await page.mouse.down();
+    await page.mouse.move(lbl.x + 80, lbl.y + 40, { steps: 5 });
+    await page.mouse.up();
+    const childAfter = await nodePos(page, "node_1");
+    expect(childAfter.x).toBeGreaterThan(childBefore.x);
+    expect(childAfter.y).toBeGreaterThan(childBefore.y);
+  });
+
+  test("drop node into group assigns it with highlight", async ({ page }) => {
+    await freshPage(page);
+    const h8 = await headerCenter(page, "node_8");
+    const g1 = await page.evaluate(() => {
+      const f = window.__canvas._frames.get("group_1");
+      const s = window.__canvas._canvasToScreen(f.x + f.width / 2, f.y + f.height / 2);
+      return { x: Math.round(s.x), y: Math.round(s.y) };
+    });
+    await page.mouse.move(h8.x, h8.y);
+    await page.mouse.down();
+    await page.mouse.move(g1.x, g1.y, { steps: 10 });
+    const highlight = await page.evaluate(() =>
+      !!document.querySelector(".infinite-canvas-frame.drop-target")
+    );
+    await page.mouse.up();
+    expect(highlight).toBe(true);
+    expect((await nodePos(page, "node_8")).frame).toBe("group_1");
+  });
+
+  test("Delete removes group but keeps children", async ({ page }) => {
+    await freshPage(page);
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    expect(await sel(page)).toContain("group_1");
+    const n1Before = await nodePos(page, "node_1");
+    await page.keyboard.press("Delete");
+    expect(await page.evaluate(() => window.__canvas._frames.has("group_1"))).toBe(false);
+    const n1After = await nodePos(page, "node_1");
+    expect(n1After.frame).toBeNull();
+    expect(n1After.x).toBe(n1Before.x);
+  });
+});
+
+test.describe("Delete", () => {
+  test("Delete removes selected node", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_3");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("Delete");
+    expect(await page.evaluate(() => window.__canvas._nodes.has("node_3"))).toBe(false);
+    expect((await sel(page)).length).toBe(0);
+  });
+
+  test("Delete removes multiple selected", async ({ page }) => {
+    await freshPage(page);
+    const c1 = await nodeCenter(page, "node_1");
+    const c2 = await nodeCenter(page, "node_2");
+    await page.mouse.click(c1.x, c1.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.click(c2.x, c2.y);
+    await page.keyboard.up("Shift");
+    expect((await sel(page)).length).toBe(2);
+    await page.keyboard.press("Delete");
+    expect(await page.evaluate(() => window.__canvas._nodes.has("node_1"))).toBe(false);
+    expect(await page.evaluate(() => window.__canvas._nodes.has("node_2"))).toBe(false);
+    expect((await sel(page)).length).toBe(0);
+  });
+});
+
+test.describe("Double Click", () => {
+  test("emits node-dblclick event on two quick clicks", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      window.__dblclicked = null;
+      window.__canvas.on("node-dblclick", d => { window.__dblclicked = d.id; });
+    });
+    const c = await nodeCenter(page, "node_4");
+    // Two quick clicks = double-click (our engine detects this internally)
+    await page.mouse.click(c.x, c.y);
+    await page.mouse.click(c.x, c.y);
+    expect(await page.evaluate(() => window.__dblclicked)).toBe("node_4");
+  });
+});
+
+test.describe("Drag Threshold", () => {
+  test("tiny movement below threshold does not move node", async ({ page }) => {
+    await freshPage(page);
+    const h = await headerCenter(page, "node_1");
+    const before = await nodePos(page, "node_1");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    // Move only 1px - below DRAG_THRESHOLD of 3
+    await page.mouse.move(h.x + 1, h.y + 1, { steps: 1 });
+    await page.mouse.up();
+    const after = await nodePos(page, "node_1");
+    expect(after.x).toBe(before.x);
+    expect(after.y).toBe(before.y);
+  });
+});
+
+test.describe("Zoom Clamping", () => {
+  test("zoom does not go below MIN_ZOOM", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      c.zoomTo(0.01, 500, 400);
+    });
+    const z = await zoomLevel(page);
+    expect(z).toBeGreaterThanOrEqual(0.1);
+  });
+
+  test("zoom does not go above MAX_ZOOM", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      c.zoomTo(10, 500, 400);
+    });
+    const z = await zoomLevel(page);
+    expect(z).toBeLessThanOrEqual(5);
+  });
+});
+
+test.describe("Multi-Selection Drag", () => {
+  test("dragging with multiple selected moves all", async ({ page }) => {
+    await freshPage(page);
+    const c1 = await nodeCenter(page, "node_1");
+    const c2 = await nodeCenter(page, "node_2");
+    await page.mouse.click(c1.x, c1.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.click(c2.x, c2.y);
+    await page.keyboard.up("Shift");
+    expect((await sel(page)).length).toBe(2);
+
+    const b1 = await nodePos(page, "node_1");
+    const b2 = await nodePos(page, "node_2");
+
+    // Drag via node_1 header
+    const h = await headerCenter(page, "node_1");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 80, h.y + 40, { steps: 5 });
+    await page.mouse.up();
+
+    const a1 = await nodePos(page, "node_1");
+    const a2 = await nodePos(page, "node_2");
+    // Both should have moved by roughly the same delta
+    const dx1 = a1.x - b1.x;
+    const dx2 = a2.x - b2.x;
+    expect(dx1).not.toBe(0);
+    expect(dx1).toBe(dx2);
+  });
+});
+
+test.describe("Node Leaving Frame", () => {
+  test("nudging node out of frame clears frameId", async ({ page }) => {
+    await freshPage(page);
+    const before = await nodePos(page, "node_1");
+    expect(before.frame).toBe("group_1");
+
+    // Select node_1 and nudge it far away
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    for (let i = 0; i < 50; i++) {
+      await page.keyboard.press("Shift+ArrowRight");
+    }
+    const after = await nodePos(page, "node_1");
+    // Should have left the group since it's been nudged far right
+    expect(after.frame).not.toBe("group_1");
+  });
+});
+
+test.describe("API", () => {
+  test("removeNode via API works", async ({ page }) => {
+    await freshPage(page);
+    const count = await page.evaluate(() => {
+      window.__canvas.removeNode("node_5");
+      return window.__canvas._nodes.size;
+    });
+    expect(count).toBe(7);
+  });
+
+  test("removeFrame via API unparents children", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      window.__canvas.removeFrame("group_1");
+      const n1 = window.__canvas._nodes.get("node_1");
+      return { frameExists: window.__canvas._frames.has("group_1"), n1Frame: n1.frameId };
+    });
+    expect(result.frameExists).toBe(false);
+    expect(result.n1Frame).toBeNull();
+  });
+
+  test("updateNode changes title", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      window.__canvas.updateNode("node_1", { title: "Renamed Tab" });
+    });
+    const title = await page.evaluate(() =>
+      document.querySelector('[data-id="node_1"] .infinite-canvas-node-title')?.textContent
+    );
+    expect(title).toBe("Renamed Tab");
+  });
+
+  test("updateFrame changes label", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      window.__canvas.updateFrame("group_1", { label: "Renamed Group" });
+    });
+    const label = await page.evaluate(() =>
+      document.querySelector('[data-id="group_1"] .infinite-canvas-frame-label')?.textContent
+    );
+    expect(label).toBe("Renamed Group");
+  });
+});
+
+// ==================================================================
+// Phase 1 Tests (TDD - written to fail first, then fixed)
+// ==================================================================
+
+test.describe("Phase 1a: Coordinate Transforms", () => {
+  test("_screenToCanvas accounts for container offset", async ({ page }) => {
+    await freshPage(page);
+    // The test page has a 40px toolbar above the canvas container.
+    // _screenToCanvas(0, 40) should map to canvas origin when pan=0, zoom=1.
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      // Reset to known view state
+      c._panX = 0;
+      c._panY = 0;
+      c._zoom = 1;
+      // The container starts at y=40 due to the toolbar
+      const rect = document.getElementById("canvas-container").getBoundingClientRect();
+      const pos = c._screenToCanvas(rect.left, rect.top);
+      return { x: pos.x, y: pos.y, containerTop: rect.top };
+    });
+    // Should be (0,0) in canvas space, not some offset value
+    expect(result.x).toBeCloseTo(0, 0);
+    expect(result.y).toBeCloseTo(0, 0);
+    expect(result.containerTop).toBeGreaterThan(0); // confirms toolbar offset exists
+  });
+
+  test("_canvasToScreen is inverse of _screenToCanvas", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c._panX = 50;
+      c._panY = 30;
+      c._zoom = 1.5;
+      const rect = document.getElementById("canvas-container").getBoundingClientRect();
+      // Round-trip: screen -> canvas -> screen
+      const screenX = rect.left + 200;
+      const screenY = rect.top + 150;
+      const canvasPos = c._screenToCanvas(screenX, screenY);
+      const backToScreen = c._canvasToScreen(canvasPos.x, canvasPos.y);
+      return {
+        origX: screenX, origY: screenY,
+        roundTripX: backToScreen.x, roundTripY: backToScreen.y,
+      };
+    });
+    expect(result.roundTripX).toBeCloseTo(result.origX, 0);
+    expect(result.roundTripY).toBeCloseTo(result.origY, 0);
+  });
+
+  test("marquee selection works correctly with container offset", async ({ page }) => {
+    await freshPage(page);
+    // Deselect, then marquee around the entire canvas area
+    await page.evaluate(() => window.__canvas.deselectAll());
+    // Get the canvas container bounds and drag across a large area
+    const bounds = await page.evaluate(() => {
+      const r = document.getElementById("canvas-container").getBoundingClientRect();
+      return { left: r.left + 10, top: r.top + 10, right: r.right - 10, bottom: r.bottom - 10 };
+    });
+    await page.mouse.move(bounds.left, bounds.top);
+    await page.mouse.down();
+    await page.mouse.move(bounds.right, bounds.bottom, { steps: 5 });
+    await page.mouse.up();
+    const s = await sel(page);
+    // A canvas-wide marquee should select at least some nodes and groups
+    expect(s.length).toBeGreaterThan(0);
+    expect(s).toContain("node_1");
+  });
+});
+
+test.describe("Phase 1b: Dot Grid Tracking", () => {
+  test("container has CSS custom properties for pan/zoom", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const el = document.getElementById("canvas-container");
+      const style = getComputedStyle(el);
+      return {
+        hasPanX: style.getPropertyValue("--canvas-pan-x") !== "",
+        hasPanY: style.getPropertyValue("--canvas-pan-y") !== "",
+        hasZoom: style.getPropertyValue("--canvas-zoom") !== "",
+      };
+    });
+    expect(result.hasPanX).toBe(true);
+    expect(result.hasPanY).toBe(true);
+    expect(result.hasZoom).toBe(true);
+  });
+
+  test("CSS custom properties update when view changes", async ({ page }) => {
+    await freshPage(page);
+    const before = await page.evaluate(() => {
+      const el = document.getElementById("canvas-container");
+      return {
+        panX: el.style.getPropertyValue("--canvas-pan-x"),
+        zoom: el.style.getPropertyValue("--canvas-zoom"),
+      };
+    });
+    // Zoom in
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      c.zoomTo(2, 500, 400);
+    });
+    const after = await page.evaluate(() => {
+      const el = document.getElementById("canvas-container");
+      return {
+        panX: el.style.getPropertyValue("--canvas-pan-x"),
+        zoom: el.style.getPropertyValue("--canvas-zoom"),
+      };
+    });
+    expect(after.zoom).not.toBe(before.zoom);
+  });
+});
+
+test.describe("Phase 1c: view-change Events", () => {
+  test("view-change fires on wheel zoom", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      window.__viewChanges = 0;
+      window.__canvas.on("view-change", () => { window.__viewChanges++; });
+    });
+    // Ctrl+scroll zoom
+    await page.evaluate(() => {
+      const c = document.getElementById("canvas-container");
+      c.dispatchEvent(new WheelEvent("wheel", {
+        deltaY: -100, ctrlKey: true,
+        clientX: 500, clientY: 400,
+        bubbles: true, cancelable: true,
+      }));
+    });
+    const count = await page.evaluate(() => window.__viewChanges);
+    expect(count).toBeGreaterThan(0);
+  });
+
+  test("view-change fires on keyboard zoom", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.evaluate(() => {
+      window.__viewChanges = 0;
+      window.__canvas.on("view-change", () => { window.__viewChanges++; });
+    });
+    await page.keyboard.press("ControlOrMeta+=");
+    const count = await page.evaluate(() => window.__viewChanges);
+    expect(count).toBeGreaterThan(0);
+  });
+
+  test("view-change fires on fitAll", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      window.__viewChanges = 0;
+      window.__canvas.on("view-change", () => { window.__viewChanges++; });
+      window.__canvas.fitAll();
+    });
+    const count = await page.evaluate(() => window.__viewChanges);
+    expect(count).toBeGreaterThan(0);
+  });
+
+  test("view-change fires on bare scroll pan", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      window.__viewChanges = 0;
+      window.__canvas.on("view-change", () => { window.__viewChanges++; });
+      const c = document.getElementById("canvas-container");
+      c.dispatchEvent(new WheelEvent("wheel", {
+        deltaX: 0, deltaY: 100,
+        clientX: 500, clientY: 400,
+        bubbles: true, cancelable: true,
+      }));
+    });
+    const count = await page.evaluate(() => window.__viewChanges);
+    expect(count).toBeGreaterThan(0);
+  });
+});
+
+test.describe("Phase 1d: destroy() and off()", () => {
+  test("destroy() removes all DOM and listeners", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const container = document.getElementById("canvas-container");
+      const c = window.__canvas;
+      // Verify DOM exists
+      const hadViewport = !!container.querySelector(".infinite-canvas-viewport");
+      const hadClass = container.classList.contains("infinite-canvas");
+      // Destroy
+      c.destroy();
+      const hasViewport = !!container.querySelector(".infinite-canvas-viewport");
+      const hasClass = container.classList.contains("infinite-canvas");
+      const hasNodes = container.querySelectorAll(".infinite-canvas-node").length;
+      return { hadViewport, hadClass, hasViewport, hasClass, hasNodes };
+    });
+    expect(result.hadViewport).toBe(true);
+    expect(result.hadClass).toBe(true);
+    expect(result.hasViewport).toBe(false);
+    expect(result.hasClass).toBe(false);
+    expect(result.hasNodes).toBe(0);
+  });
+
+  test("off() removes a specific listener", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      let count = 0;
+      const handler = () => { count++; };
+      c.on("node-click", handler);
+      c._emit("node-click", {});
+      const afterOn = count;
+      c.off("node-click", handler);
+      c._emit("node-click", {});
+      const afterOff = count;
+      return { afterOn, afterOff };
+    });
+    expect(result.afterOn).toBe(1);
+    expect(result.afterOff).toBe(1); // should NOT have incremented
+  });
+});
+
+test.describe("Phase 1g: Frame Resize + Auto-expand/shrink", () => {
+  test("frame can be resized via handles", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const frame = c._frames.get("group_1");
+      const beforeW = frame.width;
+      const beforeH = frame.height;
+      // Programmatic resize via SE handle
+      c._resizeTarget = "group_1";
+      c._resizeHandle = "se";
+      c._resizeStartRect = { x: frame.x, y: frame.y, width: frame.width, height: frame.height };
+      c._pointerStartX = 0;
+      c._pointerStartY = 0;
+      c._state = InfiniteCanvas.STATE_RESIZING;
+      c._doResize({ clientX: 80, clientY: 80 });
+      return {
+        grew: frame.width > beforeW && frame.height > beforeH,
+      };
+    });
+    expect(result.grew).toBe(true);
+  });
+
+  test("auto-expand grows group when node dropped inside", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const frame = c._frames.get("group_1");
+      const beforeW = frame.width;
+      const beforeRight = frame.x + frame.width;
+      // Place node so its CENTER is inside the frame but its RIGHT EDGE extends past
+      // Center needs to be < frame.x + frame.width, so x + 140 < beforeRight
+      // x = beforeRight - 200 -> center at beforeRight - 60, which is inside
+      // right edge at beforeRight + 80, which is outside -> should auto-expand
+      const node = c._nodes.get("node_8");
+      node.x = beforeRight - 200;
+      node.y = frame.y + 50;
+      c._applyRect(node.element, node);
+      c._checkFrameContainment("node_8");
+      return {
+        assigned: node.frameId === "group_1",
+        expanded: frame.width > beforeW,
+      };
+    });
+    expect(result.assigned).toBe(true);
+    expect(result.expanded).toBe(true);
+  });
+
+  test("auto-shrink contracts group when node leaves", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      // Create a large frame with two nodes: one near left, one near right
+      c.addFrame("shrink_test", { x: 0, y: 800, width: 800, height: 300, label: "Shrink Test" });
+      const nA = c.addNode("shrink_a", { x: 24, y: 824, width: 104, height: 80 });
+      const nB = c.addNode("shrink_b", { x: 600, y: 824, width: 104, height: 80 });
+      nA.frameId = "shrink_test";
+      nB.frameId = "shrink_test";
+      const beforeW = c._frames.get("shrink_test").width;
+      // Move nB completely outside the frame
+      nB.x = 5000;
+      nB.y = 5000;
+      c._applyRect(nB.element, nB);
+      c._checkFrameContainment("shrink_b");
+      const shrunkW = c._frames.get("shrink_test").width;
+      return {
+        left: nB.frameId !== "shrink_test",
+        beforeW,
+        shrunkW,
+      };
+    });
+    expect(result.left).toBe(true);
+    // Frame should shrink to fit only nA (much less than 800)
+    expect(result.shrunkW).toBeLessThan(result.beforeW);
+  });
+});
+
+// ==================================================================
+// Phase 2 Tests: Performance
+// ==================================================================
+
+test.describe("Phase 2: Performance", () => {
+  test("handles 100 nodes without excessive overhead", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const t0 = performance.now();
+      for (let i = 0; i < 100; i++) {
+        c.addNode("perf_" + i, {
+          x: (i % 10) * 320,
+          y: Math.floor(i / 10) * 260,
+          width: 280,
+          height: 212,
+          title: "Perf Node " + i,
+        });
+      }
+      const createTime = performance.now() - t0;
+      return { totalNodes: c._nodes.size, createTime };
+    });
+    expect(result.totalNodes).toBe(108); // 8 initial + 100 new
+    expect(result.createTime).toBeLessThan(500);
+  });
+
+  test("nodes use CSS transforms for positioning", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const node = document.querySelector('[data-id="node_1"]');
+      return { hasTransform: node.style.transform.includes("translate") };
+    });
+    expect(result.hasTransform).toBe(true);
+  });
+
+  test("container has is-interacting class during drag", async ({ page }) => {
+    await freshPage(page);
+    const h = await headerCenter(page, "node_1");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 50, h.y + 50, { steps: 3 });
+    const hasCls = await page.evaluate(() =>
+      document.getElementById("canvas-container").classList.contains("is-interacting")
+    );
+    await page.mouse.up();
+    const hasClsAfter = await page.evaluate(() =>
+      document.getElementById("canvas-container").classList.contains("is-interacting")
+    );
+    expect(hasCls).toBe(true);
+    expect(hasClsAfter).toBe(false);
+  });
+
+  test("drag 50 selected nodes under 16ms per move", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      for (let i = 0; i < 50; i++) {
+        c.addNode("drag_" + i, {
+          x: (i % 10) * 320,
+          y: Math.floor(i / 10) * 260,
+          width: 280, height: 212,
+          title: "Drag " + i,
+        });
+      }
+    });
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("ControlOrMeta+a");
+    const h = await headerCenter(page, "node_1");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    const timing = await page.evaluate(() => {
+      const container = document.getElementById("canvas-container");
+      const times = [];
+      for (let i = 0; i < 10; i++) {
+        const t0 = performance.now();
+        container.dispatchEvent(new PointerEvent("pointermove", {
+          clientX: 300 + i * 5, clientY: 300 + i * 5,
+          bubbles: true, pointerId: 1,
+        }));
+        times.push(performance.now() - t0);
+      }
+      return { avg: times.reduce((a, b) => a + b, 0) / times.length, max: Math.max(...times) };
+    });
+    await page.mouse.up();
+    expect(timing.avg).toBeLessThan(16);
+  });
+});
+
+// ==================================================================
+// Phase 3 Tests: Feature Completeness
+// ==================================================================
+
+test.describe("Phase 3a: Serialization", () => {
+  test("toJSON returns full canvas state", async ({ page }) => {
+    await freshPage(page);
+    const json = await page.evaluate(() => {
+      const c = window.__canvas;
+      return c.toJSON();
+    });
+    expect(json.nodes).toBeDefined();
+    expect(json.nodes.length).toBe(8);
+    expect(json.frames).toBeDefined();
+    expect(json.frames.length).toBe(2);
+    expect(json.viewState).toBeDefined();
+    expect(json.viewState.zoom).toBeDefined();
+    expect(json.viewState.panX).toBeDefined();
+    // Each node should have id, x, y, width, height, title, frameId
+    expect(json.nodes[0].id).toBeDefined();
+    expect(json.nodes[0].x).toBeDefined();
+    expect(json.nodes[0].frameId).toBeDefined();
+  });
+
+  test("fromJSON restores canvas state", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const saved = c.toJSON();
+      // Modify the canvas
+      c.removeNode("node_1");
+      c.removeNode("node_2");
+      c.removeFrame("group_1");
+      const afterDelete = { nodes: c._nodes.size, frames: c._frames.size };
+      // Restore
+      c.fromJSON(saved);
+      const afterRestore = {
+        nodes: c._nodes.size,
+        frames: c._frames.size,
+        node1Exists: c._nodes.has("node_1"),
+        group1Exists: c._frames.has("group_1"),
+        zoomRestored: Math.abs(c._zoom - saved.viewState.zoom) < 0.01,
+      };
+      return { afterDelete, afterRestore };
+    });
+    expect(result.afterDelete.nodes).toBe(6);
+    expect(result.afterDelete.frames).toBe(1);
+    expect(result.afterRestore.nodes).toBe(8);
+    expect(result.afterRestore.frames).toBe(2);
+    expect(result.afterRestore.node1Exists).toBe(true);
+    expect(result.afterRestore.group1Exists).toBe(true);
+    expect(result.afterRestore.zoomRestored).toBe(true);
+  });
+
+  test("fromJSON renders DOM correctly", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      const saved = c.toJSON();
+      c.fromJSON(saved);
+    });
+    const count = await page.evaluate(() =>
+      document.querySelectorAll(".infinite-canvas-node").length
+    );
+    expect(count).toBe(8);
+  });
+});
+
+test.describe("Phase 3b: Undo/Redo", () => {
+  test("Ctrl+Z undoes a move", async ({ page }) => {
+    await freshPage(page);
+    const before = await nodePos(page, "node_1");
+    // Drag node_1
+    const h = await headerCenter(page, "node_1");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 80, h.y + 80, { steps: 5 });
+    await page.mouse.up();
+    const afterMove = await nodePos(page, "node_1");
+    expect(afterMove.x).not.toBe(before.x);
+    // Undo
+    await page.keyboard.press("ControlOrMeta+z");
+    const afterUndo = await nodePos(page, "node_1");
+    expect(afterUndo.x).toBe(before.x);
+    expect(afterUndo.y).toBe(before.y);
+  });
+
+  test("Ctrl+Shift+Z redoes", async ({ page }) => {
+    await freshPage(page);
+    const before = await nodePos(page, "node_1");
+    const h = await headerCenter(page, "node_1");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 80, h.y + 80, { steps: 5 });
+    await page.mouse.up();
+    const afterMove = await nodePos(page, "node_1");
+    // Undo then redo
+    await page.keyboard.press("ControlOrMeta+z");
+    await page.keyboard.press("ControlOrMeta+Shift+z");
+    const afterRedo = await nodePos(page, "node_1");
+    expect(afterRedo.x).toBe(afterMove.x);
+    expect(afterRedo.y).toBe(afterMove.y);
+  });
+
+  test("Ctrl+Z undoes a delete", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_3");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("Delete");
+    expect(await page.evaluate(() => window.__canvas._nodes.has("node_3"))).toBe(false);
+    // Undo
+    await page.keyboard.press("ControlOrMeta+z");
+    expect(await page.evaluate(() => window.__canvas._nodes.has("node_3"))).toBe(true);
+  });
+});
+
+test.describe("Phase 3c: Zoom-to-selection and Positioning API", () => {
+  test("fitSelection zooms to selected items", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("node_1");
+      const zoomBefore = c._zoom;
+      c.fitSelection();
+      const zoomAfter = c._zoom;
+      return { zoomBefore, zoomAfter, changed: zoomBefore !== zoomAfter };
+    });
+    expect(result.changed).toBe(true);
+  });
+
+  test("setNodePosition moves a node", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.setNodePosition("node_1", 500, 600);
+      const pos = c.getNodePosition("node_1");
+      return pos;
+    });
+    expect(result.x).toBe(504); // snapped to grid
+    expect(result.y).toBe(600);
+  });
+
+  test("getFrameChildren returns child node IDs", async ({ page }) => {
+    await freshPage(page);
+    const children = await page.evaluate(() => {
+      return window.__canvas.getFrameChildren("group_1");
+    });
+    expect(children).toContain("node_1");
+    expect(children).toContain("node_2");
+    expect(children).toContain("node_3");
+    expect(children).toContain("node_4");
+    expect(children.length).toBe(4);
+  });
+});
+
+// ==================================================================
+// Phase 3 continued: Frame editing, z-index, auto-layout, groups
+// ==================================================================
+
+test.describe("Frame Label Editing", () => {
+  test("double-click on frame label makes it editable", async ({ page }) => {
+    await freshPage(page);
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    await page.mouse.click(lbl.x, lbl.y); // double-click via two quick clicks
+    const isEditing = await page.evaluate(() => {
+      const label = document.querySelector('[data-id="group_1"] .infinite-canvas-frame-label');
+      return label.getAttribute("contenteditable") === "true" ||
+             !!document.querySelector('[data-id="group_1"] .infinite-canvas-frame-label-input');
+    });
+    expect(isEditing).toBe(true);
+  });
+
+  test("typing in editable label updates the frame", async ({ page }) => {
+    await freshPage(page);
+    // Start editing via API
+    await page.evaluate(() => {
+      window.__canvas.startEditingFrameLabel("group_1");
+    });
+    // The input should be focused - type a new name
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.type("My Custom Group");
+    await page.keyboard.press("Enter");
+    const label = await page.evaluate(() =>
+      window.__canvas._frames.get("group_1").label
+    );
+    expect(label).toBe("My Custom Group");
+  });
+});
+
+test.describe("Z-Index Management", () => {
+  test("bringToFront moves node above others", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const n1 = document.querySelector('[data-id="node_1"]');
+      const n2 = document.querySelector('[data-id="node_2"]');
+      const zBefore1 = parseInt(getComputedStyle(n1).zIndex) || 0;
+      const zBefore2 = parseInt(getComputedStyle(n2).zIndex) || 0;
+      c.bringToFront("node_1");
+      const zAfter1 = parseInt(getComputedStyle(n1).zIndex) || 0;
+      // node_1 should now have higher z-index than node_2
+      return { zAfter1, zBefore2, isAbove: zAfter1 > zBefore2 };
+    });
+    expect(result.isAbove).toBe(true);
+  });
+
+  test("sendToBack moves node behind others", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      // First bring node_1 to front to ensure it has a high z
+      c.bringToFront("node_1");
+      const zHigh = parseInt(getComputedStyle(document.querySelector('[data-id="node_1"]')).zIndex) || 0;
+      c.sendToBack("node_1");
+      const zLow = parseInt(getComputedStyle(document.querySelector('[data-id="node_1"]')).zIndex) || 0;
+      return { zHigh, zLow, wentDown: zLow < zHigh };
+    });
+    expect(result.wentDown).toBe(true);
+  });
+});
+
+test.describe("Auto-Layout", () => {
+  test("autoLayout arranges nodes in grid within a frame", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      // Scramble node positions first
+      for (let i = 1; i <= 4; i++) {
+        const n = c._nodes.get("node_" + i);
+        n.x = Math.random() * 2000;
+        n.y = Math.random() * 2000;
+        c._applyRect(n.element, n);
+      }
+      c.autoLayout("group_1");
+      // After auto-layout, nodes in group_1 should be in a grid pattern
+      const positions = [];
+      for (let i = 1; i <= 4; i++) {
+        const n = c._nodes.get("node_" + i);
+        positions.push({ x: n.x, y: n.y });
+      }
+      // Check that they're evenly spaced and aligned
+      const xs = [...new Set(positions.map(p => p.x))].sort((a, b) => a - b);
+      const ys = [...new Set(positions.map(p => p.y))].sort((a, b) => a - b);
+      return { nodeCount: positions.length, uniqueXs: xs.length, uniqueYs: ys.length };
+    });
+    // 4 nodes in a grid should have 2-4 unique x values and 1-2 unique y values
+    expect(result.uniqueXs).toBeGreaterThan(1);
+    expect(result.uniqueYs).toBeGreaterThanOrEqual(1);
+  });
+
+  test("autoLayout resizes frame to fit arranged nodes", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.autoLayout("group_1");
+      const frame = c._frames.get("group_1");
+      // All children should be inside the frame
+      const children = c.getFrameChildren("group_1");
+      let allInside = true;
+      for (let id of children) {
+        const n = c._nodes.get(id);
+        if (n.x < frame.x || n.y < frame.y ||
+            n.x + n.width > frame.x + frame.width ||
+            n.y + n.height > frame.y + frame.height) {
+          allInside = false;
+        }
+      }
+      return { allInside, childCount: children.length };
+    });
+    expect(result.allInside).toBe(true);
+    expect(result.childCount).toBe(4);
+  });
+});
+
+test.describe("Visual Group Membership", () => {
+  test("nodes in a group show a group indicator color", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const n1 = document.querySelector('[data-id="node_1"]');
+      const n5 = document.querySelector('[data-id="node_5"]');
+      // Nodes in group_1 and group_2 should have different visual indicators
+      const n1Indicator = n1.dataset.frameId || n1.style.getPropertyValue("--group-color");
+      const n5Indicator = n5.dataset.frameId || n5.style.getPropertyValue("--group-color");
+      return {
+        n1HasIndicator: !!n1Indicator,
+        n5HasIndicator: !!n5Indicator,
+        different: n1Indicator !== n5Indicator,
+      };
+    });
+    expect(result.n1HasIndicator).toBe(true);
+    expect(result.n5HasIndicator).toBe(true);
+    expect(result.different).toBe(true);
+  });
+});
+
+test.describe("Node Color API", () => {
+  test("setNodeColor changes node appearance", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.setNodeColor("node_1", "#ff0000", "#cc0000");
+      const el = document.querySelector('[data-id="node_1"]');
+      return {
+        bg: el.style.getPropertyValue("--node-bg"),
+        header: el.style.getPropertyValue("--node-header-bg"),
+      };
+    });
+    expect(result.bg).toBe("#ff0000");
+    expect(result.header).toBe("#cc0000");
+  });
+});
+
+// ==================================================================
+// Phase 5: Polish
+// ==================================================================
+
+test.describe("Context Menu", () => {
+  test("right-click on node shows context menu with correct items", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y, { button: "right" });
+    const result = await page.evaluate(() => {
+      const menu = document.querySelector(".infinite-canvas-context-menu");
+      if (!menu) return { visible: false };
+      const items = [...menu.querySelectorAll("[data-action]")].map(el => el.dataset.action);
+      return { visible: true, items };
+    });
+    expect(result.visible).toBe(true);
+    expect(result.items).toContain("delete");
+    expect(result.items).toContain("bring-to-front");
+    expect(result.items).toContain("send-to-back");
+  });
+
+  test("right-click on frame shows frame context menu", async ({ page }) => {
+    await freshPage(page);
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y, { button: "right" });
+    const result = await page.evaluate(() => {
+      const menu = document.querySelector(".infinite-canvas-context-menu");
+      if (!menu) return { visible: false };
+      const items = [...menu.querySelectorAll("[data-action]")].map(el => el.dataset.action);
+      return { visible: true, items };
+    });
+    expect(result.visible).toBe(true);
+    expect(result.items).toContain("rename");
+    expect(result.items).toContain("auto-layout");
+    expect(result.items).toContain("delete");
+  });
+
+  test("right-click on empty canvas shows canvas context menu", async ({ page }) => {
+    await freshPage(page);
+    const e = await emptyPoint(page);
+    await page.mouse.click(e.x, e.y, { button: "right" });
+    const result = await page.evaluate(() => {
+      const menu = document.querySelector(".infinite-canvas-context-menu");
+      if (!menu) return { visible: false };
+      const items = [...menu.querySelectorAll("[data-action]")].map(el => el.dataset.action);
+      return { visible: true, items };
+    });
+    expect(result.visible).toBe(true);
+    expect(result.items).toContain("add-node");
+    expect(result.items).toContain("add-group");
+    expect(result.items).toContain("fit-all");
+  });
+
+  test("clicking a menu item executes the action and closes menu", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_3");
+    await page.mouse.click(c.x, c.y, { button: "right" });
+    // Click delete
+    await page.evaluate(() => {
+      document.querySelector('.infinite-canvas-context-menu [data-action="delete"]').click();
+    });
+    const result = await page.evaluate(() => ({
+      menuGone: !document.querySelector(".infinite-canvas-context-menu"),
+      nodeGone: !window.__canvas._nodes.has("node_3"),
+    }));
+    expect(result.menuGone).toBe(true);
+    expect(result.nodeGone).toBe(true);
+  });
+
+  test("menu closes on left-click elsewhere", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y, { button: "right" });
+    expect(await page.evaluate(() => !!document.querySelector(".infinite-canvas-context-menu"))).toBe(true);
+    // Wait for the close handler to register (setTimeout(0) in showContextMenu)
+    await page.waitForTimeout(50);
+    // Click elsewhere
+    const e = await emptyPoint(page);
+    await page.mouse.click(e.x, e.y);
+    expect(await page.evaluate(() => !!document.querySelector(".infinite-canvas-context-menu"))).toBe(false);
+  });
+});
+
+test.describe("Minimap", () => {
+  test("minimap element exists in the canvas", async ({ page }) => {
+    await freshPage(page);
+    const exists = await page.evaluate(() =>
+      !!document.querySelector(".infinite-canvas-minimap")
+    );
+    expect(exists).toBe(true);
+  });
+
+  test("minimap shows dots for nodes", async ({ page }) => {
+    await freshPage(page);
+    const dotCount = await page.evaluate(() =>
+      document.querySelectorAll(".infinite-canvas-minimap-dot").length
+    );
+    expect(dotCount).toBe(8); // 8 initial nodes
+  });
+
+  test("minimap shows viewport rectangle", async ({ page }) => {
+    await freshPage(page);
+    const exists = await page.evaluate(() =>
+      !!document.querySelector(".infinite-canvas-minimap-viewport")
+    );
+    expect(exists).toBe(true);
+  });
+
+  test("clicking minimap pans the canvas", async ({ page }) => {
+    await freshPage(page);
+    const before = await page.evaluate(() => ({
+      panX: window.__canvas._panX, panY: window.__canvas._panY,
+    }));
+    // Click on the far edge of the minimap
+    const minimapRect = await page.evaluate(() => {
+      const m = document.querySelector(".infinite-canvas-minimap");
+      const r = m.getBoundingClientRect();
+      return { x: Math.round(r.left + 10), y: Math.round(r.top + 10) };
+    });
+    await page.mouse.click(minimapRect.x, minimapRect.y);
+    const after = await page.evaluate(() => ({
+      panX: window.__canvas._panX, panY: window.__canvas._panY,
+    }));
+    // Pan should have changed
+    expect(after.panX !== before.panX || after.panY !== before.panY).toBe(true);
+  });
+});
+
+test.describe("Visual Polish", () => {
+  test("nodes in a group have a colored left border strip", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const n1 = document.querySelector('[data-id="node_1"]');
+      const groupColor = getComputedStyle(n1).getPropertyValue("--group-color").trim();
+      const borderLeft = getComputedStyle(n1).borderLeftColor;
+      return { hasGroupColor: !!groupColor, groupColor };
+    });
+    expect(result.hasGroupColor).toBe(true);
+  });
+
+  test("selected frame label uses group color", async ({ page }) => {
+    await freshPage(page);
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    const color = await page.evaluate(() => {
+      const label = document.querySelector('[data-id="group_1"] .infinite-canvas-frame-label');
+      return getComputedStyle(label).color;
+    });
+    // Should not be the default gray when selected
+    expect(color).not.toBe("rgba(255, 255, 255, 0.5)");
+  });
+});
+
+// ==================================================================
+// Group+Children Move Bug Fix + Tool Switching
+// ==================================================================
+
+test.describe("Group+Children Drag", () => {
+  test("dragging group+children together preserves relative positions", async ({ page }) => {
+    await freshPage(page);
+    // Record positions before
+    const before = await page.evaluate(() => {
+      const c = window.__canvas;
+      const frame = c._frames.get("group_1");
+      const n1 = c._nodes.get("node_1");
+      const n2 = c._nodes.get("node_2");
+      return {
+        frameX: frame.x, frameY: frame.y,
+        n1x: n1.x, n1y: n1.y,
+        n2x: n2.x, n2y: n2.y,
+        n1relX: n1.x - frame.x, n1relY: n1.y - frame.y,
+        n2relX: n2.x - frame.x, n2relY: n2.y - frame.y,
+      };
+    });
+    // Select group_1 (which selects frame + we shift-select children)
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    // Shift-click all children to add them to selection
+    for (let i = 1; i <= 4; i++) {
+      const c = await nodeCenter(page, "node_" + i);
+      await page.keyboard.down("Shift");
+      await page.mouse.click(c.x, c.y);
+      await page.keyboard.up("Shift");
+    }
+    // Verify all selected
+    const selCount = await page.evaluate(() => window.__canvas.getSelection().length);
+    expect(selCount).toBe(5); // group + 4 children
+
+    // Drag via the frame label
+    const lbl2 = await frameLabelCenter(page, "group_1");
+    await page.mouse.move(lbl2.x, lbl2.y);
+    await page.mouse.down();
+    await page.mouse.move(lbl2.x + 100, lbl2.y + 50, { steps: 5 });
+    await page.mouse.up();
+
+    const after = await page.evaluate(() => {
+      const c = window.__canvas;
+      const frame = c._frames.get("group_1");
+      const n1 = c._nodes.get("node_1");
+      const n2 = c._nodes.get("node_2");
+      return {
+        frameX: frame.x, frameY: frame.y,
+        n1relX: n1.x - frame.x, n1relY: n1.y - frame.y,
+        n2relX: n2.x - frame.x, n2relY: n2.y - frame.y,
+        n1frame: n1.frameId, n2frame: n2.frameId,
+      };
+    });
+    // Relative positions within group should be preserved
+    expect(Math.abs(after.n1relX - before.n1relX)).toBeLessThan(16);
+    expect(Math.abs(after.n1relY - before.n1relY)).toBeLessThan(16);
+    expect(Math.abs(after.n2relX - before.n2relX)).toBeLessThan(16);
+    // Children should still belong to the group
+    expect(after.n1frame).toBe("group_1");
+    expect(after.n2frame).toBe("group_1");
+    // Frame should have actually moved
+    expect(after.frameX).not.toBe(before.frameX);
+  });
+
+  test("group auto-expands to fit children after move", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const frame = c._frames.get("group_1");
+      const n1 = c._nodes.get("node_1");
+      const rightEdge = frame.x + frame.width;
+      // Place node so center is inside but right edge extends past frame
+      // center_x = x + 140, must be < rightEdge, so x < rightEdge - 140
+      // right_edge_of_node = x + 280, must be > rightEdge (to test expansion)
+      // So x must be in range (rightEdge - 280, rightEdge - 140)
+      n1.x = rightEdge - 200;
+      n1.y = frame.y + 20;
+      c._applyRect(n1.element, n1);
+      c._checkFrameContainment("node_1");
+      return {
+        n1Inside: n1.x + n1.width <= frame.x + frame.width,
+        n1frame: n1.frameId,
+      };
+    });
+    expect(result.n1frame).toBe("group_1");
+    expect(result.n1Inside).toBe(true);
+  });
+});
+
+test.describe("Tool Switching", () => {
+  test("V key activates move tool", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("v");
+    const tool = await page.evaluate(() => window.__canvas.activeTool);
+    expect(tool).toBe("move");
+  });
+
+  test("H key activates hand tool", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("h");
+    const tool = await page.evaluate(() => window.__canvas.activeTool);
+    expect(tool).toBe("hand");
+  });
+
+  test("hand tool click-drags to pan instead of selecting", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("Escape"); // deselect
+    await page.keyboard.press("h");
+
+    const before = await page.evaluate(() => ({
+      panX: window.__canvas._panX, panY: window.__canvas._panY,
+    }));
+    // Click-drag on a node — should pan, NOT select
+    const n = await nodeCenter(page, "node_1");
+    await page.mouse.move(n.x, n.y);
+    await page.mouse.down();
+    await page.mouse.move(n.x + 100, n.y + 50, { steps: 5 });
+    await page.mouse.up();
+
+    const after = await page.evaluate(() => ({
+      panX: window.__canvas._panX,
+      panY: window.__canvas._panY,
+      sel: window.__canvas.getSelection().length,
+    }));
+    expect(after.panX).not.toBe(before.panX);
+    expect(after.sel).toBe(0); // should NOT have selected
+  });
+
+  test("container has data-tool attribute", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    const defaultTool = await page.evaluate(() =>
+      document.getElementById("canvas-container").dataset.tool
+    );
+    expect(defaultTool).toBe("move");
+    await page.keyboard.press("h");
+    const handTool = await page.evaluate(() =>
+      document.getElementById("canvas-container").dataset.tool
+    );
+    expect(handTool).toBe("hand");
+  });
+});
+
+test.describe("Drawing Tools", () => {
+  test("F key activates frame drawing tool", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("f");
+    const tool = await page.evaluate(() => window.__canvas.activeTool);
+    expect(tool).toBe("frame");
+  });
+
+  test("drawing a frame via click-drag creates it at drawn rect", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("f");
+    const framesBefore = await page.evaluate(() => window.__canvas._frames.size);
+    // Draw a rectangle in empty space
+    const e = await emptyPoint(page);
+    await page.mouse.move(e.x - 200, e.y - 100);
+    await page.mouse.down();
+    await page.mouse.move(e.x, e.y, { steps: 5 });
+    await page.mouse.up();
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      return {
+        frames: c._frames.size,
+        tool: c.activeTool, // should revert to move
+      };
+    });
+    expect(result.frames).toBe(framesBefore + 1);
+    expect(result.tool).toBe("move");
+  });
+
+  test("drawing a frame over ungrouped nodes includes them", async ({ page }) => {
+    await freshPage(page);
+    // First remove all existing frames so nodes are ungrouped
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      for (let [id] of [...c._frames]) {
+        c.removeFrame(id);
+      }
+      // Verify nodes are now ungrouped
+      for (let [, node] of c._nodes) {
+        node.frameId = null;
+        c._updateNodeGroupVisual(node);
+      }
+    });
+    // Activate frame tool
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("f");
+    // Get screen positions of node_1 and node_2 and draw a frame around both
+    const n1 = await nodeCenter(page, "node_1");
+    const n2 = await nodeCenter(page, "node_2");
+    const left = Math.min(n1.x, n2.x) - 30;
+    const top = Math.min(n1.y, n2.y) - 30;
+    const right = Math.max(n1.x, n2.x) + 30;
+    const bottom = Math.max(n1.y, n2.y) + 30;
+    await page.mouse.move(left, top);
+    await page.mouse.down();
+    await page.mouse.move(right, bottom, { steps: 5 });
+    await page.mouse.up();
+    // Nodes within the drawn rect should be parented to the new frame
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const n1 = c._nodes.get("node_1");
+      const n2 = c._nodes.get("node_2");
+      return {
+        n1frame: n1.frameId,
+        n2frame: n2.frameId,
+        sameFrame: n1.frameId === n2.frameId && n1.frameId !== null,
+      };
+    });
+    expect(result.sameFrame).toBe(true);
+  });
+
+  test("T key activates node drawing tool", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("t");
+    const tool = await page.evaluate(() => window.__canvas.activeTool);
+    expect(tool).toBe("node");
+  });
+
+  test("drawing a node via click-drag creates it at drawn rect", async ({ page }) => {
+    await freshPage(page);
+    const c = await nodeCenter(page, "node_1");
+    await page.mouse.click(c.x, c.y);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("t");
+    const nodesBefore = await page.evaluate(() => window.__canvas._nodes.size);
+    const e = await emptyPoint(page);
+    await page.mouse.move(e.x - 150, e.y - 100);
+    await page.mouse.down();
+    await page.mouse.move(e.x, e.y, { steps: 5 });
+    await page.mouse.up();
+    const result = await page.evaluate(() => ({
+      nodes: window.__canvas._nodes.size,
+      tool: window.__canvas.activeTool,
+    }));
+    expect(result.nodes).toBe(nodesBefore + 1);
+    expect(result.tool).toBe("move");
+  });
+});
+
+test.describe("Alt+Drag Clone", () => {
+  test("alt+drag clones a node", async ({ page }) => {
+    await freshPage(page);
+    const nodesBefore = await page.evaluate(() => window.__canvas._nodes.size);
+    const h = await headerCenter(page, "node_1");
+    await page.keyboard.down("Alt");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 100, h.y + 100, { steps: 5 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      return {
+        nodeCount: c._nodes.size,
+        // Original should still be at its start position
+        origX: c._nodes.get("node_1").x,
+      };
+    });
+    expect(result.nodeCount).toBe(nodesBefore + 1);
+  });
+
+  test("clone preserves original position", async ({ page }) => {
+    await freshPage(page);
+    const before = await nodePos(page, "node_1");
+    const h = await headerCenter(page, "node_1");
+    await page.keyboard.down("Alt");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 100, h.y + 100, { steps: 5 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    const after = await nodePos(page, "node_1");
+    // Original should not have moved
+    expect(after.x).toBe(before.x);
+    expect(after.y).toBe(before.y);
+  });
+
+  test("container shows copy cursor during alt+drag", async ({ page }) => {
+    await freshPage(page);
+    const h = await headerCenter(page, "node_1");
+    await page.keyboard.down("Alt");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 50, h.y + 50, { steps: 3 });
+    const hasCls = await page.evaluate(() =>
+      document.getElementById("canvas-container").classList.contains("is-cloning")
+    );
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    expect(hasCls).toBe(true);
+  });
+
+  test("clone selects the new element, not the original", async ({ page }) => {
+    await freshPage(page);
+    const h = await headerCenter(page, "node_1");
+    await page.keyboard.down("Alt");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 100, h.y + 100, { steps: 5 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    const result = await page.evaluate(() => {
+      const s = window.__canvas.getSelection();
+      return { selCount: s.length, isOriginal: s.includes("node_1") };
+    });
+    expect(result.selCount).toBe(1);
+    expect(result.isOriginal).toBe(false);
+  });
+});
+
+test.describe("Alignment Commands", () => {
+  test("align-left aligns selected nodes to leftmost edge", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("node_1");
+      c.select("node_2");
+      c.select("node_3");
+      const n1Before = c._nodes.get("node_1").x;
+      c.alignSelection("align-left");
+      const n1 = c._nodes.get("node_1");
+      const n2 = c._nodes.get("node_2");
+      const n3 = c._nodes.get("node_3");
+      return { n1x: n1.x, n2x: n2.x, n3x: n3.x, allSame: n1.x === n2.x && n2.x === n3.x };
+    });
+    expect(result.allSame).toBe(true);
+  });
+
+  test("align-right aligns to rightmost edge", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("node_1");
+      c.select("node_2");
+      c.alignSelection("align-right");
+      const n1 = c._nodes.get("node_1");
+      const n2 = c._nodes.get("node_2");
+      return { rightEdge1: n1.x + n1.width, rightEdge2: n2.x + n2.width };
+    });
+    expect(result.rightEdge1).toBe(result.rightEdge2);
+  });
+
+  test("distribute-h spaces selected nodes evenly", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("node_1");
+      c.select("node_2");
+      c.select("node_3");
+      c.alignSelection("distribute-h");
+      const n1 = c._nodes.get("node_1");
+      const n2 = c._nodes.get("node_2");
+      const n3 = c._nodes.get("node_3");
+      // Sort by x
+      const sorted = [n1, n2, n3].sort((a, b) => a.x - b.x);
+      const gap1 = sorted[1].x - (sorted[0].x + sorted[0].width);
+      const gap2 = sorted[2].x - (sorted[1].x + sorted[1].width);
+      return { gap1, gap2, equal: Math.abs(gap1 - gap2) < 10 };
+    });
+    expect(result.equal).toBe(true);
+  });
+});

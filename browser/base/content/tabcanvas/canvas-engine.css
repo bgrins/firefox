@@ -11,21 +11,42 @@
   outline: none;
 }
 
-.infinite-canvas.space-held {
+.infinite-canvas.space-held,
+.infinite-canvas[data-tool="hand"] {
   cursor: grab;
+}
+
+.infinite-canvas[data-tool="frame"],
+.infinite-canvas[data-tool="node"] {
+  cursor: crosshair;
 }
 
 .infinite-canvas.is-panning {
   cursor: grabbing;
 }
 
-/* Dot grid background */
+.infinite-canvas.is-dragging {
+  cursor: grabbing;
+}
+
+/* Alt-held and active cloning: Figma-style duplicate cursor (two overlapping arrows) */
+.infinite-canvas.alt-held,
+.infinite-canvas.alt-held .infinite-canvas-node,
+.infinite-canvas.alt-held .infinite-canvas-node-header,
+.infinite-canvas.alt-held .infinite-canvas-frame-label,
+.infinite-canvas.is-cloning,
+.infinite-canvas.is-cloning * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M5 2l10 10-3.5 1 1.5 5-2.5.8-1.5-5L5.5 16z' fill='%23fff' stroke='%23000' stroke-width='1'/%3E%3Cpath d='M11 6l10 10-3.5 1 1.5 5-2.5.8-1.5-5-3.5 1.2z' fill='%23fff' stroke='%23000' stroke-width='1' opacity='.6'/%3E%3C/svg%3E") 5 2, copy !important;
+}
+
+/* Dot grid background - tracks pan/zoom via CSS custom properties */
 .infinite-canvas::before {
   content: "";
   position: absolute;
   inset: 0;
   background-image: radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px);
-  background-size: 30px 30px;
+  background-size: calc(30px * var(--canvas-zoom, 1)) calc(30px * var(--canvas-zoom, 1));
+  background-position: calc(var(--canvas-pan-x, 0) * 1px) calc(var(--canvas-pan-y, 0) * 1px);
   pointer-events: none;
   z-index: 0;
 }
@@ -39,18 +60,42 @@
   z-index: 1;
 }
 
+/* ---- Snap Guides ---- */
+.infinite-canvas-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.infinite-canvas-snap-guide {
+  position: absolute;
+  background: #ff3366;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
 /* ---- Nodes ---- */
 .infinite-canvas-node {
   position: absolute;
+  left: 0;
+  top: 0;
   background: var(--node-bg, #16213e);
   border-radius: 10px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
   user-select: none;
   overflow: hidden;
   border: 2px solid transparent;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow 0.15s ease, border-color 0.1s ease;
   display: flex;
   flex-direction: column;
+  will-change: transform;
+}
+
+/* Suppress transitions during active interactions */
+.is-interacting .infinite-canvas-node,
+.is-interacting .infinite-canvas-frame {
+  transition: none !important;
 }
 
 .infinite-canvas-node:hover {
@@ -74,7 +119,7 @@
   flex-shrink: 0;
 }
 
-.infinite-canvas-node-header:active {
+.is-dragging .infinite-canvas-node-header {
   cursor: grabbing;
 }
 
@@ -99,16 +144,27 @@
 /* ---- Frames ---- */
 .infinite-canvas-frame {
   position: absolute;
+  left: 0;
+  top: 0;
   border: 2px dashed rgba(255,255,255,0.2);
   border-radius: 8px;
   background: rgba(255,255,255,0.02);
   user-select: none;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  will-change: transform;
 }
 
 .infinite-canvas-frame.selected {
   border-color: #0a84ff;
   border-style: solid;
   background: rgba(10,132,255,0.05);
+}
+
+.infinite-canvas-frame.drop-target {
+  border-color: #00cc66;
+  border-style: solid;
+  background: rgba(0,204,102,0.08);
+  box-shadow: 0 0 0 2px rgba(0,204,102,0.3);
 }
 
 .infinite-canvas-frame-label {
@@ -124,12 +180,16 @@
   border-radius: 4px;
 }
 
-.infinite-canvas-frame-label:active {
+.is-dragging .infinite-canvas-frame-label {
   cursor: grabbing;
 }
 
 .infinite-canvas-frame.selected .infinite-canvas-frame-label {
   color: #0a84ff;
+}
+
+.infinite-canvas-frame.drop-target .infinite-canvas-frame-label {
+  color: #00cc66;
 }
 
 /* ---- Resize Handles ---- */
@@ -148,7 +208,6 @@
   display: block;
 }
 
-/* Corner handles */
 .infinite-canvas-resize-handle[data-position="nw"] {
   top: -4px; left: -4px; cursor: nw-resize;
 }
@@ -161,8 +220,6 @@
 .infinite-canvas-resize-handle[data-position="sw"] {
   bottom: -4px; left: -4px; cursor: sw-resize;
 }
-
-/* Edge handles */
 .infinite-canvas-resize-handle[data-position="n"] {
   top: -4px; left: 50%; transform: translateX(-50%); cursor: n-resize;
 }
@@ -195,4 +252,92 @@
   font-family: system-ui, sans-serif;
   z-index: 100;
   pointer-events: none;
+}
+
+/* ---- Group Color Indicator on Nodes ---- */
+.infinite-canvas-node[data-frame-id] {
+  border-left: 4px solid var(--group-color, transparent);
+}
+
+/* ---- Context Menu ---- */
+.infinite-canvas-context-menu {
+  position: absolute;
+  background: #222;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 160px;
+  z-index: 10000;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+}
+
+.infinite-canvas-context-menu-item {
+  padding: 6px 16px;
+  color: #ddd;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.infinite-canvas-context-menu-item:hover {
+  background: #0a84ff;
+  color: #fff;
+}
+
+.infinite-canvas-context-menu-separator {
+  height: 1px;
+  background: #444;
+  margin: 4px 8px;
+}
+
+/* ---- Minimap ---- */
+.infinite-canvas-minimap {
+  position: absolute;
+  bottom: 40px;
+  right: 16px;
+  width: 170px;
+  height: 120px;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid #444;
+  border-radius: 6px;
+  z-index: 200;
+  overflow: hidden;
+}
+
+.infinite-canvas-minimap-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.infinite-canvas-minimap-dot {
+  position: absolute;
+  background: rgba(255,255,255,0.3);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.infinite-canvas-minimap-viewport {
+  position: absolute;
+  border: 1px solid #0a84ff;
+  background: rgba(10,132,255,0.1);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* ---- Frame Label Input ---- */
+.infinite-canvas-frame-label-input {
+  position: absolute;
+  top: -26px;
+  left: -2px;
+  font-size: 12px;
+  font-family: system-ui, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  border: 1px solid #0a84ff;
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+  min-width: 80px;
 }
