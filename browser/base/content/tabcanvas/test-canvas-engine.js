@@ -37,6 +37,14 @@ async function zoomLevel(page) {
   return page.evaluate(() => window.__canvas.zoom);
 }
 
+// Select a single node directly via API, bypassing group selection logic
+async function selectNode(page, id) {
+  await page.evaluate(nid => {
+    window.__canvas.deselectAll();
+    window.__canvas.select(nid);
+  }, id);
+}
+
 async function headerCenter(page, nodeId) {
   return page.evaluate(nid => {
     const h = document.querySelector(`[data-id="${nid}"] .infinite-canvas-node-header`);
@@ -125,8 +133,24 @@ test.describe("Initialization", () => {
 });
 
 test.describe("Selection", () => {
-  test("click on node selects it", async ({ page }) => {
+  test("click on grouped node selects its group", async ({ page }) => {
     await freshPage(page);
+    const c = await nodeCenter(page, "node_3");
+    await page.mouse.click(c.x, c.y);
+    const s = await sel(page);
+    expect(s).toContain("group_1");
+    expect(s).toContain("node_3");
+    expect(s.length).toBe(5); // group + 4 children
+  });
+
+  test("click on ungrouped node selects only it", async ({ page }) => {
+    await freshPage(page);
+    // Remove node_3 from its group
+    await page.evaluate(() => {
+      const n = window.__canvas._nodes.get("node_3");
+      n.frameId = null;
+      window.__canvas._updateNodeGroupVisual(n);
+    });
     const c = await nodeCenter(page, "node_3");
     await page.mouse.click(c.x, c.y);
     const s = await sel(page);
@@ -140,25 +164,28 @@ test.describe("Selection", () => {
     expect(await sel(page)).toContain("node_2");
   });
 
-  test("shift+click adds to selection", async ({ page }) => {
+  test("shift+click adds group to selection", async ({ page }) => {
     await freshPage(page);
+    // Click node_1 (selects group_1 + children = 5)
     const c1 = await nodeCenter(page, "node_1");
-    const c2 = await nodeCenter(page, "node_2");
     await page.mouse.click(c1.x, c1.y);
+    expect((await sel(page)).length).toBe(5);
+    // Shift+click node_5 (in group_2 - should add group_2 + children)
+    const c5 = await nodeCenter(page, "node_5");
     await page.keyboard.down("Shift");
-    await page.mouse.click(c2.x, c2.y);
+    await page.mouse.click(c5.x, c5.y);
     await page.keyboard.up("Shift");
     const s = await sel(page);
-    expect(s).toContain("node_1");
-    expect(s).toContain("node_2");
-    expect(s.length).toBe(2);
+    expect(s).toContain("group_1");
+    expect(s).toContain("group_2");
+    expect(s.length).toBe(10); // both groups + all 8 children
   });
 
   test("click on empty canvas deselects all", async ({ page }) => {
     await freshPage(page);
     const c = await nodeCenter(page, "node_1");
     await page.mouse.click(c.x, c.y);
-    expect((await sel(page)).length).toBe(1);
+    expect((await sel(page)).length).toBeGreaterThan(0);
     const e = await emptyPoint(page);
     await page.mouse.click(e.x, e.y);
     expect((await sel(page)).length).toBe(0);
@@ -168,7 +195,7 @@ test.describe("Selection", () => {
     await freshPage(page);
     const c = await nodeCenter(page, "node_1");
     await page.mouse.click(c.x, c.y);
-    expect((await sel(page)).length).toBe(1);
+    expect((await sel(page)).length).toBeGreaterThan(0);
     await page.keyboard.press("Escape");
     expect((await sel(page)).length).toBe(0);
   });
@@ -439,6 +466,8 @@ test.describe("Pan and Zoom", () => {
     await page.keyboard.press("ControlOrMeta+0");
     expect(await zoomLevel(page)).toBe(1);
     await page.keyboard.press("ControlOrMeta+1");
+    // Wait for animation to complete
+    await page.waitForTimeout(300);
     expect(await zoomLevel(page)).not.toBe(1);
   });
 
@@ -506,6 +535,7 @@ test.describe("Tab Groups", () => {
 
   test("drop node into group assigns it with highlight", async ({ page }) => {
     await freshPage(page);
+    await selectNode(page, "node_8");
     const h8 = await headerCenter(page, "node_8");
     const g1 = await page.evaluate(() => {
       const f = window.__canvas._frames.get("group_1");
@@ -555,13 +585,12 @@ test.describe("Delete", () => {
 
   test("Delete removes multiple selected", async ({ page }) => {
     await freshPage(page);
-    const c1 = await nodeCenter(page, "node_1");
-    const c2 = await nodeCenter(page, "node_2");
-    await page.mouse.click(c1.x, c1.y);
-    await page.keyboard.down("Shift");
-    await page.mouse.click(c2.x, c2.y);
-    await page.keyboard.up("Shift");
+    await selectNode(page, "node_1");
+    await page.evaluate(() => window.__canvas.select("node_2"));
     expect((await sel(page)).length).toBe(2);
+    await page.evaluate(() =>
+      document.getElementById("canvas-container").focus()
+    );
     await page.keyboard.press("Delete");
     expect(await page.evaluate(() => window.__canvas._nodes.has("node_1"))).toBe(false);
     expect(await page.evaluate(() => window.__canvas._nodes.has("node_2"))).toBe(false);
@@ -577,7 +606,7 @@ test.describe("Double Click", () => {
       window.__canvas.on("node-dblclick", d => { window.__dblclicked = d.id; });
     });
     const c = await nodeCenter(page, "node_4");
-    // Two quick clicks = double-click (our engine detects this internally)
+    // Two quick clicks: first selects group, second drills into node_4 and fires dblclick
     await page.mouse.click(c.x, c.y);
     await page.mouse.click(c.x, c.y);
     expect(await page.evaluate(() => window.__dblclicked)).toBe("node_4");
@@ -625,12 +654,8 @@ test.describe("Zoom Clamping", () => {
 test.describe("Multi-Selection Drag", () => {
   test("dragging with multiple selected moves all", async ({ page }) => {
     await freshPage(page);
-    const c1 = await nodeCenter(page, "node_1");
-    const c2 = await nodeCenter(page, "node_2");
-    await page.mouse.click(c1.x, c1.y);
-    await page.keyboard.down("Shift");
-    await page.mouse.click(c2.x, c2.y);
-    await page.keyboard.up("Shift");
+    await selectNode(page, "node_1");
+    await page.evaluate(() => window.__canvas.select("node_2"));
     expect((await sel(page)).length).toBe(2);
 
     const b1 = await nodePos(page, "node_1");
@@ -659,9 +684,11 @@ test.describe("Node Leaving Frame", () => {
     const before = await nodePos(page, "node_1");
     expect(before.frame).toBe("group_1");
 
-    // Select node_1 and nudge it far away
-    const c = await nodeCenter(page, "node_1");
-    await page.mouse.click(c.x, c.y);
+    // Select node_1 via API to avoid group selection
+    await selectNode(page, "node_1");
+    await page.evaluate(() =>
+      document.getElementById("canvas-container").focus()
+    );
     for (let i = 0; i < 50; i++) {
       await page.keyboard.press("Shift+ArrowRight");
     }
@@ -1213,14 +1240,14 @@ test.describe("Phase 3b: Undo/Redo", () => {
 test.describe("Phase 3c: Zoom-to-selection and Positioning API", () => {
   test("fitSelection zooms to selected items", async ({ page }) => {
     await freshPage(page);
-    const result = await page.evaluate(() => {
+    await page.evaluate(() => {
       const c = window.__canvas;
       c.deselectAll();
       c.select("node_1");
-      const zoomBefore = c._zoom;
-      c.fitSelection();
-      const zoomAfter = c._zoom;
-      return { zoomBefore, zoomAfter, changed: zoomBefore !== zoomAfter };
+      c.fitSelection(false); // no animation for test
+    });
+    const result = await page.evaluate(() => {
+      return { changed: window.__canvas._zoom !== 1 };
     });
     expect(result.changed).toBe(true);
   });
@@ -1780,6 +1807,7 @@ test.describe("Drawing Tools", () => {
 test.describe("Alt+Drag Clone", () => {
   test("alt+drag clones a node", async ({ page }) => {
     await freshPage(page);
+    await selectNode(page, "node_1");
     const nodesBefore = await page.evaluate(() => window.__canvas._nodes.size);
     const h = await headerCenter(page, "node_1");
     await page.keyboard.down("Alt");
@@ -1792,7 +1820,6 @@ test.describe("Alt+Drag Clone", () => {
       const c = window.__canvas;
       return {
         nodeCount: c._nodes.size,
-        // Original should still be at its start position
         origX: c._nodes.get("node_1").x,
       };
     });
@@ -1832,6 +1859,7 @@ test.describe("Alt+Drag Clone", () => {
 
   test("clone selects the new element, not the original", async ({ page }) => {
     await freshPage(page);
+    await selectNode(page, "node_1");
     const h = await headerCenter(page, "node_1");
     await page.keyboard.down("Alt");
     await page.mouse.move(h.x, h.y);
@@ -1911,9 +1939,8 @@ test.describe("Alignment Commands", () => {
 test.describe("Multi-Selection Improvements", () => {
   test("shift+click on group label selects group and all children", async ({ page }) => {
     await freshPage(page);
-    // First select something else
-    const n5 = await nodeCenter(page, "node_5");
-    await page.mouse.click(n5.x, n5.y);
+    // First select a single node via API to avoid group selection
+    await selectNode(page, "node_5");
     expect((await sel(page)).length).toBe(1);
     // Shift+click group_1 label
     const lbl = await frameLabelCenter(page, "group_1");
@@ -1944,8 +1971,10 @@ test.describe("Multi-Selection Improvements", () => {
 test.describe("Ctrl+D Duplicate", () => {
   test("duplicates selected node in place with offset", async ({ page }) => {
     await freshPage(page);
-    const c = await nodeCenter(page, "node_1");
-    await page.mouse.click(c.x, c.y);
+    await selectNode(page, "node_1");
+    await page.evaluate(() =>
+      document.getElementById("canvas-container").focus()
+    );
     const before = await page.evaluate(() => window.__canvas._nodes.size);
     await page.keyboard.press("ControlOrMeta+d");
     const result = await page.evaluate(() => {
@@ -1996,5 +2025,288 @@ test.describe("Ctrl+G Group Selected", () => {
     });
     expect(result.frames).toBe(framesBefore + 1);
     expect(result.sameGroup).toBe(true);
+  });
+});
+
+test.describe("Click-into-Group (Figma nested selection)", () => {
+  test("first click on group selects group + children", async ({ page }) => {
+    await freshPage(page);
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    const s = await sel(page);
+    expect(s).toContain("group_1");
+    expect(s).toContain("node_1");
+    expect(s.length).toBe(5); // group + 4 children
+  });
+
+  test("clicking a child node inside an already-selected group drills into that child", async ({ page }) => {
+    await freshPage(page);
+    // First click: select the group
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    expect(await sel(page)).toContain("group_1");
+    // Second click: click on node_2 which is inside the already-selected group
+    const n2 = await nodeCenter(page, "node_2");
+    await page.mouse.click(n2.x, n2.y);
+    const s = await sel(page);
+    // Should now be ONLY node_2 - drilled into the group
+    expect(s).toEqual(["node_2"]);
+  });
+
+  test("clicking a child node outside a selected group does normal selection", async ({ page }) => {
+    await freshPage(page);
+    // Select group_1
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    // Click on node_5 which is in group_2 (NOT in the selected group)
+    const n5 = await nodeCenter(page, "node_5");
+    await page.mouse.click(n5.x, n5.y);
+    const s = await sel(page);
+    // Should select group_2 + all its children (normal group selection)
+    expect(s).toContain("group_2");
+    expect(s).toContain("node_5");
+    expect(s).not.toContain("group_1");
+  });
+
+  test("clicking group label when already drilled into a child re-selects the group", async ({ page }) => {
+    await freshPage(page);
+    // Select group, then drill into node_1
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    const n1 = await nodeCenter(page, "node_1");
+    await page.mouse.click(n1.x, n1.y);
+    expect(await sel(page)).toEqual(["node_1"]);
+    // Click group label again - should re-select the whole group
+    const lbl2 = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl2.x, lbl2.y);
+    const s = await sel(page);
+    expect(s).toContain("group_1");
+    expect(s.length).toBe(5);
+  });
+
+  test("dragging a drilled-into child moves only that child", async ({ page }) => {
+    await freshPage(page);
+    // Select group, drill into node_1
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    const n1 = await nodeCenter(page, "node_1");
+    await page.mouse.click(n1.x, n1.y);
+    expect(await sel(page)).toEqual(["node_1"]);
+    // Drag node_1 - only node_1 should move, not the whole group
+    const before2 = await nodePos(page, "node_2");
+    const h = await headerCenter(page, "node_1");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 60, h.y + 40, { steps: 5 });
+    await page.mouse.up();
+    const after2 = await nodePos(page, "node_2");
+    // node_2 should NOT have moved (it's not selected)
+    expect(after2.x).toBe(before2.x);
+    expect(after2.y).toBe(before2.y);
+  });
+});
+
+test.describe("Edge Auto-Pan", () => {
+  test("dragging to right edge pans the canvas", async ({ page }) => {
+    await freshPage(page);
+    await selectNode(page, "node_1");
+    const before = await page.evaluate(() => window.__canvas._panX);
+    const h = await headerCenter(page, "node_1");
+    const bounds = await page.evaluate(() => {
+      const r = document.getElementById("canvas-container").getBoundingClientRect();
+      return { right: r.right, top: r.top, height: r.height };
+    });
+    // Drag to the right edge and hold for a moment
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(bounds.right - 10, bounds.top + bounds.height / 2, { steps: 5 });
+    // Wait for auto-pan to kick in
+    await page.waitForTimeout(200);
+    await page.mouse.up();
+    const after = await page.evaluate(() => window.__canvas._panX);
+    expect(after).toBeLessThan(before); // panned left (canvas moved to show right)
+  });
+
+  test("auto-pan stops when pointer leaves edge zone", async ({ page }) => {
+    await freshPage(page);
+    await selectNode(page, "node_1");
+    const h = await headerCenter(page, "node_1");
+    const bounds = await page.evaluate(() => {
+      const r = document.getElementById("canvas-container").getBoundingClientRect();
+      return { right: r.right, left: r.left, top: r.top, height: r.height, width: r.width };
+    });
+    // Drag to edge, then move back to center
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(bounds.right - 10, bounds.top + bounds.height / 2, { steps: 3 });
+    await page.waitForTimeout(100);
+    // Move back to center
+    await page.mouse.move(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2, { steps: 3 });
+    const panAfterCenter = await page.evaluate(() => window.__canvas._panX);
+    await page.waitForTimeout(200);
+    const panLater = await page.evaluate(() => window.__canvas._panX);
+    await page.mouse.up();
+    // Pan should have stopped once pointer left the edge zone
+    expect(panLater).toBe(panAfterCenter);
+  });
+});
+
+test.describe("Shift+Resize Aspect Ratio Lock", () => {
+  test("shift+drag SE handle preserves aspect ratio", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const node = c._nodes.get("node_1");
+      c.deselectAll();
+      c.select("node_1");
+      const ratio = node.width / node.height;
+      c._resizeTarget = "node_1";
+      c._resizeHandle = "se";
+      c._resizeStartRect = { x: node.x, y: node.y, width: node.width, height: node.height };
+      c._pointerStartX = 0;
+      c._pointerStartY = 0;
+      c._state = InfiniteCanvas.STATE_RESIZING;
+      // Resize with shift held (asymmetric drag - width grows more than height)
+      c._doResize({ clientX: 100, clientY: 30, shiftKey: true });
+      const newRatio = node.width / node.height;
+      return { origRatio: ratio, newRatio, ratioPreserved: Math.abs(newRatio - ratio) < 0.1 };
+    });
+    expect(result.ratioPreserved).toBe(true);
+  });
+});
+
+test.describe("Visual Polish", () => {
+  test("grid dots have zoom-dependent opacity", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const el = document.getElementById("canvas-container");
+      const style = getComputedStyle(el);
+      return {
+        hasGridOpacity: style.getPropertyValue("--grid-opacity") !== "",
+      };
+    });
+    expect(result.hasGridOpacity).toBe(true);
+  });
+});
+
+// ==================================================================
+// Interaction Audit Fixes
+// ==================================================================
+
+test.describe("Resize Containment", () => {
+  test("resizing a node into a frame parents it", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      // Create an ungrouped node near group_1
+      const frame = c._frames.get("group_1");
+      c.addNode("resize_test", { x: frame.x + frame.width + 100, y: frame.y + 50, width: 100, height: 80 });
+      // Resize it so its center lands inside the frame (grow left)
+      c._resizeTarget = "resize_test";
+      c._resizeHandle = "w";
+      const n = c._nodes.get("resize_test");
+      c._resizeStartRect = { x: n.x, y: n.y, width: n.width, height: n.height };
+      c._pointerStartX = 0;
+      c._pointerStartY = 0;
+      c._state = InfiniteCanvas.STATE_RESIZING;
+      c._doResize({ clientX: -200, clientY: 0, shiftKey: false });
+      c._endResize({ pointerId: 1 });
+      return { frameId: c._nodes.get("resize_test").frameId };
+    });
+    expect(result.frameId).toBe("group_1");
+  });
+});
+
+test.describe("Undo Restores Frame Membership", () => {
+  test("undoing a move into a frame restores original frameId", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const n1 = c._nodes.get("node_1");
+      const origFrame = n1.frameId; // "group_1"
+      c.deselectAll();
+      c.select("node_1");
+      // Include startFrameId in the drag target (as _startDrag does)
+      c._dragTargets = [{ id: "node_1", startX: n1.x, startY: n1.y, startFrameId: n1.frameId }];
+      c._dragDidMove = true;
+      c._isCloning = false;
+      c._pointerStartX = 0;
+      c._pointerStartY = 0;
+      c._dragStartPanX = c._panX;
+      c._dragStartPanY = c._panY;
+      c._dragStartZoom = c._zoom;
+      c._cachedSnapTargets = [];
+      n1.x = 5000;
+      n1.y = 5000;
+      c._applyRect(n1.element, n1);
+      c._state = InfiniteCanvas.STATE_DRAGGING;
+      c._endDrag({ pointerId: 1, clientX: 0, clientY: 0 });
+      const afterDrag = n1.frameId;
+      c.undo();
+      const afterUndo = n1.frameId;
+      return { origFrame, afterDrag, afterUndo };
+    });
+    expect(result.origFrame).toBe("group_1");
+    expect(result.afterDrag).toBeNull();
+    expect(result.afterUndo).toBe("group_1");
+  });
+});
+
+test.describe("Frame Selection Visual", () => {
+  test("children do not show selection handles when frame is selected", async ({ page }) => {
+    await freshPage(page);
+    // Click to select group_1 (selects frame + children)
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    const result = await page.evaluate(() => {
+      const n1 = document.querySelector('[data-id="node_1"]');
+      const frame = document.querySelector('[data-id="group_1"]');
+      const n1Handles = n1.querySelectorAll(".infinite-canvas-resize-handle");
+      const frameHandles = frame.querySelectorAll(".infinite-canvas-resize-handle");
+      const n1HandlesVisible = [...n1Handles].some(h => getComputedStyle(h).display !== "none");
+      const frameHandlesVisible = [...frameHandles].some(h => getComputedStyle(h).display !== "none");
+      return { n1HandlesVisible, frameHandlesVisible };
+    });
+    // Frame handles should be visible, child handles should NOT
+    expect(result.frameHandlesVisible).toBe(true);
+    expect(result.n1HandlesVisible).toBe(false);
+  });
+});
+
+test.describe("Ctrl+D Containment", () => {
+  test("duplicating a node inside a frame parents the duplicate", async ({ page }) => {
+    await freshPage(page);
+    await selectNode(page, "node_1");
+    await page.evaluate(() => document.getElementById("canvas-container").focus());
+    await page.keyboard.press("ControlOrMeta+d");
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const sel = c.getSelection();
+      const cloneId = sel[0];
+      const clone = c._nodes.get(cloneId);
+      return { cloneFrame: clone?.frameId };
+    });
+    // node_1 is in group_1, so the duplicate (offset 16px) should also be in group_1
+    expect(result.cloneFrame).toBe("group_1");
+  });
+});
+
+test.describe("Drawing Node Inside Frame", () => {
+  test("node drawn inside a frame is parented to it", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const frame = c._frames.get("group_1");
+      // Use the engine API to add a node at a position inside the frame, then check containment
+      let id = "__drawn_node_test";
+      c.addNode(id, {
+        x: frame.x + 30, y: frame.y + 30,
+        width: 100, height: 80,
+        title: "Drawn Node",
+      });
+      c._checkFrameContainment(id);
+      return { frameId: c._nodes.get(id)?.frameId };
+    });
+    expect(result.frameId).toBe("group_1");
   });
 });

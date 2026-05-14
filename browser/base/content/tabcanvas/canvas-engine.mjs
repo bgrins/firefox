@@ -232,7 +232,7 @@ class InfiniteCanvas {
     this._updateTransform();
   }
 
-  fitAll() {
+  fitAll(animate = false) {
     let bounds = this._getAllBounds();
     if (!bounds) {
       return;
@@ -241,10 +241,17 @@ class InfiniteCanvas {
     let padding = 60;
     let scaleX = (containerRect.width - padding * 2) / bounds.width;
     let scaleY = (containerRect.height - padding * 2) / bounds.height;
-    this._zoom = Math.min(scaleX, scaleY, 1);
-    this._panX = (containerRect.width - bounds.width * this._zoom) / 2 - bounds.x * this._zoom;
-    this._panY = (containerRect.height - bounds.height * this._zoom) / 2 - bounds.y * this._zoom;
-    this._updateTransform();
+    let targetZoom = Math.min(scaleX, scaleY, 1);
+    let targetPanX = (containerRect.width - bounds.width * targetZoom) / 2 - bounds.x * targetZoom;
+    let targetPanY = (containerRect.height - bounds.height * targetZoom) / 2 - bounds.y * targetZoom;
+    if (animate) {
+      this._animateToView(targetPanX, targetPanY, targetZoom);
+    } else {
+      this._panX = targetPanX;
+      this._panY = targetPanY;
+      this._zoom = targetZoom;
+      this._updateTransform();
+    }
   }
 
   // ---- Public API: Selection ----
@@ -271,6 +278,7 @@ class InfiniteCanvas {
     if (this._selection.size === 0) {
       return;
     }
+    this._clearGroupChildSelected();
     for (let id of this._selection) {
       let item = this._nodes.get(id) || this._frames.get(id);
       if (item) {
@@ -294,7 +302,7 @@ class InfiniteCanvas {
     }
     let frames = [];
     for (let [, f] of this._frames) {
-      frames.push({ id: f.id, x: f.x, y: f.y, width: f.width, height: f.height, label: f.label });
+      frames.push({ id: f.id, x: f.x, y: f.y, width: f.width, height: f.height, label: f.label, color: f.color });
     }
     return {
       nodes,
@@ -317,7 +325,7 @@ class InfiniteCanvas {
 
     // Restore frames first (they go behind nodes)
     for (let f of data.frames) {
-      this.addFrame(f.id, { x: f.x, y: f.y, width: f.width, height: f.height, label: f.label });
+      this.addFrame(f.id, { x: f.x, y: f.y, width: f.width, height: f.height, label: f.label, color: f.color });
     }
     // Restore nodes
     for (let n of data.nodes) {
@@ -361,7 +369,7 @@ class InfiniteCanvas {
 
   // ---- Public API: Extended ----
 
-  fitSelection() {
+  fitSelection(animate = true) {
     let ids = [...this._selection];
     if (ids.length === 0) {
       return;
@@ -385,10 +393,17 @@ class InfiniteCanvas {
     let h = maxY - minY;
     let scaleX = (containerRect.width - padding * 2) / w;
     let scaleY = (containerRect.height - padding * 2) / h;
-    this._zoom = Math.min(scaleX, scaleY, 3);
-    this._panX = (containerRect.width - w * this._zoom) / 2 - minX * this._zoom;
-    this._panY = (containerRect.height - h * this._zoom) / 2 - minY * this._zoom;
-    this._updateTransform();
+    let targetZoom = Math.min(scaleX, scaleY, 3);
+    let targetPanX = (containerRect.width - w * targetZoom) / 2 - minX * targetZoom;
+    let targetPanY = (containerRect.height - h * targetZoom) / 2 - minY * targetZoom;
+    if (animate) {
+      this._animateToView(targetPanX, targetPanY, targetZoom);
+    } else {
+      this._panX = targetPanX;
+      this._panY = targetPanY;
+      this._zoom = targetZoom;
+      this._updateTransform();
+    }
   }
 
   setNodePosition(id, x, y) {
@@ -660,6 +675,11 @@ class InfiniteCanvas {
     this._guidesContainer.className = "infinite-canvas-guides";
     this._viewport.appendChild(this._guidesContainer);
 
+    this._tooltip = document.createElement("div");
+    this._tooltip.className = "infinite-canvas-tooltip";
+    this._tooltip.style.display = "none";
+    this._container.appendChild(this._tooltip);
+
     this._marqueeEl = document.createElement("div");
     this._marqueeEl.className = "infinite-canvas-marquee";
     this._marqueeEl.style.display = "none";
@@ -668,6 +688,10 @@ class InfiniteCanvas {
     this._zoomIndicator = document.createElement("div");
     this._zoomIndicator.className = "infinite-canvas-zoom-indicator";
     this._zoomIndicator.textContent = "100%";
+    this._zoomIndicator.addEventListener("click", () => {
+      let rect = this._container.getBoundingClientRect();
+      this.zoomTo(1, rect.width / 2, rect.height / 2);
+    });
     this._container.appendChild(this._zoomIndicator);
 
     this._updateTransform();
@@ -757,19 +781,8 @@ class InfiniteCanvas {
   // ---- Pointer Events ----
 
   _onPointerDown(event) {
-    let rect = this._container.getBoundingClientRect();
-    let canvasPos = this._screenToCanvas(event.clientX, event.clientY);
-    let itemEl = this._findItemElement(event.target);
-    console.log("[canvas pointerdown]",
-      "clientX:", event.clientX, "clientY:", event.clientY,
-      "rect.top:", rect.top, "rect.left:", rect.left,
-      "offsetInContainer:", { x: event.clientX - rect.left, y: event.clientY - rect.top },
-      "canvasPos:", canvasPos,
-      "target:", event.target.className,
-      "itemEl:", itemEl?.className,
-      "zoom:", this._zoom, "panX:", this._panX, "panY:", this._panY
-    );
     this._container.focus();
+    let itemEl = this._findItemElement(event.target);
 
     let resizeHandle = event.target.closest(".infinite-canvas-resize-handle");
     if (resizeHandle && this._state === InfiniteCanvas.STATE_IDLE) {
@@ -890,18 +903,28 @@ class InfiniteCanvas {
 
   _startDrag(event, itemEl) {
     let id = itemEl.dataset.id;
+    this._dragClickedId = id; // Track what was actually clicked for dblclick detection
     if (!this._selection.has(id)) {
       if (!event.shiftKey) {
         this.deselectAll();
       }
-      this.select(id);
-      // Selecting a frame also selects all its children
-      if (this._frames.has(id)) {
-        for (let [childId, child] of this._nodes) {
-          if (child.frameId === id) {
-            this.select(childId);
-          }
-        }
+      // If clicking a node that belongs to a group, select the group + children
+      // (first-level selection). If clicking a frame label, same behavior.
+      let node = this._nodes.get(id);
+      if (node && node.frameId && this._frames.has(node.frameId)) {
+        this._selectFrameWithChildren(node.frameId);
+      } else if (this._frames.has(id)) {
+        this._selectFrameWithChildren(id);
+      } else {
+        this.select(id);
+      }
+    } else if (this._nodes.has(id) && !event.shiftKey) {
+      // Click-into-group: if this node is already selected as part of a group
+      // selection (its parent frame is also selected), drill into just this node.
+      let node = this._nodes.get(id);
+      if (node.frameId && this._selection.has(node.frameId)) {
+        this.deselectAll();
+        this.select(id);
       }
     }
 
@@ -919,7 +942,8 @@ class InfiniteCanvas {
     for (let selId of this._selection) {
       let item = this._nodes.get(selId) || this._frames.get(selId);
       if (item) {
-        this._dragTargets.push({ id: selId, startX: item.x, startY: item.y });
+        let node = this._nodes.get(selId);
+        this._dragTargets.push({ id: selId, startX: item.x, startY: item.y, startFrameId: node?.frameId ?? null });
       }
     }
 
@@ -1075,6 +1099,59 @@ class InfiniteCanvas {
         this._highlightDropFrame(primary);
       }
     }
+
+    // Edge auto-pan: start/stop based on pointer position
+    this._lastDragEvent = event;
+    this._updateEdgeAutoPan(event);
+  }
+
+  _updateEdgeAutoPan(event) {
+    let rect = this._container.getBoundingClientRect();
+    let edgeZone = 40;
+    let relX = event.clientX - rect.left;
+    let relY = event.clientY - rect.top;
+    let needsPan = relX < edgeZone || relX > rect.width - edgeZone ||
+                   relY < edgeZone || relY > rect.height - edgeZone;
+
+    if (needsPan && !this._autoPanRAF) {
+      this._autoPanRAF = requestAnimationFrame(() => this._doEdgeAutoPan());
+    } else if (!needsPan && this._autoPanRAF) {
+      cancelAnimationFrame(this._autoPanRAF);
+      this._autoPanRAF = null;
+    }
+  }
+
+  _doEdgeAutoPan() {
+    this._autoPanRAF = null;
+    if (this._state !== InfiniteCanvas.STATE_DRAGGING || !this._lastDragEvent) {
+      return;
+    }
+    let rect = this._container.getBoundingClientRect();
+    let edgeZone = 40;
+    let speed = 6;
+    let e = this._lastDragEvent;
+    let relX = e.clientX - rect.left;
+    let relY = e.clientY - rect.top;
+    let dx = 0, dy = 0;
+
+    if (relX < edgeZone) {
+      dx = speed * (1 - relX / edgeZone);
+    } else if (relX > rect.width - edgeZone) {
+      dx = -speed * (1 - (rect.width - relX) / edgeZone);
+    }
+    if (relY < edgeZone) {
+      dy = speed * (1 - relY / edgeZone);
+    } else if (relY > rect.height - edgeZone) {
+      dy = -speed * (1 - (rect.height - relY) / edgeZone);
+    }
+
+    if (dx || dy) {
+      this._panX += dx;
+      this._panY += dy;
+      this._updateTransform();
+      // Continue the loop
+      this._autoPanRAF = requestAnimationFrame(() => this._doEdgeAutoPan());
+    }
   }
 
   _endDrag(event) {
@@ -1082,6 +1159,11 @@ class InfiniteCanvas {
     try { this._container.releasePointerCapture(event.pointerId); } catch (e) {}
     this._container.classList.remove("is-dragging");
     this._container.classList.remove("is-interacting");
+    if (this._autoPanRAF) {
+      cancelAnimationFrame(this._autoPanRAF);
+      this._autoPanRAF = null;
+    }
+    this._lastDragEvent = null;
     this._container.classList.remove("is-cloning");
     this._clearSnapGuides();
     this._clearDropFrameHighlight();
@@ -1132,6 +1214,12 @@ class InfiniteCanvas {
         }
         cloneIds.push(cloneId);
       }
+      // Check if cloned nodes landed inside a group
+      for (let id of cloneIds) {
+        if (this._nodes.has(id)) {
+          this._checkFrameContainment(id);
+        }
+      }
       this.deselectAll();
       for (let id of cloneIds) {
         this.select(id);
@@ -1161,13 +1249,19 @@ class InfiniteCanvas {
     }
 
     if (this._dragDidMove) {
-      // Push undo command for the move
-      let moves = this._dragTargets.map(t => ({
-        id: t.id,
-        fromX: t.startX, fromY: t.startY,
-        toX: (this._nodes.get(t.id) || this._frames.get(t.id))?.x ?? t.startX,
-        toY: (this._nodes.get(t.id) || this._frames.get(t.id))?.y ?? t.startY,
-      }));
+      // Push undo command for the move (captures position + frameId)
+      let moves = this._dragTargets.map(t => {
+        let item = this._nodes.get(t.id) || this._frames.get(t.id);
+        let node = this._nodes.get(t.id);
+        return {
+          id: t.id,
+          fromX: t.startX, fromY: t.startY,
+          fromFrameId: t.startFrameId ?? null,
+          toX: item?.x ?? t.startX,
+          toY: item?.y ?? t.startY,
+          toFrameId: node?.frameId ?? null,
+        };
+      });
       this._pushCommand({
         undo: () => {
           for (let m of moves) {
@@ -1176,6 +1270,10 @@ class InfiniteCanvas {
               item.x = m.fromX;
               item.y = m.fromY;
               this._applyRect(item.element, item);
+              if (this._nodes.has(m.id)) {
+                this._nodes.get(m.id).frameId = m.fromFrameId;
+                this._updateNodeGroupVisual(this._nodes.get(m.id));
+              }
             }
           }
         },
@@ -1186,6 +1284,10 @@ class InfiniteCanvas {
               item.x = m.toX;
               item.y = m.toY;
               this._applyRect(item.element, item);
+              if (this._nodes.has(m.id)) {
+                this._nodes.get(m.id).frameId = m.toFrameId;
+                this._updateNodeGroupVisual(this._nodes.get(m.id));
+              }
             }
           }
         },
@@ -1216,11 +1318,12 @@ class InfiniteCanvas {
       }
     } else if (this._dragTargets.length > 0) {
       // Was a click, not a drag. Emit node-click, and check for double-click.
-      let id = this._dragTargets[0].id;
+      // Use _dragClickedId (what was actually clicked) for dblclick detection,
+      // since drill-into-group may have changed the drag target.
+      let id = this._dragClickedId || this._dragTargets[0].id;
       let now = Date.now();
       if (this._lastClickId === id && now - this._lastClickTime < 400) {
         this._emit("node-dblclick", { id });
-        // Auto-start label editing for frames on double-click
         if (this._frames.has(id)) {
           this.startEditingFrameLabel(id);
         }
@@ -1283,6 +1386,25 @@ class InfiniteCanvas {
       r.height -= dy;
     }
 
+    // Shift = lock aspect ratio
+    if (event.shiftKey) {
+      let origRatio = this._resizeStartRect.width / this._resizeStartRect.height;
+      let currentRatio = r.width / r.height;
+      if (currentRatio > origRatio) {
+        // Width grew more - constrain width to match height
+        r.width = r.height * origRatio;
+        if (h.includes("w")) {
+          r.x = this._resizeStartRect.x + this._resizeStartRect.width - r.width;
+        }
+      } else {
+        // Height grew more - constrain height to match width
+        r.height = r.width / origRatio;
+        if (h.includes("n")) {
+          r.y = this._resizeStartRect.y + this._resizeStartRect.height - r.height;
+        }
+      }
+    }
+
     // Clamp to minimum size, adjusting origin for NW/W/N handles so node
     // does not teleport when clamped.
     if (r.width < InfiniteCanvas.MIN_NODE_WIDTH) {
@@ -1310,17 +1432,29 @@ class InfiniteCanvas {
     item.width = r.width;
     item.height = r.height;
     this._applyRect(item.element, item);
+
+    // Show dimensions tooltip near cursor
+    let rect = this._container.getBoundingClientRect();
+    this._tooltip.textContent = `${Math.round(r.width)} x ${Math.round(r.height)}`;
+    this._tooltip.style.display = "block";
+    this._tooltip.style.left = (event.clientX - rect.left + 12) + "px";
+    this._tooltip.style.top = (event.clientY - rect.top + 12) + "px";
   }
 
   _endResize(event) {
     this._state = InfiniteCanvas.STATE_IDLE;
     try { this._container.releasePointerCapture(event.pointerId); } catch (e) {}
     this._container.classList.remove("is-interacting");
-    let item = this._nodes.get(this._resizeTarget) || this._frames.get(this._resizeTarget);
+    this._tooltip.style.display = "none";
+    let id = this._resizeTarget;
+    let item = this._nodes.get(id) || this._frames.get(id);
     if (item) {
+      // Check containment after resize
+      if (this._nodes.has(id)) {
+        this._checkFrameContainment(id);
+      }
       this._emit("node-resize", {
-        id: this._resizeTarget,
-        x: item.x, y: item.y, width: item.width, height: item.height,
+        id, x: item.x, y: item.y, width: item.width, height: item.height,
       });
     }
     this._resizeTarget = null;
@@ -1444,6 +1578,7 @@ class InfiniteCanvas {
     } else if (this._drawTool === "node") {
       let id = "__node_" + (this._nextId++);
       this.addNode(id, { x: x1, y: y1, width: w, height: h, title: "New Tab" });
+      this._checkFrameContainment(id);
       this.deselectAll();
       this.select(id);
     }
@@ -1577,6 +1712,7 @@ class InfiniteCanvas {
             width: item.width, height: item.height,
             title: item.title, color: item.color, headerColor: item.headerColor,
           });
+          this._checkFrameContainment(cloneId);
         } else if (this._frames.has(id)) {
           this.addFrame(cloneId, {
             x: item.x + offset, y: item.y + offset,
@@ -1709,8 +1845,28 @@ class InfiniteCanvas {
       return;
     }
     if ((event.ctrlKey || event.metaKey) && event.key === "1") {
-      this.fitAll();
+      this.fitAll(true);
       event.preventDefault();
+      return;
+    }
+
+    // Tab = cycle selection through nodes
+    if (event.key === "Tab") {
+      event.preventDefault();
+      let nodeIds = [...this._nodes.keys()];
+      if (nodeIds.length === 0) {
+        return;
+      }
+      let currentSel = [...this._selection];
+      let currentIdx = -1;
+      if (currentSel.length === 1 && this._nodes.has(currentSel[0])) {
+        currentIdx = nodeIds.indexOf(currentSel[0]);
+      }
+      let nextIdx = event.shiftKey
+        ? (currentIdx <= 0 ? nodeIds.length - 1 : currentIdx - 1)
+        : (currentIdx + 1) % nodeIds.length;
+      this.deselectAll();
+      this.select(nodeIds[nextIdx]);
       return;
     }
 
@@ -1862,10 +2018,13 @@ class InfiniteCanvas {
         ];
       } else {
         items = [
+          { label: "Duplicate", action: "duplicate", shortcut: "Ctrl+D" },
+          { label: "Group Selection", action: "group", shortcut: "Ctrl+G" },
+          { label: "---" },
           { label: "Bring to Front", action: "bring-to-front" },
           { label: "Send to Back", action: "send-to-back" },
           { label: "---" },
-          { label: "Delete", action: "delete" },
+          { label: "Delete", action: "delete", shortcut: "Del" },
         ];
       }
     } else {
@@ -1897,8 +2056,16 @@ class InfiniteCanvas {
       }
       let el = document.createElement("div");
       el.className = "infinite-canvas-context-menu-item";
-      el.textContent = item.label;
       el.dataset.action = item.action;
+      let labelSpan = document.createElement("span");
+      labelSpan.textContent = item.label;
+      el.appendChild(labelSpan);
+      if (item.shortcut) {
+        let shortcutSpan = document.createElement("span");
+        shortcutSpan.className = "infinite-canvas-context-menu-shortcut";
+        shortcutSpan.textContent = item.shortcut;
+        el.appendChild(shortcutSpan);
+      }
       el.addEventListener("click", e => {
         e.stopPropagation();
         this._executeContextAction(item.action, targetId, item);
@@ -1971,7 +2138,15 @@ class InfiniteCanvas {
         this.activeTool = "frame";
         break;
       case "fit-all":
-        this.fitAll();
+        this.fitAll(true);
+        break;
+      case "duplicate":
+        // Simulate Ctrl+D
+        this._onKeyDown({ key: "d", ctrlKey: true, metaKey: false, shiftKey: false, preventDefault() {}, stopPropagation() {} });
+        break;
+      case "group":
+        // Simulate Ctrl+G
+        this._onKeyDown({ key: "g", ctrlKey: true, metaKey: false, shiftKey: false, preventDefault() {}, stopPropagation() {} });
         break;
     }
   }
@@ -1983,9 +2158,44 @@ class InfiniteCanvas {
       let frame = this._frames.get(node.frameId);
       node.element.dataset.frameId = node.frameId;
       node.element.style.setProperty("--group-color", frame ? frame.color : "");
+      this._updateFrameLabelCount(node.frameId);
     } else {
       delete node.element.dataset.frameId;
       node.element.style.removeProperty("--group-color");
+    }
+  }
+
+  _updateFrameLabelCount(frameId) {
+    let frame = this._frames.get(frameId);
+    if (!frame) {
+      return;
+    }
+    let count = this.getFrameChildren(frameId).length;
+    let labelEl = frame.element.querySelector(".infinite-canvas-frame-label");
+    if (labelEl) {
+      let countSpan = labelEl.querySelector(".infinite-canvas-frame-count");
+      if (!countSpan) {
+        countSpan = document.createElement("span");
+        countSpan.className = "infinite-canvas-frame-count";
+        labelEl.appendChild(countSpan);
+      }
+      countSpan.textContent = count > 0 ? ` (${count})` : "";
+    }
+  }
+
+  _selectFrameWithChildren(frameId) {
+    this.select(frameId);
+    for (let [childId, child] of this._nodes) {
+      if (child.frameId === frameId) {
+        this.select(childId);
+        child.element.classList.add("group-child-selected");
+      }
+    }
+  }
+
+  _clearGroupChildSelected() {
+    for (let el of this._container.querySelectorAll(".group-child-selected")) {
+      el.classList.remove("group-child-selected");
     }
   }
 
@@ -2029,7 +2239,36 @@ class InfiniteCanvas {
     this._container.style.setProperty("--canvas-pan-x", this._panX);
     this._container.style.setProperty("--canvas-pan-y", this._panY);
     this._container.style.setProperty("--canvas-zoom", this._zoom);
+    // Grid opacity: dim at low zoom, normal at 1x, intensify at high zoom
+    let gridOpacity = Math.min(Math.max(this._zoom * 0.6, 0.03), 0.15);
+    this._container.style.setProperty("--grid-opacity", gridOpacity);
     this._emit("view-change", { panX: this._panX, panY: this._panY, zoom: this._zoom });
+  }
+
+  _animateToView(targetPanX, targetPanY, targetZoom, duration = 250) {
+    if (this._viewAnimation) {
+      cancelAnimationFrame(this._viewAnimation);
+    }
+    let startPanX = this._panX;
+    let startPanY = this._panY;
+    let startZoom = this._zoom;
+    let startTime = performance.now();
+
+    let step = (now) => {
+      let t = Math.min((now - startTime) / duration, 1);
+      // Ease-out cubic
+      let ease = 1 - Math.pow(1 - t, 3);
+      this._panX = startPanX + (targetPanX - startPanX) * ease;
+      this._panY = startPanY + (targetPanY - startPanY) * ease;
+      this._zoom = startZoom + (targetZoom - startZoom) * ease;
+      this._updateTransform();
+      if (t < 1) {
+        this._viewAnimation = requestAnimationFrame(step);
+      } else {
+        this._viewAnimation = null;
+      }
+    };
+    this._viewAnimation = requestAnimationFrame(step);
   }
 
   _updateSelectionVisuals() {

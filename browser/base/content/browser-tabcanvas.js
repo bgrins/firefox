@@ -13,7 +13,8 @@ var { CanvasToolbar } = ChromeUtils.importESModule(
 
 /**
  * TabCanvas - Browser chrome adapter for InfiniteCanvas.
- * Connects gBrowser tabs to canvas nodes with live browser content overlays.
+ * Connects gBrowser tabs to canvas nodes with live browser content overlays,
+ * SessionStore persistence, and bidirectional tab group mapping.
  */
 var TabCanvas = {
   _overlay: null,
@@ -21,15 +22,37 @@ var TabCanvas = {
   _active: false,
   _initialized: false,
 
-  // Map tab -> canvas node id
+  // Tab <-> canvas node ID mappings
   _tabToId: new WeakMap(),
   _idToTab: new Map(),
 
-  // Header height in canvas-space pixels (padding 8+8 + 16 min-height)
+  // Stable ID generation via permanentKey
+  _tabKeys: new WeakMap(),
+  _nextKeyId: 0,
+
+  // Tab group <-> canvas frame bidirectional mapping
+  _canvasToTabGroup: new Map(),
+  _tabGroupToCanvas: new Map(),
+
+  // Re-entrancy guard for bidirectional sync
+  _syncing: false,
+
+  // Header height in canvas-space pixels
   _HEADER_HEIGHT: 32,
+
+  // Persistence
+  _saveTimer: null,
 
   get active() {
     return this._active;
+  },
+
+  _getTabId(tab) {
+    let key = tab.permanentKey;
+    if (!this._tabKeys.has(key)) {
+      this._tabKeys.set(key, "tab_" + (this._nextKeyId++));
+    }
+    return this._tabKeys.get(key);
   },
 
   init() {
@@ -46,6 +69,8 @@ var TabCanvas = {
       this._canvas,
       document.getElementById("tab-canvas-toolbar")
     );
+
+    // --- Canvas event handlers ---
 
     this._canvas.on("node-dblclick", ({ id }) => {
       let tab = this._idToTab.get(id);
@@ -82,21 +107,41 @@ var TabCanvas = {
       if (this._active) {
         this._updateAllBrowserOverlays();
       }
+      this._scheduleSave();
     });
 
     this._canvas.on("node-resize", () => {
       if (this._active) {
         this._updateAllBrowserOverlays();
       }
+      this._scheduleSave();
     });
+
+    this._canvas.on("frame-create", ({ id }) => {
+      this._scheduleSave();
+      this._onCanvasFrameCreate(id);
+    });
+
+    this._canvas.on("frame-label-change", ({ id }) => {
+      this._scheduleSave();
+      this._onCanvasFrameLabelChange(id);
+    });
+
+    // --- Tab event handlers ---
 
     gBrowser.tabContainer.addEventListener("TabOpen", this);
     gBrowser.tabContainer.addEventListener("TabClose", this);
     gBrowser.tabContainer.addEventListener("TabAttrModified", this);
     gBrowser.tabContainer.addEventListener("TabSelect", this);
+    gBrowser.tabContainer.addEventListener("TabPinned", this);
+    gBrowser.tabContainer.addEventListener("TabUnpinned", this);
+    gBrowser.tabContainer.addEventListener("TabGroupCreate", this);
+    gBrowser.tabContainer.addEventListener("TabGroupRemoved", this);
+    gBrowser.tabContainer.addEventListener("TabGroupUpdate", this);
 
     // Capture phase to intercept before XUL key handlers
     document.addEventListener("keydown", this, true);
+    window.addEventListener("resize", this);
   },
 
   handleEvent(event) {
@@ -116,8 +161,26 @@ var TabCanvas = {
       case "TabSelect":
         this._onTabSelect(event);
         break;
+      case "TabPinned":
+      case "TabUnpinned":
+        this._onTabPinChange(event);
+        break;
+      case "TabGroupCreate":
+        this._onBrowserTabGroupCreate(event);
+        break;
+      case "TabGroupRemoved":
+        this._onBrowserTabGroupRemoved(event);
+        break;
+      case "TabGroupUpdate":
+        this._onBrowserTabGroupUpdate(event);
+        break;
+      case "resize":
+        this._onWindowResize();
+        break;
     }
   },
+
+  // --- Show / Hide ---
 
   toggle() {
     if (this._active) {
@@ -142,8 +205,14 @@ var TabCanvas = {
       .setAttribute("tabcanvas-active", "true");
 
     if (!this._initialized) {
-      this._buildNodes();
-      this._canvas.fitAll();
+      let saved = this._loadSavedLayout();
+      if (saved) {
+        this._restoreLayout(saved);
+      } else {
+        this._buildNodes();
+        this._syncTabGroups();
+        this._canvas.fitAll();
+      }
       this._initialized = true;
     } else {
       this._syncNodes();
@@ -153,14 +222,6 @@ var TabCanvas = {
     this._updateAllBrowserOverlays();
   },
 
-  _captureAllThumbnails() {
-    for (let [id, tab] of this._idToTab) {
-      if (tab !== gBrowser.selectedTab) {
-        this._captureThumbnail(tab, id);
-      }
-    }
-  },
-
   hide() {
     this._active = false;
     this._overlay.removeAttribute("active");
@@ -168,7 +229,135 @@ var TabCanvas = {
       .removeAttribute("tabcanvas-active");
     this._clearAllBrowserOverlays();
     this._fixedOffset = null;
+    this._save();
   },
+
+  // --- Persistence ---
+
+  _scheduleSave() {
+    clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => this._save(), 500);
+  },
+
+  _save() {
+    if (!this._initialized) {
+      return;
+    }
+    let data = this._canvas.toJSON();
+    data.tabMap = {};
+    for (let [id, tab] of this._idToTab) {
+      data.tabMap[id] = {
+        url: tab.linkedBrowser?.currentURI?.spec || "",
+        title: tab.label || "",
+      };
+    }
+    data.groupMap = {};
+    for (let [canvasId, groupId] of this._canvasToTabGroup) {
+      data.groupMap[canvasId] = groupId;
+    }
+    try {
+      SessionStore.setCustomWindowValue(
+        window, "tabCanvasLayout", JSON.stringify(data)
+      );
+    } catch (e) {
+      // SessionStore not ready yet
+    }
+  },
+
+  _loadSavedLayout() {
+    try {
+      let saved = SessionStore.getCustomWindowValue(window, "tabCanvasLayout");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      // SessionStore not ready or parse error
+    }
+    return null;
+  },
+
+  _restoreLayout(data) {
+    this._canvas.fromJSON(data);
+
+    // Match saved nodes to current tabs by URL/title
+    let currentTabs = Array.from(gBrowser.tabs);
+    let unmatched = new Set(currentTabs);
+    let tabMap = data.tabMap || {};
+
+    for (let savedNode of data.nodes) {
+      let saved = tabMap[savedNode.id];
+      if (!saved) {
+        continue;
+      }
+      // Find best matching tab
+      let bestTab = null;
+      let bestScore = 0;
+      for (let tab of unmatched) {
+        let url = tab.linkedBrowser?.currentURI?.spec || "";
+        let title = tab.label || "";
+        let score = 0;
+        if (url === saved.url && url !== "about:blank") {
+          score += 10;
+        }
+        if (title === saved.title && title !== "New Tab") {
+          score += 5;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          bestTab = tab;
+        }
+      }
+      if (bestTab && bestScore > 0) {
+        let id = this._getTabId(bestTab);
+        // Remap if the saved ID doesn't match the new stable ID
+        if (id !== savedNode.id) {
+          let nodeObj = this._canvas.getNode(savedNode.id);
+          if (nodeObj) {
+            this._canvas.removeNode(savedNode.id);
+            this._canvas.addNode(id, {
+              x: savedNode.x, y: savedNode.y,
+              width: savedNode.width, height: savedNode.height,
+              title: bestTab.label || "New Tab",
+              headerContent: this._buildHeader(bestTab),
+            });
+            let newNode = this._canvas.getNode(id);
+            if (newNode && savedNode.frameId) {
+              newNode.frameId = savedNode.frameId;
+              this._canvas._updateNodeGroupVisual(newNode);
+            }
+          }
+        } else {
+          this._updateTabHeader(bestTab, id);
+        }
+        this._tabToId.set(bestTab, id);
+        this._idToTab.set(id, bestTab);
+        unmatched.delete(bestTab);
+      }
+    }
+
+    // Remove orphaned canvas nodes (no matching tab)
+    for (let savedNode of data.nodes) {
+      if (!this._idToTab.has(savedNode.id)) {
+        this._canvas.removeNode(savedNode.id);
+      }
+    }
+
+    // Add unmatched tabs as new nodes
+    for (let tab of unmatched) {
+      let pos = this._findEmptyPosition();
+      this._addTabNode(tab, 0, 4, pos.x, pos.y);
+    }
+
+    // Restore group mappings
+    if (data.groupMap) {
+      for (let [canvasId, groupId] of Object.entries(data.groupMap)) {
+        this._canvasToTabGroup.set(canvasId, groupId);
+        this._tabGroupToCanvas.set(groupId, canvasId);
+      }
+    }
+  },
+
+  // --- Node Management ---
 
   _buildNodes() {
     for (let [id] of this._idToTab) {
@@ -179,7 +368,9 @@ var TabCanvas = {
     let tabs = gBrowser.tabs;
     let cols = 4;
     for (let i = 0; i < tabs.length; i++) {
-      this._addTabNode(tabs[i], i, cols);
+      let col = i % cols;
+      let row = Math.floor(i / cols);
+      this._addTabNode(tabs[i], i, cols, col * 320, row * 252);
     }
   },
 
@@ -196,12 +387,10 @@ var TabCanvas = {
       }
     }
 
-    let cols = 4;
-    let existingCount = this._idToTab.size;
     for (let tab of currentTabs) {
       if (!knownTabs.has(tab)) {
-        this._addTabNode(tab, existingCount, cols);
-        existingCount++;
+        let pos = this._findEmptyPosition();
+        this._addTabNode(tab, 0, 4, pos.x, pos.y);
       }
     }
 
@@ -216,31 +405,68 @@ var TabCanvas = {
     }
   },
 
-  _addTabNode(tab, index, cols = 4) {
-    let id = "tab_" + (tab.linkedPanel || index);
-    let col = index % cols;
-    let row = Math.floor(index / cols);
+  _addTabNode(tab, index, cols = 4, x = null, y = null) {
+    let id = this._getTabId(tab);
+    if (x === null) {
+      let col = index % cols;
+      let row = Math.floor(index / cols);
+      x = col * 320;
+      y = row * 252;
+    }
 
     this._tabToId.set(tab, id);
     this._idToTab.set(id, tab);
 
-    this._canvas.addNode(id, {
-      x: col * 320,
-      y: row * 252,
-      width: 280,
-      height: 212,
+    let nodeOpts = {
+      x, y,
+      width: tab.pinned ? 160 : 280,
+      height: tab.pinned ? 120 : 212,
       title: tab.label || "New Tab",
       headerContent: this._buildHeader(tab),
-    });
+    };
+
+    this._canvas.addNode(id, nodeOpts);
+
+    // Apply container tab color
+    if (tab.userContextId) {
+      let identity = ContextualIdentityService.getPublicIdentityFromId(
+        tab.userContextId
+      );
+      if (identity?.color) {
+        let colorMap = {
+          blue: "#0a84ff", turquoise: "#00c8d7", green: "#44b700",
+          yellow: "#ffbd4f", orange: "#ff9400", red: "#ff0039",
+          pink: "#ff2a8a", purple: "#9400ff",
+        };
+        let c = colorMap[identity.color] || "#666";
+        this._canvas.setNodeColor(id, null, c);
+      }
+    }
 
     if (tab === gBrowser.selectedTab) {
       this._canvas.select(id);
     }
   },
 
+  _findEmptyPosition() {
+    let bounds = this._canvas._getAllBounds();
+    if (!bounds) {
+      return { x: 0, y: 0 };
+    }
+    return { x: bounds.x, y: bounds.y + bounds.height + 40 };
+  },
+
   _buildHeader(tab) {
     let header = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
     header.style.cssText = "display:flex;align-items:center;gap:8px;width:100%";
+
+    if (tab.pinned) {
+      let pin = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+      pin.style.cssText = "width:12px;height:12px;flex-shrink:0";
+      pin.src = "chrome://global/skin/icons/pin-12.svg";
+      pin.draggable = false;
+      header.appendChild(pin);
+    }
 
     let favicon = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
     favicon.style.cssText = "width:16px;height:16px;flex-shrink:0";
@@ -263,6 +489,16 @@ var TabCanvas = {
     });
   },
 
+  // --- Browser Overlays (live content for selected tab) ---
+
+  _captureAllThumbnails() {
+    for (let [id, tab] of this._idToTab) {
+      if (tab !== gBrowser.selectedTab) {
+        this._captureThumbnail(tab, id);
+      }
+    }
+  },
+
   _updateAllBrowserOverlays() {
     let browserW = this._browserNativeWidth;
     let browserH = this._browserNativeHeight;
@@ -278,7 +514,6 @@ var TabCanvas = {
       let stack = browser?.closest(".browserStack");
 
       if (tab === selectedTab && stack) {
-        // Live browser overlay for selected tab
         let bodyEl = node.element?.querySelector(".infinite-canvas-node-body");
         if (!bodyEl) {
           continue;
@@ -314,7 +549,6 @@ var TabCanvas = {
         browser.style.transform = `scale(${scaleFactor})`;
         browser.style.transformOrigin = "0 0";
       } else {
-        // Non-selected tabs use thumbnails (captured in show/_captureAllThumbnails)
         if (stack) {
           this._clearBrowserOverlay(stack, browser);
         }
@@ -326,6 +560,9 @@ var TabCanvas = {
     try {
       let browser = tab.linkedBrowser;
       if (!browser?.browsingContext?.currentWindowGlobal) {
+        return;
+      }
+      if (tab.getAttribute("pending")) {
         return;
       }
 
@@ -376,8 +613,178 @@ var TabCanvas = {
     }
   },
 
+  // --- Tab Group Bidirectional Sync ---
+
+  _withSync(fn) {
+    if (this._syncing) {
+      return;
+    }
+    this._syncing = true;
+    try {
+      fn();
+    } finally {
+      this._syncing = false;
+    }
+  },
+
+  _syncTabGroups() {
+    for (let group of gBrowser.tabGroups) {
+      this._importBrowserTabGroup(group);
+    }
+  },
+
+  _importBrowserTabGroup(group) {
+    if (this._tabGroupToCanvas.has(group.id)) {
+      return;
+    }
+    let groupTabs = group.tabs;
+    if (!groupTabs.length) {
+      return;
+    }
+
+    // Find bounding box of member tabs on canvas
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (let tab of groupTabs) {
+      let id = this._tabToId.get(tab);
+      if (!id) {
+        continue;
+      }
+      let pos = this._canvas.getNodePosition(id);
+      if (!pos) {
+        continue;
+      }
+      minX = Math.min(minX, pos.x);
+      minY = Math.min(minY, pos.y);
+      maxX = Math.max(maxX, pos.x + pos.width);
+      maxY = Math.max(maxY, pos.y + pos.height);
+    }
+
+    if (!isFinite(minX)) {
+      return;
+    }
+
+    let pad = 24;
+    let frameId = "__group_" + group.id;
+    let colorMap = {
+      blue: "#0a84ff", purple: "#9400ff", cyan: "#00c8d7",
+      orange: "#ff9400", yellow: "#ffbd4f", pink: "#ff2a8a",
+      green: "#44b700", gray: "#666", red: "#ff0039",
+    };
+
+    this._canvas.addFrame(frameId, {
+      x: minX - pad,
+      y: minY - pad - 24,
+      width: maxX - minX + pad * 2,
+      height: maxY - minY + pad * 2 + 24,
+      label: group.label || "Group",
+      color: colorMap[group.color] || null,
+    });
+
+    // Assign tabs to frame
+    for (let tab of groupTabs) {
+      let id = this._tabToId.get(tab);
+      if (!id) {
+        continue;
+      }
+      let node = this._canvas.getNode(id);
+      if (node) {
+        node.frameId = frameId;
+        this._canvas._updateNodeGroupVisual(node);
+      }
+    }
+
+    this._canvasToTabGroup.set(frameId, group.id);
+    this._tabGroupToCanvas.set(group.id, frameId);
+  },
+
+  // Canvas frame created -> create browser tab group
+  _onCanvasFrameCreate(frameId) {
+    this._withSync(() => {
+      if (this._canvasToTabGroup.has(frameId)) {
+        return;
+      }
+      let children = this._canvas.getFrameChildren(frameId);
+      let tabs = children
+        .map(id => this._idToTab.get(id))
+        .filter(t => t && !t.pinned);
+      if (!tabs.length) {
+        return;
+      }
+      let frame = this._canvas._frames.get(frameId);
+      let group = gBrowser.addTabGroup(tabs, {
+        label: frame?.label || "Group",
+      });
+      if (group) {
+        this._canvasToTabGroup.set(frameId, group.id);
+        this._tabGroupToCanvas.set(group.id, frameId);
+      }
+    });
+  },
+
+  // Canvas frame label changed -> update browser tab group
+  _onCanvasFrameLabelChange(frameId) {
+    this._withSync(() => {
+      let groupId = this._canvasToTabGroup.get(frameId);
+      if (!groupId) {
+        return;
+      }
+      let group = gBrowser.getTabGroupById(groupId);
+      if (!group) {
+        return;
+      }
+      let frame = this._canvas._frames.get(frameId);
+      if (frame) {
+        group.label = frame.label;
+      }
+    });
+  },
+
+  // Browser tab group created -> create canvas frame
+  _onBrowserTabGroupCreate(event) {
+    this._withSync(() => {
+      let group = event.target;
+      if (this._tabGroupToCanvas.has(group.id)) {
+        return;
+      }
+      if (!this._initialized) {
+        return;
+      }
+      this._importBrowserTabGroup(group);
+      this._scheduleSave();
+    });
+  },
+
+  // Browser tab group removed -> remove canvas frame
+  _onBrowserTabGroupRemoved(event) {
+    this._withSync(() => {
+      let group = event.target;
+      let frameId = this._tabGroupToCanvas.get(group.id);
+      if (!frameId) {
+        return;
+      }
+      this._canvas.removeFrame(frameId);
+      this._canvasToTabGroup.delete(frameId);
+      this._tabGroupToCanvas.delete(group.id);
+      this._scheduleSave();
+    });
+  },
+
+  // Browser tab group updated -> update canvas frame
+  _onBrowserTabGroupUpdate(event) {
+    this._withSync(() => {
+      let group = event.target;
+      let frameId = this._tabGroupToCanvas.get(group.id);
+      if (!frameId) {
+        return;
+      }
+      this._canvas.updateFrame(frameId, { label: group.label });
+      this._scheduleSave();
+    });
+  },
+
+  // --- Tab Event Handlers ---
+
   _onKeyDown(event) {
-    // Ctrl/Cmd+I to toggle (takes over Page Info shortcut)
     if (
       event.key === "i" &&
       !event.shiftKey &&
@@ -390,9 +797,15 @@ var TabCanvas = {
     }
 
     if (this._active) {
-      // Prevent default browser shortcuts but let the event propagate
-      // to the canvas engine's keydown handler
-      if (!event.ctrlKey && !event.metaKey) {
+      // Only prevent default for keys the canvas engine handles,
+      // so F5, F12, url bar typing, etc. still work
+      let canvasKeys = [
+        "h", "v", "f", "t", " ",
+        "Delete", "Backspace",
+        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+        "Escape",
+      ];
+      if (!event.ctrlKey && !event.metaKey && canvasKeys.includes(event.key)) {
         event.preventDefault();
       }
     }
@@ -403,9 +816,10 @@ var TabCanvas = {
       return;
     }
     let tab = event.target;
-    let index = Array.from(gBrowser.tabs).indexOf(tab);
-    this._addTabNode(tab, index);
+    let pos = this._findEmptyPosition();
+    this._addTabNode(tab, 0, 4, pos.x, pos.y);
     this._updateAllBrowserOverlays();
+    this._scheduleSave();
   },
 
   _onTabClose(event) {
@@ -419,6 +833,7 @@ var TabCanvas = {
       this._clearAllBrowserOverlays();
       this._updateAllBrowserOverlays();
     }
+    this._scheduleSave();
   },
 
   _onTabAttrModified(event) {
@@ -438,6 +853,46 @@ var TabCanvas = {
       return;
     }
     this.hide();
+  },
+
+  _onTabPinChange(event) {
+    let tab = event.target;
+    let id = this._tabToId.get(tab);
+    if (!id) {
+      return;
+    }
+    this._updateTabHeader(tab, id);
+    // Resize node for pinned/unpinned state
+    let pos = this._canvas.getNodePosition(id);
+    if (pos) {
+      let newW = tab.pinned ? 160 : 280;
+      let newH = tab.pinned ? 120 : 212;
+      if (pos.width !== newW || pos.height !== newH) {
+        let node = this._canvas.getNode(id);
+        if (node) {
+          node.width = newW;
+          node.height = newH;
+          this._canvas._applyRect(node.element, node);
+        }
+      }
+    }
+    this._scheduleSave();
+  },
+
+  _onWindowResize() {
+    if (!this._active) {
+      return;
+    }
+    let selectedStack = gBrowser.selectedBrowser?.closest(".browserStack");
+    if (selectedStack) {
+      // Clear overlay first so we measure native dimensions
+      let browser = gBrowser.selectedBrowser;
+      this._clearBrowserOverlay(selectedStack, browser);
+      this._browserNativeWidth = selectedStack.clientWidth || 1;
+      this._browserNativeHeight = selectedStack.clientHeight || 1;
+    }
+    this._fixedOffset = null;
+    this._updateAllBrowserOverlays();
   },
 };
 

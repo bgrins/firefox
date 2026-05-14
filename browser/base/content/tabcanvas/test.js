@@ -31,7 +31,7 @@ window.SnapManager = SnapManager;
   function addMockNode(x, y, title) {
     let id = "node_" + (++nodeCount);
     let c = colors[nodeCount % colors.length];
-    canvas.addNode(id, {
+    let node = canvas.addNode(id, {
       x, y,
       width: 280,
       height: 212,
@@ -39,6 +39,15 @@ window.SnapManager = SnapManager;
       color: c.bg,
       headerColor: c.header,
     });
+    // Add placeholder content to the body
+    let body = node.element.querySelector(".infinite-canvas-node-body");
+    if (body) {
+      body.style.background = `linear-gradient(135deg, ${c.bg} 0%, ${c.header} 100%)`;
+      let placeholder = document.createElement("div");
+      placeholder.style.cssText = "padding:12px;color:rgba(255,255,255,0.2);font-size:40px;font-family:system-ui;text-align:center;line-height:140px";
+      placeholder.textContent = "\uD83C\uDF10"; // globe emoji as placeholder
+      body.appendChild(placeholder);
+    }
     return id;
   }
 

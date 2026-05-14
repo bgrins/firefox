@@ -44,7 +44,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(255,255,255, var(--grid-opacity, 0.08)) 1px, transparent 1px);
   background-size: calc(30px * var(--canvas-zoom, 1)) calc(30px * var(--canvas-zoom, 1));
   background-position: calc(var(--canvas-pan-x, 0) * 1px) calc(var(--canvas-pan-y, 0) * 1px);
   pointer-events: none;
@@ -100,6 +100,15 @@
 
 .infinite-canvas-node:hover {
   box-shadow: 0 6px 28px rgba(0,0,0,0.5);
+  border-color: rgba(10,132,255,0.4);
+}
+
+.infinite-canvas-node:hover:not(.selected) {
+  border-color: rgba(10,132,255,0.4);
+}
+
+.infinite-canvas-frame:hover:not(.selected):not(.drop-target) {
+  border-color: rgba(10,132,255,0.3);
 }
 
 .infinite-canvas-node.selected {
@@ -184,6 +193,11 @@
   cursor: grabbing;
 }
 
+.infinite-canvas-frame-count {
+  opacity: 0.6;
+  font-weight: normal;
+}
+
 .infinite-canvas-frame.selected .infinite-canvas-frame-label {
   color: #0a84ff;
 }
@@ -206,6 +220,17 @@
 
 .selected > .infinite-canvas-resize-handle {
   display: block;
+}
+
+/* When a node is selected as part of a group (implicit selection),
+   suppress individual selection borders and handles */
+.infinite-canvas-node.selected.group-child-selected {
+  border-color: transparent;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+.infinite-canvas-node.group-child-selected > .infinite-canvas-resize-handle {
+  display: none !important;
 }
 
 .infinite-canvas-resize-handle[data-position="nw"] {
@@ -233,6 +258,20 @@
   top: 50%; left: -4px; transform: translateY(-50%); cursor: w-resize;
 }
 
+/* ---- Tooltip ---- */
+.infinite-canvas-tooltip {
+  position: absolute;
+  background: rgba(0,0,0,0.8);
+  color: #fff;
+  font-size: 11px;
+  font-family: system-ui, sans-serif;
+  padding: 3px 8px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 10000;
+  white-space: nowrap;
+}
+
 /* ---- Marquee Selection ---- */
 .infinite-canvas-marquee {
   position: absolute;
@@ -251,7 +290,15 @@
   font-size: 12px;
   font-family: system-ui, sans-serif;
   z-index: 100;
-  pointer-events: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.infinite-canvas-zoom-indicator:hover {
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.8);
 }
 
 /* ---- Group Color Indicator on Nodes ---- */
@@ -274,10 +321,19 @@
 }
 
 .infinite-canvas-context-menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
   padding: 6px 16px;
   color: #ddd;
   cursor: pointer;
   white-space: nowrap;
+}
+
+.infinite-canvas-context-menu-shortcut {
+  color: #888;
+  font-size: 11px;
 }
 
 .infinite-canvas-context-menu-item:hover {
