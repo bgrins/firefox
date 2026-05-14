@@ -2310,3 +2310,71 @@ test.describe("Drawing Node Inside Frame", () => {
     expect(result.frameId).toBe("group_1");
   });
 });
+
+test.describe("Escape Cancels Drag", () => {
+  test("pressing Escape mid-drag reverts node position", async ({ page }) => {
+    await freshPage(page);
+    await selectNode(page, "node_1");
+    const before = await nodePos(page, "node_1");
+    const h = await headerCenter(page, "node_1");
+    await page.mouse.move(h.x, h.y);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 200, h.y + 200, { steps: 5 });
+    // Press Escape mid-drag
+    await page.keyboard.press("Escape");
+    await page.mouse.up();
+    const after = await nodePos(page, "node_1");
+    expect(after.x).toBe(before.x);
+    expect(after.y).toBe(before.y);
+  });
+});
+
+test.describe("Frame Resize Unparents Children", () => {
+  test("shrinking a frame unparents children that fall outside", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const frame = c._frames.get("group_1");
+      const children = c.getFrameChildren("group_1");
+      let rightmostId = children[0];
+      let rightmostX = 0;
+      for (let id of children) {
+        let n = c._nodes.get(id);
+        if (n.x + n.width > rightmostX) {
+          rightmostX = n.x + n.width;
+          rightmostId = id;
+        }
+      }
+      const childBefore = c._nodes.get(rightmostId).frameId;
+      c._resizeTarget = "group_1";
+      c._resizeHandle = "e";
+      c._resizeStartRect = { x: frame.x, y: frame.y, width: frame.width, height: frame.height };
+      c._pointerStartX = 0;
+      c._pointerStartY = 0;
+      c._state = InfiniteCanvas.STATE_RESIZING;
+      let n = c._nodes.get(rightmostId);
+      let targetWidth = n.x - frame.x - 10;
+      c._doResize({ clientX: -(frame.width - targetWidth), clientY: 0, shiftKey: false });
+      c._endResize({ pointerId: 1 });
+      const childAfter = c._nodes.get(rightmostId).frameId;
+      return { childBefore, childAfter };
+    });
+    expect(result.childBefore).toBe("group_1");
+    expect(result.childAfter).toBeNull();
+  });
+});
+
+test.describe("Overlapping Frames Prefer Smallest", () => {
+  test("node dropped in overlap zone parents to smaller frame", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.addFrame("big_frame", { x: 2000, y: 2000, width: 600, height: 400, label: "Big" });
+      c.addFrame("small_frame", { x: 2100, y: 2100, width: 200, height: 150, label: "Small" });
+      c.addNode("overlap_node", { x: 2120, y: 2120, width: 80, height: 60 });
+      c._checkFrameContainment("overlap_node");
+      return { frameId: c._nodes.get("overlap_node").frameId };
+    });
+    expect(result.frameId).toBe("small_frame");
+  });
+});

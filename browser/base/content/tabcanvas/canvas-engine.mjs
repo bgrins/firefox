@@ -1449,9 +1449,22 @@ class InfiniteCanvas {
     let id = this._resizeTarget;
     let item = this._nodes.get(id) || this._frames.get(id);
     if (item) {
-      // Check containment after resize
       if (this._nodes.has(id)) {
         this._checkFrameContainment(id);
+      }
+      // If a frame was resized, check if any children are now outside
+      if (this._frames.has(id)) {
+        for (let [childId, child] of this._nodes) {
+          if (child.frameId === id) {
+            let cx = child.x + child.width / 2;
+            let cy = child.y + child.height / 2;
+            if (cx < item.x || cy < item.y ||
+                cx > item.x + item.width || cy > item.y + item.height) {
+              child.frameId = null;
+              this._updateNodeGroupVisual(child);
+            }
+          }
+        }
       }
       this._emit("node-resize", {
         id, x: item.x, y: item.y, width: item.width, height: item.height,
@@ -1624,6 +1637,54 @@ class InfiniteCanvas {
     }
 
     if (event.key === "Escape") {
+      // Cancel active drag/resize by reverting positions
+      if (this._state === InfiniteCanvas.STATE_DRAGGING && this._dragTargets) {
+        for (let target of this._dragTargets) {
+          let item = this._nodes.get(target.id) || this._frames.get(target.id);
+          if (item) {
+            item.x = target.startX;
+            item.y = target.startY;
+            this._applyRect(item.element, item);
+          }
+        }
+        // Also revert frame children if a frame was being dragged
+        // (they were moved incrementally during _doDrag)
+        this._state = InfiniteCanvas.STATE_IDLE;
+        this._container.classList.remove("is-dragging", "is-interacting", "is-cloning");
+        this._clearSnapGuides();
+        this._clearDropFrameHighlight();
+        if (this._cloneGhosts) {
+          for (let g of this._cloneGhosts) { g.ghost.remove(); }
+          this._cloneGhosts = [];
+        }
+        if (this._cloneChildGhosts) {
+          for (let cg of this._cloneChildGhosts) { cg.ghost.remove(); }
+          this._cloneChildGhosts = [];
+        }
+        if (this._autoPanRAF) {
+          cancelAnimationFrame(this._autoPanRAF);
+          this._autoPanRAF = null;
+        }
+        this._dragTargets = [];
+        event.preventDefault();
+        return;
+      }
+      if (this._state === InfiniteCanvas.STATE_RESIZING && this._resizeStartRect) {
+        let item = this._nodes.get(this._resizeTarget) || this._frames.get(this._resizeTarget);
+        if (item) {
+          item.x = this._resizeStartRect.x;
+          item.y = this._resizeStartRect.y;
+          item.width = this._resizeStartRect.width;
+          item.height = this._resizeStartRect.height;
+          this._applyRect(item.element, item);
+        }
+        this._state = InfiniteCanvas.STATE_IDLE;
+        this._container.classList.remove("is-interacting");
+        this._tooltip.style.display = "none";
+        this._resizeTarget = null;
+        event.preventDefault();
+        return;
+      }
       if (this._selection.size > 0) {
         this.deselectAll();
       }
@@ -1970,6 +2031,8 @@ class InfiniteCanvas {
     }
     let cx = item.x + item.width / 2;
     let cy = item.y + item.height / 2;
+    let bestFrame = null;
+    let bestArea = Infinity;
     for (let [, frame] of this._frames) {
       if (this._selection.has(frame.id)) {
         continue;
@@ -1978,9 +2041,15 @@ class InfiniteCanvas {
         cx >= frame.x && cy >= frame.y &&
         cx <= frame.x + frame.width && cy <= frame.y + frame.height
       ) {
-        frame.element.classList.add("drop-target");
-        return;
+        let area = frame.width * frame.height;
+        if (area < bestArea) {
+          bestArea = area;
+          bestFrame = frame;
+        }
       }
+    }
+    if (bestFrame) {
+      bestFrame.element.classList.add("drop-target");
     }
   }
 
@@ -2330,6 +2399,8 @@ class InfiniteCanvas {
 
     let cx = node.x + node.width / 2;
     let cy = node.y + node.height / 2;
+    let bestFrameId = null;
+    let bestArea = Infinity;
     for (let [frameId, frame] of this._frames) {
       if (
         cx >= frame.x &&
@@ -2337,13 +2408,20 @@ class InfiniteCanvas {
         cx <= frame.x + frame.width &&
         cy <= frame.y + frame.height
       ) {
-        node.frameId = frameId;
-        this._updateNodeGroupVisual(node);
-        if (autoResize) {
-          this._autoExpandFrame(frameId);
+        let area = frame.width * frame.height;
+        if (area < bestArea) {
+          bestArea = area;
+          bestFrameId = frameId;
         }
-        return;
       }
+    }
+    if (bestFrameId) {
+      node.frameId = bestFrameId;
+      this._updateNodeGroupVisual(node);
+      if (autoResize) {
+        this._autoExpandFrame(bestFrameId);
+      }
+      return;
     }
 
     this._updateNodeGroupVisual(node);
