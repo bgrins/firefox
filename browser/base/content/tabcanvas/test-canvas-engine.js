@@ -1491,51 +1491,6 @@ test.describe("Context Menu", () => {
   });
 });
 
-test.describe("Minimap", () => {
-  test("minimap element exists in the canvas", async ({ page }) => {
-    await freshPage(page);
-    const exists = await page.evaluate(() =>
-      !!document.querySelector(".infinite-canvas-minimap")
-    );
-    expect(exists).toBe(true);
-  });
-
-  test("minimap shows dots for nodes", async ({ page }) => {
-    await freshPage(page);
-    const dotCount = await page.evaluate(() =>
-      document.querySelectorAll(".infinite-canvas-minimap-dot").length
-    );
-    expect(dotCount).toBe(8); // 8 initial nodes
-  });
-
-  test("minimap shows viewport rectangle", async ({ page }) => {
-    await freshPage(page);
-    const exists = await page.evaluate(() =>
-      !!document.querySelector(".infinite-canvas-minimap-viewport")
-    );
-    expect(exists).toBe(true);
-  });
-
-  test("clicking minimap pans the canvas", async ({ page }) => {
-    await freshPage(page);
-    const before = await page.evaluate(() => ({
-      panX: window.__canvas._panX, panY: window.__canvas._panY,
-    }));
-    // Click on the far edge of the minimap
-    const minimapRect = await page.evaluate(() => {
-      const m = document.querySelector(".infinite-canvas-minimap");
-      const r = m.getBoundingClientRect();
-      return { x: Math.round(r.left + 10), y: Math.round(r.top + 10) };
-    });
-    await page.mouse.click(minimapRect.x, minimapRect.y);
-    const after = await page.evaluate(() => ({
-      panX: window.__canvas._panX, panY: window.__canvas._panY,
-    }));
-    // Pan should have changed
-    expect(after.panX !== before.panX || after.panY !== before.panY).toBe(true);
-  });
-});
-
 test.describe("Visual Polish", () => {
   test("nodes in a group have a colored left border strip", async ({ page }) => {
     await freshPage(page);

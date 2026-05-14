@@ -670,7 +670,6 @@ class InfiniteCanvas {
     this._zoomIndicator.textContent = "100%";
     this._container.appendChild(this._zoomIndicator);
 
-    this._buildMinimap();
     this._updateTransform();
   }
 
@@ -1462,7 +1461,11 @@ class InfiniteCanvas {
     let mouseY = event.clientY - rect.top;
 
     if (event.ctrlKey || event.metaKey) {
-      let zoomDelta = event.deltaY > 0 ? 1 / InfiniteCanvas.ZOOM_STEP : InfiniteCanvas.ZOOM_STEP;
+      // Scale zoom factor by deltaY magnitude. Trackpad pinch sends small
+      // deltas (1-5), mouse wheel sends large ones (50-150). Using deltaY
+      // directly gives smooth trackpad zoom and snappy mouse wheel zoom.
+      let sensitivity = 0.008;
+      let zoomDelta = Math.exp(-event.deltaY * sensitivity);
       this.zoomTo(this._zoom * zoomDelta, mouseX, mouseY);
     } else {
       this._panX -= event.deltaX;
@@ -1973,84 +1976,6 @@ class InfiniteCanvas {
     }
   }
 
-  // ---- Minimap ----
-
-  _buildMinimap() {
-    this._minimap = document.createElement("div");
-    this._minimap.className = "infinite-canvas-minimap";
-
-    this._minimapContent = document.createElement("div");
-    this._minimapContent.className = "infinite-canvas-minimap-content";
-    this._minimap.appendChild(this._minimapContent);
-
-    this._minimapViewport = document.createElement("div");
-    this._minimapViewport.className = "infinite-canvas-minimap-viewport";
-    this._minimapContent.appendChild(this._minimapViewport);
-
-    this._minimap.addEventListener("pointerdown", this._onMinimapClick.bind(this));
-    this._container.appendChild(this._minimap);
-  }
-
-  _updateMinimap() {
-    if (!this._minimap) {
-      return;
-    }
-    let bounds = this._getAllBounds();
-    if (!bounds || bounds.width === 0 || bounds.height === 0) {
-      return;
-    }
-
-    let minimapW = 150;
-    let minimapH = 100;
-    let scale = Math.min(minimapW / bounds.width, minimapH / bounds.height) * 0.8;
-
-    let oldDots = this._minimapContent.querySelectorAll(".infinite-canvas-minimap-dot");
-    for (let d of oldDots) {
-      d.remove();
-    }
-
-    for (let [, node] of this._nodes) {
-      let dot = document.createElement("div");
-      dot.className = "infinite-canvas-minimap-dot";
-      dot.style.left = ((node.x - bounds.x) * scale + 10) + "px";
-      dot.style.top = ((node.y - bounds.y) * scale + 10) + "px";
-      dot.style.width = Math.max(node.width * scale, 3) + "px";
-      dot.style.height = Math.max(node.height * scale, 2) + "px";
-      this._minimapContent.appendChild(dot);
-    }
-
-    let containerRect = this._container.getBoundingClientRect();
-    let vpLeft = (-this._panX / this._zoom - bounds.x) * scale + 10;
-    let vpTop = (-this._panY / this._zoom - bounds.y) * scale + 10;
-    let vpW = (containerRect.width / this._zoom) * scale;
-    let vpH = (containerRect.height / this._zoom) * scale;
-    this._minimapViewport.style.left = vpLeft + "px";
-    this._minimapViewport.style.top = vpTop + "px";
-    this._minimapViewport.style.width = vpW + "px";
-    this._minimapViewport.style.height = vpH + "px";
-
-    this._minimapBounds = bounds;
-    this._minimapScale = scale;
-  }
-
-  _onMinimapClick(event) {
-    event.stopPropagation();
-    if (!this._minimapBounds) {
-      return;
-    }
-    let rect = this._minimapContent.getBoundingClientRect();
-    let clickX = event.clientX - rect.left;
-    let clickY = event.clientY - rect.top;
-
-    let canvasX = (clickX - 10) / this._minimapScale + this._minimapBounds.x;
-    let canvasY = (clickY - 10) / this._minimapScale + this._minimapBounds.y;
-
-    let containerRect = this._container.getBoundingClientRect();
-    this._panX = -(canvasX * this._zoom) + containerRect.width / 2;
-    this._panY = -(canvasY * this._zoom) + containerRect.height / 2;
-    this._updateTransform();
-  }
-
   // ---- Helpers ----
 
   _updateNodeGroupVisual(node) {
@@ -2105,7 +2030,6 @@ class InfiniteCanvas {
     this._container.style.setProperty("--canvas-pan-y", this._panY);
     this._container.style.setProperty("--canvas-zoom", this._zoom);
     this._emit("view-change", { panX: this._panX, panY: this._panY, zoom: this._zoom });
-    this._updateMinimap();
   }
 
   _updateSelectionVisuals() {

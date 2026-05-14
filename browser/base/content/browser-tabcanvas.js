@@ -55,11 +55,8 @@ var TabCanvas = {
       }
     });
 
-    this._canvas.on("node-click", ({ id }) => {
-      let tab = this._idToTab.get(id);
-      if (tab) {
-        gBrowser.selectedTab = tab;
-      }
+    this._canvas.on("node-click", () => {
+      // Single click selects the canvas node only, does not switch tabs
     });
 
     this._canvas.on("node-delete", ({ id }) => {
@@ -152,7 +149,16 @@ var TabCanvas = {
       this._syncNodes();
     }
 
+    this._captureAllThumbnails();
     this._updateAllBrowserOverlays();
+  },
+
+  _captureAllThumbnails() {
+    for (let [id, tab] of this._idToTab) {
+      if (tab !== gBrowser.selectedTab) {
+        this._captureThumbnail(tab, id);
+      }
+    }
   },
 
   hide() {
@@ -161,6 +167,7 @@ var TabCanvas = {
     document.getElementById("tabbrowser-tabpanels")
       .removeAttribute("tabcanvas-active");
     this._clearAllBrowserOverlays();
+    this._fixedOffset = null;
   },
 
   _buildNodes() {
@@ -257,61 +264,102 @@ var TabCanvas = {
   },
 
   _updateAllBrowserOverlays() {
-    let { zoom } = this._canvas.getViewState();
     let browserW = this._browserNativeWidth;
     let browserH = this._browserNativeHeight;
+    let selectedTab = gBrowser.selectedTab;
 
     for (let [id, tab] of this._idToTab) {
-      let pos = this._canvas.getNodePosition(id);
-      if (!pos) {
-        continue;
-      }
-
-      // Measure actual header height from the node's DOM element
       let node = this._canvas.getNode(id);
-      let headerEl = node?.element?.querySelector(".infinite-canvas-node-header");
-      let headerH = headerEl ? headerEl.getBoundingClientRect().height / zoom : this._HEADER_HEIGHT;
-
-      let bodyTop = pos.y + headerH;
-      let bodyHeight = pos.height - headerH;
-      if (bodyHeight <= 0) {
+      if (!node) {
         continue;
       }
-
-      let screenPos = this._canvas.canvasToScreen(pos.x, bodyTop);
-      let screenW = pos.width * zoom;
-      let screenH = bodyHeight * zoom;
 
       let browser = tab.linkedBrowser;
-      if (!browser) {
-        continue;
+      let stack = browser?.closest(".browserStack");
+
+      if (tab === selectedTab && stack) {
+        // Live browser overlay for selected tab
+        let bodyEl = node.element?.querySelector(".infinite-canvas-node-body");
+        if (!bodyEl) {
+          continue;
+        }
+
+        let bodyRect = bodyEl.getBoundingClientRect();
+        if (bodyRect.width <= 0 || bodyRect.height <= 0) {
+          continue;
+        }
+
+        if (!this._fixedOffset) {
+          let probe = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+          probe.style.cssText = "position:fixed;left:0;top:0;width:1px;height:1px;pointer-events:none;z-index:-1";
+          stack.parentNode.appendChild(probe);
+          let probeRect = probe.getBoundingClientRect();
+          this._fixedOffset = { x: probeRect.left, y: probeRect.top };
+          probe.remove();
+        }
+
+        let scaleFactor = bodyRect.width / browserW;
+
+        stack.style.position = "fixed";
+        stack.style.left = (bodyRect.left - this._fixedOffset.x) + "px";
+        stack.style.top = (bodyRect.top - this._fixedOffset.y) + "px";
+        stack.style.width = bodyRect.width + "px";
+        stack.style.height = bodyRect.height + "px";
+        stack.style.overflow = "hidden";
+        stack.style.zIndex = "1001";
+        stack.style.pointerEvents = "auto";
+
+        browser.style.width = browserW + "px";
+        browser.style.height = browserH + "px";
+        browser.style.transform = `scale(${scaleFactor})`;
+        browser.style.transformOrigin = "0 0";
+      } else {
+        // Non-selected tabs use thumbnails (captured in show/_captureAllThumbnails)
+        if (stack) {
+          this._clearBrowserOverlay(stack, browser);
+        }
       }
-
-      let stack = browser.closest(".browserStack");
-      if (!stack) {
-        continue;
-      }
-
-      let scaleFactor = screenW / browserW;
-
-      // Size the stack to the small screen-space node body dimensions
-      // so its hit area matches the visual bounds.
-      stack.style.position = "fixed";
-      stack.style.left = screenPos.x + "px";
-      stack.style.top = screenPos.y + "px";
-      stack.style.width = screenW + "px";
-      stack.style.height = screenH + "px";
-      stack.style.overflow = "hidden";
-      stack.style.zIndex = "1001";
-      stack.style.transform = "";
-      stack.style.transformOrigin = "";
-
-      // Scale the browser element inside to fit the small container
-      browser.style.width = browserW + "px";
-      browser.style.height = browserH + "px";
-      browser.style.transform = `scale(${scaleFactor})`;
-      browser.style.transformOrigin = "0 0";
     }
+  },
+
+  async _captureThumbnail(tab, nodeId) {
+    try {
+      let browser = tab.linkedBrowser;
+      if (!browser?.browsingContext?.currentWindowGlobal) {
+        return;
+      }
+
+      let thumbCanvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+      thumbCanvas.width = 280 * 2;
+      thumbCanvas.height = 180 * 2;
+      thumbCanvas.style.cssText = "width:100%;height:100%;display:block";
+
+      let { PageThumbs } = ChromeUtils.importESModule(
+        "resource://gre/modules/PageThumbs.sys.mjs"
+      );
+      await PageThumbs.captureTabPreviewThumbnail(browser, thumbCanvas);
+      this._canvas.updateNode(nodeId, { bodyContent: thumbCanvas });
+    } catch (e) {
+      // Tab not ready
+    }
+  },
+
+  _clearBrowserOverlay(stack, browser) {
+    stack.style.position = "";
+    stack.style.left = "";
+    stack.style.top = "";
+    stack.style.width = "";
+    stack.style.height = "";
+    stack.style.transform = "";
+    stack.style.transformOrigin = "";
+    stack.style.overflow = "";
+    stack.style.zIndex = "";
+    stack.style.pointerEvents = "";
+
+    browser.style.width = "";
+    browser.style.height = "";
+    browser.style.transform = "";
+    browser.style.transformOrigin = "";
   },
 
   _clearAllBrowserOverlays() {
@@ -324,20 +372,7 @@ var TabCanvas = {
       if (!stack) {
         continue;
       }
-      stack.style.position = "";
-      stack.style.left = "";
-      stack.style.top = "";
-      stack.style.width = "";
-      stack.style.height = "";
-      stack.style.transform = "";
-      stack.style.transformOrigin = "";
-      stack.style.overflow = "";
-      stack.style.zIndex = "";
-
-      browser.style.width = "";
-      browser.style.height = "";
-      browser.style.transform = "";
-      browser.style.transformOrigin = "";
+      this._clearBrowserOverlay(stack, browser);
     }
   },
 
@@ -355,8 +390,10 @@ var TabCanvas = {
     }
 
     if (this._active) {
+      // Prevent default browser shortcuts but let the event propagate
+      // to the canvas engine's keydown handler
       if (!event.ctrlKey && !event.metaKey) {
-        event.stopPropagation();
+        event.preventDefault();
       }
     }
   },
@@ -400,11 +437,7 @@ var TabCanvas = {
     if (!this._active) {
       return;
     }
-    this._canvas.deselectAll();
-    let id = this._tabToId.get(gBrowser.selectedTab);
-    if (id) {
-      this._canvas.select(id);
-    }
+    this.hide();
   },
 };
 
