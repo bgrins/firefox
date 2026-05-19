@@ -108,4 +108,35 @@ window.SnapManager = SnapManager;
   canvas.on("node-delete", data => log("node-delete", data));
   canvas.on("frame-create", data => log("group-create", data));
   canvas.on("escape", () => log("escape", {}));
+
+  // Cmd/Ctrl+click on a node's body opens a "child" node next to it,
+  // inheriting the source's group membership. Capture phase so we run
+  // before the engine's drag/click handling and can suppress it.
+  container.addEventListener("pointerdown", e => {
+    if (!(e.metaKey || e.ctrlKey) || e.button !== 0) {
+      return;
+    }
+    let body = e.target.closest(".infinite-canvas-node-body");
+    if (!body) {
+      return;
+    }
+    let nodeEl = body.closest(".infinite-canvas-node");
+    let sourceId = nodeEl?.dataset.id;
+    let source = sourceId && canvas.getNode(sourceId);
+    if (!source) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+
+    let pos = canvas.findPositionNearNode(sourceId);
+    let newId = addMockNode(pos.x, pos.y, "New Tab " + (nodeCount + 1));
+    let newNode = canvas.getNode(newId);
+    if (newNode && source.frameId) {
+      canvas._setNodeFrame(newNode, source.frameId);
+    }
+    canvas.deselectAll();
+    canvas.select(newId);
+    log("cmd-click-new", { sourceId, newId, frameId: source.frameId });
+  }, true);
 }

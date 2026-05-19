@@ -237,15 +237,13 @@
     background: transparent !important;
   }
 
-  &[tabcanvas-active] > * {
-    -moz-subtree-hidden-only-visually: 0 !important;
-    visibility: visible !important;
-  }
-
-  &[tabcanvas-active] > *:has(browser[preloadedState]) {
-    visibility: hidden !important;
-    pointer-events: none !important;
-  }
+  /* Only the selected tab's panel is visible (default deck behavior).
+     We render the selected tab's <browser> via an inline position:fixed
+     overlay sized to the canvas node body. Non-selected tabs use cached
+     thumbnails inside the canvas node body and don't need their actual
+     <browser> rendered. Letting the deck hide them avoids a flash where
+     the previously-selected tab's stack briefly shows at full size
+     during a tab switch. */
 
   &[tabcanvas-active] .browserStack {
     pointer-events: none;

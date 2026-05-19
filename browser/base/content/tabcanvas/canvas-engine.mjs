@@ -157,6 +157,42 @@ class InfiniteCanvas {
     return { x: node.x, y: node.y, width: node.width, height: node.height };
   }
 
+  // Find a position next to an existing node that doesn't overlap any
+  // others. Returns {x, y} suitable for passing to addNode. If no source
+  // node is found, returns a position below the current bounds.
+  findPositionNearNode(sourceId, { newWidth = null, newHeight = null, gap = 24 } = {}) {
+    let source = this._nodes.get(sourceId);
+    if (!source) {
+      let bounds = this._getAllBounds();
+      return bounds
+        ? { x: bounds.x, y: bounds.y + bounds.height + 40 }
+        : { x: 0, y: 0 };
+    }
+    let w = newWidth ?? source.width;
+    let h = newHeight ?? source.height;
+    let candidates = [
+      { x: source.x + source.width + gap, y: source.y },
+      { x: source.x, y: source.y + source.height + gap },
+      { x: source.x - w - gap, y: source.y },
+      { x: source.x, y: source.y - h - gap },
+    ];
+    for (let c of candidates) {
+      if (!this._rectOverlapsAnyNode(c.x, c.y, w, h)) {
+        return c;
+      }
+    }
+    return candidates[0];
+  }
+
+  _rectOverlapsAnyNode(x, y, w, h) {
+    for (let [, n] of this._nodes) {
+      if (x < n.x + n.width && x + w > n.x && y < n.y + n.height && y + h > n.y) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   canvasToScreen(canvasX, canvasY) {
     return this._canvasToScreen(canvasX, canvasY);
   }
@@ -1935,9 +1971,20 @@ class InfiniteCanvas {
       return;
     }
 
-    // Ctrl+G = group selected nodes into a new tab group
+    // Ctrl+G / Cmd+G: toggle group/ungroup based on current selection.
+    // - If any frames are selected: ungroup them (children stay).
+    // - Otherwise group selected nodes into a new frame.
     if ((event.ctrlKey || event.metaKey) && event.key === "g") {
       event.preventDefault();
+      let selectedFrameIds = [...this._selection].filter(id => this._frames.has(id));
+      if (selectedFrameIds.length) {
+        for (let frameId of selectedFrameIds) {
+          this.removeFrame(frameId);
+        }
+        this._emit("selection-change", { selection: [...this._selection] });
+        return;
+      }
+
       let nodeIds = [...this._selection].filter(id => this._nodes.has(id));
       if (nodeIds.length === 0) {
         return;

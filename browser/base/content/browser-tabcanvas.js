@@ -90,8 +90,26 @@ var TabCanvas = {
 
     this._canvas.on("node-delete", ({ id }) => {
       let tab = this._idToTab.get(id);
-      if (tab) {
+      if (!tab) {
+        return;
+      }
+      // If we delete the currently-selected tab, gBrowser will synchronously
+      // select an adjacent tab and dispatch TabSelect. The default
+      // _onTabSelect behaviour (used for external switches like Ctrl+Tab)
+      // would exit the canvas; suppress that here so deletion just swaps
+      // the live overlay to the auto-selected sibling.
+      let wasSelected = tab === gBrowser.selectedTab;
+      if (wasSelected) {
+        this._internalTabSelect = true;
+      }
+      try {
         gBrowser.removeTab(tab);
+      } finally {
+        if (wasSelected) {
+          this._internalTabSelect = false;
+          this._applyOverlayToTab(gBrowser.selectedTab);
+          this._captureAllThumbnails();
+        }
       }
     });
 
@@ -482,6 +500,15 @@ var TabCanvas = {
     return { x: bounds.x, y: bounds.y + bounds.height + 40 };
   },
 
+  // Place a new tab next to its opener if we know one.
+  _findPositionNearOpener(openerTab) {
+    let openerId = openerTab && this._tabToId.get(openerTab);
+    if (!openerId) {
+      return this._findEmptyPosition();
+    }
+    return this._canvas.findPositionNearNode(openerId);
+  },
+
   _buildHeader(tab) {
     let header = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
     header.style.cssText = "display:flex;align-items:center;gap:8px;width:100%";
@@ -501,7 +528,10 @@ var TabCanvas = {
     header.appendChild(favicon);
 
     let title = document.createElementNS("http://www.w3.org/1999/xhtml", "span");
-    title.style.cssText = "color:#e0e0e0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1";
+    // min-width:0 is required so flex shrinking can truncate the text below
+    // its intrinsic content width; otherwise a long title pushes the zoom
+    // button past the node's overflow:hidden boundary.
+    title.style.cssText = "color:#e0e0e0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0";
     title.textContent = tab.label || "New Tab";
     header.appendChild(title);
 
@@ -580,24 +610,31 @@ var TabCanvas = {
       return;
     }
 
-    // The "flash to actual tab" comes from Firefox's AsyncTabSwitcher:
-    // when selectedTab changes, the new browser's docshell is activated
-    // asynchronously and the compositor briefly shows transitional layout
-    // before committing the switch. Pre-activate so it's warm, and
-    // pre-apply overlay styles so the stack is already at the small
-    // node-body location before the deck transition.
-    let browser = tab.linkedBrowser;
-    if (browser) {
+    let oldTab = gBrowser.selectedTab;
+    let newBrowser = tab.linkedBrowser;
+    let oldBrowser = oldTab.linkedBrowser;
+
+    // Preserve the OLD selected tab's layers so its overlay content
+    // doesn't get torn down during the switch (we still want it to show
+    // a live preview-ish state until a thumbnail captures).
+    try {
+      oldBrowser?.preserveLayers(true);
+    } catch (e) {}
+
+    // Activate the NEW tab's docshell synchronously and ensure its layers
+    // are ready, so AsyncTabSwitcher doesn't need to spin up the
+    // compositor during the actual selectedTab assignment.
+    if (newBrowser) {
       try {
-        if (!browser.docShellIsActive) {
-          browser.docShellIsActive = true;
+        if (!newBrowser.docShellIsActive) {
+          newBrowser.docShellIsActive = true;
         }
-        browser.preserveLayers(false);
-      } catch (e) {
-        // Lazy/discarded tab — best effort.
-      }
+        newBrowser.preserveLayers(false);
+      } catch (e) {}
     }
 
+    // Pre-apply overlay styles so the new stack is already positioned at
+    // its small node-body location before the deck transition runs.
     this._applyOverlayToTab(tab);
 
     this._internalTabSelect = true;
@@ -607,10 +644,20 @@ var TabCanvas = {
       this._internalTabSelect = false;
     }
 
-    // Re-apply in case the selectedTab assignment caused any style reset.
+    // Re-apply (the selectedTab assignment may have synchronously emitted
+    // events that touched layout) and re-sync overlays.
     this._applyOverlayToTab(tab);
-    this._captureAllThumbnails();
     this._updateAllBrowserOverlays();
+    // Capture thumbnail for the previously-selected tab after a tick so
+    // its layers have settled in their new (non-selected) state.
+    requestAnimationFrame(() => {
+      this._captureAllThumbnails();
+      // Once the new tab is committed, the old tab's preserved layers
+      // can be released.
+      try {
+        oldBrowser?.preserveLayers(false);
+      } catch (e) {}
+    });
   },
 
   _applyOverlayToTab(tab) {
@@ -665,16 +712,15 @@ var TabCanvas = {
   },
 
   _updateAllBrowserOverlays() {
+    // Only the selected tab gets a live browser overlay. Non-selected
+    // tabs are hidden by the deck's default visibility behavior, so we
+    // don't need to clear their inline overlay styles here — that would
+    // cause a brief flash where the old selected tab's stack reverts to
+    // full-size deck layout before the deck-selected class moves. hide()
+    // clears all stacks when canvas closes.
     let selectedTab = gBrowser.selectedTab;
-
-    for (let [, tab] of this._idToTab) {
-      let browser = tab.linkedBrowser;
-      let stack = browser?.closest(".browserStack");
-      if (tab === selectedTab) {
-        this._applyOverlayToTab(tab);
-      } else if (stack) {
-        this._clearBrowserOverlay(stack, browser);
-      }
+    if (selectedTab) {
+      this._applyOverlayToTab(selectedTab);
     }
   },
 
@@ -1065,8 +1111,25 @@ var TabCanvas = {
       return;
     }
     let tab = event.target;
-    let pos = this._findEmptyPosition();
+    // Place the new node next to its opener tab (set when middle-clicking
+    // a link, ctrl-clicking, window.open, etc.). Falls back to empty space.
+    let opener = tab.openerTab || tab.owner;
+    let pos = opener ? this._findPositionNearOpener(opener) : this._findEmptyPosition();
     this._addTabNode(tab, 0, 4, pos.x, pos.y);
+
+    // If the new tab joins a tab group via opener, sync into the canvas
+    // frame as well so it's visually inside the frame.
+    if (tab.group) {
+      let frameId = this._tabGroupToCanvas.get(tab.group.id);
+      if (frameId) {
+        let nodeId = this._tabToId.get(tab);
+        let node = nodeId && this._canvas.getNode(nodeId);
+        if (node) {
+          this._withSync(() => this._canvas._setNodeFrame(node, frameId));
+        }
+      }
+    }
+
     this._updateAllBrowserOverlays();
     this._scheduleSave();
   },
