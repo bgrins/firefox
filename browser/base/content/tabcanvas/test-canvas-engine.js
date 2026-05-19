@@ -369,6 +369,42 @@ test.describe("Move", () => {
     expect(after.y).toBe(before.y + 8);
   });
 
+  test("arrow nudge on a selected frame moves its children too", async ({ page }) => {
+    await freshPage(page);
+    const before = await page.evaluate(() => {
+      const c = window.__canvas;
+      // Select just the frame (no children in the selection).
+      c.deselectAll();
+      c.select("group_1");
+      document.getElementById("canvas-container").focus();
+      let kids = c.getFrameChildren("group_1").map(id => {
+        let n = c._nodes.get(id);
+        return { id, x: n.x, y: n.y };
+      });
+      let frame = c._frames.get("group_1");
+      return { frame: { x: frame.x, y: frame.y }, kids };
+    });
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowDown");
+    const after = await page.evaluate(() => {
+      const c = window.__canvas;
+      let kids = c.getFrameChildren("group_1").map(id => {
+        let n = c._nodes.get(id);
+        return { id, x: n.x, y: n.y };
+      });
+      let frame = c._frames.get("group_1");
+      return { frame: { x: frame.x, y: frame.y }, kids };
+    });
+    // Frame moved by 8px on each axis (default grid).
+    expect(after.frame.x).toBe(before.frame.x + 8);
+    expect(after.frame.y).toBe(before.frame.y + 8);
+    // Every child moved by the same delta.
+    for (let i = 0; i < before.kids.length; i++) {
+      expect(after.kids[i].x).toBe(before.kids[i].x + 8);
+      expect(after.kids[i].y).toBe(before.kids[i].y + 8);
+    }
+  });
+
   test("shift+arrow nudge by 2x grid", async ({ page }) => {
     await freshPage(page);
     const c = await nodeCenter(page, "node_1");
@@ -2787,6 +2823,61 @@ test.describe("Alt+Arrow Spatial Navigation", () => {
     }));
     expect(Math.abs(after.zoom - before.zoom)).toBeLessThan(0.01);
     expect(after.hasSaved).toBe(false);
+  });
+
+  test("Alt+Enter on a focused tab group fits the group", async ({ page }) => {
+    await freshPage(page);
+    // Compute what zooming to fit group_1 should look like at default
+    // fit options, then trigger the keypress via the same select-frame
+    // path the user gets when clicking the frame label (selection holds
+    // both the frame and its children).
+    const setup = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c._selectFrameWithChildren("group_1");
+      document.getElementById("canvas-container").focus();
+      let frame = c._frames.get("group_1");
+      const containerRect = document.getElementById("canvas-container").getBoundingClientRect();
+      const padding = 60;
+      const fitZoom = Math.min(
+        (containerRect.width - padding * 2) / frame.width,
+        (containerRect.height - padding * 2) / frame.height,
+        3
+      );
+      return {
+        frameW: frame.width,
+        frameH: frame.height,
+        beforeZoom: c._zoom,
+        fitZoom,
+      };
+    });
+    await page.keyboard.press("Alt+Enter");
+    await page.waitForTimeout(300);
+    const after = await page.evaluate(() => ({
+      zoom: window.__canvas._zoom,
+      hasSavedView: window.__canvas.hasSavedView("group_1"),
+    }));
+    // Zoom should have animated to the fit-zoom (preserves toggle state).
+    expect(Math.abs(after.zoom - setup.fitZoom)).toBeLessThan(0.05);
+    // A "previous view" should have been saved against the frame so a
+    // second Alt+Enter would restore the original.
+    expect(after.hasSavedView).toBe(true);
+  });
+
+  test("Alt+Enter on a frame alone (no children selected) also fits the group", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("group_1");
+      document.getElementById("canvas-container").focus();
+    });
+    await page.keyboard.press("Alt+Enter");
+    await page.waitForTimeout(300);
+    const hasSaved = await page.evaluate(() =>
+      window.__canvas.hasSavedView("group_1")
+    );
+    expect(hasSaved).toBe(true);
   });
 
   test("Shift+Enter on a child zooms out to fit the parent frame if needed", async ({ page }) => {

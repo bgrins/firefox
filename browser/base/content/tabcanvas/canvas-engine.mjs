@@ -747,6 +747,25 @@ class InfiniteCanvas {
   }
 
   // Does this node have a saved "previous view" from a zoom-in toggle?
+  // Pick the most meaningful target for "zoom to current selection"
+  // operations (Alt+Enter, etc.):
+  //   - If a frame is in the selection, return it (selecting a frame
+  //     often also selects its children — the user thinks of the group
+  //     as one unit).
+  //   - Else if exactly one node is selected, return it.
+  //   - Else null.
+  _primaryZoomTargetId() {
+    for (let id of this._selection) {
+      if (this._frames.has(id)) {
+        return id;
+      }
+    }
+    if (this._selection.size === 1) {
+      return [...this._selection][0];
+    }
+    return null;
+  }
+
   hasSavedView(id) {
     return this._savedViews.has(id);
   }
@@ -2585,8 +2604,8 @@ class InfiniteCanvas {
     //                (same effect as clicking the header zoom button)
     if (event.key === "Enter" && !event.ctrlKey && !event.metaKey) {
       if (event.altKey) {
-        if (this._selection.size === 1) {
-          let id = [...this._selection][0];
+        let id = this._primaryZoomTargetId();
+        if (id) {
           this.toggleZoomToNode(id, this._defaultFitOptions);
           this._emit("node-zoom-toggle", { id });
         }
@@ -2642,6 +2661,11 @@ class InfiniteCanvas {
           this._applyRect(item.element, item);
           if (this._nodes.has(id)) {
             this._checkFrameContainment(id, { autoResize: false });
+          } else if (this._frames.has(id)) {
+            // Moving a frame should drag its children with it (matches
+            // mouse-drag behavior). Skip children that are also in the
+            // selection so we don't move them twice.
+            this._moveFrameChildren(id, dx, dy);
           }
           this._emit("node-move", { id, x: item.x, y: item.y });
         }
@@ -3257,6 +3281,15 @@ class InfiniteCanvas {
     } else if (!bestFrameId && autoResize && oldFrameId && this._frames.has(oldFrameId)) {
       this._autoShrinkFrame(oldFrameId);
     }
+  }
+
+  // Public: grow a frame so it visually contains all of its children
+  // (with the engine's standard padding). Adapters that assign children
+  // to frames via programmatic paths (e.g. mirroring external state)
+  // should call this to ensure the frame is sized correctly on first
+  // render.
+  autoExpandFrame(frameId) {
+    this._autoExpandFrame(frameId);
   }
 
   _autoExpandFrame(frameId) {

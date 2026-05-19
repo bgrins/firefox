@@ -109,6 +109,18 @@ var TabCanvas = {
     });
 
     this._canvas.on("node-zoom-toggle", ({ id }) => {
+      // Clicking the zoom button on a tab card should also focus that
+      // tab — both on the canvas (visual selection) and in the browser
+      // (live overlay target). For frame zoom buttons the canvas
+      // selection still moves to the frame.
+      if (this._canvas.getNode(id) || this._canvas._frames.has(id)) {
+        this._canvas.deselectAll();
+        if (this._canvas._frames.has(id)) {
+          this._canvas._selectFrameWithChildren(id);
+        } else {
+          this._canvas.select(id);
+        }
+      }
       this._selectTabFromCanvas(id);
     });
 
@@ -435,6 +447,14 @@ var TabCanvas = {
         this._tabGroupToCanvas.set(groupId, canvasId);
       }
     }
+
+    // Make sure every restored frame still contains all of its children
+    // (saved-state padding/positions may not match the engine's current
+    // auto-expand padding, especially if children were nudged after the
+    // last save).
+    for (let savedFrame of data.frames || []) {
+      this._canvas.autoExpandFrame(savedFrame.id);
+    }
   },
 
   // --- Node Management ---
@@ -610,8 +630,19 @@ var TabCanvas = {
     } finally {
       if (wasSelected) {
         this._internalTabSelect = false;
+        // gBrowser auto-selected an adjacent tab on close. Mirror that
+        // into the canvas selection so the new active tab is visually
+        // highlighted, and apply the live overlay to it.
+        let newId = this._tabToId.get(gBrowser.selectedTab);
+        if (newId) {
+          this._canvas.deselectAll();
+          this._canvas.select(newId);
+        }
         this._applyOverlayToTab(gBrowser.selectedTab);
         this._captureAllThumbnails();
+        // Keep canvas keyboard focus after the close so subsequent
+        // arrow / Enter keys keep navigating the canvas.
+        document.getElementById("tab-canvas-inner")?.focus();
       }
     }
   },
@@ -1074,6 +1105,12 @@ var TabCanvas = {
         }
       }
     });
+
+    // Belt-and-suspenders: make sure the frame actually contains all of
+    // its children. The bbox calculation above should already cover this,
+    // but if any child was placed with a slightly different padding (or
+    // got off-grid) the auto-expand pass fixes it on first render.
+    this._canvas.autoExpandFrame(frameId);
 
     this._canvasToTabGroup.set(frameId, group.id);
     this._tabGroupToCanvas.set(group.id, frameId);
