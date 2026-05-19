@@ -70,7 +70,7 @@ var TabCanvas = {
     });
     // Match the zoom-button fit options for keyboard shortcuts (Alt+Enter
     // and friends) so chrome-side UX is consistent.
-    this._canvas.setDefaultFitOptions({ padding: 32, maxZoom: 4 });
+    this._canvas.setDefaultFitOptions({ padding: 56, maxZoom: 3 });
 
     // Shared toolbar
     this._toolbar = new CanvasToolbar(
@@ -94,7 +94,16 @@ var TabCanvas = {
         // is still at the saved zoom-in target, restore the previous
         // view; otherwise (first click, or view has been moved) save
         // the current view and zoom in.
-        this._canvas.toggleZoomToNode(id, { padding: 32, maxZoom: 4 });
+        //
+        // If the clicked node is part of a group, treat the whole group
+        // as the zoom target — the user is acting on the group, not on
+        // a single child inside it.
+        let zoomTargetId = id;
+        let node = this._canvas.getNode(id);
+        if (node && node.frameId) {
+          zoomTargetId = node.frameId;
+        }
+        this._canvas.toggleZoomToNode(zoomTargetId, { padding: 56, maxZoom: 3 });
       }
       this._selectTabFromCanvas(id);
     });
@@ -567,11 +576,11 @@ var TabCanvas = {
     // _tabToId; in that case we still need the zoom button.
     let id = nodeId || this._tabToId.get(tab);
     if (id) {
-      // Tighter fit options for the integration: smaller padding and a
-      // higher max zoom so the focused tab fills most of the canvas.
+      // Fit options for the integration: a bit of breathing room around
+      // the zoomed tab while still filling most of the canvas.
       header.appendChild(this._canvas.createZoomButton(id, {
-        padding: 32,
-        maxZoom: 4,
+        padding: 56,
+        maxZoom: 3,
       }));
       // The shared close button removes the node and emits node-delete;
       // our node-delete handler turns that into gBrowser.removeTab.
@@ -683,16 +692,11 @@ var TabCanvas = {
     // _withSync sets _suppressHide so any TabSelect dispatched as a side
     // effect of these multi-select changes won't exit the canvas.
     this._withSync(() => {
-      this._internalMultiSelect = true;
-      try {
-        gBrowser.clearMultiSelectedTabs();
-        if (tabs.length >= 2) {
-          for (let tab of tabs) {
-            gBrowser.addToMultiSelectedTabs(tab);
-          }
+      gBrowser.clearMultiSelectedTabs();
+      if (tabs.length >= 2) {
+        for (let tab of tabs) {
+          gBrowser.addToMultiSelectedTabs(tab);
         }
-      } finally {
-        this._internalMultiSelect = false;
       }
     });
   },

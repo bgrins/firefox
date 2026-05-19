@@ -1476,6 +1476,12 @@ class InfiniteCanvas {
         this._endDrawing(event);
         break;
     }
+    // On macOS, Ctrl+left-click fires `contextmenu` between pointerdown and
+    // pointerup, so the flag has already been consumed by the time we get
+    // here. On other platforms cmd/ctrl+click does not produce contextmenu,
+    // so clear unconditionally to avoid the flag persisting and swallowing
+    // a later legitimate right-click.
+    this._suppressNextContextMenu = false;
   }
 
   // ---- Pan ----
@@ -3039,24 +3045,40 @@ class InfiniteCanvas {
     }
   }
 
+  // Update the selection set and DOM classes for the frame and all its
+  // children, then emit a single selection-change. Calling select/deselect
+  // N+1 times would emit N+1 events; listeners (e.g. the chrome adapter
+  // that syncs to gBrowser multi-selection) only need the final state.
   _selectFrameWithChildren(frameId) {
-    this.select(frameId);
+    let frame = this._frames.get(frameId);
+    if (frame) {
+      this._selection.add(frameId);
+      frame.element.classList.add("selected");
+    }
     for (let [childId, child] of this._nodes) {
       if (child.frameId === frameId) {
-        this.select(childId);
+        this._selection.add(childId);
+        child.element.classList.add("selected");
         child.element.classList.add("group-child-selected");
       }
     }
+    this._emit("selection-change", { selection: [...this._selection] });
   }
 
   _deselectFrameWithChildren(frameId) {
-    this.deselect(frameId);
+    let frame = this._frames.get(frameId);
+    if (frame) {
+      this._selection.delete(frameId);
+      frame.element.classList.remove("selected");
+    }
     for (let [childId, child] of this._nodes) {
       if (child.frameId === frameId) {
-        this.deselect(childId);
+        this._selection.delete(childId);
+        child.element.classList.remove("selected");
         child.element.classList.remove("group-child-selected");
       }
     }
+    this._emit("selection-change", { selection: [...this._selection] });
   }
 
   _clearGroupChildSelected() {

@@ -233,70 +233,76 @@ test.describe("Selection", () => {
     });
   }
 
-  test("ctrl+click adds an unselected node to selection", async ({ page }) => {
-    await freshPage(page);
-    await ungroupAll(page);
-    const c1 = await nodeCenter(page, "node_1");
-    const c2 = await nodeCenter(page, "node_2");
-    await page.mouse.click(c1.x, c1.y);
-    expect(await sel(page)).toEqual(["node_1"]);
-    await page.keyboard.down("Control");
-    await page.mouse.click(c2.x, c2.y);
-    await page.keyboard.up("Control");
-    const s = await sel(page);
-    expect(s).toContain("node_1");
-    expect(s).toContain("node_2");
-    expect(s.length).toBe(2);
-  });
+  // Both Control (Windows/Linux) and Meta (macOS Cmd) toggle multi-select.
+  // Meta also exercises the macOS-specific contextmenu suppression path
+  // (cmd+left-click on macOS fires `contextmenu` between pointerdown and
+  // pointerup, which the engine has to suppress to keep its selection intact).
+  for (const mod of ["Control", "Meta"]) {
+    test(`${mod}+click adds an unselected node to selection`, async ({ page }) => {
+      await freshPage(page);
+      await ungroupAll(page);
+      const c1 = await nodeCenter(page, "node_1");
+      const c2 = await nodeCenter(page, "node_2");
+      await page.mouse.click(c1.x, c1.y);
+      expect(await sel(page)).toEqual(["node_1"]);
+      await page.keyboard.down(mod);
+      await page.mouse.click(c2.x, c2.y);
+      await page.keyboard.up(mod);
+      const s = await sel(page);
+      expect(s).toContain("node_1");
+      expect(s).toContain("node_2");
+      expect(s.length).toBe(2);
+    });
 
-  test("ctrl+click on a selected node removes it from selection", async ({ page }) => {
-    await freshPage(page);
-    await ungroupAll(page);
-    const c1 = await nodeCenter(page, "node_1");
-    const c2 = await nodeCenter(page, "node_2");
-    await page.mouse.click(c1.x, c1.y);
-    await page.keyboard.down("Control");
-    await page.mouse.click(c2.x, c2.y);
-    // Toggle node_1 back off
-    await page.mouse.click(c1.x, c1.y);
-    await page.keyboard.up("Control");
-    expect(await sel(page)).toEqual(["node_2"]);
-  });
+    test(`${mod}+click on a selected node removes it from selection`, async ({ page }) => {
+      await freshPage(page);
+      await ungroupAll(page);
+      const c1 = await nodeCenter(page, "node_1");
+      const c2 = await nodeCenter(page, "node_2");
+      await page.mouse.click(c1.x, c1.y);
+      await page.keyboard.down(mod);
+      await page.mouse.click(c2.x, c2.y);
+      // Toggle node_1 back off
+      await page.mouse.click(c1.x, c1.y);
+      await page.keyboard.up(mod);
+      expect(await sel(page)).toEqual(["node_2"]);
+    });
 
-  test("ctrl+click toggle does not deselect other nodes", async ({ page }) => {
-    await freshPage(page);
-    await ungroupAll(page);
-    const c1 = await nodeCenter(page, "node_1");
-    const c2 = await nodeCenter(page, "node_2");
-    const c3 = await nodeCenter(page, "node_3");
-    await page.mouse.click(c1.x, c1.y);
-    await page.keyboard.down("Control");
-    await page.mouse.click(c2.x, c2.y);
-    await page.mouse.click(c3.x, c3.y);
-    await page.keyboard.up("Control");
-    expect((await sel(page)).sort()).toEqual(["node_1", "node_2", "node_3"]);
-  });
+    test(`${mod}+click toggle does not deselect other nodes`, async ({ page }) => {
+      await freshPage(page);
+      await ungroupAll(page);
+      const c1 = await nodeCenter(page, "node_1");
+      const c2 = await nodeCenter(page, "node_2");
+      const c3 = await nodeCenter(page, "node_3");
+      await page.mouse.click(c1.x, c1.y);
+      await page.keyboard.down(mod);
+      await page.mouse.click(c2.x, c2.y);
+      await page.mouse.click(c3.x, c3.y);
+      await page.keyboard.up(mod);
+      expect((await sel(page)).sort()).toEqual(["node_1", "node_2", "node_3"]);
+    });
 
-  test("ctrl+click on a grouped node toggles whole group", async ({ page }) => {
-    await freshPage(page);
-    const c1 = await nodeCenter(page, "node_1");
-    const c5 = await nodeCenter(page, "node_5");
-    // Click node_1 selects group_1 + 4 children
-    await page.mouse.click(c1.x, c1.y);
-    expect((await sel(page)).length).toBe(5);
-    // Cmd/Ctrl+click on node_5 adds group_2 + 4 children
-    await page.keyboard.down("Control");
-    await page.mouse.click(c5.x, c5.y);
-    expect((await sel(page)).length).toBe(10);
-    // Cmd/Ctrl+click node_5 again toggles group_2 off
-    await page.mouse.click(c5.x, c5.y);
-    await page.keyboard.up("Control");
-    const s = await sel(page);
-    expect(s).toContain("group_1");
-    expect(s).not.toContain("group_2");
-    expect(s).not.toContain("node_5");
-    expect(s.length).toBe(5);
-  });
+    test(`${mod}+click on a grouped node toggles whole group`, async ({ page }) => {
+      await freshPage(page);
+      const c1 = await nodeCenter(page, "node_1");
+      const c5 = await nodeCenter(page, "node_5");
+      // Click node_1 selects group_1 + 4 children
+      await page.mouse.click(c1.x, c1.y);
+      expect((await sel(page)).length).toBe(5);
+      // Cmd/Ctrl+click on node_5 adds group_2 + 4 children
+      await page.keyboard.down(mod);
+      await page.mouse.click(c5.x, c5.y);
+      expect((await sel(page)).length).toBe(10);
+      // Cmd/Ctrl+click node_5 again toggles group_2 off
+      await page.mouse.click(c5.x, c5.y);
+      await page.keyboard.up(mod);
+      const s = await sel(page);
+      expect(s).toContain("group_1");
+      expect(s).not.toContain("group_2");
+      expect(s).not.toContain("node_5");
+      expect(s.length).toBe(5);
+    });
+  }
 });
 
 test.describe("Move", () => {
