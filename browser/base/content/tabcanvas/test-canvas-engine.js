@@ -2026,6 +2026,61 @@ test.describe("Ctrl+G Group Selected", () => {
     expect(result.frames).toBe(framesBefore + 1);
     expect(result.sameGroup).toBe(true);
   });
+
+  test("groups a single selected node into a new tab group", async ({ page }) => {
+    await freshPage(page);
+    // Ungroup everything first
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      for (let [id] of [...c._frames]) { c.removeFrame(id); }
+      for (let [, n] of c._nodes) { n.frameId = null; c._updateNodeGroupVisual(n); }
+    });
+    const center = await nodeCenter(page, "node_1");
+    await page.mouse.click(center.x, center.y);
+    expect((await sel(page)).length).toBe(1);
+    const framesBefore = await page.evaluate(() => window.__canvas._frames.size);
+    await page.keyboard.press("ControlOrMeta+g");
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      const n1 = c._nodes.get("node_1");
+      return {
+        frames: c._frames.size,
+        n1frame: n1.frameId,
+        // Selection should be the new frame (Ctrl+G selects the frame).
+        selectedFrame: c.getSelection().some(id => c._frames.has(id)),
+      };
+    });
+    expect(result.frames).toBe(framesBefore + 1);
+    expect(result.n1frame).not.toBeNull();
+    expect(result.selectedFrame).toBe(true);
+  });
+
+  test("Ctrl+G on a selected frame ungroups it (toggle)", async ({ page }) => {
+    await freshPage(page);
+    // group_1 already contains node_1..node_4. Click a node so the
+    // canvas container has keyboard focus, then swap to selecting the
+    // group via API.
+    const c1 = await nodeCenter(page, "node_1");
+    await page.mouse.click(c1.x, c1.y);
+    await page.evaluate(() => {
+      window.__canvas.deselectAll();
+      window.__canvas.select("group_1");
+    });
+    expect((await sel(page))).toContain("group_1");
+    const framesBefore = await page.evaluate(() => window.__canvas._frames.size);
+    await page.keyboard.press("ControlOrMeta+g");
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      return {
+        frames: c._frames.size,
+        groupGone: !c._frames.has("group_1"),
+        n1frame: c._nodes.get("node_1").frameId,
+      };
+    });
+    expect(result.frames).toBe(framesBefore - 1);
+    expect(result.groupGone).toBe(true);
+    expect(result.n1frame).toBeNull();
+  });
 });
 
 test.describe("Click-into-Group (Figma nested selection)", () => {

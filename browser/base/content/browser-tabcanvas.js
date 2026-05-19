@@ -80,7 +80,12 @@ var TabCanvas = {
       }
     });
 
-    this._canvas.on("node-click", ({ id }) => {
+    this._canvas.on("node-click", ({ id, altKey }) => {
+      if (altKey) {
+        // Alt+click acts as the zoom button: toggle fit-this-node /
+        // restore-previous-view, and also select the tab.
+        this._canvas.toggleZoomToNode(id, { padding: 32, maxZoom: 4 });
+      }
       this._selectTabFromCanvas(id);
     });
 
@@ -537,7 +542,12 @@ var TabCanvas = {
 
     let nodeId = this._tabToId.get(tab);
     if (nodeId) {
-      header.appendChild(this._canvas.createZoomButton(nodeId));
+      // Tighter fit options for the integration: smaller padding and a
+      // higher max zoom so the focused tab fills most of the canvas.
+      header.appendChild(this._canvas.createZoomButton(nodeId, {
+        padding: 32,
+        maxZoom: 4,
+      }));
     }
 
     return header;
@@ -951,12 +961,10 @@ var TabCanvas = {
     }
 
     if (!frameId && prevGroupId) {
-      // Tab moved out of a frame: remove from browser group.
+      // Tab moved out of a frame on the canvas: remove it from the
+      // corresponding browser tab group.
       if (tab.group && tab.group.id === prevGroupId) {
-        this._withSync(() => {
-          // Moving tab to the end of the tab strip removes it from its group.
-          gBrowser.moveTabTo(tab, { tabIndex: gBrowser.tabs.length - 1 });
-        });
+        this._withSync(() => gBrowser.ungroupTab(tab));
       }
     }
   },
@@ -1055,7 +1063,7 @@ var TabCanvas = {
     }
     let node = this._canvas.getNode(nodeId);
     if (node && node.frameId !== frameId) {
-      this._withSync(() => this._canvas._setNodeFrame(node, frameId));
+      this._withSync(() => this._canvas.assignNodeToFrame(nodeId, frameId));
     }
     this._scheduleSave();
   },
@@ -1118,14 +1126,14 @@ var TabCanvas = {
     this._addTabNode(tab, 0, 4, pos.x, pos.y);
 
     // If the new tab joins a tab group via opener, sync into the canvas
-    // frame as well so it's visually inside the frame.
+    // frame as well so it's visually inside the frame (auto-expand grows
+    // the frame to contain the new node).
     if (tab.group) {
       let frameId = this._tabGroupToCanvas.get(tab.group.id);
       if (frameId) {
         let nodeId = this._tabToId.get(tab);
-        let node = nodeId && this._canvas.getNode(nodeId);
-        if (node) {
-          this._withSync(() => this._canvas._setNodeFrame(node, frameId));
+        if (nodeId) {
+          this._withSync(() => this._canvas.assignNodeToFrame(nodeId, frameId));
         }
       }
     }

@@ -246,6 +246,22 @@ class InfiniteCanvas {
     this.removeFrame(id);
   }
 
+  // Programmatically assign a node to a frame (or null to clear) and
+  // grow the target frame to include the node visually. Use this when
+  // the assignment isn't driven by a user drag (e.g. an external system
+  // tells us a node should be in a particular group).
+  assignNodeToFrame(nodeId, frameId) {
+    let node = this._nodes.get(nodeId);
+    if (!node) {
+      return;
+    }
+    let changed = this._setNodeFrame(node, frameId);
+    if (frameId && this._frames.has(frameId)) {
+      this._autoExpandFrame(frameId);
+    }
+    return changed;
+  }
+
   updateFrame(id, props) {
     let frame = this._frames.get(id);
     if (!frame) {
@@ -453,16 +469,15 @@ class InfiniteCanvas {
     }
   }
 
-  fitNode(id, animate = true) {
+  fitNode(id, animate = true, { padding = 60, maxZoom = 3 } = {}) {
     let item = this._nodes.get(id) || this._frames.get(id);
     if (!item) {
       return;
     }
     let containerRect = this._container.getBoundingClientRect();
-    let padding = 60;
     let scaleX = (containerRect.width - padding * 2) / item.width;
     let scaleY = (containerRect.height - padding * 2) / item.height;
-    let targetZoom = Math.min(scaleX, scaleY, 3);
+    let targetZoom = Math.min(scaleX, scaleY, maxZoom);
     let targetPanX = (containerRect.width - item.width * targetZoom) / 2 - item.x * targetZoom;
     let targetPanY = (containerRect.height - item.height * targetZoom) / 2 - item.y * targetZoom;
     if (animate) {
@@ -481,7 +496,8 @@ class InfiniteCanvas {
 
   // Toggle between "fit this node into view" and "restore previous view".
   // First call saves the current view + zooms to the node; second call restores.
-  toggleZoomToNode(id) {
+  // Pass fitOptions to override padding/maxZoom for the fit step.
+  toggleZoomToNode(id, fitOptions = {}) {
     if (!this._nodes.has(id) && !this._frames.has(id)) {
       return;
     }
@@ -491,7 +507,7 @@ class InfiniteCanvas {
       this._animateToView(saved.panX, saved.panY, saved.zoom);
     } else {
       this._savedViews.set(id, { panX: this._panX, panY: this._panY, zoom: this._zoom });
-      this.fitNode(id, true);
+      this.fitNode(id, true, fitOptions);
     }
   }
 
@@ -827,7 +843,7 @@ class InfiniteCanvas {
     header.appendChild(this.createZoomButton(node.id));
   }
 
-  createZoomButton(nodeId) {
+  createZoomButton(nodeId, fitOptions = {}) {
     const SVG_NS = "http://www.w3.org/2000/svg";
     const HTML_NS = "http://www.w3.org/1999/xhtml";
     // Must use createElementNS — in a XUL document (browser chrome),
@@ -856,7 +872,7 @@ class InfiniteCanvas {
     btn.addEventListener("click", e => {
       e.stopPropagation();
       e.preventDefault();
-      this.toggleZoomToNode(nodeId);
+      this.toggleZoomToNode(nodeId, fitOptions);
       this._emit("node-zoom-toggle", { id: nodeId });
     });
     return btn;
@@ -1484,14 +1500,20 @@ class InfiniteCanvas {
       // since drill-into-group may have changed the drag target.
       let id = this._dragClickedId || this._dragTargets[0].id;
       let now = Date.now();
+      let modifiers = {
+        altKey: !!event?.altKey,
+        shiftKey: !!event?.shiftKey,
+        ctrlKey: !!event?.ctrlKey,
+        metaKey: !!event?.metaKey,
+      };
       if (this._lastClickId === id && now - this._lastClickTime < 400) {
-        this._emit("node-dblclick", { id });
+        this._emit("node-dblclick", { id, ...modifiers });
         if (this._frames.has(id)) {
           this.startEditingFrameLabel(id);
         }
         this._lastClickId = null;
       } else {
-        this._emit("node-click", { id });
+        this._emit("node-click", { id, ...modifiers });
         this._lastClickId = id;
         this._lastClickTime = now;
       }

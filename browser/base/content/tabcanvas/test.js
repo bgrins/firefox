@@ -131,9 +131,10 @@ window.SnapManager = SnapManager;
 
     let pos = canvas.findPositionNearNode(sourceId);
     let newId = addMockNode(pos.x, pos.y, "New Tab " + (nodeCount + 1));
-    let newNode = canvas.getNode(newId);
-    if (newNode && source.frameId) {
-      canvas._setNodeFrame(newNode, source.frameId);
+    if (source.frameId) {
+      // assignNodeToFrame both sets the membership and auto-expands the
+      // frame so the new node is visibly inside the group immediately.
+      canvas.assignNodeToFrame(newId, source.frameId);
     }
     canvas.deselectAll();
     canvas.select(newId);
