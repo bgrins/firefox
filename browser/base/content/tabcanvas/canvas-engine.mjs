@@ -718,6 +718,149 @@ class InfiniteCanvas {
 
   // ---- Public API: Auto-Layout ----
 
+  // Compact a set of nodes into a tidy grid that minimizes whitespace,
+  // grouping by frame membership. Nodes without a frame are arranged
+  // into a single grid below the frames. Frames are auto-sized to fit
+  // their children. Pass `ids` to compact only those nodes (default:
+  // current selection; if empty selection, all nodes).
+  compactLayout({ ids = null, gap = 20, frameGap = 60 } = {}) {
+    let targetIds;
+    if (ids) {
+      targetIds = ids;
+    } else if (this._selection.size) {
+      targetIds = [...this._selection];
+    } else {
+      targetIds = [...this._nodes.keys(), ...this._frames.keys()];
+    }
+    // Bucket: frames and their participating children; loose nodes
+    let frameSet = new Set();
+    let looseNodes = [];
+    for (let id of targetIds) {
+      if (this._frames.has(id)) {
+        frameSet.add(id);
+      } else if (this._nodes.has(id)) {
+        let n = this._nodes.get(id);
+        if (n.frameId && this._frames.has(n.frameId)) {
+          frameSet.add(n.frameId);
+        } else {
+          looseNodes.push(id);
+        }
+      }
+    }
+
+    // Anchor the layout at the top-left of the current bounds, so
+    // compacting doesn't tear the layout away from where the user is
+    // looking.
+    let anchor = this._getAllBounds();
+    let cursorX = anchor ? anchor.x : 0;
+    let cursorY = anchor ? anchor.y : 0;
+    let rowMaxH = 0;
+    let containerRect = this._container.getBoundingClientRect();
+    // Wrap rows to a reasonable width based on the viewport.
+    let wrapWidth = Math.max(800, containerRect.width / Math.max(this._zoom, 0.3));
+
+    let placeBlock = (blockW, blockH, placer) => {
+      if (cursorX > anchor?.x && cursorX + blockW > (anchor?.x ?? 0) + wrapWidth) {
+        cursorX = anchor ? anchor.x : 0;
+        cursorY += rowMaxH + frameGap;
+        rowMaxH = 0;
+      }
+      placer(cursorX, cursorY);
+      cursorX += blockW + frameGap;
+      rowMaxH = Math.max(rowMaxH, blockH);
+    };
+
+    // Layout each participating frame as a compact block.
+    for (let frameId of frameSet) {
+      let block = this._compactFrameBlock(frameId, { gap });
+      placeBlock(block.width, block.height, (x, y) => {
+        this._placeFrameBlock(frameId, x, y, block);
+      });
+    }
+
+    // Loose nodes: pack into a single grid block.
+    if (looseNodes.length) {
+      let nodeWidth = 0, nodeHeight = 0;
+      for (let id of looseNodes) {
+        let n = this._nodes.get(id);
+        nodeWidth = Math.max(nodeWidth, n.width);
+        nodeHeight = Math.max(nodeHeight, n.height);
+      }
+      let cols = Math.ceil(Math.sqrt(looseNodes.length));
+      let rows = Math.ceil(looseNodes.length / cols);
+      let blockW = cols * nodeWidth + (cols - 1) * gap;
+      let blockH = rows * nodeHeight + (rows - 1) * gap;
+      placeBlock(blockW, blockH, (x, y) => {
+        for (let i = 0; i < looseNodes.length; i++) {
+          let n = this._nodes.get(looseNodes[i]);
+          let c = i % cols;
+          let r = Math.floor(i / cols);
+          n.x = this._snap(x + c * (nodeWidth + gap));
+          n.y = this._snap(y + r * (nodeHeight + gap));
+          this._applyRect(n.element, n);
+          this._emit("node-move", { id: looseNodes[i], x: n.x, y: n.y });
+        }
+      });
+    }
+  }
+
+  _compactFrameBlock(frameId, { gap = 20 } = {}) {
+    let children = this.getFrameChildren(frameId);
+    let nodeWidth = 280, nodeHeight = 212;
+    for (let id of children) {
+      let n = this._nodes.get(id);
+      nodeWidth = Math.max(nodeWidth, n.width);
+      nodeHeight = Math.max(nodeHeight, n.height);
+    }
+    let count = Math.max(children.length, 1);
+    let cols = Math.ceil(Math.sqrt(count));
+    let rows = Math.ceil(count / cols);
+    let labelH = 28;
+    let padding = 20;
+    let innerW = cols * nodeWidth + (cols - 1) * gap;
+    let innerH = rows * nodeHeight + (rows - 1) * gap;
+    return {
+      width: innerW + padding * 2,
+      height: innerH + padding * 2 + labelH,
+      cols,
+      rows,
+      nodeWidth,
+      nodeHeight,
+      padding,
+      labelH,
+      children,
+    };
+  }
+
+  _placeFrameBlock(frameId, x, y, block) {
+    let frame = this._frames.get(frameId);
+    if (!frame) {
+      return;
+    }
+    frame.x = this._snap(x);
+    frame.y = this._snap(y);
+    frame.width = this._snap(block.width);
+    frame.height = this._snap(block.height);
+    this._applyRect(frame.element, frame);
+
+    let { children, cols, nodeWidth, nodeHeight, padding, labelH } = block;
+    let gap = (block.width - padding * 2 - cols * nodeWidth) / Math.max(cols - 1, 1);
+    if (!isFinite(gap) || gap < 0) {
+      gap = 20;
+    }
+    let startX = frame.x + padding;
+    let startY = frame.y + padding + labelH;
+    for (let i = 0; i < children.length; i++) {
+      let n = this._nodes.get(children[i]);
+      let c = i % cols;
+      let r = Math.floor(i / cols);
+      n.x = this._snap(startX + c * (nodeWidth + gap));
+      n.y = this._snap(startY + r * (nodeHeight + gap));
+      this._applyRect(n.element, n);
+      this._emit("node-move", { id: children[i], x: n.x, y: n.y });
+    }
+  }
+
   autoLayout(frameId, { gap = 20, cols = null } = {}) {
     let frame = this._frames.get(frameId);
     if (!frame) {

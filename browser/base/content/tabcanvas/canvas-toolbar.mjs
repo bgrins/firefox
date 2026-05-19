@@ -34,7 +34,16 @@ export default class CanvasToolbar {
         this._canvas.snapEnabled = !this._canvas.snapEnabled;
         this._updateSnap();
       }),
-      this._actionButton("fit", "Fit All", () => this._canvas.fitAll()),
+      this._actionButton("fit", "Fit All", () => this._canvas.fitAll(true)),
+      this._actionButton(
+        "compact",
+        "Tidy",
+        () => {
+          this._canvas.compactLayout();
+          this._canvas.fitAll(true);
+        },
+        "Auto-arrange selected (or all) items into a compact layout"
+      ),
     ]);
 
     this._sep();
