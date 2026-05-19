@@ -829,16 +829,25 @@ var TabCanvas = {
       this._internalTabSelect = false;
     }
 
+    // Selecting a tab triggers Firefox's _adjustFocusAfterTabSwitch which
+    // moves keyboard focus to the new browser's content. While in canvas
+    // mode that would steal keyboard focus from the canvas — arrow keys,
+    // Enter, etc. would all start going to the page instead of doing
+    // canvas navigation. Pull focus back to the canvas container.
+    document.getElementById("tab-canvas-inner")?.focus();
+
     // Re-apply (the selectedTab assignment may have synchronously emitted
     // events that touched layout) and re-sync overlays.
     this._applyOverlayToTab(tab);
     this._updateAllBrowserOverlays();
     // Capture thumbnail for the previously-selected tab after a tick so
-    // its layers have settled in their new (non-selected) state.
+    // its layers have settled in their new (non-selected) state. The
+    // focus refocus is also re-applied here in case any async chrome
+    // logic (e.g. the AsyncTabSwitcher's finish step) reasserts content
+    // focus after the synchronous selection change.
     requestAnimationFrame(() => {
       this._captureAllThumbnails();
-      // Once the new tab is committed, the old tab's preserved layers
-      // can be released.
+      document.getElementById("tab-canvas-inner")?.focus();
       try {
         oldBrowser?.preserveLayers(false);
       } catch (e) {}
@@ -1288,6 +1297,18 @@ var TabCanvas = {
     }
 
     if (this._active) {
+      // Only claim keys when keyboard focus is actually inside the canvas
+      // (not on the live <browser> overlay or the URL bar). Otherwise the
+      // user clicking into a tab preview can't use arrow keys / Enter in
+      // the page itself.
+      let canvasInner = document.getElementById("tab-canvas-inner");
+      let focusInCanvas = canvasInner &&
+        (document.activeElement === canvasInner ||
+         canvasInner.contains(document.activeElement));
+      if (!focusInCanvas) {
+        return;
+      }
+
       // Only prevent default for keys the canvas engine handles,
       // so F5, F12, url bar typing, etc. still work.
       let canvasKeys = [
