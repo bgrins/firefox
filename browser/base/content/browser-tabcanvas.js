@@ -98,24 +98,7 @@ var TabCanvas = {
       if (!tab) {
         return;
       }
-      // If we delete the currently-selected tab, gBrowser will synchronously
-      // select an adjacent tab and dispatch TabSelect. The default
-      // _onTabSelect behaviour (used for external switches like Ctrl+Tab)
-      // would exit the canvas; suppress that here so deletion just swaps
-      // the live overlay to the auto-selected sibling.
-      let wasSelected = tab === gBrowser.selectedTab;
-      if (wasSelected) {
-        this._internalTabSelect = true;
-      }
-      try {
-        gBrowser.removeTab(tab);
-      } finally {
-        if (wasSelected) {
-          this._internalTabSelect = false;
-          this._applyOverlayToTab(gBrowser.selectedTab);
-          this._captureAllThumbnails();
-        }
-      }
+      this._closeTabFromCanvas(tab, id);
     });
 
     this._canvas.on("escape", () => {
@@ -551,9 +534,38 @@ var TabCanvas = {
         padding: 32,
         maxZoom: 4,
       }));
+      // The shared close button removes the node and emits node-delete;
+      // our node-delete handler turns that into gBrowser.removeTab.
+      header.appendChild(this._canvas.createCloseButton(id));
     }
 
     return header;
+  },
+
+  // Shared close logic used by both the X button and the node-delete
+  // event (Delete key / context menu). Restores any saved zoom-in view
+  // for the closing tab, then removes the tab. If the tab is currently
+  // selected, suppresses the auto-hide that would normally follow.
+  _closeTabFromCanvas(tab, nodeId) {
+    // If the user had zoomed in on this tab, animate back to the
+    // previous view before the node disappears. The engine's removeNode
+    // also auto-shrinks the containing frame to fit the remaining nodes.
+    if (nodeId) {
+      this._canvas.restoreSavedView(nodeId);
+    }
+    let wasSelected = tab === gBrowser.selectedTab;
+    if (wasSelected) {
+      this._internalTabSelect = true;
+    }
+    try {
+      gBrowser.removeTab(tab);
+    } finally {
+      if (wasSelected) {
+        this._internalTabSelect = false;
+        this._applyOverlayToTab(gBrowser.selectedTab);
+        this._captureAllThumbnails();
+      }
+    }
   },
 
   _updateTabHeader(tab, id) {
@@ -604,17 +616,21 @@ var TabCanvas = {
         tabs.push(tab);
       }
     }
-    this._internalMultiSelect = true;
-    try {
-      gBrowser.clearMultiSelectedTabs();
-      if (tabs.length >= 2) {
-        for (let tab of tabs) {
-          gBrowser.addToMultiSelectedTabs(tab);
+    // _withSync sets _suppressHide so any TabSelect dispatched as a side
+    // effect of these multi-select changes won't exit the canvas.
+    this._withSync(() => {
+      this._internalMultiSelect = true;
+      try {
+        gBrowser.clearMultiSelectedTabs();
+        if (tabs.length >= 2) {
+          for (let tab of tabs) {
+            gBrowser.addToMultiSelectedTabs(tab);
+          }
         }
+      } finally {
+        this._internalMultiSelect = false;
       }
-    } finally {
-      this._internalMultiSelect = false;
-    }
+    });
   },
 
   _selectTabFromCanvas(nodeId) {
@@ -808,10 +824,16 @@ var TabCanvas = {
       return;
     }
     this._syncing = true;
+    // Also suppress canvas-exit-on-TabSelect across the next event tick,
+    // in case a browser API we called (addTabGroup, addTabs, ungroupTab,
+    // etc.) queues a TabSelect on a later turn after _syncing has
+    // already cleared.
+    this._suppressHide = true;
     try {
       fn();
     } finally {
       this._syncing = false;
+      setTimeout(() => { this._suppressHide = false; }, 0);
     }
   },
 
@@ -1121,6 +1143,19 @@ var TabCanvas = {
       if (!event.ctrlKey && !event.metaKey && canvasKeys.includes(event.key)) {
         event.preventDefault();
       }
+      // Canvas-handled Ctrl/Cmd shortcuts. Stop propagation as well so
+      // chrome-level <key> elements (e.g. Cmd+G = Find Again, Cmd+D =
+      // Bookmark) don't also fire.
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey &&
+          ["g", "d", "a", "z", "0", "1", "=", "-"].includes(event.key)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      // Ctrl+Shift+Z = redo
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === "z") {
+        event.preventDefault();
+        event.stopPropagation();
+      }
     }
   },
 
@@ -1156,6 +1191,12 @@ var TabCanvas = {
     let tab = event.target;
     let id = this._tabToId.get(tab);
     if (id) {
+      // If the tab was zoomed in, restore the previously-saved view
+      // before removing the node so the canvas returns to where it was.
+      // (Engine's removeNode auto-shrinks the containing frame too.)
+      if (this._active) {
+        this._canvas.restoreSavedView(id);
+      }
       this._canvas.removeNode(id);
       this._idToTab.delete(id);
     }
@@ -1195,8 +1236,8 @@ var TabCanvas = {
     // Tab selection initiated by something the canvas did — either a
     // direct canvas click (_internalTabSelect) or as a side effect of a
     // canvas → browser sync call like addTabGroup/ungroupTabs/ungroupTab
-    // (_syncing). Stay in canvas mode.
-    if (this._internalTabSelect || this._syncing) {
+    // (_syncing/_suppressHide). Stay in canvas mode.
+    if (this._internalTabSelect || this._syncing || this._suppressHide) {
       return;
     }
     this.hide();

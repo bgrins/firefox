@@ -101,9 +101,14 @@ class InfiniteCanvas {
     if (!node) {
       return;
     }
+    let frameId = node.frameId;
     node.element.remove();
     this._nodes.delete(id);
     this._selection.delete(id);
+    this._savedViews.delete(id);
+    if (frameId && this._frames.has(frameId)) {
+      this._autoShrinkFrame(frameId);
+    }
   }
 
   getNode(id) {
@@ -469,23 +474,33 @@ class InfiniteCanvas {
     }
   }
 
-  fitNode(id, animate = true, { padding = 60, maxZoom = 3 } = {}) {
+  // Compute the target view for fitting an item into the canvas, without
+  // applying it. Returns null if the item doesn't exist.
+  _computeFitView(id, { padding = 60, maxZoom = 3 } = {}) {
     let item = this._nodes.get(id) || this._frames.get(id);
     if (!item) {
-      return;
+      return null;
     }
     let containerRect = this._container.getBoundingClientRect();
     let scaleX = (containerRect.width - padding * 2) / item.width;
     let scaleY = (containerRect.height - padding * 2) / item.height;
-    let targetZoom = Math.min(scaleX, scaleY, maxZoom);
-    let targetPanX = (containerRect.width - item.width * targetZoom) / 2 - item.x * targetZoom;
-    let targetPanY = (containerRect.height - item.height * targetZoom) / 2 - item.y * targetZoom;
+    let zoom = Math.min(scaleX, scaleY, maxZoom);
+    let panX = (containerRect.width - item.width * zoom) / 2 - item.x * zoom;
+    let panY = (containerRect.height - item.height * zoom) / 2 - item.y * zoom;
+    return { panX, panY, zoom };
+  }
+
+  fitNode(id, animate = true, fitOptions = {}) {
+    let target = this._computeFitView(id, fitOptions);
+    if (!target) {
+      return;
+    }
     if (animate) {
-      this._animateToView(targetPanX, targetPanY, targetZoom);
+      this._animateToView(target.panX, target.panY, target.zoom);
     } else {
-      this._panX = targetPanX;
-      this._panY = targetPanY;
-      this._zoom = targetZoom;
+      this._panX = target.panX;
+      this._panY = target.panY;
+      this._zoom = target.zoom;
       this._updateTransform();
     }
   }
@@ -494,20 +509,50 @@ class InfiniteCanvas {
     this._animateToView(panX, panY, zoom, duration);
   }
 
+  // Does this node have a saved "previous view" from a zoom-in toggle?
+  hasSavedView(id) {
+    return this._savedViews.has(id);
+  }
+
+  // Restore (and clear) the saved view for a node, if any. Returns true
+  // if a saved view was applied. Use this before deleting a node so the
+  // canvas returns to where it was before the zoom-in.
+  restoreSavedView(id) {
+    let saved = this._savedViews.get(id);
+    if (!saved) {
+      return false;
+    }
+    this._savedViews.delete(id);
+    this._animateToView(saved.panX, saved.panY, saved.zoom);
+    return true;
+  }
+
   // Toggle between "fit this node into view" and "restore previous view".
-  // First call saves the current view + zooms to the node; second call restores.
-  // Pass fitOptions to override padding/maxZoom for the fit step.
+  // Only restores the previous view if the current view is still the
+  // zoomed-in target — if the user scrolled/zoomed away after zooming in,
+  // clicking the button re-zooms to the node (and updates the restore
+  // target to whatever view they had).
   toggleZoomToNode(id, fitOptions = {}) {
-    if (!this._nodes.has(id) && !this._frames.has(id)) {
+    let target = this._computeFitView(id, fitOptions);
+    if (!target) {
       return;
     }
+
     let saved = this._savedViews.get(id);
-    if (saved) {
+    let stillAtTarget = saved &&
+      Math.abs(this._panX - target.panX) < 1 &&
+      Math.abs(this._panY - target.panY) < 1 &&
+      Math.abs(this._zoom - target.zoom) < 0.005;
+
+    if (saved && stillAtTarget) {
+      // Restore the previously-saved view.
       this._savedViews.delete(id);
       this._animateToView(saved.panX, saved.panY, saved.zoom);
     } else {
+      // User has moved away from the previous zoom target (or this is
+      // the first click). Save current view and zoom in.
       this._savedViews.set(id, { panX: this._panX, panY: this._panY, zoom: this._zoom });
-      this.fitNode(id, true, fitOptions);
+      this._animateToView(target.panX, target.panY, target.zoom);
     }
   }
 
@@ -841,6 +886,44 @@ class InfiniteCanvas {
     title.textContent = node.title;
     header.appendChild(title);
     header.appendChild(this.createZoomButton(node.id));
+    header.appendChild(this.createCloseButton(node.id));
+  }
+
+  // Build a close (X) button for a node. On click: restores any saved
+  // zoom-in view, removes the node, and emits node-delete so consumers
+  // can react (the chrome adapter uses node-delete to close the
+  // underlying tab; the standalone page just relies on removeNode).
+  createCloseButton(nodeId) {
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const HTML_NS = "http://www.w3.org/1999/xhtml";
+    let btn = document.createElementNS(HTML_NS, "button");
+    btn.className = "infinite-canvas-close-btn";
+    btn.title = "Close";
+    let svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("width", "12");
+    svg.setAttribute("height", "12");
+    svg.setAttribute("aria-hidden", "true");
+    let path = document.createElementNS(SVG_NS, "path");
+    // Simple X glyph
+    path.setAttribute("d",
+      "M4 4 L12 12 M12 4 L4 12"
+    );
+    path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-width", "1.5");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("fill", "none");
+    svg.appendChild(path);
+    btn.appendChild(svg);
+    btn.addEventListener("pointerdown", e => e.stopPropagation());
+    btn.addEventListener("click", e => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.restoreSavedView(nodeId);
+      this.removeNode(nodeId);
+      this._emit("node-delete", { id: nodeId });
+    });
+    return btn;
   }
 
   createZoomButton(nodeId, fitOptions = {}) {
