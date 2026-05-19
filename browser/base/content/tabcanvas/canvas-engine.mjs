@@ -63,6 +63,8 @@ class InfiniteCanvas {
     this._selection = new Set();
     this._listeners = {};
     this._nextId = 1;
+    // Saved view state per node ID for the zoom-to-node toggle.
+    this._savedViews = new Map();
 
     this._activeSnapGuides = [];
     this._lastClickId = null;
@@ -191,12 +193,13 @@ class InfiniteCanvas {
     }
     for (let [, node] of this._nodes) {
       if (node.frameId === id) {
-        node.frameId = null;
+        this._setNodeFrame(node, null);
       }
     }
     frame.element.remove();
     this._frames.delete(id);
     this._selection.delete(id);
+    this._emit("frame-remove", { id });
   }
 
   updateFrame(id, props) {
@@ -403,6 +406,48 @@ class InfiniteCanvas {
       this._panY = targetPanY;
       this._zoom = targetZoom;
       this._updateTransform();
+    }
+  }
+
+  fitNode(id, animate = true) {
+    let item = this._nodes.get(id) || this._frames.get(id);
+    if (!item) {
+      return;
+    }
+    let containerRect = this._container.getBoundingClientRect();
+    let padding = 60;
+    let scaleX = (containerRect.width - padding * 2) / item.width;
+    let scaleY = (containerRect.height - padding * 2) / item.height;
+    let targetZoom = Math.min(scaleX, scaleY, 3);
+    let targetPanX = (containerRect.width - item.width * targetZoom) / 2 - item.x * targetZoom;
+    let targetPanY = (containerRect.height - item.height * targetZoom) / 2 - item.y * targetZoom;
+    if (animate) {
+      this._animateToView(targetPanX, targetPanY, targetZoom);
+    } else {
+      this._panX = targetPanX;
+      this._panY = targetPanY;
+      this._zoom = targetZoom;
+      this._updateTransform();
+    }
+  }
+
+  animateToView({ panX, panY, zoom }, duration = 250) {
+    this._animateToView(panX, panY, zoom, duration);
+  }
+
+  // Toggle between "fit this node into view" and "restore previous view".
+  // First call saves the current view + zooms to the node; second call restores.
+  toggleZoomToNode(id) {
+    if (!this._nodes.has(id) && !this._frames.has(id)) {
+      return;
+    }
+    let saved = this._savedViews.get(id);
+    if (saved) {
+      this._savedViews.delete(id);
+      this._animateToView(saved.panX, saved.panY, saved.zoom);
+    } else {
+      this._savedViews.set(id, { panX: this._panX, panY: this._panY, zoom: this._zoom });
+      this.fitNode(id, true);
     }
   }
 
@@ -735,6 +780,42 @@ class InfiniteCanvas {
     title.className = "infinite-canvas-node-title";
     title.textContent = node.title;
     header.appendChild(title);
+    header.appendChild(this.createZoomButton(node.id));
+  }
+
+  createZoomButton(nodeId) {
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const HTML_NS = "http://www.w3.org/1999/xhtml";
+    // Must use createElementNS — in a XUL document (browser chrome),
+    // plain createElement("button") creates a XUL <button>, which renders
+    // and styles entirely differently.
+    let btn = document.createElementNS(HTML_NS, "button");
+    btn.className = "infinite-canvas-zoom-btn";
+    btn.title = "Zoom to fit";
+    let svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("width", "12");
+    svg.setAttribute("height", "12");
+    svg.setAttribute("aria-hidden", "true");
+    let path = document.createElementNS(SVG_NS, "path");
+    // Four-corner expand arrows
+    path.setAttribute("d",
+      "M2 2 h4 v1.5 H4.5 L7 6 5.9 7.1 3.5 4.5 V6 H2 z " +
+      "M14 2 h-4 v1.5 H11.5 L9 6 10.1 7.1 12.5 4.5 V6 H14 z " +
+      "M2 14 h4 v-1.5 H4.5 L7 10 5.9 8.9 3.5 11.5 V10 H2 z " +
+      "M14 14 h-4 v-1.5 H11.5 L9 10 10.1 8.9 12.5 11.5 V10 H14 z"
+    );
+    path.setAttribute("fill", "currentColor");
+    svg.appendChild(path);
+    btn.appendChild(svg);
+    btn.addEventListener("pointerdown", e => e.stopPropagation());
+    btn.addEventListener("click", e => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.toggleZoomToNode(nodeId);
+      this._emit("node-zoom-toggle", { id: nodeId });
+    });
+    return btn;
   }
 
   _createFrameElement(frame) {
@@ -1018,6 +1099,22 @@ class InfiniteCanvas {
 
     if (this._isCloning) {
       // Clone mode: move ghosts, leave originals in place
+      let snapNudgeX = 0, snapNudgeY = 0;
+
+      // Compute snap for the primary ghost
+      if (this._snapGuidesEnabled && this._snapManager && this._cloneGhosts.length > 0) {
+        let g0 = this._cloneGhosts[0];
+        let candidateRect = {
+          x: this._snapEnabled ? this._snap(g0.startX + rawDx) : g0.startX + rawDx,
+          y: this._snapEnabled ? this._snap(g0.startY + rawDy) : g0.startY + rawDy,
+          width: g0.width, height: g0.height,
+        };
+        let snapResult = this._snapManager.snap(candidateRect, this._cachedSnapTargets, this._zoom);
+        snapNudgeX = snapResult.nudge.x;
+        snapNudgeY = snapResult.nudge.y;
+        this._renderSnapIndicators(snapResult.indicators);
+      }
+
       for (let g of this._cloneGhosts) {
         let newX = g.startX + rawDx;
         let newY = g.startY + rawDy;
@@ -1025,17 +1122,16 @@ class InfiniteCanvas {
           newX = this._snap(newX);
           newY = this._snap(newY);
         }
+        newX += snapNudgeX;
+        newY += snapNudgeY;
         g.ghost.style.transform = `translate(${newX}px, ${newY}px)`;
         g.finalX = newX;
         g.finalY = newY;
       }
-      // Move child ghosts relative to their parent ghost
       for (let cg of this._cloneChildGhosts) {
         let parent = this._cloneGhosts[cg.parentIdx];
         if (parent) {
-          let cx = parent.finalX + cg.offsetX;
-          let cy = parent.finalY + cg.offsetY;
-          cg.ghost.style.transform = `translate(${cx}px, ${cy}px)`;
+          cg.ghost.style.transform = `translate(${parent.finalX + cg.offsetX}px, ${parent.finalY + cg.offsetY}px)`;
         }
       }
       return;
@@ -1171,6 +1267,7 @@ class InfiniteCanvas {
     if (this._dragDidMove && this._isCloning) {
       // Clone mode: create real clones at ghost positions, remove ghosts
       let cloneIds = [];
+      let explicitlyParented = new Set(); // children already assigned to a cloned frame
       for (let i = 0; i < this._dragTargets.length; i++) {
         let target = this._dragTargets[i];
         let item = this._nodes.get(target.id) || this._frames.get(target.id);
@@ -1194,32 +1291,53 @@ class InfiniteCanvas {
             width: item.width, height: item.height,
             label: item.label,
           });
-          // Clone all children of the frame
+          // Clone all children - snapshot IDs first to avoid iterator issues
           let dx = ghost.finalX - item.x;
           let dy = ghost.finalY - item.y;
+          let childrenToClone = [];
           for (let [childId, child] of this._nodes) {
             if (child.frameId === target.id) {
-              let childCloneId = "__clone_" + (this._nextId++);
-              let childClone = this.addNode(childCloneId, {
-                x: child.x + dx, y: child.y + dy,
-                width: child.width, height: child.height,
-                title: child.title,
-                color: child.color, headerColor: child.headerColor,
-              });
-              childClone.frameId = cloneId;
-              this._updateNodeGroupVisual(childClone);
-              cloneIds.push(childCloneId);
+              childrenToClone.push({ childId, child });
             }
+          }
+          for (let { child } of childrenToClone) {
+            let childCloneId = "__clone_" + (this._nextId++);
+            let childClone = this.addNode(childCloneId, {
+              x: child.x + dx, y: child.y + dy,
+              width: child.width, height: child.height,
+              title: child.title,
+              color: child.color, headerColor: child.headerColor,
+            });
+            childClone.frameId = cloneId;
+            this._updateNodeGroupVisual(childClone);
+            explicitlyParented.add(childCloneId);
+            cloneIds.push(childCloneId);
           }
         }
         cloneIds.push(cloneId);
       }
-      // Check if cloned nodes landed inside a group
+      // Check containment only for standalone clones (not children of cloned frames)
       for (let id of cloneIds) {
-        if (this._nodes.has(id)) {
+        if (this._nodes.has(id) && !explicitlyParented.has(id)) {
           this._checkFrameContainment(id);
         }
       }
+      // Push undo command for the clone
+      let allCloneIds = [...cloneIds];
+      this._pushCommand({
+        undo: () => {
+          for (let id of allCloneIds) {
+            if (this._frames.has(id)) {
+              this.removeFrame(id);
+            } else if (this._nodes.has(id)) {
+              this.removeNode(id);
+            }
+          }
+        },
+        redo: () => {
+          // Re-cloning is complex; for now, redo is not supported for clones
+        },
+      });
       this.deselectAll();
       for (let id of cloneIds) {
         this.select(id);
@@ -1454,14 +1572,13 @@ class InfiniteCanvas {
       }
       // If a frame was resized, check if any children are now outside
       if (this._frames.has(id)) {
-        for (let [childId, child] of this._nodes) {
+        for (let [, child] of this._nodes) {
           if (child.frameId === id) {
             let cx = child.x + child.width / 2;
             let cy = child.y + child.height / 2;
             if (cx < item.x || cy < item.y ||
                 cx > item.x + item.width || cy > item.y + item.height) {
-              child.frameId = null;
-              this._updateNodeGroupVisual(child);
+              this._setNodeFrame(child, null);
             }
           }
         }
@@ -1573,15 +1690,14 @@ class InfiniteCanvas {
       let id = "__group_" + (this._nextId++);
       this.addFrame(id, { x: x1, y: y1, width: w, height: h, label: "Tab Group" });
       // Auto-include ungrouped nodes whose center is inside the drawn rect
-      for (let [nodeId, node] of this._nodes) {
+      for (let [, node] of this._nodes) {
         if (node.frameId) {
           continue;
         }
         let cx = node.x + node.width / 2;
         let cy = node.y + node.height / 2;
         if (cx >= x1 && cy >= y1 && cx <= x2 && cy <= y2) {
-          node.frameId = id;
-          this._updateNodeGroupVisual(node);
+          this._setNodeFrame(node, id);
         }
       }
       this._autoExpandFrame(id);
@@ -1607,6 +1723,13 @@ class InfiniteCanvas {
     let rect = this._container.getBoundingClientRect();
     let mouseX = event.clientX - rect.left;
     let mouseY = event.clientY - rect.top;
+
+    // Suppress expensive effects (shadows) during a wheel burst.
+    this._container.classList.add("is-interacting");
+    clearTimeout(this._wheelIdleTimer);
+    this._wheelIdleTimer = setTimeout(() => {
+      this._container.classList.remove("is-interacting");
+    }, 150);
 
     if (event.ctrlKey || event.metaKey) {
       // Scale zoom factor by deltaY magnitude. Trackpad pinch sends small
@@ -1829,8 +1952,7 @@ class InfiniteCanvas {
       });
       for (let id of nodeIds) {
         let n = this._nodes.get(id);
-        n.frameId = frameId;
-        this._updateNodeGroupVisual(n);
+        this._setNodeFrame(n, frameId);
       }
       this.select(frameId);
       this._emit("frame-create", { id: frameId });
@@ -2112,9 +2234,14 @@ class InfiniteCanvas {
   _showContextMenu(screenX, screenY, items, targetId) {
     let menu = document.createElement("div");
     menu.className = "infinite-canvas-context-menu";
-    let rect = this._container.getBoundingClientRect();
-    menu.style.left = (screenX - rect.left) + "px";
-    menu.style.top = (screenY - rect.top) + "px";
+    // Position relative to viewport and append to the document root so the
+    // menu escapes any local stacking context (the canvas overlay sits
+    // below live browser overlays in chrome integration; if the menu lived
+    // inside the overlay, browser stacks at higher z-index would swallow
+    // its clicks).
+    menu.style.position = "fixed";
+    menu.style.left = screenX + "px";
+    menu.style.top = screenY + "px";
 
     for (let item of items) {
       if (item.label === "---") {
@@ -2144,7 +2271,7 @@ class InfiniteCanvas {
     }
 
     this._contextMenu = menu;
-    this._container.appendChild(menu);
+    document.documentElement.appendChild(menu);
 
     setTimeout(() => {
       this._contextMenuCloseHandler = e => {
@@ -2323,6 +2450,10 @@ class InfiniteCanvas {
     let startZoom = this._zoom;
     let startTime = performance.now();
 
+    // Mark as interacting so heavy effects (shadows, transitions) are
+    // suppressed during the animation.
+    this._container.classList.add("is-interacting");
+
     let step = (now) => {
       let t = Math.min((now - startTime) / duration, 1);
       // Ease-out cubic
@@ -2335,6 +2466,7 @@ class InfiniteCanvas {
         this._viewAnimation = requestAnimationFrame(step);
       } else {
         this._viewAnimation = null;
+        this._container.classList.remove("is-interacting");
       }
     };
     this._viewAnimation = requestAnimationFrame(step);
@@ -2389,13 +2521,23 @@ class InfiniteCanvas {
     }
   }
 
+  _setNodeFrame(node, newFrameId) {
+    let prev = node.frameId;
+    if (prev === newFrameId) {
+      return false;
+    }
+    node.frameId = newFrameId;
+    this._updateNodeGroupVisual(node);
+    this._emit("node-frame-change", { id: node.id, frameId: newFrameId, prevFrameId: prev });
+    return true;
+  }
+
   _checkFrameContainment(nodeId, { autoResize = true } = {}) {
     let node = this._nodes.get(nodeId);
     if (!node) {
       return;
     }
     let oldFrameId = node.frameId;
-    node.frameId = null;
 
     let cx = node.x + node.width / 2;
     let cy = node.y + node.height / 2;
@@ -2415,17 +2557,12 @@ class InfiniteCanvas {
         }
       }
     }
-    if (bestFrameId) {
-      node.frameId = bestFrameId;
-      this._updateNodeGroupVisual(node);
-      if (autoResize) {
-        this._autoExpandFrame(bestFrameId);
-      }
-      return;
-    }
 
-    this._updateNodeGroupVisual(node);
-    if (autoResize && oldFrameId && this._frames.has(oldFrameId)) {
+    this._setNodeFrame(node, bestFrameId);
+
+    if (bestFrameId && autoResize) {
+      this._autoExpandFrame(bestFrameId);
+    } else if (!bestFrameId && autoResize && oldFrameId && this._frames.has(oldFrameId)) {
       this._autoShrinkFrame(oldFrameId);
     }
   }

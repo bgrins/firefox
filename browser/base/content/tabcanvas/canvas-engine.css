@@ -82,7 +82,7 @@
   top: 0;
   background: var(--node-bg, #16213e);
   border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
   user-select: none;
   overflow: hidden;
   border: 2px solid transparent;
@@ -92,14 +92,19 @@
   will-change: transform;
 }
 
-/* Suppress transitions during active interactions */
+/* Suppress transitions and expensive shadows during active interactions
+   (drag/pan/zoom/marquee). Large blurred shadows recompose every frame
+   and cause severe jank when a live browser overlay is on top. */
 .is-interacting .infinite-canvas-node,
 .is-interacting .infinite-canvas-frame {
   transition: none !important;
 }
+.is-interacting .infinite-canvas-node {
+  box-shadow: none;
+}
 
 .infinite-canvas-node:hover {
-  box-shadow: 0 6px 28px rgba(0,0,0,0.5);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.5);
   border-color: rgba(10,132,255,0.4);
 }
 
@@ -113,7 +118,7 @@
 
 .infinite-canvas-node.selected {
   border-color: #0a84ff;
-  box-shadow: 0 0 0 1px #0a84ff, 0 6px 28px rgba(10,132,255,0.3);
+  box-shadow: 0 0 0 1px #0a84ff, 0 3px 8px rgba(10,132,255,0.3);
 }
 
 /* ---- Node Header (drag handle) ---- */
@@ -140,6 +145,29 @@
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+}
+
+.infinite-canvas-zoom-btn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #e0e0e0;
+  opacity: 0.7;
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.infinite-canvas-zoom-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+.infinite-canvas-zoom-btn:active {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 /* ---- Node Body ---- */
@@ -226,7 +254,7 @@
    suppress individual selection borders and handles */
 .infinite-canvas-node.selected.group-child-selected {
   border-color: transparent;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
 
 .infinite-canvas-node.group-child-selected > .infinite-canvas-resize-handle {
