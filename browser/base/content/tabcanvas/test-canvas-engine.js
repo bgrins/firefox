@@ -221,6 +221,82 @@ test.describe("Selection", () => {
     await page.mouse.up();
     expect((await sel(page)).length).toBeGreaterThan(0);
   });
+
+  // Use ungrouped nodes for cmd+click toggle tests so we don't entangle
+  // group-selection logic. The group-aware toggle is covered separately.
+  async function ungroupAll(page) {
+    await page.evaluate(() => {
+      for (let [, n] of window.__canvas._nodes) {
+        n.frameId = null;
+        window.__canvas._updateNodeGroupVisual(n);
+      }
+    });
+  }
+
+  test("ctrl+click adds an unselected node to selection", async ({ page }) => {
+    await freshPage(page);
+    await ungroupAll(page);
+    const c1 = await nodeCenter(page, "node_1");
+    const c2 = await nodeCenter(page, "node_2");
+    await page.mouse.click(c1.x, c1.y);
+    expect(await sel(page)).toEqual(["node_1"]);
+    await page.keyboard.down("Control");
+    await page.mouse.click(c2.x, c2.y);
+    await page.keyboard.up("Control");
+    const s = await sel(page);
+    expect(s).toContain("node_1");
+    expect(s).toContain("node_2");
+    expect(s.length).toBe(2);
+  });
+
+  test("ctrl+click on a selected node removes it from selection", async ({ page }) => {
+    await freshPage(page);
+    await ungroupAll(page);
+    const c1 = await nodeCenter(page, "node_1");
+    const c2 = await nodeCenter(page, "node_2");
+    await page.mouse.click(c1.x, c1.y);
+    await page.keyboard.down("Control");
+    await page.mouse.click(c2.x, c2.y);
+    // Toggle node_1 back off
+    await page.mouse.click(c1.x, c1.y);
+    await page.keyboard.up("Control");
+    expect(await sel(page)).toEqual(["node_2"]);
+  });
+
+  test("ctrl+click toggle does not deselect other nodes", async ({ page }) => {
+    await freshPage(page);
+    await ungroupAll(page);
+    const c1 = await nodeCenter(page, "node_1");
+    const c2 = await nodeCenter(page, "node_2");
+    const c3 = await nodeCenter(page, "node_3");
+    await page.mouse.click(c1.x, c1.y);
+    await page.keyboard.down("Control");
+    await page.mouse.click(c2.x, c2.y);
+    await page.mouse.click(c3.x, c3.y);
+    await page.keyboard.up("Control");
+    expect((await sel(page)).sort()).toEqual(["node_1", "node_2", "node_3"]);
+  });
+
+  test("ctrl+click on a grouped node toggles whole group", async ({ page }) => {
+    await freshPage(page);
+    const c1 = await nodeCenter(page, "node_1");
+    const c5 = await nodeCenter(page, "node_5");
+    // Click node_1 selects group_1 + 4 children
+    await page.mouse.click(c1.x, c1.y);
+    expect((await sel(page)).length).toBe(5);
+    // Cmd/Ctrl+click on node_5 adds group_2 + 4 children
+    await page.keyboard.down("Control");
+    await page.mouse.click(c5.x, c5.y);
+    expect((await sel(page)).length).toBe(10);
+    // Cmd/Ctrl+click node_5 again toggles group_2 off
+    await page.mouse.click(c5.x, c5.y);
+    await page.keyboard.up("Control");
+    const s = await sel(page);
+    expect(s).toContain("group_1");
+    expect(s).not.toContain("group_2");
+    expect(s).not.toContain("node_5");
+    expect(s.length).toBe(5);
+  });
 });
 
 test.describe("Move", () => {
@@ -2431,5 +2507,419 @@ test.describe("Overlapping Frames Prefer Smallest", () => {
       return { frameId: c._nodes.get("overlap_node").frameId };
     });
     expect(result.frameId).toBe("small_frame");
+  });
+});
+
+test.describe("Alt+Arrow Spatial Navigation", () => {
+  test("focusNeighbor right picks the rightward neighbor within the same group", async ({ page }) => {
+    await freshPage(page);
+    // group_1 contains node_1..node_4 in a 2x2 layout from autoLayout.
+    // node_1 is top-left; rightward neighbor should be node_2.
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      // Sort children left-to-right by x; first two should be at row 0.
+      let kids = c.getFrameChildren("group_1").map(id => c._nodes.get(id));
+      kids.sort((a, b) => a.y - b.y || a.x - b.x);
+      let sourceId = kids[0].id;
+      let expectedRight = kids[1].id;
+      c.deselectAll();
+      c.select(sourceId);
+      let returned = c.focusNeighbor("right");
+      return {
+        sourceId,
+        expectedRight,
+        returned,
+        selection: c.getSelection(),
+      };
+    });
+    expect(result.returned).toBe(result.expectedRight);
+    expect(result.selection).toEqual([result.expectedRight]);
+  });
+
+  test("focusNeighbor is restricted to the same frame", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      // Take the rightmost node in group_1 and look further right.
+      let kids1 = c.getFrameChildren("group_1").map(id => c._nodes.get(id));
+      kids1.sort((a, b) => a.x - b.x);
+      let rightmost = kids1[kids1.length - 1].id;
+      c.deselectAll();
+      c.select(rightmost);
+      let returned = c.focusNeighbor("right");
+      // No neighbor to the right exists within group_1.
+      return { rightmost, returned };
+    });
+    expect(result.returned).toBeNull();
+  });
+
+  test("focusNeighbor ignores nodes in other frames", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      // Place node_5 (group_2) directly to the right of a group_1 node
+      // and ensure focusNeighbor doesn't jump groups.
+      let kid1 = c._nodes.get(c.getFrameChildren("group_1")[0]);
+      let n5 = c._nodes.get("node_5");
+      n5.frameId = "group_2";
+      c._updateNodeGroupVisual(n5);
+      n5.x = kid1.x + kid1.width + 20;
+      n5.y = kid1.y;
+      c._applyRect(n5.element, n5);
+      c.deselectAll();
+      c.select(kid1.id);
+      let returned = c.focusNeighbor("right");
+      // Should be either a group_1 sibling or null — never node_5.
+      return { kid1Id: kid1.id, returned };
+    });
+    expect(result.returned).not.toBe("node_5");
+  });
+
+  test("focusNeighbor preserves zoom and pans to center the new node", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      let kids = c.getFrameChildren("group_1").map(id => c._nodes.get(id));
+      kids.sort((a, b) => a.y - b.y || a.x - b.x);
+      let sourceId = kids[0].id;
+      c.deselectAll();
+      c.select(sourceId);
+      // Force a specific zoom so we can verify it is preserved.
+      c.zoomTo(1.5, 0, 0);
+      let beforeZoom = c._zoom;
+      c.focusNeighbor("right");
+      return { beforeZoom, afterZoom: c._zoom };
+    });
+    // Zoom is preserved (animation also sets it but to the same target).
+    expect(Math.abs(result.afterZoom - result.beforeZoom)).toBeLessThan(0.01);
+  });
+
+  test("focusNeighbor returns null with no selection", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      window.__canvas.deselectAll();
+      return window.__canvas.focusNeighbor("right");
+    });
+    expect(result).toBeNull();
+  });
+
+  test("focusNeighbor returns null when multiple nodes selected", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("node_1");
+      c.select("node_2");
+      return c.focusNeighbor("right");
+    });
+    expect(result).toBeNull();
+  });
+
+  test("Alt+ArrowRight keybinding triggers neighbor focus", async ({ page }) => {
+    await freshPage(page);
+    const setup = await page.evaluate(() => {
+      const c = window.__canvas;
+      let kids = c.getFrameChildren("group_1").map(id => c._nodes.get(id));
+      kids.sort((a, b) => a.y - b.y || a.x - b.x);
+      // Force a single-node selection via API and focus the container so
+      // the keydown listener gets the event. Clicking a child of a group
+      // would also pull in the parent + siblings via "select group with
+      // children" behavior, which would defeat focusNeighbor's
+      // single-selection precondition.
+      c.deselectAll();
+      c.select(kids[0].id);
+      document.getElementById("canvas-container").focus();
+      return { sourceId: kids[0].id, expectedRight: kids[1].id };
+    });
+    await page.keyboard.down("Alt");
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.up("Alt");
+    const sel = await page.evaluate(() => window.__canvas.getSelection());
+    expect(sel).toEqual([setup.expectedRight]);
+  });
+
+  test("focusDescend from top-level selects the first frame", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      let returned = c.focusDescend();
+      let firstFrame = c._sortedTopLevelItems()[0];
+      return { returned, firstFrameId: firstFrame.id };
+    });
+    expect(result.returned).toBe(result.firstFrameId);
+  });
+
+  test("focusDescend from a frame selects its first child", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("group_1");
+      let returned = c.focusDescend();
+      let firstChild = c._sortedFrameChildren("group_1")[0];
+      return { returned, firstChildId: firstChild.id };
+    });
+    expect(result.returned).toBe(result.firstChildId);
+  });
+
+  test("focusDescend on a frame child cycles to the next sibling", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      let kids = c._sortedFrameChildren("group_1");
+      c.deselectAll();
+      c.select(kids[0].id);
+      let first = c.focusDescend();
+      let second = c.focusDescend();
+      let third = c.focusDescend();
+      let fourth = c.focusDescend();
+      let cycledBack = c.focusDescend();
+      return {
+        kidIds: kids.map(k => k.id),
+        first, second, third, fourth, cycledBack,
+      };
+    });
+    // From kids[0], cycling through kids[1..N-1] then wrapping to kids[0]
+    expect(result.first).toBe(result.kidIds[1]);
+    expect(result.second).toBe(result.kidIds[2]);
+    expect(result.third).toBe(result.kidIds[3]);
+    expect(result.fourth).toBe(result.kidIds[0]);
+    expect(result.cycledBack).toBe(result.kidIds[1]);
+  });
+
+  test("focusAscend from a child node goes to its parent frame", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      let kid = c._sortedFrameChildren("group_1")[0];
+      c.deselectAll();
+      c.select(kid.id);
+      let returned = c.focusAscend();
+      return { returned, selection: c.getSelection() };
+    });
+    expect(result.returned).toBe("group_1");
+    expect(result.selection).toEqual(["group_1"]);
+  });
+
+  test("focusAscend from a frame deselects and zooms out", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("group_1");
+      let returned = c.focusAscend();
+      return { returned, selection: c.getSelection() };
+    });
+    expect(result.returned).toBeNull();
+    expect(result.selection.length).toBe(0);
+  });
+
+  test("focusAscend from no selection is a no-op", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      let returned = c.focusAscend();
+      return { returned, selection: c.getSelection() };
+    });
+    expect(result.returned).toBeNull();
+    expect(result.selection.length).toBe(0);
+  });
+
+  test("Enter key triggers focusDescend; Shift+Enter triggers focusAscend", async ({ page }) => {
+    await freshPage(page);
+    const setup = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("group_1");
+      document.getElementById("canvas-container").focus();
+      let firstChild = c._sortedFrameChildren("group_1")[0];
+      return { firstChildId: firstChild.id };
+    });
+    // Enter → drill into first child of group_1
+    await page.keyboard.press("Enter");
+    let sel = await page.evaluate(() => window.__canvas.getSelection());
+    expect(sel).toEqual([setup.firstChildId]);
+    // Shift+Enter → back up to group_1
+    await page.keyboard.press("Shift+Enter");
+    sel = await page.evaluate(() => window.__canvas.getSelection());
+    expect(sel).toEqual(["group_1"]);
+  });
+
+  test("Alt+Enter zooms to fit the selected node (toggle)", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("node_1");
+      document.getElementById("canvas-container").focus();
+    });
+    const before = await page.evaluate(() => ({
+      panX: window.__canvas._panX,
+      panY: window.__canvas._panY,
+      zoom: window.__canvas._zoom,
+    }));
+    // First Alt+Enter saves current view and zooms in.
+    await page.keyboard.press("Alt+Enter");
+    // Wait past animation duration.
+    await page.waitForTimeout(300);
+    const zoomed = await page.evaluate(() => ({
+      zoom: window.__canvas._zoom,
+      hasSaved: window.__canvas.hasSavedView("node_1"),
+    }));
+    expect(zoomed.zoom).toBeGreaterThan(before.zoom);
+    expect(zoomed.hasSaved).toBe(true);
+    // Second Alt+Enter restores the original view.
+    await page.keyboard.press("Alt+Enter");
+    await page.waitForTimeout(300);
+    const after = await page.evaluate(() => ({
+      panX: window.__canvas._panX,
+      panY: window.__canvas._panY,
+      zoom: window.__canvas._zoom,
+      hasSaved: window.__canvas.hasSavedView("node_1"),
+    }));
+    expect(Math.abs(after.zoom - before.zoom)).toBeLessThan(0.01);
+    expect(after.hasSaved).toBe(false);
+  });
+
+  test("Shift+Enter on a child zooms out to fit the parent frame if needed", async ({ page }) => {
+    await freshPage(page);
+    const setup = await page.evaluate(() => {
+      const c = window.__canvas;
+      let kid = c._sortedFrameChildren("group_1")[0];
+      c.deselectAll();
+      c.select(kid.id);
+      // Zoom way in so the frame can't fit at current zoom.
+      c.zoomTo(3, 0, 0);
+      document.getElementById("canvas-container").focus();
+      let frame = c._frames.get("group_1");
+      // Compute the required fit-zoom for the frame.
+      const containerRect = document.getElementById("canvas-container").getBoundingClientRect();
+      const padding = 60;
+      const fitZoom = Math.min(
+        (containerRect.width - padding * 2) / frame.width,
+        (containerRect.height - padding * 2) / frame.height
+      );
+      return { startZoom: c._zoom, fitZoom };
+    });
+    await page.keyboard.press("Shift+Enter");
+    await page.waitForTimeout(300);
+    const after = await page.evaluate(() => window.__canvas._zoom);
+    // Should have zoomed out (from 3) to roughly fitZoom or lower.
+    expect(after).toBeLessThan(setup.startZoom);
+    expect(after).toBeLessThanOrEqual(setup.fitZoom + 0.01);
+  });
+
+  test("focusNeighbor on a frame finds an adjacent top-level frame", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("group_1");
+      // group_2 is positioned below group_1 by the test page setup.
+      let returned = c.focusNeighbor("down");
+      return { returned, selection: c.getSelection() };
+    });
+    expect(result.returned).toBe("group_2");
+    expect(result.selection).toEqual(["group_2"]);
+  });
+
+  test("focusNeighbor on a frame includes ungrouped top-level nodes as candidates", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      // Place an ungrouped node directly to the right of group_1.
+      let g1 = c._frames.get("group_1");
+      c.addNode("loose_node", {
+        x: g1.x + g1.width + 40,
+        y: g1.y,
+        width: 200, height: 150, title: "Loose",
+      });
+      c.deselectAll();
+      c.select("group_1");
+      let returned = c.focusNeighbor("right");
+      return { returned };
+    });
+    expect(result.returned).toBe("loose_node");
+  });
+
+  test("Alt+arrow with no neighbor does not nudge the selection", async ({ page }) => {
+    await freshPage(page);
+    // group_2 is the bottom frame; alt+arrow down from it has no neighbor.
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("group_2");
+      document.getElementById("canvas-container").focus();
+    });
+    const before = await page.evaluate(() => {
+      const f = window.__canvas._frames.get("group_2");
+      return { x: f.x, y: f.y };
+    });
+    await page.keyboard.down("Alt");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.up("Alt");
+    const after = await page.evaluate(() => {
+      const f = window.__canvas._frames.get("group_2");
+      return { x: f.x, y: f.y, sel: window.__canvas.getSelection() };
+    });
+    expect(after.x).toBe(before.x);
+    expect(after.y).toBe(before.y);
+    expect(after.sel).toEqual(["group_2"]);
+  });
+
+  test("Alt+arrow on a node with no neighbor in direction does not nudge", async ({ page }) => {
+    await freshPage(page);
+    // Move all nodes ungrouped to a known layout and select the leftmost.
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      for (let [id] of [...c._frames]) c.removeFrame(id);
+      let i = 0;
+      for (let [, n] of c._nodes) {
+        n.frameId = null;
+        c._updateNodeGroupVisual(n);
+        n.x = 1000 + i * 320;
+        n.y = 0;
+        c._applyRect(n.element, n);
+        i++;
+      }
+      c.deselectAll();
+      c.select("node_1");
+      document.getElementById("canvas-container").focus();
+    });
+    const before = await page.evaluate(() => {
+      const n = window.__canvas._nodes.get("node_1");
+      return { x: n.x, y: n.y };
+    });
+    await page.keyboard.down("Alt");
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.up("Alt");
+    const after = await page.evaluate(() => {
+      const n = window.__canvas._nodes.get("node_1");
+      return { x: n.x, y: n.y, sel: window.__canvas.getSelection() };
+    });
+    expect(after.x).toBe(before.x);
+    expect(after.y).toBe(before.y);
+    expect(after.sel).toEqual(["node_1"]);
+  });
+
+  test("focusNeighbor works among ungrouped nodes", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      // Ungroup all so nodes are free.
+      for (let [id] of [...c._frames]) c.removeFrame(id);
+      for (let [, n] of c._nodes) { n.frameId = null; c._updateNodeGroupVisual(n); }
+      // Pick the leftmost node, look right.
+      let all = [...c._nodes.values()].sort((a, b) => a.x - b.x || a.y - b.y);
+      let sourceId = all[0].id;
+      c.deselectAll();
+      c.select(sourceId);
+      let returned = c.focusNeighbor("right");
+      return { sourceId, returned };
+    });
+    expect(result.returned).not.toBeNull();
+    expect(result.returned).not.toBe(result.sourceId);
   });
 });

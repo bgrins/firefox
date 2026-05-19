@@ -47,6 +47,35 @@ window.SnapManager = SnapManager;
       placeholder.style.cssText = "padding:12px;color:rgba(255,255,255,0.2);font-size:40px;font-family:system-ui;text-align:center;line-height:140px";
       placeholder.textContent = "\uD83C\uDF10"; // globe emoji as placeholder
       body.appendChild(placeholder);
+
+      // Opener-like demo: clicking this "+" inside the body creates a new
+      // child node next to this one, inheriting frame membership. Lives
+      // inside the tab itself so it doesn't collide with engine modifier
+      // keys (cmd = multi-select, alt = clone, shift = additive select).
+      let opener = document.createElement("button");
+      opener.className = "demo-open-child";
+      opener.title = "Open child tab";
+      opener.textContent = "+";
+      opener.style.cssText = "position:absolute;right:8px;bottom:8px;width:24px;height:24px;border-radius:4px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.4);color:#fff;font-size:14px;font-family:system-ui;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0";
+      // stopPropagation on pointerdown so the engine doesn't start a drag.
+      opener.addEventListener("pointerdown", e => e.stopPropagation());
+      opener.addEventListener("click", e => {
+        e.stopPropagation();
+        e.preventDefault();
+        let source = canvas.getNode(id);
+        if (!source) {
+          return;
+        }
+        let pos = canvas.findPositionNearNode(id);
+        let newId = addMockNode(pos.x, pos.y, "New Tab " + (nodeCount + 1));
+        if (source.frameId) {
+          canvas.assignNodeToFrame(newId, source.frameId);
+        }
+        canvas.deselectAll();
+        canvas.select(newId);
+        log("open-child", { sourceId: id, newId, frameId: source.frameId });
+      });
+      body.appendChild(opener);
     }
     return id;
   }
@@ -109,35 +138,4 @@ window.SnapManager = SnapManager;
   canvas.on("frame-create", data => log("group-create", data));
   canvas.on("escape", () => log("escape", {}));
 
-  // Cmd/Ctrl+click on a node's body opens a "child" node next to it,
-  // inheriting the source's group membership. Capture phase so we run
-  // before the engine's drag/click handling and can suppress it.
-  container.addEventListener("pointerdown", e => {
-    if (!(e.metaKey || e.ctrlKey) || e.button !== 0) {
-      return;
-    }
-    let body = e.target.closest(".infinite-canvas-node-body");
-    if (!body) {
-      return;
-    }
-    let nodeEl = body.closest(".infinite-canvas-node");
-    let sourceId = nodeEl?.dataset.id;
-    let source = sourceId && canvas.getNode(sourceId);
-    if (!source) {
-      return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-
-    let pos = canvas.findPositionNearNode(sourceId);
-    let newId = addMockNode(pos.x, pos.y, "New Tab " + (nodeCount + 1));
-    if (source.frameId) {
-      // assignNodeToFrame both sets the membership and auto-expands the
-      // frame so the new node is visibly inside the group immediately.
-      canvas.assignNodeToFrame(newId, source.frameId);
-    }
-    canvas.deselectAll();
-    canvas.select(newId);
-    log("cmd-click-new", { sourceId, newId, frameId: source.frameId });
-  }, true);
 }

@@ -22,6 +22,11 @@ var TabCanvas = {
   _active: false,
   _initialized: false,
 
+  // Temporary: enable verbose logging for the lazy-tab wakeup path.
+  // Toggle off (or via TabCanvas._tabcanvasDebug = false) once the
+  // behavior is confirmed working.
+  _tabcanvasDebug: true,
+
   // Tab <-> canvas node ID mappings
   _tabToId: new WeakMap(),
   _idToTab: new Map(),
@@ -63,6 +68,9 @@ var TabCanvas = {
       gridSize: 8,
       snapEnabled: true,
     });
+    // Match the zoom-button fit options for keyboard shortcuts (Alt+Enter
+    // and friends) so chrome-side UX is consistent.
+    this._canvas.setDefaultFitOptions({ padding: 32, maxZoom: 4 });
 
     // Shared toolbar
     this._toolbar = new CanvasToolbar(
@@ -129,9 +137,16 @@ var TabCanvas = {
     // node-drag fires on every rAF tick during a drag (vs node-move
     // which only fires once at drag end). We need this so the live
     // browser overlay tracks the selected tab while it's being moved.
-    this._canvas.on("node-drag", () => {
+    this._canvas.on("node-drag", ({ id }) => {
       if (this._active) {
         this._scheduleOverlayUpdate();
+      }
+      // Wake the dragged tab in the background so live content shows
+      // up by the time the drag completes. _ensureTabLoaded guards
+      // against repeated work via _loadingTabs.
+      let tab = this._idToTab.get(id);
+      if (tab) {
+        this._ensureTabLoaded(tab);
       }
     });
 
@@ -254,12 +269,25 @@ var TabCanvas = {
       } else {
         this._buildNodes();
         this._syncTabGroups();
-        this._canvas.fitAll();
       }
       this._initialized = true;
     } else {
       this._syncNodes();
     }
+    // Always fit-all when entering the canvas view so the user sees
+    // everything (whether this is the first show, a restored layout,
+    // or a re-open with new/closed tabs).
+    this._canvas.fitAll(true);
+
+    // Ensure the canvas selection reflects the current selected tab so
+    // keyboard shortcuts (alt+arrow, Enter, etc.) act on it. Then focus
+    // the canvas container so it receives keyboard events.
+    let currentId = this._tabToId.get(gBrowser.selectedTab);
+    if (currentId) {
+      this._canvas.deselectAll();
+      this._canvas.select(currentId);
+    }
+    document.getElementById("tab-canvas-inner")?.focus();
 
     this._captureAllThumbnails();
     this._updateAllBrowserOverlays();
@@ -591,6 +619,10 @@ var TabCanvas = {
   _captureAllThumbnails() {
     for (let [id, tab] of this._idToTab) {
       if (tab !== gBrowser.selectedTab) {
+        // If the tab is unloaded, wake it up so a real thumbnail can
+        // be captured shortly. (Without this, the captured image is
+        // the "discarded" placeholder.)
+        this._ensureTabLoaded(tab);
         this._captureThumbnail(tab, id);
       }
     }
@@ -620,13 +652,34 @@ var TabCanvas = {
       // fire again after the dust settles.
       return;
     }
+    // Collect both the tabs and their canvas ids in the same order as
+    // they appear in the selection set.
     let tabs = [];
+    let firstTabNodeId = null;
     for (let id of selection) {
       let tab = this._idToTab.get(id);
       if (tab) {
         tabs.push(tab);
+        if (firstTabNodeId === null) {
+          firstTabNodeId = id;
+        }
       }
     }
+    // Any tab the user pulls into the selection (single click, marquee,
+    // shift-click, ctrl+a, drag, arrow keys, ...) should wake up its
+    // content so thumbnails / live previews become real.
+    for (let tab of tabs) {
+      this._ensureTabLoaded(tab);
+    }
+
+    // If exactly one tab is selected (e.g. via alt+arrow navigation,
+    // Enter to drill into a frame, etc.) make it the active browser tab
+    // so the live overlay renders that tab's content. Skip if it's
+    // already selected.
+    if (tabs.length === 1 && tabs[0] !== gBrowser.selectedTab) {
+      this._selectTabFromCanvas(firstTabNodeId);
+    }
+
     // _withSync sets _suppressHide so any TabSelect dispatched as a side
     // effect of these multi-select changes won't exit the canvas.
     this._withSync(() => {
@@ -644,9 +697,101 @@ var TabCanvas = {
     });
   },
 
+  // For a tab that's lazy (session-restored but not yet loaded) or
+  // discarded (was loaded, then unloaded for memory), materialize its
+  // browser and kick off a load in the background. Combines several
+  // signals because the "lazy" vs "discarded" vs "fully-loaded but
+  // hidden" cases each need slightly different handling.
+  _ensureTabLoaded(tab) {
+    if (!tab) {
+      return;
+    }
+    let hasPending = tab.hasAttribute("pending");
+    let hasDiscarded = tab.hasAttribute("discarded");
+    let browser = tab.linkedBrowser;
+    let needsLoad = hasPending || hasDiscarded || !tab.linkedPanel;
+    if (this._tabcanvasDebug) {
+      console.log("[tabcanvas] _ensureTabLoaded", {
+        label: tab.label,
+        pending: hasPending,
+        discarded: hasDiscarded,
+        linkedPanel: !!tab.linkedPanel,
+        docShellIsActive: browser?.docShellIsActive,
+        currentURI: browser?.currentURI?.spec,
+        needsLoad,
+        alreadyLoading: this._loadingTabs?.has(tab),
+      });
+    }
+    if (!needsLoad) {
+      return;
+    }
+    if (this._loadingTabs?.has(tab)) {
+      return;
+    }
+    (this._loadingTabs ??= new WeakSet()).add(tab);
+    try {
+      // Materialize the lazy browser (idempotent — no-op if already in
+      // the DOM). For session-restored tabs, this attaches the docshell
+      // and registers SessionStore state for the browser.
+      if (!tab.linkedPanel) {
+        gBrowser._insertBrowser(tab);
+      }
+      browser = tab.linkedBrowser;
+      // Activate the docshell so layers/processes spin up.
+      if (browser && !browser.docShellIsActive) {
+        try { browser.docShellIsActive = true; } catch (e) {}
+      }
+      // Three complementary triggers — whichever applies will fire:
+      //   - TabShow → SessionStore.onTabShow → queues restore.
+      //   - browser.reload() → for pending or discarded tabs, kicks
+      //     off the URI load directly. For lazy browsers, the lazy
+      //     `reload` getter chains _insertBrowser + SSTabRestoring +
+      //     real reload.
+      tab.dispatchEvent(new CustomEvent("TabShow", { bubbles: true }));
+      if ((hasPending || hasDiscarded) && browser?.reload) {
+        try { browser.reload(); } catch (e) {}
+      }
+      // Once the tab actually finishes loading, re-capture its thumbnail
+      // so the canvas body shows real content instead of the placeholder
+      // that may have been captured while the tab was still discarded.
+      let onLoad = () => {
+        tab.removeEventListener("SSTabRestored", onLoad);
+        tab.linkedBrowser?.removeEventListener("pageshow", onLoad, true);
+        let nodeId = this._tabToId.get(tab);
+        if (nodeId && this._active) {
+          this._captureThumbnail(tab, nodeId);
+        }
+      };
+      tab.addEventListener("SSTabRestored", onLoad, { once: true });
+      try {
+        tab.linkedBrowser?.addEventListener("pageshow", onLoad, { once: true, capture: true });
+      } catch (e) {}
+      if (this._tabcanvasDebug) {
+        console.log("[tabcanvas] _ensureTabLoaded -> dispatched", {
+          label: tab.label,
+          linkedPanel: !!tab.linkedPanel,
+          docShellIsActive: browser?.docShellIsActive,
+        });
+      }
+    } catch (e) {
+      if (this._tabcanvasDebug) {
+        console.error("[tabcanvas] _ensureTabLoaded failed", e);
+      }
+    }
+  },
+
   _selectTabFromCanvas(nodeId) {
     let tab = this._idToTab.get(nodeId);
-    if (!tab || tab === gBrowser.selectedTab) {
+    if (!tab) {
+      return;
+    }
+
+    // If the tab is unloaded/lazy/discarded, kick off the load so the
+    // live overlay can show real content. This works whether or not
+    // we'll go on to actually change selectedTab.
+    this._ensureTabLoaded(tab);
+
+    if (tab === gBrowser.selectedTab) {
       return;
     }
 
@@ -1149,7 +1294,7 @@ var TabCanvas = {
         "h", "v", "f", "t", " ",
         "Delete", "Backspace",
         "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
-        "Escape",
+        "Escape", "Enter",
       ];
       if (!event.ctrlKey && !event.metaKey && canvasKeys.includes(event.key)) {
         event.preventDefault();

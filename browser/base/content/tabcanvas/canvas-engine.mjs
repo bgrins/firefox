@@ -65,6 +65,11 @@ class InfiniteCanvas {
     this._nextId = 1;
     // Saved view state per node ID for the zoom-to-node toggle.
     this._savedViews = new Map();
+    // Adapter-customizable default options for toggleZoomToNode (used by
+    // keyboard shortcut Alt+Enter and other implicit zoom invocations).
+    // The chrome adapter sets tighter padding/maxZoom; standalone uses
+    // the engine defaults from fitNode.
+    this._defaultFitOptions = {};
 
     this._activeSnapGuides = [];
     this._lastClickId = null;
@@ -533,6 +538,212 @@ class InfiniteCanvas {
 
   animateToView({ panX, panY, zoom }, duration = 250) {
     this._animateToView(panX, panY, zoom, duration);
+  }
+
+  // Drill down the hierarchy (Figma's Enter): top-level → frame → first
+  // child. When repeatedly invoked on a node inside a frame, cycles
+  // through the siblings. Animates the view to center the new selection.
+  // Returns the id of the new selection, or null if nothing changed.
+  focusDescend() {
+    // Top-level (no useful single selection): pick the first frame, or
+    // the first ungrouped node if there are no frames.
+    let solo = this._selection.size === 1 ? [...this._selection][0] : null;
+    if (!solo) {
+      let firstFrame = this._sortedTopLevelItems()[0];
+      if (!firstFrame) {
+        return null;
+      }
+      this.deselectAll();
+      this.select(firstFrame.id);
+      this._centerOnItem(firstFrame);
+      return firstFrame.id;
+    }
+    // A frame is selected: descend to its first child.
+    if (this._frames.has(solo)) {
+      let children = this._sortedFrameChildren(solo);
+      if (!children.length) {
+        return null;
+      }
+      let target = children[0];
+      this.deselectAll();
+      this.select(target.id);
+      this._centerOnItem(target);
+      return target.id;
+    }
+    // A node inside a frame is selected: cycle to next sibling.
+    let node = this._nodes.get(solo);
+    if (node && node.frameId && this._frames.has(node.frameId)) {
+      let siblings = this._sortedFrameChildren(node.frameId);
+      let idx = siblings.findIndex(s => s.id === solo);
+      if (idx < 0 || siblings.length < 2) {
+        return null;
+      }
+      let next = siblings[(idx + 1) % siblings.length];
+      this.deselectAll();
+      this.select(next.id);
+      this._centerOnItem(next);
+      return next.id;
+    }
+    // Ungrouped node: nothing deeper to go into.
+    return null;
+  }
+
+  // Move up the hierarchy (Figma's Shift+Enter): node → its parent frame
+  // → top-level (fitAll, no selection). Returns the id of the new
+  // selection, or null if we popped to top level (or nothing to do).
+  focusAscend() {
+    let solo = this._selection.size === 1 ? [...this._selection][0] : null;
+    if (!solo) {
+      // Already at top level.
+      return null;
+    }
+    // A node inside a frame: go up to the frame.
+    let node = this._nodes.get(solo);
+    if (node && node.frameId && this._frames.has(node.frameId)) {
+      let frame = this._frames.get(node.frameId);
+      this.deselectAll();
+      this.select(frame.id);
+      this._centerOnItem(frame);
+      return frame.id;
+    }
+    // A frame, or an ungrouped node: pop to top-level (deselect + fitAll).
+    this.deselectAll();
+    this.fitAll(true);
+    return null;
+  }
+
+  // Top-level items, sorted in reading order (top-to-bottom, then
+  // left-to-right). Includes frames and ungrouped nodes.
+  _sortedTopLevelItems() {
+    let items = [];
+    for (let [, f] of this._frames) items.push(f);
+    for (let [, n] of this._nodes) {
+      if (!n.frameId || !this._frames.has(n.frameId)) {
+        items.push(n);
+      }
+    }
+    return items.sort((a, b) => a.y - b.y || a.x - b.x);
+  }
+
+  // Children of a frame, sorted in reading order.
+  _sortedFrameChildren(frameId) {
+    let kids = this.getFrameChildren(frameId).map(id => this._nodes.get(id));
+    return kids.sort((a, b) => a.y - b.y || a.x - b.x);
+  }
+
+  // Animate the view so the item is centered. Preserves the current zoom
+  // when the item already fits in the viewport; otherwise zooms out just
+  // enough to fit (so navigating up to a large frame still shows the
+  // whole thing).
+  _centerOnItem(item, { padding = 60 } = {}) {
+    let containerRect = this._container.getBoundingClientRect();
+    let scaleX = (containerRect.width - padding * 2) / item.width;
+    let scaleY = (containerRect.height - padding * 2) / item.height;
+    let fitZoom = Math.min(scaleX, scaleY);
+    let targetZoom = Math.min(this._zoom, fitZoom);
+    // Don't go below the canvas's minimum zoom.
+    targetZoom = Math.max(targetZoom, InfiniteCanvas.MIN_ZOOM);
+    let cx = item.x + item.width / 2;
+    let cy = item.y + item.height / 2;
+    let targetPanX = containerRect.width / 2 - cx * targetZoom;
+    let targetPanY = containerRect.height / 2 - cy * targetZoom;
+    this._animateToView(targetPanX, targetPanY, targetZoom);
+  }
+
+  // Spatial navigation: from the currently-selected single item, find the
+  // nearest peer in the given direction and select + center it
+  // (preserving the current zoom level). Candidate set is determined by
+  // the source's hierarchy level:
+  //   - A node inside a frame → other nodes in the same frame.
+  //   - A frame OR an ungrouped node → other top-level items (frames
+  //     and ungrouped nodes).
+  // Returns the id of the new selection, or null if no neighbor was found.
+  focusNeighbor(direction) {
+    if (this._selection.size !== 1) {
+      return null;
+    }
+    let sourceId = [...this._selection][0];
+    let sourceNode = this._nodes.get(sourceId);
+    let sourceFrame = this._frames.get(sourceId);
+    let source = sourceNode || sourceFrame;
+    if (!source) {
+      return null;
+    }
+
+    // Build the candidate set based on hierarchy level.
+    let candidates;
+    if (sourceNode && sourceNode.frameId && this._frames.has(sourceNode.frameId)) {
+      // Node inside a frame: peers are siblings within that frame.
+      candidates = [];
+      for (let [, n] of this._nodes) {
+        if (n.frameId === sourceNode.frameId && n.id !== sourceId) {
+          candidates.push(n);
+        }
+      }
+    } else {
+      // Frame or ungrouped node: peers are other top-level items.
+      candidates = this._sortedTopLevelItems().filter(it => it.id !== sourceId);
+    }
+
+    let sx = source.x + source.width / 2;
+    let sy = source.y + source.height / 2;
+
+    let best = null;
+    let bestCost = Infinity;
+    for (let n of candidates) {
+      let cx = n.x + n.width / 2;
+      let cy = n.y + n.height / 2;
+      let dx = cx - sx;
+      let dy = cy - sy;
+      let primary, perp;
+      switch (direction) {
+        case "right":
+          if (dx <= 0) continue;
+          primary = dx; perp = Math.abs(dy);
+          break;
+        case "left":
+          if (dx >= 0) continue;
+          primary = -dx; perp = Math.abs(dy);
+          break;
+        case "down":
+          if (dy <= 0) continue;
+          primary = dy; perp = Math.abs(dx);
+          break;
+        case "up":
+          if (dy >= 0) continue;
+          primary = -dy; perp = Math.abs(dx);
+          break;
+        default:
+          return null;
+      }
+      // Reject candidates outside a ~45° cone: if the perpendicular
+      // distance exceeds the primary distance, treat it as not in the
+      // requested direction.
+      if (perp > primary) continue;
+      let cost = primary + perp * 2;
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = n;
+      }
+    }
+    if (!best) {
+      return null;
+    }
+
+    // Swap selection and center the new item at the current zoom.
+    this.deselectAll();
+    this.select(best.id);
+    this._centerOnItem(best);
+
+    return best.id;
+  }
+
+  // Set the default fit options used by Alt+Enter and other implicit
+  // zoom invocations. Adapters that want tighter zoom for their UX
+  // (e.g. the chrome integration's zoom button) can override the
+  // engine-wide defaults here.
+  setDefaultFitOptions(opts) {
+    this._defaultFitOptions = { ...opts };
   }
 
   // Does this node have a saved "previous view" from a zoom-in toggle?
@@ -1297,8 +1508,35 @@ class InfiniteCanvas {
   _startDrag(event, itemEl) {
     let id = itemEl.dataset.id;
     this._dragClickedId = id; // Track what was actually clicked for dblclick detection
+    let isToggleSelect = event.ctrlKey || event.metaKey;
+
+    // On macOS, Ctrl+left-click also fires `contextmenu`. The default
+    // _onContextMenu handler would clobber the toggle by re-selecting the
+    // clicked node. Suppress the next contextmenu when we're consuming a
+    // cmd/ctrl+click for multi-select.
+    if (isToggleSelect) {
+      this._suppressNextContextMenu = true;
+    }
+
+    // Cmd/Ctrl+click on an already-selected item toggles it off (group-aware)
+    // and does NOT start a drag — the user is editing the selection set, not
+    // moving anything.
+    if (isToggleSelect && this._selection.has(id)) {
+      let node = this._nodes.get(id);
+      if (node && node.frameId && this._frames.has(node.frameId)) {
+        this._deselectFrameWithChildren(node.frameId);
+      } else if (this._frames.has(id)) {
+        this._deselectFrameWithChildren(id);
+      } else {
+        this.deselect(id);
+      }
+      this._state = InfiniteCanvas.STATE_IDLE;
+      this._dragTargets = [];
+      return;
+    }
+
     if (!this._selection.has(id)) {
-      if (!event.shiftKey) {
+      if (!event.shiftKey && !isToggleSelect) {
         this.deselectAll();
       }
       // If clicking a node that belongs to a group, select the group + children
@@ -1311,7 +1549,7 @@ class InfiniteCanvas {
       } else {
         this.select(id);
       }
-    } else if (this._nodes.has(id) && !event.shiftKey) {
+    } else if (this._nodes.has(id) && !event.shiftKey && !isToggleSelect) {
       // Click-into-group: if this node is already selected as part of a group
       // selection (its parent frame is also selected), drill into just this node.
       let node = this._nodes.get(id);
@@ -2051,18 +2289,45 @@ class InfiniteCanvas {
     clearTimeout(this._wheelIdleTimer);
     this._wheelIdleTimer = setTimeout(() => {
       this._container.classList.remove("is-interacting");
-    }, 150);
+    }, 120);
+
+    // Normalize deltas across deltaMode. Some mouse wheels report in
+    // lines (deltaMode=1) with tiny values (~3); without normalizing,
+    // each click only pans/zooms by a few px which feels unresponsive.
+    let deltaX = event.deltaX;
+    let deltaY = event.deltaY;
+    if (event.deltaMode === 1) {
+      deltaX *= 16;
+      deltaY *= 16;
+    } else if (event.deltaMode === 2) {
+      deltaX *= rect.width;
+      deltaY *= rect.height;
+    }
+
+    // Distinguish discrete mouse-wheel ticks from continuous trackpad
+    // gestures so we can be snappier for the former without overshooting
+    // on the latter.
+    let isMouseWheel = event.deltaMode === 1 ||
+                       Math.abs(deltaY) >= 40 || Math.abs(deltaX) >= 40;
 
     if (event.ctrlKey || event.metaKey) {
-      // Scale zoom factor by deltaY magnitude. Trackpad pinch sends small
-      // deltas (1-5), mouse wheel sends large ones (50-150). Using deltaY
-      // directly gives smooth trackpad zoom and snappy mouse wheel zoom.
-      let sensitivity = 0.008;
-      let zoomDelta = Math.exp(-event.deltaY * sensitivity);
+      // Zoom: gentler sensitivity for mouse-wheel ticks so a single
+      // click doesn't snap too far; trackpads keep a smoother feel.
+      let sensitivity = isMouseWheel ? 0.005 : 0.0075;
+      let zoomDelta = Math.exp(-deltaY * sensitivity);
       this.zoomTo(this._zoom * zoomDelta, mouseX, mouseY);
     } else {
-      this._panX -= event.deltaX;
-      this._panY -= event.deltaY;
+      // Pan: boost mouse-wheel ticks so each click feels like a real
+      // step. Shift+wheel (vertical wheel only) maps to horizontal pan.
+      let panBoost = isMouseWheel ? 1.5 : 1;
+      let dx = deltaX * panBoost;
+      let dy = deltaY * panBoost;
+      if (event.shiftKey && !event.deltaX) {
+        dx = dy;
+        dy = 0;
+      }
+      this._panX -= dx;
+      this._panY -= dy;
       this._updateTransform();
     }
   }
@@ -2307,6 +2572,43 @@ class InfiniteCanvas {
       return;
     }
 
+    // Enter / Shift+Enter / Alt+Enter shortcuts (no Ctrl/Cmd modifiers):
+    //   Enter      → focusDescend (Figma drill down)
+    //   Shift+Enter → focusAscend (Figma pop up)
+    //   Alt+Enter   → toggleZoomToNode on the current single selection
+    //                (same effect as clicking the header zoom button)
+    if (event.key === "Enter" && !event.ctrlKey && !event.metaKey) {
+      if (event.altKey) {
+        if (this._selection.size === 1) {
+          let id = [...this._selection][0];
+          this.toggleZoomToNode(id, this._defaultFitOptions);
+          this._emit("node-zoom-toggle", { id });
+        }
+      } else if (event.shiftKey) {
+        this.focusAscend();
+      } else {
+        this.focusDescend();
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    // Alt+arrow: spatial navigation to neighboring item (preserves zoom).
+    // Alt is a navigation modifier — never fall through to nudge from here,
+    // even when no neighbor is found.
+    if (event.altKey &&
+        ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+      let dir = {
+        ArrowLeft: "left", ArrowRight: "right",
+        ArrowUp: "up", ArrowDown: "down",
+      }[event.key];
+      this.focusNeighbor(dir);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     // Arrow key nudge
     let nudge = event.shiftKey ? 10 : 1;
     if (this._snapEnabled) {
@@ -2519,6 +2821,10 @@ class InfiniteCanvas {
 
   _onContextMenu(event) {
     event.preventDefault();
+    if (this._suppressNextContextMenu) {
+      this._suppressNextContextMenu = false;
+      return;
+    }
     this._closeContextMenu();
 
     let itemEl = this._findItemElement(event.target);
@@ -2739,6 +3045,16 @@ class InfiniteCanvas {
       if (child.frameId === frameId) {
         this.select(childId);
         child.element.classList.add("group-child-selected");
+      }
+    }
+  }
+
+  _deselectFrameWithChildren(frameId) {
+    this.deselect(frameId);
+    for (let [childId, child] of this._nodes) {
+      if (child.frameId === frameId) {
+        this.deselect(childId);
+        child.element.classList.remove("group-child-selected");
       }
     }
   }
