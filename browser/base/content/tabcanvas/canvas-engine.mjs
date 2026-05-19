@@ -165,28 +165,54 @@ class InfiniteCanvas {
   // Find a position next to an existing node that doesn't overlap any
   // others. Returns {x, y} suitable for passing to addNode. If no source
   // node is found, returns a position below the current bounds.
+  //
+  // Strategy: try the four cardinal positions adjacent to the source
+  // (right, below, left, above). If all are occupied, slide further out
+  // in each direction until we find a clear slot. As a final fallback,
+  // return a position below all existing content so we never sit on top
+  // of an existing node.
   findPositionNearNode(sourceId, { newWidth = null, newHeight = null, gap = 24 } = {}) {
     let source = this._nodes.get(sourceId);
     if (!source) {
-      let bounds = this._getAllBounds();
-      return bounds
-        ? { x: bounds.x, y: bounds.y + bounds.height + 40 }
-        : { x: 0, y: 0 };
+      return this._positionBelowBounds();
     }
     let w = newWidth ?? source.width;
     let h = newHeight ?? source.height;
-    let candidates = [
-      { x: source.x + source.width + gap, y: source.y },
-      { x: source.x, y: source.y + source.height + gap },
-      { x: source.x - w - gap, y: source.y },
-      { x: source.x, y: source.y - h - gap },
+
+    let directions = [
+      // Right: shift further right on each retry
+      step => ({ x: source.x + source.width + gap + step * (w + gap), y: source.y }),
+      // Below: shift further down
+      step => ({ x: source.x, y: source.y + source.height + gap + step * (h + gap) }),
+      // Left: shift further left
+      step => ({ x: source.x - w - gap - step * (w + gap), y: source.y }),
+      // Above: shift further up
+      step => ({ x: source.x, y: source.y - h - gap - step * (h + gap) }),
     ];
-    for (let c of candidates) {
-      if (!this._rectOverlapsAnyNode(c.x, c.y, w, h)) {
-        return c;
+
+    // Try each direction at increasing distances. First pass: adjacent
+    // slots. Subsequent passes: keep sliding outward in each direction
+    // until a slot is clear.
+    const MAX_STEPS = 8;
+    for (let step = 0; step < MAX_STEPS; step++) {
+      for (let dir of directions) {
+        let c = dir(step);
+        if (!this._rectOverlapsAnyNode(c.x, c.y, w, h)) {
+          return c;
+        }
       }
     }
-    return candidates[0];
+
+    // Couldn't find a non-overlapping slot near the source — drop below
+    // the entire current layout so we never fully cover an old node.
+    return this._positionBelowBounds();
+  }
+
+  _positionBelowBounds() {
+    let bounds = this._getAllBounds();
+    return bounds
+      ? { x: bounds.x, y: bounds.y + bounds.height + 40 }
+      : { x: 0, y: 0 };
   }
 
   _rectOverlapsAnyNode(x, y, w, h) {
@@ -1329,6 +1355,10 @@ class InfiniteCanvas {
       if (this._frames.has(target.id)) {
         this._moveFrameChildren(target.id, newX - prevX, newY - prevY);
       }
+      // Emit per-frame drag events so consumers (e.g. the browser
+      // adapter's live overlay) can track the position continuously
+      // instead of only at drag end.
+      this._emit("node-drag", { id: target.id, x: newX, y: newY });
     }
 
     // Frame drop highlight
@@ -2081,6 +2111,7 @@ class InfiniteCanvas {
     // - Otherwise group selected nodes into a new frame.
     if ((event.ctrlKey || event.metaKey) && event.key === "g") {
       event.preventDefault();
+      event.stopPropagation();
       let selectedFrameIds = [...this._selection].filter(id => this._frames.has(id));
       if (selectedFrameIds.length) {
         for (let frameId of selectedFrameIds) {

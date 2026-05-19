@@ -82,9 +82,11 @@ var TabCanvas = {
 
     this._canvas.on("node-click", ({ id, altKey }) => {
       if (altKey) {
-        // Alt+click always centers on the clicked node (no toggle back).
-        // Selecting the tab is part of the action.
-        this._canvas.fitNode(id, true, { padding: 32, maxZoom: 4 });
+        // Alt+click matches the zoom button: smart toggle. If the user
+        // is still at the saved zoom-in target, restore the previous
+        // view; otherwise (first click, or view has been moved) save
+        // the current view and zoom in.
+        this._canvas.toggleZoomToNode(id, { padding: 32, maxZoom: 4 });
       }
       this._selectTabFromCanvas(id);
     });
@@ -122,6 +124,15 @@ var TabCanvas = {
         this._scheduleOverlayUpdate();
       }
       this._scheduleSave();
+    });
+
+    // node-drag fires on every rAF tick during a drag (vs node-move
+    // which only fires once at drag end). We need this so the live
+    // browser overlay tracks the selected tab while it's being moved.
+    this._canvas.on("node-drag", () => {
+      if (this._active) {
+        this._scheduleOverlayUpdate();
+      }
     });
 
     this._canvas.on("node-resize", () => {
@@ -1133,7 +1144,7 @@ var TabCanvas = {
 
     if (this._active) {
       // Only prevent default for keys the canvas engine handles,
-      // so F5, F12, url bar typing, etc. still work
+      // so F5, F12, url bar typing, etc. still work.
       let canvasKeys = [
         "h", "v", "f", "t", " ",
         "Delete", "Backspace",
@@ -1143,18 +1154,16 @@ var TabCanvas = {
       if (!event.ctrlKey && !event.metaKey && canvasKeys.includes(event.key)) {
         event.preventDefault();
       }
-      // Canvas-handled Ctrl/Cmd shortcuts. Stop propagation as well so
-      // chrome-level <key> elements (e.g. Cmd+G = Find Again, Cmd+D =
-      // Bookmark) don't also fire.
-      if ((event.ctrlKey || event.metaKey) && !event.shiftKey &&
+      // For Ctrl/Cmd shortcuts the canvas claims, swallow the chrome
+      // default (Cmd+G = Find Again, Cmd+D = Bookmark, etc.) via
+      // preventDefault. We deliberately do NOT stopPropagation here:
+      // the capture phase is descending toward the canvas container's
+      // own keydown listener, and stopping propagation would prevent
+      // the engine from ever seeing the key (which would break the
+      // actual grouping/duplicate/etc. behavior).
+      if ((event.ctrlKey || event.metaKey) &&
           ["g", "d", "a", "z", "0", "1", "=", "-"].includes(event.key)) {
         event.preventDefault();
-        event.stopPropagation();
-      }
-      // Ctrl+Shift+Z = redo
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === "z") {
-        event.preventDefault();
-        event.stopPropagation();
       }
     }
   },
