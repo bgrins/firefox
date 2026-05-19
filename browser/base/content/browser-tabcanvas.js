@@ -101,6 +101,10 @@ var TabCanvas = {
       }
     });
 
+    this._canvas.on("selection-change", ({ selection }) => {
+      this._syncSelectionToTabbrowser(selection);
+    });
+
     this._canvas.on("view-change", () => {
       if (this._active) {
         this._scheduleOverlayUpdate();
@@ -542,18 +546,69 @@ var TabCanvas = {
   // Select a tab from a canvas action (click or zoom button) without
   // exiting the canvas. Pre-applies overlay styles to the incoming tab's
   // browserStack so the new browser never flashes at full size.
+  // Mirror canvas selection into tabbrowser multi-selection. Frames and
+  // canvas-only items are skipped (they're not real tabs).
+  _syncSelectionToTabbrowser(selection) {
+    if (this._internalTabSelect) {
+      // Already in the middle of a single-tab select; selection-change will
+      // fire again after the dust settles.
+      return;
+    }
+    let tabs = [];
+    for (let id of selection) {
+      let tab = this._idToTab.get(id);
+      if (tab) {
+        tabs.push(tab);
+      }
+    }
+    this._internalMultiSelect = true;
+    try {
+      gBrowser.clearMultiSelectedTabs();
+      if (tabs.length >= 2) {
+        for (let tab of tabs) {
+          gBrowser.addToMultiSelectedTabs(tab);
+        }
+      }
+    } finally {
+      this._internalMultiSelect = false;
+    }
+  },
+
   _selectTabFromCanvas(nodeId) {
     let tab = this._idToTab.get(nodeId);
     if (!tab || tab === gBrowser.selectedTab) {
       return;
     }
+
+    // The "flash to actual tab" comes from Firefox's AsyncTabSwitcher:
+    // when selectedTab changes, the new browser's docshell is activated
+    // asynchronously and the compositor briefly shows transitional layout
+    // before committing the switch. Pre-activate so it's warm, and
+    // pre-apply overlay styles so the stack is already at the small
+    // node-body location before the deck transition.
+    let browser = tab.linkedBrowser;
+    if (browser) {
+      try {
+        if (!browser.docShellIsActive) {
+          browser.docShellIsActive = true;
+        }
+        browser.preserveLayers(false);
+      } catch (e) {
+        // Lazy/discarded tab — best effort.
+      }
+    }
+
     this._applyOverlayToTab(tab);
+
     this._internalTabSelect = true;
     try {
       gBrowser.selectedTab = tab;
     } finally {
       this._internalTabSelect = false;
     }
+
+    // Re-apply in case the selectedTab assignment caused any style reset.
+    this._applyOverlayToTab(tab);
     this._captureAllThumbnails();
     this._updateAllBrowserOverlays();
   },

@@ -202,6 +202,14 @@ class InfiniteCanvas {
     this._emit("frame-remove", { id });
   }
 
+  // Same effect as removeFrame: keeps the child nodes ungrouped. The name
+  // makes intent explicit for adapters that want to map this to the
+  // underlying "ungroup tabs" operation (vs. removeFrame which they may
+  // also reach via other paths).
+  ungroupFrame(id) {
+    this.removeFrame(id);
+  }
+
   updateFrame(id, props) {
     let frame = this._frames.get(id);
     if (!frame) {
@@ -2205,6 +2213,7 @@ class InfiniteCanvas {
           { label: "Bring to Front", action: "bring-to-front" },
           { label: "Send to Back", action: "send-to-back" },
           { label: "---" },
+          { label: "Ungroup", action: "ungroup" },
           { label: "Delete Group", action: "delete" },
         ];
       } else {
@@ -2299,11 +2308,30 @@ class InfiniteCanvas {
       case "delete":
         for (let id of [...this._selection]) {
           if (this._frames.has(id)) {
+            // Delete a frame: remove all child nodes (each emits
+            // node-delete so adapters can close the underlying tabs),
+            // then remove the frame itself.
+            let childIds = this.getFrameChildren(id);
+            for (let childId of childIds) {
+              this.removeNode(childId);
+              this._emit("node-delete", { id: childId });
+            }
             this.removeFrame(id);
           } else {
             this.removeNode(id);
+            this._emit("node-delete", { id });
           }
-          this._emit("node-delete", { id });
+        }
+        this._emit("selection-change", { selection: [] });
+        break;
+      case "ungroup":
+        // Remove the frame but keep its child nodes as ungrouped items.
+        // The frame-remove event lets adapters break apart the underlying
+        // browser tab group without closing any tabs.
+        for (let id of [...this._selection]) {
+          if (this._frames.has(id)) {
+            this.removeFrame(id);
+          }
         }
         this._emit("selection-change", { selection: [] });
         break;
