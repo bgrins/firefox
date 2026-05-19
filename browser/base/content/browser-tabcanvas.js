@@ -82,9 +82,9 @@ var TabCanvas = {
 
     this._canvas.on("node-click", ({ id, altKey }) => {
       if (altKey) {
-        // Alt+click acts as the zoom button: toggle fit-this-node /
-        // restore-previous-view, and also select the tab.
-        this._canvas.toggleZoomToNode(id, { padding: 32, maxZoom: 4 });
+        // Alt+click always centers on the clicked node (no toggle back).
+        // Selecting the tab is part of the action.
+        this._canvas.fitNode(id, true, { padding: 32, maxZoom: 4 });
       }
       this._selectTabFromCanvas(id);
     });
@@ -367,7 +367,7 @@ var TabCanvas = {
               x: savedNode.x, y: savedNode.y,
               width: savedNode.width, height: savedNode.height,
               title: bestTab.label || "New Tab",
-              headerContent: this._buildHeader(bestTab),
+              headerContent: this._buildHeader(bestTab, id),
             });
             let newNode = this._canvas.getNode(id);
             if (newNode && savedNode.frameId) {
@@ -471,7 +471,7 @@ var TabCanvas = {
       width: tab.pinned ? 160 : 280,
       height: tab.pinned ? 120 : 212,
       title: tab.label || "New Tab",
-      headerContent: this._buildHeader(tab),
+      headerContent: this._buildHeader(tab, id),
     };
 
     this._canvas.addNode(id, nodeOpts);
@@ -514,7 +514,7 @@ var TabCanvas = {
     return this._canvas.findPositionNearNode(openerId);
   },
 
-  _buildHeader(tab) {
+  _buildHeader(tab, nodeId = null) {
     let header = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
     header.style.cssText = "display:flex;align-items:center;gap:8px;width:100%";
 
@@ -540,11 +540,14 @@ var TabCanvas = {
     title.textContent = tab.label || "New Tab";
     header.appendChild(title);
 
-    let nodeId = this._tabToId.get(tab);
-    if (nodeId) {
+    // Prefer the explicit nodeId argument over the map lookup. Some call
+    // sites (e.g. _restoreLayout) build the header before populating
+    // _tabToId; in that case we still need the zoom button.
+    let id = nodeId || this._tabToId.get(tab);
+    if (id) {
       // Tighter fit options for the integration: smaller padding and a
       // higher max zoom so the focused tab fills most of the canvas.
-      header.appendChild(this._canvas.createZoomButton(nodeId, {
+      header.appendChild(this._canvas.createZoomButton(id, {
         padding: 32,
         maxZoom: 4,
       }));
@@ -556,7 +559,7 @@ var TabCanvas = {
   _updateTabHeader(tab, id) {
     this._canvas.updateNode(id, {
       title: tab.label || "New Tab",
-      headerContent: this._buildHeader(tab),
+      headerContent: this._buildHeader(tab, id),
     });
   },
 
@@ -704,7 +707,14 @@ var TabCanvas = {
 
     let browserW = this._browserNativeWidth;
     let browserH = this._browserNativeHeight;
-    let scaleFactor = bodyRect.width / browserW;
+    // Use "cover" scaling so the browser fills the body in both
+    // dimensions (clipping excess on the wider axis). "Contain" scaling
+    // by width alone leaves a vertical gap when the browser is wider
+    // than the node body, exposing the thumbnail behind the overlay.
+    let scaleFactor = Math.max(
+      bodyRect.width / browserW,
+      bodyRect.height / browserH
+    );
 
     stack.style.position = "fixed";
     stack.style.left = (bodyRect.left - this._fixedOffset.x) + "px";
@@ -1182,8 +1192,11 @@ var TabCanvas = {
     if (!this._active) {
       return;
     }
-    // Tab selection initiated by a canvas click: stay in canvas mode.
-    if (this._internalTabSelect) {
+    // Tab selection initiated by something the canvas did — either a
+    // direct canvas click (_internalTabSelect) or as a side effect of a
+    // canvas → browser sync call like addTabGroup/ungroupTabs/ungroupTab
+    // (_syncing). Stay in canvas mode.
+    if (this._internalTabSelect || this._syncing) {
       return;
     }
     this.hide();
