@@ -1894,7 +1894,8 @@ var TabCanvas = {
       // actual grouping/duplicate/etc. behavior).
       if (
         (event.ctrlKey || event.metaKey) &&
-        ["g", "d", "a", "z", "0", "1", "=", "-"].includes(event.key)
+        ["g", "d", "a", "z", "0", "1", "=", "-",
+         "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
       ) {
         event.preventDefault();
       }

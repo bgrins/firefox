@@ -31,10 +31,51 @@ window.SnapManager = SnapManager;
     { bg: "#16303e", header: "#0f4060" },
   ];
 
+  // Decorate the body of a freshly-created node with the mock-tab visual
+  // (gradient, globe icon, + opener). Extracted so the `node-clone` event
+  // can re-apply it to cloned nodes too \u2014 without this, alt+drag clones
+  // come up as bare black rectangles because the engine's clone only
+  // copies geometry/title, not test-page body content.
+  function decorateMockBody(nodeId, colorPalette) {
+    let n = canvas.getNode(nodeId);
+    if (!n) {
+      return;
+    }
+    let body = n.element.querySelector(".infinite-canvas-node-body");
+    if (!body) {
+      return;
+    }
+    body.style.background = `linear-gradient(135deg, ${colorPalette.bg} 0%, ${colorPalette.header} 100%)`;
+    let placeholder = document.createElement("div");
+    placeholder.style.cssText = "padding:12px;color:rgba(255,255,255,0.2);font-size:40px;font-family:system-ui;text-align:center;line-height:140px";
+    placeholder.textContent = "\uD83C\uDF10";
+    body.appendChild(placeholder);
+
+    // Opener-like demo: clicking this "+" inside the body creates a new
+    // child node next to this one, inheriting frame membership. Lives
+    // inside the tab itself so it doesn't collide with engine modifier
+    // keys (shift = multi-select / drill, alt = clone).
+    let opener = document.createElement("button");
+    opener.className = "demo-open-child";
+    opener.title = "Open child tab";
+    opener.textContent = "+";
+    opener.style.cssText = "position:absolute;right:8px;bottom:8px;width:24px;height:24px;border-radius:4px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.4);color:#fff;font-size:14px;font-family:system-ui;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0";
+    opener.addEventListener("pointerdown", e => e.stopPropagation());
+    opener.addEventListener("click", e => {
+      e.stopPropagation();
+      e.preventDefault();
+      openChildTab(nodeId);
+    });
+    body.appendChild(opener);
+    // Stash the palette so a later clone can re-decorate without having
+    // to reverse-engineer the colors back out of the gradient.
+    n.__mockColors = colorPalette;
+  }
+
   function addMockNode(x, y, title) {
     let id = "node_" + (++nodeCount);
     let c = colors[nodeCount % colors.length];
-    let node = canvas.addNode(id, {
+    canvas.addNode(id, {
       x, y,
       width: 280,
       height: 212,
@@ -42,46 +83,65 @@ window.SnapManager = SnapManager;
       color: c.bg,
       headerColor: c.header,
     });
-    // Add placeholder content to the body
-    let body = node.element.querySelector(".infinite-canvas-node-body");
-    if (body) {
-      body.style.background = `linear-gradient(135deg, ${c.bg} 0%, ${c.header} 100%)`;
-      let placeholder = document.createElement("div");
-      placeholder.style.cssText = "padding:12px;color:rgba(255,255,255,0.2);font-size:40px;font-family:system-ui;text-align:center;line-height:140px";
-      placeholder.textContent = "\uD83C\uDF10"; // globe emoji as placeholder
-      body.appendChild(placeholder);
-
-      // Opener-like demo: clicking this "+" inside the body creates a new
-      // child node next to this one, inheriting frame membership. Lives
-      // inside the tab itself so it doesn't collide with engine modifier
-      // keys (cmd = multi-select, alt = clone, shift = additive select).
-      let opener = document.createElement("button");
-      opener.className = "demo-open-child";
-      opener.title = "Open child tab";
-      opener.textContent = "+";
-      opener.style.cssText = "position:absolute;right:8px;bottom:8px;width:24px;height:24px;border-radius:4px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.4);color:#fff;font-size:14px;font-family:system-ui;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0";
-      // stopPropagation on pointerdown so the engine doesn't start a drag.
-      opener.addEventListener("pointerdown", e => e.stopPropagation());
-      opener.addEventListener("click", e => {
-        e.stopPropagation();
-        e.preventDefault();
-        let source = canvas.getNode(id);
-        if (!source) {
-          return;
-        }
-        let pos = canvas.findPositionNearNode(id);
-        let newId = addMockNode(pos.x, pos.y, "New Tab " + (nodeCount + 1));
-        if (source.frameId) {
-          canvas.assignNodeToFrame(newId, source.frameId);
-        }
-        canvas.deselectAll();
-        canvas.select(newId);
-        log("open-child", { sourceId: id, newId, frameId: source.frameId });
-      });
-      body.appendChild(opener);
-    }
+    decorateMockBody(id, c);
     return id;
   }
+
+  // Click "+" on a tab \u2192 create a sibling tab and push a single
+  // undoable command so Ctrl+Z removes the new tab (and Ctrl+Shift+Z
+  // re-creates it).
+  function openChildTab(sourceId) {
+    let source = canvas.getNode(sourceId);
+    if (!source) {
+      return;
+    }
+    let pos = canvas.findPositionNearNode(sourceId);
+    let prevSelection = [...canvas._selection];
+    let newId = "node_" + (++nodeCount);
+    let palette = colors[nodeCount % colors.length];
+    let nodeData = {
+      x: pos.x, y: pos.y, width: 280, height: 212,
+      title: "New Tab " + nodeCount,
+      color: palette.bg, headerColor: palette.header,
+    };
+    let frameId = source.frameId || null;
+
+    let apply = () => {
+      canvas.addNode(newId, nodeData);
+      decorateMockBody(newId, palette);
+      if (frameId) {
+        canvas.assignNodeToFrame(newId, frameId);
+      }
+      canvas.deselectAll();
+      canvas.select(newId);
+    };
+    apply();
+
+    canvas._pushCommand(canvas._makeCommand({
+      type: "add-tab",
+      label: "Open Child Tab",
+      undo: () => {
+        canvas.removeNode(newId);
+        canvas._restoreSelection(prevSelection);
+      },
+      redo: () => {
+        apply();
+      },
+    }));
+    log("open-child", { sourceId, newId, frameId });
+  }
+
+  // Re-decorate clones of mock tabs so they don't render as bare black
+  // bodies. The engine clone copies geometry + colors but doesn't know
+  // about the placeholder/opener content the test page injects.
+  canvas.on("node-clone", ({ sourceId, cloneId }) => {
+    let source = canvas.getNode(sourceId);
+    if (!source) {
+      return;
+    }
+    let palette = source.__mockColors || { bg: source.color, header: source.headerColor };
+    decorateMockBody(cloneId, palette);
+  });
 
   // Pre-populate nodes (positions will be set by autoLayout)
   for (let i = 0; i < 8; i++) {

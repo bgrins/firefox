@@ -622,25 +622,104 @@ test.describe("Pan and Zoom", () => {
     expect(await zoomLevel(page)).toBeLessThan(zi);
   });
 
-  test("Ctrl+0 resets to 100%", async ({ page }) => {
+  // Force a zoomed-in view that doesn't match fit-all so the shortcut
+  // has something to change. Also focuses the canvas container so
+  // keyboard events route to the engine's keydown handler. Returns the
+  // starting zoom value.
+  async function setZoomedInView(page, zoom = 3) {
+    return await page.evaluate(z => {
+      const c = window.__canvas;
+      c._panX = 0; c._panY = 0; c._zoom = z;
+      c._updateTransform();
+      c._container.focus();
+      return c._zoom;
+    }, zoom);
+  }
+
+  test("Ctrl+0 fits all (animated)", async ({ page }) => {
     await freshPage(page);
-    const c = await nodeCenter(page, "node_1");
-    await page.mouse.click(c.x, c.y);
-    expect(await zoomLevel(page)).not.toBe(1);
+    const before = await setZoomedInView(page, 3);
+    expect(before).toBe(3);
+    const expectedFit = await page.evaluate(() => {
+      const c = window.__canvas;
+      let b = c._getAllBounds();
+      let r = c._container.getBoundingClientRect();
+      let pad = 60;
+      return Math.min((r.width - pad * 2) / b.width, (r.height - pad * 2) / b.height, 1);
+    });
     await page.keyboard.press("ControlOrMeta+0");
-    expect(await zoomLevel(page)).toBe(1);
+    await page.waitForTimeout(400);
+    const after = await zoomLevel(page);
+    expect(after).not.toBe(before);
+    expect(Math.abs(after - expectedFit)).toBeLessThan(0.01);
   });
 
-  test("Ctrl+1 fits all", async ({ page }) => {
+  test("Ctrl+0 animates the zoom transition", async ({ page }) => {
     await freshPage(page);
-    const c = await nodeCenter(page, "node_1");
-    await page.mouse.click(c.x, c.y);
+    await setZoomedInView(page, 3);
+    // Sample zoom partway through to confirm the change happened over
+    // time (animated) rather than instantly.
     await page.keyboard.press("ControlOrMeta+0");
-    expect(await zoomLevel(page)).toBe(1);
+    await page.waitForTimeout(40);
+    const mid = await zoomLevel(page);
+    await page.waitForTimeout(400);
+    const final = await zoomLevel(page);
+    expect(mid).not.toBe(3);
+    expect(mid).not.toBe(final);
+  });
+
+  test("Ctrl+ArrowRight pans the viewport left (revealing content on the right)", async ({ page }) => {
+    await freshPage(page);
+    const before = await page.evaluate(() => ({
+      panX: window.__canvas._panX, panY: window.__canvas._panY,
+    }));
+    await page.evaluate(() => window.__canvas._container.focus());
+    await page.keyboard.press("ControlOrMeta+ArrowRight");
+    await page.waitForTimeout(250);
+    const after = await page.evaluate(() => ({
+      panX: window.__canvas._panX, panY: window.__canvas._panY,
+    }));
+    expect(after.panX).toBeLessThan(before.panX);
+    expect(after.panY).toBe(before.panY);
+  });
+
+  test("Ctrl+ArrowDown pans the viewport up", async ({ page }) => {
+    await freshPage(page);
+    const before = await page.evaluate(() => ({
+      panX: window.__canvas._panX, panY: window.__canvas._panY,
+    }));
+    await page.evaluate(() => window.__canvas._container.focus());
+    await page.keyboard.press("ControlOrMeta+ArrowDown");
+    await page.waitForTimeout(250);
+    const after = await page.evaluate(() => ({
+      panX: window.__canvas._panX, panY: window.__canvas._panY,
+    }));
+    expect(after.panY).toBeLessThan(before.panY);
+    expect(after.panX).toBe(before.panX);
+  });
+
+  test("Ctrl+Shift+Arrow pans by a larger step", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => window.__canvas._container.focus());
+    const before = await page.evaluate(() => window.__canvas._panX);
+    await page.keyboard.press("ControlOrMeta+ArrowLeft");
+    await page.waitForTimeout(250);
+    const smallStep = (await page.evaluate(() => window.__canvas._panX)) - before;
+
+    // Reset and try the shift variant.
+    await page.evaluate(p => { window.__canvas._panX = p; window.__canvas._updateTransform(); }, before);
+    await page.keyboard.press("ControlOrMeta+Shift+ArrowLeft");
+    await page.waitForTimeout(250);
+    const bigStep = (await page.evaluate(() => window.__canvas._panX)) - before;
+    expect(bigStep).toBeGreaterThan(smallStep);
+  });
+
+  test("Ctrl+1 also fits all (alias for Ctrl+0)", async ({ page }) => {
+    await freshPage(page);
+    const before = await setZoomedInView(page, 3);
     await page.keyboard.press("ControlOrMeta+1");
-    // Wait for animation to complete
-    await page.waitForTimeout(300);
-    expect(await zoomLevel(page)).not.toBe(1);
+    await page.waitForTimeout(400);
+    expect(await zoomLevel(page)).not.toBe(before);
   });
 
   test("space+drag pans", async ({ page }) => {

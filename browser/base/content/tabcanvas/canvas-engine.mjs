@@ -2357,7 +2357,7 @@ class InfiniteCanvas {
               childrenToClone.push({ childId, child });
             }
           }
-          for (let { child } of childrenToClone) {
+          for (let { childId, child } of childrenToClone) {
             let childCloneId = "__clone_" + (this._nextId++);
             let childClone = this.addNode(childCloneId, {
               x: child.x + dx, y: child.y + dy,
@@ -2369,6 +2369,11 @@ class InfiniteCanvas {
             this._updateNodeGroupVisual(childClone);
             explicitlyParented.add(childCloneId);
             cloneIds.push(childCloneId);
+            // Emit node-clone for each child clone too so external
+            // decorators (test page, chrome adapter) can re-apply body
+            // content. Without this, frame-cloning leaves child tabs
+            // with bare default body styling.
+            this._emit("node-clone", { sourceId: childId, cloneId: childCloneId });
           }
         }
         cloneIds.push(cloneId);
@@ -3364,6 +3369,30 @@ class InfiniteCanvas {
       return;
     }
 
+    // Cmd/Ctrl+arrow: pan the viewport (Figma-style). Animated so rapid
+    // presses chain smoothly via _animateToView's cancel-and-restart.
+    if ((event.ctrlKey || event.metaKey) && !event.altKey &&
+        ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+      let step = event.shiftKey ? 400 : 150;
+      let dx = 0, dy = 0;
+      if (event.key === "ArrowLeft") {
+        dx = step;
+      }
+      if (event.key === "ArrowRight") {
+        dx = -step;
+      }
+      if (event.key === "ArrowUp") {
+        dy = step;
+      }
+      if (event.key === "ArrowDown") {
+        dy = -step;
+      }
+      this._animateToView(this._panX + dx, this._panY + dy, this._zoom, 150);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     // Alt+arrow: spatial navigation to neighboring item (preserves zoom).
     // Alt is a navigation modifier — never fall through to nudge from here,
     // even when no neighbor is found.
@@ -3441,13 +3470,11 @@ class InfiniteCanvas {
       event.preventDefault();
       return;
     }
-    if ((event.ctrlKey || event.metaKey) && event.key === "0") {
-      let rect = this._container.getBoundingClientRect();
-      this.zoomTo(1, rect.width / 2, rect.height / 2);
-      event.preventDefault();
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && event.key === "1") {
+    if ((event.ctrlKey || event.metaKey) && (event.key === "0" || event.key === "1")) {
+      // Cmd/Ctrl+0 was historically "reset to 100% at current focus",
+      // but in this canvas that almost never matches what the user wants
+      // — they want to see everything again. Map it to fit-all with an
+      // animated zoom, matching Cmd/Ctrl+1.
       this.fitAll(true);
       event.preventDefault();
       return;
