@@ -1911,12 +1911,6 @@ class InfiniteCanvas {
         this._endDrawing(event);
         break;
     }
-    // On macOS, Ctrl+left-click fires `contextmenu` between pointerdown and
-    // pointerup, so the flag has already been consumed by the time we get
-    // here. On other platforms cmd/ctrl+click does not produce contextmenu,
-    // so clear unconditionally to avoid the flag persisting and swallowing
-    // a later legitimate right-click.
-    this._suppressNextContextMenu = false;
   }
 
   // ---- Pan ----
@@ -1949,48 +1943,64 @@ class InfiniteCanvas {
   _startDrag(event, itemEl) {
     let id = itemEl.dataset.id;
     this._dragClickedId = id; // Track what was actually clicked for dblclick detection
-    let isToggleSelect = event.ctrlKey || event.metaKey;
-    // Snapshot selection at the start of the gesture; if it changes by
-    // the time the click resolves, push a selection-change command.
+    // Shift is the multi-select / drill modifier (Figma uses shift; we used
+    // to use cmd/ctrl but that conflicted with the macOS context menu and
+    // wasn't discoverable).
+    let isAddToSelection = event.shiftKey;
     let selectionBeforeClick = [...this._selection];
 
-    // On macOS, Ctrl+left-click also fires `contextmenu`. The default
-    // _onContextMenu handler would clobber the toggle by re-selecting the
-    // clicked node. Suppress the next contextmenu when we're consuming a
-    // cmd/ctrl+click for multi-select.
-    if (isToggleSelect) {
-      this._suppressNextContextMenu = true;
-    }
+    let newNode = this._nodes.get(id);
+    // Drill into a child of a currently-selected frame (works for both
+    // plain click and shift+click). Lets the user explore a group and then
+    // jump directly into one of its tabs without first deselecting.
+    let isDrillIntoSelectedFrame = newNode && newNode.frameId &&
+        this._selection.has(newNode.frameId);
 
-    // Cmd/Ctrl+click on an already-selected item toggles it off (group-aware)
-    // and does NOT start a drag — the user is editing the selection set, not
-    // moving anything.
-    if (isToggleSelect && this._selection.has(id)) {
-      let node = this._nodes.get(id);
-      if (node && node.frameId && this._frames.has(node.frameId)) {
-        this._deselectFrameWithChildren(node.frameId);
-      } else if (this._frames.has(id)) {
+    let path = "unknown";
+
+    // Shift+click on an already-selected item toggles it off. Skip when
+    // we're drilling into a child of a selected frame (handled below).
+    //
+    // We reach this branch with the frame NOT in selection (the
+    // isDrillIntoSelectedFrame check filtered that case out), so the
+    // user can only be in one of two states:
+    //   - the literal clicked item is selected individually → deselect it
+    //   - the clicked item IS a frame element → deselect frame + children
+    // We deliberately do NOT deselect the frame's other children when the
+    // user clicks one of them; that would silently unselect siblings.
+    if (isAddToSelection && this._selection.has(id) && !isDrillIntoSelectedFrame) {
+      if (this._frames.has(id)) {
         this._deselectFrameWithChildren(id);
+        path = "shift-toggle-off (frame)";
       } else {
         this.deselect(id);
+        path = "shift-toggle-off (item)";
       }
+      this.debugLog("info", "click selection", {
+        id, shift: isAddToSelection, path,
+        before: selectionBeforeClick, after: [...this._selection],
+      });
       this._recordSelectionChange(selectionBeforeClick, "Deselect");
       this._state = InfiniteCanvas.STATE_IDLE;
       this._dragTargets = [];
       return;
     }
 
-    if (!this._selection.has(id)) {
+    if (isDrillIntoSelectedFrame) {
+      // Replace the group selection with just this child.
+      this.deselectAll();
+      this.select(id);
+      path = "drill-into-selected-frame";
+    } else if (!this._selection.has(id)) {
       // If the user is currently "drilled in" to a group — i.e. one or
       // more of the group's children are individually selected without
       // the parent frame itself — clicking another child of the SAME
       // group should drill straight into that sibling, not pop back to
       // the whole-group selection.
-      let newNode = this._nodes.get(id);
       let isDrillSwitch = false;
       if (newNode && newNode.frameId && this._frames.has(newNode.frameId) &&
           this._selection.size > 0 && !this._selection.has(newNode.frameId) &&
-          !event.shiftKey && !isToggleSelect) {
+          !isAddToSelection) {
         // Are all current selected items children of newNode.frameId?
         let allSiblings = [...this._selection].every(sid => {
           let sn = this._nodes.get(sid);
@@ -2001,31 +2011,39 @@ class InfiniteCanvas {
         }
       }
 
-      if (!event.shiftKey && !isToggleSelect) {
+      if (!isAddToSelection) {
         this.deselectAll();
       }
 
       if (isDrillSwitch) {
         // Drill straight into the new sibling, skipping the group.
         this.select(id);
+        path = "drill-switch (sibling)";
+      } else if (isAddToSelection && newNode) {
+        // Shift+click on a tab bypasses the "auto-promote to frame"
+        // behavior — the user is explicitly editing the selection, so
+        // add the literal item they clicked, not its containing group.
+        this.select(id);
+        path = "shift-add (tab only)";
       } else if (newNode && newNode.frameId && this._frames.has(newNode.frameId)) {
         // Fresh click into a group: select group + children (first-level).
         this._selectFrameWithChildren(newNode.frameId);
+        path = "plain-click-on-tab → select frame+children";
       } else if (this._frames.has(id)) {
         // Click on a frame label or border: select group + children.
         this._selectFrameWithChildren(id);
+        path = isAddToSelection ? "shift-add (frame+children)" : "plain-click-on-frame";
       } else {
         this.select(id);
+        path = "plain-add (loose item)";
       }
-    } else if (this._nodes.has(id) && !event.shiftKey && !isToggleSelect) {
-      // Click-into-group: if this node is already selected as part of a group
-      // selection (its parent frame is also selected), drill into just this node.
-      let node = this._nodes.get(id);
-      if (node.frameId && this._selection.has(node.frameId)) {
-        this.deselectAll();
-        this.select(id);
-      }
+    } else {
+      path = "no-op (already selected, plain click)";
     }
+    this.debugLog("info", "click selection", {
+      id, shift: isAddToSelection, path,
+      before: selectionBeforeClick, after: [...this._selection],
+    });
     // Record the selection change for undo. If the user later drags
     // (move command), that pushes a separate command — undo will revert
     // the move first, then the selection.
@@ -3574,10 +3592,6 @@ class InfiniteCanvas {
 
   _onContextMenu(event) {
     event.preventDefault();
-    if (this._suppressNextContextMenu) {
-      this._suppressNextContextMenu = false;
-      return;
-    }
     this._closeContextMenu();
 
     let itemEl = this._findItemElement(event.target);

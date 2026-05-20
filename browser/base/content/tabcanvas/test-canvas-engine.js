@@ -164,21 +164,23 @@ test.describe("Selection", () => {
     expect(await sel(page)).toContain("node_2");
   });
 
-  test("shift+click adds group to selection", async ({ page }) => {
+  test("shift+click on a tab adds just the tab (not its frame)", async ({ page }) => {
     await freshPage(page);
-    // Click node_1 (selects group_1 + children = 5)
+    // Plain click node_1 selects group_1 + children = 5
     const c1 = await nodeCenter(page, "node_1");
     await page.mouse.click(c1.x, c1.y);
     expect((await sel(page)).length).toBe(5);
-    // Shift+click node_5 (in group_2 - should add group_2 + children)
+    // Shift+click node_5 (in group_2): shift bypasses frame auto-promote,
+    // so only node_5 is added.
     const c5 = await nodeCenter(page, "node_5");
     await page.keyboard.down("Shift");
     await page.mouse.click(c5.x, c5.y);
     await page.keyboard.up("Shift");
     const s = await sel(page);
     expect(s).toContain("group_1");
-    expect(s).toContain("group_2");
-    expect(s.length).toBe(10); // both groups + all 8 children
+    expect(s).toContain("node_5");
+    expect(s).not.toContain("group_2");
+    expect(s.length).toBe(6);
   });
 
   test("click on empty canvas deselects all", async ({ page }) => {
@@ -222,7 +224,7 @@ test.describe("Selection", () => {
     expect((await sel(page)).length).toBeGreaterThan(0);
   });
 
-  // Use ungrouped nodes for cmd+click toggle tests so we don't entangle
+  // Use ungrouped nodes for shift+click toggle tests so we don't entangle
   // group-selection logic. The group-aware toggle is covered separately.
   async function ungroupAll(page) {
     await page.evaluate(() => {
@@ -233,76 +235,128 @@ test.describe("Selection", () => {
     });
   }
 
-  // Both Control (Windows/Linux) and Meta (macOS Cmd) toggle multi-select.
-  // Meta also exercises the macOS-specific contextmenu suppression path
-  // (cmd+left-click on macOS fires `contextmenu` between pointerdown and
-  // pointerup, which the engine has to suppress to keep its selection intact).
-  for (const mod of ["Control", "Meta"]) {
-    test(`${mod}+click adds an unselected node to selection`, async ({ page }) => {
-      await freshPage(page);
-      await ungroupAll(page);
-      const c1 = await nodeCenter(page, "node_1");
-      const c2 = await nodeCenter(page, "node_2");
-      await page.mouse.click(c1.x, c1.y);
-      expect(await sel(page)).toEqual(["node_1"]);
-      await page.keyboard.down(mod);
-      await page.mouse.click(c2.x, c2.y);
-      await page.keyboard.up(mod);
-      const s = await sel(page);
-      expect(s).toContain("node_1");
-      expect(s).toContain("node_2");
-      expect(s.length).toBe(2);
-    });
+  test("Shift+click adds an unselected node to selection", async ({ page }) => {
+    await freshPage(page);
+    await ungroupAll(page);
+    const c1 = await nodeCenter(page, "node_1");
+    const c2 = await nodeCenter(page, "node_2");
+    await page.mouse.click(c1.x, c1.y);
+    expect(await sel(page)).toEqual(["node_1"]);
+    await page.keyboard.down("Shift");
+    await page.mouse.click(c2.x, c2.y);
+    await page.keyboard.up("Shift");
+    const s = await sel(page);
+    expect(s).toContain("node_1");
+    expect(s).toContain("node_2");
+    expect(s.length).toBe(2);
+  });
 
-    test(`${mod}+click on a selected node removes it from selection`, async ({ page }) => {
-      await freshPage(page);
-      await ungroupAll(page);
-      const c1 = await nodeCenter(page, "node_1");
-      const c2 = await nodeCenter(page, "node_2");
-      await page.mouse.click(c1.x, c1.y);
-      await page.keyboard.down(mod);
-      await page.mouse.click(c2.x, c2.y);
-      // Toggle node_1 back off
-      await page.mouse.click(c1.x, c1.y);
-      await page.keyboard.up(mod);
-      expect(await sel(page)).toEqual(["node_2"]);
-    });
+  test("Shift+click on a selected node removes it from selection", async ({ page }) => {
+    await freshPage(page);
+    await ungroupAll(page);
+    const c1 = await nodeCenter(page, "node_1");
+    const c2 = await nodeCenter(page, "node_2");
+    await page.mouse.click(c1.x, c1.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.click(c2.x, c2.y);
+    // Toggle node_1 back off
+    await page.mouse.click(c1.x, c1.y);
+    await page.keyboard.up("Shift");
+    expect(await sel(page)).toEqual(["node_2"]);
+  });
 
-    test(`${mod}+click toggle does not deselect other nodes`, async ({ page }) => {
-      await freshPage(page);
-      await ungroupAll(page);
-      const c1 = await nodeCenter(page, "node_1");
-      const c2 = await nodeCenter(page, "node_2");
-      const c3 = await nodeCenter(page, "node_3");
-      await page.mouse.click(c1.x, c1.y);
-      await page.keyboard.down(mod);
-      await page.mouse.click(c2.x, c2.y);
-      await page.mouse.click(c3.x, c3.y);
-      await page.keyboard.up(mod);
-      expect((await sel(page)).sort()).toEqual(["node_1", "node_2", "node_3"]);
-    });
+  test("Shift+click toggle does not deselect other nodes", async ({ page }) => {
+    await freshPage(page);
+    await ungroupAll(page);
+    const c1 = await nodeCenter(page, "node_1");
+    const c2 = await nodeCenter(page, "node_2");
+    const c3 = await nodeCenter(page, "node_3");
+    await page.mouse.click(c1.x, c1.y);
+    await page.keyboard.down("Shift");
+    await page.mouse.click(c2.x, c2.y);
+    await page.mouse.click(c3.x, c3.y);
+    await page.keyboard.up("Shift");
+    expect((await sel(page)).sort()).toEqual(["node_1", "node_2", "node_3"]);
+  });
 
-    test(`${mod}+click on a grouped node toggles whole group`, async ({ page }) => {
-      await freshPage(page);
-      const c1 = await nodeCenter(page, "node_1");
-      const c5 = await nodeCenter(page, "node_5");
-      // Click node_1 selects group_1 + 4 children
-      await page.mouse.click(c1.x, c1.y);
-      expect((await sel(page)).length).toBe(5);
-      // Cmd/Ctrl+click on node_5 adds group_2 + 4 children
-      await page.keyboard.down(mod);
-      await page.mouse.click(c5.x, c5.y);
-      expect((await sel(page)).length).toBe(10);
-      // Cmd/Ctrl+click node_5 again toggles group_2 off
-      await page.mouse.click(c5.x, c5.y);
-      await page.keyboard.up(mod);
-      const s = await sel(page);
-      expect(s).toContain("group_1");
-      expect(s).not.toContain("group_2");
-      expect(s).not.toContain("node_5");
-      expect(s.length).toBe(5);
+  test("Shift+click on a tab adds just the tab (not its whole group)", async ({ page }) => {
+    await freshPage(page);
+    const c1 = await nodeCenter(page, "node_1");
+    const c5 = await nodeCenter(page, "node_5");
+    // Plain click node_1 selects group_1 + 4 children (frame-first).
+    await page.mouse.click(c1.x, c1.y);
+    expect((await sel(page)).length).toBe(5);
+    // Shift+click node_5 adds JUST node_5 — shift bypasses the
+    // auto-promote-to-frame behavior.
+    await page.keyboard.down("Shift");
+    await page.mouse.click(c5.x, c5.y);
+    await page.keyboard.up("Shift");
+    const s = await sel(page);
+    expect(s).toContain("group_1");
+    expect(s).toContain("node_5");
+    expect(s).not.toContain("group_2");
+    expect(s.length).toBe(6);
+  });
+
+  test("Shift+click on a child of a selected frame drills into the child", async ({ page }) => {
+    await freshPage(page);
+    // Plain click selects group_1 + children
+    const c1 = await nodeCenter(page, "node_1");
+    await page.mouse.click(c1.x, c1.y);
+    expect((await sel(page)).length).toBe(5);
+    // Shift+click on node_2 (a child of selected group_1) drills to just node_2
+    const c2 = await nodeCenter(page, "node_2");
+    await page.keyboard.down("Shift");
+    await page.mouse.click(c2.x, c2.y);
+    await page.keyboard.up("Shift");
+    expect(await sel(page)).toEqual(["node_2"]);
+  });
+
+  test("Shift+click on a single selected tab deselects only that tab", async ({ page }) => {
+    await freshPage(page);
+    // Pre-select node_5 individually via the API (no frame in selection).
+    await selectNode(page, "node_5");
+    expect(await sel(page)).toEqual(["node_5"]);
+    // Shift+click to deselect it — should leave selection empty.
+    const c5 = await nodeCenter(page, "node_5");
+    await page.keyboard.down("Shift");
+    await page.mouse.click(c5.x, c5.y);
+    await page.keyboard.up("Shift");
+    expect(await sel(page)).toEqual([]);
+  });
+
+  test("Shift+click on a sibling tab keeps the others selected", async ({ page }) => {
+    await freshPage(page);
+    // Pre-select three siblings of group_1 individually (frame NOT selected).
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("node_1");
+      c.select("node_2");
+      c.select("node_3");
     });
-  }
+    expect((await sel(page)).sort()).toEqual(["node_1", "node_2", "node_3"]);
+    // Shift+click node_2 to deselect just it.
+    const c2 = await nodeCenter(page, "node_2");
+    await page.keyboard.down("Shift");
+    await page.mouse.click(c2.x, c2.y);
+    await page.keyboard.up("Shift");
+    expect((await sel(page)).sort()).toEqual(["node_1", "node_3"]);
+  });
+
+  test("Shift+click on a frame, then Shift+click on its child drills to the child", async ({ page }) => {
+    await freshPage(page);
+    const fl = await frameLabelCenter(page, "group_1");
+    const c1 = await nodeCenter(page, "node_1");
+    // Shift+click frame label selects group + children
+    await page.keyboard.down("Shift");
+    await page.mouse.click(fl.x, fl.y);
+    expect((await sel(page)).length).toBe(5);
+    // Shift+click a tab in the group drills to just that tab
+    await page.mouse.click(c1.x, c1.y);
+    await page.keyboard.up("Shift");
+    expect(await sel(page)).toEqual(["node_1"]);
+  });
 });
 
 test.describe("Move", () => {
@@ -1682,17 +1736,9 @@ test.describe("Group+Children Drag", () => {
         n2relX: n2.x - frame.x, n2relY: n2.y - frame.y,
       };
     });
-    // Select group_1 (which selects frame + we shift-select children)
+    // Click the frame label: selects frame + all 4 children together.
     const lbl = await frameLabelCenter(page, "group_1");
     await page.mouse.click(lbl.x, lbl.y);
-    // Shift-click all children to add them to selection
-    for (let i = 1; i <= 4; i++) {
-      const c = await nodeCenter(page, "node_" + i);
-      await page.keyboard.down("Shift");
-      await page.mouse.click(c.x, c.y);
-      await page.keyboard.up("Shift");
-    }
-    // Verify all selected
     const selCount = await page.evaluate(() => window.__canvas.getSelection().length);
     expect(selCount).toBe(5); // group + 4 children
 
