@@ -614,6 +614,19 @@ class InfiniteCanvas {
         this.select(id);
       }
     }
+    // If a frame and any of its children are both in the restored
+    // selection, re-apply the "child of selected frame" visual modifier
+    // so children don't show individual selection borders. This matches
+    // the appearance produced by _selectFrameWithChildren on a fresh
+    // click; without it, undoing back to a group selection leaves every
+    // tab outlined as if independently selected.
+    let restoredSet = new Set(ids);
+    for (let id of ids) {
+      let node = this._nodes.get(id);
+      if (node && node.frameId && restoredSet.has(node.frameId)) {
+        node.element.classList.add("group-child-selected");
+      }
+    }
   }
 
   // Push a command. Routes through the transaction buffer when one is

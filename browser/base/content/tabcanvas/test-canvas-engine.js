@@ -2738,6 +2738,32 @@ test.describe("Selection Undo", () => {
     expect(afterUndo.length).toBe(0);
   });
 
+  test("undo from drilled-tab back to group restores the group-child visual style", async ({ page }) => {
+    await freshPage(page);
+    // Plain-click group_1 label → group + 4 children selected, children
+    // get .group-child-selected to suppress their individual borders.
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    await page.waitForTimeout(500);
+    // Drill in: click node_2 → just node_2 selected.
+    const c2 = await nodeCenter(page, "node_2");
+    await page.mouse.click(c2.x, c2.y);
+    expect(await sel(page)).toEqual(["node_2"]);
+    // Undo: selection should restore to group + children with the group
+    // visual modifier intact (no individual tab borders).
+    await page.evaluate(() => window.__canvas.undo());
+    const result = await page.evaluate(() => {
+      let nodes = ["node_1", "node_2", "node_3", "node_4"];
+      return {
+        selection: window.__canvas.getSelection().sort(),
+        hasGroupChildClass: nodes.every(id =>
+          window.__canvas._nodes.get(id).element.classList.contains("group-child-selected")),
+      };
+    });
+    expect(result.selection).toEqual(["group_1", "node_1", "node_2", "node_3", "node_4"]);
+    expect(result.hasGroupChildClass).toBe(true);
+  });
+
   test("undo restores prior selection after a switch", async ({ page }) => {
     await freshPage(page);
     // Select node_1, then click node_5 to switch.

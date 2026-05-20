@@ -287,6 +287,14 @@ var TabCanvas = {
   },
 
   handleEvent(event) {
+    // Trace every browser → canvas event so bug reports can show exactly
+    // which external signal triggered a downstream canvas mutation. Skip
+    // keydown / resize: they fire constantly and the interesting ones are
+    // already traced via canvas-level events.
+    if (event.type !== "keydown" && event.type !== "resize") {
+      let detail = this._describeBrowserEvent(event);
+      this._canvas?.debugLog("info", "browser event", detail);
+    }
     switch (event.type) {
       case "keydown":
         this._onKeyDown(event);
@@ -328,9 +336,35 @@ var TabCanvas = {
     }
   },
 
+  _describeBrowserEvent(event) {
+    let detail = { type: event.type };
+    let tab = event.target;
+    if (tab && tab.tagName === "tab") {
+      detail.tab = {
+        label: tab.label,
+        pinned: !!tab.pinned,
+        groupId: tab.group?.id || null,
+        permanentKey: this._tabKeys?.get(tab.permanentKey) || null,
+      };
+    }
+    let group = event.detail?.group || event.target;
+    if (group && group.tagName === "tab-group") {
+      detail.group = { id: group.id, label: group.label, color: group.color };
+    }
+    if (event.detail && typeof event.detail === "object") {
+      // Surface a small subset of detail fields without dumping the whole DOM tree.
+      let { changed } = event.detail;
+      if (changed) {
+        detail.changed = changed;
+      }
+    }
+    return detail;
+  },
+
   // --- Show / Hide ---
 
   toggle() {
+    this._canvas?.debugLog("info", "toggle", { from: this._active ? "shown" : "hidden" });
     if (this._active) {
       this.hide();
     } else {
@@ -339,6 +373,11 @@ var TabCanvas = {
   },
 
   show() {
+    this._canvas?.debugLog("info", "show", {
+      tabCount: gBrowser.tabs.length,
+      selectedTab: gBrowser.selectedTab?.label,
+      initialized: !!this._initialized,
+    });
     this._active = true;
     // Reset placement cursor on each show so a new session starts from
     // current canvas bounds rather than wherever the last one left off.
@@ -389,6 +428,7 @@ var TabCanvas = {
   },
 
   hide() {
+    this._canvas?.debugLog("info", "hide");
     this._active = false;
     this._overlay.removeAttribute("active");
     document
@@ -865,6 +905,9 @@ var TabCanvas = {
   },
 
   _closeTabFromCanvas(tab, nodeId) {
+    this._canvas.debugLog("info", "side-effect → removeTab", {
+      nodeId, label: tab.label, wasSelected: tab === gBrowser.selectedTab,
+    });
     // If the user had zoomed in on this tab, animate back to the
     // previous view before the node disappears. The engine's removeNode
     // also auto-shrinks the containing frame to fit the remaining nodes.
@@ -1211,6 +1254,9 @@ var TabCanvas = {
     if (tab === gBrowser.selectedTab) {
       return;
     }
+    this._canvas.debugLog("info", "side-effect → selectedTab", {
+      nodeId, label: tab.label, prev: gBrowser.selectedTab?.label,
+    });
 
     let oldTab = gBrowser.selectedTab;
     let newBrowser = tab.linkedBrowser;
@@ -1579,6 +1625,7 @@ var TabCanvas = {
     if (this._syncing) {
       return;
     }
+    this._canvas.debugLog("info", "side-effect ← frame-create", { frameId });
     this._maybeCreateBrowserGroup(frameId);
   },
 
@@ -1591,6 +1638,7 @@ var TabCanvas = {
     if (!groupId) {
       return;
     }
+    this._canvas.debugLog("info", "side-effect → ungroupTabs", { frameId, groupId });
     let group = gBrowser.getTabGroupById(groupId);
     // Only forget the mapping after the browser-side ungroup succeeds.
     // If group.ungroupTabs() throws, the browser group still exists and
@@ -1616,6 +1664,9 @@ var TabCanvas = {
     if (!tab || tab.pinned) {
       return;
     }
+    this._canvas.debugLog("info", "side-effect → tab group membership", {
+      nodeId, label: tab.label, frameId, prevFrameId,
+    });
 
     let prevGroupId = prevFrameId
       ? this._canvasToTabGroup.get(prevFrameId)
@@ -1661,6 +1712,9 @@ var TabCanvas = {
     }
     let frame = this._canvas._frames.get(frameId);
     if (frame) {
+      this._canvas.debugLog("info", "side-effect → group label", {
+        frameId, groupId, label: frame.label,
+      });
       this._withSync(() => {
         group.label = frame.label;
       });

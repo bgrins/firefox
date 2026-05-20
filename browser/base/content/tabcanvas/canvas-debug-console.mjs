@@ -113,18 +113,37 @@ export default class CanvasDebugConsole {
 
     // Mirror notable engine events into the log so the console is
     // useful out of the box, not silent until something explicitly
-    // calls debugLog().
-    this._mirror = (label, data) => this._appendRow({
-      ts: Date.now(), level: "info", message: label, data,
+    // calls debugLog(). Each subscription is recorded in
+    // this._mirrorSubs so destroy() can unwire them in one loop.
+    this._mirror = (label, data, level = "info") => this._appendRow({
+      ts: Date.now(), level, message: label, data,
     });
-    this._onPushed = ({ type, label, coalesced }) => {
-      this._mirror(coalesced ? "command coalesced" : "command pushed", { type, label });
+
+    this._mirrorSubs = [];
+    let on = (event, fn) => {
+      this._canvas.on(event, fn);
+      this._mirrorSubs.push([event, fn]);
     };
-    this._onUndone = ({ type, label }) => this._mirror("undo", { type, label });
-    this._onRedone = ({ type, label }) => this._mirror("redo", { type, label });
-    this._canvas.on("command-pushed", this._onPushed);
-    this._canvas.on("command-undone", this._onUndone);
-    this._canvas.on("command-redone", this._onRedone);
+
+    on("command-pushed", ({ type, label, coalesced }) =>
+      this._mirror(coalesced ? "command coalesced" : "command pushed", { type, label }));
+    on("command-undone", ({ type, label }) => this._mirror("undo", { type, label }));
+    on("command-redone", ({ type, label }) => this._mirror("redo", { type, label }));
+    on("selection-change", ({ selection }) =>
+      this._mirror("selection", { size: selection.length, ids: selection }));
+    on("tool-change", ({ tool }) => this._mirror("tool", { tool }));
+    on("node-click", data => this._mirror("node-click", data));
+    on("node-dblclick", data => this._mirror("node-dblclick", data));
+    on("node-move", ({ id, x, y }) => this._mirror("node-move", { id, x, y }));
+    on("node-resize", data => this._mirror("node-resize", data));
+    on("node-delete", ({ id }) => this._mirror("node-delete", { id }));
+    on("node-clone", data => this._mirror("node-clone", data));
+    on("node-zoom-toggle", ({ id }) => this._mirror("node-zoom-toggle", { id }));
+    on("frame-create", ({ id }) => this._mirror("frame-create", { id }));
+    on("frame-remove", ({ id }) => this._mirror("frame-remove", { id }));
+    on("frame-label-change", ({ id, label }) => this._mirror("frame-label", { id, label }));
+    on("escape", () => this._mirror("escape"));
+    on("align", ({ command, ids }) => this._mirror("align", { command, count: ids?.length }));
   }
 
   _seedFromBuffer() {
@@ -193,9 +212,9 @@ export default class CanvasDebugConsole {
 
   destroy() {
     this._canvas.off?.("debug-log", this._onDebugLog);
-    this._canvas.off?.("command-pushed", this._onPushed);
-    this._canvas.off?.("command-undone", this._onUndone);
-    this._canvas.off?.("command-redone", this._onRedone);
+    for (let [event, fn] of this._mirrorSubs || []) {
+      this._canvas.off?.(event, fn);
+    }
     this._toggleBtn?.remove();
     this._panel?.remove();
   }
