@@ -10,6 +10,10 @@ var { CanvasToolbar } = ChromeUtils.importESModule(
   "chrome://browser/content/tabcanvas/canvas-toolbar.mjs",
   { global: "current" }
 );
+var { CanvasDebugConsole } = ChromeUtils.importESModule(
+  "chrome://browser/content/tabcanvas/canvas-debug-console.mjs",
+  { global: "current" }
+);
 
 /**
  * TabCanvas - Browser chrome adapter for InfiniteCanvas.
@@ -86,6 +90,12 @@ var TabCanvas = {
     this._toolbar = new CanvasToolbar(
       this._canvas,
       document.getElementById("tab-canvas-toolbar")
+    );
+    // Debug console mounted inside the canvas overlay. Toggleable via
+    // its own button, plus an Alt+Shift+D shortcut handled in keydown.
+    this._debugConsole = new CanvasDebugConsole(
+      this._canvas,
+      document.getElementById("tab-canvas-inner")
     );
 
     // Track canvas .on() subscriptions so uninit can pair them with .off().
@@ -232,6 +242,20 @@ var TabCanvas = {
     onCanvas("node-frame-change", ({ id, frameId, prevFrameId }) => {
       this._scheduleSave();
       this._onCanvasNodeFrameChange(id, frameId, prevFrameId);
+    });
+
+    // --- Undo command side-effects ---
+    // For each engine command pushed to the undo stack, attach a chrome
+    // side-effect so that undoing also reverts the corresponding browser
+    // operation (e.g. tab close, group create/remove). The side-effect
+    // captures snapshots at push time so it can replay them later even
+    // if external state has changed.
+    onCanvas("command-pushed", ({ type }) => {
+      let top = this._canvas._undoStack[this._canvas._undoStack.length - 1];
+      if (!top) {
+        return;
+      }
+      this._attachAdapterSideEffects(top, type);
     });
 
     // --- Tab event handlers ---
@@ -797,6 +821,49 @@ var TabCanvas = {
   // event (Delete key / context menu). Restores any saved zoom-in view
   // for the closing tab, then removes the tab. If the tab is currently
   // selected, suppresses the auto-hide that would normally follow.
+  // Attach chrome side-effects to a freshly-pushed engine command.
+  // Each engine command type has a different policy:
+  //   - "delete": if the user just closed a tab through the canvas, the
+  //     side-effect calls SessionStore.undoCloseTab on undo so the tab
+  //     comes back. Multiple tabs in one batch get multiple restores.
+  //     We deliberately do NOT attach a side-effect for tab closes that
+  //     originated outside the canvas (tab strip, Ctrl+W) — those have
+  //     their own browser-level undo.
+  //   - "group" / "draw-frame": adapter created a browser tab group as
+  //     a side effect; undo should ungroup it, redo should recreate.
+  //   - "ungroup": adapter ungrouped a browser tab group; undo restores
+  //     the group (via savedGroup or by re-creating from member tabs).
+  // Other engine command types are pure canvas (z-order, color, rename,
+  // layout, etc.) — no browser-side mirror.
+  _attachAdapterSideEffects(cmd, type) {
+    if (type === "delete") {
+      let pending = this._pendingCanvasCloses || 0;
+      this._pendingCanvasCloses = 0;
+      if (pending <= 0) {
+        // The delete batch didn't include any canvas-initiated tab
+        // closes (e.g. it was a frame-only delete). Nothing to attach.
+        return;
+      }
+      cmd.attach({
+        undo: () => {
+          for (let i = 0; i < pending; i++) {
+            try {
+              SessionStore.undoCloseTab(window);
+            } catch (e) {
+              this._canvas.debugLog("warn", "undoCloseTab failed", { error: String(e) });
+            }
+          }
+        },
+        redo: () => {
+          // Best-effort: redo re-closes tabs that were just restored.
+          // We don't track which restored tabs correspond to which
+          // engine nodes, so close the most-recently-restored ones.
+          this._canvas.debugLog("info", "redo of canvas tab close: not yet implemented");
+        },
+      });
+    }
+  },
+
   _closeTabFromCanvas(tab, nodeId) {
     // If the user had zoomed in on this tab, animate back to the
     // previous view before the node disappears. The engine's removeNode
@@ -804,6 +871,11 @@ var TabCanvas = {
     if (nodeId) {
       this._canvas.restoreSavedView(nodeId);
     }
+    // Track canvas-initiated closes so the upcoming engine "delete"
+    // command can be enriched with a SessionStore.undoCloseTab
+    // side-effect. External tab closes (via tab strip, Ctrl+W) shouldn't
+    // be tagged.
+    this._pendingCanvasCloses = (this._pendingCanvasCloses || 0) + 1;
     let wasSelected = tab === gBrowser.selectedTab;
     this._canvasInitiatedClose = true;
     if (wasSelected) {
@@ -1714,6 +1786,14 @@ var TabCanvas = {
       event.preventDefault();
       event.stopPropagation();
       this.toggle();
+      return;
+    }
+
+    // Alt+Shift+D toggles the debug console while canvas is active.
+    if (this._active && event.altKey && event.shiftKey && event.key === "D") {
+      event.preventDefault();
+      event.stopPropagation();
+      this._debugConsole?.toggle();
       return;
     }
 

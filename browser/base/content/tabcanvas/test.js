@@ -5,6 +5,7 @@
 import InfiniteCanvas from "./canvas-engine.mjs";
 import SnapManager from "./snap-manager.mjs";
 import CanvasToolbar from "./canvas-toolbar.mjs";
+import CanvasDebugConsole from "./canvas-debug-console.mjs";
 
 // Expose for Playwright tests
 window.InfiniteCanvas = InfiniteCanvas;
@@ -17,6 +18,8 @@ window.SnapManager = SnapManager;
 
   // Shared toolbar
   let toolbar = new CanvasToolbar(canvas, document.getElementById("toolbar"));
+  let debugConsole = new CanvasDebugConsole(canvas, document.getElementById("canvas-container"), { startVisible: true });
+  window.__debugConsole = debugConsole;
 
   let nodeCount = 0;
   let colors = [
@@ -115,6 +118,12 @@ window.SnapManager = SnapManager;
   canvas.autoLayout("group_2");
 
   canvas.fitAll();
+
+  // Clear undo/redo stacks built up during initial test-page setup so
+  // tests start from a clean slate. (autoLayout etc. now push undo
+  // entries; we don't want test setup to pollute them.)
+  canvas._undoStack = [];
+  canvas._redoStack = [];
 
   // Event log (test page only - not part of shared toolbar)
   let eventLog = document.getElementById("event-log");

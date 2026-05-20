@@ -76,6 +76,15 @@ class InfiniteCanvas {
     this._lastClickTime = 0;
     this._undoStack = [];
     this._redoStack = [];
+    // Transaction state for coalescing pushes inside a gesture.
+    this._transactionDepth = 0;
+    this._transactionBuffer = null;
+    this._transactionLabel = null;
+    this._transactionCoalesceKey = null;
+    this._transactionCoalesceWindowMs = 0;
+    // Debug log ring buffer (most recent N entries).
+    this._debugLogBuffer = [];
+    this._debugLogMax = 200;
     this._rafPending = false;
     this._pendingMoveEvent = null;
     this._guidePool = [];
@@ -392,6 +401,42 @@ class InfiniteCanvas {
     return [...this._selection];
   }
 
+  // Compare two selection arrays (order-insensitive).
+  _sameSelection(a, b) {
+    if (a.length !== b.length) return false;
+    let sa = new Set(a);
+    for (let id of b) if (!sa.has(id)) return false;
+    return true;
+  }
+
+  // Record a user-driven selection change as an undoable command. The
+  // command body is empty — the engine's selection-restore on undo/redo
+  // does the work via selectionBefore/selectionAfter. Rapid changes
+  // coalesce (e.g. shift+click adding several nodes in succession).
+  _recordSelectionChange(prevSelection, label = "Select") {
+    let cur = [...this._selection];
+    if (this._sameSelection(cur, prevSelection)) {
+      return;
+    }
+    let cmd = {
+      type: "selection",
+      label,
+      selectionBefore: prevSelection,
+      selectionAfter: cur,
+      undo: () => {},
+      redo: () => {},
+      sideEffects: [],
+      coalesceKey: "selection",
+      attach(effect) { this.sideEffects.push(effect); },
+      _pushedAt: Date.now(),
+    };
+    if (this._transactionDepth > 0) {
+      this._transactionBuffer.push(cmd);
+      return;
+    }
+    this._commitCommand(cmd, 400);
+  }
+
   // ---- Public API: Serialization ----
 
   toJSON() {
@@ -443,13 +488,100 @@ class InfiniteCanvas {
 
   // ---- Public API: Undo/Redo ----
 
+  // Build a command object. All commands go through this factory so they
+  // share a single shape (selection capture, optional coalesce key, label
+  // for UI/telemetry).
+  _makeCommand({ type, label, undo, redo, coalesceKey = null, sideEffects = [] }) {
+    return {
+      type,
+      label: label || type,
+      // Selection state at command-creation time (i.e. the "before" state
+      // for an undo, "after" state for a redo).
+      selectionBefore: [...this._selection],
+      selectionAfter: null, // filled in by _pushCommand right before stack push
+      undo,
+      redo,
+      coalesceKey,
+      sideEffects,
+      // Attach a chrome-side side-effect; runs in addition to the
+      // engine's own undo/redo. Adapters use this to mirror state to
+      // browser systems (e.g. tab close ↔ SessionStore.undoCloseTab).
+      attach(effect) { this.sideEffects.push(effect); },
+    };
+  }
+
+  // Open a transaction. Subsequent _pushCommand calls coalesce into a
+  // single batch command pushed at endTransaction().
+  beginTransaction(label, { coalesceKey = null, coalesceWindowMs = 250 } = {}) {
+    if (this._transactionDepth === 0) {
+      this._transactionBuffer = [];
+      this._transactionLabel = label;
+      this._transactionCoalesceKey = coalesceKey;
+      this._transactionCoalesceWindowMs = coalesceWindowMs;
+    }
+    this._transactionDepth++;
+  }
+
+  endTransaction() {
+    if (this._transactionDepth === 0) {
+      return;
+    }
+    this._transactionDepth--;
+    if (this._transactionDepth > 0) {
+      return;
+    }
+    let buf = this._transactionBuffer;
+    let label = this._transactionLabel;
+    let coalesceKey = this._transactionCoalesceKey;
+    let windowMs = this._transactionCoalesceWindowMs;
+    this._transactionBuffer = null;
+    this._transactionLabel = null;
+    this._transactionCoalesceKey = null;
+    this._transactionCoalesceWindowMs = 0;
+    if (!buf || !buf.length) {
+      return;
+    }
+    let batch;
+    if (buf.length === 1) {
+      batch = buf[0];
+      batch.label = label || batch.label;
+    } else {
+      batch = this._makeCommand({
+        type: "batch",
+        label: label || "Batch",
+        undo: () => { for (let i = buf.length - 1; i >= 0; i--) buf[i].undo(); },
+        redo: () => { for (let c of buf) c.redo(); },
+      });
+      batch.children = buf;
+      batch.selectionBefore = buf[0].selectionBefore;
+    }
+    batch.coalesceKey = coalesceKey || batch.coalesceKey;
+    batch._pushedAt = Date.now();
+    this._commitCommand(batch, windowMs);
+  }
+
   undo() {
     if (this._undoStack.length === 0) {
       return;
     }
     let cmd = this._undoStack.pop();
-    cmd.undo();
-    this._redoStack.push(cmd);
+    try {
+      cmd.undo();
+      for (let i = (cmd.sideEffects || []).length - 1; i >= 0; i--) {
+        try { cmd.sideEffects[i].undo?.(); }
+        catch (e) { this.debugLog("warn", "side-effect undo failed", { type: cmd.type, error: String(e) }); }
+      }
+      if (cmd.selectionBefore) {
+        this._restoreSelection(cmd.selectionBefore);
+      }
+      this._redoStack.push(cmd);
+      this._emit("command-undone", { type: cmd.type, label: cmd.label });
+    } catch (e) {
+      // Silent drop: command can't be reverted (state moved on). Log
+      // and continue without pushing to redo.
+      this.debugLog("warn", "undo dropped (revert threw)", { type: cmd.type, error: String(e) });
+    }
+    this._emitStackChange();
   }
 
   redo() {
@@ -457,13 +589,111 @@ class InfiniteCanvas {
       return;
     }
     let cmd = this._redoStack.pop();
-    cmd.redo();
-    this._undoStack.push(cmd);
+    try {
+      cmd.redo();
+      for (let eff of (cmd.sideEffects || [])) {
+        try { eff.redo?.(); }
+        catch (e) { this.debugLog("warn", "side-effect redo failed", { type: cmd.type, error: String(e) }); }
+      }
+      if (cmd.selectionAfter) {
+        this._restoreSelection(cmd.selectionAfter);
+      }
+      this._undoStack.push(cmd);
+      this._emit("command-redone", { type: cmd.type, label: cmd.label });
+    } catch (e) {
+      this.debugLog("warn", "redo dropped (apply threw)", { type: cmd.type, error: String(e) });
+    }
+    this._emitStackChange();
   }
 
+  // Restore a recorded selection. Items that no longer exist are skipped.
+  _restoreSelection(ids) {
+    this.deselectAll();
+    for (let id of ids) {
+      if (this._nodes.has(id) || this._frames.has(id)) {
+        this.select(id);
+      }
+    }
+  }
+
+  // Push a command. Routes through the transaction buffer when one is
+  // open; otherwise commits immediately (with optional coalescing).
   _pushCommand(cmd) {
+    // Existing callers pass a plain {undo, redo} object — wrap it so the
+    // factory's bookkeeping is consistent. New callers should use
+    // _makeCommand directly.
+    if (!cmd.type) {
+      cmd = this._makeCommand({
+        type: cmd.type || "anonymous",
+        label: cmd.label || "Action",
+        undo: cmd.undo,
+        redo: cmd.redo,
+      });
+    }
+    cmd.selectionAfter = [...this._selection];
+    if (this._transactionDepth > 0) {
+      this._transactionBuffer.push(cmd);
+      return;
+    }
+    cmd._pushedAt = Date.now();
+    this._commitCommand(cmd, 0);
+  }
+
+  _commitCommand(cmd, coalesceWindowMs) {
+    // Try to coalesce with the previous command if both opted in and
+    // we're within the window.
+    if (cmd.coalesceKey && this._undoStack.length) {
+      let top = this._undoStack[this._undoStack.length - 1];
+      let dt = cmd._pushedAt - (top._pushedAt || 0);
+      if (top.coalesceKey === cmd.coalesceKey && dt <= coalesceWindowMs) {
+        // Merge: keep top's selectionBefore, take new selectionAfter,
+        // chain undo (new first when undoing, top last) and redo
+        // (top first when redoing, new last).
+        let prevUndo = top.undo;
+        let prevRedo = top.redo;
+        let newUndo = cmd.undo;
+        let newRedo = cmd.redo;
+        top.undo = () => { newUndo(); prevUndo(); };
+        top.redo = () => { prevRedo(); newRedo(); };
+        top.selectionAfter = cmd.selectionAfter;
+        top._pushedAt = cmd._pushedAt;
+        top.sideEffects = [...(top.sideEffects || []), ...(cmd.sideEffects || [])];
+        this._redoStack = [];
+        this._emit("command-pushed", { type: top.type, label: top.label, coalesced: true });
+        this._emitStackChange();
+        return;
+      }
+    }
     this._undoStack.push(cmd);
     this._redoStack = [];
+    this._emit("command-pushed", { type: cmd.type, label: cmd.label, coalesced: false });
+    this._emitStackChange();
+  }
+
+  _emitStackChange() {
+    let top = this._undoStack[this._undoStack.length - 1];
+    let redoTop = this._redoStack[this._redoStack.length - 1];
+    this._emit("stack-change", {
+      canUndo: this._undoStack.length > 0,
+      canRedo: this._redoStack.length > 0,
+      undoLabel: top ? `Undo ${top.label}` : null,
+      redoLabel: redoTop ? `Redo ${redoTop.label}` : null,
+    });
+  }
+
+  // ---- Debug Log ----
+
+  debugLog(level, message, data) {
+    let entry = { ts: Date.now(), level, message, data };
+    this._debugLogBuffer.push(entry);
+    if (this._debugLogBuffer.length > this._debugLogMax) {
+      this._debugLogBuffer.shift();
+    }
+    this._emit("debug-log", entry);
+  }
+
+  getDebugLog() {
+    return [...this._debugLogBuffer];
   }
 
   // ---- Public API: Extended ----
@@ -545,6 +775,15 @@ class InfiniteCanvas {
   // through the siblings. Animates the view to center the new selection.
   // Returns the id of the new selection, or null if nothing changed.
   focusDescend() {
+    let prevSelection = [...this._selection];
+    let result = this._focusDescendInternal();
+    if (result !== null) {
+      this._recordSelectionChange(prevSelection, "Navigate Into");
+    }
+    return result;
+  }
+
+  _focusDescendInternal() {
     // Top-level (no useful single selection): pick the first frame, or
     // the first ungrouped node if there are no frames.
     let solo = this._selection.size === 1 ? [...this._selection][0] : null;
@@ -592,6 +831,13 @@ class InfiniteCanvas {
   // → top-level (fitAll, no selection). Returns the id of the new
   // selection, or null if we popped to top level (or nothing to do).
   focusAscend() {
+    let prevSelection = [...this._selection];
+    let result = this._focusAscendInternal();
+    this._recordSelectionChange(prevSelection, "Navigate Out");
+    return result;
+  }
+
+  _focusAscendInternal() {
     let solo = this._selection.size === 1 ? [...this._selection][0] : null;
     if (!solo) {
       // Already at top level.
@@ -662,6 +908,7 @@ class InfiniteCanvas {
     if (this._selection.size !== 1) {
       return null;
     }
+    let prevSelection = [...this._selection];
     let sourceId = [...this._selection][0];
     let sourceNode = this._nodes.get(sourceId);
     let sourceFrame = this._frames.get(sourceId);
@@ -734,6 +981,7 @@ class InfiniteCanvas {
     this.deselectAll();
     this.select(best.id);
     this._centerOnItem(best);
+    this._recordSelectionChange(prevSelection, "Navigate");
 
     return best.id;
   }
@@ -842,22 +1090,44 @@ class InfiniteCanvas {
       return;
     }
     let rects = [];
+    let before = [];
     for (let id of ids) {
       let item = this._nodes.get(id) || this._frames.get(id);
       if (item) {
         rects.push({ id, x: item.x, y: item.y, width: item.width, height: item.height });
+        before.push({ id, x: item.x, y: item.y });
       }
     }
     let results = this._snapManager.align(rects, command);
+    let after = [];
     for (let r of results) {
       let item = this._nodes.get(r.id) || this._frames.get(r.id);
       if (item) {
         item.x = this._snapEnabled ? this._snap(r.x) : r.x;
         item.y = this._snapEnabled ? this._snap(r.y) : r.y;
         this._applyRect(item.element, item);
+        after.push({ id: r.id, x: item.x, y: item.y });
       }
     }
     this._emit("align", { command, ids });
+    if (after.length) {
+      this._pushCommand(this._makeCommand({
+        type: "align",
+        label: "Align",
+        undo: () => {
+          for (let b of before) {
+            let item = this._nodes.get(b.id) || this._frames.get(b.id);
+            if (item) { item.x = b.x; item.y = b.y; this._applyRect(item.element, item); }
+          }
+        },
+        redo: () => {
+          for (let a of after) {
+            let item = this._nodes.get(a.id) || this._frames.get(a.id);
+            if (item) { item.x = a.x; item.y = a.y; this._applyRect(item.element, item); }
+          }
+        },
+      }));
+    }
   }
 
   // ---- Public API: Z-Index ----
@@ -867,8 +1137,22 @@ class InfiniteCanvas {
     if (!item) {
       return;
     }
+    let prevZ = item.element.style.zIndex;
     this._maxZIndex = (this._maxZIndex || 0) + 1;
-    item.element.style.zIndex = this._maxZIndex;
+    let newZ = String(this._maxZIndex);
+    item.element.style.zIndex = newZ;
+    this._pushCommand(this._makeCommand({
+      type: "z-order",
+      label: "Bring to Front",
+      undo: () => {
+        let it = this._nodes.get(id) || this._frames.get(id);
+        if (it) it.element.style.zIndex = prevZ;
+      },
+      redo: () => {
+        let it = this._nodes.get(id) || this._frames.get(id);
+        if (it) it.element.style.zIndex = newZ;
+      },
+    }));
   }
 
   sendToBack(id) {
@@ -876,8 +1160,22 @@ class InfiniteCanvas {
     if (!item) {
       return;
     }
+    let prevZ = item.element.style.zIndex;
     this._minZIndex = (this._minZIndex || 0) - 1;
-    item.element.style.zIndex = this._minZIndex;
+    let newZ = String(this._minZIndex);
+    item.element.style.zIndex = newZ;
+    this._pushCommand(this._makeCommand({
+      type: "z-order",
+      label: "Send to Back",
+      undo: () => {
+        let it = this._nodes.get(id) || this._frames.get(id);
+        if (it) it.element.style.zIndex = prevZ;
+      },
+      redo: () => {
+        let it = this._nodes.get(id) || this._frames.get(id);
+        if (it) it.element.style.zIndex = newZ;
+      },
+    }));
   }
 
   // ---- Public API: Node Color ----
@@ -887,6 +1185,8 @@ class InfiniteCanvas {
     if (!node) {
       return;
     }
+    let prevBg = node.color;
+    let prevHeader = node.headerColor;
     if (bgColor) {
       node.color = bgColor;
       node.element.style.setProperty("--node-bg", bgColor);
@@ -894,6 +1194,28 @@ class InfiniteCanvas {
     if (headerColor) {
       node.headerColor = headerColor;
       node.element.style.setProperty("--node-header-bg", headerColor);
+    }
+    let nextBg = node.color;
+    let nextHeader = node.headerColor;
+    if (prevBg !== nextBg || prevHeader !== nextHeader) {
+      this._pushCommand(this._makeCommand({
+        type: "color",
+        label: "Set Color",
+        undo: () => {
+          let n = this._nodes.get(id);
+          if (!n) return;
+          n.color = prevBg; n.headerColor = prevHeader;
+          n.element.style.setProperty("--node-bg", prevBg);
+          n.element.style.setProperty("--node-header-bg", prevHeader);
+        },
+        redo: () => {
+          let n = this._nodes.get(id);
+          if (!n) return;
+          n.color = nextBg; n.headerColor = nextHeader;
+          n.element.style.setProperty("--node-bg", nextBg);
+          n.element.style.setProperty("--node-header-bg", nextHeader);
+        },
+      }));
     }
   }
 
@@ -919,6 +1241,7 @@ class InfiniteCanvas {
       border-radius: 4px; padding: 2px 6px; outline: none;
       min-width: 80px;
     `;
+    let oldLabel = frame.label;
     let commit = () => {
       let newLabel = input.value.trim() || frame.label;
       frame.label = newLabel;
@@ -926,8 +1249,35 @@ class InfiniteCanvas {
       labelEl.style.display = "";
       input.remove();
       this._emit("frame-label-change", { id: frameId, label: newLabel });
+      if (newLabel !== oldLabel) {
+        this._pushCommand(this._makeCommand({
+          type: "rename",
+          label: "Rename Group",
+          undo: () => {
+            let f = this._frames.get(frameId);
+            if (!f) return;
+            f.label = oldLabel;
+            let lbl = f.element.querySelector(".infinite-canvas-frame-label");
+            if (lbl) lbl.textContent = oldLabel;
+            this._emit("frame-label-change", { id: frameId, label: oldLabel });
+          },
+          redo: () => {
+            let f = this._frames.get(frameId);
+            if (!f) return;
+            f.label = newLabel;
+            let lbl = f.element.querySelector(".infinite-canvas-frame-label");
+            if (lbl) lbl.textContent = newLabel;
+            this._emit("frame-label-change", { id: frameId, label: newLabel });
+          },
+        }));
+      }
     };
     input.addEventListener("keydown", e => {
+      // Stop propagation first so engine shortcuts (Enter → focusDescend,
+      // Escape → deselectAll, etc.) don't run after commit/cancel modifies
+      // the DOM — once the input is removed, propagation flags can be
+      // unreliable depending on the browser's event flow.
+      e.stopPropagation();
       if (e.key === "Enter") {
         e.preventDefault();
         commit();
@@ -937,7 +1287,6 @@ class InfiniteCanvas {
         labelEl.style.display = "";
         input.remove();
       }
-      e.stopPropagation();
     });
     input.addEventListener("blur", commit);
     labelEl.style.display = "none";
@@ -954,6 +1303,7 @@ class InfiniteCanvas {
   // their children. Pass `ids` to compact only those nodes (default:
   // current selection; if empty selection, all nodes).
   compactLayout({ ids = null, gap = 20, frameGap = 60 } = {}) {
+    let geomBefore = this._snapshotGeometry();
     let targetIds;
     if (ids) {
       targetIds = ids;
@@ -1032,6 +1382,65 @@ class InfiniteCanvas {
         }
       });
     }
+    this._pushGeometryDiff("Tidy Layout", geomBefore);
+  }
+
+  // Snapshot every node + frame geometry into a Map<id, {x,y,w,h}>.
+  _snapshotGeometry() {
+    let snap = new Map();
+    for (let [id, n] of this._nodes) {
+      snap.set(id, { x: n.x, y: n.y, width: n.width, height: n.height });
+    }
+    for (let [id, f] of this._frames) {
+      snap.set(id, { x: f.x, y: f.y, width: f.width, height: f.height });
+    }
+    return snap;
+  }
+
+  // Diff the current geometry against a snapshot and return a command
+  // representing the change. Returns null if nothing changed.
+  _makeGeometryDiffCommand(label, snapBefore) {
+    let diff = [];
+    let current = this._snapshotGeometry();
+    for (let [id, after] of current) {
+      let before = snapBefore.get(id);
+      if (!before) continue;
+      if (before.x !== after.x || before.y !== after.y ||
+          before.width !== after.width || before.height !== after.height) {
+        diff.push({ id, before, after });
+      }
+    }
+    if (!diff.length) return null;
+    return this._makeCommand({
+      type: "layout",
+      label,
+      undo: () => {
+        for (let d of diff) {
+          let item = this._nodes.get(d.id) || this._frames.get(d.id);
+          if (item) {
+            item.x = d.before.x; item.y = d.before.y;
+            item.width = d.before.width; item.height = d.before.height;
+            this._applyRect(item.element, item);
+          }
+        }
+      },
+      redo: () => {
+        for (let d of diff) {
+          let item = this._nodes.get(d.id) || this._frames.get(d.id);
+          if (item) {
+            item.x = d.after.x; item.y = d.after.y;
+            item.width = d.after.width; item.height = d.after.height;
+            this._applyRect(item.element, item);
+          }
+        }
+      },
+    });
+  }
+
+  // Push a geometry-diff command, no coalescing.
+  _pushGeometryDiff(label, snapBefore) {
+    let cmd = this._makeGeometryDiffCommand(label, snapBefore);
+    if (cmd) this._pushCommand(cmd);
   }
 
   _compactFrameBlock(frameId, { gap = 20 } = {}) {
@@ -1100,6 +1509,7 @@ class InfiniteCanvas {
     if (children.length === 0) {
       return;
     }
+    let geomBefore = this._snapshotGeometry();
 
     // Determine grid dimensions
     let nodeWidth = 0, nodeHeight = 0;
@@ -1136,6 +1546,7 @@ class InfiniteCanvas {
     frame.width = Math.max(frame.width, totalW);
     frame.height = Math.max(frame.height, totalH);
     this._applyRect(frame.element, frame);
+    this._pushGeometryDiff("Auto-Layout", geomBefore);
   }
 
   // ---- Public API: Events ----
@@ -1434,6 +1845,11 @@ class InfiniteCanvas {
     }
 
     if (event.button === 0 && !itemEl) {
+      // Capture the pre-click selection so the eventual marquee command
+      // records the right "before" state. _onPointerDown is the
+      // gesture's earliest hook; once we deselectAll() the selection is
+      // gone, so capture first.
+      this._marqueeSelectionBefore = [...this._selection];
       if (!event.shiftKey) {
         this.deselectAll();
       }
@@ -1534,6 +1950,9 @@ class InfiniteCanvas {
     let id = itemEl.dataset.id;
     this._dragClickedId = id; // Track what was actually clicked for dblclick detection
     let isToggleSelect = event.ctrlKey || event.metaKey;
+    // Snapshot selection at the start of the gesture; if it changes by
+    // the time the click resolves, push a selection-change command.
+    let selectionBeforeClick = [...this._selection];
 
     // On macOS, Ctrl+left-click also fires `contextmenu`. The default
     // _onContextMenu handler would clobber the toggle by re-selecting the
@@ -1555,21 +1974,45 @@ class InfiniteCanvas {
       } else {
         this.deselect(id);
       }
+      this._recordSelectionChange(selectionBeforeClick, "Deselect");
       this._state = InfiniteCanvas.STATE_IDLE;
       this._dragTargets = [];
       return;
     }
 
     if (!this._selection.has(id)) {
+      // If the user is currently "drilled in" to a group — i.e. one or
+      // more of the group's children are individually selected without
+      // the parent frame itself — clicking another child of the SAME
+      // group should drill straight into that sibling, not pop back to
+      // the whole-group selection.
+      let newNode = this._nodes.get(id);
+      let isDrillSwitch = false;
+      if (newNode && newNode.frameId && this._frames.has(newNode.frameId) &&
+          this._selection.size > 0 && !this._selection.has(newNode.frameId) &&
+          !event.shiftKey && !isToggleSelect) {
+        // Are all current selected items children of newNode.frameId?
+        let allSiblings = [...this._selection].every(sid => {
+          let sn = this._nodes.get(sid);
+          return sn && sn.frameId === newNode.frameId;
+        });
+        if (allSiblings) {
+          isDrillSwitch = true;
+        }
+      }
+
       if (!event.shiftKey && !isToggleSelect) {
         this.deselectAll();
       }
-      // If clicking a node that belongs to a group, select the group + children
-      // (first-level selection). If clicking a frame label, same behavior.
-      let node = this._nodes.get(id);
-      if (node && node.frameId && this._frames.has(node.frameId)) {
-        this._selectFrameWithChildren(node.frameId);
+
+      if (isDrillSwitch) {
+        // Drill straight into the new sibling, skipping the group.
+        this.select(id);
+      } else if (newNode && newNode.frameId && this._frames.has(newNode.frameId)) {
+        // Fresh click into a group: select group + children (first-level).
+        this._selectFrameWithChildren(newNode.frameId);
       } else if (this._frames.has(id)) {
+        // Click on a frame label or border: select group + children.
         this._selectFrameWithChildren(id);
       } else {
         this.select(id);
@@ -1583,6 +2026,10 @@ class InfiniteCanvas {
         this.select(id);
       }
     }
+    // Record the selection change for undo. If the user later drags
+    // (move command), that pushes a separate command — undo will revert
+    // the move first, then the selection.
+    this._recordSelectionChange(selectionBeforeClick, "Select");
 
     this._state = InfiniteCanvas.STATE_DRAGGING;
     this._pointerStartX = event.clientX;
@@ -1901,22 +2348,55 @@ class InfiniteCanvas {
           this._checkFrameContainment(id);
         }
       }
-      // Push undo command for the clone
-      let allCloneIds = [...cloneIds];
-      this._pushCommand({
+      // Snapshot each clone so redo can re-create them after an undo.
+      let cloneSnapshots = cloneIds.map(id => {
+        if (this._frames.has(id)) {
+          let f = this._frames.get(id);
+          return {
+            kind: "frame", id,
+            data: { x: f.x, y: f.y, width: f.width, height: f.height, label: f.label, color: f.color },
+          };
+        }
+        let n = this._nodes.get(id);
+        return {
+          kind: "node", id,
+          data: {
+            x: n.x, y: n.y, width: n.width, height: n.height,
+            title: n.title, color: n.color, headerColor: n.headerColor,
+            frameId: n.frameId,
+          },
+        };
+      });
+      this._pushCommand(this._makeCommand({
+        type: "clone",
+        label: cloneSnapshots.length > 1 ? "Duplicate" : "Duplicate",
         undo: () => {
-          for (let id of allCloneIds) {
-            if (this._frames.has(id)) {
-              this.removeFrame(id);
-            } else if (this._nodes.has(id)) {
-              this.removeNode(id);
+          for (let snap of cloneSnapshots) {
+            if (snap.kind === "frame") {
+              if (this._frames.has(snap.id)) this.removeFrame(snap.id);
+            } else if (this._nodes.has(snap.id)) {
+              this.removeNode(snap.id);
             }
           }
         },
         redo: () => {
-          // Re-cloning is complex; for now, redo is not supported for clones
+          // Recreate frames first so child nodes can be reparented.
+          for (let snap of cloneSnapshots) {
+            if (snap.kind === "frame") {
+              this.addFrame(snap.id, snap.data);
+            }
+          }
+          for (let snap of cloneSnapshots) {
+            if (snap.kind === "node") {
+              let n = this.addNode(snap.id, snap.data);
+              if (snap.data.frameId) {
+                n.frameId = snap.data.frameId;
+                this._updateNodeGroupVisual(n);
+              }
+            }
+          }
         },
-      });
+      }));
       this.deselectAll();
       for (let id of cloneIds) {
         this.select(id);
@@ -1959,7 +2439,9 @@ class InfiniteCanvas {
           toFrameId: node?.frameId ?? null,
         };
       });
-      this._pushCommand({
+      this._pushCommand(this._makeCommand({
+        type: "move",
+        label: moves.length > 1 ? "Move" : "Move",
         undo: () => {
           for (let m of moves) {
             let item = this._nodes.get(m.id) || this._frames.get(m.id);
@@ -1988,7 +2470,7 @@ class InfiniteCanvas {
             }
           }
         },
-      });
+      }));
       let draggedFrameIds = new Set(
         this._dragTargets.filter(t => this._frames.has(t.id)).map(t => t.id)
       );
@@ -2151,11 +2633,17 @@ class InfiniteCanvas {
     this._tooltip.style.display = "none";
     let id = this._resizeTarget;
     let item = this._nodes.get(id) || this._frames.get(id);
-    if (item) {
+    let startRect = this._resizeStartRect;
+    if (item && startRect) {
+      let from = { x: startRect.x, y: startRect.y, width: startRect.width, height: startRect.height };
+      let to = { x: item.x, y: item.y, width: item.width, height: item.height };
+      // Snapshot children whose membership may flip as a result of the
+      // resize (frame resize can evict children whose centers fall
+      // outside the new bounds).
+      let evictedChildren = [];
       if (this._nodes.has(id)) {
         this._checkFrameContainment(id);
       }
-      // If a frame was resized, check if any children are now outside
       if (this._frames.has(id)) {
         for (let [, child] of this._nodes) {
           if (child.frameId === id) {
@@ -2163,25 +2651,76 @@ class InfiniteCanvas {
             let cy = child.y + child.height / 2;
             if (cx < item.x || cy < item.y ||
                 cx > item.x + item.width || cy > item.y + item.height) {
+              evictedChildren.push({ id: child.id, fromFrameId: id });
               this._setNodeFrame(child, null);
             }
           }
         }
+      }
+      // Only push an undo entry if anything actually changed.
+      let resized = from.x !== to.x || from.y !== to.y ||
+                    from.width !== to.width || from.height !== to.height;
+      if (resized || evictedChildren.length) {
+        this._pushCommand(this._makeCommand({
+          type: "resize",
+          label: "Resize",
+          undo: () => {
+            let it = this._nodes.get(id) || this._frames.get(id);
+            if (it) {
+              it.x = from.x; it.y = from.y;
+              it.width = from.width; it.height = from.height;
+              this._applyRect(it.element, it);
+            }
+            for (let e of evictedChildren) {
+              let child = this._nodes.get(e.id);
+              if (child) {
+                this._setNodeFrame(child, e.fromFrameId);
+              }
+            }
+          },
+          redo: () => {
+            let it = this._nodes.get(id) || this._frames.get(id);
+            if (it) {
+              it.x = to.x; it.y = to.y;
+              it.width = to.width; it.height = to.height;
+              this._applyRect(it.element, it);
+            }
+            for (let e of evictedChildren) {
+              let child = this._nodes.get(e.id);
+              if (child) {
+                this._setNodeFrame(child, null);
+              }
+            }
+          },
+        }));
       }
       this._emit("node-resize", {
         id, x: item.x, y: item.y, width: item.width, height: item.height,
       });
     }
     this._resizeTarget = null;
+    this._resizeStartRect = null;
   }
 
   // ---- Marquee Selection ----
 
   _startMarquee(event) {
     this._state = InfiniteCanvas.STATE_MARQUEE;
+    // _marqueeSelectionBefore was captured in _onPointerDown (before
+    // we ran deselectAll), so we have the genuine pre-gesture
+    // selection to record at _endMarquee.
     let canvasPos = this._screenToCanvas(event.clientX, event.clientY);
     this._marqueeStartX = canvasPos.x;
     this._marqueeStartY = canvasPos.y;
+    // Collapse the marquee to a 0x0 rect at the start point BEFORE
+    // making it visible, so the previous marquee's last dimensions
+    // don't flash on screen.
+    let containerRect = this._container.getBoundingClientRect();
+    let startScreen = this._canvasToScreen(canvasPos.x, canvasPos.y);
+    this._marqueeEl.style.left = (startScreen.x - containerRect.left) + "px";
+    this._marqueeEl.style.top = (startScreen.y - containerRect.top) + "px";
+    this._marqueeEl.style.width = "0px";
+    this._marqueeEl.style.height = "0px";
     this._marqueeEl.style.display = "block";
     try { this._container.setPointerCapture(event.pointerId); } catch (e) {}
     event.preventDefault();
@@ -2221,6 +2760,11 @@ class InfiniteCanvas {
     this._marqueeEl.style.display = "none";
     try { this._container.releasePointerCapture(event.pointerId); } catch (e) {}
     this._emit("selection-change", { selection: [...this._selection] });
+    let prev = this._marqueeSelectionBefore;
+    this._marqueeSelectionBefore = null;
+    if (prev) {
+      this._recordSelectionChange(prev, "Marquee Select");
+    }
   }
 
   // ---- Drawing Tool (Frame/Node) ----
@@ -2273,8 +2817,10 @@ class InfiniteCanvas {
 
     if (this._drawTool === "frame") {
       let id = "__group_" + (this._nextId++);
-      this.addFrame(id, { x: x1, y: y1, width: w, height: h, label: "Tab Group" });
+      let frameData = { x: x1, y: y1, width: w, height: h, label: "Tab Group" };
+      this.addFrame(id, frameData);
       // Auto-include ungrouped nodes whose center is inside the drawn rect
+      let claimedChildren = [];
       for (let [, node] of this._nodes) {
         if (node.frameId) {
           continue;
@@ -2282,19 +2828,66 @@ class InfiniteCanvas {
         let cx = node.x + node.width / 2;
         let cy = node.y + node.height / 2;
         if (cx >= x1 && cy >= y1 && cx <= x2 && cy <= y2) {
+          claimedChildren.push(node.id);
           this._setNodeFrame(node, id);
         }
       }
       this._autoExpandFrame(id);
+      let frameAfter = this._frames.get(id);
+      let frameAfterData = {
+        x: frameAfter.x, y: frameAfter.y,
+        width: frameAfter.width, height: frameAfter.height,
+        label: frameAfter.label, color: frameAfter.color,
+      };
       this.deselectAll();
       this.select(id);
       this._emit("frame-create", { id });
+      this._pushCommand(this._makeCommand({
+        type: "draw-frame",
+        label: "New Group",
+        undo: () => {
+          for (let cid of claimedChildren) {
+            let n = this._nodes.get(cid);
+            if (n) this._setNodeFrame(n, null);
+          }
+          if (this._frames.has(id)) {
+            this.removeFrame(id);
+          }
+        },
+        redo: () => {
+          if (!this._frames.has(id)) {
+            this.addFrame(id, frameAfterData);
+          }
+          for (let cid of claimedChildren) {
+            let n = this._nodes.get(cid);
+            if (n) this._setNodeFrame(n, id);
+          }
+        },
+      }));
     } else if (this._drawTool === "node") {
       let id = "__node_" + (this._nextId++);
-      this.addNode(id, { x: x1, y: y1, width: w, height: h, title: "New Tab" });
+      let nodeData = { x: x1, y: y1, width: w, height: h, title: "New Tab" };
+      this.addNode(id, nodeData);
       this._checkFrameContainment(id);
+      let createdNode = this._nodes.get(id);
+      let assignedFrameId = createdNode?.frameId ?? null;
       this.deselectAll();
       this.select(id);
+      this._pushCommand(this._makeCommand({
+        type: "draw-node",
+        label: "New Tab",
+        undo: () => {
+          if (this._nodes.has(id)) this.removeNode(id);
+        },
+        redo: () => {
+          if (!this._nodes.has(id)) {
+            let n = this.addNode(id, nodeData);
+            if (assignedFrameId && this._frames.has(assignedFrameId)) {
+              this._setNodeFrame(n, assignedFrameId);
+            }
+          }
+        },
+      }));
     }
 
     // Revert to move tool after drawing
@@ -2450,14 +3043,21 @@ class InfiniteCanvas {
         }
         this._emit("node-delete", { id });
       }
-      this._pushCommand({
+      this._pushCommand(this._makeCommand({
+        type: "delete",
+        label: snapshot.length > 1 ? "Delete" : "Delete",
         undo: () => {
+          // Restore frames first so child nodes can be parented to them.
+          for (let s of snapshot) {
+            if (s.type === "frame") {
+              this.addFrame(s.id, s.data);
+            }
+          }
           for (let s of snapshot) {
             if (s.type === "node") {
               let n = this.addNode(s.id, s.data);
               n.frameId = s.data.frameId;
-            } else {
-              this.addFrame(s.id, s.data);
+              this._updateNodeGroupVisual(n);
             }
           }
         },
@@ -2470,7 +3070,7 @@ class InfiniteCanvas {
             }
           }
         },
-      });
+      }));
       this._emit("selection-change", { selection: [...this._selection] });
       event.preventDefault();
       return;
@@ -2536,6 +3136,54 @@ class InfiniteCanvas {
       for (let cid of cloneIds) {
         this.select(cid);
       }
+      // Snapshot every created clone so redo can rebuild them.
+      let dupSnapshots = cloneIds.map(id => {
+        if (this._frames.has(id)) {
+          let f = this._frames.get(id);
+          return {
+            kind: "frame", id,
+            data: { x: f.x, y: f.y, width: f.width, height: f.height, label: f.label, color: f.color },
+          };
+        }
+        let n = this._nodes.get(id);
+        return {
+          kind: "node", id,
+          data: {
+            x: n.x, y: n.y, width: n.width, height: n.height,
+            title: n.title, color: n.color, headerColor: n.headerColor,
+            frameId: n.frameId,
+          },
+        };
+      });
+      this._pushCommand(this._makeCommand({
+        type: "duplicate",
+        label: "Duplicate",
+        undo: () => {
+          for (let s of dupSnapshots) {
+            if (s.kind === "frame") {
+              if (this._frames.has(s.id)) this.removeFrame(s.id);
+            } else if (this._nodes.has(s.id)) {
+              this.removeNode(s.id);
+            }
+          }
+        },
+        redo: () => {
+          for (let s of dupSnapshots) {
+            if (s.kind === "frame" && !this._frames.has(s.id)) {
+              this.addFrame(s.id, s.data);
+            }
+          }
+          for (let s of dupSnapshots) {
+            if (s.kind === "node" && !this._nodes.has(s.id)) {
+              let n = this.addNode(s.id, s.data);
+              if (s.data.frameId) {
+                n.frameId = s.data.frameId;
+                this._updateNodeGroupVisual(n);
+              }
+            }
+          }
+        },
+      }));
       return;
     }
 
@@ -2547,9 +3195,44 @@ class InfiniteCanvas {
       event.stopPropagation();
       let selectedFrameIds = [...this._selection].filter(id => this._frames.has(id));
       if (selectedFrameIds.length) {
+        // Ungroup: snapshot frames + their members so undo can recreate.
+        let removed = selectedFrameIds.map(fid => {
+          let f = this._frames.get(fid);
+          let childIds = [];
+          for (let [, n] of this._nodes) {
+            if (n.frameId === fid) childIds.push(n.id);
+          }
+          return {
+            id: fid,
+            data: { x: f.x, y: f.y, width: f.width, height: f.height, label: f.label, color: f.color },
+            childIds,
+          };
+        });
         for (let frameId of selectedFrameIds) {
           this.removeFrame(frameId);
         }
+        this._pushCommand(this._makeCommand({
+          type: "ungroup",
+          label: "Ungroup",
+          undo: () => {
+            for (let snap of removed) {
+              if (!this._frames.has(snap.id)) {
+                this.addFrame(snap.id, snap.data);
+              }
+              for (let cid of snap.childIds) {
+                let n = this._nodes.get(cid);
+                if (n) this._setNodeFrame(n, snap.id);
+              }
+            }
+          },
+          redo: () => {
+            for (let snap of removed) {
+              if (this._frames.has(snap.id)) {
+                this.removeFrame(snap.id);
+              }
+            }
+          },
+        }));
         this._emit("selection-change", { selection: [...this._selection] });
         return;
       }
@@ -2558,6 +3241,8 @@ class InfiniteCanvas {
       if (nodeIds.length === 0) {
         return;
       }
+      // Snapshot each node's prior frameId so undo restores prior state.
+      let priorFrames = nodeIds.map(id => ({ id, prevFrameId: this._nodes.get(id).frameId }));
       // Compute bounding box of selected nodes
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (let id of nodeIds) {
@@ -2569,17 +3254,46 @@ class InfiniteCanvas {
       }
       let padding = 20;
       let frameId = "__group_" + (this._nextId++);
-      this.addFrame(frameId, {
+      let frameData = {
         x: minX - padding, y: minY - padding,
         width: maxX - minX + padding * 2, height: maxY - minY + padding * 2,
         label: "Tab Group",
-      });
+      };
+      this.addFrame(frameId, frameData);
       for (let id of nodeIds) {
         let n = this._nodes.get(id);
         this._setNodeFrame(n, frameId);
       }
+      let createdFrame = this._frames.get(frameId);
+      let createdFrameData = {
+        x: createdFrame.x, y: createdFrame.y,
+        width: createdFrame.width, height: createdFrame.height,
+        label: createdFrame.label, color: createdFrame.color,
+      };
       this.select(frameId);
       this._emit("frame-create", { id: frameId });
+      this._pushCommand(this._makeCommand({
+        type: "group",
+        label: "Group",
+        undo: () => {
+          for (let p of priorFrames) {
+            let n = this._nodes.get(p.id);
+            if (n) this._setNodeFrame(n, p.prevFrameId);
+          }
+          if (this._frames.has(frameId)) {
+            this.removeFrame(frameId);
+          }
+        },
+        redo: () => {
+          if (!this._frames.has(frameId)) {
+            this.addFrame(frameId, createdFrameData);
+          }
+          for (let p of priorFrames) {
+            let n = this._nodes.get(p.id);
+            if (n) this._setNodeFrame(n, frameId);
+          }
+        },
+      }));
       return;
     }
 
@@ -2653,6 +3367,7 @@ class InfiniteCanvas {
       dy = nudge;
     }
     if (dx || dy) {
+      let geomBefore = this._snapshotGeometry();
       for (let id of this._selection) {
         let item = this._nodes.get(id) || this._frames.get(id);
         if (item) {
@@ -2669,6 +3384,14 @@ class InfiniteCanvas {
           }
           this._emit("node-move", { id, x: item.x, y: item.y });
         }
+      }
+      // Push a coalescing command so rapid arrow taps within ~400ms
+      // merge into one undo entry.
+      let diffCmd = this._makeGeometryDiffCommand("Nudge", geomBefore);
+      if (diffCmd) {
+        diffCmd.coalesceKey = "arrow-nudge";
+        diffCmd._pushedAt = Date.now();
+        this._commitCommand(diffCmd, 400);
       }
       event.preventDefault();
       return;

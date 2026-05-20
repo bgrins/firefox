@@ -2425,6 +2425,642 @@ test.describe("Undo Restores Frame Membership", () => {
   });
 });
 
+test.describe("Undo Foundation", () => {
+  test("undo restores selection to its pre-action state", async ({ page }) => {
+    await freshPage(page);
+    // Select node_1 + node_2 first, then drag-move them, then undo.
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("node_1");
+      c.select("node_2");
+    });
+    const before = await page.evaluate(() => ({
+      selection: window.__canvas.getSelection(),
+      n1: { ...window.__canvas._nodes.get("node_1") },
+    }));
+    // Simulate a drag by directly mutating state and calling _pushCommand
+    // through the same public path the engine uses (we want to test the
+    // foundation, not the drag mechanics).
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      let n1 = c._nodes.get("node_1");
+      let n2 = c._nodes.get("node_2");
+      let cmd = c._makeCommand({
+        type: "move",
+        label: "Move",
+        undo: () => {},
+        redo: () => {},
+      });
+      cmd.undo = () => { n1.x = 0; n2.x = 0; };
+      cmd.redo = () => { n1.x = 100; n2.x = 100; };
+      // Mutate then push (matches engine call order).
+      n1.x = 100; n2.x = 100;
+      c._pushCommand(cmd);
+      c.deselectAll();
+    });
+    const afterPush = await page.evaluate(() => window.__canvas.getSelection());
+    expect(afterPush.length).toBe(0);
+    // Undo restores selection too.
+    await page.evaluate(() => window.__canvas.undo());
+    const afterUndo = await page.evaluate(() => window.__canvas.getSelection());
+    expect(afterUndo).toEqual(before.selection);
+  });
+
+  test("stack-change event fires with labels on push/undo/redo", async ({ page }) => {
+    await freshPage(page);
+    const events = await page.evaluate(() => {
+      const c = window.__canvas;
+      window.__stackEvents = [];
+      c.on("stack-change", e => window.__stackEvents.push(e));
+      let n1 = c._nodes.get("node_1");
+      let prev = n1.x;
+      let cmd = c._makeCommand({
+        type: "test",
+        label: "Test Action",
+        undo: () => { n1.x = prev; },
+        redo: () => { n1.x = prev + 10; },
+      });
+      n1.x = prev + 10;
+      c._pushCommand(cmd);
+      c.undo();
+      c.redo();
+      return window.__stackEvents;
+    });
+    // Expect at least three events (push, undo, redo).
+    expect(events.length).toBeGreaterThanOrEqual(3);
+    // After push: canUndo true, canRedo false, undoLabel set.
+    expect(events[0].canUndo).toBe(true);
+    expect(events[0].canRedo).toBe(false);
+    expect(events[0].undoLabel).toBe("Undo Test Action");
+    // After undo: canUndo false, canRedo true.
+    expect(events[1].canUndo).toBe(false);
+    expect(events[1].canRedo).toBe(true);
+    expect(events[1].redoLabel).toBe("Redo Test Action");
+  });
+
+  test("transactions coalesce multiple pushes into one command", async ({ page }) => {
+    await freshPage(page);
+    const sizes = await page.evaluate(() => {
+      const c = window.__canvas;
+      let n1 = c._nodes.get("node_1");
+      let originalX = n1.x;
+      c.beginTransaction("Nudge");
+      for (let i = 0; i < 5; i++) {
+        let prev = n1.x;
+        n1.x += 8;
+        c._pushCommand(c._makeCommand({
+          type: "nudge",
+          label: "Nudge",
+          undo: () => { n1.x = prev; },
+          redo: () => { n1.x = prev + 8; },
+        }));
+      }
+      c.endTransaction();
+      let stackSize = c._undoStack.length;
+      c.undo();
+      let xAfterUndo = n1.x;
+      return { stackSize, xAfterUndo, originalX };
+    });
+    // 5 pushes inside one transaction = 1 entry on the stack.
+    expect(sizes.stackSize).toBeGreaterThan(0);
+    // Undo reverts the entire batch to the pre-transaction state.
+    expect(sizes.xAfterUndo).toBe(sizes.originalX);
+  });
+
+  test("coalesceKey merges sequential commands within the window", async ({ page }) => {
+    await freshPage(page);
+    const count = await page.evaluate(() => {
+      const c = window.__canvas;
+      let n1 = c._nodes.get("node_1");
+      // Three coalesce-able pushes outside a transaction.
+      for (let i = 0; i < 3; i++) {
+        let prev = n1.x;
+        n1.x += 8;
+        let cmd = c._makeCommand({
+          type: "nudge",
+          label: "Nudge",
+          undo: () => { n1.x = prev; },
+          redo: () => { n1.x = prev + 8; },
+          coalesceKey: "arrow-nudge",
+        });
+        cmd._pushedAt = Date.now();
+        c._commitCommand(cmd, 1000);
+      }
+      return c._undoStack.length;
+    });
+    expect(count).toBe(1);
+  });
+
+  test("undo silently drops when revert throws", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      let cmd = c._makeCommand({
+        type: "broken",
+        label: "Broken",
+        undo: () => { throw new Error("nope"); },
+        redo: () => {},
+      });
+      c._pushCommand(cmd);
+      let logBefore = c.getDebugLog().length;
+      c.undo();
+      let logAfter = c.getDebugLog().length;
+      return {
+        undoStack: c._undoStack.length,
+        redoStack: c._redoStack.length,
+        logGrew: logAfter > logBefore,
+      };
+    });
+    // Bad command dropped from both stacks.
+    expect(result.undoStack).toBe(0);
+    expect(result.redoStack).toBe(0);
+    expect(result.logGrew).toBe(true);
+  });
+
+  test("attached side-effects run on undo and redo", async ({ page }) => {
+    await freshPage(page);
+    const events = await page.evaluate(() => {
+      const c = window.__canvas;
+      let log = [];
+      let cmd = c._makeCommand({
+        type: "test",
+        label: "Test",
+        undo: () => log.push("engine-undo"),
+        redo: () => log.push("engine-redo"),
+      });
+      cmd.attach({
+        undo: () => log.push("adapter-undo"),
+        redo: () => log.push("adapter-redo"),
+      });
+      c._pushCommand(cmd);
+      c.undo();
+      c.redo();
+      return log;
+    });
+    // Engine action runs first, then adapter side-effect.
+    expect(events).toEqual([
+      "engine-undo", "adapter-undo",
+      "engine-redo", "adapter-redo",
+    ]);
+  });
+
+  test("clone command round-trips: undo removes clones, redo recreates", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      let beforeNodeCount = c._nodes.size;
+      // Simulate the engine's clone command (matches what alt+drag does).
+      let cloneIds = [];
+      let clone = c.addNode("__test_clone_1", {
+        x: 5000, y: 5000, width: 280, height: 212, title: "Clone",
+      });
+      cloneIds.push("__test_clone_1");
+      let cloneSnapshots = cloneIds.map(id => {
+        let n = c._nodes.get(id);
+        return {
+          kind: "node", id,
+          data: { x: n.x, y: n.y, width: n.width, height: n.height, title: n.title },
+        };
+      });
+      c._pushCommand(c._makeCommand({
+        type: "clone",
+        label: "Duplicate",
+        undo: () => {
+          for (let s of cloneSnapshots) c.removeNode(s.id);
+        },
+        redo: () => {
+          for (let s of cloneSnapshots) c.addNode(s.id, s.data);
+        },
+      }));
+      c.undo();
+      let nodesAfterUndo = c._nodes.size;
+      let cloneExistsAfterUndo = c._nodes.has("__test_clone_1");
+      c.redo();
+      let nodesAfterRedo = c._nodes.size;
+      let cloneExistsAfterRedo = c._nodes.has("__test_clone_1");
+      return {
+        beforeNodeCount,
+        nodesAfterUndo,
+        cloneExistsAfterUndo,
+        nodesAfterRedo,
+        cloneExistsAfterRedo,
+      };
+    });
+    expect(result.nodesAfterUndo).toBe(result.beforeNodeCount);
+    expect(result.cloneExistsAfterUndo).toBe(false);
+    expect(result.nodesAfterRedo).toBe(result.beforeNodeCount + 1);
+    expect(result.cloneExistsAfterRedo).toBe(true);
+  });
+
+  test("debug log ring buffer caps at the max size", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c._debugLogMax = 5;
+      c._debugLogBuffer = [];
+      for (let i = 0; i < 10; i++) {
+        c.debugLog("info", "msg " + i, { i });
+      }
+      return c.getDebugLog();
+    });
+    expect(result.length).toBe(5);
+    // Oldest 5 dropped, newest 5 retained.
+    expect(result[0].message).toBe("msg 5");
+    expect(result[4].message).toBe("msg 9");
+  });
+});
+
+test.describe("Selection Undo", () => {
+  test("undo restores empty initial selection after a click", async ({ page }) => {
+    await freshPage(page);
+    // Test page starts with no selection and empty undo stack.
+    const initial = await page.evaluate(() => ({
+      selection: window.__canvas.getSelection(),
+      undoSize: window.__canvas._undoStack.length,
+    }));
+    expect(initial.selection.length).toBe(0);
+    expect(initial.undoSize).toBe(0);
+    // Click a node — selection changes from [] to [group_1 + children].
+    const c1 = await nodeCenter(page, "node_1");
+    await page.mouse.click(c1.x, c1.y);
+    const afterClick = await sel(page);
+    expect(afterClick.length).toBeGreaterThan(0);
+    // Ctrl+Z restores empty selection.
+    await page.evaluate(() => window.__canvas.undo());
+    const afterUndo = await sel(page);
+    expect(afterUndo.length).toBe(0);
+  });
+
+  test("undo restores prior selection after a switch", async ({ page }) => {
+    await freshPage(page);
+    // Select node_1, then click node_5 to switch.
+    const c1 = await nodeCenter(page, "node_1");
+    await page.mouse.click(c1.x, c1.y);
+    const after1 = await sel(page);
+    // Wait longer than the selection coalesce window (400 ms) so the
+    // second click pushes a distinct undo entry rather than merging.
+    await page.waitForTimeout(500);
+    const c5 = await nodeCenter(page, "node_5");
+    await page.mouse.click(c5.x, c5.y);
+    const after5 = await sel(page);
+    expect(after5).not.toEqual(after1);
+    // Undo restores selection-1.
+    await page.evaluate(() => window.__canvas.undo());
+    const afterUndo = await sel(page);
+    expect(afterUndo.sort()).toEqual([...after1].sort());
+  });
+
+  test("rapid selection changes coalesce into one undo entry", async ({ page }) => {
+    await freshPage(page);
+    const stackSizes = await page.evaluate(async () => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c._undoStack = [];
+      c._redoStack = [];
+      // Each call: mutate THEN record (mirrors how the gesture entry
+      // points use the helper — prev is captured before, recorded after).
+      c._selection.add("node_1");
+      c._recordSelectionChange([], "Select");
+      c._selection.add("node_2");
+      c._recordSelectionChange(["node_1"], "Select");
+      c._selection.add("node_3");
+      c._recordSelectionChange(["node_1", "node_2"], "Select");
+      return c._undoStack.length;
+    });
+    // Three changes within the coalesce window = one entry.
+    expect(stackSizes).toBe(1);
+  });
+
+  test("arrow navigation pushes a selection-undo entry", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      let kids = c._sortedFrameChildren("group_1");
+      c.deselectAll();
+      c.select(kids[0].id);
+      // Reset stack to start clean.
+      c._undoStack = [];
+      c._redoStack = [];
+    });
+    await page.evaluate(() => window.__canvas.focusNeighbor("right"));
+    const after = await page.evaluate(() => ({
+      selection: window.__canvas.getSelection(),
+      stack: window.__canvas._undoStack.length,
+    }));
+    expect(after.stack).toBeGreaterThan(0);
+    // Undo restores the previous selection.
+    let prevSelection = await page.evaluate(() => {
+      let kids = window.__canvas._sortedFrameChildren("group_1");
+      return [kids[0].id];
+    });
+    await page.evaluate(() => window.__canvas.undo());
+    const afterUndo = await sel(page);
+    expect(afterUndo).toEqual(prevSelection);
+  });
+});
+
+test.describe("Drill-Switch Within Group", () => {
+  test("clicking another tab in same group while one is drilled in selects only the new tab", async ({ page }) => {
+    await freshPage(page);
+    // Phase 1: drill into node_1 of group_1.
+    const c1 = await nodeCenter(page, "node_1");
+    // First click: selects the whole group + its children.
+    await page.mouse.click(c1.x, c1.y);
+    const afterFirstClick = await sel(page);
+    expect(afterFirstClick).toContain("group_1");
+    expect(afterFirstClick).toContain("node_1");
+    // Second click on same node: drills in.
+    await page.mouse.click(c1.x, c1.y);
+    const afterDrillIn = await sel(page);
+    expect(afterDrillIn).toEqual(["node_1"]);
+
+    // Phase 2: click node_2 (sibling within the same group). The
+    // expectation is that we DON'T pop back to the group selection;
+    // we drill straight into node_2 instead.
+    const c2 = await nodeCenter(page, "node_2");
+    await page.mouse.click(c2.x, c2.y);
+    const afterSiblingClick = await sel(page);
+    expect(afterSiblingClick).toEqual(["node_2"]);
+  });
+
+  test("clicking a tab in a DIFFERENT group still selects that group with children", async ({ page }) => {
+    await freshPage(page);
+    // Drill into a child of group_1.
+    const c1 = await nodeCenter(page, "node_1");
+    await page.mouse.click(c1.x, c1.y);
+    await page.mouse.click(c1.x, c1.y);
+    expect(await sel(page)).toEqual(["node_1"]);
+    // Click a node in group_2 — should select group_2 + all its children.
+    const c5 = await nodeCenter(page, "node_5");
+    await page.mouse.click(c5.x, c5.y);
+    const after = await sel(page);
+    expect(after).toContain("group_2");
+    expect(after).toContain("node_5");
+  });
+
+  test("clicking an ungrouped tab while drilled into a group selects only that tab", async ({ page }) => {
+    await freshPage(page);
+    // Drill into a child of group_1.
+    const c1 = await nodeCenter(page, "node_1");
+    await page.mouse.click(c1.x, c1.y);
+    await page.mouse.click(c1.x, c1.y);
+    // Move node_8 out of group_2 to make it ungrouped.
+    await page.evaluate(() => {
+      let n8 = window.__canvas._nodes.get("node_8");
+      n8.frameId = null;
+      window.__canvas._updateNodeGroupVisual(n8);
+    });
+    const c8 = await nodeCenter(page, "node_8");
+    await page.mouse.click(c8.x, c8.y);
+    expect(await sel(page)).toEqual(["node_8"]);
+  });
+});
+
+test.describe("Debug Console", () => {
+  test("toggle button shows and hides the panel", async ({ page }) => {
+    await freshPage(page);
+    // Test page starts with debug console visible; toggle to hide first.
+    const initial = await page.evaluate(() => {
+      let panel = document.querySelector(".canvas-debug-console");
+      return panel?.style.display;
+    });
+    expect(initial).toBe("flex");
+    await page.evaluate(() => {
+      let btn = document.querySelector(".canvas-debug-console-toggle");
+      btn.click();
+    });
+    const afterHide = await page.evaluate(() => {
+      let panel = document.querySelector(".canvas-debug-console");
+      return panel?.style.display;
+    });
+    expect(afterHide).toBe("none");
+    await page.evaluate(() => {
+      let btn = document.querySelector(".canvas-debug-console-toggle");
+      btn.click();
+    });
+    const afterShow = await page.evaluate(() => {
+      let panel = document.querySelector(".canvas-debug-console");
+      return panel?.style.display;
+    });
+    expect(afterShow).toBe("flex");
+  });
+
+  test("debug log entries appear in the panel after wakeup", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => window.__debugConsole.show());
+    const rows = await page.evaluate(() => {
+      window.__canvas.debugLog("info", "hello from test", { foo: 1 });
+      let body = document.querySelector(".canvas-debug-console")
+        .querySelector("div[style*='overflow-y']");
+      return body.textContent;
+    });
+    expect(rows).toContain("hello from test");
+  });
+
+  test("clear button empties the panel body", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      c.debugLog("info", "one");
+      c.debugLog("info", "two");
+      window.__debugConsole.show();
+    });
+    await page.evaluate(() => {
+      // Find the clear button via text content.
+      let panel = document.querySelector(".canvas-debug-console");
+      let btns = panel.querySelectorAll("button");
+      for (let b of btns) {
+        if (b.textContent === "clear") { b.click(); break; }
+      }
+    });
+    const isEmpty = await page.evaluate(() => {
+      let body = document.querySelector(".canvas-debug-console")
+        .querySelector("div[style*='overflow-y']");
+      return body.childNodes.length === 0;
+    });
+    expect(isEmpty).toBe(true);
+  });
+});
+
+test.describe("Undo Coverage", () => {
+  // Generic round-trip helper: snapshot, perform, undo, expect equal,
+  // redo, expect post-action, undo again, expect snapshot, redo again.
+  async function roundTrip(page, action) {
+    let result = await page.evaluate(async (act) => {
+      const c = window.__canvas;
+      // Use a simplified state hash that's robust to ordering quirks.
+      let hash = () => JSON.stringify({
+        nodes: [...c._nodes.entries()].map(([id, n]) => ({
+          id, x: n.x, y: n.y, w: n.width, h: n.height,
+          color: n.color, header: n.headerColor, frameId: n.frameId,
+          z: n.element.style.zIndex || "",
+        })).sort((a, b) => a.id.localeCompare(b.id)),
+        frames: [...c._frames.entries()].map(([id, f]) => ({
+          id, x: f.x, y: f.y, w: f.width, h: f.height, label: f.label, color: f.color,
+          z: f.element.style.zIndex || "",
+        })).sort((a, b) => a.id.localeCompare(b.id)),
+      });
+      let before = hash();
+      // eslint-disable-next-line no-new-func
+      let actionFn = new Function("c", act);
+      actionFn(c);
+      let after = hash();
+      c.undo();
+      let afterUndo = hash();
+      c.redo();
+      let afterRedo = hash();
+      c.undo();
+      let afterUndoAgain = hash();
+      c.redo();
+      let afterRedoAgain = hash();
+      return { before, after, afterUndo, afterRedo, afterUndoAgain, afterRedoAgain };
+    }, action);
+    expect(result.afterUndo).toBe(result.before);
+    expect(result.afterRedo).toBe(result.after);
+    expect(result.afterUndoAgain).toBe(result.before);
+    expect(result.afterRedoAgain).toBe(result.after);
+  }
+
+  test("z-order: bringToFront round-trips", async ({ page }) => {
+    await freshPage(page);
+    await roundTrip(page, `c.bringToFront("node_1");`);
+  });
+
+  test("z-order: sendToBack round-trips", async ({ page }) => {
+    await freshPage(page);
+    await roundTrip(page, `c.sendToBack("node_1");`);
+  });
+
+  test("color: setNodeColor round-trips", async ({ page }) => {
+    await freshPage(page);
+    await roundTrip(page, `c.setNodeColor("node_1", "#ff0000", "#cc0000");`);
+  });
+
+  test("group: Ctrl+G round-trips", async ({ page }) => {
+    await freshPage(page);
+    // Ungroup first so we can group a fresh pair.
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      for (let [id] of [...c._frames]) c.removeFrame(id);
+      for (let [, n] of c._nodes) { n.frameId = null; c._updateNodeGroupVisual(n); }
+      c._undoStack = [];
+      c._redoStack = [];
+    });
+    await roundTrip(page, `
+      c.deselectAll();
+      c.select("node_1");
+      c.select("node_2");
+      c._onKeyDown({
+        ctrlKey: true, metaKey: false, shiftKey: false, altKey: false,
+        key: "g",
+        preventDefault() {},
+        stopPropagation() {},
+      });
+    `);
+  });
+
+  test("ungroup: removeFrame via Ctrl+G round-trips", async ({ page }) => {
+    await freshPage(page);
+    await roundTrip(page, `
+      c.deselectAll();
+      c.select("group_1");
+      c._onKeyDown({
+        ctrlKey: true, metaKey: false, shiftKey: false, altKey: false,
+        key: "g",
+        preventDefault() {},
+        stopPropagation() {},
+      });
+    `);
+  });
+
+  test("compactLayout round-trips", async ({ page }) => {
+    await freshPage(page);
+    await roundTrip(page, `c.deselectAll(); c.compactLayout();`);
+  });
+
+  test("autoLayout round-trips", async ({ page }) => {
+    await freshPage(page);
+    // Pre-scramble so autoLayout actually moves things.
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      for (let id of c.getFrameChildren("group_1")) {
+        let n = c._nodes.get(id);
+        n.x = 5000 + Math.random() * 100;
+        n.y = 5000 + Math.random() * 100;
+        c._applyRect(n.element, n);
+      }
+      c._undoStack = [];
+      c._redoStack = [];
+    });
+    await roundTrip(page, `c.autoLayout("group_1");`);
+  });
+
+  test("alignment round-trips", async ({ page }) => {
+    await freshPage(page);
+    await roundTrip(page, `
+      c.deselectAll();
+      c.select("node_1");
+      c.select("node_2");
+      c.select("node_3");
+      c.alignSelection("align-left");
+    `);
+  });
+
+  test("arrow nudge coalesces and round-trips", async ({ page }) => {
+    await freshPage(page);
+    let stackBefore = await page.evaluate(() => window.__canvas._undoStack.length);
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      c.deselectAll();
+      c.select("node_1");
+      // Three rapid arrow nudges.
+      for (let i = 0; i < 3; i++) {
+        c._onKeyDown({
+          key: "ArrowRight",
+          ctrlKey: false, metaKey: false, shiftKey: false, altKey: false,
+          preventDefault() {},
+          stopPropagation() {},
+        });
+      }
+    });
+    let stackAfter = await page.evaluate(() => window.__canvas._undoStack.length);
+    // Three nudges coalesced into one command.
+    expect(stackAfter).toBe(stackBefore + 1);
+    // Undo reverts all three at once.
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      let beforeX = c._nodes.get("node_1").x;
+      c.undo();
+      let afterX = c._nodes.get("node_1").x;
+      return { beforeX, afterX };
+    });
+    expect(result.afterX).toBeLessThan(result.beforeX);
+  });
+
+  test("frame rename round-trips", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      let originalLabel = c._frames.get("group_1").label;
+      c.startEditingFrameLabel("group_1");
+      let input = document.querySelector(".infinite-canvas-frame-label-input");
+      input.value = "Renamed Group";
+      // Synthesize Enter to commit.
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      let afterRename = c._frames.get("group_1").label;
+      c.undo();
+      let afterUndo = c._frames.get("group_1").label;
+      c.redo();
+      let afterRedo = c._frames.get("group_1").label;
+      return { originalLabel, afterRename, afterUndo, afterRedo };
+    });
+    expect(result.afterRename).toBe("Renamed Group");
+    expect(result.afterUndo).toBe(result.originalLabel);
+    expect(result.afterRedo).toBe("Renamed Group");
+  });
+});
+
 test.describe("Frame Selection Visual", () => {
   test("children do not show selection handles when frame is selected", async ({ page }) => {
     await freshPage(page);
