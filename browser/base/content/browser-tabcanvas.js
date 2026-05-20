@@ -22,14 +22,19 @@ var TabCanvas = {
   _active: false,
   _initialized: false,
 
-  // Temporary: enable verbose logging for the lazy-tab wakeup path.
-  // Toggle off (or via TabCanvas._tabcanvasDebug = false) once the
-  // behavior is confirmed working.
-  _tabcanvasDebug: true,
+  // Verbose logging for the lazy-tab wakeup path, gated behind the
+  // browser.tabcanvas.debug pref. Read once in init() so per-event
+  // checks don't hit the pref service. Off by default.
+  _tabcanvasDebug: false,
 
   // Tab <-> canvas node ID mappings
   _tabToId: new WeakMap(),
   _idToTab: new Map(),
+
+  // Browsers currently in preserveLayers(true) state because we're holding
+  // the previous selection alive across a canvas-initiated tab switch.
+  // Tracked so rapid switches (alt+arrow, Ctrl+Tab cycling) don't leak.
+  _preservedLayerBrowsers: new Set(),
 
   // Stable ID generation via permanentKey
   _tabKeys: new WeakMap(),
@@ -55,12 +60,17 @@ var TabCanvas = {
   _getTabId(tab) {
     let key = tab.permanentKey;
     if (!this._tabKeys.has(key)) {
-      this._tabKeys.set(key, "tab_" + (this._nextKeyId++));
+      this._tabKeys.set(key, "tab_" + this._nextKeyId++);
     }
     return this._tabKeys.get(key);
   },
 
   init() {
+    this._tabcanvasDebug = Services.prefs.getBoolPref(
+      "browser.tabcanvas.debug",
+      false
+    );
+
     this._overlay = document.getElementById("tab-canvas-overlay");
     let container = document.getElementById("tab-canvas-inner");
 
@@ -78,9 +88,32 @@ var TabCanvas = {
       document.getElementById("tab-canvas-toolbar")
     );
 
+    // Track canvas .on() subscriptions so uninit can pair them with .off().
+    this._canvasSubs = [];
+    let onCanvas = (eventName, cb) => {
+      this._canvas.on(eventName, cb);
+      this._canvasSubs.push([eventName, cb]);
+    };
+
+    // Tabbrowser tabContainer events all route through handleEvent; collect
+    // the names so uninit can remove them in one loop.
+    this._tabContainerEvents = [
+      "TabOpen",
+      "TabClose",
+      "TabAttrModified",
+      "TabSelect",
+      "TabPinned",
+      "TabUnpinned",
+      "TabGroupCreate",
+      "TabGroupRemoved",
+      "TabGroupUpdate",
+      "TabGrouped",
+      "TabUngrouped",
+    ];
+
     // --- Canvas event handlers ---
 
-    this._canvas.on("node-dblclick", ({ id }) => {
+    onCanvas("node-dblclick", ({ id }) => {
       let tab = this._idToTab.get(id);
       if (tab) {
         gBrowser.selectedTab = tab;
@@ -88,7 +121,7 @@ var TabCanvas = {
       }
     });
 
-    this._canvas.on("node-click", ({ id, altKey }) => {
+    onCanvas("node-click", ({ id, altKey }) => {
       if (altKey) {
         // Alt+click matches the zoom button: smart toggle. If the user
         // is still at the saved zoom-in target, restore the previous
@@ -103,12 +136,15 @@ var TabCanvas = {
         if (node && node.frameId) {
           zoomTargetId = node.frameId;
         }
-        this._canvas.toggleZoomToNode(zoomTargetId, { padding: 56, maxZoom: 3 });
+        this._canvas.toggleZoomToNode(zoomTargetId, {
+          padding: 56,
+          maxZoom: 3,
+        });
       }
       this._selectTabFromCanvas(id);
     });
 
-    this._canvas.on("node-zoom-toggle", ({ id }) => {
+    onCanvas("node-zoom-toggle", ({ id }) => {
       // Clicking the zoom button on a tab card should also focus that
       // tab — both on the canvas (visual selection) and in the browser
       // (live overlay target). For frame zoom buttons the canvas
@@ -124,7 +160,7 @@ var TabCanvas = {
       this._selectTabFromCanvas(id);
     });
 
-    this._canvas.on("node-delete", ({ id }) => {
+    onCanvas("node-delete", ({ id }) => {
       let tab = this._idToTab.get(id);
       if (!tab) {
         return;
@@ -132,23 +168,23 @@ var TabCanvas = {
       this._closeTabFromCanvas(tab, id);
     });
 
-    this._canvas.on("escape", () => {
+    onCanvas("escape", () => {
       if (this._canvas.getSelection().length === 0) {
         this.hide();
       }
     });
 
-    this._canvas.on("selection-change", ({ selection }) => {
-      this._syncSelectionToTabbrowser(selection);
+    onCanvas("selection-change", ({ selection }) => {
+      this._scheduleSelectionSync(selection);
     });
 
-    this._canvas.on("view-change", () => {
+    onCanvas("view-change", () => {
       if (this._active) {
         this._scheduleOverlayUpdate();
       }
     });
 
-    this._canvas.on("node-move", () => {
+    onCanvas("node-move", () => {
       if (this._active) {
         this._scheduleOverlayUpdate();
       }
@@ -158,7 +194,7 @@ var TabCanvas = {
     // node-drag fires on every rAF tick during a drag (vs node-move
     // which only fires once at drag end). We need this so the live
     // browser overlay tracks the selected tab while it's being moved.
-    this._canvas.on("node-drag", ({ id }) => {
+    onCanvas("node-drag", ({ id }) => {
       if (this._active) {
         this._scheduleOverlayUpdate();
       }
@@ -171,50 +207,59 @@ var TabCanvas = {
       }
     });
 
-    this._canvas.on("node-resize", () => {
+    onCanvas("node-resize", () => {
       if (this._active) {
         this._scheduleOverlayUpdate();
       }
       this._scheduleSave();
     });
 
-    this._canvas.on("frame-create", ({ id }) => {
+    onCanvas("frame-create", ({ id }) => {
       this._scheduleSave();
       this._onCanvasFrameCreate(id);
     });
 
-    this._canvas.on("frame-remove", ({ id }) => {
+    onCanvas("frame-remove", ({ id }) => {
       this._scheduleSave();
       this._onCanvasFrameRemove(id);
     });
 
-    this._canvas.on("frame-label-change", ({ id }) => {
+    onCanvas("frame-label-change", ({ id }) => {
       this._scheduleSave();
       this._onCanvasFrameLabelChange(id);
     });
 
-    this._canvas.on("node-frame-change", ({ id, frameId, prevFrameId }) => {
+    onCanvas("node-frame-change", ({ id, frameId, prevFrameId }) => {
       this._scheduleSave();
       this._onCanvasNodeFrameChange(id, frameId, prevFrameId);
     });
 
     // --- Tab event handlers ---
 
-    gBrowser.tabContainer.addEventListener("TabOpen", this);
-    gBrowser.tabContainer.addEventListener("TabClose", this);
-    gBrowser.tabContainer.addEventListener("TabAttrModified", this);
-    gBrowser.tabContainer.addEventListener("TabSelect", this);
-    gBrowser.tabContainer.addEventListener("TabPinned", this);
-    gBrowser.tabContainer.addEventListener("TabUnpinned", this);
-    gBrowser.tabContainer.addEventListener("TabGroupCreate", this);
-    gBrowser.tabContainer.addEventListener("TabGroupRemoved", this);
-    gBrowser.tabContainer.addEventListener("TabGroupUpdate", this);
-    gBrowser.tabContainer.addEventListener("TabGrouped", this);
-    gBrowser.tabContainer.addEventListener("TabUngrouped", this);
+    for (let name of this._tabContainerEvents) {
+      gBrowser.tabContainer.addEventListener(name, this);
+    }
 
     // Capture phase to intercept before XUL key handlers
     document.addEventListener("keydown", this, true);
     window.addEventListener("resize", this);
+    window.addEventListener("unload", () => this.uninit(), { once: true });
+  },
+
+  uninit() {
+    for (let name of this._tabContainerEvents || []) {
+      gBrowser.tabContainer.removeEventListener(name, this);
+    }
+    document.removeEventListener("keydown", this, true);
+    window.removeEventListener("resize", this);
+    if (this._canvas && this._canvasSubs) {
+      for (let [name, cb] of this._canvasSubs) {
+        this._canvas.off(name, cb);
+      }
+    }
+    this._canvasSubs = [];
+    clearTimeout(this._saveTimer);
+    this._saveTimer = null;
   },
 
   handleEvent(event) {
@@ -271,6 +316,10 @@ var TabCanvas = {
 
   show() {
     this._active = true;
+    // Reset placement cursor on each show so a new session starts from
+    // current canvas bounds rather than wherever the last one left off.
+    this._nextPlacementX = 0;
+    this._nextPlacementY = null;
 
     // Capture native browser dimensions before we apply fixed positioning
     let selectedStack = gBrowser.selectedBrowser?.closest(".browserStack");
@@ -280,7 +329,8 @@ var TabCanvas = {
     }
 
     this._overlay.setAttribute("active", "true");
-    document.getElementById("tabbrowser-tabpanels")
+    document
+      .getElementById("tabbrowser-tabpanels")
       .setAttribute("tabcanvas-active", "true");
 
     if (!this._initialized) {
@@ -317,10 +367,18 @@ var TabCanvas = {
   hide() {
     this._active = false;
     this._overlay.removeAttribute("active");
-    document.getElementById("tabbrowser-tabpanels")
+    document
+      .getElementById("tabbrowser-tabpanels")
       .removeAttribute("tabcanvas-active");
     this._clearAllBrowserOverlays();
-    this._fixedOffset = null;
+    // Release any browsers we were keeping alive via preserveLayers(true)
+    // for canvas-driven switches.
+    for (let preserved of this._preservedLayerBrowsers) {
+      try {
+        preserved.preserveLayers(false);
+      } catch (e) {}
+    }
+    this._preservedLayerBrowsers.clear();
     this._save();
   },
 
@@ -331,16 +389,23 @@ var TabCanvas = {
     this._saveTimer = setTimeout(() => this._save(), 500);
   },
 
+  _SCHEMA_VERSION: 1,
+
   _save() {
     if (!this._initialized) {
       return;
     }
     let data = this._canvas.toJSON();
+    data.schemaVersion = this._SCHEMA_VERSION;
     data.tabMap = {};
+    let tabs = Array.from(gBrowser.tabs);
     for (let [id, tab] of this._idToTab) {
       data.tabMap[id] = {
         url: tab.linkedBrowser?.currentURI?.spec || "",
         title: tab.label || "",
+        userContextId: tab.userContextId || 0,
+        pinned: !!tab.pinned,
+        tabIndex: tabs.indexOf(tab),
       };
     }
     data.groupMap = {};
@@ -349,57 +414,130 @@ var TabCanvas = {
     }
     try {
       SessionStore.setCustomWindowValue(
-        window, "tabCanvasLayout", JSON.stringify(data)
+        window,
+        "tabCanvasLayout",
+        JSON.stringify(data)
       );
     } catch (e) {
-      // SessionStore not ready yet
+      console.error("TabCanvas: failed to persist layout", e);
     }
   },
 
-  _loadSavedLayout() {
+  _backupBrokenLayout(raw, err) {
     try {
-      let saved = SessionStore.getCustomWindowValue(window, "tabCanvasLayout");
-      if (saved) {
-        return JSON.parse(saved);
-      }
+      SessionStore.setCustomWindowValue(window, "tabCanvasLayout.broken", raw);
     } catch (e) {
-      // SessionStore not ready or parse error
+      // Best effort.
     }
-    return null;
+    console.error(
+      "TabCanvas: failed to restore layout, backed up at tabCanvasLayout.broken",
+      err
+    );
+  },
+
+  _loadSavedLayout() {
+    let saved;
+    try {
+      saved = SessionStore.getCustomWindowValue(window, "tabCanvasLayout");
+    } catch (e) {
+      // SessionStore not ready yet.
+      return null;
+    }
+    if (!saved) {
+      return null;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(saved);
+    } catch (e) {
+      this._backupBrokenLayout(saved, e);
+      return null;
+    }
+    if (parsed?.schemaVersion !== this._SCHEMA_VERSION) {
+      this._backupBrokenLayout(
+        saved,
+        new Error(
+          `schemaVersion mismatch: got ${parsed?.schemaVersion}, expected ${this._SCHEMA_VERSION}`
+        )
+      );
+      return null;
+    }
+    return parsed;
   },
 
   _restoreLayout(data) {
     this._canvas.fromJSON(data);
 
-    // Match saved nodes to current tabs by URL/title
     let currentTabs = Array.from(gBrowser.tabs);
     let unmatched = new Set(currentTabs);
     let tabMap = data.tabMap || {};
+
+    // Lazy/pending tabs expose their would-be url/title via SessionStore's
+    // lazy-tab values; fall back to those when currentURI/label are stubs.
+    let tabUrl = tab => {
+      let url = tab.linkedBrowser?.currentURI?.spec || "";
+      if (url && url !== "about:blank") {
+        return url;
+      }
+      try {
+        return SessionStore.getLazyTabValue(tab, "url") || url;
+      } catch (e) {
+        return url;
+      }
+    };
+    let tabTitle = tab => {
+      if (tab.label) {
+        return tab.label;
+      }
+      try {
+        return SessionStore.getLazyTabValue(tab, "title") || "";
+      } catch (e) {
+        return "";
+      }
+    };
 
     for (let savedNode of data.nodes) {
       let saved = tabMap[savedNode.id];
       if (!saved) {
         continue;
       }
-      // Find best matching tab
       let bestTab = null;
       let bestScore = 0;
+      let bestIndexDelta = Infinity;
       for (let tab of unmatched) {
-        let url = tab.linkedBrowser?.currentURI?.spec || "";
-        let title = tab.label || "";
+        let url = tabUrl(tab);
+        let title = tabTitle(tab);
         let score = 0;
-        if (url === saved.url && url !== "about:blank") {
+        if (saved.url && url === saved.url && url !== "about:blank") {
           score += 10;
         }
-        if (title === saved.title && title !== "New Tab") {
+        if (saved.title && title === saved.title && title !== "New Tab") {
           score += 5;
         }
-        if (score > bestScore) {
+        if ((tab.userContextId || 0) === (saved.userContextId || 0)) {
+          score += 3;
+        }
+        if (!!tab.pinned === !!saved.pinned) {
+          score += 1;
+        }
+        if (score < bestScore) {
+          continue;
+        }
+        let indexDelta = Math.abs(
+          currentTabs.indexOf(tab) - (saved.tabIndex ?? 0)
+        );
+        if (
+          score > bestScore ||
+          (score === bestScore && indexDelta < bestIndexDelta)
+        ) {
           bestScore = score;
           bestTab = tab;
+          bestIndexDelta = indexDelta;
         }
       }
-      if (bestTab && bestScore > 0) {
+      // Require at least a title or URL hit (5+) so the userContextId/pinned
+      // bonuses can't false-match two unrelated default-context tabs.
+      if (bestTab && bestScore >= 5) {
         let id = this._getTabId(bestTab);
         // Remap if the saved ID doesn't match the new stable ID
         if (id !== savedNode.id) {
@@ -407,8 +545,10 @@ var TabCanvas = {
           if (nodeObj) {
             this._canvas.removeNode(savedNode.id);
             this._canvas.addNode(id, {
-              x: savedNode.x, y: savedNode.y,
-              width: savedNode.width, height: savedNode.height,
+              x: savedNode.x,
+              y: savedNode.y,
+              width: savedNode.width,
+              height: savedNode.height,
               title: bestTab.label || "New Tab",
               headerContent: this._buildHeader(bestTab, id),
             });
@@ -427,10 +567,16 @@ var TabCanvas = {
       }
     }
 
-    // Remove orphaned canvas nodes (no matching tab)
+    // Keep orphan nodes (saved layout with no current matching tab) so
+    // users don't silently lose layout. Mark with data-orphan so we can
+    // style them and so other handlers (which lookup via _idToTab) skip
+    // them naturally.
     for (let savedNode of data.nodes) {
       if (!this._idToTab.has(savedNode.id)) {
-        this._canvas.removeNode(savedNode.id);
+        let nodeEl = this._canvas.getNode(savedNode.id)?.element;
+        if (nodeEl) {
+          nodeEl.setAttribute("data-orphan", "true");
+        }
       }
     }
 
@@ -518,7 +664,8 @@ var TabCanvas = {
     this._idToTab.set(id, tab);
 
     let nodeOpts = {
-      x, y,
+      x,
+      y,
       width: tab.pinned ? 160 : 280,
       height: tab.pinned ? 120 : 212,
       title: tab.label || "New Tab",
@@ -534,9 +681,14 @@ var TabCanvas = {
       );
       if (identity?.color) {
         let colorMap = {
-          blue: "#0a84ff", turquoise: "#00c8d7", green: "#44b700",
-          yellow: "#ffbd4f", orange: "#ff9400", red: "#ff0039",
-          pink: "#ff2a8a", purple: "#9400ff",
+          blue: "#0a84ff",
+          turquoise: "#00c8d7",
+          green: "#44b700",
+          yellow: "#ffbd4f",
+          orange: "#ff9400",
+          red: "#ff0039",
+          pink: "#ff2a8a",
+          purple: "#9400ff",
         };
         let c = colorMap[identity.color] || "#666";
         this._canvas.setNodeColor(id, null, c);
@@ -548,12 +700,19 @@ var TabCanvas = {
     }
   },
 
-  _findEmptyPosition() {
-    let bounds = this._canvas._getAllBounds();
-    if (!bounds) {
-      return { x: 0, y: 0 };
+  _findEmptyPosition(height = 212) {
+    // Seed the cursor lazily from current canvas bounds so concurrent
+    // TabOpen events (session restore, "Open all in tabs") don't stack
+    // every new tab at the same coordinate. The cursor advances per
+    // call; show() resets it.
+    if (this._nextPlacementY === null) {
+      let bounds = this._canvas._getAllBounds();
+      this._nextPlacementX = bounds ? bounds.x : 0;
+      this._nextPlacementY = bounds ? bounds.y + bounds.height + 40 : 0;
     }
-    return { x: bounds.x, y: bounds.y + bounds.height + 40 };
+    let pos = { x: this._nextPlacementX, y: this._nextPlacementY };
+    this._nextPlacementY += height + 40;
+    return pos;
   },
 
   // Place a new tab next to its opener if we know one.
@@ -566,28 +725,41 @@ var TabCanvas = {
   },
 
   _buildHeader(tab, nodeId = null) {
-    let header = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    let header = document.createElementNS(
+      "http://www.w3.org/1999/xhtml",
+      "div"
+    );
     header.style.cssText = "display:flex;align-items:center;gap:8px;width:100%";
 
+    let pinEl = null;
     if (tab.pinned) {
-      let pin = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
-      pin.style.cssText = "width:12px;height:12px;flex-shrink:0";
-      pin.src = "chrome://global/skin/icons/pin-12.svg";
-      pin.draggable = false;
-      header.appendChild(pin);
+      pinEl = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+      pinEl.style.cssText = "width:12px;height:12px;flex-shrink:0";
+      pinEl.src = "chrome://global/skin/icons/pin-12.svg";
+      pinEl.draggable = false;
+      header.appendChild(pinEl);
     }
 
-    let favicon = document.createElementNS("http://www.w3.org/1999/xhtml", "img");
+    let favicon = document.createElementNS(
+      "http://www.w3.org/1999/xhtml",
+      "img"
+    );
     favicon.style.cssText = "width:16px;height:16px;flex-shrink:0";
-    favicon.src = tab.getAttribute("image") || "chrome://global/skin/icons/defaultFavicon.svg";
+    favicon.src =
+      tab.getAttribute("image") ||
+      "chrome://global/skin/icons/defaultFavicon.svg";
     favicon.draggable = false;
     header.appendChild(favicon);
 
-    let title = document.createElementNS("http://www.w3.org/1999/xhtml", "span");
+    let title = document.createElementNS(
+      "http://www.w3.org/1999/xhtml",
+      "span"
+    );
     // min-width:0 is required so flex shrinking can truncate the text below
     // its intrinsic content width; otherwise a long title pushes the zoom
     // button past the node's overflow:hidden boundary.
-    title.style.cssText = "color:#e0e0e0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0";
+    title.style.cssText =
+      "color:#e0e0e0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0";
     title.textContent = tab.label || "New Tab";
     header.appendChild(title);
 
@@ -598,14 +770,25 @@ var TabCanvas = {
     if (id) {
       // Fit options for the integration: a bit of breathing room around
       // the zoomed tab while still filling most of the canvas.
-      header.appendChild(this._canvas.createZoomButton(id, {
-        padding: 56,
-        maxZoom: 3,
-      }));
+      header.appendChild(
+        this._canvas.createZoomButton(id, {
+          padding: 56,
+          maxZoom: 3,
+        })
+      );
       // The shared close button removes the node and emits node-delete;
       // our node-delete handler turns that into gBrowser.removeTab.
       header.appendChild(this._canvas.createCloseButton(id));
     }
+
+    // Stash refs on the header itself so _updateTabHeader can mutate the
+    // mutable bits (title/favicon/pin) in-place without rebuilding the
+    // whole subtree (which would orphan the close/zoom buttons' listeners
+    // and force an engine re-layout on every TabAttrModified event).
+    header._titleEl = title;
+    header._faviconEl = favicon;
+    header._pinEl = pinEl;
+    header._pinned = !!tab.pinned;
 
     return header;
   },
@@ -622,14 +805,21 @@ var TabCanvas = {
       this._canvas.restoreSavedView(nodeId);
     }
     let wasSelected = tab === gBrowser.selectedTab;
+    this._canvasInitiatedClose = true;
     if (wasSelected) {
       this._internalTabSelect = true;
+      // gBrowser.removeTab can dispatch TabSelect deferred via
+      // AsyncTabSwitcher; use the refcount so a late event doesn't
+      // trigger hide().
+      this._suppressHideRefCount++;
     }
     try {
       gBrowser.removeTab(tab);
     } finally {
+      this._canvasInitiatedClose = false;
       if (wasSelected) {
         this._internalTabSelect = false;
+        setTimeout(() => this._suppressHideRefCount--, 0);
         // gBrowser auto-selected an adjacent tab on close. Mirror that
         // into the canvas selection so the new active tab is visually
         // highlighted, and apply the live overlay to it.
@@ -648,8 +838,38 @@ var TabCanvas = {
   },
 
   _updateTabHeader(tab, id) {
+    let node = this._canvas.getNode(id);
+    let label = tab.label || "New Tab";
+    // Fast path: if the existing header DOM is still attached and its
+    // structural attributes (pinned) match the tab, mutate the
+    // title/favicon in place. updateNode() rebuilds the engine's DOM and
+    // re-triggers layout; we want to avoid that for label/icon churn.
+    let header = node?.element?.querySelector(".infinite-canvas-node-header");
+    let existing = header?.firstElementChild;
+    if (
+      existing &&
+      existing._titleEl &&
+      existing._faviconEl &&
+      existing._pinned === !!tab.pinned
+    ) {
+      if (existing._titleEl.textContent !== label) {
+        existing._titleEl.textContent = label;
+      }
+      let src =
+        tab.getAttribute("image") ||
+        "chrome://global/skin/icons/defaultFavicon.svg";
+      if (existing._faviconEl.src !== src) {
+        existing._faviconEl.src = src;
+      }
+      if (node.title !== label) {
+        node.title = label;
+      }
+      return;
+    }
+    // Structural change (pinned/crashed toggled, or first-time build):
+    // fall back to a full header rebuild via updateNode.
     this._canvas.updateNode(id, {
-      title: tab.label || "New Tab",
+      title: label,
       headerContent: this._buildHeader(tab, id),
     });
   },
@@ -686,6 +906,27 @@ var TabCanvas = {
   // browserStack so the new browser never flashes at full size.
   // Mirror canvas selection into tabbrowser multi-selection. Frames and
   // canvas-only items are skipped (they're not real tabs).
+  //
+  // Engine paths that emit one selection-change per tab toggle (Ctrl+A,
+  // marquee select, etc.) can cascade into N events in the same task,
+  // each clearing the tab strip selection and re-adding tabs one by one.
+  // Coalesce via microtask so we only sync the latest selection once.
+  _scheduleSelectionSync(selection) {
+    this._pendingSelectionSync = selection;
+    if (this._selectionSyncPending) {
+      return;
+    }
+    this._selectionSyncPending = true;
+    Promise.resolve().then(() => {
+      this._selectionSyncPending = false;
+      let latest = this._pendingSelectionSync;
+      this._pendingSelectionSync = null;
+      if (latest) {
+        this._syncSelectionToTabbrowser(latest);
+      }
+    });
+  },
+
   _syncSelectionToTabbrowser(selection) {
     if (this._internalTabSelect) {
       // Already in the middle of a single-tab select; selection-change will
@@ -695,21 +936,17 @@ var TabCanvas = {
     // Collect both the tabs and their canvas ids in the same order as
     // they appear in the selection set.
     let tabs = [];
+    let desiredTabSet = new Set();
     let firstTabNodeId = null;
     for (let id of selection) {
       let tab = this._idToTab.get(id);
       if (tab) {
         tabs.push(tab);
+        desiredTabSet.add(tab);
         if (firstTabNodeId === null) {
           firstTabNodeId = id;
         }
       }
-    }
-    // Any tab the user pulls into the selection (single click, marquee,
-    // shift-click, ctrl+a, drag, arrow keys, ...) should wake up its
-    // content so thumbnails / live previews become real.
-    for (let tab of tabs) {
-      this._ensureTabLoaded(tab);
     }
 
     // If exactly one tab is selected (e.g. via alt+arrow navigation,
@@ -717,16 +954,39 @@ var TabCanvas = {
     // so the live overlay renders that tab's content. Skip if it's
     // already selected.
     if (tabs.length === 1 && tabs[0] !== gBrowser.selectedTab) {
+      this._ensureTabLoaded(tabs[0]);
       this._selectTabFromCanvas(firstTabNodeId);
     }
 
-    // _withSync sets _suppressHide so any TabSelect dispatched as a side
-    // effect of these multi-select changes won't exit the canvas.
+    // Diff against the existing multi-selection and apply only the delta
+    // so we avoid one TabSelectMultiple dispatch (and tab strip repaint)
+    // per tab on big selections. Uses the private _multiSelectedTabsSet
+    // for O(1) membership checks; the public selectedTabs getter would
+    // include the current selectedTab even when not multi-selected.
+    let currentSet = gBrowser._multiSelectedTabsSet;
+    // _withSync bumps _suppressHideRefCount so any TabSelect dispatched as
+    // a side effect of these multi-select changes won't exit the canvas.
     this._withSync(() => {
-      gBrowser.clearMultiSelectedTabs();
-      if (tabs.length >= 2) {
-        for (let tab of tabs) {
+      if (tabs.length < 2) {
+        // Single (or zero) tab selection on the canvas should leave the
+        // tab strip in a non-multi-selected state.
+        gBrowser.clearMultiSelectedTabs();
+        return;
+      }
+      // Remove tabs that are no longer selected.
+      let multiselected = gBrowser.visibleTabs.filter(t => t.multiselected);
+      for (let tab of multiselected) {
+        if (!desiredTabSet.has(tab)) {
+          gBrowser.removeFromMultiSelectedTabs(tab);
+        }
+      }
+      // Add tabs that newly entered the selection. Only newly-added tabs
+      // need _ensureTabLoaded — already-selected tabs were woken on a
+      // prior event.
+      for (let tab of tabs) {
+        if (!currentSet.has(tab)) {
           gBrowser.addToMultiSelectedTabs(tab);
+          this._ensureTabLoaded(tab);
         }
       }
     });
@@ -746,17 +1006,32 @@ var TabCanvas = {
     let browser = tab.linkedBrowser;
     let needsLoad = hasPending || hasDiscarded || !tab.linkedPanel;
     if (this._tabcanvasDebug) {
-      console.log("[tabcanvas] _ensureTabLoaded", {
-        label: tab.label,
+      // Tab labels and URIs are PII; log only non-identifying state.
+      console.warn("[tabcanvas] _ensureTabLoaded", {
         pending: hasPending,
         discarded: hasDiscarded,
         linkedPanel: !!tab.linkedPanel,
         docShellIsActive: browser?.docShellIsActive,
-        currentURI: browser?.currentURI?.spec,
         needsLoad,
         alreadyLoading: this._loadingTabs?.has(tab),
       });
     }
+
+    // Activate the docshell unconditionally for any non-selected tab in
+    // canvas mode. Most tabs in a browser are loaded-but-inactive
+    // (docShellIsActive=false) — they need this flip to actually paint
+    // so PageThumbs can capture real content. This is an explicit
+    // deviation from the general "don't activate non-selected docshells"
+    // rule, accepted here because the canvas IS the user-facing reason
+    // those tabs need to render. AsyncTabSwitcher / audio focus get
+    // their normal signals back when the canvas closes and the deck
+    // resumes ownership.
+    if (browser && !browser.docShellIsActive) {
+      try {
+        browser.docShellIsActive = true;
+      } catch (e) {}
+    }
+
     if (!needsLoad) {
       return;
     }
@@ -772,38 +1047,73 @@ var TabCanvas = {
         gBrowser._insertBrowser(tab);
       }
       browser = tab.linkedBrowser;
-      // Activate the docshell so layers/processes spin up.
+      // After insertBrowser the browser may be brand new and still
+      // inactive; flip again so the just-materialized docshell paints.
       if (browser && !browser.docShellIsActive) {
-        try { browser.docShellIsActive = true; } catch (e) {}
+        try {
+          browser.docShellIsActive = true;
+        } catch (e) {}
       }
-      // Three complementary triggers — whichever applies will fire:
-      //   - TabShow → SessionStore.onTabShow → queues restore.
-      //   - browser.reload() → for pending or discarded tabs, kicks
-      //     off the URI load directly. For lazy browsers, the lazy
-      //     `reload` getter chains _insertBrowser + SSTabRestoring +
-      //     real reload.
-      tab.dispatchEvent(new CustomEvent("TabShow", { bubbles: true }));
+      // Three complementary wake-up triggers — whichever applies fires:
+      //   - TabShow → SessionStore.onTabShow → queues restore via
+      //     restoreNextTab(). This is the path Firefox uses when a
+      //     hidden tab becomes visible. SessionStore enforces a restore
+      //     concurrency limit, so on a session with many pending tabs
+      //     this alone is not enough to wake them all promptly.
+      //   - browser.reload() → for pending/discarded tabs, kicks off the
+      //     URI load directly. For lazy browsers the `reload` getter
+      //     chains _insertBrowser + SSTabRestoring + the real reload.
+      //     This bypasses the SessionStore concurrency limit and is
+      //     the primary reason all canvas previews render after a
+      //     session restore.
+      //   - docShellIsActive activation (above) — makes the browser paint
+      //     once content arrives.
+      try {
+        tab.dispatchEvent(new CustomEvent("TabShow", { bubbles: true }));
+      } catch (e) {}
       if ((hasPending || hasDiscarded) && browser?.reload) {
-        try { browser.reload(); } catch (e) {}
+        try {
+          browser.reload();
+        } catch (e) {}
       }
       // Once the tab actually finishes loading, re-capture its thumbnail
       // so the canvas body shows real content instead of the placeholder
       // that may have been captured while the tab was still discarded.
+      // pageshow / SSTabRestored both fire before the page has had time
+      // to actually paint, so we schedule two delayed captures: a quick
+      // one for fast-painting pages and a later one to catch async
+      // content (web fonts, lazy images, hydration). Each one replaces
+      // the previous bodyContent in the canvas node.
+      let scheduleDelayedCapture = (delay, key) => {
+        this._thumbCaptureTimers ??= new WeakMap();
+        let timers = this._thumbCaptureTimers.get(tab) || {};
+        clearTimeout(timers[key]);
+        timers[key] = setTimeout(() => {
+          let nodeId = this._tabToId.get(tab);
+          if (nodeId && this._active) {
+            this._captureThumbnail(tab, nodeId);
+          }
+        }, delay);
+        this._thumbCaptureTimers.set(tab, timers);
+      };
       let onLoad = () => {
         tab.removeEventListener("SSTabRestored", onLoad);
         tab.linkedBrowser?.removeEventListener("pageshow", onLoad, true);
-        let nodeId = this._tabToId.get(tab);
-        if (nodeId && this._active) {
-          this._captureThumbnail(tab, nodeId);
-        }
+        // Clear from _loadingTabs so a re-discarded tab can be re-loaded
+        // (memory pressure can discard a tab again later in the session).
+        this._loadingTabs?.delete(tab);
+        scheduleDelayedCapture(600, "fast");
+        scheduleDelayedCapture(2500, "slow");
       };
       tab.addEventListener("SSTabRestored", onLoad, { once: true });
       try {
-        tab.linkedBrowser?.addEventListener("pageshow", onLoad, { once: true, capture: true });
+        tab.linkedBrowser?.addEventListener("pageshow", onLoad, {
+          once: true,
+          capture: true,
+        });
       } catch (e) {}
       if (this._tabcanvasDebug) {
-        console.log("[tabcanvas] _ensureTabLoaded -> dispatched", {
-          label: tab.label,
+        console.warn("[tabcanvas] _ensureTabLoaded -> dispatched", {
           linkedPanel: !!tab.linkedPanel,
           docShellIsActive: browser?.docShellIsActive,
         });
@@ -834,12 +1144,25 @@ var TabCanvas = {
     let newBrowser = tab.linkedBrowser;
     let oldBrowser = oldTab.linkedBrowser;
 
+    // Release any previously-preserved browsers from prior canvas switches
+    // before adding a new one. If the user clicks tabs rapidly (alt+arrow,
+    // Ctrl+Tab), stale preserveLayers(true) entries would otherwise leak.
+    for (let preserved of this._preservedLayerBrowsers) {
+      try {
+        preserved.preserveLayers(false);
+      } catch (e) {}
+    }
+    this._preservedLayerBrowsers.clear();
+
     // Preserve the OLD selected tab's layers so its overlay content
     // doesn't get torn down during the switch (we still want it to show
     // a live preview-ish state until a thumbnail captures).
-    try {
-      oldBrowser?.preserveLayers(true);
-    } catch (e) {}
+    if (oldBrowser) {
+      try {
+        oldBrowser.preserveLayers(true);
+        this._preservedLayerBrowsers.add(oldBrowser);
+      } catch (e) {}
+    }
 
     // Activate the NEW tab's docshell synchronously and ensure its layers
     // are ready, so AsyncTabSwitcher doesn't need to spin up the
@@ -857,11 +1180,21 @@ var TabCanvas = {
     // its small node-body location before the deck transition runs.
     this._applyOverlayToTab(tab);
 
+    // gBrowser.selectedTab = tab may dispatch TabSelect on a deferred tick
+    // (AsyncTabSwitcher can wait for layers). The deferred event would
+    // arrive after _internalTabSelect was cleared in finally and trigger
+    // _onTabSelect -> hide(). Bump _suppressHideRefCount and decrement on
+    // the next event-loop tick so the deferred dispatch is still
+    // suppressed.
     this._internalTabSelect = true;
+    this._suppressHideRefCount = (this._suppressHideRefCount || 0) + 1;
     try {
       gBrowser.selectedTab = tab;
     } finally {
       this._internalTabSelect = false;
+      setTimeout(() => {
+        this._suppressHideRefCount--;
+      }, 0);
     }
 
     // Selecting a tab triggers Firefox's _adjustFocusAfterTabSwitch which
@@ -879,13 +1212,13 @@ var TabCanvas = {
     // its layers have settled in their new (non-selected) state. The
     // focus refocus is also re-applied here in case any async chrome
     // logic (e.g. the AsyncTabSwitcher's finish step) reasserts content
-    // focus after the synchronous selection change.
+    // focus after the synchronous selection change. The OLD browser's
+    // preserveLayers(true) is intentionally NOT released here: the overlay
+    // move keeps the layers alive, and the entry is released on the next
+    // canvas switch or in hide().
     requestAnimationFrame(() => {
       this._captureAllThumbnails();
       document.getElementById("tab-canvas-inner")?.focus();
-      try {
-        oldBrowser?.preserveLayers(false);
-      } catch (e) {}
     });
   },
 
@@ -908,16 +1241,26 @@ var TabCanvas = {
     }
     let browser = tab.linkedBrowser;
     let stack = browser?.closest(".browserStack");
-    if (!stack) {
+    if (!stack || !stack.parentNode) {
       return;
     }
 
-    if (!this._fixedOffset) {
-      let probe = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
-      probe.style.cssText = "position:fixed;left:0;top:0;width:1px;height:1px;pointer-events:none;z-index:-1";
-      stack.parentNode.appendChild(probe);
+    // Compute the position-fixed origin offset every call rather than
+    // caching it. The cache was only invalidated on hide()/window-resize,
+    // missing devtools dock/undock, fullscreen toggles, sidebar/megabar
+    // expansion, and DPR changes from monitor moves. A single layout
+    // probe per overlay update is cheap. try/finally guarantees the
+    // probe is removed if getBoundingClientRect (or anything else)
+    // throws.
+    let fixedOffset;
+    let probe = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    probe.style.cssText =
+      "position:fixed;left:0;top:0;width:1px;height:1px;pointer-events:none;z-index:-1";
+    stack.parentNode.appendChild(probe);
+    try {
       let probeRect = probe.getBoundingClientRect();
-      this._fixedOffset = { x: probeRect.left, y: probeRect.top };
+      fixedOffset = { x: probeRect.left, y: probeRect.top };
+    } finally {
       probe.remove();
     }
 
@@ -933,8 +1276,8 @@ var TabCanvas = {
     );
 
     stack.style.position = "fixed";
-    stack.style.left = (bodyRect.left - this._fixedOffset.x) + "px";
-    stack.style.top = (bodyRect.top - this._fixedOffset.y) + "px";
+    stack.style.left = bodyRect.left - fixedOffset.x + "px";
+    stack.style.top = bodyRect.top - fixedOffset.y + "px";
     stack.style.width = bodyRect.width + "px";
     stack.style.height = bodyRect.height + "px";
     stack.style.overflow = "hidden";
@@ -970,7 +1313,10 @@ var TabCanvas = {
         return;
       }
 
-      let thumbCanvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+      let thumbCanvas = document.createElementNS(
+        "http://www.w3.org/1999/xhtml",
+        "canvas"
+      );
       thumbCanvas.width = 280 * 2;
       thumbCanvas.height = 180 * 2;
       thumbCanvas.style.cssText = "width:100%;height:100%;display:block";
@@ -1027,13 +1373,16 @@ var TabCanvas = {
     // Also suppress canvas-exit-on-TabSelect across the next event tick,
     // in case a browser API we called (addTabGroup, addTabs, ungroupTab,
     // etc.) queues a TabSelect on a later turn after _syncing has
-    // already cleared.
-    this._suppressHide = true;
+    // already cleared. Refcounted so nested / overlapping _withSync (or
+    // _selectTabFromCanvas) windows don't clear early.
+    this._suppressHideRefCount = (this._suppressHideRefCount || 0) + 1;
     try {
       fn();
     } finally {
       this._syncing = false;
-      setTimeout(() => { this._suppressHide = false; }, 0);
+      setTimeout(() => {
+        this._suppressHideRefCount--;
+      }, 0);
     }
   },
 
@@ -1044,9 +1393,15 @@ var TabCanvas = {
   },
 
   _groupColorMap: {
-    blue: "#0a84ff", purple: "#9400ff", cyan: "#00c8d7",
-    orange: "#ff9400", yellow: "#ffbd4f", pink: "#ff2a8a",
-    green: "#44b700", gray: "#666", red: "#ff0039",
+    blue: "#0a84ff",
+    purple: "#9400ff",
+    cyan: "#00c8d7",
+    orange: "#ff9400",
+    yellow: "#ffbd4f",
+    pink: "#ff2a8a",
+    green: "#44b700",
+    gray: "#666",
+    red: "#ff0039",
   },
 
   _importBrowserTabGroup(group) {
@@ -1059,7 +1414,10 @@ var TabCanvas = {
     }
 
     // Find bounding box of member tabs on canvas
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
     for (let tab of groupTabs) {
       let id = this._tabToId.get(tab);
       if (!id) {
@@ -1161,11 +1519,19 @@ var TabCanvas = {
     if (!groupId) {
       return;
     }
-    this._canvasToTabGroup.delete(frameId);
-    this._tabGroupToCanvas.delete(groupId);
     let group = gBrowser.getTabGroupById(groupId);
-    if (group) {
-      this._withSync(() => group.ungroupTabs());
+    // Only forget the mapping after the browser-side ungroup succeeds.
+    // If group.ungroupTabs() throws, the browser group still exists and
+    // we want the mapping to stay so a subsequent retry / sync can pair
+    // them again.
+    try {
+      if (group) {
+        this._withSync(() => group.ungroupTabs());
+      }
+      this._canvasToTabGroup.delete(frameId);
+      this._tabGroupToCanvas.delete(groupId);
+    } catch (e) {
+      console.error("[tabcanvas] _onCanvasFrameRemove failed", e);
     }
   },
 
@@ -1179,26 +1545,27 @@ var TabCanvas = {
       return;
     }
 
-    let prevGroupId = prevFrameId ? this._canvasToTabGroup.get(prevFrameId) : null;
+    let prevGroupId = prevFrameId
+      ? this._canvasToTabGroup.get(prevFrameId)
+      : null;
     let newGroupId = frameId ? this._canvasToTabGroup.get(frameId) : null;
 
     if (frameId && !newGroupId) {
-      // No browser group exists yet for this frame: create one now with this tab
-      // (and any other tabs the canvas has already assigned to this frame).
-      let group = this._maybeCreateBrowserGroup(frameId);
-      if (!group) {
-        // No eligible tabs (this tab is pinned). Nothing to do.
-      }
-      // If we needed to remove from prev group, fall through.
+      // No browser group exists yet for this frame: create one now with
+      // this tab (and any other tabs the canvas has already assigned to
+      // this frame). _maybeCreateBrowserGroup → gBrowser.addTabGroup
+      // moves the tab into the new group atomically, which implicitly
+      // removes it from any previous group it belonged to. No explicit
+      // ungroup needed here.
+      this._maybeCreateBrowserGroup(frameId);
     } else if (frameId && newGroupId) {
-      // Move tab into existing group.
+      // Move tab into existing group. addTabs auto-removes from the
+      // previous group if any.
       let group = gBrowser.getTabGroupById(newGroupId);
       if (group && tab.group !== group) {
         this._withSync(() => group.addTabs([tab]));
       }
-    }
-
-    if (!frameId && prevGroupId) {
+    } else if (!frameId && prevGroupId) {
       // Tab moved out of a frame on the canvas: remove it from the
       // corresponding browser tab group.
       if (tab.group && tab.group.id === prevGroupId) {
@@ -1222,7 +1589,9 @@ var TabCanvas = {
     }
     let frame = this._canvas._frames.get(frameId);
     if (frame) {
-      this._withSync(() => { group.label = frame.label; });
+      this._withSync(() => {
+        group.label = frame.label;
+      });
     }
   },
 
@@ -1252,9 +1621,16 @@ var TabCanvas = {
     if (!frameId) {
       return;
     }
-    this._canvasToTabGroup.delete(frameId);
-    this._tabGroupToCanvas.delete(group.id);
-    this._withSync(() => this._canvas.removeFrame(frameId));
+    // Only forget the mapping after the canvas-side frame is gone. If
+    // removeFrame() throws (e.g. mid-render), the canvas frame is still
+    // around and the map entries must stay so we can retry.
+    try {
+      this._withSync(() => this._canvas.removeFrame(frameId));
+      this._canvasToTabGroup.delete(frameId);
+      this._tabGroupToCanvas.delete(group.id);
+    } catch (e) {
+      console.error("[tabcanvas] _onBrowserTabGroupRemoved failed", e);
+    }
     this._scheduleSave();
   },
 
@@ -1326,6 +1702,10 @@ var TabCanvas = {
   // --- Tab Event Handlers ---
 
   _onKeyDown(event) {
+    // Cmd/Ctrl+I toggles the tab canvas. Claimed globally (not gated on
+    // _active) so the canvas can be opened from any chrome focus state.
+    // stopPropagation only fires when we consume — this intentionally
+    // overrides View:PageInfo (key_viewInfo) which is the same chord.
     if (
       event.key === "i" &&
       !event.shiftKey &&
@@ -1343,9 +1723,10 @@ var TabCanvas = {
       // user clicking into a tab preview can't use arrow keys / Enter in
       // the page itself.
       let canvasInner = document.getElementById("tab-canvas-inner");
-      let focusInCanvas = canvasInner &&
+      let focusInCanvas =
+        canvasInner &&
         (document.activeElement === canvasInner ||
-         canvasInner.contains(document.activeElement));
+          canvasInner.contains(document.activeElement));
       if (!focusInCanvas) {
         return;
       }
@@ -1353,10 +1734,19 @@ var TabCanvas = {
       // Only prevent default for keys the canvas engine handles,
       // so F5, F12, url bar typing, etc. still work.
       let canvasKeys = [
-        "h", "v", "f", "t", " ",
-        "Delete", "Backspace",
-        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
-        "Escape", "Enter",
+        "h",
+        "v",
+        "f",
+        "t",
+        " ",
+        "Delete",
+        "Backspace",
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+        "Escape",
+        "Enter",
       ];
       if (!event.ctrlKey && !event.metaKey && canvasKeys.includes(event.key)) {
         event.preventDefault();
@@ -1368,8 +1758,10 @@ var TabCanvas = {
       // own keydown listener, and stopping propagation would prevent
       // the engine from ever seeing the key (which would break the
       // actual grouping/duplicate/etc. behavior).
-      if ((event.ctrlKey || event.metaKey) &&
-          ["g", "d", "a", "z", "0", "1", "=", "-"].includes(event.key)) {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        ["g", "d", "a", "z", "0", "1", "=", "-"].includes(event.key)
+      ) {
         event.preventDefault();
       }
     }
@@ -1383,7 +1775,9 @@ var TabCanvas = {
     // Place the new node next to its opener tab (set when middle-clicking
     // a link, ctrl-clicking, window.open, etc.). Falls back to empty space.
     let opener = tab.openerTab || tab.owner;
-    let pos = opener ? this._findPositionNearOpener(opener) : this._findEmptyPosition();
+    let pos = opener
+      ? this._findPositionNearOpener(opener)
+      : this._findEmptyPosition();
     this._addTabNode(tab, 0, 4, pos.x, pos.y);
 
     // If the new tab joins a tab group via opener, sync into the canvas
@@ -1406,6 +1800,12 @@ var TabCanvas = {
   _onTabClose(event) {
     let tab = event.target;
     let id = this._tabToId.get(tab);
+    let browser = tab.linkedBrowser;
+    // Drop the closing tab from the preserved-layer set so we don't
+    // call preserveLayers(false) on a destroyed browser in hide().
+    if (browser) {
+      this._preservedLayerBrowsers.delete(browser);
+    }
     if (id) {
       // If the tab was zoomed in, restore the previously-saved view
       // before removing the node so the canvas returns to where it was.
@@ -1416,9 +1816,18 @@ var TabCanvas = {
       this._canvas.removeNode(id);
       this._idToTab.delete(id);
     }
-    if (this._active) {
-      this._clearAllBrowserOverlays();
-      this._updateAllBrowserOverlays();
+    if (this._active && !this._canvasInitiatedClose) {
+      // Only clear the closing tab's overlay; leaving every other tab's
+      // overlay alone avoids a visible flash on the selected tab when an
+      // unrelated tab closes. _closeTabFromCanvas already manages the
+      // selected-tab overlay itself, so skip when it initiated the close.
+      let stack = browser?.closest(".browserStack");
+      if (stack && browser) {
+        this._clearBrowserOverlay(stack, browser);
+      }
+      if (tab === gBrowser.selectedTab) {
+        this._updateAllBrowserOverlays();
+      }
     }
     this._scheduleSave();
   },
@@ -1437,10 +1846,18 @@ var TabCanvas = {
     // (busy, progress, soundplaying, etc.) and rebuilding the header on
     // every one causes flicker.
     let changed = event.detail?.changed;
-    if (!changed || changed.some(a =>
-      a === "label" || a === "image" || a === "iconLoadingPrincipal" ||
-      a === "pinned" || a === "muted" || a === "crashed"
-    )) {
+    if (
+      !changed ||
+      changed.some(
+        a =>
+          a === "label" ||
+          a === "image" ||
+          a === "iconLoadingPrincipal" ||
+          a === "pinned" ||
+          a === "muted" ||
+          a === "crashed"
+      )
+    ) {
       this._updateTabHeader(tab, id);
     }
   },
@@ -1452,8 +1869,12 @@ var TabCanvas = {
     // Tab selection initiated by something the canvas did — either a
     // direct canvas click (_internalTabSelect) or as a side effect of a
     // canvas → browser sync call like addTabGroup/ungroupTabs/ungroupTab
-    // (_syncing/_suppressHide). Stay in canvas mode.
-    if (this._internalTabSelect || this._syncing || this._suppressHide) {
+    // (_syncing/_suppressHideRefCount). Stay in canvas mode.
+    if (
+      this._internalTabSelect ||
+      this._syncing ||
+      this._suppressHideRefCount > 0
+    ) {
       return;
     }
     this.hide();
@@ -1487,15 +1908,17 @@ var TabCanvas = {
     if (!this._active) {
       return;
     }
-    let selectedStack = gBrowser.selectedBrowser?.closest(".browserStack");
-    if (selectedStack) {
-      // Clear overlay first so we measure native dimensions
-      let browser = gBrowser.selectedBrowser;
-      this._clearBrowserOverlay(selectedStack, browser);
-      this._browserNativeWidth = selectedStack.clientWidth || 1;
-      this._browserNativeHeight = selectedStack.clientHeight || 1;
+    // Measure native browser dimensions from the tabbox (a stable
+    // ancestor whose layout doesn't depend on the position:fixed
+    // overlay we may be applying to the selected stack). The earlier
+    // implementation cleared the selected stack's overlay synchronously
+    // to measure it, then re-applied via rAF, producing a visible
+    // flicker mid-resize.
+    let tabbox = gBrowser.tabbox;
+    if (tabbox) {
+      this._browserNativeWidth = tabbox.clientWidth || 1;
+      this._browserNativeHeight = tabbox.clientHeight || 1;
     }
-    this._fixedOffset = null;
     this._scheduleOverlayUpdate();
   },
 };
