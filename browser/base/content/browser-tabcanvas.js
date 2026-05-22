@@ -244,6 +244,14 @@ var TabCanvas = {
       this._onCanvasNodeFrameChange(id, frameId, prevFrameId);
     });
 
+    // Alt+drag inside the canvas → real tab duplication in the browser.
+    onCanvas("node-clone", ({ sourceId, cloneId }) => {
+      this._onCanvasNodeClone(sourceId, cloneId);
+    });
+    onCanvas("frame-clone", ({ sourceId, cloneId, childCloneIds }) => {
+      this._onCanvasFrameClone(sourceId, cloneId, childCloneIds);
+    });
+
     // --- Undo command side-effects ---
     // For each engine command pushed to the undo stack, attach a chrome
     // side-effect so that undoing also reverts the corresponding browser
@@ -899,6 +907,46 @@ var TabCanvas = {
           // We don't track which restored tabs correspond to which
           // engine nodes, so close the most-recently-restored ones.
           this._canvas.debugLog("info", "redo of canvas tab close: not yet implemented");
+        },
+      });
+    }
+    if (type === "clone") {
+      let pending = this._pendingCanvasClones || [];
+      this._pendingCanvasClones = [];
+      if (!pending.length) {
+        return;
+      }
+      // Snapshot tab references so the closure survives across undo/redo.
+      let snap = pending.slice();
+      cmd.attach({
+        undo: () => {
+          // Engine's clone undo already removed the canvas nodes; we
+          // close the matching browser tabs so they don't outlive the
+          // canvas representation.
+          for (let { tab } of snap) {
+            if (tab && tab.parentNode) {
+              try {
+                this._cloneMode = true;
+                gBrowser.removeTab(tab, { animate: false });
+              } catch (e) {
+                this._canvas.debugLog("warn", "clone-undo removeTab failed", { error: String(e) });
+              } finally {
+                this._cloneMode = false;
+              }
+            }
+          }
+        },
+        redo: () => {
+          // Best-effort: SessionStore.undoCloseTab restores the
+          // most-recently-closed tabs, but we have no guaranteed way
+          // to re-pair them with their canvas nodes. The engine's
+          // clone redo recreated the canvas nodes; this side-effect
+          // just leaves them orphaned (no live tab) until the user
+          // manually re-clones. Logged so the gap is visible in bug
+          // reports rather than failing silently.
+          this._canvas.debugLog("info",
+            "redo of canvas tab duplicate: leaves clone nodes without live tabs",
+            { count: snap.length });
         },
       });
     }
@@ -1590,6 +1638,28 @@ var TabCanvas = {
 
     this._canvasToTabGroup.set(frameId, group.id);
     this._tabGroupToCanvas.set(group.id, frameId);
+    this._installFrameChildOrderHint(frameId, group.id);
+  },
+
+  // Tell the engine that for this frame, the canonical child order is
+  // the tab-strip order of the paired tab group. Auto-layout will then
+  // arrange tabs in the grid following tab-strip order regardless of
+  // canvas insertion order or drop position.
+  _installFrameChildOrderHint(frameId, groupId) {
+    this._canvas.setFrameChildOrderHint(frameId, () => {
+      let group = gBrowser.getTabGroupById(groupId);
+      if (!group) {
+        return [];
+      }
+      let order = [];
+      for (let tab of group.tabs) {
+        let id = this._tabToId.get(tab);
+        if (id) {
+          order.push(id);
+        }
+      }
+      return order;
+    });
   },
 
   // Create a browser group from a canvas frame and link the mapping.
@@ -1615,6 +1685,7 @@ var TabCanvas = {
     if (group) {
       this._canvasToTabGroup.set(frameId, group.id);
       this._tabGroupToCanvas.set(group.id, frameId);
+      this._installFrameChildOrderHint(frameId, group.id);
     }
     return group;
   },
@@ -1625,8 +1696,86 @@ var TabCanvas = {
     if (this._syncing) {
       return;
     }
+    // Frame clones bring their own browser tab group (created in
+    // _onCanvasFrameClone). Skip the implicit single-frame creation
+    // path so we don't end up making a duplicate group.
+    if (this._cloneMode) {
+      return;
+    }
     this._canvas.debugLog("info", "side-effect ← frame-create", { frameId });
     this._maybeCreateBrowserGroup(frameId);
+  },
+
+  // Alt+drag clone of a single tab. The engine has already created a
+  // canvas node with id `cloneId`. We duplicate the underlying browser
+  // tab and adopt the new tab as the live backing for that canvas node.
+  _onCanvasNodeClone(sourceId, cloneId) {
+    let sourceTab = this._idToTab.get(sourceId);
+    if (!sourceTab) {
+      // Source isn't a real browser tab (e.g. test fixture). Nothing
+      // to duplicate at the browser layer.
+      return;
+    }
+    this._canvas.debugLog("info", "side-effect → duplicateTab", {
+      sourceId, cloneId, label: sourceTab.label,
+    });
+    let newTab;
+    this._cloneMode = true;
+    try {
+      newTab = gBrowser.duplicateTab(sourceTab);
+    } finally {
+      this._cloneMode = false;
+    }
+    if (!newTab) {
+      return;
+    }
+    // Adopt the existing cloneId canvas node as the backing for the
+    // new browser tab. _onTabOpen skipped creating its own node
+    // because _cloneMode was set; we manually pair and refresh visuals.
+    this._tabToId.set(newTab, cloneId);
+    this._idToTab.set(cloneId, newTab);
+    this._updateTabHeader(newTab, cloneId);
+    // Track for undo: if this clone command is rolled back we need to
+    // close the duplicate tab too.
+    if (!this._pendingCanvasClones) {
+      this._pendingCanvasClones = [];
+    }
+    this._pendingCanvasClones.push({ cloneId, tab: newTab });
+  },
+
+  // Alt+drag clone of a frame: after each child has been duplicated via
+  // _onCanvasNodeClone, group all those new tabs into a single browser
+  // tab group that backs the cloned canvas frame.
+  _onCanvasFrameClone(sourceId, cloneId, childCloneIds) {
+    let newTabs = [];
+    for (let { cloneId: childCloneId } of childCloneIds) {
+      let tab = this._idToTab.get(childCloneId);
+      if (tab) {
+        newTabs.push(tab);
+      }
+    }
+    if (!newTabs.length) {
+      return;
+    }
+    let sourceGroupId = this._canvasToTabGroup.get(sourceId);
+    let sourceGroup = sourceGroupId
+      ? gBrowser.getTabGroupById(sourceGroupId)
+      : null;
+    let frame = this._canvas._frames.get(cloneId);
+    let label = sourceGroup?.label || frame?.label || "Group";
+    let color = sourceGroup?.color;
+    this._canvas.debugLog("info", "side-effect → addTabGroup (clone)", {
+      sourceId, cloneId, tabCount: newTabs.length, label,
+    });
+    let newGroup;
+    this._withSync(() => {
+      newGroup = gBrowser.addTabGroup(newTabs, color ? { label, color } : { label });
+    });
+    if (newGroup) {
+      this._canvasToTabGroup.set(cloneId, newGroup.id);
+      this._tabGroupToCanvas.set(newGroup.id, cloneId);
+      this._installFrameChildOrderHint(cloneId, newGroup.id);
+    }
   },
 
   // Canvas frame removed -> ungroup browser tabs.
@@ -1907,6 +2056,12 @@ var TabCanvas = {
       return;
     }
     let tab = event.target;
+    // Canvas-initiated tab duplication: the engine already created the
+    // backing canvas node (cloneId); we adopt the new tab against that
+    // node in _onCanvasNodeClone. Don't double-create a node here.
+    if (this._cloneMode) {
+      return;
+    }
     // Place the new node next to its opener tab (set when middle-clicking
     // a link, ctrl-clicking, window.open, etc.). Falls back to empty space.
     let opener = tab.openerTab || tab.owner;

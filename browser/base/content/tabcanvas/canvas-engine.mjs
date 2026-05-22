@@ -250,7 +250,7 @@ class InfiniteCanvas {
 
   static GROUP_COLORS = ["#0a84ff", "#00cc66", "#ff6633", "#cc66ff", "#ffcc00", "#00cccc", "#ff3366", "#66aaff"];
 
-  addFrame(id, { x = 0, y = 0, width = 600, height = 400, label = "Frame", color = null } = {}) {
+  addFrame(id, { x = 0, y = 0, width = 600, height = 400, label = "Frame", color = null, autoLaidOut = false } = {}) {
     if (this._snapEnabled) {
       x = this._snap(x);
       y = this._snap(y);
@@ -260,7 +260,7 @@ class InfiniteCanvas {
     if (!color) {
       color = InfiniteCanvas.GROUP_COLORS[this._frames.size % InfiniteCanvas.GROUP_COLORS.length];
     }
-    let frame = { id, x, y, width, height, label, color, element: null };
+    let frame = { id, x, y, width, height, label, color, autoLaidOut, element: null };
     this._frames.set(id, frame);
     frame.element = this._createFrameElement(frame);
     this._viewport.insertBefore(frame.element, this._viewport.firstChild);
@@ -314,10 +314,17 @@ class InfiniteCanvas {
     }
     if (props.label !== undefined) {
       frame.label = props.label;
-      let labelEl = frame.element.querySelector(".infinite-canvas-frame-label");
-      if (labelEl) {
-        labelEl.textContent = frame.label;
-      }
+      this._setFrameLabelText(frame, frame.label);
+    }
+  }
+
+  _setFrameLabelText(frame, text) {
+    if (!frame || !frame.element) {
+      return;
+    }
+    let labelText = frame.element.querySelector(".infinite-canvas-frame-label-text");
+    if (labelText) {
+      labelText.textContent = text;
     }
   }
 
@@ -446,7 +453,7 @@ class InfiniteCanvas {
     }
     let frames = [];
     for (let [, f] of this._frames) {
-      frames.push({ id: f.id, x: f.x, y: f.y, width: f.width, height: f.height, label: f.label, color: f.color });
+      frames.push({ id: f.id, x: f.x, y: f.y, width: f.width, height: f.height, label: f.label, color: f.color, autoLaidOut: !!f.autoLaidOut });
     }
     return {
       nodes,
@@ -469,7 +476,7 @@ class InfiniteCanvas {
 
     // Restore frames first (they go behind nodes)
     for (let f of data.frames) {
-      this.addFrame(f.id, { x: f.x, y: f.y, width: f.width, height: f.height, label: f.label, color: f.color });
+      this.addFrame(f.id, { x: f.x, y: f.y, width: f.width, height: f.height, label: f.label, color: f.color, autoLaidOut: !!f.autoLaidOut });
     }
     // Restore nodes
     for (let n of data.nodes) {
@@ -1258,7 +1265,7 @@ class InfiniteCanvas {
     let commit = () => {
       let newLabel = input.value.trim() || frame.label;
       frame.label = newLabel;
-      labelEl.textContent = newLabel;
+      this._setFrameLabelText(frame, newLabel);
       labelEl.style.display = "";
       input.remove();
       this._emit("frame-label-change", { id: frameId, label: newLabel });
@@ -1270,16 +1277,14 @@ class InfiniteCanvas {
             let f = this._frames.get(frameId);
             if (!f) return;
             f.label = oldLabel;
-            let lbl = f.element.querySelector(".infinite-canvas-frame-label");
-            if (lbl) lbl.textContent = oldLabel;
+            this._setFrameLabelText(f, oldLabel);
             this._emit("frame-label-change", { id: frameId, label: oldLabel });
           },
           redo: () => {
             let f = this._frames.get(frameId);
             if (!f) return;
             f.label = newLabel;
-            let lbl = f.element.querySelector(".infinite-canvas-frame-label");
-            if (lbl) lbl.textContent = newLabel;
+            this._setFrameLabelText(f, newLabel);
             this._emit("frame-label-change", { id: frameId, label: newLabel });
           },
         }));
@@ -1513,16 +1518,57 @@ class InfiniteCanvas {
     }
   }
 
-  autoLayout(frameId, { gap = 20, cols = null } = {}) {
+  autoLayout(frameId, { gap = 20, cols = null, sortByPosition = false, pushUndo = true } = {}) {
     let frame = this._frames.get(frameId);
     if (!frame) {
       return;
     }
-    let children = this.getFrameChildren(frameId);
+    // A frame can advertise its own canonical child ordering via
+    // setFrameChildOrderHint() — used by the chrome adapter to lay out
+    // browser tab groups by tab-strip order, which is the source of
+    // truth for those frames regardless of insertion or drop position.
+    let children;
+    if (frame.childOrderHint) {
+      let hinted = frame.childOrderHint();
+      // Drop any IDs that no longer belong (defensive) and append any
+      // children the hint forgot, so we never lose a node.
+      let known = new Set(this.getFrameChildren(frameId));
+      let seen = new Set();
+      children = [];
+      for (let id of hinted) {
+        if (known.has(id) && !seen.has(id)) {
+          children.push(id);
+          seen.add(id);
+        }
+      }
+      for (let id of known) {
+        if (!seen.has(id)) {
+          children.push(id);
+        }
+      }
+    } else {
+      children = this.getFrameChildren(frameId);
+    }
     if (children.length === 0) {
       return;
     }
-    let geomBefore = this._snapshotGeometry();
+    let geomBefore = pushUndo ? this._snapshotGeometry() : null;
+
+    // Optionally re-order children by current geometry (top-to-bottom,
+    // left-to-right reading order) so that a freshly-dropped node slots
+    // into the grid at the index implied by where the user released it.
+    // Skipped when a child-order hint is in effect — that's the
+    // canonical order for this frame.
+    if (sortByPosition && !frame.childOrderHint) {
+      children.sort((a, b) => {
+        let na = this._nodes.get(a);
+        let nb = this._nodes.get(b);
+        if (na.y !== nb.y) {
+          return na.y - nb.y;
+        }
+        return na.x - nb.x;
+      });
+    }
 
     // Determine grid dimensions
     let nodeWidth = 0, nodeHeight = 0;
@@ -1559,7 +1605,11 @@ class InfiniteCanvas {
     frame.width = Math.max(frame.width, totalW);
     frame.height = Math.max(frame.height, totalH);
     this._applyRect(frame.element, frame);
-    this._pushGeometryDiff("Auto-Layout", geomBefore);
+    frame.autoLaidOut = true;
+    this._updateAutoLayoutToggle(frame);
+    if (pushUndo) {
+      this._pushGeometryDiff("Auto-Layout", geomBefore);
+    }
   }
 
   // ---- Public API: Events ----
@@ -1793,8 +1843,33 @@ class InfiniteCanvas {
 
     let label = document.createElement("div");
     label.className = "infinite-canvas-frame-label";
-    label.textContent = frame.label;
+
+    let labelText = document.createElement("span");
+    labelText.className = "infinite-canvas-frame-label-text";
+    labelText.textContent = frame.label;
+    label.appendChild(labelText);
+
+    // Auto-layout toggle: clicking turns auto-layout on (which also
+    // runs it immediately) or off. The button stops pointer events so
+    // it doesn't double-fire as a frame-label drag/select.
+    let autoBtn = document.createElement("button");
+    autoBtn.className = "infinite-canvas-frame-auto-layout-toggle";
+    autoBtn.title = "Toggle auto-layout";
+    autoBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+      <rect x="0" y="0" width="5" height="5"/>
+      <rect x="7" y="0" width="5" height="5"/>
+      <rect x="0" y="7" width="5" height="5"/>
+      <rect x="7" y="7" width="5" height="5"/>
+    </svg>`;
+    autoBtn.addEventListener("pointerdown", e => e.stopPropagation());
+    autoBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.toggleAutoLayout(frame.id);
+    });
+    label.appendChild(autoBtn);
     el.appendChild(label);
+    this._updateAutoLayoutToggle(frame);
 
     for (let pos of ["nw", "n", "ne", "e", "se", "s", "sw", "w"]) {
       let handle = document.createElement("div");
@@ -1804,6 +1879,50 @@ class InfiniteCanvas {
     }
 
     return el;
+  }
+
+  _updateAutoLayoutToggle(frame) {
+    if (!frame || !frame.element) {
+      return;
+    }
+    let btn = frame.element.querySelector(".infinite-canvas-frame-auto-layout-toggle");
+    if (btn) {
+      btn.classList.toggle("active", !!frame.autoLaidOut);
+    }
+  }
+
+  // Public: register a function that returns the canonical child order
+  // for a frame (as an array of node IDs). When set, auto-layout uses
+  // this order instead of insertion order or drop-position sorting.
+  // Use case: the chrome adapter wants browser tab groups to lay out
+  // their tabs in tab-strip order, not in the order canvas nodes
+  // happened to be created.
+  setFrameChildOrderHint(frameId, fn) {
+    let frame = this._frames.get(frameId);
+    if (!frame) {
+      return;
+    }
+    frame.childOrderHint = fn || null;
+    if (frame.autoLaidOut) {
+      this.autoLayout(frameId, { pushUndo: false });
+    }
+  }
+
+  // Public: flip auto-layout on/off for a frame. Turning it ON runs
+  // autoLayout immediately so the user gets visual confirmation of what
+  // it does. Turning it OFF leaves children where they are.
+  toggleAutoLayout(frameId) {
+    let frame = this._frames.get(frameId);
+    if (!frame) {
+      return;
+    }
+    if (frame.autoLaidOut) {
+      frame.autoLaidOut = false;
+      this._updateAutoLayoutToggle(frame);
+    } else {
+      this.autoLayout(frameId);
+      this._updateAutoLayoutToggle(frame);
+    }
   }
 
   // ---- Event Wiring ----
@@ -2322,7 +2441,22 @@ class InfiniteCanvas {
     this._clearDropFrameHighlight();
 
     if (this._dragDidMove && this._isCloning) {
-      // Clone mode: create real clones at ghost positions, remove ghosts
+      // Clone mode: create real clones at ghost positions, remove ghosts.
+      //
+      // When a frame and its children are BOTH in the drag set (which is
+      // the default after selecting a frame label — `_selectFrameWithChildren`
+      // adds the frame plus every child), the frame branch below clones
+      // each child once via `childrenToClone`, and a naive loop over
+      // dragTargets would then clone each of those children again as a
+      // standalone node — producing 2× the expected nodes overlapping
+      // perfectly. Build a set of frame-targets first and skip any
+      // child whose parent frame is being cloned along with it.
+      let frameTargetIds = new Set();
+      for (let t of this._dragTargets) {
+        if (this._frames.has(t.id)) {
+          frameTargetIds.add(t.id);
+        }
+      }
       let cloneIds = [];
       let explicitlyParented = new Set(); // children already assigned to a cloned frame
       for (let i = 0; i < this._dragTargets.length; i++) {
@@ -2330,6 +2464,12 @@ class InfiniteCanvas {
         let item = this._nodes.get(target.id) || this._frames.get(target.id);
         let ghost = this._cloneGhosts?.[i];
         if (!item || !ghost) {
+          continue;
+        }
+        // Skip children whose parent frame is also being cloned — the
+        // frame branch handles them.
+        if (this._nodes.has(target.id) && item.frameId && frameTargetIds.has(item.frameId)) {
+          ghost.ghost.remove();
           continue;
         }
         ghost.ghost.remove();
@@ -2347,6 +2487,8 @@ class InfiniteCanvas {
             x: ghost.finalX, y: ghost.finalY,
             width: item.width, height: item.height,
             label: item.label,
+            color: item.color,
+            autoLaidOut: !!item.autoLaidOut,
           });
           // Clone all children - snapshot IDs first to avoid iterator issues
           let dx = ghost.finalX - item.x;
@@ -2357,6 +2499,7 @@ class InfiniteCanvas {
               childrenToClone.push({ childId, child });
             }
           }
+          let childPairs = [];
           for (let { childId, child } of childrenToClone) {
             let childCloneId = "__clone_" + (this._nextId++);
             let childClone = this.addNode(childCloneId, {
@@ -2369,12 +2512,19 @@ class InfiniteCanvas {
             this._updateNodeGroupVisual(childClone);
             explicitlyParented.add(childCloneId);
             cloneIds.push(childCloneId);
+            childPairs.push({ sourceId: childId, cloneId: childCloneId });
             // Emit node-clone for each child clone too so external
             // decorators (test page, chrome adapter) can re-apply body
             // content. Without this, frame-cloning leaves child tabs
             // with bare default body styling.
             this._emit("node-clone", { sourceId: childId, cloneId: childCloneId });
           }
+          // Emit frame-clone AFTER child node-clones so listeners can
+          // group the just-duplicated children into a single browser
+          // tab group (matching the source frame's group, if any).
+          this._emit("frame-clone", {
+            sourceId: target.id, cloneId, childCloneIds: childPairs,
+          });
         }
         cloneIds.push(cloneId);
       }
@@ -3840,7 +3990,14 @@ class InfiniteCanvas {
       if (!countSpan) {
         countSpan = document.createElement("span");
         countSpan.className = "infinite-canvas-frame-count";
-        labelEl.appendChild(countSpan);
+        // Insert before the auto-layout toggle button so the order
+        // reads: "Work Tabs (3) [icon]".
+        let toggleBtn = labelEl.querySelector(".infinite-canvas-frame-auto-layout-toggle");
+        if (toggleBtn) {
+          labelEl.insertBefore(countSpan, toggleBtn);
+        } else {
+          labelEl.appendChild(countSpan);
+        }
       }
       countSpan.textContent = count > 0 ? ` (${count})` : "";
     }
@@ -4014,7 +4171,7 @@ class InfiniteCanvas {
     }
   }
 
-  _setNodeFrame(node, newFrameId) {
+  _setNodeFrame(node, newFrameId, { sortByPosition = false } = {}) {
     let prev = node.frameId;
     if (prev === newFrameId) {
       return false;
@@ -4022,6 +4179,19 @@ class InfiniteCanvas {
     node.frameId = newFrameId;
     this._updateNodeGroupVisual(node);
     this._emit("node-frame-change", { id: node.id, frameId: newFrameId, prevFrameId: prev });
+    // If the destination frame is auto-laid-out, re-run auto-layout so
+    // the new node integrates into the grid. Two modes:
+    //   sortByPosition: true  → re-order children by current geometry
+    //     (used for drag-drop, where the drop point indicates intent)
+    //   sortByPosition: false → preserve natural insertion order
+    //     (used for programmatic adds like "open new tab", which should
+    //      append at the end)
+    if (newFrameId) {
+      let dest = this._frames.get(newFrameId);
+      if (dest && dest.autoLaidOut) {
+        this.autoLayout(newFrameId, { sortByPosition, pushUndo: false });
+      }
+    }
     return true;
   }
 
@@ -4051,7 +4221,9 @@ class InfiniteCanvas {
       }
     }
 
-    this._setNodeFrame(node, bestFrameId);
+    // Drag-drop intent: the drop point is the user's preferred slot,
+    // so re-layout (if applicable) should honor current geometry.
+    this._setNodeFrame(node, bestFrameId, { sortByPosition: true });
 
     if (bestFrameId && autoResize) {
       this._autoExpandFrame(bestFrameId);

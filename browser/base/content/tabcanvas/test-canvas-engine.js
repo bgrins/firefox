@@ -987,7 +987,7 @@ test.describe("API", () => {
       window.__canvas.updateFrame("group_1", { label: "Renamed Group" });
     });
     const label = await page.evaluate(() =>
-      document.querySelector('[data-id="group_1"] .infinite-canvas-frame-label')?.textContent
+      document.querySelector('[data-id="group_1"] .infinite-canvas-frame-label-text')?.textContent
     );
     expect(label).toBe("Renamed Group");
   });
@@ -1646,6 +1646,211 @@ test.describe("Auto-Layout", () => {
     expect(result.allInside).toBe(true);
     expect(result.childCount).toBe(4);
   });
+
+  test("autoLayout marks the frame as autoLaidOut and survives toJSON/fromJSON", async ({ page }) => {
+    await freshPage(page);
+    const data = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.autoLayout("group_1");
+      const before = c._frames.get("group_1").autoLaidOut;
+      const json = c.toJSON();
+      c.fromJSON(json);
+      const after = c._frames.get("group_1").autoLaidOut;
+      return { before, after, jsonFlag: json.frames.find(f => f.id === "group_1").autoLaidOut };
+    });
+    expect(data.before).toBe(true);
+    expect(data.jsonFlag).toBe(true);
+    expect(data.after).toBe(true);
+  });
+
+  test("programmatic assignNodeToFrame appends the new node at the end of an auto-laid-out frame", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.autoLayout("group_1");
+      // Place the new node at an arbitrary position (caller doesn't
+      // care where) — programmatic add should ignore that and just
+      // append the node at the natural insertion-order index, i.e.
+      // last in the grid.
+      c.addNode("added_via_api", {
+        x: 0, y: 0,
+        width: 280, height: 212,
+        title: "Added", color: "#000", headerColor: "#000",
+      });
+      c.assignNodeToFrame("added_via_api", "group_1");
+      const ordered = c.getFrameChildren("group_1").slice().sort((a, b) => {
+        const na = c._nodes.get(a);
+        const nb = c._nodes.get(b);
+        if (na.y !== nb.y) return na.y - nb.y;
+        return na.x - nb.x;
+      });
+      return { lastChild: ordered[ordered.length - 1], totalChildren: ordered.length };
+    });
+    expect(result.lastChild).toBe("added_via_api");
+    expect(result.totalChildren).toBe(5);
+  });
+
+  test("drag-dropping a node into an auto-laid-out frame slots it by drop position", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.autoLayout("group_1");
+      const frame = c._frames.get("group_1");
+      // Simulate a drag-drop: the node already exists at a chosen
+      // canvas position, then _checkFrameContainment figures out which
+      // frame contains it. Drop at the top-left of group_1 → should
+      // become the first child after re-layout.
+      c.addNode("dropped_first", {
+        x: frame.x + 10, y: frame.y + 10,
+        width: 280, height: 212,
+        title: "Dropped", color: "#000", headerColor: "#000",
+      });
+      c._checkFrameContainment("dropped_first");
+      const ordered = c.getFrameChildren("group_1").slice().sort((a, b) => {
+        const na = c._nodes.get(a);
+        const nb = c._nodes.get(b);
+        if (na.y !== nb.y) return na.y - nb.y;
+        return na.x - nb.x;
+      });
+      return { firstChild: ordered[0], totalChildren: ordered.length };
+    });
+    expect(result.firstChild).toBe("dropped_first");
+    expect(result.totalChildren).toBe(5);
+  });
+
+  test("setFrameChildOrderHint controls auto-layout order even on programmatic add", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      // Pretend a chrome adapter wants the children of group_1 laid
+      // out in reverse tab order: node_4, node_3, node_2, node_1.
+      c.setFrameChildOrderHint("group_1", () => ["node_4", "node_3", "node_2", "node_1"]);
+      c.autoLayout("group_1");
+      const ordered = c.getFrameChildren("group_1").slice().sort((a, b) => {
+        const na = c._nodes.get(a);
+        const nb = c._nodes.get(b);
+        if (na.y !== nb.y) return na.y - nb.y;
+        return na.x - nb.x;
+      });
+      return { firstChild: ordered[0], lastChild: ordered[ordered.length - 1] };
+    });
+    expect(result.firstChild).toBe("node_4");
+    expect(result.lastChild).toBe("node_1");
+  });
+
+  test("child-order hint takes precedence over drop-position sort", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.setFrameChildOrderHint("group_1", () => ["node_4", "node_3", "node_2", "node_1", "extra"]);
+      c.autoLayout("group_1");
+      const frame = c._frames.get("group_1");
+      // Drop a new node at the top-left of the frame: usually
+      // sortByPosition would slot it first, but the hint should win.
+      c.addNode("extra", {
+        x: frame.x + 10, y: frame.y + 10,
+        width: 280, height: 212,
+        title: "Extra", color: "#000", headerColor: "#000",
+      });
+      c._checkFrameContainment("extra");
+      const ordered = c.getFrameChildren("group_1").slice().sort((a, b) => {
+        const na = c._nodes.get(a);
+        const nb = c._nodes.get(b);
+        if (na.y !== nb.y) return na.y - nb.y;
+        return na.x - nb.x;
+      });
+      return { firstChild: ordered[0], lastChild: ordered[ordered.length - 1] };
+    });
+    expect(result.firstChild).toBe("node_4");
+    expect(result.lastChild).toBe("extra");
+  });
+
+  test("toggleAutoLayout turns auto-layout on (and runs it immediately)", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c._frames.get("group_1").autoLaidOut = false;
+      // Scramble positions so we can see the layout run.
+      for (let i = 1; i <= 4; i++) {
+        const n = c._nodes.get("node_" + i);
+        n.x = 9000 + i; n.y = 9000;
+        c._applyRect(n.element, n);
+      }
+      c.toggleAutoLayout("group_1");
+      const frame = c._frames.get("group_1");
+      const stillScrambled = c._nodes.get("node_1").x > 5000;
+      return { autoLaidOut: frame.autoLaidOut, stillScrambled };
+    });
+    expect(result.autoLaidOut).toBe(true);
+    expect(result.stillScrambled).toBe(false);
+  });
+
+  test("toggleAutoLayout turns auto-layout off (children stay where they are)", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      c.autoLayout("group_1");
+      const positionsBefore = ["node_1", "node_2", "node_3", "node_4"].map(id => {
+        const n = c._nodes.get(id);
+        return { id, x: n.x, y: n.y };
+      });
+      c.toggleAutoLayout("group_1");
+      const positionsAfter = positionsBefore.map(p => {
+        const n = c._nodes.get(p.id);
+        return { id: p.id, x: n.x, y: n.y, sameAsBefore: p.x === n.x && p.y === n.y };
+      });
+      return {
+        autoLaidOut: c._frames.get("group_1").autoLaidOut,
+        allSame: positionsAfter.every(p => p.sameAsBefore),
+      };
+    });
+    expect(result.autoLaidOut).toBe(false);
+    expect(result.allSame).toBe(true);
+  });
+
+  test("clicking the auto-layout toggle in the DOM flips the flag", async ({ page }) => {
+    await freshPage(page);
+    await page.evaluate(() => {
+      window.__canvas._frames.get("group_1").autoLaidOut = false;
+      window.__canvas._updateAutoLayoutToggle(window.__canvas._frames.get("group_1"));
+    });
+    const btn = await page.$('[data-id="group_1"] .infinite-canvas-frame-auto-layout-toggle');
+    expect(btn).toBeTruthy();
+    await btn.click();
+    const onAfterClick = await page.evaluate(() =>
+      window.__canvas._frames.get("group_1").autoLaidOut);
+    expect(onAfterClick).toBe(true);
+    await btn.click();
+    const offAfterSecondClick = await page.evaluate(() =>
+      window.__canvas._frames.get("group_1").autoLaidOut);
+    expect(offAfterSecondClick).toBe(false);
+  });
+
+  test("adding a node to a non-auto-laid-out frame does not re-arrange existing children", async ({ page }) => {
+    await freshPage(page);
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      // Capture original positions (group_1 is NOT auto-laid-out on a
+      // fresh page — test.js initializes it via autoLayout but then
+      // resets undo/redo; the autoLaidOut flag persists. Force false.)
+      c._frames.get("group_1").autoLaidOut = false;
+      const before = ["node_1", "node_2", "node_3", "node_4"].map(id => {
+        const n = c._nodes.get(id);
+        return { id, x: n.x, y: n.y };
+      });
+      c.addNode("extra", {
+        x: 0, y: 0, width: 280, height: 212,
+        title: "Extra", color: "#000", headerColor: "#000",
+      });
+      c.assignNodeToFrame("extra", "group_1");
+      const after = before.map(b => {
+        const n = c._nodes.get(b.id);
+        return { id: b.id, x: n.x, y: n.y, sameAsBefore: b.x === n.x && b.y === n.y };
+      });
+      return { everyoneStill: after.every(a => a.sameAsBefore) };
+    });
+    expect(result.everyoneStill).toBe(true);
+  });
 });
 
 test.describe("Visual Group Membership", () => {
@@ -2116,6 +2321,140 @@ test.describe("Alt+Drag Clone", () => {
     });
     expect(result.selCount).toBe(1);
     expect(result.isOriginal).toBe(false);
+  });
+
+  test("alt+drag of a frame (group + children selected) clones each child exactly once", async ({ page }) => {
+    await freshPage(page);
+    // Click the frame label: selects group_1 + its 4 children (the
+    // default outcome of frame selection — frame + children).
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    const beforeCounts = await page.evaluate(() => ({
+      nodeCount: window.__canvas._nodes.size,
+      frameCount: window.__canvas._frames.size,
+    }));
+    // Alt-drag from the frame label far away so the drop doesn't
+    // overlap the source.
+    await page.keyboard.down("Alt");
+    await page.mouse.move(lbl.x, lbl.y);
+    await page.mouse.down();
+    await page.mouse.move(lbl.x + 700, lbl.y + 50, { steps: 8 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    const result = await page.evaluate(() => {
+      const c = window.__canvas;
+      let newFrames = [];
+      for (let [id, f] of c._frames) {
+        if (id !== "group_1" && id !== "group_2") newFrames.push(id);
+      }
+      let newChildren = newFrames.length
+        ? c.getFrameChildren(newFrames[0])
+        : [];
+      return {
+        nodeCount: c._nodes.size,
+        frameCount: c._frames.size,
+        newFrames: newFrames.length,
+        newFrameChildCount: newChildren.length,
+      };
+    });
+    // Exactly one new frame, and exactly 4 new child nodes — not 8.
+    expect(result.newFrames).toBe(1);
+    expect(result.newFrameChildCount).toBe(4);
+    expect(result.nodeCount).toBe(beforeCounts.nodeCount + 4);
+    expect(result.frameCount).toBe(beforeCounts.frameCount + 1);
+  });
+
+  test("alt+drag clone undo restores original node count exactly (no leftover duplicates)", async ({ page }) => {
+    await freshPage(page);
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    const before = await page.evaluate(() => ({
+      nodes: window.__canvas._nodes.size,
+      frames: window.__canvas._frames.size,
+    }));
+    await page.keyboard.down("Alt");
+    await page.mouse.move(lbl.x, lbl.y);
+    await page.mouse.down();
+    await page.mouse.move(lbl.x + 700, lbl.y + 50, { steps: 8 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    await page.evaluate(() => window.__canvas.undo());
+    const afterUndo = await page.evaluate(() => ({
+      nodes: window.__canvas._nodes.size,
+      frames: window.__canvas._frames.size,
+    }));
+    expect(afterUndo.nodes).toBe(before.nodes);
+    expect(afterUndo.frames).toBe(before.frames);
+  });
+
+  test("alt+drag clone redo restores cloned count exactly", async ({ page }) => {
+    await freshPage(page);
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    await page.keyboard.down("Alt");
+    await page.mouse.move(lbl.x, lbl.y);
+    await page.mouse.down();
+    await page.mouse.move(lbl.x + 700, lbl.y + 50, { steps: 8 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    const afterClone = await page.evaluate(() => ({
+      nodes: window.__canvas._nodes.size,
+      frames: window.__canvas._frames.size,
+    }));
+    await page.evaluate(() => window.__canvas.undo());
+    await page.evaluate(() => window.__canvas.redo());
+    const afterRedo = await page.evaluate(() => ({
+      nodes: window.__canvas._nodes.size,
+      frames: window.__canvas._frames.size,
+    }));
+    expect(afterRedo.nodes).toBe(afterClone.nodes);
+    expect(afterRedo.frames).toBe(afterClone.frames);
+  });
+
+  test("alt+drag of a large group (60 children) completes in reasonable time", async ({ page }) => {
+    await freshPage(page);
+    // Replace group_1's tiny membership with 60 fresh nodes.
+    await page.evaluate(() => {
+      const c = window.__canvas;
+      for (let i = 1; i <= 8; i++) c.removeNode("node_" + i);
+      for (let i = 0; i < 60; i++) {
+        let id = "big_" + i;
+        c.addNode(id, {
+          x: 0, y: 0, width: 80, height: 60,
+          title: "T" + i, color: "#222", headerColor: "#444",
+        });
+        c.getNode(id).frameId = "group_1";
+        c._updateNodeGroupVisual(c.getNode(id));
+      }
+      c.autoLayout("group_1");
+    });
+    const lbl = await frameLabelCenter(page, "group_1");
+    await page.mouse.click(lbl.x, lbl.y);
+    const t0 = Date.now();
+    await page.keyboard.down("Alt");
+    await page.mouse.move(lbl.x, lbl.y);
+    await page.mouse.down();
+    await page.mouse.move(lbl.x + 1000, lbl.y + 200, { steps: 6 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    const elapsed = Date.now() - t0;
+    const counts = await page.evaluate(() => {
+      const c = window.__canvas;
+      let newFrames = [];
+      for (let [id] of c._frames) {
+        if (id !== "group_1" && id !== "group_2") newFrames.push(id);
+      }
+      return {
+        newFrames: newFrames.length,
+        newFrameChildCount: newFrames.length ? c.getFrameChildren(newFrames[0]).length : 0,
+      };
+    });
+    expect(counts.newFrames).toBe(1);
+    expect(counts.newFrameChildCount).toBe(60);
+    // Heuristic budget — the previous double-clone bug would push this
+    // well past a second on slower machines; with the fix, it's
+    // sub-second even with 60 tabs.
+    expect(elapsed).toBeLessThan(6000);
   });
 });
 
