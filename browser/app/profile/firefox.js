@@ -3596,6 +3596,12 @@ pref("browser.ipProtection.blockIPProtectionCallouts", false);
 pref("browser.ipProtection.enabled", false);
 // Pref to track whether the user has opted out of using IP Protection
 pref("browser.ipProtection.optedOut", false);
+
+// In-browser MCP server (browser/components/mcp): toolbar UI gate, server
+// autostart, and loopback port.
+pref("browser.mcp.enabled", false);
+pref("browser.mcp.autostart", false);
+pref("browser.mcp.port", 9339);
 // Pref to enable the autoStart feature
 pref("browser.ipProtection.features.autoStart", false);
 // Prefs to track the user turning on autostart preference

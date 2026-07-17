@@ -272,6 +272,7 @@ export default [
   "toolkit/mozapps/extensions/test/xpcshell/data/test_AddonRepository_fail.json",
 
   // Built files
+  "browser/components/mcp/vendor/fdm-core.mjs",
   "toolkit/components/pdfjs/content/build",
   "toolkit/components/pdfjs/content/web",
 

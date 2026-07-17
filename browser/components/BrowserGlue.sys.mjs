@@ -41,6 +41,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   Interactions: "moz-src:///browser/components/places/Interactions.sys.mjs",
   LoginBreaches: "resource:///modules/LoginBreaches.sys.mjs",
   LoginHelper: "resource://gre/modules/LoginHelper.sys.mjs",
+  MCPUI: "moz-src:///browser/components/mcp/MCPUI.sys.mjs",
   MigrationUtils: "resource:///modules/MigrationUtils.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   OnboardingMessageProvider:
@@ -1295,6 +1296,14 @@ BrowserGlue.prototype = {
         condition: Services.prefs.getBoolPref("browser.backup.enabled", false),
         task: () => {
           lazy.BackupService.init();
+        },
+      },
+
+      {
+        name: "MCP initialization",
+        condition: Services.prefs.getBoolPref("browser.mcp.enabled", false),
+        task: () => {
+          lazy.MCPUI.init();
         },
       },
 
