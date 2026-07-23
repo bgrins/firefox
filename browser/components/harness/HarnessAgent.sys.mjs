@@ -2,7 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { clearTimeout, setTimeout } from "resource://gre/modules/Timer.sys.mjs";
+import { setTimeout } from "resource://gre/modules/Timer.sys.mjs";
+import {
+  LineSplitter,
+  RequestTable,
+} from "moz-src:///browser/components/harness/JsonLines.sys.mjs";
 
 const lazy = {};
 
@@ -27,9 +31,8 @@ export const HarnessAgent = {
   _outStream: null,
   _inStream: null,
   _scriptableIn: null,
-  _buffer: "",
-  _pending: new Map(),
-  _nextId: 1,
+  _splitter: new LineSplitter(),
+  _requests: new RequestTable(),
 
   get connected() {
     return !!this._transport;
@@ -67,7 +70,7 @@ export const HarnessAgent = {
       "@mozilla.org/scriptableinputstream;1"
     ].createInstance(Ci.nsIScriptableInputStream);
     this._scriptableIn.init(this._inStream);
-    this._buffer = "";
+    this._splitter = new LineSplitter();
     this._waitForData();
   },
 
@@ -89,20 +92,17 @@ export const HarnessAgent = {
     if (!this._scriptableIn) {
       return;
     }
+    let lines;
     try {
       const available = this._scriptableIn.available();
-      if (available) {
-        this._buffer += this._scriptableIn.readBytes(available);
-      }
+      lines = available
+        ? this._splitter.push(this._scriptableIn.readBytes(available))
+        : [];
     } catch (e) {
-      this._failAllPending(new Error("connection to guest-agent closed"));
       this.close();
       return;
     }
-    let newlineIndex;
-    while ((newlineIndex = this._buffer.indexOf("\n")) >= 0) {
-      const line = this._buffer.slice(0, newlineIndex);
-      this._buffer = this._buffer.slice(newlineIndex + 1);
+    for (const line of lines) {
       this._handleLine(line);
     }
     this._waitForData();
@@ -118,34 +118,33 @@ export const HarnessAgent = {
       lazy.logConsole.warn(`unparseable line from guest-agent: ${line}`);
       return;
     }
-    const pending = this._pending.get(message.id);
+    const pending = this._requests.peek(message.id);
     if (!pending) {
       lazy.logConsole.warn(`response for unknown id ${message.id}`);
       return;
     }
     if (message.stream) {
       const text = message.data ?? "";
-      pending.output[message.stream] += text;
+      pending.data.output[message.stream] += text;
       try {
-        pending.onOutput?.(message.stream, text);
+        pending.data.onOutput?.(message.stream, text);
       } catch (e) {
         lazy.logConsole.warn(`onOutput callback threw: ${e.message}`);
       }
       return;
     }
-    this._pending.delete(message.id);
     if (message.error) {
-      pending.reject(new Error(message.error));
+      this._requests.reject(message.id, new Error(message.error));
     } else if (message.done) {
-      pending.resolve({
+      this._requests.resolve(message.id, {
         exitCode: message.exitCode,
-        stdout: pending.output.stdout,
-        stderr: pending.output.stderr,
+        stdout: pending.data.output.stdout,
+        stderr: pending.data.output.stderr,
         truncated: message.truncated,
         timedOut: message.timedOut,
       });
     } else {
-      pending.resolve(message);
+      this._requests.resolve(message.id, message);
     }
   },
 
@@ -153,38 +152,23 @@ export const HarnessAgent = {
     if (!this._outStream) {
       return Promise.reject(new Error("not connected to guest-agent"));
     }
-    const id = this._nextId++;
+    const { id, promise } = this._requests.register({
+      timeoutMs,
+      timeoutMessage: `guest-agent request timed out after ${timeoutMs}ms`,
+      data: { onOutput, output: { stdout: "", stderr: "" } },
+    });
     // Escape non-ASCII so the payload is byte-safe through write().
     const data = `${JSON.stringify({ id, ...fields }).replace(
       NON_ASCII_RE,
       ch => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`
     )}\n`;
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this._pending.delete(id);
-        reject(new Error(`guest-agent request timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-      this._pending.set(id, {
-        onOutput,
-        output: { stdout: "", stderr: "" },
-        resolve: value => {
-          clearTimeout(timer);
-          resolve(value);
-        },
-        reject: error => {
-          clearTimeout(timer);
-          reject(error);
-        },
-      });
-      try {
-        this._outStream.write(data, data.length);
-        this._outStream.flush();
-      } catch (e) {
-        this._pending.delete(id);
-        clearTimeout(timer);
-        reject(e);
-      }
-    });
+    try {
+      this._outStream.write(data, data.length);
+      this._outStream.flush();
+    } catch (e) {
+      this._requests.reject(id, e);
+    }
+    return promise;
   },
 
   /**
@@ -221,15 +205,8 @@ export const HarnessAgent = {
     return this.request(fields, timeoutMs + HOST_TIMEOUT_SLACK_MS, onOutput);
   },
 
-  _failAllPending(error) {
-    for (const { reject } of this._pending.values()) {
-      reject(error);
-    }
-    this._pending.clear();
-  },
-
   close() {
-    this._failAllPending(new Error("guest-agent connection closed"));
+    this._requests.rejectAll(new Error("guest-agent connection closed"));
     try {
       this._scriptableIn?.close();
       this._outStream?.close();
@@ -241,6 +218,6 @@ export const HarnessAgent = {
     this._outStream = null;
     this._inStream = null;
     this._scriptableIn = null;
-    this._buffer = "";
+    this._splitter = new LineSplitter();
   },
 };

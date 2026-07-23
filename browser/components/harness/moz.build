@@ -15,9 +15,15 @@ JAR_MANIFESTS += ["jar.mn"]
 
 MOZ_SRC_FILES += [
     "AboutHarness.sys.mjs",
+    "codex/CodexAppServerClient.sys.mjs",
     "HarnessAgent.sys.mjs",
     "HarnessVM.sys.mjs",
+    "JsonLines.sys.mjs",
 ]
+
+# Reusable CODEX_HOME template (ollama-backed, credential-free); the client
+# copies it when creating a fresh CODEX_HOME.
+FINAL_TARGET_FILES.harness.codex += ["codex/ollama-codex-home/config.toml"]
 
 if CONFIG["OS_ARCH"] == "Darwin" and CONFIG["TARGET_CPU"] == "aarch64":
     DIRS += ["helper"]
