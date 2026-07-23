@@ -2,6 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import {
+  parseMarkdown,
+  CHAT_WRAPPER_ELEMENTS,
+} from "chrome://browser/content/aiwindow/modules/ChatMarkdownParser.mjs";
+
 const { HarnessVM } = ChromeUtils.importESModule(
   "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
 );
@@ -197,8 +202,30 @@ $("exec-row").addEventListener("submit", async event => {
 
 let chatConversationId = null;
 let chatAgentBubble = null;
+let chatAgentRawText = "";
 let turnActivity = null;
 const activityRows = new Map();
+
+// Same sanitizer configuration as smart window's ai-chat-message: default
+// Sanitizer plus the table wrapper element the markdown parser emits.
+const markdownSanitizer = (() => {
+  const sanitizer = new Sanitizer();
+  for (const { element, attributes } of Object.values(CHAT_WRAPPER_ELEMENTS)) {
+    sanitizer.allowElement(element);
+    for (const attr of attributes) {
+      sanitizer.allowAttribute({ name: attr, elements: [element] });
+    }
+  }
+  return sanitizer;
+})();
+
+function renderMarkdown(element, text) {
+  try {
+    element.setHTML(parseMarkdown(text), { sanitizer: markdownSanitizer });
+  } catch (e) {
+    element.textContent = text;
+  }
+}
 
 function scrollChat() {
   const log = $("chat-log");
@@ -355,17 +382,16 @@ function onAgentEvent(event) {
     case "delta":
       if (!chatAgentBubble) {
         chatAgentBubble = chatBubble("agent", "");
+        chatAgentRawText = "";
       }
-      chatAgentBubble.textContent += event.text;
+      chatAgentRawText += event.text;
+      renderMarkdown(chatAgentBubble, chatAgentRawText);
       scrollChat();
       break;
     case "message":
-      if (chatAgentBubble) {
-        chatAgentBubble.textContent = event.text;
-      } else {
-        chatBubble("agent", event.text);
-      }
+      renderMarkdown(chatAgentBubble ?? chatBubble("agent", ""), event.text);
       chatAgentBubble = null;
+      chatAgentRawText = "";
       break;
     case "item":
       renderItem(event.item);
@@ -468,7 +494,7 @@ function renderHistoryTurn(turn) {
         );
         break;
       case "agentMessage":
-        chatBubble("agent", item.text ?? "");
+        renderMarkdown(chatBubble("agent", ""), item.text ?? "");
         break;
       default: {
         const row = document.createElement("div");
