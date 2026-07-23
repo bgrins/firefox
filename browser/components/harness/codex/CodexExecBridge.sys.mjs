@@ -207,11 +207,25 @@ export const CodexExecBridge = {
         return this._processStart(params);
       case "process/read":
         return this._processRead(params);
-      case "process/write":
-        // Upfront stdin only (see guest-agent); interactive stdin is not
-        // supported yet.
-        this._audit(method, params.processId, "unsupported");
-        return { status: "stdinClosed" };
+      case "process/write": {
+        const record = this._processes.get(params.processId);
+        if (!record) {
+          return { status: "unknownProcess" };
+        }
+        if (record.exited) {
+          return { status: "stdinClosed" };
+        }
+        // chunk is already base64; forward it byte-exact.
+        await this._session().agent.request(
+          {
+            op: "input",
+            targetId: record.requestId,
+            stdinB64: params.chunk,
+          },
+          5000
+        );
+        return { status: "accepted" };
+      }
       case "process/signal":
       case "process/terminate":
         return this._processKill(method, params);
@@ -318,10 +332,7 @@ export const CodexExecBridge = {
     }
     const cwdPath = this._allowedPath(cwd, { write: true });
     const cmd = argv.map(shQuote).join(" ");
-    this._audit(
-      "process/start",
-      `${cmd.slice(0, 200)}${tty ? " (tty requested; running piped)" : ""}`
-    );
+    this._audit("process/start", `${cmd.slice(0, 200)}${tty ? " (tty)" : ""}`);
 
     const record = {
       chunks: [],
@@ -331,12 +342,15 @@ export const CodexExecBridge = {
       closed: false,
       failure: null,
       waiters: [],
+      tty: !!tty,
     };
     this._processes.set(processId, record);
     const { requestId, result } = this._session().agent.execStart(cmd, {
       cwd: cwdPath,
       timeoutMs: EXEC_TIMEOUT_MS,
       env,
+      tty: !!tty,
+      interactive: !!params.pipeStdin,
       onOutput: (stream, text) => this._pushChunk(processId, stream, text),
     });
     record.requestId = requestId;
@@ -352,9 +366,13 @@ export const CodexExecBridge = {
     if (!record) {
       return;
     }
+    let streamName = stream == "stderr" ? "stderr" : "stdout";
+    if (record.tty) {
+      streamName = "pty";
+    }
     const chunk = {
       seq: record.nextSeq++,
-      stream: stream == "stderr" ? "stderr" : "stdout",
+      stream: streamName,
       chunk: textToB64(text),
     };
     record.chunks.push(chunk);

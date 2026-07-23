@@ -31,6 +31,7 @@
 #include <arpa/inet.h>
 #include <linux/vm_sockets.h>
 #include <netinet/in.h>
+#include <pty.h>
 
 #define JSMN_STATIC
 #include "jsmn.h"
@@ -118,6 +119,10 @@ static int64_t tok_int(const char* json, const jsmntok_t* tok, int64_t dflt) {
     return dflt;
   }
   return strtoll(json + tok->start, NULL, 10);
+}
+
+static int tok_bool(const char* json, const jsmntok_t* tok) {
+  return tok->type == JSMN_PRIMITIVE && json[tok->start] == 't';
 }
 
 /* Returns the index just past the subtree rooted at token i. */
@@ -227,6 +232,8 @@ struct job {
   char* stdin_buf;
   size_t stdin_len;
   size_t stdin_off;
+  int stdin_hold; /* interactive: keep stdin open when drained */
+  int is_tty;
   int truncated;
   int timed_out;
   int64_t deadline;
@@ -278,10 +285,30 @@ static void finish_job(FILE* reply, struct job* job) {
   job->active = 0;
 }
 
+static void job_child_setup(const char* cmd, const char* cwd,
+                            char* const env_keys[], char* const env_vals[],
+                            int env_count) {
+  /* Route HTTP(S) through the host policy proxy by default; the request
+   * env may override. Non-proxied protocols have no route at all. */
+  setenv("http_proxy", "http://127.0.0.1:3128", 0);
+  setenv("https_proxy", "http://127.0.0.1:3128", 0);
+  setenv("HTTP_PROXY", "http://127.0.0.1:3128", 0);
+  setenv("HTTPS_PROXY", "http://127.0.0.1:3128", 0);
+  for (int i = 0; i < env_count; i++) {
+    setenv(env_keys[i], env_vals[i], 1);
+  }
+  if (cwd && chdir(cwd)) {
+    fprintf(stderr, "guest-agent: chdir(%s): %s\n", cwd, strerror(errno));
+    _exit(126);
+  }
+  execl("/bin/sh", "sh", "-c", cmd, (char*)NULL);
+  _exit(127);
+}
+
 static void spawn_job(FILE* reply, int64_t id, const char* cmd, const char* cwd,
                       int64_t timeout_ms, char* const env_keys[],
                       char* const env_vals[], int env_count, char* stdin_buf,
-                      size_t stdin_len) {
+                      size_t stdin_len, int is_tty, int interactive) {
   struct job* job = NULL;
   for (int i = 0; i < MAX_JOBS; i++) {
     if (!jobs[i].active) {
@@ -293,6 +320,41 @@ static void spawn_job(FILE* reply, int64_t id, const char* cmd, const char* cwd,
     fprintf(reply, "{\"id\":%lld,\"error\":\"too many concurrent jobs\"}\n",
             (long long)id);
     free(stdin_buf);
+    return;
+  }
+
+  if (is_tty) {
+    /* PTY job: merged output and input both ride the master fd. */
+    int master;
+    pid_t pid = forkpty(&master, NULL, NULL, NULL);
+    if (pid < 0) {
+      fprintf(reply, "{\"id\":%lld,\"error\":\"forkpty failed\"}\n",
+              (long long)id);
+      free(stdin_buf);
+      return;
+    }
+    if (pid == 0) {
+      job_child_setup(cmd, cwd, env_keys, env_vals, env_count);
+    }
+    fcntl(master, F_SETFL, O_NONBLOCK);
+    memset(job, 0, sizeof(*job));
+    job->active = 1;
+    job->id = id;
+    job->pid = pid;
+    job->is_tty = 1;
+    job->fds[0] = master;
+    job->fds[1] = -1;
+    job->deadline = now_ms() + timeout_ms;
+    job->stdin_hold = 1;
+    if (stdin_len) {
+      job->stdin_fd = dup(master);
+      job->stdin_buf = stdin_buf;
+      job->stdin_len = stdin_len;
+    } else {
+      job->stdin_fd = dup(master);
+      free(stdin_buf);
+    }
+    fcntl(job->stdin_fd, F_SETFL, O_NONBLOCK);
     return;
   }
 
@@ -322,21 +384,7 @@ static void spawn_job(FILE* reply, int64_t id, const char* cmd, const char* cwd,
     close(out_pipe[1]);
     close(err_pipe[0]);
     close(err_pipe[1]);
-    /* Route HTTP(S) through the host policy proxy by default; the request
-     * env may override. Non-proxied protocols have no route at all. */
-    setenv("http_proxy", "http://127.0.0.1:3128", 0);
-    setenv("https_proxy", "http://127.0.0.1:3128", 0);
-    setenv("HTTP_PROXY", "http://127.0.0.1:3128", 0);
-    setenv("HTTPS_PROXY", "http://127.0.0.1:3128", 0);
-    for (int i = 0; i < env_count; i++) {
-      setenv(env_keys[i], env_vals[i], 1);
-    }
-    if (cwd && chdir(cwd)) {
-      fprintf(stderr, "guest-agent: chdir(%s): %s\n", cwd, strerror(errno));
-      _exit(126);
-    }
-    execl("/bin/sh", "sh", "-c", cmd, (char*)NULL);
-    _exit(127);
+    job_child_setup(cmd, cwd, env_keys, env_vals, env_count);
   }
 
   close(in_pipe[0]);
@@ -353,7 +401,8 @@ static void spawn_job(FILE* reply, int64_t id, const char* cmd, const char* cwd,
   job->fds[0] = out_pipe[0];
   job->fds[1] = err_pipe[0];
   job->deadline = now_ms() + timeout_ms;
-  if (stdin_len) {
+  job->stdin_hold = interactive;
+  if (stdin_len || interactive) {
     job->stdin_fd = in_pipe[1];
     job->stdin_buf = stdin_buf;
     job->stdin_len = stdin_len;
@@ -364,6 +413,43 @@ static void spawn_job(FILE* reply, int64_t id, const char* cmd, const char* cwd,
     job->stdin_fd = -1;
     free(stdin_buf);
   }
+}
+
+static struct job* find_job(int64_t target_id) {
+  for (int i = 0; i < MAX_JOBS; i++) {
+    if (jobs[i].active && jobs[i].id == target_id) {
+      return &jobs[i];
+    }
+  }
+  return NULL;
+}
+
+/* Appends data to a running job's stdin buffer (pumped by the poll loop). */
+static void job_input(FILE* reply, int64_t id, int64_t target_id, char* data,
+                      size_t data_len) {
+  struct job* job = find_job(target_id);
+  if (!job || job->stdin_fd < 0) {
+    fprintf(reply, "{\"id\":%lld,\"error\":\"no writable stdin\"}\n",
+            (long long)id);
+    free(data);
+    return;
+  }
+  size_t remaining = job->stdin_len - job->stdin_off;
+  char* merged = malloc(remaining + data_len);
+  if (!merged) {
+    fprintf(reply, "{\"id\":%lld,\"error\":\"oom\"}\n", (long long)id);
+    free(data);
+    return;
+  }
+  memcpy(merged, job->stdin_buf + job->stdin_off, remaining);
+  memcpy(merged + remaining, data, data_len);
+  free(job->stdin_buf);
+  free(data);
+  job->stdin_buf = merged;
+  job->stdin_len = remaining + data_len;
+  job->stdin_off = 0;
+  fprintf(reply, "{\"id\":%lld,\"ok\":true}\n", (long long)id);
+  fflush(reply);
 }
 
 static void kill_all_jobs(void) {
@@ -513,6 +599,8 @@ static void handle_line(FILE* reply, char* line) {
   int64_t id = 0;
   int64_t target_id = 0;
   int64_t timeout_ms = DEFAULT_TIMEOUT_MS;
+  int is_tty = 0;
+  int interactive = 0;
   char* op = NULL;
   char* cmd = NULL;
   char* cwd = NULL;
@@ -541,6 +629,10 @@ static void handle_line(FILE* reply, char* line) {
       cwd = tok_strdup(line, &tokens[vi]);
     } else if (tok_eq(line, key, "timeoutMs")) {
       timeout_ms = tok_int(line, &tokens[vi], DEFAULT_TIMEOUT_MS);
+    } else if (tok_eq(line, key, "tty")) {
+      is_tty = tok_bool(line, &tokens[vi]);
+    } else if (tok_eq(line, key, "interactive")) {
+      interactive = tok_bool(line, &tokens[vi]);
     } else if (tok_eq(line, key, "stdinB64")) {
       char* b64 = tok_strdup(line, &tokens[vi]);
       if (b64) {
@@ -569,6 +661,26 @@ static void handle_line(FILE* reply, char* line) {
     fprintf(reply, "{\"id\":%lld,\"ok\":true}\n", (long long)id);
     fflush(reply);
     free(stdin_buf);
+  } else if (op && !strcmp(op, "input")) {
+    if (!stdin_buf) {
+      stdin_buf = malloc(1);
+      stdin_len = 0;
+    }
+    job_input(reply, id, target_id, stdin_buf, stdin_len);
+  } else if (op && !strcmp(op, "inputEof")) {
+    struct job* target = find_job(target_id);
+    if (target && target->stdin_fd >= 0 && !target->is_tty) {
+      target->stdin_hold = 0;
+      if (target->stdin_off >= target->stdin_len) {
+        close_job_stdin(target);
+      }
+    } else if (target && target->is_tty && target->stdin_fd >= 0) {
+      /* Canonical-mode EOF for PTYs. */
+      write(target->stdin_fd, "\x04", 1);
+    }
+    fprintf(reply, "{\"id\":%lld,\"ok\":true}\n", (long long)id);
+    fflush(reply);
+    free(stdin_buf);
   } else if (op && !strcmp(op, "kill")) {
     /* Kill the exec job whose request id is targetId; its normal done
      * message (exitCode 137) still follows via the poll loop. */
@@ -586,7 +698,7 @@ static void handle_line(FILE* reply, char* line) {
   } else if (op && !strcmp(op, "exec") && cmd) {
     /* spawn_job takes ownership of stdin_buf */
     spawn_job(reply, id, cmd, cwd, timeout_ms, env_keys, env_vals, env_count,
-              stdin_buf, stdin_len);
+              stdin_buf, stdin_len, is_tty, interactive);
   } else {
     fprintf(reply, "{\"id\":%lld,\"error\":\"unknown op\"}\n", (long long)id);
     fflush(reply);
@@ -639,7 +751,7 @@ static void serve_connection(int conn) {
           nfds++;
         }
       }
-      if (jobs[i].stdin_fd >= 0) {
+      if (jobs[i].stdin_fd >= 0 && jobs[i].stdin_off < jobs[i].stdin_len) {
         fds[nfds].fd = jobs[i].stdin_fd;
         fds[nfds].events = POLLOUT;
         fd_jobs[nfds] = &jobs[i];
@@ -712,8 +824,9 @@ static void serve_connection(int conn) {
         if (n > 0) {
           job->stdin_off += (size_t)n;
         }
-        if (job->stdin_off >= job->stdin_len ||
-            (n < 0 && errno != EAGAIN && errno != EINTR)) {
+        if (n < 0 && errno != EAGAIN && errno != EINTR) {
+          close_job_stdin(job);
+        } else if (job->stdin_off >= job->stdin_len && !job->stdin_hold) {
           close_job_stdin(job);
         }
         continue;

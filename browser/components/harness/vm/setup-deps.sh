@@ -71,7 +71,7 @@ mkdir -p "$BIN/harness"
 $CC_LINUX -O2 -static -Wall -Wextra \
     -I"$LIBKRUN_DIR/src/init_blob/init" \
     -o "$BIN/harness/guest-agent" \
-    "$TOPSRCDIR/browser/components/harness/guest/guest-agent.c"
+    "$TOPSRCDIR/browser/components/harness/guest/guest-agent.c" -lutil
 
 echo "=== Alpine rootfs template ==="
 # Extra packages baked into the template (the guest has no unrestricted

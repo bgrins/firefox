@@ -21,6 +21,15 @@ const HOST_TIMEOUT_SLACK_MS = 5000;
 
 const NON_ASCII_RE = new RegExp("[\\u0080-\\uffff]", "g");
 
+function textToB64(text) {
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
 /**
  * JSON-lines client for the guest-agent running inside a micro-VM,
  * connected through the unix socket that libkrun forwards to the guest's
@@ -209,23 +218,36 @@ export class HarnessAgent {
    * @param {Function} [options.onOutput]
    * @param {object} [options.env]
    * @param {string} [options.stdin]
+   * @param {boolean} [options.tty] run under a pseudo-terminal (merged
+   *   output, input echoed by the pty)
+   * @param {boolean} [options.interactive] keep stdin open for input()
+   *   until inputEof()
    * @returns {{requestId: number, result: Promise}}
    */
   execStart(
     cmd,
-    { cwd = "/workspace", timeoutMs = 30000, onOutput, env, stdin } = {}
+    {
+      cwd = "/workspace",
+      timeoutMs = 30000,
+      onOutput,
+      env,
+      stdin,
+      tty = false,
+      interactive = false,
+    } = {}
   ) {
     const fields = { op: "exec", cmd, cwd, timeoutMs };
     if (env) {
       fields.env = env;
     }
+    if (tty) {
+      fields.tty = true;
+    }
+    if (interactive) {
+      fields.interactive = true;
+    }
     if (stdin !== undefined) {
-      const bytes = new TextEncoder().encode(stdin);
-      let binary = "";
-      for (const byte of bytes) {
-        binary += String.fromCharCode(byte);
-      }
-      fields.stdinB64 = btoa(binary);
+      fields.stdinB64 = textToB64(stdin);
     }
     const { id, promise } = this.requestWithId(
       fields,
@@ -237,6 +259,28 @@ export class HarnessAgent {
 
   kill(requestId) {
     return this.request({ op: "kill", targetId: requestId }, 5000);
+  }
+
+  /**
+   * Writes to a running job's stdin (tty or interactive jobs).
+   *
+   * @param {number} requestId
+   * @param {string} text
+   */
+  input(requestId, text) {
+    return this.request(
+      { op: "input", targetId: requestId, stdinB64: textToB64(text) },
+      5000
+    );
+  }
+
+  /**
+   * Signals stdin EOF on an interactive job (Ctrl-D on tty jobs).
+   *
+   * @param {number} requestId
+   */
+  inputEof(requestId) {
+    return this.request({ op: "inputEof", targetId: requestId }, 5000);
   }
 
   close() {
