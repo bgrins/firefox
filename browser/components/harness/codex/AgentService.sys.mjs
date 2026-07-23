@@ -114,8 +114,10 @@ export const AgentService = {
    * @param {object} [options]
    * @param {string} [options.model] per-conversation model override
    * @param {string} [options.modelProvider] per-conversation provider override
+   * @param {string} [options.approvalPolicy] untrusted | on-request |
+   *   on-failure | never (Codex decides when to fire approval requests)
    */
-  async createConversation({ model, modelProvider } = {}) {
+  async createConversation({ model, modelProvider, approvalPolicy } = {}) {
     const client = await this._ensureClient();
     const params = { ephemeral: true };
     if (model) {
@@ -123,6 +125,9 @@ export const AgentService = {
     }
     if (modelProvider) {
       params.modelProvider = modelProvider;
+    }
+    if (approvalPolicy) {
+      params.approvalPolicy = approvalPolicy;
     }
     const environmentId = await this._ensureEnvironment(client);
     if (environmentId) {

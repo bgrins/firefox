@@ -185,7 +185,7 @@ function renderApproval(event) {
   const bubble = chatBubble("approval", "");
   const label = document.createElement("div");
   const command =
-    event.params?.item?.command ?? JSON.stringify(event.params ?? {});
+    event.params?.command ?? JSON.stringify(event.params ?? {}).slice(0, 200);
   label.textContent = `approval requested: ${command}`;
   bubble.appendChild(label);
   const respond = decision => {
