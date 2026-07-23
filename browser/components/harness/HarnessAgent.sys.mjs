@@ -196,14 +196,29 @@ export const HarnessAgent = {
    * @param {string} [options.cwd] guest working directory
    * @param {number} [options.timeoutMs] guest-side timeout
    * @param {Function} [options.onOutput] called with (stream, text) chunks
+   * @param {object} [options.env] extra environment variables for the command
+   * @param {string} [options.stdin] data piped to the command's stdin
+   *   (base64-transported so arbitrary UTF-8 survives byte-exact); without
+   *   it the command gets immediate EOF
    * @returns {Promise<{exitCode, stdout, stderr, truncated, timedOut}>}
    */
-  exec(cmd, { cwd = "/workspace", timeoutMs = 30000, onOutput } = {}) {
-    return this.request(
-      { op: "exec", cmd, cwd, timeoutMs },
-      timeoutMs + HOST_TIMEOUT_SLACK_MS,
-      onOutput
-    );
+  exec(
+    cmd,
+    { cwd = "/workspace", timeoutMs = 30000, onOutput, env, stdin } = {}
+  ) {
+    const fields = { op: "exec", cmd, cwd, timeoutMs };
+    if (env) {
+      fields.env = env;
+    }
+    if (stdin !== undefined) {
+      const bytes = new TextEncoder().encode(stdin);
+      let binary = "";
+      for (const byte of bytes) {
+        binary += String.fromCharCode(byte);
+      }
+      fields.stdinB64 = btoa(binary);
+    }
+    return this.request(fields, timeoutMs + HOST_TIMEOUT_SLACK_MS, onOutput);
   },
 
   _failAllPending(error) {
