@@ -5,6 +5,9 @@
 const { HarnessVM } = ChromeUtils.importESModule(
   "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
 );
+const { AgentService } = ChromeUtils.importESModule(
+  "moz-src:///browser/components/harness/codex/AgentService.sys.mjs"
+);
 
 const $ = id => document.getElementById(id);
 
@@ -129,8 +132,102 @@ $("exec-row").addEventListener("submit", async event => {
   }
 });
 
+let chatConversationId = null;
+let chatAgentBubble = null;
+
+function chatBubble(role, text) {
+  const log = $("chat-log");
+  const div = document.createElement("div");
+  div.className = `msg ${role}`;
+  div.textContent = text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  return div;
+}
+
+function onAgentEvent(event) {
+  if (event.conversationId && event.conversationId != chatConversationId) {
+    return;
+  }
+  switch (event.type) {
+    case "turnStarted":
+      $("chat-interrupt").hidden = false;
+      break;
+    case "delta":
+      if (!chatAgentBubble) {
+        chatAgentBubble = chatBubble("agent", "");
+      }
+      chatAgentBubble.textContent += event.text;
+      $("chat-log").scrollTop = $("chat-log").scrollHeight;
+      break;
+    case "message":
+      if (chatAgentBubble) {
+        chatAgentBubble.textContent = event.text;
+      } else {
+        chatBubble("agent", event.text);
+      }
+      chatAgentBubble = null;
+      break;
+    case "turnCompleted":
+      $("chat-interrupt").hidden = true;
+      $("chat-send").disabled = false;
+      chatAgentBubble = null;
+      break;
+    case "log":
+      chatBubble("meta", event.message);
+      break;
+    case "error":
+      chatBubble("meta", `error: ${event.message}`);
+      $("chat-interrupt").hidden = true;
+      $("chat-send").disabled = false;
+      break;
+  }
+}
+
+$("chat-row").addEventListener("submit", async event => {
+  event.preventDefault();
+  const input = $("chat-input");
+  const text = input.value.trim();
+  if (!text) {
+    return;
+  }
+  input.value = "";
+  chatBubble("user", text);
+  $("chat-send").disabled = true;
+  try {
+    if (!chatConversationId) {
+      chatBubble("meta", "starting agent sidecar...");
+      const conversation = await AgentService.createConversation();
+      chatConversationId = conversation.conversationId;
+      chatBubble(
+        "meta",
+        `conversation ready (${conversation.modelProvider}/${conversation.model})`
+      );
+    }
+    await AgentService.sendMessage(chatConversationId, text);
+  } catch (e) {
+    chatBubble("meta", `error: ${e.message}`);
+    $("chat-send").disabled = false;
+  }
+});
+
+$("chat-interrupt").addEventListener("click", () => {
+  if (chatConversationId) {
+    AgentService.interrupt(chatConversationId);
+  }
+});
+
+if (!enabled) {
+  $("chat-input").disabled = true;
+  $("chat-send").disabled = true;
+}
+
 HarnessVM.addListener(onEvent);
-window.addEventListener("unload", () => HarnessVM.removeListener(onEvent));
+AgentService.addListener(onAgentEvent);
+window.addEventListener("unload", () => {
+  HarnessVM.removeListener(onEvent);
+  AgentService.removeListener(onAgentEvent);
+});
 
 $("disabled-notice").hidden = enabled;
 updateState(HarnessVM.state);
