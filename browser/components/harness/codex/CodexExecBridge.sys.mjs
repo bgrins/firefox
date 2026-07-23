@@ -9,6 +9,7 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   HarnessAgent: "moz-src:///browser/components/harness/HarnessAgent.sys.mjs",
+  HarnessVM: "moz-src:///browser/components/harness/HarnessVM.sys.mjs",
 });
 
 ChromeUtils.defineLazyGetter(lazy, "logConsole", () =>
@@ -144,14 +145,27 @@ export const CodexExecBridge = {
     }
   },
 
+  _allowedRoots() {
+    const roots = [{ root: WORKSPACE, writable: true }];
+    for (const mount of lazy.HarnessVM.mounts) {
+      roots.push({ root: `/mnt/${mount.tag}`, writable: !mount.readOnly });
+    }
+    return roots;
+  },
+
   _allowedPath(uri, { write = false } = {}) {
     const path = pathFromUri(uri);
-    if (path != WORKSPACE && !path.startsWith(`${WORKSPACE}/`)) {
-      throw new Error(
-        `${write ? "write" : "read"} outside ${WORKSPACE} denied: ${path}`
-      );
+    for (const { root, writable } of this._allowedRoots()) {
+      if (path == root || path.startsWith(`${root}/`)) {
+        if (write && !writable) {
+          throw new Error(`write to read-only mount denied: ${path}`);
+        }
+        return path;
+      }
     }
-    return path;
+    throw new Error(
+      `${write ? "write" : "read"} outside allowed mounts denied: ${path}`
+    );
   },
 
   async _guest(cmd, options = {}) {

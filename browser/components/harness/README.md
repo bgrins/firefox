@@ -110,6 +110,17 @@ before every VM start. This is needed each time because relinking during
 signing would instead add the entitlement to the release signing config
 (`taskcluster/config.yml` hardened-sign-config).
 
+### Shared folder mounts and macOS privacy (TCC)
+
+User-selected folders (Settings → Shared folders) mount at `/mnt/<tag>` with
+three-layer read-only enforcement when requested (libkrun virtio-fs
+`read_only`, a read-only Seatbelt grant in the helper, and guest `-o ro`).
+Caveat: TCC-protected folders (Downloads, Desktop, Documents) require the
+*helper process* to pass macOS privacy checks; if denied, the VM refuses to
+start with a clear error rather than mounting silently empty. Non-protected
+paths are unaffected. Fallbacks under consideration: copy-in staging, or an
+fd-based virtio-fs root upstreamed to libkrun.
+
 ### Dev-loop gotchas
 
 - Changed `.sys.mjs` files can be served stale from a profile's startup

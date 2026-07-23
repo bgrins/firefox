@@ -139,6 +139,15 @@ export const AgentService = {
   // Codex reads AGENTS.md from the environment cwd, so this is how the agent
   // learns what this sandbox is and what Firefox data can appear in it.
   async _seedWorkspaceContext() {
+    let mountLines = "";
+    for (const mount of lazy.HarnessVM.mounts) {
+      mountLines += `- /mnt/${mount.tag}${
+        mount.readOnly ? " (read-only)" : ""
+      }: a host folder the user chose to share.\n`;
+    }
+    if (mountLines) {
+      mountLines = `\nAdditional user-shared folders:\n${mountLines}`;
+    }
     const content = `# Firefox Harness sandbox
 
 You are running inside a small Alpine Linux micro-VM embedded in Firefox.
@@ -156,7 +165,7 @@ You are running inside a small Alpine Linux micro-VM embedded in Firefox.
   - If the user asks about browsing data and the snapshot is missing, ask
     them to click "Snapshot Places DB" under "Sandbox VM tools" on the
     about:harness page.
-`;
+${mountLines}`;
     await IOUtils.makeDirectory(lazy.HarnessVM.workspacePath, {
       createAncestors: true,
       ignoreExisting: true,

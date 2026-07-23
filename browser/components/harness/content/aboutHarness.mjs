@@ -575,11 +575,111 @@ $("settings-login").addEventListener("click", async () => {
   }
 });
 
+/* ---- Shared folder mounts ---- */
+
+function readMounts() {
+  try {
+    const parsed = JSON.parse(
+      Services.prefs.getStringPref("browser.harness.mounts", "[]")
+    );
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function writeMounts(mounts) {
+  Services.prefs.setStringPref(
+    "browser.harness.mounts",
+    JSON.stringify(mounts)
+  );
+  renderMounts();
+  if (HarnessVM.state == "running") {
+    $("settings-status").textContent =
+      "Shared folders changed; restarting the sandbox VM...";
+    await HarnessVM.stop();
+    $("settings-status").textContent =
+      "Shared folders changed; the VM restarts on the next message.";
+  }
+}
+
+function mountTagFor(path, mounts) {
+  let base = (path.split("/").filter(Boolean).pop() ?? "folder")
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9-]/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
+    .slice(0, 24);
+  if (!/^[a-z0-9]/.test(base)) {
+    base = `f-${base}`;
+  }
+  let tag = base || "folder";
+  for (let n = 2; mounts.some(m => m.tag == tag) || tag == "workspace"; n++) {
+    tag = `${base}-${n}`;
+  }
+  return tag;
+}
+
+function renderMounts() {
+  const list = $("mounts-list");
+  list.textContent = "";
+  for (const mount of readMounts()) {
+    const row = document.createElement("div");
+    row.className = "mount-row";
+    const label = document.createElement("code");
+    label.textContent = `/mnt/${mount.tag} ← ${mount.path}`;
+    const roLabel = document.createElement("label");
+    const ro = document.createElement("input");
+    ro.type = "checkbox";
+    ro.checked = !!mount.readOnly;
+    ro.addEventListener("change", () => {
+      const mounts = readMounts();
+      const target = mounts.find(m => m.tag == mount.tag);
+      if (target) {
+        target.readOnly = ro.checked;
+        writeMounts(mounts);
+      }
+    });
+    roLabel.append(ro, document.createTextNode(" read-only"));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "Remove";
+    remove.addEventListener("click", () => {
+      writeMounts(readMounts().filter(m => m.tag != mount.tag));
+    });
+    row.append(label, roLabel, remove);
+    list.appendChild(row);
+  }
+}
+
+$("mount-add").addEventListener("click", () => {
+  const picker = Cc["@mozilla.org/filepicker;1"].createInstance(
+    Ci.nsIFilePicker
+  );
+  picker.init(
+    window.browsingContext,
+    "Choose a folder to share with the sandbox",
+    Ci.nsIFilePicker.modeGetFolder
+  );
+  picker.open(result => {
+    if (result != Ci.nsIFilePicker.returnOK) {
+      return;
+    }
+    const mounts = readMounts();
+    mounts.push({
+      path: picker.file.path,
+      tag: mountTagFor(picker.file.path, mounts),
+      readOnly: true,
+    });
+    writeMounts(mounts);
+  });
+});
+
 if (!enabled) {
   $("chat-input").disabled = true;
   $("chat-send").disabled = true;
 }
 loadSettings();
+renderMounts();
 
 HarnessVM.addListener(onEvent);
 AgentService.addListener(onAgentEvent);

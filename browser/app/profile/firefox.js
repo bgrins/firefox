@@ -3680,3 +3680,6 @@ pref("browser.harness.allownet", false);
 pref("browser.harness.codex.provider", "ollama");
 // Model slug; empty selects the provider default (ollama: gemma4:latest).
 pref("browser.harness.codex.model", "");
+// User-selected host folders shared into the guest:
+// JSON [{path, tag, readOnly}]; mounted at /mnt/<tag>.
+pref("browser.harness.mounts", "[]");

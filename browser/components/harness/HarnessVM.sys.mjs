@@ -91,6 +91,48 @@ export const HarnessVM = {
     return PathUtils.join(PathUtils.profileDir, "harness", "workspace");
   },
 
+  /**
+   * User-selected extra mounts from the browser.harness.mounts pref
+   * (JSON array of {path, tag, readOnly}). Tags are restricted to a shell-
+   * and path-safe alphabet and mount at /mnt/<tag> in the guest.
+   *
+   * @returns {Array<{path: string, tag: string, readOnly: boolean}>}
+   */
+  get mounts() {
+    let parsed;
+    try {
+      parsed = JSON.parse(
+        Services.prefs.getStringPref("browser.harness.mounts", "[]")
+      );
+    } catch (e) {
+      lazy.logConsole.warn(`invalid browser.harness.mounts: ${e.message}`);
+      return [];
+    }
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    const seen = new Set(["workspace"]);
+    const mounts = [];
+    for (const entry of parsed) {
+      if (
+        typeof entry?.path != "string" ||
+        typeof entry?.tag != "string" ||
+        !/^[a-z0-9][a-z0-9-]{0,31}$/.test(entry.tag) ||
+        seen.has(entry.tag)
+      ) {
+        lazy.logConsole.warn(`skipping invalid mount ${JSON.stringify(entry)}`);
+        continue;
+      }
+      seen.add(entry.tag);
+      mounts.push({
+        path: entry.path,
+        tag: entry.tag,
+        readOnly: !!entry.readOnly,
+      });
+    }
+    return mounts;
+  },
+
   // Keep the socket path short: unix socket paths are capped at 104 bytes
   // on macOS, and profile paths can get close to that.
   _socketPath: null,
@@ -225,6 +267,24 @@ export const HarnessVM = {
         "--volume",
         `${this.workspacePath}:workspace`,
       ];
+      const mountCmds = [
+        "mkdir -p /workspace && mount -t virtiofs workspace /workspace",
+      ];
+      for (const mount of this.mounts) {
+        if (!(await IOUtils.exists(mount.path))) {
+          this._log(`skipping missing mount ${mount.path}`);
+          continue;
+        }
+        args.push(
+          "--volume",
+          `${mount.path}:${mount.tag}${mount.readOnly ? ":ro" : ""}`
+        );
+        mountCmds.push(
+          `mkdir -p /mnt/${mount.tag} && mount ${
+            mount.readOnly ? "-o ro " : ""
+          }-t virtiofs ${mount.tag} /mnt/${mount.tag}`
+        );
+      }
       if (Services.prefs.getBoolPref("browser.harness.allownet", false)) {
         args.push("--allow-net");
       }
@@ -237,7 +297,7 @@ export const HarnessVM = {
         "--",
         "/bin/sh",
         "-c",
-        "mkdir -p /workspace && mount -t virtiofs workspace /workspace; " +
+        `${mountCmds.join("; ")}; ` +
           "/usr/local/bin/guest-agent & echo '[guest ready]'; exec /bin/sh"
       );
       this._log(`spawning ${helper} ${args.join(" ")}`);

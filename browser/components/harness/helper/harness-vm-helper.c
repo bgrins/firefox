@@ -8,7 +8,9 @@
  * and libkrunfw is preloaded by absolute path so libkrun's bare-name
  * dlopen("libkrunfw.5.dylib") resolves to the already-loaded image. */
 
+#include <dirent.h>
 #include <dlfcn.h>
+#include <errno.h>
 #include <libgen.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -33,7 +35,8 @@ typedef int32_t (*krun_set_workdir_t)(uint32_t, const char*);
 typedef int32_t (*krun_set_exec_t)(uint32_t, const char*, const char* const[],
                                    const char* const[]);
 typedef int32_t (*krun_start_enter_t)(uint32_t);
-typedef int32_t (*krun_add_virtiofs_t)(uint32_t, const char*, const char*);
+typedef int32_t (*krun_add_virtiofs3_t)(uint32_t, const char*, const char*,
+                                        uint64_t, bool);
 typedef int32_t (*krun_add_vsock_port2_t)(uint32_t, uint32_t, const char*,
                                           bool);
 typedef int32_t (*krun_disable_implicit_vsock_t)(uint32_t);
@@ -109,7 +112,8 @@ static void canonical_parent(const char* path, char* out, size_t out_len) {
 
 static void apply_seatbelt(const char* lib_path, const char* krunfw_path,
                            const char* root_path, const char* vsock_path,
-                           const char* const volume_paths[], int num_volumes) {
+                           const char* const volume_paths[],
+                           const int volume_ro[], int num_volumes) {
   char root_real[PATH_MAX];
   if (!realpath(root_path, root_real)) {
     fprintf(stderr, "harness-vm-helper: cannot resolve root %s\n", root_path);
@@ -152,7 +156,26 @@ static void apply_seatbelt(const char* lib_path, const char* krunfw_path,
               volume_paths[i]);
       exit(1);
     }
-    profile_add_path("subpath", vol_real);
+    if (!volume_ro[i]) {
+      profile_add_path("subpath", vol_real);
+    }
+  }
+  profile_add(")\n");
+
+  /* Read-only volumes: this process cannot write them even if the guest
+   * defeats the virtio-fs read_only flag. */
+  profile_add("(allow file-read* ");
+  profile_add_path("subpath", root_real); /* keep list non-empty */
+  for (int i = 0; i < num_volumes; i++) {
+    if (volume_ro[i]) {
+      char vol_real[PATH_MAX];
+      if (!realpath(volume_paths[i], vol_real)) {
+        fprintf(stderr, "harness-vm-helper: cannot resolve volume %s\n",
+                volume_paths[i]);
+        exit(1);
+      }
+      profile_add_path("subpath", vol_real);
+    }
   }
   profile_add(")\n");
 
@@ -198,6 +221,7 @@ int main(int argc, char** argv) {
   const char* vsock_path = NULL;
   const char* volume_paths[MAX_VOLUMES];
   const char* volume_tags[MAX_VOLUMES];
+  int volume_ro[MAX_VOLUMES];
   int num_volumes = 0;
   int guest_argv_start = -1;
 
@@ -227,6 +251,12 @@ int main(int argc, char** argv) {
       }
     } else if (!strcmp(argv[i], "--volume") && i + 1 < argc) {
       char* spec = argv[++i];
+      int read_only = 0;
+      size_t spec_len = strlen(spec);
+      if (spec_len > 3 && !strcmp(spec + spec_len - 3, ":ro")) {
+        spec[spec_len - 3] = '\0';
+        read_only = 1;
+      }
       char* sep = strrchr(spec, ':');
       if (!sep || sep == spec || !sep[1] || num_volumes == MAX_VOLUMES) {
         usage(argv[0]);
@@ -234,6 +264,7 @@ int main(int argc, char** argv) {
       *sep = '\0';
       volume_paths[num_volumes] = spec;
       volume_tags[num_volumes] = sep + 1;
+      volume_ro[num_volumes] = read_only;
       num_volumes++;
     } else if (!strcmp(argv[i], "--allow-net")) {
       allow_net = 1;
@@ -261,7 +292,7 @@ int main(int argc, char** argv) {
 
   if (!no_seatbelt) {
     apply_seatbelt(lib_path, krunfw_path, root_path, vsock_path, volume_paths,
-                   num_volumes);
+                   volume_ro, num_volumes);
   }
 
   if (seatbelt_selftest) {
@@ -302,7 +333,7 @@ int main(int argc, char** argv) {
   RESOLVE(krun_set_workdir)
   RESOLVE(krun_set_exec)
   RESOLVE(krun_start_enter)
-  RESOLVE(krun_add_virtiofs)
+  RESOLVE(krun_add_virtiofs3)
   RESOLVE(krun_add_vsock_port2)
   RESOLVE(krun_disable_implicit_vsock)
   RESOLVE(krun_add_vsock)
@@ -332,7 +363,25 @@ int main(int argc, char** argv) {
   CHECK(krun_set_workdir((uint32_t)ctx, workdir));
 
   for (int i = 0; i < num_volumes; i++) {
-    CHECK(krun_add_virtiofs((uint32_t)ctx, volume_tags[i], volume_paths[i]));
+    /* Fail fast with a readable error instead of a virtio-fs worker panic
+     * mid-boot. EPERM here usually means macOS TCC privacy protection
+     * (Downloads/Desktop/Documents) denied this process. */
+    DIR* probe = opendir(volume_paths[i]);
+    if (!probe) {
+      fprintf(stderr,
+              "harness-vm-helper: cannot access volume %s: %s%s\n",
+              volume_paths[i], strerror(errno),
+              errno == EPERM || errno == EACCES
+                  ? " (macOS privacy protection for this folder?)"
+                  : "");
+      return 1;
+    }
+    closedir(probe);
+    /* read_only here is host-side enforcement inside libkrun; the seatbelt
+     * profile independently withholds write access for these subpaths, and
+     * the guest additionally mounts them -o ro. */
+    CHECK(krun_add_virtiofs3((uint32_t)ctx, volume_tags[i], volume_paths[i], 0,
+                             volume_ro[i] != 0));
   }
 
   /* The implicit vsock device enables TSI hijacking, which transparently
