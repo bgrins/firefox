@@ -10,7 +10,6 @@ import {
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
-  OSKeyStore: "resource://gre/modules/OSKeyStore.sys.mjs",
   Subprocess: "resource://gre/modules/Subprocess.sys.mjs",
 });
 
@@ -67,8 +66,7 @@ export class CodexAppServerClient {
     } else if (provider == "openrouter") {
       // Custom provider (see docs/model-providers-spike.md). The bearer
       // token never appears in this file: the auth command reads it from
-      // the sidecar's launch environment, which start() populates from
-      // OSKeyStore-encrypted storage.
+      // the sidecar's launch environment, which start() populates.
       lines.push(
         `model_provider = "openrouter"`,
         `model = "${model || "openrouter/auto"}"`,
@@ -85,28 +83,22 @@ export class CodexAppServerClient {
     return `${lines.join("\n")}\n`;
   }
 
-  // OSKeyStore-encrypted bearer token for the OpenRouter provider.
+  // Plaintext pref for now; OSKeyStore encryption is a follow-up (keychain
+  // prompts were unreliable in local testing). The key stays host-side
+  // either way: injected into the sidecar environment, never guest-visible.
   static async setOpenRouterKey(token) {
     if (!token) {
       Services.prefs.clearUserPref("browser.harness.codex.openrouterKey");
       return;
     }
-    const ciphertext = await lazy.OSKeyStore.encrypt(token);
-    Services.prefs.setStringPref(
-      "browser.harness.codex.openrouterKey",
-      ciphertext
-    );
+    Services.prefs.setStringPref("browser.harness.codex.openrouterKey", token);
   }
 
   static async _openRouterKey() {
-    const ciphertext = Services.prefs.getStringPref(
-      "browser.harness.codex.openrouterKey",
-      ""
+    return (
+      Services.prefs.getStringPref("browser.harness.codex.openrouterKey", "") ||
+      null
     );
-    if (!ciphertext) {
-      return null;
-    }
-    return lazy.OSKeyStore.decrypt(ciphertext, false);
   }
 
   constructor({ binaryPath, codexHome, configToml } = {}) {
