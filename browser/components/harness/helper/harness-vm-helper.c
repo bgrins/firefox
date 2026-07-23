@@ -37,6 +37,7 @@ typedef int32_t (*krun_set_exec_t)(uint32_t, const char*, const char* const[],
 typedef int32_t (*krun_start_enter_t)(uint32_t);
 typedef int32_t (*krun_add_virtiofs3_t)(uint32_t, const char*, const char*,
                                         uint64_t, bool);
+typedef int32_t (*krun_add_vsock_port_t)(uint32_t, uint32_t, const char*);
 typedef int32_t (*krun_add_vsock_port2_t)(uint32_t, uint32_t, const char*,
                                           bool);
 typedef int32_t (*krun_disable_implicit_vsock_t)(uint32_t);
@@ -110,8 +111,21 @@ static void canonical_parent(const char* path, char* out, size_t out_len) {
   snprintf(out, out_len, "%s", resolved);
 }
 
+static void seatbelt_allow_socket(const char* path) {
+  char dir[PATH_MAX];
+  canonical_parent(path, dir, sizeof(dir));
+  char copy[PATH_MAX];
+  snprintf(copy, sizeof(copy), "%s", path);
+  char canonical[PATH_MAX];
+  snprintf(canonical, sizeof(canonical), "%s/%s", dir, basename(copy));
+  profile_add("(allow file-read* file-write* network-bind network-outbound ");
+  profile_add_path("literal", canonical);
+  profile_add(")\n");
+}
+
 static void apply_seatbelt(const char* lib_path, const char* krunfw_path,
                            const char* root_path, const char* vsock_path,
+                           const char* vsock_out_path,
                            const char* const volume_paths[],
                            const int volume_ro[], int num_volumes) {
   char root_real[PATH_MAX];
@@ -179,21 +193,14 @@ static void apply_seatbelt(const char* lib_path, const char* krunfw_path,
   }
   profile_add(")\n");
 
+  /* Seatbelt matches canonical paths (/tmp is a symlink to /private/tmp),
+   * and socket files may not exist yet: canonicalize the directory and
+   * re-append the basename. */
   if (vsock_path) {
-    /* Seatbelt matches canonical paths (/tmp is a symlink to /private/tmp),
-     * and the socket file may not exist yet: canonicalize its directory and
-     * re-append the basename. */
-    char vsock_dir[PATH_MAX];
-    canonical_parent(vsock_path, vsock_dir, sizeof(vsock_dir));
-    char vsock_copy[PATH_MAX];
-    snprintf(vsock_copy, sizeof(vsock_copy), "%s", vsock_path);
-    char canonical_sock[PATH_MAX];
-    snprintf(canonical_sock, sizeof(canonical_sock), "%s/%s", vsock_dir,
-             basename(vsock_copy));
-    /* Creating/binding/unlinking the unix socket at this exact path. */
-    profile_add("(allow file-read* file-write* network-bind network-outbound ");
-    profile_add_path("literal", canonical_sock);
-    profile_add(")\n");
+    seatbelt_allow_socket(vsock_path);
+  }
+  if (vsock_out_path) {
+    seatbelt_allow_socket(vsock_out_path);
   }
 
   char* errorbuf = NULL;
@@ -219,6 +226,8 @@ int main(int argc, char** argv) {
   const char* seatbelt_selftest = NULL;
   long vsock_port = 0;
   const char* vsock_path = NULL;
+  long vsock_out_port = 0;
+  const char* vsock_out_path = NULL;
   const char* volume_paths[MAX_VOLUMES];
   const char* volume_tags[MAX_VOLUMES];
   int volume_ro[MAX_VOLUMES];
@@ -247,6 +256,19 @@ int main(int argc, char** argv) {
       vsock_port = strtol(spec, NULL, 10);
       vsock_path = sep + 1;
       if (vsock_port <= 0) {
+        usage(argv[0]);
+      }
+    } else if (!strcmp(argv[i], "--vsock-out") && i + 1 < argc) {
+      /* Guest-initiated: guest connects to this vsock port and libkrun
+       * connects out to the host unix socket (the policy proxy). */
+      char* spec = argv[++i];
+      char* sep = strchr(spec, ':');
+      if (!sep || sep == spec || !sep[1]) {
+        usage(argv[0]);
+      }
+      vsock_out_port = strtol(spec, NULL, 10);
+      vsock_out_path = sep + 1;
+      if (vsock_out_port <= 0) {
         usage(argv[0]);
       }
     } else if (!strcmp(argv[i], "--volume") && i + 1 < argc) {
@@ -291,8 +313,8 @@ int main(int argc, char** argv) {
   }
 
   if (!no_seatbelt) {
-    apply_seatbelt(lib_path, krunfw_path, root_path, vsock_path, volume_paths,
-                   volume_ro, num_volumes);
+    apply_seatbelt(lib_path, krunfw_path, root_path, vsock_path,
+                   vsock_out_path, volume_paths, volume_ro, num_volumes);
   }
 
   if (seatbelt_selftest) {
@@ -334,6 +356,7 @@ int main(int argc, char** argv) {
   RESOLVE(krun_set_exec)
   RESOLVE(krun_start_enter)
   RESOLVE(krun_add_virtiofs3)
+  RESOLVE(krun_add_vsock_port)
   RESOLVE(krun_add_vsock_port2)
   RESOLVE(krun_disable_implicit_vsock)
   RESOLVE(krun_add_vsock)
@@ -397,6 +420,10 @@ int main(int argc, char** argv) {
     unlink(vsock_path);
     CHECK(krun_add_vsock_port2((uint32_t)ctx, (uint32_t)vsock_port, vsock_path,
                                true));
+  }
+  if (vsock_out_path) {
+    CHECK(krun_add_vsock_port((uint32_t)ctx, (uint32_t)vsock_out_port,
+                              vsock_out_path));
   }
 
   const char* exec_path = argv[guest_argv_start];

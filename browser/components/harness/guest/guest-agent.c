@@ -28,12 +28,18 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <arpa/inet.h>
 #include <linux/vm_sockets.h>
+#include <netinet/in.h>
 
 #define JSMN_STATIC
 #include "jsmn.h"
 
 #define AGENT_PORT 1024
+#define PROXY_VSOCK_PORT 1025
+#define PROXY_TCP_PORT 3128
+#define MAX_PROXY_CONNS 8
+#define PROXY_BUF (64 * 1024)
 #define MAX_REQUEST (1024 * 1024)
 #define MAX_OUTPUT (1024 * 1024)
 #define MAX_TOKENS 256
@@ -316,6 +322,12 @@ static void spawn_job(FILE* reply, int64_t id, const char* cmd, const char* cwd,
     close(out_pipe[1]);
     close(err_pipe[0]);
     close(err_pipe[1]);
+    /* Route HTTP(S) through the host policy proxy by default; the request
+     * env may override. Non-proxied protocols have no route at all. */
+    setenv("http_proxy", "http://127.0.0.1:3128", 0);
+    setenv("https_proxy", "http://127.0.0.1:3128", 0);
+    setenv("HTTP_PROXY", "http://127.0.0.1:3128", 0);
+    setenv("HTTPS_PROXY", "http://127.0.0.1:3128", 0);
     for (int i = 0; i < env_count; i++) {
       setenv(env_keys[i], env_vals[i], 1);
     }
@@ -369,6 +381,120 @@ static void kill_all_jobs(void) {
     }
     jobs[i].active = 0;
   }
+}
+
+/* ---- egress proxy forwarder ----
+ * Guest programs speak plain HTTP-proxy to 127.0.0.1:3128 (http_proxy env);
+ * each accepted connection is spliced onto vsock port 1025, which libkrun
+ * forwards to the policy proxy in the Firefox parent. The guest never has a
+ * NIC; this is the only byte channel out besides the control socket. */
+
+struct proxy_conn {
+  int active;
+  int tcp_fd;
+  int vsock_fd;
+  char to_vsock[PROXY_BUF];
+  size_t tv_len, tv_off;
+  char to_tcp[PROXY_BUF];
+  size_t tt_len, tt_off;
+};
+
+static struct proxy_conn proxy_conns[MAX_PROXY_CONNS];
+
+static int proxy_listen_fd = -1;
+
+static void proxy_setup(void) {
+  proxy_listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (proxy_listen_fd < 0) {
+    return;
+  }
+  int one = 1;
+  setsockopt(proxy_listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+  struct sockaddr_in addr = {0};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(PROXY_TCP_PORT);
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  if (bind(proxy_listen_fd, (struct sockaddr*)&addr, sizeof(addr)) ||
+      listen(proxy_listen_fd, 4)) {
+    close(proxy_listen_fd);
+    proxy_listen_fd = -1;
+    return;
+  }
+  fprintf(stderr, "guest-agent: proxy forwarder on 127.0.0.1:%d\n",
+          PROXY_TCP_PORT);
+}
+
+static void proxy_conn_close(struct proxy_conn* conn) {
+  close(conn->tcp_fd);
+  close(conn->vsock_fd);
+  conn->active = 0;
+}
+
+static void proxy_accept(void) {
+  int tcp_fd = accept(proxy_listen_fd, NULL, NULL);
+  if (tcp_fd < 0) {
+    return;
+  }
+  struct proxy_conn* conn = NULL;
+  for (int i = 0; i < MAX_PROXY_CONNS; i++) {
+    if (!proxy_conns[i].active) {
+      conn = &proxy_conns[i];
+      break;
+    }
+  }
+  if (!conn) {
+    close(tcp_fd);
+    return;
+  }
+  int vsock_fd = socket(AF_VSOCK, SOCK_STREAM, 0);
+  struct sockaddr_vm addr = {0};
+  addr.svm_family = AF_VSOCK;
+  addr.svm_port = PROXY_VSOCK_PORT;
+  addr.svm_cid = VMADDR_CID_HOST;
+  if (vsock_fd < 0 ||
+      connect(vsock_fd, (struct sockaddr*)&addr, sizeof(addr))) {
+    if (vsock_fd >= 0) {
+      close(vsock_fd);
+    }
+    close(tcp_fd);
+    return;
+  }
+  fcntl(tcp_fd, F_SETFL, O_NONBLOCK);
+  fcntl(vsock_fd, F_SETFL, O_NONBLOCK);
+  memset(conn, 0, sizeof(*conn));
+  conn->active = 1;
+  conn->tcp_fd = tcp_fd;
+  conn->vsock_fd = vsock_fd;
+}
+
+/* One direction of the splice: read into buf when empty, write out when
+ * pending. Returns 0 on EOF/error. */
+static int proxy_pump(int from, int to, char* buf, size_t* len, size_t* off) {
+  if (*len == 0) {
+    ssize_t n = read(from, buf, PROXY_BUF);
+    if (n == 0 || (n < 0 && errno != EAGAIN && errno != EINTR)) {
+      return 0;
+    }
+    if (n > 0) {
+      *len = (size_t)n;
+      *off = 0;
+    }
+  }
+  while (*off < *len) {
+    ssize_t n = write(to, buf + *off, *len - *off);
+    if (n > 0) {
+      *off += (size_t)n;
+    } else if (errno == EAGAIN) {
+      break;
+    } else if (errno != EINTR) {
+      return 0;
+    }
+  }
+  if (*off >= *len) {
+    *len = 0;
+    *off = 0;
+  }
+  return 1;
 }
 
 /* ---- request handling ---- */
@@ -486,9 +612,9 @@ static void serve_connection(int conn) {
   char buf[65536];
 
   for (;;) {
-    struct pollfd fds[1 + 3 * MAX_JOBS];
-    struct job* fd_jobs[1 + 3 * MAX_JOBS];
-    int fd_streams[1 + 3 * MAX_JOBS];
+    struct pollfd fds[2 + 3 * MAX_JOBS + 2 * MAX_PROXY_CONNS];
+    struct job* fd_jobs[2 + 3 * MAX_JOBS + 2 * MAX_PROXY_CONNS];
+    int fd_streams[2 + 3 * MAX_JOBS + 2 * MAX_PROXY_CONNS];
     nfds_t nfds = 0;
 
     fds[nfds].fd = conn;
@@ -522,6 +648,31 @@ static void serve_connection(int conn) {
       }
     }
 
+    int proxy_listen_idx = -1;
+    if (proxy_listen_fd >= 0) {
+      fds[nfds].fd = proxy_listen_fd;
+      fds[nfds].events = POLLIN;
+      fd_jobs[nfds] = NULL;
+      proxy_listen_idx = (int)nfds;
+      nfds++;
+    }
+    for (int i = 0; i < MAX_PROXY_CONNS; i++) {
+      struct proxy_conn* pc = &proxy_conns[i];
+      if (!pc->active) {
+        continue;
+      }
+      fds[nfds].fd = pc->tcp_fd;
+      fds[nfds].events = (pc->tv_len == 0 ? POLLIN : 0) |
+                         (pc->tt_len > pc->tt_off ? POLLOUT : 0);
+      fd_jobs[nfds] = NULL;
+      nfds++;
+      fds[nfds].fd = pc->vsock_fd;
+      fds[nfds].events = (pc->tt_len == 0 ? POLLIN : 0) |
+                         (pc->tv_len > pc->tv_off ? POLLOUT : 0);
+      fd_jobs[nfds] = NULL;
+      nfds++;
+    }
+
     int timeout = -1;
     if (next_deadline >= 0) {
       int64_t wait = next_deadline - now_ms();
@@ -544,6 +695,9 @@ static void serve_connection(int conn) {
     /* Pump job stdin and output. */
     for (nfds_t f = 1; f < nfds; f++) {
       struct job* job = fd_jobs[f];
+      if (!job) {
+        continue; /* proxy fds are pumped below */
+      }
       int s = fd_streams[f];
       if (s == 2) {
         if (!(fds[f].revents & (POLLOUT | POLLERR | POLLHUP))) {
@@ -576,6 +730,22 @@ static void serve_connection(int conn) {
         if (job->fds[0] < 0 && job->fds[1] < 0) {
           finish_job(reply, job);
         }
+      }
+    }
+
+    if (proxy_listen_idx >= 0 && (fds[proxy_listen_idx].revents & POLLIN)) {
+      proxy_accept();
+    }
+    for (int i = 0; i < MAX_PROXY_CONNS; i++) {
+      struct proxy_conn* pc = &proxy_conns[i];
+      if (!pc->active) {
+        continue;
+      }
+      if (!proxy_pump(pc->tcp_fd, pc->vsock_fd, pc->to_vsock, &pc->tv_len,
+                      &pc->tv_off) ||
+          !proxy_pump(pc->vsock_fd, pc->tcp_fd, pc->to_tcp, &pc->tt_len,
+                      &pc->tt_off)) {
+        proxy_conn_close(pc);
       }
     }
 
@@ -631,6 +801,7 @@ int main(void) {
     return 1;
   }
   fprintf(stderr, "guest-agent: listening on vsock port %d\n", AGENT_PORT);
+  proxy_setup();
 
   for (;;) {
     int conn = accept(sock, NULL, NULL);

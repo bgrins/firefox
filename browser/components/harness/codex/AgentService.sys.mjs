@@ -183,7 +183,9 @@ You are running inside a small Alpine Linux micro-VM embedded in Firefox.
 
 - Your working directory /workspace is a folder shared with the host
   Firefox; files you create here are visible to the user and vice versa.
-- There is deliberately no network access.
+- Network: outbound HTTP(S) goes through a host-side policy proxy
+  (http_proxy is preset); only hosts the user has allowlisted are
+  reachable, everything else is denied. No other network path exists.
 - Available tools: busybox userland (sh, ls, grep, sed, awk, tar, wc, ...)
   and sqlite3.
 - Firefox data arrives as snapshot files the user shares into /workspace:

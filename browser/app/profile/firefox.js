@@ -3686,3 +3686,7 @@ pref("browser.harness.mounts", "[]");
 // Give each new conversation its own micro-VM (rootfs clone + workspace)
 // instead of the shared default session.
 pref("browser.harness.sessionPerConversation", false);
+// Gated egress: HTTP(S) from the guest goes through a host-side policy proxy
+// (deny-by-default). Entries are "host", "host:port", or "*.suffix".
+pref("browser.harness.proxy.enabled", true);
+pref("browser.harness.proxy.allowlist", "[]");

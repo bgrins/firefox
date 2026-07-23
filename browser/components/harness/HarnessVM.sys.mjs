@@ -7,6 +7,7 @@ import { HarnessAgent } from "moz-src:///browser/components/harness/HarnessAgent
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  HarnessProxy: "moz-src:///browser/components/harness/HarnessProxy.sys.mjs",
   Sqlite: "resource://gre/modules/Sqlite.sys.mjs",
   Subprocess: "resource://gre/modules/Subprocess.sys.mjs",
 });
@@ -78,9 +79,11 @@ export class HarnessSession {
     this.state = "stopped";
     this.startedAtMs = null;
     this.agent = new HarnessAgent();
+    this.proxy = null;
     this._proc = null;
     this._listeners = new Set();
     this._socketPath = null;
+    this._proxySocketPath = null;
   }
 
   get rootfsPath() {
@@ -248,7 +251,23 @@ export class HarnessSession {
         "--volume",
         `${this.workspacePath}:workspace`,
       ];
+      // Gated egress: the guest's proxy forwarder reaches the policy proxy
+      // in the parent through this vsock->unix mapping. With the pref off
+      // (or an empty allowlist) the guest has no network path at all.
+      if (Services.prefs.getBoolPref("browser.harness.proxy.enabled", true)) {
+        const suffix = Services.uuid.generateUUID().toString().slice(1, 9);
+        this._proxySocketPath = PathUtils.join(
+          Services.dirsvc.get("TmpD", Ci.nsIFile).path,
+          `harness-px-${suffix}.sock`
+        );
+        await IOUtils.remove(this._proxySocketPath, { ignoreAbsent: true });
+        this.proxy = new lazy.HarnessProxy();
+        this.proxy.listen(this._proxySocketPath);
+        args.push("--vsock-out", `1025:${this._proxySocketPath}`);
+      }
+
       const mountCmds = [
+        "ifconfig lo 127.0.0.1 up 2>/dev/null",
         "mkdir -p /workspace && mount -t virtiofs workspace /workspace",
       ];
       for (const mount of HarnessVM.mounts) {
@@ -297,7 +316,13 @@ export class HarnessSession {
         this._proc = null;
         this.startedAtMs = null;
         this.agent.close();
+        this.proxy?.stop();
+        this.proxy = null;
         IOUtils.remove(this.socketPath, { ignoreAbsent: true });
+        if (this._proxySocketPath) {
+          IOUtils.remove(this._proxySocketPath, { ignoreAbsent: true });
+          this._proxySocketPath = null;
+        }
         this._socketPath = null;
         this._setState("stopped");
         this._emit({ type: "exit", exitCode });
