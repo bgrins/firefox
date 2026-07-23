@@ -160,7 +160,7 @@ export const CodexExecBridge = {
     return roots;
   },
 
-  _allowedPath(uri, { write = false } = {}) {
+  _allowedPath(uri, { write = false, probe = false } = {}) {
     const path = pathFromUri(uri);
     for (const { root, writable } of this._allowedRoots()) {
       if (path == root || path.startsWith(`${root}/`)) {
@@ -169,6 +169,12 @@ export const CodexExecBridge = {
         }
         return path;
       }
+    }
+    if (probe) {
+      // Existence probes (codex walks parent dirs looking for .git and
+      // similar markers): answer like a missing file so the model moves on
+      // instead of reasoning about a policy error.
+      throw new Error(`stat: ${path}: No such file or directory`);
     }
     throw new Error(
       `${write ? "write" : "read"} outside allowed mounts denied: ${path}`
@@ -252,7 +258,7 @@ export const CodexExecBridge = {
         return {};
       }
       case "fs/getMetadata": {
-        const path = this._allowedPath(params.path);
+        const path = this._allowedPath(params.path, { probe: true });
         this._audit(method, path);
         const q = shQuote(path);
         const result = await this._guest(
@@ -270,7 +276,7 @@ export const CodexExecBridge = {
         };
       }
       case "fs/canonicalize": {
-        const path = this._allowedPath(params.path);
+        const path = this._allowedPath(params.path, { probe: true });
         this._audit(method, path);
         const result = await this._guest(`realpath ${shQuote(path)}`);
         return { path: toFileUri(result.stdout.trim()) };

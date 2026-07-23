@@ -54,7 +54,13 @@ export class CodexAppServerClient {
     const model = Services.prefs
       .getStringPref("browser.harness.codex.model", "")
       .replaceAll(/["\\\n]/g, "");
-    const lines = [];
+    const lines = [
+      // The workspace is never a git checkout; AGENTS.md (seeded by
+      // AgentService) marks the project root so codex stops walking parent
+      // directories probing for .git outside the sandbox.
+      `project_root_markers = ["AGENTS.md"]`,
+      ``,
+    ];
     if (provider == "ollama") {
       lines.push(
         `model_provider = "ollama"`,
