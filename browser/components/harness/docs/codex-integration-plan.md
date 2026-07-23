@@ -309,6 +309,48 @@ credentials):
 - Hygiene confirmed empirically: launch with a neutral cwd (a `.codex/` dir in
   cwd triggers project-config probing) and an explicit env allowlist.
 
+## Is libkrun a security boundary? (assessed 2026-07-23)
+
+Short answer: the *virtualization* is a real boundary — the same
+hardware-enforced isolation class as Firecracker/Kata that clouds use for
+multi-tenant workloads. The practical weak point is not the guest/hypervisor
+line; it is **our unsandboxed helper process**, which hosts all virtio device
+emulation on the host side.
+
+Assessment:
+
+- Escaping requires either a Hypervisor.framework bug (Apple's attack
+  surface, rare) or a guest-triggerable bug in libkrun's device emulation
+  (the classic VMM-escape path). libkrun is Rust, which removes most memory
+  corruption classes, but it has had little public scrutiny: a 2026
+  comparative study of AI code sandboxes notes zero published CVEs, no
+  upstream fuzzer, and no engine-side syscall confinement — an escape from
+  the VMM today lands in an *unconfined* user process.
+- Our device surface is already minimal: console, virtio-fs, vsock only (no
+  net/blk/gpu features compiled in; TSI disabled). virtio-fs is the
+  highest-risk device since it parses guest-controlled requests against the
+  host filesystem.
+
+Recommended hardening (in leverage order, none blocking current work):
+
+1. **Seatbelt-sandbox the helper** — the macOS equivalent of Firecracker's
+   jailer, and the single biggest win: a sandbox profile applied in
+   harness-vm-helper before boot (or at spawn) allowing only the rootfs +
+   mounted workspace subtrees, the vsock unix socket path, and
+   Hypervisor.framework access; deny network and everything else. Firefox
+   already ships Seatbelt profiles for child processes
+   (security/sandbox/mac) to crib from. A VMM escape then lands inside a
+   deny-by-default sandbox instead of a full user process.
+2. Keep the device set frozen and pin/audit the vendored libkrun
+   (cargo-vet when it joins the mach build); track upstream security
+   activity.
+3. RO base image + tmpfs overlay and per-task virtio-fs mounts shrink what a
+   virtio-fs bug can even reach.
+4. In-guest hardening (unprivileged exec user, minimal kernel config from
+   libkrunfw) is hygiene, not boundary — assume guest root.
+5. Resource abuse (fork bombs, disk fill) is bounded by VM mem/cpu caps
+   today; add a workspace disk quota check when sessions land.
+
 ## Persistence model
 
 - **Settings** (provider, model, future mounts/allowlists): Firefox prefs
