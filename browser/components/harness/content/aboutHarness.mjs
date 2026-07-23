@@ -283,6 +283,19 @@ $("chat-interrupt").addEventListener("click", () => {
   }
 });
 
+$("chat-copy").addEventListener("click", async () => {
+  const lines = [...$("chat-log").children].map(element => {
+    const role = element.classList[1] ?? "msg";
+    return `[${role}] ${element.textContent}`;
+  });
+  await navigator.clipboard.writeText(lines.join("\n"));
+  const button = $("chat-copy");
+  button.textContent = "Copied";
+  setTimeout(() => {
+    button.textContent = "Copy transcript";
+  }, 1500);
+});
+
 if (!enabled) {
   $("chat-input").disabled = true;
   $("chat-send").disabled = true;

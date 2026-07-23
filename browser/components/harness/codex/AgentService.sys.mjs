@@ -88,11 +88,37 @@ export const AgentService = {
     return this._starting;
   },
 
-  // When the micro-VM is running, expose it to the sidecar as an external
-  // exec-server environment so commands and fs ops route into the guest.
+  // Every conversation runs against the micro-VM as an external exec-server
+  // environment. This is a security invariant, not a convenience: without an
+  // attached environment Codex falls back to running commands on the host
+  // (in its own sandbox, but still the host). So the VM is auto-started and
+  // conversation creation fails closed if it cannot run.
   async _ensureEnvironment(client) {
+    // The VM must be up even when the environment is already registered
+    // (it may have been stopped since the last conversation).
+    if (lazy.HarnessVM.state == "stopped") {
+      this._emit({ type: "log", message: "starting sandbox VM..." });
+      await lazy.HarnessVM.start();
+    }
+    for (let i = 0; lazy.HarnessVM.state == "starting" && i < 120; i++) {
+      await new Promise(resolve => lazy.setTimeout(resolve, 250));
+    }
     if (lazy.HarnessVM.state != "running") {
-      return null;
+      throw new Error(
+        "sandbox VM is not running; refusing to start a conversation " +
+          "(commands would execute on the host)"
+      );
+    }
+    for (let i = 0; ; i++) {
+      try {
+        await lazy.HarnessVM.exec("true");
+        break;
+      } catch (e) {
+        if (i >= 40) {
+          throw new Error(`sandbox VM agent not responding: ${e.message}`);
+        }
+        await new Promise(resolve => lazy.setTimeout(resolve, 250));
+      }
     }
     if (!this._environmentId) {
       const url = lazy.CodexExecBridge.start();
@@ -130,9 +156,7 @@ export const AgentService = {
       params.approvalPolicy = approvalPolicy;
     }
     const environmentId = await this._ensureEnvironment(client);
-    if (environmentId) {
-      params.environments = [{ environmentId, cwd: "/workspace" }];
-    }
+    params.environments = [{ environmentId, cwd: "/workspace" }];
     const result = await client.request("thread/start", params);
     const conversationId = result.thread.id;
     this._conversations.set(conversationId, { activeTurnId: null });
