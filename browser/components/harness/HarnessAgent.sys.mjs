@@ -123,15 +123,33 @@ export const HarnessAgent = {
       lazy.logConsole.warn(`response for unknown id ${message.id}`);
       return;
     }
+    if (message.stream) {
+      const text = message.data ?? "";
+      pending.output[message.stream] += text;
+      try {
+        pending.onOutput?.(message.stream, text);
+      } catch (e) {
+        lazy.logConsole.warn(`onOutput callback threw: ${e.message}`);
+      }
+      return;
+    }
     this._pending.delete(message.id);
     if (message.error) {
       pending.reject(new Error(message.error));
+    } else if (message.done) {
+      pending.resolve({
+        exitCode: message.exitCode,
+        stdout: pending.output.stdout,
+        stderr: pending.output.stderr,
+        truncated: message.truncated,
+        timedOut: message.timedOut,
+      });
     } else {
       pending.resolve(message);
     }
   },
 
-  request(fields, timeoutMs = 30000) {
+  request(fields, timeoutMs = 30000, onOutput) {
     if (!this._outStream) {
       return Promise.reject(new Error("not connected to guest-agent"));
     }
@@ -147,6 +165,8 @@ export const HarnessAgent = {
         reject(new Error(`guest-agent request timed out after ${timeoutMs}ms`));
       }, timeoutMs);
       this._pending.set(id, {
+        onOutput,
+        output: { stdout: "", stderr: "" },
         resolve: value => {
           clearTimeout(timer);
           resolve(value);
@@ -168,18 +188,21 @@ export const HarnessAgent = {
   },
 
   /**
-   * Run a command inside the guest via /bin/sh -c.
+   * Run a command inside the guest via /bin/sh -c. Output is streamed to
+   * onOutput as it arrives and also accumulated into the final result.
    *
    * @param {string} cmd shell command to run
    * @param {object} [options]
    * @param {string} [options.cwd] guest working directory
    * @param {number} [options.timeoutMs] guest-side timeout
+   * @param {Function} [options.onOutput] called with (stream, text) chunks
    * @returns {Promise<{exitCode, stdout, stderr, truncated, timedOut}>}
    */
-  exec(cmd, { cwd = "/workspace", timeoutMs = 30000 } = {}) {
+  exec(cmd, { cwd = "/workspace", timeoutMs = 30000, onOutput } = {}) {
     return this.request(
       { op: "exec", cmd, cwd, timeoutMs },
-      timeoutMs + HOST_TIMEOUT_SLACK_MS
+      timeoutMs + HOST_TIMEOUT_SLACK_MS,
+      onOutput
     );
   },
 

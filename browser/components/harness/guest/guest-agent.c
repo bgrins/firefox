@@ -3,13 +3,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* Runs inside the micro-VM guest. Listens on a vsock port and services
- * JSON-lines requests from the Firefox control plane:
- *   {"id":1,"op":"ping"}
- *   {"id":2,"op":"exec","cmd":"ls -la","cwd":"/workspace","timeoutMs":30000}
- * Responses:
- *   {"id":1,"ok":true}
- *   {"id":2,"exitCode":0,"stdout":"...","stderr":"...","truncated":false,
- *    "timedOut":false}
+ * JSON-lines requests from the Firefox control plane. Multiple exec jobs run
+ * concurrently; their output is streamed as it arrives:
+ *   -> {"id":1,"op":"ping"}
+ *   <- {"id":1,"ok":true}
+ *   -> {"id":2,"op":"exec","cmd":"ls -la","cwd":"/workspace","timeoutMs":30000}
+ *   <- {"id":2,"stream":"stdout","data":"..."}   (0 or more, interleaved)
+ *   <- {"id":2,"stream":"stderr","data":"..."}
+ *   <- {"id":2,"done":true,"exitCode":0,"truncated":false,"timedOut":false}
  * Cross-compiled statically for aarch64-linux by setup-deps.sh (not mach);
  * HarnessVM copies the binary into the rootfs before each VM start. */
 
@@ -36,6 +37,7 @@
 #define MAX_REQUEST (1024 * 1024)
 #define MAX_OUTPUT (1024 * 1024)
 #define MAX_TOKENS 64
+#define MAX_JOBS 16
 #define DEFAULT_TIMEOUT_MS 30000
 #define MAX_TIMEOUT_MS (10 * 60 * 1000)
 
@@ -140,29 +142,70 @@ static void json_escape_to(FILE* f, const char* s, size_t len) {
   }
 }
 
-/* ---- exec ---- */
+/* ---- jobs ---- */
 
-struct outbuf {
-  char* data;
-  size_t len;
+struct job {
+  int active;
+  int64_t id;
+  pid_t pid;
+  int fds[2]; /* stdout, stderr; -1 once closed */
+  size_t sent[2];
   int truncated;
+  int timed_out;
+  int64_t deadline;
 };
 
-static void outbuf_append(struct outbuf* b, const char* data, size_t len) {
-  if (b->len >= MAX_OUTPUT) {
-    b->truncated = 1;
+static struct job jobs[MAX_JOBS];
+static const char* const STREAM_NAMES[2] = {"stdout", "stderr"};
+
+static void send_chunk(FILE* reply, struct job* job, int which,
+                       const char* data, size_t len) {
+  if (job->sent[which] >= MAX_OUTPUT) {
+    job->truncated = 1;
     return;
   }
-  if (b->len + len > MAX_OUTPUT) {
-    len = MAX_OUTPUT - b->len;
-    b->truncated = 1;
+  if (job->sent[which] + len > MAX_OUTPUT) {
+    len = MAX_OUTPUT - job->sent[which];
+    job->truncated = 1;
   }
-  memcpy(b->data + b->len, data, len);
-  b->len += len;
+  job->sent[which] += len;
+  fprintf(reply, "{\"id\":%lld,\"stream\":\"%s\",\"data\":\"",
+          (long long)job->id, STREAM_NAMES[which]);
+  json_escape_to(reply, data, len);
+  fputs("\"}\n", reply);
+  fflush(reply);
 }
 
-static void handle_exec(FILE* reply, int64_t id, const char* cmd,
-                        const char* cwd, int64_t timeout_ms) {
+static void finish_job(FILE* reply, struct job* job) {
+  int status = 0;
+  waitpid(job->pid, &status, 0);
+  int exit_code = WIFEXITED(status)     ? WEXITSTATUS(status)
+                  : WIFSIGNALED(status) ? 128 + WTERMSIG(status)
+                                        : -1;
+  fprintf(reply,
+          "{\"id\":%lld,\"done\":true,\"exitCode\":%d,\"truncated\":%s,"
+          "\"timedOut\":%s}\n",
+          (long long)job->id, exit_code, job->truncated ? "true" : "false",
+          job->timed_out ? "true" : "false");
+  fflush(reply);
+  job->active = 0;
+}
+
+static void spawn_job(FILE* reply, int64_t id, const char* cmd,
+                      const char* cwd, int64_t timeout_ms) {
+  struct job* job = NULL;
+  for (int i = 0; i < MAX_JOBS; i++) {
+    if (!jobs[i].active) {
+      job = &jobs[i];
+      break;
+    }
+  }
+  if (!job) {
+    fprintf(reply, "{\"id\":%lld,\"error\":\"too many concurrent jobs\"}\n",
+            (long long)id);
+    return;
+  }
+
   int out_pipe[2];
   int err_pipe[2];
   if (pipe(out_pipe) || pipe(err_pipe)) {
@@ -193,63 +236,35 @@ static void handle_exec(FILE* reply, int64_t id, const char* cmd,
 
   close(out_pipe[1]);
   close(err_pipe[1]);
+  fcntl(out_pipe[0], F_SETFL, O_NONBLOCK);
+  fcntl(err_pipe[0], F_SETFL, O_NONBLOCK);
 
-  struct outbuf out = {malloc(MAX_OUTPUT), 0, 0};
-  struct outbuf err = {malloc(MAX_OUTPUT), 0, 0};
-  int64_t deadline = now_ms() + timeout_ms;
-  int timed_out = 0;
+  memset(job, 0, sizeof(*job));
+  job->active = 1;
+  job->id = id;
+  job->pid = pid;
+  job->fds[0] = out_pipe[0];
+  job->fds[1] = err_pipe[0];
+  job->deadline = now_ms() + timeout_ms;
+}
 
-  struct pollfd fds[2] = {{out_pipe[0], POLLIN, 0}, {err_pipe[0], POLLIN, 0}};
-  int open_fds = 2;
-  char buf[65536];
-  while (open_fds > 0) {
-    int wait = (int)(deadline - now_ms());
-    if (wait <= 0) {
-      timed_out = 1;
-      kill(-pid, SIGKILL);
-      break;
-    }
-    if (poll(fds, 2, wait) <= 0) {
+static void kill_all_jobs(void) {
+  for (int i = 0; i < MAX_JOBS; i++) {
+    if (!jobs[i].active) {
       continue;
     }
-    for (int i = 0; i < 2; i++) {
-      if (!(fds[i].revents & (POLLIN | POLLHUP)) || fds[i].fd < 0) {
-        continue;
-      }
-      ssize_t n = read(fds[i].fd, buf, sizeof(buf));
-      if (n > 0) {
-        outbuf_append(i == 0 ? &out : &err, buf, (size_t)n);
-      } else {
-        close(fds[i].fd);
-        fds[i].fd = -1;
-        open_fds--;
+    kill(-jobs[i].pid, SIGKILL);
+    waitpid(jobs[i].pid, NULL, 0);
+    for (int s = 0; s < 2; s++) {
+      if (jobs[i].fds[s] >= 0) {
+        close(jobs[i].fds[s]);
       }
     }
+    jobs[i].active = 0;
   }
-  if (fds[0].fd >= 0) {
-    close(fds[0].fd);
-  }
-  if (fds[1].fd >= 0) {
-    close(fds[1].fd);
-  }
-
-  int status = 0;
-  waitpid(pid, &status, 0);
-  int exit_code = WIFEXITED(status)     ? WEXITSTATUS(status)
-                  : WIFSIGNALED(status) ? 128 + WTERMSIG(status)
-                                        : -1;
-
-  fprintf(reply, "{\"id\":%lld,\"exitCode\":%d,\"stdout\":\"", (long long)id,
-          exit_code);
-  json_escape_to(reply, out.data, out.len);
-  fputs("\",\"stderr\":\"", reply);
-  json_escape_to(reply, err.data, err.len);
-  fprintf(reply, "\",\"truncated\":%s,\"timedOut\":%s}\n",
-          out.truncated || err.truncated ? "true" : "false",
-          timed_out ? "true" : "false");
-  free(out.data);
-  free(err.data);
 }
+
+/* ---- request handling ---- */
 
 static void handle_line(FILE* reply, char* line) {
   jsmn_parser parser;
@@ -258,6 +273,7 @@ static void handle_line(FILE* reply, char* line) {
   int n = jsmn_parse(&parser, line, strlen(line), tokens, MAX_TOKENS);
   if (n < 1 || tokens[0].type != JSMN_OBJECT) {
     fputs("{\"id\":0,\"error\":\"bad request\"}\n", reply);
+    fflush(reply);
     return;
   }
 
@@ -288,14 +304,125 @@ static void handle_line(FILE* reply, char* line) {
 
   if (op && !strcmp(op, "ping")) {
     fprintf(reply, "{\"id\":%lld,\"ok\":true}\n", (long long)id);
+    fflush(reply);
   } else if (op && !strcmp(op, "exec") && cmd) {
-    handle_exec(reply, id, cmd, cwd, timeout_ms);
+    spawn_job(reply, id, cmd, cwd, timeout_ms);
   } else {
     fprintf(reply, "{\"id\":%lld,\"error\":\"unknown op\"}\n", (long long)id);
+    fflush(reply);
   }
   free(op);
   free(cmd);
   free(cwd);
+}
+
+static void serve_connection(int conn) {
+  FILE* reply = fdopen(dup(conn), "w");
+  if (!reply) {
+    close(conn);
+    return;
+  }
+  char* inbuf = malloc(MAX_REQUEST);
+  size_t inlen = 0;
+  char buf[65536];
+
+  for (;;) {
+    struct pollfd fds[1 + 2 * MAX_JOBS];
+    struct job* fd_jobs[1 + 2 * MAX_JOBS];
+    int fd_streams[1 + 2 * MAX_JOBS];
+    nfds_t nfds = 0;
+
+    fds[nfds].fd = conn;
+    fds[nfds].events = POLLIN;
+    fd_jobs[nfds] = NULL;
+    nfds++;
+
+    int64_t next_deadline = -1;
+    for (int i = 0; i < MAX_JOBS; i++) {
+      if (!jobs[i].active) {
+        continue;
+      }
+      if (next_deadline < 0 || jobs[i].deadline < next_deadline) {
+        next_deadline = jobs[i].deadline;
+      }
+      for (int s = 0; s < 2; s++) {
+        if (jobs[i].fds[s] >= 0) {
+          fds[nfds].fd = jobs[i].fds[s];
+          fds[nfds].events = POLLIN;
+          fd_jobs[nfds] = &jobs[i];
+          fd_streams[nfds] = s;
+          nfds++;
+        }
+      }
+    }
+
+    int timeout = -1;
+    if (next_deadline >= 0) {
+      int64_t wait = next_deadline - now_ms();
+      timeout = wait < 0 ? 0 : (int)wait;
+    }
+    int ready = poll(fds, nfds, timeout);
+    if (ready < 0 && errno != EINTR) {
+      break;
+    }
+
+    /* Enforce timeouts. */
+    int64_t now = now_ms();
+    for (int i = 0; i < MAX_JOBS; i++) {
+      if (jobs[i].active && !jobs[i].timed_out && now >= jobs[i].deadline) {
+        jobs[i].timed_out = 1;
+        kill(-jobs[i].pid, SIGKILL);
+      }
+    }
+
+    /* Pump job output. */
+    for (nfds_t f = 1; f < nfds; f++) {
+      if (!(fds[f].revents & (POLLIN | POLLHUP))) {
+        continue;
+      }
+      struct job* job = fd_jobs[f];
+      int s = fd_streams[f];
+      ssize_t n = read(fds[f].fd, buf, sizeof(buf));
+      if (n > 0) {
+        send_chunk(reply, job, s, buf, (size_t)n);
+      } else if (n == 0 || (n < 0 && errno != EAGAIN && errno != EINTR)) {
+        close(job->fds[s]);
+        job->fds[s] = -1;
+        if (job->fds[0] < 0 && job->fds[1] < 0) {
+          finish_job(reply, job);
+        }
+      }
+    }
+
+    /* Pump requests. */
+    if (fds[0].revents & (POLLIN | POLLHUP)) {
+      ssize_t n = read(conn, buf, sizeof(buf));
+      if (n <= 0) {
+        break; /* control plane went away */
+      }
+      if (inlen + (size_t)n > MAX_REQUEST - 1) {
+        inlen = 0; /* oversized request; drop buffered data */
+        continue;
+      }
+      memcpy(inbuf + inlen, buf, (size_t)n);
+      inlen += (size_t)n;
+      inbuf[inlen] = 0;
+      char* start = inbuf;
+      char* newline;
+      while ((newline = strchr(start, '\n'))) {
+        *newline = 0;
+        handle_line(reply, start);
+        start = newline + 1;
+      }
+      inlen -= (size_t)(start - inbuf);
+      memmove(inbuf, start, inlen);
+    }
+  }
+
+  kill_all_jobs();
+  free(inbuf);
+  fclose(reply);
+  close(conn);
 }
 
 int main(void) {
@@ -321,20 +448,6 @@ int main(void) {
     if (conn < 0) {
       continue;
     }
-    FILE* in = fdopen(conn, "r");
-    FILE* reply = fdopen(dup(conn), "w");
-    if (!in || !reply) {
-      close(conn);
-      continue;
-    }
-    setvbuf(reply, NULL, _IOLBF, 0);
-    char* line = malloc(MAX_REQUEST);
-    while (line && fgets(line, MAX_REQUEST, in)) {
-      handle_line(reply, line);
-      fflush(reply);
-    }
-    free(line);
-    fclose(in);
-    fclose(reply);
+    serve_connection(conn);
   }
 }

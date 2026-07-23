@@ -108,7 +108,11 @@ $("exec-row").addEventListener("submit", async event => {
   appendOutput(`> ${cmd}\n`, "echo");
   const started = Date.now();
   try {
-    const result = await HarnessVM.exec(cmd);
+    const result = await HarnessVM.exec(cmd, {
+      onOutput(stream, text) {
+        appendOutput(text, stream == "stderr" ? "stderr" : undefined);
+      },
+    });
     const flags = [
       result.timedOut ? "timed out" : "",
       result.truncated ? "output truncated" : "",
@@ -120,12 +124,6 @@ $("exec-row").addEventListener("submit", async event => {
       `[exit ${result.exitCode}, ${Date.now() - started}ms${flags}]\n`,
       "meta"
     );
-    if (result.stdout) {
-      appendOutput(result.stdout);
-    }
-    if (result.stderr) {
-      appendOutput(result.stderr, "stderr");
-    }
   } catch (e) {
     appendOutput(`[exec error: ${e.message}]\n`, "meta");
   }
