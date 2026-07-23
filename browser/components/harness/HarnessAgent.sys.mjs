@@ -149,8 +149,15 @@ export const HarnessAgent = {
   },
 
   request(fields, timeoutMs = 30000, onOutput) {
+    return this.requestWithId(fields, timeoutMs, onOutput).promise;
+  },
+
+  requestWithId(fields, timeoutMs = 30000, onOutput) {
     if (!this._outStream) {
-      return Promise.reject(new Error("not connected to guest-agent"));
+      return {
+        id: 0,
+        promise: Promise.reject(new Error("not connected to guest-agent")),
+      };
     }
     const { id, promise } = this._requests.register({
       timeoutMs,
@@ -168,7 +175,7 @@ export const HarnessAgent = {
     } catch (e) {
       this._requests.reject(id, e);
     }
-    return promise;
+    return { id, promise };
   },
 
   /**
@@ -186,7 +193,24 @@ export const HarnessAgent = {
    *   it the command gets immediate EOF
    * @returns {Promise<{exitCode, stdout, stderr, truncated, timedOut}>}
    */
-  exec(
+  exec(cmd, options) {
+    return this.execStart(cmd, options).result;
+  },
+
+  /**
+   * Like exec(), but also returns the request id so the job can be killed
+   * with kill() while it runs.
+   *
+   * @param {string} cmd shell command to run
+   * @param {object} [options] same options as exec()
+   * @param {string} [options.cwd]
+   * @param {number} [options.timeoutMs]
+   * @param {Function} [options.onOutput]
+   * @param {object} [options.env]
+   * @param {string} [options.stdin]
+   * @returns {{requestId: number, result: Promise}}
+   */
+  execStart(
     cmd,
     { cwd = "/workspace", timeoutMs = 30000, onOutput, env, stdin } = {}
   ) {
@@ -202,7 +226,16 @@ export const HarnessAgent = {
       }
       fields.stdinB64 = btoa(binary);
     }
-    return this.request(fields, timeoutMs + HOST_TIMEOUT_SLACK_MS, onOutput);
+    const { id, promise } = this.requestWithId(
+      fields,
+      timeoutMs + HOST_TIMEOUT_SLACK_MS,
+      onOutput
+    );
+    return { requestId: id, result: promise };
+  },
+
+  kill(requestId) {
+    return this.request({ op: "kill", targetId: requestId }, 5000);
   },
 
   close() {

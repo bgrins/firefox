@@ -6,6 +6,12 @@ import { CodexAppServerClient } from "moz-src:///browser/components/harness/code
 
 const lazy = {};
 
+ChromeUtils.defineESModuleGetters(lazy, {
+  CodexExecBridge:
+    "moz-src:///browser/components/harness/codex/CodexExecBridge.sys.mjs",
+  HarnessVM: "moz-src:///browser/components/harness/HarnessVM.sys.mjs",
+});
+
 ChromeUtils.defineLazyGetter(lazy, "logConsole", () =>
   console.createInstance({
     prefix: "AgentService",
@@ -27,6 +33,7 @@ export const AgentService = {
   _starting: null,
   _listeners: new Set(),
   _conversations: new Map(),
+  _environmentId: null,
 
   addListener(listener) {
     this._listeners.add(listener);
@@ -57,6 +64,7 @@ export const AgentService = {
         () => {
           this._client = client;
           this._starting = null;
+          this._environmentId = null;
           return client;
         },
         e => {
@@ -66,6 +74,28 @@ export const AgentService = {
       );
     }
     return this._starting;
+  },
+
+  // When the micro-VM is running, expose it to the sidecar as an external
+  // exec-server environment so commands and fs ops route into the guest.
+  async _ensureEnvironment(client) {
+    if (lazy.HarnessVM.state != "running") {
+      return null;
+    }
+    if (!this._environmentId) {
+      const url = lazy.CodexExecBridge.start();
+      const environmentId = `harness-vm-${Services.uuid
+        .generateUUID()
+        .toString()
+        .slice(1, 9)}`;
+      await client.request("environment/add", {
+        environmentId,
+        execServerUrl: url,
+      });
+      this._environmentId = environmentId;
+      lazy.logConsole.log(`environment ${environmentId} -> ${url}`);
+    }
+    return this._environmentId;
   },
 
   /**
@@ -81,6 +111,10 @@ export const AgentService = {
     }
     if (modelProvider) {
       params.modelProvider = modelProvider;
+    }
+    const environmentId = await this._ensureEnvironment(client);
+    if (environmentId) {
+      params.environments = [{ environmentId, cwd: "/workspace" }];
     }
     const result = await client.request("thread/start", params);
     const conversationId = result.thread.id;
@@ -176,6 +210,8 @@ export const AgentService = {
     const client = this._client;
     this._client = null;
     this._conversations.clear();
+    this._environmentId = null;
+    lazy.CodexExecBridge.stop();
     await client?.stop();
   },
 };

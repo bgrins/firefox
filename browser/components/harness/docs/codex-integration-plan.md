@@ -216,6 +216,20 @@ Decisions settled with the project owner:
 
 ### Follow-ups (explicitly deferred)
 
+- **User-selected additional volume mounts**: let the user attach chosen host
+  directories into the guest (helper already supports multiple `--volume`
+  host:tag pairs; needs UI for picking a directory + read-only/read-write
+  choice, guest-side mount wiring, and extending the exec-bridge path policy
+  beyond `/workspace` to the mounted roots). Never offer profile/home
+  wholesale; per-directory opt-in only.
+- **Connect additional tools to the agent**: beyond the exec-server surface —
+  e.g. exposing browser-side capabilities (page content, screenshots,
+  downloads) as tools the model can call. Options: register as MCP servers in
+  the sidecar's config (Codex supports MCP; currently disabled by our
+  fail-closed posture) or stage data into `/task/input` via
+  TaskWorkspaceManager and reference guest paths. Requires a per-tool
+  allowlist and the same audit-log treatment as exec.
+
 - Per-task ephemeral VM sessions + task-dir lifecycle + crash reconciliation.
 - Read-only base image + tmpfs overlay; unprivileged `task` user for exec.
 - Guest image additions (bash, jq, sqlite, ripgrep via pinned apks) — add

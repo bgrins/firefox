@@ -272,10 +272,10 @@ static void finish_job(FILE* reply, struct job* job) {
   job->active = 0;
 }
 
-static void spawn_job(FILE* reply, int64_t id, const char* cmd,
-                      const char* cwd, int64_t timeout_ms,
-                      char* const env_keys[], char* const env_vals[],
-                      int env_count, char* stdin_buf, size_t stdin_len) {
+static void spawn_job(FILE* reply, int64_t id, const char* cmd, const char* cwd,
+                      int64_t timeout_ms, char* const env_keys[],
+                      char* const env_vals[], int env_count, char* stdin_buf,
+                      size_t stdin_len) {
   struct job* job = NULL;
   for (int i = 0; i < MAX_JOBS; i++) {
     if (!jobs[i].active) {
@@ -385,6 +385,7 @@ static void handle_line(FILE* reply, char* line) {
   }
 
   int64_t id = 0;
+  int64_t target_id = 0;
   int64_t timeout_ms = DEFAULT_TIMEOUT_MS;
   char* op = NULL;
   char* cmd = NULL;
@@ -404,6 +405,8 @@ static void handle_line(FILE* reply, char* line) {
     }
     if (tok_eq(line, key, "id")) {
       id = tok_int(line, &tokens[vi], 0);
+    } else if (tok_eq(line, key, "targetId")) {
+      target_id = tok_int(line, &tokens[vi], 0);
     } else if (tok_eq(line, key, "op")) {
       op = tok_strdup(line, &tokens[vi]);
     } else if (tok_eq(line, key, "cmd")) {
@@ -438,6 +441,20 @@ static void handle_line(FILE* reply, char* line) {
 
   if (op && !strcmp(op, "ping")) {
     fprintf(reply, "{\"id\":%lld,\"ok\":true}\n", (long long)id);
+    fflush(reply);
+    free(stdin_buf);
+  } else if (op && !strcmp(op, "kill")) {
+    /* Kill the exec job whose request id is targetId; its normal done
+     * message (exitCode 137) still follows via the poll loop. */
+    int found = 0;
+    for (int j = 0; j < MAX_JOBS; j++) {
+      if (jobs[j].active && jobs[j].id == target_id) {
+        kill(-jobs[j].pid, SIGKILL);
+        found = 1;
+      }
+    }
+    fprintf(reply, "{\"id\":%lld,\"ok\":true,\"found\":%s}\n", (long long)id,
+            found ? "true" : "false");
     fflush(reply);
     free(stdin_buf);
   } else if (op && !strcmp(op, "exec") && cmd) {
