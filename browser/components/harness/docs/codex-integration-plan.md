@@ -96,21 +96,19 @@ putFile/getFile RPC. Amended position:
 - Pure tmpfs + RPC remains the stricter fallback if virtio-fs symlink review
   finds anything uncomfortable; the bridge API shape doesn't change.
 
-### 5. Per-task ephemeral sessions
+### 5. One long-lived VM first; per-task sessions are a follow-up
 
-Current `HarnessVM` is a singleton with a persistent rootfs (right for the
-about:harness fiddle, wrong for tasks). Refactor to sessions:
+To be clear about granularity: nothing here proposes a VM per bash command.
+The handoff wanted a fresh VM per *conversation/task*; even that is deferred.
+The first slices reuse the existing long-lived `HarnessVM` singleton and its
+`/workspace` mount — simplest possible end-to-end, and boot (~1s) + rootfs
+clone (~130ms) mean sessionizing later is cheap when isolation-between-tasks
+starts to matter. Follow-up shape when it does:
 
-- `HarnessVM.createSession({taskDir, mem, cpus})` → fresh rootfs copy
-  (~130ms, APFS clone), fresh vsock socket, boot, agent connect; `session.destroy()`
-  kills the VM and deletes rootfs + task dir. The about:harness fiddle becomes
-  one long-lived session.
-- Fresh rootfs copy per task satisfies "no persistent guest state" for the
-  prototype; true read-only base + tmpfs overlay is a later hardening step
-  (virtio-fs RO root via `krun_add_virtiofs3` flags + guest-side overlay
-  mount).
-- Startup reconciliation: kill orphaned `harness-vm-helper` processes and
-  sweep `profile/harness/tasks/` on init (browser-crash recovery).
+- `HarnessVM.createSession({taskDir, mem, cpus})` → fresh rootfs clone, fresh
+  vsock socket; `session.destroy()` deletes rootfs + task dir; startup sweep
+  reconciles orphans after a crash. The about:harness fiddle becomes one
+  long-lived session.
 
 ### 6. Guest image additions
 
@@ -170,35 +168,74 @@ Codex never talks to the guest directly; the guest never sees credentials or
 the network; every operation crosses `CodexExecBridge`, which is also the
 instrumentation point.
 
-## Work items (ordered)
+## Locked plan (2026-07-23)
 
-1. HarnessVM sessionization + task dir lifecycle + startup reconciliation.
-2. guest-agent: fs ops with guest-namespace path policy; unprivileged exec
-   user; (PTY if schema demands).
-3. Guest image: pinned apk additions (bash, jq, sqlite, ripgrep), `task` user.
-4. Codex pinning: manifest, fetch/verify script, schema generation + digest.
-5. `CodexAppServerClient` (factor shared JSON-lines core with HarnessAgent).
-6. `CodexExecBridge`: WS server + op translation + audit events.
-7. `AgentService` + sidebar/about page conversation UI.
-8. Tests: extend the existing mochitest harness — routing-proof suite (§12 ops
-   each asserted through bridge logs), host canary, isolation, cleanup, plus
-   the acceptance list from the handoff.
+Decisions settled with the project owner:
 
-Items 1–3 are pure harness work with no Codex dependency and are useful for
-any agent backend; they can land first.
+- **UI**: conversation panel in about:harness. Sidebar is later packaging.
+- **Codex binary**: pinned download with sha256 verification via a setup
+  script, exactly the libkrunfw pattern — never committed, never fetched
+  "latest" at runtime, dev-setup only.
+- **Models**: multi-model from day one via Codex's provider configuration in
+  our dedicated `CODEX_HOME/config.toml`. Primary spike path is a local
+  OpenAI-compatible endpoint (ollama, e.g. gemma) — free, no credentials, no
+  network questions. OpenAI proper uses a developer-preauthenticated
+  `CODEX_HOME` when wanted; no auth UI.
+- **VM granularity**: reuse the existing long-lived VM + `/workspace`
+  (decision 5). No sessionization in the first slices.
+- **PTY**: pipes-first; `forkpty` only if the pinned schema demands it.
+- **Protocol**: schema generated from the pinned binary is step 0; no
+  protocol structures written from memory. Golden transcript captured for
+  tests.
+- **Guest fs policy**: default-deny outside `/task`→(`/workspace` for now);
+  read-only allowlist entries added only when transcripts prove the pinned
+  build needs them.
 
-## Open questions
+### Slices (in order, each lands with tests)
 
-- PTY requirement in the pinned exec-server schema (drives guest-agent work).
-- Exact `environment/add` / sandbox-policy shapes — generate the schema from
-  the pinned binary before writing any protocol code.
-- Auth path for the prototype: developer-preauthenticated CODEX_HOME is the
-  least machinery; confirm acceptable.
-- Whether Codex requires any fs ops outside `/task` (e.g. reading its own
-  config through the exec server) — if so, explicit guest-system allowlist,
-  read-only.
-- libkrun virtio-fs symlink/`..` handling review (decision 4 depends on it;
-  fallback is tmpfs + RPC).
+1. **Pin + probe**: release manifest (version/url/sha256), `setup-codex.sh`,
+   schema generation + digest; handshake the real binary over stdio; verify an
+   ollama-backed chat turn works headlessly.
+2. **Client**: factor the JSON-lines core out of `HarnessAgent`;
+   `CodexAppServerClient.sys.mjs` (Subprocess, clean env, dedicated
+   CODEX_HOME/HOME/TMPDIR, id correlation, size limits, exit rejection,
+   orderly + forced shutdown). Test against the real pinned binary
+   (initialize/shutdown needs no model); skips when the binary is absent, same
+   pattern as the VM mochitest.
+3. **Chat end-to-end**: `AgentService.sys.mjs` narrow API
+   (createConversation / sendMessage / interrupt / events) + about:harness
+   chat panel streaming deltas. Method allowlist; no host-exec methods
+   reachable.
+4. **Exec bridge**: `CodexExecBridge.sys.mjs` loopback WS server
+   (single-accept, ephemeral port) translating exec-server ops onto
+   `HarnessAgent`; `environment/add` wiring; audit log of every routed op;
+   host-canary + routing-proof mochitests (§12 of the handoff).
+5. **Guest fs ops** in guest-agent as the bridge's fs backend (guest-namespace
+   canonicalization + `/task` policy), sized by what the schema/transcript
+   actually require.
+
+### Follow-ups (explicitly deferred)
+
+- Per-task ephemeral VM sessions + task-dir lifecycle + crash reconciliation.
+- Read-only base image + tmpfs overlay; unprivileged `task` user for exec.
+- Guest image additions (bash, jq, sqlite, ripgrep via pinned apks) — add
+  when a real turn needs them, not before.
+- Gated egress proxy (`proxy-plan.md`) — guest stays offline until then.
+- virtio-fs symlink/`..` adversarial review + tests — required before calling
+  the workspace mount a *security boundary* rather than a dev prototype.
+- Sidebar UI, approval-flow UX, concurrent conversations, other host OSes.
+
+## Resolved / remaining questions
+
+- ~~PTY~~ → pipes-first (locked; revisit only on schema evidence).
+- ~~Auth~~ → ollama for spikes; preauth CODEX_HOME for OpenAI.
+- ~~UI surface~~ → about:harness panel.
+- ~~Binary distribution~~ → pinned download, libkrun pattern.
+- Remaining: exact experimental shapes (`environment/add`, sandbox policy,
+  per-thread model/provider selection) — answered by slice 1's schema +
+  transcript; whether app-server allows per-thread provider override or only
+  per-CODEX_HOME config (affects how "many models" surfaces in the UI);
+  virtio-fs review (deferred, listed above).
 
 ## Non-goals
 
