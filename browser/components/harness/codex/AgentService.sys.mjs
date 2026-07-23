@@ -123,10 +123,9 @@ export const AgentService = {
     if (!this._environmentId) {
       await this._seedWorkspaceContext();
       const url = lazy.CodexExecBridge.start();
-      const environmentId = `harness-vm-${Services.uuid
-        .generateUUID()
-        .toString()
-        .slice(1, 9)}`;
+      // Stable id so threads resumed in a later sidecar instance still
+      // resolve their recorded environment after we re-register it.
+      const environmentId = "harness-vm";
       await client.request("environment/add", {
         environmentId,
         execServerUrl: url,
@@ -224,6 +223,44 @@ You are running inside a small Alpine Linux micro-VM embedded in Firefox.
       conversationId,
       model: result.model,
       modelProvider: result.modelProvider,
+    };
+  },
+
+  /**
+   * @param {object} [options]
+   * @param {number} [options.limit]
+   * @returns {Promise<Array<{conversationId, preview, updatedAt}>>}
+   */
+  async listConversations(options = {}) {
+    const { limit = 25 } = options;
+    const client = await this._ensureClient();
+    const result = await client.request("thread/list", { limit });
+    return (result.data ?? []).map(thread => ({
+      conversationId: thread.id,
+      preview: thread.preview || thread.name || "(empty conversation)",
+      updatedAt: thread.updatedAt,
+    }));
+  },
+
+  /**
+   * Reopens a Codex-persisted thread. Returns the recorded turns so the UI
+   * can render the history.
+   *
+   * @param {string} conversationId
+   */
+  async resumeConversation(conversationId) {
+    const client = await this._ensureClient();
+    await this._ensureEnvironment(client);
+    const result = await client.request("thread/resume", {
+      threadId: conversationId,
+      cwd: "/workspace",
+    });
+    this._conversations.set(conversationId, { activeTurnId: null });
+    return {
+      conversationId,
+      model: result.model,
+      modelProvider: result.modelProvider,
+      turns: result.thread?.turns ?? [],
     };
   },
 

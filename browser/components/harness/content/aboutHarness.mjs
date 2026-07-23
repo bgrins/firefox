@@ -342,6 +342,133 @@ function onAgentEvent(event) {
   }
 }
 
+let temporaryMode = false;
+
+function resetChat() {
+  chatConversationId = null;
+  chatAgentBubble = null;
+  turnActivity = null;
+  activityRows.clear();
+  $("chat-log").textContent = "";
+  $("chat-history").value = "";
+}
+
+$("chat-new").addEventListener("click", resetChat);
+
+$("chat-temporary").addEventListener("click", () => {
+  temporaryMode = !temporaryMode;
+  const button = $("chat-temporary");
+  button.setAttribute("aria-pressed", String(temporaryMode));
+  button.classList.toggle("active", temporaryMode);
+  resetChat();
+  if (temporaryMode) {
+    chatBubble("meta", "temporary chat: this conversation will not be saved");
+  }
+});
+
+async function refreshHistory() {
+  try {
+    const conversations = await AgentService.listConversations();
+    const select = $("chat-history");
+    const current = select.value;
+    select.textContent = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "History...";
+    select.appendChild(placeholder);
+    for (const conversation of conversations) {
+      const option = document.createElement("option");
+      option.value = conversation.conversationId;
+      const date = new Date(conversation.updatedAt * 1000);
+      option.textContent = `${date.toLocaleDateString()} ${conversation.preview.slice(0, 70)}`;
+      select.appendChild(option);
+    }
+    select.value = current;
+  } catch (e) {
+    // Sidecar not running yet; history fills in once it is.
+  }
+}
+
+// Renders a persisted turn from thread/resume: user/agent messages as
+// bubbles, everything else in a collapsed activity block.
+function renderHistoryTurn(turn) {
+  let steps = 0;
+  let activityList = null;
+  const ensureBlock = () => {
+    if (!activityList) {
+      const details = document.createElement("details");
+      details.className = "activity";
+      const summary = document.createElement("summary");
+      summary.textContent = "";
+      activityList = document.createElement("div");
+      activityList.className = "activity-items";
+      details.append(summary, activityList);
+      $("chat-log").appendChild(details);
+    }
+    return activityList;
+  };
+  for (const item of turn.items ?? []) {
+    switch (item.type) {
+      case "userMessage":
+        chatBubble(
+          "user",
+          (item.content ?? [])
+            .map(part => part.text ?? "")
+            .join("")
+            .trim()
+        );
+        break;
+      case "agentMessage":
+        chatBubble("agent", item.text ?? "");
+        break;
+      default: {
+        const row = document.createElement("div");
+        row.className = `activity-row${item.type == "commandExecution" ? " command" : ""}`;
+        if (item.type == "commandExecution") {
+          row.textContent = `$ ${item.command}`;
+        } else if (item.type == "reasoning") {
+          row.textContent = `thinking: ${(item.summary?.join(" ") ?? "").slice(0, 120)}`;
+        } else {
+          row.textContent = item.type;
+        }
+        ensureBlock().appendChild(row);
+        steps++;
+      }
+    }
+    if (activityList) {
+      activityList.parentNode.querySelector("summary").textContent =
+        `${steps} step${steps == 1 ? "" : "s"}`;
+    }
+  }
+}
+
+$("chat-history").addEventListener("focus", refreshHistory);
+$("chat-history").addEventListener("change", async () => {
+  const conversationId = $("chat-history").value;
+  if (!conversationId) {
+    return;
+  }
+  resetChat();
+  $("chat-history").value = conversationId;
+  $("chat-send").disabled = true;
+  try {
+    chatBubble("meta", "resuming conversation...");
+    const resumed = await AgentService.resumeConversation(conversationId);
+    chatConversationId = conversationId;
+    for (const turn of resumed.turns) {
+      renderHistoryTurn(turn);
+    }
+    chatBubble(
+      "meta",
+      `resumed (${resumed.modelProvider ?? "?"}/${resumed.model ?? "?"})`
+    );
+  } catch (e) {
+    chatBubble("meta", `error: ${e.message}`);
+  } finally {
+    $("chat-send").disabled = false;
+  }
+});
+
 $("chat-row").addEventListener("submit", async event => {
   event.preventDefault();
   const input = $("chat-input");
@@ -355,11 +482,14 @@ $("chat-row").addEventListener("submit", async event => {
   try {
     if (!chatConversationId) {
       chatBubble("meta", "starting agent sidecar...");
-      const conversation = await AgentService.createConversation();
+      const conversation = await AgentService.createConversation({
+        persist: !temporaryMode,
+      });
       chatConversationId = conversation.conversationId;
       chatBubble(
         "meta",
-        `conversation ready (${conversation.modelProvider}/${conversation.model})`
+        `conversation ready (${conversation.modelProvider}/${conversation.model})` +
+          (temporaryMode ? " - temporary" : "")
       );
     }
     await AgentService.sendMessage(chatConversationId, text);
