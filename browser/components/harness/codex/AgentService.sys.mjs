@@ -427,6 +427,30 @@ ${mountLines}`;
   },
 
   /**
+   * Stages an open tab's content into the conversation's workspace so the
+   * user can attach it to a message (the manual counterpart of the
+   * get_page_content tool).
+   *
+   * @param {string|null} conversationId
+   * @param {number} tabIndex
+   * @returns {Promise<{guestPath, url, title, chars}>}
+   */
+  stageTab(conversationId, tabIndex) {
+    const record = this._conversations.get(conversationId);
+    const workspacePath =
+      record?.session?.workspacePath ?? lazy.HarnessVM.workspacePath;
+    return lazy.HarnessBrowserTools.stageTab(tabIndex, workspacePath);
+  },
+
+  listOpenTabs() {
+    return lazy.HarnessBrowserTools._tabs().map(({ index, title, url }) => ({
+      index,
+      title,
+      url,
+    }));
+  },
+
+  /**
    * @param {string|number} requestId from an approvalRequest event
    * @param {string} decision accept | acceptForSession | decline | cancel
    */

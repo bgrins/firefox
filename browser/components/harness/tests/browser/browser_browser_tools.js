@@ -104,6 +104,39 @@ add_task(async function test_get_page_content_stages_to_workspace() {
   ok(!bad.success, "invalid tab index fails cleanly");
 });
 
+add_task(async function test_stage_tab_for_attachment() {
+  const workspace = PathUtils.join(PathUtils.profileDir, "attach-workspace");
+  await BrowserTestUtils.withNewTab(
+    "data:text/html,<title>AttachMe</title><p>attached body text</p>",
+    async () => {
+      const tab = AgentService.listOpenTabs().find(t =>
+        t.title.includes("AttachMe")
+      );
+      ok(tab, "tab listed via AgentService");
+      const staged = await AgentService.stageTab(null, tab.index);
+      // Default-session workspace when no conversation exists yet.
+      ok(staged.guestPath.startsWith("/workspace/.browser/"), "guest path");
+      Assert.greater(staged.chars, 0, "content staged");
+
+      const stagedDirect = await HarnessBrowserTools.stageTab(
+        tab.index,
+        workspace
+      );
+      const content = await IOUtils.readUTF8(
+        PathUtils.join(
+          workspace,
+          ".browser",
+          stagedDirect.guestPath.split("/").pop()
+        )
+      );
+      ok(
+        content.includes("attached body text"),
+        "staged file holds the page text"
+      );
+    }
+  );
+});
+
 add_task(async function test_agentservice_tool_dispatch() {
   const events = [];
   const listener = event => events.push(event);

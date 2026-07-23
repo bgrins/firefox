@@ -544,15 +544,78 @@ $("chat-history").addEventListener("change", async () => {
   }
 });
 
+// Tabs the user attached to the next message; staged into the workspace at
+// send time so the agent can read them.
+let pendingAttachments = [];
+
+function renderAttachments() {
+  const container = $("chat-attachments");
+  container.textContent = "";
+  pendingAttachments.forEach((attachment, position) => {
+    const chip = document.createElement("span");
+    chip.className = "attachment-chip";
+    chip.textContent = `@ ${attachment.title.slice(0, 40)} `;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Remove ${attachment.title}`);
+    remove.addEventListener("click", () => {
+      pendingAttachments.splice(position, 1);
+      renderAttachments();
+    });
+    chip.appendChild(remove);
+    container.appendChild(chip);
+  });
+}
+
+$("chat-attach").addEventListener("focus", () => {
+  const select = $("chat-attach");
+  select.textContent = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "@ Tab...";
+  select.appendChild(placeholder);
+  for (const tab of AgentService.listOpenTabs()) {
+    const option = document.createElement("option");
+    option.value = String(tab.index);
+    option.textContent = tab.title.slice(0, 60);
+    select.appendChild(option);
+  }
+});
+
+$("chat-attach").addEventListener("change", () => {
+  const select = $("chat-attach");
+  if (!select.value) {
+    return;
+  }
+  const tab = AgentService.listOpenTabs().find(
+    entry => String(entry.index) == select.value
+  );
+  if (tab && !pendingAttachments.some(a => a.index == tab.index)) {
+    pendingAttachments.push(tab);
+    renderAttachments();
+  }
+  select.value = "";
+});
+
 $("chat-row").addEventListener("submit", async event => {
   event.preventDefault();
   const input = $("chat-input");
-  const text = input.value.trim();
-  if (!text) {
+  let text = input.value.trim();
+  if (!text && !pendingAttachments.length) {
     return;
   }
   input.value = "";
-  chatBubble("user", text);
+  const attachments = pendingAttachments;
+  pendingAttachments = [];
+  renderAttachments();
+  chatBubble(
+    "user",
+    text +
+      (attachments.length
+        ? `\n${attachments.map(a => `@ ${a.title}`).join("  ")}`
+        : "")
+  );
   $("chat-send").disabled = true;
   try {
     if (!chatConversationId) {
@@ -566,6 +629,16 @@ $("chat-row").addEventListener("submit", async event => {
         `conversation ready (${conversation.modelProvider}/${conversation.model})` +
           (temporaryMode ? " - temporary" : "")
       );
+    }
+    for (const attachment of attachments) {
+      const staged = await AgentService.stageTab(
+        chatConversationId,
+        attachment.index
+      );
+      text +=
+        `\n\n[User attached tab "${staged.title}" (${staged.url}): ` +
+        `${staged.chars} chars of untrusted page text saved at ` +
+        `${staged.guestPath} — read it with sandbox commands as needed.]`;
     }
     await AgentService.sendMessage(chatConversationId, text);
   } catch (e) {
