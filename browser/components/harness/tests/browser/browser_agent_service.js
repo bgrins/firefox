@@ -87,3 +87,59 @@ add_task(async function test_agent_service_conversation() {
   await AgentService.shutdown();
   ok(true, "shutdown clean");
 });
+
+add_task(async function test_delete_conversation() {
+  const { HarnessVM } = ChromeUtils.importESModule(
+    "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
+  );
+  const greBinD = Services.dirsvc.get("GreBinD", Ci.nsIFile);
+  greBinD.append("libkrun.dylib");
+  if (
+    !(await IOUtils.exists(CodexAppServerClient.defaultBinaryPath())) ||
+    !(await IOUtils.exists(greBinD.path))
+  ) {
+    todo(false, "codex binary or VM deps not present; run setup scripts");
+    return;
+  }
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.harness.enabled", true]],
+  });
+  registerCleanupFunction(async () => {
+    await AgentService.shutdown();
+    if (HarnessVM.state == "running") {
+      await HarnessVM.stop();
+    }
+  });
+
+  if (!(await ollamaAvailable())) {
+    // Threads only persist (and list) once they have a turn.
+    todo(false, "ollama not running; skipped delete roundtrip");
+    return;
+  }
+  const conversation = await AgentService.createConversation();
+  const completed = new Promise(resolve => {
+    const listener = event => {
+      if (event.type == "turnCompleted") {
+        AgentService.removeListener(listener);
+        resolve();
+      }
+    };
+    AgentService.addListener(listener);
+  });
+  await AgentService.sendMessage(
+    conversation.conversationId,
+    "Reply with exactly one word: ping"
+  );
+  await completed;
+  const listed = await AgentService.listConversations();
+  ok(
+    listed.some(c => c.conversationId == conversation.conversationId),
+    "conversation appears in the list"
+  );
+  await AgentService.deleteConversation(conversation.conversationId);
+  const after = await AgentService.listConversations();
+  ok(
+    !after.some(c => c.conversationId == conversation.conversationId),
+    "deleted conversation no longer listed"
+  );
+});

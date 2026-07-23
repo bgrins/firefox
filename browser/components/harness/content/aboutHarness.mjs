@@ -419,6 +419,24 @@ function onAgentEvent(event) {
 
 let temporaryMode = false;
 
+function updateDeleteButton() {
+  $("chat-delete").disabled = !chatConversationId || temporaryMode;
+}
+
+$("chat-delete").addEventListener("click", async () => {
+  if (!chatConversationId) {
+    return;
+  }
+  const id = chatConversationId;
+  try {
+    await AgentService.deleteConversation(id);
+    resetChat();
+    chatBubble("meta", "conversation deleted");
+  } catch (e) {
+    chatBubble("meta", `error: ${e.message}`);
+  }
+});
+
 function resetChat() {
   chatConversationId = null;
   chatAgentBubble = null;
@@ -426,6 +444,7 @@ function resetChat() {
   activityRows.clear();
   $("chat-log").textContent = "";
   $("chat-history").value = "";
+  updateDeleteButton();
 }
 
 $("chat-new").addEventListener("click", resetChat);
@@ -441,6 +460,17 @@ $("chat-temporary").addEventListener("click", () => {
   }
 });
 
+function relativeTime(epochSeconds) {
+  const delta = Date.now() / 1000 - epochSeconds;
+  if (delta < 3600) {
+    return `${Math.max(1, Math.round(delta / 60))}m ago`;
+  }
+  if (delta < 86400) {
+    return `${Math.round(delta / 3600)}h ago`;
+  }
+  return `${Math.round(delta / 86400)}d ago`;
+}
+
 async function refreshHistory() {
   try {
     const conversations = await AgentService.listConversations();
@@ -454,8 +484,7 @@ async function refreshHistory() {
     for (const conversation of conversations) {
       const option = document.createElement("option");
       option.value = conversation.conversationId;
-      const date = new Date(conversation.updatedAt * 1000);
-      option.textContent = `${date.toLocaleDateString()} ${conversation.preview.slice(0, 70)}`;
+      option.textContent = `${relativeTime(conversation.updatedAt)} · ${conversation.preview.slice(0, 70)}`;
       select.appendChild(option);
     }
     select.value = current;
@@ -530,6 +559,7 @@ $("chat-history").addEventListener("change", async () => {
     chatBubble("meta", "resuming conversation...");
     const resumed = await AgentService.resumeConversation(conversationId);
     chatConversationId = conversationId;
+    updateDeleteButton();
     for (const turn of resumed.turns) {
       renderHistoryTurn(turn);
     }
@@ -624,6 +654,7 @@ $("chat-row").addEventListener("submit", async event => {
         persist: !temporaryMode,
       });
       chatConversationId = conversation.conversationId;
+      updateDeleteButton();
       chatBubble(
         "meta",
         `conversation ready (${conversation.modelProvider}/${conversation.model})` +
@@ -679,13 +710,18 @@ function loadSettings() {
     "browser.harness.codex.provider",
     "ollama"
   );
-  $(provider == "openai" ? "provider-openai" : "provider-ollama").checked =
-    true;
+  const radios = {
+    openai: "provider-openai",
+    openrouter: "provider-openrouter",
+    ollama: "provider-ollama",
+  };
+  $(radios[provider] ?? "provider-ollama").checked = true;
   $("model-input").value = Services.prefs.getStringPref(
     "browser.harness.codex.model",
     ""
   );
   $("settings-login").hidden = provider != "openai";
+  $("openrouter-key-row").hidden = provider != "openrouter";
   $("session-per-conversation").checked = Services.prefs.getBoolPref(
     "browser.harness.sessionPerConversation",
     false
@@ -720,19 +756,42 @@ $("session-per-conversation").addEventListener("change", () => {
   );
 });
 
-for (const id of ["provider-ollama", "provider-openai"]) {
+function selectedProvider() {
+  if ($("provider-openai").checked) {
+    return "openai";
+  }
+  if ($("provider-openrouter").checked) {
+    return "openrouter";
+  }
+  return "ollama";
+}
+
+for (const id of [
+  "provider-ollama",
+  "provider-openai",
+  "provider-openrouter",
+]) {
   $(id).addEventListener("change", () => {
     $("settings-login").hidden = !$("provider-openai").checked;
+    $("openrouter-key-row").hidden = !$("provider-openrouter").checked;
   });
 }
 
 $("settings-save").addEventListener("click", async () => {
-  const provider = $("provider-openai").checked ? "openai" : "ollama";
+  const provider = selectedProvider();
   Services.prefs.setStringPref("browser.harness.codex.provider", provider);
   Services.prefs.setStringPref(
     "browser.harness.codex.model",
     $("model-input").value.trim()
   );
+  const key = $("openrouter-key").value.trim();
+  if (provider == "openrouter" && key) {
+    const { CodexAppServerClient } = ChromeUtils.importESModule(
+      "moz-src:///browser/components/harness/codex/CodexAppServerClient.sys.mjs"
+    );
+    await CodexAppServerClient.setOpenRouterKey(key);
+    $("openrouter-key").value = "";
+  }
   await AgentService.applySettings();
   chatConversationId = null;
   $("settings-status").textContent =

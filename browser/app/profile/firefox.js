@@ -3680,6 +3680,8 @@ pref("browser.harness.allownet", false);
 pref("browser.harness.codex.provider", "ollama");
 // Model slug; empty selects the provider default (ollama: gemma4:latest).
 pref("browser.harness.codex.model", "");
+// OSKeyStore-encrypted OpenRouter bearer token (set via the settings UI).
+pref("browser.harness.codex.openrouterKey", "");
 // User-selected host folders shared into the guest:
 // JSON [{path, tag, readOnly}]; mounted at /mnt/<tag>.
 pref("browser.harness.mounts", "[]");

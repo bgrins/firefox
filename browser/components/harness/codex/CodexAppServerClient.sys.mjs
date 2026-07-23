@@ -10,6 +10,7 @@ import {
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  OSKeyStore: "resource://gre/modules/OSKeyStore.sys.mjs",
   Subprocess: "resource://gre/modules/Subprocess.sys.mjs",
 });
 
@@ -63,10 +64,49 @@ export class CodexAppServerClient {
         // below what ollama actually serves (OLLAMA_CONTEXT_LENGTH).
         `model_context_window = 32768`
       );
+    } else if (provider == "openrouter") {
+      // Custom provider (see docs/model-providers-spike.md). The bearer
+      // token never appears in this file: the auth command reads it from
+      // the sidecar's launch environment, which start() populates from
+      // OSKeyStore-encrypted storage.
+      lines.push(
+        `model_provider = "openrouter"`,
+        `model = "${model || "openrouter/auto"}"`,
+        `model_context_window = 128000`,
+        ``,
+        `[model_providers.openrouter]`,
+        `name = "OpenRouter"`,
+        `base_url = "https://openrouter.ai/api/v1"`,
+        `auth = { command = "/usr/bin/printenv", args = ["OPENROUTER_API_KEY"] }`
+      );
     } else if (model) {
       lines.push(`model = "${model}"`);
     }
     return `${lines.join("\n")}\n`;
+  }
+
+  // OSKeyStore-encrypted bearer token for the OpenRouter provider.
+  static async setOpenRouterKey(token) {
+    if (!token) {
+      Services.prefs.clearUserPref("browser.harness.codex.openrouterKey");
+      return;
+    }
+    const ciphertext = await lazy.OSKeyStore.encrypt(token);
+    Services.prefs.setStringPref(
+      "browser.harness.codex.openrouterKey",
+      ciphertext
+    );
+  }
+
+  static async _openRouterKey() {
+    const ciphertext = Services.prefs.getStringPref(
+      "browser.harness.codex.openrouterKey",
+      ""
+    );
+    if (!ciphertext) {
+      return null;
+    }
+    return lazy.OSKeyStore.decrypt(ciphertext, false);
   }
 
   constructor({ binaryPath, codexHome, configToml } = {}) {
@@ -148,18 +188,28 @@ export class CodexAppServerClient {
     lazy.logConsole.log(
       `starting ${this._binaryPath} (CODEX_HOME=${this._codexHome})`
     );
+    // Fully explicit environment: nothing (SSH agents, cloud/git
+    // credentials, dev shell state) is inherited from the Firefox process.
+    const environment = {
+      CODEX_HOME: this._codexHome,
+      HOME: this._codexHome,
+      TMPDIR: tmp,
+      PATH: "/usr/bin:/bin",
+    };
+    if (
+      Services.prefs.getStringPref("browser.harness.codex.provider", "") ==
+      "openrouter"
+    ) {
+      const key = await CodexAppServerClient._openRouterKey();
+      if (key) {
+        environment.OPENROUTER_API_KEY = key;
+      }
+    }
     this._proc = await lazy.Subprocess.call({
       command: this._binaryPath,
       arguments: [],
       workdir: cwd,
-      // Fully explicit environment: nothing (SSH agents, cloud/git
-      // credentials, dev shell state) is inherited from the Firefox process.
-      environment: {
-        CODEX_HOME: this._codexHome,
-        HOME: this._codexHome,
-        TMPDIR: tmp,
-        PATH: "/usr/bin:/bin",
-      },
+      environment,
       stderr: "pipe",
     });
     this._readLoop();

@@ -334,6 +334,25 @@ ${mountLines}`;
     };
   },
 
+  /**
+   * Deletes a persisted conversation (Codex removes its rollout) and tears
+   * down any dedicated session it owned.
+   *
+   * @param {string} conversationId
+   */
+  async deleteConversation(conversationId) {
+    const client = await this._ensureClient();
+    await client.request("thread/delete", { threadId: conversationId });
+    const record = this._conversations.get(conversationId);
+    this._conversations.delete(conversationId);
+    record?.bridge?.stop();
+    try {
+      await record?.session?.destroy();
+    } catch (e) {
+      lazy.logConsole.warn(`session destroy failed: ${e.message}`);
+    }
+  },
+
   async sendMessage(conversationId, text) {
     const conversation = this._conversations.get(conversationId);
     if (!conversation) {

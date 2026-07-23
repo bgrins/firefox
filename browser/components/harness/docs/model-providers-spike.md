@@ -148,15 +148,34 @@ Flow invariants:
    in `AgentService.createConversation`), so multi-provider selection per
    conversation is available later without config changes.
 
+## Verified against the pinned binary (0.145.0, live key)
+
+- End-to-end works: `auth = { command = "/usr/bin/printenv", args =
+  ["OPENROUTER_API_KEY"] }` on a custom `openrouter` provider, key injected
+  into the sidecar environment, `model = "openai/gpt-5-mini"` — turn
+  completed with a streamed reply. `env_key = "OPENROUTER_API_KEY"` also
+  attaches the header; the "only supports changing base_url/auth/..."
+  restriction is Bedrock-only, custom providers pass through unfiltered.
+  We keep the `auth.command` form because command-backed auth also opts the
+  provider into codex's model-catalog refresh (avoids "Unknown model"
+  warnings for OpenRouter slugs).
+- Two traps that made all of this look broken during probing:
+  - OpenRouter's 401 `"Missing Authentication header"` actually means the
+    Bearer header WAS sent but the key is invalid. A request with no
+    Authorization header at all gets `"No cookie auth credentials found"`.
+    Fake-key probes therefore read as "header not attached" when the
+    mechanism was working the whole time.
+  - Credential-derived auth (env_key, auth.command, env_http_headers,
+    experimental_bearer_token) is only attached over https. Probing against
+    a plain-http localhost dump server shows no Authorization header even
+    when the config is correct. Static `http_headers` values are attached
+    unconditionally (they go through `to_api_provider`, not the auth path),
+    which is what finally disambiguated the two.
+- OpenRouter's `/api/v1/responses` handles codex streaming turns fine
+  (agentMessage deltas, turn/completed).
+
 ## Open questions
 
-- Does 0.145.0 accept `env_key` on custom providers, or does the
-  "only supports changing base_url/auth/http_headers/aws.*" validation
-  reject it? First implementation step: probe the pinned binary with a
-  custom-provider config over stdio (initialize + thread/start) and pick
-  `env_key` or the `auth.command` printenv fallback accordingly.
-- Is OpenRouter's `/api/v1/responses` beta sufficient for codex turns
-  (streaming, tool calls, reasoning)? Live probe with a real key.
 - Context-window handling for arbitrary OpenRouter models (pref? per-model
   table? accept codex's fallback metadata warning?).
 - Whether to file a follow-up to generalize the Glean trigger story before
