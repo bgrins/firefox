@@ -136,6 +136,14 @@ add_task(async function test_harness_vm_smoke() {
     "guest write visible on host"
   );
 
+  const tools = await HarnessVM.exec(
+    "node -v && jq --version && rg --version >/dev/null && yq --version && " +
+      "uv --version && magick -version >/dev/null && echo tools-ok",
+    { timeoutMs: 30000 }
+  );
+  is(tools.exitCode, 0, `dev tooling present (${tools.stderr.slice(0, 80)})`);
+  ok(tools.stdout.includes("tools-ok"), "all tool version checks ran");
+
   const guestPlaces = await HarnessVM.snapshotPlacesToWorkspace();
   const query = await HarnessVM.exec(
     `sqlite3 ${guestPlaces} 'select count(*) from moz_places'`
