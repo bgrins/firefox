@@ -16,6 +16,8 @@ const enabled = Services.prefs.getBoolPref("browser.harness.enabled", false);
 // eslint-disable-next-line no-control-regex
 const ANSI_RE = /\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*(\x07|\x1b\\)/g;
 
+/* ---- Sandbox VM tools (secondary UI) ---- */
+
 function appendOutput(text, className) {
   const output = $("output");
   const atBottom =
@@ -42,9 +44,6 @@ function updateState(state) {
   command.disabled = state != "running";
   $("exec-command").disabled = state != "running";
   $("exec-run").disabled = state != "running";
-  if (state == "running") {
-    command.focus();
-  }
 }
 
 function onEvent(event) {
@@ -132,65 +131,142 @@ $("exec-row").addEventListener("submit", async event => {
   }
 });
 
+/* ---- Agent chat (primary UI) ---- */
+
 let chatConversationId = null;
 let chatAgentBubble = null;
-const chatItemBubbles = new Map();
+let turnActivity = null;
+const activityRows = new Map();
+
+function scrollChat() {
+  const log = $("chat-log");
+  log.scrollTop = log.scrollHeight;
+}
 
 function chatBubble(role, text) {
-  const log = $("chat-log");
   const div = document.createElement("div");
   div.className = `msg ${role}`;
   div.textContent = text;
-  log.appendChild(div);
-  log.scrollTop = log.scrollHeight;
+  $("chat-log").appendChild(div);
+  scrollChat();
   return div;
 }
 
-function describeItem(item) {
-  switch (item.type) {
-    case "commandExecution": {
-      const state =
-        item.status == "completed"
-          ? `exit ${item.exitCode ?? "?"}`
-          : item.status;
-      return `$ ${item.command}   [${state}]`;
+// Tool calls, thinking and approvals for the current turn are grouped in an
+// expandable activity block that always sits above the streaming answer.
+function ensureActivity() {
+  if (!turnActivity) {
+    const details = document.createElement("details");
+    details.className = "activity working";
+    const summary = document.createElement("summary");
+    const spinner = document.createElement("span");
+    spinner.className = "spinner";
+    const label = document.createElement("span");
+    label.textContent = "Working...";
+    summary.append(spinner, label);
+    const list = document.createElement("div");
+    list.className = "activity-items";
+    details.append(summary, list);
+    const log = $("chat-log");
+    if (chatAgentBubble?.parentNode == log) {
+      log.insertBefore(details, chatAgentBubble);
+    } else {
+      log.appendChild(details);
     }
-    case "reasoning":
-      return `thinking: ${item.summary?.join(" ") || "..."}`;
-    case "fileChange": {
-      const paths = (item.changes ?? []).map(c => c.path).join(", ");
-      return `file changes: ${paths || "(pending)"} [${item.status ?? ""}]`;
-    }
-    case "webSearch":
-      return `web search: ${item.query ?? ""}`;
-    case "mcpToolCall":
-      return `tool call: ${item.server ?? ""}/${item.tool ?? ""} [${item.status ?? ""}]`;
-    default:
-      return `${item.type} [${item.status ?? ""}]`;
+    turnActivity = { details, label, list, steps: 0 };
+    scrollChat();
   }
+  return turnActivity;
+}
+
+function finishActivity() {
+  if (turnActivity) {
+    turnActivity.details.classList.remove("working");
+    turnActivity.label.textContent = `${turnActivity.steps} step${
+      turnActivity.steps == 1 ? "" : "s"
+    }`;
+    turnActivity = null;
+  }
+  activityRows.clear();
+}
+
+function updateActivityLabel(activity) {
+  activity.label.textContent = `Working... (${activity.steps} step${
+    activity.steps == 1 ? "" : "s"
+  })`;
 }
 
 function renderItem(item) {
-  const text = describeItem(item);
-  let bubble = chatItemBubbles.get(item.id);
-  if (!bubble) {
-    bubble = chatBubble("tool", text);
-    chatItemBubbles.set(item.id, bubble);
-  } else {
-    bubble.textContent = text;
+  const activity = ensureActivity();
+  let row = activityRows.get(item.id);
+  if (!row) {
+    activity.steps++;
+    updateActivityLabel(activity);
+    if (item.type == "reasoning") {
+      row = document.createElement("details");
+      row.className = "activity-row thinking";
+      row.append(
+        document.createElement("summary"),
+        document.createElement("div")
+      );
+    } else {
+      row = document.createElement("div");
+      row.className = "activity-row";
+    }
+    activity.list.appendChild(row);
+    activityRows.set(item.id, row);
+    scrollChat();
+  }
+  switch (item.type) {
+    case "reasoning": {
+      const text = (
+        item.summary?.join("\n") ||
+        item.content?.join("\n") ||
+        ""
+      ).trim();
+      const firstLine = text.split("\n")[0] || "...";
+      row.querySelector("summary").textContent = `thinking: ${firstLine.slice(
+        0,
+        120
+      )}`;
+      row.querySelector("div").textContent = text;
+      break;
+    }
+    case "commandExecution": {
+      row.classList.add("command");
+      row.textContent = `$ ${item.command}`;
+      const chip = document.createElement("span");
+      chip.className = `chip ${item.status ?? ""}`;
+      chip.textContent =
+        item.status == "completed"
+          ? `exit ${item.exitCode ?? "?"}`
+          : (item.status ?? "running");
+      row.appendChild(chip);
+      break;
+    }
+    case "fileChange": {
+      const paths = (item.changes ?? []).map(c => c.path).join(", ");
+      row.textContent = `file changes: ${paths || "(pending)"}`;
+      break;
+    }
+    default:
+      row.textContent = `${item.type} [${item.status ?? ""}]`;
   }
 }
 
 function renderApproval(event) {
-  const bubble = chatBubble("approval", "");
+  const activity = ensureActivity();
+  activity.details.open = true;
+  const row = document.createElement("div");
+  row.className = "activity-row approval";
   const label = document.createElement("div");
   const command =
     event.params?.command ?? JSON.stringify(event.params ?? {}).slice(0, 200);
   label.textContent = `approval requested: ${command}`;
-  bubble.appendChild(label);
+  row.appendChild(label);
   const respond = decision => {
     AgentService.respondToApproval(event.requestId, decision);
-    bubble.textContent = `approval: ${decision} (${command})`;
+    row.textContent = `approval: ${decision} (${command})`;
   };
   for (const [text, decision] of [
     ["Allow", "accept"],
@@ -200,9 +276,10 @@ function renderApproval(event) {
     const button = document.createElement("button");
     button.textContent = text;
     button.addEventListener("click", () => respond(decision));
-    bubble.appendChild(button);
+    row.appendChild(button);
   }
-  $("chat-log").scrollTop = $("chat-log").scrollHeight;
+  activity.list.appendChild(row);
+  scrollChat();
 }
 
 function onAgentEvent(event) {
@@ -218,7 +295,7 @@ function onAgentEvent(event) {
         chatAgentBubble = chatBubble("agent", "");
       }
       chatAgentBubble.textContent += event.text;
-      $("chat-log").scrollTop = $("chat-log").scrollHeight;
+      scrollChat();
       break;
     case "message":
       if (chatAgentBubble) {
@@ -228,21 +305,23 @@ function onAgentEvent(event) {
       }
       chatAgentBubble = null;
       break;
-    case "turnCompleted":
-      $("chat-interrupt").hidden = true;
-      $("chat-send").disabled = false;
-      chatAgentBubble = null;
-      break;
     case "item":
       renderItem(event.item);
       break;
     case "approvalRequest":
       renderApproval(event);
       break;
+    case "turnCompleted":
+      finishActivity();
+      $("chat-interrupt").hidden = true;
+      $("chat-send").disabled = false;
+      chatAgentBubble = null;
+      break;
     case "log":
       chatBubble("meta", event.message);
       break;
     case "error":
+      finishActivity();
       chatBubble("meta", `error: ${event.message}`);
       $("chat-interrupt").hidden = true;
       $("chat-send").disabled = false;
@@ -284,10 +363,16 @@ $("chat-interrupt").addEventListener("click", () => {
 });
 
 $("chat-copy").addEventListener("click", async () => {
-  const lines = [...$("chat-log").children].map(element => {
-    const role = element.classList[1] ?? "msg";
-    return `[${role}] ${element.textContent}`;
-  });
+  const lines = [];
+  for (const element of $("chat-log").children) {
+    if (element.classList.contains("activity")) {
+      for (const row of element.querySelectorAll(".activity-row")) {
+        lines.push(`[tool] ${row.textContent}`);
+      }
+    } else {
+      lines.push(`[${element.classList[1] ?? "msg"}] ${element.textContent}`);
+    }
+  }
   await navigator.clipboard.writeText(lines.join("\n"));
   const button = $("chat-copy");
   button.textContent = "Copied";

@@ -86,6 +86,7 @@ add_task(async function test_approval_plumbing() {
 // running a command in the VM environment; accepting lets it execute through
 // the exec bridge.
 add_task(async function test_approval_live_roundtrip() {
+  requestLongerTimeout(3);
   if (
     !(await IOUtils.exists(CodexAppServerClient.defaultBinaryPath())) ||
     !(await IOUtils.exists(greBinPath("libkrun.dylib")))

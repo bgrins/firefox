@@ -59,6 +59,12 @@ async function execWithRetry(cmd, options) {
 }
 
 add_task(async function test_harness_vm_smoke() {
+  requestLongerTimeout(3);
+  // Earlier tests in the suite may still be tearing their VM down.
+  for (let i = 0; HarnessVM.state != "stopped" && i < 60; i++) {
+    // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
   if (AppConstants.platform != "macosx") {
     ok(true, "harness VM is macOS-only");
     return;

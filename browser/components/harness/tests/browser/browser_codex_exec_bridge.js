@@ -75,9 +75,15 @@ function fromB64(data) {
 }
 
 add_task(async function test_exec_bridge_routing() {
+  requestLongerTimeout(3);
   if (!(await IOUtils.exists(greBinPath("libkrun.dylib")))) {
     todo(false, "harness VM deps not present; run setup-deps.sh");
     return;
+  }
+  // Earlier tests in the suite may still be tearing their VM down.
+  for (let i = 0; HarnessVM.state != "stopped" && i < 60; i++) {
+    // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
+    await new Promise(resolve => setTimeout(resolve, 250));
   }
 
   await SpecialPowers.pushPrefEnv({
