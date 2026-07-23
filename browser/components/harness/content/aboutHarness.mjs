@@ -591,7 +591,28 @@ function loadSettings() {
     "browser.harness.sessionPerConversation",
     false
   );
+  try {
+    $("proxy-allowlist").value = JSON.parse(
+      Services.prefs.getStringPref("browser.harness.proxy.allowlist", "[]")
+    ).join(", ");
+  } catch (e) {
+    $("proxy-allowlist").value = "";
+  }
 }
+
+$("proxy-save").addEventListener("click", () => {
+  const entries = $("proxy-allowlist")
+    .value.split(",")
+    .map(entry => entry.trim())
+    .filter(Boolean);
+  Services.prefs.setStringPref(
+    "browser.harness.proxy.allowlist",
+    JSON.stringify(entries)
+  );
+  $("settings-status").textContent = entries.length
+    ? `Network allowlist: ${entries.join(", ")} (applies immediately)`
+    : "Network allowlist empty: the sandbox has no network access.";
+});
 
 $("session-per-conversation").addEventListener("change", () => {
   Services.prefs.setBoolPref(
