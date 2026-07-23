@@ -3675,3 +3675,8 @@ pref("browser.harness.loglevel", "All");
 // Give the guest outbound network access (TSI). Off by default: the sandbox
 // is meant to isolate agent commands from the network unless opted in.
 pref("browser.harness.allownet", false);
+// Model provider for the codex sidecar: "ollama" (local, credential-free) or
+// "openai" (ChatGPT account auth via the settings UI).
+pref("browser.harness.codex.provider", "ollama");
+// Model slug; empty selects the provider default (ollama: gemma4:latest).
+pref("browser.harness.codex.model", "");

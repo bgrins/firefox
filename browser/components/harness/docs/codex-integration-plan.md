@@ -270,6 +270,24 @@ credentials):
 - Hygiene confirmed empirically: launch with a neutral cwd (a `.codex/` dir in
   cwd triggers project-config probing) and an explicit env allowlist.
 
+## Persistence model
+
+- **Settings** (provider, model, future mounts/allowlists): Firefox prefs
+  (`browser.harness.codex.*`), surfaced in the about:harness Settings panel;
+  `config.toml` is regenerated from prefs on every sidecar start. Caveat:
+  anything Codex itself writes into config.toml (trusted projects) is
+  clobbered by the regeneration — switch to a merge or a managed-config layer
+  when persistent trust starts mattering.
+- **Chats**: Codex app-server persists them itself — non-ephemeral threads
+  are written as rollout files under `CODEX_HOME/sessions` (which lives in
+  the profile), and `thread/list` + `thread/resume` enumerate/reopen them in
+  Codex's own format. We deliberately keep no chat store of our own;
+  `createConversation({persist: false})` opts out. UI for listing/resuming
+  past conversations is a follow-up.
+- **Credentials**: `auth.json` in CODEX_HOME, written by the sidecar's
+  `account/login/start` ChatGPT OAuth flow (settings panel), never read by
+  us, never visible to the guest.
+
 ## Resolved / remaining questions
 
 - ~~PTY~~ → pipes-first (locked; revisit only on schema evidence).

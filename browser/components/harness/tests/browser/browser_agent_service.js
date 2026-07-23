@@ -22,15 +22,30 @@ async function ollamaAvailable() {
 }
 
 add_task(async function test_agent_service_conversation() {
-  if (!(await IOUtils.exists(CodexAppServerClient.defaultBinaryPath()))) {
-    todo(
-      false,
-      "codex-app-server not present; run browser/components/harness/vm/setup-codex.sh"
-    );
+  requestLongerTimeout(3);
+  const greBinD = Services.dirsvc.get("GreBinD", Ci.nsIFile);
+  greBinD.append("libkrun.dylib");
+  if (
+    !(await IOUtils.exists(CodexAppServerClient.defaultBinaryPath())) ||
+    !(await IOUtils.exists(greBinD.path))
+  ) {
+    todo(false, "codex binary or VM deps not present; run setup scripts");
     return;
   }
 
-  registerCleanupFunction(() => AgentService.shutdown());
+  const { HarnessVM } = ChromeUtils.importESModule(
+    "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
+  );
+  registerCleanupFunction(async () => {
+    await AgentService.shutdown();
+    // Conversations auto-start the sandbox VM; leave a clean slate.
+    if (HarnessVM.state == "running") {
+      await HarnessVM.stop();
+    }
+  });
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.harness.enabled", true]],
+  });
 
   const conversation = await AgentService.createConversation();
   ok(conversation.conversationId, "conversation created");

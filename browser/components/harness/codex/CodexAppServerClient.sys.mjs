@@ -31,14 +31,6 @@ function greDPath(...leafs) {
   return file.path;
 }
 
-function appDirPath(...leafs) {
-  const file = Services.dirsvc.get("XCurProcD", Ci.nsIFile);
-  for (const leaf of leafs) {
-    file.append(leaf);
-  }
-  return file.path;
-}
-
 /**
  * Owns one `codex app-server` sidecar process and speaks its JSONL protocol
  * over stdio. Security posture: launched with a fully explicit environment
@@ -52,18 +44,37 @@ export class CodexAppServerClient {
     return greDPath("harness", "codex", "codex-app-server");
   }
 
-  // Packaged copy of codex/ollama-codex-home/config.toml (see moz.build).
-  static defaultConfigTemplatePath() {
-    return appDirPath("harness", "codex", "config.toml");
+  // Generated from prefs; see codex/ollama-codex-home/config.toml for the
+  // annotated reference version of the ollama configuration.
+  static configFromPrefs() {
+    const provider = Services.prefs.getStringPref(
+      "browser.harness.codex.provider",
+      "ollama"
+    );
+    const model = Services.prefs
+      .getStringPref("browser.harness.codex.model", "")
+      .replaceAll(/["\\\n]/g, "");
+    const lines = [];
+    if (provider == "ollama") {
+      lines.push(
+        `model_provider = "ollama"`,
+        `model = "${model || "gemma4:latest"}"`,
+        // No built-in metadata exists for ollama models; keep this at or
+        // below what ollama actually serves (OLLAMA_CONTEXT_LENGTH).
+        `model_context_window = 32768`
+      );
+    } else if (model) {
+      lines.push(`model = "${model}"`);
+    }
+    return `${lines.join("\n")}\n`;
   }
 
-  constructor({ binaryPath, codexHome, configTemplatePath } = {}) {
+  constructor({ binaryPath, codexHome, configToml } = {}) {
     this._binaryPath = binaryPath ?? CodexAppServerClient.defaultBinaryPath();
     this._codexHome =
       codexHome ??
       PathUtils.join(PathUtils.profileDir, "harness", "codex-home");
-    this._configTemplatePath =
-      configTemplatePath ?? CodexAppServerClient.defaultConfigTemplatePath();
+    this._configToml = configToml ?? null;
     this._proc = null;
     this._requests = new RequestTable();
     this._splitter = new LineSplitter();
@@ -111,15 +122,20 @@ export class CodexAppServerClient {
         `Missing ${this._binaryPath}; run browser/components/harness/vm/setup-codex.sh`
       );
     }
-    // The in-tree template is the source of truth in this prototype: refresh
-    // config.toml on every start so template fixes reach existing profiles
-    // (auth.json and other CODEX_HOME state are untouched).
+    // config.toml is regenerated on every start (from prefs, or the
+    // constructor override) so settings changes take effect on restart;
+    // auth.json and other CODEX_HOME state are untouched. Note: anything
+    // Codex itself persists into config.toml (e.g. trusted projects) is
+    // clobbered by design for now.
     const configPath = PathUtils.join(this._codexHome, "config.toml");
     await IOUtils.makeDirectory(this._codexHome, {
       createAncestors: true,
       ignoreExisting: true,
     });
-    await IOUtils.copy(this._configTemplatePath, configPath);
+    await IOUtils.writeUTF8(
+      configPath,
+      this._configToml ?? CodexAppServerClient.configFromPrefs()
+    );
     const cwd = PathUtils.join(this._codexHome, "cwd");
     const tmp = PathUtils.join(this._codexHome, "tmp");
     for (const dir of [cwd, tmp]) {

@@ -80,8 +80,12 @@ add_task(async function test_exec_bridge_routing() {
     todo(false, "harness VM deps not present; run setup-deps.sh");
     return;
   }
-  // Earlier tests in the suite may still be tearing their VM down.
-  for (let i = 0; HarnessVM.state != "stopped" && i < 60; i++) {
+  // Earlier tests may still be tearing their VM down (or left it running).
+  for (
+    let i = 0;
+    !["stopped", "running"].includes(HarnessVM.state) && i < 60;
+    i++
+  ) {
     // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
     await new Promise(resolve => setTimeout(resolve, 250));
   }
@@ -96,18 +100,21 @@ add_task(async function test_exec_bridge_routing() {
     }
   });
 
-  // Boot the VM and wait for the guest agent.
-  const running = new Promise(resolve => {
-    const listener = event => {
-      if (event.type == "state" && event.state == "running") {
-        HarnessVM.removeListener(listener);
-        resolve();
-      }
-    };
-    HarnessVM.addListener(listener);
-  });
-  await HarnessVM.start();
-  await running;
+  // Boot the VM (unless a previous test left it running) and wait for the
+  // guest agent.
+  if (HarnessVM.state != "running") {
+    const running = new Promise(resolve => {
+      const listener = event => {
+        if (event.type == "state" && event.state == "running") {
+          HarnessVM.removeListener(listener);
+          resolve();
+        }
+      };
+      HarnessVM.addListener(listener);
+    });
+    await HarnessVM.start();
+    await running;
+  }
   for (let i = 0; ; i++) {
     try {
       await HarnessVM.exec("true");

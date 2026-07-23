@@ -143,9 +143,36 @@ export const AgentService = {
    * @param {string} [options.approvalPolicy] untrusted | on-request |
    *   on-failure | never (Codex decides when to fire approval requests)
    */
-  async createConversation({ model, modelProvider, approvalPolicy } = {}) {
+  // Starts the ChatGPT OAuth flow in the sidecar; the returned authUrl must
+  // be opened in a browser tab, and the sidecar's local callback completes
+  // the login (tokens land in auth.json inside our dedicated CODEX_HOME).
+  async login() {
     const client = await this._ensureClient();
-    const params = { ephemeral: true };
+    return client.request("account/login/start", { type: "chatgpt" }, 120000);
+  },
+
+  async accountStatus() {
+    const client = await this._ensureClient();
+    return client.request("account/read", {});
+  },
+
+  // Restarts the sidecar so pref changes (provider/model) take effect; the
+  // regenerated config.toml is written on next start.
+  async applySettings() {
+    await this.shutdown();
+  },
+
+  async createConversation({
+    model,
+    modelProvider,
+    approvalPolicy,
+    persist = true,
+  } = {}) {
+    const client = await this._ensureClient();
+    // Non-ephemeral threads are persisted by Codex itself (rollout files in
+    // CODEX_HOME/sessions) and can be reopened via thread/list +
+    // thread/resume; we deliberately do not keep our own chat store.
+    const params = { ephemeral: !persist };
     if (model) {
       params.model = model;
     }

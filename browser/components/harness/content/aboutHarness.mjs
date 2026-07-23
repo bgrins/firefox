@@ -381,10 +381,62 @@ $("chat-copy").addEventListener("click", async () => {
   }, 1500);
 });
 
+/* ---- Settings ---- */
+
+function loadSettings() {
+  const provider = Services.prefs.getStringPref(
+    "browser.harness.codex.provider",
+    "ollama"
+  );
+  $(provider == "openai" ? "provider-openai" : "provider-ollama").checked =
+    true;
+  $("model-input").value = Services.prefs.getStringPref(
+    "browser.harness.codex.model",
+    ""
+  );
+  $("settings-login").hidden = provider != "openai";
+}
+
+for (const id of ["provider-ollama", "provider-openai"]) {
+  $(id).addEventListener("change", () => {
+    $("settings-login").hidden = !$("provider-openai").checked;
+  });
+}
+
+$("settings-save").addEventListener("click", async () => {
+  const provider = $("provider-openai").checked ? "openai" : "ollama";
+  Services.prefs.setStringPref("browser.harness.codex.provider", provider);
+  Services.prefs.setStringPref(
+    "browser.harness.codex.model",
+    $("model-input").value.trim()
+  );
+  await AgentService.applySettings();
+  chatConversationId = null;
+  $("settings-status").textContent =
+    "Saved. The agent restarts with the new settings on the next message.";
+});
+
+$("settings-login").addEventListener("click", async () => {
+  const status = $("settings-status");
+  try {
+    status.textContent = "Starting sign-in...";
+    const result = await AgentService.login();
+    status.textContent = "Complete the sign-in in the opened tab: ";
+    const link = document.createElement("a");
+    link.href = result.authUrl;
+    link.target = "_blank";
+    link.textContent = "open sign-in page";
+    status.appendChild(link);
+  } catch (e) {
+    status.textContent = `sign-in failed: ${e.message}`;
+  }
+});
+
 if (!enabled) {
   $("chat-input").disabled = true;
   $("chat-send").disabled = true;
 }
+loadSettings();
 
 HarnessVM.addListener(onEvent);
 AgentService.addListener(onAgentEvent);
