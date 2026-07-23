@@ -9,6 +9,7 @@
  * dlopen("libkrunfw.5.dylib") resolves to the already-loaded image. */
 
 #include <dlfcn.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,12 +24,20 @@ typedef int32_t (*krun_set_workdir_t)(uint32_t, const char*);
 typedef int32_t (*krun_set_exec_t)(uint32_t, const char*, const char* const[],
                                    const char* const[]);
 typedef int32_t (*krun_start_enter_t)(uint32_t);
+typedef int32_t (*krun_add_virtiofs_t)(uint32_t, const char*, const char*);
+typedef int32_t (*krun_add_vsock_port2_t)(uint32_t, uint32_t, const char*,
+                                          bool);
+typedef int32_t (*krun_disable_implicit_vsock_t)(uint32_t);
+typedef int32_t (*krun_add_vsock_t)(uint32_t, uint32_t);
+
+#define MAX_VOLUMES 8
 
 static void usage(const char* argv0) {
   fprintf(stderr,
           "usage: %s --lib <libkrun.dylib> --krunfw <libkrunfw.5.dylib> "
           "--root <rootfs-dir> [--mem <MiB>] [--cpus <n>] [--workdir <dir>] "
-          "[--verbose] -- <exec-path> [args...]\n",
+          "[--vsock <port>:<unix-socket-path>] [--volume <host-dir>:<tag>] "
+          "[--allow-net] [--verbose] -- <exec-path> [args...]\n",
           argv0);
   exit(2);
 }
@@ -41,6 +50,12 @@ int main(int argc, char** argv) {
   long mem_mib = 512;
   long cpus = 2;
   int verbose = 0;
+  int allow_net = 0;
+  long vsock_port = 0;
+  const char* vsock_path = NULL;
+  const char* volume_paths[MAX_VOLUMES];
+  const char* volume_tags[MAX_VOLUMES];
+  int num_volumes = 0;
   int guest_argv_start = -1;
 
   for (int i = 1; i < argc; i++) {
@@ -56,6 +71,29 @@ int main(int argc, char** argv) {
       cpus = strtol(argv[++i], NULL, 10);
     } else if (!strcmp(argv[i], "--workdir") && i + 1 < argc) {
       workdir = argv[++i];
+    } else if (!strcmp(argv[i], "--vsock") && i + 1 < argc) {
+      char* spec = argv[++i];
+      char* sep = strchr(spec, ':');
+      if (!sep || sep == spec || !sep[1]) {
+        usage(argv[0]);
+      }
+      vsock_port = strtol(spec, NULL, 10);
+      vsock_path = sep + 1;
+      if (vsock_port <= 0) {
+        usage(argv[0]);
+      }
+    } else if (!strcmp(argv[i], "--volume") && i + 1 < argc) {
+      char* spec = argv[++i];
+      char* sep = strrchr(spec, ':');
+      if (!sep || sep == spec || !sep[1] || num_volumes == MAX_VOLUMES) {
+        usage(argv[0]);
+      }
+      *sep = '\0';
+      volume_paths[num_volumes] = spec;
+      volume_tags[num_volumes] = sep + 1;
+      num_volumes++;
+    } else if (!strcmp(argv[i], "--allow-net")) {
+      allow_net = 1;
     } else if (!strcmp(argv[i], "--verbose")) {
       verbose = 1;
     } else if (!strcmp(argv[i], "--")) {
@@ -101,6 +139,10 @@ int main(int argc, char** argv) {
   RESOLVE(krun_set_workdir)
   RESOLVE(krun_set_exec)
   RESOLVE(krun_start_enter)
+  RESOLVE(krun_add_virtiofs)
+  RESOLVE(krun_add_vsock_port2)
+  RESOLVE(krun_disable_implicit_vsock)
+  RESOLVE(krun_add_vsock)
 #undef RESOLVE
 
   if (verbose) {
@@ -125,6 +167,25 @@ int main(int argc, char** argv) {
   CHECK(krun_set_vm_config((uint32_t)ctx, (uint8_t)cpus, (uint32_t)mem_mib));
   CHECK(krun_set_root((uint32_t)ctx, root_path));
   CHECK(krun_set_workdir((uint32_t)ctx, workdir));
+
+  for (int i = 0; i < num_volumes; i++) {
+    CHECK(krun_add_virtiofs((uint32_t)ctx, volume_tags[i], volume_paths[i]));
+  }
+
+  /* The implicit vsock device enables TSI hijacking, which transparently
+   * gives the guest outbound network access through the host. Replace it
+   * with a plain vsock device (IPC only) unless networking was requested. */
+  if (!allow_net) {
+    CHECK(krun_disable_implicit_vsock((uint32_t)ctx));
+    if (vsock_path) {
+      CHECK(krun_add_vsock((uint32_t)ctx, 0));
+    }
+  }
+  if (vsock_path) {
+    unlink(vsock_path);
+    CHECK(krun_add_vsock_port2((uint32_t)ctx, (uint32_t)vsock_port, vsock_path,
+                               true));
+  }
 
   const char* exec_path = argv[guest_argv_start];
   /* argv[0] for the guest process is implicit (exec_path); pass the rest. */

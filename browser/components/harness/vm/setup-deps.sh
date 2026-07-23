@@ -66,6 +66,13 @@ export CC_LINUX="/usr/bin/clang -target aarch64-linux-gnu -fuse-ld=lld -Wl,-stri
 (cd "$LIBKRUN_DIR" && cargo build --release -p libkrun)
 cp "$LIBKRUN_DIR/target/release/libkrun.dylib" "$BIN/"
 
+echo "=== guest-agent (static aarch64-linux, via the same sysroot) ==="
+mkdir -p "$BIN/harness"
+$CC_LINUX -O2 -static -Wall -Wextra \
+    -I"$LIBKRUN_DIR/src/init_blob/init" \
+    -o "$BIN/harness/guest-agent" \
+    "$TOPSRCDIR/browser/components/harness/guest/guest-agent.c"
+
 echo "=== Alpine rootfs template ==="
 if [ ! -d "$BIN/harness/rootfs-template" ] || [ "${FORCE:-}" = 1 ]; then
     fetch "$ALPINE_URL" "$ALPINE_SHA256" "$DEPS/alpine-minirootfs.tar.gz"
