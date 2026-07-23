@@ -430,18 +430,18 @@ $("settings-save").addEventListener("click", async () => {
 });
 
 $("settings-login").addEventListener("click", async () => {
-  const status = $("settings-status");
+  const statusEl = $("settings-status");
   try {
-    status.textContent = "Starting sign-in...";
+    statusEl.textContent = "Starting sign-in...";
     const result = await AgentService.login();
-    status.textContent = "Complete the sign-in in the opened tab: ";
+    statusEl.textContent = "Complete the sign-in in the opened tab: ";
     const link = document.createElement("a");
     link.href = result.authUrl;
     link.target = "_blank";
     link.textContent = "open sign-in page";
-    status.appendChild(link);
+    statusEl.appendChild(link);
   } catch (e) {
-    status.textContent = `sign-in failed: ${e.message}`;
+    statusEl.textContent = `sign-in failed: ${e.message}`;
   }
 });
 

@@ -142,6 +142,8 @@ export const AgentService = {
    * @param {string} [options.modelProvider] per-conversation provider override
    * @param {string} [options.approvalPolicy] untrusted | on-request |
    *   on-failure | never (Codex decides when to fire approval requests)
+   * @param {boolean} [options.persist] false = ephemeral thread (no rollout
+   *   file, cannot be resumed)
    */
   // Starts the ChatGPT OAuth flow in the sidecar; the returned authUrl must
   // be opened in a browser tab, and the sidecar's local callback completes
@@ -162,12 +164,8 @@ export const AgentService = {
     await this.shutdown();
   },
 
-  async createConversation({
-    model,
-    modelProvider,
-    approvalPolicy,
-    persist = true,
-  } = {}) {
+  async createConversation(options = {}) {
+    const { model, modelProvider, approvalPolicy, persist = true } = options;
     const client = await this._ensureClient();
     // Non-ephemeral threads are persisted by Codex itself (rollout files in
     // CODEX_HOME/sessions) and can be reopened via thread/list +
