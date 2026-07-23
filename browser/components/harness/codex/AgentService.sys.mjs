@@ -136,15 +136,6 @@ export const AgentService = {
     return this._environmentId;
   },
 
-  /**
-   * @param {object} [options]
-   * @param {string} [options.model] per-conversation model override
-   * @param {string} [options.modelProvider] per-conversation provider override
-   * @param {string} [options.approvalPolicy] untrusted | on-request |
-   *   on-failure | never (Codex decides when to fire approval requests)
-   * @param {boolean} [options.persist] false = ephemeral thread (no rollout
-   *   file, cannot be resumed)
-   */
   // Starts the ChatGPT OAuth flow in the sidecar; the returned authUrl must
   // be opened in a browser tab, and the sidecar's local callback completes
   // the login (tokens land in auth.json inside our dedicated CODEX_HOME).
@@ -164,6 +155,15 @@ export const AgentService = {
     await this.shutdown();
   },
 
+  /**
+   * @param {object} [options]
+   * @param {string} [options.model] per-conversation model override
+   * @param {string} [options.modelProvider] per-conversation provider override
+   * @param {string} [options.approvalPolicy] untrusted | on-request |
+   *   on-failure | never (Codex decides when to fire approval requests)
+   * @param {boolean} [options.persist] false = ephemeral thread (no rollout
+   *   file, cannot be resumed)
+   */
   async createConversation(options = {}) {
     const { model, modelProvider, approvalPolicy, persist = true } = options;
     const client = await this._ensureClient();
