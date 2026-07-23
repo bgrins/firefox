@@ -68,11 +68,21 @@ static char* tok_strdup(const char* json, const jsmntok_t* tok) {
     if (*p == '\\' && p + 1 < end) {
       p++;
       switch (*p) {
-        case 'n': *w++ = '\n'; break;
-        case 't': *w++ = '\t'; break;
-        case 'r': *w++ = '\r'; break;
-        case 'b': *w++ = '\b'; break;
-        case 'f': *w++ = '\f'; break;
+        case 'n':
+          *w++ = '\n';
+          break;
+        case 't':
+          *w++ = '\t';
+          break;
+        case 'r':
+          *w++ = '\r';
+          break;
+        case 'b':
+          *w++ = '\b';
+          break;
+        case 'f':
+          *w++ = '\f';
+          break;
         case 'u':
           if (p + 4 < end) {
             char hex[5] = {p[1], p[2], p[3], p[4], 0};
@@ -81,7 +91,9 @@ static char* tok_strdup(const char* json, const jsmntok_t* tok) {
             p += 4;
           }
           break;
-        default: *w++ = *p; break;
+        default:
+          *w++ = *p;
+          break;
       }
       p++;
     } else {
@@ -103,11 +115,21 @@ static void json_escape_to(FILE* f, const char* s, size_t len) {
   for (size_t i = 0; i < len; i++) {
     unsigned char c = (unsigned char)s[i];
     switch (c) {
-      case '"': fputs("\\\"", f); break;
-      case '\\': fputs("\\\\", f); break;
-      case '\n': fputs("\\n", f); break;
-      case '\r': fputs("\\r", f); break;
-      case '\t': fputs("\\t", f); break;
+      case '"':
+        fputs("\\\"", f);
+        break;
+      case '\\':
+        fputs("\\\\", f);
+        break;
+      case '\n':
+        fputs("\\n", f);
+        break;
+      case '\r':
+        fputs("\\r", f);
+        break;
+      case '\t':
+        fputs("\\t", f);
+        break;
       default:
         if (c < 0x20 || c == 0x7f) {
           fprintf(f, "\\u%04x", c);
@@ -213,7 +235,7 @@ static void handle_exec(FILE* reply, int64_t id, const char* cmd,
 
   int status = 0;
   waitpid(pid, &status, 0);
-  int exit_code = WIFEXITED(status)  ? WEXITSTATUS(status)
+  int exit_code = WIFEXITED(status)     ? WEXITSTATUS(status)
                   : WIFSIGNALED(status) ? 128 + WTERMSIG(status)
                                         : -1;
 
@@ -288,8 +310,7 @@ int main(void) {
   addr.svm_family = AF_VSOCK;
   addr.svm_port = AGENT_PORT;
   addr.svm_cid = VMADDR_CID_ANY;
-  if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) ||
-      listen(sock, 1)) {
+  if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) || listen(sock, 1)) {
     perror("guest-agent: bind/listen");
     return 1;
   }

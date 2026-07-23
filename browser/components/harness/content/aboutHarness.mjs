@@ -37,6 +37,8 @@ function updateState(state) {
   $("reset").disabled = state != "stopped";
   const command = $("command");
   command.disabled = state != "running";
+  $("exec-command").disabled = state != "running";
+  $("exec-run").disabled = state != "running";
   if (state == "running") {
     command.focus();
   }
@@ -93,6 +95,40 @@ $("input-row").addEventListener("submit", event => {
   command.value = "";
   appendOutput(`$ ${line}\n`, "echo");
   HarnessVM.write(`${line}\n`);
+});
+
+$("exec-row").addEventListener("submit", async event => {
+  event.preventDefault();
+  const input = $("exec-command");
+  const cmd = input.value;
+  if (!cmd) {
+    return;
+  }
+  input.value = "";
+  appendOutput(`> ${cmd}\n`, "echo");
+  const started = Date.now();
+  try {
+    const result = await HarnessVM.exec(cmd);
+    const flags = [
+      result.timedOut ? "timed out" : "",
+      result.truncated ? "output truncated" : "",
+    ]
+      .filter(Boolean)
+      .map(f => `, ${f}`)
+      .join("");
+    appendOutput(
+      `[exit ${result.exitCode}, ${Date.now() - started}ms${flags}]\n`,
+      "meta"
+    );
+    if (result.stdout) {
+      appendOutput(result.stdout);
+    }
+    if (result.stderr) {
+      appendOutput(result.stderr, "stderr");
+    }
+  } catch (e) {
+    appendOutput(`[exec error: ${e.message}]\n`, "meta");
+  }
 });
 
 HarnessVM.addListener(onEvent);

@@ -3672,3 +3672,6 @@ pref("browser.harness.enabled", false);
 // Pass --verbose (libkrun info logging) to the VM helper.
 pref("browser.harness.verbose", true);
 pref("browser.harness.loglevel", "All");
+// Give the guest outbound network access (TSI). Off by default: the sandbox
+// is meant to isolate agent commands from the network unless opted in.
+pref("browser.harness.allownet", false);

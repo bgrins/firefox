@@ -5,6 +5,7 @@
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  HarnessAgent: "moz-src:///browser/components/harness/HarnessAgent.sys.mjs",
   Subprocess: "resource://gre/modules/Subprocess.sys.mjs",
 });
 
@@ -85,6 +86,53 @@ export const HarnessVM = {
     return PathUtils.join(PathUtils.profileDir, "harness", "rootfs");
   },
 
+  get workspacePath() {
+    return PathUtils.join(PathUtils.profileDir, "harness", "workspace");
+  },
+
+  // Keep the socket path short: unix socket paths are capped at 104 bytes
+  // on macOS, and profile paths can get close to that.
+  _socketPath: null,
+  get socketPath() {
+    if (!this._socketPath) {
+      const id = Services.uuid.generateUUID().toString().slice(1, 9);
+      this._socketPath = PathUtils.join(
+        Services.dirsvc.get("TmpD", Ci.nsIFile).path,
+        `harness-${id}.sock`
+      );
+    }
+    return this._socketPath;
+  },
+
+  // The guest-agent is cross-compiled by setup-deps.sh into GreD/harness and
+  // refreshed into the rootfs before each start so rebuilds take effect.
+  async _installGuestAgent() {
+    const source = (() => {
+      const file = Services.dirsvc.get("GreD", Ci.nsIFile);
+      file.append("harness");
+      file.append("guest-agent");
+      return file.path;
+    })();
+    if (!(await IOUtils.exists(source))) {
+      throw new Error(
+        `Missing ${source}; run browser/components/harness/vm/setup-deps.sh`
+      );
+    }
+    const dest = PathUtils.join(
+      this.rootfsPath,
+      "usr",
+      "local",
+      "bin",
+      "guest-agent"
+    );
+    await IOUtils.makeDirectory(PathUtils.parent(dest), {
+      createAncestors: true,
+      ignoreExisting: true,
+    });
+    await IOUtils.copy(source, dest);
+    await IOUtils.setPermissions(dest, 0o755);
+  },
+
   async _ensureRootfs() {
     if (await IOUtils.exists(this.rootfsPath)) {
       return;
@@ -153,7 +201,12 @@ export const HarnessVM = {
         }
       }
       await this._ensureRootfs();
+      await this._installGuestAgent();
       await this._signHelper(helper);
+      await IOUtils.makeDirectory(this.workspacePath, {
+        createAncestors: true,
+        ignoreExisting: true,
+      });
 
       const args = [
         "--lib",
@@ -166,13 +219,26 @@ export const HarnessVM = {
         "1024",
         "--cpus",
         "2",
+        "--vsock",
+        `1024:${this.socketPath}`,
+        "--volume",
+        `${this.workspacePath}:workspace`,
       ];
+      if (Services.prefs.getBoolPref("browser.harness.allownet", false)) {
+        args.push("--allow-net");
+      }
       if (Services.prefs.getBoolPref("browser.harness.verbose", true)) {
         args.push("--verbose");
       }
       // The wrapper echo gives a visible readiness marker: busybox sh over
       // piped stdio prints no prompt, so a healthy boot is otherwise silent.
-      args.push("--", "/bin/sh", "-c", "echo '[guest ready]'; exec /bin/sh");
+      args.push(
+        "--",
+        "/bin/sh",
+        "-c",
+        "mkdir -p /workspace && mount -t virtiofs workspace /workspace; " +
+          "/usr/local/bin/guest-agent & echo '[guest ready]'; exec /bin/sh"
+      );
       this._log(`spawning ${helper} ${args.join(" ")}`);
       const proc = await lazy.Subprocess.call({
         command: helper,
@@ -186,9 +252,16 @@ export const HarnessVM = {
       this._readLoop(proc.stderr, "stderr");
       proc.wait().then(({ exitCode }) => {
         this._proc = null;
+        lazy.HarnessAgent.close();
+        IOUtils.remove(this.socketPath, { ignoreAbsent: true });
+        this._socketPath = null;
         this._setState("stopped");
         this._emit({ type: "exit", exitCode });
       });
+      lazy.HarnessAgent.connect(this.socketPath).then(
+        () => this._log("guest-agent connected"),
+        e => this._log(`guest-agent connection failed: ${e.message}`)
+      );
     } catch (e) {
       this._proc = null;
       this._setState("stopped");
@@ -221,6 +294,10 @@ export const HarnessVM = {
     }
     this._setState("stopping");
     await this._proc.kill();
+  },
+
+  exec(cmd, options) {
+    return lazy.HarnessAgent.exec(cmd, options);
   },
 
   async resetRootfs() {
