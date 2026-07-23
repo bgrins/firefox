@@ -222,6 +222,45 @@ Decisions settled with the project owner:
   choice, guest-side mount wiring, and extending the exec-bridge path policy
   beyond `/workspace` to the mounted roots). Never offer profile/home
   wholesale; per-directory opt-in only.
+  - UI shape: `nsIFilePicker` in `modeGetFolder` from the settings panel
+    (e.g. "add folder..." → Downloads), rows with tag + RO/RW toggle +
+    remove; persisted as a JSON pref (`browser.harness.mounts`:
+    `[{path, tag, readOnly}]`). Mount changes require a VM restart; the
+    settings panel should say so and offer the restart.
+  - Each mount extends: helper argv (`--volume path:tag`), the guest boot
+    line (`mount -t virtiofs tag /mnt/tag`, `-o ro` when read-only), the
+    exec-bridge path allowlist (`/mnt/tag`, write-denied when RO), and the
+    host-side symlink discipline rules from decision 4.
+- **Profile-data snapshots for the agent** (places.sqlite pattern, landed
+  2026-07-23): never mount live SQLite DBs — WAL + shm + virtio-fs locking
+  don't compose. Instead use the `Sqlite.sys.mjs` online-backup API to write
+  a consistent snapshot into the workspace and query the copy with the
+  guest's sqlite CLI (`HarnessVM.snapshotPlacesToWorkspace()`). Same pattern
+  extends to cookies.sqlite, formhistory.sqlite, etc. — one generic
+  "share profile DB snapshot" API with an explicit allowlist of DBs is the
+  follow-up.
+- **Multi-VM sessions (per-conversation VMs)** — expanded plan:
+  - Sessions: `HarnessVM.createSession({taskDir, mem, cpus, mounts})` → each
+    session owns a rootfs clone, vsock socket, HarnessAgent connection, and
+    exec-bridge instance; `AgentService` maps conversationId → session and
+    registers one `environment/add` per session.
+  - Disk usage: rootfs copies are APFS `clonefile` clones (`cp -c`), so a new
+    VM costs only metadata up front; blocks are copy-on-write, meaning disk
+    grows with what each guest actually modifies (typically MBs). Guest
+    writes to its rootfs persist for the session's lifetime; destroying the
+    session reclaims them.
+  - Persisting image changes: a session's modified rootfs can be "promoted"
+    (rename into a named-images dir) to become the template for future
+    sessions — cheap snapshot/restore without any overlayfs work. True
+    RO-base + tmpfs overlay stays the later hardening step for
+    no-persistence guarantees.
+  - Named volumes: reusable host dirs (profile/harness/volumes/<name>)
+    mounted into any session via virtio-fs — survive VM destruction, shared
+    state between sessions when wanted.
+  - Management UI: a VM panel in about:harness listing sessions (conversation,
+    helper pid, uptime, rootfs size via `du`, workspace path) with
+    kill/destroy per row; plus startup reconciliation that sweeps orphaned
+    helper processes and session dirs after a crash.
 - **Connect additional tools to the agent**: beyond the exec-server surface —
   e.g. exposing browser-side capabilities (page content, screenshots,
   downloads) as tools the model can call. Options: register as MCP servers in

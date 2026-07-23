@@ -136,6 +136,13 @@ add_task(async function test_harness_vm_smoke() {
     "guest write visible on host"
   );
 
+  const guestPlaces = await HarnessVM.snapshotPlacesToWorkspace();
+  const query = await HarnessVM.exec(
+    `sqlite3 ${guestPlaces} 'select count(*) from moz_places'`
+  );
+  is(query.exitCode, 0, "guest sqlite3 queries the places snapshot");
+  ok(/^\d+$/.test(query.stdout.trim()), `row count (${query.stdout.trim()})`);
+
   const stopped = waitForState("stopped");
   await HarnessVM.stop();
   await stopped;

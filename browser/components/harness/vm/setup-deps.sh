@@ -74,11 +74,27 @@ $CC_LINUX -O2 -static -Wall -Wextra \
     "$TOPSRCDIR/browser/components/harness/guest/guest-agent.c"
 
 echo "=== Alpine rootfs template ==="
+# Extra packages baked into the template (the guest has no network). Alpine
+# apks are plain tarballs; extracted directly, no apk tool needed.
+APK_BASE="https://dl-cdn.alpinelinux.org/alpine/v3.22/main/aarch64"
+APKS="
+sqlite-3.49.2-r1 23cc7ebfee1170d2e6be5740ef5eae1c522691e164e399629f9147705370e8c9
+sqlite-libs-3.49.2-r1 204910bcbb13df4d517cb01acb178ebe14f12ff0e55a04b38d1565941780ee29
+readline-8.2.13-r1 334af29dbf6b5a71a87af4d6a58e2967a8f711a51d00093de0e1498daf83ceb2
+libncursesw-6.5_p20250503-r0 419b375e8a4345e7172b1f0f3a3c57db61374f5408cdb875d9e860bd4c243aca
+ncurses-terminfo-base-6.5_p20250503-r0 3d37403e0b5ab9eb0c1ce269444e4a385faec9fe6af452c1c6956806b13d2bd6
+"
 if [ ! -d "$BIN/harness/rootfs-template" ] || [ "${FORCE:-}" = 1 ]; then
     fetch "$ALPINE_URL" "$ALPINE_SHA256" "$DEPS/alpine-minirootfs.tar.gz"
     rm -rf "$BIN/harness/rootfs-template"
     mkdir -p "$BIN/harness/rootfs-template"
     tar -xzf "$DEPS/alpine-minirootfs.tar.gz" -C "$BIN/harness/rootfs-template"
+    echo "$APKS" | while read -r pkg sha; do
+        [ -n "$pkg" ] || continue
+        fetch "$APK_BASE/$pkg.apk" "$sha" "$DEPS/$pkg.apk"
+        tar -xzf "$DEPS/$pkg.apk" -C "$BIN/harness/rootfs-template" \
+            --exclude '.PKGINFO' --exclude '.SIGN.*' 2>/dev/null || true
+    done
 else
     echo "already extracted, skipping (FORCE=1 to redo)"
 fi

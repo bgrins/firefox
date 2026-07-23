@@ -6,6 +6,7 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   HarnessAgent: "moz-src:///browser/components/harness/HarnessAgent.sys.mjs",
+  Sqlite: "resource://gre/modules/Sqlite.sys.mjs",
   Subprocess: "resource://gre/modules/Subprocess.sys.mjs",
 });
 
@@ -298,6 +299,35 @@ export const HarnessVM = {
 
   exec(cmd, options) {
     return lazy.HarnessAgent.exec(cmd, options);
+  },
+
+  /**
+   * Copies a consistent snapshot of places.sqlite into the workspace so the
+   * guest can query it with the sqlite CLI. The live DB cannot be shared:
+   * it is WAL-mode with an open shm segment, and SQLite locking does not
+   * survive virtio-fs. The online-backup API gives a coherent copy while
+   * the profile keeps the DB open, and the guest only ever sees the copy.
+   *
+   * @returns {Promise<string>} the guest path of the snapshot
+   */
+  async snapshotPlacesToWorkspace() {
+    await IOUtils.makeDirectory(this.workspacePath, {
+      createAncestors: true,
+      ignoreExisting: true,
+    });
+    const dest = PathUtils.join(this.workspacePath, "places.sqlite");
+    await IOUtils.remove(dest, { ignoreAbsent: true });
+    const conn = await lazy.Sqlite.openConnection({
+      path: PathUtils.join(PathUtils.profileDir, "places.sqlite"),
+      readOnly: true,
+    });
+    try {
+      await conn.backup(dest);
+    } finally {
+      await conn.close();
+    }
+    this._log(`places snapshot written to ${dest}`);
+    return "/workspace/places.sqlite";
   },
 
   async resetRootfs() {

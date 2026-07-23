@@ -90,6 +90,19 @@ $("reset").addEventListener("click", async () => {
   }
 });
 
+$("snapshot-places").addEventListener("click", async () => {
+  try {
+    const guestPath = await HarnessVM.snapshotPlacesToWorkspace();
+    appendOutput(
+      `[places snapshot at ${guestPath}; try: sqlite3 ${guestPath} ` +
+        `'select url from moz_places order by visit_count desc limit 5']\n`,
+      "meta"
+    );
+  } catch (e) {
+    appendOutput(`[error: ${e.message}]\n`, "meta");
+  }
+});
+
 $("input-row").addEventListener("submit", event => {
   event.preventDefault();
   const command = $("command");
