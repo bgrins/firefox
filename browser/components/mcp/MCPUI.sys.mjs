@@ -16,6 +16,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   CustomizableUI:
     "moz-src:///browser/components/customizableui/CustomizableUI.sys.mjs",
   EveryWindow: "resource:///modules/EveryWindow.sys.mjs",
+  MCPSessions: "moz-src:///browser/components/mcp/MCPSessions.sys.mjs",
   NavigableManager: "chrome://remote/content/shared/NavigableManager.sys.mjs",
 });
 
@@ -46,20 +47,7 @@ function revoke() {
   MCPServer.stop();
 }
 
-let confirmHandoff = tab =>
-  Services.prompt.confirm(
-    tab.ownerGlobal,
-    "Hand off tab to agent",
-    `Allow a local MCP agent to read and control "${tab.label}"?\n\n` +
-      "The agent will only see this tab, but it can act as you on any site " +
-      "the tab is logged into, until you revoke access from the tab context " +
-      "menu or the MCP toolbar panel."
-  );
-
 async function handOffTab(tab) {
-  if (!confirmHandoff(tab)) {
-    return;
-  }
   if (handoffTab) {
     revoke();
   } else if (MCPServer.running) {
@@ -141,6 +129,16 @@ function uninitWindow(win) {
     ?.removeEventListener("popupshowing", onTabContextShowing);
 }
 
+const HEADER_CSS = "padding: 8px 16px 0; font-weight: 600;";
+const ROW_CSS = "padding: 2px 16px;";
+const MONO_CSS =
+  "padding: 2px 16px; font-family: monospace; font-size: 0.85em; user-select: text;";
+
+function relativeTime(ts) {
+  const seconds = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  return seconds < 60 ? `${seconds}s ago` : `${Math.round(seconds / 60)}m ago`;
+}
+
 function populatePanel(panelview) {
   const doc = panelview.ownerDocument;
   const body = panelview.querySelector(".panel-subview-body");
@@ -148,48 +146,64 @@ function populatePanel(panelview) {
     body.lastChild.remove();
   }
 
-  const scoped = MCPServer.running && MCPServer.scoped;
+  const addText = (textContent, cssText) => {
+    const el = doc.createXULElement("description");
+    el.style.cssText = cssText;
+    el.textContent = textContent;
+    body.appendChild(el);
+  };
+  const addButton = (label, command) => {
+    const btn = doc.createXULElement("toolbarbutton");
+    btn.className = "subviewbutton";
+    btn.setAttribute("label", label);
+    btn.addEventListener("command", async () => {
+      await command();
+      populatePanel(panelview);
+    });
+    body.appendChild(btn);
+  };
 
-  const status = doc.createXULElement("description");
-  status.style.cssText = "padding: 8px 16px 0; font-weight: 600;";
-  status.textContent = MCPServer.running
-    ? `MCP server: running (port ${MCPServer.port})${scoped ? " — single tab" : " — full browser"}`
-    : "MCP server: stopped";
-  body.appendChild(status);
+  const session = MCPServer.session;
 
+  if (!MCPServer.running || !session) {
+    addText("MCP server: stopped", HEADER_CSS);
+    addButton("Start (full browser)", () =>
+      MCPServer.start().catch(e => console.error("MCPUI: start failed", e))
+    );
+    return;
+  }
+
+  const scoped = MCPServer.scoped;
+  const stateLabel = session.state === "paused" ? "paused" : "running";
+  addText(
+    `MCP server: ${stateLabel} (port ${MCPServer.port}) — ${scoped ? "single tab" : "full browser"}`,
+    HEADER_CSS
+  );
+
+  const client = session.clientInfo;
+  addText(
+    client
+      ? `Agent: ${client.title || client.name} ${client.version}`.trim()
+      : "Agent: no client connected yet",
+    ROW_CSS
+  );
   if (scoped && handoffTab) {
-    const tabInfo = doc.createXULElement("description");
-    tabInfo.style.cssText = "padding: 0 16px;";
-    tabInfo.textContent = `Handed off: ${handoffTab.label}`;
-    body.appendChild(tabInfo);
+    addText(`Tab: ${handoffTab.label}`, ROW_CSS);
+  }
+  const last = session.activity.at(-1);
+  if (last) {
+    addText(`Last activity: ${last.label} · ${relativeTime(last.ts)}`, ROW_CSS);
   }
 
-  const endpoint = doc.createXULElement("description");
-  endpoint.style.cssText =
-    "padding: 0 16px 4px; font-family: monospace; font-size: 0.85em; user-select: text;";
-  endpoint.textContent = MCPServer.running
-    ? `http://127.0.0.1:${MCPServer.port}/mcp`
-    : " ";
-  body.appendChild(endpoint);
+  addText(`http://127.0.0.1:${MCPServer.port}/mcp`, MONO_CSS);
+  addText(`Authorization: Bearer ${session.token}`, MONO_CSS);
 
-  const toggle = doc.createXULElement("toolbarbutton");
-  toggle.className = "subviewbutton";
-  let label = "Start (full browser)";
-  if (MCPServer.running) {
-    label = scoped ? "Revoke tab access" : "Stop";
+  if (session.state === "paused") {
+    addButton("Resume", () => lazy.MCPSessions.resume(session));
+  } else {
+    addButton("Pause", () => lazy.MCPSessions.pause(session));
   }
-  toggle.setAttribute("label", label);
-  toggle.addEventListener("command", async () => {
-    if (MCPServer.running) {
-      revoke();
-    } else {
-      await MCPServer.start().catch(e =>
-        console.error("MCPUI: start failed", e)
-      );
-    }
-    populatePanel(panelview);
-  });
-  body.appendChild(toggle);
+  addButton(scoped ? "Revoke tab access" : "Stop", () => revoke());
 }
 
 export const MCPUI = {
@@ -198,10 +212,6 @@ export const MCPUI = {
 
   get handoffTab() {
     return handoffTab;
-  },
-
-  setConfirmForTests(fn) {
-    confirmHandoff = fn;
   },
 
   async init() {
@@ -221,7 +231,17 @@ export const MCPUI = {
         node.setAttribute("image", "chrome://global/skin/icons/developer.svg");
       },
       onViewShowing(event) {
-        populatePanel(event.target);
+        const panelview = event.target;
+        populatePanel(panelview);
+        // Repaint on session updates (client connect, activity, pause) while
+        // the panel stays open.
+        const listener = () => populatePanel(panelview);
+        lazy.MCPSessions.addListener(listener);
+        panelview.addEventListener(
+          "ViewHiding",
+          () => lazy.MCPSessions.removeListener(listener),
+          { once: true }
+        );
       },
     });
 

@@ -20,6 +20,11 @@ add_task(async function test_server_lifecycle() {
     "firefox-devtools-mcp-extension",
     "server identifies itself"
   );
+  Assert.equal(
+    MCPServer.session.clientInfo.name,
+    "mochitest",
+    "clientInfo captured from the handshake"
+  );
 
   const list = await mcpRpc(port, "tools/list");
   const names = list.json.result.tools.map(t => t.name);
@@ -35,11 +40,19 @@ add_task(async function test_server_lifecycle() {
   const missingAuth = await mcpRpc(port, "ping", {}, { token: null });
   Assert.equal(missingAuth.status, 401, "missing bearer token is rejected");
 
-  const notFound = await rawHttpRequest(port, {
-    path: "/other",
-    headers: { Authorization: `Bearer ${MCP_DEV_TOKEN}` },
-    body: "{}",
-  });
+  const staticToken = await mcpRpc(
+    port,
+    "ping",
+    {},
+    { token: "bidi-bridge-dev" }
+  );
+  Assert.equal(
+    staticToken.status,
+    401,
+    "the bundle's static dev token is rejected"
+  );
+
+  const notFound = await rawHttpRequest(port, { path: "/other", body: "{}" });
   Assert.equal(notFound.status, 404, "non-/mcp path is rejected");
 
   MCPServer.stop();

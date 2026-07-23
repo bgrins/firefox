@@ -15,8 +15,6 @@ add_setup(async function () {
 });
 
 add_task(async function test_handoff_and_revoke() {
-  MCPUI.setConfirmForTests(() => true);
-
   const tab = await BrowserTestUtils.openNewForegroundTab(
     gBrowser,
     testPageUrl("example.com", "MCPHandoffPage")
@@ -46,24 +44,7 @@ add_task(async function test_handoff_and_revoke() {
   BrowserTestUtils.removeTab(tab);
 });
 
-add_task(async function test_declined_consent() {
-  MCPUI.setConfirmForTests(() => false);
-
-  const tab = await BrowserTestUtils.openNewForegroundTab(
-    gBrowser,
-    "https://example.com/"
-  );
-
-  await MCPUI.handOffTab(tab);
-  Assert.ok(!MCPServer.running, "server not started when consent declined");
-  Assert.equal(MCPUI.handoffTab, null, "no handoff tab when consent declined");
-
-  BrowserTestUtils.removeTab(tab);
-});
-
 add_task(async function test_revoke_on_tab_close() {
-  MCPUI.setConfirmForTests(() => true);
-
   const tab = await BrowserTestUtils.openNewForegroundTab(
     gBrowser,
     "https://example.com/"
@@ -77,8 +58,6 @@ add_task(async function test_revoke_on_tab_close() {
 });
 
 add_task(async function test_context_menu_item() {
-  MCPUI.setConfirmForTests(() => true);
-
   const tab = await BrowserTestUtils.openNewForegroundTab(
     gBrowser,
     "https://example.com/"

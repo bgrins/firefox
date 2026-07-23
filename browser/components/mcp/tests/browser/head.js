@@ -9,11 +9,12 @@ const { MCPServer } = ChromeUtils.importESModule(
 const { MCPBridge } = ChromeUtils.importESModule(
   "moz-src:///browser/components/mcp/MCPBridge.sys.mjs"
 );
+const { MCPSessions } = ChromeUtils.importESModule(
+  "moz-src:///browser/components/mcp/MCPSessions.sys.mjs"
+);
 const { NavigableManager } = ChromeUtils.importESModule(
   "chrome://remote/content/shared/NavigableManager.sys.mjs"
 );
-
-const MCP_DEV_TOKEN = "bidi-bridge-dev";
 
 let gRpcId = 0;
 
@@ -124,15 +125,13 @@ function parseRawResponse(raw) {
   return { status, headers, body };
 }
 
-async function mcpRpc(
-  port,
-  rpcMethod,
-  params = {},
-  { token = MCP_DEV_TOKEN } = {}
-) {
+// token: undefined -> the running server's session token, null -> no
+// Authorization header, string -> that value.
+async function mcpRpc(port, rpcMethod, params = {}, { token } = {}) {
+  const bearer = token === undefined ? MCPServer.session?.token : token;
   const headers = { "Content-Type": "application/json" };
-  if (token !== null) {
-    headers.Authorization = `Bearer ${token}`;
+  if (bearer != null) {
+    headers.Authorization = `Bearer ${bearer}`;
   }
   const res = await rawHttpRequest(port, {
     headers,

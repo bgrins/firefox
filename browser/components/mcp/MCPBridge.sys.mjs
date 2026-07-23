@@ -116,6 +116,7 @@ const STATUS_TEXT = {
   405: "Method Not Allowed",
   413: "Payload Too Large",
   431: "Request Header Fields Too Large",
+  500: "Internal Server Error",
   501: "Not Implemented",
   503: "Service Unavailable",
 };
@@ -130,6 +131,10 @@ class Bridge {
   #pendingResponses = new Map(); // requestId -> connection
   #nextRequestId = 1;
   #httpRequestListener = null;
+  // Inspects every parsed HTTP request before the vendored bundle sees it.
+  // May mutate the request (e.g. rewrite Authorization) or return a response
+  // {status, headers, body} to short-circuit.
+  #httpGate = null;
   #eventListeners = new Set();
   #eventHookInstalled = false;
   // Strong references to live connections — without this the transport/streams can
@@ -162,6 +167,7 @@ class Bridge {
   destroy() {
     this.stopServer();
     this.#scope = null;
+    this.#httpGate = null;
     this.#session?.destroy();
     this.#session = null;
     this.#handler = null;
@@ -361,6 +367,10 @@ class Bridge {
     },
   };
 
+  setHttpGate(fn) {
+    this.#httpGate = fn;
+  }
+
   sendHttpResponse(requestId, status, headers, body) {
     const connection = this.#pendingResponses.get(requestId);
     if (!connection) {
@@ -464,6 +474,28 @@ class Bridge {
     connection.buffer = connection.buffer.slice(parsed.byteLength);
     connection.keepAlive =
       (parsed.headers.connection ?? "keep-alive").toLowerCase() !== "close";
+    if (this.#httpGate) {
+      let verdict;
+      try {
+        verdict = this.#httpGate(parsed);
+      } catch (e) {
+        console.error("MCPBridge: http gate failed", e);
+        verdict = {
+          status: 500,
+          headers: { "Content-Type": "text/plain" },
+          body: "internal error",
+        };
+      }
+      if (verdict) {
+        this.#respond(
+          connection,
+          verdict.status,
+          verdict.headers ?? {},
+          verdict.body ?? ""
+        );
+        return;
+      }
+    }
     if (!this.#httpRequestListener) {
       this.#respond(
         connection,
