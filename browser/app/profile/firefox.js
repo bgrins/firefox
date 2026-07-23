@@ -3666,3 +3666,6 @@ pref("distribution.mozillaonline.ignore", true);
 #ifdef XP_MACOSX
   pref("browser.macAppMenu.setAsDefaultShown", false);
 #endif
+
+// Experimental about:harness micro-VM sandbox (macOS arm64 only).
+pref("browser.harness.enabled", false);

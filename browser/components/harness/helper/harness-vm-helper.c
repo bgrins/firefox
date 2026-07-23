@@ -86,12 +86,12 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-#define RESOLVE(name)                                                     \
-  name##_t name = (name##_t)dlsym(lib, #name);                            \
-  if (!name) {                                                            \
-    fprintf(stderr, "harness-vm-helper: missing symbol %s: %s\n", #name,  \
-            dlerror());                                                   \
-    return 1;                                                             \
+#define RESOLVE(name)                                                    \
+  name##_t name = (name##_t)dlsym(lib, #name);                           \
+  if (!name) {                                                           \
+    fprintf(stderr, "harness-vm-helper: missing symbol %s: %s\n", #name, \
+            dlerror());                                                  \
+    return 1;                                                            \
   }
   RESOLVE(krun_set_log_level)
   RESOLVE(krun_create_ctx)
@@ -112,13 +112,13 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-#define CHECK(call)                                              \
-  do {                                                           \
-    int32_t err = (call);                                        \
-    if (err < 0) {                                               \
+#define CHECK(call)                                                      \
+  do {                                                                   \
+    int32_t err = (call);                                                \
+    if (err < 0) {                                                       \
       fprintf(stderr, "harness-vm-helper: %s failed: %d\n", #call, err); \
-      return 1;                                                  \
-    }                                                            \
+      return 1;                                                          \
+    }                                                                    \
   } while (0)
 
   CHECK(krun_set_vm_config((uint32_t)ctx, (uint8_t)cpus, (uint32_t)mem_mib));
