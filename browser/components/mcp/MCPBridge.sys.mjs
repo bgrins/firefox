@@ -14,12 +14,34 @@ const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
   clearTimeout: "resource://gre/modules/Timer.sys.mjs",
+  NavigableManager: "chrome://remote/content/shared/NavigableManager.sys.mjs",
   RootMessageHandler:
     "chrome://remote/content/shared/messagehandler/RootMessageHandler.sys.mjs",
   WebDriverSession: "chrome://remote/content/shared/webdriver/Session.sys.mjs",
 });
 
 const MAX_REQUEST_BYTES = 4 * 1024 * 1024;
+
+// Commands permitted while the bridge is scoped to a single tab. Everything
+// else (tab create/close, chrome-scoped getTree, webExtension, prefs, ...)
+// is rejected outright.
+const SCOPED_COMMANDS = new Set([
+  "session.subscribe",
+  "session.unsubscribe",
+  "browsingContext.activate",
+  "browsingContext.captureScreenshot",
+  "browsingContext.getTree",
+  "browsingContext.handleUserPrompt",
+  "browsingContext.locateNodes",
+  "browsingContext.navigate",
+  "browsingContext.reload",
+  "browsingContext.setViewport",
+  "browsingContext.traverseHistory",
+  "input.performActions",
+  "input.setFiles",
+  "script.callFunction",
+  "script.evaluate",
+]);
 
 function bytesToString(bytes) {
   return new TextDecoder("utf-8").decode(
@@ -113,6 +135,9 @@ class Bridge {
   // Strong references to live connections — without this the transport/streams can
   // be GC'd mid-request, which surfaces as "Empty reply from server".
   #liveConnections = new Set();
+  // Navigable id of the single tab this bridge is allowed to touch, or null
+  // for unrestricted access. See #enforceScope.
+  #scope = null;
 
   // Create a REAL WebDriverSession (BiDi flavor, no connection) rather than a bare
   // RootMessageHandler: several BiDi paths call
@@ -136,6 +161,7 @@ class Bridge {
 
   destroy() {
     this.stopServer();
+    this.#scope = null;
     this.#session?.destroy();
     this.#session = null;
     this.#handler = null;
@@ -143,15 +169,109 @@ class Bridge {
     this.#eventListeners.clear();
   }
 
+  get scope() {
+    return this.#scope;
+  }
+
+  setScope(navigableId) {
+    this.#scope = navigableId;
+  }
+
+  clearScope() {
+    this.#scope = null;
+  }
+
+  #topLevelIdFor(contextId) {
+    const browsingContext =
+      lazy.NavigableManager.getBrowsingContextById(contextId);
+    if (!browsingContext) {
+      return null;
+    }
+    return lazy.NavigableManager.getIdForBrowsingContext(browsingContext.top);
+  }
+
+  #inScope(contextId) {
+    return (
+      this.#scope !== null && this.#topLevelIdFor(contextId) === this.#scope
+    );
+  }
+
+  #assertInScope(contextId) {
+    if (!this.#inScope(contextId)) {
+      throw new Error(
+        `Context ${contextId} is outside the tab granted to this MCP session`
+      );
+    }
+  }
+
+  // Validate (and where needed rewrite) a command against the granted tab.
+  // Context params must resolve to the granted top-level navigable or one of
+  // its descendant frames.
+  #enforceScope(moduleName, commandName, params) {
+    const command = `${moduleName}.${commandName}`;
+    if (!SCOPED_COMMANDS.has(command)) {
+      throw new Error(
+        `Command ${command} is not allowed in a tab-scoped MCP session`
+      );
+    }
+    switch (command) {
+      case "session.subscribe":
+        return { ...params, contexts: [this.#scope] };
+      case "session.unsubscribe":
+        return params;
+      case "browsingContext.getTree":
+        if (params["moz:scope"]) {
+          throw new Error(
+            "Chrome-scoped getTree is not allowed in a tab-scoped MCP session"
+          );
+        }
+        if (params.root !== undefined) {
+          this.#assertInScope(params.root);
+        }
+        return params;
+      case "script.evaluate":
+      case "script.callFunction": {
+        const context = params.target?.context;
+        if (!context) {
+          throw new Error(
+            "Tab-scoped MCP sessions require a context target for script commands"
+          );
+        }
+        this.#assertInScope(context);
+        return params;
+      }
+      default:
+        this.#assertInScope(params.context);
+        return params;
+    }
+  }
+
   async send(moduleName, commandName, params) {
+    let effectiveParams = params ?? {};
+    if (this.#scope !== null) {
+      effectiveParams = this.#enforceScope(
+        moduleName,
+        commandName,
+        effectiveParams
+      );
+    }
     const handler = this.#getHandler();
     const result = await handler.handleCommand({
       moduleName,
       commandName,
-      params: params ?? {},
+      params: effectiveParams,
       destination: { type: lazy.RootMessageHandler.type },
     });
-    return JSON.parse(JSON.stringify(result ?? null));
+    const cloned = JSON.parse(JSON.stringify(result ?? null));
+    if (
+      this.#scope !== null &&
+      moduleName === "browsingContext" &&
+      commandName === "getTree" &&
+      Array.isArray(cloned?.contexts)
+    ) {
+      cloned.contexts = cloned.contexts.filter(c => this.#inScope(c.context));
+    }
+    return cloned;
   }
 
   subscribe(events, contexts) {
@@ -166,7 +286,14 @@ class Bridge {
     return this.send("session", "unsubscribe", { events });
   }
 
+  #assertUnscoped() {
+    if (this.#scope !== null) {
+      throw new Error("Pref access is not allowed in a tab-scoped MCP session");
+    }
+  }
+
   getPref(name) {
+    this.#assertUnscoped();
     switch (Services.prefs.getPrefType(name)) {
       case Services.prefs.PREF_BOOL:
         return { type: "boolean", value: Services.prefs.getBoolPref(name) };
@@ -180,6 +307,7 @@ class Bridge {
   }
 
   setPref(name, value) {
+    this.#assertUnscoped();
     if (typeof value === "boolean") {
       Services.prefs.setBoolPref(name, value);
     } else if (typeof value === "number") {
@@ -203,6 +331,15 @@ class Bridge {
             } catch (e) {
               console.error("MCPBridge: failed to forward event", e);
               return;
+            }
+            // Subscriptions predating a handoff may be global — drop anything
+            // that doesn't provably belong to the granted tab.
+            if (this.#scope !== null) {
+              const data = cloned?.data ?? {};
+              const context = data.context ?? data.source?.context;
+              if (!context || !this.#inScope(context)) {
+                return;
+              }
             }
             for (const listener of this.#eventListeners) {
               try {

@@ -30,7 +30,12 @@ export const MCPServer = {
     return boundPort;
   },
 
-  async start(port) {
+  // True when the running server is restricted to a single tab.
+  get scoped() {
+    return MCPBridge.scope !== null;
+  },
+
+  async start({ port, scope } = {}) {
     if (running) {
       return boundPort;
     }
@@ -43,15 +48,26 @@ export const MCPServer = {
       });
       configured = true;
     }
+    if (scope) {
+      MCPBridge.setScope(scope);
+    } else {
+      MCPBridge.clearScope();
+    }
     const requested =
       port ?? Services.prefs.getIntPref(PORT_PREF, DEFAULT_PORT);
-    boundPort = await startMcp(requested);
+    try {
+      boundPort = await startMcp(requested);
+    } catch (e) {
+      MCPBridge.clearScope();
+      throw e;
+    }
     running = true;
     return boundPort;
   },
 
   stop() {
     MCPBridge.stopServer();
+    MCPBridge.clearScope();
     running = false;
   },
 };
