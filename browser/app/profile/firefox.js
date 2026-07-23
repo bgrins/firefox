@@ -3690,3 +3690,6 @@ pref("browser.harness.sessionPerConversation", false);
 // (deny-by-default). Entries are "host", "host:port", or "*.suffix".
 pref("browser.harness.proxy.enabled", true);
 pref("browser.harness.proxy.allowlist", "[]");
+// Read-only browser tools (tabs, history, page content) offered to the agent
+// as client-hosted dynamic tools.
+pref("browser.harness.browserTools.enabled", true);
