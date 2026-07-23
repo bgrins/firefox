@@ -53,6 +53,9 @@ function onEvent(event) {
     case "stderr":
       appendOutput(event.data, "stderr");
       break;
+    case "log":
+      appendOutput(`[${event.message}]\n`, "meta");
+      break;
     case "exit":
       appendOutput(`[VM exited with code ${event.exitCode}]\n`, "meta");
       break;

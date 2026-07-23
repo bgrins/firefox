@@ -8,6 +8,13 @@ ChromeUtils.defineESModuleGetters(lazy, {
   Subprocess: "resource://gre/modules/Subprocess.sys.mjs",
 });
 
+ChromeUtils.defineLazyGetter(lazy, "logConsole", () =>
+  console.createInstance({
+    prefix: "HarnessVM",
+    maxLogLevelPref: "browser.harness.loglevel",
+  })
+);
+
 function greBinPath(leaf) {
   const file = Services.dirsvc.get("GreBinD", Ci.nsIFile);
   file.append(leaf);
@@ -64,7 +71,14 @@ export const HarnessVM = {
 
   _setState(state) {
     this.state = state;
+    this._log(`state -> ${state}`);
     this._emit({ type: "state", state });
+  },
+
+  // Mirrored to the Browser Console and rendered as meta lines on the page.
+  _log(message) {
+    lazy.logConsole.log(message);
+    this._emit({ type: "log", message });
   },
 
   get rootfsPath() {
@@ -81,6 +95,8 @@ export const HarnessVM = {
         `Missing rootfs template at ${template}; run browser/components/harness/vm/setup-deps.sh`
       );
     }
+    this._log(`copying rootfs template to ${this.rootfsPath}`);
+    const start = Date.now();
     await IOUtils.makeDirectory(PathUtils.parent(this.rootfsPath), {
       ignoreExisting: true,
     });
@@ -95,11 +111,13 @@ export const HarnessVM = {
     if (exitCode !== 0) {
       throw new Error(`Failed to copy rootfs template (cp exited ${exitCode})`);
     }
+    this._log(`rootfs copy done in ${Date.now() - start}ms`);
   },
 
   // mach build relinks the helper with a plain ad-hoc signature, dropping the
   // hypervisor entitlement, so re-sign unconditionally before each start.
   async _signHelper(helperPath) {
+    this._log(`codesigning ${helperPath} with hypervisor entitlement`);
     const proc = await lazy.Subprocess.call({
       command: "/usr/bin/codesign",
       arguments: [
@@ -137,25 +155,32 @@ export const HarnessVM = {
       await this._ensureRootfs();
       await this._signHelper(helper);
 
+      const args = [
+        "--lib",
+        libkrun,
+        "--krunfw",
+        libkrunfw,
+        "--root",
+        this.rootfsPath,
+        "--mem",
+        "1024",
+        "--cpus",
+        "2",
+      ];
+      if (Services.prefs.getBoolPref("browser.harness.verbose", true)) {
+        args.push("--verbose");
+      }
+      // The wrapper echo gives a visible readiness marker: busybox sh over
+      // piped stdio prints no prompt, so a healthy boot is otherwise silent.
+      args.push("--", "/bin/sh", "-c", "echo '[guest ready]'; exec /bin/sh");
+      this._log(`spawning ${helper} ${args.join(" ")}`);
       const proc = await lazy.Subprocess.call({
         command: helper,
-        arguments: [
-          "--lib",
-          libkrun,
-          "--krunfw",
-          libkrunfw,
-          "--root",
-          this.rootfsPath,
-          "--mem",
-          "1024",
-          "--cpus",
-          "2",
-          "--",
-          "/bin/sh",
-        ],
+        arguments: args,
         stderr: "pipe",
       });
       this._proc = proc;
+      this._log(`helper running with pid ${proc.pid}`);
       this._setState("running");
       this._readLoop(proc.stdout, "stdout");
       this._readLoop(proc.stderr, "stderr");
@@ -185,6 +210,8 @@ export const HarnessVM = {
   write(data) {
     if (this.state == "running" && this._proc) {
       this._proc.stdin.write(data);
+    } else {
+      this._log(`write ignored, VM is ${this.state}: ${data.trim()}`);
     }
   },
 

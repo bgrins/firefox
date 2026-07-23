@@ -3669,3 +3669,6 @@ pref("distribution.mozillaonline.ignore", true);
 
 // Experimental about:harness micro-VM sandbox (macOS arm64 only).
 pref("browser.harness.enabled", false);
+// Pass --verbose (libkrun info logging) to the VM helper.
+pref("browser.harness.verbose", true);
+pref("browser.harness.loglevel", "All");

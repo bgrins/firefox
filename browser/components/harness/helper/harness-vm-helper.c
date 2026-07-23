@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef int32_t (*krun_set_log_level_t)(uint32_t);
 typedef int32_t (*krun_create_ctx_t)(void);
@@ -139,6 +140,12 @@ int main(int argc, char** argv) {
       "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
       "HOME=/root", "TERM=dumb", NULL};
   CHECK(krun_set_exec((uint32_t)ctx, exec_path, guest_argv, guest_envp));
+
+  fprintf(stderr,
+          "harness-vm-helper[%d]: entering microVM: root=%s mem=%ldMiB "
+          "cpus=%ld exec=%s\n",
+          getpid(), root_path, mem_mib, cpus, exec_path);
+  fflush(stderr);
 
   /* Does not return on success; the process becomes the VMM and exits with
    * the guest workload's exit code. */
