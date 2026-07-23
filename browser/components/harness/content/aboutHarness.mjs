@@ -134,6 +134,7 @@ $("exec-row").addEventListener("submit", async event => {
 
 let chatConversationId = null;
 let chatAgentBubble = null;
+const chatItemBubbles = new Map();
 
 function chatBubble(role, text) {
   const log = $("chat-log");
@@ -143,6 +144,65 @@ function chatBubble(role, text) {
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
   return div;
+}
+
+function describeItem(item) {
+  switch (item.type) {
+    case "commandExecution": {
+      const state =
+        item.status == "completed"
+          ? `exit ${item.exitCode ?? "?"}`
+          : item.status;
+      return `$ ${item.command}   [${state}]`;
+    }
+    case "reasoning":
+      return `thinking: ${item.summary?.join(" ") || "..."}`;
+    case "fileChange": {
+      const paths = (item.changes ?? []).map(c => c.path).join(", ");
+      return `file changes: ${paths || "(pending)"} [${item.status ?? ""}]`;
+    }
+    case "webSearch":
+      return `web search: ${item.query ?? ""}`;
+    case "mcpToolCall":
+      return `tool call: ${item.server ?? ""}/${item.tool ?? ""} [${item.status ?? ""}]`;
+    default:
+      return `${item.type} [${item.status ?? ""}]`;
+  }
+}
+
+function renderItem(item) {
+  const text = describeItem(item);
+  let bubble = chatItemBubbles.get(item.id);
+  if (!bubble) {
+    bubble = chatBubble("tool", text);
+    chatItemBubbles.set(item.id, bubble);
+  } else {
+    bubble.textContent = text;
+  }
+}
+
+function renderApproval(event) {
+  const bubble = chatBubble("approval", "");
+  const label = document.createElement("div");
+  const command =
+    event.params?.item?.command ?? JSON.stringify(event.params ?? {});
+  label.textContent = `approval requested: ${command}`;
+  bubble.appendChild(label);
+  const respond = decision => {
+    AgentService.respondToApproval(event.requestId, decision);
+    bubble.textContent = `approval: ${decision} (${command})`;
+  };
+  for (const [text, decision] of [
+    ["Allow", "accept"],
+    ["Allow for session", "acceptForSession"],
+    ["Deny", "decline"],
+  ]) {
+    const button = document.createElement("button");
+    button.textContent = text;
+    button.addEventListener("click", () => respond(decision));
+    bubble.appendChild(button);
+  }
+  $("chat-log").scrollTop = $("chat-log").scrollHeight;
 }
 
 function onAgentEvent(event) {
@@ -172,6 +232,12 @@ function onAgentEvent(event) {
       $("chat-interrupt").hidden = true;
       $("chat-send").disabled = false;
       chatAgentBubble = null;
+      break;
+    case "item":
+      renderItem(event.item);
+      break;
+    case "approvalRequest":
+      renderApproval(event);
       break;
     case "log":
       chatBubble("meta", event.message);

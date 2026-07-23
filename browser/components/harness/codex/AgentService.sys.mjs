@@ -10,6 +10,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   CodexExecBridge:
     "moz-src:///browser/components/harness/codex/CodexExecBridge.sys.mjs",
   HarnessVM: "moz-src:///browser/components/harness/HarnessVM.sys.mjs",
+  clearTimeout: "resource://gre/modules/Timer.sys.mjs",
+  setTimeout: "resource://gre/modules/Timer.sys.mjs",
 });
 
 ChromeUtils.defineLazyGetter(lazy, "logConsole", () =>
@@ -28,12 +30,21 @@ ChromeUtils.defineLazyGetter(lazy, "logConsole", () =>
  * Events: {type:"turnStarted"|"delta"|"message"|"turnCompleted"|"log"|"error",
  *          conversationId, ...}
  */
+// Server->client approval requests surfaced to the UI; everything else stays
+// fail-closed in CodexAppServerClient.
+const APPROVAL_METHODS = new Set([
+  "item/commandExecution/requestApproval",
+  "item/fileChange/requestApproval",
+]);
+const APPROVAL_TIMEOUT_MS = 120000;
+
 export const AgentService = {
   _client: null,
   _starting: null,
   _listeners: new Set(),
   _conversations: new Map(),
   _environmentId: null,
+  _pendingApprovals: new Map(),
 
   addListener(listener) {
     this._listeners.add(listener);
@@ -60,6 +71,7 @@ export const AgentService = {
     if (!this._starting) {
       const client = new CodexAppServerClient();
       client.addListener(notification => this._onNotification(notification));
+      client.onServerRequest = request => this._onServerRequest(request);
       this._starting = client.start().then(
         () => {
           this._client = client;
@@ -154,6 +166,42 @@ export const AgentService = {
     });
   },
 
+  _onServerRequest(request) {
+    if (!APPROVAL_METHODS.has(request.method)) {
+      lazy.logConsole.warn(`denying server request ${request.method}`);
+      throw new Error(`${request.method} not permitted`);
+    }
+    return new Promise(resolve => {
+      const timer = lazy.setTimeout(() => {
+        this._pendingApprovals.delete(request.id);
+        lazy.logConsole.warn(`approval ${request.id} timed out; declining`);
+        resolve({ decision: "decline" });
+      }, APPROVAL_TIMEOUT_MS);
+      this._pendingApprovals.set(request.id, { resolve, timer });
+      this._emit({
+        type: "approvalRequest",
+        requestId: request.id,
+        method: request.method,
+        conversationId: request.params?.threadId,
+        params: request.params,
+      });
+    });
+  },
+
+  /**
+   * @param {string|number} requestId from an approvalRequest event
+   * @param {string} decision accept | acceptForSession | decline | cancel
+   */
+  respondToApproval(requestId, decision) {
+    const pending = this._pendingApprovals.get(requestId);
+    if (!pending) {
+      return;
+    }
+    this._pendingApprovals.delete(requestId);
+    lazy.clearTimeout(pending.timer);
+    pending.resolve({ decision });
+  },
+
   _onNotification(notification) {
     const params = notification.params ?? {};
     const conversationId = params.threadId;
@@ -167,12 +215,33 @@ export const AgentService = {
       case "item/agentMessage/delta":
         this._emit({ type: "delta", conversationId, text: params.delta });
         break;
+      case "item/started":
+      case "item/updated":
+        if (
+          params.item &&
+          !["agentMessage", "userMessage"].includes(params.item.type)
+        ) {
+          this._emit({
+            type: "item",
+            phase: notification.method.split("/")[1],
+            conversationId,
+            item: params.item,
+          });
+        }
+        break;
       case "item/completed":
         if (params.item?.type == "agentMessage") {
           this._emit({
             type: "message",
             conversationId,
             text: params.item.text,
+          });
+        } else if (params.item && params.item.type != "userMessage") {
+          this._emit({
+            type: "item",
+            phase: "completed",
+            conversationId,
+            item: params.item,
           });
         }
         break;

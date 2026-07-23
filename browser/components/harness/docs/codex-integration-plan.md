@@ -232,8 +232,14 @@ Decisions settled with the project owner:
 
 - Per-task ephemeral VM sessions + task-dir lifecycle + crash reconciliation.
 - Read-only base image + tmpfs overlay; unprivileged `task` user for exec.
-- Guest image additions (bash, jq, sqlite, ripgrep via pinned apks) — add
-  when a real turn needs them, not before.
+- Guest image: standard developer tooling baked into the rootfs template at
+  setup time (pinned apk/static-binary fetches, since the guest has no
+  network): bash, node, uv/python, rg, jq, yq, sqlite, git, plus an image
+  toolchain for screenshots coming from web pages (imagemagick or
+  libvips/vipsthumbnail for convert/resize/compare, pngcrush/oxipng
+  optional). Alpine apks are plain tarballs, so setup-deps.sh can extract
+  them into the template without apk itself; prefer static builds where the
+  dependency tree gets deep (node, uv publish musl-static artifacts).
 - Gated egress proxy (`proxy-plan.md`) — guest stays offline until then.
 - virtio-fs symlink/`..` adversarial review + tests — required before calling
   the workspace mount a *security boundary* rather than a dev prototype.

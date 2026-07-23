@@ -111,14 +111,15 @@ export class CodexAppServerClient {
         `Missing ${this._binaryPath}; run browser/components/harness/vm/setup-codex.sh`
       );
     }
+    // The in-tree template is the source of truth in this prototype: refresh
+    // config.toml on every start so template fixes reach existing profiles
+    // (auth.json and other CODEX_HOME state are untouched).
     const configPath = PathUtils.join(this._codexHome, "config.toml");
-    if (!(await IOUtils.exists(configPath))) {
-      await IOUtils.makeDirectory(this._codexHome, {
-        createAncestors: true,
-        ignoreExisting: true,
-      });
-      await IOUtils.copy(this._configTemplatePath, configPath);
-    }
+    await IOUtils.makeDirectory(this._codexHome, {
+      createAncestors: true,
+      ignoreExisting: true,
+    });
+    await IOUtils.copy(this._configTemplatePath, configPath);
     const cwd = PathUtils.join(this._codexHome, "cwd");
     const tmp = PathUtils.join(this._codexHome, "tmp");
     for (const dir of [cwd, tmp]) {
