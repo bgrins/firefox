@@ -4,7 +4,7 @@
 #   dist/bin/libkrun.dylib           built from vendored third_party/libkrun
 #   dist/bin/libkrunfw.5.dylib       prebuilt guest kernel bundle (GPL; fetched,
 #                                    never vendored - see third_party/libkrun/moz.yaml)
-#   dist/harness/rootfs-template/    Alpine minirootfs, copied per-profile at runtime
+#   dist/bin/harness/rootfs-template/  Alpine minirootfs, copied per-profile at runtime
 #
 # Requires: rust with the aarch64-unknown-linux-musl target, lld (brew install lld).
 set -eu
@@ -67,11 +67,11 @@ export CC_LINUX="/usr/bin/clang -target aarch64-linux-gnu -fuse-ld=lld -Wl,-stri
 cp "$LIBKRUN_DIR/target/release/libkrun.dylib" "$BIN/"
 
 echo "=== Alpine rootfs template ==="
-if [ ! -d "$OBJDIR/dist/harness/rootfs-template" ] || [ "${FORCE:-}" = 1 ]; then
+if [ ! -d "$BIN/harness/rootfs-template" ] || [ "${FORCE:-}" = 1 ]; then
     fetch "$ALPINE_URL" "$ALPINE_SHA256" "$DEPS/alpine-minirootfs.tar.gz"
-    rm -rf "$OBJDIR/dist/harness/rootfs-template"
-    mkdir -p "$OBJDIR/dist/harness/rootfs-template"
-    tar -xzf "$DEPS/alpine-minirootfs.tar.gz" -C "$OBJDIR/dist/harness/rootfs-template"
+    rm -rf "$BIN/harness/rootfs-template"
+    mkdir -p "$BIN/harness/rootfs-template"
+    tar -xzf "$DEPS/alpine-minirootfs.tar.gz" -C "$BIN/harness/rootfs-template"
 else
     echo "already extracted, skipping (FORCE=1 to redo)"
 fi

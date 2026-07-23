@@ -14,8 +14,19 @@ function greBinPath(leaf) {
   return file.path;
 }
 
+// The helper Program and its entitlements file live in the app dir
+// (dist/bin/browser) because moz.build files under browser/ get
+// DIST_SUBDIR=browser; the dylibs placed by setup-deps.sh are in GreBinD.
+function appBinPath(leaf) {
+  const file = Services.dirsvc.get("XCurProcD", Ci.nsIFile);
+  file.append(leaf);
+  return file.path;
+}
+
+// GreD is dist/bin for plain runs and Contents/Resources in the .app bundle;
+// setup-deps.sh extracts to dist/bin/harness, which the bundle mirrors.
 function rootfsTemplatePath() {
-  const file = Services.dirsvc.get("GreBinD", Ci.nsIFile).parent;
+  const file = Services.dirsvc.get("GreD", Ci.nsIFile);
   file.append("harness");
   file.append("rootfs-template");
   return file.path;
@@ -96,7 +107,7 @@ export const HarnessVM = {
         "-s",
         "-",
         "--entitlements",
-        greBinPath("harness-vm-helper.entitlements.xml"),
+        appBinPath("harness-vm-helper.entitlements.xml"),
         helperPath,
       ],
       stderr: "stdout",
@@ -113,7 +124,7 @@ export const HarnessVM = {
     }
     this._setState("starting");
     try {
-      const helper = greBinPath("harness-vm-helper");
+      const helper = appBinPath("harness-vm-helper");
       const libkrun = greBinPath("libkrun.dylib");
       const libkrunfw = greBinPath("libkrunfw.5.dylib");
       for (const path of [helper, libkrun, libkrunfw]) {
