@@ -8,7 +8,6 @@ import { setTimeout } from "resource://gre/modules/Timer.sys.mjs";
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
-  HarnessAgent: "moz-src:///browser/components/harness/HarnessAgent.sys.mjs",
   HarnessVM: "moz-src:///browser/components/harness/HarnessVM.sys.mjs",
 });
 
@@ -87,6 +86,12 @@ export const CodexExecBridge = {
   _processes: new Map(),
   auditLog: [],
 
+  // The default bridge serves the default session; per-conversation bridges
+  // from createExecBridge() are bound to their own session.
+  _session() {
+    return lazy.HarnessVM.session();
+  },
+
   get running() {
     return !!this._server;
   },
@@ -112,7 +117,9 @@ export const CodexExecBridge = {
   stop() {
     for (const record of this._processes.values()) {
       if (!record.exited) {
-        lazy.HarnessAgent.kill(record.requestId).catch(() => {});
+        this._session()
+          .agent.kill(record.requestId)
+          .catch(() => {});
       }
     }
     this._processes.clear();
@@ -169,7 +176,7 @@ export const CodexExecBridge = {
   },
 
   async _guest(cmd, options = {}) {
-    const result = await lazy.HarnessAgent.exec(cmd, {
+    const result = await this._session().agent.exec(cmd, {
       cwd: WORKSPACE,
       timeoutMs: FS_TIMEOUT_MS,
       ...options,
@@ -326,7 +333,7 @@ export const CodexExecBridge = {
       waiters: [],
     };
     this._processes.set(processId, record);
-    const { requestId, result } = lazy.HarnessAgent.execStart(cmd, {
+    const { requestId, result } = this._session().agent.execStart(cmd, {
       cwd: cwdPath,
       timeoutMs: EXEC_TIMEOUT_MS,
       env,
@@ -426,8 +433,24 @@ export const CodexExecBridge = {
     }
     this._audit(method, params.processId);
     if (!record.exited) {
-      await lazy.HarnessAgent.kill(record.requestId);
+      await this._session().agent.kill(record.requestId);
     }
     return method == "process/terminate" ? { running: !record.exited } : {};
   },
 };
+
+/**
+ * A bridge instance bound to a specific HarnessSession (per-conversation
+ * VMs). Shares the method implementations with the default bridge but owns
+ * its server, process table, and audit log.
+ *
+ * @param {object} session HarnessSession
+ */
+export function createExecBridge(session) {
+  const bridge = Object.create(CodexExecBridge);
+  bridge._server = null;
+  bridge._processes = new Map();
+  bridge.auditLog = [];
+  bridge._session = () => session;
+  return bridge;
+}

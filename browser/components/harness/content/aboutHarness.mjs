@@ -71,8 +71,57 @@ function onEvent(event) {
 
 $("start").addEventListener("click", () => {
   appendOutput("[starting VM]\n", "meta");
-  HarnessVM.start();
+  HarnessVM.start().catch(e =>
+    appendOutput(`[start failed: ${e.message}]\n`, "meta")
+  );
 });
+
+function renderSessions() {
+  const list = $("sessions-list");
+  list.textContent = "";
+  for (const info of HarnessVM.listSessions()) {
+    const row = document.createElement("div");
+    row.className = "session-row";
+    const label = document.createElement("code");
+    const uptime = info.startedAtMs
+      ? `${Math.round((Date.now() - info.startedAtMs) / 1000)}s`
+      : "-";
+    label.textContent = `${info.id}  ${info.state}  pid=${info.pid ?? "-"}  up=${uptime}`;
+    row.appendChild(label);
+    if (info.state == "running") {
+      const stopButton = document.createElement("button");
+      stopButton.type = "button";
+      stopButton.textContent = "Stop";
+      stopButton.addEventListener("click", async () => {
+        await HarnessVM.session(info.id)?.stop();
+        renderSessions();
+      });
+      row.appendChild(stopButton);
+    }
+    if (info.removable) {
+      const destroyButton = document.createElement("button");
+      destroyButton.type = "button";
+      destroyButton.textContent = "Destroy";
+      destroyButton.addEventListener("click", async () => {
+        await HarnessVM.session(info.id)?.destroy();
+        renderSessions();
+      });
+      row.appendChild(destroyButton);
+    }
+    list.appendChild(row);
+  }
+}
+
+$("vm-tools").addEventListener("toggle", () => {
+  if ($("vm-tools").open) {
+    renderSessions();
+  }
+});
+setInterval(() => {
+  if ($("vm-tools").open) {
+    renderSessions();
+  }
+}, 5000);
 
 $("stop").addEventListener("click", () => {
   HarnessVM.stop();
@@ -538,7 +587,18 @@ function loadSettings() {
     ""
   );
   $("settings-login").hidden = provider != "openai";
+  $("session-per-conversation").checked = Services.prefs.getBoolPref(
+    "browser.harness.sessionPerConversation",
+    false
+  );
 }
+
+$("session-per-conversation").addEventListener("change", () => {
+  Services.prefs.setBoolPref(
+    "browser.harness.sessionPerConversation",
+    $("session-per-conversation").checked
+  );
+});
 
 for (const id of ["provider-ollama", "provider-openai"]) {
   $(id).addEventListener("change", () => {

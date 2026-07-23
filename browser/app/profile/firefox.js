@@ -3683,3 +3683,6 @@ pref("browser.harness.codex.model", "");
 // User-selected host folders shared into the guest:
 // JSON [{path, tag, readOnly}]; mounted at /mnt/<tag>.
 pref("browser.harness.mounts", "[]");
+// Give each new conversation its own micro-VM (rootfs clone + workspace)
+// instead of the shared default session.
+pref("browser.harness.sessionPerConversation", false);

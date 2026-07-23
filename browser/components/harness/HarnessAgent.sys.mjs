@@ -22,21 +22,22 @@ const HOST_TIMEOUT_SLACK_MS = 5000;
 const NON_ASCII_RE = new RegExp("[\\u0080-\\uffff]", "g");
 
 /**
- * JSON-lines client for the guest-agent running inside the micro-VM,
+ * JSON-lines client for the guest-agent running inside a micro-VM,
  * connected through the unix socket that libkrun forwards to the guest's
- * vsock port. One instance per VM run; HarnessVM owns the lifecycle.
+ * vsock port. One instance per VM session; HarnessSession owns the
+ * lifecycle.
  */
-export const HarnessAgent = {
-  _transport: null,
-  _outStream: null,
-  _inStream: null,
-  _scriptableIn: null,
-  _splitter: new LineSplitter(),
-  _requests: new RequestTable(),
+export class HarnessAgent {
+  _transport = null;
+  _outStream = null;
+  _inStream = null;
+  _scriptableIn = null;
+  _splitter = new LineSplitter();
+  _requests = new RequestTable();
 
   get connected() {
     return !!this._transport;
-  },
+  }
 
   async connect(socketPath, { retries = 40, delayMs = 250 } = {}) {
     for (let attempt = 1; ; attempt++) {
@@ -55,7 +56,7 @@ export const HarnessAgent = {
         await new Promise(resolve => setTimeout(resolve, delayMs));
       }
     }
-  },
+  }
 
   _open(socketPath) {
     const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
@@ -72,7 +73,7 @@ export const HarnessAgent = {
     this._scriptableIn.init(this._inStream);
     this._splitter = new LineSplitter();
     this._waitForData();
-  },
+  }
 
   _waitForData() {
     if (!this._inStream) {
@@ -86,7 +87,7 @@ export const HarnessAgent = {
       0,
       Services.tm.currentThread
     );
-  },
+  }
 
   _onData() {
     if (!this._scriptableIn) {
@@ -106,7 +107,7 @@ export const HarnessAgent = {
       this._handleLine(line);
     }
     this._waitForData();
-  },
+  }
 
   _handleLine(line) {
     // readBytes yields latin1 byte-chars; recover UTF-8.
@@ -146,11 +147,11 @@ export const HarnessAgent = {
     } else {
       this._requests.resolve(message.id, message);
     }
-  },
+  }
 
   request(fields, timeoutMs = 30000, onOutput) {
     return this.requestWithId(fields, timeoutMs, onOutput).promise;
-  },
+  }
 
   requestWithId(fields, timeoutMs = 30000, onOutput) {
     if (!this._outStream) {
@@ -176,7 +177,7 @@ export const HarnessAgent = {
       this._requests.reject(id, e);
     }
     return { id, promise };
-  },
+  }
 
   /**
    * Run a command inside the guest via /bin/sh -c. Output is streamed to
@@ -195,7 +196,7 @@ export const HarnessAgent = {
    */
   exec(cmd, options) {
     return this.execStart(cmd, options).result;
-  },
+  }
 
   /**
    * Like exec(), but also returns the request id so the job can be killed
@@ -232,11 +233,11 @@ export const HarnessAgent = {
       onOutput
     );
     return { requestId: id, result: promise };
-  },
+  }
 
   kill(requestId) {
     return this.request({ op: "kill", targetId: requestId }, 5000);
-  },
+  }
 
   close() {
     this._requests.rejectAll(new Error("guest-agent connection closed"));
@@ -252,5 +253,5 @@ export const HarnessAgent = {
     this._inStream = null;
     this._scriptableIn = null;
     this._splitter = new LineSplitter();
-  },
-};
+  }
+}

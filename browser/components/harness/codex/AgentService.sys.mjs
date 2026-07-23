@@ -11,6 +11,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "moz-src:///browser/components/harness/codex/CodexExecBridge.sys.mjs",
   HarnessVM: "moz-src:///browser/components/harness/HarnessVM.sys.mjs",
   clearTimeout: "resource://gre/modules/Timer.sys.mjs",
+  createExecBridge:
+    "moz-src:///browser/components/harness/codex/CodexExecBridge.sys.mjs",
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
 });
 
@@ -88,22 +90,20 @@ export const AgentService = {
     return this._starting;
   },
 
-  // Every conversation runs against the micro-VM as an external exec-server
+  // Every conversation runs against a micro-VM as an external exec-server
   // environment. This is a security invariant, not a convenience: without an
   // attached environment Codex falls back to running commands on the host
-  // (in its own sandbox, but still the host). So the VM is auto-started and
-  // conversation creation fails closed if it cannot run.
-  async _ensureEnvironment(client) {
-    // The VM must be up even when the environment is already registered
-    // (it may have been stopped since the last conversation).
-    if (lazy.HarnessVM.state == "stopped") {
+  // (in its own sandbox, but still the host). So VMs are auto-started and
+  // conversation creation fails closed if one cannot run.
+  async _awaitSession(session) {
+    if (session.state == "stopped") {
       this._emit({ type: "log", message: "starting sandbox VM..." });
-      await lazy.HarnessVM.start();
+      await session.start();
     }
-    for (let i = 0; lazy.HarnessVM.state == "starting" && i < 120; i++) {
+    for (let i = 0; session.state == "starting" && i < 120; i++) {
       await new Promise(resolve => lazy.setTimeout(resolve, 250));
     }
-    if (lazy.HarnessVM.state != "running") {
+    if (session.state != "running") {
       throw new Error(
         "sandbox VM is not running; refusing to start a conversation " +
           "(commands would execute on the host)"
@@ -111,7 +111,7 @@ export const AgentService = {
     }
     for (let i = 0; ; i++) {
       try {
-        await lazy.HarnessVM.exec("true");
+        await session.exec("true");
         break;
       } catch (e) {
         if (i >= 40) {
@@ -120,8 +120,15 @@ export const AgentService = {
         await new Promise(resolve => lazy.setTimeout(resolve, 250));
       }
     }
+  },
+
+  async _ensureEnvironment(client) {
+    // The VM must be up even when the environment is already registered
+    // (it may have been stopped since the last conversation).
+    const session = lazy.HarnessVM.session();
+    await this._awaitSession(session);
     if (!this._environmentId) {
-      await this._seedWorkspaceContext();
+      await this._seedWorkspaceContext(session.workspacePath);
       const url = lazy.CodexExecBridge.start();
       // Stable id so threads resumed in a later sidecar instance still
       // resolve their recorded environment after we re-register it.
@@ -136,9 +143,31 @@ export const AgentService = {
     return this._environmentId;
   },
 
+  // Dedicated VM + bridge + environment for one conversation
+  // (browser.harness.sessionPerConversation).
+  async _createSessionEnvironment(client) {
+    const session = await lazy.HarnessVM.createSession();
+    try {
+      await this._awaitSession(session);
+      await this._seedWorkspaceContext(session.workspacePath);
+      const bridge = lazy.createExecBridge(session);
+      bridge.start();
+      const environmentId = `harness-vm-${session.id}`;
+      await client.request("environment/add", {
+        environmentId,
+        execServerUrl: bridge.url,
+      });
+      lazy.logConsole.log(`environment ${environmentId} -> ${bridge.url}`);
+      return { session, bridge, environmentId };
+    } catch (e) {
+      await session.destroy();
+      throw e;
+    }
+  },
+
   // Codex reads AGENTS.md from the environment cwd, so this is how the agent
   // learns what this sandbox is and what Firefox data can appear in it.
-  async _seedWorkspaceContext() {
+  async _seedWorkspaceContext(workspacePath) {
     let mountLines = "";
     for (const mount of lazy.HarnessVM.mounts) {
       mountLines += `- /mnt/${mount.tag}${
@@ -166,12 +195,12 @@ You are running inside a small Alpine Linux micro-VM embedded in Firefox.
     them to click "Snapshot Places DB" under "Sandbox VM tools" on the
     about:harness page.
 ${mountLines}`;
-    await IOUtils.makeDirectory(lazy.HarnessVM.workspacePath, {
+    await IOUtils.makeDirectory(workspacePath, {
       createAncestors: true,
       ignoreExisting: true,
     });
     await IOUtils.writeUTF8(
-      PathUtils.join(lazy.HarnessVM.workspacePath, "AGENTS.md"),
+      PathUtils.join(workspacePath, "AGENTS.md"),
       content
     );
   },
@@ -220,11 +249,27 @@ ${mountLines}`;
     if (approvalPolicy) {
       params.approvalPolicy = approvalPolicy;
     }
-    const environmentId = await this._ensureEnvironment(client);
+    let environmentId;
+    let sessionRecord = {};
+    if (
+      Services.prefs.getBoolPref(
+        "browser.harness.sessionPerConversation",
+        false
+      )
+    ) {
+      const env = await this._createSessionEnvironment(client);
+      environmentId = env.environmentId;
+      sessionRecord = { session: env.session, bridge: env.bridge };
+    } else {
+      environmentId = await this._ensureEnvironment(client);
+    }
     params.environments = [{ environmentId, cwd: "/workspace" }];
     const result = await client.request("thread/start", params);
     const conversationId = result.thread.id;
-    this._conversations.set(conversationId, { activeTurnId: null });
+    this._conversations.set(conversationId, {
+      activeTurnId: null,
+      ...sessionRecord,
+    });
     lazy.logConsole.log(
       `conversation ${conversationId} (${result.modelProvider}/${result.model})`
     );
@@ -409,10 +454,19 @@ ${mountLines}`;
 
   async shutdown() {
     const client = this._client;
+    const conversations = [...this._conversations.values()];
     this._client = null;
     this._conversations.clear();
     this._environmentId = null;
     lazy.CodexExecBridge.stop();
+    for (const record of conversations) {
+      record.bridge?.stop();
+      try {
+        await record.session?.destroy();
+      } catch (e) {
+        lazy.logConsole.warn(`session destroy failed: ${e.message}`);
+      }
+    }
     await client?.stop();
   },
 };
