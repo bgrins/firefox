@@ -241,6 +241,68 @@ function chatBubble(role, text) {
   return div;
 }
 
+const MIME_BY_EXTENSION = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+};
+
+function openArtifact(hostPath) {
+  const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+  file.initWithPath(hostPath);
+  const uri = Services.io.newFileURI(file);
+  const win = window.browsingContext.topChromeWindow;
+  win.openTrustedLinkIn(uri.spec, "tab");
+}
+
+// Files presented by the agent (present_files tool): images render inline
+// via blob URLs; everything else gets an open-in-tab button. Paths were
+// validated to stay inside the workspace by HarnessBrowserTools.
+async function renderPresentedFiles(event) {
+  const card = document.createElement("div");
+  card.className = "msg artifact";
+  if (event.title) {
+    const caption = document.createElement("div");
+    caption.className = "artifact-title";
+    caption.textContent = event.title;
+    card.appendChild(caption);
+  }
+  for (const file of event.files) {
+    if (file.kind == "image") {
+      try {
+        const bytes = await IOUtils.read(file.hostPath);
+        const extension = file.name.split(".").pop().toLowerCase();
+        const blob = new Blob([bytes], {
+          type: MIME_BY_EXTENSION[extension] ?? "application/octet-stream",
+        });
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(blob);
+        img.alt = file.name;
+        img.title = `${file.guestPath} — click to open`;
+        img.addEventListener("click", () => openArtifact(file.hostPath));
+        card.appendChild(img);
+        continue;
+      } catch (e) {
+        // fall through to the file row
+      }
+    }
+    const row = document.createElement("div");
+    row.className = "artifact-file";
+    const label = document.createElement("span");
+    label.textContent = `${file.name} (${Math.ceil(file.size / 1024)} KB)`;
+    const openButton = document.createElement("button");
+    openButton.textContent = "Open";
+    openButton.addEventListener("click", () => openArtifact(file.hostPath));
+    row.append(label, openButton);
+    card.appendChild(row);
+  }
+  $("chat-log").appendChild(card);
+  scrollChat();
+}
+
 // Tool calls, thinking and approvals for the current turn are grouped in an
 // expandable activity block that always sits above the streaming answer.
 function ensureActivity() {
@@ -398,6 +460,9 @@ function onAgentEvent(event) {
       break;
     case "approvalRequest":
       renderApproval(event);
+      break;
+    case "presentFiles":
+      renderPresentedFiles(event);
       break;
     case "turnCompleted":
       finishActivity();

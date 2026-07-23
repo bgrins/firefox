@@ -5,6 +5,7 @@
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  FileUtils: "resource://gre/modules/FileUtils.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
 });
@@ -21,6 +22,9 @@ const MAX_TABS = 30;
 const MAX_HISTORY_RESULTS = 15;
 const MAX_PAGE_CHARS = 200000;
 const AUDIT_LOG_LIMIT = 200;
+const MAX_PRESENT_FILES = 10;
+
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
 
 /**
  * Read-only browser tools exposed to the Codex sidecar as dynamic tools.
@@ -62,6 +66,34 @@ export const HarnessBrowserTools = {
             query: { type: "string", description: "substring to search for" },
           },
           required: ["query"],
+          additionalProperties: false,
+        },
+      },
+      {
+        type: "function",
+        name: "present_files",
+        description:
+          "Show files from your /workspace directly to the user in the " +
+          "chat. Images (png, jpg, gif, webp, svg) render inline; other " +
+          "files get an open button. Use this whenever you produce an " +
+          "artifact the user should see (a chart, a generated image, an " +
+          "HTML page, a report) — the user has no terminal, so this is the " +
+          `only way they can view files. At most ${MAX_PRESENT_FILES} ` +
+          "files per call.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            paths: {
+              type: "array",
+              items: { type: "string" },
+              description: "files under /workspace, e.g. /workspace/plot.png",
+            },
+            title: {
+              type: "string",
+              description: "short caption shown above the files",
+            },
+          },
+          required: ["paths"],
           additionalProperties: false,
         },
       },
@@ -111,6 +143,7 @@ export const HarnessBrowserTools = {
   async call(tool, args, { workspacePath }) {
     try {
       let text;
+      let present;
       switch (tool) {
         case "get_open_tabs":
           text = this._getOpenTabs();
@@ -124,6 +157,12 @@ export const HarnessBrowserTools = {
             workspacePath
           );
           break;
+        case "present_files":
+          present = await this._presentFiles(args, workspacePath);
+          text =
+            `Presented to the user: ` +
+            present.files.map(file => file.name).join(", ");
+          break;
         default:
           this._audit(tool, "unknown tool", "denied");
           return {
@@ -132,7 +171,11 @@ export const HarnessBrowserTools = {
           };
       }
       this._audit(tool, JSON.stringify(args ?? {}).slice(0, 120));
-      return { contentItems: [{ type: "inputText", text }], success: true };
+      return {
+        contentItems: [{ type: "inputText", text }],
+        success: true,
+        present,
+      };
     } catch (e) {
       this._audit(tool, e.message, "error");
       return {
@@ -246,6 +289,55 @@ export const HarnessBrowserTools = {
       title: tab.title,
       chars: text.length,
     };
+  },
+
+  /**
+   * Validates workspace files the agent wants to show and returns display
+   * metadata for the UI. Paths are canonicalized host-side (symlinks
+   * resolved) and must stay inside the workspace: the guest can create
+   * symlinks that resolve to host files, and those must never be presented.
+   *
+   * @param {object} args tool arguments ({paths, title})
+   * @param {string} workspacePath host path of the session workspace
+   * @returns {Promise<{title: string, files: Array<{name: string,
+   *   guestPath: string, hostPath: string, kind: string, size: number}>}>}
+   */
+  async _presentFiles(args, workspacePath) {
+    const paths = Array.isArray(args?.paths) ? args.paths : [];
+    if (!paths.length) {
+      throw new Error("paths required");
+    }
+    if (paths.length > MAX_PRESENT_FILES) {
+      throw new Error(`at most ${MAX_PRESENT_FILES} files per call`);
+    }
+    const workspaceRoot = new lazy.FileUtils.File(workspacePath);
+    workspaceRoot.normalize();
+    const files = [];
+    for (const rawPath of paths) {
+      const relative = String(rawPath).replace(/^\/workspace\/?/, "");
+      if (!relative) {
+        throw new Error(`not a workspace file: ${rawPath}`);
+      }
+      const file = new lazy.FileUtils.File(
+        PathUtils.join(workspaceRoot.path, ...relative.split("/"))
+      );
+      if (!file.exists() || !file.isFile()) {
+        throw new Error(`no such file: ${rawPath}`);
+      }
+      file.normalize();
+      if (!file.path.startsWith(`${workspaceRoot.path}/`)) {
+        throw new Error(`outside workspace: ${rawPath}`);
+      }
+      const extension = file.leafName.split(".").pop().toLowerCase();
+      files.push({
+        name: file.leafName,
+        guestPath: `/workspace/${relative}`,
+        hostPath: file.path,
+        kind: IMAGE_EXTENSIONS.has(extension) ? "image" : "file",
+        size: file.fileSize,
+      });
+    }
+    return { title: String(args?.title ?? ""), files };
   },
 
   async _getPageContent(tabIndex, workspacePath) {

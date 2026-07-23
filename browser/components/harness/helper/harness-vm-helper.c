@@ -313,8 +313,8 @@ int main(int argc, char** argv) {
   }
 
   if (!no_seatbelt) {
-    apply_seatbelt(lib_path, krunfw_path, root_path, vsock_path,
-                   vsock_out_path, volume_paths, volume_ro, num_volumes);
+    apply_seatbelt(lib_path, krunfw_path, root_path, vsock_path, vsock_out_path,
+                   volume_paths, volume_ro, num_volumes);
   }
 
   if (seatbelt_selftest) {
@@ -391,8 +391,7 @@ int main(int argc, char** argv) {
      * (Downloads/Desktop/Documents) denied this process. */
     DIR* probe = opendir(volume_paths[i]);
     if (!probe) {
-      fprintf(stderr,
-              "harness-vm-helper: cannot access volume %s: %s%s\n",
+      fprintf(stderr, "harness-vm-helper: cannot access volume %s: %s%s\n",
               volume_paths[i], strerror(errno),
               errno == EPERM || errno == EACCES
                   ? " (macOS privacy protection for this folder?)"

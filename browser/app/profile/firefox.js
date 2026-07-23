@@ -3698,3 +3698,6 @@ pref("browser.harness.proxy.allowlist", "[\"pypi.org\", \"files.pythonhosted.org
 // Read-only browser tools (tabs, history, page content) offered to the agent
 // as client-hosted dynamic tools.
 pref("browser.harness.browserTools.enabled", true);
+// Codex-side approval policy (untrusted | on-request | never). The VM is the
+// real security boundary, so approvals default off.
+pref("browser.harness.codex.approvalPolicy", "never");

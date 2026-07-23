@@ -15,12 +15,85 @@ const { PlacesTestUtils } = ChromeUtils.importESModule(
 
 add_task(function test_tool_specs() {
   const specs = HarnessBrowserTools.specs();
-  is(specs.length, 3, "three tools");
+  is(specs.length, 4, "four tools");
   for (const spec of specs) {
     is(spec.type, "function", `${spec.name} is a function tool`);
     ok(spec.description.length, `${spec.name} has a description`);
     is(spec.inputSchema.type, "object", `${spec.name} has an object schema`);
   }
+});
+
+add_task(async function test_present_files() {
+  const workspace = PathUtils.join(PathUtils.profileDir, "present-workspace");
+  await IOUtils.makeDirectory(workspace, { ignoreExisting: true });
+  // Minimal valid 1x1 PNG.
+  const png = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQ" +
+        "DwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    ),
+    c => c.charCodeAt(0)
+  );
+  await IOUtils.write(PathUtils.join(workspace, "plot.png"), png);
+  await IOUtils.writeUTF8(PathUtils.join(workspace, "report.txt"), "hi");
+
+  const result = await HarnessBrowserTools.call(
+    "present_files",
+    { paths: ["/workspace/plot.png", "report.txt"], title: "Results" },
+    { workspacePath: workspace }
+  );
+  ok(result.success, "present succeeded");
+  is(result.present.title, "Results", "title carried through");
+  is(result.present.files.length, 2, "two files");
+  is(result.present.files[0].kind, "image", "png detected as image");
+  is(result.present.files[1].kind, "file", "txt is a generic file");
+  is(
+    result.present.files[0].guestPath,
+    "/workspace/plot.png",
+    "guest path preserved"
+  );
+  ok(
+    result.present.files[0].hostPath.endsWith("plot.png"),
+    "host path resolved"
+  );
+  ok(
+    result.contentItems[0].text.includes("plot.png"),
+    "model reply names the files"
+  );
+
+  const missing = await HarnessBrowserTools.call(
+    "present_files",
+    { paths: ["/workspace/nope.png"] },
+    { workspacePath: workspace }
+  );
+  ok(!missing.success, "missing file fails cleanly");
+
+  const escape = await HarnessBrowserTools.call(
+    "present_files",
+    { paths: ["/workspace/../../../etc/hosts"] },
+    { workspacePath: workspace }
+  );
+  ok(!escape.success, "path traversal denied");
+
+  // A guest-created symlink resolves against the HOST filesystem here; it
+  // must not be presentable when it escapes the workspace.
+  const link = PathUtils.join(workspace, "sneaky.png");
+  await IOUtils.remove(link, { ignoreAbsent: true });
+  const linkTarget = "/etc/hosts";
+  const { Subprocess } = ChromeUtils.importESModule(
+    "resource://gre/modules/Subprocess.sys.mjs"
+  );
+  const proc = await Subprocess.call({
+    command: "/bin/ln",
+    arguments: ["-s", linkTarget, link],
+  });
+  await proc.wait();
+  const symlink = await HarnessBrowserTools.call(
+    "present_files",
+    { paths: ["/workspace/sneaky.png"] },
+    { workspacePath: workspace }
+  );
+  ok(!symlink.success, "symlink escaping the workspace denied");
 });
 
 add_task(async function test_get_open_tabs() {
