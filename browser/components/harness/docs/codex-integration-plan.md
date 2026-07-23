@@ -225,6 +225,31 @@ Decisions settled with the project owner:
   the workspace mount a *security boundary* rather than a dev prototype.
 - Sidebar UI, approval-flow UX, concurrent conversations, other host OSes.
 
+## Probe results (2026-07-23, pinned 0.145.0)
+
+Verified live against the pinned `codex-app-server` binary over stdio with the
+in-tree `codex/ollama-codex-home/config.toml` (gemma via local ollama, no
+credentials):
+
+- Pin: `codex-app-server` 0.145.0 from `rust-v0.145.0`
+  (dedicated app-server asset, sha256 in `vm/setup-codex.sh`).
+- Schema: generated JSON schemas are checked into the codex repo at the tag
+  under `codex-rs/app-server-protocol/schema/json/v2/` — no generation step
+  needed; the dedicated binary has no `generate-json-schema` subcommand.
+- Protocol (v2, JSON-RPC-ish JSONL): `initialize` → `initialized` →
+  `thread/start` → `turn/start {threadId, input:[{type:"text",text}]}`.
+  Streaming arrives as notifications: `turn/started`,
+  `item/started`/`item/agentMessage/delta`/`item/completed`,
+  `thread/status/changed`, `thread/tokenUsage/updated`, `turn/completed`.
+  `turn/interrupt` exists.
+- Multi-model: `thread/start` accepts per-thread `model` and `modelProvider`.
+  `ollama` is a reserved built-in provider in 0.145.0 (must not be redefined;
+  `wire_api = "chat"` was removed in favor of `responses`).
+- Default sandbox on a fresh thread is `{type:"readOnly", networkAccess:false}`
+  with `approvalPolicy:"on-request"` — fail-closed defaults.
+- Hygiene confirmed empirically: launch with a neutral cwd (a `.codex/` dir in
+  cwd triggers project-config probing) and an explicit env allowlist.
+
 ## Resolved / remaining questions
 
 - ~~PTY~~ → pipes-first (locked; revisit only on schema evidence).
