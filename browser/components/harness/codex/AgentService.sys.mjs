@@ -121,6 +121,7 @@ export const AgentService = {
       }
     }
     if (!this._environmentId) {
+      await this._seedWorkspaceContext();
       const url = lazy.CodexExecBridge.start();
       const environmentId = `harness-vm-${Services.uuid
         .generateUUID()
@@ -134,6 +135,37 @@ export const AgentService = {
       lazy.logConsole.log(`environment ${environmentId} -> ${url}`);
     }
     return this._environmentId;
+  },
+
+  // Codex reads AGENTS.md from the environment cwd, so this is how the agent
+  // learns what this sandbox is and what Firefox data can appear in it.
+  async _seedWorkspaceContext() {
+    const content = `# Firefox Harness sandbox
+
+You are running inside a small Alpine Linux micro-VM embedded in Firefox.
+
+- Your working directory /workspace is a folder shared with the host
+  Firefox; files you create here are visible to the user and vice versa.
+- There is deliberately no network access.
+- Available tools: busybox userland (sh, ls, grep, sed, awk, tar, wc, ...)
+  and sqlite3.
+- Firefox data arrives as snapshot files the user shares into /workspace:
+  - places.sqlite: a consistent snapshot of Firefox history and bookmarks.
+    Key tables: moz_places (urls, visit_count, last_visit_date in
+    microseconds since epoch), moz_historyvisits, moz_bookmarks,
+    moz_origins. Query it with: sqlite3 /workspace/places.sqlite '...'
+  - If the user asks about browsing data and the snapshot is missing, ask
+    them to click "Snapshot Places DB" under "Sandbox VM tools" on the
+    about:harness page.
+`;
+    await IOUtils.makeDirectory(lazy.HarnessVM.workspacePath, {
+      createAncestors: true,
+      ignoreExisting: true,
+    });
+    await IOUtils.writeUTF8(
+      PathUtils.join(lazy.HarnessVM.workspacePath, "AGENTS.md"),
+      content
+    );
   },
 
   // Starts the ChatGPT OAuth flow in the sidecar; the returned authUrl must
