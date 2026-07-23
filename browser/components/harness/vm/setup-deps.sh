@@ -127,6 +127,11 @@ community imagemagick-libs-7.1.2.15-r0 3168293ea5af18c20c7800a54e22394234a37205c
 UV_VERSION="0.11.31"
 UV_URL="https://github.com/astral-sh/uv/releases/download/0.11.31/uv-aarch64-unknown-linux-musl.tar.gz"
 UV_SHA256="49cb5ffce40cc9c85355caa8104f7b61c40a8daac7334f4bc841cad1a7bb359e"
+# CPython for uv: the guest has no unrestricted network, so uv cannot
+# download an interpreter on demand; bake one into the image instead
+# (dynamically linked against musl, so musllinux wheels load).
+PYTHON_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260718/cpython-3.13.14+20260718-aarch64-unknown-linux-musl-install_only_stripped.tar.gz"
+PYTHON_SHA256="4d43ada1f37d09c118b4a205b5baafd03bac279b07cdedd382aa1a4367f8c15f"
 if [ ! -d "$BIN/harness/rootfs-template" ] || [ "${FORCE:-}" = 1 ]; then
     fetch "$ALPINE_URL" "$ALPINE_SHA256" "$DEPS/alpine-minirootfs.tar.gz"
     rm -rf "$BIN/harness/rootfs-template"
@@ -144,6 +149,12 @@ if [ ! -d "$BIN/harness/rootfs-template" ] || [ "${FORCE:-}" = 1 ]; then
     cp "$DEPS/uv-aarch64-unknown-linux-musl/uv" \
         "$DEPS/uv-aarch64-unknown-linux-musl/uvx" \
         "$BIN/harness/rootfs-template/usr/local/bin/"
+    fetch "$PYTHON_URL" "$PYTHON_SHA256" "$DEPS/cpython-linux-musl.tar.gz"
+    mkdir -p "$BIN/harness/rootfs-template/usr/local"
+    tar -xzf "$DEPS/cpython-linux-musl.tar.gz" \
+        -C "$BIN/harness/rootfs-template/usr/local"
+    ln -sf ../python/bin/python3 \
+        "$BIN/harness/rootfs-template/usr/local/bin/python3"
 else
     echo "already extracted, skipping (FORCE=1 to redo)"
 fi

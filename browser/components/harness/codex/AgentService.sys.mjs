@@ -189,8 +189,15 @@ You are running inside a small Alpine Linux micro-VM embedded in Firefox.
   (http_proxy is preset); only hosts the user has allowlisted are
   reachable, everything else is denied. No other network path exists.
 - Available tools: busybox userland (sh, ls, grep, sed, awk, tar, wc, ...),
-  sqlite3, node, uv/uvx (Python), rg, jq, yq, and imagemagick
-  (magick/identify) for image conversion and inspection.
+  sqlite3, node, uv/uvx, rg, jq, yq, and imagemagick (magick/identify)
+  for image conversion and inspection.
+- Python: use uv, not bare python3/pip. A CPython interpreter is
+  preinstalled and uv finds it automatically. Examples:
+    uv run script.py
+    uv run --no-project python3 -c 'print(40 + 2)'
+    uv run --with requests script.py
+  Pure-stdlib scripts work offline; --with and uvx download packages, so
+  they need pypi.org and files.pythonhosted.org on the network allowlist.
 - Firefox data arrives as snapshot files the user shares into /workspace:
   - places.sqlite: a consistent snapshot of Firefox history and bookmarks.
     Key tables: moz_places (urls, visit_count, last_visit_date in

@@ -144,6 +144,14 @@ add_task(async function test_harness_vm_smoke() {
   is(tools.exitCode, 0, `dev tooling present (${tools.stderr.slice(0, 80)})`);
   ok(tools.stdout.includes("tools-ok"), "all tool version checks ran");
 
+  // uv must find the baked-in CPython without network access.
+  const py = await HarnessVM.exec(
+    "uv run --no-project python3 -c 'print(40 + 2)'",
+    { timeoutMs: 60000 }
+  );
+  is(py.exitCode, 0, `uv run python works offline (${py.stderr.slice(0, 80)})`);
+  ok(py.stdout.includes("42"), "python executed via uv");
+
   const guestPlaces = await HarnessVM.snapshotPlacesToWorkspace();
   const query = await HarnessVM.exec(
     `sqlite3 ${guestPlaces} 'select count(*) from moz_places'`
