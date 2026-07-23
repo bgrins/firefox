@@ -57,6 +57,39 @@ add_task(async function test_revoke_on_tab_close() {
   Assert.equal(MCPUI.handoffTab, null, "handoff tab cleared on close");
 });
 
+add_task(async function test_start_this_tab_from_panel() {
+  const tab = await BrowserTestUtils.openNewForegroundTab(
+    gBrowser,
+    testPageUrl("example.com", "MCPPanelPage")
+  );
+
+  const button = document.getElementById("mcp-button");
+  // The panelview lives in the appmenu view cache until first shown.
+  const view = PanelMultiView.getViewNode(document, "PanelUI-mcp");
+  let shown = BrowserTestUtils.waitForEvent(view, "ViewShown");
+  EventUtils.synthesizeMouseAtCenter(button, {});
+  await shown;
+
+  const startThisTab = [...view.querySelectorAll("toolbarbutton")].find(
+    b => b.getAttribute("label") === "Start (this tab)"
+  );
+  Assert.ok(startThisTab, "panel offers Start (this tab) when stopped");
+
+  startThisTab.click();
+  await TestUtils.waitForCondition(() => MCPServer.running);
+  Assert.ok(MCPServer.scoped, "panel handoff scopes to the active tab");
+  Assert.equal(MCPUI.handoffTab, tab, "active tab is the handoff tab");
+  Assert.equal(tab.getAttribute("mcp-handoff"), "true", "active tab is badged");
+
+  const panel = view.closest("panel");
+  const hidden = BrowserTestUtils.waitForEvent(panel, "popuphidden");
+  panel.hidePopup();
+  await hidden;
+
+  MCPUI.revoke();
+  BrowserTestUtils.removeTab(tab);
+});
+
 add_task(async function test_context_menu_item() {
   const tab = await BrowserTestUtils.openNewForegroundTab(
     gBrowser,

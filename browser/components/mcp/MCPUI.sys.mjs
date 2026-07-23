@@ -116,6 +116,79 @@ function initWindow(win) {
     tab[${HANDOFF_ATTR}] .tab-background {
       outline: 2px dashed var(--focus-outline-color, #0060df);
       outline-offset: -4px;
+    }
+    #${PANEL_ID} {
+      min-width: 300px;
+    }
+    #${PANEL_ID} .panel-subview-body {
+      padding-block: 6px 4px;
+    }
+    .mcp-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+    }
+    .mcp-title {
+      font-weight: 600;
+    }
+    .mcp-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8em;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 12px;
+      background: color-mix(in srgb, currentColor 8%, transparent);
+    }
+    .mcp-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: color-mix(in srgb, currentColor 40%, transparent);
+    }
+    .mcp-status[data-state="active"] .mcp-status-dot {
+      background-color: light-dark(#017a40, #4dbc87);
+    }
+    .mcp-status[data-state="paused"] .mcp-status-dot {
+      background-color: light-dark(#c46a00, #ffbd4f);
+    }
+    .mcp-section-label {
+      padding: 8px 16px 2px;
+      font-size: 0.72em;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      opacity: 0.65;
+    }
+    .mcp-value {
+      padding: 0 16px 4px;
+      margin: 0;
+    }
+    .mcp-mono {
+      font-family: monospace;
+      font-size: 0.85em;
+      user-select: text;
+    }
+    .mcp-dim {
+      opacity: 0.65;
+      font-style: italic;
+    }
+    .mcp-tab-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mcp-tab-row > img {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+    .mcp-tab-row > span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }`;
   doc.head.appendChild(style);
 }
@@ -129,14 +202,15 @@ function uninitWindow(win) {
     ?.removeEventListener("popupshowing", onTabContextShowing);
 }
 
-const HEADER_CSS = "padding: 8px 16px 0; font-weight: 600;";
-const ROW_CSS = "padding: 2px 16px;";
-const MONO_CSS =
-  "padding: 2px 16px; font-family: monospace; font-size: 0.85em; user-select: text;";
-
 function relativeTime(ts) {
   const seconds = Math.max(0, Math.round((Date.now() - ts) / 1000));
   return seconds < 60 ? `${seconds}s ago` : `${Math.round(seconds / 60)}m ago`;
+}
+
+function copyString(text) {
+  Cc["@mozilla.org/widget/clipboardhelper;1"]
+    .getService(Ci.nsIClipboardHelper)
+    .copyString(text);
 }
 
 function populatePanel(panelview) {
@@ -146,64 +220,141 @@ function populatePanel(panelview) {
     body.lastChild.remove();
   }
 
-  const addText = (textContent, cssText) => {
-    const el = doc.createXULElement("description");
-    el.style.cssText = cssText;
-    el.textContent = textContent;
+  const addSeparator = () =>
+    body.appendChild(doc.createXULElement("toolbarseparator"));
+  const addLabel = text => {
+    const el = doc.createElement("div");
+    el.className = "mcp-section-label";
+    el.textContent = text;
     body.appendChild(el);
   };
-  const addButton = (label, command) => {
+  const addValue = (text, className = "mcp-value") => {
+    const el = doc.createXULElement("description");
+    el.className = className;
+    el.textContent = text;
+    body.appendChild(el);
+  };
+  const addButton = (label, command, { repopulate = true } = {}) => {
     const btn = doc.createXULElement("toolbarbutton");
     btn.className = "subviewbutton";
     btn.setAttribute("label", label);
     btn.addEventListener("command", async () => {
-      await command();
-      populatePanel(panelview);
+      await command(btn);
+      if (repopulate) {
+        populatePanel(panelview);
+      }
     });
     body.appendChild(btn);
+    return btn;
   };
 
   const session = MCPServer.session;
+  const running = MCPServer.running && !!session;
+  const scoped = running && MCPServer.scoped;
+  let state = "stopped";
+  if (running) {
+    state = session.state === "paused" ? "paused" : "active";
+  }
 
-  if (!MCPServer.running || !session) {
-    addText("MCP server: stopped", HEADER_CSS);
+  const header = doc.createElement("div");
+  header.className = "mcp-header";
+  const title = doc.createElement("span");
+  title.className = "mcp-title";
+  title.textContent = "MCP Server";
+  const status = doc.createElement("span");
+  status.className = "mcp-status";
+  status.dataset.state = state;
+  const dot = doc.createElement("span");
+  dot.className = "mcp-status-dot";
+  const stateText = doc.createElement("span");
+  stateText.textContent = {
+    stopped: "Stopped",
+    paused: "Paused",
+    active: "Active",
+  }[state];
+  status.append(dot, stateText);
+  header.append(title, status);
+  body.appendChild(header);
+
+  if (!running) {
+    addValue(
+      "Hand off the current tab, or expose the full browser to a local MCP agent.",
+      "mcp-value mcp-dim"
+    );
+    addSeparator();
+    addButton("Start (this tab)", () =>
+      handOffTab(doc.defaultView.gBrowser.selectedTab).catch(e =>
+        console.error("MCPUI: handoff failed", e)
+      )
+    );
     addButton("Start (full browser)", () =>
       MCPServer.start().catch(e => console.error("MCPUI: start failed", e))
     );
     return;
   }
 
-  const scoped = MCPServer.scoped;
-  const stateLabel = session.state === "paused" ? "paused" : "running";
-  addText(
-    `MCP server: ${stateLabel} (port ${MCPServer.port}) — ${scoped ? "single tab" : "full browser"}`,
-    HEADER_CSS
-  );
+  addSeparator();
 
+  addLabel("Agent");
   const client = session.clientInfo;
-  addText(
-    client
-      ? `Agent: ${client.title || client.name} ${client.version}`.trim()
-      : "Agent: no client connected yet",
-    ROW_CSS
-  );
-  if (scoped && handoffTab) {
-    addText(`Tab: ${handoffTab.label}`, ROW_CSS);
+  if (client) {
+    addValue(`${client.title || client.name} ${client.version}`.trim());
+  } else {
+    addValue("Waiting for a client to connect", "mcp-value mcp-dim");
   }
+
+  addLabel("Access");
+  if (scoped && handoffTab) {
+    const row = doc.createElement("div");
+    row.className = "mcp-value mcp-tab-row";
+    const icon = doc.createElement("img");
+    icon.src =
+      handoffTab.getAttribute("image") ||
+      "chrome://global/skin/icons/defaultFavicon.svg";
+    const label = doc.createElement("span");
+    label.textContent = handoffTab.label;
+    row.append(icon, label);
+    body.appendChild(row);
+  } else {
+    addValue("Full browser");
+  }
+
+  addLabel("Last activity");
   const last = session.activity.at(-1);
   if (last) {
-    addText(`Last activity: ${last.label} · ${relativeTime(last.ts)}`, ROW_CSS);
+    addValue(`${last.label} · ${relativeTime(last.ts)}`);
+  } else {
+    addValue("None yet", "mcp-value mcp-dim");
   }
 
-  addText(`http://127.0.0.1:${MCPServer.port}/mcp`, MONO_CSS);
-  addText(`Authorization: Bearer ${session.token}`, MONO_CSS);
+  addSeparator();
 
-  if (session.state === "paused") {
+  addLabel("Connection");
+  addValue(`http://127.0.0.1:${MCPServer.port}/mcp`, "mcp-value mcp-mono");
+  addValue(`Bearer ${session.token.slice(0, 8)}…`, "mcp-value mcp-mono");
+  addButton(
+    "Copy connection details",
+    btn => {
+      copyString(
+        `http://127.0.0.1:${MCPServer.port}/mcp\nAuthorization: Bearer ${session.token}`
+      );
+      btn.setAttribute("label", "Copied");
+      doc.defaultView.setTimeout(
+        () => btn.setAttribute("label", "Copy connection details"),
+        1500
+      );
+    },
+    { repopulate: false }
+  );
+
+  addSeparator();
+
+  if (state === "paused") {
     addButton("Resume", () => lazy.MCPSessions.resume(session));
   } else {
     addButton("Pause", () => lazy.MCPSessions.pause(session));
   }
-  addButton(scoped ? "Revoke tab access" : "Stop", () => revoke());
+  addButton(scoped ? "Revoke tab access" : "Stop server", () => revoke());
 }
 
 export const MCPUI = {
