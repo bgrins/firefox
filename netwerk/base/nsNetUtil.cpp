@@ -2054,6 +2054,14 @@ nsresult NS_NewURI(nsIURI** aURI, const nsACString& aSpec,
         .Finalize(aURI);
   }
 
+  // harness-site:// (agent-published sites, browser/components/harness)
+  // needs authority-style standard URLs so per-site content principals and
+  // their origins can be generated (ContentPrincipal requires an
+  // nsIStandardURL; DefaultURI-based principals fall back to null).
+  if (scheme.EqualsLiteral("harness-site")) {
+    return NewStandardURI(aSpec, aCharset, aBaseURI, -1, aURI);
+  }
+
   // web-extensions can add custom protocol implementations with standard URLs
   // that have notion of hostname, authority and relative URLs. Below we
   // manually check agains set of known protocols schemes until more general

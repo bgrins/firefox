@@ -571,6 +571,23 @@ let JSWINDOWACTORS = {
     safeForUntrustedWebProcess: true,
   },
 
+  HarnessSite: {
+    parent: {
+      esModuleURI:
+        "moz-src:///browser/components/harness/actors/HarnessSiteParent.sys.mjs",
+    },
+    child: {
+      esModuleURI:
+        "moz-src:///browser/components/harness/actors/HarnessSiteChild.sys.mjs",
+    },
+    allFrames: true,
+    enablePreference: "browser.harness.enabled",
+    // Sites load in ordinary web content processes; the parent side treats
+    // every query as untrusted (site-name validation, traversal checks,
+    // reads only from profile/harness/sites/).
+    safeForUntrustedWebProcess: true,
+  },
+
   LightweightTheme: {
     child: {
       esModuleURI: "resource:///actors/LightweightThemeChild.sys.mjs",

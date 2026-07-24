@@ -119,6 +119,50 @@ staged path if/when we do:
 4. Escape hatch: vsock port-forward for agent-run servers in the VM.
 5. Far future: hosted sharing (the actual Quick), or peer-to-tab handoff.
 
+### Spike results (implemented and tested, 2026-07-24)
+
+A working `harness-site://` handler is on the branch: JS protocol handler
+(`HarnessSiteProtocol.sys.mjs`, registered via `protocol_config` in
+components.conf), serving live from `profile/harness/sites/<name>/` with
+CSP injected into HTML at serve time; bytes flow through a
+`HarnessSite` JSWindowActor pair because channels are created in the
+sandboxed content process (`moz-newtab-remote-renderer` pattern). Two small
+C++ changes were required: the scheme needs standard (authority) URL
+parsing in `NS_NewURI` (`nsNetUtil.cpp`, same as the dweb/ipfs carve-outs —
+ContentPrincipal refuses to mint origins for non-`nsIStandardURL` URIs and
+silently falls back to a null principal), and `URI_HAS_WEB_EXPOSED_ORIGIN`
+in the protocol flags.
+
+What works (`browser_harness_site_scheme.js`): serving + index routing,
+same-origin fetch, ES modules, secure context, per-site *principal* origins
+(distinct, non-null), out-of-parent process placement, sessionStorage,
+traversal denial, CSP injection.
+
+What does not, yet:
+
+- **localStorage / IndexedDB fail**: QuotaManager's origin parser has its
+  own hardcoded scheme allowlist (`dom/quota/OriginParser.cpp:133` — http,
+  file, about, moz-extension, ...); persistent DOM storage for a new scheme
+  means extending it (plus storage-directory compat care). This is exactly
+  the cost moz-extension paid. Sized: a contained C++ patch, but a real
+  one.
+- **`location.origin` is "null"** web-side: the WHATWG URL spec treats
+  non-special schemes as opaque origins; moz-extension has a spec
+  carve-out. Internal security checks all use the real principal origin,
+  so this is mostly cosmetic — but it affects postMessage origin checks
+  inside sites.
+
+Paths from here, in preference order:
+
+1. **Ship v1 with SDK-provided persistence**: sites are already isolated,
+   iterable, and fetch-capable; give them storage through the capability
+   SDK (postMessage → actor → profile-backed KV) instead of DOM storage.
+   Zero additional platform work.
+2. **Extend QuotaManager** for `harness-site` (moz-extension precedent) if
+   DOM storage matters — revisit when sites are a proven feature.
+3. Fall back to `*.localhost` HTTP serving (everything works for free,
+   revives the local-server security caveats).
+
 ### How "real" can scheme origins be? (checked in-tree)
 
 Custom-scheme sites can behave like real origins to a much greater degree
