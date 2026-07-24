@@ -78,8 +78,9 @@ Key modules:
 5. Server→client requests from the sidecar are denied unless explicitly
    surfaced (approvals go to the UI; unanswered ones decline after 120s).
 
-Deeper documents: `docs/codex-integration-plan.md` (plan, decisions, security
-boundary assessment, follow-ups), `docs/proxy-plan.md` (future gated egress).
+Deeper documents: `docs/architecture.md` (presentable overview with
+diagrams), `docs/codex-integration-plan.md` (plan, decisions, security
+boundary assessment, follow-ups), `docs/proxy-plan.md` (gated egress).
 
 ## Development setup
 
