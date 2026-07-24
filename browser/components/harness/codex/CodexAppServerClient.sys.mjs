@@ -77,6 +77,11 @@ export class CodexAppServerClient {
         `model_provider = "openrouter"`,
         `model = "${model || "openrouter/auto"}"`,
         `model_context_window = 128000`,
+        // Codex has no metadata for OpenRouter slugs and would omit the
+        // reasoning field entirely; OpenRouter's gpt-5-family responses
+        // endpoint rejects that ("Reasoning is mandatory"). Pinning an
+        // effort keeps reasoning enabled regardless of metadata fallback.
+        `model_reasoning_effort = "medium"`,
         ``,
         `[model_providers.openrouter]`,
         `name = "OpenRouter"`,
