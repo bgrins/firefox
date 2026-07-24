@@ -55,6 +55,32 @@ add_task(async function test_server_lifecycle() {
   Assert.equal(afterStop.status, 0, "no response after stop");
 });
 
+add_task(async function test_discovery_file() {
+  const path = PathUtils.join(PathUtils.profileDir, "MCPActivePort.json");
+  const port = await MCPServer.start({ port: -1 });
+
+  Assert.ok(await IOUtils.exists(path), "discovery file written on start");
+  const info = await IOUtils.readJSON(path);
+  Assert.equal(info.port, port, "discovery file has the bound port");
+  Assert.equal(
+    info.endpoint,
+    `http://127.0.0.1:${port}/mcp`,
+    "discovery file has the endpoint"
+  );
+  Assert.equal(
+    info.pid,
+    Services.appinfo.processID,
+    "discovery file has the pid"
+  );
+  Assert.equal(info.auth, "none", "discovery file reports the auth mode");
+
+  MCPServer.stop();
+  await TestUtils.waitForCondition(
+    async () => !(await IOUtils.exists(path)),
+    "discovery file removed on stop"
+  );
+});
+
 add_task(async function test_tool_call() {
   const port = await MCPServer.start({ port: -1 });
   const tab = await BrowserTestUtils.openNewForegroundTab(

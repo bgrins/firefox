@@ -23,8 +23,19 @@ import {
   DEFAULT_PORT,
 } from "moz-src:///browser/components/mcp/vendor/fdm-core.mjs";
 
+const lazy = {};
+ChromeUtils.defineESModuleGetters(lazy, {
+  AsyncShutdown: "resource://gre/modules/AsyncShutdown.sys.mjs",
+});
+
 const PORT_PREF = "browser.mcp.port";
 const AUTH_PREF = "browser.mcp.auth";
+
+// DevToolsActivePort-style discovery file in the profile directory so local
+// tooling can find a running instance's endpoint. Contains pid: consumers
+// must treat the file as stale if that process is gone (crash leaves it
+// behind).
+const DISCOVERY_FILE = "MCPActivePort.json";
 
 // Must match DEV_TOKEN in vendor/fdm-core.mjs. The bundle's static token check
 // is vestigial once the gate below has validated the request; we rewrite the
@@ -38,6 +49,40 @@ let activeSession = null;
 
 function authMode() {
   return Services.prefs.getCharPref(AUTH_PREF, "oauth");
+}
+
+function discoveryPath() {
+  return PathUtils.join(PathUtils.profileDir, DISCOVERY_FILE);
+}
+
+let shutdownBlockerRegistered = false;
+
+async function writeDiscoveryFile() {
+  try {
+    await IOUtils.writeJSON(discoveryPath(), {
+      port: boundPort,
+      endpoint: `${origin()}/mcp`,
+      pid: Services.appinfo.processID,
+      auth: authMode(),
+    });
+  } catch (e) {
+    console.error("MCPServer: failed to write discovery file", e);
+  }
+  if (!shutdownBlockerRegistered) {
+    shutdownBlockerRegistered = true;
+    lazy.AsyncShutdown.profileBeforeChange.addBlocker(
+      "MCPServer: remove discovery file",
+      removeDiscoveryFile
+    );
+  }
+}
+
+async function removeDiscoveryFile() {
+  try {
+    await IOUtils.remove(discoveryPath(), { ignoreAbsent: true });
+  } catch (e) {
+    console.error("MCPServer: failed to remove discovery file", e);
+  }
 }
 
 function origin() {
@@ -199,6 +244,7 @@ export const MCPServer = {
     if (authMode() === "none") {
       adoptGrantedSession({ scope: scope ?? null });
     }
+    await writeDiscoveryFile();
     return boundPort;
   },
 
@@ -218,5 +264,6 @@ export const MCPServer = {
     MCPBridge.stopServer();
     MCPBridge.clearScope();
     running = false;
+    void removeDiscoveryFile();
   },
 };
