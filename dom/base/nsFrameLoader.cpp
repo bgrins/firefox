@@ -2609,6 +2609,9 @@ bool nsFrameLoader::TryRemoteBrowserInternal() {
       const bool allowed = [&] {
         const nsLiteralCString kAllowedURIs[] = {
             "about:addons"_ns,
+            // about:harness loads sandboxed agent-generated widget frames,
+            // following the aiWindow.html pattern below.
+            "about:harness"_ns,
             "chrome://browser/content/aiwindow/aiWindow.html"_ns,
             "chrome://mozapps/content/extensions/aboutaddons.html"_ns,
 #ifdef MOZ_THUNDERBIRD
