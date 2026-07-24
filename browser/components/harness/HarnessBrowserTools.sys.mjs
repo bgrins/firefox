@@ -25,6 +25,7 @@ const AUDIT_LOG_LIMIT = 200;
 const MAX_PRESENT_FILES = 10;
 
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+const HTML_EXTENSIONS = new Set(["html", "htm"]);
 
 /**
  * Read-only browser tools exposed to the Codex sidecar as dynamic tools.
@@ -74,12 +75,14 @@ export const HarnessBrowserTools = {
         name: "present_files",
         description:
           "Show files from your /workspace directly to the user in the " +
-          "chat. Images (png, jpg, gif, webp, svg) render inline; other " +
-          "files get an open button. Use this whenever you produce an " +
-          "artifact the user should see (a chart, a generated image, an " +
-          "HTML page, a report) — the user has no terminal, so this is the " +
-          `only way they can view files. At most ${MAX_PRESENT_FILES} ` +
-          "files per call.",
+          "chat. Images (png, jpg, gif, webp, svg) render inline; .html " +
+          "files open for the user as live interactive widgets " +
+          "(self-contained only: inline all CSS/JS, no external URLs — " +
+          "network is blocked when shown); other files get an open " +
+          "button. Use this whenever you produce an artifact the user " +
+          "should see — the user has no terminal, so this is the only way " +
+          `they can view files. At most ${MAX_PRESENT_FILES} files per ` +
+          "call.",
         inputSchema: {
           type: "object",
           properties: {
@@ -329,11 +332,17 @@ export const HarnessBrowserTools = {
         throw new Error(`outside workspace: ${rawPath}`);
       }
       const extension = file.leafName.split(".").pop().toLowerCase();
+      let kind = "file";
+      if (IMAGE_EXTENSIONS.has(extension)) {
+        kind = "image";
+      } else if (HTML_EXTENSIONS.has(extension)) {
+        kind = "html";
+      }
       files.push({
         name: file.leafName,
         guestPath: `/workspace/${relative}`,
         hostPath: file.path,
-        kind: IMAGE_EXTENSIONS.has(extension) ? "image" : "file",
+        kind,
         size: file.fileSize,
       });
     }

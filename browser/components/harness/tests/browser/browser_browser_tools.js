@@ -36,17 +36,25 @@ add_task(async function test_present_files() {
   );
   await IOUtils.write(PathUtils.join(workspace, "plot.png"), png);
   await IOUtils.writeUTF8(PathUtils.join(workspace, "report.txt"), "hi");
+  await IOUtils.writeUTF8(
+    PathUtils.join(workspace, "widget.html"),
+    "<html><body>widget</body></html>"
+  );
 
   const result = await HarnessBrowserTools.call(
     "present_files",
-    { paths: ["/workspace/plot.png", "report.txt"], title: "Results" },
+    {
+      paths: ["/workspace/plot.png", "report.txt", "widget.html"],
+      title: "Results",
+    },
     { workspacePath: workspace }
   );
   ok(result.success, "present succeeded");
   is(result.present.title, "Results", "title carried through");
-  is(result.present.files.length, 2, "two files");
+  is(result.present.files.length, 3, "three files");
   is(result.present.files[0].kind, "image", "png detected as image");
   is(result.present.files[1].kind, "file", "txt is a generic file");
+  is(result.present.files[2].kind, "html", "html detected as widget");
   is(
     result.present.files[0].guestPath,
     "/workspace/plot.png",
