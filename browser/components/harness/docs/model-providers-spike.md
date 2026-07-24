@@ -173,6 +173,13 @@ Flow invariants:
     which is what finally disambiguated the two.
 - OpenRouter's `/api/v1/responses` handles codex streaming turns fine
   (agentMessage deltas, turn/completed).
+- Model slugs must stay vendor-prefixed (`openai/gpt-5-mini`): a bare
+  `gpt-5-mini` matches codex's built-in catalog and enables server tools
+  OpenRouter rejects with 400, and `~openai/...` is not a valid OpenRouter
+  model ID. Because prefixed slugs get only fallback metadata, codex omits
+  the reasoning field unless `model_reasoning_effort` is pinned in config —
+  OpenRouter's gpt-5-family endpoint rejects reasoning-less requests with
+  "Reasoning is mandatory for this endpoint and cannot be disabled".
 
 ## Open questions
 
