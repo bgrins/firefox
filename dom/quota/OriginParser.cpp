@@ -135,6 +135,8 @@ void OriginParser::HandleScheme(const nsDependentCSubstring& aToken) {
       aToken.EqualsLiteral("indexeddb") ||
       (isFile = aToken.EqualsLiteral("file")) || aToken.EqualsLiteral("app") ||
       aToken.EqualsLiteral("resource") ||
+      // harness-site: agent-published sites (browser/components/harness).
+      aToken.EqualsLiteral("harness-site") ||
       aToken.EqualsLiteral("moz-extension") ||
       (isChrome = aToken.EqualsLiteral(kChromeOrigin)) ||
       aToken.EqualsLiteral("uuid")) {

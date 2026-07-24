@@ -89,10 +89,11 @@ add_task(async function test_harness_site_scheme() {
       first = (await read(browser)).split("|");
       info(`probe state: ${first.join(" | ")}`);
       is(first[6], "1", "sessionStorage works");
-      // Persistent DOM storage needs QuotaManager scheme support (its origin
-      // parser allowlists schemes); see docs/quick-artifacts-spike.md.
-      todo_is(first[1], "none", "localStorage (needs QuotaManager support)");
-      todo_is(first[7], "idb-ok", "indexedDB (needs QuotaManager support)");
+      is(first[7], "idb-ok", "indexedDB works (quota scheme allowlist)");
+      // localStorage specifically is still blocked: LSNG requires a window
+      // ClientInfo, and dom/clients validation rejects non-special schemes
+      // (rust-url opaque origins). Sites should use IndexedDB.
+      todo_is(first[1], "none", "localStorage (needs dom/clients support)");
       is(first[3], "alpha-data", "same-origin fetch works");
       is(first[4], "true", "secure context (URI_IS_POTENTIALLY_TRUSTWORTHY)");
       // WHATWG serializes non-special-scheme origins as opaque; the internal
@@ -126,7 +127,7 @@ add_task(async function test_harness_site_scheme() {
     }
   );
 
-  // Site beta: its own files, its own principal.
+  // Site beta: its own files, its own principal, isolated storage.
   await BrowserTestUtils.withNewTab(
     "harness-site://beta.harness/",
     async browser => {

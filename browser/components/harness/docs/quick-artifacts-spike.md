@@ -138,29 +138,41 @@ same-origin fetch, ES modules, secure context, per-site *principal* origins
 (distinct, non-null), out-of-parent process placement, sessionStorage,
 traversal denial, CSP injection.
 
+What works with one more line: **IndexedDB**. QuotaManager's origin parser
+has a hardcoded scheme allowlist (`dom/quota/OriginParser.cpp:133`);
+adding `harness-site` there (one literal, verified) makes IDB fully
+functional. That is the cowpath, and it ends there.
+
 What does not, yet:
 
-- **localStorage / IndexedDB fail**: QuotaManager's origin parser has its
-  own hardcoded scheme allowlist (`dom/quota/OriginParser.cpp:133` — http,
-  file, about, moz-extension, ...); persistent DOM storage for a new scheme
-  means extending it (plus storage-directory compat care). This is exactly
-  the cost moz-extension paid. Sized: a contained C++ patch, but a real
-  one.
+- **localStorage** specifically: LSNG requires the window to have a
+  ClientInfo, and the Clients subsystem (`dom/clients/manager/
+  ClientValidation.cpp`) validates origins via rust-url (MozURL), where
+  non-special schemes are opaque — so client creation fails and
+  localStorage errors even though quota is fine. Fixing it means teaching
+  dom/clients (and effectively the URL-spec origin layer) about the
+  scheme — the same depth of work as...
 - **`location.origin` is "null"** web-side: the WHATWG URL spec treats
-  non-special schemes as opaque origins; moz-extension has a spec
-  carve-out. Internal security checks all use the real principal origin,
-  so this is mostly cosmetic — but it affects postMessage origin checks
-  inside sites.
+  non-special schemes as opaque origins. Internal security checks all use
+  the real principal origin, so this is mostly cosmetic — but it affects
+  postMessage origin checks inside sites, and it shares a root with the
+  localStorage gap.
 
-Paths from here, in preference order:
+Verdict on storage: **use IndexedDB** (arguably the better API anyway) and
+say so in the site-building guidance; leave localStorage as a documented
+todo. Paths from here, in preference order:
 
-1. **Ship v1 with SDK-provided persistence**: sites are already isolated,
-   iterable, and fetch-capable; give them storage through the capability
-   SDK (postMessage → actor → profile-backed KV) instead of DOM storage.
-   Zero additional platform work.
-2. **Extend QuotaManager** for `harness-site` (moz-extension precedent) if
-   DOM storage matters — revisit when sites are a proven feature.
-3. Fall back to `*.localhost` HTTP serving (everything works for free,
+1. **Ship v1 now**: isolated per-site origins with IndexedDB persistence,
+   same-origin fetch, modules, secure context. localStorage guidance:
+   "use IndexedDB". Zero further platform work.
+2. Optionally add SDK-provided KV storage (postMessage → actor) as
+   friendlier sugar over IDB.
+3. The dom/clients + URL-spec origin work (localStorage +
+   location.origin) only if sites graduate toward a real platform
+   feature — at that point it's an upstream conversation, since it
+   effectively means registering a new origin-bearing scheme with the
+   web platform, which is the moz-extension path.
+4. Fall back to `*.localhost` HTTP serving (everything works for free,
    revives the local-server security caveats).
 
 ### How "real" can scheme origins be? (checked in-tree)
