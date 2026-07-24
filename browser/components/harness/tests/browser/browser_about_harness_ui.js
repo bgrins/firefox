@@ -79,13 +79,19 @@ add_task(async function test_present_files_html_widget() {
      </body></html>`
   );
 
+  // A real 1x1 PNG so the inline image path can be verified end to end.
+  const png = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQ" +
+        "DwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    ),
+    c => c.charCodeAt(0)
+  );
+  const pngPath = PathUtils.join(workspace, "chart.png");
+  await IOUtils.write(pngPath, png);
+
   await BrowserTestUtils.withNewTab("about:harness", async browser => {
     const doc = browser.contentDocument;
-    const widgetTabPromise = BrowserTestUtils.waitForNewTab(
-      gBrowser,
-      url => url.startsWith("file://") && url.endsWith(".html"),
-      true
-    );
     AgentService._emit({
       type: "presentFiles",
       title: "Widget",
@@ -97,34 +103,65 @@ add_task(async function test_present_files_html_widget() {
           kind: "html",
           size: 100,
         },
+        {
+          name: "chart.png",
+          guestPath: "/workspace/chart.png",
+          hostPath: pngPath,
+          kind: "image",
+          size: png.length,
+        },
       ],
     });
-    await TestUtils.waitForCondition(
-      () => doc.querySelector("#chat-log .artifact-file.widget button"),
-      "widget row with open button rendered"
-    );
 
-    // The first widget auto-opens in a tab (isolated file content process).
-    const widgetTab = await widgetTabPromise;
-    is(
-      widgetTab.linkedBrowser.remoteType,
-      "file",
+    // Widget renders inline in a remote browser (about:harness is
+    // allowlisted for remote frames in nsFrameLoader).
+    await TestUtils.waitForCondition(
+      () => doc.querySelector("#chat-log .artifact-widget"),
+      "inline widget frame rendered"
+    );
+    const frame = doc.querySelector("#chat-log .artifact-widget");
+    is(frame.localName, "browser", "widget is a browser element");
+    await TestUtils.waitForCondition(
+      () => frame.remoteType == "file",
       "widget runs in the file content process"
     );
-    await SpecialPowers.spawn(widgetTab.linkedBrowser, [], async () => {
-      await ContentTaskUtils.waitForCondition(
-        () =>
-          content.document.getElementById("out")?.textContent == "script-ran",
-        "widget script executed"
-      );
-      const meta = content.document.querySelector(
-        'meta[http-equiv="Content-Security-Policy"]'
-      );
-      Assert.ok(
-        meta?.content.includes("default-src 'none'"),
-        "network-blocking CSP injected into the staged copy"
-      );
-    });
-    BrowserTestUtils.removeTab(widgetTab);
+    const verdict = await TestUtils.waitForCondition(async () => {
+      try {
+        const state = await SpecialPowers.spawn(
+          frame.browsingContext,
+          [],
+          () => {
+            const meta = content.document.querySelector(
+              'meta[http-equiv="Content-Security-Policy"]'
+            );
+            return {
+              out: content.document.getElementById("out")?.textContent,
+              csp: meta?.content ?? "",
+            };
+          }
+        );
+        return state.out ? state : null;
+      } catch (e) {
+        return null;
+      }
+    }, "widget document reachable");
+    is(verdict.out, "script-ran", "widget script executed out of process");
+    ok(
+      verdict.csp.includes("default-src 'none'"),
+      "network-blocking CSP injected into the staged copy"
+    );
+    ok(
+      doc.querySelector("#chat-log .artifact-file.widget button"),
+      "open-in-tab button rendered"
+    );
+
+    // Inline image renders via blob URL (requires img-src blob: in the
+    // page CSP; a broken load leaves naturalWidth at 0).
+    const img = doc.querySelector("#chat-log .artifact img");
+    ok(img, "image element rendered");
+    await TestUtils.waitForCondition(
+      () => img.complete && img.naturalWidth > 0,
+      "inline image actually decoded"
+    );
   });
 });

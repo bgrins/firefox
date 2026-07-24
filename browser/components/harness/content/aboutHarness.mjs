@@ -258,13 +258,12 @@ function openArtifact(hostPath) {
   win.openTrustedLinkIn(uri.spec, "tab");
 }
 
-// Agent-authored HTML widgets open in a real tab: a CSP-injected staged
-// copy loads with a file principal in the isolated "file" content process.
-// The injected CSP blocks all network so widget content cannot exfiltrate
-// data the agent had access to (the guest egress allowlist does not apply
-// on the host side). Inline-in-chat rendering is not currently possible:
-// about:harness is a parent-process document and cannot host remote
-// subframes; a sidebar host is the follow-up if we want true inline.
+// Agent-authored HTML widgets render inline in a remote <browser>: a
+// CSP-injected staged copy loads with a file principal in the isolated
+// "file" content process (about:harness is allowlisted for remote frames
+// in nsFrameLoader, following aiWindow.html). The injected CSP blocks all
+// network so widget content cannot exfiltrate data the agent had access
+// to (the guest egress allowlist does not apply on the host side).
 async function stageHtmlWidget(file) {
   const html = await IOUtils.readUTF8(file.hostPath);
   const csp =
@@ -288,26 +287,36 @@ async function stageHtmlWidget(file) {
   return staged;
 }
 
-function renderHtmlWidgetRow(card, file, stagedPath, { autoOpen }) {
+function renderHtmlWidget(card, file, stagedPath) {
+  const stagedFile = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+  stagedFile.initWithPath(stagedPath);
+  const url = Services.io.newFileURI(stagedFile).spec;
+  const remoteType = ChromeUtils.predictRemoteTypeForURI(url, { window });
+  const frame = document.createXULElement("browser");
+  frame.className = "artifact-widget";
+  frame.setAttribute("type", "content");
+  frame.setAttribute("disableglobalhistory", "true");
+  frame.setAttribute("remote", "true");
+  frame.setAttribute("remoteType", remoteType);
+  frame.setAttribute("src", url);
+  frame.setAttribute("tooltiptext", file.name);
+  card.appendChild(frame);
+
   const row = document.createElement("div");
   row.className = "artifact-file widget";
   const label = document.createElement("span");
-  label.textContent = `${file.name} (interactive widget)`;
+  label.textContent = file.name;
   const openButton = document.createElement("button");
-  openButton.textContent = "Open widget";
+  openButton.textContent = "Open in tab";
   openButton.addEventListener("click", () => openArtifact(stagedPath));
   row.append(label, openButton);
   card.appendChild(row);
-  if (autoOpen) {
-    openArtifact(stagedPath);
-  }
 }
 
 // Files presented by the agent (present_files tool): images render inline
 // via blob URLs; everything else gets an open-in-tab button. Paths were
 // validated to stay inside the workspace by HarnessBrowserTools.
 async function renderPresentedFiles(event) {
-  let openedWidget = false;
   const card = document.createElement("div");
   card.className = "msg artifact";
   if (event.title) {
@@ -337,9 +346,7 @@ async function renderPresentedFiles(event) {
     }
     if (file.kind == "html") {
       try {
-        const staged = await stageHtmlWidget(file);
-        renderHtmlWidgetRow(card, file, staged, { autoOpen: !openedWidget });
-        openedWidget = true;
+        renderHtmlWidget(card, file, await stageHtmlWidget(file));
         continue;
       } catch (e) {
         // fall through to the file row
