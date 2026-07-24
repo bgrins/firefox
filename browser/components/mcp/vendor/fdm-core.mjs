@@ -1,5 +1,5 @@
 /* Generated file — do not edit. Built from
- * https://github.com/mozilla/firefox-devtools-mcp (extension/build-moz.mjs).
+ * https://github.com/mozilla/firefox-devtools-mcp (embedded/build-moz.mjs).
  * Dual-licensed MIT OR Apache-2.0; see LICENSE-MIT / LICENSE-APACHE upstream. */
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -1012,6 +1012,9 @@ function jsonResponse(data) {
 var listPagesTool = {
   name: "list_pages",
   description: "List open tabs (index, title, URL). Selected tab is marked.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {}
@@ -1020,6 +1023,9 @@ var listPagesTool = {
 var newPageTool = {
   name: "new_page",
   description: "Open new tab at URL. Returns tab index.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -1034,6 +1040,9 @@ var newPageTool = {
 var navigatePageTool = {
   name: "navigate_page",
   description: "Navigate selected tab to URL.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -1048,6 +1057,9 @@ var navigatePageTool = {
 var selectPageTool = {
   name: "select_page",
   description: "Select active tab by index, URL, or title. Index takes precedence.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -1070,6 +1082,9 @@ var selectPageTool = {
 var closePageTool = {
   name: "close_page",
   description: "Close tab by index.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -1289,6 +1304,9 @@ Valid examples:
 var evaluateScriptTool = {
   name: "evaluate_script",
   description: "Execute JS function in page. Prefer UID tools for interactions.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -1403,6 +1421,9 @@ init_moz_shim();
 var listConsoleMessagesTool = {
   name: "list_console_messages",
   description: "List console messages. Supports filtering by level, time, text, source.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -1438,6 +1459,9 @@ var listConsoleMessagesTool = {
 var clearConsoleMessagesTool = {
   name: "clear_console_messages",
   description: "Clear collected console messages.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {}
@@ -1592,6 +1616,9 @@ init_moz_shim();
 var listNetworkRequestsTool = {
   name: "list_network_requests",
   description: "List network requests. Returns IDs for get_network_request.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -1652,6 +1679,9 @@ var listNetworkRequestsTool = {
 var getNetworkRequestTool = {
   name: "get_network_request",
   description: "Get request details by ID. URL lookup as fallback.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -1879,6 +1909,9 @@ var DEFAULT_SNAPSHOT_LINES = 100;
 var takeSnapshotTool = {
   name: "take_snapshot",
   description: "Capture DOM snapshot with stable UIDs. Retake after navigation.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -1912,6 +1945,9 @@ var takeSnapshotTool = {
 var resolveUidToSelectorTool = {
   name: "resolve_uid_to_selector",
   description: "Resolve UID to CSS selector. Fails if stale.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -1926,6 +1962,9 @@ var resolveUidToSelectorTool = {
 var clearSnapshotTool = {
   name: "clear_snapshot",
   description: "Clear snapshot cache. Usually not needed.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {}
@@ -2032,6 +2071,9 @@ init_moz_shim();
 var clickByUidTool = {
   name: "click_by_uid",
   description: "Click element by UID. Set dblClick for double-click.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2050,6 +2092,9 @@ var clickByUidTool = {
 var hoverByUidTool = {
   name: "hover_by_uid",
   description: "Hover over element by UID.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2064,6 +2109,9 @@ var hoverByUidTool = {
 var fillByUidTool = {
   name: "fill_by_uid",
   description: "Fill text input/textarea by UID.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2082,6 +2130,9 @@ var fillByUidTool = {
 var dragByUidToUidTool = {
   name: "drag_by_uid_to_uid",
   description: "Drag element to another (HTML5 drag events).",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2100,6 +2151,9 @@ var dragByUidToUidTool = {
 var fillFormByUidTool = {
   name: "fill_form_by_uid",
   description: "Fill multiple form fields at once.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2128,6 +2182,9 @@ var fillFormByUidTool = {
 var uploadFileByUidTool = {
   name: "upload_file_by_uid",
   description: "Upload file to file input by UID.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2322,6 +2379,9 @@ var SAVE_TO_SCHEMA = {
 var screenshotPageTool = {
   name: "screenshot_page",
   description: "Capture page screenshot as base64 PNG.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2332,6 +2392,9 @@ var screenshotPageTool = {
 var screenshotByUidTool = {
   name: "screenshot_by_uid",
   description: "Capture element screenshot by UID as base64 PNG.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2411,6 +2474,9 @@ init_moz_shim();
 var acceptDialogTool = {
   name: "accept_dialog",
   description: "Accept browser dialog. Provide promptText for prompts.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2424,6 +2490,9 @@ var acceptDialogTool = {
 var dismissDialogTool = {
   name: "dismiss_dialog",
   description: "Dismiss browser dialog.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {}
@@ -2432,6 +2501,9 @@ var dismissDialogTool = {
 var navigateHistoryTool = {
   name: "navigate_history",
   description: "Navigate history back/forward. UIDs become stale.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2447,6 +2519,9 @@ var navigateHistoryTool = {
 var setViewportSizeTool = {
   name: "set_viewport_size",
   description: "Set viewport dimensions in pixels.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2541,6 +2616,9 @@ init_provider();
 var getFirefoxLogsTool = {
   name: "get_firefox_output",
   description: "Retrieve Firefox output (stdout/stderr including MOZ_LOG, warnings, crashes, stack traces). Returns recent output from the capture file. Use filters to focus on specific content.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2610,6 +2688,9 @@ async function handleGetFirefoxLogs(input) {
 var getFirefoxInfoTool = {
   name: "get_firefox_info",
   description: "Get information about the current Firefox instance configuration, including binary path, environment variables, and output file location.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {}
@@ -2673,6 +2754,9 @@ async function handleGetFirefoxInfo(_input) {
 var restartFirefoxTool = {
   name: "restart_firefox",
   description: "Restart Firefox with different configuration. Allows changing binary path, environment variables, and other options. All current tabs will be closed.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2818,6 +2902,9 @@ init_moz_shim();
 var listPrivilegedContextsTool = {
   name: "list_privileged_contexts",
   description: "List privileged (privileged) browsing contexts. Requires MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1 env var. Use restart_firefox with env parameter to enable.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {}
@@ -2826,6 +2913,9 @@ var listPrivilegedContextsTool = {
 var selectPrivilegedContextTool = {
   name: "select_privileged_context",
   description: 'Select a privileged browsing context by ID and set WebDriver Classic context to "chrome" . Requires MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1 env var.',
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2840,6 +2930,9 @@ var selectPrivilegedContextTool = {
 var evaluatePrivilegedScriptTool = {
   name: "evaluate_privileged_script",
   description: "Execute JS function in the current privileged context. Requires MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1 env var. Use select_privileged_context first to target a chrome context.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -2971,6 +3064,9 @@ function generatePrefScript(name, value) {
 var setFirefoxPrefsTool = {
   name: "set_firefox_prefs",
   description: "Set Firefox preferences at runtime a privileged API. Requires MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1 env var.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -3057,6 +3153,9 @@ Failed to set ${errors.length} preference(s):`);
 var getFirefoxPrefsTool = {
   name: "get_firefox_prefs",
   description: "Get Firefox preference values via a privileged API. Requires MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1 env var.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -3157,6 +3256,9 @@ init_moz_shim();
 var installExtensionTool = {
   name: "install_extension",
   description: "Install a Firefox extension using WebDriver BiDi webExtension.install command. Supports installing from archive (.xpi/.zip), base64-encoded data, or unpacked directory.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -3222,6 +3324,9 @@ async function handleInstallExtension(args2) {
 var uninstallExtensionTool = {
   name: "uninstall_extension",
   description: "Uninstall a Firefox extension using WebDriver BiDi webExtension.uninstall command. Requires the extension ID returned by install_extension or obtained from list_extensions.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -3256,6 +3361,9 @@ var listExtensionsTool = {
     // webExtension.getExtensions WebDriver BiDi command.
     "List installed Firefox extensions with UUIDs and background scripts. Requires MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1 env var."
   ),
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -3450,16 +3558,25 @@ function requireContext(contextId) {
 var enableDebuggerTool = {
   name: "enable_debugger",
   description: "Enable the JS debugger for the current page. Required before set_logpoint works. Requires Firefox 153+.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: { type: "object", properties: {} }
 };
 var listScriptsTool = {
   name: "list_scripts",
   description: "List all JavaScript files currently loaded in the page. Requires enable_debugger to have been called.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: { type: "object", properties: {} }
 };
 var getScriptSourceTool = {
   name: "get_script_source",
   description: "Get the source code of a JavaScript file loaded in the page. Requires enable_debugger to have been called.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -3471,6 +3588,9 @@ var getScriptSourceTool = {
 var setLogpointTool = {
   name: "set_logpoint",
   description: "Set a logpoint at a specific location. When execution reaches that line, the expression is evaluated and the result is stored without pausing. Use get_logpoint_results to retrieve collected values. Requires enable_debugger to have been called.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -3487,6 +3607,9 @@ var setLogpointTool = {
 var removeLogpointTool = {
   name: "remove_logpoint",
   description: "Remove a previously set logpoint.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -3498,6 +3621,9 @@ var removeLogpointTool = {
 var getLogpointResultsTool = {
   name: "get_logpoint_results",
   description: "Get the results collected by a logpoint since it was set.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -3624,6 +3750,9 @@ var VALID_PRESETS = [
 var profilerIsActiveTool = {
   name: "profiler_is_active",
   description: "Check whether the Firefox profiler is currently recording.",
+  annotations: {
+    readOnlyHint: true
+  },
   inputSchema: {
     type: "object",
     properties: {}
@@ -3643,6 +3772,9 @@ async function handleProfilerIsActive(_args) {
 var profilerStartTool = {
   name: "profiler_start",
   description: `Start the Firefox profiler. Provide either a preset name or explicit recording options (entries, interval, features, threads). Cannot combine both. Valid presets: ${VALID_PRESETS.join(", ")}.`,
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
@@ -3708,6 +3840,9 @@ async function handleProfilerStart(args2) {
 var profilerStopTool = {
   name: "profiler_stop",
   description: "Stop the Firefox profiler and save the recorded profile to a file in the downloads directory. Returns the path to the saved file, or null when nothing was saved.",
+  annotations: {
+    readOnlyHint: false
+  },
   inputSchema: {
     type: "object",
     properties: {
