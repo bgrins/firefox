@@ -163,4 +163,21 @@ add_task(async function test_harness_vm_smoke() {
   await HarnessVM.stop();
   await stopped;
   is(HarnessVM.state, "stopped", "VM stops cleanly");
+
+  // A profile rootfs whose stamp diverges from the template's is replaced on
+  // the next start (stale-tooling refresh).
+  const stampPath = PathUtils.join(HarnessVM.rootfsPath, ".rootfs-stamp");
+  const templateStamp = await IOUtils.readUTF8(stampPath);
+  await IOUtils.writeUTF8(stampPath, "stale-stamp");
+  const refreshed = waitForState("running");
+  await HarnessVM.start();
+  await refreshed;
+  is(
+    await IOUtils.readUTF8(stampPath),
+    templateStamp,
+    "stale rootfs refreshed from template"
+  );
+  const stoppedAgain = waitForState("stopped");
+  await HarnessVM.stop();
+  await stoppedAgain;
 });

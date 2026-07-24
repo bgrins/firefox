@@ -153,10 +153,27 @@ export class HarnessSession {
   }
 
   async _ensureRootfs() {
-    if (await IOUtils.exists(this.rootfsPath)) {
-      return;
-    }
     const template = rootfsTemplatePath();
+    if (await IOUtils.exists(this.rootfsPath)) {
+      // Guest rootfs state is disposable by design: when the template was
+      // rebuilt (new baked-in tooling), replace the stale profile copy.
+      const readStamp = async path => {
+        try {
+          return await IOUtils.readUTF8(PathUtils.join(path, ".rootfs-stamp"));
+        } catch (e) {
+          return "";
+        }
+      };
+      const templateStamp = await readStamp(template);
+      if (
+        !templateStamp ||
+        templateStamp == (await readStamp(this.rootfsPath))
+      ) {
+        return;
+      }
+      this._log("rootfs template changed; refreshing rootfs");
+      await IOUtils.remove(this.rootfsPath, { recursive: true });
+    }
     if (!(await IOUtils.exists(template))) {
       throw new Error(
         `Missing rootfs template at ${template}; run browser/components/harness/vm/setup-deps.sh`

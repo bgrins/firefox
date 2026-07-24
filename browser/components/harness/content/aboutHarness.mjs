@@ -393,6 +393,22 @@ function renderItem(item) {
           ? `exit ${item.exitCode ?? "?"}`
           : (item.status ?? "running");
       row.appendChild(chip);
+      // Output is available once the item completes; expand it by default
+      // for failures so errors are diagnosable from the UI.
+      const output = (item.aggregatedOutput ?? "").trim();
+      if (output) {
+        const failed = item.status == "failed" || item.exitCode;
+        const details = document.createElement("details");
+        details.className = "command-output";
+        details.open = !!failed;
+        const summary = document.createElement("summary");
+        summary.textContent = "output";
+        const pre = document.createElement("pre");
+        pre.textContent =
+          output.length > 8000 ? `...${output.slice(-8000)}` : output;
+        details.append(summary, pre);
+        row.appendChild(details);
+      }
       break;
     }
     case "fileChange": {

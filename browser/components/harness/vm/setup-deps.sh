@@ -132,7 +132,12 @@ UV_SHA256="49cb5ffce40cc9c85355caa8104f7b61c40a8daac7334f4bc841cad1a7bb359e"
 # (dynamically linked against musl, so musllinux wheels load).
 PYTHON_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260718/cpython-3.13.14+20260718-aarch64-unknown-linux-musl-install_only_stripped.tar.gz"
 PYTHON_SHA256="4d43ada1f37d09c118b4a205b5baafd03bac279b07cdedd382aa1a4367f8c15f"
-if [ ! -d "$BIN/harness/rootfs-template" ] || [ "${FORCE:-}" = 1 ]; then
+# The stamp ties a built template to this script's contents: the template is
+# re-extracted when the script changes, and HarnessVM re-copies a profile
+# rootfs whose stamp no longer matches the template's.
+STAMP=$(shasum -a 256 "$0" | cut -c1-16)
+CURRENT_STAMP=$(cat "$BIN/harness/rootfs-template/.rootfs-stamp" 2>/dev/null || true)
+if [ "$CURRENT_STAMP" != "$STAMP" ] || [ "${FORCE:-}" = 1 ]; then
     fetch "$ALPINE_URL" "$ALPINE_SHA256" "$DEPS/alpine-minirootfs.tar.gz"
     rm -rf "$BIN/harness/rootfs-template"
     mkdir -p "$BIN/harness/rootfs-template"
@@ -155,8 +160,9 @@ if [ ! -d "$BIN/harness/rootfs-template" ] || [ "${FORCE:-}" = 1 ]; then
         -C "$BIN/harness/rootfs-template/usr/local"
     ln -sf ../python/bin/python3 \
         "$BIN/harness/rootfs-template/usr/local/bin/python3"
+    printf '%s' "$STAMP" > "$BIN/harness/rootfs-template/.rootfs-stamp"
 else
-    echo "already extracted, skipping (FORCE=1 to redo)"
+    echo "already extracted and current, skipping (FORCE=1 to redo)"
 fi
 
 echo "=== done ==="
