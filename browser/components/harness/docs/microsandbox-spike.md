@@ -26,6 +26,28 @@ Facts (GitHub, checked 2026-07-24):
   — the Windows Hypervisor Platform port is theirs; upstream libkrun has
   no Windows support. Release assets ship prebuilt
   `libkrunfw-{darwin,linux,windows}-*` kernels plus agentd binaries.
+
+### The Windows port, in detail (checked 2026-07-24)
+
+The fork lives at zerocore-ai/libkrun (branch `krun`, published as the
+`msb_krun` crates). It is a genuine port, not a shim: a ~2,600-line WHP
+`vstate.rs` driving the raw Windows Hypervisor Platform API
+(`WHvCreatePartition` / `WHvRunVirtualProcessor` / GPA mapping via
+`windows_sys`), plus Windows implementations of virtio-fs passthrough
+(`devices/src/virtio/fs/windows/`), virtio-block, and memory mapping —
+i.e. they solved exactly the problems upstream's author flagged as hard.
+
+**Upstream status: never proposed.** The only upstream discussion is
+libkrun/libkrun#147 ("Windows host support?", Oct 2023, closed) where the
+maintainer (slp) was open but uncertain — virtio-fs "doable", the
+epoll/kqueue event-loop dependency the hard part. No Windows/WHP PR or
+issue has appeared upstream since, and nothing in the microsandbox repos
+mentions upstreaming. Divergence is real and growing: the fork is ~69
+commits ahead and **311 commits behind** upstream main — they are building
+a separate lineage, not a patch series that could land upstream as-is.
+Upstreaming would mean extracting the WHP backend from a heavily diverged
+tree and porting it forward across a year of upstream changes — possible,
+but it's a project, and nobody appears to be signed up for it.
 - Sandboxes are defined Docker-style: `msb pull python`, image cache with
   `msb image ls/rm`, volumes, per-project config. OS images come from
   Docker Hub / GHCR / any OCI registry and are cached locally.

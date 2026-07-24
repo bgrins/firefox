@@ -119,13 +119,40 @@ staged path if/when we do:
 4. Escape hatch: vsock port-forward for agent-run servers in the VM.
 5. Far future: hosted sharing (the actual Quick), or peer-to-tab handoff.
 
+### How "real" can scheme origins be? (checked in-tree)
+
+Custom-scheme sites can behave like real origins to a much greater degree
+than file://:
+
+- **Storage**: each `harness-site://<name>/` is a distinct origin
+  (scheme+host), and content principals on custom schemes get
+  localStorage/IndexedDB/CacheStorage through the normal quota manager —
+  this is exactly how `moz-extension://<uuid>` pages store data today.
+  file:// never gets this; it's the main reason artifacts can't persist
+  state now.
+- **Secure-context APIs**: schemes can declare
+  `URI_IS_POTENTIALLY_TRUSTWORTHY` (`nsIProtocolHandler.idl:252`), which
+  unlocks crypto.subtle and other https-gated APIs.
+- **fetch()**: same-origin fetch of the site's own resources works (unlike
+  file://, where fetch is crippled); ES modules load normally.
+  Cross-origin fetch is whatever our policy says — default-deny via CSP,
+  with the capability SDK as the sanctioned data path.
+- **Service workers** are the one real gap: Gecko gates SW registration on
+  https (moz-extension SWs exist but behind their own flag and plumbing).
+  Probably acceptable to punt; sites that need SW-grade behavior are the
+  signal to offer the loopback-server hatch.
+
+So the design stance is: register the scheme with content principals, per-
+host origins, and the trustworthy flag — sites are "real" web origins for
+storage, APIs, and modules, with networking as the one deliberately
+policy-shaped surface.
+
 ## Open questions
 
 - Scheme registration ergonomics: `moz-extension` gets origins via the
   extensions framework; a lighter-weight per-site substitution scheme
   (`harness-site://<name>/` → folder) needs a look at
-  `nsISubstitutingProtocolHandler` to confirm per-host origin isolation
-  and storage behavior.
+  `nsISubstitutingProtocolHandler` to confirm the registration surface.
 - Should sites be readable/writable by the agent after publish (live
   iteration) or snapshot-on-publish (reproducibility)? Quick is rsync-
   overwrite; snapshotting fits our stamp pattern better.
