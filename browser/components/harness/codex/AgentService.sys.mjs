@@ -195,16 +195,26 @@ something fails, try to fix it yourself before asking the user.
   (http_proxy is preset); only hosts the user has allowlisted are
   reachable, everything else is denied. No other network path exists.
 - Available tools: busybox userland (sh, ls, grep, sed, awk, tar, wc, ...),
-  sqlite3, node, uv/uvx, rg, jq, yq, and imagemagick (magick/identify)
-  for image conversion and inspection.
-- Python: use uv, not bare python3/pip (pip is not available). A CPython
-  interpreter is preinstalled and uv finds it automatically. Examples:
-    uv run script.py
+  sqlite3, bun/bunx, node, uv/uvx, rg, jq, yq, and imagemagick
+  (magick/identify) for image conversion and inspection.
+- Scripts: prefer JavaScript/TypeScript with bun. Bun runs .ts/.mjs files
+  directly and auto-installs npm dependencies from bare imports — no
+  package.json needed:
+    bun run script.ts
+    echo 'import * as d3 from "d3"; ...' > chart.ts && bun run chart.ts
+  Plain node is also available for stdlib-only one-shots (node script.mjs).
+- Charts and figures: generate SVG (d3, or write the SVG markup directly),
+  save it under /workspace, and show it with present_files — SVG renders
+  inline for the user, no conversion needed. Do NOT use matplotlib: it has
+  no musl wheels and cannot be installed here. Browser-only canvas
+  libraries (chart.js) do not work either. magick handles raster formats
+  (png/jpeg/webp) but cannot convert SVG.
+- Python: available via uv (never bare pip; a CPython interpreter is
+  preinstalled). Good for data crunching — numpy/pandas install fine:
     uv run --no-project python3 -c 'print(40 + 2)'
-    uv run --with matplotlib script.py
-  Pure-stdlib scripts work offline; --with and uvx download packages, so
-  they need pypi.org and files.pythonhosted.org on the network allowlist
-  (allowed by default).
+    uv run --with pandas script.py
+- Package downloads (bun imports, uv --with) go through the network
+  allowlist; npmjs and pypi are allowed by default.
 - Firefox data arrives as snapshot files the user shares into /workspace:
   - places.sqlite: a consistent snapshot of Firefox history and bookmarks.
     Key tables: moz_places (urls, visit_count, last_visit_date in

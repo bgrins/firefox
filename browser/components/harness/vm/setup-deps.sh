@@ -132,6 +132,10 @@ UV_SHA256="49cb5ffce40cc9c85355caa8104f7b61c40a8daac7334f4bc841cad1a7bb359e"
 # (dynamically linked against musl, so musllinux wheels load).
 PYTHON_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260718/cpython-3.13.14+20260718-aarch64-unknown-linux-musl-install_only_stripped.tar.gz"
 PYTHON_SHA256="4d43ada1f37d09c118b4a205b5baafd03bac279b07cdedd382aa1a4367f8c15f"
+# Bun: preferred script runtime; runs TS directly and auto-installs npm
+# dependencies from bare imports without a package.json.
+BUN_URL="https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-aarch64-musl.zip"
+BUN_SHA256="b98e0ad3625c5c00d1d5b5ff55605c7adddbfae151861e68ade57b2d3b8703bb"
 # The stamp ties a built template to this script's contents: the template is
 # re-extracted when the script changes, and HarnessVM re-copies a profile
 # rootfs whose stamp no longer matches the template's.
@@ -160,6 +164,11 @@ if [ "$CURRENT_STAMP" != "$STAMP" ] || [ "${FORCE:-}" = 1 ]; then
         -C "$BIN/harness/rootfs-template/usr/local"
     ln -sf ../python/bin/python3 \
         "$BIN/harness/rootfs-template/usr/local/bin/python3"
+    fetch "$BUN_URL" "$BUN_SHA256" "$DEPS/bun-linux-musl.zip"
+    unzip -o -q "$DEPS/bun-linux-musl.zip" -d "$DEPS"
+    cp "$DEPS/bun-linux-aarch64-musl/bun" \
+        "$BIN/harness/rootfs-template/usr/local/bin/"
+    ln -sf bun "$BIN/harness/rootfs-template/usr/local/bin/bunx"
     printf '%s' "$STAMP" > "$BIN/harness/rootfs-template/.rootfs-stamp"
 else
     echo "already extracted and current, skipping (FORCE=1 to redo)"

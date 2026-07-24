@@ -3691,10 +3691,10 @@ pref("browser.harness.sessionPerConversation", false);
 // Gated egress: HTTP(S) from the guest goes through a host-side policy proxy
 // (deny-by-default). Entries are "host", "host:port", or "*.suffix".
 pref("browser.harness.proxy.enabled", true);
-// Default allows Python package installs (uv --with / uvx); everything else
-// stays denied. pythonhosted wheels are served from a dedicated CDN host, so
-// this does not open general CDN egress.
-pref("browser.harness.proxy.allowlist", "[\"pypi.org\", \"files.pythonhosted.org\"]");
+// Default allows npm (bun auto-install) and Python (uv --with) package
+// installs; everything else stays denied. Both registries serve packages
+// from dedicated hosts, so this does not open general CDN egress.
+pref("browser.harness.proxy.allowlist", "[\"registry.npmjs.org\", \"pypi.org\", \"files.pythonhosted.org\"]");
 // Read-only browser tools (tabs, history, page content) offered to the agent
 // as client-hosted dynamic tools.
 pref("browser.harness.browserTools.enabled", true);

@@ -138,7 +138,8 @@ add_task(async function test_harness_vm_smoke() {
 
   const tools = await HarnessVM.exec(
     "node -v && jq --version && rg --version >/dev/null && yq --version && " +
-      "uv --version && magick -version >/dev/null && echo tools-ok",
+      "uv --version && bun --version && magick -version >/dev/null && " +
+      "echo tools-ok",
     { timeoutMs: 30000 }
   );
   is(tools.exitCode, 0, `dev tooling present (${tools.stderr.slice(0, 80)})`);
