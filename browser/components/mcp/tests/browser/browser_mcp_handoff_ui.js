@@ -75,15 +75,18 @@ add_task(async function test_start_this_tab_from_panel() {
   );
   Assert.ok(startThisTab, "panel offers Start (this tab) when stopped");
 
+  // Clicking a subviewbutton closes the panel, so grab it first.
+  const panel = view.closest("panel");
+  const hidden = BrowserTestUtils.waitForEvent(panel, "popuphidden");
   startThisTab.click();
   await TestUtils.waitForCondition(() => MCPServer.running);
   Assert.ok(MCPServer.scoped, "panel handoff scopes to the active tab");
   Assert.equal(MCPUI.handoffTab, tab, "active tab is the handoff tab");
   Assert.equal(tab.getAttribute("mcp-handoff"), "true", "active tab is badged");
 
-  const panel = view.closest("panel");
-  const hidden = BrowserTestUtils.waitForEvent(panel, "popuphidden");
-  panel.hidePopup();
+  if (panel.state !== "closed") {
+    panel.hidePopup();
+  }
   await hidden;
 
   MCPUI.revoke();

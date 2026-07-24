@@ -75,9 +75,16 @@ add_task(async function test_pause_resume_revoke() {
   const resumed = await callTool(port, "list_pages");
   Assert.ok(!resumed.isError, "tool calls work after resume");
 
+  // In auth=none mode a revoked session is replaced with a fresh one on the
+  // next call; strict revocation (401) is covered in browser_mcp_oauth.js.
   MCPSessions.revoke(session);
-  const afterRevoke = await mcpRpc(port, "ping", {}, { token: session.token });
-  Assert.equal(afterRevoke.status, 401, "revoked token is rejected");
+  const afterRevoke = await callTool(port, "list_pages");
+  Assert.ok(!afterRevoke.isError, "auth=none recovers after revocation");
+  Assert.notEqual(
+    MCPServer.session,
+    session,
+    "a fresh session replaces the revoked one"
+  );
 
   MCPServer.stop();
 });

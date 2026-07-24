@@ -3602,6 +3602,8 @@ pref("browser.ipProtection.optedOut", false);
 pref("browser.mcp.enabled", false);
 pref("browser.mcp.autostart", false);
 pref("browser.mcp.port", 9339);
+// "oauth" (self-issued OAuth 2.1 with in-browser consent) or "none".
+pref("browser.mcp.auth", "oauth");
 // Pref to enable the autoStart feature
 pref("browser.ipProtection.features.autoStart", false);
 // Prefs to track the user turning on autostart preference

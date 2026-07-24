@@ -16,6 +16,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   CustomizableUI:
     "moz-src:///browser/components/customizableui/CustomizableUI.sys.mjs",
   EveryWindow: "resource:///modules/EveryWindow.sys.mjs",
+  MCPAuth: "moz-src:///browser/components/mcp/MCPAuth.sys.mjs",
   MCPSessions: "moz-src:///browser/components/mcp/MCPSessions.sys.mjs",
   NavigableManager: "chrome://remote/content/shared/NavigableManager.sys.mjs",
 });
@@ -25,12 +26,15 @@ const PANEL_ID = "PanelUI-mcp";
 const MENUITEM_ID = "context_mcpHandoff";
 const STYLE_ID = "mcp-handoff-style";
 const AUTOSTART_PREF = "browser.mcp.autostart";
+const AUTH_PREF = "browser.mcp.auth";
 const HANDOFF_ATTR = "mcp-handoff";
 const HAND_OFF_LABEL = "Hand Off Tab to Agent";
 const REVOKE_LABEL = "Revoke Agent Access to Tab";
 
 let initialized = false;
 let handoffTab = null;
+// Tab preselected for the next OAuth consent (set from the context menu).
+let preferredTab = null;
 
 function onHandoffTabClose(event) {
   if (event.target === handoffTab) {
@@ -38,36 +42,107 @@ function onHandoffTabClose(event) {
   }
 }
 
-function revoke() {
+function badgeTab(tab) {
+  unbadgeTab();
+  handoffTab = tab;
+  tab.setAttribute(HANDOFF_ATTR, "true");
+  tab.addEventListener("TabClose", onHandoffTabClose);
+}
+
+function unbadgeTab() {
   if (handoffTab) {
     handoffTab.removeAttribute(HANDOFF_ATTR);
     handoffTab.removeEventListener("TabClose", onHandoffTabClose);
     handoffTab = null;
   }
-  MCPServer.stop();
+}
+
+function tabForNavigableId(id) {
+  for (const win of Services.wm.getEnumerator("navigator:browser")) {
+    for (const tab of win.gBrowser?.tabs ?? []) {
+      if (lazy.NavigableManager.getIdForBrowser(tab.linkedBrowser) === id) {
+        return tab;
+      }
+    }
+  }
+  return null;
+}
+
+// Badge state follows the session registry so grants made through the OAuth
+// consent flow badge the tab exactly like menu-initiated handoffs.
+function onSessionEvent(type, session) {
+  if (type === "created") {
+    unbadgeTab();
+    if (session.scope) {
+      const tab = tabForNavigableId(session.scope);
+      if (tab) {
+        badgeTab(tab);
+      }
+    }
+  } else if (type === "updated" && session.state === "revoked") {
+    unbadgeTab();
+  }
+}
+
+// Surface incoming authorization requests by opening the management panel in
+// the most recent browser window.
+function onAuthEvent(type) {
+  if (type !== "pending") {
+    return;
+  }
+  const win = Services.wm.getMostRecentBrowserWindow();
+  if (!win) {
+    return;
+  }
+  try {
+    const node = lazy.CustomizableUI.getWidget(WIDGET_ID)?.forWindow(win)?.node;
+    if (node) {
+      win.PanelUI.showSubView(PANEL_ID, node);
+    }
+  } catch (e) {
+    console.error("MCPUI: failed to open panel for auth request", e);
+  }
+}
+
+function revoke() {
+  unbadgeTab();
+  if (MCPServer.authMode === "oauth" && MCPServer.running) {
+    // Keep the server up: the client gets 401 and can re-run the OAuth flow.
+    MCPServer.revokeSession();
+  } else {
+    MCPServer.stop();
+  }
 }
 
 async function handOffTab(tab) {
-  if (handoffTab) {
-    revoke();
-  } else if (MCPServer.running) {
-    MCPServer.stop();
-  }
   const scope = lazy.NavigableManager.getIdForBrowser(tab.linkedBrowser);
   if (!scope) {
     console.error("MCPUI: could not resolve navigable id for tab");
     return;
+  }
+  if (MCPServer.authMode === "oauth") {
+    preferredTab = tab;
+    if (!MCPServer.running) {
+      await MCPServer.start({ scope }).catch(e =>
+        console.error("MCPUI: start failed", e)
+      );
+      return;
+    }
+    const [request] = lazy.MCPAuth.pendingRequests;
+    if (request) {
+      lazy.MCPAuth.approve(request.id, scope);
+    }
+    return;
+  }
+  if (MCPServer.running) {
+    MCPServer.stop();
   }
   try {
     await MCPServer.start({ scope });
   } catch (e) {
     console.error("MCPUI: handoff failed", e);
     MCPServer.stop();
-    return;
   }
-  handoffTab = tab;
-  tab.setAttribute(HANDOFF_ATTR, "true");
-  tab.addEventListener("TabClose", onHandoffTabClose);
 }
 
 function onTabContextShowing(event) {
@@ -248,12 +323,41 @@ function populatePanel(panelview) {
     return btn;
   };
 
+  const addEndpoint = () => {
+    addLabel("Connection");
+    addValue(`http://127.0.0.1:${MCPServer.port}/mcp`, "mcp-value mcp-mono");
+    if (MCPServer.authMode === "oauth") {
+      addValue(
+        "Clients authenticate via OAuth — approve requests here.",
+        "mcp-value mcp-dim"
+      );
+    } else {
+      addValue("Authentication disabled.", "mcp-value mcp-dim");
+    }
+    addButton(
+      "Copy endpoint",
+      btn => {
+        copyString(`http://127.0.0.1:${MCPServer.port}/mcp`);
+        btn.setAttribute("label", "Copied");
+        doc.defaultView.setTimeout(
+          () => btn.setAttribute("label", "Copy endpoint"),
+          1500
+        );
+      },
+      { repopulate: false }
+    );
+  };
+
   const session = MCPServer.session;
-  const running = MCPServer.running && !!session;
+  const running = MCPServer.running;
   const scoped = running && MCPServer.scoped;
   let state = "stopped";
   if (running) {
-    state = session.state === "paused" ? "paused" : "active";
+    if (!session) {
+      state = "waiting";
+    } else {
+      state = session.state === "paused" ? "paused" : "active";
+    }
   }
 
   const header = doc.createElement("div");
@@ -269,6 +373,7 @@ function populatePanel(panelview) {
   const stateText = doc.createElement("span");
   stateText.textContent = {
     stopped: "Stopped",
+    waiting: "Waiting",
     paused: "Paused",
     active: "Active",
   }[state];
@@ -283,13 +388,55 @@ function populatePanel(panelview) {
     );
     addSeparator();
     addButton("Start (this tab)", () =>
-      handOffTab(doc.defaultView.gBrowser.selectedTab).catch(e =>
-        console.error("MCPUI: handoff failed", e)
-      )
+      handOffTab(doc.defaultView.gBrowser.selectedTab)
     );
     addButton("Start (full browser)", () =>
       MCPServer.start().catch(e => console.error("MCPUI: start failed", e))
     );
+    addSeparator();
+    const check = doc.createXULElement("checkbox");
+    check.className = "mcp-value";
+    check.setAttribute("label", "Require authorization (OAuth)");
+    check.setAttribute("checked", MCPServer.authMode === "oauth");
+    check.addEventListener("command", () => {
+      Services.prefs.setCharPref(AUTH_PREF, check.checked ? "oauth" : "none");
+    });
+    body.appendChild(check);
+    return;
+  }
+
+  const [request] = lazy.MCPAuth.pendingRequests;
+  if (request) {
+    addSeparator();
+    addLabel("Authorization request");
+    addValue(`"${request.clientName}" wants to control Firefox`);
+    const win = doc.defaultView;
+    const target =
+      preferredTab && preferredTab.isConnected
+        ? preferredTab
+        : win.gBrowser.selectedTab;
+    addButton(`Grant one tab: ${target.label.slice(0, 40)}`, () =>
+      lazy.MCPAuth.approve(
+        request.id,
+        lazy.NavigableManager.getIdForBrowser(target.linkedBrowser)
+      )
+    );
+    addButton("Grant full browser", () =>
+      lazy.MCPAuth.approve(request.id, null)
+    );
+    addButton("Deny", () => lazy.MCPAuth.deny(request.id));
+  }
+
+  if (!session) {
+    addSeparator();
+    addValue(
+      "Waiting for an agent to connect and request access.",
+      "mcp-value mcp-dim"
+    );
+    addSeparator();
+    addEndpoint();
+    addSeparator();
+    addButton("Stop server", () => MCPServer.stop());
     return;
   }
 
@@ -328,25 +475,7 @@ function populatePanel(panelview) {
   }
 
   addSeparator();
-
-  addLabel("Connection");
-  addValue(`http://127.0.0.1:${MCPServer.port}/mcp`, "mcp-value mcp-mono");
-  addValue(`Bearer ${session.token.slice(0, 8)}…`, "mcp-value mcp-mono");
-  addButton(
-    "Copy connection details",
-    btn => {
-      copyString(
-        `http://127.0.0.1:${MCPServer.port}/mcp\nAuthorization: Bearer ${session.token}`
-      );
-      btn.setAttribute("label", "Copied");
-      doc.defaultView.setTimeout(
-        () => btn.setAttribute("label", "Copy connection details"),
-        1500
-      );
-    },
-    { repopulate: false }
-  );
-
+  addEndpoint();
   addSeparator();
 
   if (state === "paused") {
@@ -354,7 +483,10 @@ function populatePanel(panelview) {
   } else {
     addButton("Pause", () => lazy.MCPSessions.pause(session));
   }
-  addButton(scoped ? "Revoke tab access" : "Stop server", () => revoke());
+  addButton(scoped ? "Revoke tab access" : "Revoke access", () => revoke());
+  if (MCPServer.authMode === "oauth") {
+    addButton("Stop server", () => MCPServer.stop());
+  }
 }
 
 export const MCPUI = {
@@ -384,19 +516,25 @@ export const MCPUI = {
       onViewShowing(event) {
         const panelview = event.target;
         populatePanel(panelview);
-        // Repaint on session updates (client connect, activity, pause) while
-        // the panel stays open.
+        // Repaint on session/auth updates (client connect, activity, pause,
+        // consent requests) while the panel stays open.
         const listener = () => populatePanel(panelview);
         lazy.MCPSessions.addListener(listener);
+        lazy.MCPAuth.addListener(listener);
         panelview.addEventListener(
           "ViewHiding",
-          () => lazy.MCPSessions.removeListener(listener),
+          () => {
+            lazy.MCPSessions.removeListener(listener);
+            lazy.MCPAuth.removeListener(listener);
+          },
           { once: true }
         );
       },
     });
 
     lazy.EveryWindow.registerCallback(MENUITEM_ID, initWindow, uninitWindow);
+    lazy.MCPSessions.addListener(onSessionEvent);
+    lazy.MCPAuth.addListener(onAuthEvent);
 
     if (Services.prefs.getBoolPref(AUTOSTART_PREF, false)) {
       await MCPServer.start().catch(e =>
@@ -410,7 +548,11 @@ export const MCPUI = {
       return;
     }
     initialized = false;
-    revoke();
+    unbadgeTab();
+    preferredTab = null;
+    MCPServer.stop();
+    lazy.MCPSessions.removeListener(onSessionEvent);
+    lazy.MCPAuth.removeListener(onAuthEvent);
     lazy.EveryWindow.unregisterCallback(MENUITEM_ID);
     lazy.CustomizableUI.destroyWidget(WIDGET_ID);
   },

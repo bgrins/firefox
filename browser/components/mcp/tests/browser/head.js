@@ -23,7 +23,7 @@ let gRpcId = 0;
 // and exercises the hand-rolled HTTP listener in MCPBridge directly.
 function rawHttpRequest(
   port,
-  { method = "POST", path = "/mcp", headers = {}, body = "" } = {}
+  { method = "POST", path = "/mcp", headers = {}, body = "", host } = {}
 ) {
   return new Promise((resolve, reject) => {
     const sts = Cc[
@@ -45,7 +45,7 @@ function rawHttpRequest(
 
     const lines = [
       `${method} ${path} HTTP/1.1`,
-      `Host: 127.0.0.1:${port}`,
+      `Host: ${host ?? `127.0.0.1:${port}`}`,
       `Content-Length: ${body.length}`,
       "Connection: close",
     ];

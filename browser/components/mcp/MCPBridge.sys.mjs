@@ -108,7 +108,9 @@ function tryParseHttpRequest(buffer) {
 
 const STATUS_TEXT = {
   200: "OK",
+  201: "Created",
   202: "Accepted",
+  302: "Found",
   400: "Bad Request",
   401: "Unauthorized",
   403: "Forbidden",
@@ -487,6 +489,36 @@ class Bridge {
         };
       }
       if (verdict) {
+        if (typeof verdict.then === "function") {
+          // Deferred verdict (e.g. an /authorize request held until the user
+          // decides). Extend the idle deadline so consent has time.
+          connection.busy = true;
+          connection.idleMs = 300000;
+          this.#armIdleTimer(connection);
+          const id = this.#nextRequestId++;
+          this.#pendingResponses.set(id, connection);
+          verdict.then(
+            v => {
+              connection.idleMs = null;
+              try {
+                this.sendHttpResponse(id, v.status, v.headers ?? {}, v.body);
+              } catch {}
+            },
+            e => {
+              console.error("MCPBridge: deferred gate response failed", e);
+              connection.idleMs = null;
+              try {
+                this.sendHttpResponse(
+                  id,
+                  500,
+                  { "Content-Type": "text/plain" },
+                  "internal error"
+                );
+              } catch {}
+            }
+          );
+          return;
+        }
         this.#respond(
           connection,
           verdict.status,
@@ -531,7 +563,7 @@ class Bridge {
         }
       }
       this.#closeConnection(connection);
-    }, 65000);
+    }, connection.idleMs ?? 65000);
   }
 
   #closeConnection(connection) {
@@ -560,6 +592,7 @@ class Bridge {
       input: null,
       output: null,
       idleTimer: null,
+      idleMs: null,
       buffer: "",
       keepAlive: true,
       busy: false,

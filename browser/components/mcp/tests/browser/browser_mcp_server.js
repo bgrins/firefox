@@ -34,26 +34,19 @@ add_task(async function test_server_lifecycle() {
     "tools/list includes take_snapshot"
   );
 
-  const unauthorized = await mcpRpc(port, "ping", {}, { token: "wrong-token" });
-  Assert.equal(unauthorized.status, 401, "bad bearer token is rejected");
-
-  const missingAuth = await mcpRpc(port, "ping", {}, { token: null });
-  Assert.equal(missingAuth.status, 401, "missing bearer token is rejected");
-
-  const staticToken = await mcpRpc(
-    port,
-    "ping",
-    {},
-    { token: "bidi-bridge-dev" }
-  );
-  Assert.equal(
-    staticToken.status,
-    401,
-    "the bundle's static dev token is rejected"
-  );
+  // This suite runs with browser.mcp.auth=none; strict auth behavior is
+  // covered in browser_mcp_oauth.js.
+  const noAuth = await mcpRpc(port, "ping", {}, { token: null });
+  Assert.equal(noAuth.status, 200, "no token required in auth=none mode");
 
   const notFound = await rawHttpRequest(port, { path: "/other", body: "{}" });
   Assert.equal(notFound.status, 404, "non-/mcp path is rejected");
+
+  const badHost = await rawHttpRequest(port, {
+    host: "evil.example.com",
+    body: "{}",
+  });
+  Assert.equal(badHost.status, 403, "non-loopback Host header is rejected");
 
   MCPServer.stop();
   Assert.ok(!MCPServer.running, "server reports stopped");
