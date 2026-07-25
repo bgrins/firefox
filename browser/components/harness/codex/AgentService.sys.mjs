@@ -100,7 +100,19 @@ export const AgentService = {
   async _awaitSession(session) {
     if (session.state == "stopped") {
       this._emit({ type: "log", message: "starting sandbox VM..." });
-      await session.start();
+      // First runs with the remote image source download the sandbox here;
+      // surface that progress in the chat instead of a silent stall.
+      const { HarnessImageManager } = ChromeUtils.importESModule(
+        "moz-src:///browser/components/harness/HarnessImageManager.sys.mjs"
+      );
+      const onImageProgress = event =>
+        this._emit({ type: "log", message: event.message });
+      HarnessImageManager.addListener(onImageProgress);
+      try {
+        await session.start();
+      } finally {
+        HarnessImageManager.removeListener(onImageProgress);
+      }
     }
     for (let i = 0; session.state == "starting" && i < 120; i++) {
       await new Promise(resolve => lazy.setTimeout(resolve, 250));

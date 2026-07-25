@@ -7,6 +7,8 @@ import { HarnessAgent } from "moz-src:///browser/components/harness/HarnessAgent
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  HarnessImageManager:
+    "moz-src:///browser/components/harness/HarnessImageManager.sys.mjs",
   HarnessProxy: "moz-src:///browser/components/harness/HarnessProxy.sys.mjs",
   Sqlite: "resource://gre/modules/Sqlite.sys.mjs",
   Subprocess: "resource://gre/modules/Subprocess.sys.mjs",
@@ -195,8 +197,7 @@ export class HarnessSession {
     return Services.prefs.getBoolPref("browser.harness.rootfs.overlay", true);
   }
 
-  async _ensureRootfs() {
-    const template = rootfsTemplatePath();
+  async _ensureRootfs(template = rootfsTemplatePath()) {
     if (await IOUtils.exists(this.rootfsPath)) {
       // Guest rootfs state is disposable by design: when the template was
       // rebuilt (new baked-in tooling), replace the stale profile copy.
@@ -287,8 +288,12 @@ export class HarnessSession {
     try {
       const helper = appBinPath("harness-vm-helper");
       const libkrun = greBinPath("libkrun.dylib");
-      const libkrunfw = greBinPath("libkrunfw.5.dylib");
-      for (const path of [helper, libkrun, libkrunfw]) {
+      // The GPL image bits (guest kernel + rootfs template) come from the
+      // image manager: the objdir in development, a verified download in
+      // the remote configuration (docs/image-download-plan.md).
+      const image = await lazy.HarnessImageManager.resolve();
+      const libkrunfw = image.kernelPath;
+      for (const path of [helper, libkrun, libkrunfw, image.templatePath]) {
         if (!(await IOUtils.exists(path))) {
           throw new Error(
             `Missing ${path}; run ./mach build and browser/components/harness/vm/setup-deps.sh`
@@ -298,14 +303,9 @@ export class HarnessSession {
       const overlay = this._overlayEnabled;
       let rootPath;
       if (overlay) {
-        rootPath = rootfsTemplatePath();
-        if (!(await IOUtils.exists(rootPath))) {
-          throw new Error(
-            `Missing rootfs template at ${rootPath}; run browser/components/harness/vm/setup-deps.sh`
-          );
-        }
+        rootPath = image.templatePath;
       } else {
-        await this._ensureRootfs();
+        await this._ensureRootfs(image.templatePath);
         rootPath = this.rootfsPath;
       }
       await this._installGuestAgent(rootPath);

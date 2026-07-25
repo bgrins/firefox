@@ -3692,6 +3692,11 @@ pref("browser.harness.sessionPerConversation", false);
 // tmpfs overlay: no per-session rootfs copies, and nothing written outside
 // /workspace survives a VM stop.
 pref("browser.harness.rootfs.overlay", true);
+// Where the sandbox image (guest kernel + rootfs template) comes from:
+// "build" uses objdir artifacts from setup-deps.sh; "remote" downloads and
+// sha256-verifies artifacts listed by the manifest URL.
+pref("browser.harness.image.source", "build");
+pref("browser.harness.image.manifestUrl", "");
 // Gated egress: HTTP(S) from the guest goes through a host-side policy proxy
 // (deny-by-default). Entries are "host", "host:port", or "*.suffix".
 pref("browser.harness.proxy.enabled", true);
