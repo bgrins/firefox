@@ -165,3 +165,68 @@ add_task(async function test_present_files_html_widget() {
     );
   });
 });
+
+add_task(async function test_present_files_site_card() {
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.harness.enabled", true]],
+  });
+  const siteRoot = PathUtils.join(
+    PathUtils.profileDir,
+    "harness",
+    "workspace",
+    "sites",
+    "carddemo"
+  );
+  await IOUtils.makeDirectory(siteRoot, { createAncestors: true });
+  await IOUtils.writeUTF8(
+    PathUtils.join(siteRoot, "index.html"),
+    `<html><head></head><body><div id="live">site-live</div></body></html>`
+  );
+
+  await BrowserTestUtils.withNewTab("about:harness", async browser => {
+    const doc = browser.contentDocument;
+    AgentService._emit({
+      type: "presentFiles",
+      title: "Site",
+      files: [
+        {
+          name: "carddemo",
+          guestPath: "/workspace/sites/carddemo/",
+          url: "harness-site://carddemo/",
+          kind: "site",
+          size: 0,
+        },
+      ],
+    });
+    await TestUtils.waitForCondition(
+      () => doc.querySelector("#chat-log .artifact-widget"),
+      "site frame rendered"
+    );
+    const frame = doc.querySelector("#chat-log .artifact-widget");
+    is(
+      frame.getAttribute("src"),
+      "harness-site://carddemo/",
+      "embeds the live site origin"
+    );
+    const buttons = [
+      ...doc.querySelectorAll("#chat-log .artifact-file.widget button"),
+    ].map(button => button.textContent);
+    ok(
+      buttons.includes("Reload") && buttons.includes("Open in tab"),
+      `site card has reload/open (${buttons})`
+    );
+    // The embedded site actually loads (out of process, served via actor).
+    const live = await TestUtils.waitForCondition(async () => {
+      try {
+        return await SpecialPowers.spawn(
+          frame.browsingContext,
+          [],
+          () => content.document.getElementById("live")?.textContent
+        );
+      } catch (e) {
+        return null;
+      }
+    }, "site document reachable");
+    is(live, "site-live", "live site content rendered in the card");
+  });
+});

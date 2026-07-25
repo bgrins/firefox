@@ -9,7 +9,13 @@
 // persistent localStorage, same-origin fetch, injected CSP, secure context.
 
 async function writeSite(name, files) {
-  const root = PathUtils.join(PathUtils.profileDir, "harness", "sites", name);
+  const root = PathUtils.join(
+    PathUtils.profileDir,
+    "harness",
+    "workspace",
+    "sites",
+    name
+  );
   await IOUtils.makeDirectory(root, { createAncestors: true });
   for (const [leaf, content] of Object.entries(files)) {
     await IOUtils.writeUTF8(PathUtils.join(root, leaf), content);

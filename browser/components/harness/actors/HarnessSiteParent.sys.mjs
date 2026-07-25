@@ -32,7 +32,7 @@ const MIME_BY_EXTENSION = {
 /**
  * Parent side of harness-site:// serving: the protocol handler runs in the
  * (sandboxed) content process and cannot read the profile, so it queries
- * this actor for the response bytes.
+ * this actor for the response bytes. Serves /workspace/sites/<name>/.
  */
 export class HarnessSiteParent extends JSWindowActorParent {
   async receiveMessage(message) {
@@ -59,9 +59,13 @@ export class HarnessSiteParent extends JSWindowActorParent {
     if (segments.some(segment => segment == "." || segment == "..")) {
       throw new Error("path traversal");
     }
+    // Sites live inside the (default session's) workspace: the guest's
+    // /workspace/sites/<name>/ is served live, so the agent writing files
+    // IS publishing — no copy step, and iteration is just a reload.
     const hostPath = PathUtils.join(
       PathUtils.profileDir,
       "harness",
+      "workspace",
       "sites",
       site,
       ...segments

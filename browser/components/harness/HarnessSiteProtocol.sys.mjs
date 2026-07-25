@@ -13,10 +13,11 @@ ChromeUtils.defineLazyGetter(lazy, "logConsole", () =>
 
 /**
  * harness-site://<name>/<path> serves agent-published static sites from
- * profile/harness/sites/<name>/. Each site name is a distinct host and thus
- * a distinct content-principal origin, which gives sites real (isolated)
- * localStorage/IndexedDB — unlike the file: staging used for one-shot
- * widgets. HTML responses get a network-blocking CSP injected at serve
+ * the workspace's sites/<name>/ directory. Each site name is a distinct
+ * host and thus a distinct content-principal origin, which gives sites
+ * real isolated storage (IndexedDB; localStorage needs dom/clients work,
+ * see docs/quick-artifacts-spike.md) — unlike the file: staging used for
+ * one-shot widgets. HTML responses get a network-blocking CSP injected at serve
  * time (see actors/HarnessSiteParent.sys.mjs).
  *
  * Channels are created in the loading (content) process, which cannot read

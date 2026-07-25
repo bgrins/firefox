@@ -83,6 +83,41 @@ add_task(async function test_present_files() {
   );
   ok(!escape.success, "path traversal denied");
 
+  // Site paths present the live origin once, however many files are named.
+  await IOUtils.makeDirectory(PathUtils.join(workspace, "sites", "demo"), {
+    createAncestors: true,
+  });
+  await IOUtils.writeUTF8(
+    PathUtils.join(workspace, "sites", "demo", "index.html"),
+    "<html><body>demo</body></html>"
+  );
+  const site = await HarnessBrowserTools.call(
+    "present_files",
+    {
+      paths: [
+        "/workspace/sites/demo/index.html",
+        "/workspace/sites/demo/app.js",
+        "sites/demo",
+      ],
+    },
+    { workspacePath: workspace }
+  );
+  ok(site.success, "site present succeeded");
+  is(site.present.files.length, 1, "site deduped to one entry");
+  is(site.present.files[0].kind, "site", "classified as site");
+  is(site.present.files[0].url, "harness-site://demo/", "live origin url");
+
+  const noIndex = await HarnessBrowserTools.call(
+    "present_files",
+    { paths: ["/workspace/sites/empty/whatever.js"] },
+    { workspacePath: workspace }
+  );
+  ok(!noIndex.success, "site without index.html fails");
+  ok(
+    noIndex.contentItems[0].text.includes("index.html"),
+    "error tells the agent what is missing"
+  );
+
   // A guest-created symlink resolves against the HOST filesystem here; it
   // must not be presentable when it escapes the workspace.
   const link = PathUtils.join(workspace, "sneaky.png");

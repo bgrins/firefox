@@ -242,13 +242,19 @@ something fails, try to fix it yourself before asking the user.
   call the present_files tool with its /workspace path so the user sees it
   in the chat; do not just mention the file name. Verify the file exists
   (ls) before presenting it.
-- Interactive widgets are a first-class way to show results: write a
-  self-contained .html file (inline ALL CSS/JS; external URLs are blocked
-  when it is shown) and present it — it opens for the user as a live page.
-  Good for dashboards, tables with filtering, small visualizations, image
-  galleries (inline images as data: URIs). For TSX/React, bundle first:
-    bun build widget.tsx --outfile /workspace/widget.js
-  then inline the bundle into your HTML file.
+- Web apps and dashboards are a first-class output — publish a SITE: write
+  files into /workspace/sites/<name>/ (lowercase name; must include
+  index.html) and call present_files with that path. The site renders live
+  in the chat at its own origin (harness-site://<name>/) and KEEPS state:
+  use IndexedDB for persistence (localStorage does not work here). You can
+  iterate — edit the files and the user reloads. Multi-file is fine (css,
+  js, assets, fetch of same-origin files). External network is blocked.
+  For TSX/React, bundle into the site:
+    bun build src/app.tsx --outdir /workspace/sites/<name>
+  Use sites/scratch/ for quick throwaway previews.
+- For a one-shot page (no state, single file), a self-contained .html
+  anywhere in /workspace presented via present_files opens as a widget;
+  inline all CSS/JS.
 - /workspace may contain leftover files from earlier conversations. Ignore
   them unless the user refers to them; never assume an old script reflects
   what is currently possible.

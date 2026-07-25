@@ -75,14 +75,16 @@ export const HarnessBrowserTools = {
         name: "present_files",
         description:
           "Show files from your /workspace directly to the user in the " +
-          "chat. Images (png, jpg, gif, webp, svg) render inline; .html " +
-          "files open for the user as live interactive widgets " +
-          "(self-contained only: inline all CSS/JS, no external URLs — " +
-          "network is blocked when shown); other files get an open " +
-          "button. Use this whenever you produce an artifact the user " +
-          "should see — the user has no terminal, so this is the only way " +
-          `they can view files. At most ${MAX_PRESENT_FILES} files per ` +
-          "call.",
+          "chat. Images (png, jpg, gif, webp, svg) render inline. Paths " +
+          "under /workspace/sites/<name>/ present the whole site as a " +
+          "LIVE embedded page at its harness-site://<name>/ origin " +
+          "(multi-file apps with persistent IndexedDB; needs an " +
+          "index.html). Standalone .html files open as one-shot widgets " +
+          "(self-contained only). External network is blocked in both; " +
+          "other files get an open button. Use this whenever you produce " +
+          "an artifact the user should see — the user has no terminal, so " +
+          `this is the only way they can view files. At most ` +
+          `${MAX_PRESENT_FILES} files per call.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -316,10 +318,42 @@ export const HarnessBrowserTools = {
     const workspaceRoot = new lazy.FileUtils.File(workspacePath);
     workspaceRoot.normalize();
     const files = [];
+    const seenSites = new Set();
     for (const rawPath of paths) {
       const relative = String(rawPath).replace(/^\/workspace\/?/, "");
       if (!relative) {
         throw new Error(`not a workspace file: ${rawPath}`);
+      }
+      // Anything under sites/<name>/ is a published site: present the live
+      // harness-site:// origin once, no matter how many of its files were
+      // listed. Requires an index.html so the embed has something to show.
+      const siteMatch = relative.match(/^sites\/([a-z0-9][a-z0-9.-]{0,63})/);
+      if (siteMatch) {
+        const siteName = siteMatch[1];
+        if (seenSites.has(siteName)) {
+          continue;
+        }
+        const index = new lazy.FileUtils.File(
+          PathUtils.join(workspaceRoot.path, "sites", siteName, "index.html")
+        );
+        if (!index.exists()) {
+          throw new Error(
+            `site ${siteName} has no index.html at /workspace/sites/${siteName}/index.html`
+          );
+        }
+        index.normalize();
+        if (!index.path.startsWith(`${workspaceRoot.path}/`)) {
+          throw new Error(`outside workspace: ${rawPath}`);
+        }
+        seenSites.add(siteName);
+        files.push({
+          name: siteName,
+          guestPath: `/workspace/sites/${siteName}/`,
+          url: `harness-site://${siteName}/`,
+          kind: "site",
+          size: 0,
+        });
+        continue;
       }
       const file = new lazy.FileUtils.File(
         PathUtils.join(workspaceRoot.path, ...relative.split("/"))

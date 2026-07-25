@@ -287,10 +287,7 @@ async function stageHtmlWidget(file) {
   return staged;
 }
 
-function renderHtmlWidget(card, file, stagedPath) {
-  const stagedFile = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
-  stagedFile.initWithPath(stagedPath);
-  const url = Services.io.newFileURI(stagedFile).spec;
+function embedRemotePage(card, url, tooltip) {
   const remoteType = ChromeUtils.predictRemoteTypeForURI(url, { window });
   const frame = document.createXULElement("browser");
   frame.className = "artifact-widget";
@@ -299,8 +296,15 @@ function renderHtmlWidget(card, file, stagedPath) {
   frame.setAttribute("remote", "true");
   frame.setAttribute("remoteType", remoteType);
   frame.setAttribute("src", url);
-  frame.setAttribute("tooltiptext", file.name);
+  frame.setAttribute("tooltiptext", tooltip);
   card.appendChild(frame);
+  return frame;
+}
+
+function renderHtmlWidget(card, file, stagedPath) {
+  const stagedFile = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+  stagedFile.initWithPath(stagedPath);
+  embedRemotePage(card, Services.io.newFileURI(stagedFile).spec, file.name);
 
   const row = document.createElement("div");
   row.className = "artifact-file widget";
@@ -310,6 +314,29 @@ function renderHtmlWidget(card, file, stagedPath) {
   openButton.textContent = "Open in tab";
   openButton.addEventListener("click", () => openArtifact(stagedPath));
   row.append(label, openButton);
+  card.appendChild(row);
+}
+
+// Published sites embed their LIVE harness-site:// origin: the agent can
+// keep editing files under /workspace/sites/<name>/ and a reload shows the
+// changes, with IndexedDB state persisting across sessions.
+function renderSiteCard(card, file) {
+  const frame = embedRemotePage(card, file.url, file.url);
+  const row = document.createElement("div");
+  row.className = "artifact-file widget";
+  const label = document.createElement("span");
+  label.textContent = file.url;
+  const reloadButton = document.createElement("button");
+  reloadButton.textContent = "Reload";
+  reloadButton.addEventListener("click", () => {
+    frame.browsingContext.reload(Ci.nsIWebNavigation.LOAD_FLAGS_NONE);
+  });
+  const openButton = document.createElement("button");
+  openButton.textContent = "Open in tab";
+  openButton.addEventListener("click", () => {
+    window.browsingContext.topChromeWindow.openTrustedLinkIn(file.url, "tab");
+  });
+  row.append(label, reloadButton, openButton);
   card.appendChild(row);
 }
 
@@ -343,6 +370,10 @@ async function renderPresentedFiles(event) {
       } catch (e) {
         // fall through to the file row
       }
+    }
+    if (file.kind == "site") {
+      renderSiteCard(card, file);
+      continue;
     }
     if (file.kind == "html") {
       try {
