@@ -6,15 +6,6 @@
 const { CodexExecBridge } = ChromeUtils.importESModule(
   "moz-src:///browser/components/harness/codex/CodexExecBridge.sys.mjs"
 );
-const { HarnessVM } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
-);
-
-function greBinPath(leaf) {
-  const file = Services.dirsvc.get("GreBinD", Ci.nsIFile);
-  file.append(leaf);
-  return file.path;
-}
 
 // Minimal exec-server client over a real WebSocket, mirroring how the
 // app-server drives the bridge (Codex JSON-RPC dialect: no jsonrpc field).
@@ -76,7 +67,7 @@ function fromB64(data) {
 
 add_task(async function test_exec_bridge_routing() {
   requestLongerTimeout(3);
-  if (!(await IOUtils.exists(greBinPath("libkrun.dylib")))) {
+  if (!(await vmDepsPresent())) {
     todo(false, "harness VM deps not present; run setup-deps.sh");
     return;
   }
@@ -95,23 +86,13 @@ add_task(async function test_exec_bridge_routing() {
   });
   registerCleanupFunction(async () => {
     CodexExecBridge.stop();
-    if (HarnessVM.state == "running") {
-      await HarnessVM.stop();
-    }
+    await stopVM();
   });
 
   // Boot the VM (unless a previous test left it running) and wait for the
   // guest agent.
   if (HarnessVM.state != "running") {
-    const running = new Promise(resolve => {
-      const listener = event => {
-        if (event.type == "state" && event.state == "running") {
-          HarnessVM.removeListener(listener);
-          resolve();
-        }
-      };
-      HarnessVM.addListener(listener);
-    });
+    const running = waitForVMState("running");
     await HarnessVM.start();
     await running;
   }

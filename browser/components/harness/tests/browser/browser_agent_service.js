@@ -6,42 +6,18 @@
 const { AgentService } = ChromeUtils.importESModule(
   "moz-src:///browser/components/harness/codex/AgentService.sys.mjs"
 );
-const { CodexAppServerClient } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/harness/codex/CodexAppServerClient.sys.mjs"
-);
-
-async function ollamaAvailable() {
-  try {
-    const response = await fetch("http://127.0.0.1:11434/api/version", {
-      signal: AbortSignal.timeout(2000),
-    });
-    return response.ok;
-  } catch (e) {
-    return false;
-  }
-}
 
 add_task(async function test_agent_service_conversation() {
   requestLongerTimeout(3);
-  const greBinD = Services.dirsvc.get("GreBinD", Ci.nsIFile);
-  greBinD.append("libkrun.dylib");
-  if (
-    !(await IOUtils.exists(CodexAppServerClient.defaultBinaryPath())) ||
-    !(await IOUtils.exists(greBinD.path))
-  ) {
+  if (!(await codexDepsPresent())) {
     todo(false, "codex binary or VM deps not present; run setup scripts");
     return;
   }
 
-  const { HarnessVM } = ChromeUtils.importESModule(
-    "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
-  );
   registerCleanupFunction(async () => {
     await AgentService.shutdown();
     // Conversations auto-start the sandbox VM; leave a clean slate.
-    if (HarnessVM.state == "running") {
-      await HarnessVM.stop();
-    }
+    await stopVM();
   });
   await SpecialPowers.pushPrefEnv({
     set: [["browser.harness.enabled", true]],
@@ -89,15 +65,7 @@ add_task(async function test_agent_service_conversation() {
 });
 
 add_task(async function test_delete_conversation() {
-  const { HarnessVM } = ChromeUtils.importESModule(
-    "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
-  );
-  const greBinD = Services.dirsvc.get("GreBinD", Ci.nsIFile);
-  greBinD.append("libkrun.dylib");
-  if (
-    !(await IOUtils.exists(CodexAppServerClient.defaultBinaryPath())) ||
-    !(await IOUtils.exists(greBinD.path))
-  ) {
+  if (!(await codexDepsPresent())) {
     todo(false, "codex binary or VM deps not present; run setup scripts");
     return;
   }
@@ -106,9 +74,7 @@ add_task(async function test_delete_conversation() {
   });
   registerCleanupFunction(async () => {
     await AgentService.shutdown();
-    if (HarnessVM.state == "running") {
-      await HarnessVM.stop();
-    }
+    await stopVM();
   });
 
   if (!(await ollamaAvailable())) {

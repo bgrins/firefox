@@ -3,19 +3,8 @@
 
 "use strict";
 
-const { HarnessVM } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
-);
-
-function greBinPath(leaf) {
-  const file = Services.dirsvc.get("GreBinD", Ci.nsIFile);
-  file.append(leaf);
-  return file.path;
-}
-
 add_task(async function test_pty_and_interactive_stdin() {
-  requestLongerTimeout(3);
-  if (!(await IOUtils.exists(greBinPath("libkrun.dylib")))) {
+  if (!(await vmDepsPresent())) {
     todo(false, "harness VM deps not present; run setup-deps.sh");
     return;
   }
@@ -30,26 +19,7 @@ add_task(async function test_pty_and_interactive_stdin() {
   await SpecialPowers.pushPrefEnv({
     set: [["browser.harness.enabled", true]],
   });
-  registerCleanupFunction(async () => {
-    if (HarnessVM.state == "running") {
-      await HarnessVM.stop();
-    }
-  });
-  if (HarnessVM.state != "running") {
-    await HarnessVM.start();
-  }
-  for (let i = 0; ; i++) {
-    try {
-      await HarnessVM.exec("true");
-      break;
-    } catch (e) {
-      if (i > 40) {
-        throw e;
-      }
-      // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
-      await new Promise(resolve => setTimeout(resolve, 250));
-    }
-  }
+  await startVM();
   const agent = HarnessVM.session().agent;
 
   // Plain jobs have no controlling terminal; tty jobs do.
@@ -82,5 +52,5 @@ add_task(async function test_pty_and_interactive_stdin() {
   is(done.exitCode, 0, "interactive job exits cleanly on EOF");
   ok(done.stdout.includes("hello interactive"), "output accumulated");
 
-  await HarnessVM.stop();
+  await stopVM();
 });

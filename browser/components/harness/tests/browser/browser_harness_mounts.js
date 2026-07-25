@@ -3,26 +3,16 @@
 
 "use strict";
 
-const { HarnessVM } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
-);
 const { CodexExecBridge } = ChromeUtils.importESModule(
   "moz-src:///browser/components/harness/codex/CodexExecBridge.sys.mjs"
 );
-
-function greBinPath(leaf) {
-  const file = Services.dirsvc.get("GreBinD", Ci.nsIFile);
-  file.append(leaf);
-  return file.path;
-}
 
 function b64(text) {
   return btoa(String.fromCharCode(...new TextEncoder().encode(text)));
 }
 
 add_task(async function test_user_volume_mounts() {
-  requestLongerTimeout(3);
-  if (!(await IOUtils.exists(greBinPath("libkrun.dylib")))) {
+  if (!(await vmDepsPresent())) {
     todo(false, "harness VM deps not present; run setup-deps.sh");
     return;
   }
@@ -55,36 +45,11 @@ add_task(async function test_user_volume_mounts() {
   });
   is(HarnessVM.mounts.length, 2, "invalid tags are filtered out");
 
-  registerCleanupFunction(async () => {
+  registerCleanupFunction(() => {
     CodexExecBridge.stop();
-    if (HarnessVM.state == "running") {
-      await HarnessVM.stop();
-    }
   });
 
-  const running = new Promise(resolve => {
-    const listener = event => {
-      if (event.type == "state" && event.state == "running") {
-        HarnessVM.removeListener(listener);
-        resolve();
-      }
-    };
-    HarnessVM.addListener(listener);
-  });
-  await HarnessVM.start();
-  await running;
-  for (let i = 0; ; i++) {
-    try {
-      await HarnessVM.exec("true");
-      break;
-    } catch (e) {
-      if (i > 40) {
-        throw e;
-      }
-      // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
-      await new Promise(resolve => setTimeout(resolve, 250));
-    }
-  }
+  await startVM();
 
   // Host -> guest, both mounts.
   const readRw = await HarnessVM.exec("cat /mnt/data/hello.txt");
@@ -148,5 +113,5 @@ add_task(async function test_user_volume_mounts() {
     "bridge denies unknown mount roots"
   );
 
-  await HarnessVM.stop();
+  await stopVM();
 });

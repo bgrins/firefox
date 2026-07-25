@@ -6,32 +6,9 @@
 const { AgentService } = ChromeUtils.importESModule(
   "moz-src:///browser/components/harness/codex/AgentService.sys.mjs"
 );
-const { CodexAppServerClient } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/harness/codex/CodexAppServerClient.sys.mjs"
-);
 const { CodexExecBridge } = ChromeUtils.importESModule(
   "moz-src:///browser/components/harness/codex/CodexExecBridge.sys.mjs"
 );
-const { HarnessVM } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
-);
-
-function greBinPath(leaf) {
-  const file = Services.dirsvc.get("GreBinD", Ci.nsIFile);
-  file.append(leaf);
-  return file.path;
-}
-
-async function ollamaAvailable() {
-  try {
-    const response = await fetch("http://127.0.0.1:11434/api/version", {
-      signal: AbortSignal.timeout(2000),
-    });
-    return response.ok;
-  } catch (e) {
-    return false;
-  }
-}
 
 // Deterministic coverage of the approval plumbing: server request in,
 // approvalRequest event out, respondToApproval resolves the reply promise.
@@ -87,10 +64,7 @@ add_task(async function test_approval_plumbing() {
 // the exec bridge.
 add_task(async function test_approval_live_roundtrip() {
   requestLongerTimeout(3);
-  if (
-    !(await IOUtils.exists(CodexAppServerClient.defaultBinaryPath())) ||
-    !(await IOUtils.exists(greBinPath("libkrun.dylib")))
-  ) {
+  if (!(await codexDepsPresent())) {
     todo(false, "codex binary or VM deps not present; run setup scripts");
     return;
   }
@@ -104,20 +78,10 @@ add_task(async function test_approval_live_roundtrip() {
   });
   registerCleanupFunction(async () => {
     await AgentService.shutdown();
-    if (HarnessVM.state == "running") {
-      await HarnessVM.stop();
-    }
+    await stopVM();
   });
 
-  const running = new Promise(resolve => {
-    const listener = event => {
-      if (event.type == "state" && event.state == "running") {
-        HarnessVM.removeListener(listener);
-        resolve();
-      }
-    };
-    HarnessVM.addListener(listener);
-  });
+  const running = waitForVMState("running");
   await HarnessVM.start();
   await running;
   for (let i = 0; ; i++) {

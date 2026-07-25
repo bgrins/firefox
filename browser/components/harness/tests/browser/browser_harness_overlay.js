@@ -8,10 +8,6 @@
 // overlay: guest writes outside /workspace succeed but are ephemeral, and
 // the template on the host never changes.
 
-const { HarnessVM } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
-);
-
 function templatePath() {
   const file = Services.dirsvc.get("GreD", Ci.nsIFile);
   file.append("harness");
@@ -19,26 +15,8 @@ function templatePath() {
   return file.path;
 }
 
-function waitForState(state) {
-  return new Promise(resolve => {
-    const listener = event => {
-      if (event.type == "state" && event.state == state) {
-        HarnessVM.removeListener(listener);
-        resolve();
-      }
-    };
-    HarnessVM.addListener(listener);
-  });
-}
-
 add_task(async function test_overlay_rootfs() {
-  requestLongerTimeout(3);
-  const greBinD = Services.dirsvc.get("GreBinD", Ci.nsIFile);
-  greBinD.append("libkrun.dylib");
-  if (
-    !(await IOUtils.exists(greBinD.path)) ||
-    !(await IOUtils.exists(templatePath()))
-  ) {
+  if (!(await vmDepsPresent()) || !(await IOUtils.exists(templatePath()))) {
     todo(false, "VM deps not present; run setup scripts");
     return;
   }
@@ -48,33 +26,7 @@ add_task(async function test_overlay_rootfs() {
       ["browser.harness.rootfs.overlay", true],
     ],
   });
-  registerCleanupFunction(async () => {
-    if (HarnessVM.state == "running") {
-      const stopped = waitForState("stopped");
-      await HarnessVM.stop();
-      await stopped;
-    }
-  });
-
-  async function waitForAgent() {
-    for (let i = 0; ; i++) {
-      try {
-        await HarnessVM.exec("true");
-        return;
-      } catch (e) {
-        if (i > 40) {
-          throw e;
-        }
-        // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
-        await new Promise(resolve => setTimeout(resolve, 250));
-      }
-    }
-  }
-
-  let running = waitForState("running");
-  await HarnessVM.start();
-  await running;
-  await waitForAgent();
+  await startVM();
 
   // Writes outside /workspace succeed (the overlay absorbs them)...
   const write = await HarnessVM.exec(
@@ -101,14 +53,8 @@ add_task(async function test_overlay_rootfs() {
   ok(tty.stdout.includes("is-tty"), "pty works under the overlay");
 
   // Restart: overlay contents vanish, workspace persists.
-  let stopped = waitForState("stopped");
-  await HarnessVM.stop();
-  await stopped;
-
-  running = waitForState("running");
-  await HarnessVM.start();
-  await running;
-  await waitForAgent();
+  await stopVM();
+  await startVM();
 
   const check = await HarnessVM.exec(
     "test -f /usr/local/bin/overlay-marker && echo leaked; " +
@@ -136,7 +82,5 @@ add_task(async function test_overlay_rootfs() {
     );
   }
 
-  stopped = waitForState("stopped");
-  await HarnessVM.stop();
-  await stopped;
+  await stopVM();
 });

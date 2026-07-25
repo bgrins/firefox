@@ -6,18 +6,9 @@
 const { HarnessProxy, parseClientHello } = ChromeUtils.importESModule(
   "moz-src:///browser/components/harness/HarnessProxy.sys.mjs"
 );
-const { HarnessVM } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
-);
 const { HttpServer } = ChromeUtils.importESModule(
   "resource://testing-common/httpd.sys.mjs"
 );
-
-function greBinPath(leaf) {
-  const file = Services.dirsvc.get("GreBinD", Ci.nsIFile);
-  file.append(leaf);
-  return file.path;
-}
 
 // Builds a minimal ClientHello byte-string with the given extensions.
 function buildClientHello({ sni, ech = false } = {}) {
@@ -104,8 +95,7 @@ add_task(function test_policy_matching() {
 });
 
 add_task(async function test_guest_egress_through_proxy() {
-  requestLongerTimeout(3);
-  if (!(await IOUtils.exists(greBinPath("libkrun.dylib")))) {
+  if (!(await vmDepsPresent())) {
     todo(false, "harness VM deps not present; run setup-deps.sh");
     return;
   }
@@ -133,25 +123,7 @@ add_task(async function test_guest_egress_through_proxy() {
       ],
     ],
   });
-  registerCleanupFunction(async () => {
-    if (HarnessVM.state == "running") {
-      await HarnessVM.stop();
-    }
-  });
-
-  await HarnessVM.start();
-  for (let i = 0; ; i++) {
-    try {
-      await HarnessVM.exec("true");
-      break;
-    } catch (e) {
-      if (i > 40) {
-        throw e;
-      }
-      // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
-      await new Promise(resolve => setTimeout(resolve, 250));
-    }
-  }
+  await startVM();
 
   // Allowed host works through the preset http_proxy.
   const allowed = await HarnessVM.exec(
@@ -185,5 +157,5 @@ add_task(async function test_guest_egress_through_proxy() {
     "proxy audited the denied request"
   );
 
-  await HarnessVM.stop();
+  await stopVM();
 });

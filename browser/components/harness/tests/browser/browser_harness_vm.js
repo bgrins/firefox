@@ -3,63 +3,7 @@
 
 "use strict";
 
-const { HarnessVM } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
-);
-
-function greBinPath(leaf) {
-  const file = Services.dirsvc.get("GreBinD", Ci.nsIFile);
-  file.append(leaf);
-  return file.path;
-}
-
-async function depsAvailable() {
-  const greD = Services.dirsvc.get("GreD", Ci.nsIFile);
-  greD.append("harness");
-  const paths = [
-    greBinPath("libkrun.dylib"),
-    greBinPath("libkrunfw.5.dylib"),
-    PathUtils.join(greD.path, "rootfs-template"),
-    PathUtils.join(greD.path, "guest-agent"),
-  ];
-  for (const path of paths) {
-    if (!(await IOUtils.exists(path))) {
-      info(`missing ${path}`);
-      return false;
-    }
-  }
-  return true;
-}
-
-function waitForState(state) {
-  return new Promise(resolve => {
-    const listener = event => {
-      if (event.type == "state" && event.state == state) {
-        HarnessVM.removeListener(listener);
-        resolve();
-      }
-    };
-    HarnessVM.addListener(listener);
-  });
-}
-
-// The agent connects shortly after boot; retry until the vsock channel is up.
-async function execWithRetry(cmd, options) {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await HarnessVM.exec(cmd, options);
-    } catch (e) {
-      if (attempt >= 40) {
-        throw e;
-      }
-      // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
-      await new Promise(resolve => setTimeout(resolve, 250));
-    }
-  }
-}
-
 add_task(async function test_harness_vm_smoke() {
-  requestLongerTimeout(3);
   // Earlier tests in the suite may still be tearing their VM down.
   for (let i = 0; HarnessVM.state != "stopped" && i < 60; i++) {
     // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
@@ -69,7 +13,7 @@ add_task(async function test_harness_vm_smoke() {
     ok(true, "harness VM is macOS-only");
     return;
   }
-  if (!(await depsAvailable())) {
+  if (!(await vmDepsPresent())) {
     todo(
       false,
       "harness VM deps not present; run browser/components/harness/vm/setup-deps.sh"
@@ -87,20 +31,10 @@ add_task(async function test_harness_vm_smoke() {
     ],
   });
 
-  registerCleanupFunction(async () => {
-    if (HarnessVM.state == "running") {
-      const stopped = waitForState("stopped");
-      await HarnessVM.stop();
-      await stopped;
-    }
-  });
-
-  const running = waitForState("running");
-  await HarnessVM.start();
-  await running;
+  await startVM();
   is(HarnessVM.state, "running", "VM reaches running state");
 
-  const uname = await execWithRetry("uname -sm");
+  const uname = await HarnessVM.exec("uname -sm");
   is(uname.exitCode, 0, "uname exits 0");
   is(uname.stdout.trim(), "Linux aarch64", "guest is aarch64 Linux");
 
@@ -166,9 +100,7 @@ add_task(async function test_harness_vm_smoke() {
   is(query.exitCode, 0, "guest sqlite3 queries the places snapshot");
   ok(/^\d+$/.test(query.stdout.trim()), `row count (${query.stdout.trim()})`);
 
-  const stopped = waitForState("stopped");
-  await HarnessVM.stop();
-  await stopped;
+  await stopVM();
   is(HarnessVM.state, "stopped", "VM stops cleanly");
 
   // A profile rootfs whose stamp diverges from the template's is replaced on
@@ -176,15 +108,11 @@ add_task(async function test_harness_vm_smoke() {
   const stampPath = PathUtils.join(HarnessVM.rootfsPath, ".rootfs-stamp");
   const templateStamp = await IOUtils.readUTF8(stampPath);
   await IOUtils.writeUTF8(stampPath, "stale-stamp");
-  const refreshed = waitForState("running");
-  await HarnessVM.start();
-  await refreshed;
+  await startVM();
   is(
     await IOUtils.readUTF8(stampPath),
     templateStamp,
     "stale rootfs refreshed from template"
   );
-  const stoppedAgain = waitForState("stopped");
-  await HarnessVM.stop();
-  await stoppedAgain;
+  await stopVM();
 });

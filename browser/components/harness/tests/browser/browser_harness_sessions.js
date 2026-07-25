@@ -3,40 +3,12 @@
 
 "use strict";
 
-const { HarnessVM } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
-);
 const { AgentService } = ChromeUtils.importESModule(
   "moz-src:///browser/components/harness/codex/AgentService.sys.mjs"
 );
-const { CodexAppServerClient } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/harness/codex/CodexAppServerClient.sys.mjs"
-);
-
-function greBinPath(leaf) {
-  const file = Services.dirsvc.get("GreBinD", Ci.nsIFile);
-  file.append(leaf);
-  return file.path;
-}
-
-async function awaitAgent(session) {
-  for (let i = 0; ; i++) {
-    try {
-      await session.exec("true");
-      return;
-    } catch (e) {
-      if (i > 40) {
-        throw e;
-      }
-      // eslint-disable-next-line mozilla/no-arbitrary-setTimeout
-      await new Promise(resolve => setTimeout(resolve, 250));
-    }
-  }
-}
 
 add_task(async function test_sessions_are_isolated() {
-  requestLongerTimeout(3);
-  if (!(await IOUtils.exists(greBinPath("libkrun.dylib")))) {
+  if (!(await vmDepsPresent())) {
     todo(false, "harness VM deps not present; run setup-deps.sh");
     return;
   }
@@ -52,10 +24,8 @@ add_task(async function test_sessions_are_isolated() {
     }
   });
 
-  await first.start();
-  await second.start();
-  await awaitAgent(first);
-  await awaitAgent(second);
+  await startVM({ session: first });
+  await startVM({ session: second });
 
   const infos = HarnessVM.listSessions();
   Assert.greaterOrEqual(infos.length, 2, "both sessions listed");
@@ -101,10 +71,7 @@ add_task(async function test_sessions_are_isolated() {
 
 add_task(async function test_session_per_conversation() {
   requestLongerTimeout(3);
-  if (
-    !(await IOUtils.exists(greBinPath("libkrun.dylib"))) ||
-    !(await IOUtils.exists(CodexAppServerClient.defaultBinaryPath()))
-  ) {
+  if (!(await codexDepsPresent())) {
     todo(false, "VM deps or codex binary not present; run setup scripts");
     return;
   }
