@@ -75,6 +75,7 @@ export class HarnessAgent {
     ].getService(Ci.nsISocketTransportService);
     this._transport = sts.createUnixDomainTransport(file);
     this._outStream = this._transport.openOutputStream(0, 0, 0);
+    this._outBuffer = "";
     this._inStream = this._transport.openInputStream(0, 0, 0);
     this._scriptableIn = Cc[
       "@mozilla.org/scriptableinputstream;1"
@@ -130,7 +131,11 @@ export class HarnessAgent {
     }
     const pending = this._requests.peek(message.id);
     if (!pending) {
-      lazy.logConsole.warn(`response for unknown id ${message.id}`);
+      // id 0 is the agent's bad-request reply, which carries parse
+      // diagnostics and a snippet of the offending line; log it whole.
+      lazy.logConsole.warn(
+        `response for unknown id ${message.id}: ${line.slice(0, 300)}`
+      );
       return;
     }
     if (message.stream) {
@@ -180,12 +185,57 @@ export class HarnessAgent {
       ch => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`
     )}\n`;
     try {
-      this._outStream.write(data, data.length);
-      this._outStream.flush();
+      this._enqueueWrite(data);
     } catch (e) {
       this._requests.reject(id, e);
     }
     return { id, promise };
+  }
+
+  // The output stream is non-blocking: under concurrent request traffic the
+  // socket buffer can fill and write() returns a short count (or throws
+  // WOULD_BLOCK). Ignoring that truncates a JSONL frame mid-line and
+  // corrupts the whole stream, so buffer and drain via asyncWait.
+  _enqueueWrite(data) {
+    if (!this._outStream) {
+      throw new Error("guest-agent connection closed");
+    }
+    this._outBuffer += data;
+    this._drainWrites();
+  }
+
+  _drainWrites() {
+    if (!this._outStream) {
+      return;
+    }
+    while (this._outBuffer.length) {
+      let written;
+      try {
+        written = this._outStream.write(
+          this._outBuffer,
+          this._outBuffer.length
+        );
+      } catch (e) {
+        if (e.result == Cr.NS_BASE_STREAM_WOULD_BLOCK) {
+          written = 0;
+        } else {
+          this.close();
+          return;
+        }
+      }
+      if (!written) {
+        this._outStream
+          .QueryInterface(Ci.nsIAsyncOutputStream)
+          .asyncWait(
+            { onOutputStreamReady: () => this._drainWrites() },
+            0,
+            0,
+            Services.tm.currentThread
+          );
+        return;
+      }
+      this._outBuffer = this._outBuffer.slice(written);
+    }
   }
 
   /**
@@ -294,6 +344,7 @@ export class HarnessAgent {
     }
     this._transport = null;
     this._outStream = null;
+    this._outBuffer = "";
     this._inStream = null;
     this._scriptableIn = null;
     this._splitter = new LineSplitter();

@@ -43,8 +43,8 @@
 #define PROXY_BUF (64 * 1024)
 #define MAX_REQUEST (1024 * 1024)
 #define MAX_OUTPUT (1024 * 1024)
-#define MAX_TOKENS 256
-#define MAX_ENV 64
+#define MAX_TOKENS 2048
+#define MAX_ENV 256
 #define MAX_JOBS 16
 #define DEFAULT_TIMEOUT_MS 30000
 #define MAX_TIMEOUT_MS (10 * 60 * 1000)
@@ -591,7 +591,19 @@ static void handle_line(FILE* reply, char* line) {
   jsmn_init(&parser);
   int n = jsmn_parse(&parser, line, strlen(line), tokens, MAX_TOKENS);
   if (n < 1 || tokens[0].type != JSMN_OBJECT) {
-    fputs("{\"id\":0,\"error\":\"bad request\"}\n", reply);
+    /* Include diagnostics: parse result, length, and a sanitized prefix of
+     * the offending line, so stream corruption is debuggable host-side. */
+    char snippet[97];
+    size_t si = 0;
+    for (const char* p = line; *p && si < sizeof(snippet) - 1; p++) {
+      snippet[si++] =
+          (*p >= 0x20 && *p < 0x7f && *p != '"' && *p != '\\') ? *p : '.';
+    }
+    snippet[si] = 0;
+    fprintf(reply,
+            "{\"id\":0,\"error\":\"bad request\",\"parse\":%d,\"len\":%zu,"
+            "\"snippet\":\"%s\"}\n",
+            n, strlen(line), snippet);
     fflush(reply);
     return;
   }

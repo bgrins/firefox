@@ -117,6 +117,25 @@ add_task(async function test_overlay_rootfs() {
   ok(!check.stdout.includes("leaked"), "overlay contents ephemeral");
   ok(check.stdout.includes("persistent"), "workspace persists");
 
+  // Regression: concurrent large requests must not corrupt the vsock JSONL
+  // stream (short writes on the non-blocking socket used to truncate
+  // frames; observed as heredoc file writes silently failing mid-session).
+  const payload = "y".repeat(32 * 1024);
+  const results = await Promise.all(
+    Array.from({ length: 12 }, (_, index) =>
+      HarnessVM.exec(`printf '%s' '${payload}' | wc -c && echo job-${index}`, {
+        timeoutMs: 60000,
+      })
+    )
+  );
+  for (const [index, result] of results.entries()) {
+    is(result.exitCode, 0, `concurrent job ${index} succeeded`);
+    ok(
+      result.stdout.includes("32768") && result.stdout.includes(`job-${index}`),
+      `concurrent job ${index} output intact`
+    );
+  }
+
   stopped = waitForState("stopped");
   await HarnessVM.stop();
   await stopped;
