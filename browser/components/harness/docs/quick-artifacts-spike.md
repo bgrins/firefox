@@ -175,6 +175,28 @@ todo. Paths from here, in preference order:
 4. Fall back to `*.localhost` HTTP serving (everything works for free,
    revives the local-server security caveats).
 
+**Rework direction (decided 2026-07-24): follow — or reuse — moz-extension
+rather than keep accreting scheme carve-outs.** Every gap this spike hit
+(NS_NewURI parsing, quota allowlist, dom/clients, URL-spec origin) is a
+place `moz-extension` is already threaded through the platform. Two shapes
+to evaluate when this graduates from spike:
+
+- *Model on moz-extension*: keep `harness-site://` but implement it the
+  way ExtensionProtocolHandler does (C++ substituting handler with its own
+  origin story), upstreaming the scheme through the same layers. Clean but
+  the full platform bill.
+- *Reuse moz-extension outright*: register a synthetic
+  `WebExtensionPolicy` per site with a reserved hostname real extensions
+  can never get — extension hosts are always generated UUIDs, so a
+  non-UUID host (e.g. `harness-site-<name>`) is collision-proof by
+  construction. Sites would inherit the entire moz-extension platform
+  integration (storage incl. localStorage, clients/workers, origin
+  serialization, devtools) for free. Needs a hard look at what else a
+  WebExtensionPolicy implies (permissions surface, appearance in
+  about:debugging, extension APIs exposure — we'd want all of that off),
+  but if the policy can be made inert it collapses the platform work to
+  ~zero.
+
 ### How "real" can scheme origins be? (checked in-tree)
 
 Custom-scheme sites can behave like real origins to a much greater degree
