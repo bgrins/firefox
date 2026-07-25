@@ -43,6 +43,41 @@ function rootfsTemplatePath() {
   return file.path;
 }
 
+const STAGE2_PATH = "/usr/local/lib/harness-stage2.sh";
+
+// Stage 1 (overlay boots only): root is a host-enforced read-only virtio-fs
+// (the shared template); pivot onto a whole-root tmpfs overlay so every
+// write outside /workspace is ephemeral.
+const STAGE1_SCRIPT = `#!/bin/sh
+mount -t tmpfs tmpfs /mnt || exec /bin/sh
+mkdir -p /mnt/up /mnt/wk /mnt/nr
+mount -t overlay overlay -o lowerdir=/,upperdir=/mnt/up,workdir=/mnt/wk /mnt/nr || exec /bin/sh
+mkdir -p /mnt/nr/oldroot
+cd /mnt/nr
+pivot_root . oldroot
+exec chroot . /bin/sh ${STAGE2_PATH}
+`;
+
+// Stage 2 (all boots): kernel virtual filesystems are not part of the
+// overlay and must be (re-)mounted, including devpts for PTY support; the
+// dynamic per-start bits (loopback, user volume mounts) are sourced from a
+// host-written file in the workspace. The ready echo gives a visible boot
+// marker: busybox sh over piped stdio prints no prompt.
+const STAGE2_SCRIPT = `#!/bin/sh
+mount -t proc proc /proc 2>/dev/null
+mount -t sysfs sys /sys 2>/dev/null
+mount -t devtmpfs dev /dev 2>/dev/null
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts 2>/dev/null
+umount -l /oldroot 2>/dev/null
+mkdir -p /workspace
+mount -t virtiofs workspace /workspace
+[ -f /workspace/.harness/boot.sh ] && . /workspace/.harness/boot.sh
+/usr/local/bin/guest-agent &
+echo '[guest ready]'
+exec /bin/sh
+`;
+
 // mach build relinks the helper with a plain ad-hoc signature, dropping the
 // hypervisor entitlement, so re-sign unconditionally before each start.
 async function signHelper(helperPath) {
@@ -152,6 +187,14 @@ export class HarnessSession {
     this._emit({ type: "log", message });
   }
 
+  // With the overlay (default), sessions boot the shared template directly:
+  // the helper mounts it read-only host-side and the guest pivots onto a
+  // tmpfs overlay, so no per-session rootfs copy exists and nothing the
+  // guest writes outside /workspace survives a stop.
+  get _overlayEnabled() {
+    return Services.prefs.getBoolPref("browser.harness.rootfs.overlay", true);
+  }
+
   async _ensureRootfs() {
     const template = rootfsTemplatePath();
     if (await IOUtils.exists(this.rootfsPath)) {
@@ -201,7 +244,7 @@ export class HarnessSession {
 
   // The guest-agent is cross-compiled by setup-deps.sh into GreD/harness and
   // refreshed into the rootfs before each start so rebuilds take effect.
-  async _installGuestAgent() {
+  async _installGuestAgent(rootPath) {
     const source = (() => {
       const file = Services.dirsvc.get("GreD", Ci.nsIFile);
       file.append("harness");
@@ -213,19 +256,27 @@ export class HarnessSession {
         `Missing ${source}; run browser/components/harness/vm/setup-deps.sh`
       );
     }
-    const dest = PathUtils.join(
-      this.rootfsPath,
-      "usr",
-      "local",
-      "bin",
-      "guest-agent"
-    );
+    const dest = PathUtils.join(rootPath, "usr", "local", "bin", "guest-agent");
     await IOUtils.makeDirectory(PathUtils.parent(dest), {
       createAncestors: true,
       ignoreExisting: true,
     });
     await IOUtils.copy(source, dest);
     await IOUtils.setPermissions(dest, 0o755);
+
+    const libDir = PathUtils.join(rootPath, "usr", "local", "lib");
+    await IOUtils.makeDirectory(libDir, {
+      createAncestors: true,
+      ignoreExisting: true,
+    });
+    for (const [leaf, content] of [
+      ["harness-stage1.sh", STAGE1_SCRIPT],
+      ["harness-stage2.sh", STAGE2_SCRIPT],
+    ]) {
+      const path = PathUtils.join(libDir, leaf);
+      await IOUtils.writeUTF8(path, content);
+      await IOUtils.setPermissions(path, 0o755);
+    }
   }
 
   async start() {
@@ -244,8 +295,20 @@ export class HarnessSession {
           );
         }
       }
-      await this._ensureRootfs();
-      await this._installGuestAgent();
+      const overlay = this._overlayEnabled;
+      let rootPath;
+      if (overlay) {
+        rootPath = rootfsTemplatePath();
+        if (!(await IOUtils.exists(rootPath))) {
+          throw new Error(
+            `Missing rootfs template at ${rootPath}; run browser/components/harness/vm/setup-deps.sh`
+          );
+        }
+      } else {
+        await this._ensureRootfs();
+        rootPath = this.rootfsPath;
+      }
+      await this._installGuestAgent(rootPath);
       await signHelper(helper);
       await IOUtils.makeDirectory(this.workspacePath, {
         createAncestors: true,
@@ -258,7 +321,7 @@ export class HarnessSession {
         "--krunfw",
         libkrunfw,
         "--root",
-        this.rootfsPath,
+        rootPath,
         "--mem",
         "1024",
         "--cpus",
@@ -268,6 +331,9 @@ export class HarnessSession {
         "--volume",
         `${this.workspacePath}:workspace`,
       ];
+      if (overlay) {
+        args.push("--root-ro");
+      }
       // Gated egress: the guest's proxy forwarder reaches the policy proxy
       // in the parent through this vsock->unix mapping. With the pref off
       // (or an empty allowlist) the guest has no network path at all.
@@ -283,10 +349,11 @@ export class HarnessSession {
         args.push("--vsock-out", `1025:${this._proxySocketPath}`);
       }
 
-      const mountCmds = [
-        "ifconfig lo 127.0.0.1 up 2>/dev/null",
-        "mkdir -p /workspace && mount -t virtiofs workspace /workspace",
-      ];
+      // Dynamic boot bits (loopback, user volume mounts) go in a file the
+      // static stage-2 script sources from the workspace: libkrun's exec
+      // argv transport cannot carry nested quoting, so the boot command must
+      // stay a bare script path.
+      const bootLines = ["ifconfig lo 127.0.0.1 up 2>/dev/null"];
       for (const mount of HarnessVM.mounts) {
         if (!(await IOUtils.exists(mount.path))) {
           this._log(`skipping missing mount ${mount.path}`);
@@ -296,26 +363,31 @@ export class HarnessSession {
           "--volume",
           `${mount.path}:${mount.tag}${mount.readOnly ? ":ro" : ""}`
         );
-        mountCmds.push(
+        bootLines.push(
           `mkdir -p /mnt/${mount.tag} && mount ${
             mount.readOnly ? "-o ro " : ""
           }-t virtiofs ${mount.tag} /mnt/${mount.tag}`
         );
       }
+      const bootDir = PathUtils.join(this.workspacePath, ".harness");
+      await IOUtils.makeDirectory(bootDir, {
+        createAncestors: true,
+        ignoreExisting: true,
+      });
+      await IOUtils.writeUTF8(
+        PathUtils.join(bootDir, "boot.sh"),
+        `${bootLines.join("\n")}\n`
+      );
       if (Services.prefs.getBoolPref("browser.harness.allownet", false)) {
         args.push("--allow-net");
       }
       if (Services.prefs.getBoolPref("browser.harness.verbose", true)) {
         args.push("--verbose");
       }
-      // The wrapper echo gives a visible readiness marker: busybox sh over
-      // piped stdio prints no prompt, so a healthy boot is otherwise silent.
       args.push(
         "--",
         "/bin/sh",
-        "-c",
-        `${mountCmds.join("; ")}; ` +
-          "/usr/local/bin/guest-agent & echo '[guest ready]'; exec /bin/sh"
+        overlay ? "/usr/local/lib/harness-stage1.sh" : STAGE2_PATH
       );
       this._log(`spawning ${helper} ${args.join(" ")}`);
       const proc = await lazy.Subprocess.call({
@@ -442,7 +514,12 @@ export class HarnessSession {
     if (this.state != "stopped") {
       throw new Error("Stop the VM before resetting the rootfs");
     }
-    await IOUtils.remove(this.rootfsPath, { recursive: true });
+    // With the overlay there is no per-session copy; guest changes are
+    // already discarded on every stop.
+    await IOUtils.remove(this.rootfsPath, {
+      recursive: true,
+      ignoreAbsent: true,
+    });
   }
 }
 

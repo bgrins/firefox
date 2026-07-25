@@ -78,7 +78,13 @@ add_task(async function test_harness_vm_smoke() {
   }
 
   await SpecialPowers.pushPrefEnv({
-    set: [["browser.harness.enabled", true]],
+    set: [
+      ["browser.harness.enabled", true],
+      // This test exercises the legacy per-session rootfs copy (including
+      // the template-stamp refresh); the overlay path is covered by
+      // browser_harness_overlay.js.
+      ["browser.harness.rootfs.overlay", false],
+    ],
   });
 
   registerCleanupFunction(async () => {

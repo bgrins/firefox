@@ -3688,6 +3688,10 @@ pref("browser.harness.mounts", "[]");
 // Give each new conversation its own micro-VM (rootfs clone + workspace)
 // instead of the shared default session.
 pref("browser.harness.sessionPerConversation", false);
+// Boot the shared rootfs template read-only (host-enforced) with a guest
+// tmpfs overlay: no per-session rootfs copies, and nothing written outside
+// /workspace survives a VM stop.
+pref("browser.harness.rootfs.overlay", true);
 // Gated egress: HTTP(S) from the guest goes through a host-side policy proxy
 // (deny-by-default). Entries are "host", "host:port", or "*.suffix".
 pref("browser.harness.proxy.enabled", true);

@@ -48,7 +48,8 @@ typedef int32_t (*krun_add_vsock_t)(uint32_t, uint32_t);
 static void usage(const char* argv0) {
   fprintf(stderr,
           "usage: %s --lib <libkrun.dylib> --krunfw <libkrunfw.5.dylib> "
-          "--root <rootfs-dir> [--mem <MiB>] [--cpus <n>] [--workdir <dir>] "
+          "--root <rootfs-dir> [--root-ro] [--mem <MiB>] [--cpus <n>] "
+          "[--workdir <dir>] "
           "[--vsock <port>:<unix-socket-path>] [--volume <host-dir>:<tag>] "
           "[--allow-net] [--no-seatbelt] [--verbose] -- <exec-path> "
           "[args...]\n",
@@ -124,8 +125,8 @@ static void seatbelt_allow_socket(const char* path) {
 }
 
 static void apply_seatbelt(const char* lib_path, const char* krunfw_path,
-                           const char* root_path, const char* vsock_path,
-                           const char* vsock_out_path,
+                           const char* root_path, int root_ro,
+                           const char* vsock_path, const char* vsock_out_path,
                            const char* const volume_paths[],
                            const int volume_ro[], int num_volumes) {
   char root_real[PATH_MAX];
@@ -161,8 +162,13 @@ static void apply_seatbelt(const char* lib_path, const char* krunfw_path,
   }
   profile_add(")\n");
 
+  /* With --root-ro the rootfs (a shared template) gets a read-only grant:
+   * this process cannot scribble on it even if the guest defeats the
+   * virtio-fs read_only flag. */
   profile_add("(allow file-read* file-write* ");
-  profile_add_path("subpath", root_real);
+  if (!root_ro) {
+    profile_add_path("subpath", root_real);
+  }
   for (int i = 0; i < num_volumes; i++) {
     char vol_real[PATH_MAX];
     if (!realpath(volume_paths[i], vol_real)) {
@@ -174,12 +180,13 @@ static void apply_seatbelt(const char* lib_path, const char* krunfw_path,
       profile_add_path("subpath", vol_real);
     }
   }
+  profile_add_path("literal", "/dev/null"); /* keep list non-empty */
   profile_add(")\n");
 
   /* Read-only volumes: this process cannot write them even if the guest
    * defeats the virtio-fs read_only flag. */
   profile_add("(allow file-read* ");
-  profile_add_path("subpath", root_real); /* keep list non-empty */
+  profile_add_path("subpath", root_real);
   for (int i = 0; i < num_volumes; i++) {
     if (volume_ro[i]) {
       char vol_real[PATH_MAX];
@@ -217,6 +224,7 @@ int main(int argc, char** argv) {
   const char* lib_path = NULL;
   const char* krunfw_path = NULL;
   const char* root_path = NULL;
+  int root_ro = 0;
   const char* workdir = "/root";
   long mem_mib = 512;
   long cpus = 2;
@@ -241,6 +249,8 @@ int main(int argc, char** argv) {
       krunfw_path = argv[++i];
     } else if (!strcmp(argv[i], "--root") && i + 1 < argc) {
       root_path = argv[++i];
+    } else if (!strcmp(argv[i], "--root-ro")) {
+      root_ro = 1;
     } else if (!strcmp(argv[i], "--mem") && i + 1 < argc) {
       mem_mib = strtol(argv[++i], NULL, 10);
     } else if (!strcmp(argv[i], "--cpus") && i + 1 < argc) {
@@ -313,8 +323,8 @@ int main(int argc, char** argv) {
   }
 
   if (!no_seatbelt) {
-    apply_seatbelt(lib_path, krunfw_path, root_path, vsock_path, vsock_out_path,
-                   volume_paths, volume_ro, num_volumes);
+    apply_seatbelt(lib_path, krunfw_path, root_path, root_ro, vsock_path,
+                   vsock_out_path, volume_paths, volume_ro, num_volumes);
   }
 
   if (seatbelt_selftest) {
@@ -382,7 +392,14 @@ int main(int argc, char** argv) {
   } while (0)
 
   CHECK(krun_set_vm_config((uint32_t)ctx, (uint8_t)cpus, (uint32_t)mem_mib));
-  CHECK(krun_set_root((uint32_t)ctx, root_path));
+  if (root_ro) {
+    /* "/dev/root" is KRUN_FS_ROOT_TAG: mounting the root via virtiofs3 with
+     * read_only makes the base filesystem immutable host-side; the guest
+     * boot command pivots onto a tmpfs overlay for its writes. */
+    CHECK(krun_add_virtiofs3((uint32_t)ctx, "/dev/root", root_path, 0, true));
+  } else {
+    CHECK(krun_set_root((uint32_t)ctx, root_path));
+  }
   CHECK(krun_set_workdir((uint32_t)ctx, workdir));
 
   for (int i = 0; i < num_volumes; i++) {
