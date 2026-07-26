@@ -60,25 +60,45 @@ async function startVM({ session = HarnessVM } = {}) {
       await stopVM({ session });
     }
   });
-  const running = waitForVMState("running", session);
-  await session.start();
-  await running;
-  await TestUtils.waitForCondition(
-    async () => {
-      try {
-        await session.exec("true");
-        return true;
-      } catch (e) {
-        if (session.state != "running") {
-          throw new Error(`VM left running state: ${session.state}`);
+  // Keep a boot transcript so a failed start reports what the guest said.
+  const transcript = [];
+  const transcriptListener = event => {
+    if (["stdout", "stderr", "log", "error"].includes(event.type)) {
+      transcript.push(`${event.type}: ${event.data ?? event.message}`);
+    }
+  };
+  session.addListener(transcriptListener);
+  try {
+    const running = waitForVMState("running", session);
+    await session.start();
+    await running;
+    await TestUtils.waitForCondition(
+      async () => {
+        try {
+          await session.exec("true");
+          return true;
+        } catch (e) {
+          if (session.state != "running") {
+            throw new Error(
+              `VM left running state: ${session.state}\n--- boot transcript:\n` +
+                transcript.slice(-25).join("")
+            );
+          }
+          return false;
         }
-        return false;
-      }
-    },
-    "guest-agent answers",
-    500,
-    60
-  );
+      },
+      "guest-agent answers",
+      500,
+      60
+    );
+  } catch (e) {
+    info(
+      `VM boot transcript (${transcript.length} events):\n${transcript.slice(0, 30).join("")}\n...\n${transcript.slice(-8).join("")}`
+    );
+    throw e;
+  } finally {
+    session.removeListener(transcriptListener);
+  }
 }
 
 async function stopVM({ session = HarnessVM } = {}) {
