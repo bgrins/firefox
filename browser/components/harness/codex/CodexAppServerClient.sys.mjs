@@ -76,12 +76,18 @@ export class CodexAppServerClient {
       lines.push(
         `model_provider = "openrouter"`,
         `model = "${model || "openrouter/auto"}"`,
-        `model_context_window = 128000`,
-        // Codex has no metadata for OpenRouter slugs and would omit the
-        // reasoning field entirely; OpenRouter's gpt-5-family responses
-        // endpoint rejects that ("Reasoning is mandatory"). Pinning an
-        // effort keeps reasoning enabled regardless of metadata fallback.
-        `model_reasoning_effort = "medium"`,
+        // Keeps reasoning explicitly enabled; OpenRouter's gpt-5-family
+        // responses endpoint rejects reasoning-less requests.
+        `model_reasoning_effort = "medium"`
+      );
+      // The generated catalog (setup-codex.sh) clones codex's bundled model
+      // metadata under our OpenRouter slugs. With metadata, codex offers
+      // its apply_patch editing tool (routed through the exec-server fs
+      // bridge into the VM) and uses real context windows instead of
+      // fallback guesses.
+      const catalog = greDPath("harness", "codex", "model-catalog.json");
+      lines.push(`model_catalog_json = "${catalog.replaceAll('"', "")}"`);
+      lines.push(
         ``,
         `[model_providers.openrouter]`,
         `name = "OpenRouter"`,
