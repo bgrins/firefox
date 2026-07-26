@@ -51,12 +51,12 @@ const STAGE2_PATH = "/usr/local/lib/harness-stage2.sh";
 // (the shared template); pivot onto a whole-root tmpfs overlay so every
 // write outside /workspace is ephemeral.
 const STAGE1_SCRIPT = `#!/bin/sh
-mount -t tmpfs tmpfs /mnt || exec /bin/sh
+mount -t tmpfs tmpfs /mnt || { echo "[stage1] tmpfs mount failed" >&2; exec /bin/sh; }
 mkdir -p /mnt/up /mnt/wk /mnt/nr
-mount -t overlay overlay -o lowerdir=/,upperdir=/mnt/up,workdir=/mnt/wk /mnt/nr || exec /bin/sh
+mount -t overlay overlay -o lowerdir=/,upperdir=/mnt/up,workdir=/mnt/wk /mnt/nr || { echo "[stage1] overlay mount failed" >&2; exec /bin/sh; }
 mkdir -p /mnt/nr/oldroot
 cd /mnt/nr
-pivot_root . oldroot
+pivot_root . oldroot 2>/dev/null
 exec chroot . /bin/sh ${STAGE2_PATH}
 `;
 
@@ -189,12 +189,55 @@ export class HarnessSession {
     this._emit({ type: "log", message });
   }
 
-  // With the overlay (default), sessions boot the shared template directly:
-  // the helper mounts it read-only host-side and the guest pivots onto a
-  // tmpfs overlay, so no per-session rootfs copy exists and nothing the
-  // guest writes outside /workspace survives a stop.
+  // With the overlay (default), sessions boot a per-start APFS clone of the
+  // template: the helper mounts it read-only host-side and the guest pivots
+  // onto a tmpfs overlay, so nothing the guest writes outside /workspace
+  // survives a stop, and in-place template rebuilds cannot break a running
+  // VM.
   get _overlayEnabled() {
     return Services.prefs.getBoolPref("browser.harness.rootfs.overlay", true);
+  }
+
+  get _clonePath() {
+    return PathUtils.join(this._baseDir, "rootfs-ro");
+  }
+
+  async _cloneTemplate(template) {
+    await this._removeClone();
+    await IOUtils.makeDirectory(PathUtils.parent(this._clonePath), {
+      createAncestors: true,
+      ignoreExisting: true,
+    });
+    const start = Date.now();
+    const cp = await lazy.Subprocess.call({
+      command: "/bin/cp",
+      arguments: ["-Rc", template, this._clonePath],
+      stderr: "stdout",
+    });
+    const { exitCode } = await cp.wait();
+    if (exitCode !== 0) {
+      throw new Error(
+        `Failed to clone rootfs template (cp exited ${exitCode})`
+      );
+    }
+    // Children of Firefox are quarantine-flagged, so every file cp creates
+    // gets com.apple.quarantine; the guest's overlay copy-up then fails with
+    // EIO reading those files over virtio-fs. Strip it.
+    const xattr = await lazy.Subprocess.call({
+      command: "/usr/bin/xattr",
+      arguments: ["-rd", "com.apple.quarantine", this._clonePath],
+      stderr: "stdout",
+    });
+    await xattr.wait();
+    this._log(`rootfs clone ready in ${Date.now() - start}ms`);
+    return this._clonePath;
+  }
+
+  async _removeClone() {
+    await IOUtils.remove(this._clonePath, {
+      recursive: true,
+      ignoreAbsent: true,
+    });
   }
 
   async _ensureRootfs(template = rootfsTemplatePath()) {
@@ -303,7 +346,12 @@ export class HarnessSession {
       const overlay = this._overlayEnabled;
       let rootPath;
       if (overlay) {
-        rootPath = image.templatePath;
+        // Boot from a per-start APFS clone rather than the template itself:
+        // rebuilds (mach build faster, image updates) rewrite the template
+        // in place, and swapping virtio-fs backing files under a running
+        // guest breaks every subsequent exec (everything exits 127). The
+        // clone is copy-on-write (metadata cost only) and removed on stop.
+        rootPath = await this._cloneTemplate(image.templatePath);
       } else {
         await this._ensureRootfs(image.templatePath);
         rootPath = this.rootfsPath;
@@ -393,6 +441,13 @@ export class HarnessSession {
       const proc = await lazy.Subprocess.call({
         command: helper,
         arguments: args,
+        // Explicit minimal environment, matching the codex sidecar: the
+        // helper takes everything it needs via argv.
+        environment: {
+          PATH: "/usr/bin:/bin",
+          HOME: Services.env.get("HOME") ?? "",
+          TMPDIR: Services.dirsvc.get("TmpD", Ci.nsIFile).path,
+        },
         stderr: "pipe",
       });
       this._proc = proc;
@@ -413,6 +468,7 @@ export class HarnessSession {
           this._proxySocketPath = null;
         }
         this._socketPath = null;
+        this._removeClone();
         this._setState("stopped");
         this._emit({ type: "exit", exitCode });
       });
