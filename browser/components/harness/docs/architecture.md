@@ -17,46 +17,40 @@ The complete branch diff:
 ```mermaid
 flowchart TB
     subgraph parent["Firefox parent process"]
-        UI["about:harness<br/>chat UI · settings · VM tools"]
-        AS["AgentService<br/>conversations · events · approvals<br/>rendering journal"]
-        CASC["CodexAppServerClient<br/>JSONL over stdio, clean env<br/>model catalog (apply_patch)"]
-        BRIDGE["CodexExecBridge<br/>exec-server: routes every<br/>process/fs op into the VM"]
-        HVM["HarnessVM / HarnessAgent<br/>VM lifecycle · vsock protocol"]
-        IMG["HarnessImageManager<br/>kernel + rootfs delivery<br/>(build objdir or verified download)"]
-        TOOLS["HarnessBrowserTools<br/>tabs · history · page content<br/>present_files"]
-        PROXY["HarnessProxy<br/>deny-default egress allowlist<br/>SNI-verified CONNECT"]
-        SITESRV["HarnessSite actor<br/>serves harness-site:// bytes<br/>from workspace/sites, injects CSP"]
+        UI["about:harness UI"]
+        AS["AgentService<br/>conversations · approvals · journal"]
+        BRIDGE["CodexExecBridge<br/>routes process/fs ops into the VM"]
+        HVM["HarnessVM<br/>lifecycle · vsock protocol"]
+        IMG["HarnessImageManager<br/>kernel + rootfs delivery"]
+        TOOLS["HarnessBrowserTools<br/>tabs · history · present_files"]
+        PROXY["HarnessProxy<br/>deny-default egress allowlist"]
+        SITESRV["HarnessSite actor<br/>serves harness-site://"]
     end
 
-    SIDECAR["codex-app-server sidecar<br/>(pinned binary, own CODEX_HOME)"]
-    PROVIDER["model provider<br/>ollama · OpenAI · OpenRouter"]
+    SIDECAR["codex-app-server sidecar<br/>pinned binary, own CODEX_HOME"]
+    PROVIDER(["model provider<br/>ollama · OpenAI · OpenRouter"])
+    HELPER["harness-vm-helper<br/>Seatbelt jailer · dlopen(libkrun)"]
 
-    subgraph vm["libkrun micro-VM (Alpine, ~1s boot)<br/>read-only rootfs + tmpfs overlay"]
-        GA["guest-agent (static C)<br/>exec · pty · fs · stdin"]
-        WS["/workspace (virtio-fs)"]
-        TOOLCHAIN["bun · node · uv/python<br/>sqlite3 · rg · jq · imagemagick"]
+    subgraph vm["micro-VM: Alpine, read-only rootfs + tmpfs overlay,<br/>/workspace shared via virtio-fs"]
+        GA["guest-agent<br/>exec · pty · fs"]
     end
 
-    HELPER["harness-vm-helper<br/>Seatbelt jailer · hypervisor<br/>entitlement · dlopen(libkrun)"]
-    WIDGET["widget frame<br/>(file content process)"]
-    SITE["published site frames/tabs<br/>harness-site://name<br/>(webIsolated process per site)"]
+    ARTIFACTS["presented artifacts in chat<br/>widget frames · live site cards<br/>(isolated content processes)"]
 
     UI --> AS
-    AS --> CASC
-    CASC <-->|stdio JSONL| SIDECAR
+    AS <-->|"stdio JSONL<br/>(CodexAppServerClient)"| SIDECAR
     SIDECAR <-->|HTTPS| PROVIDER
-    SIDECAR <-->|"WebSocket (loopback,<br/>single-accept)"| BRIDGE
+    SIDECAR <-->|"loopback WebSocket,<br/>single-accept"| BRIDGE
     BRIDGE --> HVM
     AS --> TOOLS
     HVM --> IMG
     HVM -->|spawns| HELPER
     HELPER -->|Hypervisor.framework| vm
-    HVM <-->|"vsock ⇄ unix socket<br/>JSON lines"| GA
-    GA -->|127.0.0.1:3128| PROXY
-    PROXY -->|allowlisted hosts only| INTERNET(("network"))
-    UI -->|remote browser embed| WIDGET
-    UI -->|live site cards| SITE
-    SITESRV --> SITE
+    HVM <-->|"vsock, JSON lines"| GA
+    GA -->|"http_proxy 127.0.0.1:3128<br/>forwarded over vsock"| PROXY
+    PROXY -->|allowlisted hosts only| NET(("network"))
+    UI -->|embeds| ARTIFACTS
+    SITESRV -->|serves bytes| ARTIFACTS
 ```
 
 The sidecar believes it is talking to a normal "exec server" environment; the
@@ -71,66 +65,71 @@ flowchart LR
     subgraph zone1["Trusted: Firefox parent"]
         A["about:harness UI<br/>AgentService · bridge · proxy"]
     end
-    subgraph zone2["Semi-trusted: sidecar process"]
-        B["codex-app-server<br/>explicit env only<br/>(no shell/SSH/git creds)<br/>fail-closed server requests"]
+    subgraph zone2["Semi-trusted: sidecar"]
+        B["codex-app-server<br/>explicit env, no shell/SSH/git creds"]
     end
     subgraph zone3["Untrusted: micro-VM"]
         C["model-directed commands<br/>page content · downloads"]
     end
-    subgraph zone4["Untrusted: widget frame"]
-        D["agent-generated HTML<br/>file content process"]
+    subgraph zone4["Untrusted: widget frames"]
+        D["agent-generated HTML"]
     end
     subgraph zone5["Untrusted: published sites"]
-        E["harness-site://name<br/>one webIsolated process per site<br/>own origin, storage, CSP"]
+        E["harness-site://name<br/>own origin, storage, process"]
     end
 
-    A ---|"stdio, JSONL<br/>requests denied by default"| B
+    A ---|"stdio; requests<br/>denied by default"| B
     A ---|"vsock only<br/>(no NIC, TSI disabled)"| C
-    A ---|"process isolation +<br/>injected CSP (no network)"| D
-    A ---|"served bytes only<br/>(content never reads the profile)"| E
+    A ---|"process isolation +<br/>CSP: no network"| D
+    A ---|"served bytes only;<br/>never reads the profile"| E
 ```
 
-Layered enforcement, outermost first:
+Layered enforcement, outermost first (code in parentheses):
 
 1. **VM boundary** — commands run in the guest; the only channels out are
    vsock (control) and [virtio-fs](https://virtio-fs.gitlab.io/)
-   (`/workspace`, explicit user mounts).
-   The rootfs is a host-enforced read-only virtio-fs (a per-start APFS
-   clone of the template) with a whole-root tmpfs overlay in the guest, so
-   every write outside `/workspace` is ephemeral and rebuilds can never
-   corrupt a running VM. Guest networking is off: libkrun's
-   transparent-socket mode is disabled; HTTP(S) goes through the host-side
-   policy proxy (deny-default allowlist, `CONNECT` verified against the
-   TLS SNI, ECH rejected; default allows only the npm/pypi registries).
-2. **Helper jailer** — the VM host process Seatbelt-sandboxes itself before
-   loading libkrun (which runs the guest on Apple's
+   (`/workspace`, explicit user mounts). The rootfs is a host-enforced
+   read-only virtio-fs — a per-start APFS clone of the template — with a
+   whole-root tmpfs overlay in the guest, so writes outside `/workspace`
+   are ephemeral and rebuilds cannot corrupt a running VM
+   (`HarnessVM.sys.mjs`).
+2. **Egress policy** — the guest has no NIC and libkrun's transparent
+   networking (TSI) is disabled (`helper/harness-vm-helper.c`). HTTP(S)
+   goes through a host-side proxy: deny-default allowlist, `CONNECT`
+   verified against the TLS SNI, ECH rejected; the default list is just
+   the npm and pypi registries (`HarnessProxy.sys.mjs`,
+   `browser.harness.proxy.allowlist`).
+3. **Helper jailer** — the VM host process Seatbelt-sandboxes itself
+   before loading libkrun (which runs the guest on Apple's
    [Hypervisor.framework](https://developer.apple.com/documentation/hypervisor)):
-   only the rootfs, declared volumes, and its sockets are reachable;
-   read-only mounts are enforced host-side (and again in virtio-fs and in
-   the guest mount).
-3. **Bridge path policy** — exec-server fs ops are restricted to
-   `/workspace` and `/mnt/<tag>`; writes to read-only mounts denied; every
-   call audit-logged.
-4. **Sidecar hygiene** — launched with a fully explicit environment
-   (dedicated `CODEX_HOME`, no inherited shell state); unknown server→client
-   requests are denied by default. Provider API keys live host-side only and
-   are never guest-visible.
-5. **Widget containment** — agent-authored HTML renders in a separate
-   content process with an injected CSP that blocks all network, so
-   presented artifacts cannot exfiltrate data the agent had access to.
-   (about:harness is allowlisted for remote frames in `nsFrameLoader`,
-   following the `aiWindow.html` precedent.)
-6. **Site containment** — published sites (`harness-site://<name>/`) get
-   real per-site origins in origin-keyed (`webIsolated`) content processes
-   with a serve-time CSP; content processes never read the profile — a
-   JSWindowActor serves the bytes. Web pages cannot link to or fetch the
-   scheme (`URI_DANGEROUS_TO_LOAD`).
-7. **Browser tools** — read-only (tabs, history, extracted page text);
+   only the rootfs, declared volumes, and its sockets are reachable, and
+   read-only mounts are enforced host-side (`helper/harness-vm-helper.c`).
+4. **Bridge path policy** — exec-server fs ops are restricted to
+   `/workspace` and `/mnt/<tag>`, writes to read-only mounts are denied,
+   and every call is audit-logged (`codex/CodexExecBridge.sys.mjs`).
+5. **Sidecar hygiene** — launched with a fully explicit environment
+   (dedicated `CODEX_HOME`, no inherited shell state); unknown
+   server→client requests are denied by default; provider API keys live
+   host-side only and are never guest-visible
+   (`codex/CodexAppServerClient.sys.mjs`).
+6. **Widget containment** — agent-authored HTML renders in a separate
+   content process with an injected CSP that blocks all network, so a
+   presented artifact cannot exfiltrate data the agent had access to
+   (`content/aboutHarness.mjs`; about:harness is allowlisted for remote
+   frames in `nsFrameLoader`, following the `aiWindow.html` precedent).
+7. **Site containment** — published sites get real per-site origins in
+   origin-keyed (`webIsolated`) content processes with a serve-time CSP;
+   content processes never read the profile — a JSWindowActor serves the
+   bytes — and web pages cannot link to or fetch the scheme
+   (`URI_DANGEROUS_TO_LOAD`; `actors/HarnessSiteParent.sys.mjs`).
+8. **Browser tools** — read-only (tabs, history, extracted page text),
    private windows excluded; page content is staged into the sandbox as
-   files marked untrusted, never inlined into model context.
-8. **Image delivery** — remote kernel/rootfs installs are https-only,
-   sha256-verified, staged-then-renamed, with manifest path components
-   validated; offline falls back to the newest installed image.
+   files marked untrusted, never inlined into model context
+   (`HarnessBrowserTools.sys.mjs`).
+9. **Image delivery** — remote kernel/rootfs installs are https-only,
+   sha256-verified, and staged-then-renamed, with manifest path components
+   validated; offline falls back to the newest installed image
+   (`HarnessImageManager.sys.mjs`).
 
 ## Anatomy of a turn
 
@@ -146,14 +145,14 @@ sequenceDiagram
     User->>UI: "chart my browsing by hour"
     UI->>AS: sendMessage()
     AS->>CX: turn/start (thread bound to VM environment)
-    CX->>BR: process/start (ws)
+    CX->>BR: process/start (WebSocket)
     BR->>VM: exec over vsock
     VM-->>BR: streamed output
     BR-->>CX: chunks
-    Note over CX,VM: model iterates: query places snapshot,<br/>bun/d3 script writes chart to /workspace
+    Note over CX,VM: model iterates: query places snapshot,<br/>write chart to /workspace
     CX->>AS: item/tool/call present_files
     AS->>UI: presentFiles event
-    UI->>UI: stage CSP-injected copy,<br/>embed in remote browser frame
+    UI->>UI: render artifact card
     CX-->>AS: agent message + turn/completed
     AS-->>UI: streamed deltas → markdown
 ```
@@ -168,25 +167,25 @@ sequenceDiagram
   Temporary mode = ephemeral threads, never journaled.
 - **Native edits via apply_patch**: a generated model catalog maps our
   [OpenRouter](https://openrouter.ai) slugs onto codex's bundled model
-  metadata, which unlocks
-  codex's built-in apply_patch tool — structured diffs routed through the
-  exec-server fs bridge into the VM (no echo-append file building).
+  metadata, which unlocks codex's built-in apply_patch tool — structured
+  diffs routed through the exec-server fs bridge into the VM.
 - **Publish by writing**: anything under `/workspace/sites/<name>/` with
   an `index.html` is live at `harness-site://<name>/` — no deploy step, a
-  reload shows edits, IndexedDB/localStorage persist per site across
+  reload shows edits, and localStorage/IndexedDB persist per site across
   restarts. Cards embed the live origin in the chat.
 - **Profile data is shared by snapshot, not by mount**: live SQLite (WAL)
   and virtio-fs don't compose; `Sqlite.sys.mjs` online-backup copies
   places.sqlite into `/workspace` for the guest's sqlite3.
 - **JS-first guest toolchain**: [bun](https://bun.sh) runs TS and
   auto-installs npm deps without a package.json; Python is available via
-  [uv](https://github.com/astral-sh/uv); charts are produced as SVG
-  (matplotlib has no musl-arm64 wheels — a good example of the guest being
-  a real, opinionated environment).
-- **Sessions are cheap**: rootfs copies are APFS clones; per-conversation
-  VMs are a pref away (`browser.harness.sessionPerConversation`). A
-  template stamp auto-refreshes stale rootfs copies when baked-in tooling
-  changes.
+  [uv](https://github.com/astral-sh/uv); sqlite3, ripgrep, jq and
+  imagemagick are baked in (`vm/setup-deps.sh`). Charts are produced as
+  SVG (matplotlib has no musl-arm64 wheels — a good example of the guest
+  being a real, opinionated environment).
+- **Sessions are cheap**: a VM boots in about a second and rootfs copies
+  are APFS clones; per-conversation VMs are a pref away
+  (`browser.harness.sessionPerConversation`). A template stamp
+  auto-refreshes stale rootfs copies when baked-in tooling changes.
 - **GPL hygiene**: libkrun (Apache-2.0) is vendored and shippable; the
   guest kernel ([libkrunfw](https://github.com/containers/libkrunfw)) and
   [Alpine](https://alpinelinux.org/) rootfs are pinned downloads —
