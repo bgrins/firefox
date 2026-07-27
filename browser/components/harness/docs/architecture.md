@@ -1,12 +1,16 @@
 # Firefox Harness — Architecture Overview
 
 An experiment in Firefox *hosting* a coding agent rather than being driven by
-an external one. The agent loop comes from a pinned Codex App Server sidecar;
-every command and file operation the model performs executes inside a libkrun
-micro-VM. The hard invariant: **no model-generated command ever executes on
-the host** — conversations fail closed if the VM is unavailable.
+an external one. The agent loop comes from a pinned
+[Codex App Server](https://github.com/openai/codex) sidecar; every command
+and file operation the model performs executes inside a
+[libkrun](https://github.com/containers/libkrun) micro-VM. The hard
+invariant: **no model-generated command ever executes on the host** —
+conversations fail closed if the VM is unavailable.
 
 macOS arm64 only, pref-gated (`browser.harness.enabled`), development spike.
+The complete branch diff:
+[bgrins/firefox compare](https://github.com/bgrins/firefox/compare/0088392ab4cc...harness).
 
 ## System overview
 
@@ -57,7 +61,8 @@ flowchart TB
 
 The sidecar believes it is talking to a normal "exec server" environment; the
 bridge impersonates that protocol and forwards every `process/*` and `fs/*`
-request over vsock into the guest. The model never gets a host shell.
+request over [vsock](https://man7.org/linux/man-pages/man7/vsock.7.html) into
+the guest. The model never gets a host shell.
 
 ## Security boundaries
 
@@ -88,7 +93,8 @@ flowchart LR
 Layered enforcement, outermost first:
 
 1. **VM boundary** — commands run in the guest; the only channels out are
-   vsock (control) and virtio-fs (`/workspace`, explicit user mounts).
+   vsock (control) and [virtio-fs](https://virtio-fs.gitlab.io/)
+   (`/workspace`, explicit user mounts).
    The rootfs is a host-enforced read-only virtio-fs (a per-start APFS
    clone of the template) with a whole-root tmpfs overlay in the guest, so
    every write outside `/workspace` is ephemeral and rebuilds can never
@@ -97,9 +103,11 @@ Layered enforcement, outermost first:
    policy proxy (deny-default allowlist, `CONNECT` verified against the
    TLS SNI, ECH rejected; default allows only the npm/pypi registries).
 2. **Helper jailer** — the VM host process Seatbelt-sandboxes itself before
-   loading libkrun: only the rootfs, declared volumes, and its sockets are
-   reachable; read-only mounts are enforced host-side (and again in
-   virtio-fs and in the guest mount).
+   loading libkrun (which runs the guest on Apple's
+   [Hypervisor.framework](https://developer.apple.com/documentation/hypervisor)):
+   only the rootfs, declared volumes, and its sockets are reachable;
+   read-only mounts are enforced host-side (and again in virtio-fs and in
+   the guest mount).
 3. **Bridge path policy** — exec-server fs ops are restricted to
    `/workspace` and `/mnt/<tag>`; writes to read-only mounts denied; every
    call audit-logged.
@@ -159,7 +167,8 @@ sequenceDiagram
   because codex's resume drops command output and presented artifacts.
   Temporary mode = ephemeral threads, never journaled.
 - **Native edits via apply_patch**: a generated model catalog maps our
-  OpenRouter slugs onto codex's bundled model metadata, which unlocks
+  [OpenRouter](https://openrouter.ai) slugs onto codex's bundled model
+  metadata, which unlocks
   codex's built-in apply_patch tool — structured diffs routed through the
   exec-server fs bridge into the VM (no echo-append file building).
 - **Publish by writing**: anything under `/workspace/sites/<name>/` with
@@ -169,17 +178,20 @@ sequenceDiagram
 - **Profile data is shared by snapshot, not by mount**: live SQLite (WAL)
   and virtio-fs don't compose; `Sqlite.sys.mjs` online-backup copies
   places.sqlite into `/workspace` for the guest's sqlite3.
-- **JS-first guest toolchain**: bun runs TS and auto-installs npm deps
-  without a package.json; charts are produced as SVG (matplotlib has no
-  musl-arm64 wheels — a good example of the guest being a real, opinionated
-  environment).
+- **JS-first guest toolchain**: [bun](https://bun.sh) runs TS and
+  auto-installs npm deps without a package.json; Python is available via
+  [uv](https://github.com/astral-sh/uv); charts are produced as SVG
+  (matplotlib has no musl-arm64 wheels — a good example of the guest being
+  a real, opinionated environment).
 - **Sessions are cheap**: rootfs copies are APFS clones; per-conversation
   VMs are a pref away (`browser.harness.sessionPerConversation`). A
   template stamp auto-refreshes stale rootfs copies when baked-in tooling
   changes.
 - **GPL hygiene**: libkrun (Apache-2.0) is vendored and shippable; the
-  guest kernel (libkrunfw) and Alpine rootfs are pinned downloads —
-  `HarnessImageManager` is the runtime-fetch path (GMP-style manifest,
+  guest kernel ([libkrunfw](https://github.com/containers/libkrunfw)) and
+  [Alpine](https://alpinelinux.org/) rootfs are pinned downloads —
+  `HarnessImageManager` is the runtime-fetch path
+  ([GMP](https://wiki.mozilla.org/GeckoMediaPlugins)-style manifest,
   sha256, staged installs) that production needs before any distribution
   (see [image-download-plan](image-download-plan.md)).
 
