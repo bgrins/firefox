@@ -96,10 +96,11 @@ add_task(async function test_harness_site_scheme() {
       info(`probe state: ${first.join(" | ")}`);
       is(first[6], "1", "sessionStorage works");
       is(first[7], "idb-ok", "indexedDB works (quota scheme allowlist)");
-      // localStorage specifically is still blocked: LSNG requires a window
-      // ClientInfo, and dom/clients validation rejects non-special schemes
-      // (rust-url opaque origins). Sites should use IndexedDB.
-      todo_is(first[1], "none", "localStorage (needs dom/clients support)");
+      // localStorage needs a valid window ClientInfo; dom/clients validation
+      // compares MozURL origins, so the scheme is allowlisted in
+      // netwerk/base/mozurl get_origin.
+      is(first[1], "none", "localStorage first visit starts empty");
+      is(first[2], "1", "localStorage write/read works (mozurl origin)");
       is(first[3], "alpha-data", "same-origin fetch works");
       is(first[4], "true", "secure context (URI_IS_POTENTIALLY_TRUSTWORTHY)");
       // WHATWG serializes non-special-scheme origins as opaque; the internal
@@ -133,18 +134,42 @@ add_task(async function test_harness_site_scheme() {
     }
   );
 
+  // Second visit to alpha: localStorage persisted across the navigation.
+  await BrowserTestUtils.withNewTab(
+    "harness-site://alpha.harness/",
+    async browser => {
+      const again = (await read(browser)).split("|");
+      is(again[1], "1", "localStorage persists across visits");
+      is(again[2], "2", "counter increments on revisit");
+    }
+  );
+
   // Site beta: its own files, its own principal, isolated storage.
   await BrowserTestUtils.withNewTab(
     "harness-site://beta.harness/",
     async browser => {
       const beta = (await read(browser)).split("|");
       is(beta[3], "beta-data", "beta serves its own files");
+      is(beta[1], "none", "beta's localStorage is isolated from alpha");
       is(
         browser.browsingContext.currentWindowGlobal.documentPrincipal.origin,
         "harness-site://beta.harness",
         "distinct principal origin per site"
       );
     }
+  );
+
+  // BiDi/webdriver can automate sites without system access (the scheme is
+  // in webdriverSafeSchemes; agents QA their own published sites this way).
+  const { isWebdriverSafeNavigationURL } = ChromeUtils.importESModule(
+    "chrome://remote/content/shared/BrowsingContextUtils.sys.mjs"
+  );
+  ok(
+    isWebdriverSafeNavigationURL(
+      Services.io.newURI("harness-site://alpha.harness/"),
+      gBrowser.selectedBrowser.browsingContext
+    ),
+    "harness-site navigation is webdriver-safe"
   );
 
   // Path traversal denied at the serving layer.

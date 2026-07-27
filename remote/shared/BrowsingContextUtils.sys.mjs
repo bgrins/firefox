@@ -12,8 +12,11 @@ ChromeUtils.defineESModuleGetters(lazy, {
 });
 
 // Schemes that WebDriver can always load without restrictions when
-// system access is not enabled.
-const webdriverSafeSchemes = ["blob", "file", "http", "https"];
+// system access is not enabled. harness-site is the agent-published-site
+// scheme (browser/components/harness); content there is ordinary web
+// content served from the profile, so automating it is no more privileged
+// than file.
+const webdriverSafeSchemes = ["blob", "file", "harness-site", "http", "https"];
 
 /**
  * @typedef {object} BrowsingContextDetails

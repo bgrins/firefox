@@ -271,7 +271,7 @@ fn get_origin(url: &MozURL) -> Option<String> {
         "blob" | "ftp" | "http" | "https" | "ws" | "wss" => {
             Some(url.origin().ascii_serialization())
         }
-        "indexeddb" | "moz-extension" | "resource" => {
+        "harness-site" | "indexeddb" | "moz-extension" | "resource" => {
             let host = url.host_str().unwrap_or("");
 
             let port = url.port().or_else(|| default_port(url.scheme()));
