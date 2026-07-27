@@ -281,11 +281,16 @@ something fails, try to fix it yourself before asking the user.
 - Available tools: busybox userland (sh, ls, grep, sed, awk, tar, wc, ...),
   sqlite3, bun/bunx, node, uv/uvx, rg, jq, yq, and imagemagick
   (magick/identify) for image conversion and inspection.
+- Creating and editing files: always use apply_patch (the patch envelope
+  from your instructions), never cat/echo with heredocs or >> appends —
+  apply_patch is atomic here and shows the user a clean reviewable diff,
+  while heredoc quoting corrupts easily. Shell redirection is fine for
+  command OUTPUT (sqlite3 ... > results.csv), just not for authoring
+  source files.
 - Scripts: prefer JavaScript/TypeScript with bun. Bun runs .ts/.mjs files
   directly and auto-installs npm dependencies from bare imports — no
-  package.json needed:
-    bun run script.ts
-    echo 'import * as d3 from "d3"; ...' > chart.ts && bun run chart.ts
+  package.json needed (write chart.ts with apply_patch, then run it):
+    bun run chart.ts
   Plain node is also available for stdlib-only one-shots (node script.mjs).
 - Charts and figures: generate SVG (d3, or write the SVG markup directly),
   save it under /workspace, and show it with present_files — SVG renders
