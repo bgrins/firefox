@@ -187,6 +187,47 @@ add_task(async function test_image_manager_remote() {
   );
   await SpecialPowers.popPrefEnv();
 
+  // Manifest host unreachable: the newest installed image keeps working.
+  await SpecialPowers.pushPrefEnv({
+    set: [
+      ["browser.harness.image.manifestUrl", "http://127.0.0.1:1/manifest.json"],
+    ],
+  });
+  progress.length = 0;
+  const offline = await HarnessImageManager.resolve();
+  ok(
+    offline.kernelPath.includes("harness/image/50"),
+    "offline resolve falls back to the newest installed image"
+  );
+  ok(
+    progress.some(m => m?.includes("using the installed image")),
+    "fallback surfaced to listeners"
+  );
+  await SpecialPowers.popPrefEnv();
+
+  // A server that streams more bytes than the manifest-declared size is
+  // cut off; the failure emits an error event and leaves no stage dir.
+  manifest.version = "60";
+  manifest.files[0].sha256 = await sha256Hex(kernelBytes);
+  manifest.files[0].size = 4;
+  const errors = [];
+  const errorListener = event => event.error && errors.push(event.message);
+  HarnessImageManager.addListener(errorListener);
+  await Assert.rejects(
+    HarnessImageManager.resolve(),
+    /exceeded 4 bytes/,
+    "over-size download rejected"
+  );
+  HarnessImageManager.removeListener(errorListener);
+  ok(errors.length, "install failure emitted an error progress event");
+  ok(
+    !(await IOUtils.exists(
+      PathUtils.join(PathUtils.profileDir, "harness", "image", "60.tmp")
+    )),
+    "over-size download leaves no stage dir"
+  );
+  delete manifest.files[0].size;
+
   // Build source still resolves to objdir paths.
   await SpecialPowers.pushPrefEnv({
     set: [["browser.harness.image.source", "build"]],

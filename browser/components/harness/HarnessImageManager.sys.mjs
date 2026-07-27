@@ -31,11 +31,17 @@ ChromeUtils.defineLazyGetter(lazy, "logConsole", () =>
  *
  * Manifest schema:
  *   { "version": "1", "files": [
- *       { "name": "libkrunfw.5.dylib", "url": "...", "sha256": "..." },
+ *       { "name": "libkrunfw.5.dylib", "url": "...", "sha256": "...",
+ *         "size": 31457280 },
  *       { "name": "rootfs-template.tar.gz", "url": "...", "sha256": "...",
- *         "extract": true }
+ *         "size": 129499136, "extract": true }
  *   ] }
+ * "size" is optional but recommended: it caps the download (a server
+ * cannot stream forever) and gives progress a denominator.
  */
+
+// Absolute ceiling for a single artifact when the manifest omits "size".
+const MAX_DOWNLOAD_BYTES = 1024 * 1024 * 1024;
 export const HarnessImageManager = {
   _listeners: new Set(),
 
@@ -109,24 +115,6 @@ export const HarnessImageManager = {
   },
 
   async _resolveRemote() {
-    const manifest = await this._fetchManifest();
-    if (!this._validName(manifest.version)) {
-      throw new Error(`invalid image version: ${manifest.version}`);
-    }
-    const installDir = PathUtils.join(this._imageRoot(), manifest.version);
-    const completeMarker = PathUtils.join(installDir, ".complete");
-    if (!(await IOUtils.exists(completeMarker))) {
-      await this._install(manifest, installDir);
-      await IOUtils.writeUTF8(completeMarker, new Date().toISOString());
-      await this._sweepOldVersions(manifest.version);
-    }
-    return {
-      kernelPath: PathUtils.join(installDir, "libkrunfw.5.dylib"),
-      templatePath: PathUtils.join(installDir, "rootfs-template"),
-    };
-  },
-
-  async _fetchManifest() {
     const url = Services.prefs.getStringPref(
       "browser.harness.image.manifestUrl",
       ""
@@ -136,16 +124,96 @@ export const HarnessImageManager = {
         "browser.harness.image.source is 'remote' but no manifestUrl is set"
       );
     }
+    // Config and security errors fail closed; only network failures below
+    // are eligible for the installed-image fallback.
     this._checkScheme(url);
+    let manifest;
+    try {
+      manifest = await this._fetchManifest(url);
+    } catch (e) {
+      // Offline (or manifest host down) must not brick a machine with a
+      // valid installed image; fall back to the newest complete install.
+      const installed = await this._newestInstalled();
+      if (installed) {
+        lazy.logConsole.warn(
+          `manifest fetch failed (${e.message}); using installed image`
+        );
+        this._emit({
+          type: "imageProgress",
+          message: "image update check failed; using the installed image",
+        });
+        return installed;
+      }
+      this._emit({
+        type: "imageProgress",
+        message: `image download failed: ${e.message}`,
+        error: true,
+      });
+      throw e;
+    }
+    // A manifest that fetched fine but fails validation is a red flag, not
+    // an outage: fail closed rather than silently using the old image.
+    if (!manifest.version || !Array.isArray(manifest.files)) {
+      throw new Error("malformed image manifest");
+    }
+    if (!this._validName(manifest.version)) {
+      throw new Error(`invalid image version: ${manifest.version}`);
+    }
+    const installDir = PathUtils.join(this._imageRoot(), manifest.version);
+    const completeMarker = PathUtils.join(installDir, ".complete");
+    if (!(await IOUtils.exists(completeMarker))) {
+      try {
+        await this._install(manifest, installDir);
+      } catch (e) {
+        this._emit({
+          type: "imageProgress",
+          message: `image install failed: ${e.message}`,
+          error: true,
+        });
+        throw e;
+      }
+      await IOUtils.writeUTF8(completeMarker, new Date().toISOString());
+      await this._sweepOldVersions(manifest.version);
+    }
+    return {
+      kernelPath: PathUtils.join(installDir, "libkrunfw.5.dylib"),
+      templatePath: PathUtils.join(installDir, "rootfs-template"),
+    };
+  },
+
+  async _newestInstalled() {
+    let children;
+    try {
+      children = await IOUtils.getChildren(this._imageRoot());
+    } catch (e) {
+      return null;
+    }
+    let best = null;
+    for (const child of children) {
+      try {
+        const stat = await IOUtils.stat(PathUtils.join(child, ".complete"));
+        if (!best || stat.lastModified > best.mtime) {
+          best = { dir: child, mtime: stat.lastModified };
+        }
+      } catch (e) {
+        // No marker: incomplete install or a stray .tmp dir.
+      }
+    }
+    if (!best) {
+      return null;
+    }
+    return {
+      kernelPath: PathUtils.join(best.dir, "libkrunfw.5.dylib"),
+      templatePath: PathUtils.join(best.dir, "rootfs-template"),
+    };
+  },
+
+  async _fetchManifest(url) {
     const response = await fetch(url, { credentials: "omit" });
     if (!response.ok) {
       throw new Error(`image manifest fetch failed (${response.status})`);
     }
-    const manifest = await response.json();
-    if (!manifest.version || !Array.isArray(manifest.files)) {
-      throw new Error("malformed image manifest");
-    }
-    return manifest;
+    return response.json();
   },
 
   async _install(manifest, installDir) {
@@ -211,9 +279,13 @@ export const HarnessImageManager = {
     if (!response.ok) {
       throw new Error(`download of ${file.name} failed (${response.status})`);
     }
-    const total = Number(response.headers.get("Content-Length")) || 0;
+    const declared = Number(file.size) || 0;
+    const maxBytes = declared || MAX_DOWNLOAD_BYTES;
+    const total = declared || Number(response.headers.get("Content-Length"));
     const reader = response.body.getReader();
-    const chunks = [];
+    // Streamed to disk chunk by chunk: artifacts are hundreds of MB and
+    // must never be buffered whole in the parent process.
+    await IOUtils.remove(target, { ignoreAbsent: true });
     let received = 0;
     let lastReport = 0;
     for (;;) {
@@ -221,8 +293,15 @@ export const HarnessImageManager = {
       if (done) {
         break;
       }
-      chunks.push(value);
       received += value.byteLength;
+      if (received > maxBytes) {
+        await reader.cancel();
+        throw new Error(
+          `download of ${file.name} exceeded ${maxBytes} bytes` +
+            (declared ? " (manifest size)" : "")
+        );
+      }
+      await IOUtils.write(target, value, { mode: "appendOrCreate" });
       // Throttled progress: at most one event per 5% (or per chunk when the
       // total is unknown and crosses 8 MiB boundaries).
       const milestone = total
@@ -238,13 +317,11 @@ export const HarnessImageManager = {
         });
       }
     }
-    const bytes = new Uint8Array(received);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
+    if (!received) {
+      // A zero-length body never hit the write loop; still create the file
+      // so the hash check reports a mismatch rather than a stat error.
+      await IOUtils.write(target, new Uint8Array(0));
     }
-    await IOUtils.write(target, bytes);
   },
 
   async _sweepOldVersions(currentVersion) {

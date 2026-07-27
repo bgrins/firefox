@@ -172,20 +172,20 @@ and Remote Settings attachment patterns. Fixed immediately:
   same `.tmp` stage dir (mutual deletion, torn installs); now they share
   one install promise.
 
+Fixed in the follow-up pass (same day): downloads stream to disk chunk by
+chunk with a size cap (`size` in the manifest, 1 GiB ceiling without it);
+manifest-fetch failure falls back to the newest installed `.complete`
+version so offline machines keep working; install failures emit
+error-flagged `imageProgress` events.
+
 Known gaps, deliberately deferred (severity order):
 
 1. No content signing — the sha256s come from the same unauthenticated
    manifest; integrity only, zero authenticity. This is the ship-blocker
    the RS plan addresses; pointless to interim-fix at spike stage.
-2. Downloads buffer fully in memory (~250 MB transient); should stream to
-   a temp file like ProductAddonChecker, and the manifest should carry
-   `size` to enforce a cap.
-3. Offline hard-fails even with a valid installed image (manifest fetch
-   precedes the `.complete` check); should fall back to the newest
-   installed version and throttle checks GMP-style (daily + buildID).
-4. No retry/backoff/timeout on fetches; a stalled connection hangs VM
+2. No retry/backoff/timeout on fetches; a stalled connection hangs VM
    start indefinitely.
-5. Tar extraction trusts /usr/bin/tar's default traversal refusals; add a
+3. Tar extraction trusts /usr/bin/tar's default traversal refusals; add a
    hostile-tarball test before this matters.
-6. Install failures emit no imageProgress event (UI sees the error via
-   the VM error path only).
+4. No update throttling: a reachable manifest is still fetched on every
+   VM start (GMP throttles to daily + buildID change).
