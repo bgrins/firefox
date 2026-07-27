@@ -181,6 +181,59 @@ add_task(async function test_streamed_reasoning() {
   });
 });
 
+add_task(async function test_user_input_card() {
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.harness.enabled", true]],
+  });
+  await BrowserTestUtils.withNewTab("about:harness", async browser => {
+    const doc = browser.contentDocument;
+    AgentService._emit({
+      type: "userInputRequest",
+      requestId: "ui-test-req",
+      questions: [
+        {
+          id: "framework",
+          header: "Framework",
+          question: "Which framework should I use?",
+          isOther: true,
+          options: [
+            { label: "Vanilla JS (Recommended)", description: "no deps" },
+            { label: "React", description: "bundled via bun" },
+          ],
+        },
+      ],
+      autoResolutionMs: 120000,
+    });
+    await TestUtils.waitForCondition(
+      () => doc.querySelector(".user-input-question"),
+      "question card rendered"
+    );
+    const card = doc.querySelector(".activity-row.user-input");
+    is(
+      card.querySelectorAll(".user-input-choices button").length,
+      2,
+      "both options rendered"
+    );
+    ok(card.querySelector("input[type=text]"), "free-form Other input present");
+    ok(
+      card.textContent.includes("continues automatically"),
+      "auto-resolution note shown"
+    );
+    card.querySelector(".user-input-choices button").click();
+    await TestUtils.waitForCondition(
+      () => !card.querySelector("button"),
+      "card collapses after answering"
+    );
+    ok(
+      card.textContent.includes(
+        "Which framework should I use? → Vanilla JS (Recommended)"
+      ),
+      "static summary shows the chosen answer"
+    );
+    AgentService._emit({ type: "turnCompleted", status: "completed" });
+  });
+});
+
 add_task(async function test_plan_checklist_rendering() {
   await SpecialPowers.pushPrefEnv({
     set: [["browser.harness.enabled", true]],

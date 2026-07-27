@@ -41,6 +41,7 @@ const APPROVAL_METHODS = new Set([
   "item/fileChange/requestApproval",
 ]);
 const APPROVAL_TIMEOUT_MS = 120000;
+const USER_INPUT_TIMEOUT_MS = 180000;
 
 export const AgentService = {
   _client: null,
@@ -94,9 +95,14 @@ export const AgentService = {
       return;
     }
     const journalable =
-      ["message", "presentFiles", "turnCompleted", "error", "plan"].includes(
-        event.type
-      ) ||
+      [
+        "message",
+        "presentFiles",
+        "turnCompleted",
+        "error",
+        "plan",
+        "userInput",
+      ].includes(event.type) ||
       (event.type == "item" && event.phase == "completed") ||
       event.type == "userMessage";
     if (!journalable) {
@@ -545,6 +551,9 @@ ${mountLines}`;
     if (request.method == "item/tool/call") {
       return this._onToolCall(request.params ?? {});
     }
+    if (request.method == "item/tool/requestUserInput") {
+      return this._onUserInputRequest(request);
+    }
     if (!APPROVAL_METHODS.has(request.method)) {
       lazy.logConsole.warn(`denying server request ${request.method}`);
       throw new Error(`${request.method} not permitted`);
@@ -564,6 +573,59 @@ ${mountLines}`;
         params: request.params,
       });
     });
+  },
+
+  // The request_user_input tool: the turn blocks on 1-3 multiple-choice
+  // questions. Core has no timeout of its own, so the host resolves with
+  // an empty answers map (= "continue with best judgment") after
+  // autoResolutionMs, or a generous default for questions without one.
+  _pendingUserInput: new Map(),
+
+  _onUserInputRequest(request) {
+    const params = request.params ?? {};
+    const conversationId = params.threadId;
+    const timeoutMs = params.autoResolutionMs ?? USER_INPUT_TIMEOUT_MS;
+    return new Promise(resolve => {
+      const timer = lazy.setTimeout(() => {
+        this._pendingUserInput.delete(request.id);
+        lazy.logConsole.warn(`user input ${request.id} timed out; continuing`);
+        resolve({ answers: {} });
+      }, timeoutMs);
+      this._pendingUserInput.set(request.id, {
+        resolve,
+        timer,
+        conversationId,
+        questions: params.questions ?? [],
+      });
+      this._emit({
+        type: "userInputRequest",
+        requestId: request.id,
+        conversationId,
+        questions: params.questions ?? [],
+        autoResolutionMs: params.autoResolutionMs ?? null,
+      });
+    });
+  },
+
+  /**
+   * @param {string|number} requestId from a userInputRequest event
+   * @param {object} answers map of question id -> {answers: [string]}
+   */
+  respondToUserInput(requestId, answers) {
+    const pending = this._pendingUserInput.get(requestId);
+    if (!pending) {
+      return;
+    }
+    this._pendingUserInput.delete(requestId);
+    lazy.clearTimeout(pending.timer);
+    // Journal the exchange (the interactive card only exists live).
+    this._maybeJournal({
+      type: "userInput",
+      conversationId: pending.conversationId,
+      questions: pending.questions,
+      answers,
+    });
+    pending.resolve({ answers });
   },
 
   // Browser tools run in the parent with real browser data; results flow

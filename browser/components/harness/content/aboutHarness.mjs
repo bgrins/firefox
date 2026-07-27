@@ -637,6 +637,94 @@ function renderPlan(event) {
   }
 }
 
+// request_user_input: 1-3 multiple-choice questions that block the turn.
+// Clicking an option (or sending free text — the protocol reserves an
+// implicit "Other" for every question) records that question's answer;
+// once every question is answered the response is sent and the card
+// collapses to a static summary.
+function renderUserInputRequest(event) {
+  const activity = ensureActivity();
+  activity.details.open = true;
+  const row = document.createElement("div");
+  row.className = "activity-row approval user-input";
+  const answers = {};
+  const finish = () => {
+    AgentService.respondToUserInput(event.requestId, answers);
+    row.textContent = "";
+    for (const question of event.questions) {
+      const line = document.createElement("div");
+      line.textContent = `${question.question} → ${
+        answers[question.id]?.answers?.join("; ") ?? "(no answer)"
+      }`;
+      row.appendChild(line);
+    }
+  };
+  const record = (question, value) => {
+    answers[question.id] = { answers: [value] };
+    if (Object.keys(answers).length == event.questions.length) {
+      finish();
+    }
+  };
+  for (const question of event.questions) {
+    const block = document.createElement("div");
+    block.className = "user-input-question";
+    const label = document.createElement("div");
+    label.textContent = question.question;
+    block.appendChild(label);
+    const choices = document.createElement("div");
+    choices.className = "user-input-choices";
+    for (const option of question.options ?? []) {
+      const button = document.createElement("button");
+      button.textContent = option.label;
+      button.title = option.description ?? "";
+      button.addEventListener("click", () => {
+        for (const sibling of choices.querySelectorAll("button")) {
+          sibling.disabled = true;
+        }
+        record(question, option.label);
+      });
+      choices.appendChild(button);
+    }
+    const other = document.createElement("input");
+    other.type = question.isSecret ? "password" : "text";
+    other.placeholder = "Other...";
+    other.addEventListener("keydown", keyEvent => {
+      if (keyEvent.key == "Enter" && other.value.trim()) {
+        other.disabled = true;
+        record(question, other.value.trim());
+      }
+    });
+    choices.appendChild(other);
+    block.appendChild(choices);
+    row.appendChild(block);
+  }
+  if (event.autoResolutionMs) {
+    const note = document.createElement("div");
+    note.className = "setting-note";
+    note.textContent = `continues automatically in ${Math.round(
+      event.autoResolutionMs / 1000
+    )}s`;
+    row.appendChild(note);
+  }
+  activity.list.appendChild(row);
+  scrollChat();
+}
+
+// Journal replay of an answered request_user_input exchange.
+function renderUserInputStatic(event) {
+  const activity = ensureActivity();
+  const row = document.createElement("div");
+  row.className = "activity-row";
+  for (const question of event.questions ?? []) {
+    const line = document.createElement("div");
+    line.textContent = `${question.question} → ${
+      event.answers?.[question.id]?.answers?.join("; ") ?? "(no answer)"
+    }`;
+    row.appendChild(line);
+  }
+  activity.list.appendChild(row);
+}
+
 function renderApproval(event) {
   const activity = ensureActivity();
   activity.details.open = true;
@@ -705,6 +793,13 @@ function onAgentEvent(event) {
       break;
     case "approvalRequest":
       renderApproval(event);
+      break;
+    case "userInputRequest":
+      renderUserInputRequest(event);
+      break;
+    // Only occurs in journal replay; live cards render interactively.
+    case "userInput":
+      renderUserInputStatic(event);
       break;
     case "presentFiles":
       renderPresentedFiles(event);

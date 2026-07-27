@@ -59,6 +59,9 @@ export class CodexAppServerClient {
       // AgentService) marks the project root so codex stops walking parent
       // directories probing for .git outside the sandbox.
       `project_root_markers = ["AGENTS.md"]`,
+      // The [features] flags below are UnderDevelopment-stage; without
+      // this, codex emits a warning notification into every chat.
+      `suppress_unstable_features_warning = true`,
       ``,
     ];
     if (provider == "ollama") {
@@ -97,6 +100,20 @@ export class CodexAppServerClient {
     } else if (model) {
       lines.push(`model = "${model}"`);
     }
+    lines.push(
+      ``,
+      // request_user_input is registered by default but only usable in
+      // Plan mode; this flag allows it in our (Default-mode) threads. See
+      // docs/gated-tools-plan.md.
+      `[features]`,
+      `default_mode_request_user_input = true`,
+      ``,
+      // get_context_remaining/new_context plus a wrap-up reminder when the
+      // context window runs low; no client-side protocol surface.
+      `[features.token_budget]`,
+      `enabled = true`,
+      `reminder_threshold_tokens = 16000`
+    );
     return `${lines.join("\n")}\n`;
   }
 

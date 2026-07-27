@@ -345,6 +345,58 @@ add_task(async function test_journal_roundtrip() {
   is((await AgentService._readJournal(id)).length, 6, "torn tail line ignored");
 });
 
+add_task(async function test_request_user_input_flow() {
+  const id = "user-input-conv";
+  AgentService._conversations.set(id, { activeTurnId: null, persist: true });
+  registerCleanupFunction(async () => {
+    AgentService._conversations.delete(id);
+    await IOUtils.remove(AgentService._journalPath(id), { ignoreAbsent: true });
+  });
+  const events = [];
+  const listener = event => events.push(event);
+  AgentService.addListener(listener);
+  registerCleanupFunction(() => AgentService.removeListener(listener));
+
+  const questions = [
+    {
+      id: "color",
+      header: "Color",
+      question: "Which color?",
+      isOther: true,
+      options: [{ label: "Blue", description: "" }],
+    },
+  ];
+  const promise = AgentService._onServerRequest({
+    id: 77,
+    method: "item/tool/requestUserInput",
+    params: { threadId: id, questions },
+  });
+  const request = events.find(e => e.type == "userInputRequest");
+  ok(request, "userInputRequest event emitted");
+  is(request.requestId, 77, "request id carried");
+  AgentService.respondToUserInput(77, { color: { answers: ["Blue"] } });
+  const result = await promise;
+  Assert.deepEqual(
+    result,
+    { answers: { color: { answers: ["Blue"] } } },
+    "answers returned to the sidecar"
+  );
+  await AgentService._journalWrites;
+  const journal = await AgentService._readJournal(id);
+  const entry = journal.find(e => e.type == "userInput");
+  ok(entry, "exchange journaled");
+  is(entry.answers.color.answers[0], "Blue", "answer preserved in journal");
+
+  // Auto-resolution: an unanswered request resolves empty after the
+  // model-declared window.
+  const timedOut = await AgentService._onServerRequest({
+    id: 78,
+    method: "item/tool/requestUserInput",
+    params: { threadId: id, questions, autoResolutionMs: 100 },
+  });
+  Assert.deepEqual(timedOut, { answers: {} }, "timeout continues empty");
+});
+
 add_task(async function test_agentservice_tool_dispatch() {
   const events = [];
   const listener = event => events.push(event);
