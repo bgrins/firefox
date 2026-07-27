@@ -227,12 +227,56 @@ function renderMarkdown(element, text) {
   }
 }
 
-function scrollChat() {
+// Autoscroll only while the user is at (or near) the bottom, so scrolling
+// up to read is not fought by streaming output.
+let chatPinned = true;
+
+function scrollChat(force = false) {
+  if (!force && !chatPinned) {
+    return;
+  }
   const log = $("chat-log");
   log.scrollTop = log.scrollHeight;
+  chatPinned = true;
+}
+
+function clearEmptyState() {
+  $("chat-empty")?.remove();
+}
+
+const EXAMPLE_PROMPTS = [
+  "Tell me about your sandbox: OS, tools, network access.",
+  "Build me a small persistent todo app I can use in a tab.",
+  "Draw a chart of the first 50 prime gaps and show it to me.",
+];
+
+function showEmptyState() {
+  if ($("chat-log").children.length || $("chat-empty")) {
+    return;
+  }
+  const empty = document.createElement("div");
+  empty.id = "chat-empty";
+  const heading = document.createElement("p");
+  heading.textContent =
+    "The agent works in an isolated micro-VM: it can run commands, " +
+    "write code, publish small apps, and show you the results here.";
+  empty.appendChild(heading);
+  for (const prompt of EXAMPLE_PROMPTS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "example-prompt";
+    button.textContent = prompt;
+    button.addEventListener("click", () => {
+      $("chat-input").value = prompt;
+      $("chat-input").focus();
+    });
+    empty.appendChild(button);
+  }
+  $("chat-log").appendChild(empty);
 }
 
 function chatBubble(role, text) {
+  clearEmptyState();
   const div = document.createElement("div");
   div.className = `msg ${role}`;
   div.textContent = text;
@@ -344,6 +388,7 @@ function renderSiteCard(card, file) {
 // via blob URLs; everything else gets an open-in-tab button. Paths were
 // validated to stay inside the workspace by HarnessBrowserTools.
 async function renderPresentedFiles(event) {
+  clearEmptyState();
   const card = document.createElement("div");
   card.className = "msg artifact";
   if (event.title) {
@@ -401,6 +446,7 @@ async function renderPresentedFiles(event) {
 // expandable activity block that always sits above the streaming answer.
 function ensureActivity() {
   if (!turnActivity) {
+    clearEmptyState();
     const details = document.createElement("details");
     details.className = "activity working";
     const summary = document.createElement("summary");
@@ -439,6 +485,51 @@ function updateActivityLabel(activity) {
   activity.label.textContent = `Working... (${activity.steps} step${
     activity.steps == 1 ? "" : "s"
   })`;
+}
+
+// apply_patch edits arrive as fileChange items with per-file unified diffs;
+// render each file with an add/update/delete badge and a collapsible diff.
+function renderFileChange(row, item) {
+  row.textContent = "";
+  if (!item.changes?.length) {
+    row.textContent = "file changes: (pending)";
+    return;
+  }
+  for (const change of item.changes) {
+    const line = document.createElement("div");
+    line.className = "file-change";
+    const badge = document.createElement("span");
+    const kind = change.kind?.type ?? "update";
+    badge.className = `chip kind-${kind}`;
+    badge.textContent = kind;
+    const path = document.createElement("span");
+    path.className = "file-change-path";
+    path.textContent = change.kind?.move_path
+      ? `${change.path} → ${change.kind.move_path}`
+      : change.path;
+    line.append(badge, path);
+    row.appendChild(line);
+    if (change.diff) {
+      const details = document.createElement("details");
+      details.className = "command-output";
+      const summary = document.createElement("summary");
+      summary.textContent = "diff";
+      const pre = document.createElement("pre");
+      pre.className = "diff";
+      for (const diffLine of change.diff.replace(/\n$/, "").split("\n")) {
+        const span = document.createElement("span");
+        if (diffLine.startsWith("+")) {
+          span.className = "diff-add";
+        } else if (diffLine.startsWith("-")) {
+          span.className = "diff-del";
+        }
+        span.textContent = `${diffLine}\n`;
+        pre.appendChild(span);
+      }
+      details.append(summary, pre);
+      row.appendChild(details);
+    }
+  }
 }
 
 function renderItem(item) {
@@ -505,11 +596,9 @@ function renderItem(item) {
       }
       break;
     }
-    case "fileChange": {
-      const paths = (item.changes ?? []).map(c => c.path).join(", ");
-      row.textContent = `file changes: ${paths || "(pending)"}`;
+    case "fileChange":
+      renderFileChange(row, item);
       break;
-    }
     default:
       row.textContent = `${item.type} [${item.status ?? ""}]`;
   }
@@ -551,6 +640,10 @@ function onAgentEvent(event) {
     case "turnStarted":
       $("chat-interrupt").hidden = false;
       break;
+    // Only occurs in journal replay; live user bubbles render at send time.
+    case "userMessage":
+      chatBubble("user", event.text);
+      break;
     case "delta":
       if (!chatAgentBubble) {
         chatAgentBubble = chatBubble("agent", "");
@@ -579,6 +672,7 @@ function onAgentEvent(event) {
       $("chat-interrupt").hidden = true;
       $("chat-send").disabled = false;
       chatAgentBubble = null;
+      $("chat-input").focus();
       break;
     case "log":
       chatBubble("meta", event.message);
@@ -602,6 +696,9 @@ $("chat-delete").addEventListener("click", async () => {
   if (!chatConversationId) {
     return;
   }
+  if (!confirm("Delete this conversation? This cannot be undone.")) {
+    return;
+  }
   const id = chatConversationId;
   try {
     await AgentService.deleteConversation(id);
@@ -619,7 +716,11 @@ function resetChat() {
   activityRows.clear();
   $("chat-log").textContent = "";
   $("chat-history").value = "";
+  $("chat-interrupt").hidden = true;
+  $("chat-send").disabled = !enabled;
+  chatPinned = true;
   updateDeleteButton();
+  showEmptyState();
 }
 
 $("chat-new").addEventListener("click", resetChat);
@@ -699,15 +800,37 @@ function renderHistoryTurn(turn) {
         break;
       case "agentMessage":
         renderMarkdown(chatBubble("agent", ""), item.text ?? "");
+        // Later activity in this turn belongs after this message, so start
+        // a fresh block instead of inserting above it.
+        activityList = null;
+        steps = 0;
         break;
       default: {
-        const row = document.createElement("div");
-        row.className = `activity-row${item.type == "commandExecution" ? " command" : ""}`;
-        if (item.type == "commandExecution") {
+        let row;
+        if (item.type == "reasoning") {
+          const text = (
+            item.summary?.join("\n") ||
+            item.content?.join("\n") ||
+            ""
+          ).trim();
+          row = document.createElement("details");
+          row.className = "activity-row thinking";
+          const summary = document.createElement("summary");
+          summary.textContent = `thinking: ${(text.split("\n")[0] || "...").slice(0, 120)}`;
+          const body = document.createElement("div");
+          body.textContent = text;
+          row.append(summary, body);
+        } else if (item.type == "commandExecution") {
+          row = document.createElement("div");
+          row.className = "activity-row command";
           row.textContent = `$ ${item.command}`;
-        } else if (item.type == "reasoning") {
-          row.textContent = `thinking: ${(item.summary?.join(" ") ?? "").slice(0, 120)}`;
+        } else if (item.type == "fileChange") {
+          row = document.createElement("div");
+          row.className = "activity-row";
+          renderFileChange(row, item);
         } else {
+          row = document.createElement("div");
+          row.className = "activity-row";
           row.textContent = item.type;
         }
         ensureBlock().appendChild(row);
@@ -735,17 +858,28 @@ $("chat-history").addEventListener("change", async () => {
     const resumed = await AgentService.resumeConversation(conversationId);
     chatConversationId = conversationId;
     updateDeleteButton();
-    for (const turn of resumed.turns) {
-      renderHistoryTurn(turn);
+    if (resumed.events?.length) {
+      // The journal replays the exact event stream the UI rendered live —
+      // including command output and presented artifacts, which codex's
+      // thread/resume does not preserve.
+      for (const event of resumed.events) {
+        onAgentEvent(event);
+      }
+    } else {
+      for (const turn of resumed.turns) {
+        renderHistoryTurn(turn);
+      }
     }
     chatBubble(
       "meta",
       `resumed (${resumed.modelProvider ?? "?"}/${resumed.model ?? "?"})`
     );
+    scrollChat(true);
   } catch (e) {
     chatBubble("meta", `error: ${e.message}`);
   } finally {
     $("chat-send").disabled = false;
+    $("chat-input").focus();
   }
 });
 
@@ -821,6 +955,8 @@ $("chat-row").addEventListener("submit", async event => {
         ? `\n${attachments.map(a => `@ ${a.title}`).join("  ")}`
         : "")
   );
+  scrollChat(true);
+  input.focus();
   $("chat-send").disabled = true;
   try {
     if (!chatConversationId) {
@@ -1092,6 +1228,11 @@ if (!enabled) {
   $("chat-input").disabled = true;
   $("chat-send").disabled = true;
 }
+$("chat-log").addEventListener("scroll", () => {
+  const log = $("chat-log");
+  chatPinned = log.scrollTop + log.clientHeight >= log.scrollHeight - 40;
+});
+showEmptyState();
 loadSettings();
 renderMounts();
 

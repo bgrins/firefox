@@ -59,6 +59,8 @@ h1 {
   gap: var(--space-small);
 }
 
+/* No smooth scrolling: the autoscroll pinning logic reads scrollTop and
+   animated positions would misreport whether the user is at the bottom. */
 #chat-log {
   display: flex;
   flex-direction: column;
@@ -66,7 +68,25 @@ h1 {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-xsmall);
-  scroll-behavior: smooth;
+}
+
+#chat-empty {
+  align-self: center;
+  margin-block-start: auto;
+  margin-block-end: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-small);
+  align-items: center;
+  color: var(--text-color-deemphasized);
+  text-align: center;
+  /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+  max-width: 34rem;
+}
+
+.example-prompt {
+  font-weight: var(--font-weight);
+  width: 100%;
 }
 
 #chat-log .msg {
@@ -281,6 +301,40 @@ h1 {
   border-radius: var(--border-radius-circle);
   background-color: var(--background-color-success);
   font-size: var(--font-size-small);
+}
+
+/* File changes (apply_patch): per-file kind badge plus collapsible diff. */
+.file-change {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xsmall);
+  font-family: monospace;
+}
+
+.file-change .chip {
+  margin-inline-start: 0;
+}
+
+.file-change .chip.kind-delete {
+  background-color: var(--background-color-critical);
+}
+
+.file-change .chip.kind-update {
+  background-color: var(--background-color-information);
+}
+
+.file-change-path {
+  overflow-wrap: anywhere;
+}
+
+/* No text-color-success token exists; the success icon color reads well
+   on the information-background pre. */
+pre.diff .diff-add {
+  color: var(--icon-color-success);
+}
+
+pre.diff .diff-del {
+  color: var(--text-color-error);
 }
 
 .activity-row .chip.inProgress,

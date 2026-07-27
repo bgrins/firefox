@@ -59,6 +59,7 @@ export const AgentService = {
   },
 
   _emit(event) {
+    this._maybeJournal(event);
     for (const listener of this._listeners) {
       try {
         listener(event);
@@ -66,6 +67,77 @@ export const AgentService = {
         console.error(e);
       }
     }
+  },
+
+  // Codex's thread/resume only replays messages, reasoning and file changes;
+  // command executions and presented artifacts are lost. This journal records
+  // the UI-visible event stream per conversation so history can be replayed
+  // with full fidelity. Codex remains the source of truth for model context;
+  // the journal is a rendering aid only.
+  _journalWrites: Promise.resolve(),
+
+  _journalPath(conversationId) {
+    if (!/^[a-zA-Z0-9-]+$/.test(conversationId)) {
+      return null;
+    }
+    return PathUtils.join(
+      PathUtils.profileDir,
+      "harness",
+      "chats",
+      `${conversationId}.jsonl`
+    );
+  },
+
+  _maybeJournal(event) {
+    const { conversationId } = event;
+    if (!conversationId) {
+      return;
+    }
+    const journalable =
+      ["message", "presentFiles", "turnCompleted", "error"].includes(
+        event.type
+      ) ||
+      (event.type == "item" && event.phase == "completed") ||
+      event.type == "userMessage";
+    if (!journalable) {
+      return;
+    }
+    const record = this._conversations.get(conversationId);
+    if (!record || record.persist === false) {
+      return;
+    }
+    const path = this._journalPath(conversationId);
+    if (!path) {
+      return;
+    }
+    const line = `${JSON.stringify({ ...event, at: Date.now() })}\n`;
+    this._journalWrites = this._journalWrites
+      .then(async () => {
+        await IOUtils.makeDirectory(PathUtils.parent(path), {
+          createAncestors: true,
+          ignoreExisting: true,
+        });
+        await IOUtils.writeUTF8(path, line, { mode: "appendOrCreate" });
+      })
+      .catch(e => lazy.logConsole.warn(`journal write failed: ${e.message}`));
+  },
+
+  async _readJournal(conversationId) {
+    const path = this._journalPath(conversationId);
+    if (!path || !(await IOUtils.exists(path))) {
+      return [];
+    }
+    const events = [];
+    for (const line of (await IOUtils.readUTF8(path)).split("\n")) {
+      if (line.trim()) {
+        try {
+          events.push(JSON.parse(line));
+        } catch (e) {
+          // Skip torn tail lines from a crash mid-append.
+        }
+      }
+    }
+    return events;
   },
 
   async _ensureClient() {
@@ -308,7 +380,8 @@ ${mountLines}`;
     const client = await this._ensureClient();
     // Non-ephemeral threads are persisted by Codex itself (rollout files in
     // CODEX_HOME/sessions) and can be reopened via thread/list +
-    // thread/resume; we deliberately do not keep our own chat store.
+    // thread/resume; the only host-side chat state is the rendering journal
+    // (see _maybeJournal).
     // The micro-VM is the actual security boundary: every command already
     // runs in the guest, so codex's own sandbox notion is set to full access
     // and approvals default off. Without this the model believes it is in a
@@ -354,6 +427,7 @@ ${mountLines}`;
     const conversationId = result.thread.id;
     this._conversations.set(conversationId, {
       activeTurnId: null,
+      persist,
       ...sessionRecord,
     });
     lazy.logConsole.log(
@@ -395,12 +469,18 @@ ${mountLines}`;
       threadId: conversationId,
       cwd: "/workspace",
     });
-    this._conversations.set(conversationId, { activeTurnId: null });
+    this._conversations.set(conversationId, {
+      activeTurnId: null,
+      persist: true,
+    });
     return {
       conversationId,
       model: result.model,
       modelProvider: result.modelProvider,
       turns: result.thread?.turns ?? [],
+      // Full-fidelity UI event stream; empty for pre-journal conversations
+      // (the UI falls back to rendering the codex turns).
+      events: await this._readJournal(conversationId),
     };
   },
 
@@ -413,6 +493,10 @@ ${mountLines}`;
   async deleteConversation(conversationId) {
     const client = await this._ensureClient();
     await client.request("thread/delete", { threadId: conversationId });
+    const journalPath = this._journalPath(conversationId);
+    if (journalPath) {
+      await IOUtils.remove(journalPath, { ignoreAbsent: true });
+    }
     const record = this._conversations.get(conversationId);
     this._conversations.delete(conversationId);
     record?.bridge?.stop();
@@ -429,6 +513,7 @@ ${mountLines}`;
       throw new Error(`unknown conversation ${conversationId}`);
     }
     const client = await this._ensureClient();
+    this._maybeJournal({ type: "userMessage", conversationId, text });
     const result = await client.request("turn/start", {
       threadId: conversationId,
       input: [{ type: "text", text }],

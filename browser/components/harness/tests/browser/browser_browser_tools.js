@@ -253,6 +253,87 @@ add_task(async function test_stage_tab_for_attachment() {
   );
 });
 
+add_task(async function test_journal_roundtrip() {
+  const id = "journal-test-conv";
+  AgentService._conversations.set(id, { activeTurnId: null, persist: true });
+  registerCleanupFunction(async () => {
+    AgentService._conversations.delete(id);
+    await IOUtils.remove(AgentService._journalPath(id), {
+      ignoreAbsent: true,
+    });
+  });
+
+  AgentService._maybeJournal({
+    type: "userMessage",
+    conversationId: id,
+    text: "hi",
+  });
+  AgentService._maybeJournal({ type: "delta", conversationId: id, text: "x" });
+  AgentService._maybeJournal({
+    type: "item",
+    phase: "started",
+    conversationId: id,
+    item: { type: "commandExecution", id: "c1" },
+  });
+  AgentService._maybeJournal({
+    type: "item",
+    phase: "completed",
+    conversationId: id,
+    item: { type: "commandExecution", id: "c1", command: "ls", exitCode: 0 },
+  });
+  AgentService._maybeJournal({
+    type: "presentFiles",
+    conversationId: id,
+    title: "T",
+    files: [],
+  });
+  AgentService._maybeJournal({
+    type: "message",
+    conversationId: id,
+    text: "done",
+  });
+  AgentService._maybeJournal({ type: "turnCompleted", conversationId: id });
+  await AgentService._journalWrites;
+
+  const events = await AgentService._readJournal(id);
+  Assert.deepEqual(
+    events.map(e => e.type),
+    ["userMessage", "item", "presentFiles", "message", "turnCompleted"],
+    "deltas and in-progress items are not journaled; the rest replay in order"
+  );
+  is(events[1].item.command, "ls", "completed item payload preserved");
+  ok(
+    events.every(e => e.at),
+    "events are timestamped"
+  );
+
+  // Temporary conversations and unknown conversation ids never journal.
+  AgentService._conversations.set(id, { persist: false });
+  AgentService._maybeJournal({
+    type: "message",
+    conversationId: id,
+    text: "tmp",
+  });
+  AgentService._maybeJournal({
+    type: "message",
+    conversationId: "never-created",
+    text: "stray",
+  });
+  await AgentService._journalWrites;
+  is((await AgentService._readJournal(id)).length, 5, "persist:false skipped");
+  is(
+    (await AgentService._readJournal("never-created")).length,
+    0,
+    "unknown conversation skipped"
+  );
+
+  // A torn tail line (crash mid-append) is skipped, not fatal.
+  await IOUtils.writeUTF8(AgentService._journalPath(id), '{"type":"mess', {
+    mode: "appendOrCreate",
+  });
+  is((await AgentService._readJournal(id)).length, 5, "torn tail line ignored");
+});
+
 add_task(async function test_agentservice_tool_dispatch() {
   const events = [];
   const listener = event => events.push(event);

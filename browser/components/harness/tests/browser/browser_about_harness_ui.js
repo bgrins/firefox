@@ -65,6 +65,179 @@ add_task(async function test_markdown_rendering_and_sanitization() {
   });
 });
 
+add_task(async function test_empty_state_and_file_change_rendering() {
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.harness.enabled", true]],
+  });
+  await BrowserTestUtils.withNewTab("about:harness", async browser => {
+    const doc = browser.contentDocument;
+    const empty = doc.getElementById("chat-empty");
+    ok(empty, "empty state rendered on a fresh chat");
+    const example = empty.querySelector(".example-prompt");
+    example.click();
+    is(
+      doc.getElementById("chat-input").value,
+      example.textContent,
+      "example prompt fills the input"
+    );
+
+    // apply_patch fileChange items render kind badges and colored diffs.
+    AgentService._emit({
+      type: "item",
+      phase: "completed",
+      item: {
+        type: "fileChange",
+        id: "fc1",
+        status: "completed",
+        changes: [
+          {
+            path: "/workspace/app.js",
+            kind: { type: "update", move_path: null },
+            diff: "@@ -1 +1 @@\n-old\n+new\n",
+          },
+        ],
+      },
+    });
+    await TestUtils.waitForCondition(
+      () => doc.querySelector(".file-change"),
+      "file change row rendered"
+    );
+    ok(!doc.getElementById("chat-empty"), "empty state cleared by activity");
+    is(
+      doc.querySelector(".file-change .chip").textContent,
+      "update",
+      "kind badge rendered"
+    );
+    ok(
+      doc
+        .querySelector(".file-change-path")
+        .textContent.includes("/workspace/app.js"),
+      "path rendered"
+    );
+    const added = [...doc.querySelectorAll("pre.diff .diff-add")];
+    const removed = [...doc.querySelectorAll("pre.diff .diff-del")];
+    ok(
+      added.some(span => span.textContent.includes("+new")),
+      "added line highlighted"
+    );
+    ok(
+      removed.some(span => span.textContent.includes("-old")),
+      "removed line highlighted"
+    );
+    AgentService._emit({ type: "turnCompleted", status: "completed" });
+  });
+});
+
+add_task(async function test_history_resume_replays_journal() {
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.harness.enabled", true]],
+  });
+  const workspace = PathUtils.join(PathUtils.profileDir, "replay-workspace");
+  await IOUtils.makeDirectory(workspace, { ignoreExisting: true });
+  const png = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQ" +
+        "DwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    ),
+    c => c.charCodeAt(0)
+  );
+  const pngPath = PathUtils.join(workspace, "plot.png");
+  await IOUtils.write(pngPath, png);
+
+  const events = [
+    { type: "userMessage", conversationId: "replay-conv", text: "make a plot" },
+    {
+      type: "item",
+      phase: "completed",
+      conversationId: "replay-conv",
+      item: {
+        type: "commandExecution",
+        id: "c1",
+        status: "completed",
+        command: "uv run plot.py",
+        exitCode: 0,
+        aggregatedOutput: "saved plot.png",
+      },
+    },
+    {
+      type: "presentFiles",
+      conversationId: "replay-conv",
+      title: "Plot",
+      files: [
+        {
+          name: "plot.png",
+          guestPath: "/workspace/plot.png",
+          hostPath: pngPath,
+          kind: "image",
+          size: png.length,
+        },
+      ],
+    },
+    { type: "message", conversationId: "replay-conv", text: "here you go" },
+    {
+      type: "turnCompleted",
+      conversationId: "replay-conv",
+      status: "completed",
+    },
+  ];
+  const original = AgentService.resumeConversation;
+  AgentService.resumeConversation = async () => ({
+    conversationId: "replay-conv",
+    model: "test-model",
+    modelProvider: "test",
+    turns: [],
+    events,
+  });
+  registerCleanupFunction(() => {
+    AgentService.resumeConversation = original;
+  });
+
+  await BrowserTestUtils.withNewTab("about:harness", async browser => {
+    const doc = browser.contentDocument;
+    const win = browser.contentWindow;
+    const select = doc.getElementById("chat-history");
+    const option = doc.createElement("option");
+    option.value = "replay-conv";
+    select.appendChild(option);
+    select.value = "replay-conv";
+    select.dispatchEvent(new win.Event("change"));
+
+    await TestUtils.waitForCondition(
+      () => doc.querySelector("#chat-log .artifact img"),
+      "replayed artifact image rendered"
+    );
+    is(
+      doc.querySelector("#chat-log .user")?.textContent,
+      "make a plot",
+      "user bubble replayed"
+    );
+    ok(
+      [...doc.querySelectorAll("#chat-log .agent")].some(b =>
+        b.textContent.includes("here you go")
+      ),
+      "agent message replayed"
+    );
+    const command = doc.querySelector(".activity-row.command");
+    ok(command?.textContent.includes("uv run plot.py"), "command row replayed");
+    ok(
+      command
+        ?.querySelector(".command-output pre")
+        ?.textContent.includes("saved plot.png"),
+      "command output replayed"
+    );
+    const activity = doc.querySelector("#chat-log .activity");
+    ok(
+      !activity.classList.contains("working"),
+      "replayed activity is finalized, not spinning"
+    );
+    ok(
+      doc.getElementById("chat-interrupt").hidden &&
+        !doc.getElementById("chat-send").disabled,
+      "controls usable after replay"
+    );
+  });
+});
+
 add_task(async function test_present_files_html_widget() {
   await SpecialPowers.pushPrefEnv({
     set: [["browser.harness.enabled", true]],
