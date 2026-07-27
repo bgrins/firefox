@@ -659,6 +659,26 @@ ${mountLines}`;
       case "item/agentMessage/delta":
         this._emit({ type: "delta", conversationId, text: params.delta });
         break;
+      // Streamed thinking: summary deltas for reasoning models (and raw
+      // reasoning text where providers expose it). Never journaled; the
+      // completed reasoning item carries the final text.
+      case "item/reasoning/summaryTextDelta":
+      case "item/reasoning/textDelta":
+        this._emit({
+          type: "reasoningDelta",
+          conversationId,
+          itemId: params.itemId,
+          text: params.delta,
+        });
+        break;
+      case "item/reasoning/summaryPartAdded":
+        this._emit({
+          type: "reasoningDelta",
+          conversationId,
+          itemId: params.itemId,
+          text: "\n\n",
+        });
+        break;
       case "item/started":
       case "item/updated":
         if (

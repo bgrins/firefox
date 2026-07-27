@@ -205,6 +205,9 @@ let chatAgentBubble = null;
 let chatAgentRawText = "";
 let turnActivity = null;
 const activityRows = new Map();
+// Streamed thinking accumulates here until the completed reasoning item
+// (which carries the authoritative text) replaces it.
+const reasoningBuffers = new Map();
 
 // Same sanitizer configuration as smart window's ai-chat-message: default
 // Sanitizer plus the table wrapper element the markdown parser emits.
@@ -479,6 +482,7 @@ function finishActivity() {
     turnActivity = null;
   }
   activityRows.clear();
+  reasoningBuffers.clear();
 }
 
 function updateActivityLabel(activity) {
@@ -661,6 +665,12 @@ function onAgentEvent(event) {
     case "item":
       renderItem(event.item);
       break;
+    case "reasoningDelta": {
+      const buffered = (reasoningBuffers.get(event.itemId) ?? "") + event.text;
+      reasoningBuffers.set(event.itemId, buffered);
+      renderItem({ type: "reasoning", id: event.itemId, summary: [buffered] });
+      break;
+    }
     case "approvalRequest":
       renderApproval(event);
       break;

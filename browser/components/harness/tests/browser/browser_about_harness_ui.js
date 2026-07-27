@@ -128,6 +128,59 @@ add_task(async function test_empty_state_and_file_change_rendering() {
   });
 });
 
+add_task(async function test_streamed_reasoning() {
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.harness.enabled", true]],
+  });
+  await BrowserTestUtils.withNewTab("about:harness", async browser => {
+    const doc = browser.contentDocument;
+    AgentService._emit({
+      type: "reasoningDelta",
+      itemId: "r1",
+      text: "Planning the",
+    });
+    await TestUtils.waitForCondition(
+      () => doc.querySelector(".activity-row.thinking"),
+      "thinking row appears on first delta"
+    );
+    const row = doc.querySelector(".activity-row.thinking");
+    ok(
+      row.querySelector("summary").textContent.includes("Planning the"),
+      "first delta streams into the summary line"
+    );
+    AgentService._emit({
+      type: "reasoningDelta",
+      itemId: "r1",
+      text: " approach",
+    });
+    await TestUtils.waitForCondition(
+      () => row.querySelector("div").textContent == "Planning the approach",
+      "subsequent deltas append"
+    );
+    // The completed item replaces the streamed buffer in the same row.
+    AgentService._emit({
+      type: "item",
+      phase: "completed",
+      item: {
+        type: "reasoning",
+        id: "r1",
+        summary: ["Planning the approach\n\nDone thinking."],
+        content: [],
+      },
+    });
+    await TestUtils.waitForCondition(
+      () => row.querySelector("div").textContent.includes("Done thinking."),
+      "completed item takes over the row"
+    );
+    is(
+      doc.querySelectorAll(".activity-row.thinking").length,
+      1,
+      "streaming and completion share one row"
+    );
+    AgentService._emit({ type: "turnCompleted", status: "completed" });
+  });
+});
+
 add_task(async function test_history_resume_replays_journal() {
   await SpecialPowers.pushPrefEnv({
     set: [["browser.harness.enabled", true]],
