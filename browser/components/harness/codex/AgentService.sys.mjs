@@ -528,6 +528,19 @@ ${mountLines}`;
     }
     const client = await this._ensureClient();
     this._maybeJournal({ type: "userMessage", conversationId, text });
+    // If the user has shared a places snapshot into this workspace, keep
+    // it in sync with the live profile (VACUUM INTO, ~30ms; no-op when
+    // absent or under five minutes old). Never blocks the turn.
+    try {
+      const refreshed = await (
+        conversation.session ?? lazy.HarnessVM
+      ).refreshPlacesSnapshotIfStale();
+      if (refreshed == "refreshed") {
+        lazy.logConsole.log("places snapshot refreshed for turn");
+      }
+    } catch (e) {
+      lazy.logConsole.warn(`places snapshot refresh failed: ${e.message}`);
+    }
     const result = await client.request("turn/start", {
       threadId: conversationId,
       input: [{ type: "text", text }],

@@ -3,6 +3,58 @@
 
 "use strict";
 
+// Snapshot + staleness refresh are host-side file operations; no VM needed.
+add_task(async function test_places_snapshot_refresh() {
+  const session = HarnessVM.session();
+  const dest = PathUtils.join(session.workspacePath, "places.sqlite");
+  await IOUtils.remove(dest, { ignoreAbsent: true });
+  registerCleanupFunction(() => IOUtils.remove(dest, { ignoreAbsent: true }));
+
+  is(
+    await session.refreshPlacesSnapshotIfStale(),
+    "absent",
+    "no snapshot means sharing was never opted into; refresh is a no-op"
+  );
+
+  is(
+    await session.snapshotPlacesToWorkspace(),
+    "/workspace/places.sqlite",
+    "snapshot reports the guest path"
+  );
+  const { Sqlite } = ChromeUtils.importESModule(
+    "resource://gre/modules/Sqlite.sys.mjs"
+  );
+  const conn = await Sqlite.openConnection({ path: dest, readOnly: true });
+  let count;
+  try {
+    count = (
+      await conn.execute("SELECT COUNT(*) AS c FROM moz_places")
+    )[0].getResultByName("c");
+  } finally {
+    await conn.close();
+  }
+  Assert.greaterOrEqual(count, 0, "snapshot is a queryable places db");
+  ok(!(await IOUtils.exists(`${dest}.tmp`)), "no staging file left behind");
+
+  is(
+    await session.refreshPlacesSnapshotIfStale(),
+    "fresh",
+    "recent snapshot left alone"
+  );
+  await IOUtils.setModificationTime(dest, Date.now() - 10 * 60 * 1000);
+  is(
+    await session.refreshPlacesSnapshotIfStale(),
+    "refreshed",
+    "stale snapshot recreated"
+  );
+  const stat = await IOUtils.stat(dest);
+  Assert.greater(
+    stat.lastModified,
+    Date.now() - 60000,
+    "refresh updated the snapshot mtime"
+  );
+});
+
 add_task(async function test_harness_vm_smoke() {
   // Earlier tests in the suite may still be tearing their VM down.
   for (let i = 0; HarnessVM.state != "stopped" && i < 60; i++) {

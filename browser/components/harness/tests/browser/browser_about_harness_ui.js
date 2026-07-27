@@ -181,6 +181,57 @@ add_task(async function test_streamed_reasoning() {
   });
 });
 
+add_task(async function test_activity_interleaves_with_messages() {
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.harness.enabled", true]],
+  });
+  await BrowserTestUtils.withNewTab("about:harness", async browser => {
+    const doc = browser.contentDocument;
+    const command = (id, text) => ({
+      type: "item",
+      phase: "completed",
+      item: {
+        type: "commandExecution",
+        id,
+        status: "completed",
+        command: text,
+        exitCode: 0,
+      },
+    });
+    AgentService._emit(command("c-one", "first-command"));
+    AgentService._emit({ type: "message", text: "did the first thing" });
+    AgentService._emit(command("c-two", "second-command"));
+    AgentService._emit({ type: "turnCompleted", status: "completed" });
+
+    await TestUtils.waitForCondition(
+      () => doc.querySelectorAll("#chat-log .activity").length == 2,
+      "each message boundary starts a new activity block"
+    );
+    const children = [...doc.getElementById("chat-log").children].map(el =>
+      el.classList.contains("activity") ? "activity" : el.className
+    );
+    Assert.deepEqual(
+      children,
+      ["activity", "msg agent", "activity"],
+      "steps render in true order around the interstitial message"
+    );
+    const blocks = doc.querySelectorAll("#chat-log .activity");
+    ok(
+      blocks[0].textContent.includes("first-command") &&
+        !blocks[0].textContent.includes("second-command"),
+      "first block holds only pre-message steps"
+    );
+    ok(
+      blocks[1].textContent.includes("second-command"),
+      "post-message steps land in the new block"
+    );
+    ok(
+      !blocks[0].classList.contains("working"),
+      "closed segment stops spinning"
+    );
+  });
+});
+
 add_task(async function test_user_input_card() {
   await SpecialPowers.pushPrefEnv({
     set: [["browser.harness.enabled", true]],

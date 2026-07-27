@@ -493,7 +493,11 @@ function retireRequestCard(requestId, reason) {
   card.row.textContent = note;
 }
 
-function finishActivity() {
+// Finalizes the current activity block. Called when an agent message
+// completes mid-turn so later steps start a NEW block below that message —
+// without this, a whole turn's activity clumps into one block above all
+// the interstitial commentary, in the wrong visual order.
+function closeActivitySegment() {
   if (turnActivity) {
     turnActivity.details.classList.remove("working");
     turnActivity.label.textContent = `${turnActivity.steps} step${
@@ -501,6 +505,10 @@ function finishActivity() {
     }`;
     turnActivity = null;
   }
+}
+
+function finishActivity() {
+  closeActivitySegment();
   // Anything still awaiting the user is moot once the turn is over.
   for (const requestId of [...pendingRequestCards.keys()]) {
     retireRequestCard(requestId, "resolved");
@@ -806,6 +814,7 @@ function onAgentEvent(event) {
       renderMarkdown(chatAgentBubble ?? chatBubble("agent", ""), event.text);
       chatAgentBubble = null;
       chatAgentRawText = "";
+      closeActivitySegment();
       break;
     case "item":
       renderItem(event.item);
