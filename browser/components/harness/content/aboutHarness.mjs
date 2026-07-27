@@ -208,6 +208,9 @@ const activityRows = new Map();
 // Streamed thinking accumulates here until the completed reasoning item
 // (which carries the authoritative text) replaces it.
 const reasoningBuffers = new Map();
+// Interactive approval/question cards awaiting the user, keyed by server
+// request id so serverRequest/resolved (interrupts, timeouts) retires them.
+const pendingRequestCards = new Map();
 
 // Same sanitizer configuration as smart window's ai-chat-message: default
 // Sanitizer plus the table wrapper element the markdown parser emits.
@@ -473,6 +476,23 @@ function ensureActivity() {
   return turnActivity;
 }
 
+function retireRequestCard(requestId, reason) {
+  const card = pendingRequestCards.get(requestId);
+  if (!card) {
+    return;
+  }
+  pendingRequestCards.delete(requestId);
+  const note =
+    card.kind == "approval"
+      ? reason == "timeout"
+        ? "approval: declined automatically (no response)"
+        : "approval: no longer needed"
+      : reason == "timeout"
+        ? "question: continued automatically (no answer)"
+        : "question: no longer needed";
+  card.row.textContent = note;
+}
+
 function finishActivity() {
   if (turnActivity) {
     turnActivity.details.classList.remove("working");
@@ -480,6 +500,10 @@ function finishActivity() {
       turnActivity.steps == 1 ? "" : "s"
     }`;
     turnActivity = null;
+  }
+  // Anything still awaiting the user is moot once the turn is over.
+  for (const requestId of [...pendingRequestCards.keys()]) {
+    retireRequestCard(requestId, "resolved");
   }
   activityRows.clear();
   reasoningBuffers.clear();
@@ -649,6 +673,7 @@ function renderUserInputRequest(event) {
   row.className = "activity-row approval user-input";
   const answers = {};
   const finish = () => {
+    pendingRequestCards.delete(event.requestId);
     AgentService.respondToUserInput(event.requestId, answers);
     row.textContent = "";
     for (const question of event.questions) {
@@ -706,6 +731,7 @@ function renderUserInputRequest(event) {
     )}s`;
     row.appendChild(note);
   }
+  pendingRequestCards.set(event.requestId, { row, kind: "userInput" });
   activity.list.appendChild(row);
   scrollChat();
 }
@@ -736,9 +762,11 @@ function renderApproval(event) {
   label.textContent = `approval requested: ${command}`;
   row.appendChild(label);
   const respond = decision => {
+    pendingRequestCards.delete(event.requestId);
     AgentService.respondToApproval(event.requestId, decision);
     row.textContent = `approval: ${decision} (${command})`;
   };
+  pendingRequestCards.set(event.requestId, { row, kind: "approval" });
   for (const [text, decision] of [
     ["Allow", "accept"],
     ["Allow for session", "acceptForSession"],
@@ -801,6 +829,9 @@ function onAgentEvent(event) {
     case "userInput":
       renderUserInputStatic(event);
       break;
+    case "serverRequestResolved":
+      retireRequestCard(event.requestId, event.reason);
+      break;
     case "presentFiles":
       renderPresentedFiles(event);
       break;
@@ -851,6 +882,8 @@ function resetChat() {
   chatAgentBubble = null;
   turnActivity = null;
   activityRows.clear();
+  reasoningBuffers.clear();
+  pendingRequestCards.clear();
   $("chat-log").textContent = "";
   $("chat-history").value = "";
   $("chat-interrupt").hidden = true;

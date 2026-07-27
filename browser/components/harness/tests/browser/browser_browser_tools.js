@@ -388,13 +388,42 @@ add_task(async function test_request_user_input_flow() {
   is(entry.answers.color.answers[0], "Blue", "answer preserved in journal");
 
   // Auto-resolution: an unanswered request resolves empty after the
-  // model-declared window.
+  // model-declared window, and the UI is told to retire the card.
   const timedOut = await AgentService._onServerRequest({
     id: 78,
     method: "item/tool/requestUserInput",
     params: { threadId: id, questions, autoResolutionMs: 100 },
   });
   Assert.deepEqual(timedOut, { answers: {} }, "timeout continues empty");
+  ok(
+    events.some(
+      e =>
+        e.type == "serverRequestResolved" &&
+        e.requestId == 78 &&
+        e.reason == "timeout"
+    ),
+    "timeout emits serverRequestResolved"
+  );
+
+  // serverRequest/resolved (e.g. turn interrupt) settles pending requests.
+  const interrupted = AgentService._onServerRequest({
+    id: 79,
+    method: "item/tool/requestUserInput",
+    params: { threadId: id, questions },
+  });
+  AgentService._onNotification({
+    method: "serverRequest/resolved",
+    params: { threadId: id, requestId: 79 },
+  });
+  Assert.deepEqual(
+    await interrupted,
+    { answers: {} },
+    "resolved-elsewhere request settles without an answer"
+  );
+  ok(
+    events.some(e => e.type == "serverRequestResolved" && e.requestId == 79),
+    "resolution event emitted for the UI"
+  );
 });
 
 add_task(async function test_agentservice_tool_dispatch() {

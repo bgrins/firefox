@@ -230,6 +230,40 @@ add_task(async function test_user_input_card() {
       ),
       "static summary shows the chosen answer"
     );
+
+    // A second card retired by serverRequest/resolved (e.g. interrupt).
+    AgentService._emit({
+      type: "userInputRequest",
+      requestId: "ui-test-req-2",
+      questions: [
+        {
+          id: "q2",
+          header: "Q2",
+          question: "Still there?",
+          isOther: true,
+          options: [{ label: "Yes", description: "" }],
+        },
+      ],
+      autoResolutionMs: null,
+    });
+    await TestUtils.waitForCondition(
+      () => doc.querySelectorAll(".activity-row.user-input").length == 2,
+      "second card rendered"
+    );
+    AgentService._emit({
+      type: "serverRequestResolved",
+      requestId: "ui-test-req-2",
+      reason: "resolved",
+    });
+    const second = doc.querySelectorAll(".activity-row.user-input")[1];
+    await TestUtils.waitForCondition(
+      () => !second.querySelector("button"),
+      "retired card loses its buttons"
+    );
+    ok(
+      second.textContent.includes("no longer needed"),
+      "retired card explains itself"
+    );
     AgentService._emit({ type: "turnCompleted", status: "completed" });
   });
 });

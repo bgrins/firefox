@@ -562,6 +562,12 @@ ${mountLines}`;
       const timer = lazy.setTimeout(() => {
         this._pendingApprovals.delete(request.id);
         lazy.logConsole.warn(`approval ${request.id} timed out; declining`);
+        this._emit({
+          type: "serverRequestResolved",
+          conversationId: request.params?.threadId,
+          requestId: request.id,
+          reason: "timeout",
+        });
         resolve({ decision: "decline" });
       }, APPROVAL_TIMEOUT_MS);
       this._pendingApprovals.set(request.id, { resolve, timer });
@@ -589,6 +595,12 @@ ${mountLines}`;
       const timer = lazy.setTimeout(() => {
         this._pendingUserInput.delete(request.id);
         lazy.logConsole.warn(`user input ${request.id} timed out; continuing`);
+        this._emit({
+          type: "serverRequestResolved",
+          conversationId,
+          requestId: request.id,
+          reason: "timeout",
+        });
         resolve({ answers: {} });
       }, timeoutMs);
       this._pendingUserInput.set(request.id, {
@@ -759,6 +771,30 @@ ${mountLines}`;
           plan: params.plan ?? [],
         });
         break;
+      // A pending server->client request (approval, user input) was
+      // resolved elsewhere (e.g. the turn was interrupted): stop waiting
+      // and let the UI retire the card. Our reply is ignored by then.
+      case "serverRequest/resolved": {
+        const approval = this._pendingApprovals.get(params.requestId);
+        if (approval) {
+          this._pendingApprovals.delete(params.requestId);
+          lazy.clearTimeout(approval.timer);
+          approval.resolve({ decision: "decline" });
+        }
+        const userInput = this._pendingUserInput.get(params.requestId);
+        if (userInput) {
+          this._pendingUserInput.delete(params.requestId);
+          lazy.clearTimeout(userInput.timer);
+          userInput.resolve({ answers: {} });
+        }
+        this._emit({
+          type: "serverRequestResolved",
+          conversationId,
+          requestId: params.requestId,
+          reason: "resolved",
+        });
+        break;
+      }
       case "item/started":
       case "item/updated":
         if (
