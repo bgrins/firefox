@@ -181,6 +181,62 @@ add_task(async function test_streamed_reasoning() {
   });
 });
 
+add_task(async function test_plan_checklist_rendering() {
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.harness.enabled", true]],
+  });
+  await BrowserTestUtils.withNewTab("about:harness", async browser => {
+    const doc = browser.contentDocument;
+    AgentService._emit({
+      type: "plan",
+      explanation: "Build the app",
+      plan: [
+        { step: "write index.html", status: "inProgress" },
+        { step: "add styling", status: "pending" },
+      ],
+    });
+    await TestUtils.waitForCondition(
+      () => doc.querySelector(".activity-row.plan"),
+      "plan row rendered"
+    );
+    const row = doc.querySelector(".activity-row.plan");
+    is(
+      row.querySelector(".plan-title").textContent,
+      "Build the app",
+      "explanation shown"
+    );
+    is(row.querySelectorAll(".plan-step").length, 2, "two steps");
+    ok(
+      row.querySelector(".plan-step.inProgress").textContent.startsWith("[~]"),
+      "in-progress marker"
+    );
+
+    // Updates replace the same row in place.
+    AgentService._emit({
+      type: "plan",
+      explanation: "",
+      plan: [
+        { step: "write index.html", status: "completed" },
+        { step: "add styling", status: "inProgress" },
+      ],
+    });
+    await TestUtils.waitForCondition(
+      () => row.querySelector(".plan-step.completed"),
+      "step ticked over to completed"
+    );
+    is(
+      doc.querySelectorAll(".activity-row.plan").length,
+      1,
+      "still a single plan row"
+    );
+    ok(
+      row.querySelector(".plan-step.completed").textContent.startsWith("[x]"),
+      "completed marker"
+    );
+    AgentService._emit({ type: "turnCompleted", status: "completed" });
+  });
+});
+
 add_task(async function test_history_resume_replays_journal() {
   await SpecialPowers.pushPrefEnv({
     set: [["browser.harness.enabled", true]],

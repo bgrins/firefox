@@ -608,6 +608,35 @@ function renderItem(item) {
   }
 }
 
+// update_plan checklist: one row per turn, replaced wholesale on each
+// update so step statuses tick over in place.
+function renderPlan(event) {
+  const activity = ensureActivity();
+  let row = activityRows.get("__plan__");
+  if (!row) {
+    activity.steps++;
+    updateActivityLabel(activity);
+    row = document.createElement("div");
+    row.className = "activity-row plan";
+    activity.list.appendChild(row);
+    activityRows.set("__plan__", row);
+    scrollChat();
+  }
+  row.textContent = "";
+  const title = document.createElement("div");
+  title.className = "plan-title";
+  title.textContent = event.explanation || "Plan";
+  row.appendChild(title);
+  for (const { step, status } of event.plan ?? []) {
+    const line = document.createElement("div");
+    line.className = `plan-step ${status}`;
+    const marker =
+      status == "completed" ? "[x]" : status == "inProgress" ? "[~]" : "[ ]";
+    line.textContent = `${marker} ${step}`;
+    row.appendChild(line);
+  }
+}
+
 function renderApproval(event) {
   const activity = ensureActivity();
   activity.details.open = true;
@@ -671,6 +700,9 @@ function onAgentEvent(event) {
       renderItem({ type: "reasoning", id: event.itemId, summary: [buffered] });
       break;
     }
+    case "plan":
+      renderPlan(event);
+      break;
     case "approvalRequest":
       renderApproval(event);
       break;

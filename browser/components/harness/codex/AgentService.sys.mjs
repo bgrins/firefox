@@ -94,7 +94,7 @@ export const AgentService = {
       return;
     }
     const journalable =
-      ["message", "presentFiles", "turnCompleted", "error"].includes(
+      ["message", "presentFiles", "turnCompleted", "error", "plan"].includes(
         event.type
       ) ||
       (event.type == "item" && event.phase == "completed") ||
@@ -298,6 +298,9 @@ something fails, try to fix it yourself before asking the user.
   no musl wheels and cannot be installed here. Browser-only canvas
   libraries (chart.js) do not work either. magick handles raster formats
   (png/jpeg/webp) but cannot convert SVG.
+- You can look at images yourself with the view_image tool (pass a
+  /workspace path): use it to verify a chart or generated image actually
+  renders as intended before presenting it.
 - Python: available via uv (never bare pip; a CPython interpreter is
   preinstalled). Good for data crunching — numpy/pandas install fine:
     uv run --no-project python3 -c 'print(40 + 2)'
@@ -682,6 +685,16 @@ ${mountLines}`;
           conversationId,
           itemId: params.itemId,
           text: "\n\n",
+        });
+        break;
+      // The update_plan tool: a checklist of steps with pending /
+      // inProgress / completed statuses, replaced wholesale on each update.
+      case "turn/plan/updated":
+        this._emit({
+          type: "plan",
+          conversationId,
+          explanation: params.explanation ?? "",
+          plan: params.plan ?? [],
         });
         break;
       case "item/started":

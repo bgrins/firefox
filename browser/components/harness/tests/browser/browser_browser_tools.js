@@ -288,6 +288,17 @@ add_task(async function test_journal_roundtrip() {
     files: [],
   });
   AgentService._maybeJournal({
+    type: "plan",
+    conversationId: id,
+    plan: [{ step: "s", status: "completed" }],
+  });
+  AgentService._maybeJournal({
+    type: "reasoningDelta",
+    conversationId: id,
+    itemId: "r1",
+    text: "x",
+  });
+  AgentService._maybeJournal({
     type: "message",
     conversationId: id,
     text: "done",
@@ -298,7 +309,7 @@ add_task(async function test_journal_roundtrip() {
   const events = await AgentService._readJournal(id);
   Assert.deepEqual(
     events.map(e => e.type),
-    ["userMessage", "item", "presentFiles", "message", "turnCompleted"],
+    ["userMessage", "item", "presentFiles", "plan", "message", "turnCompleted"],
     "deltas and in-progress items are not journaled; the rest replay in order"
   );
   is(events[1].item.command, "ls", "completed item payload preserved");
@@ -320,7 +331,7 @@ add_task(async function test_journal_roundtrip() {
     text: "stray",
   });
   await AgentService._journalWrites;
-  is((await AgentService._readJournal(id)).length, 5, "persist:false skipped");
+  is((await AgentService._readJournal(id)).length, 6, "persist:false skipped");
   is(
     (await AgentService._readJournal("never-created")).length,
     0,
@@ -331,7 +342,7 @@ add_task(async function test_journal_roundtrip() {
   await IOUtils.writeUTF8(AgentService._journalPath(id), '{"type":"mess', {
     mode: "appendOrCreate",
   });
-  is((await AgentService._readJournal(id)).length, 5, "torn tail line ignored");
+  is((await AgentService._readJournal(id)).length, 6, "torn tail line ignored");
 });
 
 add_task(async function test_agentservice_tool_dispatch() {
