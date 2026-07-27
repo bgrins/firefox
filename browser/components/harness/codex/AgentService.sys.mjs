@@ -318,7 +318,7 @@ something fails, try to fix it yourself before asking the user.
   files into /workspace/sites/<name>/ (lowercase name; must include
   index.html) and call present_files with that path. The site renders live
   in the chat at its own origin (harness-site://<name>/) and KEEPS state:
-  use IndexedDB for persistence (localStorage does not work here). You can
+  localStorage and IndexedDB both persist per site across restarts. You can
   iterate — edit the files and the user reloads. Multi-file is fine (css,
   js, assets, fetch of same-origin files). External network is blocked.
   For TSX/React, bundle into the site:
