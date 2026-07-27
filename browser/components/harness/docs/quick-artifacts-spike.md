@@ -197,6 +197,39 @@ to evaluate when this graduates from spike:
   but if the policy can be made inert it collapses the platform work to
   ~zero.
 
+**Assessment outcome (2026-07-25): keep `harness-site://`; do not rework
+onto moz-extension.** The deep-dive found one decisive blocker: every
+top-level moz-extension load routes to the single shared "extension"
+remote type (dom/ipc/ProcessIsolation.cpp:360-367, :571-575) — no
+origin-keyed variant exists — so all sites would share one process with
+each other *and* with real extensions' privileged pages, surrendering the
+per-site `webIsolated=harness-site://<name>` isolation we have today.
+Meanwhile the "scattered allowlist" cost turns out bounded, because
+moz-extension itself is threaded through the platform via the same lists
+we already edited. Remaining gaps close with roughly two one-line entries:
+
+- localStorage + dom/clients: add `harness-site` to the scheme match in
+  `netwerk/base/mozurl/src/lib.rs:274` (`get_origin`); for unlisted
+  schemes it fabricates a fresh null-principal origin per call, which is
+  exactly why ClientValidation fails today.
+- BiDi automation: one entry in `webdriverSafeSchemes`
+  (remote/shared/BrowsingContextUtils.sys.mjs:16). Notably moz-extension
+  would NOT have fixed this — BiDi skips addon-principal contexts
+  entirely (Bug 1755014).
+- `location.origin === "null"` should be re-tested: with
+  URI_HAS_WEB_EXPOSED_ORIGIN already set, nsContentUtils.cpp:8322-8334
+  should serialize a real origin; the observed null may have been
+  `new URL(...).origin` (rust-url), not `window.location.origin`.
+
+Also noted either way: site deletion must call
+`qms.clearStoragesForPrincipal` explicitly — harness-site origins (like
+moz-extension ones) are never LRU-evicted.
+
+A bare synthetic policy was verified feasible (no `browser.*` exposure
+without per-extension sharedData; strict per-policy CSP; zero-code
+serving via protocol substitution) and remains the documented fallback if
+upstreaming the mozurl origin entry is rejected.
+
 ### How "real" can scheme origins be? (checked in-tree)
 
 Custom-scheme sites can behave like real origins to a much greater degree
