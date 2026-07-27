@@ -244,9 +244,14 @@ export const CodexExecBridge = {
       case "fs/writeFile": {
         const path = this._allowedPath(params.path, { write: true });
         this._audit(method, path);
-        await this._guest(`base64 -d > ${shQuote(path)}`, {
-          stdin: params.dataBase64,
-        });
+        // apply_patch "add" writes without a prior createDirectory; create
+        // parents so new files in fresh subdirectories just work.
+        await this._guest(
+          `mkdir -p "$(dirname ${shQuote(path)})" && base64 -d > ${shQuote(path)}`,
+          {
+            stdin: params.dataBase64,
+          }
+        );
         return {};
       }
       case "fs/createDirectory": {

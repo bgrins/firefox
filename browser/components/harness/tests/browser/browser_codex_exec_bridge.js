@@ -170,6 +170,17 @@ add_task(async function test_exec_bridge_routing() {
     "fs read/write round-trip"
   );
 
+  // apply_patch "add" writes into directories that do not exist yet;
+  // writeFile must create parents rather than fail.
+  await client.request("fs/writeFile", {
+    path: "file:///workspace/sites/fresh-dir/index.html",
+    dataBase64: b64("nested"),
+  });
+  const nested = await client.request("fs/readFile", {
+    path: "file:///workspace/sites/fresh-dir/index.html",
+  });
+  is(fromB64(nested.dataBase64), "nested", "write creates parent directories");
+
   const hostSide = PathUtils.join(HarnessVM.workspacePath, "bridge.txt");
   is(
     await IOUtils.readUTF8(hostSide),
