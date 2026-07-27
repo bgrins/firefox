@@ -87,10 +87,12 @@ add_task(async function test_image_manager_remote() {
   manifest.files[1].url = `${base}/rootfs`;
   registerCleanupFunction(() => new Promise(resolve => server.stop(resolve)));
 
+  // The mock server is http; production requires https (tested below).
   await SpecialPowers.pushPrefEnv({
     set: [
       ["browser.harness.image.source", "remote"],
       ["browser.harness.image.manifestUrl", `${base}/manifest.json`],
+      ["browser.harness.image.allowInsecure", true],
     ],
   });
 
@@ -123,6 +125,42 @@ add_task(async function test_image_manager_remote() {
   await HarnessImageManager.resolve();
   is(downloads, 2, "cached image is not re-downloaded");
 
+  // Concurrent resolves share one install (single-flight); the manifest
+  // version bump forces a fresh install for both callers.
+  manifest.version = "50";
+  const before = downloads;
+  const [a, b] = await Promise.all([
+    HarnessImageManager.resolve(),
+    HarnessImageManager.resolve(),
+  ]);
+  is(a.kernelPath, b.kernelPath, "concurrent resolves agree");
+  is(downloads - before, 2, "concurrent resolves download once");
+
+  // A manifest version that traverses out of the image root must be
+  // rejected before any filesystem operation (it feeds a recursive delete).
+  for (const version of ["..", "../..", "a/b", ".", ""]) {
+    manifest.version = version;
+    await Assert.rejects(
+      HarnessImageManager.resolve(),
+      /invalid image version|malformed/,
+      `version ${JSON.stringify(version)} rejected`
+    );
+  }
+  ok(
+    await IOUtils.exists(PathUtils.join(PathUtils.profileDir, "harness")),
+    "profile harness dir survives hostile versions"
+  );
+
+  // Artifact names are plain filenames only.
+  manifest.version = "44";
+  manifest.files[0].name = "..";
+  await Assert.rejects(
+    HarnessImageManager.resolve(),
+    /invalid artifact name/,
+    "traversal artifact name rejected"
+  );
+  manifest.files[0].name = "libkrunfw.5.dylib";
+
   // Corrupt manifest hash: install must fail and leave no valid image.
   manifest.version = "43";
   manifest.files[0].sha256 = "0".repeat(64);
@@ -137,6 +175,17 @@ add_task(async function test_image_manager_remote() {
     )),
     "torn install leaves no versioned dir"
   );
+
+  // Without the insecure override, http URLs are refused outright.
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.harness.image.allowInsecure", false]],
+  });
+  await Assert.rejects(
+    HarnessImageManager.resolve(),
+    /must be https/,
+    "http manifest URL rejected without override"
+  );
+  await SpecialPowers.popPrefEnv();
 
   // Build source still resolves to objdir paths.
   await SpecialPowers.pushPrefEnv({

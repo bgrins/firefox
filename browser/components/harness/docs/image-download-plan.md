@@ -155,3 +155,37 @@ third-party release page.
 - **Windows/Linux**: this plan is macOS-shaped (libkrun/HVF). KVM/Linux is
   plausible with the same delivery; Windows would be a different substrate
   entirely (WSL2/Hyper-V) — delivery mechanism still applies.
+
+## Implementation review (2026-07-25)
+
+A severity-ranked review of HarnessImageManager against GMPInstallManager
+and Remote Settings attachment patterns. Fixed immediately:
+
+- **Manifest `version` was unvalidated** and flowed into
+  `PathUtils.join` + a recursive delete: `version: "../.."` would have
+  recursively deleted the profile. Both `version` and file `name` now
+  require plain-filename shape (and reject `.`/`..`).
+- **http URLs refused** (`browser.harness.image.allowInsecure` pref for
+  the test server): the payload is a dylib the helper dlopens, so plain
+  http was native-code-execution-via-MITM.
+- **Single-flight resolve()**: concurrent VM starts previously raced the
+  same `.tmp` stage dir (mutual deletion, torn installs); now they share
+  one install promise.
+
+Known gaps, deliberately deferred (severity order):
+
+1. No content signing — the sha256s come from the same unauthenticated
+   manifest; integrity only, zero authenticity. This is the ship-blocker
+   the RS plan addresses; pointless to interim-fix at spike stage.
+2. Downloads buffer fully in memory (~250 MB transient); should stream to
+   a temp file like ProductAddonChecker, and the manifest should carry
+   `size` to enforce a cap.
+3. Offline hard-fails even with a valid installed image (manifest fetch
+   precedes the `.complete` check); should fall back to the newest
+   installed version and throttle checks GMP-style (daily + buildID).
+4. No retry/backoff/timeout on fetches; a stalled connection hangs VM
+   start indefinitely.
+5. Tar extraction trusts /usr/bin/tar's default traversal refusals; add a
+   hostile-tarball test before this matters.
+6. Install failures emit no imageProgress event (UI sees the error via
+   the VM error path only).

@@ -77,15 +77,42 @@ export const HarnessImageManager = {
     return PathUtils.join(PathUtils.profileDir, "harness", "image");
   },
 
+  // Version and artifact names become path components under the image root
+  // (and old versions are recursively deleted), so both must be plain
+  // filenames: no separators, no "." / ".." traversal.
+  _validName(name) {
+    return (
+      typeof name == "string" &&
+      /^[a-zA-Z0-9._-]+$/.test(name) &&
+      name != "." &&
+      name != ".."
+    );
+  },
+
+  _resolving: null,
+
   /**
    * Returns { kernelPath, templatePath }, downloading and installing the
    * image first when the remote source is selected and not yet installed.
+   * Concurrent callers (multiple VM sessions starting) share one install.
    */
   async resolve() {
     if (this.source != "remote") {
       return this._buildPaths();
     }
+    if (!this._resolving) {
+      this._resolving = this._resolveRemote().finally(() => {
+        this._resolving = null;
+      });
+    }
+    return this._resolving;
+  },
+
+  async _resolveRemote() {
     const manifest = await this._fetchManifest();
+    if (!this._validName(manifest.version)) {
+      throw new Error(`invalid image version: ${manifest.version}`);
+    }
     const installDir = PathUtils.join(this._imageRoot(), manifest.version);
     const completeMarker = PathUtils.join(installDir, ".complete");
     if (!(await IOUtils.exists(completeMarker))) {
@@ -109,6 +136,7 @@ export const HarnessImageManager = {
         "browser.harness.image.source is 'remote' but no manifestUrl is set"
       );
     }
+    this._checkScheme(url);
     const response = await fetch(url, { credentials: "omit" });
     if (!response.ok) {
       throw new Error(`image manifest fetch failed (${response.status})`);
@@ -128,7 +156,7 @@ export const HarnessImageManager = {
     await IOUtils.makeDirectory(stageDir, { createAncestors: true });
     try {
       for (const file of manifest.files) {
-        if (!/^[a-zA-Z0-9._-]+$/.test(file.name)) {
+        if (!this._validName(file.name)) {
           throw new Error(`invalid artifact name: ${file.name}`);
         }
         const target = PathUtils.join(stageDir, file.name);
@@ -165,8 +193,20 @@ export const HarnessImageManager = {
     }
   },
 
+  // The payload includes a dylib the VM helper dlopens, so plain http is
+  // native-code-execution-via-MITM; require https outside of tests.
+  _checkScheme(url) {
+    if (
+      !url.startsWith("https://") &&
+      !Services.prefs.getBoolPref("browser.harness.image.allowInsecure", false)
+    ) {
+      throw new Error(`image URLs must be https: ${url}`);
+    }
+  },
+
   async _download(file, target) {
     lazy.logConsole.log(`downloading ${file.url}`);
+    this._checkScheme(file.url);
     const response = await fetch(file.url, { credentials: "omit" });
     if (!response.ok) {
       throw new Error(`download of ${file.name} failed (${response.status})`);
