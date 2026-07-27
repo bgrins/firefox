@@ -210,4 +210,5 @@ sequenceDiagram
 
 Deeper reading: [README](../README.md) (setup, dev gotchas),
 [codex-integration-plan](codex-integration-plan.md) (decisions + follow-ups),
-[proxy-plan](proxy-plan.md), [model-providers-spike](model-providers-spike.md).
+[proxy-plan](proxy-plan.md), [model-providers-spike](model-providers-spike.md),
+[mcp-plan](mcp-plan.md) (MCP findings + guest-side server plan).
