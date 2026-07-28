@@ -103,9 +103,9 @@ add_task(async function test_harness_site_scheme() {
       is(first[2], "1", "localStorage write/read works (mozurl origin)");
       is(first[3], "alpha-data", "same-origin fetch works");
       is(first[4], "true", "secure context (URI_IS_POTENTIALLY_TRUSTWORTHY)");
-      // WHATWG serializes non-special-scheme origins as opaque; the internal
-      // principal origin is real (asserted below via the parent).
-      todo_is(first[5], "harness-site://alpha.harness", "web-exposed origin");
+      // URI_IS_LOCAL_RESOURCE gives the scheme a real web-exposed origin
+      // serialization (location.origin) despite being non-special.
+      is(first[5], "harness-site://alpha.harness", "web-exposed origin");
       const principal =
         browser.browsingContext.currentWindowGlobal.documentPrincipal;
       is(
@@ -181,6 +181,7 @@ add_task(async function test_harness_site_scheme() {
     '{"value": "v1"}'
   );
   await writeSite("dyn.harness", {
+    "worker.js": `postMessage("worker-started");`,
     "index.html": `<!DOCTYPE html><html><head></head><body>
 <div id="wasm">pending</div><div id="data">pending</div>
 <script>
@@ -229,6 +230,20 @@ add_task(async function test_harness_site_scheme() {
       await TestUtils.waitForCondition(
         async () => (await readState("data")) == "data:v2",
         "rewritten data file served fresh to the open site"
+      );
+
+      // Workers do not fully run on this scheme yet (script load never
+      // completes), but creating one must not crash the content process:
+      // without URI_IS_LOCAL_RESOURCE it tripped the COEP release assert
+      // in WorkerPrivate::InheritOwnerEmbedderPolicyOrNull.
+      await SpecialPowers.spawn(browser, [], async () => {
+        new content.Worker("worker.js");
+        await new Promise(resolve => content.setTimeout(resolve, 1000));
+      });
+      is(
+        await readState("wasm"),
+        "wasm-ok",
+        "content process survives Worker creation"
       );
     }
   );
