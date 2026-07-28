@@ -298,6 +298,12 @@ something fails, try to fix it yourself before asking the user.
   package.json needed (write chart.ts with apply_patch, then run it):
     bun run chart.ts
   Plain node is also available for stdlib-only one-shots (node script.mjs).
+- SQLite from scripts: bun has a BUILT-IN driver — no npm install:
+    import { Database } from "bun:sqlite";
+    const db = new Database("/workspace/places.sqlite", { readonly: true });
+  Use it for JSON exports and aggregation instead of reaching for
+  better-sqlite3 (not installed) or shelling out per query. Python's
+  stdlib sqlite3 works too.
 - Charts and figures: generate SVG (d3, or write the SVG markup directly),
   save it under /workspace, and show it with present_files — SVG renders
   inline for the user, no conversion needed. Do NOT use matplotlib: it has

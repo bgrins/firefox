@@ -152,6 +152,20 @@ add_task(async function test_harness_vm_smoke() {
   is(query.exitCode, 0, "guest sqlite3 queries the places snapshot");
   ok(/^\d+$/.test(query.stdout.trim()), `row count (${query.stdout.trim()})`);
 
+  // bun's built-in sqlite driver (the sandbox brief steers scripts to it).
+  const bunSqlite = await HarnessVM.exec(
+    'bun -e \'import { Database } from "bun:sqlite"; ' +
+      'const db = new Database("/workspace/places.sqlite", { readonly: true }); ' +
+      'console.log(JSON.stringify(db.query("select count(*) as c from moz_places").get()));\'',
+    { timeoutMs: 30000 }
+  );
+  is(
+    bunSqlite.exitCode,
+    0,
+    `bun:sqlite works (${bunSqlite.stderr.slice(0, 80)})`
+  );
+  ok(/"c":\d+/.test(bunSqlite.stdout), "bun:sqlite queried the snapshot");
+
   await stopVM();
   is(HarnessVM.state, "stopped", "VM stops cleanly");
 
