@@ -344,6 +344,21 @@ something fails, try to fix it yourself before asking the user.
   For TSX/React, bundle into the site:
     bun build src/app.tsx --outdir /workspace/sites/<name>
   Use sites/scratch/ for quick throwaway previews.
+- Sites can be DYNAMIC without a server, two patterns:
+  - Live data files: a site fetching same-origin JSON
+    (fetch("./data/stats.json")) reads the file fresh from disk on every
+    fetch — rewrite files under /workspace/sites/<name>/data/ on a later
+    turn and an open site sees the update on its next fetch (poll or add
+    a refresh button).
+  - Query in the page with WASM sqlite: copy a database into the site's
+    data/ dir and query it client-side with sql.js (bun add sql.js, then
+    copy node_modules/sql.js/dist/sql-wasm.{js,wasm} into the site and
+    load them same-origin). Good to a few tens of MB (whole file loads
+    into memory); beyond that, pre-aggregate to JSON instead. Prefer
+    exporting only needed columns over shipping raw places.sqlite.
+  - There is NO server: sites cannot open ports, reach the network, or
+    push data back to you. If an app truly needs request-time compute,
+    tell the user rather than faking it.
 - For a one-shot page (no state, single file), a self-contained .html
   anywhere in /workspace presented via present_files opens as a widget;
   inline all CSS/JS.

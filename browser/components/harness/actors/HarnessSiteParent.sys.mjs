@@ -5,9 +5,13 @@
 // Network-blocking CSP injected into every served HTML document: sites are
 // agent-authored (and may embed data derived from untrusted pages), so they
 // must not exfiltrate. 'self' allows a site's own assets and fetches.
+// 'wasm-unsafe-eval' permits client-side WASM (e.g. sql.js over a shipped
+// database); it grants no capability inline JS lacks and the exfiltration
+// guard is connect-src 'self' plus the scheme having no network at all.
 const SITE_CSP =
   `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; ` +
-  `script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; ` +
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; ` +
+  `style-src 'self' 'unsafe-inline'; ` +
   `img-src 'self' data: blob:; media-src 'self' data: blob:; ` +
   `font-src 'self' data:; connect-src 'self';">`;
 
@@ -27,6 +31,7 @@ const MIME_BY_EXTENSION = {
   txt: "text/plain",
   csv: "text/plain",
   woff2: "font/woff2",
+  wasm: "application/wasm",
 };
 
 /**

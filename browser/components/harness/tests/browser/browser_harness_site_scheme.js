@@ -159,6 +159,80 @@ add_task(async function test_harness_site_scheme() {
     }
   );
 
+  // Dynamic-without-a-server patterns: WASM instantiation under the site
+  // CSP, and data files re-read fresh from disk on every same-origin fetch.
+  const dynRoot = PathUtils.join(
+    PathUtils.profileDir,
+    "harness",
+    "workspace",
+    "sites",
+    "dyn.harness"
+  );
+  await IOUtils.makeDirectory(PathUtils.join(dynRoot, "data"), {
+    createAncestors: true,
+  });
+  // Minimal valid (empty) wasm module: magic + version.
+  await IOUtils.write(
+    PathUtils.join(dynRoot, "mod.wasm"),
+    Uint8Array.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00])
+  );
+  await IOUtils.writeUTF8(
+    PathUtils.join(dynRoot, "data", "live.json"),
+    '{"value": "v1"}'
+  );
+  await writeSite("dyn.harness", {
+    "index.html": `<!DOCTYPE html><html><head></head><body>
+<div id="wasm">pending</div><div id="data">pending</div>
+<script>
+  (async () => {
+    try {
+      await WebAssembly.instantiateStreaming(fetch("mod.wasm"));
+      document.getElementById("wasm").textContent = "wasm-ok";
+    } catch (e) {
+      document.getElementById("wasm").textContent = "wasm-error:" + e.name;
+    }
+    setInterval(async () => {
+      const data = await (await fetch("data/live.json")).json();
+      document.getElementById("data").textContent = "data:" + data.value;
+    }, 100);
+  })();
+</script></body></html>`,
+  });
+  await BrowserTestUtils.withNewTab(
+    "harness-site://dyn.harness/",
+    async browser => {
+      const readState = id =>
+        SpecialPowers.spawn(
+          browser,
+          [id],
+          elementId => content.document.getElementById(elementId)?.textContent
+        );
+      await TestUtils.waitForCondition(
+        async () => (await readState("wasm")) != "pending",
+        "wasm attempt settled"
+      );
+      is(
+        await readState("wasm"),
+        "wasm-ok",
+        "instantiateStreaming works (CSP wasm-unsafe-eval + clean MIME)"
+      );
+      await TestUtils.waitForCondition(
+        async () => (await readState("data")) == "data:v1",
+        "initial data file value fetched"
+      );
+      // The agent rewrites the data file; the open site sees it on its
+      // next fetch with no server and no reload.
+      await IOUtils.writeUTF8(
+        PathUtils.join(dynRoot, "data", "live.json"),
+        '{"value": "v2"}'
+      );
+      await TestUtils.waitForCondition(
+        async () => (await readState("data")) == "data:v2",
+        "rewritten data file served fresh to the open site"
+      );
+    }
+  );
+
   // BiDi/webdriver can automate sites without system access (the scheme is
   // in webdriverSafeSchemes; agents QA their own published sites this way).
   const { isWebdriverSafeNavigationURL } = ChromeUtils.importESModule(

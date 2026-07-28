@@ -51,7 +51,16 @@ export class HarnessSiteProtocolHandler {
         stream.setData(buffer, 0, buffer.byteLength);
         channel.contentStream = stream;
         channel.contentType = contentType;
-        channel.contentCharset = "utf-8";
+        // A charset parameter on binary types breaks strict MIME checks
+        // (WebAssembly.instantiateStreaming requires application/wasm).
+        if (
+          contentType.startsWith("text/") ||
+          contentType == "application/json" ||
+          contentType == "application/javascript" ||
+          contentType == "image/svg+xml"
+        ) {
+          channel.contentCharset = "utf-8";
+        }
       })
       .catch(e => {
         lazy.logConsole.warn(`serve failed for ${uri.spec}: ${e.message}`);
