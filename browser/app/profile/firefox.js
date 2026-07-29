@@ -367,6 +367,14 @@ pref("browser.startup.windowsLaunchOnLogin.alreadyApplied", false);
 // Show an upgrade dialog on major upgrades.
 pref("browser.startup.upgradeDialog.enabled", false);
 
+// EXPERIMENT (see perf-lab/README.md): skip startup work that only exists for
+// human users, for instances that exist to be driven by an automated client.
+// Read once at startup by BrowserUtils.callModulesFromCategory.
+pref("browser.slimui.enabled", false);
+// Comma-separated override of the built-in skip list. Entries prefixed with "-"
+// are removed from the default list; a list without any prefix replaces it.
+pref("browser.slimui.skip", "");
+
 pref("browser.chrome.site_icons", true);
 // browser.warnOnQuit == false will override all other possible prompts when quitting or restarting
 pref("browser.warnOnQuit", true);

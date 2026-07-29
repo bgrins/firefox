@@ -19,6 +19,156 @@ XPCOMUtils.defineLazyServiceGetter(
   Ci.nsIIDNService
 );
 
+// EXPERIMENT (see perf-lab/README.md): when a Firefox instance exists only to be
+// driven by an automated client, the startup work below has no consumer. Gated on
+// browser.slimui.enabled. Names are the category entry values, i.e.
+// fn._descriptiveName; `perf-lab/startup_bench.py categories` lists the live set.
+const SLIM_UI_DEFAULT_SKIP = [
+  // browser-before-ui-startup
+  "AboutHomeStartupCache.init",
+  "AccountsGlue.init",
+  "BuiltInThemes.maybeInstallActiveBuiltInTheme",
+  "Normandy.init",
+  "ResetPBMPanel.init",
+  // browser-first-window-ready
+  "AIWindow.onFirstWindowReady",
+  // NOT AboutNewTab.init: skipping it leaves the about:newtab protocol handler
+  // unregistered, so AboutNewTabRedirector throws NS_ERROR_NOT_AVAILABLE when
+  // anything resolves about:newtab. Use browser.newtab.preload=false instead.
+  "CaptchaDetectionPingUtils.init",
+  "DoHController.init",
+  "IPProtectionActivator.init",
+  "NewTabUtils.init",
+  "PageActions.init",
+  "PageThumbs.init",
+  "PlacesBrowserStartup.onFirstWindowReady",
+  "ProcessHangMonitor.init",
+  "ProfilesDatastoreService.init",
+  "SandboxUtils.observeContentSandboxPref",
+  "SearchWidgetTracker.init",
+  "SelectableProfileService.init",
+  "TabCrashHandler.init",
+  "TabNotesController.browserFirstWindowReady",
+  // browser-idle-startup
+  "Blocklist.loadBlocklistAsync",
+  "BuiltInThemes.ensureBuiltInThemes",
+  "ColorwayThemeMigration.maybeWarn",
+  "ContentRelevancyManager.init",
+  "GenAI.init",
+  "MonitorAgent.init",
+  "PlacesBrowserStartup.maybeAddImportButton",
+  "PlacesUIUtils.unblockToolbars",
+  "QuickSuggest.init",
+  "RFPHelper.init",
+  "RemoteSecuritySettings.init",
+  "RustLogForwarder.init",
+  "SERPCategorization.init",
+  "StartupOSIntegration.onStartupIdle",
+  "StartupTelemetry.browserIdleStartup",
+  "TabUnloader.init",
+  "UpdateListener.maybeShowUnsupportedNotification",
+  "UpdatePolicyEnforcer.registerObservers",
+  "UrlbarSearchTermsPersistence.init",
+  // browser-best-effort-idle-startup
+  "StartupTelemetry.bestEffortIdleStartup",
+  // browser-window-domcontentloaded
+  "FirefoxViewHandler.init",
+  "gUnifiedExtensions.init",
+  // browser-window-load-before-sessionstore-init
+  "CaptivePortalWatcher.init",
+  "DownloadsButton.init",
+  // NOT SidebarController.init: other consumers (SessionStore via BackupService)
+  // call into it unconditionally and hit an undefined this._state.
+  // browser-window-load
+  "BrowserPageActions.init",
+  "CombinedStopReload.ensureInitialized",
+  "CustomKeys.initWindow",
+  "TaskbarTabsChrome.init",
+  "ToolbarKeyboardNavigator.init",
+  "Win10TabletModeUpdater.init",
+  // browser-window-delayed-startup
+  "AIWindow.init",
+  "BookmarkingUI.init",
+  "ContentAnalysis.initialize",
+  "DevelopmentHelpers.init",
+  "DownloadsButton.initializeIndicator",
+  "HomePage.delayedStartup",
+  "LinkPreview.init",
+  "PlacesToolbarHelper.init",
+  "ReducedProtectionNotification.observePref",
+  "ReportBrokenSite.init",
+  "RosettaUtils.maybeWarnAboutRosetta",
+  "SandboxUtils.maybeWarnAboutDisabledContentSandbox",
+  "SearchUIUtils.init",
+  "TabNotesController.browserWindowDelayedStartup",
+  "TaskbarTabsPageAction.init",
+  "ctrlTab.observePref",
+  // NOT PanelUI.init: leaves this.panel undefined, and panelUI.js:198 is reached
+  // from window setup regardless.
+  "gDataNotificationInfoBar.init",
+  "gExtensionsNotifications.init",
+  "gProtectionsHandler.init",
+  "gTrustPanelHandler.init",
+  // browser-window-sessionstore-initialized
+  "PanicButtonNotifier.init",
+  "SidebarController.startDelayedLoad",
+  "gRestoreLastSessionObserver.init",
+];
+
+// Read once rather than via defineLazyPreferenceGetter: startup work that has
+// already been skipped cannot be un-skipped, so a live-updating pref would only
+// be misleading.
+ChromeUtils.defineLazyGetter(lazy, "SlimUI", () => {
+  const disabled = { enabled: false, shouldSkip: () => false };
+  if (!Services.prefs.getBoolPref("browser.slimui.enabled", false)) {
+    return disabled;
+  }
+
+  // Overridable so variants can be bisected without repacking omni.ja.
+  // "-Foo.bar" removes an entry from the default list; a bare list replaces it.
+  let raw = Services.prefs.getCharPref("browser.slimui.skip", "").trim();
+  let skipList;
+  if (!raw) {
+    skipList = new Set(SLIM_UI_DEFAULT_SKIP);
+  } else {
+    let entries = raw
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean);
+    let removals = entries.filter(e => e.startsWith("-"));
+    if (removals.length == entries.length) {
+      skipList = new Set(SLIM_UI_DEFAULT_SKIP);
+      for (let entry of removals) {
+        skipList.delete(entry.slice(1));
+      }
+    } else {
+      skipList = new Set(entries.filter(e => !e.startsWith("-")));
+    }
+  }
+
+  let skipped = [];
+  let matched = new Set();
+  return {
+    enabled: true,
+    get report() {
+      return {
+        skipped,
+        // Entries that never matched: almost always a stale or typo'd name,
+        // which would otherwise silently measure as "no win".
+        unmatched: [...skipList].filter(name => !matched.has(name)).sort(),
+      };
+    },
+    shouldSkip(categoryName, name) {
+      if (!skipList.has(name)) {
+        return false;
+      }
+      matched.add(name);
+      skipped.push(`${categoryName}:${name}`);
+      return true;
+    },
+  };
+});
+
 ChromeUtils.defineLazyGetter(lazy, "CatManListenerManager", () => {
   const CatManListenerManager = {
     cachedModules: {},
@@ -140,6 +290,14 @@ function stringPrefToSet(prefVal) {
  * Please avoid expanding this if possible.
  */
 export var BrowserUtils = {
+  /**
+   * What the SLIM_UI experiment actually skipped this session, or null when the
+   * mode is off. `unmatched` lists skip entries that matched nothing.
+   */
+  get slimUIReport() {
+    return lazy.SlimUI.enabled ? lazy.SlimUI.report : null;
+  },
+
   /**
    * Return or create a principal with the content of one, and the originAttributes
    * of an existing principal (e.g. on a docshell, where the originAttributes ought
@@ -796,6 +954,9 @@ export var BrowserUtils = {
     for (let listener of lazy.CatManListenerManager.getListeners(
       categoryName
     )) {
+      if (lazy.SlimUI.shouldSkip(categoryName, listener._descriptiveName)) {
+        continue;
+      }
       if (idleDispatch) {
         allTasks.push(
           new Promise(resolve => {
