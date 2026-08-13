@@ -588,25 +588,41 @@ export const HarnessVM = {
   },
 
   session(id = "default") {
-    if (id == "default" && !this._sessions.has(id)) {
-      // Spike: the mxc backend (docs/mxc-spike.md) executes commands on
-      // the HOST under Seatbelt policies instead of in the micro-VM.
-      const backend = Services.prefs.getStringPref(
-        "browser.harness.backend",
-        "vm"
-      );
-      const options = {
-        id,
-        baseDir: PathUtils.join(PathUtils.profileDir, "harness"),
-      };
-      this._sessions.set(
-        id,
-        backend == "mxc"
-          ? new lazy.MxcSession(options)
-          : new HarnessSession(options)
-      );
+    if (id != "default") {
+      return this._sessions.get(id);
     }
-    return this._sessions.get(id);
+    // Spike: the mxc backend (docs/mxc-spike.md) executes commands on
+    // the HOST under Seatbelt policies instead of in the micro-VM.
+    const backend = Services.prefs.getStringPref(
+      "browser.harness.backend",
+      "vm"
+    );
+    const current = this._sessions.get(id);
+    const wantMxc = backend == "mxc";
+    if (current && current instanceof lazy.MxcSession == wantMxc) {
+      return current;
+    }
+    if (current && current.state != "stopped") {
+      // Never swap a live session out from under its consumers; the pref
+      // takes effect once it stops.
+      return current;
+    }
+    const options = {
+      id,
+      baseDir: PathUtils.join(PathUtils.profileDir, "harness"),
+    };
+    const session = wantMxc
+      ? new lazy.MxcSession(options)
+      : new HarnessSession(options);
+    if (current) {
+      // Keep UI/event subscribers attached across the swap.
+      for (const listener of current._listeners) {
+        session.addListener(listener);
+      }
+      session._emit({ type: "state", state: session.state });
+    }
+    this._sessions.set(id, session);
+    return session;
   },
 
   /**

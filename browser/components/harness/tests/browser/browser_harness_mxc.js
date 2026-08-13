@@ -12,7 +12,10 @@ const { MxcSession, mxcBinaryPath } = ChromeUtils.importESModule(
 
 add_task(async function test_mxc_backend() {
   if (!(await IOUtils.exists(mxcBinaryPath()))) {
-    todo(false, "mxc not built; run browser/components/harness/vm/setup-mxc.sh");
+    todo(
+      false,
+      "mxc not built; run browser/components/harness/vm/setup-mxc.sh"
+    );
     return;
   }
   const baseDir = PathUtils.join(PathUtils.profileDir, "mxc-test");
@@ -113,20 +116,31 @@ add_task(async function test_backend_pref_selects_mxc() {
   const { HarnessVM } = ChromeUtils.importESModule(
     "moz-src:///browser/components/harness/HarnessVM.sys.mjs"
   );
+  is(HarnessVM.state, "stopped", "default session idle before the flip");
+  const events = [];
+  const listener = event => events.push(event);
+  HarnessVM.addListener(listener);
+  registerCleanupFunction(() => HarnessVM.removeListener(listener));
+
   await SpecialPowers.pushPrefEnv({
     set: [["browser.harness.backend", "mxc"]],
   });
-  HarnessVM._sessions.delete("default");
   ok(
     HarnessVM.session() instanceof MxcSession,
-    "backend pref selects the mxc session"
+    "a stopped session swaps to the mxc backend when the pref flips"
   );
   is(
     HarnessVM.session().agent.workspaceRoot,
     HarnessVM.session().workspacePath,
     "bridge path root is the host workspace under mxc"
   );
-  HarnessVM._sessions.delete("default");
+  ok(
+    events.some(event => event.type == "state"),
+    "subscribers survive the swap"
+  );
   await SpecialPowers.popPrefEnv();
-  HarnessVM._sessions.delete("default");
+  ok(
+    !(HarnessVM.session() instanceof MxcSession),
+    "flipping back restores the vm backend"
+  );
 });
