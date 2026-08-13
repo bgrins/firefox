@@ -7,10 +7,7 @@ import {
   refreshPlacesSnapshotIfStale,
 } from "moz-src:///browser/components/harness/PlacesSnapshot.sys.mjs";
 
-import {
-  setTimeout,
-  clearTimeout,
-} from "resource://gre/modules/Timer.sys.mjs";
+import { setTimeout, clearTimeout } from "resource://gre/modules/Timer.sys.mjs";
 
 const lazy = {};
 
@@ -148,7 +145,11 @@ class MxcAgent {
         timeout: timeoutMs,
       },
       filesystem: {
-        readwritePaths: [session.workspacePath, session.homePath, session.tmpPath],
+        readwritePaths: [
+          session.workspacePath,
+          session.homePath,
+          session.tmpPath,
+        ],
         readonlyPaths: ["/opt/homebrew"],
       },
       network: { defaultPolicy: "block" },
@@ -337,8 +338,9 @@ export class MxcSession {
     return this.agent.exec(cmd, options);
   }
 
-  snapshotPlacesToWorkspace() {
-    return snapshotPlacesTo(this.workspacePath, message => this._log(message));
+  async snapshotPlacesToWorkspace() {
+    await snapshotPlacesTo(this.workspacePath, message => this._log(message));
+    return PathUtils.join(this.workspacePath, "places.sqlite");
   }
 
   refreshPlacesSnapshotIfStale(maxAgeMs) {

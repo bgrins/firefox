@@ -476,7 +476,13 @@ ${mountLines}`;
     } else {
       environmentId = await this._ensureEnvironment(client);
     }
-    params.environments = [{ environmentId, cwd: "/workspace" }];
+    params.environments = [
+      {
+        environmentId,
+        cwd: (sessionRecord.session ?? lazy.HarnessVM.session()).agent
+          .workspaceRoot,
+      },
+    ];
     if (
       Services.prefs.getBoolPref("browser.harness.browserTools.enabled", true)
     ) {
@@ -526,7 +532,7 @@ ${mountLines}`;
     await this._ensureEnvironment(client);
     const result = await client.request("thread/resume", {
       threadId: conversationId,
-      cwd: "/workspace",
+      cwd: lazy.HarnessVM.session().agent.workspaceRoot,
     });
     this._conversations.set(conversationId, {
       activeTurnId: null,

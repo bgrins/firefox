@@ -6,9 +6,16 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   FileUtils: "resource://gre/modules/FileUtils.sys.mjs",
+  HarnessVM: "moz-src:///browser/components/harness/HarnessVM.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
 });
+
+// Sandbox-visible workspace root: "/workspace" on the VM backend, the real
+// host path on the mxc backend (no mount illusion there).
+function guestRoot() {
+  return lazy.HarnessVM.session().agent.workspaceRoot ?? "/workspace";
+}
 
 ChromeUtils.defineLazyGetter(lazy, "logConsole", () =>
   console.createInstance({
@@ -108,7 +115,7 @@ export const HarnessBrowserTools = {
         description:
           "Extract the readable text of an open tab (tabIndex from " +
           "get_open_tabs). The text is saved as a file under " +
-          "/workspace/.browser/ in your sandbox. IMPORTANT: after calling " +
+          `${guestRoot()}/.browser/ in your sandbox. IMPORTANT: after calling ` +
           "this, YOU must read the file yourself with sandbox shell " +
           "commands (cat/head/grep) and answer the user's question from " +
           "its contents — the user has no terminal and cannot read the " +
@@ -289,7 +296,7 @@ export const HarnessBrowserTools = {
     );
     this._audit("stageTab", `${tab.url} -> ${leaf}`);
     return {
-      guestPath: `/workspace/.browser/${leaf}`,
+      guestPath: `${guestRoot()}/.browser/${leaf}`,
       url: tab.url,
       title: tab.title,
       chars: text.length,
@@ -320,7 +327,14 @@ export const HarnessBrowserTools = {
     const files = [];
     const seenSites = new Set();
     for (const rawPath of paths) {
-      const relative = String(rawPath).replace(/^\/workspace\/?/, "");
+      let relative = String(rawPath);
+      if (relative.startsWith(`${workspaceRoot.path}/`)) {
+        relative = relative.slice(workspaceRoot.path.length + 1);
+      } else if (relative == workspaceRoot.path) {
+        relative = "";
+      } else {
+        relative = relative.replace(/^\/workspace\/?/, "");
+      }
       if (!relative) {
         throw new Error(`not a workspace file: ${rawPath}`);
       }
@@ -348,7 +362,7 @@ export const HarnessBrowserTools = {
         seenSites.add(siteName);
         files.push({
           name: siteName,
-          guestPath: `/workspace/sites/${siteName}/`,
+          guestPath: `${guestRoot()}/sites/${siteName}/`,
           url: `harness-site://${siteName}/`,
           kind: "site",
           size: 0,
@@ -374,7 +388,7 @@ export const HarnessBrowserTools = {
       }
       files.push({
         name: file.leafName,
-        guestPath: `/workspace/${relative}`,
+        guestPath: `${guestRoot()}/${relative}`,
         hostPath: file.path,
         kind,
         size: file.fileSize,
