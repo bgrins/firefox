@@ -37,6 +37,9 @@ function textToB64(text) {
  * lifecycle.
  */
 export class HarnessAgent {
+  // Path-policy root the exec bridge advertises to codex; the guest mounts
+  // the workspace here. The mxc backend overrides this with a host path.
+  workspaceRoot = "/workspace";
   _transport = null;
   _outStream = null;
   _inStream = null;

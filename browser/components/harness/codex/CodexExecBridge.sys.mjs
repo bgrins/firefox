@@ -152,8 +152,14 @@ export const CodexExecBridge = {
     }
   },
 
+  // "/workspace" for the VM backend; the real host workspace path for the
+  // mxc backend (which has no mount-namespace illusion).
+  _workspaceRoot() {
+    return this._session().agent.workspaceRoot ?? WORKSPACE;
+  },
+
   _allowedRoots() {
-    const roots = [{ root: WORKSPACE, writable: true }];
+    const roots = [{ root: this._workspaceRoot(), writable: true }];
     for (const mount of lazy.HarnessVM.mounts) {
       roots.push({ root: `/mnt/${mount.tag}`, writable: !mount.readOnly });
     }
@@ -183,7 +189,7 @@ export const CodexExecBridge = {
 
   async _guest(cmd, options = {}) {
     const result = await this._session().agent.exec(cmd, {
-      cwd: WORKSPACE,
+      cwd: this._workspaceRoot(),
       timeoutMs: FS_TIMEOUT_MS,
       ...options,
     });
@@ -204,7 +210,7 @@ export const CodexExecBridge = {
         this._audit(method, "");
         return {
           shell: { name: "sh", path: "/bin/sh" },
-          cwd: toFileUri(WORKSPACE),
+          cwd: toFileUri(this._workspaceRoot()),
           capabilities: { networkProxyLaunch: false },
         };
       case "environment/status":

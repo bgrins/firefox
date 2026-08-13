@@ -3669,6 +3669,9 @@ pref("distribution.mozillaonline.ignore", true);
 
 // Experimental about:harness micro-VM sandbox (macOS arm64 only).
 pref("browser.harness.enabled", false);
+// Execution backend: "vm" (libkrun micro-VM) or "mxc" (MXC Seatbelt host
+// sandbox spike — commands run ON THE HOST under policy; docs/mxc-spike.md).
+pref("browser.harness.backend", "vm");
 // Pass --verbose (libkrun info logging) to the VM helper.
 pref("browser.harness.verbose", true);
 pref("browser.harness.loglevel", "All");

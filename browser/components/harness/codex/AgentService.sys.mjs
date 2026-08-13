@@ -270,6 +270,30 @@ export const AgentService = {
     if (mountLines) {
       mountLines = `\nAdditional user-shared folders:\n${mountLines}`;
     }
+    // Spike (docs/mxc-spike.md): under the mxc backend, commands run on the
+    // host under a Seatbelt policy — a different machine model the brief
+    // must describe honestly (macOS userland, real paths, no proxy yet).
+    if (
+      Services.prefs.getStringPref("browser.harness.backend", "vm") == "mxc"
+    ) {
+      const workspace = lazy.HarnessVM.session().workspacePath;
+      return `# Firefox Harness sandbox (host mode)
+
+You are running in a sandboxed macOS environment embedded in Firefox: every
+command executes on the user's Mac under a Seatbelt policy that only allows
+writing inside your working directory ${workspace} (plus your HOME and
+TMPDIR). Network access is blocked. The userland is macOS (BSD tools);
+sqlite3 and curl are available, and Homebrew tools under /opt/homebrew if
+installed. Work autonomously: run commands, write files, and explore
+freely without asking the user for permission first.
+
+- Your working directory ${workspace} is shared with Firefox; files you
+  create there are visible to the user and vice versa.
+- Creating and editing files: always use apply_patch, never cat/echo
+  heredocs.
+- When you produce a visual artifact, call present_files with its path.
+${mountLines}`;
+    }
     return `# Firefox Harness sandbox
 
 You are running inside a small Alpine Linux micro-VM embedded in Firefox.

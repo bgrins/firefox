@@ -10,8 +10,13 @@ ChromeUtils.defineESModuleGetters(lazy, {
   HarnessImageManager:
     "moz-src:///browser/components/harness/HarnessImageManager.sys.mjs",
   HarnessProxy: "moz-src:///browser/components/harness/HarnessProxy.sys.mjs",
+  MxcSession: "moz-src:///browser/components/harness/HarnessMxc.sys.mjs",
   Sqlite: "resource://gre/modules/Sqlite.sys.mjs",
   Subprocess: "resource://gre/modules/Subprocess.sys.mjs",
+  refreshPlacesSnapshotIfStale:
+    "moz-src:///browser/components/harness/PlacesSnapshot.sys.mjs",
+  snapshotPlacesTo:
+    "moz-src:///browser/components/harness/PlacesSnapshot.sys.mjs",
 });
 
 ChromeUtils.defineLazyGetter(lazy, "logConsole", () =>
@@ -547,47 +552,14 @@ export class HarnessSession {
    * @returns {Promise<string>} the guest path of the snapshot
    */
   async snapshotPlacesToWorkspace() {
-    await IOUtils.makeDirectory(this.workspacePath, {
-      createAncestors: true,
-      ignoreExisting: true,
-    });
-    const dest = PathUtils.join(this.workspacePath, "places.sqlite");
-    const tmp = `${dest}.tmp`;
-    await IOUtils.remove(tmp, { ignoreAbsent: true });
-    const conn = await lazy.Sqlite.openConnection({
-      path: PathUtils.join(PathUtils.profileDir, "places.sqlite"),
-      readOnly: true,
-    });
-    const start = Date.now();
-    try {
-      // VACUUM INTO runs at full speed (~30ms for a 16MB db) while the
-      // throttled backup() API takes ~25s on the same data; tmp + rename
-      // so the guest never observes a torn file over virtio-fs.
-      await conn.execute(`VACUUM INTO '${tmp.replaceAll("'", "''")}'`);
-    } finally {
-      await conn.close();
-    }
-    await IOUtils.move(tmp, dest);
-    this._log(`places snapshot written to ${dest} in ${Date.now() - start}ms`);
+    await lazy.snapshotPlacesTo(this.workspacePath, message =>
+      this._log(message)
+    );
     return "/workspace/places.sqlite";
   }
 
-  // Keeps an existing snapshot in sync while the browser runs: cheap
-  // enough to call before every agent turn. A snapshot the user never took
-  // is never created ("absent") — sharing places data stays opt-in.
-  async refreshPlacesSnapshotIfStale(maxAgeMs = 5 * 60 * 1000) {
-    const dest = PathUtils.join(this.workspacePath, "places.sqlite");
-    let stat;
-    try {
-      stat = await IOUtils.stat(dest);
-    } catch (e) {
-      return "absent";
-    }
-    if (Date.now() - stat.lastModified < maxAgeMs) {
-      return "fresh";
-    }
-    await this.snapshotPlacesToWorkspace();
-    return "refreshed";
+  refreshPlacesSnapshotIfStale(maxAgeMs) {
+    return lazy.refreshPlacesSnapshotIfStale(this.workspacePath, maxAgeMs);
   }
 
   async resetRootfs() {
@@ -617,12 +589,21 @@ export const HarnessVM = {
 
   session(id = "default") {
     if (id == "default" && !this._sessions.has(id)) {
+      // Spike: the mxc backend (docs/mxc-spike.md) executes commands on
+      // the HOST under Seatbelt policies instead of in the micro-VM.
+      const backend = Services.prefs.getStringPref(
+        "browser.harness.backend",
+        "vm"
+      );
+      const options = {
+        id,
+        baseDir: PathUtils.join(PathUtils.profileDir, "harness"),
+      };
       this._sessions.set(
         id,
-        new HarnessSession({
-          id,
-          baseDir: PathUtils.join(PathUtils.profileDir, "harness"),
-        })
+        backend == "mxc"
+          ? new lazy.MxcSession(options)
+          : new HarnessSession(options)
       );
     }
     return this._sessions.get(id);
