@@ -133,6 +133,13 @@ export const CodexExecBridge = {
     if (this.auditLog.length > AUDIT_LOG_LIMIT) {
       this.auditLog.shift();
     }
+    // Missing-file probes are routine (codex walks parent dirs for .git and
+    // AGENTS.md every thread; the bridge answers ENOENT by design) — keep
+    // them out of the console while still recording them in the audit log.
+    if (verdict == "error" && detail.includes("No such file or directory")) {
+      lazy.logConsole.debug(`${verdict}: ${method} ${detail}`);
+      return;
+    }
     lazy.logConsole.log(`${verdict}: ${method} ${detail}`);
   },
 
@@ -272,14 +279,22 @@ export const CodexExecBridge = {
         const path = this._allowedPath(params.path, { probe: true });
         this._audit(method, path);
         const q = shQuote(path);
+        // Detect the stat flavor (GNU/busybox in the VM guest, BSD on the
+        // mxc host) rather than fallback-chaining: busybox `stat -f` means
+        // filesystem stats and would "succeed" on a missing file, and a
+        // trailing printf must not mask stat's ENOENT exit.
         const result = await this._guest(
           `if [ -L ${q} ]; then l=1; else l=0; fi; ` +
-            `s=$(stat -c '%F|%s|%Y' ${q}) && printf '%s|%s' "$l" "$s"`
+            `if stat -c '%F' / >/dev/null 2>&1; ` +
+            `then s=$(stat -c '%F|%s|%Y' ${q}); ` +
+            `else s=$(stat -f '%HT|%z|%m' ${q}); fi && ` +
+            `printf '%s|%s' "$l" "$s"`
         );
         const [link, kind, size, mtime] = result.stdout.trim().split("|");
+        const kindLower = (kind ?? "").toLowerCase();
         return {
-          isDirectory: kind == "directory",
-          isFile: kind.includes("file"),
+          isDirectory: kindLower == "directory",
+          isFile: kindLower.includes("file"),
           isSymlink: link == "1",
           size: Number(size),
           createdAtMs: Number(mtime) * 1000,

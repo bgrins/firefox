@@ -138,6 +138,37 @@ add_task(async function test_backend_pref_selects_mxc() {
     events.some(event => event.type == "state"),
     "subscribers survive the swap"
   );
+
+  // The exec bridge must work against BSD userland: fs/getMetadata falls
+  // back from GNU `stat -c` to `stat -f` on the host.
+  if (await IOUtils.exists(mxcBinaryPath())) {
+    const { CodexExecBridge } = ChromeUtils.importESModule(
+      "moz-src:///browser/components/harness/codex/CodexExecBridge.sys.mjs"
+    );
+    const session = HarnessVM.session();
+    await session.start();
+    const probe = PathUtils.join(session.workspacePath, "meta-probe.txt");
+    await IOUtils.writeUTF8(probe, "12345");
+    const toUri = path =>
+      `file://${path.split("/").map(encodeURIComponent).join("/")}`;
+    const meta = await CodexExecBridge._handle("fs/getMetadata", {
+      path: toUri(probe),
+    });
+    ok(meta.isFile && !meta.isDirectory, "host stat reports a regular file");
+    is(meta.size, 5, "host stat reports the size");
+    const dirMeta = await CodexExecBridge._handle("fs/getMetadata", {
+      path: toUri(session.workspacePath),
+    });
+    ok(dirMeta.isDirectory, "host stat reports a directory");
+    await Assert.rejects(
+      CodexExecBridge._handle("fs/getMetadata", {
+        path: toUri(PathUtils.join(session.workspacePath, "nope.txt")),
+      }),
+      /No such file/,
+      "missing files still answer ENOENT"
+    );
+    await session.stop();
+  }
   await SpecialPowers.popPrefEnv();
   ok(
     !(HarnessVM.session() instanceof MxcSession),
