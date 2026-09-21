@@ -230,6 +230,27 @@ browser_link_preview_perf.js
 **User-perceived latency and inference memory for Link Preview key points, driven through the production UI flow**
 
 
+## browser/components/sessionstore/test/unit-perf
+
+Performance tests of the session store backends, running through XPCShell.
+
+perftest_sessionstore_backends.js
+=================================
+
+:owner: Session Restore
+:name: SessionStoreBackends
+:tags: sessionstore
+:Default options:
+
+::
+
+ --perfherder
+ --perfherder-metrics name:json save main thread 50 tabs,unit:ms, name:json save total 50 tabs,unit:ms, name:db full save main thread 50 tabs,unit:ms, name:db full save total 50 tabs,unit:ms, name:db one-change save main thread 50 tabs,unit:ms, name:db one-change save total 50 tabs,unit:ms, name:db one-change save rows 50 tabs,unit:count, name:json read 50 tabs,unit:ms, name:db read 50 tabs,unit:ms, name:json file size 50 tabs,unit:bytes, name:db file size 50 tabs,unit:bytes, name:json save main thread 500 tabs,unit:ms, name:json save total 500 tabs,unit:ms, name:db full save main thread 500 tabs,unit:ms, name:db full save total 500 tabs,unit:ms, name:db one-change save main thread 500 tabs,unit:ms, name:db one-change save total 500 tabs,unit:ms, name:db one-change save rows 500 tabs,unit:count, name:json read 500 tabs,unit:ms, name:db read 500 tabs,unit:ms, name:json file size 500 tabs,unit:bytes, name:db file size 500 tabs,unit:bytes, name:json save main thread 5000 tabs,unit:ms, name:json save total 5000 tabs,unit:ms, name:db full save main thread 5000 tabs,unit:ms, name:db full save total 5000 tabs,unit:ms, name:db one-change save main thread 5000 tabs,unit:ms, name:db one-change save total 5000 tabs,unit:ms, name:db one-change save rows 5000 tabs,unit:count, name:json read 5000 tabs,unit:ms, name:db read 5000 tabs,unit:ms, name:json file size 5000 tabs,unit:bytes, name:db file size 5000 tabs,unit:bytes, name:json save main thread 20000 tabs,unit:ms, name:json save total 20000 tabs,unit:ms, name:db full save main thread 20000 tabs,unit:ms, name:db full save total 20000 tabs,unit:ms, name:db one-change save main thread 20000 tabs,unit:ms, name:db one-change save total 20000 tabs,unit:ms, name:db one-change save rows 20000 tabs,unit:count, name:json read 20000 tabs,unit:ms, name:db read 20000 tabs,unit:ms, name:json file size 20000 tabs,unit:bytes, name:db file size 20000 tabs,unit:bytes
+ --verbose
+
+**Save and startup-read costs of the JSON session file and the session database, for synthetic sessions.**
+
+
 ## browser/components/tabbrowser/test/browser/smarttabgrouping/performance
 
 End-to-end performance tests for Smart Tab Grouping
