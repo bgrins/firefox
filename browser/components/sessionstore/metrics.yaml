@@ -214,6 +214,62 @@ session_restore:
     expires: never
     telemetry_mirror: FX_SESSION_RESTORE_WRITE_FILE_MS
 
+  json_write_main_thread:
+    type: timing_distribution
+    description: >
+      Time the main thread spends in IOUtils.writeJSON while writing a JSON
+      session file, which is when the session state is serialized. The rest
+      of the write happens on a background thread.
+    time_unit: microsecond
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    notification_emails:
+      - session-restore-telemetry-alerts@mozilla.com
+    expires: never
+
+  db_write_main_thread:
+    type: timing_distribution
+    description: >
+      Time the main thread spends building the batch of rows that a save
+      writes to the session database, in the "shadow" backend mode.
+    time_unit: microsecond
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    notification_emails:
+      - session-restore-telemetry-alerts@mozilla.com
+    expires: never
+
+  db_cross_check:
+    type: labeled_counter
+    description: >
+      Result of comparing the session database with the JSON session file
+      read at startup, in the "shadow" backend mode. "match" and "mismatch"
+      are only recorded when both hold the same generation; the other labels
+      say why they couldn't be compared.
+    labels:
+      - match
+      - mismatch
+      - db_missing
+      - db_unreadable
+      - json_missing
+      - json_seq_missing
+      - lineage_mismatch
+      - skew_json_newer
+      - skew_db_newer
+      - not_comparable
+      - error
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    notification_emails:
+      - session-restore-telemetry-alerts@mozilla.com
+    expires: never
+
   file_size_bytes:
     type: memory_distribution
     description: >

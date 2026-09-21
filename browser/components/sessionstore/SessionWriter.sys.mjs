@@ -54,6 +54,49 @@ function lockIOWithMutex() {
 }
 
 /**
+ * Caps the number of back and forward session history entries of each open
+ * tab, as the final write of a session does. Applying it twice has no further
+ * effect.
+ *
+ * @param {object} state
+ * @param {number} maxBack
+ *        The number of entries to keep before the current one, or -1 for all.
+ * @param {number} maxForward
+ *        The number of entries to keep after the current one, or -1 for all.
+ */
+export function capSessionHistory(state, maxBack, maxForward) {
+  for (let window of state.windows) {
+    for (let tab of window.tabs) {
+      let lower = 0;
+      let upper = tab.entries.length;
+
+      if (maxBack > -1) {
+        lower = Math.max(lower, tab.index - maxBack - 1);
+      }
+      if (maxForward > -1) {
+        upper = Math.min(upper, tab.index + maxForward);
+      }
+
+      tab.entries = tab.entries.slice(lower, upper);
+      tab.index -= lower;
+    }
+  }
+}
+
+/**
+ * Starts writing `state` as JSON, and records how long the synchronous part,
+ * which serializes the state on the calling thread, took.
+ */
+function writeJSON(path, state, options) {
+  let start = ChromeUtils.now();
+  let promise = IOUtils.writeJSON(path, state, options);
+  Glean.sessionRestore.jsonWriteMainThread.accumulateSingleSample(
+    Math.round((ChromeUtils.now() - start) * 1000)
+  );
+  return promise;
+}
+
+/**
  * Interface dedicated to handling I/O for Session Store.
  */
 export const SessionWriter = {
@@ -162,22 +205,7 @@ const SessionWriterInternal = {
 
     // Cap the number of backward and forward shistory entries on shutdown.
     if (options.isFinalWrite) {
-      for (let window of state.windows) {
-        for (let tab of window.tabs) {
-          let lower = 0;
-          let upper = tab.entries.length;
-
-          if (this.maxSerializeBack > -1) {
-            lower = Math.max(lower, tab.index - this.maxSerializeBack - 1);
-          }
-          if (this.maxSerializeForward > -1) {
-            upper = Math.min(upper, tab.index + this.maxSerializeForward);
-          }
-
-          tab.entries = tab.entries.slice(lower, upper);
-          tab.index -= lower;
-        }
-      }
+      capSessionHistory(state, this.maxSerializeBack, this.maxSerializeForward);
     }
 
     try {
@@ -212,7 +240,7 @@ const SessionWriterInternal = {
         // originally present and valid, it has been moved to
         // $Paths.cleanBackup a long time ago. We can therefore write
         // with the guarantees that we erase no important data.
-        await IOUtils.writeJSON(this.Paths.clean, state, {
+        await writeJSON(this.Paths.clean, state, {
           tmpPath: this.Paths.clean + ".tmp",
           compress: true,
         });
@@ -224,7 +252,7 @@ const SessionWriterInternal = {
         // way, $Paths.recovery is good. We can move $Path.backup to
         // $Path.recoveryBackup without erasing a good file with a bad
         // file.
-        await IOUtils.writeJSON(this.Paths.recovery, state, {
+        await writeJSON(this.Paths.recovery, state, {
           tmpPath: this.Paths.recovery + ".tmp",
           backupFile: this.Paths.recoveryBackup,
           compress: true,
@@ -234,7 +262,7 @@ const SessionWriterInternal = {
         // In other cases, either $Path.recovery is not necessary, or
         // it doesn't exist or it has been corrupted. Regardless,
         // don't backup $Path.recovery.
-        await IOUtils.writeJSON(this.Paths.recovery, state, {
+        await writeJSON(this.Paths.recovery, state, {
           tmpPath: this.Paths.recovery + ".tmp",
           compress: true,
         });

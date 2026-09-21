@@ -18,9 +18,13 @@
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 const lazy = XPCOMUtils.declareLazy({
+  capSessionHistory:
+    "moz-src:///browser/components/sessionstore/SessionWriter.sys.mjs",
   sessionStoreLogger:
     "moz-src:///browser/components/sessionstore/SessionLogger.sys.mjs",
   RunState: "moz-src:///browser/components/sessionstore/RunState.sys.mjs",
+  SessionDBBackend:
+    "moz-src:///browser/components/sessionstore/SessionDBBackend.sys.mjs",
   SessionStore:
     "moz-src:///browser/components/sessionstore/SessionStore.sys.mjs",
   SessionWriter:
@@ -33,6 +37,10 @@ const PREF_MAX_UPGRADE_BACKUPS =
 
 const PREF_MAX_SERIALIZE_BACK = "browser.sessionstore.max_serialize_back";
 const PREF_MAX_SERIALIZE_FWD = "browser.sessionstore.max_serialize_forward";
+
+// "json" writes only the JSON session files. "shadow" also writes the session
+// database, and compares it with the JSON files after startup.
+const PREF_BACKEND = "browser.sessionstore.backend";
 
 export var SessionFile = {
   /**
@@ -62,6 +70,16 @@ export var SessionFile = {
    */
   get Paths() {
     return SessionFileInternal.Paths;
+  },
+
+  /**
+   * In the "shadow" backend mode, a promise for the result of comparing the
+   * session database with the JSON file read at startup. Null otherwise.
+   *
+   * @type {Promise<object>|null}
+   */
+  get dbCrossCheck() {
+    return SessionFileInternal._dbBackend?.crossCheck ?? null;
   },
 };
 
@@ -119,6 +137,10 @@ var SessionFileInternal = {
       "sessionstore-backups",
       "upgrade.jsonlz4-"
     ),
+
+    // The session database, written next to the JSON files in the "shadow"
+    // backend mode.
+    database: PathUtils.join(profileDir, "sessionstore.sqlite"),
 
     // The path to the backup of the version of the session store used
     // during the latest upgrade of Firefox. During load/recovery,
@@ -187,6 +209,16 @@ var SessionFileInternal = {
   // `true` if the old, uncompressed, file format was used to read from disk, as
   // a fallback mechanism.
   _usingOldExtension: false,
+
+  // The SessionDBBackend in the "shadow" backend mode, once read() is done.
+  _dbBackend: null,
+
+  // The number of JSON writes started but not finished.
+  _jsonWritesPending: 0,
+
+  // Whether a JSON write has been started since the writer was initialized.
+  // The first one of a session may move files before it serializes the state.
+  _jsonWritten: false,
 
   // The ID of the latest version of Gecko for which we have an upgrade backup
   // or |undefined| if no upgrade backup was ever written.
@@ -388,6 +420,14 @@ var SessionFileInternal = {
     }
     this._readOrigin = result.origin;
 
+    if (
+      Services.prefs.getStringPref(PREF_BACKEND, "json") == "shadow" &&
+      !this._dbBackend
+    ) {
+      this._dbBackend = new lazy.SessionDBBackend(this.Paths.database);
+      this._dbBackend.start({ origin: result.origin, source: result.source });
+    }
+
     return { ...result, noFilesFound };
   },
 
@@ -441,9 +481,32 @@ var SessionFileInternal = {
     let performShutdownCleanup =
       isFinalWrite && !lazy.SessionStore.willAutoRestore;
 
+    let dbWrite = null;
+    if (this._dbBackend) {
+      if (isFinalWrite) {
+        // The JSON writer caps history too, but only once it gets to write,
+        // and the database batch is built now.
+        lazy.capSessionHistory(
+          aData,
+          Services.prefs.getIntPref(PREF_MAX_SERIALIZE_BACK, 10),
+          Services.prefs.getIntPref(PREF_MAX_SERIALIZE_FWD, -1)
+        );
+      }
+      let comparable =
+        this._jsonWritesPending == 0 &&
+        (this._jsonWritten ||
+          (this._readOrigin != "clean" && this._readOrigin != "empty"));
+      this._dbBackend.annotate(aData);
+      dbWrite = this._dbBackend.write(aData, { isFinalWrite, comparable });
+    }
+
     this._attempts++;
+    this._jsonWritesPending++;
+    this._jsonWritten = true;
     let options = { isFinalWrite, performShutdownCleanup };
-    let write = this.getWriter().then(writer => writer.write(aData, options));
+    let write = this.getWriter()
+      .then(writer => writer.write(aData, options))
+      .finally(() => this._jsonWritesPending--);
 
     // Wait until the write is done.
     let promise = write.then(
@@ -502,7 +565,7 @@ var SessionFileInternal = {
     // This code will always be executed because |promise| can't fail anymore.
     // We ensured that by having a reject handler that reports the failure but
     // doesn't forward the rejection.
-    return promise.then(() => {
+    return promise.then(async () => {
       // Remove the blocker, no matter if writing failed or not.
       IOUtils.profileBeforeChange.removeBlocker(promise);
 
@@ -512,10 +575,15 @@ var SessionFileInternal = {
           "sessionstore-final-state-write-complete"
         );
       }
+      // JSON is what startup restores from, so the checkpoint above doesn't
+      // wait for the database, but callers see the save complete only once
+      // both have it.
+      await dbWrite;
     });
   },
 
   async wipe() {
+    await this._dbBackend?.wipe({ reopen: !lazy.RunState.isQuitting });
     const writer = await this.getWriter();
     await writer.wipe();
     // After a wipe, we need to make sure to re-initialize upon the next read(),
