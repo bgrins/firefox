@@ -420,6 +420,7 @@ export interface Modules {
   "moz-src:///browser/components/sessionstore/RecentlyClosedTabsAndWindowsMenuUtils.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/RecentlyClosedTabsAndWindowsMenuUtils.sys.mjs"),
   "moz-src:///browser/components/sessionstore/RunState.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/RunState.sys.mjs"),
   "moz-src:///browser/components/sessionstore/SessionCookies.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionCookies.sys.mjs"),
+  "moz-src:///browser/components/sessionstore/SessionDBWriter.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionDBWriter.sys.mjs"),
   "moz-src:///browser/components/sessionstore/SessionFile.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionFile.sys.mjs"),
   "moz-src:///browser/components/sessionstore/SessionLogger.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionLogger.sys.mjs"),
   "moz-src:///browser/components/sessionstore/SessionMigration.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionMigration.sys.mjs"),
