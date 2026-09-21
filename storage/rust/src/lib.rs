@@ -366,6 +366,22 @@ impl<'c, 's> Step<'c, 's> {
         self.get_by_index(index).unwrap_or_default()
     }
 
+    /// Returns the text of the column at `index` for the current row as UTF-8,
+    /// or `None` if the column is `NULL`. Unlike `get_by_index::<nsCString>`,
+    /// this copies SQLite's UTF-8 text directly, without converting it to
+    /// UTF-16 and back.
+    pub fn get_utf8_by_index(&self, index: u32) -> Result<Option<nsCString>> {
+        let mut value = nsCString::new();
+        unsafe { self.0.handle.GetUTF8String(index, &mut *value) }
+            .to_result()
+            .map_err(|rv| Error::GetByIndex {
+                rv,
+                data_type: "nsCString".into(),
+                index,
+            })?;
+        Ok(if value.is_void() { None } else { Some(value) })
+    }
+
     /// Returns the value of the column specified by `name` for the current row.
     pub fn get_by_name<N: AsRef<str>, T: VariantType>(&self, name: N) -> Result<T> {
         let name = name.as_ref();

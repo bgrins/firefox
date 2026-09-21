@@ -1,0 +1,64 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+interface mozIStorageAsyncConnection;
+
+/**
+ * Receives the result of a mozISessionStoreDatabase operation on the thread
+ * that started the operation.
+ */
+[scriptable, uuid(b279fe52-877f-4e02-80c2-39bb35fbb14e)]
+interface mozISessionStoreDatabaseCallback : nsISupports
+{
+  void onSuccess(in AUTF8String aResult);
+  void onError(in nsresult aStatus, in AUTF8String aMessage);
+};
+
+/**
+ * Stores session restore state in a SQLite database, as rows of JSON
+ * fragments that together form the session state object. Every operation runs
+ * in order on the connection's own thread. SessionStoreDB.sys.mjs describes
+ * the rows and the operations that write() accepts.
+ */
+[scriptable, uuid(c1795a97-5d82-4857-a5e4-834c45576e1d)]
+interface mozISessionStoreDatabase : nsISupports
+{
+  /**
+   * Sets the pragmas of a newly opened connection, and creates the schema if
+   * the database is empty. Succeeds with the schema version.
+   */
+  void init(in mozIStorageAsyncConnection aConnection,
+            in mozISessionStoreDatabaseCallback aCallback);
+
+  /**
+   * Succeeds with a JSON object with the properties `meta`, an object of the
+   * bookkeeping values; `state`, the assembled session state, or null if the
+   * database holds none; and `dropped`, the number of nodes left out.
+   *
+   * @param aValidate
+   *        Whether to parse every fragment and leave out the nodes whose
+   *        fragments are invalid, instead of failing. Without it, only the
+   *        structure is checked, and the caller's parse of the result
+   *        catches invalid fragments.
+   */
+  void read(in boolean aValidate,
+            in mozISessionStoreDatabaseCallback aCallback);
+
+  /**
+   * Applies a batch of operations in one transaction, and rolls all of them
+   * back if any fails. Succeeds with an empty string.
+   *
+   * @throws NS_ERROR_INVALID_ARG if an operation is malformed.
+   */
+  void write(in Array<AUTF8String> aOps,
+             in mozISessionStoreDatabaseCallback aCallback);
+
+  /**
+   * Releases the connection. Operations already started still complete; the
+   * caller closes the connection afterwards.
+   */
+  void reset();
+};

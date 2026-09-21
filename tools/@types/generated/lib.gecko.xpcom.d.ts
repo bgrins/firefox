@@ -2079,6 +2079,28 @@ interface nsIHangDetails extends nsISupports {
   readonly annotations: any;
 }
 
+// https://searchfox.org/firefox-main/source/browser/components/sessionstore/mozISessionStoreDatabase.idl
+
+/** <!-- binding_to(idl, interface_name, XPIDL_mozISessionStoreDatabaseCallback) --> */
+interface mozISessionStoreDatabaseCallback extends nsISupports {
+  /** <!-- binding_to(idl, method, XPIDL_mozISessionStoreDatabaseCallback_onSuccess) --> */
+  onSuccess(aResult: string): void;
+  /** <!-- binding_to(idl, method, XPIDL_mozISessionStoreDatabaseCallback_onError) --> */
+  onError(aStatus: nsresult, aMessage: string): void;
+}
+
+/** <!-- binding_to(idl, interface_name, XPIDL_mozISessionStoreDatabase) --> */
+interface mozISessionStoreDatabase extends nsISupports {
+  /** <!-- binding_to(idl, method, XPIDL_mozISessionStoreDatabase_init) --> */
+  init(aConnection: mozIStorageAsyncConnection, aCallback: mozISessionStoreDatabaseCallback): void;
+  /** <!-- binding_to(idl, method, XPIDL_mozISessionStoreDatabase_read) --> */
+  read(aValidate: boolean, aCallback: mozISessionStoreDatabaseCallback): void;
+  /** <!-- binding_to(idl, method, XPIDL_mozISessionStoreDatabase_write) --> */
+  write(aOps: string[], aCallback: mozISessionStoreDatabaseCallback): void;
+  /** <!-- binding_to(idl, method, XPIDL_mozISessionStoreDatabase_reset) --> */
+  reset(): void;
+}
+
 // https://searchfox.org/firefox-main/source/browser/components/nsIBrowserHandler.idl
 
 /** <!-- binding_to(idl, interface_name, XPIDL_nsIBrowserHandler) --> */
@@ -26606,6 +26628,8 @@ interface nsIXPCComponents_Interfaces {
   nsIAutoCompleteSimpleSearch: nsJSIID<nsIAutoCompleteSimpleSearch>;
   nsIAutoplay: nsJSIID<nsIAutoplay>;
   nsIHangDetails: nsJSIID<nsIHangDetails>;
+  mozISessionStoreDatabaseCallback: nsJSIID<mozISessionStoreDatabaseCallback>;
+  mozISessionStoreDatabase: nsJSIID<mozISessionStoreDatabase>;
   nsIBrowserHandler: nsJSIID<nsIBrowserHandler>;
   nsIAddonPolicyService: nsJSIID<nsIAddonPolicyService>;
   nsIAddonContentPolicy: nsJSIID<nsIAddonContentPolicy>;

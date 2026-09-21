@@ -139,6 +139,8 @@ extern crate midir_impl;
 
 #[cfg(all(target_os = "windows", feature = "backgroundtaskregistrar"))]
 extern crate backgroundtaskregistrar;
+#[cfg(feature = "sessionstore_db")]
+extern crate sessionstore_db;
 #[cfg(all(target_os = "windows", feature = "shell_windows"))]
 extern crate shell_windows;
 #[cfg(target_os = "windows")]

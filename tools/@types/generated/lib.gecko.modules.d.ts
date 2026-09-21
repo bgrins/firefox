@@ -426,6 +426,7 @@ export interface Modules {
   "moz-src:///browser/components/sessionstore/SessionSaver.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionSaver.sys.mjs"),
   "moz-src:///browser/components/sessionstore/SessionStartup.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionStartup.sys.mjs"),
   "moz-src:///browser/components/sessionstore/SessionStore.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionStore.sys.mjs"),
+  "moz-src:///browser/components/sessionstore/SessionStoreDB.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionStoreDB.sys.mjs"),
   "moz-src:///browser/components/sessionstore/SessionWindowUI.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionWindowUI.sys.mjs"),
   "moz-src:///browser/components/sessionstore/SessionWriter.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionWriter.sys.mjs"),
   "moz-src:///browser/components/sessionstore/StartupPerformance.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/StartupPerformance.sys.mjs"),
