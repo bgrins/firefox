@@ -1,0 +1,35 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+with Files("**"):
+    BUG_COMPONENT = ("GeckoView", "General")
+
+EXPORTS.GeckoView += [
+    "module.modulemap",
+]
+
+Framework("GeckoView")
+SHARED_LIBRARY_NAME = "GeckoView"
+
+SWIFT_MODULE_NAME = "GeckoView"
+SWIFT_SOURCES += [
+    "/mobile/ios/GeckoTestBrowser/GeckoView/AllowOrDeny.swift",
+    "/mobile/ios/GeckoTestBrowser/GeckoView/ContentDelegate.swift",
+    "/mobile/ios/GeckoTestBrowser/GeckoView/EventDispatcher.swift",
+    "/mobile/ios/GeckoTestBrowser/GeckoView/GeckoRuntime.swift",
+    "/mobile/ios/GeckoTestBrowser/GeckoView/GeckoSession.swift",
+    "/mobile/ios/GeckoTestBrowser/GeckoView/GeckoSessionHandler.swift",
+    "/mobile/ios/GeckoTestBrowser/GeckoView/GeckoView.swift",
+    "/mobile/ios/GeckoTestBrowser/GeckoView/NavigationDelegate.swift",
+    "/mobile/ios/GeckoTestBrowser/GeckoView/PermissionDelegate.swift",
+    "/mobile/ios/GeckoTestBrowser/GeckoView/ProgressDelegate.swift",
+]
+SWIFTFLAGS += ["-import-underlying-module"]
+
+USE_LIBS += ["xul-real"]
+
+LDFLAGS += [
+    "-Wl,-rpath,@executable_path/Frameworks",
+    "-Wl,-rpath,@loader_path/Frameworks",
+]
