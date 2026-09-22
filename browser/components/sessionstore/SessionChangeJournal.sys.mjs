@@ -14,9 +14,8 @@
  * their previous values. The objects they reference are shared with the tab
  * state cache and kept across collections, like the history entries, session
  * storage and custom tab values. Every in-place edit of such an object,
- * whether a tab state references it now or did when it was last written, must
- * mark the edited object, and every object that contains it up to the tab
- * state.
+ * whether a tab state references it now or did at the previous save, must mark
+ * the edited object, and every object that contains it up to the tab state.
  */
 
 let gVersion = 0;

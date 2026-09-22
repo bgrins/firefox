@@ -246,31 +246,17 @@ add_task(async function test_failed_batch_forces_rewrite() {
 add_task(async function test_new_writer_continues_the_generation() {
   let { db, path } = await openDB();
   let writer = new SessionDBWriter();
-  let ops = writer.materialize(makeState());
-  await db.write(ops);
-  let maxId = Math.max(
-    ...contentOps(ops)
-      .filter(([name]) => name == "node" || name == "nullnode")
-      .map(([, id]) => Number(id))
-  );
+  await db.write(writer.materialize(makeState()));
   await db.close();
 
   db = await SessionStoreDB.open(path);
   let { meta } = await db.read();
   Assert.equal(meta.seq, "1");
   writer = new SessionDBWriter(meta);
-  ops = writer.materialize(makeState());
-  await db.write(ops);
+  await db.write(writer.materialize(makeState()));
   let { meta: newMeta } = await db.read();
   Assert.equal(newMeta.seq, "2", "The seq continues");
   Assert.equal(newMeta.lineage, meta.lineage, "The lineage is kept");
-  let newIds = contentOps(ops)
-    .filter(([name]) => name == "node" || name == "nullnode")
-    .map(([, id]) => Number(id));
-  Assert.ok(
-    newIds.every(id => id > maxId),
-    "Node ids are never reused"
-  );
   await db.close();
 });
 
@@ -309,6 +295,32 @@ add_task(async function test_unchanged_tabs_are_not_serialized() {
   SessionChangeJournal.markChanged(win.tabs[0].entries);
   Assert.equal(await save(), 1, "A marked history is serialized again");
   await writeAndCheck(db, writer, state, "The database has the edit");
+  await db.close();
+});
+
+add_task(async function test_edits_of_replaced_objects_need_no_marks() {
+  let { db } = await openDB();
+  let writer = new SessionDBWriter();
+  let state = makeState();
+  let [tab] = state.windows[0].tabs;
+  await writeAndCheck(db, writer, state);
+
+  let old = tab.entries;
+  tab.entries = structuredClone(old);
+  Assert.deepEqual(
+    await writeAndCheck(db, writer, state),
+    [],
+    "An equal copy writes nothing"
+  );
+  tab.entries[0].title = "edited";
+  SessionChangeJournal.markChanged(tab.entries[0], tab.entries);
+  old[0].title = "edited";
+  await writeAndCheck(
+    db,
+    writer,
+    state,
+    "The marked edit is written, though the replaced object was edited alike"
+  );
   await db.close();
 });
 

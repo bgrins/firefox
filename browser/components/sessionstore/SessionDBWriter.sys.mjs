@@ -184,7 +184,7 @@ export class SessionDBWriter {
   #audit;
   /** @type {Miss[]} */
   #misses = [];
-  #nextId;
+  #nextId = 1;
   #lineage;
   #seq;
   // The generation the database holds, which the next batch guards on. The
@@ -208,9 +208,7 @@ export class SessionDBWriter {
     this.#dbSeq = meta.seq ?? "";
     this.#lineage =
       this.#dbLineage || Services.uuid.generateUUID().toString().slice(1, -1);
-    this.#seq = Math.max(Number(meta.seq) || 0, Number(minSeq) || 0);
-    let nextId = Number(meta.next_node_id);
-    this.#nextId = Number.isSafeInteger(nextId) && nextId >= 1 ? nextId : 1;
+    this.#seq = Math.max(toSeq(meta.seq), toSeq(minSeq));
     this.#audit = audit;
   }
 
@@ -282,6 +280,7 @@ export class SessionDBWriter {
       ops.push("clear");
       this.#roots = new Map();
       this.#rootOrders = new Map();
+      this.#nextId = 1;
     } else {
       ops.push(
         "guard",
@@ -321,10 +320,7 @@ export class SessionDBWriter {
       this.#lineage,
       "meta",
       "seq",
-      String(this.#seq),
-      "meta",
-      "next_node_id",
-      String(this.#nextId)
+      String(this.#seq)
     );
 
     this.#nodes = context.nodes;
@@ -626,9 +622,9 @@ export class SessionDBWriter {
 
   /**
    * Whether nothing about a node of a tracked kind without children changed,
-   * so that its previous record still holds. This is the common case, and
-   * checking it costs less than comparing group by group. Audits don't take
-   * this shortcut.
+   * so that its previous record still holds, with its snapshot updated to
+   * `value`. This is the common case, and checking it costs less than
+   * comparing group by group. Audits don't take this shortcut.
    *
    * @param {NodeRecord|undefined} previous
    * @param {number} parent
@@ -659,6 +655,7 @@ export class SessionDBWriter {
     if (beforeKeys.length != keys.length) {
       return false;
     }
+    let identical = true;
     for (let i = 0; i < keys.length; i++) {
       let key = keys[i];
       if (
@@ -666,6 +663,15 @@ export class SessionDBWriter {
         !same(before[key], value[key], this.#isChanged)
       ) {
         return false;
+      }
+      identical &&= before[key] === value[key];
+    }
+    // The snapshot must only reference what the tab state referenced at the
+    // previous save, since in-place edits of older objects aren't marked. It
+    // can be updated in place, since a failed batch resets the writer.
+    if (!identical) {
+      for (let key of keys) {
+        before[key] = value[key];
       }
     }
     return true;
@@ -753,6 +759,14 @@ export class SessionDBWriter {
     }
     return split;
   }
+}
+
+/**
+ * Returns `value` as a seq, or 0 if it isn't one.
+ */
+function toSeq(value) {
+  let seq = Number(value);
+  return Number.isSafeInteger(seq) && seq > 0 ? seq : 0;
 }
 
 function isPlainObject(value) {
