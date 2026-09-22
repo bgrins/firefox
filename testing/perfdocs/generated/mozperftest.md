@@ -250,6 +250,22 @@ perftest_sessionstore_backends.js
 
 **Save and startup-read costs of the JSON session file and the session database, for synthetic sessions.**
 
+perftest_sessionstore_changes.js
+================================
+
+:owner: Session Restore
+:name: SessionStoreChanges
+:tags: sessionstore
+:Default options:
+
+::
+
+ --perfherder
+ --perfherder-metrics name:json main thread,unit:ms, name:json bytes,unit:bytes, name:idle db main thread,unit:ms, name:idle db bytes,unit:bytes, name:scroll db main thread,unit:ms, name:scroll db bytes,unit:bytes, name:type db main thread,unit:ms, name:type db bytes,unit:bytes, name:navigate db main thread,unit:ms, name:navigate db bytes,unit:bytes, name:replaceState db main thread,unit:ms, name:replaceState db bytes,unit:bytes, name:open tab db main thread,unit:ms, name:open tab db bytes,unit:bytes, name:move tab db main thread,unit:ms, name:move tab db bytes,unit:bytes, name:close window db main thread,unit:ms, name:close window db bytes,unit:bytes
+ --verbose
+
+**Main thread time and size of the session database batch for common changes to a 5,000 tab session, next to those of the JSON file that every save writes.**
+
 
 ## browser/components/tabbrowser/test/browser/smarttabgrouping/performance
 
