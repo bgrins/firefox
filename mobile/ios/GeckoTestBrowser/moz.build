@@ -1,0 +1,30 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+extensions = ["Networking", "Rendering", "WebContent"]
+
+DIRS += ["GeckoTestBrowser"] + extensions
+
+IOSBundle(
+    "!/dist/Applications/GeckoTestBrowser.app",
+    files=[
+        ("!GeckoTestBrowser/GeckoTestBrowser", "GeckoTestBrowser"),
+        ("!GeckoTestBrowser/GeckoTestBrowser-Info.plist", "Info.plist"),
+        (
+            "!/mobile/ios/geckoview/GeckoView",
+            "Frameworks/GeckoView.framework/GeckoView",
+        ),
+        (
+            "!/mobile/ios/geckoview/GeckoView-Info.plist",
+            "Frameworks/GeckoView.framework/Info.plist",
+        ),
+    ]
+    + [("!%s/%s" % (e, e), "Extensions/%s.appex/%s" % (e, e)) for e in extensions]
+    + [
+        ("!%s/%s-Info.plist" % (e, e), "Extensions/%s.appex/Info.plist" % e)
+        for e in extensions
+    ],
+    trees=[("!/dist/bin", "Frameworks/GeckoView.framework/Frameworks")],
+    excludes=["Test*", "test_*", "*_unittest"],
+)

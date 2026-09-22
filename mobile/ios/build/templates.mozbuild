@@ -1,0 +1,80 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+
+@template
+def IOSInfoPlist(kind, executable, bundle_id, source=None):
+    """Generate `<executable>-Info.plist` for a bundle of the given kind
+    (`app`, `extension` or `framework`), adding the keys specific to it from
+    the partial Info.plist `source`."""
+    GeneratedFile(
+        "%s-Info.plist" % executable,
+        script="/mobile/ios/build/info_plist.py",
+        entry_point=kind,
+        inputs=[source] if source else [],
+        flags=[executable, bundle_id],
+    )
+
+
+@template
+def IOSSimulatorEntitlements(entitlements, bundle_id, team_id="43AQ936H96"):
+    """Embed `entitlements` in the binary of this directory, where the
+    Simulator reads them. `team_id` is the development team prefixing the
+    application-identifier entitlement."""
+    if CONFIG["IPHONEOS_IS_SIMULATOR"]:
+        GeneratedFile(
+            "entitlements.xcent",
+            script="/mobile/ios/build/entitlements.py",
+            entry_point="xml",
+            inputs=[entitlements],
+            flags=[team_id, bundle_id],
+        )
+        GeneratedFile(
+            "entitlements.xcent.der",
+            script="/mobile/ios/build/entitlements.py",
+            entry_point="der",
+            inputs=["!entitlements.xcent"],
+        )
+
+        LDFLAGS += [
+            "-Wl,-sectcreate,__TEXT,__entitlements,entitlements.xcent",
+            "-Wl,-sectcreate,__TEXT,__ents_der,entitlements.xcent.der",
+        ]
+        EXTRA_LINK_DEPS += ["!entitlements.xcent", "!entitlements.xcent.der"]
+
+
+@template
+def IOSApp(name, bundle_id):
+    """An app executable, whose Swift sources are in SWIFT_SOURCES."""
+    Program(name)
+    DIST_INSTALL = False
+
+    SWIFT_MODULE_NAME = name
+    USE_LIBS += ["GeckoView"]
+    # GeckoView's install name is @rpath/GeckoView, like other frameworks
+    # mozbuild links, so look for it inside its framework directory.
+    LDFLAGS += ["-Wl,-rpath,@executable_path/Frameworks/GeckoView.framework"]
+
+    IOSInfoPlist("app", name, bundle_id, "Info.plist")
+    IOSSimulatorEntitlements("%s.entitlements" % name, bundle_id)
+
+
+@template
+def IOSAppExtension(name, bundle_id):
+    """An ExtensionKit extension executable, whose Swift sources are in
+    SWIFT_SOURCES."""
+    Program(name)
+    DIST_INSTALL = False
+
+    SWIFT_MODULE_NAME = name
+    SWIFTFLAGS += ["-application-extension"]
+    USE_LIBS += ["GeckoView"]
+    LDFLAGS += [
+        "-Wl,-e,_NSExtensionMain",
+        "-fapplication-extension",
+        "-Wl,-rpath,@executable_path/../../Frameworks/GeckoView.framework",
+    ]
+
+    IOSInfoPlist("extension", name, bundle_id, "Info.plist")
+    IOSSimulatorEntitlements("%s.entitlements" % name, bundle_id)
