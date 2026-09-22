@@ -271,6 +271,20 @@ add_task(async function test_export() {
   await db.close();
 });
 
+add_task(async function test_checkpoint() {
+  let path = newPath();
+  let db = await SessionStoreDB.open(path);
+  await db.write(STATE_OPS);
+  Assert.greater((await IOUtils.stat(path + "-wal")).size, 0);
+  await db.write(["delnode", 4, "checkpoint"]);
+  Assert.equal(
+    (await IOUtils.stat(path + "-wal")).size,
+    0,
+    "The write-ahead log keeps no copy of the deleted row"
+  );
+  await db.close();
+});
+
 add_task(async function test_newer_schema() {
   let path = newPath();
   let db = await SessionStoreDB.open(path);

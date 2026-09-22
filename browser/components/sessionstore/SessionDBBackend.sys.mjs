@@ -239,9 +239,12 @@ export class SessionDBBackend {
    * @param {boolean} options.comparable
    *        Whether the JSON backend serializes `state` in this same task, so
    *        that a cross-check at this generation compares like with like.
+   * @param {boolean} [options.checkpoint]
+   *        Whether to leave no copy of replaced rows in the write-ahead log,
+   *        as after purging data.
    * @returns {Promise<boolean>} Whether the batch was written.
    */
-  write(state, { isFinalWrite, comparable }) {
+  write(state, { isFinalWrite, comparable, checkpoint = false }) {
     if (!this.#writer) {
       lazy.sessionStoreLogger.debug(
         "SessionDBBackend: skipping a write before the database was read"
@@ -268,6 +271,9 @@ export class SessionDBBackend {
       "comparable",
       comparable ? "1" : "0"
     );
+    if (checkpoint) {
+      ops.push("checkpoint");
+    }
     Glean.sessionRestore.dbWriteMainThread.accumulateSingleSample(
       Math.round((ChromeUtils.now() - start) * 1000)
     );

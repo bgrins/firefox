@@ -530,9 +530,10 @@ var SessionFileInternal = {
    * @param {boolean} options.isFinalWrite
    * @param {boolean} options.exporting
    *        Whether the JSON file of this write is exported from the database.
+   * @param {boolean} options.immediate
    * @returns {Promise<boolean>}
    */
-  _writeDatabase(aData, { isFinalWrite, exporting }) {
+  _writeDatabase(aData, { isFinalWrite, exporting, immediate }) {
     if (isFinalWrite) {
       // The JSON writer caps history too, but only once it gets to write,
       // and the database batch is built now.
@@ -551,7 +552,12 @@ var SessionFileInternal = {
         (this._jsonWritten ||
           (this._readOrigin != "clean" && this._readOrigin != "empty")));
     this._dbBackend.annotate(aData);
-    return this._dbBackend.write(aData, { isFinalWrite, comparable });
+    return this._dbBackend.write(aData, {
+      isFinalWrite,
+      comparable,
+      // Saves requested right away follow purges.
+      checkpoint: immediate,
+    });
   },
 
   write(aData, { immediate = false } = {}) {
@@ -578,7 +584,11 @@ var SessionFileInternal = {
       let exporting =
         (this._mode == "export" || this._mode == "sqlite") && !isFinalWrite;
       try {
-        dbWrite = this._writeDatabase(aData, { isFinalWrite, exporting });
+        dbWrite = this._writeDatabase(aData, {
+          isFinalWrite,
+          exporting,
+          immediate,
+        });
       } catch (ex) {
         // The JSON write must happen regardless.
         lazy.sessionStoreLogger.error(

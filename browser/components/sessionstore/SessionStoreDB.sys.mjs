@@ -38,6 +38,9 @@
  * - "root", name, payload
  * - "delroot", name
  * - "meta", key, value
+ * - "checkpoint": once the batch is committed, move the write-ahead log into
+ *   the database and truncate it, so that it keeps no copy of the rows that
+ *   the batch replaced or deleted.
  */
 
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";

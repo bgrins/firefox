@@ -53,6 +53,7 @@ pub enum Op {
         key: nsCString,
         value: nsCString,
     },
+    Checkpoint,
 }
 
 /// Parses a batch flattened into strings, as described in
@@ -112,6 +113,7 @@ pub fn parse(args: &[nsCString]) -> Result<Vec<Op>> {
                 key: next()?,
                 value: next()?,
             },
+            b"checkpoint" => Op::Checkpoint,
             _ => return Err(Error::InvalidOp(format!("unknown operation {}", name))),
         };
         ops.push(op);
@@ -130,14 +132,23 @@ fn int(value: &nsCString) -> Result<i64> {
 /// rolls the whole batch back.
 pub fn apply(conn: &Conn, ops: Vec<Op>) -> Result<()> {
     let mut conn = conn.clone();
+    let mut checkpoint = false;
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
     {
         let mut statements = Statements::new(&tx);
         for op in ops {
-            statements.apply(op)?;
+            match op {
+                Op::Checkpoint => checkpoint = true,
+                op => statements.apply(op)?,
+            }
         }
     }
     tx.commit()?;
+    if checkpoint {
+        // The batch is committed either way, and a later checkpoint catches
+        // up with this one.
+        let _ = conn.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    }
     Ok(())
 }
 
@@ -273,6 +284,7 @@ impl<'c> Statements<'c> {
                 statement.bind_by_index(1, value)?;
                 statement.execute()?;
             }
+            Op::Checkpoint => {}
         }
         Ok(())
     }
