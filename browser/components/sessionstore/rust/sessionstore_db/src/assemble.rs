@@ -42,31 +42,47 @@ struct Assembler {
 /// `{"meta": {...}, "state": <state or null>, "dropped": <count>}`.
 pub fn read(conn: &Conn, validate: bool) -> Result<nsCString> {
     let meta = read_meta(conn)?;
+    let mut out = b"{\"meta\":".to_vec();
+    out.extend_from_slice(meta.as_bytes());
+    out.extend_from_slice(b",\"state\":");
+    let dropped = match write_state(conn, validate, 64, &mut out)? {
+        Some(dropped) => dropped,
+        None => {
+            out.extend_from_slice(b"null");
+            0
+        }
+    };
+    out.extend_from_slice(format!(",\"dropped\":{}}}", dropped).as_bytes());
+    Ok(nsCString::from(out))
+}
+
+/// Appends the assembled session state to `out`, after reserving room for it
+/// and `extra` more bytes. Returns the number of nodes left out, or None if the
+/// database holds no state.
+pub fn write_state(
+    conn: &Conn,
+    validate: bool,
+    extra: usize,
+    out: &mut Vec<u8>,
+) -> Result<Option<usize>> {
     let mut roots = read_roots(conn)?;
+    let Some(state) = roots.remove("state") else {
+        return Ok(None);
+    };
     let mut assembler = Assembler::load(conn, validate)?;
 
-    let mut size = 64 + meta.len();
+    let mut size = extra + state.len();
     size += roots
         .values()
         .map(|payload| payload.len() + 16)
         .sum::<usize>();
     size += assembler.size_hint();
-    let mut out = Vec::new();
     out.try_reserve(size).map_err(|_| Error::OutOfMemory)?;
 
-    out.extend_from_slice(b"{\"meta\":");
-    out.extend_from_slice(meta.as_bytes());
-    out.extend_from_slice(b",\"state\":");
-    match roots.remove("state") {
-        Some(state) => {
-            let members: Vec<(String, nsCString)> = roots.into_iter().collect();
-            assembler.object(ROOT_PARENT, &state, &members, &mut out)?;
-            assembler.check_consumed()?;
-        }
-        None => out.extend_from_slice(b"null"),
-    }
-    out.extend_from_slice(format!(",\"dropped\":{}}}", assembler.dropped).as_bytes());
-    Ok(nsCString::from(out))
+    let members: Vec<(String, nsCString)> = roots.into_iter().collect();
+    assembler.object(ROOT_PARENT, &state, &members, out)?;
+    assembler.check_consumed()?;
+    Ok(Some(assembler.dropped))
 }
 
 fn read_meta(conn: &Conn) -> Result<String> {

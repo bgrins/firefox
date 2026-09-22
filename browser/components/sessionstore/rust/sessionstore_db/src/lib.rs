@@ -10,13 +10,14 @@
 mod assemble;
 mod batch;
 mod error;
+mod export;
 mod schema;
 
 use std::{cell::RefCell, ffi::c_void, mem, ptr, sync::Mutex};
 
 use moz_task::{Task, TaskRunnable, ThreadPtrHandle, ThreadPtrHolder};
 use nserror::{nsresult, NS_ERROR_NO_INTERFACE, NS_OK};
-use nsstring::nsCString;
+use nsstring::{nsACString, nsCString};
 use storage::Conn;
 use thin_vec::ThinVec;
 use xpcom::{
@@ -106,6 +107,34 @@ impl SessionStoreDatabase {
         )
     }
 
+    xpcom_method!(
+        export_json => ExportJSON(
+            path: *const nsACString,
+            tmp_path: *const nsACString,
+            backup_path: *const nsACString,
+            callback: *const mozISessionStoreDatabaseCallback
+        )
+    );
+    fn export_json(
+        &self,
+        path: &nsACString,
+        tmp_path: &nsACString,
+        backup_path: &nsACString,
+        callback: &mozISessionStoreDatabaseCallback,
+    ) -> std::result::Result<(), nsresult> {
+        let conn = self.conn()?;
+        dispatch(
+            "SessionStoreDatabase::ExportJSON",
+            conn,
+            Operation::Export {
+                path: path.to_utf8().into_owned(),
+                tmp_path: tmp_path.to_utf8().into_owned(),
+                backup_path: backup_path.to_utf8().into_owned(),
+            },
+            callback,
+        )
+    }
+
     xpcom_method!(reset => Reset());
     fn reset(&self) -> std::result::Result<(), nsresult> {
         mem::drop(self.conn.borrow_mut().take());
@@ -119,8 +148,15 @@ impl SessionStoreDatabase {
 
 enum Operation {
     Init,
-    Read { validate: bool },
+    Read {
+        validate: bool,
+    },
     Write(Vec<batch::Op>),
+    Export {
+        path: String,
+        tmp_path: String,
+        backup_path: String,
+    },
 }
 
 fn dispatch(
@@ -158,6 +194,11 @@ impl DatabaseTask {
             }
             Operation::Read { validate } => assemble::read(&self.conn, validate),
             Operation::Write(ops) => batch::apply(&self.conn, ops).map(|()| nsCString::new()),
+            Operation::Export {
+                path,
+                tmp_path,
+                backup_path,
+            } => export::export(&self.conn, &path, &tmp_path, &backup_path),
         }
     }
 }

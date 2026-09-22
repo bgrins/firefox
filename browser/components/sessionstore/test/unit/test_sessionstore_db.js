@@ -222,6 +222,53 @@ add_task(async function test_invalid_fragments() {
   await db.close();
 });
 
+add_task(async function test_export() {
+  let db = await SessionStoreDB.open(newPath());
+  let path = PathUtils.join(PathUtils.profileDir, "exported.jsonlz4");
+  let tmpPath = path + ".tmp";
+  let backupFile = path + ".bak";
+  await assertRejects(
+    db.exportJSON(path, { tmpPath }),
+    Cr.NS_ERROR_NOT_AVAILABLE,
+    "An empty database has nothing to export"
+  );
+
+  await db.write(STATE_OPS);
+  let size = await db.exportJSON(path, { tmpPath });
+  Assert.deepEqual(
+    await IOUtils.readJSON(path, { decompress: true }),
+    STATE,
+    "The exported file holds the state"
+  );
+  Assert.equal(size, (await IOUtils.stat(path)).size);
+  Assert.ok(!(await IOUtils.exists(tmpPath)), "The temporary file was moved");
+
+  await db.write(["node", 4, 1, "tabs", '{"new":true}']);
+  await db.exportJSON(path, { tmpPath, backupFile });
+  Assert.deepEqual(
+    await IOUtils.readJSON(backupFile, { decompress: true }),
+    STATE,
+    "The previous file became the backup"
+  );
+  Assert.deepEqual(
+    (await IOUtils.readJSON(path, { decompress: true })).windows[0].tabs[2],
+    { new: true }
+  );
+
+  await db.write(["node", 4, 1, "tabs", '{"broken":}']);
+  await assertRejects(
+    db.exportJSON(path, { tmpPath }),
+    Cr.NS_ERROR_FILE_CORRUPTED,
+    "A state that doesn't parse isn't exported"
+  );
+  Assert.deepEqual(
+    (await IOUtils.readJSON(path, { decompress: true })).windows[0].tabs[2],
+    { new: true },
+    "The previous file is untouched"
+  );
+  await db.close();
+});
+
 add_task(async function test_newer_schema() {
   let path = newPath();
   let db = await SessionStoreDB.open(path);

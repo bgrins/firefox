@@ -57,6 +57,21 @@ interface mozISessionStoreDatabase : nsISupports
              in mozISessionStoreDatabaseCallback aCallback);
 
   /**
+   * Writes the session state as a JSON session file, compressed as IOUtils
+   * compresses with `compress: true`. The file is written to aTmpPath, then
+   * moved to aPath once any file there has been moved to aBackupPath.
+   * Succeeds with the size of the file.
+   *
+   * @param aBackupPath
+   *        Where to move the previous file, or an empty string to replace it.
+   * @throws NS_ERROR_NOT_AVAILABLE if the database holds no state.
+   */
+  void exportJSON(in AUTF8String aPath,
+                  in AUTF8String aTmpPath,
+                  in AUTF8String aBackupPath,
+                  in mozISessionStoreDatabaseCallback aCallback);
+
+  /**
    * Releases the connection. Operations already started still complete; the
    * caller closes the connection afterwards.
    */

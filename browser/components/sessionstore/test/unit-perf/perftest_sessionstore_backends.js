@@ -17,6 +17,7 @@ const METRICS = [
   "db one-change save rows",
   "db recollected save main thread",
   "db recollected save total",
+  "db export total",
   "json deferred save main thread",
   "db deferred one-change save main thread",
   "json read",
@@ -286,6 +287,17 @@ async function benchmark(tabCount) {
     })
   );
   record("db recollected save main thread", median(recollectedMain));
+
+  let exportPath = jsonPath + ".exported";
+  record(
+    "db export total",
+    await measure(async () => {
+      let start = ChromeUtils.now();
+      await db.exportJSON(exportPath, { tmpPath: exportPath + ".tmp" });
+      return ChromeUtils.now() - start;
+    })
+  );
+  await IOUtils.remove(exportPath);
 
   record(
     "db read",

@@ -2097,6 +2097,8 @@ interface mozISessionStoreDatabase extends nsISupports {
   read(aValidate: boolean, aCallback: mozISessionStoreDatabaseCallback): void;
   /** <!-- binding_to(idl, method, XPIDL_mozISessionStoreDatabase_write) --> */
   write(aOps: string[], aCallback: mozISessionStoreDatabaseCallback): void;
+  /** <!-- binding_to(idl, method, XPIDL_mozISessionStoreDatabase_exportJSON) --> */
+  exportJSON(aPath: string, aTmpPath: string, aBackupPath: string, aCallback: mozISessionStoreDatabaseCallback): void;
   /** <!-- binding_to(idl, method, XPIDL_mozISessionStoreDatabase_reset) --> */
   reset(): void;
 }

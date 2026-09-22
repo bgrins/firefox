@@ -138,6 +138,25 @@ export class SessionStoreDB {
   }
 
   /**
+   * Writes the session state as a JSON session file, compressed as
+   * `IOUtils.writeJSON()` compresses with `compress: true`, without
+   * serializing anything on this thread.
+   *
+   * @param {string} path
+   * @param {object} options
+   *        The options of `IOUtils.writeJSON()` that apply.
+   * @param {string} options.tmpPath
+   * @param {string} [options.backupFile]
+   * @returns {Promise<number>} The size of the file.
+   */
+  async exportJSON(path, { tmpPath, backupFile = "" }) {
+    let size = await this.#call(callback =>
+      this.#database.exportJSON(path, tmpPath, backupFile, callback)
+    );
+    return Number(size);
+  }
+
+  /**
    * Waits for pending operations, then closes the connection.
    *
    * @returns {Promise<void>}

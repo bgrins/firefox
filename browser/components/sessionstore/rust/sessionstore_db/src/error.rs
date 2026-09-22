@@ -2,11 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use std::{fmt, result};
+use std::{fmt, io::ErrorKind, result};
 
 use nserror::{
-    nsresult, NS_ERROR_ABORT, NS_ERROR_FILE_CORRUPTED, NS_ERROR_INVALID_ARG,
-    NS_ERROR_NOT_AVAILABLE, NS_ERROR_NOT_INITIALIZED, NS_ERROR_OUT_OF_MEMORY, NS_ERROR_UNEXPECTED,
+    nsresult, NS_ERROR_ABORT, NS_ERROR_FAILURE, NS_ERROR_FILE_ACCESS_DENIED,
+    NS_ERROR_FILE_CORRUPTED, NS_ERROR_FILE_NOT_FOUND, NS_ERROR_INVALID_ARG, NS_ERROR_NOT_AVAILABLE,
+    NS_ERROR_NOT_INITIALIZED, NS_ERROR_OUT_OF_MEMORY, NS_ERROR_UNEXPECTED,
 };
 
 pub type Result<T> = result::Result<T, Error>;
@@ -32,7 +33,17 @@ pub enum Error {
     InvalidFragment(String),
     /// The rows don't form a session state.
     Corrupt(String),
+    /// There is no session state to export.
+    NoState,
+    /// Writing the exported file failed.
+    Io(std::io::Error),
     OutOfMemory,
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Error {
+        Error::Io(err)
+    }
 }
 
 impl From<storage::Error> for Error {
@@ -57,6 +68,12 @@ impl From<Error> for nsresult {
             Error::InvalidOp(_) => NS_ERROR_INVALID_ARG,
             Error::GuardMismatch { .. } => NS_ERROR_ABORT,
             Error::InvalidFragment(_) | Error::Corrupt(_) => NS_ERROR_FILE_CORRUPTED,
+            Error::NoState => NS_ERROR_NOT_AVAILABLE,
+            Error::Io(err) => match err.kind() {
+                ErrorKind::NotFound => NS_ERROR_FILE_NOT_FOUND,
+                ErrorKind::PermissionDenied => NS_ERROR_FILE_ACCESS_DENIED,
+                _ => NS_ERROR_FAILURE,
+            },
             Error::OutOfMemory => NS_ERROR_OUT_OF_MEMORY,
         }
     }
@@ -81,6 +98,8 @@ impl fmt::Display for Error {
             ),
             Error::InvalidFragment(message) => write!(f, "Invalid fragment: {}", message),
             Error::Corrupt(message) => write!(f, "Corrupt database: {}", message),
+            Error::NoState => f.write_str("The database holds no session state"),
+            Error::Io(err) => write!(f, "Export failed: {}", err),
             Error::OutOfMemory => f.write_str("Out of memory"),
         }
     }
