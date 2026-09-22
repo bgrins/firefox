@@ -5,9 +5,11 @@
 /**
  * Writes session state to the session store database next to the JSON
  * session file, and checks after startup that the database agrees with the
- * JSON file that startup read. Used in the "shadow" and "export" modes of
- * `browser.sessionstore.backend`, where startup still restores from JSON. In
- * the "export" mode, the JSON file is exported from the database.
+ * JSON file that startup read. Used in the "shadow", "export" and "sqlite"
+ * modes of `browser.sessionstore.backend`. In the "export" mode, the JSON
+ * files are exported from the database. In the "sqlite" mode, they are
+ * exported less often, and startup restores from the database when it is
+ * newer than them.
  *
  * Both backends store a generation: a lineage, which identifies the database,
  * and a seq, which increments with every save. The JSON file carries them in
@@ -65,6 +67,10 @@ export class SessionDBBackend {
   #writer = null;
   // Incremented by each wipe, so that batches built before it are dropped.
   #epoch = 0;
+  /** @type {Promise<Record<string, string>>|null} */
+  #startupMeta = null;
+  /** @type {Promise<string>|null} */
+  #startupText = null;
 
   /**
    * Resolves with the result of the startup cross-check.
@@ -99,8 +105,8 @@ export class SessionDBBackend {
     // to write, and the state is only parsed for the cross-check, in idle.
     // Writes before the meta values are read are skipped, since there is no
     // writer yet.
-    let meta = this.#db.then(db => db.readMeta());
-    let text = this.#db.then(db => db.readText());
+    let meta = (this.#startupMeta = this.#db.then(db => db.readMeta()));
+    let text = (this.#startupText = this.#db.then(db => db.readText()));
     meta.then(
       values => {
         this.#writer = new lazy.SessionDBWriter(values, {
@@ -160,6 +166,42 @@ export class SessionDBBackend {
       );
       await removeFiles(this.#path);
       return lazy.SessionStoreDB.open(this.#path);
+    }
+  }
+
+  /**
+   * Returns the state that startup read from the database, if it is newer
+   * than `jsonState`, the state read from the JSON files: when both have the
+   * same lineage and the database the higher seq, or when no JSON file could
+   * be read. A JSON file from another lineage wins, since it was restored or
+   * copied from elsewhere.
+   *
+   * @param {object|null} jsonState
+   * @returns {Promise<object|null>}
+   */
+  async newerState(jsonState) {
+    let meta = await this.#startupMeta?.catch(() => null);
+    if (!meta?.seq) {
+      return null;
+    }
+    let session = jsonState?.session;
+    if (
+      jsonState &&
+      !(
+        session?.lineage == meta.lineage &&
+        Number(meta.seq) > Number(session.writeSeq)
+      )
+    ) {
+      return null;
+    }
+    try {
+      return JSON.parse(await this.#startupText).state;
+    } catch (ex) {
+      lazy.sessionStoreLogger.error(
+        "SessionDBBackend: the newer state can't be read",
+        ex
+      );
+      return null;
     }
   }
 

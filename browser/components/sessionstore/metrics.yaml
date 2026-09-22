@@ -288,15 +288,17 @@ session_restore:
   db_export:
     type: labeled_counter
     description: >
-      JSON session file writes in the "export" backend mode, where the file is
-      exported from the session database off the main thread. The others
-      serialize the state instead: "not_written" when the database didn't
-      hold the state, because its batch wasn't written, and "failed" when the
-      export itself failed.
+      JSON session file writes in the "export" and "sqlite" backend modes,
+      where the file is exported from the session database off the main
+      thread. The others serialize the state instead: "not_written" when the
+      database didn't hold the state, because its batch wasn't written, and
+      "failed" when the export itself failed. "skipped" counts the saves of
+      the "sqlite" mode that wrote no JSON file.
     labels:
       - exported
       - not_written
       - failed
+      - skipped
     bugs:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
     data_reviews:
@@ -334,6 +336,22 @@ session_restore:
       - scroll
       - storage
       - image
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    notification_emails:
+      - session-restore-telemetry-alerts@mozilla.com
+    expires: never
+
+  db_source_selected:
+    type: labeled_counter
+    description: >
+      Where startup restored the session from, in the "sqlite" backend mode:
+      the JSON files, or the session database when it was newer than them.
+    labels:
+      - json
+      - database
     bugs:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
     data_reviews:

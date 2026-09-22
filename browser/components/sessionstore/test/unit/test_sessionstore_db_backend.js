@@ -120,6 +120,35 @@ add_task(async function test_annotate_matches_the_written_generation() {
   await backend.close();
 });
 
+add_task(async function test_newer_state() {
+  let json = JSON.parse(await writeSession(makeState("a")));
+  let { backend } = await startBackend(JSON.stringify(json));
+  Assert.equal(
+    await backend.newerState(json),
+    null,
+    "The database isn't newer than JSON of the same generation"
+  );
+  let older = structuredClone(json);
+  older.session.writeSeq--;
+  Assert.deepEqual(
+    await backend.newerState(older),
+    json,
+    "The database is newer than an older JSON file of its lineage"
+  );
+  older.session.lineage = "elsewhere";
+  Assert.equal(
+    await backend.newerState(older),
+    null,
+    "A JSON file of another lineage wins"
+  );
+  Assert.deepEqual(
+    await backend.newerState(null),
+    json,
+    "The database wins when no JSON file was read"
+  );
+  await backend.close();
+});
+
 add_task(async function test_metrics() {
   Services.fog.testResetFOG();
   await writeSession(makeState("a"));

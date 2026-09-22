@@ -41,7 +41,11 @@ const PREF_MAX_SERIALIZE_FWD = "browser.sessionstore.max_serialize_forward";
 // "json" writes only the JSON session files. "shadow" also writes the session
 // database, and compares it with the JSON files after startup. "export" writes
 // the database and exports all but the final JSON file of a session from it.
+// "sqlite" writes the database, exports a JSON file at most every
+// PREF_EXPORT_INTERVAL ms, and restores from the database when it is newer.
 const PREF_BACKEND = "browser.sessionstore.backend";
+const PREF_EXPORT_INTERVAL = "browser.sessionstore.db_export_interval";
+const DB_MODES = ["shadow", "export", "sqlite"];
 
 export var SessionFile = {
   /**
@@ -74,9 +78,8 @@ export var SessionFile = {
   },
 
   /**
-   * In the "shadow" and "export" backend modes, a promise for the result of
-   * comparing the session database with the JSON file read at startup. Null
-   * otherwise.
+   * In the backend modes that write the session database, a promise for the
+   * result of comparing it with the JSON file read at startup. Null otherwise.
    *
    * @type {Promise<object>|null}
    */
@@ -140,8 +143,8 @@ var SessionFileInternal = {
       "upgrade.jsonlz4-"
     ),
 
-    // The session database, written next to the JSON files in the "shadow"
-    // and "export" backend modes.
+    // The session database, written next to the JSON files in the "shadow",
+    // "export" and "sqlite" backend modes.
     database: PathUtils.join(profileDir, "sessionstore.sqlite"),
 
     // The path to the backup of the version of the session store used
@@ -212,12 +215,15 @@ var SessionFileInternal = {
   // a fallback mechanism.
   _usingOldExtension: false,
 
-  // The SessionDBBackend in the "shadow" and "export" backend modes, once
+  // The SessionDBBackend in the backend modes that write the database, once
   // read() is done.
   _dbBackend: null,
 
-  // Whether JSON files are exported from the database, in the "export" mode.
-  _exportJSON: false,
+  // The backend mode, once read() is done.
+  _mode: "json",
+
+  // When the latest JSON write started, in the "sqlite" mode.
+  _lastJSONWrite: 0,
 
   // The number of JSON writes started but not finished.
   _jsonWritesPending: 0,
@@ -424,13 +430,35 @@ var SessionFileInternal = {
         useOldExtension: false,
       };
     }
+    // The JSON writer starts from the JSON files, even when the database is
+    // restored, so that it rotates them as usual.
     this._readOrigin = result.origin;
 
-    let backend = Services.prefs.getStringPref(PREF_BACKEND, "json");
-    if ((backend == "shadow" || backend == "export") && !this._dbBackend) {
-      this._exportJSON = backend == "export";
+    let mode = Services.prefs.getStringPref(PREF_BACKEND, "json");
+    if (DB_MODES.includes(mode) && !this._dbBackend) {
+      this._mode = mode;
       this._dbBackend = new lazy.SessionDBBackend(this.Paths.database);
       this._dbBackend.start({ origin: result.origin, source: result.source });
+      if (mode == "sqlite") {
+        let state = await this._dbBackend.newerState(result.parsed);
+        Glean.sessionRestore.dbSourceSelected[state ? "database" : "json"].add(
+          1
+        );
+        if (state) {
+          result = {
+            origin: "database",
+            // Only built for observers that could rewrite it.
+            source: Services.obs
+              .enumerateObservers("sessionstore-state-read")
+              .hasMoreElements()
+              ? JSON.stringify(state)
+              : "",
+            parsed: state,
+            useOldExtension: false,
+          };
+          noFilesFound = false;
+        }
+      }
     }
 
     return { ...result, noFilesFound };
@@ -524,7 +552,8 @@ var SessionFileInternal = {
     if (this._dbBackend) {
       // The final write serializes the state even in the "export" mode, so
       // that the session restored next doesn't depend on the change journal.
-      let exporting = this._exportJSON && !isFinalWrite;
+      let exporting =
+        (this._mode == "export" || this._mode == "sqlite") && !isFinalWrite;
       try {
         dbWrite = this._writeDatabase(aData, { isFinalWrite, exporting });
       } catch (ex) {
@@ -557,9 +586,22 @@ var SessionFileInternal = {
       }
     }
 
+    if (
+      this._mode == "sqlite" &&
+      !isFinalWrite &&
+      this._jsonWritten &&
+      Date.now() - this._lastJSONWrite <
+        Services.prefs.getIntPref(PREF_EXPORT_INTERVAL, 600000)
+    ) {
+      // The database alone holds this save.
+      Glean.sessionRestore.dbExport.skipped.add(1);
+      return dbWrite.then(() => {});
+    }
+
     this._attempts++;
     this._jsonWritesPending++;
     this._jsonWritten = true;
+    this._lastJSONWrite = Date.now();
     let options = { isFinalWrite, performShutdownCleanup, exportJSON };
     let write = this.getWriter()
       .then(writer => writer.write(aData, options))

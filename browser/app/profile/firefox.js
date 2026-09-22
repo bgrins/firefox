@@ -1601,10 +1601,13 @@ pref("browser.sessionstore.max_windows_undo", 5);
 // (this pref has no effect if more than 6 hours have passed since the last crash)
 pref("browser.sessionstore.max_resumed_crashes", 1);
 // Where session state is written: "json" for the JSON session files only,
-// "shadow" to also write the session database and check it against them, or
-// "export" to write the database and export the JSON session files from it.
-// Read once at startup.
+// "shadow" to also write the session database and check it against them,
+// "export" to write the database and export the JSON session files from it, or
+// "sqlite" to write the database, export the JSON files at most every
+// browser.sessionstore.db_export_interval ms, and restore from the database
+// when it is newer than them. Read once at startup.
 pref("browser.sessionstore.backend", "json");
+pref("browser.sessionstore.db_export_interval", 600000);
 // Whether the session database writer also serializes the tab states it
 // judged unchanged, and reports those that changed. Read once at startup.
 pref("browser.sessionstore.db_audit", false);
