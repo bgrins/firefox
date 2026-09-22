@@ -3,6 +3,9 @@
 
 "use strict";
 
+const { SessionChangeJournal } = ChromeUtils.importESModule(
+  "moz-src:///browser/components/sessionstore/SessionChangeJournal.sys.mjs"
+);
 const { SessionDBWriter } = ChromeUtils.importESModule(
   "moz-src:///browser/components/sessionstore/SessionDBWriter.sys.mjs"
 );
@@ -271,6 +274,104 @@ add_task(async function test_new_writer_continues_the_generation() {
   await db.close();
 });
 
+add_task(async function test_unchanged_tabs_are_not_serialized() {
+  let { db } = await openDB();
+  let writer = new SessionDBWriter();
+  let serializations = 0;
+  let entry = {
+    url: "https://a.test/",
+    toJSON() {
+      serializations++;
+      return { url: this.url };
+    },
+  };
+  let state = makeState();
+  let [win] = state.windows;
+  win.tabs[0].entries = [entry];
+  let save = async () => {
+    let before = serializations;
+    await db.write(writer.materialize(state));
+    return serializations - before;
+  };
+
+  Assert.equal(await save(), 1, "The first batch serializes the history");
+  Assert.equal(await save(), 0, "The same objects aren't serialized again");
+  win.tabs = win.tabs.map(tab => ({
+    ...tab,
+    attributes: { ...tab.attributes },
+  }));
+  Assert.equal(
+    await save(),
+    0,
+    "Recollected tab states that share their history aren't serialized"
+  );
+  win.tabs[0].entries.push({ url: "https://b.test/" });
+  SessionChangeJournal.markChanged(win.tabs[0].entries);
+  Assert.equal(await save(), 1, "A marked history is serialized again");
+  await writeAndCheck(db, writer, state, "The database has the edit");
+  await db.close();
+});
+
+add_task(async function test_audit_finds_unmarked_edits() {
+  let { db } = await openDB();
+  let writer = new SessionDBWriter({}, { audit: true });
+  let state = makeState();
+  await writeAndCheck(db, writer, state);
+  let [tab] = state.windows[0].tabs;
+
+  tab.entries.push({ url: "https://unmarked.test/" });
+  await writeAndCheck(db, writer, state, "The audit writes the missed edit");
+  Assert.deepEqual(writer.misses, [{ kind: "tab", group: "history" }]);
+
+  tab.entries.push({ url: "https://marked.test/" });
+  SessionChangeJournal.markChanged(tab.entries);
+  await writeAndCheck(db, writer, state);
+  Assert.deepEqual(writer.misses, [], "A marked edit is no miss");
+  await db.close();
+});
+
+add_task(async function test_identities_match_recollected_tabs() {
+  let { db } = await openDB();
+  let writer = new SessionDBWriter();
+  let state = makeState();
+  let [win] = state.windows;
+  let identities = win.tabs.map(() => ({}));
+  let recollect = tabs =>
+    tabs.map((tab, i) => {
+      let copy = { ...tab };
+      SessionChangeJournal.setIdentity(copy, identities[i]);
+      return copy;
+    });
+  win.tabs = recollect(win.tabs);
+  await writeAndCheck(db, writer, state);
+
+  identities.unshift({});
+  win.tabs = recollect([makeTab("https://new.test/"), ...win.tabs]);
+  let ops = await writeAndCheck(db, writer, state, "Insertion");
+  Assert.deepEqual(
+    ops.map(([name]) => name),
+    ["node", "section", "section", "order"],
+    "Only the new tab and the order are written"
+  );
+  await db.close();
+});
+
+add_task(async function test_shared_objects_keep_their_nodes() {
+  let { db } = await openDB();
+  let writer = new SessionDBWriter();
+  let state = makeState();
+  let tab = makeTab("https://shared.test/");
+  state._closedWindows.push({ tabs: [tab], _closedTabs: [], closedGroups: [] });
+  state.savedGroups[0].tabs.push({ state: tab, title: "shared" });
+  await writeAndCheck(db, writer, state);
+  Assert.deepEqual(
+    await writeAndCheck(db, writer, state),
+    [],
+    "An object in two places keeps both of its nodes"
+  );
+  await db.close();
+});
+
 /**
  * A small deterministic generator, so that failures reproduce.
  */
@@ -281,9 +382,9 @@ function makeRandom(seed) {
   };
 }
 
-add_task(async function test_random_changes() {
+async function randomChanges({ audit }) {
   let { db } = await openDB();
-  let writer = new SessionDBWriter();
+  let writer = new SessionDBWriter({}, { audit });
   let random = makeRandom(42);
   let pick = array => array[Math.floor(random() * array.length)];
   let state = makeState();
@@ -329,6 +430,21 @@ add_task(async function test_random_changes() {
         let tab = pick(win.tabs);
         tab.entries = [...tab.entries, { url: `https://n${counter++}.test/` }];
         tab.index = tab.entries.length;
+        SessionChangeJournal.markChanged(tab);
+      }
+    },
+    () => {
+      let tab = pick(pick(state.windows)?.tabs ?? []);
+      if (tab) {
+        tab.attributes.custom = String(counter++);
+        SessionChangeJournal.markChanged(tab.attributes);
+      }
+    },
+    () => {
+      let closedTab = pick(pick(state.windows)?._closedTabs ?? []);
+      if (closedTab) {
+        closedTab.state.scroll = { scroll: `0,${counter++}` };
+        SessionChangeJournal.markChanged(closedTab.state);
       }
     },
     () => {
@@ -384,6 +500,17 @@ add_task(async function test_random_changes() {
   for (let step = 0; step < 200; step++) {
     pick(mutations)();
     await writeAndCheck(db, writer, state, `Step ${step}`);
+    if (audit) {
+      Assert.deepEqual(writer.misses, [], `Step ${step} has no misses`);
+    }
   }
   await db.close();
+}
+
+add_task(async function test_random_changes() {
+  await randomChanges({ audit: false });
+});
+
+add_task(async function test_random_changes_audited() {
+  await randomChanges({ audit: true });
 });

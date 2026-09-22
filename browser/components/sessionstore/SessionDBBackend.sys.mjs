@@ -32,6 +32,7 @@ const lazy = XPCOMUtils.declareLazy({
 });
 
 const CROSS_CHECK_TOPIC = "sessionstore-db-cross-check";
+const PREF_AUDIT = "browser.sessionstore.db_audit";
 const MAX_MISMATCH_PATHS = 20;
 
 /**
@@ -97,7 +98,9 @@ export class SessionDBBackend {
     let read = this.#db.then(db => db.read());
     read.then(
       ({ meta }) => {
-        this.#writer = new lazy.SessionDBWriter(meta);
+        this.#writer = new lazy.SessionDBWriter(meta, {
+          audit: Services.prefs.getBoolPref(PREF_AUDIT, false),
+        });
       },
       () => {}
     );
@@ -166,6 +169,15 @@ export class SessionDBBackend {
     Glean.sessionRestore.dbWriteMainThread.accumulateSingleSample(
       Math.round((ChromeUtils.now() - start) * 1000)
     );
+    if (writer.misses.length) {
+      lazy.sessionStoreLogger.error(
+        "SessionDBBackend: the change journal missed edits",
+        writer.misses
+      );
+      for (let { group } of writer.misses) {
+        Glean.sessionRestore.dbJournalMiss[group].add(1);
+      }
+    }
     let epoch = this.#epoch;
     return this.#db
       .then(db => (db && epoch == this.#epoch ? db.write(ops) : undefined))

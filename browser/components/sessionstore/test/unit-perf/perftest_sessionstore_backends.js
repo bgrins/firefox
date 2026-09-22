@@ -15,6 +15,8 @@ const METRICS = [
   "db one-change save main thread",
   "db one-change save total",
   "db one-change save rows",
+  "db recollected save main thread",
+  "db recollected save total",
   "json read",
   "db read",
   "json file size",
@@ -48,6 +50,9 @@ var perfMetadata = {
   tags: ["sessionstore"],
 };
 
+const { SessionChangeJournal } = ChromeUtils.importESModule(
+  "moz-src:///browser/components/sessionstore/SessionChangeJournal.sys.mjs"
+);
 const { SessionDBWriter } = ChromeUtils.importESModule(
   "moz-src:///browser/components/sessionstore/SessionDBWriter.sys.mjs"
 );
@@ -144,7 +149,9 @@ function makeState(tabCount) {
     });
   }
   for (let i = 0; i < tabCount; i++) {
-    windows[i % windows.length].tabs.push(makeTab(i));
+    let tab = makeTab(i);
+    SessionChangeJournal.setIdentity(tab, {});
+    windows[i % windows.length].tabs.push(tab);
   }
   for (let win of windows) {
     for (let c = 0; c < 10; c++) {
@@ -251,6 +258,32 @@ async function benchmark(tabCount) {
   );
   record("db one-change save main thread", median(oneMain));
   record("db one-change save rows", median(rows));
+
+  // Collection builds a new object for every tab it collects, which shares
+  // the tab state cache's objects with the previous one.
+  let recollectedMain = [];
+  record(
+    "db recollected save total",
+    await measure(async () => {
+      for (let win of state.windows) {
+        win.tabs = win.tabs.map(tab => {
+          let copy = { ...tab, attributes: { ...tab.attributes } };
+          let identity = SessionChangeJournal.identityOf(tab);
+          if (identity) {
+            SessionChangeJournal.setIdentity(copy, identity);
+          }
+          return copy;
+        });
+      }
+      state.windows[0].tabs[0].scroll = { scroll: `0,${random()}` };
+      let start = ChromeUtils.now();
+      let ops = writer.materialize(state);
+      recollectedMain.push(ChromeUtils.now() - start);
+      await db.write(ops);
+      return ChromeUtils.now() - start;
+    })
+  );
+  record("db recollected save main thread", median(recollectedMain));
 
   record(
     "db read",

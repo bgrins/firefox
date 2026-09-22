@@ -11,11 +11,23 @@
  * value that JSON can round-trip, including properties this module doesn't
  * know about, is stored without loss.
  *
- * This writer finds changes by serializing every node on every save and
- * comparing the result with what it wrote before, which costs as much main
- * thread time as a JSON write. It is the reference that a change journal is
- * meant to make incremental.
+ * Tab states, which make up most of a session, aren't serialized again on
+ * every save. Each is compared with the object written for it before, and a
+ * group of its properties, its payload or one of its sections, is only
+ * serialized when a value in the group differs from the one written, or was
+ * edited in place and marked in SessionChangeJournal. The other kinds are
+ * small and edited in place in many ways, so they are serialized on every
+ * save and compared as text. With the audit option, the writer also
+ * serializes the tab properties it judged unchanged, and reports the ones that
+ * did change.
  */
+
+import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
+
+const lazy = XPCOMUtils.declareLazy({
+  SessionChangeJournal:
+    "moz-src:///browser/components/sessionstore/SessionChangeJournal.sys.mjs",
+});
 
 /**
  * @typedef {object} Kind
@@ -26,6 +38,10 @@
  *   Object properties whose value becomes a single child node.
  * @property {Record<string, string[]>} [sections]
  *   Sections, each holding the listed properties of the node.
+ * @property {boolean} [tracked]
+ *   Whether objects of this kind are compared with the objects written before
+ *   instead of being serialized on every save. Everything they reference must
+ *   follow the contract of SessionChangeJournal.
  */
 
 /** @type {Record<string, Kind>} */
@@ -49,6 +65,7 @@ const SPLITS = {
   group: { arrays: { tabs: "closedTab" } },
   closedTab: { objects: { state: "tab" } },
   tab: {
+    tracked: true,
     sections: {
       history: ["entries", "index", "requestedIndex"],
       formdata: ["formdata"],
@@ -61,6 +78,22 @@ const SPLITS = {
 };
 
 /**
+ * The section each property of a kind belongs to.
+ *
+ * @type {Map<string, Map<string, string>>}
+ */
+const SECTION_OF = new Map(
+  Object.entries(SPLITS).map(([kind, { sections = {} }]) => [
+    kind,
+    new Map(
+      Object.entries(sections).flatMap(([name, keys]) =>
+        keys.map(key => [key, name])
+      )
+    ),
+  ])
+);
+
+/**
  * Top-level properties stored as their own root rows.
  */
 const ROOT_MEMBERS = ["global", "lastSessionState"];
@@ -68,22 +101,46 @@ const ROOT_MEMBERS = ["global", "lastSessionState"];
 const ROOT_PARENT = 0;
 
 /**
+ * The group of the properties that stay in a node's payload, as opposed to
+ * the groups that are sections.
+ */
+const CORE = "core";
+
+/**
  * @typedef {object} NodeRecord
+ * @property {string} kind
  * @property {number} parent
  * @property {string} prop
- * @property {string|null} payload
+ * @property {any} value
+ *   The value written, for tracked kinds.
+ * @property {string|null|undefined} payload
  *   The node's JSON without its split properties, or null for JSON null.
- * @property {Map<string, string>} sections
+ *   Undefined when the text isn't kept, as for tracked kinds outside audits.
+ * @property {Map<string, string|undefined>} sections
+ *   The node's sections, with their JSON when it's kept.
  * @property {Map<string, string>} orders
  *   The JSON of each split property's child ids.
  */
 
 /**
  * @typedef {object} Split
+ * @property {boolean} plain
+ *   Whether the value is a plain object. Other values are stored whole.
  * @property {string|null} payload
- * @property {Map<string, string>} sections
+ *   For other values, their JSON, or null for JSON null.
+ * @property {Map<string, string[]>} groups
+ *   The keys in CORE and in each section, in the value's key order.
  * @property {Array<[string, string, Array]>} arrays
  * @property {Array<[string, string, object]>} objects
+ */
+
+/**
+ * @typedef {object} Miss
+ *   A group of properties that the comparison judged unchanged, but whose
+ *   JSON differs from the JSON written before.
+ * @property {string} kind
+ * @property {string} group
+ *   CORE or the name of a section.
  */
 
 export class SessionDBWriter {
@@ -93,7 +150,31 @@ export class SessionDBWriter {
   #roots = new Map();
   /** @type {Map<string, string>} */
   #rootOrders = new Map();
+  /**
+   * The ids of the nodes the previous batch wrote for each object.
+   *
+   * @type {WeakMap<object, number[]>}
+   */
   #byObject = new WeakMap();
+  /**
+   * The ids of the nodes the previous batch wrote for each identity that
+   * SessionChangeJournal gave an object.
+   *
+   * @type {WeakMap<object, number[]>}
+   */
+  #byIdentity = new WeakMap();
+  // The journal's version when the previous batch was built.
+  #journalVersion = 0;
+  /**
+   * Whether the journal marked an object since the previous batch.
+   *
+   * @type {(object: object) => boolean}
+   */
+  #isChanged = object =>
+    lazy.SessionChangeJournal.changedSince(object, this.#journalVersion);
+  #audit;
+  /** @type {Miss[]} */
+  #misses = [];
   #nextId;
   #lineage;
   #seq;
@@ -103,14 +184,19 @@ export class SessionDBWriter {
   /**
    * @param {Record<string, string>} meta
    *        The database's meta values, as SessionStoreDB.read() returns them.
+   * @param {object} [options]
+   * @param {boolean} [options.audit]
+   *        Whether to also serialize the properties of tracked nodes that the
+   *        comparison judges unchanged, and report those that changed.
    */
-  constructor(meta = {}) {
+  constructor(meta = {}, { audit = false } = {}) {
     this.#dbLineage = meta.lineage ?? "";
     this.#dbSeq = meta.seq ?? "";
     this.#lineage =
       this.#dbLineage || Services.uuid.generateUUID().toString().slice(1, -1);
     this.#seq = Number(meta.seq ?? 0);
     this.#nextId = Number(meta.next_node_id ?? 1);
+    this.#audit = audit;
   }
 
   /**
@@ -129,6 +215,16 @@ export class SessionDBWriter {
    */
   get seq() {
     return this.#seq;
+  }
+
+  /**
+   * What the audit of the most recent batch found. The batch writes the
+   * missed groups anyway.
+   *
+   * @type {Miss[]}
+   */
+  get misses() {
+    return this.#misses;
   }
 
   /**
@@ -153,10 +249,15 @@ export class SessionDBWriter {
   #materialize(state) {
     let fullRewrite = !this.#nodes;
     let previous = this.#nodes ?? new Map();
+    let journalVersion = lazy.SessionChangeJournal.version;
     let context = {
       previous,
       nodes: new Map(),
       used: new Set(),
+      byObject: new WeakMap(),
+      byIdentity: new WeakMap(),
+      /** @type {Miss[]} */
+      misses: [],
       ops: [],
     };
     let { ops } = context;
@@ -177,7 +278,7 @@ export class SessionDBWriter {
     }
 
     let split = this.#split("state", state);
-    this.#syncRoots(split.payload, state, ops);
+    this.#syncRoots(serialize(state, split.groups.get(CORE)), state, ops);
 
     let orders = new Map();
     for (let [prop, kind, values] of split.arrays) {
@@ -207,6 +308,10 @@ export class SessionDBWriter {
     );
 
     this.#nodes = context.nodes;
+    this.#byObject = context.byObject;
+    this.#byIdentity = context.byIdentity;
+    this.#journalVersion = journalVersion;
+    this.#misses = context.misses;
     this.#dbLineage = this.#lineage;
     this.#dbSeq = String(this.#seq);
     return ops;
@@ -219,6 +324,7 @@ export class SessionDBWriter {
   reset() {
     this.#nodes = null;
     this.#byObject = new WeakMap();
+    this.#byIdentity = new WeakMap();
   }
 
   #syncRoots(payload, state, ops) {
@@ -257,12 +363,12 @@ export class SessionDBWriter {
 
   /**
    * Assigns ids in three passes, so that a looser match never takes an id a
-   * stricter one needs: the same object, then identical content, then the
-   * previous child at the same index, which is updated in place.
+   * stricter one needs: a node written for the same object, then one written
+   * for an object with the same identity, then the previous child at the same
+   * index, which is updated in place.
    */
   #syncArray(context, parent, prop, kind, values) {
     let previousIds = this.#previousChildren(context, parent, prop);
-    let splits = [];
     let ids = [];
     let claim = (i, id) => {
       if (id !== undefined) {
@@ -271,35 +377,38 @@ export class SessionDBWriter {
       }
     };
     for (let i = 0; i < values.length; i++) {
-      splits.push(this.#split(kind, values[i]));
-      claim(i, this.#matchObject(context, values[i]));
+      claim(i, this.#match(context, this.#byObject, values[i], kind));
     }
-    let byPayload = null;
     for (let i = 0; i < values.length; i++) {
       if (ids[i] === undefined) {
-        byPayload ??= this.#byPayload(context, previousIds);
-        claim(i, this.#matchContent(context, splits[i], byPayload));
+        let identity = lazy.SessionChangeJournal.identityOf(values[i]);
+        claim(i, this.#match(context, this.#byIdentity, identity, kind));
       }
     }
     for (let i = 0; i < values.length; i++) {
       if (ids[i] === undefined) {
-        claim(i, this.#unused(context, previousIds[i]) ?? this.#nextId++);
+        claim(i, this.#unused(context, previousIds[i], kind) ?? this.#nextId++);
       }
     }
     for (let i = 0; i < values.length; i++) {
-      this.#syncNode(context, ids[i], parent, prop, kind, values[i], splits[i]);
+      this.#syncNode(context, ids[i], parent, prop, kind, values[i]);
     }
     return ids;
   }
 
   #syncSingle(context, parent, prop, kind, value) {
-    let split = this.#split(kind, value);
     let [previousId] = this.#previousChildren(context, parent, prop);
     let id =
-      this.#matchObject(context, value) ??
-      this.#unused(context, previousId) ??
+      this.#match(context, this.#byObject, value, kind) ??
+      this.#match(
+        context,
+        this.#byIdentity,
+        lazy.SessionChangeJournal.identityOf(value),
+        kind
+      ) ??
+      this.#unused(context, previousId, kind) ??
       this.#nextId++;
-    this.#syncNode(context, id, parent, prop, kind, value, split);
+    this.#syncNode(context, id, parent, prop, kind, value);
     return id;
   }
 
@@ -321,106 +430,257 @@ export class SessionDBWriter {
   }
 
   /**
-   * @returns {Map<string|null, number[]>} The given previous nodes, by payload.
+   * Returns the first free id that the previous batch wrote for `key`.
    */
-  #byPayload(context, ids) {
-    let byPayload = new Map();
-    for (let id of ids) {
-      let { payload } = context.previous.get(id);
-      let bucket = byPayload.get(payload) ?? [];
-      bucket.push(id);
-      byPayload.set(payload, bucket);
-    }
-    return byPayload;
-  }
-
-  /**
-   * Returns the id previously written for the same object, if it's free.
-   */
-  #matchObject(context, value) {
-    if (!value || typeof value != "object") {
+  #match(context, map, key, kind) {
+    if (!key || typeof key != "object") {
       return undefined;
     }
-    return this.#unused(context, this.#byObject.get(value));
+    return (map.get(key) ?? []).find(
+      id => this.#unused(context, id, kind) !== undefined
+    );
   }
 
-  /**
-   * Returns a free previous node whose payload and sections are identical to
-   * `split`, for objects that are recreated with the same content, like the
-   * states of tabs that didn't change.
-   */
-  #matchContent(context, split, byPayload) {
-    for (let id of byPayload.get(split.payload) ?? []) {
-      if (
-        !context.used.has(id) &&
-        sameSections(context.previous.get(id).sections, split.sections)
-      ) {
-        return id;
-      }
-    }
-    return undefined;
-  }
-
-  #unused(context, id) {
-    return id !== undefined && context.previous.has(id) && !context.used.has(id)
+  #unused(context, id, kind) {
+    return id !== undefined &&
+      context.previous.get(id)?.kind == kind &&
+      !context.used.has(id)
       ? id
       : undefined;
   }
 
-  #syncNode(context, id, parent, prop, kind, value, split) {
+  #syncNode(context, id, parent, prop, kind, value) {
     let { ops } = context;
     context.used.add(id);
     if (value && typeof value == "object") {
-      this.#byObject.set(value, id);
-    }
-    let previous = context.previous.get(id);
-    if (
-      !previous ||
-      previous.parent != parent ||
-      previous.prop != prop ||
-      previous.payload !== split.payload
-    ) {
-      if (split.payload === null) {
-        ops.push("nullnode", id, parent, prop);
-      } else {
-        ops.push("node", id, parent, prop, split.payload);
+      append(context.byObject, value, id);
+      let identity = lazy.SessionChangeJournal.identityOf(value);
+      if (identity) {
+        append(context.byIdentity, identity, id);
       }
     }
 
-    for (let [name, json] of split.sections) {
-      if (previous?.sections.get(name) !== json) {
-        ops.push("section", id, name, json);
+    let previous = context.previous.get(id);
+    if (this.#unchangedLeaf(previous, parent, prop, kind, value)) {
+      context.nodes.set(
+        id,
+        previous.value === value ? previous : { ...previous, value }
+      );
+      return;
+    }
+    let split = this.#split(kind, value);
+    let tracked = split.plain && !!SPLITS[kind].tracked;
+    let unchanged = tracked
+      ? this.#unchangedGroups(previous, kind, value, split)
+      : new Set();
+    let keepText = !tracked || this.#audit;
+    /** @type {NodeRecord} */
+    let record = {
+      kind,
+      parent,
+      prop,
+      value: tracked ? value : undefined,
+      payload: undefined,
+      sections: new Map(),
+      orders: new Map(),
+    };
+
+    let moved = !previous || previous.parent != parent || previous.prop != prop;
+    let core = this.#group(context, {
+      kind,
+      group: CORE,
+      unchanged: unchanged.has(CORE) && !moved,
+      keepText,
+      previousText: previous?.payload,
+      serialize: () =>
+        split.plain ? serialize(value, split.groups.get(CORE)) : split.payload,
+    });
+    if (core.write || moved) {
+      if (core.text === null) {
+        ops.push("nullnode", id, parent, prop);
+      } else {
+        ops.push("node", id, parent, prop, core.text);
       }
     }
+    if (keepText) {
+      record.payload = core.text;
+    }
+
+    for (let [name, keys] of split.groups) {
+      if (name == CORE) {
+        continue;
+      }
+      let section = this.#group(context, {
+        kind,
+        group: name,
+        unchanged: unchanged.has(name),
+        keepText,
+        // Null stands for a section that isn't stored.
+        previousText: previous?.sections.has(name)
+          ? previous.sections.get(name)
+          : null,
+        serialize: () => {
+          let json = serialize(value, keys);
+          return json == "{}" ? null : json;
+        },
+      });
+      if (section.text === undefined) {
+        if (previous.sections.has(name)) {
+          record.sections.set(name, undefined);
+        }
+        continue;
+      }
+      if (section.text === null) {
+        if (section.write) {
+          ops.push("delsection", id, name);
+        }
+        continue;
+      }
+      if (section.write) {
+        ops.push("section", id, name, section.text);
+      }
+      record.sections.set(name, keepText ? section.text : undefined);
+    }
     for (let name of previous?.sections.keys() ?? []) {
-      if (!split.sections.has(name)) {
+      if (!split.groups.has(name)) {
         ops.push("delsection", id, name);
       }
     }
 
-    let orders = new Map();
     for (let [childProp, childKind, values] of split.arrays) {
       let ids = this.#syncArray(context, id, childProp, childKind, values);
-      orders.set(childProp, JSON.stringify(ids));
+      record.orders.set(childProp, JSON.stringify(ids));
     }
     for (let [childProp, childKind, object] of split.objects) {
       let childId = this.#syncSingle(context, id, childProp, childKind, object);
-      orders.set(childProp, String(childId));
+      record.orders.set(childProp, String(childId));
     }
-    this.#syncOrders(id, previous?.orders, orders, ops);
+    this.#syncOrders(id, previous?.orders, record.orders, ops);
 
-    context.nodes.set(id, {
-      parent,
-      prop,
-      payload: split.payload,
-      sections: split.sections,
-      orders,
-    });
+    context.nodes.set(id, record);
   }
 
   /**
-   * Splits a value into its payload, its sections and its split properties.
-   * Values that aren't plain objects are stored whole.
+   * Decides whether a group of a node's properties must be written.
+   *
+   * @param {object} context
+   * @param {object} options
+   * @param {string} options.kind
+   * @param {string} options.group
+   * @param {boolean} options.unchanged
+   *        Whether the comparison with the previous value found no change.
+   * @param {boolean} options.keepText
+   *        Whether the group's JSON is kept, and so must be serialized.
+   * @param {string|null|undefined} options.previousText
+   *        The group's JSON in the previous batch, or undefined if unknown.
+   * @param {() => string|null} options.serialize
+   * @returns {{text: string|null|undefined, write: boolean}}
+   *          The group's JSON, or undefined if it wasn't serialized, and
+   *          whether it must be written.
+   */
+  #group(
+    context,
+    { kind, group, unchanged, keepText, previousText, serialize: toJSON }
+  ) {
+    if (unchanged && !keepText) {
+      return { text: undefined, write: false };
+    }
+    let text = toJSON();
+    if (unchanged && text !== previousText) {
+      context.misses.push({ kind, group });
+      return { text, write: true };
+    }
+    return {
+      text,
+      write:
+        !unchanged && (previousText === undefined || text !== previousText),
+    };
+  }
+
+  /**
+   * Whether nothing about a node of a tracked kind without children changed,
+   * so that its previous record still holds. This is the common case, and
+   * checking it costs less than comparing group by group. Audits don't take
+   * this shortcut.
+   *
+   * @param {NodeRecord|undefined} previous
+   * @param {number} parent
+   * @param {string} prop
+   * @param {string} kind
+   * @param {any} value
+   * @returns {boolean}
+   */
+  #unchangedLeaf(previous, parent, prop, kind, value) {
+    let { tracked, arrays, objects } = SPLITS[kind];
+    if (
+      !tracked ||
+      arrays ||
+      objects ||
+      this.#audit ||
+      previous?.kind != kind ||
+      previous.parent != parent ||
+      previous.prop != prop
+    ) {
+      return false;
+    }
+    let before = previous.value;
+    if (
+      !isPlainObject(before) ||
+      !isPlainObject(value) ||
+      this.#isChanged(before)
+    ) {
+      return false;
+    }
+    let keys = Object.keys(value);
+    let beforeKeys = before === value ? keys : Object.keys(before);
+    return (
+      beforeKeys.length == keys.length &&
+      keys.every(
+        (key, i) =>
+          beforeKeys[i] === key &&
+          same(before[key], value[key], this.#isChanged)
+      )
+    );
+  }
+
+  /**
+   * Compares a tracked value with the value its node had in the previous
+   * batch.
+   *
+   * @param {NodeRecord|undefined} previous
+   * @param {string} kind
+   * @param {object} value
+   * @param {Split} split
+   * @returns {Set<string>} The groups whose properties are unchanged.
+   */
+  #unchangedGroups(previous, kind, value, split) {
+    let unchanged = new Set();
+    let before = previous?.value;
+    if (!isPlainObject(before) || this.#isChanged(before)) {
+      return unchanged;
+    }
+    let beforeGroups =
+      before === value ? split.groups : this.#split(kind, before).groups;
+    for (let [name, keys] of split.groups) {
+      let beforeKeys = beforeGroups.get(name);
+      if (
+        beforeKeys?.length == keys.length &&
+        keys.every(
+          (key, i) =>
+            beforeKeys[i] === key &&
+            same(before[key], value[key], this.#isChanged)
+        )
+      ) {
+        unchanged.add(name);
+      }
+    }
+    return unchanged;
+  }
+
+  /**
+   * Splits a value into the groups of its properties and its split
+   * properties, without serializing anything. Values that aren't plain
+   * objects are stored whole.
    *
    * @param {string} kind
    * @param {any} value
@@ -428,12 +688,13 @@ export class SessionDBWriter {
    */
   #split(kind, value) {
     let split = {
+      plain: isPlainObject(value),
       payload: null,
-      sections: new Map(),
+      groups: new Map([[CORE, []]]),
       arrays: [],
       objects: [],
     };
-    if (!isPlainObject(value)) {
+    if (!split.plain) {
       // JSON writes undefined, functions and symbols in arrays as null.
       split.payload = JSON.stringify(value) ?? null;
       if (split.payload == "null") {
@@ -442,39 +703,25 @@ export class SessionDBWriter {
       return split;
     }
 
-    let { arrays = {}, objects = {}, sections = {} } = SPLITS[kind];
-    let sectionOf = new Map();
-    for (let [name, keys] of Object.entries(sections)) {
-      for (let key of keys) {
-        sectionOf.set(key, name);
-      }
-    }
-
-    let core = {};
-    let sectionValues = new Map();
+    let { arrays = {}, objects = {} } = SPLITS[kind];
+    let sectionOf = SECTION_OF.get(kind);
     for (let key of Object.keys(value)) {
-      let child = value[key];
       if (kind == "state" && ROOT_MEMBERS.includes(key)) {
         continue;
       }
+      let child = value[key];
       if (Object.hasOwn(arrays, key) && Array.isArray(child)) {
         split.arrays.push([key, arrays[key], child]);
       } else if (Object.hasOwn(objects, key) && isPlainObject(child)) {
         split.objects.push([key, objects[key], child]);
-      } else if (sectionOf.has(key)) {
-        let name = sectionOf.get(key);
-        let members = sectionValues.get(name) ?? {};
-        members[key] = child;
-        sectionValues.set(name, members);
       } else {
-        core[key] = child;
-      }
-    }
-    split.payload = JSON.stringify(core);
-    for (let [name, members] of sectionValues) {
-      let json = JSON.stringify(members);
-      if (json != "{}") {
-        split.sections.set(name, json);
+        let name = sectionOf.get(key) ?? CORE;
+        let keys = split.groups.get(name);
+        if (keys) {
+          keys.push(key);
+        } else {
+          split.groups.set(name, [key]);
+        }
       }
     }
     return split;
@@ -490,14 +737,71 @@ function isPlainObject(value) {
   );
 }
 
-function sameSections(a, b) {
-  if (a.size != b.size) {
+/**
+ * Serializes the given properties of `value` as one JSON object.
+ */
+function serialize(value, keys) {
+  let members = {};
+  for (let key of keys) {
+    members[key] = value[key];
+  }
+  return JSON.stringify(members);
+}
+
+/**
+ * Whether `after` serializes to the same JSON that `before` did when it was
+ * written. Objects reached through both are only trusted when the journal
+ * has no mark for them, and anything this can't compare cheaply counts as
+ * changed.
+ *
+ * @param {any} before
+ * @param {any} after
+ * @param {(object: object) => boolean} changed
+ * @returns {boolean}
+ */
+function same(before, after, changed) {
+  if (before === after) {
+    return typeof before != "object" || before === null || !changed(before);
+  }
+  if (
+    typeof before != "object" ||
+    typeof after != "object" ||
+    before === null ||
+    after === null ||
+    changed(before)
+  ) {
     return false;
   }
-  for (let [name, json] of a) {
-    if (b.get(name) !== json) {
+  if (Array.isArray(before)) {
+    if (!Array.isArray(after) || before.length != after.length) {
       return false;
     }
+    // Not every(), which skips the holes of sparse arrays.
+    for (let i = 0; i < before.length; i++) {
+      if (!same(before[i], after[i], changed)) {
+        return false;
+      }
+    }
+    return true;
   }
-  return true;
+  if (Array.isArray(after) || !isPlainObject(before) || !isPlainObject(after)) {
+    return false;
+  }
+  let keys = Object.keys(before);
+  let afterKeys = Object.keys(after);
+  return (
+    keys.length == afterKeys.length &&
+    keys.every(
+      (key, i) => afterKeys[i] === key && same(before[key], after[key], changed)
+    )
+  );
+}
+
+function append(map, key, id) {
+  let ids = map.get(key);
+  if (ids) {
+    ids.push(id);
+  } else {
+    map.set(key, [id]);
+  }
 }

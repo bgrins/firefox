@@ -1604,6 +1604,9 @@ pref("browser.sessionstore.max_resumed_crashes", 1);
 // "shadow" to also write the session database and check it against them.
 // Read once at startup.
 pref("browser.sessionstore.backend", "json");
+// Whether the session database writer also serializes the tab states it
+// judged unchanged, and reports those that changed. Read once at startup.
+pref("browser.sessionstore.db_audit", false);
 // number of back button session history entries to restore (-1 = all of them)
 pref("browser.sessionstore.max_serialize_back", 10);
 // number of forward button session history entries to restore (-1 = all of them)
