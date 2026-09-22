@@ -23,6 +23,9 @@ use crate::{
 const MAGIC_NUMBER: &[u8; 8] = b"mozLz40\0";
 const HEADER_SIZE: usize = MAGIC_NUMBER.len() + 4;
 
+/// `JS::MaxStringLength`: a larger file can't be read back as a JS string.
+const MAX_SIZE: usize = (1 << 30) - 2;
+
 extern "C" {
     fn sessionstore_lz4_max_compressed_size(input_size: usize) -> usize;
     fn sessionstore_lz4_compress(source: *const u8, input_size: usize, dest: *mut u8) -> usize;
@@ -34,6 +37,9 @@ extern "C" {
 pub fn export(conn: &Conn, path: &str, tmp_path: &str, backup_path: &str) -> Result<nsCString> {
     let mut json = Vec::new();
     assemble::write_state(conn, false, 0, &mut json)?.ok_or(Error::NoState)?;
+    if json.len() > MAX_SIZE {
+        return Err(Error::TooBig);
+    }
     // The assembler only checks the structure, and a file that doesn't parse
     // would lose the session.
     serde_json::from_slice::<IgnoredAny>(&json)
@@ -53,7 +59,7 @@ pub fn export(conn: &Conn, path: &str, tmp_path: &str, backup_path: &str) -> Res
 }
 
 fn compress(data: &[u8]) -> Result<Vec<u8>> {
-    let size = u32::try_from(data.len()).map_err(|_| Error::OutOfMemory)?;
+    let size = u32::try_from(data.len()).map_err(|_| Error::TooBig)?;
     let bound = unsafe { sessionstore_lz4_max_compressed_size(data.len()) };
     let mut out = Vec::new();
     out.try_reserve_exact(HEADER_SIZE + bound)

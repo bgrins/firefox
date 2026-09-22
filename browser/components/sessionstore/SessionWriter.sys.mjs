@@ -108,14 +108,12 @@ async function writeJSON(path, state, options, exportJSON) {
   if (exportJSON) {
     try {
       await exportJSON(path, options);
-      Glean.sessionRestore.dbExport.exported.add(1);
       return;
     } catch (ex) {
       lazy.sessionStoreLogger.warn(
         "SessionWriter: the export from the database failed, writing the state instead",
         ex
       );
-      Glean.sessionRestore.dbExport.fallback.add(1);
     }
   }
   let start = ChromeUtils.now();

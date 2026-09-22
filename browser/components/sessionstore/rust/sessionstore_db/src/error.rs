@@ -6,8 +6,8 @@ use std::{fmt, io::ErrorKind, result};
 
 use nserror::{
     nsresult, NS_ERROR_ABORT, NS_ERROR_FAILURE, NS_ERROR_FILE_ACCESS_DENIED,
-    NS_ERROR_FILE_CORRUPTED, NS_ERROR_FILE_NOT_FOUND, NS_ERROR_INVALID_ARG, NS_ERROR_NOT_AVAILABLE,
-    NS_ERROR_NOT_INITIALIZED, NS_ERROR_OUT_OF_MEMORY, NS_ERROR_UNEXPECTED,
+    NS_ERROR_FILE_CORRUPTED, NS_ERROR_FILE_NOT_FOUND, NS_ERROR_FILE_TOO_BIG, NS_ERROR_INVALID_ARG,
+    NS_ERROR_NOT_AVAILABLE, NS_ERROR_NOT_INITIALIZED, NS_ERROR_OUT_OF_MEMORY, NS_ERROR_UNEXPECTED,
 };
 
 pub type Result<T> = result::Result<T, Error>;
@@ -35,6 +35,8 @@ pub enum Error {
     Corrupt(String),
     /// There is no session state to export.
     NoState,
+    /// The session state is too large to export.
+    TooBig,
     /// Writing the exported file failed.
     Io(std::io::Error),
     OutOfMemory,
@@ -69,6 +71,7 @@ impl From<Error> for nsresult {
             Error::GuardMismatch { .. } => NS_ERROR_ABORT,
             Error::InvalidFragment(_) | Error::Corrupt(_) => NS_ERROR_FILE_CORRUPTED,
             Error::NoState => NS_ERROR_NOT_AVAILABLE,
+            Error::TooBig => NS_ERROR_FILE_TOO_BIG,
             Error::Io(err) => match err.kind() {
                 ErrorKind::NotFound => NS_ERROR_FILE_NOT_FOUND,
                 ErrorKind::PermissionDenied => NS_ERROR_FILE_ACCESS_DENIED,
@@ -99,6 +102,7 @@ impl fmt::Display for Error {
             Error::InvalidFragment(message) => write!(f, "Invalid fragment: {}", message),
             Error::Corrupt(message) => write!(f, "Corrupt database: {}", message),
             Error::NoState => f.write_str("The database holds no session state"),
+            Error::TooBig => f.write_str("The session state is too large to export"),
             Error::Io(err) => write!(f, "Export failed: {}", err),
             Error::OutOfMemory => f.write_str("Out of memory"),
         }

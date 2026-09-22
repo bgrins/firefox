@@ -48,6 +48,11 @@ interface mozISessionStoreDatabase : nsISupports
             in mozISessionStoreDatabaseCallback aCallback);
 
   /**
+   * Succeeds with a JSON object of the bookkeeping values, as in read().
+   */
+  void readMeta(in mozISessionStoreDatabaseCallback aCallback);
+
+  /**
    * Applies a batch of operations in one transaction, and rolls all of them
    * back if any fails. Succeeds with an empty string.
    *
@@ -64,7 +69,9 @@ interface mozISessionStoreDatabase : nsISupports
    *
    * @param aBackupPath
    *        Where to move the previous file, or an empty string to replace it.
-   * @throws NS_ERROR_NOT_AVAILABLE if the database holds no state.
+   * Fails with NS_ERROR_NOT_AVAILABLE if the database holds no state, and
+   * with NS_ERROR_FILE_TOO_BIG, before touching any file, if the state is
+   * larger than a JSON session file can be for reading it back.
    */
   void exportJSON(in AUTF8String aPath,
                   in AUTF8String aTmpPath,

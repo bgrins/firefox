@@ -82,7 +82,7 @@ export class SessionDBBackend {
   }
 
   /**
-   * Opens and reads the database before any write can change it, then
+   * Opens the database and reads it before any write can change it, then
    * schedules the cross-check with the JSON file that startup read.
    *
    * @param {object} jsonRead
@@ -93,29 +93,42 @@ export class SessionDBBackend {
    */
   start({ origin, source }) {
     let start = ChromeUtils.now();
-    this.#db = lazy.SessionStoreDB.open(this.#path);
+    this.#db = this.#open();
     this.#db.catch(() => {});
-    // Writes before this read finishes are skipped, since there is no writer
-    // yet.
-    let read = this.#db.then(db => db.read());
-    read.then(
-      ({ meta }) => {
-        Glean.sessionRestore.dbRead.accumulateSingleSample(
-          Math.round(ChromeUtils.now() - start)
-        );
-        this.#writer = new lazy.SessionDBWriter(meta, {
+    // Both reads are queued before any write. Only the meta values are needed
+    // to write, and the state is only parsed for the cross-check, in idle.
+    // Writes before the meta values are read are skipped, since there is no
+    // writer yet.
+    let meta = this.#db.then(db => db.readMeta());
+    let text = this.#db.then(db => db.readText());
+    meta.then(
+      values => {
+        this.#writer = new lazy.SessionDBWriter(values, {
           audit: Services.prefs.getBoolPref(PREF_AUDIT, false),
         });
       },
       () => {}
     );
+    text.then(
+      () =>
+        Glean.sessionRestore.dbRead.accumulateSingleSample(
+          Math.round(ChromeUtils.now() - start)
+        ),
+      () => {}
+    );
 
-    this.crossCheck = read
+    this.crossCheck = text
       .then(
-        async dbRead => {
+        async json => {
           await new Promise(resolve =>
             ChromeUtils.idleDispatch(resolve, { timeout: 60000 })
           );
+          let dbRead;
+          try {
+            dbRead = JSON.parse(json);
+          } catch (ex) {
+            return { result: "db_unreadable", error: String(ex) };
+          }
           return compare(source, dbRead);
         },
         ex => ({ result: "db_unreadable", error: String(ex) })
@@ -125,6 +138,29 @@ export class SessionDBBackend {
         report(origin, result);
         return result;
       });
+  }
+
+  /**
+   * Opens the database. One that can't be opened is replaced, unless a newer
+   * build wrote it. One that opens but holds rows that don't form a state
+   * heals itself, since the first batch of a writer rewrites everything.
+   *
+   * @returns {Promise<SessionStoreDB>}
+   */
+  async #open() {
+    try {
+      return await lazy.SessionStoreDB.open(this.#path);
+    } catch (ex) {
+      if (ex.result == Cr.NS_ERROR_NOT_AVAILABLE) {
+        throw ex;
+      }
+      lazy.sessionStoreLogger.error(
+        "SessionDBBackend: replacing a database that can't be opened",
+        ex
+      );
+      await removeFiles(this.#path);
+      return lazy.SessionStoreDB.open(this.#path);
+    }
   }
 
   /**
@@ -162,7 +198,16 @@ export class SessionDBBackend {
     }
     let writer = this.#writer;
     let start = ChromeUtils.now();
-    let ops = writer.materialize(state);
+    let ops;
+    try {
+      ops = writer.materialize(state);
+    } catch (ex) {
+      lazy.sessionStoreLogger.error(
+        "SessionDBBackend: could not build a batch",
+        ex
+      );
+      return Promise.resolve(false);
+    }
     ops.push(
       "meta",
       "run_state",
@@ -218,7 +263,37 @@ export class SessionDBBackend {
     if (!db) {
       throw new Error("SessionDBBackend: the database is closed");
     }
-    return db.exportJSON(path, options);
+    let start = ChromeUtils.now();
+    try {
+      let size = await db.exportJSON(path, options);
+      Glean.sessionRestore.dbExportTime.accumulateSingleSample(
+        Math.round(ChromeUtils.now() - start)
+      );
+      return size;
+    } catch (ex) {
+      if (ex.result == Cr.NS_ERROR_FILE_CORRUPTED) {
+        // The next batch rewrites the rows that don't form a state.
+        this.#writer?.reset();
+      }
+      throw ex;
+    }
+  }
+
+  /**
+   * Records that the JSON file of the latest write wasn't exported from the
+   * database, so that the cross-check doesn't compare it.
+   */
+  markNotComparable() {
+    let epoch = this.#epoch;
+    this.#db
+      .then(db =>
+        db && epoch == this.#epoch
+          ? db.write(["meta", "comparable", "0"])
+          : undefined
+      )
+      .catch(ex =>
+        lazy.sessionStoreLogger.error("SessionDBBackend: write failed", ex)
+      );
   }
 
   /**
@@ -252,14 +327,18 @@ export class SessionDBBackend {
     this.#db = (async () => {
       let db = await previous.catch(() => null);
       await db?.close();
-      for (let suffix of ["", "-wal", "-shm", "-journal"]) {
-        await IOUtils.remove(this.#path + suffix, { ignoreAbsent: true });
-      }
+      await removeFiles(this.#path);
       return reopen ? lazy.SessionStoreDB.open(this.#path) : null;
     })();
     await this.#db.catch(ex =>
       lazy.sessionStoreLogger.error("SessionDBBackend: wipe failed", ex)
     );
+  }
+}
+
+async function removeFiles(path) {
+  for (let suffix of ["", "-wal", "-shm", "-journal"]) {
+    await IOUtils.remove(path + suffix, { ignoreAbsent: true });
   }
 }
 

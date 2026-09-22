@@ -39,7 +39,8 @@ const PREF_MAX_SERIALIZE_BACK = "browser.sessionstore.max_serialize_back";
 const PREF_MAX_SERIALIZE_FWD = "browser.sessionstore.max_serialize_forward";
 
 // "json" writes only the JSON session files. "shadow" also writes the session
-// database, and compares it with the JSON files after startup.
+// database, and compares it with the JSON files after startup. "export" writes
+// the database and exports all but the final JSON file of a session from it.
 const PREF_BACKEND = "browser.sessionstore.backend";
 
 export var SessionFile = {
@@ -73,8 +74,9 @@ export var SessionFile = {
   },
 
   /**
-   * In the "shadow" backend mode, a promise for the result of comparing the
-   * session database with the JSON file read at startup. Null otherwise.
+   * In the "shadow" and "export" backend modes, a promise for the result of
+   * comparing the session database with the JSON file read at startup. Null
+   * otherwise.
    *
    * @type {Promise<object>|null}
    */
@@ -139,7 +141,7 @@ var SessionFileInternal = {
     ),
 
     // The session database, written next to the JSON files in the "shadow"
-    // backend mode.
+    // and "export" backend modes.
     database: PathUtils.join(profileDir, "sessionstore.sqlite"),
 
     // The path to the backup of the version of the session store used
@@ -468,6 +470,39 @@ var SessionFileInternal = {
     return Promise.resolve(lazy.SessionWriter);
   },
 
+  /**
+   * Writes `aData` to the session database, and returns whether it was
+   * written.
+   *
+   * @param {object} aData
+   * @param {object} options
+   * @param {boolean} options.isFinalWrite
+   * @param {boolean} options.exporting
+   *        Whether the JSON file of this write is exported from the database.
+   * @returns {Promise<boolean>}
+   */
+  _writeDatabase(aData, { isFinalWrite, exporting }) {
+    if (isFinalWrite) {
+      // The JSON writer caps history too, but only once it gets to write,
+      // and the database batch is built now.
+      lazy.capSessionHistory(
+        aData,
+        Services.prefs.getIntPref(PREF_MAX_SERIALIZE_BACK, 10),
+        Services.prefs.getIntPref(PREF_MAX_SERIALIZE_FWD, -1)
+      );
+    }
+    // An exported file holds the database's state by construction. A
+    // serialized one only if nothing could change the state before the JSON
+    // writer serializes it.
+    let comparable =
+      exporting ||
+      (this._jsonWritesPending == 0 &&
+        (this._jsonWritten ||
+          (this._readOrigin != "clean" && this._readOrigin != "empty")));
+    this._dbBackend.annotate(aData);
+    return this._dbBackend.write(aData, { isFinalWrite, comparable });
+  },
+
   write(aData) {
     if (lazy.RunState.isClosed) {
       return Promise.reject(new Error("SessionFile is closed"));
@@ -485,33 +520,41 @@ var SessionFileInternal = {
       isFinalWrite && !lazy.SessionStore.willAutoRestore;
 
     let dbWrite = null;
-    if (this._dbBackend) {
-      if (isFinalWrite) {
-        // The JSON writer caps history too, but only once it gets to write,
-        // and the database batch is built now.
-        lazy.capSessionHistory(
-          aData,
-          Services.prefs.getIntPref(PREF_MAX_SERIALIZE_BACK, 10),
-          Services.prefs.getIntPref(PREF_MAX_SERIALIZE_FWD, -1)
-        );
-      }
-      let comparable =
-        this._jsonWritesPending == 0 &&
-        (this._jsonWritten ||
-          (this._readOrigin != "clean" && this._readOrigin != "empty"));
-      this._dbBackend.annotate(aData);
-      dbWrite = this._dbBackend.write(aData, { isFinalWrite, comparable });
-    }
-
     let exportJSON = null;
-    if (this._exportJSON) {
-      let backend = this._dbBackend;
-      exportJSON = async (path, exportOptions) => {
-        if (!(await dbWrite)) {
-          throw new Error("The database doesn't hold this state");
-        }
-        return backend.exportJSON(path, exportOptions);
-      };
+    if (this._dbBackend) {
+      // The final write serializes the state even in the "export" mode, so
+      // that the session restored next doesn't depend on the change journal.
+      let exporting = this._exportJSON && !isFinalWrite;
+      try {
+        dbWrite = this._writeDatabase(aData, { isFinalWrite, exporting });
+      } catch (ex) {
+        // The JSON write must happen regardless.
+        lazy.sessionStoreLogger.error(
+          "SessionFile: could not write the session database",
+          ex
+        );
+        dbWrite = Promise.resolve(false);
+      }
+      if (exporting) {
+        let backend = this._dbBackend;
+        exportJSON = async (path, exportOptions) => {
+          let reason = "failed";
+          try {
+            if (!(await dbWrite)) {
+              reason = "not_written";
+              throw new Error("The database doesn't hold this state");
+            }
+            let size = await backend.exportJSON(path, exportOptions);
+            Glean.sessionRestore.dbExport.exported.add(1);
+            return size;
+          } catch (ex) {
+            Glean.sessionRestore.dbExport[reason].add(1);
+            // The state is serialized instead, later than the batch.
+            backend.markNotComparable();
+            throw ex;
+          }
+        };
+      }
     }
 
     this._attempts++;

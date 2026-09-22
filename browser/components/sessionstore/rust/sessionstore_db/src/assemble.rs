@@ -85,7 +85,7 @@ pub fn write_state(
     Ok(Some(assembler.dropped))
 }
 
-fn read_meta(conn: &Conn) -> Result<String> {
+pub fn read_meta(conn: &Conn) -> Result<String> {
     let mut meta = serde_json::Map::new();
     let mut statement = conn.prepare("SELECT key, value FROM meta")?;
     while let Some(step) = statement.step()? {

@@ -86,6 +86,20 @@ impl SessionStoreDatabase {
         )
     }
 
+    xpcom_method!(read_meta => ReadMeta(callback: *const mozISessionStoreDatabaseCallback));
+    fn read_meta(
+        &self,
+        callback: &mozISessionStoreDatabaseCallback,
+    ) -> std::result::Result<(), nsresult> {
+        let conn = self.conn()?;
+        dispatch(
+            "SessionStoreDatabase::ReadMeta",
+            conn,
+            Operation::ReadMeta,
+            callback,
+        )
+    }
+
     xpcom_method!(
         write => Write(
             ops: *const ThinVec<nsCString>,
@@ -151,6 +165,7 @@ enum Operation {
     Read {
         validate: bool,
     },
+    ReadMeta,
     Write(Vec<batch::Op>),
     Export {
         path: String,
@@ -193,6 +208,7 @@ impl DatabaseTask {
                 schema::init(&self.conn).map(|version| nsCString::from(version.to_string()))
             }
             Operation::Read { validate } => assemble::read(&self.conn, validate),
+            Operation::ReadMeta => assemble::read_meta(&self.conn).map(nsCString::from),
             Operation::Write(ops) => batch::apply(&self.conn, ops).map(|()| nsCString::new()),
             Operation::Export {
                 path,

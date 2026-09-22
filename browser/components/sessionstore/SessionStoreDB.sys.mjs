@@ -117,10 +117,29 @@ export class SessionStoreDB {
    * @returns {Promise<{meta: Record<string, string>, state: object|null, dropped: number}>}
    */
   async read({ validate = false } = {}) {
-    let json = await this.#call(callback =>
-      this.#database.read(validate, callback)
+    return JSON.parse(await this.readText({ validate }));
+  }
+
+  /**
+   * Reads the whole database, as read() does, without parsing the result.
+   *
+   * @param {object} [options]
+   * @param {boolean} [options.validate]
+   * @returns {Promise<string>}
+   */
+  readText({ validate = false } = {}) {
+    return this.#call(callback => this.#database.read(validate, callback));
+  }
+
+  /**
+   * Reads the database's meta values.
+   *
+   * @returns {Promise<Record<string, string>>}
+   */
+  async readMeta() {
+    return JSON.parse(
+      await this.#call(callback => this.#database.readMeta(callback))
     );
-    return JSON.parse(json);
   }
 
   /**

@@ -289,12 +289,28 @@ session_restore:
     type: labeled_counter
     description: >
       JSON session file writes in the "export" backend mode, where the file is
-      exported from the session database off the main thread. "fallback"
-      counts the writes that serialized the state instead, because the
-      database write or the export failed.
+      exported from the session database off the main thread. The others
+      serialize the state instead: "not_written" when the database didn't
+      hold the state, because its batch wasn't written, and "failed" when the
+      export itself failed.
     labels:
       - exported
-      - fallback
+      - not_written
+      - failed
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    notification_emails:
+      - session-restore-telemetry-alerts@mozilla.com
+    expires: never
+
+  db_export_time:
+    type: timing_distribution
+    description: >
+      Time to export a JSON session file from the session database, off the
+      main thread, in the "export" backend mode.
+    time_unit: millisecond
     bugs:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
     data_reviews:
@@ -330,8 +346,7 @@ session_restore:
     type: timing_distribution
     description: >
       Time to open the session database and read its state at startup, in the
-      "shadow" and "export" backend modes, until the state is parsed.
-      Comparable to read_file.
+      "shadow" and "export" backend modes. The state is parsed later, in idle.
     time_unit: millisecond
     bugs:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000

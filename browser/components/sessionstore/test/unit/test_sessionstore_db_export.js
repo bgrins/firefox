@@ -41,7 +41,7 @@ add_task(async function test_export_mode() {
   let first = makeState("https://first.test/");
   await SessionFile.write(first);
   Assert.equal(
-    Glean.sessionRestore.dbExport.fallback.testGetValue(),
+    Glean.sessionRestore.dbExport.not_written.testGetValue(),
     1,
     "A write before the database is ready serializes the state"
   );
@@ -62,4 +62,26 @@ add_task(async function test_export_mode() {
     "The previous recovery file is the backup"
   );
   Assert.ok(!(await IOUtils.exists(Paths.recovery + ".tmp")));
+});
+
+add_task(async function test_final_write_is_serialized() {
+  let { RunState } = ChromeUtils.importESModule(
+    "moz-src:///browser/components/sessionstore/RunState.sys.mjs"
+  );
+  RunState.setRunning();
+  RunState.setQuitting();
+  RunState.setClosing();
+  let exported = Glean.sessionRestore.dbExport.exported.testGetValue();
+
+  let final = makeState("https://final.test/");
+  await SessionFile.write(final);
+  Assert.equal(
+    Glean.sessionRestore.dbExport.exported.testGetValue(),
+    exported,
+    "The final write isn't exported"
+  );
+  Assert.deepEqual(
+    await readFile(Paths.clean),
+    JSON.parse(JSON.stringify(final))
+  );
 });

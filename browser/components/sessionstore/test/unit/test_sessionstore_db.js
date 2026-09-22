@@ -93,6 +93,8 @@ add_task(async function test_round_trip_and_reopen() {
   let result = await db.read();
   Assert.deepEqual(result.state, STATE, "The rows assemble into the state");
   Assert.deepEqual(result.meta, { seq: "1" });
+  Assert.deepEqual(await db.readMeta(), { seq: "1" });
+  Assert.deepEqual(JSON.parse(await db.readText()), result);
   await db.close();
 
   db = await SessionStoreDB.open(path);

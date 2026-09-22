@@ -129,6 +129,55 @@ add_task(async function test_metrics() {
   Assert.greater(sum, 0);
 });
 
+add_task(async function test_a_throwing_state_writes_nothing() {
+  let { backend } = await startBackend("", "empty");
+  let state = makeState("a");
+  Object.defineProperty(state.windows[0], "tabs", {
+    enumerable: true,
+    get() {
+      throw new Error("Unreadable");
+    },
+  });
+  Assert.equal(
+    await backend.write(state, { isFinalWrite: false, comparable: true }),
+    false
+  );
+  await backend.close();
+});
+
+add_task(async function test_unusable_databases_are_replaced() {
+  let { SessionStoreDB } = ChromeUtils.importESModule(
+    "moz-src:///browser/components/sessionstore/SessionStoreDB.sys.mjs"
+  );
+  let expected = JSON.parse(JSON.stringify(makeState("a")));
+  let check = async message => {
+    let { backend, result } = await startBackend("", "empty");
+    info(`The cross-check found ${result.result}`);
+    Assert.ok(
+      await backend.write(makeState("a"), {
+        isFinalWrite: true,
+        comparable: true,
+      })
+    );
+    await backend.close();
+    let db = await SessionStoreDB.open(PATH);
+    Assert.deepEqual(
+      (await db.read()).state.windows,
+      expected.windows,
+      message
+    );
+    await db.close();
+  };
+
+  await IOUtils.writeUTF8(PATH, "not a database");
+  await check("A file that isn't a database is replaced");
+
+  let db = await SessionStoreDB.open(PATH);
+  await db.write(["node", 999, 0, "windows", "{}"]);
+  await db.close();
+  await check("Rows that don't form a state are rewritten");
+});
+
 add_task(async function test_writes_around_a_wipe() {
   let { SessionStoreDB } = ChromeUtils.importESModule(
     "moz-src:///browser/components/sessionstore/SessionStoreDB.sys.mjs"
