@@ -92,6 +92,7 @@ export class SessionDBBackend {
    *        The JSON file's text, or "" if none was read.
    */
   start({ origin, source }) {
+    let start = ChromeUtils.now();
     this.#db = lazy.SessionStoreDB.open(this.#path);
     this.#db.catch(() => {});
     // Writes before this read finishes are skipped, since there is no writer
@@ -99,6 +100,9 @@ export class SessionDBBackend {
     let read = this.#db.then(db => db.read());
     read.then(
       ({ meta }) => {
+        Glean.sessionRestore.dbRead.accumulateSingleSample(
+          Math.round(ChromeUtils.now() - start)
+        );
         this.#writer = new lazy.SessionDBWriter(meta, {
           audit: Services.prefs.getBoolPref(PREF_AUDIT, false),
         });
@@ -170,6 +174,11 @@ export class SessionDBBackend {
     Glean.sessionRestore.dbWriteMainThread.accumulateSingleSample(
       Math.round((ChromeUtils.now() - start) * 1000)
     );
+    let size = 0;
+    for (let op of ops) {
+      size += typeof op == "string" ? op.length : 0;
+    }
+    Glean.sessionRestore.dbBatchSize.accumulate(size);
     if (writer.misses.length) {
       lazy.sessionStoreLogger.error(
         "SessionDBBackend: the change journal missed edits",

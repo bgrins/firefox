@@ -120,6 +120,15 @@ add_task(async function test_annotate_matches_the_written_generation() {
   await backend.close();
 });
 
+add_task(async function test_metrics() {
+  Services.fog.testResetFOG();
+  await writeSession(makeState("a"));
+  Assert.equal(Glean.sessionRestore.dbRead.testGetValue().count, 1);
+  let { count, sum } = Glean.sessionRestore.dbBatchSize.testGetValue();
+  Assert.equal(count, 1, "The batch was measured");
+  Assert.greater(sum, 0);
+});
+
 add_task(async function test_writes_around_a_wipe() {
   let { SessionStoreDB } = ChromeUtils.importESModule(
     "moz-src:///browser/components/sessionstore/SessionStoreDB.sys.mjs"

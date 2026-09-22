@@ -243,6 +243,21 @@ session_restore:
       - session-restore-telemetry-alerts@mozilla.com
     expires: never
 
+  db_batch_size:
+    type: memory_distribution
+    description: >
+      The size of the rows each save writes to the session database, as the
+      length of their text. The database writes at least this much, and a
+      JSON write writes the whole file (file_size_bytes).
+    memory_unit: byte
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    notification_emails:
+      - session-restore-telemetry-alerts@mozilla.com
+    expires: never
+
   db_cross_check:
     type: labeled_counter
     description: >
@@ -303,6 +318,21 @@ session_restore:
       - scroll
       - storage
       - image
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    notification_emails:
+      - session-restore-telemetry-alerts@mozilla.com
+    expires: never
+
+  db_read:
+    type: timing_distribution
+    description: >
+      Time to open the session database and read its state at startup, in the
+      "shadow" and "export" backend modes, until the state is parsed.
+      Comparable to read_file.
+    time_unit: millisecond
     bugs:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
     data_reviews:
