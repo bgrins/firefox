@@ -1344,7 +1344,7 @@ nsresult CollectProcessInfo(ProcessInfo& info) {
     }
   } else {
     info.cpuPCount = physicalCPUs;
-    if (XRE_IsParentProcess()) {
+    if (XRE_IsParentProcess() && physicalCPUs >= 0) {
       glean::system_cpu::big_cores.Set(physicalCPUs);
     }
     info.cpuMCount = 0;
