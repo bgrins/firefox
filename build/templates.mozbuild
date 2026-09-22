@@ -337,6 +337,27 @@ def MacOSBundle(output, **kwargs):
 
 
 @template
+def IOSBundle(output, files=None, trees=None, excludes=None):
+    """Assemble an iOS bundle and sign it ad hoc.
+
+    ``output`` is the bundle path. ``files`` is a list of ``(source, dest)``
+    pairs, each copying a file to ``dest`` in the bundle. ``trees`` is a list
+    of ``(source, dest)`` pairs, each copying the contents of a directory to
+    ``dest`` in the bundle, except for names matching one of ``excludes``.
+
+    The bundle is assembled after ``dist/bin`` is complete, so ``trees`` can
+    include it."""
+    IOS_BUNDLES += [
+        {
+            "bundle": output,
+            "files": files or [],
+            "trees": trees or [],
+            "excludes": excludes or [],
+        }
+    ]
+
+
+@template
 def LegacyTest(*args, **kwargs):
     """Add one test to LEGACY_RUN_TESTS with the given attributes."""
 

@@ -465,6 +465,24 @@ class TestRecursiveMakeBackend(BackendTester):
         root_deps = [l.strip() for l in open(root_deps_path).readlines()]
         self.assertIn("libs: gen/pre-compile", root_deps)
 
+    def test_ios_bundle(self):
+        """Ensure IOS_BUNDLES is assembled once dist/bin is complete."""
+        env = self._consume("ios-bundle", RecursiveMakeBackend)
+
+        spec_name = "dist_Applications_Test.app.bundle.json"
+        with open(mozpath.join(env.topobjdir, spec_name)) as fh:
+            spec = json.load(fh)
+        self.assertTrue(spec["bundle"].endswith("dist/Applications/Test.app"))
+        self.assertEqual([dest for _, dest in spec["files"]], ["Test", "Info.plist"])
+        self.assertTrue(spec["files"][0][0].endswith("test-bin"))
+        self.assertTrue(spec["trees"][0][0].endswith("dist/bin"))
+        self.assertEqual(spec["excludes"], ["test_*"])
+
+        with open(mozpath.join(env.topobjdir, "backend.mk")) as fh:
+            backend = fh.read()
+        self.assertIn(f"tools:: test-bin $(srcdir)/Info.plist {spec_name}", backend)
+        self.assertIn("py_action,assemble_ios_bundle Test.app", backend)
+
     def test_generated_files(self):
         """Ensure GENERATED_FILES is handled properly."""
         env = self._consume("generated-files", RecursiveMakeBackend)

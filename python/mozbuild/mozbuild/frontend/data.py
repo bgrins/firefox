@@ -1356,6 +1356,21 @@ class MacOSBundle(ContextDerived):
         self.bundle = bundle
 
 
+class IOSBundle(ContextDerived):
+    """Sandbox container object for an IOS_BUNDLES entry.
+
+    Holds the description of one iOS bundle to assemble and sign: the output
+    path, the files to copy into it and the directories whose contents to copy
+    into it.
+    """
+
+    __slots__ = ("bundle",)
+
+    def __init__(self, context, bundle):
+        ContextDerived.__init__(self, context)
+        self.bundle = bundle
+
+
 class ObjdirFiles(FinalTargetFiles):
     """Sandbox container object for OBJDIR_FILES, which is a
     HierarchicalStringList.

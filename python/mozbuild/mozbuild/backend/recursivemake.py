@@ -46,6 +46,7 @@ from ..frontend.data import (
     HostSimpleProgram,
     HostSources,
     InstallationTarget,
+    IOSBundle,
     JARManifest,
     LegacyRunTests,
     Linkable,
@@ -581,6 +582,9 @@ class RecursiveMakeBackend(MakeBackend):
 
         elif isinstance(obj, MacOSBundle):
             self._process_macos_bundle(obj, backend_file)
+
+        elif isinstance(obj, IOSBundle):
+            self._process_ios_bundle(obj, backend_file)
 
         elif isinstance(obj, JARManifest):
             self._no_skip["misc"].add(backend_file.relobjdir)
@@ -2070,6 +2074,44 @@ class RecursiveMakeBackend(MakeBackend):
             backend_file.write(".PHONY: repackage\n")
 
         self._no_skip[tier].add(backend_file.relobjdir)
+
+    def _process_ios_bundle(self, obj, backend_file):
+        context = obj._context
+        spec = obj.bundle
+
+        resolved = {
+            "bundle": Path(context, spec["bundle"]).full_path,
+            "files": [],
+            "trees": [],
+            "excludes": list(spec["excludes"]),
+        }
+        inputs = []
+        for source, dest in spec["files"]:
+            path = Path(context, source)
+            resolved["files"].append([path.full_path, dest])
+            inputs.append(path)
+        for source, dest in spec["trees"]:
+            resolved["trees"].append([Path(context, source).full_path, dest])
+
+        spec_id = mozpath.relpath(
+            resolved["bundle"], self.environment.topobjdir
+        ).replace("/", "_")
+        spec_name = f"{spec_id}.bundle.json"
+        with self._write_file(mozpath.join(backend_file.objdir, spec_name)) as fh:
+            json.dump(resolved, fh, sort_keys=True, indent=2)
+
+        # Trees such as dist/bin are only complete once the libs tier is done,
+        # so assemble the bundle in the tools tier.
+        name = mozpath.basename(resolved["bundle"])
+        fragment = Makefile()
+        rule = fragment.create_rule(targets=["tools:"])
+        rule.add_dependencies(
+            [self._pretty_path(p, backend_file) for p in inputs] + [spec_name]
+        )
+        rule.add_commands([f"$(call py_action,assemble_ios_bundle {name},{spec_name})"])
+        fragment.dump(backend_file.fh, removal_guard=False)
+
+        self._no_skip["tools"].add(backend_file.relobjdir)
 
     def _write_manifests(self, dest, manifests):
         man_dir = mozpath.join(self.environment.topobjdir, "_build_manifests", dest)

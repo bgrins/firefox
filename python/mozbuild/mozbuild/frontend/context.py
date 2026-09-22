@@ -1818,6 +1818,17 @@ VARIABLES = {
         into `Contents/MacOS`.
         """,
     ),
+    "IOS_BUNDLES": (
+        TypedList(dict),
+        list,
+        """iOS bundles to assemble and sign.
+
+        Use the `IOSBundle` template rather than appending to this directly.
+        Each entry describes one bundle: files to copy into it, and
+        directories whose contents to copy into it. Bundles are assembled
+        once `dist/bin` is complete, and signed ad hoc.
+        """,
+    ),
     "OBJDIR_FILES": (
         ContextDerivedTypedHierarchicalStringList(Path, allow_renames=True),
         list,

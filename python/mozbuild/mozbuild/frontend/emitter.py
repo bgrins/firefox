@@ -47,6 +47,7 @@ from .data import (
     HostSimpleProgram,
     HostSources,
     InstallationTarget,
+    IOSBundle,
     IPDLCollection,
     JARManifest,
     JsShellArchive,
@@ -1746,6 +1747,9 @@ class TreeMetadataEmitter(LoggingMixin):
 
         for bundle in context.get("MACOS_BUNDLES", []):
             yield MacOSBundle(context, bundle)
+
+        for bundle in context.get("IOS_BUNDLES", []):
+            yield IOSBundle(context, bundle)
 
         rust_tests = context.get("RUST_TESTS", [])
         if rust_tests:
