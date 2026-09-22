@@ -5,8 +5,10 @@
 import os
 import posixpath
 import shutil
+import signal
 import sys
 import tempfile
+import time
 import traceback
 import uuid
 
@@ -329,12 +331,21 @@ class MochiRemoteIos(MochitestDesktop):
             restartAfterFailure=restartAfterFailure,
         )
 
+        launchTime = time.time()
         proc = self.device.launch_process(
             self.appName, args, env=environ, processOutputLine=[outputHandler]
         )
         proc.run(None, timeout)
 
         status = proc.wait()
+        # `simctl launch` exits normally whatever happened to the app, so take
+        # the app's status from how launchd reports it terminated.
+        terminations = []
+        if self.isSimulator:
+            terminations = self.device.process_terminations(launchTime, self.appName)
+        for termination in terminations:
+            if termination.name == self.appName and termination.signal:
+                status = -termination.signal
         if status is None:
             self.log.warning(
                 "runtestsremoteios.py | Failed to get app exit code - running/crashed?"
@@ -351,10 +362,57 @@ class MochiRemoteIos(MochitestDesktop):
         lastTestSeen = self.lastTestSeen or currentManifest
 
         crashed = self.check_for_crashes(symbolsPath, lastTestSeen)
+        if self.log_crashes(terminations, launchTime, lastTestSeen):
+            crashed = True
         if crashed:
             status = 1
 
         return status, lastTestSeen or "Main app process exited normally"
+
+    def log_crashes(self, terminations, since, test):
+        """
+        Log the processes among `terminations` that crashed, with the stacks
+        from the host's crash reports written since the time `since`. There are
+        no minidumps to find crashes by, as the crash reporter is disabled on
+        iOS.
+        """
+        crashed = False
+        for termination in terminations:
+            # The harness and the system stop apps with these signals.
+            if termination.signal in (None, signal.SIGKILL, signal.SIGTERM):
+                continue
+            crashed = True
+            report = self.device.crash_report(
+                termination.pid, since, timeout=self.CRASH_REPORT_TIMEOUT
+            )
+            frames = self.crashing_thread_frames(report) if report else []
+            self.log.crash(
+                process=termination.name,
+                test=test,
+                signature=frames[0][0] if frames else "[Unknown]",
+                minidump_path=report["path"] if report else None,
+                reason=signal.Signals(termination.signal).name,
+                stackwalk_stdout="\n".join(line for _, line in frames),
+            )
+        return crashed
+
+    # Seconds to wait for the host to write the crash report of a process.
+    CRASH_REPORT_TIMEOUT = 15
+
+    @staticmethod
+    def crashing_thread_frames(report):
+        """Return (symbol, description) pairs for the frames of the crashing
+        thread of a host crash report."""
+        thread = report["threads"][report.get("faultingThread", 0)]
+        images = report.get("usedImages", [])
+        frames = []
+        for number, frame in enumerate(thread.get("frames", [])):
+            index = frame.get("imageIndex", len(images))
+            image = images[index].get("name", "???") if index < len(images) else "???"
+            symbol = frame.get("symbol", "???")
+            offset = frame.get("symbolLocation", 0)
+            frames.append((symbol, f"{number} {image}: {symbol} + {offset}"))
+        return frames
 
     def check_for_crashes(self, symbols_path, last_test_seen):
         """

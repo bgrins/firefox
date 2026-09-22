@@ -8,12 +8,31 @@ for running tests on simulator, and is not ready for general-purpose use."""
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
+from collections import namedtuple
 
 from mozprocess import processhandler
+
+# How RunningBoard logs the termination of an app or app extension process,
+# e.g. "[app<org.example.App((null))>:1234] termination reported by launchd
+# (2, 11, 11)", where 2 is the domain of signals and 11 the signal number.
+TERMINATION_RE = re.compile(
+    r"\[(?:app|xpcservice)<(?P<name>[^(>]+).*:(?P<pid>\d+)\] "
+    r"termination reported by launchd \((?P<domain>\d+), (?P<code>\d+)"
+)
+SIGNAL_DOMAIN = 2
+
+
+class ProcessTermination(namedtuple("ProcessTermination", "name pid domain code")):
+    @property
+    def signal(self):
+        """The signal that terminated the process, or None if it exited."""
+        return self.code if self.domain == SIGNAL_DOMAIN else None
 
 
 class IosDevice:
@@ -212,6 +231,89 @@ class IosDeviceSimulator(IosDevice):
             ])
         except subprocess.CalledProcessError:
             pass
+
+    def crash_reports(self, since, report_dir=None):
+        """Return the crash reports written since the time `since` for processes
+        running in this simulator, oldest first. Simulator processes are host
+        processes, so the host writes their reports, in the .ips format: a line
+        of JSON metadata followed by the JSON report, which is what's returned,
+        with its path added under "path"."""
+        report_dir = report_dir or os.path.expanduser(
+            "~/Library/Logs/DiagnosticReports"
+        )
+        try:
+            names = os.listdir(report_dir)
+        except FileNotFoundError:
+            return []
+
+        reports = []
+        for name in names:
+            path = os.path.join(report_dir, name)
+            if not name.endswith(".ips") or os.path.getmtime(path) < since:
+                continue
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    fh.readline()
+                    report = json.load(fh)
+            except (OSError, ValueError):
+                continue
+            if f"/Devices/{self.uuid}/" not in report.get("procPath", ""):
+                continue
+            report["path"] = path
+            reports.append(report)
+        return sorted(reports, key=lambda r: os.path.getmtime(r["path"]))
+
+    def crash_report(self, pid, since, timeout=0):
+        """Return the crash report of the process `pid` written since the time
+        `since`, waiting up to `timeout` seconds for the host to write it, or
+        None. The host doesn't write reports for every crash."""
+        deadline = time.time() + timeout
+        while True:
+            for report in self.crash_reports(since):
+                if report.get("pid") == pid:
+                    return report
+            if time.time() >= deadline:
+                return None
+            time.sleep(1)
+
+    def process_terminations(self, since, bundle_id):
+        """Return how the processes of the app `bundle_id` and of its extensions
+        that ended since the time `since` terminated, according to launchd."""
+        start = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(since))
+        predicate = (
+            'process == "runningboardd" AND '
+            'eventMessage CONTAINS "termination reported by launchd" AND '
+            f'eventMessage CONTAINS "{bundle_id}"'
+        )
+        output = subprocess.check_output(
+            [
+                "xcrun",
+                "simctl",
+                "spawn",
+                self.uuid,
+                "log",
+                "show",
+                "--start",
+                start,
+                "--style",
+                "compact",
+                "--predicate",
+                predicate,
+            ],
+            text=True,
+        )
+        terminations = []
+        for line in output.splitlines():
+            if match := TERMINATION_RE.search(line):
+                terminations.append(
+                    ProcessTermination(
+                        match["name"],
+                        int(match["pid"]),
+                        int(match["domain"]),
+                        int(match["code"]),
+                    )
+                )
+        return terminations
 
     @staticmethod
     def all_devices():
