@@ -1600,13 +1600,17 @@ pref("browser.sessionstore.max_windows_undo", 5);
 // number of crashes that can occur before the about:sessionrestore page is displayed
 // (this pref has no effect if more than 6 hours have passed since the last crash)
 pref("browser.sessionstore.max_resumed_crashes", 1);
-// Where session state is written: "json" for the JSON session files only,
-// "shadow" to also write the session database and check it against them,
-// "export" to write the database and export the JSON session files from it, or
-// "sqlite" to write the database, export the JSON files at most every
-// browser.sessionstore.db_export_interval ms, and restore from the database
-// when it is newer than them. Read once at startup.
+// Where session state is written, read once at startup:
+// - "json": the JSON session files only.
+// - "shadow": the session database too; startup compares it with the files.
+// - "export": the database, with the files exported from it.
+// - "sqlite": the database, with the files exported from it only now and then.
+// Every mode but "json" restores from the database after a crash, if the
+// database holds a newer save than the files.
 pref("browser.sessionstore.backend", "json");
+// In the "sqlite" mode, how often the JSON session files are exported, in ms.
+// Saves requested right away, like the one after purging data, export them
+// too.
 pref("browser.sessionstore.db_export_interval", 600000);
 // Whether the session database writer also serializes the tab states it
 // judged unchanged, and reports those that changed. Read once at startup.

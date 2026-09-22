@@ -58,7 +58,6 @@ export class SessionStoreDB {
    * @returns {Promise<SessionStoreDB>}
    */
   static async open(path) {
-    let existed = await IOUtils.exists(path);
     let connection = await new Promise((resolve, reject) => {
       Services.storage.openAsyncDatabase(
         new lazy.FileUtils.File(path),
@@ -73,7 +72,7 @@ export class SessionStoreDB {
         }
       );
     });
-    let db = new SessionStoreDB(path, connection, existed);
+    let db = new SessionStoreDB(path, connection);
     try {
       await db.#call(callback => db.#database.init(connection, callback));
     } catch (ex) {
@@ -92,17 +91,9 @@ export class SessionStoreDB {
   #closePromise = null;
   #blocker = () => this.close();
 
-  /**
-   * Whether the database file existed before `open()` was called.
-   *
-   * @type {boolean}
-   */
-  existed;
-
-  constructor(path, connection, existed) {
+  constructor(path, connection) {
     this.#path = path;
     this.#connection = connection;
-    this.existed = existed;
     lazy.AsyncShutdown.profileBeforeChange.addBlocker(
       "SessionStoreDB: closing the database",
       this.#blocker,

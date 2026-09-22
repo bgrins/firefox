@@ -81,7 +81,6 @@ async function assertRejects(promise, result, message) {
 
 add_task(async function test_empty() {
   let db = await SessionStoreDB.open(newPath());
-  Assert.ok(!db.existed, "A new database didn't exist before");
   Assert.deepEqual(await db.read(), { meta: {}, state: null, dropped: 0 });
   await db.close();
 });
@@ -98,7 +97,6 @@ add_task(async function test_round_trip_and_reopen() {
   await db.close();
 
   db = await SessionStoreDB.open(path);
-  Assert.ok(db.existed, "The database existed before reopening");
   Assert.deepEqual((await db.read()).state, STATE, "The state persisted");
   await db.close();
 });

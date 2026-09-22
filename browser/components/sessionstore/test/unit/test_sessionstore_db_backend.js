@@ -3,8 +3,14 @@
 
 "use strict";
 
-const { SessionDBBackend } = ChromeUtils.importESModule(
+const { SessionDBBackend, removeDatabase } = ChromeUtils.importESModule(
   "moz-src:///browser/components/sessionstore/SessionDBBackend.sys.mjs"
+);
+const { SessionStoreDB } = ChromeUtils.importESModule(
+  "moz-src:///browser/components/sessionstore/SessionStoreDB.sys.mjs"
+);
+const { Sqlite } = ChromeUtils.importESModule(
+  "resource://gre/modules/Sqlite.sys.mjs"
 );
 
 do_get_profile();
@@ -27,12 +33,16 @@ function makeState(title) {
 }
 
 /**
- * Starts a backend that compares the database with `source`, and returns it
- * with the cross-check result.
+ * Starts a backend that compares the database with `source`, the JSON file
+ * read at startup, and returns it with the cross-check result.
  */
 async function startBackend(source, origin = "clean") {
   let backend = new SessionDBBackend(PATH);
-  backend.start({ origin, source });
+  backend.start({
+    origin,
+    source,
+    session: source && JSON.parse(source).session,
+  });
   return { backend, result: await backend.crossCheck };
 }
 
@@ -52,10 +62,7 @@ async function writeSession(
 }
 
 add_task(async function test_missing_database() {
-  let { backend, result } = await startBackend(
-    JSON.stringify(makeState("a")),
-    "clean"
-  );
+  let { backend, result } = await startBackend(JSON.stringify(makeState("a")));
   Assert.deepEqual(result, { result: "db_missing" });
   await backend.close();
   Assert.equal(Glean.sessionRestore.dbCrossCheck.db_missing.testGetValue(), 1);
@@ -123,32 +130,59 @@ add_task(async function test_annotate_matches_the_written_generation() {
   await backend.close();
 });
 
-add_task(async function test_newer_state() {
+add_task(async function test_saves_follow_a_json_file_ahead() {
+  let json = JSON.parse(await writeSession(makeState("a")));
+  // As when batches failed and only the JSON file was written.
+  json.session.writeSeq += 5;
+  let { backend } = await startBackend(JSON.stringify(json));
+  let next = makeState("b");
+  backend.annotate(next);
+  Assert.equal(
+    next.session.writeSeq,
+    json.session.writeSeq + 1,
+    "The next save numbers after the JSON file"
+  );
+  Assert.ok(
+    await backend.write(next, { isFinalWrite: true, comparable: true }),
+    "The batch passes the database's guard"
+  );
+  await backend.close();
+
+  ({ backend } = await startBackend(JSON.stringify(next)));
+  Assert.equal(
+    (await backend.crossCheck).result,
+    "match",
+    "The database and the JSON file hold the same generation again"
+  );
+  await backend.close();
+});
+
+add_task(async function test_state_to_restore() {
   // The session didn't shut down cleanly.
   let json = JSON.parse(
     await writeSession(makeState("a"), { isFinalWrite: false })
   );
   let { backend } = await startBackend(JSON.stringify(json));
   Assert.equal(
-    await backend.newerState(json),
+    await backend.stateToRestore(json),
     null,
     "The database isn't newer than JSON of the same generation"
   );
   let older = structuredClone(json);
   older.session.writeSeq--;
   Assert.deepEqual(
-    await backend.newerState(older),
+    await backend.stateToRestore(older),
     json,
     "The database is newer than an older JSON file of its lineage"
   );
   older.session.lineage = "elsewhere";
   Assert.equal(
-    await backend.newerState(older),
+    await backend.stateToRestore(older),
     null,
     "A JSON file of another lineage wins"
   );
   Assert.equal(
-    await backend.newerState(null),
+    await backend.stateToRestore(null),
     null,
     "Without JSON files, which were deleted, the database isn't restored"
   );
@@ -159,7 +193,7 @@ add_task(async function test_newer_state() {
   older = structuredClone(json);
   older.session.writeSeq--;
   Assert.equal(
-    await backend.newerState(older),
+    await backend.stateToRestore(older),
     null,
     "After a clean shutdown, an older JSON file copied into place wins"
   );
@@ -175,7 +209,7 @@ add_task(async function test_metrics() {
   Assert.greater(sum, 0);
 });
 
-add_task(async function test_a_throwing_state_writes_nothing() {
+add_task(async function test_unreadable_state_writes_nothing() {
   let { backend } = await startBackend("", "empty");
   let state = makeState("a");
   Object.defineProperty(state.windows[0], "tabs", {
@@ -186,15 +220,13 @@ add_task(async function test_a_throwing_state_writes_nothing() {
   });
   Assert.equal(
     await backend.write(state, { isFinalWrite: false, comparable: true }),
-    false
+    false,
+    "A state that throws while it is read isn't written"
   );
   await backend.close();
 });
 
-add_task(async function test_unusable_databases_are_replaced() {
-  let { SessionStoreDB } = ChromeUtils.importESModule(
-    "moz-src:///browser/components/sessionstore/SessionStoreDB.sys.mjs"
-  );
+add_task(async function test_corrupt_databases_are_replaced() {
   let expected = JSON.parse(JSON.stringify(makeState("a")));
   let check = async message => {
     let { backend, result } = await startBackend("", "empty");
@@ -227,12 +259,40 @@ add_task(async function test_unusable_databases_are_replaced() {
   await db.write(["node", 999, 0, "windows", "{}"]);
   await db.close();
   await check("Rows that don't form a state are rewritten");
+  await removeDatabase(PATH);
+});
+
+add_task(async function test_newer_databases_are_left_alone() {
+  await writeSession(makeState("a"));
+  let connection = await Sqlite.openConnection({ path: PATH });
+  await connection.execute("PRAGMA user_version = 99");
+  await connection.close();
+
+  let { backend } = await startBackend("", "empty");
+  Assert.equal(
+    await backend.write(makeState("b"), {
+      isFinalWrite: true,
+      comparable: true,
+    }),
+    false,
+    "Nothing is written to a database from a newer build"
+  );
+  await backend.close();
+  Assert.ok(
+    !(await IOUtils.exists(PATH + ".corrupt")),
+    "The database wasn't moved aside"
+  );
+  connection = await Sqlite.openConnection({ path: PATH });
+  Assert.equal(
+    await connection.getSchemaVersion(),
+    99,
+    "The database is untouched"
+  );
+  await connection.close();
+  await removeDatabase(PATH);
 });
 
 add_task(async function test_writes_around_a_wipe() {
-  let { SessionStoreDB } = ChromeUtils.importESModule(
-    "moz-src:///browser/components/sessionstore/SessionStoreDB.sys.mjs"
-  );
   let { backend } = await startBackend("", "empty");
   let before = makeState("before");
   let after = makeState("after");

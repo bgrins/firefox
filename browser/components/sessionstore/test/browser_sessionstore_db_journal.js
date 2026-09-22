@@ -153,7 +153,7 @@ add_task(async function test_journal() {
   await flushAndSave("Received the closed tab's final update");
 
   void new SessionStoreBackupResource().filteredSessionStoreState;
-  await flushAndSave("Let the backup strip session storage");
+  await flushAndSave("Filtered the state for a backup");
 
   let restored = SessionStore.undoCloseTab(window, 0);
   await promiseTabRestored(restored);

@@ -91,10 +91,11 @@ export function capSessionHistory(state, maxBack, maxForward) {
  *
  * @param {string} path
  * @param {object} state
- * @param {object} options
+ * @param {WriteOptions} options
  *        The options for IOUtils.writeJSON().
- * @param {Function} [exportJSON]
- *        Takes `path` and `options`, and resolves once the file is written.
+ * @param {(path: string, options: WriteOptions) => Promise<unknown>} [exportJSON]
+ *        Resolves once the file is written.
+ * @returns {Promise<void>}
  */
 async function writeJSON(path, state, options, exportJSON) {
   if (exportJSON) {

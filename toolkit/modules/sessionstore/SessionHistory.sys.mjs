@@ -373,6 +373,7 @@ var SessionHistoryInternal = {
 
   /**
    * Expands serialized history data into a session-history-entry instance.
+   * The entry belongs to the session state, so it is left unchanged.
    *
    * @param entry
    *        Object containing serialized history data for a URL
@@ -444,7 +445,6 @@ var SessionHistoryInternal = {
     // But existing session storage might contain entries with the persist attribute,
     // so we translate them to transient.
     // Bug 1971274 tracks removing this.
-    // The entry belongs to the session state, so it isn't changed.
     let transient = "persist" in entry ? !entry.persist : entry.transient;
     if (transient) {
       shEntry.setTransient();
@@ -463,8 +463,7 @@ var SessionHistoryInternal = {
       shEntry.ID = id;
     }
 
-    // If we have the legacy docshellID on our entry, upgrade it to a
-    // docshellUUID by going through the mapping.
+    // If we have the legacy docshellID on our entry, map it to a docshellUUID.
     let docshellUUID = entry.docshellUUID;
     if (entry.docshellID) {
       if (!this._docshellUUIDMap.has(entry.docshellID)) {

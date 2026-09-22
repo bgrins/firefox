@@ -152,7 +152,9 @@ var SessionSaverInternal = {
    * Immediately saves the current session to disk.
    */
   run() {
-    return this._saveState(true /* force-update all windows */);
+    return this._saveState(true /* force-update all windows */, {
+      immediate: true,
+    });
   },
 
   /**
@@ -245,8 +247,10 @@ var SessionSaverInternal = {
    * @param forceUpdateAllWindows (optional)
    *        Forces us to recollect data for all windows and will bypass and
    *        update the corresponding caches.
+   * @param options (optional)
+   *        As for _writeState().
    */
-  _saveState(forceUpdateAllWindows = false) {
+  _saveState(forceUpdateAllWindows = false, options = {}) {
     // Cancel any pending timeouts.
     this.cancel();
 
@@ -305,8 +309,7 @@ var SessionSaverInternal = {
     this._maybeClearCookiesAndStorage(state);
 
     Glean.sessionRestore.collectData.stopAndAccumulate(timerId);
-    // run() saves right away, like after purging data.
-    return this._writeState(state, { immediate: forceUpdateAllWindows });
+    return this._writeState(state, options);
   },
 
   /**
@@ -357,6 +360,11 @@ var SessionSaverInternal = {
 
   /**
    * Write the given state object to disk.
+   *
+   * @param state
+   * @param options
+   *        As for SessionFile.write(): `immediate` for a save requested right
+   *        away, like after purging data.
    */
   _writeState(state, options) {
     if (!lazy.RunState.isRunning) {

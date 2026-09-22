@@ -4,12 +4,12 @@
 
 /**
  * Writes session state to the session store database next to the JSON
- * session file, and checks after startup that the database agrees with the
+ * session files, and checks after startup that the database agrees with the
  * JSON file that startup read. Used in the "shadow", "export" and "sqlite"
  * modes of `browser.sessionstore.backend`. In the "export" mode, the JSON
- * files are exported from the database. In the "sqlite" mode, they are
- * exported less often, and startup restores from the database when it is
- * newer than them.
+ * files are exported from the database, and in the "sqlite" mode less often.
+ * In every one of these modes, startup restores from the database after a
+ * crash that left it ahead of the JSON files.
  *
  * Both backends store a generation: a lineage, which identifies the database,
  * and a seq, which increments with every save. The JSON file carries them in
@@ -34,8 +34,9 @@ const lazy = XPCOMUtils.declareLazy({
     "moz-src:///browser/components/sessionstore/SessionLogger.sys.mjs",
 });
 
-const CROSS_CHECK_TOPIC = "sessionstore-db-cross-check";
 const PREF_AUDIT = "browser.sessionstore.db_audit";
+// The files SQLite keeps next to the database.
+const SIDE_FILES = ["-wal", "-shm", "-journal"];
 const MAX_MISMATCH_PATHS = 20;
 
 /**
@@ -66,7 +67,7 @@ export class SessionDBBackend {
   /** @type {SessionDBWriter|null} */
   #writer = null;
   // Incremented by each wipe, so that batches built before it are dropped.
-  #epoch = 0;
+  #wipes = 0;
   /** @type {Promise<Record<string, string>>|null} */
   #startupMeta = null;
   /** @type {Promise<string>|null} */
@@ -104,9 +105,8 @@ export class SessionDBBackend {
     this.#db = this.#open();
     this.#db.catch(() => {});
     // Both reads are queued before any write. Only the meta values are needed
-    // to write, and the state is only parsed for the cross-check, in idle.
-    // Writes before the meta values are read are skipped, since there is no
-    // writer yet.
+    // to write, and the state is only parsed to restore it or, in idle, for
+    // the cross-check.
     let meta = (this.#startupMeta = this.#db.then(db => db.readMeta()));
     let text = (this.#startupText = this.#db.then(db => db.readText()));
     meta.then(
@@ -174,7 +174,7 @@ export class SessionDBBackend {
         ex
       );
       await IOUtils.move(this.#path, this.#path + ".corrupt");
-      for (let suffix of ["-wal", "-shm", "-journal"]) {
+      for (let suffix of SIDE_FILES) {
         await IOUtils.remove(this.#path + suffix, { ignoreAbsent: true });
       }
       return lazy.SessionStoreDB.open(this.#path);
@@ -185,15 +185,15 @@ export class SessionDBBackend {
    * Returns the state that startup read from the database, if it should be
    * restored instead of `jsonState`, the state read from the JSON files. The
    * database only wins after a session that didn't shut down cleanly, over a
-   * JSON file of the same lineage and an older generation. Otherwise JSON
-   * wins: a file of another lineage was restored or copied from elsewhere,
-   * one copied into place after a clean shutdown is the user's choice, and
-   * without any file, the session files were deleted.
+   * JSON file of the same lineage and an older seq. Otherwise JSON wins: a
+   * file of another lineage was restored or copied from elsewhere, one copied
+   * into place after a clean shutdown is the user's choice, and without any
+   * file, the session files were deleted.
    *
    * @param {object|null} jsonState
    * @returns {Promise<object|null>}
    */
-  async newerState(jsonState) {
+  async stateToRestore(jsonState) {
     let meta = await this.#startupMeta?.catch(() => null);
     let session = jsonState?.session;
     if (
@@ -247,7 +247,7 @@ export class SessionDBBackend {
   write(state, { isFinalWrite, comparable, checkpoint = false }) {
     if (!this.#writer) {
       lazy.sessionStoreLogger.debug(
-        "SessionDBBackend: skipping a write before the database was read"
+        "SessionDBBackend: skipping a write, since the database isn't open"
       );
       return Promise.resolve(false);
     }
@@ -291,10 +291,10 @@ export class SessionDBBackend {
         Glean.sessionRestore.dbJournalMiss[group].add(1);
       }
     }
-    let epoch = this.#epoch;
+    let wipes = this.#wipes;
     return this.#db
       .then(async db => {
-        if (!db || epoch != this.#epoch) {
+        if (!db || wipes != this.#wipes) {
           return false;
         }
         await db.write(ops);
@@ -342,10 +342,10 @@ export class SessionDBBackend {
    * database, so that the cross-check doesn't compare it.
    */
   markNotComparable() {
-    let epoch = this.#epoch;
+    let wipes = this.#wipes;
     this.#db
       .then(db =>
-        db && epoch == this.#epoch
+        db && wipes == this.#wipes
           ? db.write(["meta", "comparable", "0"])
           : undefined
       )
@@ -376,7 +376,7 @@ export class SessionDBBackend {
    * @returns {Promise<void>}
    */
   async wipe({ reopen = true } = {}) {
-    this.#epoch++;
+    this.#wipes++;
     this.#writer?.reset();
     if (!reopen) {
       this.#writer = null;
@@ -385,7 +385,7 @@ export class SessionDBBackend {
     this.#db = (async () => {
       let db = await previous.catch(() => null);
       await db?.close();
-      await removeFiles(this.#path);
+      await removeDatabase(this.#path);
       return reopen ? lazy.SessionStoreDB.open(this.#path) : null;
     })();
     await this.#db.catch(ex =>
@@ -394,8 +394,13 @@ export class SessionDBBackend {
   }
 }
 
-async function removeFiles(path) {
-  for (let suffix of ["", "-wal", "-shm", "-journal", ".corrupt"]) {
+/**
+ * Removes the session database at `path`, with its side files.
+ *
+ * @param {string} path
+ */
+export async function removeDatabase(path) {
+  for (let suffix of ["", ...SIDE_FILES, ".corrupt"]) {
     await IOUtils.remove(path + suffix, { ignoreAbsent: true });
   }
 }
@@ -477,5 +482,4 @@ function report(origin, result) {
     lazy.sessionStoreLogger.warn(message, result);
   }
   Glean.sessionRestore.dbCrossCheck[result.result].add(1);
-  Services.obs.notifyObservers(null, CROSS_CHECK_TOPIC, JSON.stringify(result));
 }

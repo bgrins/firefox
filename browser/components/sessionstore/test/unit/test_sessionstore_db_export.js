@@ -42,7 +42,11 @@ add_task(async function test_export_mode() {
   await SessionFile.write(first);
   let second = makeState("https://second.test/");
   await SessionFile.write(second);
-  Assert.equal(Glean.sessionRestore.dbExport.exported.testGetValue(), 2);
+  Assert.equal(
+    Glean.sessionRestore.dbExport.exported.testGetValue(),
+    2,
+    "Both saves were exported"
+  );
   Assert.deepEqual(
     await readFile(Paths.recovery),
     JSON.parse(JSON.stringify(second)),
@@ -53,7 +57,10 @@ add_task(async function test_export_mode() {
     JSON.parse(JSON.stringify(first)),
     "The previous recovery file is the backup"
   );
-  Assert.ok(!(await IOUtils.exists(Paths.recovery + ".tmp")));
+  Assert.ok(
+    !(await IOUtils.exists(Paths.recovery + ".tmp")),
+    "The temporary file was moved into place"
+  );
 });
 
 add_task(async function test_final_write_is_serialized() {
@@ -74,6 +81,7 @@ add_task(async function test_final_write_is_serialized() {
   );
   Assert.deepEqual(
     await readFile(Paths.clean),
-    JSON.parse(JSON.stringify(final))
+    JSON.parse(JSON.stringify(final)),
+    "The final write serialized the state"
   );
 });

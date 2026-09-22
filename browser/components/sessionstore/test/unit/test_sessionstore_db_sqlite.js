@@ -46,7 +46,7 @@ async function databaseURL() {
   return state.windows[0].tabs[0].entries[0].url;
 }
 
-add_task(async function test_json_files_are_exported_less_often() {
+add_task(async function test_first_save_exports() {
   await SessionFile.read();
   Assert.equal(
     Glean.sessionRestore.dbSourceSelected.json.testGetValue(),
@@ -56,22 +56,44 @@ add_task(async function test_json_files_are_exported_less_often() {
   await SessionFile.dbCrossCheck;
 
   await SessionFile.write(makeState("https://first.test/"));
-  Assert.equal(await recoveryURL(), "https://first.test/");
+  Assert.equal(
+    await recoveryURL(),
+    "https://first.test/",
+    "The first save writes JSON"
+  );
+});
 
+add_task(async function test_saves_between_exports() {
   await SessionFile.write(makeState("https://second.test/"));
   Assert.equal(
     Glean.sessionRestore.dbExport.skipped.testGetValue(),
     1,
     "A save soon after the previous JSON file writes none"
   );
-  Assert.equal(await recoveryURL(), "https://first.test/");
-  Assert.equal(await databaseURL(), "https://second.test/");
+  Assert.equal(
+    await recoveryURL(),
+    "https://first.test/",
+    "The JSON file keeps the previous save"
+  );
+  Assert.equal(
+    await databaseURL(),
+    "https://second.test/",
+    "The database holds the save"
+  );
+});
 
+add_task(async function test_interval() {
   Services.prefs.setIntPref("browser.sessionstore.db_export_interval", 0);
   await SessionFile.write(makeState("https://third.test/"));
-  Assert.equal(await recoveryURL(), "https://third.test/");
+  Assert.equal(
+    await recoveryURL(),
+    "https://third.test/",
+    "A save after the interval writes JSON"
+  );
   Services.prefs.clearUserPref("browser.sessionstore.db_export_interval");
+});
 
+add_task(async function test_immediate_save() {
   await SessionFile.write(makeState("https://purged.test/"), {
     immediate: true,
   });
@@ -80,7 +102,9 @@ add_task(async function test_json_files_are_exported_less_often() {
     "https://purged.test/",
     "A save requested right away, like after purging data, writes JSON"
   );
+});
 
+add_task(async function test_save_after_a_wipe() {
   await SessionFile.wipe();
   await SessionFile.write(makeState("https://wiped.test/"));
   Assert.equal(

@@ -14,8 +14,9 @@ from session_store_test_case import SessionStoreTestCase, inline
 class TestSqliteMode(SessionStoreTestCase):
     """
     In the "sqlite" backend mode, most saves write only the session database,
-    and startup restores from it when it is newer than the JSON files. This
-    test checks that a kill after such a save restores the newest session.
+    and startup after a crash restores from it when it is newer than the JSON
+    files. This test checks that a kill after such a save restores the newest
+    session.
     """
 
     def setUp(self):

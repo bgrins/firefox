@@ -196,7 +196,7 @@ add_task(async function test_small_changes_write_small_batches() {
   await db.close();
 });
 
-add_task(async function test_values_json_treats_specially() {
+add_task(async function test_unusual_values_round_trip() {
   let { db } = await openDB();
   let writer = new SessionDBWriter();
   let state = makeState();

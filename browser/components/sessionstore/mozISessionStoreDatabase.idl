@@ -65,13 +65,13 @@ interface mozISessionStoreDatabase : nsISupports
    * Writes the session state as a JSON session file, compressed as IOUtils
    * compresses with `compress: true`. The file is written to aTmpPath, then
    * moved to aPath once any file there has been moved to aBackupPath.
-   * Succeeds with the size of the file.
+   * Succeeds with the size of the file. Fails with NS_ERROR_NOT_AVAILABLE if
+   * the database holds no state, and with NS_ERROR_FILE_TOO_BIG, before
+   * touching any file, if the state is larger than a JSON session file can be
+   * for reading it back.
    *
    * @param aBackupPath
    *        Where to move the previous file, or an empty string to replace it.
-   * Fails with NS_ERROR_NOT_AVAILABLE if the database holds no state, and
-   * with NS_ERROR_FILE_TOO_BIG, before touching any file, if the state is
-   * larger than a JSON session file can be for reading it back.
    */
   void exportJSON(in AUTF8String aPath,
                   in AUTF8String aTmpPath,

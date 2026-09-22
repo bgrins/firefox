@@ -12,7 +12,9 @@
  * the files used by this module from two distinct threads.
  * Otherwise, we could encounter bugs, especially under Windows,
  * e.g. if a request attempts to write sessionstore.js while
- * another attempts to copy that file.
+ * another attempts to copy that file. JSON files exported from the session
+ * database are the exception: the database's thread writes them, while
+ * SessionWriter waits.
  */
 
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
@@ -22,6 +24,8 @@ const lazy = XPCOMUtils.declareLazy({
     "moz-src:///browser/components/sessionstore/SessionWriter.sys.mjs",
   sessionStoreLogger:
     "moz-src:///browser/components/sessionstore/SessionLogger.sys.mjs",
+  removeDatabase:
+    "moz-src:///browser/components/sessionstore/SessionDBBackend.sys.mjs",
   RunState: "moz-src:///browser/components/sessionstore/RunState.sys.mjs",
   SessionDBBackend:
     "moz-src:///browser/components/sessionstore/SessionDBBackend.sys.mjs",
@@ -41,22 +45,13 @@ const PREF_MAX_SERIALIZE_FWD = "browser.sessionstore.max_serialize_forward";
 // "json" writes only the JSON session files. "shadow" also writes the session
 // database, and compares it with the JSON files after startup. "export" writes
 // the database and exports all but the final JSON file of a session from it.
-// "sqlite" writes the database, exports a JSON file at most every
-// PREF_EXPORT_INTERVAL ms, and restores from the database when it is newer.
+// "sqlite" writes the database, and exports a JSON file at most every
+// PREF_EXPORT_INTERVAL ms. The modes that write the database restore from it
+// after a crash that left it ahead of the JSON files.
 const PREF_BACKEND = "browser.sessionstore.backend";
 const PREF_EXPORT_INTERVAL = "browser.sessionstore.db_export_interval";
 const DB_MODES = ["shadow", "export", "sqlite"];
-
-/**
- * Removes a session database that a mode other than "json" left behind.
- *
- * @param {string} path
- */
-async function removeDatabase(path) {
-  for (let suffix of ["", "-wal", "-shm", "-journal", ".corrupt"]) {
-    await IOUtils.remove(path + suffix, { ignoreAbsent: true });
-  }
-}
+const EXPORT_MODES = ["export", "sqlite"];
 
 export var SessionFile = {
   /**
@@ -237,7 +232,8 @@ var SessionFileInternal = {
   // The backend mode, once read() is done.
   _mode: "json",
 
-  // When the latest JSON write started, in the "sqlite" mode.
+  // When the latest JSON write started, which the "sqlite" mode uses to space
+  // them out.
   _lastJSONWrite: 0,
 
   // The number of JSON writes started but not finished.
@@ -458,7 +454,7 @@ var SessionFileInternal = {
         source: result.source,
         session: result.parsed?.session,
       });
-      let state = await this._dbBackend.newerState(result.parsed);
+      let state = await this._dbBackend.stateToRestore(result.parsed);
       if (
         state &&
         !lazy.SessionStore.isFormatVersionCompatible(
@@ -480,7 +476,6 @@ var SessionFileInternal = {
           parsed: state,
           useOldExtension: false,
         };
-        noFilesFound = false;
       }
     }
 
@@ -579,10 +574,10 @@ var SessionFileInternal = {
     let dbWrite = null;
     let exportJSON = null;
     if (this._dbBackend) {
-      // The final write serializes the state even in the "export" mode, so
-      // that the session restored next doesn't depend on the change journal.
-      let exporting =
-        (this._mode == "export" || this._mode == "sqlite") && !isFinalWrite;
+      // The final write serializes the state even in the modes that export,
+      // so that the session restored next doesn't depend on the change
+      // journal.
+      let exporting = EXPORT_MODES.includes(this._mode) && !isFinalWrite;
       try {
         dbWrite = this._writeDatabase(aData, {
           isFinalWrite,
@@ -737,13 +732,14 @@ var SessionFileInternal = {
   },
 
   async wipe() {
-    // Queued before the save that follows a purge, as it always was.
+    // Started synchronously, so that SessionWriter's queue runs it before the
+    // save that follows a purge.
     let jsonWipe = this.getWriter().then(writer => writer.wipe());
     // The next save writes JSON again.
     this._jsonWritten = false;
     let dbWipe = this._dbBackend
       ? this._dbBackend.wipe({ reopen: !lazy.RunState.isQuitting })
-      : removeDatabase(this.Paths.database);
+      : lazy.removeDatabase(this.Paths.database);
     await Promise.all([jsonWipe, dbWipe]);
     // After a wipe, we need to make sure to re-initialize upon the next read(),
     // because the state variables as sent to the writer have changed.

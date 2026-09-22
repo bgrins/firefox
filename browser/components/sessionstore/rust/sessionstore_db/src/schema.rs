@@ -26,8 +26,6 @@ const SCHEMA: &str = "
     payload TEXT
   ) STRICT;
 
-  CREATE INDEX nodes_by_parent ON nodes(parent, prop);
-
   CREATE TABLE child_order (
     parent INTEGER NOT NULL,
     prop TEXT NOT NULL,

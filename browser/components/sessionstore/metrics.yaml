@@ -233,7 +233,7 @@ session_restore:
     type: timing_distribution
     description: >
       Time the main thread spends building the batch of rows that a save
-      writes to the session database, in the "shadow" backend mode.
+      writes to the session database, in every backend mode but "json".
     time_unit: microsecond
     bugs:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
@@ -262,7 +262,7 @@ session_restore:
     type: labeled_counter
     description: >
       Result of comparing the session database with the JSON session file
-      read at startup, in the "shadow" backend mode. "match" and "mismatch"
+      read at startup, in every backend mode but "json". "match" and "mismatch"
       are only recorded when both hold the same generation; the other labels
       say why they couldn't be compared.
     labels:
@@ -311,7 +311,7 @@ session_restore:
     type: timing_distribution
     description: >
       Time to export a JSON session file from the session database, off the
-      main thread, in the "export" backend mode.
+      main thread, in the "export" and "sqlite" backend modes.
     time_unit: millisecond
     bugs:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
@@ -347,8 +347,9 @@ session_restore:
   db_source_selected:
     type: labeled_counter
     description: >
-      Where startup restored the session from, in the "sqlite" backend mode:
-      the JSON files, or the session database when it was newer than them.
+      Where startup restored the session from, in every backend mode but
+      "json": the JSON files, or the session database when it held a newer
+      save than them after a crash.
     labels:
       - json
       - database
@@ -363,8 +364,9 @@ session_restore:
   db_read:
     type: timing_distribution
     description: >
-      Time to open the session database and read its state at startup, in the
-      "shadow" and "export" backend modes. The state is parsed later, in idle.
+      Time to open the session database and read its state at startup, in
+      every backend mode but "json". Unless the state is restored, it is only
+      parsed later, in idle.
     time_unit: millisecond
     bugs:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000

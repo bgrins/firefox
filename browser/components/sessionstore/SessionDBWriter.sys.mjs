@@ -16,11 +16,10 @@
  * for it before, and a group of its properties, its payload or one of its
  * sections, is only serialized when a value in the group differs from the one
  * written, or is an object that was edited in place and marked in
- * SessionChangeJournal. The other kinds are
- * small and edited in place in many ways, so they are serialized on every
- * save and compared as text. With the audit option, the writer also
- * serializes the tab properties it judged unchanged, and reports the ones that
- * did change.
+ * SessionChangeJournal. The other kinds are small and edited in place in many
+ * ways, so they are serialized on every save and compared as text. With the
+ * audit option, the writer also serializes the tab properties it judged
+ * unchanged, and reports the ones that did change.
  */
 
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
@@ -188,18 +187,21 @@ export class SessionDBWriter {
   #nextId;
   #lineage;
   #seq;
+  // The generation the database holds, which the next batch guards on. The
+  // seq can trail #seq, which a JSON file that got ahead may have raised.
   #dbLineage;
   #dbSeq;
 
   /**
    * @param {Record<string, string>} meta
-   *        The database's meta values, as SessionStoreDB.read() returns them.
+   *        The database's meta values, as SessionStoreDB.readMeta() returns
+   *        them.
    * @param {object} [options]
    * @param {boolean} [options.audit]
    *        Whether to also serialize the properties of tracked nodes that the
    *        comparison judges unchanged, and report those that changed.
    * @param {number} [options.minSeq]
-   *        A seq that batches must number after, beside the database's.
+   *        A seq that batches number after, as they do after the database's.
    */
   constructor(meta = {}, { audit = false, minSeq = 0 } = {}) {
     this.#dbLineage = meta.lineage ?? "";
@@ -380,10 +382,10 @@ export class SessionDBWriter {
   }
 
   /**
-   * Assigns ids in three passes, so that a looser match never takes an id a
-   * stricter one needs: a node written for the same object, then one written
-   * for an object with the same identity, then the previous child at the same
-   * index, which is updated in place.
+   * Assigns ids in three passes, so that within the array, a looser match never
+   * takes an id a stricter one needs: a node written for the same object, then
+   * one written for an object with the same identity, then the previous child
+   * at the same index, which is updated in place.
    */
   #syncArray(context, parent, prop, kind, values) {
     let previousIds = this.#previousChildren(context, parent, prop);
@@ -496,8 +498,8 @@ export class SessionDBWriter {
       ? this.#unchangedGroups(previous, kind, value, split)
       : new Set();
     let keepText = !tracked || this.#audit;
-    /** @type {NodeRecord} */
     let snapshot = tracked ? { ...value } : undefined;
+    /** @type {NodeRecord} */
     let record = {
       kind,
       parent,

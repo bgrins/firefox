@@ -4,18 +4,16 @@
 
 #include "mozilla/Compression.h"
 
-using mozilla::Compression::LZ4;
-
 // LZ4 for the sessionstore_db crate, which exports the session file in the
 // format that IOUtils writes with `compress: true`.
 extern "C" {
 
 size_t sessionstore_lz4_max_compressed_size(size_t aInputSize) {
-  return LZ4::maxCompressedSize(aInputSize);
+  return mozilla::Compression::LZ4::maxCompressedSize(aInputSize);
 }
 
 size_t sessionstore_lz4_compress(const char* aSource, size_t aInputSize,
                                  char* aDest) {
-  return LZ4::compress(aSource, aInputSize, aDest);
+  return mozilla::Compression::LZ4::compress(aSource, aInputSize, aDest);
 }
 }
