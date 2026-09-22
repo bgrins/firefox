@@ -38,24 +38,24 @@ def verify_ios_device(
 
         device = IosDevice.select_device(is_simulator)
         if app == "org.mozilla.ios.GeckoTestBrowser":
-            # FIXME: This should probably be happening as a build step, rather
-            # than happening during verify_ios_device!
-            print("Packaging GeckoTestBrowser...")
-            subprocess.check_call([
-                "xcodebuild",
-                "-project",
-                os.path.join(
-                    build_obj.topsrcdir,
-                    "mobile/ios/GeckoTestBrowser/GeckoTestBrowser.xcodeproj",
-                ),
-                "-scheme",
-                "GeckoTestBrowser",
-                "-destination",
-                device.xcode_destination_specifier(),
-                "install",
-                "DSTROOT=" + build_obj.distdir,
-                "TOPOBJDIR=" + build_obj.topobjdir,
-            ])
+            # Builds with a Swift compiler package GeckoTestBrowser themselves.
+            if not build_obj.substs.get("SWIFTC"):
+                print("Packaging GeckoTestBrowser...")
+                subprocess.check_call([
+                    "xcodebuild",
+                    "-project",
+                    os.path.join(
+                        build_obj.topsrcdir,
+                        "mobile/ios/GeckoTestBrowser/GeckoTestBrowser.xcodeproj",
+                    ),
+                    "-scheme",
+                    "GeckoTestBrowser",
+                    "-destination",
+                    device.xcode_destination_specifier(),
+                    "install",
+                    "DSTROOT=" + build_obj.distdir,
+                    "GECKO_TOPOBJDIR=" + build_obj.topobjdir,
+                ])
 
             print("Installing GeckoTestBrowser...")
             device.install(
