@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { SessionChangeJournal } from "moz-src:///browser/components/sessionstore/SessionChangeJournal.sys.mjs";
+
 /**
  * A cache for tabs data.
  *
@@ -93,6 +95,10 @@ var TabStateCacheInternal = {
         }
       }
     }
+    SessionChangeJournal.markChanged(
+      storage,
+      ...Object.keys(change).map(domain => storage[domain])
+    );
   },
 
   /**
@@ -120,6 +126,7 @@ var TabStateCacheInternal = {
         if (change.fromIdx != kLastIndex) {
           let start = change.fromIdx + 1;
           history.entries.splice(start, Infinity, ...change.entries);
+          SessionChangeJournal.markChanged(history.entries);
         }
       } else if (key != "fromIdx") {
         history[key] = change[key];

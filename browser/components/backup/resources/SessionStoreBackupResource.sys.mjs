@@ -13,6 +13,8 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
+  SessionChangeJournal:
+    "moz-src:///browser/components/sessionstore/SessionChangeJournal.sys.mjs",
   SessionStore:
     "moz-src:///browser/components/sessionstore/SessionStore.sys.mjs",
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
@@ -35,6 +37,19 @@ XPCOMUtils.defineLazyPreferenceGetter(
   "browser.backup.tab-flush-timeout",
   5000
 );
+
+/**
+ * Removes session storage from a tab state. The state belongs to the live
+ * session, so the edit is recorded for the session store.
+ *
+ * @param {object} tabState
+ */
+function removeStorage(tabState) {
+  if ("storage" in tabState) {
+    delete tabState.storage;
+    lazy.SessionChangeJournal.markChanged(tabState);
+  }
+}
 
 /**
  * Class representing Session store related files within a user profile.
@@ -76,17 +91,17 @@ export class SessionStoreBackupResource extends BackupResource {
       );
       sessionStoreState.windows.forEach(win => {
         if (win.tabs) {
-          win.tabs.forEach(tab => delete tab.storage);
+          win.tabs.forEach(tab => removeStorage(tab));
         }
         if (win._closedTabs) {
-          win._closedTabs.forEach(closedTab => delete closedTab.state.storage);
+          win._closedTabs.forEach(closedTab => removeStorage(closedTab.state));
         }
       });
     }
     if (sessionStoreState.savedGroups) {
       sessionStoreState.savedGroups.forEach(group => {
         if (group.tabs) {
-          group.tabs.forEach(tab => delete tab.state.storage);
+          group.tabs.forEach(tab => removeStorage(tab.state));
         }
       });
     }

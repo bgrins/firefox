@@ -102,6 +102,8 @@ import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 const lazy = XPCOMUtils.declareLazy({
   PrivacyFilter: "resource://gre/modules/sessionstore/PrivacyFilter.sys.mjs",
+  SessionChangeJournal:
+    "moz-src:///browser/components/sessionstore/SessionChangeJournal.sys.mjs",
   TabAttributes:
     "moz-src:///browser/components/sessionstore/TabAttributes.sys.mjs",
   TabStateCache:
@@ -134,7 +136,12 @@ class _TabState {
    * collect(aTab), the same object is returned.
    */
   collect(tab, extData) {
-    return this.#collectBaseTabData(tab, { extData });
+    let tabData = this.#collectBaseTabData(tab, { extData });
+    lazy.SessionChangeJournal.setIdentity(
+      tabData,
+      tab.linkedBrowser.permanentKey
+    );
+    return tabData;
   }
 
   /**

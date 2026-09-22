@@ -5,6 +5,8 @@
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 const lazy = XPCOMUtils.declareLazy({
+  SessionChangeJournal:
+    "moz-src:///browser/components/sessionstore/SessionChangeJournal.sys.mjs",
   sessionStoreLogger:
     "moz-src:///browser/components/sessionstore/SessionLogger.sys.mjs",
 });
@@ -56,7 +58,8 @@ function lockIOWithMutex() {
 /**
  * Caps the number of back and forward session history entries of each open
  * tab, as the final write of a session does. Applying it twice has no further
- * effect.
+ * effect. The tabs it trims are edited in place and marked in
+ * SessionChangeJournal.
  *
  * @param {object} state
  * @param {number} maxBack
@@ -77,8 +80,13 @@ export function capSessionHistory(state, maxBack, maxForward) {
         upper = Math.min(upper, tab.index + maxForward);
       }
 
-      tab.entries = tab.entries.slice(lower, upper);
-      tab.index -= lower;
+      // Written so that the NaN bounds of a tab without an index still slice,
+      // as they always have.
+      if (!(lower == 0 && upper == tab.entries.length)) {
+        tab.entries = tab.entries.slice(lower, upper);
+        tab.index -= lower;
+        lazy.SessionChangeJournal.markChanged(tab);
+      }
     }
   }
 }

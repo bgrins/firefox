@@ -419,6 +419,7 @@ export interface Modules {
   "moz-src:///browser/components/sessionstore/PageWireframes.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/PageWireframes.sys.mjs"),
   "moz-src:///browser/components/sessionstore/RecentlyClosedTabsAndWindowsMenuUtils.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/RecentlyClosedTabsAndWindowsMenuUtils.sys.mjs"),
   "moz-src:///browser/components/sessionstore/RunState.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/RunState.sys.mjs"),
+  "moz-src:///browser/components/sessionstore/SessionChangeJournal.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionChangeJournal.sys.mjs"),
   "moz-src:///browser/components/sessionstore/SessionCookies.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionCookies.sys.mjs"),
   "moz-src:///browser/components/sessionstore/SessionDBBackend.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionDBBackend.sys.mjs"),
   "moz-src:///browser/components/sessionstore/SessionDBWriter.sys.mjs": typeof import("moz-src:///browser/components/sessionstore/SessionDBWriter.sys.mjs"),
