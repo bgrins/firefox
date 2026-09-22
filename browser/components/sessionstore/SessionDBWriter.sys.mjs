@@ -158,14 +158,14 @@ export class SessionDBWriter {
   /**
    * The ids of the nodes the previous batch wrote for each object.
    *
-   * @type {WeakMap<object, number[]>}
+   * @type {WeakMap<object, number|number[]>}
    */
   #byObject = new WeakMap();
   /**
    * The ids of the nodes the previous batch wrote for each identity that
    * SessionChangeJournal gave an object.
    *
-   * @type {WeakMap<object, number[]>}
+   * @type {WeakMap<object, number|number[]>}
    */
   #byIdentity = new WeakMap();
   // The journal's version when the previous batch was built.
@@ -176,7 +176,10 @@ export class SessionDBWriter {
    * @type {(object: object) => boolean}
    */
   #isChanged = object =>
+    this.#anyMarks &&
     lazy.SessionChangeJournal.changedSince(object, this.#journalVersion);
+  // Whether the journal marked anything since the previous batch.
+  #anyMarks = true;
   #audit;
   /** @type {Miss[]} */
   #misses = [];
@@ -255,6 +258,7 @@ export class SessionDBWriter {
     let fullRewrite = !this.#nodes;
     let previous = this.#nodes ?? new Map();
     let journalVersion = lazy.SessionChangeJournal.version;
+    this.#anyMarks = journalVersion != this.#journalVersion;
     let context = {
       previous,
       nodes: new Map(),
@@ -445,9 +449,16 @@ export class SessionDBWriter {
     if (!key || typeof key != "object") {
       return undefined;
     }
-    return (map.get(key) ?? []).find(
-      id => this.#unused(context, id, kind) !== undefined
-    );
+    let ids = map.get(key);
+    if (typeof ids == "number") {
+      return this.#unused(context, ids, kind);
+    }
+    for (let id of ids ?? []) {
+      if (this.#unused(context, id, kind) !== undefined) {
+        return id;
+      }
+    }
+    return undefined;
   }
 
   #unused(context, id, kind) {
@@ -642,14 +653,19 @@ export class SessionDBWriter {
     }
     let keys = Object.keys(value);
     let beforeKeys = before === value ? keys : Object.keys(before);
-    return (
-      beforeKeys.length == keys.length &&
-      keys.every(
-        (key, i) =>
-          beforeKeys[i] === key &&
-          same(before[key], value[key], this.#isChanged)
-      )
-    );
+    if (beforeKeys.length != keys.length) {
+      return false;
+    }
+    for (let i = 0; i < keys.length; i++) {
+      let key = keys[i];
+      if (
+        beforeKeys[i] !== key ||
+        !same(before[key], value[key], this.#isChanged)
+      ) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -806,11 +822,17 @@ function same(before, after, changed) {
   );
 }
 
+/**
+ * Adds `id` to the ids of `key`. A single id is stored as a number, since most
+ * objects appear once.
+ */
 function append(map, key, id) {
   let ids = map.get(key);
-  if (ids) {
-    ids.push(id);
+  if (ids === undefined) {
+    map.set(key, id);
+  } else if (typeof ids == "number") {
+    map.set(key, [ids, id]);
   } else {
-    map.set(key, [id]);
+    ids.push(id);
   }
 }
