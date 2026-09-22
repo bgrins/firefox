@@ -70,4 +70,22 @@ add_task(async function test_json_files_are_exported_less_often() {
   Services.prefs.setIntPref("browser.sessionstore.db_export_interval", 0);
   await SessionFile.write(makeState("https://third.test/"));
   Assert.equal(await recoveryURL(), "https://third.test/");
+  Services.prefs.clearUserPref("browser.sessionstore.db_export_interval");
+
+  await SessionFile.write(makeState("https://purged.test/"), {
+    immediate: true,
+  });
+  Assert.equal(
+    await recoveryURL(),
+    "https://purged.test/",
+    "A save requested right away, like after purging data, writes JSON"
+  );
+
+  await SessionFile.wipe();
+  await SessionFile.write(makeState("https://wiped.test/"));
+  Assert.equal(
+    await recoveryURL(),
+    "https://wiped.test/",
+    "The first save after a wipe writes JSON"
+  );
 });

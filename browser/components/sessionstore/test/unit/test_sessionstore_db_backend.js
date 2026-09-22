@@ -40,10 +40,13 @@ async function startBackend(source, origin = "clean") {
  * Writes `state` through a new backend, as a session would, and returns the
  * JSON the JSON backend would have written for the same save.
  */
-async function writeSession(state, { comparable = true } = {}) {
+async function writeSession(
+  state,
+  { comparable = true, isFinalWrite = true } = {}
+) {
   let { backend } = await startBackend("", "empty");
   backend.annotate(state);
-  await backend.write(state, { isFinalWrite: true, comparable });
+  await backend.write(state, { isFinalWrite, comparable });
   await backend.close();
   return JSON.stringify(state);
 }
@@ -121,7 +124,10 @@ add_task(async function test_annotate_matches_the_written_generation() {
 });
 
 add_task(async function test_newer_state() {
-  let json = JSON.parse(await writeSession(makeState("a")));
+  // The session didn't shut down cleanly.
+  let json = JSON.parse(
+    await writeSession(makeState("a"), { isFinalWrite: false })
+  );
   let { backend } = await startBackend(JSON.stringify(json));
   Assert.equal(
     await backend.newerState(json),
@@ -141,10 +147,21 @@ add_task(async function test_newer_state() {
     null,
     "A JSON file of another lineage wins"
   );
-  Assert.deepEqual(
+  Assert.equal(
     await backend.newerState(null),
-    json,
-    "The database wins when no JSON file was read"
+    null,
+    "Without JSON files, which were deleted, the database isn't restored"
+  );
+  await backend.close();
+
+  json = JSON.parse(await writeSession(makeState("b")));
+  ({ backend } = await startBackend(JSON.stringify(json)));
+  older = structuredClone(json);
+  older.session.writeSeq--;
+  Assert.equal(
+    await backend.newerState(older),
+    null,
+    "After a clean shutdown, an older JSON file copied into place wins"
   );
   await backend.close();
 });
@@ -200,6 +217,11 @@ add_task(async function test_unusable_databases_are_replaced() {
 
   await IOUtils.writeUTF8(PATH, "not a database");
   await check("A file that isn't a database is replaced");
+  Assert.equal(
+    await IOUtils.readUTF8(PATH + ".corrupt"),
+    "not a database",
+    "It was moved aside"
+  );
 
   let db = await SessionStoreDB.open(PATH);
   await db.write(["node", 999, 0, "windows", "{}"]);

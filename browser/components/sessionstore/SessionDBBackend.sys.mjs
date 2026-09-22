@@ -96,8 +96,10 @@ export class SessionDBBackend {
    *        The load-order key of the JSON file, or "empty".
    * @param {string} jsonRead.source
    *        The JSON file's text, or "" if none was read.
+   * @param {object} [jsonRead.session]
+   *        The `session` of the JSON file's state.
    */
-  start({ origin, source }) {
+  start({ origin, source, session }) {
     let start = ChromeUtils.now();
     this.#db = this.#open();
     this.#db.catch(() => {});
@@ -111,6 +113,11 @@ export class SessionDBBackend {
       values => {
         this.#writer = new lazy.SessionDBWriter(values, {
           audit: Services.prefs.getBoolPref(PREF_AUDIT, false),
+          // The JSON file is ahead when batches failed.
+          minSeq:
+            session && session.lineage == values.lineage
+              ? Number(session.writeSeq)
+              : 0,
         });
       },
       () => {}
@@ -147,9 +154,11 @@ export class SessionDBBackend {
   }
 
   /**
-   * Opens the database. One that can't be opened is replaced, unless a newer
-   * build wrote it. One that opens but holds rows that don't form a state
-   * heals itself, since the first batch of a writer rewrites everything.
+   * Opens the database. A corrupt one is moved aside and replaced. Other
+   * failures, like a database from a newer build or one that's locked, leave
+   * it alone, and the JSON files are written on every save. A database that
+   * opens but holds rows that don't form a state heals itself, since the
+   * first batch of a writer rewrites everything.
    *
    * @returns {Promise<SessionStoreDB>}
    */
@@ -157,40 +166,41 @@ export class SessionDBBackend {
     try {
       return await lazy.SessionStoreDB.open(this.#path);
     } catch (ex) {
-      if (ex.result == Cr.NS_ERROR_NOT_AVAILABLE) {
+      if (ex.result != Cr.NS_ERROR_FILE_CORRUPTED) {
         throw ex;
       }
       lazy.sessionStoreLogger.error(
-        "SessionDBBackend: replacing a database that can't be opened",
+        "SessionDBBackend: replacing a corrupt database",
         ex
       );
-      await removeFiles(this.#path);
+      await IOUtils.move(this.#path, this.#path + ".corrupt");
+      for (let suffix of ["-wal", "-shm", "-journal"]) {
+        await IOUtils.remove(this.#path + suffix, { ignoreAbsent: true });
+      }
       return lazy.SessionStoreDB.open(this.#path);
     }
   }
 
   /**
-   * Returns the state that startup read from the database, if it is newer
-   * than `jsonState`, the state read from the JSON files: when both have the
-   * same lineage and the database the higher seq, or when no JSON file could
-   * be read. A JSON file from another lineage wins, since it was restored or
-   * copied from elsewhere.
+   * Returns the state that startup read from the database, if it should be
+   * restored instead of `jsonState`, the state read from the JSON files. The
+   * database only wins after a session that didn't shut down cleanly, over a
+   * JSON file of the same lineage and an older generation. Otherwise JSON
+   * wins: a file of another lineage was restored or copied from elsewhere,
+   * one copied into place after a clean shutdown is the user's choice, and
+   * without any file, the session files were deleted.
    *
    * @param {object|null} jsonState
    * @returns {Promise<object|null>}
    */
   async newerState(jsonState) {
     let meta = await this.#startupMeta?.catch(() => null);
-    if (!meta?.seq) {
-      return null;
-    }
     let session = jsonState?.session;
     if (
-      jsonState &&
-      !(
-        session?.lineage == meta.lineage &&
-        Number(meta.seq) > Number(session.writeSeq)
-      )
+      meta?.run_state != "running" ||
+      !session ||
+      session.lineage != meta.lineage ||
+      !(Number(meta.seq) > Number(session.writeSeq))
     ) {
       return null;
     }
@@ -379,7 +389,7 @@ export class SessionDBBackend {
 }
 
 async function removeFiles(path) {
-  for (let suffix of ["", "-wal", "-shm", "-journal"]) {
+  for (let suffix of ["", "-wal", "-shm", "-journal", ".corrupt"]) {
     await IOUtils.remove(path + suffix, { ignoreAbsent: true });
   }
 }

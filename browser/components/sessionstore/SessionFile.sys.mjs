@@ -47,6 +47,17 @@ const PREF_BACKEND = "browser.sessionstore.backend";
 const PREF_EXPORT_INTERVAL = "browser.sessionstore.db_export_interval";
 const DB_MODES = ["shadow", "export", "sqlite"];
 
+/**
+ * Removes a session database that a mode other than "json" left behind.
+ *
+ * @param {string} path
+ */
+async function removeDatabase(path) {
+  for (let suffix of ["", "-wal", "-shm", "-journal", ".corrupt"]) {
+    await IOUtils.remove(path + suffix, { ignoreAbsent: true });
+  }
+}
+
 export var SessionFile = {
   /**
    * Read the contents of the session file, asynchronously.
@@ -58,9 +69,13 @@ export var SessionFile = {
    * Write the contents of the session file, asynchronously.
    *
    * @param aData - May get changed on shutdown.
+   * @param {object} [options]
+   * @param {boolean} [options.immediate]
+   *        Whether the save was requested right away, like after purging
+   *        data, in which case the "sqlite" mode writes the JSON files too.
    */
-  write(aData) {
-    return SessionFileInternal.write(aData);
+  write(aData, options) {
+    return SessionFileInternal.write(aData, options);
   },
   /**
    * Wipe the contents of the session file, asynchronously.
@@ -438,26 +453,34 @@ var SessionFileInternal = {
     if (DB_MODES.includes(mode) && !this._dbBackend) {
       this._mode = mode;
       this._dbBackend = new lazy.SessionDBBackend(this.Paths.database);
-      this._dbBackend.start({ origin: result.origin, source: result.source });
-      if (mode == "sqlite") {
-        let state = await this._dbBackend.newerState(result.parsed);
-        Glean.sessionRestore.dbSourceSelected[state ? "database" : "json"].add(
-          1
-        );
-        if (state) {
-          result = {
-            origin: "database",
-            // Only built for observers that could rewrite it.
-            source: Services.obs
-              .enumerateObservers("sessionstore-state-read")
-              .hasMoreElements()
-              ? JSON.stringify(state)
-              : "",
-            parsed: state,
-            useOldExtension: false,
-          };
-          noFilesFound = false;
-        }
+      this._dbBackend.start({
+        origin: result.origin,
+        source: result.source,
+        session: result.parsed?.session,
+      });
+      let state = await this._dbBackend.newerState(result.parsed);
+      if (
+        state &&
+        !lazy.SessionStore.isFormatVersionCompatible(
+          state.version || ["sessionrestore", 0]
+        )
+      ) {
+        state = null;
+      }
+      Glean.sessionRestore.dbSourceSelected[state ? "database" : "json"].add(1);
+      if (state) {
+        result = {
+          origin: "database",
+          // Only built for observers that could rewrite it.
+          source: Services.obs
+            .enumerateObservers("sessionstore-state-read")
+            .hasMoreElements()
+            ? JSON.stringify(state)
+            : "",
+          parsed: state,
+          useOldExtension: false,
+        };
+        noFilesFound = false;
       }
     }
 
@@ -531,7 +554,7 @@ var SessionFileInternal = {
     return this._dbBackend.write(aData, { isFinalWrite, comparable });
   },
 
-  write(aData) {
+  write(aData, { immediate = false } = {}) {
     if (lazy.RunState.isClosed) {
       return Promise.reject(new Error("SessionFile is closed"));
     }
@@ -586,23 +609,43 @@ var SessionFileInternal = {
       }
     }
 
+    let options = { isFinalWrite, performShutdownCleanup, exportJSON };
     if (
       this._mode == "sqlite" &&
       !isFinalWrite &&
+      !immediate &&
       this._jsonWritten &&
-      Date.now() - this._lastJSONWrite <
+      ChromeUtils.now() - this._lastJSONWrite <
         Services.prefs.getIntPref(PREF_EXPORT_INTERVAL, 600000)
     ) {
-      // The database alone holds this save.
-      Glean.sessionRestore.dbExport.skipped.add(1);
-      return dbWrite.then(() => {});
+      // The database alone holds this save, unless its batch fails.
+      return dbWrite.then(written => {
+        if (written) {
+          Glean.sessionRestore.dbExport.skipped.add(1);
+          return undefined;
+        }
+        return this._writeJSON(aData, options, dbWrite);
+      });
     }
+    return this._writeJSON(aData, options, dbWrite);
+  },
 
+  /**
+   * Writes the JSON session file.
+   *
+   * @param {object} aData
+   * @param {object} options
+   *        The options for SessionWriter.write().
+   * @param {Promise<boolean>|null} dbWrite
+   *        The database write of the same save, which callers wait for too.
+   * @returns {Promise<void>}
+   */
+  _writeJSON(aData, options, dbWrite) {
+    let { isFinalWrite } = options;
     this._attempts++;
     this._jsonWritesPending++;
     this._jsonWritten = true;
-    this._lastJSONWrite = Date.now();
-    let options = { isFinalWrite, performShutdownCleanup, exportJSON };
+    this._lastJSONWrite = ChromeUtils.now();
     let write = this.getWriter()
       .then(writer => writer.write(aData, options))
       .finally(() => this._jsonWritesPending--);
@@ -640,6 +683,8 @@ var SessionFileInternal = {
           err.stack
         );
         this._failures++;
+        // Retry at the next save in the "sqlite" mode.
+        this._lastJSONWrite = 0;
         // By not doing anything special here we ensure that |promise| cannot
         // be rejected anymore. The shutdown/cleanup code at the end of the
         // function will thus always be executed.
@@ -682,9 +727,14 @@ var SessionFileInternal = {
   },
 
   async wipe() {
-    await this._dbBackend?.wipe({ reopen: !lazy.RunState.isQuitting });
-    const writer = await this.getWriter();
-    await writer.wipe();
+    // Queued before the save that follows a purge, as it always was.
+    let jsonWipe = this.getWriter().then(writer => writer.wipe());
+    // The next save writes JSON again.
+    this._jsonWritten = false;
+    let dbWipe = this._dbBackend
+      ? this._dbBackend.wipe({ reopen: !lazy.RunState.isQuitting })
+      : removeDatabase(this.Paths.database);
+    await Promise.all([jsonWipe, dbWipe]);
     // After a wipe, we need to make sure to re-initialize upon the next read(),
     // because the state variables as sent to the writer have changed.
     this._initialized = false;

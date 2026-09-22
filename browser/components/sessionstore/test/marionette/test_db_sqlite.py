@@ -23,15 +23,21 @@ class TestSqliteMode(SessionStoreTestCase):
         self.marionette.enforce_gecko_prefs({
             "browser.sessionstore.backend": "sqlite",
             "browser.sessionstore.resume_from_crash": True,
+            # So that a delayed save follows right away.
+            "browser.sessionstore.interval": 0,
         })
         self.marionette.set_context("chrome")
         self.marionette.timeout.script = 90
 
-    def save(self):
-        """Saves the session, and returns how many saves wrote no JSON file."""
+    def save(self, immediate):
+        """Saves the session, and returns how many saves wrote no JSON file.
+
+        An immediate save, like the one after purging data, writes the JSON
+        files; a delayed one only writes the database.
+        """
         return self.marionette.execute_async_script(
             """
-            let [resolve] = arguments;
+            let [immediate, resolve] = arguments;
             let { SessionFile } = ChromeUtils.importESModule(
               "moz-src:///browser/components/sessionstore/SessionFile.sys.mjs"
             );
@@ -46,22 +52,38 @@ class TestSqliteMode(SessionStoreTestCase):
                 await TabStateFlusher.flushWindow(win);
               }
               await SessionFile.dbCrossCheck;
-              await SessionSaver.run();
+              if (immediate) {
+                await SessionSaver.run();
+              } else {
+                let topic = "sessionstore-state-write-complete";
+                let written = new Promise(done => {
+                  let observer = () => {
+                    Services.obs.removeObserver(observer, topic);
+                    done();
+                  };
+                  Services.obs.addObserver(observer, topic);
+                });
+                SessionSaver.runDelayed(0);
+                await written;
+              }
               return Glean.sessionRestore.dbExport.skipped.testGetValue() ?? 0;
             })().then(resolve);
-            """
+            """,
+            script_args=(immediate,),
         )
 
     def test_kill_after_database_save(self):
         win = self.marionette.current_chrome_window_handle
         self.open_tabs(win, (inline("<div>first</div>"),))
-        self.save()
+        self.save(immediate=True)
         self.marionette.switch_to_window(self.open_tab())
         with self.marionette.using_context("content"):
             self.marionette.navigate(inline("<div>second</div>"))
         self.marionette.switch_to_window(win)
         windows = self.convert_open_windows_to_set()
-        self.assertGreater(self.save(), 0, msg="The save wrote no JSON file.")
+        self.assertGreater(
+            self.save(immediate=False), 0, msg="The save wrote no JSON file."
+        )
 
         self.marionette.restart(in_app=False)
         self.wait_for_windows(windows, "The session restored from the database.")

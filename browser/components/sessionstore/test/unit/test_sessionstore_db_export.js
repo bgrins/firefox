@@ -40,17 +40,9 @@ add_task(async function test_export_mode() {
 
   let first = makeState("https://first.test/");
   await SessionFile.write(first);
-  Assert.equal(
-    Glean.sessionRestore.dbExport.not_written.testGetValue(),
-    1,
-    "A write before the database is ready serializes the state"
-  );
-  Assert.deepEqual(await readFile(Paths.recovery), first);
-
-  await SessionFile.dbCrossCheck;
   let second = makeState("https://second.test/");
   await SessionFile.write(second);
-  Assert.equal(Glean.sessionRestore.dbExport.exported.testGetValue(), 1);
+  Assert.equal(Glean.sessionRestore.dbExport.exported.testGetValue(), 2);
   Assert.deepEqual(
     await readFile(Paths.recovery),
     JSON.parse(JSON.stringify(second)),
@@ -58,7 +50,7 @@ add_task(async function test_export_mode() {
   );
   Assert.deepEqual(
     await readFile(Paths.recoveryBackup),
-    first,
+    JSON.parse(JSON.stringify(first)),
     "The previous recovery file is the backup"
   );
   Assert.ok(!(await IOUtils.exists(Paths.recovery + ".tmp")));

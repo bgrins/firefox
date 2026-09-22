@@ -198,13 +198,15 @@ export class SessionDBWriter {
    * @param {boolean} [options.audit]
    *        Whether to also serialize the properties of tracked nodes that the
    *        comparison judges unchanged, and report those that changed.
+   * @param {number} [options.minSeq]
+   *        A seq that batches must number after, beside the database's.
    */
-  constructor(meta = {}, { audit = false } = {}) {
+  constructor(meta = {}, { audit = false, minSeq = 0 } = {}) {
     this.#dbLineage = meta.lineage ?? "";
     this.#dbSeq = meta.seq ?? "";
     this.#lineage =
       this.#dbLineage || Services.uuid.generateUUID().toString().slice(1, -1);
-    this.#seq = Number(meta.seq ?? 0);
+    this.#seq = Math.max(Number(meta.seq) || 0, Number(minSeq) || 0);
     let nextId = Number(meta.next_node_id);
     this.#nextId = Number.isSafeInteger(nextId) && nextId >= 1 ? nextId : 1;
     this.#audit = audit;

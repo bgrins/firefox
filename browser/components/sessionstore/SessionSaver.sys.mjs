@@ -305,7 +305,8 @@ var SessionSaverInternal = {
     this._maybeClearCookiesAndStorage(state);
 
     Glean.sessionRestore.collectData.stopAndAccumulate(timerId);
-    return this._writeState(state);
+    // run() saves right away, like after purging data.
+    return this._writeState(state, { immediate: forceUpdateAllWindows });
   },
 
   /**
@@ -357,7 +358,7 @@ var SessionSaverInternal = {
   /**
    * Write the given state object to disk.
    */
-  _writeState(state) {
+  _writeState(state, options) {
     if (!lazy.RunState.isRunning) {
       lazy.sessionStoreLogger.debug(
         "SessionSaver writing state during shutdown"
@@ -372,7 +373,7 @@ var SessionSaverInternal = {
     // Write (atomically) to a session file, using a tmp file. Once the session
     // file is successfully updated, save the time stamp of the last save and
     // notify the observers.
-    return lazy.SessionFile.write(state).then(
+    return lazy.SessionFile.write(state, options).then(
       () => {
         this.updateLastSaveTime();
         if (!lazy.RunState.isRunning) {
