@@ -1184,9 +1184,11 @@ class MachCommandConditions:
     @staticmethod
     def has_build(build_obj):
         """Must have a build."""
-        return MachCommandConditions.is_firefox_or_android(
-            build_obj
-        ) or MachCommandConditions.is_thunderbird(build_obj)
+        return (
+            MachCommandConditions.is_firefox_or_android(build_obj)
+            or MachCommandConditions.is_thunderbird(build_obj)
+            or MachCommandConditions.is_ios(build_obj)
+        )
 
     @staticmethod
     def has_build_or_shell(build_obj):

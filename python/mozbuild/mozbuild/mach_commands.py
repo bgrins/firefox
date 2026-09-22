@@ -2036,10 +2036,35 @@ def _get_desktop_run_parser():
     return parser
 
 
+def _get_ios_run_parser():
+    parser = argparse.ArgumentParser()
+    group = parser.add_argument_group("Compiled Program Environment Options")
+    group.add_argument(
+        "--url",
+        default=None,
+        help="Page to open once the app has started.",
+    )
+    group.add_argument(
+        "--no-install",
+        action="store_true",
+        default=False,
+        help="Do not try to install the app before running it (default: False)",
+    )
+    group = parser.add_argument_group("Debugging")
+    group.add_argument(
+        "--debug",
+        action="store_true",
+        help="Wait for a debugger to attach once the app has started.",
+    )
+    return parser
+
+
 def setup_run_parser():
     build = MozbuildObject.from_environment(cwd=here)
     if conditions.is_android(build):
         return _get_android_run_parser()
+    if conditions.is_ios(build):
+        return _get_ios_run_parser()
     if conditions.is_jsshell(build):
         return _get_jsshell_run_parser()
     return _get_desktop_run_parser()
@@ -2056,6 +2081,8 @@ def run(command_context, **kwargs):
     """Run the compiled program."""
     if conditions.is_android(command_context):
         return _run_android(command_context, **kwargs)
+    if conditions.is_ios(command_context):
+        return _run_ios(command_context, **kwargs)
     if conditions.is_jsshell(command_context):
         return _run_jsshell(command_context, **kwargs)
     return _run_desktop(command_context, **kwargs)
@@ -2420,7 +2447,7 @@ process attach {continue_flag}-p {pid!s}
             device.shell("am clear-debug-app")
 
 
-def _run_ios(command_context, no_install=None, debug=False):
+def _run_ios(command_context, url=None, no_install=None, debug=False):
     from mozdevice.ios import IosDevice
     from mozrunner.devices.ios_device import (
         verify_ios_device,
@@ -2444,6 +2471,7 @@ def _run_ios(command_context, no_install=None, debug=False):
         print("Application will pause after starting until a debugger is connected...")
     proc = device.launch_process(
         app,
+        env={"MOZ_TEST_URL": url} if url else None,
         wait_for_debugger=debug,
         stdout=None,
         stderr=None,
