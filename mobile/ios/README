@@ -1,12 +1,13 @@
 # iOS Port Prototype
 
-The current iOS port prototype is built in 2 parts. The core libraries such as
-XUL are built as-normal, and then an xcode project is used to bundle these
-libraries into an iOS application, which can be deployed to a device or
-simulator.
-
-Currently there is no support for running automated iOS tests, though this is
-being investigated.
+The in-tree wrapper for Gecko on iOS is the minimal "GeckoTestBrowser"
+application. When configure finds a Swift compiler (on macOS, the one from
+Xcode), `./mach build` builds XUL, the GeckoView Swift wrapper, the app and its
+BrowserEngineKit extensions, and assembles them into
+`$objdir/dist/Applications/GeckoTestBrowser.app`. Without a Swift compiler,
+only the core libraries such as XUL are built, and the Xcode project at
+`mobile/ios/GeckoTestBrowser/GeckoTestBrowser.xcodeproj` bundles them into the
+app instead.
 
 ## Simulator
 
@@ -19,11 +20,30 @@ being investigated.
 ac_add_options --enable-application=mobile/ios
 ```
 
-2. Build the main core of XUL with `./mach build` as normal.
+2. Add the Rust target for the simulator with
+   `rustup target add aarch64-apple-ios-sim`.
+
+3. Build with `./mach build` as normal.
 
 ### Running
 
-Currently the in-tree wrapper for Gecko on iOS is the minimal "GeckoTestBrowser"
-application. To run this application, open the xcode project at
-`mobile/ios/GeckoTestBrowser/GeckoTestBrowser.xcodeproj`, and build/run it from
-there.
+Boot a simulator, then install and launch the app:
+
+```
+xcrun simctl install booted $objdir/dist/Applications/GeckoTestBrowser.app
+SIMCTL_CHILD_MOZ_TEST_URL=https://example.com/ xcrun simctl launch booted org.mozilla.ios.GeckoTestBrowser
+```
+
+`MOZ_TEST_URL` sets the page the app opens at launch.
+
+### Testing
+
+Some mochitest-plain tests run on a booted simulator:
+
+```
+./mach mochitest testing/mochitest/tests/Harness_sanity/test_sanity.html
+```
+
+The test harness needs a host `xpcshell`. Point `MOZ_HOST_BIN` at the
+`dist/bin` directory of a macOS build, or let mach download host utilities
+when it asks.
