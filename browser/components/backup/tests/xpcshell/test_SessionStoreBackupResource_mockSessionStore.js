@@ -16,121 +16,123 @@ const { SessionStoreBackupResource } = ChromeUtils.importESModule(
   "moz-src:///browser/components/backup/resources/SessionStoreBackupResource.sys.mjs"
 );
 
+// Like the live session, which getCurrentState() returns in a new top-level
+// object.
+const liveSessionState = {
+  cookies: [],
+  windows: [
+    {
+      tabs: [
+        {
+          someData: "hi I am data, I will get serialized",
+          moreData: -3.7,
+          storage: {
+            message: "I don't get serialized!",
+          },
+        },
+        {
+          stillMoreData: -3.71,
+          storage: {
+            message: "I don't get serialized either!",
+          },
+        },
+      ],
+      _closedTabs: [
+        {
+          state: {
+            closedTabData: "hi I am a closed tab",
+            moreData: -3.7,
+            storage: {
+              message: "I don't get serialized!",
+            },
+          },
+          etc: {
+            dataNotInState: true,
+          },
+        },
+        {
+          state: {
+            storage: {
+              message: "I don't get serialized either!",
+            },
+          },
+        },
+      ],
+    },
+    {
+      tabs: [
+        {
+          someData: "hi I am window #2's data, I will get serialized",
+          moreData: -3.7,
+          storage: {
+            message: "I don't get serialized!",
+          },
+        },
+      ],
+      _closedTabs: [
+        {
+          state: {
+            storage: {
+              message: "I don't get serialized either!",
+            },
+          },
+          notState: {
+            notStateData: "not state data",
+          },
+        },
+      ],
+    },
+    {
+      tabs: [
+        {
+          someData: "hi I am the private window's data",
+          storage: {
+            message: "I don't get serialized!",
+          },
+        },
+      ],
+      isPrivate: true,
+      _closedTabs: [],
+    },
+    {
+      tabs: [
+        {
+          someData: "hi I am the private window #2's data",
+          storage: {
+            message: "I don't get serialized!",
+          },
+        },
+      ],
+      isPrivate: true,
+      _closedTabs: [],
+    },
+  ],
+  savedGroups: [
+    {
+      tabs: [
+        {
+          state: {
+            savedGroupData: -3.7,
+            storage: {
+              message: "I don't get serialized!",
+            },
+          },
+        },
+        {
+          state: {
+            someData: "hi I am window #2's data",
+            moreData: -3.71,
+            // tab has no storage
+          },
+        },
+      ],
+      notTabData: "notTabData",
+    },
+  ],
+};
+
 const mockSessionStore = {
-  getCurrentState: _ignored => {
-    return {
-      cookies: [],
-      windows: [
-        {
-          tabs: [
-            {
-              someData: "hi I am data, I will get serialized",
-              moreData: -3.7,
-              storage: {
-                message: "I don't get serialized!",
-              },
-            },
-            {
-              stillMoreData: -3.71,
-              storage: {
-                message: "I don't get serialized either!",
-              },
-            },
-          ],
-          _closedTabs: [
-            {
-              state: {
-                closedTabData: "hi I am a closed tab",
-                moreData: -3.7,
-                storage: {
-                  message: "I don't get serialized!",
-                },
-              },
-              etc: {
-                dataNotInState: true,
-              },
-            },
-            {
-              state: {
-                storage: {
-                  message: "I don't get serialized either!",
-                },
-              },
-            },
-          ],
-        },
-        {
-          tabs: [
-            {
-              someData: "hi I am window #2's data, I will get serialized",
-              moreData: -3.7,
-              storage: {
-                message: "I don't get serialized!",
-              },
-            },
-          ],
-          _closedTabs: [
-            {
-              state: {
-                storage: {
-                  message: "I don't get serialized either!",
-                },
-              },
-              notState: {
-                notStateData: "not state data",
-              },
-            },
-          ],
-        },
-        {
-          tabs: [
-            {
-              someData: "hi I am the private window's data",
-              storage: {
-                message: "I don't get serialized!",
-              },
-            },
-          ],
-          isPrivate: true,
-          _closedTabs: [],
-        },
-        {
-          tabs: [
-            {
-              someData: "hi I am the private window #2's data",
-              storage: {
-                message: "I don't get serialized!",
-              },
-            },
-          ],
-          isPrivate: true,
-          _closedTabs: [],
-        },
-      ],
-      savedGroups: [
-        {
-          tabs: [
-            {
-              state: {
-                savedGroupData: -3.7,
-                storage: {
-                  message: "I don't get serialized!",
-                },
-              },
-            },
-            {
-              state: {
-                someData: "hi I am window #2's data",
-                moreData: -3.71,
-                // tab has no storage
-              },
-            },
-          ],
-          notTabData: "notTabData",
-        },
-      ],
-    };
-  },
+  getCurrentState: _ignored => ({ ...liveSessionState }),
 };
 
 // This is mockSessionStore but with the data that should not be saved removed.
@@ -181,7 +183,7 @@ add_task(async function test_backups_have_correct_window_state() {
     "does not contain win 0 tab storage"
   );
   Assert.equal(
-    filteredMockSessionData.windows[0]._closedTabs[0].storage,
+    filteredMockSessionData.windows[0]._closedTabs[0].state.storage,
     undefined,
     "does not contain win 0 closed tab storage"
   );
@@ -233,6 +235,16 @@ add_task(async function test_backups_have_correct_window_state() {
   await maybeRemovePath(sourcePath);
 
   sandbox.restore();
+});
+
+add_task(function test_live_state_keeps_its_storage() {
+  let [win] = liveSessionState.windows;
+  Assert.ok(win.tabs[0].storage, "Open tabs keep their storage");
+  Assert.ok(win._closedTabs[0].state.storage, "Closed tabs keep their storage");
+  Assert.ok(
+    liveSessionState.savedGroups[0].tabs[0].state.storage,
+    "Saved group tabs keep their storage"
+  );
 });
 
 /**

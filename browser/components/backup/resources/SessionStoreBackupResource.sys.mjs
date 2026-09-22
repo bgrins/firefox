@@ -13,8 +13,6 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
-  SessionChangeJournal:
-    "moz-src:///browser/components/sessionstore/SessionChangeJournal.sys.mjs",
   SessionStore:
     "moz-src:///browser/components/sessionstore/SessionStore.sys.mjs",
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
@@ -39,16 +37,18 @@ XPCOMUtils.defineLazyPreferenceGetter(
 );
 
 /**
- * Removes session storage from a tab state. The state belongs to the live
- * session, so the edit is recorded for the session store.
+ * Returns a copy of a tab state without its session storage.
  *
  * @param {object} tabState
+ * @returns {object}
  */
-function removeStorage(tabState) {
-  if ("storage" in tabState) {
-    delete tabState.storage;
-    lazy.SessionChangeJournal.markChanged(tabState);
+function withoutStorage(tabState) {
+  if (!tabState) {
+    return tabState;
   }
+  let copy = { ...tabState };
+  delete copy.storage;
+  return copy;
 }
 
 /**
@@ -77,6 +77,12 @@ export class SessionStoreBackupResource extends BackupResource {
     return this._sessionStore || lazy.SessionStore;
   }
 
+  /**
+   * The session state to back up. The windows, tabs and groups it filters are
+   * copies, since those that SessionStore returns belong to the live session.
+   *
+   * @type {object}
+   */
   get filteredSessionStoreState() {
     let sessionStoreState = this.#sessionStore.getCurrentState(true);
     // Preserving session cookies in a backup used on a different machine
@@ -86,24 +92,38 @@ export class SessionStoreBackupResource extends BackupResource {
     // Remove session storage.
     if (sessionStoreState.windows) {
       // We don't want to backup private windows
-      sessionStoreState.windows = sessionStoreState.windows.filter(
-        w => !w?.isPrivate
-      );
-      sessionStoreState.windows.forEach(win => {
-        if (win.tabs) {
-          win.tabs.forEach(tab => removeStorage(tab));
-        }
-        if (win._closedTabs) {
-          win._closedTabs.forEach(closedTab => removeStorage(closedTab.state));
-        }
-      });
+      sessionStoreState.windows = sessionStoreState.windows
+        .filter(w => !w?.isPrivate)
+        .map(win => {
+          if (!win) {
+            return win;
+          }
+          let copy = { ...win };
+          if (win.tabs) {
+            copy.tabs = win.tabs.map(withoutStorage);
+          }
+          if (win._closedTabs) {
+            copy._closedTabs = win._closedTabs.map(closedTab => ({
+              ...closedTab,
+              state: withoutStorage(closedTab.state),
+            }));
+          }
+          return copy;
+        });
     }
     if (sessionStoreState.savedGroups) {
-      sessionStoreState.savedGroups.forEach(group => {
-        if (group.tabs) {
-          group.tabs.forEach(tab => removeStorage(tab.state));
-        }
-      });
+      sessionStoreState.savedGroups = sessionStoreState.savedGroups.map(
+        group =>
+          group.tabs
+            ? {
+                ...group,
+                tabs: group.tabs.map(tab => ({
+                  ...tab,
+                  state: withoutStorage(tab.state),
+                })),
+              }
+            : group
+      );
     }
 
     return sessionStoreState;
