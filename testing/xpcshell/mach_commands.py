@@ -115,7 +115,23 @@ class XPCShellRunner(MozbuildObject):
                 raise
         kwargs["tempDir"] = temp_dir
 
-        result = xpcshell.runTests(kwargs)
+        test_class = runxpcshelltests.XPCShellTestThread
+        mobile_args = None
+        if conditions.is_ios_simulator(self):
+            import iosxpcshelltests
+            from mozrunner.devices.ios_device import verify_ios_device
+
+            if not verify_ios_device(self):
+                return 1
+            test_class = iosxpcshelltests.IOSSimulatorXPCShellTestThread
+            mobile_args = {
+                "device_uuid": os.environ["DEVICE_UUID"],
+                "launcher": os.path.join(
+                    self.topobjdir, "testing", "xpcshell", "ios", "ios-sim-launcher"
+                ),
+            }
+
+        result = xpcshell.runTests(kwargs, testClass=test_class, mobileArgs=mobile_args)
 
         self.log_manager.disable_unstructured()
 
