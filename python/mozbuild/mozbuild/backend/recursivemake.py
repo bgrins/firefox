@@ -64,6 +64,7 @@ from ..frontend.data import (
     SimpleProgram,
     Sources,
     StaticLibrary,
+    SwiftModule,
     TestManifest,
     VariablePassthru,
     WasmSources,
@@ -504,6 +505,13 @@ class RecursiveMakeBackend(MakeBackend):
                     )
                     for var in variables:
                         backend_file.write("%s += %s\n" % (var, p))
+            self._compile_graph[mozpath.join(backend_file.relobjdir, "target-objects")]
+        elif isinstance(obj, SwiftModule):
+            backend_file.write(f"SWIFT_MODULE_NAME := {obj.name}\n")
+            for f in obj.files:
+                backend_file.write(
+                    f"SWIFT_SOURCES += {self._pretty_path(f, backend_file)}\n"
+                )
             self._compile_graph[mozpath.join(backend_file.relobjdir, "target-objects")]
         elif isinstance(obj, VariablePassthru):
             # Sorted so output is consistent and we don't bump mtimes.
@@ -1688,6 +1696,16 @@ class RecursiveMakeBackend(MakeBackend):
             build_target = self._build_target_for_obj(obj)
             self._compile_graph[build_target]
             self._add_build_order_deps(build_target, obj)
+
+        # A Swift module can import the Swift modules of the libraries it links,
+        # so their .swiftmodule files have to be built first.
+        if getattr(obj, "swift_module", None):
+            objects_target = mozpath.join(obj.relobjdir, "target-objects")
+            for lib in obj.linked_libraries:
+                if getattr(lib, "swift_module", None):
+                    self._compile_graph[objects_target].add(
+                        mozpath.join(lib.relobjdir, "target-objects")
+                    )
 
         # Process library-based defines
         self._process_defines(obj.lib_defines, backend_file)

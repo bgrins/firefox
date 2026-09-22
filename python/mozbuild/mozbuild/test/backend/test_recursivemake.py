@@ -1663,6 +1663,22 @@ class TestRecursiveMakeBackend(BackendTester):
                 ][0]
                 self.assertEqual(program, expected_program)
 
+    def test_swift_modules(self):
+        """Test that Swift modules are compiled, linked, and built in import order."""
+        env = self._consume("swift-modules", RecursiveMakeBackend)
+
+        with open(mozpath.join(env.topobjdir, "app", "backend.mk")) as fh:
+            app_lines = [l.strip() for l in fh]
+        self.assertIn("SWIFT_MODULE_NAME := App", app_lines)
+        self.assertIn("SWIFT_SOURCES += $(srcdir)/main.swift", app_lines)
+        self.assertIn("swiftapp_OBJS := App_swift.o", app_lines)
+
+        # The app's Swift module can import the one from the library it links,
+        # so the library's objects, which include its .swiftmodule, come first.
+        with open(mozpath.join(env.topobjdir, "root-deps.mk")) as fh:
+            root_deps = [l.strip() for l in fh]
+        self.assertIn("app/target-objects: lib/target-objects", root_deps)
+
     def test_extra_link_deps(self):
         """Test that EXTRA_LINK_DEPS is handled properly."""
         env = self._consume("extra-link-deps", RecursiveMakeBackend)

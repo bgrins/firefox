@@ -36,6 +36,7 @@ from mozbuild.frontend.data import (
     SimpleProgram,
     Sources,
     StaticLibrary,
+    SwiftModule,
     TestHarnessFiles,
     TestManifest,
     UnifiedSources,
@@ -1390,6 +1391,56 @@ class TestEmitterBasic(unittest.TestCase):
         with self.assertRaisesRegex(
             SandboxValidationError,
             "Path specified in EXTRA_LINK_DEPS does not exist",
+        ):
+            self.read_topsrcdir(reader)
+
+    def test_swift_module(self):
+        """Test that a Swift module is linked into the program of its directory."""
+        reader = self.reader(
+            "swift-module",
+            extra_substs={"SWIFTC": "swiftc", "SWIFT_LDFLAGS": ["-Lswift-libs"]},
+        )
+        objs = self.read_topsrcdir(reader)
+
+        modules = [o for o in objs if isinstance(o, SwiftModule)]
+        self.assertEqual(len(modules), 1)
+        self.assertEqual(modules[0].name, "Swifty")
+        self.assertEqual(
+            [mozpath.basename(f.full_path) for f in modules[0].files],
+            ["a.swift", "b.swift"],
+        )
+
+        programs = [o for o in objs if isinstance(o, Program)]
+        self.assertEqual(
+            [mozpath.basename(o) for o in programs[0].objs], ["Swifty_swift.obj"]
+        )
+
+        ldflags = [
+            o for o in objs if isinstance(o, ComputedFlags) and "SWIFT" in o.flags
+        ]
+        self.assertEqual(ldflags[0].flags["SWIFT"], ["-Lswift-libs"])
+
+        passthru = [o for o in objs if isinstance(o, VariablePassthru)][0]
+        self.assertEqual(
+            passthru.variables["MOZBUILD_SWIFTFLAGS"], ["-import-underlying-module"]
+        )
+
+    def test_swift_module_without_swiftc(self):
+        """Test that SWIFT_SOURCES without a Swift compiler is an error."""
+        reader = self.reader("swift-module")
+        with self.assertRaisesRegex(
+            SandboxValidationError, "SWIFT_SOURCES requires swiftc"
+        ):
+            self.read_topsrcdir(reader)
+
+    def test_swift_module_no_linkable(self):
+        """Test that SWIFT_SOURCES without a program or shared library is an error."""
+        reader = self.reader(
+            "swift-module-no-linkable", extra_substs={"SWIFTC": "swiftc"}
+        )
+        with self.assertRaisesRegex(
+            SandboxValidationError,
+            "SWIFT_SOURCES requires a single Program or SharedLibrary",
         ):
             self.read_topsrcdir(reader)
 

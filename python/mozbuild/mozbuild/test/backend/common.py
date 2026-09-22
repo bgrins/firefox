@@ -246,6 +246,18 @@ CONFIGS = defaultdict(
                 "DLL_SUFFIX": ".so",
             },
         },
+        "swift-modules": {
+            "defines": {},
+            "substs": {
+                "COMPILE_ENVIRONMENT": "1",
+                "BIN_SUFFIX": "",
+                "LIB_SUFFIX": "a",
+                "DLL_PREFIX": "lib",
+                "DLL_SUFFIX": ".so",
+                "OBJ_SUFFIX": "o",
+                "SWIFTC": "swiftc",
+            },
+        },
         "shared-lib-paths": {
             "defines": {},
             "substs": {

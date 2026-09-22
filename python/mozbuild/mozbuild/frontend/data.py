@@ -380,6 +380,7 @@ class Linkable(ContextDerived):
         "linked_libraries",
         "linked_system_libs",
         "sources",
+        "swift_module",
     )
 
     def __init__(self, context):
@@ -390,6 +391,7 @@ class Linkable(ContextDerived):
         self.lib_defines = Defines(context, {})
         self.sources = defaultdict(list)
         self.extra_link_deps = []
+        self.swift_module = None
 
     @property
     def output_path(self):
@@ -463,7 +465,10 @@ class Linkable(ContextDerived):
 
     @property
     def objs(self):
-        return self._get_objs(self.source_files())
+        objs = self._get_objs(self.source_files())
+        if self.swift_module:
+            objs.append(self.swift_module.obj)
+        return objs
 
 
 class BaseProgram(Linkable):
@@ -1159,6 +1164,23 @@ class WasmSources(BaseSources):
         BaseSources.__init__(
             self, context, static_files, generated_files, canonical_suffix
         )
+
+
+class SwiftModule(ContextDerived):
+    """Represents a Swift module, compiled from all its sources at once into a
+    single object file and a .swiftmodule other Swift modules can import."""
+
+    __slots__ = ("name", "files")
+
+    def __init__(self, context, name, files):
+        ContextDerived.__init__(self, context)
+        self.name = name
+        self.files = files
+
+    @property
+    def obj(self):
+        obj_suffix = self.config.substs.get("OBJ_SUFFIX", "")
+        return mozpath.join(self.objdir, f"{self.name}_swift.{obj_suffix}")
 
 
 class UnifiedSources(BaseSources):

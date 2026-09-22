@@ -71,6 +71,7 @@ from .data import (
     SimpleProgram,
     Sources,
     StaticLibrary,
+    SwiftModule,
     TestHarnessFiles,
     TestManifest,
     UnifiedSources,
@@ -1078,6 +1079,9 @@ class TreeMetadataEmitter(LoggingMixin):
             for linkable in link_targets:
                 linkable.extra_link_deps = deps
 
+        if context.get("SWIFT_SOURCES"):
+            yield self._process_swift_module(context, linkables)
+
         # Only emit sources if we have linkables defined in the same context.
         # Note the linkables are not emitted in this function, but much later,
         # after aggregation (because of e.g. USE_LIBS processing).
@@ -1271,6 +1275,35 @@ class TreeMetadataEmitter(LoggingMixin):
                         l.cxx_link = True
                     break
 
+    def _process_swift_module(self, context, linkables):
+        if not context.config.substs.get("SWIFTC"):
+            raise SandboxValidationError(
+                "SWIFT_SOURCES requires swiftc, which configure did not find", context
+            )
+        name = context.get("SWIFT_MODULE_NAME")
+        if not name:
+            raise SandboxValidationError(
+                "SWIFT_SOURCES requires SWIFT_MODULE_NAME", context
+            )
+        if len(linkables) != 1 or not isinstance(
+            linkables[0], (Program, SharedLibrary)
+        ):
+            raise SandboxValidationError(
+                "SWIFT_SOURCES requires a single Program or SharedLibrary in the "
+                "same directory",
+                context,
+            )
+        files = list(context["SWIFT_SOURCES"])
+        for f in files:
+            if isinstance(f, SourcePath) and not os.path.exists(f.full_path):
+                raise SandboxValidationError(
+                    f"File listed in SWIFT_SOURCES does not exist: '{f.full_path}'",
+                    context,
+                )
+        module = SwiftModule(context, name, files)
+        linkables[0].swift_module = module
+        return module
+
     def emit_from_context(self, context):
         """Convert a Context to tree metadata objects.
 
@@ -1335,7 +1368,7 @@ class TreeMetadataEmitter(LoggingMixin):
                 ])
             context["OS_LIBS"].append("delayimp")
 
-        for v in ["CMFLAGS", "CMMFLAGS"]:
+        for v in ["CMFLAGS", "CMMFLAGS", "SWIFTFLAGS"]:
             if v in context and context[v]:
                 passthru.variables["MOZBUILD_" + v] = context[v]
 
@@ -1353,6 +1386,11 @@ class TreeMetadataEmitter(LoggingMixin):
 
         if "LDFLAGS" in context and context["LDFLAGS"]:
             computed_link_flags.resolve_flags("MOZBUILD", context["LDFLAGS"])
+
+        if context.get("SWIFT_SOURCES"):
+            computed_link_flags.resolve_flags(
+                "SWIFT", context.config.substs.get("SWIFT_LDFLAGS", [])
+            )
 
         if "HOST_LDFLAGS" in context and context["HOST_LDFLAGS"]:
             computed_host_link_flags.resolve_flags("MOZBUILD", context["HOST_LDFLAGS"])

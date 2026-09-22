@@ -180,9 +180,12 @@ CMOBJS = $(notdir $(CMSRCS:.m=.$(OBJ_SUFFIX)))
 CMMOBJS = $(notdir $(CMMSRCS:.mm=.$(OBJ_SUFFIX)))
 # ASFILES can have different extensions (.s, .asm)
 ASOBJS = $(notdir $(addsuffix .$(OBJ_SUFFIX),$(basename $(ASFILES))))
+ifdef SWIFT_MODULE_NAME
+SWIFTOBJS = $(SWIFT_MODULE_NAME)_swift.$(OBJ_SUFFIX)
+endif
 RS_STATICLIB_CRATE_OBJ = $(addprefix lib,$(notdir $(RS_STATICLIB_CRATE_SRC:.rs=.$(LIB_SUFFIX))))
 ifndef OBJS
-_OBJS = $(COBJS) $(SOBJS) $(CPPOBJS) $(CMOBJS) $(CMMOBJS) $(ASOBJS) $(CWASMOBJS) $(CPPWASMOBJS)
+_OBJS = $(COBJS) $(SOBJS) $(CPPOBJS) $(CMOBJS) $(CMMOBJS) $(ASOBJS) $(CWASMOBJS) $(CPPWASMOBJS) $(SWIFTOBJS)
 OBJS = $(strip $(_OBJS))
 endif
 
@@ -672,6 +675,22 @@ $(CMOBJS):
 	$(REPORT_BUILD_VERBOSE)
 	$(call BUILDSTATUS,OBJECT_FILE $@)
 	$(CC) -o $@ -c $(COMPILE_CFLAGS) $(COMPILE_CMFLAGS) $($(notdir $<)_FLAGS) $<
+	$(call BUILDSTATUS,END_Object $@)
+
+# Swift compiles a whole module in one invocation, producing a single object
+# and the .swiftmodule that other Swift modules import from $(DIST)/swift. A
+# module whose sources include main.swift has top-level code, so it can't be
+# parsed as a library.
+$(SWIFTOBJS): $(SWIFT_SOURCES) $(call mkdir_deps,$(MDDEPDIR))
+	$(REPORT_BUILD_VERBOSE)
+	$(call BUILDSTATUS,OBJECT_FILE $@)
+	$(SWIFTC) $(SWIFTFLAGS) $(MOZBUILD_SWIFTFLAGS) -I$(DIST)/include -I$(DIST)/swift \
+	  -module-cache-path $(topobjdir)/swift-module-cache \
+	  $(if $(filter main.swift,$(notdir $(SWIFT_SOURCES))),,-parse-as-library) \
+	  -whole-module-optimization -module-name $(SWIFT_MODULE_NAME) \
+	  -emit-module -emit-module-path $(DIST)/swift/$(SWIFT_MODULE_NAME).swiftmodule \
+	  -emit-dependencies -c $(SWIFT_SOURCES) -o $@
+	$(call py_action,swift_depfile $@,$(SWIFT_MODULE_NAME).d $@ $(MDDEPDIR)/$(@F).pp)
 	$(call BUILDSTATUS,END_Object $@)
 
 $(filter %.s,$(CPPSRCS:%.cpp=%.s)): %.s: %.cpp $(call mkdir_deps,$(MDDEPDIR))

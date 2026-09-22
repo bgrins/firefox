@@ -457,6 +457,7 @@ class LinkFlags(BaseCompileFlags):
             ),
             ("DEFFILE", None, ("LDFLAGS",)),
             ("MOZBUILD", None, ("LDFLAGS",)),
+            ("SWIFT", None, ("LDFLAGS",)),
             (
                 "FIX_LINK_PATHS",
                 context.config.substs.get("MOZ_FIX_LINK_PATHS"),
@@ -1910,6 +1911,27 @@ VARIABLES = {
         """Source code files to compile with the wasm compiler.
         """,
     ),
+    "SWIFT_SOURCES": (
+        ContextDerivedTypedList(Path, StrictOrderingOnAppendList),
+        list,
+        """Swift source files to compile into a single Swift module.
+
+        Swift compiles a whole module at once, so all the files listed here
+        form the module named by ``SWIFT_MODULE_NAME``, and its object file is
+        linked into the ``Program`` or ``SharedLibrary`` of this directory.
+        """,
+    ),
+    "SWIFT_MODULE_NAME": (
+        str,
+        str,
+        """Name of the Swift module built from ``SWIFT_SOURCES``.
+
+        Other Swift modules import it under this name. To also import and
+        re-export the Objective-C declarations of a Clang module with the same
+        name (for example from a ``module.modulemap`` installed with
+        ``EXPORTS``), add ``-import-underlying-module`` to ``SWIFTFLAGS``.
+        """,
+    ),
     "HOST_LIBRARY_NAME": (
         str,
         str,
@@ -2801,6 +2823,17 @@ VARIABLES = {
         list,
         """Flags passed to the Objective-C++ compiler for all of the
            Objective-C++ source files declared in this directory.
+
+           Note that the ordering of flags matters here; these flags will be
+           added to the compiler's command line in the same order as they
+           appear in the moz.build file.
+        """,
+    ),
+    "SWIFTFLAGS": (
+        List,
+        list,
+        """Flags passed to the Swift compiler for the Swift module declared in
+           this directory.
 
            Note that the ordering of flags matters here; these flags will be
            added to the compiler's command line in the same order as they
