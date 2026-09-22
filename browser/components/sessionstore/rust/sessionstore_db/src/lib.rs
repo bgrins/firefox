@@ -100,6 +100,20 @@ impl SessionStoreDatabase {
         )
     }
 
+    xpcom_method!(read_orders => ReadOrders(callback: *const mozISessionStoreDatabaseCallback));
+    fn read_orders(
+        &self,
+        callback: &mozISessionStoreDatabaseCallback,
+    ) -> std::result::Result<(), nsresult> {
+        let conn = self.conn()?;
+        dispatch(
+            "SessionStoreDatabase::ReadOrders",
+            conn,
+            Operation::ReadOrders,
+            callback,
+        )
+    }
+
     xpcom_method!(
         write => Write(
             ops: *const ThinVec<nsCString>,
@@ -166,6 +180,7 @@ enum Operation {
         validate: bool,
     },
     ReadMeta,
+    ReadOrders,
     Write(Vec<batch::Op>),
     Export {
         path: String,
@@ -209,6 +224,7 @@ impl DatabaseTask {
             }
             Operation::Read { validate } => assemble::read(&self.conn, validate),
             Operation::ReadMeta => assemble::read_meta(&self.conn).map(nsCString::from),
+            Operation::ReadOrders => assemble::read_orders(&self.conn),
             Operation::Write(ops) => batch::apply(&self.conn, ops).map(|()| nsCString::new()),
             Operation::Export {
                 path,

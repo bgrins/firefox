@@ -106,6 +106,12 @@ const ROOT_MEMBERS = ["global"];
 const ROOT_PARENT = 0;
 
 /**
+ * The layout of the rows, which full rewrites record in the database. Only a
+ * database of this layout can be seeded.
+ */
+const LAYOUT = JSON.stringify([SPLITS, ROOT_MEMBERS]);
+
+/**
  * The group of the properties that stay in a node's payload, as opposed to
  * the groups that are sections.
  */
@@ -191,6 +197,14 @@ export class SessionDBWriter {
   // seq can trail #seq, which a JSON file that got ahead may have raised.
   #dbLineage;
   #dbSeq;
+  #dbLayout;
+  /**
+   * The tab states that seed() took, with their ids, until the first batch
+   * indexes them by the identities that restoring them gave them.
+   *
+   * @type {Array<[object, number]>|null}
+   */
+  #seeded = null;
 
   /**
    * @param {Record<string, string>} meta
@@ -206,6 +220,7 @@ export class SessionDBWriter {
   constructor(meta = {}, { audit = false, minSeq = 0 } = {}) {
     this.#dbLineage = meta.lineage ?? "";
     this.#dbSeq = meta.seq ?? "";
+    this.#dbLayout = meta.layout;
     this.#lineage =
       this.#dbLineage || Services.uuid.generateUUID().toString().slice(1, -1);
     this.#seq = Math.max(toSeq(meta.seq), toSeq(minSeq));
@@ -245,7 +260,8 @@ export class SessionDBWriter {
    * batch's state to `state`. Batches may be written before earlier ones
    * finish: each guards on the generation that the previous one leaves
    * behind, so one queued after a failed batch fails too. The first batch,
-   * and the first after reset(), clears the database and rewrites everything.
+   * unless seed() found the database's state, and the first after reset(),
+   * clear the database and rewrite everything.
    *
    * @param {object} state
    * @returns {Array<string|number>} The operations, for SessionStoreDB.write().
@@ -275,9 +291,16 @@ export class SessionDBWriter {
       ops: [],
     };
     let { ops } = context;
+    for (let [value, id] of this.#seeded ?? []) {
+      let identity = lazy.SessionChangeJournal.identityOf(value);
+      if (identity) {
+        append(this.#byIdentity, identity, id);
+      }
+    }
+    this.#seeded = null;
 
     if (fullRewrite) {
-      ops.push("clear");
+      ops.push("clear", "meta", "layout", LAYOUT);
       this.#roots = new Map();
       this.#rootOrders = new Map();
       this.#nextId = 1;
@@ -334,13 +357,172 @@ export class SessionDBWriter {
   }
 
   /**
-   * Forgets what the database holds after a batch failed, so that the next
-   * batch rewrites everything.
+   * Forgets what the database holds, as after a batch failed, so that the
+   * next batch rewrites everything.
    */
   reset() {
     this.#nodes = null;
     this.#byObject = new WeakMap();
     this.#byIdentity = new WeakMap();
+    this.#seeded = null;
+  }
+
+  /**
+   * Takes `state` as what the database holds, so that the first batch only
+   * writes what changed since, instead of rewriting everything. `state` must
+   * be the database's state, parsed from its JSON or from a JSON file of the
+   * same generation. Its tab states are compared with snapshots taken now, so
+   * from now on, the objects they reference follow the contract of
+   * SessionChangeJournal. The other nodes are written again by the first
+   * batch.
+   *
+   * @param {object} state
+   * @param {Record<string, Record<string, number|number[]>>} orders
+   *        The database's child ids, as SessionStoreDB.readOrders() returns
+   *        them.
+   * @throws if `state` doesn't have the database's structure, or a batch was
+   *         built already. The first batch then rewrites everything.
+   */
+  seed(state, orders) {
+    if (this.#nodes) {
+      throw new Error("The writer has built a batch already");
+    }
+    if (this.#dbLayout !== LAYOUT) {
+      throw new Error("The database has another layout");
+    }
+    let context = {
+      orders,
+      ordersSeen: 0,
+      nodes: new Map(),
+      byObject: new WeakMap(),
+      seeded: [],
+      maxId: 0,
+    };
+    let rootOrders = this.#seedChildren(
+      context,
+      ROOT_PARENT,
+      this.#split("root", state)
+    );
+    if (context.ordersSeen != Object.keys(orders).length) {
+      throw new Error("The database has nodes that the state lacks");
+    }
+    this.#nodes = context.nodes;
+    this.#rootOrders = rootOrders;
+    this.#byObject = context.byObject;
+    this.#byIdentity = new WeakMap();
+    this.#seeded = context.seeded;
+    this.#roots = new Map();
+    this.#nextId = context.maxId + 1;
+    this.#journalVersion = lazy.SessionChangeJournal.version;
+  }
+
+  /**
+   * Seeds the children of the node `parent`, whose value was split into
+   * `split`, and returns the JSON of their ids by property.
+   *
+   * @returns {Map<string, string>}
+   */
+  #seedChildren(context, parent, split) {
+    let stored = {};
+    if (Object.hasOwn(context.orders, parent)) {
+      stored = context.orders[parent];
+      context.ordersSeen++;
+    }
+    let orders = new Map();
+    for (let [prop, kind, values] of split.arrays) {
+      let ids = Object.hasOwn(stored, prop) ? stored[prop] : undefined;
+      if (!Array.isArray(ids) || ids.length != values.length) {
+        throw new Error(`${parent}.${prop} has other children`);
+      }
+      for (let i = 0; i < values.length; i++) {
+        this.#seedNode(context, ids[i], parent, prop, kind, values[i]);
+      }
+      orders.set(prop, JSON.stringify(ids));
+    }
+    for (let [prop, kind, value] of split.objects) {
+      let id = Object.hasOwn(stored, prop) ? stored[prop] : undefined;
+      this.#seedNode(context, id, parent, prop, kind, value);
+      orders.set(prop, String(id));
+    }
+    if (Object.keys(stored).length != orders.size) {
+      throw new Error(`${parent} has other split properties`);
+    }
+    return orders;
+  }
+
+  #seedNode(context, id, parent, prop, kind, value) {
+    if (!Number.isSafeInteger(id) || id <= 0 || context.nodes.has(id)) {
+      throw new Error(`${parent}.${prop} has an invalid child id`);
+    }
+    context.maxId = Math.max(context.maxId, id);
+    if (value && typeof value == "object") {
+      append(context.byObject, value, id);
+    }
+    let { tracked: leaf, arrays, objects } = SPLITS[kind];
+    if (leaf && !arrays && !objects && !this.#audit && isPlainObject(value)) {
+      // Most nodes are tabs, and they only need a snapshot.
+      context.seeded.push([value, id]);
+      let snapshot = { ...value };
+      let snapshotKeys = Object.keys(snapshot);
+      let sectionOf = SECTION_OF.get(kind);
+      let sections = new Map();
+      // A section that serializes to nothing isn't stored, but a state parsed
+      // from JSON has no such values.
+      for (let key of snapshotKeys) {
+        let name = sectionOf.get(key);
+        if (name) {
+          sections.set(name, undefined);
+        }
+      }
+      context.nodes.set(id, {
+        kind,
+        parent,
+        prop,
+        snapshot,
+        snapshotKeys,
+        payload: undefined,
+        sections,
+        orders: new Map(),
+      });
+      return;
+    }
+    let split = this.#split(kind, value);
+    let tracked = split.plain && !!SPLITS[kind].tracked;
+    let snapshot = tracked ? { ...value } : undefined;
+    /** @type {NodeRecord} */
+    let record = {
+      kind,
+      parent,
+      prop,
+      snapshot,
+      snapshotKeys: snapshot && Object.keys(snapshot),
+      // Unknown, so that the first batch writes the payloads of the kinds
+      // that aren't tracked.
+      payload: undefined,
+      sections: new Map(),
+      orders: undefined,
+    };
+    if (tracked) {
+      context.seeded.push([value, id]);
+      if (this.#audit) {
+        record.payload = serialize(value, split.groups.get(CORE));
+      }
+      for (let [name, keys] of split.groups) {
+        if (name == CORE) {
+          continue;
+        }
+        if (!this.#audit) {
+          record.sections.set(name, undefined);
+          continue;
+        }
+        let json = serialize(value, keys);
+        if (json != "{}") {
+          record.sections.set(name, json);
+        }
+      }
+    }
+    record.orders = this.#seedChildren(context, id, split);
+    context.nodes.set(id, record);
   }
 
   #syncRoots(payload, state, ops) {

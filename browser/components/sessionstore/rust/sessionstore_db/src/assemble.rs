@@ -99,6 +99,37 @@ pub fn read_meta(conn: &Conn) -> Result<String> {
     serde_json::to_string(&meta).map_err(|err| Error::Corrupt(err.to_string()))
 }
 
+/// Returns the child ids of every node as `{"<parent>": {"<prop>": <ids>}}`,
+/// where `<ids>` is an array, or a single id for a property holding one node.
+pub fn read_orders(conn: &Conn) -> Result<nsCString> {
+    let mut out = b"{".to_vec();
+    let mut current = None;
+    let mut statement =
+        conn.prepare("SELECT parent, prop, ids FROM child_order ORDER BY parent, prop")?;
+    while let Some(step) = statement.step()? {
+        let parent = step.get_by_index::<i64>(0)?;
+        let prop = step.get_utf8_by_index(1)?.unwrap_or_else(nsCString::new);
+        let ids = step.get_utf8_by_index(2)?.unwrap_or_else(nsCString::new);
+        // Validates the ids, which are spliced in as they are.
+        parse_children(&ids)?;
+        let first = current != Some(parent);
+        if first {
+            if current.is_some() {
+                out.extend_from_slice(b"},");
+            }
+            out.extend_from_slice(format!("\"{}\":{{", parent).as_bytes());
+            current = Some(parent);
+        }
+        member_key(&prop, first, &mut out)?;
+        out.extend_from_slice(&ids);
+    }
+    if current.is_some() {
+        out.push(b'}');
+    }
+    out.push(b'}');
+    Ok(nsCString::from(out))
+}
+
 /// Returns the root payloads by name, in a stable order.
 fn read_roots(conn: &Conn) -> Result<BTreeMap<String, nsCString>> {
     let mut roots = BTreeMap::new();

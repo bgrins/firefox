@@ -409,6 +409,121 @@ add_task(async function test_previous_session_is_written_incrementally() {
 });
 
 /**
+ * Writes `state` to `db`, and returns what startup reads from it: the meta
+ * values, the child ids and the state.
+ */
+async function writeAndRead(db, state) {
+  await db.write(new SessionDBWriter().materialize(state));
+  let { meta, state: stored } = await db.read();
+  return { meta, orders: await db.readOrders(), stored };
+}
+
+/**
+ * Returns a tab state as collection builds it after `restored` was restored:
+ * a new object with the key order of `collected` and the values of `restored`.
+ */
+function collectRestored(restored, collected) {
+  return Object.fromEntries(
+    Object.keys(collected).map(key => [key, restored[key]])
+  );
+}
+
+add_task(async function test_seeded_writer_writes_what_changed() {
+  for (let fromDatabase of [true, false]) {
+    let { db } = await openDB();
+    let original = makeState();
+    original.lastSessionState = makeState();
+    let { meta, orders, stored } = await writeAndRead(db, original);
+    let restored = fromDatabase ? stored : JSON.parse(JSON.stringify(original));
+    let writer = new SessionDBWriter(meta);
+    writer.seed(restored, orders);
+
+    let [win] = restored.windows;
+    win.tabs = win.tabs.map((tab, i) =>
+      collectRestored(tab, original.windows[0].tabs[i])
+    );
+    let ops = await writeAndCheck(db, writer, restored);
+    Assert.ok(
+      ops.every(
+        ([name, , , , payload]) =>
+          name == "root" || (name == "node" && !payload.includes("entries"))
+      ),
+      `The first batch after seeding with the ${fromDatabase ? "database's" : "JSON file's"} state only writes the nodes that aren't tabs`
+    );
+
+    win.tabs[1].entries.push({ url: "https://b2.test/" });
+    SessionChangeJournal.markChanged(win.tabs[1].entries);
+    ops = await writeAndCheck(db, writer, restored);
+    Assert.deepEqual(
+      ops.map(([name, , section]) => [name, section]),
+      [["section", "history"]],
+      "The next batch writes what changed"
+    );
+    await db.close();
+  }
+});
+
+add_task(async function test_seeding_needs_the_database_structure() {
+  for (let [what, change] of [
+    ["an extra tab", state => state.windows[0].tabs.push(makeTab("x"))],
+    ["a missing window", state => state.windows.pop()],
+    ["a missing split property", state => delete state.windows[0].groups],
+    ["an extra previous session", state => (state.lastSessionState = {})],
+    ["another layout", (state, meta) => (meta.layout = "[]")],
+  ]) {
+    let { db } = await openDB();
+    let { meta, orders, stored } = await writeAndRead(db, makeState());
+    change(stored, meta);
+    let writer = new SessionDBWriter(meta);
+    Assert.throws(
+      () => writer.seed(stored, orders),
+      /./,
+      `A state with ${what} isn't the database's`
+    );
+    let ops = await writeAndCheck(db, writer, stored);
+    Assert.deepEqual(ops[0], ["clear"], "The first batch rewrites everything");
+    await db.close();
+  }
+});
+
+add_task(async function test_seeded_tabs_are_matched_by_identity() {
+  let { db } = await openDB();
+  let { meta, orders, stored } = await writeAndRead(db, makeState());
+  let writer = new SessionDBWriter(meta);
+  writer.seed(stored, orders);
+  // Restoring gives each tab state the identity of its tab.
+  let [win] = stored.windows;
+  let identities = win.tabs.map(tab => {
+    let identity = {};
+    SessionChangeJournal.setIdentity(tab, identity);
+    return identity;
+  });
+
+  win.tabs = win.tabs.slice(1).map((tab, i) => {
+    let collected = { ...tab };
+    SessionChangeJournal.setIdentity(collected, identities[i + 1]);
+    return collected;
+  });
+  let ops = await writeAndCheck(db, writer, stored);
+  Assert.ok(
+    !ops.some(([name]) => name == "section"),
+    "Closing the first tab before the first save doesn't rewrite the others"
+  );
+  await db.close();
+});
+
+add_task(async function test_audit_of_a_seeded_writer() {
+  let { db } = await openDB();
+  let { meta, orders, stored } = await writeAndRead(db, makeState());
+  let writer = new SessionDBWriter(meta, { audit: true });
+  writer.seed(stored, orders);
+  stored.windows[0].tabs[0].entries[0].title = "unmarked";
+  await writeAndCheck(db, writer, stored, "The audit writes the missed edit");
+  Assert.deepEqual(writer.misses, [{ kind: "tab", group: "history" }]);
+  await db.close();
+});
+
+/**
  * A small deterministic generator, so that failures reproduce.
  */
 function makeRandom(seed) {

@@ -137,6 +137,20 @@ export class SessionStoreDB {
   }
 
   /**
+   * Reads the child ids of every node that has children.
+   *
+   * @returns {Promise<Record<string, Record<string, number|number[]>>>}
+   *          The split properties of each node, by the node's id, 0 for the
+   *          top-level state, and their child ids: an array, or a single id
+   *          for a property that holds one node.
+   */
+  async readOrders() {
+    return JSON.parse(
+      await this.#call(callback => this.#database.readOrders(callback))
+    );
+  }
+
+  /**
    * Applies a batch of operations in one transaction.
    *
    * @param {Array<string|number>} ops

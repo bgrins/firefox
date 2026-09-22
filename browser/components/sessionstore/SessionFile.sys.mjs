@@ -477,6 +477,7 @@ var SessionFileInternal = {
           useOldExtension: false,
         };
       }
+      await this._dbBackend.seed(result.parsed, !!state);
     }
 
     return { ...result, noFilesFound };
@@ -576,8 +577,11 @@ var SessionFileInternal = {
     if (this._dbBackend) {
       // The final write serializes the state even in the modes that export,
       // so that the session restored next doesn't depend on the change
-      // journal.
-      let exporting = EXPORT_MODES.includes(this._mode) && !isFinalWrite;
+      // journal. So do writes while the database may hold stale rows.
+      let exporting =
+        EXPORT_MODES.includes(this._mode) &&
+        !isFinalWrite &&
+        this._dbBackend.exportable;
       try {
         dbWrite = this._writeDatabase(aData, {
           isFinalWrite,
@@ -620,6 +624,7 @@ var SessionFileInternal = {
       !isFinalWrite &&
       !immediate &&
       this._jsonWritten &&
+      this._dbBackend.exportable &&
       ChromeUtils.now() - this._lastJSONWrite <
         Services.prefs.getIntPref(PREF_EXPORT_INTERVAL, 600000)
     ) {

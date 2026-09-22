@@ -209,6 +209,62 @@ add_task(async function test_metrics() {
   Assert.greater(sum, 0);
 });
 
+add_task(async function test_seed() {
+  Services.fog.testResetFOG();
+  // Starts a backend, seeded before the cross-check as at startup, with the
+  // JSON file that `change` makes of the one written with the database.
+  let seed = async (change, comparable = true) => {
+    let source = change(await writeSession(makeState("a"), { comparable }));
+    let state = JSON.parse(source);
+    let backend = new SessionDBBackend(PATH);
+    backend.start({ origin: "clean", source, session: state.session });
+    await backend.seed(state, false);
+    let exportable = backend.exportable;
+    await backend.crossCheck;
+    return { backend, state, exportable };
+  };
+
+  let { backend, exportable } = await seed(source => source);
+  Assert.equal(
+    Glean.sessionRestore.dbSeed.seeded.testGetValue(),
+    1,
+    "A JSON file of the database's generation seeds the writer"
+  );
+  Assert.ok(!exportable, "Nothing is exported before the cross-check");
+  Assert.ok(backend.exportable, "The cross-check confirmed the seed");
+  await backend.close();
+
+  ({ backend } = await seed(source => source, false));
+  Assert.equal(
+    Glean.sessionRestore.dbSeed.skipped.testGetValue(),
+    1,
+    "A JSON file that wasn't serialized with the batch doesn't"
+  );
+  await backend.close();
+
+  // The database holds another state than the JSON file of its generation.
+  let state;
+  ({ backend, state } = await seed(source => source.replace('"a"', '"b"')));
+  Assert.equal(
+    Glean.sessionRestore.dbSeed.dropped.testGetValue(),
+    1,
+    "The cross-check drops the seed"
+  );
+  Assert.ok(
+    backend.exportable,
+    "Exports resume, since the next batch rewrites everything"
+  );
+  await backend.write(state, { isFinalWrite: true, comparable: true });
+  await backend.close();
+  let db = await SessionStoreDB.open(PATH);
+  Assert.equal(
+    (await db.read()).state.windows[0].tabs[0].entries[0].title,
+    "b",
+    "The next save rewrites everything"
+  );
+  await db.close();
+});
+
 add_task(async function test_unreadable_state_writes_nothing() {
   let { backend } = await startBackend("", "empty");
   let state = makeState("a");

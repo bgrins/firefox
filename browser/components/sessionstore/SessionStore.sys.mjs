@@ -751,9 +751,17 @@ class _SessionStore {
               );
               // On a single about:welcomeback URL that crashed, replace about:welcomeback
               // with about:sessionrestore, to make clear to the user that we crashed.
-              state.windows[0].tabs[0].entries[0].url = "about:sessionrestore";
-              state.windows[0].tabs[0].entries[0].triggeringPrincipal_base64 =
-                lazy.E10SUtils.SERIALIZED_SYSTEMPRINCIPAL;
+              // The entry is replaced rather than edited, since the session database
+              // may hold it.
+              let [tab] = state.windows[0].tabs;
+              tab.entries = [
+                {
+                  ...tab.entries[0],
+                  url: "about:sessionrestore",
+                  triggeringPrincipal_base64:
+                    lazy.E10SUtils.SERIALIZED_SYSTEMPRINCIPAL,
+                },
+              ];
             } else {
               restoreAsCrashed = false;
             }
@@ -6420,10 +6428,15 @@ class _SessionStore {
     lazy.SessionChangeJournal.setIdentity(tabData, browser.permanentKey);
 
     // Update the persistent tab state cache with |tabData| information.
+    let history = { entries: [...tabData.entries], index: tabData.index };
+    // Kept, so that the tab's history is collected as it was restored.
+    if ("requestedIndex" in tabData) {
+      history.requestedIndex = tabData.requestedIndex;
+    }
     lazy.TabStateCache.update(browser.permanentKey, {
       // NOTE: Copy the entries array shallowly, so as to not screw with the
       // original tabData's history when getting history updates.
-      history: { entries: [...tabData.entries], index: tabData.index },
+      history,
       scroll: tabData.scroll || null,
       storage: tabData.storage || null,
       formdata: tabData.formdata || null,

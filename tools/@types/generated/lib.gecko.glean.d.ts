@@ -1321,6 +1321,7 @@ interface GleanImpl {
     dbExportTime: GleanTimingDistribution;
     dbJournalMiss: Record<"core"|"formdata"|"history"|"image"|"scroll"|"storage", GleanCounter>;
     dbRead: GleanTimingDistribution;
+    dbSeed: Record<"dropped"|"seeded"|"skipped"|"structure_mismatch", GleanCounter>;
     dbSourceSelected: Record<"database"|"json", GleanCounter>;
     dbWriteMainThread: GleanTimingDistribution;
     fileSizeBytes: GleanMemoryDistribution;

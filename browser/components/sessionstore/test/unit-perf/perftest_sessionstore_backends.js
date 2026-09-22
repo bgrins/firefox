@@ -17,6 +17,9 @@ const METRICS = [
   "db recollected save main thread",
   "db recollected save total",
   "db export total",
+  "db seed main thread",
+  "db seeded first save main thread",
+  "db seeded first save rows",
   "json deferred save main thread",
   "db deferred one-change save main thread",
   "json read",
@@ -148,6 +151,29 @@ async function benchmark(tabCount) {
       return ChromeUtils.now() - start;
     })
   );
+
+  // Startup after a clean shutdown restores the JSON file, which holds the
+  // database's generation.
+  let seedMain = [];
+  let seededMain = [];
+  let seededRows = [];
+  await measure(async () => {
+    let restored = toModuleGlobal(state);
+    let seeded = new SessionDBWriter(await db.readMeta());
+    let orders = await db.readOrders();
+    let start = ChromeUtils.now();
+    seeded.seed(restored, orders);
+    seedMain.push(ChromeUtils.now() - start);
+    restored.windows.forEach(recollect);
+    start = ChromeUtils.now();
+    let ops = seeded.materialize(restored);
+    seededMain.push(ChromeUtils.now() - start);
+    seededRows.push(ops.filter(op => op == "node" || op == "section").length);
+    await db.write(ops);
+  });
+  record("db seed main thread", median(seedMain));
+  record("db seeded first save main thread", median(seededMain));
+  record("db seeded first save rows", median(seededRows));
   await db.close();
 
   record(

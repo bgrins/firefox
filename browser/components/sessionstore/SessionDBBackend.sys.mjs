@@ -70,8 +70,15 @@ export class SessionDBBackend {
   #wipes = 0;
   /** @type {Promise<Record<string, string>>|null} */
   #startupMeta = null;
+  /** @type {Promise<Record<string, Record<string, number|number[]>>>|null} */
+  #startupOrders = null;
   /** @type {Promise<string>|null} */
   #startupText = null;
+  /** @type {CrossCheckResult|null} */
+  #crossCheckResult = null;
+  // Whether the writer was seeded with the JSON file's state, and the
+  // cross-check hasn't confirmed yet that the database holds it.
+  #unconfirmedSeed = false;
 
   /**
    * Resolves with the result of the startup cross-check.
@@ -79,6 +86,18 @@ export class SessionDBBackend {
    * @type {Promise<CrossCheckResult>|null}
    */
   crossCheck = null;
+
+  /**
+   * Whether JSON files can be exported from the database. They can't while the
+   * writer starts from a JSON file's state that the cross-check hasn't
+   * confirmed as the database's, since rows the writer judges unchanged may
+   * then be stale.
+   *
+   * @type {boolean}
+   */
+  get exportable() {
+    return !this.#unconfirmedSeed;
+  }
 
   /**
    * @param {string} path
@@ -104,10 +123,12 @@ export class SessionDBBackend {
     let start = ChromeUtils.now();
     this.#db = this.#open();
     this.#db.catch(() => {});
-    // Both reads are queued before any write. Only the meta values are needed
-    // to write, and the state is only parsed to restore it or, in idle, for
-    // the cross-check.
+    // The reads are queued before any write. Only the meta values are needed
+    // to write, the child ids to seed the writer, and the state is only parsed
+    // to restore it or, in idle, for the cross-check.
     let meta = (this.#startupMeta = this.#db.then(db => db.readMeta()));
+    this.#startupOrders = this.#db.then(db => db.readOrders());
+    this.#startupOrders.catch(() => {});
     let text = (this.#startupText = this.#db.then(db => db.readText()));
     meta.then(
       values => {
@@ -149,8 +170,65 @@ export class SessionDBBackend {
       .catch(ex => ({ result: "error", error: String(ex) }))
       .then(result => {
         report(origin, result);
+        this.#crossCheckResult = result;
+        if (this.#unconfirmedSeed && result.result != "match") {
+          this.#writer?.reset();
+          Glean.sessionRestore.dbSeed.dropped.add(1);
+        }
+        this.#unconfirmedSeed = false;
         return result;
       });
+  }
+
+  /**
+   * Lets the writer start from `state`, the state that startup restores, if
+   * the database holds it, so that the first save only writes what changed
+   * since instead of rewriting everything. Must be called before anything
+   * edits `state`.
+   *
+   * @param {object|null} state
+   * @param {boolean} fromDatabase
+   *        Whether `state` was read from the database. Otherwise it was read
+   *        from a JSON file, and the database must hold the same generation.
+   *        Until the cross-check confirms that it holds the same state, no
+   *        file is exported, and if it doesn't, the writer rewrites everything.
+   */
+  async seed(state, fromDatabase) {
+    let meta, orders;
+    try {
+      [meta, orders] = await Promise.all([
+        this.#startupMeta,
+        this.#startupOrders,
+      ]);
+    } catch (ex) {
+      Glean.sessionRestore.dbSeed.skipped.add(1);
+      return;
+    }
+    let session = state?.session;
+    if (
+      !this.#writer ||
+      !meta?.lineage ||
+      session?.lineage != meta.lineage ||
+      String(session.writeSeq) != meta.seq ||
+      (!fromDatabase &&
+        (meta.comparable != "1" ||
+          (this.#crossCheckResult && this.#crossCheckResult.result != "match")))
+    ) {
+      Glean.sessionRestore.dbSeed.skipped.add(1);
+      return;
+    }
+    try {
+      this.#writer.seed(state, orders);
+    } catch (ex) {
+      lazy.sessionStoreLogger.warn(
+        "SessionDBBackend: the restored state doesn't have the database's structure",
+        ex
+      );
+      Glean.sessionRestore.dbSeed.structure_mismatch.add(1);
+      return;
+    }
+    this.#unconfirmedSeed = !fromDatabase;
+    Glean.sessionRestore.dbSeed.seeded.add(1);
   }
 
   /**
@@ -303,6 +381,10 @@ export class SessionDBBackend {
       .catch(ex => {
         lazy.sessionStoreLogger.error("SessionDBBackend: write failed", ex);
         writer.reset();
+        if (writer == this.#writer) {
+          // The next batch rewrites everything.
+          this.#unconfirmedSeed = false;
+        }
         return false;
       });
   }
@@ -332,6 +414,7 @@ export class SessionDBBackend {
       if (ex.result == Cr.NS_ERROR_FILE_CORRUPTED) {
         // The next batch rewrites the rows that don't form a state.
         this.#writer?.reset();
+        this.#unconfirmedSeed = false;
       }
       throw ex;
     }
@@ -378,6 +461,7 @@ export class SessionDBBackend {
   async wipe({ reopen = true } = {}) {
     this.#wipes++;
     this.#writer?.reset();
+    this.#unconfirmedSeed = false;
     if (!reopen) {
       this.#writer = null;
     }

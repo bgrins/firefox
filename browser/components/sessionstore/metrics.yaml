@@ -361,6 +361,28 @@ session_restore:
       - session-restore-telemetry-alerts@mozilla.com
     expires: never
 
+  db_seed:
+    type: labeled_counter
+    description: >
+      Whether the session database writer started from the state that startup
+      restored, so that the first save doesn't rewrite the whole database, in
+      every backend mode but "json". "skipped" when the database held another
+      generation, "structure_mismatch" when the state didn't have the
+      database's structure, and "dropped" when the cross-check found that the
+      database didn't hold the JSON file's state after all.
+    labels:
+      - seeded
+      - skipped
+      - structure_mismatch
+      - dropped
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=0000000
+    notification_emails:
+      - session-restore-telemetry-alerts@mozilla.com
+    expires: never
+
   db_read:
     type: timing_distribution
     description: >

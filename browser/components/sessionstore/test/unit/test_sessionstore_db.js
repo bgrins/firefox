@@ -93,6 +93,16 @@ add_task(async function test_round_trip_and_reopen() {
   Assert.deepEqual(result.state, STATE, "The rows assemble into the state");
   Assert.deepEqual(result.meta, { seq: "1" });
   Assert.deepEqual(await db.readMeta(), { seq: "1" });
+  Assert.deepEqual(
+    await db.readOrders(),
+    {
+      0: { _closedWindows: [5], windows: [1] },
+      1: { _closedTabs: [], tabs: [2, 3, 4] },
+      5: { _closedTabs: [6] },
+      6: { state: 7 },
+    },
+    "The child ids are read by parent"
+  );
   Assert.deepEqual(JSON.parse(await db.readText()), result);
   await db.close();
 
