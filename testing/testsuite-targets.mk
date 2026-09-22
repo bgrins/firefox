@@ -95,9 +95,13 @@ stage-all: \
   stage-mach \
   stage-extensions \
   stage-mochitest \
-  stage-jstests \
   test-packages-manifest \
   $(NULL)
+
+# Builds without a JS shell, such as iOS ones, don't build the JS tests either.
+ifndef JS_DISABLE_SHELL
+stage-all: stage-jstests
+endif
 
 ifdef COMPILE_ENVIRONMENT
 stage-all: stage-cppunittests
@@ -241,6 +245,7 @@ endif
 ifdef MOZ_COPY_PDBS
 	cp -RL $(addsuffix .pdb,$(basename $(CPP_UNIT_TEST_BINS))) $(PKG_STAGE)/cppunittest
 endif
+ifndef JS_DISABLE_SHELL
 ifdef STRIP_COMPILED_TESTS
 	$(OBJCOPY) $(or $(STRIP_FLAGS),--strip-unneeded) $(DIST)/bin/jsapi-tests$(BIN_SUFFIX) $(PKG_STAGE)/cppunittest/jsapi-tests$(BIN_SUFFIX)
 else
@@ -248,6 +253,7 @@ else
 endif
 ifdef MOZ_COPY_PDBS
 	cp -RL $(DIST)/bin/jsapi-tests.pdb $(PKG_STAGE)/cppunittest
+endif
 endif
 
 TEST_EXTENSIONS := \
