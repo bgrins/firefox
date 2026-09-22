@@ -2249,7 +2249,9 @@ option(
     help="Disable debug symbols using the given compiler flags",
 )
 
-set_config("MOZ_DEBUG_SYMBOLS", depends_if("--enable-debug-symbols")(lambda _: True))
+moz_debug_symbols = depends_if("--enable-debug-symbols")(lambda _: True)
+
+set_config("MOZ_DEBUG_SYMBOLS", moz_debug_symbols)
 
 
 @depends("MOZ_DEBUG_FLAGS", "--enable-debug-symbols", default_debug_flags)
@@ -2266,6 +2268,8 @@ def debug_flags(env_debug_flags, enable_debug_flags, default_debug_flags):
 
 
 set_config("MOZ_DEBUG_FLAGS", debug_flags)
+
+include("swift.configure", when=target_is_ios)
 
 
 @depends(c_compiler, host)

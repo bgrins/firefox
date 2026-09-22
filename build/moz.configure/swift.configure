@@ -1,0 +1,74 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+
+@depends(host)
+@imports("os")
+def swift_toolchain_paths(host):
+    if host.os != "OSX":
+        return
+    swiftc = check_cmd_output("xcrun", "--find", "swiftc", onerror=lambda: "").rstrip()
+    if swiftc:
+        return [os.path.dirname(swiftc)]
+
+
+# Swift is optional: iOS builds without it produce XUL but none of the Swift
+# code that wraps it into an app.
+swiftc = check_prog(
+    "SWIFTC",
+    ("swiftc",),
+    paths=swift_toolchain_paths,
+    allow_missing=True,
+)
+
+
+@depends_if(swiftc)
+@checking("swiftc version")
+@imports("re")
+def swiftc_version(swiftc):
+    out = check_cmd_output(swiftc, "--version", onerror=lambda: "")
+    m = re.search(r"Swift version ([0-9.]+)", out)
+    if not m:
+        die("Could not determine the version of %s" % swiftc)
+    version = Version(m.group(1))
+    if version < Version("6.0"):
+        die("swiftc %s is too old. Swift 6.0 or newer is required." % version)
+    return version
+
+
+@depends(target, ios_target, target_is_ios_simulator, when=swiftc)
+def swift_target(target, ios_target, simulator):
+    arch = {"aarch64": "arm64"}.get(target.cpu, target.cpu)
+    return "%s-apple-ios%s%s" % (arch, ios_target, "-simulator" if simulator else "")
+
+
+@depends(swift_target, ios_sdk, moz_optimize, moz_debug_symbols, when=swiftc)
+def swiftflags(swift_target, sdk, optimize, debug_symbols):
+    flags = ["-target", swift_target, "-sdk", sdk, "-swift-version", "5"]
+    flags.append("-O" if optimize else "-Onone")
+    if debug_symbols:
+        flags.append("-g")
+    return flags
+
+
+set_config("SWIFTFLAGS", swiftflags)
+
+
+# Swift objects carry autolink entries for the Swift runtime and the frameworks
+# they import, so linking them only needs the paths to find those libraries.
+@depends(swiftc, ios_sdk, target_is_ios_simulator, when=swiftc)
+@imports("os")
+def swift_ldflags(swiftc, sdk, simulator):
+    platform = "iphonesimulator" if simulator else "iphoneos"
+    toolchain_lib = os.path.join(
+        os.path.dirname(os.path.dirname(swiftc)), "lib", "swift", platform
+    )
+    return [
+        "-L%s" % os.path.join(sdk, "usr", "lib", "swift"),
+        "-L%s" % toolchain_lib,
+        "-Wl,-rpath,/usr/lib/swift",
+    ]
+
+
+set_config("SWIFT_LDFLAGS", swift_ldflags)
