@@ -4304,9 +4304,14 @@ toolbar#nav-bar {
 
         browser_pid = browser_pid or proc.pid
 
-        # Send a signal to start the profiler - if we're running on Linux or MacOS
+        # Send a signal to start the profiler - if we're running on Linux, MacOS
+        # or the iOS Simulator, whose processes are host processes.
         profiler_logger = get_proxy_logger("profiler")
-        if mozinfo.isLinux or mozinfo.isMac:
+        if (
+            mozinfo.isLinux
+            or mozinfo.isMac
+            or (mozinfo.isIos and mozinfo.info.get("is_emulator"))
+        ):
             profiler_logger.warning(
                 "Attempting to start the profiler to help with diagnosing the hang."
             )

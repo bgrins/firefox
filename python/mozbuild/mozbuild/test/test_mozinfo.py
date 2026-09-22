@@ -125,6 +125,20 @@ class TestBuildDict(unittest.TestCase, Base):
         self.assertEqual("android", d["toolkit"])
         self.assertEqual(32, d["bits"])
 
+    def test_ios(self):
+        d = build_dict(
+            self._config(
+                dict(
+                    OS_TARGET="Darwin",
+                    TARGET_OS="iOS",
+                    TARGET_CPU="aarch64",
+                    MOZ_WIDGET_TOOLKIT="uikit",
+                )
+            )
+        )
+        self.assertEqual("ios", d["os"])
+        self.assertEqual("uikit", d["toolkit"])
+
     def test_x86(self):
         """
         Test that various i?86 values => x86.

@@ -192,7 +192,7 @@ else:
 
 # standard value of choices, for easy inspection
 choices = {
-    "os": ["android", "linux", "mac", "win"],
+    "os": ["android", "ios", "linux", "mac", "win"],
     "bits": [32, 64],
     "processor": ["x86", "x86_64", "aarch64"],
 }

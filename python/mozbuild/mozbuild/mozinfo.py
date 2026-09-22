@@ -35,7 +35,10 @@ def build_dict(config, env=os.environ):
     # os
     o = substs["OS_TARGET"]
     known_os = {"Linux": "linux", "WINNT": "win", "Darwin": "mac", "Android": "android"}
-    if o in known_os:
+    # iOS shares OS_TARGET with macOS, but tests need to tell them apart.
+    if substs.get("TARGET_OS") == "iOS":
+        d["os"] = "ios"
+    elif o in known_os:
         d["os"] = known_os[o]
     else:
         # Allow unknown values, just lowercase them.
