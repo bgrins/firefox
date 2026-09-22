@@ -17,6 +17,8 @@ const METRICS = [
   "db one-change save rows",
   "db recollected save main thread",
   "db recollected save total",
+  "json deferred save main thread",
+  "db deferred one-change save main thread",
   "json read",
   "db read",
   "json file size",
@@ -313,10 +315,54 @@ async function benchmark(tabCount) {
   return metrics;
 }
 
+/**
+ * Measures saves of a small session that keeps a previous one, as it does
+ * when the previous session wasn't restored at startup.
+ */
+async function benchmarkDeferred(tabCount) {
+  let metrics = {};
+  let record = (name, value) => (metrics[`${name} ${tabCount} tabs`] = value);
+  let state = makeState(50);
+  state.lastSessionState = makeState(tabCount);
+  let jsonPath = PathUtils.join(PathUtils.profileDir, "deferred.jsonlz4");
+  let dbPath = PathUtils.join(PathUtils.profileDir, "deferred.sqlite");
+
+  let jsonMain = [];
+  await measure(async () => {
+    let start = ChromeUtils.now();
+    let promise = IOUtils.writeJSON(jsonPath, state, { compress: true });
+    jsonMain.push(ChromeUtils.now() - start);
+    await promise;
+  });
+  record("json deferred save main thread", median(jsonMain));
+
+  let db = await SessionStoreDB.open(dbPath);
+  let writer = new SessionDBWriter();
+  await db.write(writer.materialize(state));
+  let dbMain = [];
+  await measure(async () => {
+    let tabs = state.windows[0].tabs;
+    tabs[0] = { ...tabs[0], scroll: { scroll: `0,${random()}` } };
+    let start = ChromeUtils.now();
+    let ops = writer.materialize(state);
+    dbMain.push(ChromeUtils.now() - start);
+    await db.write(ops);
+  });
+  record("db deferred one-change save main thread", median(dbMain));
+  await db.close();
+
+  await IOUtils.remove(jsonPath);
+  for (let suffix of ["", "-wal", "-shm"]) {
+    await IOUtils.remove(dbPath + suffix, { ignoreAbsent: true });
+  }
+  return metrics;
+}
+
 add_task(async function test_backends() {
   let metrics = {};
   for (let size of SIZES) {
     Object.assign(metrics, await benchmark(size));
+    Object.assign(metrics, await benchmarkDeferred(size));
   }
   info("perfMetrics", metrics);
   Assert.ok(true, "Benchmarks ran");

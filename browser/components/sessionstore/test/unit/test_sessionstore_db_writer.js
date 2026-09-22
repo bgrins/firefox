@@ -372,6 +372,25 @@ add_task(async function test_shared_objects_keep_their_nodes() {
   await db.close();
 });
 
+add_task(async function test_previous_session_is_written_incrementally() {
+  let { db } = await openDB();
+  let writer = new SessionDBWriter();
+  let state = makeState();
+  // A deferred restore shares the saved groups with the previous session.
+  state.lastSessionState = { ...makeState(), savedGroups: state.savedGroups };
+  await writeAndCheck(db, writer, state);
+
+  let [win] = state.windows;
+  win.tabs[0] = { ...win.tabs[0], scroll: { scroll: "0,1" } };
+  let ops = await writeAndCheck(db, writer, state, "Current session change");
+  Assert.deepEqual(
+    ops.map(([name, , section]) => [name, section]),
+    [["section", "scroll"]],
+    "Nothing of the previous session is written again"
+  );
+  await db.close();
+});
+
 /**
  * A small deterministic generator, so that failures reproduce.
  */
@@ -493,6 +512,14 @@ async function randomChanges({ audit }) {
     },
     () => {
       state.session = { ...state.session, lastUpdate: counter++ };
+    },
+    () => {
+      state.lastSessionState = state.lastSessionState
+        ? undefined
+        : {
+            windows: structuredClone(state.windows),
+            savedGroups: state.savedGroups,
+          };
     },
   ];
 

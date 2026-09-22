@@ -44,16 +44,21 @@ const lazy = XPCOMUtils.declareLazy({
  *   follow the contract of SessionChangeJournal.
  */
 
+const STATE_ARRAYS = {
+  windows: "window",
+  _closedWindows: "window",
+  savedGroups: "group",
+  cookies: "cookie",
+};
+
 /** @type {Record<string, Kind>} */
 const SPLITS = {
-  state: {
-    arrays: {
-      windows: "window",
-      _closedWindows: "window",
-      savedGroups: "group",
-      cookies: "cookie",
-    },
+  root: {
+    arrays: STATE_ARRAYS,
+    objects: { lastSessionState: "state" },
   },
+  // A session kept inside the top-level one, like the previous session.
+  state: { arrays: STATE_ARRAYS },
   window: {
     arrays: {
       tabs: "tab",
@@ -96,7 +101,7 @@ const SECTION_OF = new Map(
 /**
  * Top-level properties stored as their own root rows.
  */
-const ROOT_MEMBERS = ["global", "lastSessionState"];
+const ROOT_MEMBERS = ["global"];
 
 const ROOT_PARENT = 0;
 
@@ -277,13 +282,17 @@ export class SessionDBWriter {
       );
     }
 
-    let split = this.#split("state", state);
+    let split = this.#split("root", state);
     this.#syncRoots(serialize(state, split.groups.get(CORE)), state, ops);
 
     let orders = new Map();
     for (let [prop, kind, values] of split.arrays) {
       let ids = this.#syncArray(context, ROOT_PARENT, prop, kind, values);
       orders.set(prop, JSON.stringify(ids));
+    }
+    for (let [prop, kind, object] of split.objects) {
+      let id = this.#syncSingle(context, ROOT_PARENT, prop, kind, object);
+      orders.set(prop, String(id));
     }
     this.#syncOrders(ROOT_PARENT, this.#rootOrders, orders, ops);
     this.#rootOrders = orders;
@@ -706,7 +715,7 @@ export class SessionDBWriter {
     let { arrays = {}, objects = {} } = SPLITS[kind];
     let sectionOf = SECTION_OF.get(kind);
     for (let key of Object.keys(value)) {
-      if (kind == "state" && ROOT_MEMBERS.includes(key)) {
+      if (kind == "root" && ROOT_MEMBERS.includes(key)) {
         continue;
       }
       let child = value[key];
