@@ -1600,8 +1600,9 @@ pref("browser.sessionstore.max_windows_undo", 5);
 // number of crashes that can occur before the about:sessionrestore page is displayed
 // (this pref has no effect if more than 6 hours have passed since the last crash)
 pref("browser.sessionstore.max_resumed_crashes", 1);
-// Where session state is written: "json" for the JSON session files only, or
-// "shadow" to also write the session database and check it against them.
+// Where session state is written: "json" for the JSON session files only,
+// "shadow" to also write the session database and check it against them, or
+// "export" to write the database and export the JSON session files from it.
 // Read once at startup.
 pref("browser.sessionstore.backend", "json");
 // Whether the session database writer also serializes the tab states it

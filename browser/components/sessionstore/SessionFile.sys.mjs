@@ -210,8 +210,12 @@ var SessionFileInternal = {
   // a fallback mechanism.
   _usingOldExtension: false,
 
-  // The SessionDBBackend in the "shadow" backend mode, once read() is done.
+  // The SessionDBBackend in the "shadow" and "export" backend modes, once
+  // read() is done.
   _dbBackend: null,
+
+  // Whether JSON files are exported from the database, in the "export" mode.
+  _exportJSON: false,
 
   // The number of JSON writes started but not finished.
   _jsonWritesPending: 0,
@@ -420,10 +424,9 @@ var SessionFileInternal = {
     }
     this._readOrigin = result.origin;
 
-    if (
-      Services.prefs.getStringPref(PREF_BACKEND, "json") == "shadow" &&
-      !this._dbBackend
-    ) {
+    let backend = Services.prefs.getStringPref(PREF_BACKEND, "json");
+    if ((backend == "shadow" || backend == "export") && !this._dbBackend) {
+      this._exportJSON = backend == "export";
       this._dbBackend = new lazy.SessionDBBackend(this.Paths.database);
       this._dbBackend.start({ origin: result.origin, source: result.source });
     }
@@ -500,10 +503,21 @@ var SessionFileInternal = {
       dbWrite = this._dbBackend.write(aData, { isFinalWrite, comparable });
     }
 
+    let exportJSON = null;
+    if (this._exportJSON) {
+      let backend = this._dbBackend;
+      exportJSON = async (path, exportOptions) => {
+        if (!(await dbWrite)) {
+          throw new Error("The database doesn't hold this state");
+        }
+        return backend.exportJSON(path, exportOptions);
+      };
+    }
+
     this._attempts++;
     this._jsonWritesPending++;
     this._jsonWritten = true;
-    let options = { isFinalWrite, performShutdownCleanup };
+    let options = { isFinalWrite, performShutdownCleanup, exportJSON };
     let write = this.getWriter()
       .then(writer => writer.write(aData, options))
       .finally(() => this._jsonWritesPending--);

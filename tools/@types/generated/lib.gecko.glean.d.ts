@@ -1316,6 +1316,7 @@ interface GleanImpl {
     collectSessionHistory: GleanTimingDistribution;
     corruptFile: Record<"false"|"true", GleanCounter>;
     dbCrossCheck: Record<"db_missing"|"db_unreadable"|"error"|"json_missing"|"json_seq_missing"|"lineage_mismatch"|"match"|"mismatch"|"not_comparable"|"skew_db_newer"|"skew_json_newer", GleanCounter>;
+    dbExport: Record<"exported"|"fallback", GleanCounter>;
     dbJournalMiss: Record<"core"|"formdata"|"history"|"image"|"scroll"|"storage", GleanCounter>;
     dbWriteMainThread: GleanTimingDistribution;
     fileSizeBytes: GleanMemoryDistribution;

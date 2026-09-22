@@ -5,8 +5,9 @@
 /**
  * Writes session state to the session store database next to the JSON
  * session file, and checks after startup that the database agrees with the
- * JSON file that startup read. Used in the "shadow" mode of
- * `browser.sessionstore.backend`, where startup still restores from JSON.
+ * JSON file that startup read. Used in the "shadow" and "export" modes of
+ * `browser.sessionstore.backend`, where startup still restores from JSON. In
+ * the "export" mode, the JSON file is exported from the database.
  *
  * Both backends store a generation: a lineage, which identifies the database,
  * and a seq, which increments with every save. The JSON file carries them in
@@ -146,14 +147,14 @@ export class SessionDBBackend {
    * @param {boolean} options.comparable
    *        Whether the JSON backend serializes `state` in this same task, so
    *        that a cross-check at this generation compares like with like.
-   * @returns {Promise<void>}
+   * @returns {Promise<boolean>} Whether the batch was written.
    */
   write(state, { isFinalWrite, comparable }) {
     if (!this.#writer) {
       lazy.sessionStoreLogger.debug(
         "SessionDBBackend: skipping a write before the database was read"
       );
-      return Promise.resolve();
+      return Promise.resolve(false);
     }
     let writer = this.#writer;
     let start = ChromeUtils.now();
@@ -180,11 +181,35 @@ export class SessionDBBackend {
     }
     let epoch = this.#epoch;
     return this.#db
-      .then(db => (db && epoch == this.#epoch ? db.write(ops) : undefined))
+      .then(async db => {
+        if (!db || epoch != this.#epoch) {
+          return false;
+        }
+        await db.write(ops);
+        return true;
+      })
       .catch(ex => {
         lazy.sessionStoreLogger.error("SessionDBBackend: write failed", ex);
         writer.reset();
+        return false;
       });
+  }
+
+  /**
+   * Writes the JSON session file from the database, once the batches written
+   * so far are applied.
+   *
+   * @param {string} path
+   * @param {object} options
+   *        As for SessionStoreDB.exportJSON().
+   * @returns {Promise<number>} The size of the file.
+   */
+  async exportJSON(path, options) {
+    let db = await this.#db;
+    if (!db) {
+      throw new Error("SessionDBBackend: the database is closed");
+    }
+    return db.exportJSON(path, options);
   }
 
   /**

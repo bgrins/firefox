@@ -92,16 +92,38 @@ export function capSessionHistory(state, maxBack, maxForward) {
 }
 
 /**
- * Starts writing `state` as JSON, and records how long the synchronous part,
- * which serializes the state on the calling thread, took.
+ * Writes `state` as JSON, and records how long the synchronous part, which
+ * serializes the state on the calling thread, took. With `exportJSON`, the
+ * file is exported from the session database instead, and `state` is only
+ * serialized if that fails.
+ *
+ * @param {string} path
+ * @param {object} state
+ * @param {object} options
+ *        The options for IOUtils.writeJSON().
+ * @param {Function} [exportJSON]
+ *        Takes `path` and `options`, and resolves once the file is written.
  */
-function writeJSON(path, state, options) {
+async function writeJSON(path, state, options, exportJSON) {
+  if (exportJSON) {
+    try {
+      await exportJSON(path, options);
+      Glean.sessionRestore.dbExport.exported.add(1);
+      return;
+    } catch (ex) {
+      lazy.sessionStoreLogger.warn(
+        "SessionWriter: the export from the database failed, writing the state instead",
+        ex
+      );
+      Glean.sessionRestore.dbExport.fallback.add(1);
+    }
+  }
   let start = ChromeUtils.now();
   let promise = IOUtils.writeJSON(path, state, options);
   Glean.sessionRestore.jsonWriteMainThread.accumulateSingleSample(
     Math.round((ChromeUtils.now() - start) * 1000)
   );
-  return promise;
+  await promise;
 }
 
 /**
@@ -206,6 +228,8 @@ const SessionWriterInternal = {
    *    is not left lying around;
    *  - isFinalWrite If |true|, write to Paths.clean instead of
    *    Paths.recovery
+   *  - exportJSON If set, exports the file from the session database
+   *    instead of serializing |state|, which is only written if that fails.
    */
   async write(state, options) {
     let exn;
@@ -248,10 +272,12 @@ const SessionWriterInternal = {
         // originally present and valid, it has been moved to
         // $Paths.cleanBackup a long time ago. We can therefore write
         // with the guarantees that we erase no important data.
-        await writeJSON(this.Paths.clean, state, {
-          tmpPath: this.Paths.clean + ".tmp",
-          compress: true,
-        });
+        await writeJSON(
+          this.Paths.clean,
+          state,
+          { tmpPath: this.Paths.clean + ".tmp", compress: true },
+          options.exportJSON
+        );
         fileStat = await IOUtils.stat(this.Paths.clean);
       } else if (this.state == STATE_RECOVERY) {
         // At this stage, either $Paths.recovery was written >= 15
@@ -260,20 +286,27 @@ const SessionWriterInternal = {
         // way, $Paths.recovery is good. We can move $Path.backup to
         // $Path.recoveryBackup without erasing a good file with a bad
         // file.
-        await writeJSON(this.Paths.recovery, state, {
-          tmpPath: this.Paths.recovery + ".tmp",
-          backupFile: this.Paths.recoveryBackup,
-          compress: true,
-        });
+        await writeJSON(
+          this.Paths.recovery,
+          state,
+          {
+            tmpPath: this.Paths.recovery + ".tmp",
+            backupFile: this.Paths.recoveryBackup,
+            compress: true,
+          },
+          options.exportJSON
+        );
         fileStat = await IOUtils.stat(this.Paths.recovery);
       } else {
         // In other cases, either $Path.recovery is not necessary, or
         // it doesn't exist or it has been corrupted. Regardless,
         // don't backup $Path.recovery.
-        await writeJSON(this.Paths.recovery, state, {
-          tmpPath: this.Paths.recovery + ".tmp",
-          compress: true,
-        });
+        await writeJSON(
+          this.Paths.recovery,
+          state,
+          { tmpPath: this.Paths.recovery + ".tmp", compress: true },
+          options.exportJSON
+        );
         fileStat = await IOUtils.stat(this.Paths.recovery);
       }
 
