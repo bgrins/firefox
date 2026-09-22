@@ -1318,9 +1318,11 @@ class _SessionStore {
       }
     }
 
+    // Updates from content come without a browser, so the window is found
+    // through the browsing context's embedder.
     let win =
       browser?.documentGlobal ??
-      browsingContext.currentWindowGlobal?.browsingContext?.window;
+      browsingContext.top.embedderElement?.documentGlobal;
 
     this.#onTabStateUpdate(permanentKey, win, update);
   }
