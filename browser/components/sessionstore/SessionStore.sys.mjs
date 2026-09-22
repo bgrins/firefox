@@ -1207,7 +1207,6 @@ class _SessionStore {
       // Update the closed tab's state. This will be reflected in its
       // window's list of closed tabs as that refers to the same object.
       lazy.TabState.copyFromCache(permanentKey, closedTab.tabData.state);
-      lazy.SessionChangeJournal.markChanged(closedTab.tabData.state);
     }
   }
 
@@ -1995,7 +1994,6 @@ class _SessionStore {
           if (this.#tabClosingByWindowMap.has(browser.permanentKey)) {
             let tabData = this.#tabClosingByWindowMap.get(browser.permanentKey);
             lazy.TabState.copyFromCache(browser.permanentKey, tabData);
-            lazy.SessionChangeJournal.markChanged(tabData);
             this.#tabClosingByWindowMap.delete(browser.permanentKey);
           }
         }
@@ -4819,8 +4817,11 @@ class _SessionStore {
       TAB_CUSTOM_VALUES.set(aTab, {});
     }
 
-    TAB_CUSTOM_VALUES.get(aTab)[aKey] = aStringValue;
-    lazy.SessionChangeJournal.markChanged(TAB_CUSTOM_VALUES.get(aTab));
+    let values = TAB_CUSTOM_VALUES.get(aTab);
+    if (values[aKey] !== aStringValue) {
+      values[aKey] = aStringValue;
+      lazy.SessionChangeJournal.markChanged(values);
+    }
     this.#saveStateDelayed(aTab.documentGlobal);
   }
 
@@ -5805,7 +5806,6 @@ class _SessionStore {
           );
         }
         tabData.splitViewId = oldToNewMap.get(tabData.splitViewId);
-        lazy.SessionChangeJournal.markChanged(tabData);
       }
 
       if (winData.splitViews) {
@@ -6417,7 +6417,6 @@ class _SessionStore {
       delete tabData.userTypedValue;
       delete tabData.userTypedClear;
     }
-    lazy.SessionChangeJournal.markChanged(tabData);
     lazy.SessionChangeJournal.setIdentity(tabData, browser.permanentKey);
 
     // Update the persistent tab state cache with |tabData| information.
@@ -8564,7 +8563,6 @@ class _SessionStore {
         options.tabData.storage
       );
       delete options.tabData.storage;
-      lazy.SessionChangeJournal.markChanged(options.tabData);
     }
 
     this.#restoreHistory(browser, options);

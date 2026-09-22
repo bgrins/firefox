@@ -15,8 +15,6 @@ const lazy = XPCOMUtils.declareLazy({
   PrivacyFilter: "resource://gre/modules/sessionstore/PrivacyFilter.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   RunState: "moz-src:///browser/components/sessionstore/RunState.sys.mjs",
-  SessionChangeJournal:
-    "moz-src:///browser/components/sessionstore/SessionChangeJournal.sys.mjs",
   SessionFile: "moz-src:///browser/components/sessionstore/SessionFile.sys.mjs",
   SessionStore:
     "moz-src:///browser/components/sessionstore/SessionStore.sys.mjs",
@@ -337,10 +335,7 @@ var SessionSaverInternal = {
       // Remove DOMSessionStorage data.
       for (let window of state.windows) {
         for (let tab of window.tabs) {
-          if ("storage" in tab) {
-            delete tab.storage;
-            lazy.SessionChangeJournal.markChanged(tab);
-          }
+          delete tab.storage;
         }
       }
     }

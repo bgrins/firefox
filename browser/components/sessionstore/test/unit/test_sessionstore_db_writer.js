@@ -327,6 +327,11 @@ add_task(async function test_audit_finds_unmarked_edits() {
   SessionChangeJournal.markChanged(tab.entries);
   await writeAndCheck(db, writer, state);
   Assert.deepEqual(writer.misses, [], "A marked edit is no miss");
+
+  tab.index = 2;
+  delete tab.image;
+  await writeAndCheck(db, writer, state);
+  Assert.deepEqual(writer.misses, [], "Edits of the tab state need no mark");
   await db.close();
 });
 
@@ -449,7 +454,6 @@ async function randomChanges({ audit }) {
         let tab = pick(win.tabs);
         tab.entries = [...tab.entries, { url: `https://n${counter++}.test/` }];
         tab.index = tab.entries.length;
-        SessionChangeJournal.markChanged(tab);
       }
     },
     () => {
@@ -463,7 +467,6 @@ async function randomChanges({ audit }) {
       let closedTab = pick(pick(state.windows)?._closedTabs ?? []);
       if (closedTab) {
         closedTab.state.scroll = { scroll: `0,${counter++}` };
-        SessionChangeJournal.markChanged(closedTab.state);
       }
     },
     () => {

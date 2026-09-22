@@ -444,11 +444,9 @@ var SessionHistoryInternal = {
     // But existing session storage might contain entries with the persist attribute,
     // so we translate them to transient.
     // Bug 1971274 tracks removing this.
-    if ("persist" in entry) {
-      entry.transient = !entry.persist;
-    }
-
-    if (entry.transient) {
+    // The entry belongs to the session state, so it isn't changed.
+    let transient = "persist" in entry ? !entry.persist : entry.transient;
+    if (transient) {
       shEntry.setTransient();
     }
 
@@ -467,6 +465,7 @@ var SessionHistoryInternal = {
 
     // If we have the legacy docshellID on our entry, upgrade it to a
     // docshellUUID by going through the mapping.
+    let docshellUUID = entry.docshellUUID;
     if (entry.docshellID) {
       if (!this._docshellUUIDMap.has(entry.docshellID)) {
         // Convert the nsID to a string so that the docshellUUID property
@@ -476,12 +475,11 @@ var SessionHistoryInternal = {
           Services.uuid.generateUUID().toString()
         );
       }
-      entry.docshellUUID = this._docshellUUIDMap.get(entry.docshellID);
-      delete entry.docshellID;
+      docshellUUID = this._docshellUUIDMap.get(entry.docshellID);
     }
 
-    if (entry.docshellUUID) {
-      shEntry.docshellID = Components.ID(entry.docshellUUID);
+    if (docshellUUID) {
+      shEntry.docshellID = Components.ID(docshellUUID);
     }
 
     if (entry.structuredCloneState && entry.structuredCloneVersion) {

@@ -4,16 +4,17 @@
 
 /**
  * Records which objects of the session state are edited in place, so that a
- * backend can tell whether an object it wrote before has changed without
+ * backend can tell whether what it wrote before has changed without
  * serializing it again.
  *
- * Collection builds new tab state objects, and a backend can compare those
- * with the objects it wrote before. Some objects are kept across collections
- * and edited in place instead: the tab state cache's history entries and
- * session storage, custom tab values, and the states of closed tabs. Such a
- * comparison can't see those edits, so every in-place edit of an object that
- * collected state references must mark that object, and every object that
- * contains it and is itself kept across collections.
+ * A backend keeps a shallow copy of each tab state it writes, and compares the
+ * next state of the same tab with it, trusting the objects that both
+ * reference. Tab state objects can be edited freely, since the copy keeps
+ * their previous values. The objects they reference are shared with the tab
+ * state cache and kept across collections, like the history entries and custom
+ * tab values. Every in-place edit of such an object, whether a tab state
+ * references it now or did when it was last written, must mark the edited
+ * object, and every object that contains it up to the tab state.
  */
 
 let gVersion = 0;

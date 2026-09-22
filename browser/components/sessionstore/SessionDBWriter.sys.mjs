@@ -12,10 +12,11 @@
  * know about, is stored without loss.
  *
  * Tab states, which make up most of a session, aren't serialized again on
- * every save. Each is compared with the object written for it before, and a
- * group of its properties, its payload or one of its sections, is only
- * serialized when a value in the group differs from the one written, or was
- * edited in place and marked in SessionChangeJournal. The other kinds are
+ * every save. Each is compared with a shallow copy of the tab state written
+ * for it before, and a group of its properties, its payload or one of its
+ * sections, is only serialized when a value in the group differs from the one
+ * written, or is an object that was edited in place and marked in
+ * SessionChangeJournal. The other kinds are
  * small and edited in place in many ways, so they are serialized on every
  * save and compared as text. With the audit option, the writer also
  * serializes the tab properties it judged unchanged, and reports the ones that
@@ -39,9 +40,9 @@ const lazy = XPCOMUtils.declareLazy({
  * @property {Record<string, string[]>} [sections]
  *   Sections, each holding the listed properties of the node.
  * @property {boolean} [tracked]
- *   Whether objects of this kind are compared with the objects written before
- *   instead of being serialized on every save. Everything they reference must
- *   follow the contract of SessionChangeJournal.
+ *   Whether objects of this kind are compared with snapshots of the objects
+ *   written before instead of being serialized on every save. The objects
+ *   they reference must follow the contract of SessionChangeJournal.
  */
 
 const STATE_ARRAYS = {
@@ -116,8 +117,9 @@ const CORE = "core";
  * @property {string} kind
  * @property {number} parent
  * @property {string} prop
- * @property {any} value
- *   The value written, for tracked kinds.
+ * @property {object|undefined} snapshot
+ *   For tracked kinds, a shallow copy of the value written.
+ * @property {string[]|undefined} snapshotKeys
  * @property {string|null|undefined} payload
  *   The node's JSON without its split properties, or null for JSON null.
  *   Undefined when the text isn't kept, as for tracked kinds outside audits.
@@ -203,7 +205,8 @@ export class SessionDBWriter {
     this.#lineage =
       this.#dbLineage || Services.uuid.generateUUID().toString().slice(1, -1);
     this.#seq = Number(meta.seq ?? 0);
-    this.#nextId = Number(meta.next_node_id ?? 1);
+    let nextId = Number(meta.next_node_id);
+    this.#nextId = Number.isSafeInteger(nextId) && nextId >= 1 ? nextId : 1;
     this.#audit = audit;
   }
 
@@ -482,10 +485,7 @@ export class SessionDBWriter {
 
     let previous = context.previous.get(id);
     if (this.#unchangedLeaf(previous, parent, prop, kind, value)) {
-      context.nodes.set(
-        id,
-        previous.value === value ? previous : { ...previous, value }
-      );
+      context.nodes.set(id, previous);
       return;
     }
     let split = this.#split(kind, value);
@@ -495,11 +495,13 @@ export class SessionDBWriter {
       : new Set();
     let keepText = !tracked || this.#audit;
     /** @type {NodeRecord} */
+    let snapshot = tracked ? { ...value } : undefined;
     let record = {
       kind,
       parent,
       prop,
-      value: tracked ? value : undefined,
+      snapshot,
+      snapshotKeys: snapshot && Object.keys(snapshot),
       payload: undefined,
       sections: new Map(),
       orders: new Map(),
@@ -509,8 +511,9 @@ export class SessionDBWriter {
     let core = this.#group(context, {
       kind,
       group: CORE,
-      unchanged: unchanged.has(CORE) && !moved,
-      keepText,
+      unchanged: unchanged.has(CORE),
+      // A moved node's payload is written with its new place.
+      keepText: keepText || moved,
       previousText: previous?.payload,
       serialize: () =>
         split.plain ? serialize(value, split.groups.get(CORE)) : split.payload,
@@ -590,7 +593,7 @@ export class SessionDBWriter {
    * @param {boolean} options.unchanged
    *        Whether the comparison with the previous value found no change.
    * @param {boolean} options.keepText
-   *        Whether the group's JSON is kept, and so must be serialized.
+   *        Whether the group's JSON is needed, and so must be serialized.
    * @param {string|null|undefined} options.previousText
    *        The group's JSON in the previous batch, or undefined if unknown.
    * @param {() => string|null} options.serialize
@@ -606,7 +609,7 @@ export class SessionDBWriter {
       return { text: undefined, write: false };
     }
     let text = toJSON();
-    if (unchanged && text !== previousText) {
+    if (unchanged && this.#audit && text !== previousText) {
       context.misses.push({ kind, group });
       return { text, write: true };
     }
@@ -643,16 +646,12 @@ export class SessionDBWriter {
     ) {
       return false;
     }
-    let before = previous.value;
-    if (
-      !isPlainObject(before) ||
-      !isPlainObject(value) ||
-      this.#isChanged(before)
-    ) {
+    let before = previous.snapshot;
+    if (!before || !isPlainObject(value)) {
       return false;
     }
     let keys = Object.keys(value);
-    let beforeKeys = before === value ? keys : Object.keys(before);
+    let beforeKeys = previous.snapshotKeys;
     if (beforeKeys.length != keys.length) {
       return false;
     }
@@ -669,8 +668,8 @@ export class SessionDBWriter {
   }
 
   /**
-   * Compares a tracked value with the value its node had in the previous
-   * batch.
+   * Compares a tracked value with the snapshot of the value its node had in
+   * the previous batch.
    *
    * @param {NodeRecord|undefined} previous
    * @param {string} kind
@@ -680,12 +679,11 @@ export class SessionDBWriter {
    */
   #unchangedGroups(previous, kind, value, split) {
     let unchanged = new Set();
-    let before = previous?.value;
-    if (!isPlainObject(before) || this.#isChanged(before)) {
+    let before = previous?.snapshot;
+    if (!before) {
       return unchanged;
     }
-    let beforeGroups =
-      before === value ? split.groups : this.#split(kind, before).groups;
+    let beforeGroups = this.#split(kind, before).groups;
     for (let [name, keys] of split.groups) {
       let beforeKeys = beforeGroups.get(name);
       if (
@@ -758,7 +756,12 @@ function isPlainObject(value) {
     value !== null &&
     typeof value == "object" &&
     !Array.isArray(value) &&
-    typeof value.toJSON != "function"
+    typeof value.toJSON != "function" &&
+    !(
+      value instanceof Number ||
+      value instanceof String ||
+      value instanceof Boolean
+    )
   );
 }
 
@@ -766,7 +769,8 @@ function isPlainObject(value) {
  * Serializes the given properties of `value` as one JSON object.
  */
 function serialize(value, keys) {
-  let members = {};
+  // Without a prototype, so that a `__proto__` key is kept as a member.
+  let members = Object.create(null);
   for (let key of keys) {
     members[key] = value[key];
   }
