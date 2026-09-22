@@ -111,7 +111,9 @@ add_task(async function test_changes() {
   let jsonMain = [];
   await measure(async () => {
     let start = ChromeUtils.now();
-    let promise = IOUtils.writeJSON(jsonPath, state, { compress: true });
+    let promise = MODULE_GLOBAL.IOUtils.writeJSON(jsonPath, state, {
+      compress: true,
+    });
     jsonMain.push(ChromeUtils.now() - start);
     await promise;
   });

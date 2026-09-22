@@ -5,8 +5,8 @@
 "use strict";
 
 /* exported SessionChangeJournal, SessionDBWriter, SessionStoreDB, makeTab,
-            makeState, recollect, median, measure, fileSize, random,
-            randomString */
+            makeState, recollect, MODULE_GLOBAL, toModuleGlobal, median,
+            measure, fileSize, random, randomString */
 
 const { SessionChangeJournal } = ChromeUtils.importESModule(
   "moz-src:///browser/components/sessionstore/SessionChangeJournal.sys.mjs"
@@ -19,6 +19,15 @@ const { SessionStoreDB } = ChromeUtils.importESModule(
 );
 
 do_get_profile();
+
+// SessionStore collects and writes the state in the shared module global, as
+// the writer runs there. Objects of another global, like this file's, are
+// slower to copy, inspect and serialize.
+const MODULE_GLOBAL = Cu.getGlobalForObject(SessionDBWriter);
+
+function toModuleGlobal(value) {
+  return MODULE_GLOBAL.JSON.parse(JSON.stringify(value));
+}
 
 let gSeed = 123456;
 function random() {
@@ -91,6 +100,7 @@ function makeTab(i) {
       [`https://site${i % 300}.test`]: { key: randomString(500) },
     };
   }
+  tab = toModuleGlobal(tab);
   SessionChangeJournal.setIdentity(tab, {});
   return tab;
 }
@@ -143,8 +153,10 @@ function makeState(tabCount) {
  * describe.
  */
 function recollect(win) {
+  let { Object: ModuleObject } = MODULE_GLOBAL;
   win.tabs = win.tabs.map(tab => {
-    let copy = { ...tab, attributes: { ...tab.attributes } };
+    let copy = ModuleObject.assign(new ModuleObject(), tab);
+    copy.attributes = ModuleObject.assign(new ModuleObject(), tab.attributes);
     SessionChangeJournal.setIdentity(
       copy,
       SessionChangeJournal.identityOf(tab)

@@ -67,7 +67,7 @@ async function benchmark(tabCount) {
     "json save total",
     await measure(async () => {
       let start = ChromeUtils.now();
-      let promise = IOUtils.writeJSON(jsonPath, state, {
+      let promise = MODULE_GLOBAL.IOUtils.writeJSON(jsonPath, state, {
         compress: true,
         tmpPath: jsonPath + ".tmp",
       });
@@ -154,7 +154,9 @@ async function benchmark(tabCount) {
     "json read",
     await measure(async () => {
       let start = ChromeUtils.now();
-      JSON.parse(await IOUtils.readUTF8(jsonPath, { decompress: true }));
+      MODULE_GLOBAL.JSON.parse(
+        await IOUtils.readUTF8(jsonPath, { decompress: true })
+      );
       return ChromeUtils.now() - start;
     })
   );
@@ -183,7 +185,9 @@ async function benchmarkDeferred(tabCount) {
   let jsonMain = [];
   await measure(async () => {
     let start = ChromeUtils.now();
-    let promise = IOUtils.writeJSON(jsonPath, state, { compress: true });
+    let promise = MODULE_GLOBAL.IOUtils.writeJSON(jsonPath, state, {
+      compress: true,
+    });
     jsonMain.push(ChromeUtils.now() - start);
     await promise;
   });
