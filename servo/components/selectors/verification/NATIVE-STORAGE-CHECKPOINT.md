@@ -1182,6 +1182,57 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/clear-count-review-v1/audit.py --output /private/tmp/native-clear-count --report /private/tmp/native-clear-count-audit.json
 ```
 
+## Reviewed native push history composition
+
+The complete typed `push_internal` postcondition now preserves the same stored
+history and ordered record accounting used by pop and clear. Native insertion
+is connected to checked extracted insertion, including saturation and sequential
+updates when the indices coincide. Its ordered fold preserves counter length
+4096 and records the maximum of the previous high-water mark and final hash
+count. The postcondition's hash append, record append/count and high-water
+equation establish the final live invariant.
+
+The selected interpretation satisfies the exported insertion and recursive-fold
+contracts. Counter length is derived from an explicit initial size; the counter
+observer's intrinsic-to-length condition remains explicit. Record constructor
+and projection laws, sequence append/snoc laws and the complete native post are
+also premises. No additional opaque SmallVec declarations enter these proofs.
+
+The final invariant establishes the next pop precondition given its current-state
+endpoint and borrow intrinsic. It also establishes the next clear precondition
+given its filter, hash-slice and high-water endpoints and borrow intrinsic.
+These implications do not establish native completion or the actual provider's
+execution and policy correspondence.
+
+The translator checks 24 shared native signatures, eleven identical source
+locations, five datatype layouts and the three native counter primitives.
+Datatype layout checks justify the differently named generated SendElement
+projection. Thirteen intrinsic predicates and two rewrite axioms have identical
+source definitions, with only generated axiom labels normalized; three opaque
+intrinsic leaves remain explicit. The maximum-count constant has the same exact
+definition. Unspecialized contract instrumentation preserves the native push
+task's 508 declarations and 974 identities.
+
+The fresh `push-live-check-v1` rebuild passes 50 modules and 76 theorem/axiom
+audits. All twenty new audits use only standard logical axioms. The combined
+inventory contains 54 structural, 64 semantic, six canonical-root and six
+binding controls. Generated semantic mutants compile before failing the intended
+proofs. Independent review checks all 772 outputs, 8,349 input pins and 141,236
+lookup entries. Five physical output/reference/report controls reject the
+intended changes; all 3,885 review evidence pins were rechecked. One fresh
+dependency rebuild and independent source/output review support this checkpoint.
+
+| Record | SHA-256 |
+| --- | --- |
+| `PUSH-LIVE-EVIDENCE-v1.json` | `b450c14bd1b2e1dd419d386a3c5188baafde47e45cd60a10c06e929faed1094e` |
+| `push-live-check-v1/report.json` | `b74e5002db837f83ea4bc6270f5bc21cd6a34afbbbf0f56c357709eeafcb7b87` |
+| `reviews/push-live-review-v1/REVIEW-EVIDENCE-v1.json` | `fd1dab1b9eadaed71e9b5601642414b8ed158d8ce7c1a953bab51fc3b6d6a644` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/push-live-gate-v1/rebuild.py --output /private/tmp/native-push-live
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/push-live-review-v1/audit.py --output /private/tmp/native-push-live --report /private/tmp/native-push-live-audit.json
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -1202,9 +1253,12 @@ and is preserved by its interpreted postcondition. The next priority is
 establishing this invariant from actual provider execution and connecting it
 to recovery and clear under the same observer interpretation. The reviewed
 count bridge now derives the full native clear precondition from history,
-including after pop. The next native push interpretation must establish this
-same history through ordered counter updates, hash and record appends, and the
-high-water maximum, starting from explicit counter length and native validity.
+including after pop. Native push's interpreted post now preserves this same
+history and accounting through ordered counter updates, hash and record appends,
+and the high-water maximum, starting from explicit counter length and laws.
+The next priority is integrating source-preserved `Storage.clear` into the shared
+native provider/push/pop crate and deriving empty history and accounting from
+its actual postcondition. The new crate must recheck its complete model inventory.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises. Integrating its postcondition with the shared storage
