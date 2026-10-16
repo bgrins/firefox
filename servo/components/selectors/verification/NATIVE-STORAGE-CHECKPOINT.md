@@ -679,6 +679,43 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-counte
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-counter-lean/reviews/success-gate/audit_rebuild.py /private/tmp/native-removal-success
 ```
 
+## Reviewed native U8 zero check
+
+`native-u8-is-zeroed/proof-guarded-v1` and independent `check-v1` each pass
+26 debug and 26 release obligations. Source checks preserve the exact local
+production loop, array structure and constants, erasing one loop invariant and
+two ghost assertions. Complete compilation/proof inventories and cached tool
+prerequisites are checked. Five compilation and three output controls pass.
+
+The loop returns true exactly when all 4096 counters are zero, under its library
+models. A new explicit borrowed-array iterator contract relates the array view
+to the iterator's slice view; the iterator implementation itself is not verified.
+The inherited next/produces/completion specifications remain assumptions.
+
+Two return-value mutations leave only their intended obligations unresolved.
+The unchanged runtime passes fourteen examples; those mutants fail thirteen
+and one respectively. Removing only the array-view contract retains a declared
+extern specification and leaves three obligations unresolved, with the other
+23 passing. These Timeout results are not solver counterexamples. The excluded
+first prototype had a missing-contract warning and an impossible precondition;
+it is not counted as verification evidence.
+
+The result is conditional functional correctness of the exact loop in an
+inherent specialization. Native trait dispatch, the debug wrapper, total
+termination and complete storage clearing are outside this checkpoint.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `9da8f34e8b8a014bd6289422cde149f16400db4872c8e6aa2da7b74a534f6bea` |
+| `check-v1/report.json` | `e8ea7f7f39368d130971de783aeaf07c35298d736fce0237293912100a936312` |
+| `proof-guarded-v1/report.json` | `76064cefda61013493b5aa35708875a4f09f4cc7d6dd46198d9b05624bfa3d98` |
+| `EVIDENCE-PRODUCER-v1.json` | `5fd3c206f8f6f336367fee5e79b7e2f31734e3ae6aaf684f953f40a4553854cd` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-is-zeroed/prove_guarded.py /private/tmp/native-zero-check
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-is-zeroed/reviews/audit_guarded.py /private/tmp/native-zero-check
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
