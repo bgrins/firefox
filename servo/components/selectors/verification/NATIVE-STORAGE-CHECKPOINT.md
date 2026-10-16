@@ -1139,6 +1139,49 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/pop-live-review-v1/audit.py --output /private/tmp/native-pop-live --report /private/tmp/native-pop-live-audit.json
 ```
 
+## Reviewed native clear precondition
+
+The native clear routine's complete typed precondition now has a selected Lean
+interpretation. Eight definitions and both contracts for recursive counts agree
+with native hash indices, ordered hash lists and bounded byte observations.
+Exact counts include the counter length of 4096. The exported precondition
+retains the borrow intrinsic and the choice between a high-water mark above 25
+and the bounded-history exact-count path.
+
+Stored history derives that count domain. After either pop result, the full
+selected pop postcondition and initial history establish the clear precondition
+when the clear filter, hash slice and high-water argument observe the pop's
+final state. The clear borrow's intrinsic validity remains explicit. This
+derives the count premise; native completion, the clear postcondition under
+these observers, and provider/recovery composition remain open.
+
+The fresh `clear-count-check-v1` rebuild passes 47 modules and 56 theorem/axiom
+audits. All twenty new audits use only standard logical axioms; the combined
+inventory retains the earlier primitive constructor's three SmallVec
+declarations. Twelve new structural controls check the translation. Eighteen
+new semantic controls reject incorrect count recurrence, saturation bounds,
+thresholds, counter size, omitted intrinsic validity and mismatched pop/clear
+endpoints. Generated semantic mutants compile before their interpretation
+proofs fail. The original native clear task retains all 1,387 declarations and
+2,359 identities after unspecialized contract instrumentation.
+
+Independent review checks all 638 outputs, 8,293 input pins and 141,236 lookup
+entries. The combined inventory contains 41 structural, 48 semantic and four
+canonical-root controls. Five physical output/reference/report controls reject
+the intended changes; all 3,214 review evidence pins were rechecked. One fresh
+dependency rebuild and independent source/output review support this checkpoint.
+
+| Record | SHA-256 |
+| --- | --- |
+| `CLEAR-COUNT-EVIDENCE-v1.json` | `76103fefb3c156939161251ea6b6bd8fbe81fc0ab36ef49431549bad45c6d1d6` |
+| `clear-count-check-v1/report.json` | `2e631bf61c2514cfc221dd3c7630512eeff6b7f4c17001d8349768b32e527e1a` |
+| `reviews/clear-count-review-v1/REVIEW-EVIDENCE-v1.json` | `80cde3083ff72fbc6993436a9f9db35dd139d5b348f834764f6eed1b38952a0a` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/clear-count-gate-v1/rebuild.py --output /private/tmp/native-clear-count
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/clear-count-review-v1/audit.py --output /private/tmp/native-clear-count --report /private/tmp/native-clear-count-audit.json
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -1157,15 +1200,15 @@ branch-specialized clauses found during preflight.
 The selected stored-history invariant now derives the full pop precondition
 and is preserved by its interpreted postcondition. The next priority is
 establishing this invariant from actual provider execution and connecting it
-to recovery and clear under the same observer interpretation. A preliminary
-six-theorem count bridge derives the optimized-clear domain from history,
-including after pop; its typed native contract interpretation and independent
-review remain open. Four semantic controls check this prototype's count and
-saturation boundaries.
+to recovery and clear under the same observer interpretation. The reviewed
+count bridge now derives the full native clear precondition from history,
+including after pop. The next native push interpretation must establish this
+same history through ordered counter updates, hash and record appends, and the
+high-water maximum, starting from explicit counter length and native validity.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
-library premises. Integrating its typed counter interpretation with earlier
-storage observers and deriving the native count premise remain open. Linked-pop integration remains useful
+library premises. Integrating its postcondition with the shared storage
+observers remains open. Linked-pop integration remains useful
 but does not discharge primitive semantics or the provider boundary. Complete
 recovery and the next borrow's intrinsic validity remain open.
 
