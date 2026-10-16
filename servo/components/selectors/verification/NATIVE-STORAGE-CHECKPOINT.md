@@ -793,6 +793,41 @@ The separate history-to-precondition, primitive-witness and storage-observer
 prototypes are excluded from this checkpoint. Connecting every abstract removal
 edge to the complete native contract remains open.
 
+## Reviewed native optimized filter clear
+
+`native-clear-filter/check-v1` and independent `proof-guarded-v2` each
+pass 160 debug and 160 release obligations across twenty models per
+configuration. All thirteen preceding removal models are preserved. Source
+checks retain the production clear helper after enumerated ghost erasure,
+plus the checked U8 removal, default constructor and whole-array reset.
+
+For a high-water value above 25, the helper resets every counter directly.
+Otherwise, exact live counts and hash length bounded by high-water imply every
+counter is at most 50. The loop proves both ordered decrements safe, including
+coincident indices, and preserves exact counts for the remaining suffix. Its
+final array is zero. No new trusted external contract is introduced; slice
+iteration and array/sequence models remain assumptions. Deriving the native
+count premise from storage history remains open.
+
+Three source controls omit removal, branch on current length instead of
+high-water, or omit exact counts. Each leaves its intended obligation
+unresolved; these Timeout results are not counterexamples. Seven runtime
+examples pass, and both runtime mutations produce mismatches. Five compilation
+and three output controls pass. The producer's 7,879 pins and the root replay's
+complete eighty-file proof inventory were independently checked.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `0c1db2799d726d9a6abb39f91f53e03ff10504ae4b8d7af336ba2bdb2debc7b2` |
+| `check-v1/report.json` | `2ce6ab2e17b3dbe4c5cc4cddf786d299a7f7169546326e052d14fcc85a78361d` |
+| `EVIDENCE-REBUILD-v1.json` | `6c4f2045935236eea3656d125644c4135f41c1e4a3c182cd97afb0f40e4a8994` |
+| `reviews/INDEPENDENT-REVIEW-v1.json` | `c3f2523fab3ec4ae71adf0a27a8752be2798dbe8a4d2cbf6c7cd788de10c0ca3` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-clear-filter/prove_guarded.py /private/tmp/native-optimized-clear
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-clear-filter/reviews/audit_guarded.py /private/tmp/native-optimized-clear
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
