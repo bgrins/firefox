@@ -750,6 +750,49 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-remove
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-remove-specialized/reviews/audit_guarded.py /private/tmp/native-removal-caller
 ```
 
+## Reviewed native removal interpretation
+
+`native-u8-remove-lean/check-v1` and independent
+`reviews/remove-gate/rebuild-v1` each freshly compile 21 modules and pass nine
+exact theorem/axiom audits, five semantic controls and ten typed mapping
+controls. Three output controls pass. Each replay checks 210 outputs and
+141,236 external lookup entries; all 8,155 producer evidence pins were rechecked.
+
+Fresh export preserves all 1,355 task declarations, four roots, 49 original
+theory declarations and 125 typed identities, adding only the complete native
+pre/post definitions. The typed adapter retains native storage projections,
+ordered updates and both sequential nonzero preconditions. Explicit constant
+bindings and bounded sequence laws connect its final counters to the raw model
+and to successful extracted removal, including coincident hash indices.
+
+The nine declarations use only standard logical axioms. Complete interpreted
+native pre/postconditions remain premises, as does compatibility when using an
+alternative observer. Why3 narrowing correspondence is restricted to the actual
+key-size value 12. The adapter is not a general Why3 importer.
+
+Review caught and corrected a translator display-name/origin mismatch that could
+swap current and final observations. Structural controls reject that mismatch
+and nine other malformed mappings. Semantic controls reject changed endpoints,
+a missing sequential precondition, reuse of the first index, changed sticky
+counter behavior and missing observer compatibility. This was a tooling defect;
+no additional Firefox bug is established.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `81163ae0dc71ace319fa3496538f988bc0561334c69b4d5fd993ef112ecd41a8` |
+| `check-v1/report.json` | `242ff93ee80f2d848533476ade549572a9f6ca96693e23b0f2c8881333217efd` |
+| `reviews/remove-gate/rebuild-v1/report.json` | `1cb52c86e57c43a7941efc15a795f8969d7e8911b20049257b5290b5de76ab83` |
+| `reviews/remove-gate/EVIDENCE-REBUILD-v1.json` | `0441aa5756642e4bba6a5a9ed7714f0db7da321e61e8817ea55f0be76b7ff898` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-remove-lean/reviews/remove-gate/rebuild.py --output /private/tmp/native-removal-interpretation
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-remove-lean/reviews/remove-gate/audit_rebuild.py /private/tmp/native-removal-interpretation
+```
+
+The separate history-to-precondition, primitive-witness and storage-observer
+prototypes are excluded from this checkpoint. Connecting every abstract removal
+edge to the complete native contract remains open.
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -765,9 +808,10 @@ now links the caller predicate to the checked helper definition and preserves
 both return paths. Exporting the unspecialized contract avoids the ambiguous
 branch-specialized clauses found during preflight.
 
-The next priority is connecting the proved U8 array transitions to the existing
-native counter interpretation. Raw encoding and sequential non-underflow from
-live history are checked separately; their native observer mapping remains open.
+The next priority is connecting the interpreted U8 transitions to each actual
+abstract removal edge. Raw encoding, sequential non-underflow from live history,
+and the complete native removal contract interpretation are checked separately;
+their integrated call and observer correspondence remains open.
 The native filter reset now has conditional extracted endpoint correspondence.
 Integrating its counter interpretation with the earlier storage observers and
 checking the complete reset path remain separate work. Filter reset does not
