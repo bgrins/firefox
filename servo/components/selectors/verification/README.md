@@ -55,6 +55,33 @@ The experiment currently covers `BloomStorageU8`. It does not verify
 `BloomStorageBool`, arbitrary `BloomStorage` implementations, selector-matching
 callers, or probabilistic false-positive rates.
 
+## Bug found in the caller
+
+`StyleBloom::clear()` selected its removal fast path from the current hash-stack
+length. After a deep ancestor chain saturated counters, recovering to a shallow
+element could shrink that stack below the threshold. Removing the remaining
+hashes then left saturated counters behind. Debug builds failed the zeroed-filter
+assertion; release builds retained stale counters across thread-local reuse,
+allowing additional false positives. No false negative was demonstrated.
+
+The fix records the largest stack since the previous clear. A stack that has
+always held at most 25 hashes cannot saturate a counter: even with coincident
+indices, it contributes at most 50 to any slot. Larger stacks use the full reset.
+
+[tests/style_bloom.rs](tests/style_bloom.rs) compiles the actual
+`style/bloom.rs` with a minimal mock element interface and the vendored
+`smallvec` and `atomic_refcell` crates. It exercises depth recovery, clearing,
+and drop/reuse, including threshold and saturation boundaries. Both tests fail
+against the original caller and pass with the fix. This is a Rust regression
+reproducer, not a Lean proof of the caller or an end-to-end browser test.
+
+Run the local tests independently of the proof tools:
+
+```sh
+cargo test --offline --locked --manifest-path servo/components/selectors/verification/Cargo.toml
+cargo test --offline --locked --release --manifest-path servo/components/selectors/verification/Cargo.toml
+```
+
 ## Trust and checks
 
 The connection to Rust depends on the pinned compiler, Charon/Aeneas extraction,
