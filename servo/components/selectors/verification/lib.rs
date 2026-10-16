@@ -26,3 +26,18 @@ pub fn contains(filter: &BloomFilter, hash: u32) -> bool {
 pub fn clear(filter: &mut BloomFilter) {
     filter.clear();
 }
+
+#[path = "../ancestor_hashes.rs"]
+pub mod ancestor_hashes;
+
+pub fn pack(hashes: [u32; 4], len: usize) -> ancestor_hashes::AncestorHashes {
+    ancestor_hashes::AncestorHashes::from_hashes(hashes, len)
+}
+
+pub fn unpack(packed_hashes: [u32; 3]) -> u32 {
+    ancestor_hashes::AncestorHashes { packed_hashes }.fourth_hash()
+}
+
+pub fn may_match(packed_hashes: [u32; 3], filter: &BloomFilter) -> bool {
+    ancestor_hashes::AncestorHashes { packed_hashes }.may_match(filter)
+}
