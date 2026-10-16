@@ -381,6 +381,45 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-policy/reviews/audit_rebuild.py /private/tmp/native-pop-policy-replay
 ```
 
+## Reviewed native pop representation
+
+`native-storage-pop-composition/check-v1` and independent `reviews/rebuild-v1`
+pass thirteen exact theorem/axiom audits, two semantic controls and four typed
+mapping controls. Each run rebuilds 39 local modules and checks 250 exact outputs
+and 141,236 external lookup entries. Accepted source/report links include the
+earlier element-observer interpretation. The independent auditor also rejects
+changed, missing and extra proof objects in isolated fixtures.
+
+The filter interpretation uses the earlier native counter projection and the
+actual stored high-water value. Full element/count record projection connects
+the removed native record to the represented element stack. Both return
+branches preserve the observation invariant and ancestor chain, with exact
+native vector representation relations. The element-vector results include
+actual extracted primitive-pop equations. Typed symbol checks preserve native
+origins/signatures, storage and record field order, sequence/borrow signatures
+and the thirty explicit interpretation assignments.
+
+The final extracted storage is an existential representation, not yet the
+proved result of an actual extracted `Storage.pop` invocation. Complete native
+pre/post interpretation, sequence meaning, primitive refinements and extracted
+library models remain premises. The original resource-limited counter-observer
+mutation remains an exploratory rejection; accepted semantic controls instead
+change the stored high-water and final element-vector endpoint cleanly.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `ae9e6722a3c6db5cdac5d3a143ca0eb8fcb8304e6389496791e105def98107c2` |
+| `check-v1/report.json` | `3cb92532b95916626a540fcfb3123d0be0375600fba67ea435639a8798a8e390` |
+| `reviews/rebuild-v1/report.json` | `3f5766cfe288c5d78c2dc1b62f861817a49dbea79e2c007b52cc5eae8e4acc52` |
+| `reviews/EVIDENCE-REBUILD-v1.json` | `43ce288e95ff526649da2daf06fdd87d58d5adc6652f082a8c5182544a6585eb` |
+
+Use a fresh output directory, then audit that directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-composition/reviews/rebuild.py --output /private/tmp/native-pop-composition-replay
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-composition/reviews/audit_rebuild.py /private/tmp/native-pop-composition-replay
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -396,16 +435,15 @@ now links the caller predicate to the checked helper definition and preserves
 both return paths. Exporting the unspecialized contract avoids the ambiguous
 branch-specialized clauses found during preflight.
 
-The next `native-storage-pop-composition` prototype has thirteen compiled
-theorems linking that history to the earlier native counter interpretation,
-the actual stored high-water and the full element/count record. Conditional
-element-vector primitive correspondence constructs a final extracted storage
-representation preserving validity and the ancestor chain on both return
-branches. Its fresh dependency rebuild and independent replay remain pending.
-It does not establish an actual extracted `Storage.pop` call. Repeated recovery
-also needs the preserved invariant to supply the next call's complete entry
-conditions; indexed record reads and finite logical hash-sequence semantics
-must be made explicit for that step.
+The `native-storage-pop-entry` prototype derives the next pop's complete entry
+conditions from preserved validity, indexed record reads and finite logical
+hash-sequence laws. Its independent fresh rebuild is in progress. A separate
+`native-storage-pop-execution` prototype proves actual extracted removal-loop
+execution with the exact native filter observation and represented vector
+endpoint, conditional on the checked trace and primitive models. These new
+results still need independent acceptance and composition into the complete
+storage invocation. Repeated recovery and the next borrow's intrinsic validity
+remain open.
 
 The matcher still has a preserved verifier limitation involving its borrowed
 dynamic callback, associated data and mutable cache reference. The reviewed
