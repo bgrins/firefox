@@ -22,42 +22,50 @@ lifetime correctness. See [README.md](README.md) for assumptions and reproductio
 | 2. Close hash-normalization gap | Complete (`fc3af7e2b69a`) | Checked equivalence of raw and masked hashes for insertion, removal and lookup; a composed history/packing/rejection theorem using raw element hashes. |
 | 3. Exercise Gecko state changes | Complete (`700d5df737ab`) | Local browser checks of class/ID/attribute mutation, reparenting, removal/reinsertion, namespaces/case, shadow roots and slot reassignment, with style flushes and independent expectations. Assess feasibility of a test-only filter bypass and document coverage limits. |
 | 4. Prove StyleBloom recovery and clearing | Clear proof committed (`a0bd75a11f4e`); conditional recovery algorithm proved; production adapter open | An invariant connecting ancestor path, hash stack, filter contributions and saturation history; valid removals, required-hash retention, and empty state after clearing. Account for siblings, ancestors and separate roots; connect extracted production transitions to the invariant. |
-| 5. Verify relative traversal and caching | Production extraction succeeds; loop/cache proofs in progress | Termination, region coverage and boundary preservation for the production walk; conservative handling of unavailable hashes and correct children/subtree cache reuse under explicit DOM/lifetime assumptions. |
+| 5. Verify relative traversal and caching | Complete; combined extraction, 44 declaration audits, and independent review pass | Termination, region coverage and boundary preservation for the production walk; conservative handling of unavailable hashes and correct children/subtree cache reuse under explicit DOM/lifetime assumptions. |
 | 6. Prove selector hash collection soundness | Extraction and iterator refactor in progress | A declared selector subset with a production connection: matching implies every collected rejection hash is represented in the appropriate DOM region. Extend through combinators, is/where and relative selectors; enumerate unsupported constructs. |
 
-## Recommended next sequence
+## Proposed next sequence
 
 The priority is connecting the checked filter operations to their production
 callers. The first three milestones already provide differential, composition,
 and browser evidence; the remaining work targets the assumptions those checks
 currently leave open.
 
-1. **Preserve the checked clearing result as a reviewable commit (done).** Commit
-   `a0bd75a11f4e` contains the production clear helper and its thirteen audited
-   theorems separately from recovery work, retaining exact theorem and axiom checks. The integrated
-   suite now checks 66 theorems, including five insertion-coverage lemmas and
-   twelve recovery declarations under explicit adapter contracts; the native build with the current caller
-   refactors also succeeds.
-2. **Finish milestone 4: ancestor recovery.** Prove that rebuilding, trimming,
-   finding a common parent, and flushing pending ancestors produce the required
-   ancestor path. Connect the production adapter's element and hash stacks to
-   the filter history and historical maximum. Check pending-stack reversal,
-   finite-depth assumptions, and `usize` arithmetic bounds. Cover separate roots
-   and both recovery configurations. Completion requires discharging the adapter
-   obligations; conditional theorems about an abstract stack are intermediate
-   results.
-3. **Finish milestone 5: relative traversal and cache reuse.** Integrate the
-   production traversal proofs for termination, exact child/descendant coverage,
-   root boundaries, and unavailable hashes. Then check hint-to-region selection,
-   sibling anchors, cache keys, and entry transitions. State the map-library
-   contract and establish the caller's immutable-DOM/stable-identity cache epoch.
-   A failed filter build must never publish a partial filter for rejection.
-4. **Finish milestone 6: selector hash collection.** First resolve extraction
-   of the actual collector and iterator operations. Then prove, for an explicit
-   selector subset, that a match supplies every collected hash in the correct
-   region, including singleton `:is()`/`:where()`, combinators, quirks handling,
-   and the four-hash limit. Compose this with the existing raw-hash rejection
-   theorem. Record unsupported constructs and provider assumptions explicitly.
+1. **Integrate and commit milestone 5 (integration complete).** The combined
+   extraction and audit pipeline passes: the core suite has
+   66 checked theorems, and the relative work adds 36
+   declarations plus eight bridge theorems. The combined result is
+   110 audited declarations, including two concrete witness definitions.
+   Exact axiom allowlists and the check that excludes the mock
+   collector from extracted dependencies pass. The collector preparation
+   refactor is separate in `042bf7484d3a`. Provider, map-library, and
+   immutable-epoch contracts are documented; this result does not establish
+   selector collection soundness.
+2. **Discharge milestone 4's production storage obligations.** The recovery
+   algorithm is already checked in `95ab84b3ff65`. Connect actual push, pop,
+   clear, and pending-stack operations to the element path, hash history, and
+   historical maximum. First review the method-by-method extraction prototype:
+   its methods typecheck, but composing their borrow-return functions into the
+   recovery interface still needs proof. Prove that successful hash production
+   is exactly the recorded insertion sequence, including duplicate hashes and
+   count/capacity bounds. Completion requires applying the recovery theorem to
+   these checked production methods for both recovery configurations.
+3. **Resolve the milestone 6 extraction gate before expanding its proofs.**
+   Obtain Lean-checkable extraction of the production simple-component helper,
+   then the collector and iterator. Keep tool changes and minimal reproducers
+   isolated from the default verifier. Check every normalization and opacity
+   boundary explicitly. Completion of this step means regenerated code
+   typechecks with a reviewed connection to production; emitting Lean text is
+   insufficient. If extraction requires broader unsupported tool features,
+   record the exact blocker and leave milestone 6 open.
+4. **Prove collection soundness incrementally.** Start with the supported simple
+   selector components, then combinators and the four-hash limit, singleton
+   `:is()`/`:where()`, quirks handling, and relative-selector regions. For each
+   stage, state its selector subset and prove that matching supplies every
+   collected rejection hash in the appropriate region. Compose those results
+   with the ancestor and relative Bloom guarantees. Completion requires a
+   production-connected theorem and an explicit list of unsupported constructs.
 5. **Validate the final production changes together.** Regenerate all models
    from the final source, audit all integrated proofs, run the Rust regressions
    and differential corpus, rebuild Firefox, and repeat all five browser tests.
@@ -72,9 +80,13 @@ currently leave open.
 
 ### Toolchain decision point
 
-Selector collection currently has the greatest extraction risk: mutable iterator
-borrows, associated types, and the monomorphized array-default translation have
-exposed limitations in the pinned tools. Prefer small production refactors whose
+Selector collection currently has the greatest extraction risk. Generic
+extraction encounters iterator borrows, generated trait-field naming, and
+recursive selector types behind opaque `Arc` representations. Monomorphized
+extraction encounters built-in `Box` representations and array calls whose
+declarations are absent. A narrow experimental array-default metadata fix
+passes its minimal reproducer but does not resolve collector extraction.
+Prefer small production refactors whose
 semantics can be reviewed directly. If those cannot preserve a clear connection
 to the original algorithm, retain a minimal tool reproducer and document the
 unproved obligation. A surrogate model or additional trusted axiom does not
@@ -133,8 +145,18 @@ counterexample requires it.
   break inside the nested subtree walk. Splitting the existing successor walk
   into a production helper permits extraction. Replacing the cache closure with
   explicit occupied/vacant entry branches also permits extraction of the caller.
-  Hashbrown map entry operations still require an explicit library contract;
-  the traversal and entry-update proofs are awaiting integration and review.
+  Hashbrown map entry operations still require an explicit library contract.
+  The traversal, entry-update, cache-epoch, and concrete Bloom bridge proofs now
+  pass in the combined pipeline and have received independent review.
+
+- Milestone 5 integration: the full runner passes 110 declaration audits
+  (108 theorems and two concrete witness definitions), ten Rust regressions,
+  and eight differential checks covering 33,450,624 comparisons. The matching
+  production snapshot passed a native build and all five browser tests for
+  three repetitions (42 checks). The relative audit rejects unexpected axioms
+  and missing or duplicate reports; injected negative cases verify rejection.
+  On case-insensitive filesystems, the main Lean directory must precede the
+  relative directory to avoid its log directory shadowing generated modules.
 
 - Clear-proof review identified an adapter obligation: production pushes append
   to the hash stack while logical insertion histories prepend. A permutation or
