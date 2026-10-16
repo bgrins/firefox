@@ -178,6 +178,26 @@ def main():
         env=env,
         log=generated / "rust-tests.log",
     )
+    run(
+        [
+            "cargo",
+            "test",
+            "--offline",
+            "--locked",
+            "--release",
+            "--manifest-path",
+            PROJECT / "differential/Cargo.toml",
+            "--config",
+            'source.crates-io.replace-with="vendored-sources"',
+            "--config",
+            "source.vendored-sources.directory="
+            + json.dumps(str(ROOT / "third_party/rust")),
+            "--",
+            "--nocapture",
+        ],
+        env=env,
+        log=generated / "differential-tests.log",
+    )
     llbc = generated / "stylo_bloom_verification.llbc"
     command = [aeneas / "charon", "rustc", "--preset", "aeneas", "--sysroot", "default"]
     for operation in OPERATIONS:

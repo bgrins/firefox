@@ -84,6 +84,32 @@ transitions between separate roots. Its atoms and DOM interface remain mocks.
 optimized runs pass; this exploration has not found an additional defect.
 These are bounded checks, not formal proofs of `StyleBloom` or its callers.
 
+## Differential selector matching
+
+The separate [differential crate](differential/tests/matching.rs) links the real
+`selectors` crate, including its CSS parser, ancestor-hash collection, matcher,
+and relative-selector filter cache. The verification runner builds it against
+Firefox's vendored dependencies and runs it in release mode.
+
+It compares matching with filters disabled against ancestor-only, relative-only,
+and combined filtering. Its 2,668 generated selectors run over all 24 four-node
+forests whose parents precede their children, four label assignments, all three
+quirks modes, every element, and three repeated lookups: 27,661,824 comparisons.
+The grammar includes combinators, namespaces, attributes, case differences,
+`:is()`, `:where()`, and `:has()` with nested selectors and sibling traversal.
+Failures report the selector, forest, labels, element, and filtering mode.
+
+Additional checks exercise shared filters across different selectors and retries
+when an element cannot provide hashes. A targeted check counts hash-provider and
+class-matching calls to establish that repeated lookups build, reuse, and reject
+through the relative filter. The selector-result cache is reset between passes
+so it cannot bypass those checks.
+
+Both debug and optimized runs pass. These are bounded comparisons using a mock
+DOM and deterministic string hashes. They do not cover Gecko's atom hashing,
+shadow DOM, mutation/invalidation, or every selector grammar production, and are
+not a formal proof of selector matching.
+
 ## Bugs found in callers
 
 ### Saturation survives clearing
