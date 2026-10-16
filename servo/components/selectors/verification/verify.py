@@ -104,6 +104,13 @@ COVERAGE_THEOREMS = {
     "insertions_coverage",
 }
 
+STORAGE_HISTORY_THEOREMS = {
+    "history_represents",
+    "history_present",
+    "history_lookup",
+    "insertion_history",
+}
+
 RECOVERY_THEOREMS = {
     "ancestors_chain",
     "chain_tail",
@@ -199,6 +206,7 @@ def audit_proofs(output):
     expected |= {f"StyleBloomProofs.{name}" for name in STYLE_BLOOM_THEOREMS}
     expected |= {f"CoverageProofs.{name}" for name in COVERAGE_THEOREMS}
     expected |= {f"RecoveryProofs.{name}" for name in RECOVERY_THEOREMS}
+    expected |= {f"StorageHistoryProofs.{name}" for name in STORAGE_HISTORY_THEOREMS}
     if len(reports) != len(expected) or {name for name, _ in reports} != expected:
         raise RuntimeError("Lean did not report the expected theorem dependencies")
     for theorem, names in reports:
@@ -227,6 +235,10 @@ def audit_proofs(output):
             "CoverageProofs.insert_preserves_present",
             "CoverageProofs.insert_establishes_present",
             "CoverageProofs.insertions_coverage",
+            "StorageHistoryProofs.history_represents",
+            "StorageHistoryProofs.history_present",
+            "StorageHistoryProofs.history_lookup",
+            "StorageHistoryProofs.insertion_history",
             "NormalizationProofs.insert_masked",
             "NormalizationProofs.remove_masked",
             "NormalizationProofs.contains_masked",
@@ -398,7 +410,13 @@ def main():
     )
     style_log = generated / "lean-style-bloom-proofs.log"
     run(
-        [lean / "bin/lean", "-DwarningAsError=true", "StyleBloomProofs.lean"],
+        [
+            lean / "bin/lean",
+            "-DwarningAsError=true",
+            "-o",
+            "StyleBloomProofs.olean",
+            "StyleBloomProofs.lean",
+        ],
         cwd=PROJECT / "lean",
         env=env,
         log=style_log,
@@ -423,6 +441,13 @@ def main():
         env=env,
         log=recovery_log,
     )
+    storage_log = generated / "lean-storage-history-proofs.log"
+    run(
+        [lean / "bin/lean", "-DwarningAsError=true", "StorageHistoryProofs.lean"],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=storage_log,
+    )
     audit_proofs(
         proof_log.read_text()
         + packing_log.read_text()
@@ -430,6 +455,7 @@ def main():
         + style_log.read_text()
         + coverage_log.read_text()
         + recovery_log.read_text()
+        + storage_log.read_text()
     )
     run(
         [sys.executable, PROJECT / "relative/extract.py", "--bridge"],
