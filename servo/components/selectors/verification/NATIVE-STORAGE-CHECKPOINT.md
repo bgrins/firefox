@@ -1046,6 +1046,53 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/solver-probe/step-review-v2/audit.py --output /private/tmp/native-removal-step --report /private/tmp/native-removal-step-audit.json
 ```
 
+## Reviewed full native pop contract bridge
+
+The complete typed native pop precondition, postcondition and helper trace now
+have a selected Lean interpretation. The trace and postcondition are
+definitionally equal to the earlier contract under the shared symbol record.
+The precondition is exactly the earlier five conjuncts plus removal readiness.
+An explicit equation preserves readiness's nonempty guard, last-record policy
+and complete event count.
+
+The shared interpretation uses native counter observations, ordered native
+removal steps and the checked readiness recurrence over represented hash lists.
+Given the earlier precondition, conditional live suffix history, counter length
+4096, constant bindings and sequence laws, Lean proves the complete new
+precondition. The earlier five conjuncts remain premises. This does not derive
+actual native history or establish a joint interpretation of every native
+contract.
+
+The translator checks exact metadata, closed types, polymorphic applications,
+binders, patterns, triggers and definition result types. It validates the shared
+vector-validity alias and couples the removal and readiness declarations to the
+accepted exports by origin, signature and source location. Thirteen new
+structural controls reject malformed translations. Six generated semantic
+mutants compile, then fail only the intended interpretation proofs: omitted
+invariants, final trace or vector pops, a wrong reverse index, zero readiness
+count and omitted readiness.
+
+The fresh `pop-adapter-check-v1` rebuild passes 41 modules and 21 theorem/axiom
+audits, retaining the earlier controls. Twenty audited results use only standard
+logical axioms; the primitive constructor retains the three SmallVec
+declarations recorded in the preceding checkpoint. Independent review checks
+433 outputs, 8,205 input pins and 141,236 lookup entries. The combined inventory
+contains 29 structural, nineteen semantic and two canonical-root controls.
+Five physical output/reference/report controls reject the intended changes;
+all 2,855 direct review evidence pins were rechecked. One fresh dependency
+rebuild and an independent source/output audit support this checkpoint.
+
+| Record | SHA-256 |
+| --- | --- |
+| `POP-ADAPTER-EVIDENCE-v1.json` | `adc3a12d4ed7a9d3e41320453fd700c4d592fc46f1d61ef90e4cb856b6731726` |
+| `pop-adapter-check-v1/report.json` | `7aa4982069d50fd9f21a18c83203642be249d96f46a1e9e144d8c46a4c9278be` |
+| `reviews/pop-adapter-review-v1/REVIEW-EVIDENCE-v1.json` | `d5313fbd126e1f3b1157451b432c250d726fb755a800cf7147c73b567308ecff` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/pop-adapter-gate-v1/rebuild.py --output /private/tmp/native-pop-contract
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/pop-adapter-review-v1/audit.py --output /private/tmp/native-pop-contract --report /private/tmp/native-pop-contract-audit.json
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -1061,13 +1108,14 @@ now links the caller predicate to the checked helper definition and preserves
 both return paths. Exporting the unspecialized contract avoids the ambiguous
 branch-specialized clauses found during preflight.
 
-The next priority is connecting the exact native removal relation and shared
+The next priority is connecting actual native caller history and the shared
 observer interpretation to the full pop contract. Raw encoding, sequential
 non-underflow from live history and the complete native removal contract now
 compose under explicit complete call witnesses. A separate readiness proof
 establishes the entire reverse-removal domain from represented history. The
 transparent native removal relation now instantiates the existing success-only
-primitive interface. Connecting it to the full native pop contract is in progress.
+primitive interface. The full pop contract bridge now makes the remaining
+precondition premises explicit.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises. Integrating its typed counter interpretation with earlier
