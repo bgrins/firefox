@@ -1,0 +1,42 @@
+--- a/src/extract/ExtractBase.ml
++++ b/src/extract/ExtractBase.ml
+@@ -1705,13 +1705,19 @@
+   (* Concatenate *)
+   fname ^ suffix
+ 
++let is_instantiated_name name =
++  List.exists (function T.PeInstantiated _ -> true | _ -> false) name
++
+ let ctx_compute_trait_decl_name (ctx : extraction_ctx) (trait_decl : trait_decl)
+     : string =
+   let llbc_name =
+     opt_rename_llbc_name trait_decl.item_meta.attr_info
+       trait_decl.item_meta.name
+   in
+-  ctx_compute_type_name trait_decl.item_meta ctx llbc_name
++  let name = ctx_compute_type_name trait_decl.item_meta ctx llbc_name in
++  if is_instantiated_name trait_decl.item_meta.name then
++    name ^ "_inst" ^ TraitDeclId.to_string trait_decl.def_id
++  else name
+ 
+ let ctx_compute_trait_impl_name_raw (ctx : extraction_ctx)
+     (trait_impl_id : trait_impl_id) : string =
+@@ -1739,6 +1745,18 @@
+ 
+      Note that if the user provided a [rename] attribute, we simply use that.
+   *)
++  if
++    is_instantiated_name trait_decl.item_meta.name
++    && trait_impl.item_meta.attr_info.rename = None
++  then
++    let name =
++      opt_rename_llbc_name trait_decl.item_meta.attr_info
++        trait_decl.item_meta.name
++    in
++    ctx_compute_type_name trait_decl.item_meta ctx name ^ "_inst"
++    ^ TraitDeclId.to_string trait_decl.def_id ^ "_impl"
++    ^ TraitImplId.to_string trait_impl_id
++  else
+   match trait_impl.item_meta.attr_info.rename with
+   | None -> (
+       let params = trait_impl.generics in
