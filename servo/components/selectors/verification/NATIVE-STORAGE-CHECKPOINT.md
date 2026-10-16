@@ -234,6 +234,43 @@ tool, or establish an additional Firefox defect.
 | `regressions-review-v1/report.json` | `b051a722ac3556244b8fe2a9e04a535c3d9e6508e05d5e30c9d6d70f528e8fce` |
 | `reviews/FINAL-REVIEW.json` | `5b22d14e805cbc688624e0b8274d346c6c3ecf2a7dbfe0c4bfb3933554903b06` |
 
+## Reviewed native pop observations
+
+The isolated `native-storage-pop-observations` package preserves the production
+`Storage::pop` body, including its debug checks. The producer and independent
+replay each pass 106 debug and 63 release obligations. Both compilations retain
+the 43 earlier models under checked source-location normalization and add one
+pop model. Full compilation inventories authenticate all 44 models.
+
+The result identifies the actual popped record, its element and the ordered
+hash suffix removed. It retains the native record-vector pop relation, capacity
+and stored high-water, and frames the filter and hashes on the empty path.
+Entry premises include vector validity, recorded count/policy agreement and
+the last record's policy suffix. Debug value agreement uses the explicit
+expected-value contract.
+
+Five source-contract mutations leave the intended obligations unresolved while
+the other obligations pass after a focused retry. These timeouts are dependency
+controls, not counterexamples. Four compilation controls reject changed or
+missing models, an extra output and a changed compilation report. Independent
+review found and closed a compilation-linkage gap in the first proof runner;
+`prove_pop_v2.py` checks the full authenticated inventories before and after proof.
+
+Filter removal has no semantic or safety guarantee in this checkpoint. Native
+primitive safety, completion, the exact hash primitive history and repeated
+recovery remain open. The one-step suffix premise alone does not preserve the
+prerequisite for another pop.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `d944e5fbb04b4f0706c81df51a758ecde6a86a3e77af532b51be7d8c9e0cf8da` |
+| `proof-v2/report.json` | `588e45aa85800fd52cb9f1dd83100743db06988c739582ef6a8fc31aecdd550e` |
+| `reviews/proof-v2/report.json` | `5360e77f64bf075c694ff8b0375ab568daeef07ecd49134ff094c0b228edd2b2` |
+| `reviews/FINAL-REVIEW.json` | `18f663f2c7b1fa7eb92fdba20feef51023af5581498e60cfb26b2ac7988211fe` |
+
+The package README describes replay into a fresh output directory. The frozen
+producer and review outputs are retained without overwriting.
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -245,8 +282,9 @@ equation is now proved separately and need not be assumed.
 The retained enumeration extraction failure involves nested-borrow restoration.
 Its proposed tool extension needs a justified association between symbolic
 projections and future arguments before implementation. A separate native pop
-experiment preserves the production body and debug checks; it is exploratory,
-not an accepted recovery proof.
+trace experiment now targets each intermediate filter/hash-vector state and
+the reverse policy event sequence. Its primitive removal relation remains an
+explicit assumption; the experiment is not an accepted recovery proof.
 
 The matcher still has a preserved verifier limitation involving its borrowed
 dynamic callback, associated data and mutable cache reference. The reviewed
