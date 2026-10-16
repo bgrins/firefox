@@ -294,7 +294,7 @@ output and changed reports. Independent review checks their exact mutations.
 The native vector specifications and filter-removal relation remain explicit
 primitive assumptions. This checkpoint does not establish native filter-counter
 semantics, underflow safety, completion, repeated recovery or execution of the
-separate extracted storage function. The next step is its Lean interpretation.
+separate extracted storage function. Its Lean interpretation is recorded below.
 
 | Record | SHA-256 |
 | --- | --- |
@@ -306,6 +306,47 @@ separate extracted storage function. The next step is its Lean interpretation.
 The package README describes replay into a fresh output directory. Preserve the
 frozen compiler/proof outputs and their input fingerprints.
 
+## Reviewed complete pop contract interpretation
+
+`native-storage-pop-lean/check-v5` and independent `reviews/check-v2` pass
+14 exact theorem/axiom audits and six rejection controls. Both runs check
+68 outputs, 7,651 file pins, 15,612 Lean library/binary tree entries and the
+debug/release native compilation inventories. Immediate prerequisite evidence
+links are checked; superseded historical tool environments are not replayed.
+
+An isolated Coma export preserves all 424 typed task/context declarations,
+153 original theory declarations and 19 roots, appending only two pre/post
+definitions. The complete unspecialized contract retains both return branches
+and intrinsic type invariants. Separate element, record and hash Option types
+are preserved. Twelve shared caller/helper symbols are checked by source,
+signature and datatype structure.
+
+The Lean consequences retain the exact returned record, ordered hash suffix,
+empty-pop frame, capacities, high-water observation, result invariant and
+indexed removal witness. The witness yields a finite removal sequence with
+exact native endpoints and backward policy indices. Zero policy length preserves
+the filter/hash pair while still allowing a stored element record to be popped.
+Controls reject changed endpoints, record identity, empty filter frame, suffix
+policy, event order and missing filter transitions at the intended theorem.
+
+The interpreted postcondition is an explicit premise. The native SMT result
+does not assert that arbitrary symbol interpretations satisfy it. Native
+primitive semantics, safety, completion and actual extracted storage-call
+correspondence remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `a511b11926a05c696a8eb3bd5bdbaa1fed3e4bf18f02d1d74040af6e6918633b` |
+| `check-v5/report.json` | `66f5975fc2abdd7352b5823405ef1520edde1184507403b47f2678942dc2c3d6` |
+| `reviews/check-v2/report.json` | `e92e8d42a8e0052ba20589b3c2ec150b413d3cbae45b839b1df3d530f5f55302` |
+| `reviews/FINAL-REVIEW.json` | `2d4f6b98e25275284a392e7f0d69e7a41e2ec79902e5bb81af6ab696ccec1e4e` |
+
+Use a fresh output directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-lean/check_adapter.py --output /private/tmp/native-pop-replay
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -316,13 +357,22 @@ equation is now proved separately and need not be assumed.
 
 The retained enumeration extraction failure involves nested-borrow restoration.
 Its proposed tool extension needs a justified association between symbolic
-projections and future arguments before implementation. The reviewed native pop
-trace now retains intermediate states and exact primitive transitions. Its Lean
-adapter must link the opaque caller predicate to the checked helper definition
-and preserve both return paths. Preflight finds four outer requirements and two
-branch-specialized copies of each of eight postconditions, alongside similarly
-named primitive clauses. Selecting by label or deduplicating those occurrences
-would lose necessary provenance. No pop Lean adapter is accepted yet.
+projections and future arguments before implementation. The accepted pop adapter
+now links the caller predicate to the checked helper definition and preserves
+both return paths. Exporting the unspecialized contract avoids the ambiguous
+branch-specialized clauses found during preflight.
+
+The next `native-storage-pop-policy` prototype has ten compiled theorems:
+concrete policy-list reversal, a removal path retaining every state's vector
+validity, and conditional primitive history for the exact native exit vector
+and filter observation. Existing extracted pop/remove proofs supply successful
+calls; explicit success-only refinements identify their native endpoints.
+Three prototype controls reject wrong vector/filter endpoints and event order.
+Fresh dependency rebuilds and guarded independent replay are still pending.
+The native filter observer must be linked to the earlier counter interpretation,
+and the history bound must be identified with the stored high-water value.
+Then record removal and repeated storage recovery must be composed. No actual
+extracted `Storage.pop` call has been established by this prototype.
 
 The matcher still has a preserved verifier limitation involving its borrowed
 dynamic callback, associated data and mutable cache reference. The reviewed
