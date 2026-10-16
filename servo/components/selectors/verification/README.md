@@ -6,7 +6,8 @@ Charon extracts their Rust operations, Aeneas translates them into Lean, and
 [BloomProofs.lean](lean/BloomProofs.lean),
 [PackingProofs.lean](lean/PackingProofs.lean),
 [NormalizationProofs.lean](lean/NormalizationProofs.lean), and
-[StyleBloomProofs.lean](lean/StyleBloomProofs.lean) check the generated code. The Firefox
+[StyleBloomProofs.lean](lean/StyleBloomProofs.lean), and
+[CoverageProofs.lean](lean/CoverageProofs.lean) check the generated code. The Firefox
 build does not depend on this experiment.
 
 See [ROADMAP.md](ROADMAP.md) for the six-milestone plan and current evidence.
@@ -36,7 +37,7 @@ models and logs are ignored by Git. Logs are in `generated/`; setup logs are in
 
 ## Current guarantees
 
-The forty-nine checked theorems cover:
+The fifty-four checked theorems cover:
 
 - Construction and clearing produce an array of zero counters.
 - A saturated counter stays unchanged for either adjustment direction.
@@ -62,6 +63,9 @@ The forty-nine checked theorems cover:
   at most 127. The production clear helper terminates and returns an exactly
   empty filter, including its optimized removal path, under the append-history
   contract.
+- Insertion preserves every nonzero slot and establishes both slots needed for
+  its hash, even from arbitrary initial counters. Any finite sequence of actual
+  insertions preserves prior hash coverage and covers every inserted hash.
 
 The proofs use the actual 4096-slot array and 8-bit counters, for all 32-bit hash
 inputs. The Rust integration tests add concrete collision and saturation cases;
@@ -262,6 +266,26 @@ and query lifetimes, not retained caches mutated in place. They have no internal
 filter hit counters or filter-disabled browser oracle; the instrumented Rust
 checker supplies direct filter-execution evidence.
 
+After the caller extraction refactors, a fresh native build with Rust debug
+assertions also passed all five browser tests for three repetitions: 42 checks,
+with no unexpected results.
+
+## Cache epoch boundary
+
+`SelectorCaches` owns the relative filter map. The DOM entry points
+`element_matches`, `element_closest`, and `query_selector` in `style/dom_apis.rs`
+each create a fresh local cache. `ThreadLocalStyleContext::new` also creates a
+fresh cache; `driver::traverse_dom` owns its thread contexts through a local
+`ScopedTLS`, which releases them at traversal completion. The direct style
+resolution entry points in `ports/geckolib/glue.rs` create local thread contexts.
+`match_relative_selectors` bypasses relative matching when
+`matching_for_invalidation_comparison` is set, before accessing these caches.
+
+This source audit supports using a query or traversal as the cache epoch. The
+relative proof assumes that DOM links, relevant element hashes, and opaque
+identities remain stable within that epoch. It does not prove Gecko's exclusion
+of concurrent DOM mutation or make a retained map safe across mutations.
+
 ## Trust and checks
 
 The connection to Rust depends on the pinned compiler, Charon/Aeneas extraction,
@@ -278,7 +302,7 @@ assumed. `is_zeroed`
 itself is outside the verified scope.
 
 The runner checks the exact set of reported theorems and allows only Lean's
-standard logical axioms, plus that external function for the twenty-five affected
+standard logical axioms, plus that external function for the thirty affected
 theorems. It rejects `sorryAx`, additional axioms, missing reports, and Lean warnings.
 Resolving the unnecessary external dependency remains follow-up work.
 

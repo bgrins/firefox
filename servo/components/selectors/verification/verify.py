@@ -94,6 +94,14 @@ STYLE_BLOOM_THEOREMS = {
     "clear_filter_resets_history",
 }
 
+COVERAGE_THEOREMS = {
+    "present_lookup",
+    "insert_preserves_nonzero",
+    "insert_preserves_present",
+    "insert_establishes_present",
+    "insertions_coverage",
+}
+
 
 def run(args, *, cwd=ROOT, env=None, log=None):
     args = [str(arg) for arg in args]
@@ -166,6 +174,7 @@ def audit_proofs(output):
     expected |= {f"PackingProofs.{name}" for name in PACKING_THEOREMS}
     expected |= {f"NormalizationProofs.{name}" for name in NORMALIZATION_THEOREMS}
     expected |= {f"StyleBloomProofs.{name}" for name in STYLE_BLOOM_THEOREMS}
+    expected |= {f"CoverageProofs.{name}" for name in COVERAGE_THEOREMS}
     if len(reports) != len(expected) or {name for name, _ in reports} != expected:
         raise RuntimeError("Lean did not report the expected theorem dependencies")
     for theorem, names in reports:
@@ -189,6 +198,11 @@ def audit_proofs(output):
             "StyleBloomProofs.clear_filter_exact",
             "StyleBloomProofs.clear_filter_eq_empty",
             "StyleBloomProofs.clear_filter_resets_history",
+            "CoverageProofs.present_lookup",
+            "CoverageProofs.insert_preserves_nonzero",
+            "CoverageProofs.insert_preserves_present",
+            "CoverageProofs.insert_establishes_present",
+            "CoverageProofs.insertions_coverage",
             "NormalizationProofs.insert_masked",
             "NormalizationProofs.remove_masked",
             "NormalizationProofs.contains_masked",
@@ -359,8 +373,15 @@ def main():
         env=env,
         log=style_log,
     )
+    coverage_log = generated / "lean-coverage-proofs.log"
+    run(
+        [lean / "bin/lean", "-DwarningAsError=true", "-o", "CoverageProofs.olean", "CoverageProofs.lean"],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=coverage_log,
+    )
     audit_proofs(proof_log.read_text() + packing_log.read_text() + normalization_log.read_text()
-        + style_log.read_text())
+        + style_log.read_text() + coverage_log.read_text())
     print(f"Verification passed. Logs: {generated}")
 
 
