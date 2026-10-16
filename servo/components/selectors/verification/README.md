@@ -30,7 +30,7 @@ models and logs are ignored by Git. Logs are in `generated/`; setup logs are in
 
 ## Current guarantees
 
-The ten checked theorems cover:
+The eighteen checked theorems cover:
 
 - Construction and clearing produce an array of zero counters.
 - A saturated counter stays unchanged for either adjustment direction.
@@ -38,18 +38,26 @@ The ten checked theorems cover:
   32-bit input, including when the indices coincide.
 - Reading a slot reports whether its counter is zero.
 - Lookup returns true whenever both selected counters are nonzero.
+- Insertion and valid removal preserve the relation between counters and live
+  hash contributions, including when both indices coincide.
+- Every live hash is found after any finite valid operation history, with no
+  bound on the history length.
 
-The proofs use the actual 4096-slot array and 8-bit counters. These are universal
-local properties, without a bound on sampled inputs. The Rust integration tests
-add concrete collision and saturation cases; they are not formal proofs.
+The proofs use the actual 4096-slot array and 8-bit counters, for all 32-bit hash
+inputs. The Rust integration tests add concrete collision and saturation cases;
+they are not formal proofs.
 
-The full no-false-negatives theorem for arbitrary operation histories is **not
-proved yet**. The next step is to relate the array to a multiset of live hashes:
-for each slot, the stored counter is either 255 or equals the number of live
-hash contributions to that slot. A hash contributes twice when its indices
-coincide. Removal requires that the hash is currently present; clearing resets
-the multiset. Proving preservation under insertion and valid removal will allow
-induction over operation histories and use of the checked lookup theorem.
+`Represents` relates each stored counter to the live contributions at its slot:
+the counter is either 255 or equals that contribution count. A hash contributes
+twice when its indices coincide. The insertion and removal proofs establish
+preservation for the operations extracted from Rust, including arithmetic safety.
+
+`ValidHistory` starts with an empty filter and tracks live hash occurrences.
+Insertion adds an occurrence, removal selects an existing occurrence anywhere in
+the list, and clearing resets the list. Each transition uses the corresponding
+extracted Rust operation. `history_no_false_negatives` proves that lookup returns
+true for every live hash after such a history. This does not prove that callers
+always remove valid hashes or supply complete sets of ancestor hashes.
 
 The experiment currently covers `BloomStorageU8`. It does not verify
 `BloomStorageBool`, arbitrary `BloomStorage` implementations, selector-matching
@@ -159,14 +167,15 @@ of the native compiler or the resulting machine code.
 
 Extraction retains the unused `is_zeroed` trait method, whose slice-iterator
 `all` operation is an uninterpreted external function in the generated model.
-Construction, clearing, and lookup reference the trait dictionary, so Lean
-reports that symbol transitively in their theorem dependencies. None of those
-operations calls it, and no behavioral property of the external function is
-assumed. `is_zeroed` itself is outside the verified scope.
+Construction, clearing, insertion, removal, and lookup reference the trait
+dictionary, so Lean reports that symbol transitively in their theorem
+dependencies, including the history theorems. None of those operations calls it,
+and no behavioral property of the external function is assumed. `is_zeroed`
+itself is outside the verified scope.
 
 The runner checks the exact set of reported theorems and allows only Lean's
-standard logical axioms, plus that external function for those three theorems.
-It rejects `sorryAx`, additional axioms, missing reports, and Lean warnings.
+standard logical axioms, plus that external function for the seven affected
+theorems. It rejects `sorryAx`, additional axioms, missing reports, and Lean warnings.
 Resolving the unnecessary external dependency remains follow-up work.
 
 The pipeline uses Charon's generic extraction. Full monomorphization currently
