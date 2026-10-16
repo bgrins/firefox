@@ -60,6 +60,22 @@ PACKING_THEOREMS = {
     "history_no_false_rejection",
 }
 
+NORMALIZATION_THEOREMS = {
+    "eq_ok_of_spec",
+    "hash1_eq",
+    "hash2_eq",
+    "hash1_masked",
+    "hash2_masked",
+    "insert_masked",
+    "remove_masked",
+    "contains_masked",
+    "history_masked",
+    "raw_history_no_false_rejection",
+    "pack_match_four_raw_hashes",
+    "pack_match_short_raw_hashes",
+    "pack_match_raw_history",
+}
+
 
 def run(args, *, cwd=ROOT, env=None, log=None):
     args = [str(arg) for arg in args]
@@ -130,6 +146,7 @@ def audit_proofs(output):
     )
     expected = {f"BloomProofs.{name}" for name in THEOREMS}
     expected |= {f"PackingProofs.{name}" for name in PACKING_THEOREMS}
+    expected |= {f"NormalizationProofs.{name}" for name in NORMALIZATION_THEOREMS}
     if {name for name, _ in reports} != expected:
         raise RuntimeError("Lean did not report the expected theorem dependencies")
     for theorem, names in reports:
@@ -145,6 +162,14 @@ def audit_proofs(output):
             "BloomProofs.history_no_false_negatives",
             "PackingProofs.may_match_of_present",
             "PackingProofs.history_no_false_rejection",
+            "NormalizationProofs.insert_masked",
+            "NormalizationProofs.remove_masked",
+            "NormalizationProofs.contains_masked",
+            "NormalizationProofs.history_masked",
+            "NormalizationProofs.raw_history_no_false_rejection",
+            "NormalizationProofs.pack_match_four_raw_hashes",
+            "NormalizationProofs.pack_match_short_raw_hashes",
+            "NormalizationProofs.pack_match_raw_history",
         }:
             allowed.add(ITERATOR_EXTERNAL)
         if unexpected := axioms - allowed:
@@ -288,12 +313,19 @@ def main():
     )
     packing_log = generated / "lean-packing-proofs.log"
     run(
-        [lean / "bin/lean", "-DwarningAsError=true", "PackingProofs.lean"],
+        [lean / "bin/lean", "-DwarningAsError=true", "-o", "PackingProofs.olean", "PackingProofs.lean"],
         cwd=PROJECT / "lean",
         env=env,
         log=packing_log,
     )
-    audit_proofs(proof_log.read_text() + packing_log.read_text())
+    normalization_log = generated / "lean-normalization-proofs.log"
+    run(
+        [lean / "bin/lean", "-DwarningAsError=true", "NormalizationProofs.lean"],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=normalization_log,
+    )
+    audit_proofs(proof_log.read_text() + packing_log.read_text() + normalization_log.read_text())
     print(f"Verification passed. Logs: {generated}")
 
 
