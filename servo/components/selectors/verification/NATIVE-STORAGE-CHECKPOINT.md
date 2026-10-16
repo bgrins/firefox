@@ -271,6 +271,41 @@ prerequisite for another pop.
 The package README describes replay into a fresh output directory. The frozen
 producer and review outputs are retained without overwriting.
 
+## Reviewed native removal trace
+
+`native-storage-pop-trace-checked` adds an exact transition witness to the pop
+observations. Guarded production and independent replay each pass 278 new
+obligations: 164 for debug pop, 98 for release pop, and eight across five checked
+ghost helpers in each configuration. Both compilations preserve the 43 earlier
+models and authenticate all 49 generated models and complete compiler outputs.
+
+The witness contains the actual native filter/hash-vector pairs from entry to
+exit. Each edge retains the typed hash-vector pop and filter-removal relation
+for `policy[length - 1 - step]`. It preserves reverse order, duplicates and
+zero-event cases. Ghost erasure restores the production runtime exactly.
+
+Four source controls reject a wrong endpoint, forward event order, missing
+filter-step guarantee and missing typed-pop guarantee. The order mutation
+passes the main function obligations but fails the checked final helper;
+helper coverage is essential. These rejections are timeouts, not counterexamples.
+Six compilation controls reject changed or missing main/helper models, extra
+output and changed reports. Independent review checks their exact mutations.
+
+The native vector specifications and filter-removal relation remain explicit
+primitive assumptions. This checkpoint does not establish native filter-counter
+semantics, underflow safety, completion, repeated recovery or execution of the
+separate extracted storage function. The next step is its Lean interpretation.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `9bc33aba960add45b3e9e595369903bea77ac2d7496f809579a4632587672a52` |
+| `proof-v1/report.json` | `cc19bcb55cb4f7b5883bc219710471b2cbd53075436b740691037e925365dbdc` |
+| `reviews/proof-v1/report.json` | `341f504d9d45070c6ff3ee6aa602205edc19da20ce6007ff27db8704f832253b` |
+| `reviews/FINAL-REVIEW.json` | `34b3832910e7eec3d1b37e27ef8544630ff3de59380dfb5d228bac7609f4679f` |
+
+The package README describes replay into a fresh output directory. Preserve the
+frozen compiler/proof outputs and their input fingerprints.
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -281,10 +316,13 @@ equation is now proved separately and need not be assumed.
 
 The retained enumeration extraction failure involves nested-borrow restoration.
 Its proposed tool extension needs a justified association between symbolic
-projections and future arguments before implementation. A separate native pop
-trace experiment now targets each intermediate filter/hash-vector state and
-the reverse policy event sequence. Its primitive removal relation remains an
-explicit assumption; the experiment is not an accepted recovery proof.
+projections and future arguments before implementation. The reviewed native pop
+trace now retains intermediate states and exact primitive transitions. Its Lean
+adapter must link the opaque caller predicate to the checked helper definition
+and preserve both return paths. Preflight finds four outer requirements and two
+branch-specialized copies of each of eight postconditions, alongside similarly
+named primitive clauses. Selecting by label or deduplicating those occurrences
+would lose necessary provenance. No pop Lean adapter is accepted yet.
 
 The matcher still has a preserved verifier limitation involving its borrowed
 dynamic callback, associated data and mutable cache reference. The reviewed
