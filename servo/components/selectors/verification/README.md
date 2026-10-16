@@ -3,9 +3,13 @@
 This standalone Cargo wrapper includes the existing [Bloom filter](../bloom.rs)
 and [ancestor-hash packing and rejection](../ancestor_hashes.rs) directly.
 Charon extracts their Rust operations, Aeneas translates them into Lean, and
-[BloomProofs.lean](lean/BloomProofs.lean) and
-[PackingProofs.lean](lean/PackingProofs.lean) check the generated code. The Firefox
+[BloomProofs.lean](lean/BloomProofs.lean),
+[PackingProofs.lean](lean/PackingProofs.lean),
+[NormalizationProofs.lean](lean/NormalizationProofs.lean), and
+[StyleBloomProofs.lean](lean/StyleBloomProofs.lean) check the generated code. The Firefox
 build does not depend on this experiment.
+
+See [ROADMAP.md](ROADMAP.md) for the six-milestone plan and current evidence.
 
 ## Run
 
@@ -32,7 +36,7 @@ models and logs are ignored by Git. Logs are in `generated/`; setup logs are in
 
 ## Current guarantees
 
-The twenty-three checked theorems cover:
+The forty-nine checked theorems cover:
 
 - Construction and clearing produce an array of zero counters.
 - A saturated counter stays unchanged for either adjustment direction.
@@ -49,6 +53,15 @@ The twenty-three checked theorems cover:
   round-trip theorem are masked to 24 bits, as in the parser.
 - Ancestor rejection returns true when each queried hash is live after a valid
   operation history, including the zero-sentinel early returns.
+- Insertion, removal and lookup produce exactly the same result for raw hashes
+  and hashes masked to 24 bits, for every filter state.
+- Masking every hash in a valid history preserves that history's filter state.
+  Packing and rejection composed after a raw-hash history cannot reject when
+  the collected prefix is live and unused input slots are zero.
+- Counters equal live contributions when the historical live-hash maximum is
+  at most 127. The production clear helper terminates and returns an exactly
+  empty filter, including its optimized removal path, under the append-history
+  contract.
 
 The proofs use the actual 4096-slot array and 8-bit counters, for all 32-bit hash
 inputs. The Rust integration tests add concrete collision and saturation cases;
@@ -74,9 +87,31 @@ any nonzero decoded fourth hash are live. Its loop proof also establishes
 termination. These assumptions do not prove that selector hash collection and
 DOM hash production agree; the differential tests below exercise that boundary.
 
+`pack_match_raw_history` closes the raw-versus-masked gap in that composition.
+For inputs `[a, b, c, d]`, the prefix selected by `len` must be live, and the
+remaining suffix must be zero padding. The theorem covers all collection
+lengths from zero through four, including collected zero-valued hashes. It uses
+the extracted packing and rejection operations, with no extra decoding step.
+The collector's ability to supply those inputs remains a separate obligation.
+
 The experiment currently covers `BloomStorageU8`. It does not verify
 `BloomStorageBool`, arbitrary `BloomStorage` implementations, full
 selector-matching callers, or probabilistic false-positive rates.
+
+## Caller clearing proof
+
+[StyleBloomProofs.lean](lean/StyleBloomProofs.lean) adds an exact-counter relation
+and an append-order `HighWaterHistory`, matching the hash stack's insertion
+order. A hash contributes at most two counts per slot, so a historical maximum
+of 127 live hashes keeps counters below 255. The production helper's threshold
+of 25 is therefore within that bound. The actual extracted removal loop is
+proved terminating and exact; both clear paths return the zero filter, and the
+optimized clear establishes a new empty history with high-water zero.
+
+The helper lives in `style/bloom_filter.rs` and is called by `StyleBloom`.
+Its contract still requires the supplied hash slice and high-water mark to
+correspond to the recorded history. The broader `StyleBloom` recovery and
+container-adapter proof is in progress; this is not yet a proof of all callers.
 
 ## Operation-history exploration
 
@@ -113,6 +148,16 @@ quirks modes, every element, and three repeated lookups: 27,661,824 comparisons.
 The grammar includes combinators, namespaces, attributes, case differences,
 `:is()`, `:where()`, and `:has()` with nested selectors and sibling traversal.
 Failures report the selector, forest, labels, element, and filtering mode.
+
+An additional 5,788,800 comparisons exercise five hash profiles (ordinary,
+colliding, zero low bits, mixed zero low bits, and shared low bits with different
+upper bytes), 24-node chains, branching trees and separate roots, and nested
+selectors through depth 16. The total is 33,450,624 comparisons. Mismatches are
+replayed and greedily reduced by removing nodes, selector text, labels and cache
+setup probes while retaining the failure. Controlled faulty hash providers
+validate reduction for both ancestor and warmed-cache relative failures. Reduced
+cases retain consistent class/ID attributes; reduction does not promise a
+globally minimal case.
 
 Additional checks exercise shared filters across different selectors and retries
 when an element cannot provide hashes. A targeted check counts hash-provider and
@@ -200,6 +245,23 @@ With the fixes applied and Rust debug assertions enabled, both pass three
 consecutive local runs. A control using only one `:has()` selector also passes
 on the unpatched build with the same deep DOM and worker preference.
 
+### Mutation and tree-boundary coverage
+
+Three additional WPTs check independently expected computed styles after DOM
+mutations, with style flushes between transitions:
+
+- `filter-dynamic-mutations.html`: class/ID/attribute changes, subtree moves and
+  removal/reinsertion, child-versus-descendant regions, namespace and case rules.
+- `filter-shadow-mutations.html`: shadow boundaries, named slot reassignment,
+  moves between shadow roots, and host removal/reinsertion.
+- `filter-quirks-mutations.html`: class/ID case folding and mutations in a real
+  quirks-mode document.
+
+All 33 checks pass over three local repetitions. These tests use actual style
+and query lifetimes, not retained caches mutated in place. They have no internal
+filter hit counters or filter-disabled browser oracle; the instrumented Rust
+checker supplies direct filter-execution evidence.
+
 ## Trust and checks
 
 The connection to Rust depends on the pinned compiler, Charon/Aeneas extraction,
@@ -216,7 +278,7 @@ assumed. `is_zeroed`
 itself is outside the verified scope.
 
 The runner checks the exact set of reported theorems and allows only Lean's
-standard logical axioms, plus that external function for the nine affected
+standard logical axioms, plus that external function for the twenty-five affected
 theorems. It rejects `sorryAx`, additional axioms, missing reports, and Lean warnings.
 Resolving the unnecessary external dependency remains follow-up work.
 
