@@ -55,6 +55,29 @@ The experiment currently covers `BloomStorageU8`. It does not verify
 `BloomStorageBool`, arbitrary `BloomStorage` implementations, selector-matching
 callers, or probabilistic false-positive rates.
 
+## Saturated ancestor clearing reproducer
+
+The standalone harness compiles the production `style/bloom.rs` with a mock
+element interface and vendored `smallvec` and `atomic_refcell` dependencies.
+Its two regression cases cover recovery from a saturated ancestor chain,
+clearing, and thread-local reuse.
+
+The regression expectation is an empty filter after clear or reuse. The
+original implementation can leave saturated counters when recovery shrinks
+the current stack; a suitable repair must account for its earlier size.
+The reproducers are initially ignored so this preparation commit keeps the
+default suite passing. Run them explicitly to observe the original failure:
+
+```sh
+cargo test --offline --locked --manifest-path servo/components/selectors/verification/Cargo.toml --test style_bloom -- --ignored
+```
+
+A browser experiment uses 256 repeated class tokens on one ancestor and then
+visits an ancestor with few hashes. The unpatched macOS arm64 debug build at
+`976279105b2e` crashes; the candidate clearing repair passes three local runs
+with Rust debug assertions enabled. Release builds do not expose the stale
+counters to page script. No false negative has been demonstrated.
+
 ## Trust and checks
 
 The connection to Rust depends on the pinned compiler, Charon/Aeneas extraction,
