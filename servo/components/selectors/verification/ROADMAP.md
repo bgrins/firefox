@@ -35,7 +35,8 @@ currently leave open.
 1. **Preserve the checked clearing result as a reviewable commit (done).** Commit
    `a0bd75a11f4e` contains the production clear helper and its thirteen audited
    theorems separately from recovery work, retaining exact theorem and axiom checks. The integrated
-   suite currently passes 49 theorems; the native build with the current caller
+   suite now passes 54 theorems, including five insertion-coverage lemmas added
+   for relative-filter composition; the native build with the current caller
    refactors also succeeds.
 2. **Finish milestone 4: ancestor recovery.** Prove that rebuilding, trimming,
    finding a common parent, and flushing pending ancestors produce the required
@@ -61,7 +62,8 @@ currently leave open.
    from the final source, audit all integrated proofs, run the Rust regressions
    and differential corpus, rebuild Firefox, and repeat all five browser tests.
    Any new defect needs a reduced case that fails before its fix and passes
-   afterward. The final browser rerun is still pending.
+   afterward. The current caller-refactor snapshot passes all five browser tests
+   for three repetitions (42 checks); repeat after further production changes.
 6. **Prepare the local review checkpoint.** Review proof assumptions and Rust
    semantics independently, organize signed commits by result, and update the
    evidence and reproduction instructions. Leave the work local. This checkpoint
