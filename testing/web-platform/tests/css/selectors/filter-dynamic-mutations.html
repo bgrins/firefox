@@ -1,0 +1,146 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Selector filters after DOM and attribute mutations</title>
+<link rel="help" href="https://drafts.csswg.org/selectors/#relational">
+<link rel="help" href="https://drafts.csswg.org/selectors/#descendant-combinators">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  @namespace svg url("http://www.w3.org/2000/svg");
+  @namespace html url("http://www.w3.org/1999/xhtml");
+  .ancestor-case,
+  .ancestor-case .target,
+  .relative-case,
+  .namespace-case,
+  .html-case { color: rgb(0, 0, 0); }
+  .ancestor-case .active#ancestor-token[data-filter-key] .middle .target,
+  .relative-case:has(.signal):has(#signal-token):has([data-filter-key]):has(> .direct),
+  .namespace-case:has(svg|g.Token[data-filter-key]):has(svg|g#namespace-token),
+  .html-case:has(html|DIV.Token[data-filter-key]):has(html|DIV#html-token) {
+    color: rgb(0, 128, 0);
+  }
+</style>
+<body>
+<script>
+  function fixture(t, className, markup) {
+    const root = document.createElement("div");
+    root.className = className;
+    root.innerHTML = markup;
+    document.body.append(root);
+    t.add_cleanup(() => root.remove());
+    return root;
+  }
+
+  function check(element, matches, message) {
+    assert_equals(getComputedStyle(element).color,
+                  matches ? "rgb(0, 128, 0)" : "rgb(0, 0, 0)", message);
+  }
+
+  test(t => {
+    const root = fixture(t, "ancestor-case", `
+      <section class="active" id="ancestor-token" data-filter-key>
+        <div class="middle"><span class="target"></span></div>
+      </section>
+      <section></section>`);
+    const ancestor = root.firstElementChild;
+    const other = root.lastElementChild;
+    const middle = ancestor.firstElementChild;
+    const target = middle.firstElementChild;
+    check(target, true, "initial ancestor hashes");
+    ancestor.classList.remove("active");
+    check(target, false, "removed ancestor class");
+    ancestor.classList.add("active");
+    check(target, true, "restored ancestor class");
+    ancestor.id = "other-token";
+    check(target, false, "changed ancestor ID");
+    ancestor.id = "ancestor-token";
+    check(target, true, "restored ancestor ID");
+    ancestor.removeAttribute("data-filter-key");
+    check(target, false, "removed ancestor attribute");
+    ancestor.setAttribute("data-filter-key", "");
+    check(target, true, "restored ancestor attribute");
+    other.append(middle);
+    check(target, false, "moved below a nonmatching ancestor");
+    ancestor.append(middle);
+    check(target, true, "moved below matching ancestor again");
+    middle.remove();
+    check(ancestor, false, "flush after subtree removal");
+    other.append(middle);
+    check(target, false, "reinserted under a nonmatching ancestor");
+    ancestor.append(middle);
+    check(target, true, "reinserted under the matching ancestor");
+  }, "Ancestor filters follow class, ID, attribute and subtree mutations");
+
+  test(t => {
+    const root = fixture(t, "relative-case", `
+      <div class="direct"><span class="signal" id="signal-token" data-filter-key></span></div>
+      <div class="destination"></div>`);
+    const direct = root.firstElementChild;
+    const destination = root.lastElementChild;
+    const signal = direct.firstElementChild;
+    check(root, true, "initial descendant and child selectors");
+    signal.className = "SIGNAL";
+    check(root, false, "class names remain case sensitive");
+    signal.className = "signal";
+    check(root, true, "restored descendant class");
+    signal.id = "SIGNAL-TOKEN";
+    check(root, false, "IDs remain case sensitive");
+    signal.id = "signal-token";
+    check(root, true, "restored descendant ID");
+    signal.removeAttribute("data-filter-key");
+    check(root, false, "removed descendant attribute");
+    signal.setAttribute("DATA-FILTER-KEY", "");
+    check(root, true, "HTML attribute names are normalized");
+    destination.append(direct);
+    check(root, false, "descendant hashes cannot satisfy a child selector");
+    root.append(direct);
+    check(root, true, "restored direct child");
+    signal.remove();
+    check(root, false, "removed matching descendant");
+    destination.append(signal);
+    check(root, true, "reinserted matching descendant in another branch");
+    destination.remove();
+    check(root, false, "removed subtree carrying required hashes");
+    root.append(destination);
+    check(root, true, "restored subtree carrying required hashes");
+  }, "Relative filters follow descendant mutations and distinguish children from descendants");
+
+  test(t => {
+    const root = fixture(t, "namespace-case", "<svg><g class='Token' id='namespace-token' data-filter-key></g></svg>");
+    const svg = root.firstElementChild;
+    const original = svg.firstElementChild;
+    check(root, true, "initial SVG namespace, name, class and attribute");
+    original.setAttribute("class", "token");
+    check(root, false, "SVG classes are case sensitive");
+    original.setAttribute("class", "Token");
+    check(root, true, "restored SVG class");
+    original.removeAttribute("data-filter-key");
+    original.setAttribute("DATA-FILTER-KEY", "");
+    check(root, false, "SVG attribute names are case sensitive");
+    original.setAttribute("data-filter-key", "");
+    check(root, true, "restored SVG attribute name");
+    for (const [namespace, name, message] of [
+      ["http://www.w3.org/2000/svg", "G", "SVG type names are case sensitive"],
+      ["http://www.w3.org/1999/xhtml", "g", "type names in another namespace do not match"],
+    ]) {
+      const replacement = document.createElementNS(namespace, name);
+      replacement.setAttribute("class", "Token");
+      replacement.id = "namespace-token";
+      replacement.setAttribute("data-filter-key", "");
+      original.replaceWith(replacement);
+      check(root, false, message);
+      replacement.replaceWith(original);
+      check(root, true, "restored SVG element");
+    }
+  }, "Relative filters preserve SVG namespace and case distinctions after replacements");
+
+  test(t => {
+    const root = fixture(t, "html-case", "<DIV class='Token' id='html-token' DATA-FILTER-KEY></DIV>");
+    const child = root.firstElementChild;
+    check(root, true, "uppercase HTML selector and attribute names");
+    child.className = "token";
+    check(root, false, "HTML class names remain case sensitive");
+    child.className = "Token";
+    check(root, true, "restored HTML class");
+  }, "Relative filters normalize HTML names without folding class names in standards mode");
+</script>

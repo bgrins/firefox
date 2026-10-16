@@ -1,0 +1,71 @@
+<meta charset="utf-8">
+<title>Selector filters preserve quirks mode case folding after mutations</title>
+<link rel="help" href="https://drafts.csswg.org/selectors/#case-sensitive">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .subject, .target { color: rgb(0, 0, 0); }
+  .subject:has(.signal):has(#signal-token):has([data-filter-key]),
+  .active#ancestor-token[data-filter-key] .middle .target {
+    color: rgb(0, 128, 0);
+  }
+</style>
+<body>
+<script>
+  function fixture(t, markup) {
+    const root = document.createElement("div");
+    root.innerHTML = markup;
+    document.body.append(root);
+    t.add_cleanup(() => root.remove());
+    return root;
+  }
+
+  function check(element, matches, message) {
+    assert_equals(getComputedStyle(element).color,
+                  matches ? "rgb(0, 128, 0)" : "rgb(0, 0, 0)", message);
+  }
+
+  test(t => {
+    assert_equals(document.compatMode, "BackCompat");
+    const root = fixture(t, '<div class="subject"><span class="SIGNAL" id="SIGNAL-TOKEN" data-filter-key></span></div>');
+    const subject = root.firstElementChild;
+    const signal = subject.firstElementChild;
+    check(subject, true, "uppercase class and ID match lowercase selectors");
+    signal.className = "SiGnAl";
+    signal.id = "SiGnAl-ToKeN";
+    check(subject, true, "mixed-case class and ID still match");
+    signal.className = "missing";
+    check(subject, false, "nonmatching class");
+    signal.className = "signal";
+    check(subject, true, "restored matching class");
+    signal.id = "missing";
+    check(subject, false, "nonmatching ID");
+    signal.id = "SIGNAL-TOKEN";
+    check(subject, true, "restored matching uppercase ID");
+    signal.removeAttribute("data-filter-key");
+    check(subject, false, "removed attribute");
+    signal.setAttribute("DATA-FILTER-KEY", "");
+    check(subject, true, "restored uppercase HTML attribute");
+  }, "Relative filters permit quirks mode class and ID case folding");
+
+  test(t => {
+    assert_equals(document.compatMode, "BackCompat");
+    const root = fixture(t, '<div class="ACTIVE" id="ANCESTOR-TOKEN" data-filter-key><div class="MIDDLE"><span class="target"></span></div></div><div></div>');
+    const ancestor = root.firstElementChild;
+    const other = root.lastElementChild;
+    const middle = ancestor.firstElementChild;
+    const target = middle.firstElementChild;
+    check(target, true, "uppercase ancestor hashes match lowercase selectors");
+    ancestor.className = "AcTiVe";
+    ancestor.id = "AnCeStOr-ToKeN";
+    check(target, true, "case changes preserve ancestor matching");
+    other.append(middle);
+    check(target, false, "moved below nonmatching ancestor");
+    ancestor.append(middle);
+    check(target, true, "moved back below matching ancestor");
+    ancestor.removeAttribute("data-filter-key");
+    check(target, false, "removed required ancestor attribute");
+    ancestor.setAttribute("data-filter-key", "");
+    check(target, true, "restored required ancestor attribute");
+  }, "Ancestor filters permit quirks mode case folding after reparenting");
+</script>
