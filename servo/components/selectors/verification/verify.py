@@ -33,6 +33,14 @@ THEOREMS = {
     "second_index_spec",
     "slot_is_empty_spec",
     "contains_of_nonzero",
+    "adjust_slot_represents",
+    "insert_represents",
+    "remove_represents",
+    "liveCounts_append",
+    "member_contributions",
+    "empty_represents",
+    "history_represents",
+    "history_no_false_negatives",
 }
 
 
@@ -113,6 +121,10 @@ def audit_proofs(output):
             "BloomProofs.new_eq_empty",
             "BloomProofs.clear_eq_empty",
             "BloomProofs.contains_of_nonzero",
+            "BloomProofs.insert_represents",
+            "BloomProofs.remove_represents",
+            "BloomProofs.history_represents",
+            "BloomProofs.history_no_false_negatives",
         }:
             allowed.add(ITERATOR_EXTERNAL)
         if unexpected := axioms - allowed:
