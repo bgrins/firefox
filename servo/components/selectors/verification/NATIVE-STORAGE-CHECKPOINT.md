@@ -504,6 +504,50 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-execution/reviews/audit_rebuild.py /private/tmp/native-pop-execution-replay
 ```
 
+## Reviewed native U8 removal
+
+`native-u8-remove-chain/proof-guarded-v1` and independent
+`reviews/proof-guarded-v1` each pass 76 debug and 76 release obligations.
+The source audit checks eight exact runtime functions, three constants and
+both storage structs. Complete compilation inventories cover all twelve
+generated models, including the concrete array update and its trait refinement.
+Cached compiler dependencies and tool prerequisites are authenticated before
+and after execution.
+
+The contract describes two ordered updates of the actual array view. Saturated
+255 remains unchanged; other counters decrement. The second nonzero premise
+reads the state after the first update, which matters for coincident indices.
+Four additional checked callers prove same-slot `2 -> 0`, `254 -> 252` and
+`255 -> 255`, and distinct-slot `(1, 255) -> (0, 255)`, with the complete array
+frame. These add 48 obligations while preserving all twelve baseline models
+under source-path normalization.
+
+Four source controls change the second safety premise, saturation threshold,
+second update and second index. Their intended obligations remain unresolved
+with Unknown/Timeout results; unrelated tasks pass. These are not SMT
+counterexamples. Separate tests of exact method snippets demonstrate the
+corresponding concrete failures, including underflow from coincident-slot
+initial count one. Five compilation controls and three proof-output controls
+reject changed, missing and extra evidence.
+
+The contract-bearing trait is restricted to U8-compatible semantics; it does
+not cover Bool storage or arbitrary overriding implementations. Standard array,
+integer and borrow specifications remain assumptions. This checkpoint does
+not discharge the live-history safety premises or connect the native pop
+`remove_step` observer to the proved array transition.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `4e27803699601180f4e0d75b5ef55cd9ca16821e1f61af2de38117787338a4d7` |
+| `proof-guarded-v1/report.json` | `5b7598d5c58653d407dc52898b222c6d5d8c216c40d6f4495cb307bcbc6c2c41` |
+| `reviews/proof-guarded-v1/report.json` | `f7a6432b5175edff1e6e35a813004825e785280eb7078129f213a8b18fc1f3e1` |
+| `reviews/FINAL-REVIEW.json` | `d089f37ff1340a7eda1bb85ac540ccc9d42b173793536f5becbda090e54cd3e3` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-remove-chain/prove_guarded.py /private/tmp/native-u8-remove-replay
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-remove-chain/reviews/audit_guarded.py /private/tmp/native-u8-remove-replay
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -519,10 +563,11 @@ now links the caller predicate to the checked helper definition and preserves
 both return paths. Exporting the unspecialized contract avoids the ambiguous
 branch-specialized clauses found during preflight.
 
-The next reviewed priority is native U8 removal semantics: prove the two actual
-slot updates in order, including coincident indices, sticky saturation and
-non-underflow conditions. Native clear/reset endpoint correspondence follows
-that, supplying a reset case for recovery. Linked-pop integration remains useful
+The next priority is connecting the proved U8 array transitions to the existing
+counter interpretation and deriving sequential non-underflow from live history.
+Native filter clear/reset verification and endpoint correspondence follow,
+supplying a reset case for recovery. The filter reset does not alone clear the
+storage vectors or establish their final high-water value. Linked-pop integration remains useful
 but does not discharge primitive semantics or the provider boundary. Complete
 recovery and the next borrow's intrinsic validity remain open.
 
