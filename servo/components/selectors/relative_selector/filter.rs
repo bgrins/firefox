@@ -80,13 +80,7 @@ fn fast_reject<Impl: SelectorImpl>(
     // inner selectors up to the point where a descendant/child combinator is encountered
     // (e.g. In `.anchor:has(:is(.a ~ .b) .c)`, `.a` is guaranteed to be the a descendant
     // of `.anchor`). While that can be separately handled, well, this is simpler.
-    collect_selector_hashes(
-        selector.selector.iter(),
-        quirks_mode,
-        &mut hashes,
-        &mut len,
-        |s| s.iter(),
-    );
+    collect_selector_hashes(selector.selector.iter(), quirks_mode, &mut hashes, &mut len);
     for hash in &hashes[0..len] {
         if !filter.might_contain_hash(*hash) {
             // Definitely rejected.

@@ -45,7 +45,6 @@ mod parser {
         _: QuirksMode,
         hashes: &mut [u32; 4],
         len: &mut usize,
-        _: fn(&'a Selector<I>) -> Iter,
     ) -> bool
     where
         Iter: Iterator<Item = &'a Selector<I>>,

@@ -624,92 +624,142 @@ where
 
 pub use crate::ancestor_hashes::AncestorHashes;
 
-pub(crate) fn collect_selector_hashes<'a, Impl: SelectorImpl, Iter>(
+#[inline]
+fn simple_selector_hash<Impl: SelectorImpl>(
+    component: &Component<Impl>,
+    quirks_mode: QuirksMode,
+) -> Option<u32> {
+    let hash = match *component {
+        Component::LocalName(LocalName {
+            ref name,
+            ref lower_name,
+        }) => {
+            // Only insert the local-name into the filter if it's all
+            // lowercase.  Otherwise we would need to test both hashes, and
+            // our data structures aren't really set up for that.
+            if name != lower_name {
+                return None;
+            }
+            name.precomputed_hash()
+        },
+        Component::DefaultNamespace(ref url) | Component::Namespace(_, ref url) => {
+            url.precomputed_hash()
+        },
+        // In quirks mode, class and id selectors should match
+        // case-insensitively, so just avoid inserting them into the filter.
+        Component::ID(ref id) if quirks_mode != QuirksMode::Quirks => id.precomputed_hash(),
+        Component::Class(ref class) if quirks_mode != QuirksMode::Quirks => {
+            class.precomputed_hash()
+        },
+        Component::AttributeInNoNamespace { ref local_name, .. }
+            if Impl::should_collect_attr_hash(local_name) =>
+        {
+            // AttributeInNoNamespace is only used when local_name ==
+            // local_name_lower.
+            local_name.precomputed_hash()
+        },
+        Component::AttributeInNoNamespaceExists {
+            ref local_name,
+            ref local_name_lower,
+            ..
+        } => {
+            // Only insert the local-name into the filter if it's all
+            // lowercase.  Otherwise we would need to test both hashes, and
+            // our data structures aren't really set up for that.
+            if local_name != local_name_lower || !Impl::should_collect_attr_hash(local_name) {
+                return None;
+            }
+            local_name.precomputed_hash()
+        },
+        Component::AttributeOther(ref selector) => {
+            if selector.local_name != selector.local_name_lower
+                || !Impl::should_collect_attr_hash(&selector.local_name)
+            {
+                return None;
+            }
+            selector.local_name.precomputed_hash()
+        },
+        _ => return None,
+    };
+    Some(hash)
+}
+
+pub(crate) trait SelectorHashIterator<'a, Impl: SelectorImpl + 'a>:
+    Iterator<Item = &'a Component<Impl>>
+{
+    fn for_inner(selector: &'a Selector<Impl>) -> Self;
+}
+
+impl<'a, Impl: SelectorImpl + 'a> SelectorHashIterator<'a, Impl> for SelectorIter<'a, Impl> {
+    fn for_inner(selector: &'a Selector<Impl>) -> Self {
+        selector.iter()
+    }
+}
+
+impl<'a, Impl: SelectorImpl + 'a> SelectorHashIterator<'a, Impl> for AncestorIter<'a, Impl> {
+    fn for_inner(selector: &'a Selector<Impl>) -> Self {
+        AncestorIter(selector.iter())
+    }
+}
+
+#[inline]
+fn collect_component_hashes<'a, Impl: SelectorImpl + 'a, Iter>(
+    component: &'a Component<Impl>,
+    quirks_mode: QuirksMode,
+    hashes: &mut [u32; 4],
+    len: &mut usize,
+) -> bool
+where
+    Iter: SelectorHashIterator<'a, Impl>,
+{
+    if let Component::Is(ref list) | Component::Where(ref list) = *component {
+        // :where and :is OR their selectors, so we can't put any hash
+        // in the filter if there's more than one selector, as that'd
+        // exclude elements that may match one of the other selectors.
+        let slice = list.slice();
+        return slice.len() != 1
+            || collect_selector_hashes(Iter::for_inner(&slice[0]), quirks_mode, hashes, len);
+    }
+    let Some(hash) = simple_selector_hash(component, quirks_mode) else {
+        return true;
+    };
+    hashes[*len] = hash & BLOOM_HASH_MASK;
+    *len += 1;
+    *len != hashes.len()
+}
+
+pub(crate) fn collect_selector_hashes<'a, Impl: SelectorImpl + 'a, Iter>(
     iter: Iter,
     quirks_mode: QuirksMode,
     hashes: &mut [u32; 4],
     len: &mut usize,
-    create_inner_iterator: fn(&'a Selector<Impl>) -> Iter,
 ) -> bool
 where
-    Iter: Iterator<Item = &'a Component<Impl>>,
+    Iter: SelectorHashIterator<'a, Impl>,
 {
     for component in iter {
-        let hash = match *component {
-            Component::LocalName(LocalName {
-                ref name,
-                ref lower_name,
-            }) => {
-                // Only insert the local-name into the filter if it's all
-                // lowercase.  Otherwise we would need to test both hashes, and
-                // our data structures aren't really set up for that.
-                if name != lower_name {
-                    continue;
-                }
-                name.precomputed_hash()
-            },
-            Component::DefaultNamespace(ref url) | Component::Namespace(_, ref url) => {
-                url.precomputed_hash()
-            },
-            // In quirks mode, class and id selectors should match
-            // case-insensitively, so just avoid inserting them into the filter.
-            Component::ID(ref id) if quirks_mode != QuirksMode::Quirks => id.precomputed_hash(),
-            Component::Class(ref class) if quirks_mode != QuirksMode::Quirks => {
-                class.precomputed_hash()
-            },
-            Component::AttributeInNoNamespace { ref local_name, .. }
-                if Impl::should_collect_attr_hash(local_name) =>
-            {
-                // AttributeInNoNamespace is only used when local_name ==
-                // local_name_lower.
-                local_name.precomputed_hash()
-            },
-            Component::AttributeInNoNamespaceExists {
-                ref local_name,
-                ref local_name_lower,
-                ..
-            } => {
-                // Only insert the local-name into the filter if it's all
-                // lowercase.  Otherwise we would need to test both hashes, and
-                // our data structures aren't really set up for that.
-                if local_name != local_name_lower || !Impl::should_collect_attr_hash(local_name) {
-                    continue;
-                }
-                local_name.precomputed_hash()
-            },
-            Component::AttributeOther(ref selector) => {
-                if selector.local_name != selector.local_name_lower
-                    || !Impl::should_collect_attr_hash(&selector.local_name)
-                {
-                    continue;
-                }
-                selector.local_name.precomputed_hash()
-            },
-            Component::Is(ref list) | Component::Where(ref list) => {
-                // :where and :is OR their selectors, so we can't put any hash
-                // in the filter if there's more than one selector, as that'd
-                // exclude elements that may match one of the other selectors.
-                let slice = list.slice();
-                if slice.len() == 1
-                    && !collect_selector_hashes(
-                        create_inner_iterator(&slice[0]),
-                        quirks_mode,
-                        hashes,
-                        len,
-                        create_inner_iterator,
-                    )
-                {
-                    return false;
-                }
-                continue;
-            },
-            _ => continue,
-        };
-
-        hashes[*len] = hash & BLOOM_HASH_MASK;
-        *len += 1;
-        if *len == hashes.len() {
+        if !collect_component_hashes::<Impl, Iter>(component, quirks_mode, hashes, len) {
             return false;
+        }
+    }
+    true
+}
+
+#[inline]
+fn collect_subject_ancestor_hashes<Impl: SelectorImpl>(
+    iter: &mut SelectorIter<Impl>,
+    quirks_mode: QuirksMode,
+    hashes: &mut [u32; 4],
+    len: &mut usize,
+) -> bool {
+    for item in iter.by_ref() {
+        if let Component::Is(list) | Component::Where(list) = item {
+            let slice = list.slice();
+            if slice.len() == 1
+                && !collect_ancestor_hashes(slice[0].iter(), quirks_mode, hashes, len)
+            {
+                return false;
+            }
         }
     }
     true
@@ -722,15 +772,8 @@ fn collect_ancestor_hashes<Impl: SelectorImpl>(
     len: &mut usize,
 ) -> bool {
     loop {
-        for item in iter.by_ref() {
-            if let Component::Is(list) | Component::Where(list) = item {
-                let slice = list.slice();
-                if slice.len() == 1
-                    && !collect_ancestor_hashes(slice[0].iter(), quirks_mode, hashes, len)
-                {
-                    return false;
-                }
-            }
+        if !collect_subject_ancestor_hashes(&mut iter, quirks_mode, hashes, len) {
+            return false;
         }
         let Some(c) = iter.next_sequence() else {
             return true;
@@ -750,9 +793,7 @@ fn collect_ancestor_hashes<Impl: SelectorImpl>(
         }
     }
 
-    collect_selector_hashes(AncestorIter(iter), quirks_mode, hashes, len, |s| {
-        AncestorIter(s.iter())
-    })
+    collect_selector_hashes(AncestorIter(iter), quirks_mode, hashes, len)
 }
 
 impl AncestorHashes {
