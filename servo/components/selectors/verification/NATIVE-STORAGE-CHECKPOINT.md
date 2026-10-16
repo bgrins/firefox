@@ -78,11 +78,49 @@ Reproduce using a fresh output directory:
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-observations/check_observations.py check-v2
 ```
 
+## Reviewed observed storage invariant
+
+`artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-invariant`
+combines the observations. Its `check-v2` run and independent `reviews/check-v1`
+replay pass two exact theorem/axiom audits and six rejected mutations.
+
+`observed_push_valid` preserves high-water history, the ordered concatenation
+of each record's policy hashes, and each recorded hash count. The observed
+record chain gains the pushed element at its head. The result retains a
+representation of the exact native exit hash vector and a related extracted
+sink with auxiliary count reset to zero, permitting another push. This reset
+is a witness construction, not a native continuation interpretation.
+
+`valid_lookup` proves lookup succeeds for a policy hash of an element in that
+record chain. The proof uses only standard logical axioms. Actual DOM ancestry
+and stability of the fixed element-hash policy remain separate obligations.
+
+The controls cover reversed record flattening, a changed count, chain order,
+wrong vector endpoint, missing count reset and missing hash membership. The
+flattening mutation breaks both push preservation and lookup; the checker
+requires both expected failures. Invalid manifest controls remove stale
+acceptance output.
+
+| Record | SHA-256 |
+| --- | --- |
+| `check-v2/report.json` | `fdc1a2d370a51b363fa63afde0c1631627eddf20f0e7e0f9e380d35d5e1fd607` |
+| `reviews/check-v1/report.json` | `a50776428f0907e568642d71032fd630d8f9542cb8912266b7ee852c867fa9f0` |
+| `reviews/INVARIANT-FINAL-REVIEW.json` | `964e12ff05038dca5a796be1199ddc64d1c962ff4513667e2334c5c3f6a7a776` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-invariant/check_invariant.py check-v3
+```
+
 ## Remaining interpretation work
 
-Connect the complete ordered record/hash state to the recovery invariant.
-An isolated `native-storage-invariant` candidate composes the observations into
-push preservation and lookup; it requires a guarded run and independent review.
+Connect the observed invariant to concrete element-vector representation and
+full recovery. An isolated `native-storage-element-step` candidate adds one
+postcondition retaining the actual element-vector primitive push transition.
+Its 26 storage tasks pass; the other 42 models match after checked source-location
+normalization. Wrong-endpoint and wrong-count controls leave only the added
+postcondition unproved. These timeouts are sensitivity checks, not counterexamples.
+The separate `native-storage-elements-lean` interpretation is in progress.
+
 Interpret the native continuation separately: `StoragePushProofs.ProviderCalls`
 requires an exact backward-function equation that a normal-return trace does
 not supply. Do not assume that equation to claim the native gap is closed.
