@@ -43,21 +43,49 @@ Reproduce using a fresh output directory:
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-lean/check_adapter.py check-v4
 ```
 
-## Remaining interpretation work
+## Reviewed storage observations
 
-The next isolated package,
+The second isolated package,
 `artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-observations`,
 exports the native function's five numbered entry conditions and ten numbered
-exit conditions. Its candidate lemmas interpret the actual stored high-water
-field and the appended element/count record, associating events with
-`policy(element)`. These require their own guarded run and independent review
-before becoming an accepted checkpoint.
+exit conditions. Its `check-v1` run and independent `reviews/check-v1` replay
+pass eight theorem/axiom audits and six rejection controls. Independent clause
+review checks their original Why3 groups, binders, typed variables and record
+constructor metadata.
 
-After those observations are accepted, connect the complete ordered record/hash
-state to the recovery invariant. Interpret the native continuation separately:
-`StoragePushProofs.ProviderCalls` requires an exact backward-function equation
-that a normal-return trace does not supply. Do not assume that equation to
-claim the native gap is closed.
+`stored_high_water` identifies the actual stored value with the maximum of the
+entry high-water value and the final hash count. `appended_record` identifies
+an ordered append of the element and its policy-event count, under explicit
+record-constructor and sequence interpretations. `stored_history` combines the
+hash trace with the stored high-water observation. Record append and hash
+history are still separate conditional results at this checkpoint.
+
+The controls reject a changed AST fingerprint, missing clause, unsupported
+borrow projection, reversed comparison, wrong record count and wrong final
+record-vector endpoint. The last control retains its historical `record-order`
+label; it mutates the endpoint, not sequence order.
+
+| Record | SHA-256 |
+| --- | --- |
+| `check-v1/report.json` | `85096259d39a57a48581a183e840f4f4ac0c7712c928cefc7420fb6df3d2a26c` |
+| `reviews/check-v1/report.json` | `a7d3ad4aa49e198082bc7c3be7848154fe143953d200b1b04ff91ad4b810c0de` |
+| `reviews/OBSERVATIONS-FINAL-REVIEW.json` | `346217a9546562b6e47b3894c1f2771b1f53e8ee55c6907453f00b2c8e0109e9` |
+| `reviews/CLAUSE-PROVENANCE-REVIEW.json` | `bd2b6233db38be93a67d52c2ee0a5189643d0f84d2d11602109d1f558d63597e` |
+
+Reproduce using a fresh output directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-observations/check_observations.py check-v2
+```
+
+## Remaining interpretation work
+
+Connect the complete ordered record/hash state to the recovery invariant.
+An isolated `native-storage-invariant` candidate composes the observations into
+push preservation and lookup; it requires a guarded run and independent review.
+Interpret the native continuation separately: `StoragePushProofs.ProviderCalls`
+requires an exact backward-function equation that a normal-return trace does
+not supply. Do not assume that equation to claim the native gap is closed.
 
 The matcher still has a preserved verifier limitation involving its borrowed
 dynamic callback, associated data and mutable cache reference. The reviewed
