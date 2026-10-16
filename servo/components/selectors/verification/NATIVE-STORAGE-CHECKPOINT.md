@@ -1267,8 +1267,8 @@ sensitivity checks, not counterexamples. Five output/report/reference tamper
 controls and four source/contract tamper controls also reject.
 
 This checkpoint accepts the shared native model proofs under those premises.
-The full clear postcondition's Lean history/accounting interpretation is being
-checked separately. Actual provider execution, recovery composition, global
+The full clear postcondition's Lean history/accounting interpretation is
+recorded below. Actual provider execution, recovery composition, global
 observer interpretation and native completion remain open.
 
 | Record | SHA-256 |
@@ -1284,6 +1284,44 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 
 The audit command authenticates the completed replay snapshot. A fresh solver
 run has different timings and needs fresh review anchors.
+
+## Reviewed shared clear interpretation
+
+The complete selected `Storage.clear` contract now has a typed Lean
+interpretation using the same stored counter, hash and record observers as
+native push and pop. Its postcondition proves the encoded filter is empty from
+all 4096 zero counters, then establishes empty history and record accounting.
+The next pop and clear preconditions follow with explicit next-state equality
+and borrow-intrinsic premises. The record sequence's empty interpretation and
+the guarded counter-length domain remain explicit assumptions.
+
+The exporter preserves the original task's 1,398 declarations and 2,338
+identities while appending the unspecialized complete pre/post predicates.
+Typed translation checks 14 types, 40 functions, six definitions and one
+selected contract. Binding checks cover 18 shared functions, seven source
+addresses, four datatype layouts, 13 intrinsic predicates and two rewrite
+axioms. The selected unsigned bit-vector operations use bounded `Fin`
+interpretations. Source equality links the count helpers to the preceding
+count bridge; complete count-model and global observer interpretation remain
+open.
+
+A fresh dependency rebuild passes 52 modules and 91 theorem audits. All fifteen
+new audits use only standard logical axioms. Independent review checks 877
+outputs, 12,833 input pins and 141,236 lookup entries. All 1,378 review pins were
+rechecked. The combined controls comprise 66 structural, 73 semantic, eight
+canonical-root, twelve binding and five physical evidence checks. Semantic
+mutants compile before their intended proof failures.
+
+| Record | SHA-256 |
+| --- | --- |
+| `STORAGE-CLEAR-LIVE-EVIDENCE-v1.json` | `cba02dd5129c5d0b5721f80590051c8b61d2f3e5b3cafe35787e3c770a2f3aff` |
+| `storage-clear-live-check-v1/report.json` | `830acaf5fe8244fcc3f57f85cf618ef625074f6af04576f84efc67b0044dc051` |
+| `reviews/storage-clear-interpretation-review-v1/REVIEW-EVIDENCE-v1.json` | `aa5b33a656d0a41f56663837a0cb2fcc6bd4e47f1cd31a70c414b2ec0809e997` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/storage-clear-live-gate-v1/rebuild.py --output /private/tmp/native-storage-clear-live
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/storage-clear-interpretation-review-v1/audit.py --output /private/tmp/native-storage-clear-live --report /private/tmp/native-storage-clear-live-audit.json
+```
 
 ## Remaining interpretation work
 
@@ -1309,13 +1347,14 @@ including after pop. Native push's interpreted post now preserves this same
 history and accounting through ordered counter updates, hash and record appends,
 and the high-water maximum, starting from explicit counter length and laws.
 The shared native provider/push/pop/clear crate now passes its complete model
-inventory. The next priority is accepting the typed clear postcondition bridge
-that derives empty history and accounting and establishes the next operation
-preconditions under the same observers.
+inventory. The typed clear postcondition now derives empty history and
+accounting and establishes the next operation preconditions under the same
+observers. The next priority is connecting these storage posts to ancestor
+stack observations and recovery's pending sequence, parent relation and loops.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
-library premises. Integrating its postcondition with the shared storage
-observers remains open. Linked-pop integration remains useful
+library premises and its postcondition now uses the shared storage observers.
+Linked-pop integration remains useful
 but does not discharge primitive semantics or the provider boundary. Complete
 recovery and the next borrow's intrinsic validity remain open.
 
