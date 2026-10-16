@@ -1323,6 +1323,40 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/storage-clear-interpretation-review-v1/audit.py --output /private/tmp/native-storage-clear-live --report /private/tmp/native-storage-clear-live-audit.json
 ```
 
+## Reviewed native ancestor-chain interpretation
+
+The shared stored-record observer now yields the ancestor stack used by
+recovery: reverse record order, with each record mapped to its element. Ten
+Lean theorems connect this observation to native record length and the last
+record's element, push/prepend, pop/head-tail and clear/empty. Push followed by
+pop returns the pushed element and restores the previous chain; clear followed by pop
+returns `None`. Both composition results require the actual subsequent native
+postcondition and an explicit connection between the two operations' states.
+
+The fresh rebuild passes 53 modules and 101 theorem audits. All ten new audits
+use only standard logical axioms. Independent review checks 904 outputs, 14,052
+input pins and 141,236 lookup entries; all 1,428 review pins were rechecked.
+Six new controls change chain order, operation endpoints, the empty-record
+interpretation or the next-state connection and fail the intended proofs.
+The combined inventory has 66 structural, 79 semantic, eight canonical-root,
+twelve binding and five physical evidence controls.
+
+Sequence length, append, record constructor and empty-sequence laws remain
+explicit. These implications establish stack observations under the selected
+contracts. Parent-edge consistency, recovery loop execution, resource bounds
+and native completion remain separate obligations.
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-RECOVERY-CHAIN-EVIDENCE-v1.json` | `ceff6ef578bc56e7a65d2e095b2ccebcffa6610ac5131f6fa6c0a258e99ddec2` |
+| `native-recovery-chain-check-v1/report.json` | `9239fa991959fe37fc978589b39915eba9aade3be8baeef051b1c7b48f9c4ec5` |
+| `reviews/recovery-chain-review-v1/REVIEW-EVIDENCE-v1.json` | `d897ef7f7afa9d1cc700791a82f2f33b23fdcb3c31ade3e9852954e33fe63b85` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-chain-gate-v1/rebuild.py --output /private/tmp/native-recovery-chain
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/recovery-chain-review-v1/audit.py --output /private/tmp/native-recovery-chain --report /private/tmp/native-recovery-chain-audit.json
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -1349,8 +1383,9 @@ and the high-water maximum, starting from explicit counter length and laws.
 The shared native provider/push/pop/clear crate now passes its complete model
 inventory. The typed clear postcondition now derives empty history and
 accounting and establishes the next operation preconditions under the same
-observers. The next priority is connecting these storage posts to ancestor
-stack observations and recovery's pending sequence, parent relation and loops.
+observers. The ancestor-chain observations now follow those same posts. The
+next priority is connecting them to recovery's pending sequence, parent
+relation and loops through source-preserved wrapper bodies and state frames.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises and its postcondition now uses the shared storage observers.
