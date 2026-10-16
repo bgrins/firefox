@@ -22,7 +22,7 @@ lifetime correctness. See [README.md](README.md) for assumptions and reproductio
 | 2. Close hash-normalization gap | Complete (`fc3af7e2b69a`) | Checked equivalence of raw and masked hashes for insertion, removal and lookup; a composed history/packing/rejection theorem using raw element hashes. |
 | 3. Exercise Gecko state changes | Complete (`700d5df737ab`) | Local browser checks of class/ID/attribute mutation, reparenting, removal/reinsertion, namespaces/case, shadow roots and slot reassignment, with style flushes and independent expectations. Assess feasibility of a test-only filter bypass and document coverage limits. |
 | 4. Prove StyleBloom recovery and clearing | Clear proof committed (`a0bd75a11f4e`); conditional recovery algorithm proved; production adapter open | An invariant connecting ancestor path, hash stack, filter contributions and saturation history; valid removals, required-hash retention, and empty state after clearing. Account for siblings, ancestors and separate roots; connect extracted production transitions to the invariant. |
-| 5. Verify relative traversal and caching | Complete; combined extraction, 44 declaration audits, and independent review pass | Termination, region coverage and boundary preservation for the production walk; conservative handling of unavailable hashes and correct children/subtree cache reuse under explicit DOM/lifetime assumptions. |
+| 5. Verify relative traversal and caching | Complete (`f77c6b0f6042`); combined extraction, 44 declaration audits, and independent review pass | Termination, region coverage and boundary preservation for the production walk; conservative handling of unavailable hashes and correct children/subtree cache reuse under explicit DOM/lifetime assumptions. |
 | 6. Prove selector hash collection soundness | Extraction and iterator refactor in progress | A declared selector subset with a production connection: matching implies every collected rejection hash is represented in the appropriate DOM region. Extend through combinators, is/where and relative selectors; enumerate unsupported constructs. |
 
 ## Proposed next sequence
@@ -32,10 +32,9 @@ callers. The first three milestones already provide differential, composition,
 and browser evidence; the remaining work targets the assumptions those checks
 currently leave open.
 
-1. **Integrate and commit milestone 5 (integration complete).** The combined
-   extraction and audit pipeline passes: the core suite has
-   66 checked theorems, and the relative work adds 36
-   declarations plus eight bridge theorems. The combined result is
+1. **Integrate and commit milestone 5 (complete).** At `f77c6b0f6042`, the combined
+   extraction and audit pipeline passed with 66 core theorems and 36 relative
+   declarations plus eight bridge theorems. That combined result comprises
    110 audited declarations, including two concrete witness definitions.
    Exact axiom allowlists and the check that excludes the mock
    collector from extracted dependencies pass. The collector preparation
@@ -173,6 +172,14 @@ counterexample requires it.
   conditions; production adapter extraction and hash-resource bounds remain
   required. Generated panic-message code introduced native evaluation axioms;
   equivalent explicit checks removed those dependencies instead of allowing them.
+
+- Four additional storage-history lemmas connect append-order high-water
+  histories to saturated-counter coverage and successful lookup at arbitrary
+  historical maxima. They also establish the exact list and maximum after a
+  batch of actual insertions. Independent review and the full pipeline pass:
+  70 core theorems plus 44 relative declarations, or 114 audited declarations.
+  Production storage/provider methods still need to establish these histories;
+  milestone 4 remains open.
 
 ## Maintenance
 

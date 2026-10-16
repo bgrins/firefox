@@ -44,7 +44,7 @@ models and logs are ignored by Git. Logs are in `generated/`; setup logs are in
 
 ## Current guarantees
 
-The core suite's sixty-six checked theorems cover:
+The core suite's seventy checked theorems cover:
 
 - Construction and clearing produce an array of zero counters.
 - A saturated counter stays unchanged for either adjustment direction.
@@ -75,6 +75,10 @@ The core suite's sixty-six checked theorems cover:
   insertions preserves prior hash coverage and covers every inserted hash.
 - The extracted recovery algorithm terminates and reconstructs the target's
   ancestor path under the stack, navigation, depth and resource contracts below.
+- Append-order high-water histories preserve every live hash's lookup even
+  after saturation. A batch of actual insertions extends the recorded hash list
+  in order and updates its historical maximum to the larger of its prior value
+  and the final live length.
 
 The proofs use the actual 4096-slot array and 8-bit counters, for all 32-bit hash
 inputs. The Rust integration tests add concrete collision and saturation cases;
@@ -121,6 +125,12 @@ of 25 is therefore within that bound. The actual extracted removal loop is
 proved terminating and exact; both clear paths return the zero filter, and the
 optimized clear establishes a new empty history with high-water zero.
 
+[StorageHistoryProofs.lean](lean/StorageHistoryProofs.lean) connects that same
+append-order history to saturated-counter coverage without restricting the
+historical maximum. It also checks batch insertion and the exact resulting
+high-water value. These lemmas support the production adapter proof; they still
+require its storage operations to establish the logical history.
+
 The helper lives in `style/bloom_filter.rs` and is called by `StyleBloom`.
 Its contract still requires the supplied hash slice and high-water mark to
 correspond to the recorded history. The broader `StyleBloom` recovery and
@@ -146,7 +156,7 @@ establish that every production adapter operation satisfies that contract.
 ## Relative traversal and cache proofs
 
 The relative suite checks another 42 theorems and two concrete witness
-definitions. Together with the core suite, the runner audits 110 declarations.
+definitions. Together with the core suite, the runner audits 114 declarations.
 Its wrapper includes the production `relative_selector/filter.rs` and extracts
 the traversal, entry update, target selection, cache lookup, and Bloom operations.
 An LLBC metadata check rejects any retained mock selector collector or matching
