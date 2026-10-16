@@ -548,6 +548,42 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-remove
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-remove-chain/reviews/audit_guarded.py /private/tmp/native-u8-remove-replay
 ```
 
+## Reviewed native U8 filter clear
+
+`native-u8-clear/proof-guarded-v1` and independent `check-v1` each pass eight
+debug and eight release obligations. Source checks retain the production
+default constructor and clear method signatures/bodies, both storage structs
+and array constants. Clear is specialized to U8 storage; other implementations
+and generic dispatch are excluded.
+
+The concrete constructor creates 4096 zero counters, and clear replaces its
+storage with that result. All three generated models are checked, including
+default's trait refinement. No initial counter-value condition is required;
+saturated counters are reset as well. The standard array and borrow models,
+cached dependencies and compiler/prover remain trust boundaries.
+
+Three source controls replace zero with one, omit the assignment or retain a
+saturated slot. Each leaves only the intended zero postcondition unresolved
+with a Timeout result. Separate complete-array runtime tests demonstrate the
+mutant failures. Five compilation controls and three proof-output controls
+check evidence integrity.
+
+The result concerns filter clearing. It does not clear storage hash/element
+vectors, establish their high-water value or supply the typed native counter
+observer mapping needed by the storage interpretation.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `1715644608557e52f8e7c66794906d92d057c11e83cab2aa00272542b967bdba` |
+| `check-v1/report.json` | `8fcaf38234bd875f3ff7793349f48e8a470f5b39503a677edb81a3b15c64bfd9` |
+| `proof-guarded-v1/report.json` | `1a8865a7266d612ee1c8a5d7618bea0a2a255f3cafe654eff501af6284d0078c` |
+| `EVIDENCE-PRODUCER-v1.json` | `236c10d31ac03432c873d9c29f239cb1181287ea5d86f6d42956e236a5a68f9e` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-clear/prove_guarded.py /private/tmp/native-u8-clear-replay
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-clear/reviews/audit_guarded.py /private/tmp/native-u8-clear-replay
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -565,9 +601,9 @@ branch-specialized clauses found during preflight.
 
 The next priority is connecting the proved U8 array transitions to the existing
 counter interpretation and deriving sequential non-underflow from live history.
-Native filter clear/reset verification and endpoint correspondence follow,
-supplying a reset case for recovery. The filter reset does not alone clear the
-storage vectors or establish their final high-water value. Linked-pop integration remains useful
+The proved native filter reset needs endpoint correspondence to supply a reset
+case for recovery. It does not alone clear the storage vectors or establish
+their final high-water value. Linked-pop integration remains useful
 but does not discharge primitive semantics or the provider boundary. Complete
 recovery and the next borrow's intrinsic validity remain open.
 
