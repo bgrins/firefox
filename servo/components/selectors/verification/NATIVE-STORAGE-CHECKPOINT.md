@@ -111,15 +111,45 @@ acceptance output.
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-invariant/check_invariant.py check-v3
 ```
 
+## Reviewed element-vector interpretation
+
+The isolated `native-storage-element-step` package adds one source postcondition
+retaining the actual element-vector primitive push transition. Runtime bodies
+and trusted primitive specifications are unchanged. All 26 storage tasks pass;
+the other 42 models match after checked source-location normalization.
+Wrong-endpoint and wrong-count controls leave only the added postcondition
+unproved. These timeouts are sensitivity checks, not counterexamples.
+
+`native-storage-elements-lean/check-v1` and independent `reviews/check-v1` both
+pass 19 exact audits and six mutation controls. Fifteen definitional equivalences
+preserve the earlier numbered source clauses. The new theorem consumes native
+element-vector validity, spare capacity and the transition postcondition to
+obtain an extracted push and representation of the exact native exit vector.
+Count encoding is checked under the explicit 64-bit width.
+
+The element primitive refinement includes native constructor correspondence;
+this remains an explicit assumption. The result does not identify vectors from
+observed lists or install a new aggregate native proof certificate.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-storage-element-step/EVIDENCE-v1.json` | `0789419352af80e664e704a6fee0319efd13e115a908ba639071f58ba989f9ec` |
+| `native-storage-elements-lean/check-v1/report.json` | `c0e49f5f934e37624b147b0aceeebe0fc430ec3af3d7ef3a0de9f87d4fd5b67d` |
+| `native-storage-elements-lean/reviews/check-v1/report.json` | `f831ecbce9d087e7773c110409dd76d58b5b39bab9ba52c76a22532f7352c15f` |
+| `native-storage-elements-lean/reviews/ELEMENTS-FINAL-REVIEW.json` | `7ceca9050ec12d5422f845069e752f72c809e3e777a0c613536f471b3dd9d5c8` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-elements-lean/check_elements.py check-v2
+```
+
 ## Remaining interpretation work
 
-Connect the observed invariant to concrete element-vector representation and
-full recovery. An isolated `native-storage-element-step` candidate adds one
-postcondition retaining the actual element-vector primitive push transition.
-Its 26 storage tasks pass; the other 42 models match after checked source-location
-normalization. Wrong-endpoint and wrong-count controls leave only the added
-postcondition unproved. These timeouts are sensitivity checks, not counterexamples.
-The separate `native-storage-elements-lean` interpretation is in progress.
+The `native-storage-representation` candidate connects the observed invariant
+to the existing `StorageInvariantProofs.Valid` and `chain` definitions, preserving
+both vector representations and initial record-list compatibility through push.
+It is undergoing guarded validation and independent review. This is a
+representation result, not proof that an actual extracted storage call produced
+the constructed state.
 
 Interpret the native continuation separately: `StoragePushProofs.ProviderCalls`
 requires an exact backward-function equation that a normal-return trace does
