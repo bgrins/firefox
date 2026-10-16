@@ -647,6 +647,38 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-clear-
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-clear-lean/audit_rebuild.py /private/tmp/native-clear-interpretation
 ```
 
+## Reviewed success-only removal refinement
+
+`native-u8-counter-lean/success-check-v1` and independent
+`reviews/success-gate/rebuild-v2` each rebuild 47 local modules and pass
+22 exact theorem/axiom audits and eight semantic controls. Each checks 315
+outputs and 141,236 external lookup entries. Three output controls also pass.
+
+Six new declarations invert actual successful extracted array adjustment and
+ordered removal calls. The second adjustment receives the first call's actual
+returned storage. These results supply the existing history primitive-refinement
+interface under an explicit native raw-counter endpoint mapping and independent
+vector-pop refinement. No history or nonzero premise is added to that interface.
+
+Five new declarations use only standard logical axioms. The constructor also
+retains the existing SmallVec type/pop and array-size declarations. Controls
+reject missing successful-call evidence, a changed native endpoint and the
+wrong intermediate storage. The native endpoint equation remains to be connected to the checked
+native removal contract. The earlier history proof separately establishes
+successful removal for represented live hashes.
+
+| Record | SHA-256 |
+| --- | --- |
+| `SUCCESS-EVIDENCE-v1.json` | `9127fe34d2e1d0cb4c6a47490c8603c3ae2b1273a4bf673666821b27ac058070` |
+| `success-check-v1/report.json` | `bbe0f3f5edafd9212f4f1aef9d7e1e2ef50027b0ea2412ea1de0186b33a2935c` |
+| `reviews/success-gate/rebuild-v2/report.json` | `aa98d3fdccb18299fc536bdb0e0ead3c4af0d2d928835754298f8464174fb11a` |
+| `reviews/success-gate/EVIDENCE-REBUILD-v1.json` | `bffdd225777026dbd3dc55fef9fd5f3040666c0fd38778565b518db217f62612` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-counter-lean/reviews/success-gate/rebuild.py --output /private/tmp/native-removal-success
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-counter-lean/reviews/success-gate/audit_rebuild.py /private/tmp/native-removal-success
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
