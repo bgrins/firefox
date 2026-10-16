@@ -153,10 +153,10 @@ stack capacity. Each push must follow the current parent, including pushing a
 root when the stack is empty. These proofs use only standard logical axioms.
 
 `StackContract` states how the production adapter must implement its operations.
-Discharging it against `StyleBloom` remains open: its hash-producing callbacks,
-borrowed filter, `SmallVec` containers, debug checks, and hash-count bounds must
-be connected to the checked filter history. The algorithm proof does not yet
-establish that every production adapter operation satisfies that contract.
+The separate [production storage checkpoint](recovery/README.md) connects the
+actual storage and recovery operations to this contract under explicit library,
+hash-provider, DOM and resource assumptions. The algorithm proof alone does not
+discharge those assumptions; actual DOM hash enumeration remains open.
 
 ## Relative traversal and cache proofs
 
@@ -369,6 +369,68 @@ This source audit supports using a query or traversal as the cache epoch. The
 relative proof assumes that DOM links, relevant element hashes, and opaque
 identities remain stable within that epoch. It does not prove Gecko's exclusion
 of concurrent DOM mutation or make a retained map safe across mutations.
+
+## Selector collection checkpoint
+
+The separate [collection experiment](collection/README.md) checks the exact
+production simple-component hash policy for generic atom types, equality,
+hash functions, and attribute-policy contracts. Its runner regenerates the
+model from current Rust source. It uses an isolated patched extraction tool,
+a checked-shape removal of an unused associated-type slot, and explicit
+read-only Arc representations; those additional trust boundaries are documented
+there. This theorem is outside the 117-declaration default suite. A second
+isolated runner checks the actual relative iterator, collector loop, and singleton
+recursion with sixteen theorems and three collector dependency audits, including
+preservation of untouched array slots and zero padding. A third
+runner adds four local-name matching bridge theorems. They connect the actual
+local-name helper to collected hashes under explicit atom and DOM-provider
+alignment contracts; they do not extract the full CSS matcher. The ancestor
+collector contract is checked separately below; deriving its premises from
+actual successful matching remains open.
+
+The combined rejection runner freshly rebuilds the core and matching models and
+checks 64 exact dependency reports. It composes local-name collection with actual
+packing and Bloom rejection under the existing matching, hash-alignment and
+history premises. Ten negative tests cover audit and freshness failures.
+
+The ancestor runner checks 49 exact dependency reports after extracting the
+production collector through a borrowing helper. These establish iterator
+behavior and whole-collector termination, required-hash inclusion, preserved
+array contents and zero padding under explicit finite-depth component policies.
+Nine tests check the extraction boundary. The combined ancestor rejection runner
+checks 90 reports, composing this contract with actual packing and Bloom lookup.
+Seventeen guard tests cover both rejection runners. Actual successful matching
+must still imply the component policies, and DOM enumeration must supply the
+corresponding region hashes.
+
+## Production storage checkpoint
+
+The isolated [recovery experiment](recovery/README.md) extracts shared production
+storage alongside the existing core model and checks all 73 core theorems
+unchanged. Eighty-three additional theorems cover storage operations, coherent
+element/hash histories, finite insertion resources, and actual rebuild/recovery
+composition. The rebuild theorem establishes the ancestor chain and successful
+lookup of its enumerated hashes, including after saturation, with exact borrow
+restoration. Seventeen provider theorems connect the actual insertion callback
+to its finite trace, establish completion under count/capacity/allocation bounds,
+and instantiate rebuild/recovery with the concrete provider. One further theorem
+checks exact insertion behavior against the preserved original Rust method,
+including the result and future borrow restoration. Together the runner checks
+174 theorems.
+
+Both opaque DOM enumeration callbacks must still emit the same finite hash list
+for an element; the actual enumeration body has not yet discharged that contract.
+Library semantics, allocation and DOM/forest contracts remain explicit
+assumptions. Recovery also requires the exact supplied depth, coherent equality,
+a valid initial chain, and the shared-root condition when separate roots are
+disallowed. The provider cleanup passes a native build, 42 browser checks and
+ten Rust regressions in each of four configurations.
+
+The [roadmap](ROADMAP.md) records subsequent isolated native-provider work:
+conditional enumeration and provider checks, a typed trace interpretation, and
+a conditional history application. Those results do not yet discharge this
+runner's complete enumeration contract or native backward-function
+correspondence. They remain separate from the 174-declaration checkpoint.
 
 ## Trust and checks
 
