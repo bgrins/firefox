@@ -136,7 +136,6 @@ fn visit_chain(length: usize) {
 }
 
 #[test]
-#[ignore = "opt-in regression reproducer"]
 fn deep_subtree_filter_uses_bounded_stack() {
     if std::env::var_os("STYLO_BLOOM_STACK_CHILD").is_some() {
         std::thread::Builder::new()
@@ -151,7 +150,6 @@ fn deep_subtree_filter_uses_bounded_stack() {
         .args([
             "--exact",
             "deep_subtree_filter_uses_bounded_stack",
-            "--ignored",
             "--nocapture",
         ])
         .env("STYLO_BLOOM_STACK_CHILD", "1")
