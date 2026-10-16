@@ -8,15 +8,22 @@
 #![deny(missing_docs)]
 
 use crate::LocalName;
-use crate::dom::{SendElement, TElement};
+use crate::dom::TElement;
 use atomic_refcell::{AtomicRefCell, AtomicRefMut};
 use selectors::bloom::BloomFilter;
 use smallvec::SmallVec;
 
 #[path = "bloom_filter.rs"]
 mod bloom_filter;
+#[path = "bloom_hashes.rs"]
+mod bloom_hashes;
 #[path = "bloom_recovery.rs"]
 mod bloom_recovery;
+#[path = "bloom_storage.rs"]
+mod bloom_storage;
+
+use bloom_hashes::DomHashes;
+use bloom_storage::{PushedElement, RecoveryStack, Storage};
 
 thread_local! {
     /// Bloom filters are large allocations, so we store them in thread-local storage
@@ -81,23 +88,6 @@ pub struct StyleBloom<E: TElement> {
 
     /// Largest hash stack since clear(), including hashes removed by pop().
     max_pushed_hashes: usize,
-}
-
-struct PushedElement<E: TElement> {
-    /// The element that was pushed.
-    element: SendElement<E>,
-
-    /// The number of hashes pushed for the element.
-    num_hashes: usize,
-}
-
-impl<E: TElement> PushedElement<E> {
-    fn new(el: E, num_hashes: usize) -> Self {
-        PushedElement {
-            element: unsafe { SendElement::new(el) },
-            num_hashes,
-        }
-    }
 }
 
 /// Returns whether the attribute name is excluded from the bloom filter.
@@ -176,48 +166,16 @@ impl<E: TElement> StyleBloom<E> {
     /// Push an element to the bloom filter, knowing that it's a child of the
     /// last element parent.
     pub fn push(&mut self, element: E) {
-        if cfg!(debug_assertions) && self.elements.is_empty() {
-            assert!(element.traversal_parent().is_none());
-        }
-        self.push_internal(element);
+        self.storage().push::<DomHashes>(element);
     }
 
-    /// Same as `push`, but without asserting, in order to use it from
-    /// `rebuild`.
-    fn push_internal(&mut self, element: E) {
-        let mut count = 0;
-        each_relevant_element_hash(element, |hash| {
-            count += 1;
-            self.filter.insert_hash(hash);
-            self.pushed_hashes.push(hash);
-        });
-        self.max_pushed_hashes =
-            bloom_filter::update_high_water(self.max_pushed_hashes, self.pushed_hashes.len());
-        self.elements.push(PushedElement::new(element, count));
-    }
-
-    /// Pop the last element in the bloom filter and return it.
-    #[inline]
-    fn pop(&mut self) -> Option<E> {
-        let PushedElement {
-            element,
-            num_hashes,
-        } = self.elements.pop()?;
-        let popped_element = *element;
-
-        // Verify that the pushed hashes match the ones we'd get from the element.
-        let mut expected_hashes = vec![];
-        if cfg!(debug_assertions) {
-            each_relevant_element_hash(popped_element, |hash| expected_hashes.push(hash));
-        }
-
-        for _ in 0..num_hashes {
-            let hash = self.pushed_hashes.pop().unwrap();
-            debug_assert_eq!(expected_hashes.pop().unwrap(), hash);
-            self.filter.remove_hash(hash);
-        }
-
-        Some(popped_element)
+    fn storage(&mut self) -> Storage<'_, E> {
+        Storage::new(
+            &mut self.filter,
+            &mut self.elements,
+            &mut self.pushed_hashes,
+            &mut self.max_pushed_hashes,
+        )
     }
 
     /// Returns the DOM depth of elements that can be correctly
@@ -229,21 +187,15 @@ impl<E: TElement> StyleBloom<E> {
 
     /// Clears the bloom filter.
     pub fn clear(&mut self) {
-        self.elements.clear();
-
-        bloom_filter::clear_filter(
-            &mut self.filter,
-            &self.pushed_hashes,
-            self.max_pushed_hashes,
-        );
-        self.pushed_hashes.clear();
-        debug_assert!(self.filter.is_zeroed());
-        self.max_pushed_hashes = 0;
+        self.storage().clear();
     }
 
     /// Rebuilds the bloom filter up to the parent of the given element.
     pub fn rebuild(&mut self, element: E) {
-        bloom_recovery::rebuild(&mut RecoveryStack::new(self), element);
+        bloom_recovery::rebuild(
+            &mut RecoveryStack::<E, DomHashes>::new(self.storage()),
+            element,
+        );
     }
 
     /// In debug builds, asserts that all the parents of `element` are in the
@@ -283,61 +235,11 @@ impl<E: TElement> StyleBloom<E> {
     /// responsible to keep around if it wants to get an effective filter.
     pub fn insert_parents_recovering(&mut self, element: E, element_depth: usize) {
         bloom_recovery::recover(
-            &mut RecoveryStack::new(self),
+            &mut RecoveryStack::<E, DomHashes>::new(self.storage()),
             element,
             element_depth,
             cfg!(feature = "gecko"),
         );
-    }
-}
-
-struct RecoveryStack<'a, E: TElement> {
-    bloom: &'a mut StyleBloom<E>,
-    pending: SmallVec<[E; 16]>,
-}
-
-impl<'a, E: TElement> RecoveryStack<'a, E> {
-    fn new(bloom: &'a mut StyleBloom<E>) -> Self {
-        Self {
-            bloom,
-            pending: SmallVec::new(),
-        }
-    }
-}
-
-impl<E: TElement> bloom_recovery::RecoveryState for RecoveryStack<'_, E> {
-    type Element = E;
-
-    fn parent(element: E) -> Option<E> {
-        element.traversal_parent()
-    }
-
-    fn len(&self) -> usize {
-        self.bloom.elements.len()
-    }
-
-    fn current_parent(&self) -> Option<E> {
-        self.bloom.current_parent()
-    }
-
-    fn clear(&mut self) {
-        self.bloom.clear();
-    }
-
-    fn pop(&mut self) -> Option<E> {
-        self.bloom.pop()
-    }
-
-    fn push(&mut self, element: E) {
-        self.bloom.push(element);
-    }
-
-    fn pending_push(&mut self, element: E) {
-        self.pending.push(element);
-    }
-
-    fn pending_pop(&mut self) -> Option<E> {
-        self.pending.pop()
     }
 }
 
