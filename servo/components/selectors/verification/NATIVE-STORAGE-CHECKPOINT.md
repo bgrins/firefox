@@ -616,6 +616,37 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-counte
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-counter-lean/audit_rebuild.py /private/tmp/native-counter-replay
 ```
 
+## Reviewed native filter-clear interpretation
+
+`native-u8-clear-lean/check-v1` and independent `reviews/rebuild-v1` each
+rebuild 21 local modules and pass five exact theorem/axiom audits, four semantic
+controls and six typed mapping controls. Each checks 190 exact outputs and
+141,236 external lookup entries. Three independent output controls also pass.
+
+Fresh export preserves the original 337 typed task declarations, both roots and
+all 30 theory declarations, appending only two contract definitions. Typed
+mapping preserves byte bounds, datatype fields, borrow endpoints, array view,
+sequence indexing and the complete pre/post predicates. The final bounded zero
+clause proves the raw counter endpoint and actual extracted filter-clear result.
+
+Controls reject a changed endpoint, length, zero value or missing alternative
+observer compatibility, plus six typed mapping changes. The complete interpreted
+native postcondition remains an explicit premise. The chosen symbol assignments
+do not automatically satisfy every native contract. No opaque native identity
+principle is used; the separate canonical observer-update prototype is excluded.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `5863251f4814bd80defea6e99f373f5bee08f66d363fc6c9fcd8434458ed29d4` |
+| `check-v1/report.json` | `d53f472ed29caee4f41b353117f21550f3f97e12172da4cde3eef90dd6309771` |
+| `reviews/rebuild-v1/report.json` | `f0f67b798c86c9444fd30ca0e5b84aa7d3e8f6900c7008b4a68a02fac934f7d2` |
+| `reviews/FINAL-REVIEW.json` | `cf9b1fd10a5f6a8fa06ec8964618c454dfb8fac1ed48c44e7ae5cc97e15fca15` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-clear-lean/rebuild.py --output /private/tmp/native-clear-interpretation
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-clear-lean/audit_rebuild.py /private/tmp/native-clear-interpretation
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -634,9 +665,10 @@ branch-specialized clauses found during preflight.
 The next priority is connecting the proved U8 array transitions to the existing
 native counter interpretation. Raw encoding and sequential non-underflow from
 live history are checked separately; their native observer mapping remains open.
-The proved native filter reset needs endpoint correspondence to supply a reset
-case for recovery. It does not alone clear the storage vectors or establish
-their final high-water value. Linked-pop integration remains useful
+The native filter reset now has conditional extracted endpoint correspondence.
+Integrating its counter interpretation with the earlier storage observers and
+checking the complete reset path remain separate work. Filter reset does not
+alone clear the storage vectors or establish their final high-water value. Linked-pop integration remains useful
 but does not discharge primitive semantics or the provider boundary. Complete
 recovery and the next borrow's intrinsic validity remain open.
 
