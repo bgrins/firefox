@@ -28,6 +28,8 @@ OPERATIONS = (
     "may_match",
     "style_bloom_filter::update_high_water",
     "style_bloom_filter::clear_filter",
+    "style_bloom_recovery::recover",
+    "style_bloom_recovery::rebuild",
 )
 STANDARD_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
 ITERATOR_EXTERNAL = (
@@ -102,6 +104,21 @@ COVERAGE_THEOREMS = {
     "insertions_coverage",
 }
 
+RECOVERY_THEOREMS = {
+    "ancestors_chain",
+    "chain_tail",
+    "chain_head",
+    "chain_suffix",
+    "chain_cons_parent",
+    "flush_pending",
+    "collect_parents",
+    "rebuild_ancestors",
+    "trim_depth",
+    "ascend_target",
+    "find_common_parent",
+    "recover_ancestors",
+}
+
 
 def run(args, *, cwd=ROOT, env=None, log=None):
     args = [str(arg) for arg in args]
@@ -170,11 +187,18 @@ def audit_proofs(output):
     reports = re.findall(
         r"'([^']+)' depends on axioms:\s*\[([^\]]*)\]", output, re.DOTALL
     )
+    reports += [
+        (name, "")
+        for name in re.findall(
+            r"^'([^']+)' does not depend on any axioms$", output, re.MULTILINE
+        )
+    ]
     expected = {f"BloomProofs.{name}" for name in THEOREMS}
     expected |= {f"PackingProofs.{name}" for name in PACKING_THEOREMS}
     expected |= {f"NormalizationProofs.{name}" for name in NORMALIZATION_THEOREMS}
     expected |= {f"StyleBloomProofs.{name}" for name in STYLE_BLOOM_THEOREMS}
     expected |= {f"CoverageProofs.{name}" for name in COVERAGE_THEOREMS}
+    expected |= {f"RecoveryProofs.{name}" for name in RECOVERY_THEOREMS}
     if len(reports) != len(expected) or {name for name, _ in reports} != expected:
         raise RuntimeError("Lean did not report the expected theorem dependencies")
     for theorem, names in reports:
@@ -354,7 +378,13 @@ def main():
     )
     packing_log = generated / "lean-packing-proofs.log"
     run(
-        [lean / "bin/lean", "-DwarningAsError=true", "-o", "PackingProofs.olean", "PackingProofs.lean"],
+        [
+            lean / "bin/lean",
+            "-DwarningAsError=true",
+            "-o",
+            "PackingProofs.olean",
+            "PackingProofs.lean",
+        ],
         cwd=PROJECT / "lean",
         env=env,
         log=packing_log,
@@ -375,13 +405,32 @@ def main():
     )
     coverage_log = generated / "lean-coverage-proofs.log"
     run(
-        [lean / "bin/lean", "-DwarningAsError=true", "-o", "CoverageProofs.olean", "CoverageProofs.lean"],
+        [
+            lean / "bin/lean",
+            "-DwarningAsError=true",
+            "-o",
+            "CoverageProofs.olean",
+            "CoverageProofs.lean",
+        ],
         cwd=PROJECT / "lean",
         env=env,
         log=coverage_log,
     )
-    audit_proofs(proof_log.read_text() + packing_log.read_text() + normalization_log.read_text()
-        + style_log.read_text() + coverage_log.read_text())
+    recovery_log = generated / "lean-recovery-proofs.log"
+    run(
+        [lean / "bin/lean", "-DwarningAsError=true", "RecoveryProofs.lean"],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=recovery_log,
+    )
+    audit_proofs(
+        proof_log.read_text()
+        + packing_log.read_text()
+        + normalization_log.read_text()
+        + style_log.read_text()
+        + coverage_log.read_text()
+        + recovery_log.read_text()
+    )
     print(f"Verification passed. Logs: {generated}")
 
 

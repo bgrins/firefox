@@ -5,9 +5,11 @@ and [ancestor-hash packing and rejection](../ancestor_hashes.rs) directly.
 Charon extracts their Rust operations, Aeneas translates them into Lean, and
 [BloomProofs.lean](lean/BloomProofs.lean),
 [PackingProofs.lean](lean/PackingProofs.lean),
-[NormalizationProofs.lean](lean/NormalizationProofs.lean), and
+[NormalizationProofs.lean](lean/NormalizationProofs.lean),
 [StyleBloomProofs.lean](lean/StyleBloomProofs.lean), and
-[CoverageProofs.lean](lean/CoverageProofs.lean) check the generated code. The Firefox
+[CoverageProofs.lean](lean/CoverageProofs.lean) check the filter operations.
+[RecoveryProofs.lean](lean/RecoveryProofs.lean) checks the extracted recovery
+algorithm under its stack and DOM contracts. The Firefox
 build does not depend on this experiment.
 
 See [ROADMAP.md](ROADMAP.md) for the six-milestone plan and current evidence.
@@ -37,7 +39,7 @@ models and logs are ignored by Git. Logs are in `generated/`; setup logs are in
 
 ## Current guarantees
 
-The fifty-four checked theorems cover:
+The sixty-six checked theorems cover:
 
 - Construction and clearing produce an array of zero counters.
 - A saturated counter stays unchanged for either adjustment direction.
@@ -66,6 +68,8 @@ The fifty-four checked theorems cover:
 - Insertion preserves every nonzero slot and establishes both slots needed for
   its hash, even from arbitrary initial counters. Any finite sequence of actual
   insertions preserves prior hash coverage and covers every inserted hash.
+- The extracted recovery algorithm terminates and reconstructs the target's
+  ancestor path under the stack, navigation, depth and resource contracts below.
 
 The proofs use the actual 4096-slot array and 8-bit counters, for all 32-bit hash
 inputs. The Rust integration tests add concrete collision and saturation cases;
@@ -116,6 +120,23 @@ The helper lives in `style/bloom_filter.rs` and is called by `StyleBloom`.
 Its contract still requires the supplied hash slice and high-water mark to
 correspond to the recorded history. The broader `StyleBloom` recovery and
 container-adapter proof is in progress; this is not yet a proof of all callers.
+
+## Recovery algorithm proof
+
+The production rebuilding and recovery loops live in `style/bloom_recovery.rs`.
+Twelve principal declarations check finite parent-path collection, depth trimming,
+common-parent search, pending-stack reversal, and complete recovery. The theorem
+covers Gecko's separate-root behavior and the other configuration's common-root
+requirement. It assumes correct element depth, stable parent links and equality,
+a valid initial ancestor chain, an empty pending stack, and sufficient bounded
+stack capacity. Each push must follow the current parent, including pushing a
+root when the stack is empty. These proofs use only standard logical axioms.
+
+`StackContract` states how the production adapter must implement its operations.
+Discharging it against `StyleBloom` remains open: its hash-producing callbacks,
+borrowed filter, `SmallVec` containers, debug checks, and hash-count bounds must
+be connected to the checked filter history. The algorithm proof does not yet
+establish that every production adapter operation satisfies that contract.
 
 ## Operation-history exploration
 
