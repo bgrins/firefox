@@ -55,7 +55,9 @@ The experiment currently covers `BloomStorageU8`. It does not verify
 `BloomStorageBool`, arbitrary `BloomStorage` implementations, selector-matching
 callers, or probabilistic false-positive rates.
 
-## Bug found in the caller
+## Bugs found in callers
+
+### Saturation survives clearing
 
 `StyleBloom::clear()` selected its removal fast path from the current hash-stack
 length. After a deep ancestor chain saturated counters, recovering to a shallow
@@ -81,6 +83,23 @@ Run the local tests independently of the proof tools:
 cargo test --offline --locked --manifest-path servo/components/selectors/verification/Cargo.toml
 cargo test --offline --locked --release --manifest-path servo/components/selectors/verification/Cargo.toml
 ```
+
+### Subtree construction consumes stack proportional to DOM depth
+
+The relative-selector filter's `add_to_filter()` recursively visited descendants.
+The production function aborts with stack overflow on a 100,000-element mock
+chain in a thread with a 128 KiB stack, in both debug and optimized builds.
+The fix walks child, sibling, and parent links iteratively, stopping at the
+requested root. It uses constant auxiliary space.
+
+[tests/relative_filter.rs](tests/relative_filter.rs) includes the production
+filter source with mock element and selector interfaces. The selector adapter
+supplies a hash directly; it does not exercise parsing or CSS matching. The
+deep-chain check runs in a subprocess so a stack-overflow abort becomes a test
+failure. Additional cases check sibling branches, children-only traversal,
+subtree boundaries, cached reuse, and retry after unavailable element hashes.
+These tests do not establish reachability through a browser page or constitute
+a formal proof of the traversal.
 
 ## Trust and checks
 

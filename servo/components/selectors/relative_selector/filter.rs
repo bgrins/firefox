@@ -29,14 +29,29 @@ enum TraversalKind {
 
 fn add_to_filter<E: Element>(element: E, filter: &mut BloomFilter, kind: TraversalKind) -> bool {
     let mut child = element.first_element_child();
-    while let Some(e) = child {
+    while let Some(mut e) = child {
         if !e.add_element_unique_hashes(filter) {
             return false;
         }
-        if kind == TraversalKind::Descendants && !add_to_filter(e, filter, kind) {
-            return false;
+        if kind == TraversalKind::Descendants {
+            if let Some(first_child) = e.first_element_child() {
+                child = Some(first_child);
+                continue;
+            }
         }
-        child = e.next_sibling_element();
+        loop {
+            child = e.next_sibling_element();
+            if child.is_some() || kind == TraversalKind::Children {
+                break;
+            }
+            let Some(parent) = e.parent_element() else {
+                return true;
+            };
+            if parent.opaque() == element.opaque() {
+                return true;
+            }
+            e = parent;
+        }
     }
     true
 }
