@@ -1233,6 +1233,58 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/push-live-review-v1/audit.py --output /private/tmp/native-push-live --report /private/tmp/native-push-live-audit.json
 ```
 
+## Reviewed shared native storage clear
+
+The native provider/push/pop crate now includes source-preserved `Storage.clear`
+and its reset helpers. Existing provider, push, pop and native counter bodies
+are preserved. Cross-module helper contracts use the existing guarded counter
+observer; their earlier raw private-field projection produced an unbound symbol
+and was rejected before proof acceptance.
+
+The complete debug and release inventories each contain 79 models: 76 supporting
+models and three disjoint provider induction models. Debug proves 614 supporting
+obligations and release proves 531. The three provider proofs contribute 193,
+15 and 81 shared leaves, giving 903 debug, 820 release and 1,434 unique solver
+obligations. These induction leaves cover their three original models. Six
+inherited atom/hash/deref wrappers have no goals; release also contains the
+explicitly noncallable `requires(false)` zero-query wrapper. Empty models add no
+substantive proof coverage.
+
+The clear postcondition retains empty record and hash buffers, vector validity,
+capacity frames, a zero high-water mark, counter length 4096 and every counter
+zero. Added SmallVec clear/Deref and borrowed-array iterator view contracts
+remain explicit assumptions, alongside inherited DOM, atom, vector, intrinsic
+validity and count/readiness premises. No native Bloom contract is trusted.
+Fresh root compilation uses authenticated cached dependencies; it does not
+rebuild the Cargo dependency graph.
+
+Independent review checks 8,949 input pins, both complete prototype inventories,
+1,951 proof outputs, all raw results and the model partition. All 11,542 review
+pins were rechecked. Five compiled mutations each fail exactly one intended
+obligation: omitted record clear, hash clear, high-water reset, counter reset,
+and a forced release zero query. Their `Unknown (unknown)` results are proof
+sensitivity checks, not counterexamples. Five output/report/reference tamper
+controls and four source/contract tamper controls also reject.
+
+This checkpoint accepts the shared native model proofs under those premises.
+The full clear postcondition's Lean history/accounting interpretation is being
+checked separately. Actual provider execution, recovery composition, global
+observer interpretation and native completion remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `SHARED-NATIVE-CLEAR-EVIDENCE-v1.json` | `83849b5d6dbdb4459f14f56105932441422cdec4ae9f52d8601779e126a3e1a0` |
+| `native-clear-integration-v1/check-v2/report.json` | `bd7d4427a004ec937e319db1e60f9e966df83f2b89da68f2618c7b38239ae04b` |
+| `native-clear-integration-v1/reviews/checkpoint-review-v1/REVIEW-EVIDENCE-v1.json` | `1fec0a5fe0568437fa8e347d4d050aea902a1db88e3eb58919eba68bd7937191` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-clear-integration-v1/gate-v2/rebuild.py /private/tmp/shared-native-clear
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-clear-integration-v1/reviews/checkpoint-review-v1/audit.py artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-clear-integration-v1/check-v2 --report /private/tmp/shared-native-clear-audit.json
+```
+
+The audit command authenticates the completed replay snapshot. A fresh solver
+run has different timings and needs fresh review anchors.
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -1256,9 +1308,10 @@ count bridge now derives the full native clear precondition from history,
 including after pop. Native push's interpreted post now preserves this same
 history and accounting through ordered counter updates, hash and record appends,
 and the high-water maximum, starting from explicit counter length and laws.
-The next priority is integrating source-preserved `Storage.clear` into the shared
-native provider/push/pop crate and deriving empty history and accounting from
-its actual postcondition. The new crate must recheck its complete model inventory.
+The shared native provider/push/pop/clear crate now passes its complete model
+inventory. The next priority is accepting the typed clear postcondition bridge
+that derives empty history and accounting and establishes the next operation
+preconditions under the same observers.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises. Integrating its postcondition with the shared storage
