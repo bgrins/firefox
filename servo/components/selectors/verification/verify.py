@@ -17,7 +17,16 @@ PROJECT = Path(__file__).resolve().parent
 ROOT = PROJECT.parents[3]
 TOOLS = ROOT / "artifacts/stylo-bloom-tools"
 LOCK = json.loads((PROJECT / "toolchain.json").read_text())
-OPERATIONS = ("new", "insert", "remove", "contains", "clear")
+OPERATIONS = (
+    "new",
+    "insert",
+    "remove",
+    "contains",
+    "clear",
+    "pack",
+    "unpack",
+    "may_match",
+)
 STANDARD_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
 ITERATOR_EXTERNAL = (
     "core.slice.iter.Iter.Insts.CoreIterTraitsIteratorIteratorSharedAT.all"
@@ -41,6 +50,14 @@ THEOREMS = {
     "empty_represents",
     "history_represents",
     "history_no_false_negatives",
+}
+
+PACKING_THEOREMS = {
+    "fourth_hash_spec",
+    "pack_spec",
+    "pack_roundtrip",
+    "may_match_of_present",
+    "history_no_false_rejection",
 }
 
 
@@ -112,6 +129,7 @@ def audit_proofs(output):
         r"'([^']+)' depends on axioms:\s*\[([^\]]*)\]", output, re.DOTALL
     )
     expected = {f"BloomProofs.{name}" for name in THEOREMS}
+    expected |= {f"PackingProofs.{name}" for name in PACKING_THEOREMS}
     if {name for name, _ in reports} != expected:
         raise RuntimeError("Lean did not report the expected theorem dependencies")
     for theorem, names in reports:
@@ -125,6 +143,8 @@ def audit_proofs(output):
             "BloomProofs.remove_represents",
             "BloomProofs.history_represents",
             "BloomProofs.history_no_false_negatives",
+            "PackingProofs.may_match_of_present",
+            "PackingProofs.history_no_false_rejection",
         }:
             allowed.add(ITERATOR_EXTERNAL)
         if unexpected := axioms - allowed:
@@ -255,12 +275,25 @@ def main():
     )
     proof_log = generated / "lean-proofs.log"
     run(
-        [lean / "bin/lean", "-DwarningAsError=true", "BloomProofs.lean"],
+        [
+            lean / "bin/lean",
+            "-DwarningAsError=true",
+            "-o",
+            "BloomProofs.olean",
+            "BloomProofs.lean",
+        ],
         cwd=PROJECT / "lean",
         env=env,
         log=proof_log,
     )
-    audit_proofs(proof_log.read_text())
+    packing_log = generated / "lean-packing-proofs.log"
+    run(
+        [lean / "bin/lean", "-DwarningAsError=true", "PackingProofs.lean"],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=packing_log,
+    )
+    audit_proofs(proof_log.read_text() + packing_log.read_text())
     print(f"Verification passed. Logs: {generated}")
 
 

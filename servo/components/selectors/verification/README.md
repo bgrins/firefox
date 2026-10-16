@@ -1,9 +1,11 @@
 # Stylo Bloom filter verification experiment
 
 This standalone Cargo wrapper includes the existing [Bloom filter](../bloom.rs)
-directly. Charon extracts its Rust operations, Aeneas translates them into Lean,
-and [BloomProofs.lean](lean/BloomProofs.lean) checks properties of that generated
-code. The Firefox build does not depend on this experiment.
+and [ancestor-hash packing and rejection](../ancestor_hashes.rs) directly.
+Charon extracts their Rust operations, Aeneas translates them into Lean, and
+[BloomProofs.lean](lean/BloomProofs.lean) and
+[PackingProofs.lean](lean/PackingProofs.lean) check the generated code. The Firefox
+build does not depend on this experiment.
 
 ## Run
 
@@ -30,7 +32,7 @@ models and logs are ignored by Git. Logs are in `generated/`; setup logs are in
 
 ## Current guarantees
 
-The eighteen checked theorems cover:
+The twenty-three checked theorems cover:
 
 - Construction and clearing produce an array of zero counters.
 - A saturated counter stays unchanged for either adjustment direction.
@@ -42,6 +44,11 @@ The eighteen checked theorems cover:
   hash contributions, including when both indices coincide.
 - Every live hash is found after any finite valid operation history, with no
   bound on the history length.
+- Packing preserves the low 24 bits of each of the first three hashes and
+  reconstructs the fourth when four hashes were collected. Inputs to this
+  round-trip theorem are masked to 24 bits, as in the parser.
+- Ancestor rejection returns true when each queried hash is live after a valid
+  operation history, including the zero-sentinel early returns.
 
 The proofs use the actual 4096-slot array and 8-bit counters, for all 32-bit hash
 inputs. The Rust integration tests add concrete collision and saturation cases;
@@ -59,9 +66,17 @@ extracted Rust operation. `history_no_false_negatives` proves that lookup return
 true for every live hash after such a history. This does not prove that callers
 always remove valid hashes or supply complete sets of ancestor hashes.
 
+The packing and rejection proofs use the production Rust module, shared by the
+selector parser/matcher and the verification wrapper. `pack_roundtrip` checks
+the actual packing and decoding operations. `history_no_false_rejection` checks
+the actual rejection loop, assuming every nonzero packed word's low 24 bits and
+any nonzero decoded fourth hash are live. Its loop proof also establishes
+termination. These assumptions do not prove that selector hash collection and
+DOM hash production agree; the differential tests below exercise that boundary.
+
 The experiment currently covers `BloomStorageU8`. It does not verify
-`BloomStorageBool`, arbitrary `BloomStorage` implementations, selector-matching
-callers, or probabilistic false-positive rates.
+`BloomStorageBool`, arbitrary `BloomStorage` implementations, full
+selector-matching callers, or probabilistic false-positive rates.
 
 ## Operation-history exploration
 
@@ -195,12 +210,13 @@ Extraction retains the unused `is_zeroed` trait method, whose slice-iterator
 `all` operation is an uninterpreted external function in the generated model.
 Construction, clearing, insertion, removal, and lookup reference the trait
 dictionary, so Lean reports that symbol transitively in their theorem
-dependencies, including the history theorems. None of those operations calls it,
-and no behavioral property of the external function is assumed. `is_zeroed`
+dependencies, including the history and rejection theorems. None of those
+operations calls it, and no behavioral property of the external function is
+assumed. `is_zeroed`
 itself is outside the verified scope.
 
 The runner checks the exact set of reported theorems and allows only Lean's
-standard logical axioms, plus that external function for the seven affected
+standard logical axioms, plus that external function for the nine affected
 theorems. It rejects `sorryAx`, additional axioms, missing reports, and Lean warnings.
 Resolving the unnecessary external dependency remains follow-up work.
 
