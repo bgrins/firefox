@@ -78,6 +78,24 @@ visits an ancestor with few hashes. The unpatched macOS arm64 debug build at
 with Rust debug assertions enabled. Release builds do not expose the stale
 counters to page script. No false negative has been demonstrated.
 
+## Deep relative-filter traversal reproducer
+
+The standalone relative-filter harness includes the production traversal with
+mock element and selector interfaces. Its ordinary cases check subtree
+boundaries, children-only traversal, caching, and retry after unavailable
+hashes. The opt-in deep-chain case runs in a subprocess with a 128 KiB worker
+stack and 100,000 elements; recursive construction aborts with stack overflow.
+
+```sh
+cargo test --offline --locked --manifest-path servo/components/selectors/verification/Cargo.toml --test relative_filter -- --ignored
+```
+
+A browser experiment repeats `:has()` matching while a deep subtree is hidden
+from layout. Dispatching style work to workers exercises their smaller stacks.
+The unpatched macOS arm64 debug build at `976279105b2e` crashes; an iterative
+child/sibling/parent walk passes three local runs and preserves the expected
+computed color. A one-selector control passes on the unpatched build.
+
 ## Trust and checks
 
 The connection to Rust depends on the pinned compiler, Charon/Aeneas extraction,
