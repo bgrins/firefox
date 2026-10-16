@@ -347,6 +347,40 @@ Use a fresh output directory:
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-lean/check_adapter.py --output /private/tmp/native-pop-replay
 ```
 
+## Reviewed native pop policy history
+
+`native-storage-pop-policy/check-v1` and independent `reviews/rebuild-v2`
+pass ten exact theorem/axiom audits and four rejection controls. Each run
+rebuilds all 22 local dependency modules, checks their resolved imports and
+153 exact outputs, and pins 141,236 external library/tool lookup entries before
+and after the run. External libraries are pinned rather than rebuilt.
+
+The native backward-index trace is identified with the concrete reversed policy
+list. Each removal step retains vector validity. Existing extracted pop/remove
+proofs supply successful primitive calls, and explicit success-only refinements
+identify their exact native vector and filter endpoints. Controls reject a
+missing policy observation, changed vector/filter endpoints and forward event
+order. The four inherited opaque SmallVec/Vec declarations remain in the
+recorded axiom inventory.
+
+The complete interpreted native postcondition remains a premise. This result
+does not establish native primitive implementations, native completion or an
+actual extracted `Storage.pop` call.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `9b4ba9f1239796d1943e9f76ce06c957900f27134df085be3ee362e7405d3ce1` |
+| `check-v1/report.json` | `5a6060b63a656781582f4df365836852414ee87175e9d9193784b6ed27bd61e7` |
+| `reviews/rebuild-v2/report.json` | `0a4c28bc7838ff5df04d46eb51366cf2be73a40b2306fa042eb617100c736654` |
+| `reviews/EVIDENCE-REBUILD-v1.json` | `8cd2e74508458f30ab3a393af46adf7dfd8b84efc5db8776b30d01dc1ec9a7cd` |
+
+Use a fresh output directory, then audit that directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-policy/reviews/rebuild.py --output /private/tmp/native-pop-policy-replay
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-policy/reviews/audit_rebuild.py /private/tmp/native-pop-policy-replay
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -362,17 +396,16 @@ now links the caller predicate to the checked helper definition and preserves
 both return paths. Exporting the unspecialized contract avoids the ambiguous
 branch-specialized clauses found during preflight.
 
-The next `native-storage-pop-policy` prototype has ten compiled theorems:
-concrete policy-list reversal, a removal path retaining every state's vector
-validity, and conditional primitive history for the exact native exit vector
-and filter observation. Existing extracted pop/remove proofs supply successful
-calls; explicit success-only refinements identify their native endpoints.
-Three prototype controls reject wrong vector/filter endpoints and event order.
-Fresh dependency rebuilds and guarded independent replay are still pending.
-The native filter observer must be linked to the earlier counter interpretation,
-and the history bound must be identified with the stored high-water value.
-Then record removal and repeated storage recovery must be composed. No actual
-extracted `Storage.pop` call has been established by this prototype.
+The next `native-storage-pop-composition` prototype has thirteen compiled
+theorems linking that history to the earlier native counter interpretation,
+the actual stored high-water and the full element/count record. Conditional
+element-vector primitive correspondence constructs a final extracted storage
+representation preserving validity and the ancestor chain on both return
+branches. Its fresh dependency rebuild and independent replay remain pending.
+It does not establish an actual extracted `Storage.pop` call. Repeated recovery
+also needs the preserved invariant to supply the next call's complete entry
+conditions; indexed record reads and finite logical hash-sequence semantics
+must be made explicit for that step.
 
 The matcher still has a preserved verifier limitation involving its borrowed
 dynamic callback, associated data and mutable cache reference. The reviewed
