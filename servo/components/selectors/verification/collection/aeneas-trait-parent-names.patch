@@ -1,0 +1,27 @@
+--- a/src/extract/Extract.ml
++++ b/src/extract/Extract.ml
+@@ -2705,6 +2705,7 @@
+   let clause_names =
+     match builtin_info with
+     | None ->
++        let used_names = ref Collections.StringSet.empty in
+         List.map
+           (fun (c : trait_param) ->
+             let name = ctx_compute_trait_parent_clause_name ctx trait_decl c in
+@@ -2713,6 +2714,16 @@
+               if !record_fields_short_names then name
+               else ctx_compute_trait_decl_name ctx trait_decl ^ name
+             in
++            let rec fresh suffix =
++              let candidate =
++                if suffix = 0 then name else name ^ string_of_int suffix
++              in
++              if Collections.StringSet.mem candidate !used_names then
++                fresh (suffix + 1)
++              else candidate
++            in
++            let name = fresh 0 in
++            used_names := Collections.StringSet.add name !used_names;
+             (c.clause_id, name))
+           trait_decl.parent_clauses
+     | Some info ->
