@@ -6,7 +6,7 @@ use crate::attr::{
     AttrSelectorOperation, AttrSelectorWithOptionalNamespace, CaseSensitivity, NamespaceConstraint,
     ParsedAttrSelectorOperation, ParsedCaseSensitivity,
 };
-use crate::bloom::{BLOOM_HASH_MASK, BloomFilter};
+use crate::bloom::BloomFilter;
 use crate::kleene_value::KleeneValue;
 use crate::parser::{
     AncestorHashes, Combinator, Component, LocalName, MatchesFeaturelessHost, NthSelectorData,
@@ -144,29 +144,7 @@ where
 /// represented by the bloom filter, has a chance of matching at all.
 #[inline(always)]
 pub fn selector_may_match(hashes: &AncestorHashes, bf: &BloomFilter) -> bool {
-    // Check the first three hashes. Note that we can check for zero before
-    // masking off the high bits, since if any of the first three hashes is
-    // zero the fourth will be as well. We also take care to avoid the
-    // special-case complexity of the fourth hash until we actually reach it,
-    // because we usually don't.
-    //
-    // To be clear: this is all extremely hot.
-    for packed in &hashes.packed_hashes {
-        if *packed == 0 {
-            // No more hashes left - unable to fast-reject.
-            return true;
-        }
-
-        if !bf.might_contain_hash(*packed & BLOOM_HASH_MASK) {
-            // Hooray! We fast-rejected on this hash.
-            return false;
-        }
-    }
-
-    // Now do the slighty-more-complex work of synthesizing the fourth hash,
-    // and check it against the filter if it exists.
-    let fourth = hashes.fourth_hash();
-    fourth == 0 || bf.might_contain_hash(fourth)
+    hashes.may_match(bf)
 }
 
 /// A result of selector matching, includes 3 failure types,

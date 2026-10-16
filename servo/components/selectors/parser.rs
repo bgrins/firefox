@@ -622,25 +622,7 @@ where
     )
 }
 
-/// Ancestor hashes for the bloom filter. We precompute these and store them
-/// inline with selectors to optimize cache performance during matching.
-/// This matters a lot.
-///
-/// We use 4 hashes, which is copied from Gecko, who copied it from WebKit.
-/// Note that increasing the number of hashes here will adversely affect the
-/// cache hit when fast-rejecting long lists of Rules with inline hashes.
-///
-/// Because the bloom filter only uses the bottom 24 bits of the hash, we pack
-/// the fourth hash into the upper bits of the first three hashes in order to
-/// shrink Rule (whose size matters a lot). This scheme minimizes the runtime
-/// overhead of the packing for the first three hashes (we just need to mask
-/// off the upper bits) at the expense of making the fourth somewhat more
-/// complicated to assemble, because we often bail out before checking all the
-/// hashes.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AncestorHashes {
-    pub packed_hashes: [u32; 3],
-}
+pub use crate::ancestor_hashes::AncestorHashes;
 
 pub(crate) fn collect_selector_hashes<'a, Impl: SelectorImpl, Iter>(
     iter: Iter,
@@ -781,25 +763,7 @@ impl AncestorHashes {
         collect_ancestor_hashes(selector.iter(), quirks_mode, &mut hashes, &mut len);
         debug_assert!(len <= 4);
 
-        // Now, pack the fourth hash (if it exists) into the upper byte of each of
-        // the other three hashes.
-        if len == 4 {
-            let fourth = hashes[3];
-            hashes[0] |= (fourth & 0x000000ff) << 24;
-            hashes[1] |= (fourth & 0x0000ff00) << 16;
-            hashes[2] |= (fourth & 0x00ff0000) << 8;
-        }
-
-        AncestorHashes {
-            packed_hashes: [hashes[0], hashes[1], hashes[2]],
-        }
-    }
-
-    /// Returns the fourth hash, reassembled from parts.
-    pub fn fourth_hash(&self) -> u32 {
-        ((self.packed_hashes[0] & 0xff000000) >> 24)
-            | ((self.packed_hashes[1] & 0xff000000) >> 16)
-            | ((self.packed_hashes[2] & 0xff000000) >> 8)
+        Self::from_hashes(hashes, len)
     }
 }
 
