@@ -684,33 +684,38 @@ fn simple_selector_hash<Impl: SelectorImpl>(
     Some(hash)
 }
 
-pub(crate) trait SelectorHashIterator<'a, Impl: SelectorImpl + 'a>:
-    Iterator<Item = &'a Component<Impl>>
+pub(crate) trait SelectorHashIterator<'a>:
+    Iterator<Item = &'a Component<Self::Impl>>
 {
-    fn for_inner(selector: &'a Selector<Impl>) -> Self;
+    type Impl: SelectorImpl + 'a;
+    fn for_inner(selector: &'a Selector<Self::Impl>) -> Self;
 }
 
-impl<'a, Impl: SelectorImpl + 'a> SelectorHashIterator<'a, Impl> for SelectorIter<'a, Impl> {
+impl<'a, Impl: SelectorImpl + 'a> SelectorHashIterator<'a> for SelectorIter<'a, Impl> {
+    type Impl = Impl;
+
     fn for_inner(selector: &'a Selector<Impl>) -> Self {
         selector.iter()
     }
 }
 
-impl<'a, Impl: SelectorImpl + 'a> SelectorHashIterator<'a, Impl> for AncestorIter<'a, Impl> {
+impl<'a, Impl: SelectorImpl + 'a> SelectorHashIterator<'a> for AncestorIter<'a, Impl> {
+    type Impl = Impl;
+
     fn for_inner(selector: &'a Selector<Impl>) -> Self {
         AncestorIter(selector.iter())
     }
 }
 
 #[inline]
-fn collect_component_hashes<'a, Impl: SelectorImpl + 'a, Iter>(
-    component: &'a Component<Impl>,
+fn collect_component_hashes<'a, Iter>(
+    component: &'a Component<Iter::Impl>,
     quirks_mode: QuirksMode,
     hashes: &mut [u32; 4],
     len: &mut usize,
 ) -> bool
 where
-    Iter: SelectorHashIterator<'a, Impl>,
+    Iter: SelectorHashIterator<'a>,
 {
     if let Component::Is(ref list) | Component::Where(ref list) = *component {
         // :where and :is OR their selectors, so we can't put any hash
@@ -728,17 +733,17 @@ where
     *len != hashes.len()
 }
 
-pub(crate) fn collect_selector_hashes<'a, Impl: SelectorImpl + 'a, Iter>(
+pub(crate) fn collect_selector_hashes<'a, Iter>(
     iter: Iter,
     quirks_mode: QuirksMode,
     hashes: &mut [u32; 4],
     len: &mut usize,
 ) -> bool
 where
-    Iter: SelectorHashIterator<'a, Impl>,
+    Iter: SelectorHashIterator<'a>,
 {
     for component in iter {
-        if !collect_component_hashes::<Impl, Iter>(component, quirks_mode, hashes, len) {
+        if !collect_component_hashes::<Iter>(component, quirks_mode, hashes, len) {
             return false;
         }
     }
@@ -752,7 +757,7 @@ fn collect_subject_ancestor_hashes<Impl: SelectorImpl>(
     hashes: &mut [u32; 4],
     len: &mut usize,
 ) -> bool {
-    for item in iter.by_ref() {
+    while let Some(item) = iter.next() {
         if let Component::Is(list) | Component::Where(list) = item {
             let slice = list.slice();
             if slice.len() == 1
