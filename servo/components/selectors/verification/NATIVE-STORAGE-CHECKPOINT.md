@@ -1401,6 +1401,50 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 This audit authenticates the completed replay snapshot. New timed solver runs
 need fresh review anchors.
 
+## Reviewed recovery storage adapters
+
+`native-recovery-storage-wrappers-v1` extends the shared crate with exact native
+`Storage.push` and inherent recovery clear, pop, push and parent bodies. Storage
+contracts retain their complete conditions through the recovery storage field,
+including both insertion-trace endpoints. Mutations preserve pending and provider
+fields. The added parent observer assumes a stable DOM snapshot; native DOM
+stability is not proved. Empty-storage insertion requires a root element, and
+the sealed SmallVec model explicitly specifies `is_empty`.
+
+All 89 models per configuration are covered: 86 support models and three provider
+induction models. Debug proves 764 supporting obligations and release proves 656.
+Adding 289 shared induction leaves gives totals of 1,053 and 945, or 1,709 counting
+the shared induction once. Supporting obligations remain separate per
+configuration; the inherited six debug and seven release empty models add no
+substantive coverage.
+
+Independent review checks 2,682 outputs, 14,811 review inputs and 7,116 dependency
+pins. All 17,509 review capsule pins were rechecked. Inherited goal inventories
+are unchanged, and induction tasks match after removing only complete source
+location comments. Missing Rust source warnings are compared as exact multisets;
+other warning order is retained. Compilation uses authenticated cached
+dependencies.
+
+Five compiled mutations each leave exactly one intended unproved obligation:
+wrong parent, missing root premise, omitted pop and changed pending fields during
+clear or push. Responses include timeouts and unknown results, so these are
+sensitivity checks rather than verified counterexamples. Five physical evidence
+controls and five source controls also reject. Trait dispatch, equality, finite
+ancestry, recovery loops and allocation-enabled completion remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-RECOVERY-STORAGE-WRAPPERS-EVIDENCE-v1.json` | `a6d8464ba760e65658340960a02e454e8869880608eefbb166bfbd77c2dcb683` |
+| `native-recovery-storage-wrappers-v1/checkpoint-v2.json` | `35a802d0f0973f8d7c4895d3d7f897980fd86dcf985a209ea265af18b4f5ae6e` |
+| `native-recovery-storage-wrappers-v1/reviews/checkpoint-review-v1/REVIEW-EVIDENCE-v1.json` | `f0864b01acc9522b4fbb28132bfcef26c55587e673431dbd395dc8d63a5f4461` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-storage-wrappers-v1/reviews/checkpoint-review-v1/audit.py --report /private/tmp/native-recovery-storage-wrappers-audit.json
+```
+
+This audit authenticates the completed replay snapshot. New timed solver runs
+need fresh review anchors.
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -1430,8 +1474,8 @@ accounting and establishes the next operation preconditions under the same
 observers. The ancestor-chain observations now follow those same posts. The
 next priority is connecting them to recovery's pending sequence, parent
 relation and loops. The constructor, queries and pending wrappers now have
-checked native bodies and frames; storage mutation wrappers and their shared
-trait binding are the next connection.
+checked native bodies and frames, as do the storage mutation and parent wrappers.
+Their shared trait binding is the next connection.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises and its postcondition now uses the shared storage observers.
