@@ -453,6 +453,57 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-entry/reviews/audit_rebuild.py /private/tmp/native-pop-entry-replay
 ```
 
+## Reviewed logical sequence codec
+
+`native-storage-pop-entry/codec-check-v1` and independent review pass eleven
+exact theorem/axiom audits and two controls. The guarded check uses the fresh
+entry-proof dependency closure and checks twelve outputs.
+
+The finite-list codec proves hash encoding/decoding, append, injectivity and
+representation, plus indexed record length/read laws. These construct the
+entry interfaces under explicit canonical observer equations. They do not
+construct a simultaneous model of every native symbol and primitive.
+
+| Record | SHA-256 |
+| --- | --- |
+| `CODEC-EVIDENCE-v1.json` | `8d4fb19ab0d2e13b926fb558323dea1cc778722954f2e58ee7d79f44256a2247` |
+| `codec-check-v1/report.json` | `014bd489e501ee7c3ec7173b970d29304bb7f6bc45f4f6790580152da0fb7af5` |
+
+## Reviewed actual extracted pop execution
+
+`native-storage-pop-execution/check-v1` and independent `reviews/rebuild-v1`
+pass six exact theorem/axiom audits and eight semantic controls. Both rebuild
+44 local modules and check 297 exact outputs and 141,236 external lookup entries.
+The independent auditor also rejects changed, missing and extra proof objects.
+
+The actual extracted removal loop follows the native reverse-policy trace.
+The nonempty storage call derives the popped element and count from the same
+native record, then preserves the actual final storage representation, both
+native vector relations, validity, ancestor chain and identity backward frame.
+The empty branch proves the actual call equation and final representation.
+Neither a complete loop equation nor a complete storage-call equation is a
+premise.
+
+Controls reject changed filter/vector endpoints, removal order, counts, popped
+record and backward frame, and a missing expected-result contract. Extracted
+library and Option models, successful primitive endpoint refinements, complete
+native pre/post interpretation and the expected-provider completion/content
+contract remain explicit premises. The recorded inherited opaque declarations
+remain in the axiom inventory. This is conditional extracted-call correspondence;
+native primitive implementations and native completion remain separate work.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `e93de52b0859d02d7ea38f85d2ab13d4f8b6f96453cacd10496852830351eee6` |
+| `check-v1/report.json` | `edec9881d64fe71b5bbd0fec9c79edd1f7a9dccc2ccfea81f0cacff15b87a117` |
+| `reviews/rebuild-v1/report.json` | `5fcfe105f0aa6220de30b6fb148bbe64a4853962f7af4140c0704af82c28fecd` |
+| `reviews/EVIDENCE-REBUILD-v1.json` | `108a763dcabb3bfc14281b683333e3703924643d1125cfb5ed81cb5247498b00` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-execution/reviews/rebuild.py --output /private/tmp/native-pop-execution-replay
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-execution/reviews/audit_rebuild.py /private/tmp/native-pop-execution-replay
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -467,16 +518,6 @@ projections and future arguments before implementation. The accepted pop adapter
 now links the caller predicate to the checked helper definition and preserves
 both return paths. Exporting the unspecialized contract avoids the ambiguous
 branch-specialized clauses found during preflight.
-
-The `native-storage-pop-execution` prototype has six compiled theorems covering
-the actual extracted removal loop and both return branches of the storage
-invocation. The nonempty branch derives the popped element/count from the same
-native record and retains the actual final storage representation, both vector
-relations, validity, chain and identity backward frame. Six axiom audits and
-eight semantic controls pass; independent source review finds no blocker.
-Fresh guarded rebuilds remain pending. The actual provider's expected-result
-completion/content contract and the native pre/post interpretation are explicit
-premises, not discharged by this prototype.
 
 The next reviewed priority is native U8 removal semantics: prove the two actual
 slot updates in order, including coincident indices, sticky saturation and
