@@ -125,6 +125,16 @@ retained below with their technical evidence.
   their production changes and WPTs, with opt-in Rust reproducers and supporting
   documentation in preceding commits. Both patches apply independently to the
   original base; all five rewritten prefixes pass their default Rust suites.
+- The unchanged native storage push now has independently reviewed conditional
+  observation coverage across 43 models: 194 supporting obligations and 286
+  freshly checked provider obligations. The sealed container interface supports
+  only the actual hash and element-record array types. Removing the independent
+  element-capacity premise leaves the actual record push unproved. A separate
+  trace-export candidate retains the provider witness with exact native vector
+  endpoints; its 25 storage obligations pass, with 42 other models preserved
+  apart from source locations. This gives 481 covered obligations using one
+  proof strategy per model. Native primitive interpretation, the revised Lean
+  bridge and recovery composition remain open.
 
 ### Recommended sequence
 
@@ -152,15 +162,32 @@ Package 1 is complete. Preserve its 446-obligation aggregate report, independent
 review, reproduction commands and source/tool/dependency fingerprints. The
 accepted 425-obligation checkpoint and failed experiments remain separate.
 
-Package 2 now has the typed interpretation certificate and a conditional
-provider-history application connecting the generated trace to the encoding and
-coherent-vector bridges. The next gate is the unchanged
-`Storage::push_internal<DomHashes>` body: prove the recorded hash count, appended
-element record, high-water update and preserved fields on normal return with
-sufficient capacity. Treat hash-vector capacity and element-vector capacity
-separately. First check translation of both typed SmallVec contracts and the
-actual `SendElement` constructor; do not broaden the accepted hash-vector
-contract implicitly. Then compose the storage observations with recovery.
+Package 2 has the original typed interpretation certificate and conditional
+provider-history application, plus a separate native storage checkpoint under
+a revised sealed container interface. The unchanged `Storage::push_internal`
+body now establishes its recorded hash count, appended element record,
+high-water update and preserved fields on normal return with independent
+hash-vector and element-vector capacity. The trace-export extension retains
+the existing provider relation through exact initial and final sink endpoints.
+
+Creusot rejects separate extern specifications for the two SmallVec
+instantiations. The new candidate therefore uses one sealed typed interface
+restricted to `[u32; 64]` and `[PushedElement<E>; 16]`, with transparent hash
+projections and checked concrete hash-contract specializations. All actual
+provider models were reproved under this interface. The genuine `TElement: Copy`
+bound removes two old enumeration drop obligations; the remaining goal
+mapping and adapted proof coverage received independent review.
+
+The next gate is a reviewed interpretation of the new typed observer symbols
+and storage trace into Lean, including the separate ordered element-record
+sequence. The old provider certificate cannot be applied unchanged to the new
+opaque symbols. Preserve the exact vector endpoints and derive the storage
+history from the same witness, recorded count and high-water equation. Then
+compose those observations with recovery. The local evidence and independent
+reviews are under
+`artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-history`;
+component coverage is distinct from an installed aggregate acceptance
+certificate.
 
 The existing `StoragePushProofs.ProviderCalls` premise includes exact backward
 function correspondence. The new normal-return trace does not discharge that
