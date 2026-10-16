@@ -73,6 +73,9 @@ pub struct StyleBloom<E: TElement> {
 
     /// Stack of hashes that have been pushed onto this filter.
     pushed_hashes: SmallVec<[u32; 64]>,
+
+    /// Largest hash stack since clear(), including hashes removed by pop().
+    max_pushed_hashes: usize,
 }
 
 /// The very rough benchmarks in the selectors crate show clear()
@@ -80,9 +83,9 @@ pub struct StyleBloom<E: TElement> {
 /// clear() more efficiently when only a small number of hashes have been
 /// pushed.
 ///
-/// One subtly to note is that remove_hash() will not touch the value
-/// if the filter overflowed. However, overflow can only occur if we
-/// get 255 collisions on the same hash value, and 25 < 255.
+/// remove_hash() leaves saturated counters unchanged, even after pop() shrinks
+/// the stack. Use the largest stack since clear() when choosing this fast path.
+/// Each hash increments at most twice per slot, and 2 * 25 < 255.
 const MEMSET_CLEAR_THRESHOLD: usize = 25;
 
 struct PushedElement<E: TElement> {
@@ -166,6 +169,7 @@ impl<E: TElement> StyleBloom<E> {
             filter,
             elements: Default::default(),
             pushed_hashes: Default::default(),
+            max_pushed_hashes: 0,
         }
     }
 
@@ -192,6 +196,7 @@ impl<E: TElement> StyleBloom<E> {
             self.filter.insert_hash(hash);
             self.pushed_hashes.push(hash);
         });
+        self.max_pushed_hashes = self.max_pushed_hashes.max(self.pushed_hashes.len());
         self.elements.push(PushedElement::new(element, count));
     }
 
@@ -230,7 +235,7 @@ impl<E: TElement> StyleBloom<E> {
     pub fn clear(&mut self) {
         self.elements.clear();
 
-        if self.pushed_hashes.len() > MEMSET_CLEAR_THRESHOLD {
+        if self.max_pushed_hashes > MEMSET_CLEAR_THRESHOLD {
             self.filter.clear();
             self.pushed_hashes.clear();
         } else {
@@ -239,6 +244,7 @@ impl<E: TElement> StyleBloom<E> {
             }
             debug_assert!(self.filter.is_zeroed());
         }
+        self.max_pushed_hashes = 0;
     }
 
     /// Rebuilds the bloom filter up to the parent of the given element.

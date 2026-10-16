@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Clearing an ancestor filter after leaving a repeated-class ancestor</title>
+<link rel="help" href="https://drafts.csswg.org/selectors/#class-html">
+<style>
+  .repeated > span { color: green; }
+  p > em { color: blue; }
+</style>
+<div id="ancestor"><span>First child</span></div>
+<p><em id="last">Second child</em></p>
+<script>
+  // Repeated tokens saturate the filter before traversal moves to the next ancestor.
+  document.getElementById("ancestor").className = "repeated ".repeat(256);
+  getComputedStyle(document.getElementById("last")).color;
+</script>
