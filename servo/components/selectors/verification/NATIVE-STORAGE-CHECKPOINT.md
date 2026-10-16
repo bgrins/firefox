@@ -1357,6 +1357,50 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/recovery-chain-review-v1/audit.py --output /private/tmp/native-recovery-chain --report /private/tmp/native-recovery-chain-audit.json
 ```
 
+## Reviewed native recovery-stack adapters
+
+The shared native crate now checks the exact `RecoveryStack` declaration and
+five original method bodies as inherent adapters: constructor, length,
+current-parent query, pending push and pending pop. Pending mutations preserve
+the storage and provider fields. The query requires stored-record validity;
+pending mutation requires pending-vector validity and push also requires room.
+
+The sealed array domain now additionally admits `[E; 16]` for `E: TElement`,
+with a distinct pending-sequence observer. Existing generic SmallVec contracts
+gain this explicit new instantiation. The pending sequence is not identified
+with the stored-record or hash sequences. Original `RecoveryState` trait
+dispatch, parent/equality semantics, finite ancestry and recovery loops remain
+open. Compilation uses authenticated cached dependencies.
+
+The complete debug and release inventories each contain 84 models: 81 support
+models and three disjoint provider induction models. Debug proves 648 supporting
+obligations and release proves 565. The 289 shared induction leaves give totals
+of 937 debug and 854 release. Counting shared induction once gives 1,502;
+supporting obligations remain separate per configuration. This count is not a
+global semantic deduplication. The inherited six debug and seven release empty
+models supply no additional substantive coverage.
+
+Independent review checks 2,627 outputs, 11,904 review inputs and 7,116 dependency
+pins, including complete prototype compilation trees. All 14,547 review capsule
+pins were rechecked. Induction roots and SMT leaves match the accepted shared
+clear tasks after removal of source-location comment lines only. Five compiled
+mutations each leave one intended timeout, testing pending ordering, current
+parent, length and storage preservation. These are sensitivity checks, not
+counterexamples. Five physical evidence and four source controls also reject.
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-RECOVERY-WRAPPERS-EVIDENCE-v1.json` | `bcee10724922f25d020c4a7bb8d70191f1c8ce8decec8d7476524050b7a90df1` |
+| `native-recovery-wrappers-v1/checkpoint-v3.json` | `6147dd3a4ef7210b5d340414d00b14ee226e685e75f1bc09ab2ff7b778f226eb` |
+| `native-recovery-wrappers-v1/reviews/checkpoint-review-v1/REVIEW-EVIDENCE-v1.json` | `36aaf79621faedd02b93ed0a4cd500e7890e56f723ed1f9f3a1e6bf940318a64` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-wrappers-v1/reviews/checkpoint-review-v1/audit.py --report /private/tmp/native-recovery-wrappers-audit.json
+```
+
+This audit authenticates the completed replay snapshot. New timed solver runs
+need fresh review anchors.
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -1385,7 +1429,9 @@ inventory. The typed clear postcondition now derives empty history and
 accounting and establishes the next operation preconditions under the same
 observers. The ancestor-chain observations now follow those same posts. The
 next priority is connecting them to recovery's pending sequence, parent
-relation and loops through source-preserved wrapper bodies and state frames.
+relation and loops. The constructor, queries and pending wrappers now have
+checked native bodies and frames; storage mutation wrappers and their shared
+trait binding are the next connection.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises and its postcondition now uses the shared storage observers.
