@@ -13,6 +13,9 @@ use atomic_refcell::{AtomicRefCell, AtomicRefMut};
 use selectors::bloom::BloomFilter;
 use smallvec::SmallVec;
 
+#[path = "bloom_filter.rs"]
+mod bloom_filter;
+
 thread_local! {
     /// Bloom filters are large allocations, so we store them in thread-local storage
     /// such that they can be reused across style traversals. StyleBloom is responsible
@@ -77,16 +80,6 @@ pub struct StyleBloom<E: TElement> {
     /// Largest hash stack since clear(), including hashes removed by pop().
     max_pushed_hashes: usize,
 }
-
-/// The very rough benchmarks in the selectors crate show clear()
-/// costing about 25 times more than remove_hash(). We use this to implement
-/// clear() more efficiently when only a small number of hashes have been
-/// pushed.
-///
-/// remove_hash() leaves saturated counters unchanged, even after pop() shrinks
-/// the stack. Use the largest stack since clear() when choosing this fast path.
-/// Each hash increments at most twice per slot, and 2 * 25 < 255.
-const MEMSET_CLEAR_THRESHOLD: usize = 25;
 
 struct PushedElement<E: TElement> {
     /// The element that was pushed.
@@ -196,7 +189,8 @@ impl<E: TElement> StyleBloom<E> {
             self.filter.insert_hash(hash);
             self.pushed_hashes.push(hash);
         });
-        self.max_pushed_hashes = self.max_pushed_hashes.max(self.pushed_hashes.len());
+        self.max_pushed_hashes =
+            bloom_filter::update_high_water(self.max_pushed_hashes, self.pushed_hashes.len());
         self.elements.push(PushedElement::new(element, count));
     }
 
@@ -235,15 +229,13 @@ impl<E: TElement> StyleBloom<E> {
     pub fn clear(&mut self) {
         self.elements.clear();
 
-        if self.max_pushed_hashes > MEMSET_CLEAR_THRESHOLD {
-            self.filter.clear();
-            self.pushed_hashes.clear();
-        } else {
-            for hash in self.pushed_hashes.drain(..) {
-                self.filter.remove_hash(hash);
-            }
-            debug_assert!(self.filter.is_zeroed());
-        }
+        bloom_filter::clear_filter(
+            &mut self.filter,
+            &self.pushed_hashes,
+            self.max_pushed_hashes,
+        );
+        self.pushed_hashes.clear();
+        debug_assert!(self.filter.is_zeroed());
         self.max_pushed_hashes = 0;
     }
 
