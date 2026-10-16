@@ -5,6 +5,7 @@
 // Make |cargo bench| work.
 #![cfg_attr(feature = "bench", feature(test))]
 
+mod ancestor_hashes;
 pub mod attr;
 pub mod bloom;
 mod builder;
