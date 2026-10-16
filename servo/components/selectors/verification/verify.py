@@ -431,6 +431,11 @@ def main():
         + coverage_log.read_text()
         + recovery_log.read_text()
     )
+    run(
+        [sys.executable, PROJECT / "relative/extract.py", "--bridge"],
+        env=env,
+        log=generated / "relative-verification.log",
+    )
     print(f"Verification passed. Logs: {generated}")
 
 

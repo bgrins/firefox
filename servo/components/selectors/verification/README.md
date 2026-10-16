@@ -12,6 +12,11 @@ Charon extracts their Rust operations, Aeneas translates them into Lean, and
 algorithm under its stack and DOM contracts. The Firefox
 build does not depend on this experiment.
 
+[RelativeProofs.lean](relative/RelativeProofs.lean),
+[CacheProofs.lean](relative/CacheProofs.lean), and
+[RelativeBridgeProofs.lean](lean/RelativeBridgeProofs.lean) check relative-region
+traversal, cache transitions, and their connection to the same Bloom operations.
+
 See [ROADMAP.md](ROADMAP.md) for the six-milestone plan and current evidence.
 
 ## Run
@@ -39,7 +44,7 @@ models and logs are ignored by Git. Logs are in `generated/`; setup logs are in
 
 ## Current guarantees
 
-The sixty-six checked theorems cover:
+The core suite's sixty-six checked theorems cover:
 
 - Construction and clearing produce an array of zero counters.
 - A saturated counter stays unchanged for either adjustment direction.
@@ -137,6 +142,49 @@ Discharging it against `StyleBloom` remains open: its hash-producing callbacks,
 borrowed filter, `SmallVec` containers, debug checks, and hash-count bounds must
 be connected to the checked filter history. The algorithm proof does not yet
 establish that every production adapter operation satisfies that contract.
+
+## Relative traversal and cache proofs
+
+The relative suite checks another 42 theorems and two concrete witness
+definitions. Together with the core suite, the runner audits 110 declarations.
+Its wrapper includes the production `relative_selector/filter.rs` and extracts
+the traversal, entry update, target selection, cache lookup, and Bloom operations.
+An LLBC metadata check rejects any retained mock selector collector or matching
+types; only the copied match-hint enum may remain, and its variants are checked
+against the production enum.
+
+Under a finite forest, stable navigation, and terminating callbacks, the
+extracted traversal terminates. On success it visits exactly the direct children
+or strict descendants of its root, once each; on failure it stops at the first
+unsuccessful callback. A concrete branching-and-chain forest inhabits the
+navigation contracts.
+Target-selection and key proofs cover child/subtree distinctions and sibling
+anchors. The cache proof checks first lookup without construction, successful
+publication, retry after an unavailable hash provider, and reuse. An unsuccessful
+construction never publishes a partial filter.
+
+The bridge proves equivalence between the relative and core extractions of
+actual Bloom insertion and lookup. If a successful element callback performs
+exactly the insertions in a fixed hash list, every hash from the requested
+region is present in the built filter. The list retains ordering and duplicate
+hashes; for Gecko it describes the masked hashes supplied by
+`each_relevant_element_hash`. Failed callbacks may change their temporary
+filter, which is discarded. Callbacks must terminate.
+
+`get_filter_no_false_negatives` composes this with cache lookup: every returned
+filter accepts every supplied region hash, and all cached entries retain their
+coverage. This assumes a fixed cache epoch with stable tree links, hashes, and
+injective element identities, and sound preexisting entries. It does not prove
+that a matching selector's collected hashes belong to that region; milestone 6
+addresses that separate obligation.
+
+The wrapper substitutes opaque standard-library map operations for hashbrown's
+matching entry API. `MapContract` explicitly assumes successful map calls,
+entry selection, updates to only the requested key, and the generated borrow
+return behavior. It also specifies the boxed filter borrow. These library
+semantics, allocation success, and Gecko's navigation/hash providers are outside
+the checked implementation. The source audit below supports the cache lifetime
+assumption; it is not a machine-checked concurrency proof.
 
 ## Operation-history exploration
 
@@ -322,9 +370,13 @@ operations calls it, and no behavioral property of the external function is
 assumed. `is_zeroed`
 itself is outside the verified scope.
 
-The runner checks the exact set of reported theorems and allows only Lean's
-standard logical axioms, plus that external function for the thirty affected
-theorems. It rejects `sorryAx`, additional axioms, missing reports, and Lean warnings.
+The runner checks the exact set of reported declarations and uses a separate
+axiom allowlist for each theorem. Core proofs allow Lean's standard logical
+axioms and, where required by their extracted dependencies, the unused iterator
+external. Relative proofs additionally permit precisely listed opaque map,
+hashing, and boxed-borrow declarations where the library contracts require them.
+The bridge checks both generated namespaces explicitly. The audits reject
+`sorryAx`, unlisted axioms, missing or duplicate reports, and Lean warnings.
 Resolving the unnecessary external dependency remains follow-up work.
 
 The pipeline uses Charon's generic extraction. Full monomorphization currently

@@ -4,6 +4,7 @@
 
 /// Bloom filter for relative selectors.
 use crate::FxHashMap;
+use hashbrown::hash_map::Entry as MapEntry;
 
 use crate::SelectorImpl;
 use crate::bloom::BloomFilter;
@@ -27,9 +28,26 @@ enum TraversalKind {
     Descendants,
 }
 
+#[inline]
+fn next_after_subtree<E: Element>(root: E, mut element: E, kind: TraversalKind) -> Option<E> {
+    loop {
+        let sibling = element.next_sibling_element();
+        if sibling.is_some() || kind == TraversalKind::Children {
+            return sibling;
+        }
+        let Some(parent) = element.parent_element() else {
+            return None;
+        };
+        if parent.opaque() == root.opaque() {
+            return None;
+        }
+        element = parent;
+    }
+}
+
 fn add_to_filter<E: Element>(element: E, filter: &mut BloomFilter, kind: TraversalKind) -> bool {
     let mut child = element.first_element_child();
-    while let Some(mut e) = child {
+    while let Some(e) = child {
         if !e.add_element_unique_hashes(filter) {
             return false;
         }
@@ -39,21 +57,62 @@ fn add_to_filter<E: Element>(element: E, filter: &mut BloomFilter, kind: Travers
                 continue;
             }
         }
-        loop {
-            child = e.next_sibling_element();
-            if child.is_some() || kind == TraversalKind::Children {
-                break;
-            }
-            let Some(parent) = e.parent_element() else {
-                return true;
-            };
-            if parent.opaque() == element.opaque() {
-                return true;
-            }
-            e = parent;
-        }
+        child = next_after_subtree(element, e, kind);
     }
     true
+}
+
+impl Entry {
+    #[inline]
+    fn update<E: Element>(&mut self, element: E, kind: TraversalKind) {
+        if !matches!(self, Entry::Lookup) {
+            return;
+        }
+        let mut filter = BloomFilter::new();
+        // Go through all children/descendants of this element and add their hashes.
+        if add_to_filter(element, &mut filter, kind) {
+            *self = Entry::HasFilter(Box::new(filter));
+        }
+    }
+}
+
+#[inline]
+fn filter_target<E: Element>(
+    element: E,
+    hint: &RelativeSelectorMatchHint,
+) -> Option<(E, TraversalKind)> {
+    if matches!(hint, RelativeSelectorMatchHint::InNextSibling) {
+        // Don't bother.
+        return None;
+    }
+    let is_sibling = matches!(
+        hint,
+        RelativeSelectorMatchHint::InSibling
+            | RelativeSelectorMatchHint::InNextSiblingSubtree
+            | RelativeSelectorMatchHint::InSiblingSubtree
+    );
+    let is_subtree = matches!(
+        hint,
+        RelativeSelectorMatchHint::InSubtree
+            | RelativeSelectorMatchHint::InNextSiblingSubtree
+            | RelativeSelectorMatchHint::InSiblingSubtree
+    );
+    let kind = if is_subtree {
+        TraversalKind::Descendants
+    } else {
+        TraversalKind::Children
+    };
+    if is_sibling {
+        // Contain the entirety of the parent's children/subtree in the filter, and use that.
+        // This is less likely to reject, especially for sibling subtree matches; however, it's less
+        // expensive memory-wise, compared to storing filters for each sibling.
+        let Some(parent) = element.parent_element() else {
+            return None;
+        };
+        Some((parent, kind))
+    } else {
+        Some((element, kind))
+    }
 }
 
 #[derive(Clone, Copy, Hash, Eq, PartialEq)]
@@ -95,20 +154,13 @@ impl RelativeSelectorFilterMap {
         // Insert flag to indicate that we looked up the filter once, and
         // create the filter if and only if that flag is there.
         let key = Key(element.opaque(), kind);
-        let entry = self
-            .map
-            .entry(key)
-            .and_modify(|entry| {
-                if !matches!(entry, Entry::Lookup) {
-                    return;
-                }
-                let mut filter = BloomFilter::new();
-                // Go through all children/descendants of this element and add their hashes.
-                if add_to_filter(element, &mut filter, kind) {
-                    *entry = Entry::HasFilter(Box::new(filter));
-                }
-            })
-            .or_insert(Entry::Lookup);
+        let entry = match self.map.entry(key) {
+            MapEntry::Occupied(mut entry) => {
+                entry.get_mut().update(element, kind);
+                entry.into_mut()
+            },
+            MapEntry::Vacant(entry) => entry.insert(Entry::Lookup),
+        };
         match *entry {
             Entry::Lookup => None,
             Entry::HasFilter(ref filter) => Some(filter.as_ref()),
@@ -126,41 +178,10 @@ impl RelativeSelectorFilterMap {
         selector: &RelativeSelector<Impl>,
         quirks_mode: QuirksMode,
     ) -> bool {
-        if matches!(
-            selector.match_hint,
-            RelativeSelectorMatchHint::InNextSibling
-        ) {
-            // Don't bother.
+        let Some((target, kind)) = filter_target(element, &selector.match_hint) else {
             return false;
-        }
-        let is_sibling = matches!(
-            selector.match_hint,
-            RelativeSelectorMatchHint::InSibling
-                | RelativeSelectorMatchHint::InNextSiblingSubtree
-                | RelativeSelectorMatchHint::InSiblingSubtree
-        );
-        let is_subtree = matches!(
-            selector.match_hint,
-            RelativeSelectorMatchHint::InSubtree
-                | RelativeSelectorMatchHint::InNextSiblingSubtree
-                | RelativeSelectorMatchHint::InSiblingSubtree
-        );
-        let kind = if is_subtree {
-            TraversalKind::Descendants
-        } else {
-            TraversalKind::Children
         };
-        if is_sibling {
-            // Contain the entirety of the parent's children/subtree in the filter, and use that.
-            // This is less likely to reject, especially for sibling subtree matches; however, it's less
-            // expensive memory-wise, compared to storing filters for each sibling.
-            element.parent_element().is_some_and(|parent| {
-                self.get_filter(parent, kind)
-                    .is_some_and(|filter| fast_reject(selector, quirks_mode, filter))
-            })
-        } else {
-            self.get_filter(element, kind)
-                .is_some_and(|filter| fast_reject(selector, quirks_mode, filter))
-        }
+        self.get_filter(target, kind)
+            .is_some_and(|filter| fast_reject(selector, quirks_mode, filter))
     }
 }

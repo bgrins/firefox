@@ -4,6 +4,11 @@
 
 use std::cell::{Cell, RefCell};
 
+extern crate self as hashbrown;
+pub mod hash_map {
+    pub use std::collections::hash_map::Entry;
+}
+
 pub use stylo_bloom_verification::bloom;
 pub type FxHashMap<K, V> = std::collections::HashMap<K, V>;
 pub trait SelectorImpl {}
