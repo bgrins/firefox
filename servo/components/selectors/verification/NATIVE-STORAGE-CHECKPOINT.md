@@ -793,6 +793,48 @@ The separate history-to-precondition, primitive-witness and storage-observer
 prototypes are excluded from this checkpoint. Connecting every abstract removal
 edge to the complete native contract remains open.
 
+## Reviewed removal history and call adapters
+
+`native-u8-remove-lean/followon-check-v2` and independent
+`reviews/followon-gate/rebuild-v1` each rebuild 52 modules and pass 41 exact
+theorem/axiom audits, eight new semantic controls and ten fresh typed mapping
+controls. Two auxiliary observer-projection checks and three output controls
+also pass. The root audit checks 391 outputs and 141,236 external lookup
+entries; all 8,378 producer pins were rechecked.
+
+History and hash membership now derive both sequential nonzero conditions in
+the complete native removal precondition. Native intrinsic validity, array
+length, constant bindings and bounded sequence laws remain explicit. Combining
+that precondition with the complete native postcondition establishes the
+successful extracted removal endpoint.
+
+The primitive adapter preserves the earlier success-only refinement interface.
+It requires a complete native call witness for every removal edge: current and
+final endpoints, the same hash, and full pre/postconditions. This `Covered`
+premise is not yet established for the actual native pop loop. A selected
+storage observer interpretation uses the native array view and current filter;
+its projection and endpoint equations are proved. Choosing those observations
+does not establish simultaneous validity of all earlier native contracts.
+
+The new semantic controls remove membership or change the updated state,
+witness endpoints/hash/pre/post, current/final projection or byte index. All
+fail at their intended proof obligations. The new proofs use standard logical
+axioms, except the primitive constructor also retains the existing opaque
+SmallVec/pop/array-size declarations. Earlier counter and success-only
+controls are consumed as pinned prerequisite evidence.
+
+| Record | SHA-256 |
+| --- | --- |
+| `FOLLOWON-EVIDENCE-v1.json` | `693f98b35555129c904bd5eda3a68e0bfbeddeb1e886357771e5d414be5ec792` |
+| `followon-check-v2/report.json` | `83aafbc4c00193e7054e0cdfdf49c5f0ba3297123c193080456e900f1f2fc1f2` |
+| `followon-check-v2-audit.json` | `07ec73f104a1534e42a70216b3fb2a20a55759924601e959c20402748f0f52d8` |
+| `reviews/followon-gate/EVIDENCE-REBUILD-v1.json` | `5175be7447ea977e7b0ee20e10f0c2c648c4dfc5df6649b1cfbd7cc94de21e32` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-remove-lean/reviews/followon-gate/rebuild.py --output /private/tmp/native-removal-adapters
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-remove-lean/reviews/followon-gate/audit_rebuild.py /private/tmp/native-removal-adapters
+```
+
 ## Reviewed native optimized filter clear
 
 `native-clear-filter/check-v1` and independent `proof-guarded-v2` each
@@ -882,8 +924,9 @@ branch-specialized clauses found during preflight.
 
 The next priority is connecting the interpreted U8 transitions to each actual
 abstract removal edge. Raw encoding, sequential non-underflow from live history,
-and the complete native removal contract interpretation are checked separately;
-their integrated call and observer correspondence remains open.
+and the complete native removal contract interpretation now compose under explicit
+complete call witnesses. Establishing those witnesses for every actual native
+pop step and validating the shared observer interpretation remain open.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises. Integrating its typed counter interpretation with earlier
