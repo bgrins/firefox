@@ -171,17 +171,54 @@ extracted storage call produced the constructed state.
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-representation/check_representation.py check-v2
 ```
 
+## Reviewed provider normal return
+
+`native-provider-normal-return/check-v1` and independent `reviews/check-v1`
+pass eleven exact audits and five rejection controls. All 23 proof outputs are
+byte-identical between the producer and independent replay. Invalid manifest
+controls remove stale acceptance output.
+
+`actual_return_view` derives the actual returned enumeration view and the full
+provider backward-function equation directly from a successful call to the
+extracted provider. Its continuation restores the initial count while preserving
+the future filter and hashes. No enumeration-behavior premise is needed for
+this equation.
+
+`actual_calls` derives the existing `StoragePushProofs.ProviderCalls` from a
+success-only contract for the actual opaque enumeration return. A separate
+proof shows that preservation of just the returned state's filter and hashes
+suffices for the extracted storage push history; the record uses the actual
+returned count. Controls reject a changed reset source, returned view, hash
+frame, recorded count and missing enumeration premise.
+
+The success-only enumeration contract remains an assumption. It does not prove
+completion and may hold vacuously when enumeration fails. The theorem establishes
+the extracted provider's continuation, not a general native backward-function
+translation.
+
+| Record | SHA-256 |
+| --- | --- |
+| `check-v1/report.json` | `7cc2521655423255efeaf2554d6711e9d9ff0f50091dabac43bf55fa57277f87` |
+| `reviews/check-v1/report.json` | `b198cdbf7da1eb5975931c7d7646b079f5dde4de9c0714377f9033c08b3ce722` |
+| `reviews/RETURN-FINAL-REVIEW.json` | `1459a1016d6cfd41ca25daddc43f8360858822621501cb7300f94d124d4c897e` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-provider-normal-return/check_return.py check-v2
+```
+
 ## Remaining interpretation work
 
-A `native-provider-normal-return` candidate derives the actual extracted
-provider's backward-function shape directly from a successful return, without
-an enumeration-behavior premise. It also derives the existing `ProviderCalls`
-interface from a success-only enumeration contract. Guarded validation and
-independent review are pending; completion remains a separate obligation.
+Connect the native enumeration trace to the exact successful return of the
+opaque extracted enumerator, preserving its callback, ordered events and
+initial/final endpoints. An existential represented state with equal observed
+lists does not establish that correspondence. The actual provider continuation
+equation is now proved separately and need not be assumed.
 
-Interpret the native continuation separately: `StoragePushProofs.ProviderCalls`
-requires an exact backward-function equation that a normal-return trace does
-not supply. Do not assume that equation to claim the native gap is closed.
+The retained enumeration extraction failure involves nested-borrow restoration.
+Its proposed tool extension needs a justified association between symbolic
+projections and future arguments before implementation. A separate native pop
+experiment preserves the production body and debug checks; it is exploratory,
+not an accepted recovery proof.
 
 The matcher still has a preserved verifier limitation involving its borrowed
 dynamic callback, associated data and mutable cache reference. The reviewed
@@ -197,7 +234,7 @@ and native type invariants. Sequence/counter meaning and primitive vector
 refinement remain explicit. The imported extracted library retains opaque
 SmallVec operations, recorded in the axiom inventory.
 
-Native allocation-enabled completion, continuation correspondence, DOM hash
+Native allocation-enabled completion, enumeration correspondence, DOM hash
 stability, thread safety and complete recovery remain open. No additional
 Firefox defect is established by this checkpoint. The two existing production
 fixes and their WPT commits are unchanged.
