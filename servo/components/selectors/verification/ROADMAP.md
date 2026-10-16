@@ -91,8 +91,8 @@ to the original algorithm, retain a minimal tool reproducer and document the
 unproved obligation. A surrogate model or additional trusted axiom does not
 complete the milestone. Such a checkpoint leaves the affected milestone open.
 
-Broader selector grammar, a browser filter-disable switch, another supported
-platform, and removal of the unused iterator external dependency are follow-ups
+Broader selector grammar, a browser filter-disable switch, and another supported
+platform are follow-ups
 after these caller obligations. Expand sooner only when a concrete proof or
 counterexample requires it.
 
@@ -181,9 +181,18 @@ counterexample requires it.
   Production storage/provider methods still need to establish these histories;
   milestone 4 remains open.
 
+- The actual debug zero-check now uses an equivalent early-exit loop. Three
+  checked theorems establish termination, the exact 4096-counter zero predicate,
+  and success on a zero filter. The combined pipeline passes 117 declaration
+  audits; all 73 core theorems now require only standard logical axioms. The
+  relative audit also removes every iterator-external allowance. This closes
+  the old unused-iterator maintenance item and supplies the zero-check fact
+  required by the production storage adapter's debug assertion. A fresh native
+  build including the collector iterator refactor (`ceaef3161627`) passes all
+  five browser tests for three repetitions: 42 checks, no unexpected results.
+
 ## Maintenance
 
-Remove the unused iterator external dependency from the audited proofs if the
-extraction can avoid it without altering production semantics. Check another
+The unused iterator external dependency has been removed. Check another
 supported platform when one is available. Preserve exact theorem/axiom auditing
 and reproducible tool versions throughout all six milestones.

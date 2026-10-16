@@ -23,6 +23,7 @@ OPERATIONS = (
     "remove",
     "contains",
     "clear",
+    "zeroed",
     "pack",
     "unpack",
     "may_match",
@@ -32,9 +33,6 @@ OPERATIONS = (
     "style_bloom_recovery::rebuild",
 )
 STANDARD_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
-ITERATOR_EXTERNAL = (
-    "core.slice.iter.Iter.Insts.CoreIterTraitsIteratorIteratorSharedAT.all"
-)
 THEOREMS = {
     "new_eq_empty",
     "clear_eq_empty",
@@ -110,6 +108,8 @@ STORAGE_HISTORY_THEOREMS = {
     "history_lookup",
     "insertion_history",
 }
+
+ZEROED_THEOREMS = {"loop_exact", "zeroed_exact", "zeroed_true"}
 
 RECOVERY_THEOREMS = {
     "ancestors_chain",
@@ -207,48 +207,12 @@ def audit_proofs(output):
     expected |= {f"CoverageProofs.{name}" for name in COVERAGE_THEOREMS}
     expected |= {f"RecoveryProofs.{name}" for name in RECOVERY_THEOREMS}
     expected |= {f"StorageHistoryProofs.{name}" for name in STORAGE_HISTORY_THEOREMS}
+    expected |= {f"ZeroedProofs.{name}" for name in ZEROED_THEOREMS}
     if len(reports) != len(expected) or {name for name, _ in reports} != expected:
         raise RuntimeError("Lean did not report the expected theorem dependencies")
     for theorem, names in reports:
         axioms = {name.strip() for name in names.split(",") if name.strip()}
         allowed = STANDARD_AXIOMS.copy()
-        if theorem in {
-            "BloomProofs.new_eq_empty",
-            "BloomProofs.clear_eq_empty",
-            "BloomProofs.contains_of_nonzero",
-            "BloomProofs.insert_represents",
-            "BloomProofs.remove_represents",
-            "BloomProofs.history_represents",
-            "BloomProofs.history_no_false_negatives",
-            "PackingProofs.may_match_of_present",
-            "PackingProofs.history_no_false_rejection",
-            "StyleBloomProofs.insert_exact",
-            "StyleBloomProofs.remove_exact",
-            "StyleBloomProofs.history_length_le",
-            "StyleBloomProofs.history_exact",
-            "StyleBloomProofs.clear_loop_exact",
-            "StyleBloomProofs.clear_filter_exact",
-            "StyleBloomProofs.clear_filter_eq_empty",
-            "StyleBloomProofs.clear_filter_resets_history",
-            "CoverageProofs.present_lookup",
-            "CoverageProofs.insert_preserves_nonzero",
-            "CoverageProofs.insert_preserves_present",
-            "CoverageProofs.insert_establishes_present",
-            "CoverageProofs.insertions_coverage",
-            "StorageHistoryProofs.history_represents",
-            "StorageHistoryProofs.history_present",
-            "StorageHistoryProofs.history_lookup",
-            "StorageHistoryProofs.insertion_history",
-            "NormalizationProofs.insert_masked",
-            "NormalizationProofs.remove_masked",
-            "NormalizationProofs.contains_masked",
-            "NormalizationProofs.history_masked",
-            "NormalizationProofs.raw_history_no_false_rejection",
-            "NormalizationProofs.pack_match_four_raw_hashes",
-            "NormalizationProofs.pack_match_short_raw_hashes",
-            "NormalizationProofs.pack_match_raw_history",
-        }:
-            allowed.add(ITERATOR_EXTERNAL)
         if unexpected := axioms - allowed:
             raise RuntimeError(f"Unexpected axioms in {theorem}: {unexpected}")
     print(f"Audited dependencies of {len(reports)} theorems.")
@@ -448,6 +412,13 @@ def main():
         env=env,
         log=storage_log,
     )
+    zeroed_log = generated / "lean-zeroed-proofs.log"
+    run(
+        [lean / "bin/lean", "-DwarningAsError=true", "ZeroedProofs.lean"],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=zeroed_log,
+    )
     audit_proofs(
         proof_log.read_text()
         + packing_log.read_text()
@@ -456,6 +427,7 @@ def main():
         + coverage_log.read_text()
         + recovery_log.read_text()
         + storage_log.read_text()
+        + zeroed_log.read_text()
     )
     run(
         [sys.executable, PROJECT / "relative/extract.py", "--bridge"],

@@ -31,6 +31,10 @@ pub fn contains(filter: &BloomFilter, hash: u32) -> bool {
     filter.might_contain_hash(hash)
 }
 
+pub fn zeroed(filter: &BloomFilter) -> bool {
+    filter.is_zeroed()
+}
+
 pub fn clear(filter: &mut BloomFilter) {
     filter.clear();
 }

@@ -75,9 +75,6 @@ BRIDGE_THEOREMS = {
     "build_coverage",
     "get_filter_no_false_negatives",
 }
-ITERATOR_EXTERNAL = (
-    "core.slice.iter.Iter.Insts.CoreIterTraitsIteratorIteratorSharedAT.all"
-)
 MAP_EXTERNALS = {
     "Box.Insts.CoreConvertAsRef.as_ref",
     "Isize.Insts.CoreHashHash.hash",
@@ -121,24 +118,11 @@ def audit(output, *, bridge=False):
     for name, dependencies in reports:
         allowed = {"propext", "Classical.choice", "Quot.sound"}
         if name in {
-            "RelativeProofs.new_eq_empty",
-            "RelativeProofs.reuse_filter",
-            "RelativeProofs.discard_failed_build",
-            "RelativeProofs.publish_successful_build",
-            *{f"CacheProofs.{theorem}" for theorem in CACHE_THEOREMS},
-        }:
-            allowed.add(ITERATOR_EXTERNAL)
-        if name in {
             "CacheProofs.get_filter_spec",
             "CacheProofs.first_lookup_without_build",
             "CacheProofs.get_filter_preserves_epoch",
         }:
             allowed |= MAP_EXTERNALS
-        if name in {
-            f"RelativeBridgeProofs.{theorem}"
-            for theorem in BRIDGE_THEOREMS - {"bind_if"}
-        }:
-            allowed |= {f"Bloom.{ITERATOR_EXTERNAL}", f"Relative.{ITERATOR_EXTERNAL}"}
         if name == "RelativeBridgeProofs.get_filter_no_false_negatives":
             allowed |= {f"Relative.{external}" for external in MAP_EXTERNALS}
         actual = {

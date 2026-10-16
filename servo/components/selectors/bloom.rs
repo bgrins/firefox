@@ -199,7 +199,12 @@ impl BloomStorage for BloomStorageU8 {
 
     #[inline]
     fn is_zeroed(&self) -> bool {
-        self.counters.iter().all(|x| *x == 0)
+        for counter in &self.counters {
+            if *counter != 0 {
+                return false;
+            }
+        }
+        true
     }
 }
 
