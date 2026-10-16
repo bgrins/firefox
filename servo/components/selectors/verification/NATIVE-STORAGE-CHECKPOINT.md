@@ -584,6 +584,38 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-clear/
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-clear/reviews/audit_guarded.py /private/tmp/native-u8-clear-replay
 ```
 
+## Reviewed raw counter encoding and removal safety
+
+`native-u8-counter-lean/check-v2` and independent `reviews/rebuild-v1`
+each rebuild 19 local modules and pass sixteen exact theorem/axiom audits
+and five semantic controls. Each checks 138 outputs and 141,236 external
+lookup entries. The independent auditor rejects changed, missing and extra
+proof objects. All sixteen theorems use only standard Lean logical axioms.
+
+The raw 4096-slot byte representation commutes with the actual extracted
+ordered removal and zero reset. Represented live history and hash membership
+supply both sequential nonzero premises, including two contributions when the
+indices coincide. Saturated counters retain 255. Explicit native observer
+endpoint equations connect these results to observed states.
+
+Controls reject a changed saturation threshold, an initial-state second safety
+premise, a changed reset value, missing membership and the wrong second slot.
+The native observer equations remain premises. This history-conditioned result
+does not discharge the existing success-only primitive-removal interface;
+that interface also covers successful calls without a history premise.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `48361f8f00709745d7dec85d176f0724640a797a767faae5ed4125e2db8c2aa5` |
+| `check-v2/report.json` | `19f4d878b7c2c1de999ddbaf144f66ef3dc4648e53eb93b6ae228c94e9fda3e7` |
+| `reviews/rebuild-v1/report.json` | `69d0318eb83922048470b94d32ee6b00655fc78b1081ba513940d929e132902e` |
+| `reviews/FINAL-REVIEW.json` | `839678ef082b3aa8579773d64f042d635b8c3ecdd22f12ea6ac580e83791bd9b` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-counter-lean/rebuild.py --output /private/tmp/native-counter-replay
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-counter-lean/audit_rebuild.py /private/tmp/native-counter-replay
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -600,7 +632,8 @@ both return paths. Exporting the unspecialized contract avoids the ambiguous
 branch-specialized clauses found during preflight.
 
 The next priority is connecting the proved U8 array transitions to the existing
-counter interpretation and deriving sequential non-underflow from live history.
+native counter interpretation. Raw encoding and sequential non-underflow from
+live history are checked separately; their native observer mapping remains open.
 The proved native filter reset needs endpoint correspondence to supply a reset
 case for recovery. It does not alone clear the storage vectors or establish
 their final high-water value. Linked-pop integration remains useful
