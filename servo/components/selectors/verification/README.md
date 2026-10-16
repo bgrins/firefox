@@ -55,6 +55,27 @@ The experiment currently covers `BloomStorageU8`. It does not verify
 `BloomStorageBool`, arbitrary `BloomStorage` implementations, selector-matching
 callers, or probabilistic false-positive rates.
 
+## Operation-history exploration
+
+The Rust tests also compare the production code with independent models:
+
+- [tests/histories.rs](tests/histories.rs) explores 148,602 prefixes of valid
+  insert/remove/clear histories, up to five operations from each of five initial
+  states. The hashes exercise shared slots, coincident indices, and ignored high
+  bits; initial states include counters just below and above saturation.
+- [tests/style_bloom.rs](tests/style_bloom.rs) checks 60,000 recovery histories
+  across the 120 five-node forests whose parents precede their children. Each
+  history visits three targets, with optional pushes after the first two visits.
+  Another 1,536 histories exercise deep and shallow branches around saturation
+  boundaries. The oracle checks depth, current parent, slot occupancy, clearing,
+  and thread-local reuse.
+
+The wrapper enables the production `gecko` recovery branch by default, including
+transitions between separate roots. Its atoms and DOM interface remain mocks.
+`--no-default-features` tests the common-root branch instead. Both debug and
+optimized runs pass; this exploration has not found an additional defect.
+These are bounded checks, not formal proofs of `StyleBloom` or its callers.
+
 ## Bugs found in callers
 
 ### Saturation survives clearing
