@@ -206,6 +206,34 @@ translation.
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-provider-normal-return/check_return.py check-v2
 ```
 
+## Reviewed verifier level-selection correction
+
+The isolated `artifacts/stylo-bloom-tools/projector-level-review` package corrects
+one argument in Aeneas's `InterpBorrows.end_abs_borrows`. The symbolic-projector
+visitor compares the requested nesting level with itself instead of comparing
+the visited level with the requested level. Its neighboring borrow visitors
+already use the visited level.
+
+Independent source review and replay confirm the correction. The tests compile
+the exact extracted visitor expression and its surrounding bindings against
+the actual traversal classes. Direct and nested symbolic, abstract and concrete
+borrow cases cover 54 outcomes: the baseline makes twelve wrong-level symbolic
+selections, the candidate passes all cases, and a never-select control fails
+six matching-level cases. These are synthetic typed AST traversal tests, not
+complete valid interpreter-context executions.
+
+Fresh extraction preserves both two-layer tuple/record Lean outputs exactly.
+Both three-layer controls retain the original restoration cycle. The correction
+does not provide the missing cross-region restoration rule, replace an accepted
+tool, or establish an additional Firefox defect.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `38ed819f31af3cdf0ca61ae349f3e2f5db6988b5a84ef799f29091a301ca941c` |
+| `unit-review-v1/report.json` | `72c0778c74af1c6affb965d7ed4ce19b67c6fbd7a8041595ea85819d9c0323cb` |
+| `regressions-review-v1/report.json` | `b051a722ac3556244b8fe2a9e04a535c3d9e6508e05d5e30c9d6d70f528e8fce` |
+| `reviews/FINAL-REVIEW.json` | `5b22d14e805cbc688624e0b8274d346c6c3ecf2a7dbfe0c4bfb3933554903b06` |
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
