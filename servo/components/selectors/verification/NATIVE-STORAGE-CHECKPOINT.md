@@ -716,6 +716,40 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-is-zer
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-is-zeroed/reviews/audit_guarded.py /private/tmp/native-zero-check
 ```
 
+## Reviewed concrete U8 removal caller
+
+`native-u8-remove-specialized/proof-guarded-v1` and independent `check-v1`
+each pass 88 debug and 88 release obligations across thirteen models per
+configuration. The twelve preceding removal models remain unchanged. Source
+checks preserve the accepted removal implementation and add a concrete caller
+with explicit array length and sequential nonzero preconditions. No new trusted
+external specification is introduced.
+
+The caller's postcondition exposes both ordered counter-array updates through
+its native filter storage. The second nonzero precondition reads the array after
+the first update, including when both hash indices coincide. Two source controls
+leave their intended obligations unresolved: a wrong second index and a missing
+second nonzero precondition. Five compilation and three proof-output controls
+also pass. Unknown/Timeout results are not solver counterexamples.
+
+The producer's 7,315 pinned inputs and outputs were rechecked, and an independent
+auditor validated the root replay's complete 52-file proof-output inventory.
+This checkpoint supplies the concrete native contract for the next Lean adapter;
+it does not establish that every earlier abstract removal edge satisfies that
+contract. Native observer interpretation and that edge correspondence remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `729c0390dbdf51e9e4011f19f390f74a7e71ffeae8043dee83e917cbdf9f5bf0` |
+| `check-v1/report.json` | `dbb48f4da6b02dd260ccdbac62f99658d7be1c9676e2ff5ce1e14783b03294d8` |
+| `proof-guarded-v1/report.json` | `70ea4cbd48954c673ce0a446497bfa2d1faa8d40232e6feafbd8dfd902e88349` |
+| `EVIDENCE-PRODUCER-v1.json` | `f2706c3541359634f20833ac0fb79f91f86103ae503b339bad1ce1f316cf767d` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-remove-specialized/prove_guarded.py /private/tmp/native-removal-caller
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-u8-remove-specialized/reviews/audit_guarded.py /private/tmp/native-removal-caller
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
