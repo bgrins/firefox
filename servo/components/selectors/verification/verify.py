@@ -26,6 +26,8 @@ OPERATIONS = (
     "pack",
     "unpack",
     "may_match",
+    "style_bloom_filter::update_high_water",
+    "style_bloom_filter::clear_filter",
 )
 STANDARD_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
 ITERATOR_EXTERNAL = (
@@ -74,6 +76,22 @@ NORMALIZATION_THEOREMS = {
     "pack_match_four_raw_hashes",
     "pack_match_short_raw_hashes",
     "pack_match_raw_history",
+}
+
+STYLE_BLOOM_THEOREMS = {
+    "adjust_slot_exact",
+    "insert_exact",
+    "remove_exact",
+    "liveCounts_bound",
+    "empty_exact",
+    "history_length_le",
+    "history_exact",
+    "clear_loop_exact",
+    "update_high_water_spec",
+    "clear_filter_exact",
+    "exact_empty_eq",
+    "clear_filter_eq_empty",
+    "clear_filter_resets_history",
 }
 
 
@@ -147,7 +165,8 @@ def audit_proofs(output):
     expected = {f"BloomProofs.{name}" for name in THEOREMS}
     expected |= {f"PackingProofs.{name}" for name in PACKING_THEOREMS}
     expected |= {f"NormalizationProofs.{name}" for name in NORMALIZATION_THEOREMS}
-    if {name for name, _ in reports} != expected:
+    expected |= {f"StyleBloomProofs.{name}" for name in STYLE_BLOOM_THEOREMS}
+    if len(reports) != len(expected) or {name for name, _ in reports} != expected:
         raise RuntimeError("Lean did not report the expected theorem dependencies")
     for theorem, names in reports:
         axioms = {name.strip() for name in names.split(",") if name.strip()}
@@ -162,6 +181,14 @@ def audit_proofs(output):
             "BloomProofs.history_no_false_negatives",
             "PackingProofs.may_match_of_present",
             "PackingProofs.history_no_false_rejection",
+            "StyleBloomProofs.insert_exact",
+            "StyleBloomProofs.remove_exact",
+            "StyleBloomProofs.history_length_le",
+            "StyleBloomProofs.history_exact",
+            "StyleBloomProofs.clear_loop_exact",
+            "StyleBloomProofs.clear_filter_exact",
+            "StyleBloomProofs.clear_filter_eq_empty",
+            "StyleBloomProofs.clear_filter_resets_history",
             "NormalizationProofs.insert_masked",
             "NormalizationProofs.remove_masked",
             "NormalizationProofs.contains_masked",
@@ -325,7 +352,15 @@ def main():
         env=env,
         log=normalization_log,
     )
-    audit_proofs(proof_log.read_text() + packing_log.read_text() + normalization_log.read_text())
+    style_log = generated / "lean-style-bloom-proofs.log"
+    run(
+        [lean / "bin/lean", "-DwarningAsError=true", "StyleBloomProofs.lean"],
+        cwd=PROJECT / "lean",
+        env=env,
+        log=style_log,
+    )
+    audit_proofs(proof_log.read_text() + packing_log.read_text() + normalization_log.read_text()
+        + style_log.read_text())
     print(f"Verification passed. Logs: {generated}")
 
 
