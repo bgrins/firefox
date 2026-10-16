@@ -420,6 +420,39 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-composition/reviews/audit_rebuild.py /private/tmp/native-pop-composition-replay
 ```
 
+## Reviewed next-pop entry conditions
+
+`native-storage-pop-entry/check-v1` and independent `reviews/rebuild-v1`
+pass four exact theorem/axiom audits and four semantic controls. Each rebuilds
+40 local modules and checks 261 outputs and 141,236 external lookup entries.
+The independent auditor also rejects changed, missing and extra proof objects.
+
+Indexed record reads and the full element/count projection recover every
+recorded policy count from the observed invariant. Ordered append, injectivity
+and finite-list representation for logical `HashSeq` values recover the exact
+last-policy suffix. These laws concern logical sequences; they imply no
+identity principle for opaque native vectors. The next-call theorem combines
+preserved observation validity and native vector validity with an exact
+next-current/prior-final state link and a fresh intrinsic borrow premise.
+
+Controls reject changed counts, reversed append, the wrong last index and a
+missing native-vector state link. The state-link control supplies observation
+validity directly at the next state, isolating the two native vector-validity
+transfers. Earlier resource-limited state mutations remain exploratory.
+All four theorems use only standard Lean logical axioms.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `950204e43be52773fe1c33a84f1f7f8803c4307568c8cf33b05590a0c708dc7b` |
+| `check-v1/report.json` | `4fbe5d192160c935aa4270ef64ab2df6f4e3646e67458ae35db09e5dcd895914` |
+| `reviews/rebuild-v1/report.json` | `46210bb599e5a1133d46c16cd333517ce70c3cb2995151fd3ddc758704c0b4be` |
+| `reviews/EVIDENCE-REBUILD-v1.json` | `f97d1fe64351a0c5913413085efff1aaace44c64167cef42081339640f96df30` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-entry/reviews/rebuild.py --output /private/tmp/native-pop-entry-replay
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-entry/reviews/audit_rebuild.py /private/tmp/native-pop-entry-replay
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -435,15 +468,22 @@ now links the caller predicate to the checked helper definition and preserves
 both return paths. Exporting the unspecialized contract avoids the ambiguous
 branch-specialized clauses found during preflight.
 
-The `native-storage-pop-entry` prototype derives the next pop's complete entry
-conditions from preserved validity, indexed record reads and finite logical
-hash-sequence laws. Its independent fresh rebuild is in progress. A separate
-`native-storage-pop-execution` prototype proves actual extracted removal-loop
-execution with the exact native filter observation and represented vector
-endpoint, conditional on the checked trace and primitive models. These new
-results still need independent acceptance and composition into the complete
-storage invocation. Repeated recovery and the next borrow's intrinsic validity
-remain open.
+The `native-storage-pop-execution` prototype has six compiled theorems covering
+the actual extracted removal loop and both return branches of the storage
+invocation. The nonempty branch derives the popped element/count from the same
+native record and retains the actual final storage representation, both vector
+relations, validity, chain and identity backward frame. Six axiom audits and
+eight semantic controls pass; independent source review finds no blocker.
+Fresh guarded rebuilds remain pending. The actual provider's expected-result
+completion/content contract and the native pre/post interpretation are explicit
+premises, not discharged by this prototype.
+
+The next reviewed priority is native U8 removal semantics: prove the two actual
+slot updates in order, including coincident indices, sticky saturation and
+non-underflow conditions. Native clear/reset endpoint correspondence follows
+that, supplying a reset case for recovery. Linked-pop integration remains useful
+but does not discharge primitive semantics or the provider boundary. Complete
+recovery and the next borrow's intrinsic validity remain open.
 
 The matcher still has a preserved verifier limitation involving its borrowed
 dynamic callback, associated data and mutable cache reference. The reviewed
