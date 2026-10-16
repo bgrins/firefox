@@ -1001,6 +1001,51 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/solver-probe/gate-v1/audit_v4.py /private/tmp/native-provider-pop --report /private/tmp/native-provider-pop-audit.json
 ```
 
+## Reviewed concrete removal-step interpretation
+
+`native-storage-pop-concrete/readiness-step-check-v2` freshly rebuilds 38
+Lean modules and passes sixteen theorem/axiom audits. Independent review checks
+all 332 outputs, 8,189 input pins and 141,236 external lookup entries. All 10,277
+review evidence pins were rechecked. Sixteen structural, thirteen semantic,
+two canonical-root and five output/reference/report controls pass.
+
+The exact native removal relation observes a 4096-counter input and performs
+two ordered decrements. Successful checked extracted removal supplies both
+nonzero conditions, including the intermediate read when the indices coincide.
+Under the existing constant and sequence laws, the interpreted native relation
+therefore returns the same observed filter as that extracted operation.
+
+This constructs the existing success-only primitive refinement without an
+additional complete-call witness premise. Fifteen audited results use only
+standard logical axioms. The constructor also retains the three extracted
+SmallVec declarations `Bloom.smallvec.SmallVec`, `Bloom.smallvec.SmallVec.pop`
+and `Bloom.ArrayT64.Insts.SmallvecArray.size`. Its vector-pop refinement remains
+an explicit premise. Native release success alone does not supply the checked
+extraction's non-underflow condition.
+
+Review caught a canonical export selecting a helper goal instead of `vc_pop_E`.
+The corrected export retains the actual pop task's 486 declarations and 462
+identities; its selected removal-step typed AST is byte-identical. Unspecialized
+pop contract instrumentation preserves that task and extends only the theory.
+Two controls reject the wrong canonical goal. This was an evidence selection
+error, not a Firefox defect; the earlier readiness export was unaffected.
+
+The result validates selected symbols and the primitive interface. The complete
+native pop contract, caller history, provider correspondence and native
+completion still require composition. One fresh combined Lean rebuild and an
+independent source/output audit support this checkpoint.
+
+| Record | SHA-256 |
+| --- | --- |
+| `STEP-READINESS-EVIDENCE-v1.json` | `8d5208620e2bc0c25c01e7e1ffd8b842a0c89f01160d5b1979c03f63a9ddd3dc` |
+| `readiness-step-check-v2/report.json` | `893ba3790ad572083a0336ed9cbbe8211376fea48bcc8c7cdc71f01f5f4f6cd0` |
+| `reviews/solver-probe/step-review-v2/REVIEW-EVIDENCE-v1.json` | `287d4eddc0d5513c07588810804bf48ace902a9e938ea389e7aecb08f8192888` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/readiness-step-gate-v2/rebuild.py --output /private/tmp/native-removal-step
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/solver-probe/step-review-v2/audit.py --output /private/tmp/native-removal-step --report /private/tmp/native-removal-step-audit.json
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -1021,8 +1066,8 @@ observer interpretation to the full pop contract. Raw encoding, sequential
 non-underflow from live history and the complete native removal contract now
 compose under explicit complete call witnesses. A separate readiness proof
 establishes the entire reverse-removal domain from represented history. The
-transparent native removal relation offers a direct route to the existing
-success-only primitive interface; its interpretation is still a prototype.
+transparent native removal relation now instantiates the existing success-only
+primitive interface. Connecting it to the full native pop contract is in progress.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises. Integrating its typed counter interpretation with earlier
