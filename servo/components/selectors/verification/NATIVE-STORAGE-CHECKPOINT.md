@@ -142,14 +142,42 @@ observed lists or install a new aggregate native proof certificate.
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-elements-lean/check_elements.py check-v2
 ```
 
+## Reviewed concrete storage representation
+
+`native-storage-representation/check-v1` and independent `reviews/check-v1`
+pass 20 exact audits, including freshly compiled existing recovery modules,
+and six rejected mutations. `valid_iff` and `chain_eq` connect the observation
+relation to the existing `StorageInvariantProofs.Valid` and `chain` definitions.
+
+`push_representation` combines both vector witnesses, propagates initial
+record-list compatibility through the native and extracted append results,
+and constructs a related extracted storage state. It preserves the exact native
+exit hash and element-vector representations, recovery validity and chain order.
+No vector identity follows merely from equal observed lists.
+
+The controls reject wrong vector endpoints, stored high-water, chain order,
+missing record compatibility and changed counts. The existing `SequenceModel`
+also contains pop, clear and dereference contracts; their native semantics
+remain assumptions. This is a representation theorem, not proof that an actual
+extracted storage call produced the constructed state.
+
+| Record | SHA-256 |
+| --- | --- |
+| `check-v1/report.json` | `18468ebd76cbcd66a3d5306c835d6fa15afa6eae94a832375f93091f6e5746bb` |
+| `reviews/check-v1/report.json` | `474d0f1505b0e549467a371f853c14eff58c938a0f9f45442c408fa1e876f660` |
+| `reviews/REPRESENTATION-FINAL-REVIEW.json` | `58e8fc2d262d0f35790f46c5863020648da4c1b5062915c346f0efed3c65ddca` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-representation/check_representation.py check-v2
+```
+
 ## Remaining interpretation work
 
-The `native-storage-representation` candidate connects the observed invariant
-to the existing `StorageInvariantProofs.Valid` and `chain` definitions, preserving
-both vector representations and initial record-list compatibility through push.
-It is undergoing guarded validation and independent review. This is a
-representation result, not proof that an actual extracted storage call produced
-the constructed state.
+A `native-provider-normal-return` candidate derives the actual extracted
+provider's backward-function shape directly from a successful return, without
+an enumeration-behavior premise. It also derives the existing `ProviderCalls`
+interface from a success-only enumeration contract. Guarded validation and
+independent review are pending; completion remains a separate obligation.
 
 Interpret the native continuation separately: `StoragePushProofs.ProviderCalls`
 requires an exact backward-function equation that a normal-return trace does
