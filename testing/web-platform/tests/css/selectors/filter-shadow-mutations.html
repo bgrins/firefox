@@ -1,0 +1,101 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Selector filters across shadow boundaries and slot reassignment</title>
+<link rel="help" href="https://drafts.csswg.org/selectors/#relational">
+<link rel="help" href="https://drafts.csswg.org/css-scoping/#shadow-trees">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .shadow-host { color: rgb(0, 0, 0); }
+  .shadow-host:has(.signal):has(.other) { color: rgb(0, 128, 0); }
+</style>
+<body>
+<template id="shadow-template">
+  <style>
+    .subject, .target { color: rgb(0, 0, 0); }
+    .subject:has(.signal):has(.other),
+    .gate.active[data-filter-key] .target { color: rgb(0, 128, 0); }
+    ::slotted(*) { background-color: rgb(0, 0, 0); }
+    slot[name="one"]::slotted(.signal) { background-color: rgb(0, 128, 0); }
+    slot[name="two"]::slotted(.signal) { background-color: rgb(0, 0, 128); }
+  </style>
+  <div class="subject">
+    <slot name="one"></slot>
+    <slot name="two"></slot>
+  </div>
+  <div class="gate active" data-filter-key><span class="target"></span></div>
+</template>
+<script>
+  function fixture(t) {
+    const host = document.createElement("div");
+    host.className = "shadow-host";
+    const shadow = host.attachShadow({mode: "open"});
+    shadow.append(document.getElementById("shadow-template").content.cloneNode(true));
+    document.body.append(host);
+    t.add_cleanup(() => host.remove());
+    return {host, shadow};
+  }
+
+  function check(element, matches, message) {
+    assert_equals(getComputedStyle(element).color,
+                  matches ? "rgb(0, 128, 0)" : "rgb(0, 0, 0)", message);
+  }
+
+  test(t => {
+    const {host, shadow} = fixture(t);
+    const subject = shadow.querySelector(".subject");
+    const signal = document.createElement("span");
+    signal.className = "signal other";
+    signal.slot = "one";
+    host.append(signal);
+    check(host, true, ":has sees light DOM children");
+    check(subject, false, ":has does not see assigned nodes as descendants");
+    assert_equals(getComputedStyle(signal).backgroundColor, "rgb(0, 128, 0)", "first slot");
+    signal.slot = "two";
+    assert_equals(getComputedStyle(signal).backgroundColor, "rgb(0, 0, 128)", "reassigned slot");
+    check(host, true, "slot reassignment preserves light DOM matching");
+    check(subject, false, "slot reassignment does not create shadow descendants");
+    signal.classList.remove("signal");
+    assert_equals(getComputedStyle(signal).backgroundColor, "rgb(0, 0, 0)", "slotted class removed");
+    check(host, false, "light DOM hash removed");
+    signal.classList.add("signal");
+    assert_equals(getComputedStyle(signal).backgroundColor, "rgb(0, 0, 128)", "slotted class restored");
+    check(host, true, "light DOM hash restored");
+    subject.append(signal);
+    check(subject, true, ":has sees a physical shadow descendant");
+    check(host, false, ":has does not cross into the shadow tree");
+    host.append(signal);
+    check(host, true, "restored light DOM descendant");
+    check(subject, false, "removed physical shadow descendant");
+    assert_equals(getComputedStyle(signal).backgroundColor, "rgb(0, 0, 128)", "restored slot assignment");
+    shadow.querySelector('slot[name="two"]').name = "unused";
+    check(host, true, "unassigned light DOM children still match :has");
+    check(subject, false, "unassigned nodes remain outside the shadow tree");
+    signal.slot = "one";
+    assert_equals(getComputedStyle(signal).backgroundColor, "rgb(0, 128, 0)", "assigned to remaining slot");
+  }, "Relative filters respect shadow boundaries throughout slot and tree changes");
+
+  test(t => {
+    const first = fixture(t);
+    const second = fixture(t);
+    const firstGate = first.shadow.querySelector(".gate");
+    const secondGate = second.shadow.querySelector(".gate");
+    const target = firstGate.firstElementChild;
+    secondGate.classList.remove("active");
+    check(target, true, "initial shadow ancestor");
+    secondGate.append(target);
+    check(target, false, "moved to another shadow root with a nonmatching ancestor");
+    secondGate.classList.add("active");
+    check(target, true, "changed ancestor class in destination shadow root");
+    secondGate.removeAttribute("data-filter-key");
+    check(target, false, "changed ancestor attribute in destination shadow root");
+    secondGate.setAttribute("data-filter-key", "");
+    check(target, true, "restored ancestor attribute");
+    firstGate.append(target);
+    check(target, true, "moved back to original shadow root");
+    first.host.remove();
+    check(secondGate, false, "flush while original host is detached");
+    document.body.append(first.host);
+    check(target, true, "reattached host restores ancestor matching");
+  }, "Ancestor filters recover across shadow roots and host removal and reinsertion");
+</script>
