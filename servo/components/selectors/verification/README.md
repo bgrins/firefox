@@ -9,7 +9,9 @@ Charon extracts their Rust operations, Aeneas translates them into Lean, and
 [StyleBloomProofs.lean](lean/StyleBloomProofs.lean), and
 [CoverageProofs.lean](lean/CoverageProofs.lean) check the filter operations.
 [RecoveryProofs.lean](lean/RecoveryProofs.lean) checks the extracted recovery
-algorithm under its stack and DOM contracts. The Firefox
+algorithm under its stack and DOM contracts.
+[ZeroedProofs.lean](lean/ZeroedProofs.lean) checks the debug zero-counter test.
+The Firefox
 build does not depend on this experiment.
 
 [RelativeProofs.lean](relative/RelativeProofs.lean),
@@ -44,7 +46,7 @@ models and logs are ignored by Git. Logs are in `generated/`; setup logs are in
 
 ## Current guarantees
 
-The core suite's seventy checked theorems cover:
+The core suite's seventy-three checked theorems cover:
 
 - Construction and clearing produce an array of zero counters.
 - A saturated counter stays unchanged for either adjustment direction.
@@ -79,6 +81,9 @@ The core suite's seventy checked theorems cover:
   after saturation. A batch of actual insertions extends the recorded hash list
   in order and updates its historical maximum to the larger of its prior value
   and the final live length.
+- The debug zero-check loop terminates and returns true exactly when all 4096
+  counters are zero. This covers the debug implementation; the public method
+  intentionally panics in release builds.
 
 The proofs use the actual 4096-slot array and 8-bit counters, for all 32-bit hash
 inputs. The Rust integration tests add concrete collision and saturation cases;
@@ -156,7 +161,7 @@ establish that every production adapter operation satisfies that contract.
 ## Relative traversal and cache proofs
 
 The relative suite checks another 42 theorems and two concrete witness
-definitions. Together with the core suite, the runner audits 114 declarations.
+definitions. Together with the core suite, the runner audits 117 declarations.
 Its wrapper includes the production `relative_selector/filter.rs` and extracts
 the traversal, entry update, target selection, cache lookup, and Bloom operations.
 An LLBC metadata check rejects any retained mock selector collector or matching
@@ -371,23 +376,17 @@ The connection to Rust depends on the pinned compiler, Charon/Aeneas extraction,
 and Aeneas's standard-library models. Lean checks the proofs. This is not a proof
 of the native compiler or the resulting machine code.
 
-Extraction retains the unused `is_zeroed` trait method, whose slice-iterator
-`all` operation is an uninterpreted external function in the generated model.
-Construction, clearing, insertion, removal, and lookup reference the trait
-dictionary, so Lean reports that symbol transitively in their theorem
-dependencies, including the history and rejection theorems. None of those
-operations calls it, and no behavioral property of the external function is
-assumed. `is_zeroed`
-itself is outside the verified scope.
+The zero-check implementation uses an explicit early-exit loop so extraction
+can use the modeled slice iterator operations. Its exact predicate and
+termination are checked; no opaque iterator `all` operation remains in the
+core or relative proof dependencies.
 
-The runner checks the exact set of reported declarations and uses a separate
-axiom allowlist for each theorem. Core proofs allow Lean's standard logical
-axioms and, where required by their extracted dependencies, the unused iterator
-external. Relative proofs additionally permit precisely listed opaque map,
+The runner checks the exact set of reported declarations. All 73 core theorems
+allow only Lean's standard logical axioms. Relative proofs additionally permit
+precisely listed opaque map,
 hashing, and boxed-borrow declarations where the library contracts require them.
-The bridge checks both generated namespaces explicitly. The audits reject
+Those allowances apply only to the designated cache and bridge theorems. The audits reject
 `sorryAx`, unlisted axioms, missing or duplicate reports, and Lean warnings.
-Resolving the unnecessary external dependency remains follow-up work.
 
 The pipeline uses Charon's generic extraction. Full monomorphization currently
 hits an Aeneas array-default prepass failure with the pinned release. The
