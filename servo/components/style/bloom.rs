@@ -15,6 +15,8 @@ use smallvec::SmallVec;
 
 #[path = "bloom_filter.rs"]
 mod bloom_filter;
+#[path = "bloom_recovery.rs"]
+mod bloom_recovery;
 
 thread_local! {
     /// Bloom filters are large allocations, so we store them in thread-local storage
@@ -240,18 +242,8 @@ impl<E: TElement> StyleBloom<E> {
     }
 
     /// Rebuilds the bloom filter up to the parent of the given element.
-    pub fn rebuild(&mut self, mut element: E) {
-        self.clear();
-
-        let mut parents_to_insert = SmallVec::<[E; 16]>::new();
-        while let Some(parent) = element.traversal_parent() {
-            parents_to_insert.push(parent);
-            element = parent;
-        }
-
-        for parent in parents_to_insert.drain(..).rev() {
-            self.push(parent);
-        }
+    pub fn rebuild(&mut self, element: E) {
+        bloom_recovery::rebuild(&mut RecoveryStack::new(self), element);
     }
 
     /// In debug builds, asserts that all the parents of `element` are in the
@@ -290,113 +282,62 @@ impl<E: TElement> StyleBloom<E> {
     /// Returns the new bloom filter depth, that the traversal code is
     /// responsible to keep around if it wants to get an effective filter.
     pub fn insert_parents_recovering(&mut self, element: E, element_depth: usize) {
-        // Easy case, we're in a different restyle, or we're empty.
-        if self.elements.is_empty() {
-            self.rebuild(element);
-            return;
-        }
-
-        let traversal_parent = match element.traversal_parent() {
-            Some(parent) => parent,
-            None => {
-                // Yay, another easy case.
-                self.clear();
-                return;
-            },
-        };
-
-        if self.current_parent() == Some(traversal_parent) {
-            // Ta da, cache hit, we're all done.
-            return;
-        }
-
-        if element_depth == 0 {
-            self.clear();
-            return;
-        }
-
-        // We should've early exited above.
-        debug_assert!(
-            element_depth != 0,
-            "We should have already cleared the bloom filter"
+        bloom_recovery::recover(
+            &mut RecoveryStack::new(self),
+            element,
+            element_depth,
+            cfg!(feature = "gecko"),
         );
-        debug_assert!(!self.elements.is_empty(), "How! We should've just rebuilt!");
+    }
+}
 
-        // Now the fun begins: We have the depth of the dom and the depth of the
-        // last element inserted in the filter, let's try to find a common
-        // parent.
-        //
-        // The current depth, that is, the depth of the last element inserted in
-        // the bloom filter, is the number of elements _minus one_, that is: if
-        // there's one element, it must be the root -> depth zero.
-        let mut current_depth = self.elements.len() - 1;
+struct RecoveryStack<'a, E: TElement> {
+    bloom: &'a mut StyleBloom<E>,
+    pending: SmallVec<[E; 16]>,
+}
 
-        // If the filter represents an element too deep in the dom, we need to
-        // pop ancestors.
-        while current_depth > element_depth - 1 {
-            self.pop().expect("Emilio is bad at math");
-            current_depth -= 1;
+impl<'a, E: TElement> RecoveryStack<'a, E> {
+    fn new(bloom: &'a mut StyleBloom<E>) -> Self {
+        Self {
+            bloom,
+            pending: SmallVec::new(),
         }
+    }
+}
 
-        // Now let's try to find a common parent in the bloom filter chain,
-        // starting with traversal_parent.
-        let mut common_parent = traversal_parent;
-        let mut common_parent_depth = element_depth - 1;
+impl<E: TElement> bloom_recovery::RecoveryState for RecoveryStack<'_, E> {
+    type Element = E;
 
-        // Let's collect the parents we are going to need to insert once we've
-        // found the common one.
-        let mut parents_to_insert = SmallVec::<[E; 16]>::new();
+    fn parent(element: E) -> Option<E> {
+        element.traversal_parent()
+    }
 
-        // If the bloom filter still doesn't have enough elements, the common
-        // parent is up in the dom.
-        while common_parent_depth > current_depth {
-            // TODO(emilio): Seems like we could insert parents here, then
-            // reverse the slice.
-            parents_to_insert.push(common_parent);
-            common_parent = common_parent.traversal_parent().expect("We were lied to");
-            common_parent_depth -= 1;
-        }
+    fn len(&self) -> usize {
+        self.bloom.elements.len()
+    }
 
-        // Now the two depths are the same.
-        debug_assert_eq!(common_parent_depth, current_depth);
+    fn current_parent(&self) -> Option<E> {
+        self.bloom.current_parent()
+    }
 
-        // Happy case: The parents match, we only need to push the ancestors
-        // we've collected and we'll never enter in this loop.
-        //
-        // Not-so-happy case: Parent's don't match, so we need to keep going up
-        // until we find a common ancestor.
-        //
-        // Gecko currently models native anonymous content that conceptually
-        // hangs off the document (such as scrollbars) as a separate subtree
-        // from the document root.
-        //
-        // Thus it's possible with Gecko that we do not find any common
-        // ancestor.
-        while *(self.elements.last().unwrap().element) != common_parent {
-            parents_to_insert.push(common_parent);
-            self.pop().unwrap();
-            common_parent = match common_parent.traversal_parent() {
-                Some(parent) => parent,
-                None => {
-                    debug_assert!(self.elements.is_empty());
-                    if cfg!(feature = "gecko") {
-                        break;
-                    } else {
-                        panic!("should have found a common ancestor");
-                    }
-                },
-            }
-        }
+    fn clear(&mut self) {
+        self.bloom.clear();
+    }
 
-        // Now the parents match, so insert the stack of elements we have been
-        // collecting so far.
-        for parent in parents_to_insert.drain(..).rev() {
-            self.push(parent);
-        }
+    fn pop(&mut self) -> Option<E> {
+        self.bloom.pop()
+    }
 
-        debug_assert_eq!(self.elements.len(), element_depth);
+    fn push(&mut self, element: E) {
+        self.bloom.push(element);
+    }
 
-        // We're done! Easy.
+    fn pending_push(&mut self, element: E) {
+        self.pending.push(element);
+    }
+
+    fn pending_pop(&mut self) -> Option<E> {
+        self.pending.pop()
     }
 }
 

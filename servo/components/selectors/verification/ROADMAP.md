@@ -21,7 +21,7 @@ lifetime correctness. See [README.md](README.md) for assumptions and reproductio
 | 1. Strengthen differential checking | Complete (`c2c0c4afcc31`) | Adversarial hashes, deeper trees and nested selectors, automatic failure reduction, and instrumentation establishing filter execution. A controlled faulty hash provider must demonstrate that the oracle and reducer detect and retain a real mismatch. |
 | 2. Close hash-normalization gap | Complete (`fc3af7e2b69a`) | Checked equivalence of raw and masked hashes for insertion, removal and lookup; a composed history/packing/rejection theorem using raw element hashes. |
 | 3. Exercise Gecko state changes | Complete (`700d5df737ab`) | Local browser checks of class/ID/attribute mutation, reparenting, removal/reinsertion, namespaces/case, shadow roots and slot reassignment, with style flushes and independent expectations. Assess feasibility of a test-only filter bypass and document coverage limits. |
-| 4. Prove StyleBloom recovery and clearing | Clear proof committed (`a0bd75a11f4e`); recovery and adapter contracts in progress | An invariant connecting ancestor path, hash stack, filter contributions and saturation history; valid removals, required-hash retention, and empty state after clearing. Account for siblings, ancestors and separate roots; connect extracted production transitions to the invariant. |
+| 4. Prove StyleBloom recovery and clearing | Clear proof committed (`a0bd75a11f4e`); conditional recovery algorithm proved; production adapter open | An invariant connecting ancestor path, hash stack, filter contributions and saturation history; valid removals, required-hash retention, and empty state after clearing. Account for siblings, ancestors and separate roots; connect extracted production transitions to the invariant. |
 | 5. Verify relative traversal and caching | Production extraction succeeds; loop/cache proofs in progress | Termination, region coverage and boundary preservation for the production walk; conservative handling of unavailable hashes and correct children/subtree cache reuse under explicit DOM/lifetime assumptions. |
 | 6. Prove selector hash collection soundness | Extraction and iterator refactor in progress | A declared selector subset with a production connection: matching implies every collected rejection hash is represented in the appropriate DOM region. Extend through combinators, is/where and relative selectors; enumerate unsupported constructs. |
 
@@ -35,8 +35,8 @@ currently leave open.
 1. **Preserve the checked clearing result as a reviewable commit (done).** Commit
    `a0bd75a11f4e` contains the production clear helper and its thirteen audited
    theorems separately from recovery work, retaining exact theorem and axiom checks. The integrated
-   suite now passes 54 theorems, including five insertion-coverage lemmas added
-   for relative-filter composition; the native build with the current caller
+   suite now checks 66 theorems, including five insertion-coverage lemmas and
+   twelve recovery declarations under explicit adapter contracts; the native build with the current caller
    refactors also succeeds.
 2. **Finish milestone 4: ancestor recovery.** Prove that rebuilding, trimming,
    finding a common parent, and flushing pending ancestors produce the required
@@ -144,6 +144,13 @@ counterexample requires it.
   empty/high-water-zero history. Thirteen caller-clear theorems now pass in the
   main runner, bringing its total to 49. The recovery and adapter obligations
   remain open.
+
+- Recovery review found that an unconditional push contract could not describe
+  the production containers. The checked contract now requires finite capacity
+  and parent/root admissibility. Both recovery configurations pass under those
+  conditions; production adapter extraction and hash-resource bounds remain
+  required. Generated panic-message code introduced native evaluation axioms;
+  equivalent explicit checks removed those dependencies instead of allowing them.
 
 ## Maintenance
 

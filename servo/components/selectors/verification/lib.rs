@@ -4,6 +4,9 @@
 
 extern crate self as selectors;
 
+#[path = "../../style/bloom_recovery.rs"]
+pub mod style_bloom_recovery;
+
 #[path = "../../style/bloom_filter.rs"]
 pub mod style_bloom_filter;
 
