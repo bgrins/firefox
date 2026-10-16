@@ -828,6 +828,43 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-clear-fil
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-clear-filter/reviews/audit_guarded.py /private/tmp/native-optimized-clear
 ```
 
+## Reviewed native storage clear
+
+`native-storage-clear/check-v1` and independent `proof-guarded-v1` each
+pass 215 debug and 209 release obligations across 23 models per configuration.
+All twenty optimized-clear models are preserved. Source checks retain the exact
+production `Storage.clear` body and field layouts, together with the checked
+clear helper and native zero-check loop.
+
+Under the conditional count/high-water premise, clearing leaves both buffers
+empty, high-water zero and every filter counter zero. Buffer validity and
+capacities are preserved. New explicit SmallVec clear and dereference contracts
+supply their library semantics; the borrowed-array iteration contract is
+inherited from the zero-check checkpoint. Abstract element carriers, allocation
+behavior and native history correspondence remain outside this result.
+
+The release zero-query wrapper always panics in production. Its verification
+model therefore has a false precondition, is retained in the inventory and
+contributes no substantive coverage. The ordinary release clear precondition
+is satisfiable, and the proof establishes that this query branch is unreachable.
+A control forcing the query leaves its false call obligation unresolved.
+Three other controls omit clearing elements, hashes or high-water and leave
+only the intended postconditions unresolved. Unknown/Timeout results are not
+counterexamples. Five compilation and three output controls pass; all 7,969
+producer pins and the root replay's 92 proof outputs were independently checked.
+
+| Record | SHA-256 |
+| --- | --- |
+| `EVIDENCE-v1.json` | `0f75f5865790a5791e62e5520ce97ee5638371f8064368767aa6d3ede187bb95` |
+| `check-v1/report.json` | `fff0894659f5dc2e29380a9930b4ceaa8272c3e0c600b00ad8930be38111aaaa` |
+| `EVIDENCE-REBUILD-v1.json` | `0606ae92b4a938f4165c7437c7006258ac6e60ad4f4cf108e50506987e5ad051` |
+| `reviews/INDEPENDENT-REVIEW-v1.json` | `a45a8910b4340f2796dad3f65baa5f298be5123fca6fe89a8c5a7a8fc74c9962` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-clear/prove_guarded.py /private/tmp/native-storage-clear
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-clear/reviews/audit_guarded.py /private/tmp/native-storage-clear
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -848,9 +885,9 @@ abstract removal edge. Raw encoding, sequential non-underflow from live history,
 and the complete native removal contract interpretation are checked separately;
 their integrated call and observer correspondence remains open.
 The native filter reset now has conditional extracted endpoint correspondence.
-Integrating its counter interpretation with the earlier storage observers and
-checking the complete reset path remain separate work. Filter reset does not
-alone clear the storage vectors or establish their final high-water value. Linked-pop integration remains useful
+The native storage reset path is now checked under its count/high-water and
+library premises. Integrating its typed counter interpretation with earlier
+storage observers and deriving the native count premise remain open. Linked-pop integration remains useful
 but does not discharge primitive semantics or the provider boundary. Complete
 recovery and the next borrow's intrinsic validity remain open.
 
