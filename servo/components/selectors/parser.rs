@@ -770,25 +770,26 @@ fn collect_subject_ancestor_hashes<Impl: SelectorImpl>(
     true
 }
 
-fn collect_ancestor_hashes<Impl: SelectorImpl>(
-    mut iter: SelectorIter<Impl>,
+#[inline]
+fn scan_ancestor_hash_subject<Impl: SelectorImpl>(
+    iter: &mut SelectorIter<Impl>,
     quirks_mode: QuirksMode,
     hashes: &mut [u32; 4],
     len: &mut usize,
-) -> bool {
+) -> Option<bool> {
     loop {
-        if !collect_subject_ancestor_hashes(&mut iter, quirks_mode, hashes, len) {
-            return false;
+        if !collect_subject_ancestor_hashes(iter, quirks_mode, hashes, len) {
+            return Some(false);
         }
         let Some(c) = iter.next_sequence() else {
-            return true;
+            return Some(true);
         };
         match c {
             // We got to an ancestor combinator, let collect_selector_hashes take it from there.
-            Combinator::Child | Combinator::Descendant => break,
+            Combinator::Child | Combinator::Descendant => return None,
             Combinator::LaterSibling | Combinator::NextSibling => {
                 iter.skip_until_ancestor();
-                break;
+                return None;
             },
             // Keep scanning the subject for other potential ancestor combinators inside :where()
             // and :is(). Note that if this is ever changed to stop at the "pseudo-element"
@@ -797,7 +798,17 @@ fn collect_ancestor_hashes<Impl: SelectorImpl>(
             Combinator::Part | Combinator::SlotAssignment | Combinator::PseudoElement => {},
         }
     }
+}
 
+fn collect_ancestor_hashes<Impl: SelectorImpl>(
+    mut iter: SelectorIter<Impl>,
+    quirks_mode: QuirksMode,
+    hashes: &mut [u32; 4],
+    len: &mut usize,
+) -> bool {
+    if let Some(result) = scan_ancestor_hash_subject(&mut iter, quirks_mode, hashes, len) {
+        return result;
+    }
     collect_selector_hashes(AncestorIter(iter), quirks_mode, hashes, len)
 }
 
