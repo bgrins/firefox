@@ -1,0 +1,30 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Repeated :has() matching on a deep subtree</title>
+<link rel="help" href="https://drafts.csswg.org/selectors/#relational">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .first { display: none; }
+  #subject:has(.first):has(.second) { color: rgb(0, 128, 0); }
+</style>
+<div id="subjects"></div>
+<script>
+  test(() => {
+    const subjects = document.getElementById("subjects");
+    for (let i = 0; i < 512; ++i) {
+      subjects.appendChild(document.createElement("div"));
+    }
+    const root = subjects.lastElementChild;
+    root.id = "subject";
+    const first = root.appendChild(document.createElement("div"));
+    // Both selectors match immediately; the second lookup constructs the subtree filter.
+    first.className = "first second";
+    let leaf = first;
+    for (let i = 0; i < 10000; ++i) {
+      leaf = leaf.appendChild(document.createElement("div"));
+    }
+    document.body.offsetWidth;
+    assert_equals(getComputedStyle(root).color, "rgb(0, 128, 0)");
+  }, "Repeated :has() matching handles a deep subtree");
+</script>

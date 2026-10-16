@@ -101,6 +101,35 @@ subtree boundaries, cached reuse, and retry after unavailable element hashes.
 These tests do not establish reachability through a browser page or constitute
 a formal proof of the traversal.
 
+## Browser regressions
+
+Two Web Platform Tests exercise the production callers through the DOM and style
+system:
+
+- [ancestor-filter-saturation-crash.html](../../../../testing/web-platform/tests/css/selectors/ancestor-filter-saturation-crash.html)
+  uses 256 repeated class tokens on one ancestor, followed by an ancestor with
+  few hashes. It detects the clearing assertion in builds with Rust debug
+  assertions enabled; release builds do not expose stale counters to the page.
+- [has-deep-subtree.html](../../../../testing/web-platform/tests/css/selectors/has-deep-subtree.html)
+  matches two `:has()` selectors against the same direct child while a deep
+  subtree is hidden from layout. Firefox metadata dispatches style work to
+  workers to exercise their smaller stacks. The test also checks the resulting
+  computed color.
+
+After building Firefox locally, run:
+
+```sh
+./mach wpt --headless --no-pause-after-test testing/web-platform/tests/css/selectors/ancestor-filter-saturation-crash.html testing/web-platform/tests/css/selectors/has-deep-subtree.html
+```
+
+Use a debug build, or add `ac_add_options --enable-rust-debug` to a local build
+configuration, to exercise the clearing assertion.
+
+Both tests crash an unpatched macOS arm64 debug build at `976279105b2e`.
+With the fixes applied and Rust debug assertions enabled, both pass three
+consecutive local runs. A control using only one `:has()` selector also passes
+on the unpatched build with the same deep DOM and worker preference.
+
 ## Trust and checks
 
 The connection to Rust depends on the pinned compiler, Charon/Aeneas extraction,
