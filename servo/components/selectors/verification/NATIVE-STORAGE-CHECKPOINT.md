@@ -907,6 +907,50 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-c
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-clear/reviews/audit_guarded.py /private/tmp/native-storage-clear
 ```
 
+## Reviewed native removal readiness
+
+`native-storage-pop-concrete/readiness-check-v1` freshly rebuilds 27 Lean
+modules and passes nine exact theorem/axiom audits. Independent source and
+output review checks all 226 outputs, 8,084 prerequisite pins and 141,236
+external lookup entries. Nine semantic, eight typed-schema and four output
+controls pass. This checkpoint has one fresh rebuild and an independent audit;
+it does not claim a second independent rebuild.
+
+Live high-water history implies that removing a represented suffix in reverse
+order satisfies both nonzero conditions at every step. The second condition
+reads the counters after the first decrement, including coincident indices.
+The proof connects raw counters, native byte sequences and an integer-indexed
+prefix recurrence.
+
+Typed export reads the native `removal_ready` definition without instrumentation,
+preserving 300 task declarations, eighteen theory declarations and 45 identities.
+The final source refresh changes only four source-file paths in the selected
+typed export. The translator preserves the guarded equation, and Lean proves
+that equation under the selected interpretation. All nine results use only
+standard logical axioms. Constant bindings, bounded sequence laws and the
+represented history remain explicit.
+
+Controls change an index, the intermediate counters, the recursive state or
+count, or a count bound. The generated semantic mutants still compile, but
+their interpretation proofs fail at the intended obligations. Structural
+controls reject malformed symbol identities, types, binders and ranges.
+
+This proves the readiness predicate under a selected symbol interpretation.
+Shared interpretation of all native contracts and the full pop precondition
+remain open. It does not establish native completion or readiness from an
+unconnected native provider trace. No additional Firefox defect is established.
+
+| Record | SHA-256 |
+| --- | --- |
+| `READINESS-EVIDENCE-v2.json` | `6b1d45ecb813a2e9acbb6c31807b389ea57c3ba28fb4f6a885e48c061820010e` |
+| `readiness-check-v1/report.json` | `1817fcf1a22e75a328f6ed558543d5c1ef6a6731034a24bf9ccd71eba883d6cc` |
+| `reviews/solver-probe/readiness-review-v6/report.json` | `a69d3c9b78aee9e07e5b6c3dee6c762bb667e646ce928f3159f50f61fc89a480` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/readiness-gate-v1/rebuild.py --output /private/tmp/native-removal-readiness
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/solver-probe/readiness-review-v6/audit.py --output /private/tmp/native-removal-readiness --report /private/tmp/native-removal-readiness-audit.json
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -922,11 +966,13 @@ now links the caller predicate to the checked helper definition and preserves
 both return paths. Exporting the unspecialized contract avoids the ambiguous
 branch-specialized clauses found during preflight.
 
-The next priority is connecting the interpreted U8 transitions to each actual
-abstract removal edge. Raw encoding, sequential non-underflow from live history,
-and the complete native removal contract interpretation now compose under explicit
-complete call witnesses. Establishing those witnesses for every actual native
-pop step and validating the shared observer interpretation remain open.
+The next priority is connecting the exact native removal relation and shared
+observer interpretation to the full pop contract. Raw encoding, sequential
+non-underflow from live history and the complete native removal contract now
+compose under explicit complete call witnesses. A separate readiness proof
+establishes the entire reverse-removal domain from represented history. The
+transparent native removal relation offers a direct route to the existing
+success-only primitive interface; its interpretation is still a prototype.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises. Integrating its typed counter interpretation with earlier
