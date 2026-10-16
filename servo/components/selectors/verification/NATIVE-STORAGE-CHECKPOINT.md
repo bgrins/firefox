@@ -951,6 +951,56 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/solver-probe/readiness-review-v6/audit.py --output /private/tmp/native-removal-readiness --report /private/tmp/native-removal-readiness-audit.json
 ```
 
+## Reviewed concrete native provider and pop
+
+`native-storage-pop-concrete/native-check-v1` independently replays the
+guarded native candidate's complete 69-model inventory in each configuration.
+Debug passes 774 obligations and release passes 700. The three provider models
+are byte-identical across configurations, so their 289 induction obligations
+are explicitly shared: each replay checks 1,185 distinct solver obligations.
+Six inherited atom adapter models have no goals and supply trusted contracts.
+They contribute no substantive proof coverage.
+
+The producer performs fresh guarded debug and release compilations. Both proof
+replays consume those authenticated compilations. The independent replay checks
+8,715 inputs and 1,911 outputs; all 17,255 producer evidence pins were rechecked.
+The complete enumeration, insertion and expected-vector induction strategies
+retain every original root and both proof and use branches of each cut.
+
+Source checks preserve nine native runtime functions, constants and layouts,
+plus the inherited provider, push and pop runtime after enumerated ghost
+erasure. The native U8 array supplies the actual counter observation and both
+ordered updates. The fixture exposes the outer storage field for contract
+projection; the counter array stays private. No new trusted Bloom contract is
+introduced. DOM/atom and sealed SmallVec contracts remain assumptions.
+
+Pop now has an explicit recursive readiness requirement. A proved helper
+exposes each next decrement's nonzero conditions and the remaining readiness.
+The array-length guarantee requires the native intrinsic invariant, rather
+than claiming that malformed logical arrays have length 4096. This correction
+addresses a proof-interface defect, not a Firefox bug.
+
+Four source controls remove readiness, read the second counter too early,
+skip removal or assert unconditional array length. Each leaves only the intended
+obligations unresolved. These Timeouts establish rejection, not counterexamples.
+Five compilation-provenance and three output controls also pass.
+
+This checks the concrete native slice under its strengthened preconditions.
+Actual caller history establishing those preconditions, a shared interpretation
+of the native contracts, complete recovery and matcher composition remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-EVIDENCE-v1.json` | `ed3e39201547f5f0bd30fd0517f361cdf14b99e6899e2edf9bdc8c96a1e31f49` |
+| `native-check-v1/report.json` | `271c716386efcfb55c535df3c24bf6d37b9f288877c76458400dadc9b2502e7c` |
+| `native-check-v1-audit.json` | `b898842b7a82da2bdac1bdb56e0e58616d6043274643baf3c657eebc993d5ac4` |
+| `reviews/solver-probe/gate-v1/EVIDENCE-v1.json` | `34ff9be7b4fa991467a6964efeb9f23b572b910916a3a7b211f055115f78606b` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/solver-probe/gate-v1/rebuild_v4.py /private/tmp/native-provider-pop
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/solver-probe/gate-v1/audit_v4.py /private/tmp/native-provider-pop --report /private/tmp/native-provider-pop-audit.json
+```
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
