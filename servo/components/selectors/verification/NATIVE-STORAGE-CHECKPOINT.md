@@ -2460,3 +2460,48 @@ Paths below are relative to `actual-context-v1/native-kleene-imported-v1`:
 | `IMPORTED-KLEENE-PROTOTYPE-v1.json` | `ab914b2cd9c99a6a4bad6ac6a749b1a3db0bfbff2f61d60b4f0e62ce488d9089` |
 | `SOURCE-AUDIT-v2.json` | `890d97aae561cf34fb072cd0ba72f4cefaa594d7b87335c195f032ebc8b05749` |
 | `reviews/imported-source-review-v2/REVIEW-v2.json` | `e972cc9e1e66c087e6d881416f224b0914ca38310ef6ea2079ffddaf53b7cdaf` |
+
+## Reviewed native owner storage contract
+
+The `native-style-bloom-storage-v1` package preserves the exact `StyleBloom`
+layout and `storage` body with the actual imported `AtomicRefMut` type. Its
+mutable-reference field and opaque borrow guard remain present. Three dependency
+visibility edits and four storage-field visibility edits permit inspection.
+The native generic `DerefMut` body is checked separately with explicit receiver
+and lifetime transport; its three posts exactly match the external contract.
+
+The owner method proves current and final observations for all four storage
+fields and preserves the guard. It does not equate complete old and new reference
+identities. The source audit's pinned `bloom.rs` snapshot also matches the current
+production file.
+
+Both guarded compilations contain 125 models. The 123 inherited models per
+configuration match the accepted constructor checkpoint after only source-path
+rebasing; their authenticated proofs are reused. The two new models are identical
+in debug and release. Independent replay passes all 41 new obligations: 32 for
+storage and nine for reborrowing. Five compiled controls each retain 40 valid
+goals and one intended timeout; all five physical source controls were also
+independently replayed. Collector reproduction checks 4,972 producer pins, and
+the complete review contains 5,016 pins.
+
+An immutable erratum corrects an inherited exploratory label in the selected
+proof reports: a paired external `DerefMut` success contract is present. The
+source audit and checkpoint disclose it; raw proof evidence remains unchanged.
+
+TLS acquisition, ownership protocol, `Drop`, actual caller temporary restoration
+and native completion remain open. Composing this contract with caller reuse
+still requires the prior recovery field-resolution equations or a checked caller
+body that establishes them. Milestones 4 and 6 remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-style-bloom-storage-v1/checkpoint-v1.json` | `6f0d80b71b1f76cd87d8216000d85299cbc0281eb940c44df33839ab3ab4f595` |
+| `native-style-bloom-storage-v1/PROOF-SCOPE-ERRATUM-v1.json` | `259d95d216135d55bbaf26a4bdc9d62ebb08c52460432a1687f379726043445e` |
+| `reviews/native-style-bloom-storage-root-v1/REVIEW-EVIDENCE-v1.json` | `b6016b3e4a5adfcc4dd8622e08bde177967767a88e451b0f502ca560b47cfbb9` |
+| `NATIVE-STYLE-BLOOM-STORAGE-EVIDENCE-v1.json` | `82377a00eb3c459c241f4ea0eacc659c0f654aadd0c9f24da3c91441b7d0bf43` |
+
+Audit the completed evidence:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/native-style-bloom-storage-root-v1/audit.py --report /tmp/native-style-bloom-storage-review.json
+```
