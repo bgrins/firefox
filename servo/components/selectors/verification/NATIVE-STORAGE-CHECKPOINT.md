@@ -3840,3 +3840,71 @@ Paths below are relative to the public-entry prototype's
 | `atom-provider-binding-v1/typed-policy-v1/ATOM-PROVIDER-COMPOSITION-v1.json` | `a0b0f852d38a12b5dd23f92ee97cc22d72206a69fd6705111f791d7c93700c98` |
 | `atom-provider-review-v1/REVIEW-v2.json` | `5e504b2601adc03486d0150e4fd837f4fb6ec13713f0ebd9ef4e777f69fb1d10` |
 | `atom-provider-review-v1/GATE-REVIEW-v1.json` | `b8fbb2ca27ab2e1c81e5ae943f8511d00b1f35dd94c0701c6014f2de6b220778` |
+
+
+## Actual ancestor-hash construction and local-name contract
+
+The next composition replaces the explicit collector-output, hash-count,
+native-input-word, native packing-postcondition and packed-observation premises
+with the actual extracted `AncestorHashes::new` return. Its decomposition proves
+that a successful constructor return is the result of the same collector and
+packer. Conversion retains all three packed words, and the native `Rule::new`
+postcondition connects those words to the stored rule.
+
+The isolated native extraction adds one wrapper calling the unchanged
+constructor. The source audit checks exact wrapper/path adaptation, captured
+parser and packing source, transparent selected bodies and source spans. Its
+replay regenerates normalization and Aeneas output, recompiles three modules with
+seven audits, and checks five semantic, seven source, five diagnostic and five
+physical evidence controls. Existing ownership/library models remain explicit;
+the replay authenticates the cached Rust extraction instead of repeating it.
+
+The local-name bridge exports the complete captured `postcondition_fndef` law
+and `postcondition_once_local_name` definition from the unchanged native model.
+The complete canonical task and theory match the accepted policy export. The
+law is rendered as a proposition supplied by the caller, not a Lean axiom.
+Its return postcondition and a shared native-symbol dictionary derive the local
+hash equality used by the provider proof. Both atom identity and hash fields are
+preserved. This verifies contract transport; the Gecko accessor body and atom
+table remain outside the proof.
+
+The combined guarded replay freshly rebuilds eight modules with fifteen exact
+axiom audits. Eleven semantic controls cover the accessor, collector/packer,
+rule hash association, quirks mode and query result. Eight malformed-export,
+six shared-symbol and five diagnostic controls also pass. Seven physical
+evidence controls reject duplicate inventories, altered native inputs/commands,
+missing proof objects and unexpected files; every copied baseline first passes
+the collector. The run checks 135 outputs. The complete listed dependency
+lookup is authenticated before and after execution. The four local
+accessor lemmas are axiom-free; the final composition retains the existing
+`core.fmt.Formatter` abstraction. Independent bounded review reads the complete
+composition and reproduces the collector report exactly. It checks the seven
+recorded physical controls without repeating the full proof run or transitive
+dependency authentication. No semantic blocker was found.
+
+The resulting theorem preserves the matcher context and proves that the
+recovered entry query does not reject. It still assumes the observed selector
+and matcher slice correspond, the relevant constructor and accessor return
+normally, and the earlier DOM, atom coherence, storage, resource and query
+contracts hold. Native rule/collector/matcher selector identity and stylesheet
+and quirks freshness remain separate obligations. This is not a global invariant
+for publicly mutable rule fields.
+
+The next production bridge follows the post-replacement selector through
+`AncestorHashes::new`, `Rule::new`, and the `BucketMatches::Unknown` matching
+entry. The `Subject` shortcut needs a separate iterator-offset relation. A
+normal `Stylist::flush` return alone is insufficient evidence of current hashes:
+the rebuild allocation-error path is caught, so the lifecycle obligation must
+state successful per-origin rebuild/freshness. No browser defect is claimed from
+that observation. Milestones 4 and 6 remain open; there are still two confirmed
+Firefox bugs.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `collector-origin-bridge-v1/COLLECTOR-ORIGIN-PROTOTYPE-v1.json` | `c8eaefa8831245c1defa0ff5012a5490781d35246b385ac279c4a3d792dab8da` |
+| `native-constructed-recovered-entry-v1/NATIVE-CONSTRUCTED-RECOVERED-v1.json` | `77b95a9aca0fd273e466ec37f134f3398a2466322085a53eb97c3baef0d8115d` |
+| `local-name-contract-review-v1/REVIEW-v1.json` | `e6f93c03e3a383520625e6b1e28a4fbccea19a932e957f4188e21cbbdc7754dd` |
+| `native-constructed-recovered-entry-review-v1/REVIEW-v1.json` | `a236d770a25418a696eb54052c245cc069f9d17b9b83fbefb0178f4e4dbfcd81` |
