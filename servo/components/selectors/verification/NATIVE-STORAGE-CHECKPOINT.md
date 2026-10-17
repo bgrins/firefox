@@ -5326,3 +5326,42 @@ Paths are relative to `provider-bindings-v1`:
 | `native-recursive-subject-translation-v1/ROOT-REVIEW-v1.json` | `51a8d5c3d6c1e27d52dfe9f6d952e30f559aaaf918f838d9595d69a8c8c7ca77` |
 | `recursive-classifier-exact-translation-v1/ROOT-REVIEW-v1.json` | `b1e6e236a8aaa7c0c5a65ac0098963a29132e0cc42aa6904d766f36b7b15acda` |
 | `subject-classified-entry-v1/ROOT-REVIEW-v1.json` | `8aa145803c26d29bc0a5e7595389f4723a5ba5a39577775c01d5dd341883a84c` |
+
+## Milestone 4 original-scope closure clarification
+
+The closure audit requested by the preceding checkpoint is complete. Milestone
+4 is complete under its published assumptions. Rechecking the original roadmap
+requirements and accepted evidence identified no remaining recovery or clearing
+proof obligation within that scope. The earlier conditional qualification records
+those assumptions; it does not identify unfinished generic recovery work.
+
+The accepted invariant connects the ancestor path, hash stack, filter
+contributions and saturation history. The checked transitions establish valid
+removals, retention of required hashes and empty state after clearing, including
+stale saturation. The recovery branch inventory covers siblings, ancestors and
+permitted separate roots. Initialization, reusable state, actual provider/push
+connections and owner current/future endpoint frames are included. The new audit
+reauthenticated the prior acceptance and selected source bindings; it did not
+rerun the native solvers or rebuild all dependencies.
+
+The assumptions remain explicit: stable DOM and hash policy, complete finite
+ancestry, exact depth and rooted retained state, matching-parent/traversal-parent
+correspondence, separate capacities and integer bounds, selected primitive and
+container meanings on normal return, and coherent owner/guard acquisition and
+borrow endpoints. Automatic TLS, Drop, unsafe-memory and unwind semantics,
+unrestricted allocation and termination are outside this accepted scope.
+
+Milestone 6 remains open. The current recursive native profile admits nine atomic
+component families, Child and Descendant combinators, and supported finite
+Is/Where recursion. The audit lists eighteen other component families and five
+other combinators as unsupported; total payload transport does not admit them to
+matching. The next composed extension is an atomic subject with a longer ancestor
+suffix, followed by recursive ancestor coverage. Whole filtered-call equivalence
+is a stronger follow-up, not a prerequisite for the original separate-query gate.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `milestone4-acceptance-v1/MILESTONE4-ACCEPTANCE-v1.json` | `3537bcf3ccac12a57d1350eef6b2d9df554d92059570ea5797f0aa75bd02868d` |
+| `milestone6-subject-next-assessment-v1/ASSESSMENT-v1.json` | `443d4760db2a110da5fe3368fd25ca94d1bfd5808c6b830c3b526a44ed81a50d` |
