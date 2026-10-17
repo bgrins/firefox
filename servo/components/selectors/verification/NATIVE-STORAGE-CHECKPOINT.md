@@ -5505,3 +5505,64 @@ Paths are relative to `provider-bindings-v1`:
 | `relative-query-cache-v1/RELATIVE-RAW-QUERY-CACHE-v1.json` | `8f256f9806bbf68d48eceb6be1de4fd2b6ac391337a3de1cd1d78a54e6487aea` |
 | `relative-child-runtime-v1/RUNTIME-v1.json` | `4358a0eeb2c6cf8fa29e315cfb9d1db137bbb8affe31f07fd451b28495c0e6ed` |
 | `relative-child-runtime-review-v1/REVIEW-v1.json` | `6c5af5c0f7ec34acc7cf4272cbd2c0a19310ee02911d24a758ff77d05da44040` |
+
+## Native relative child matching and query composition
+
+The actual `matches_relative_selector` body now has a checked restricted InChild
+contract. Its admitted selector has a local name, Child combinator and relative
+anchor. A successful result supplies a candidate whose parent is the original
+anchor, a rightmost-compound witness at that candidate, and the complete context
+frame. Thirty-four changed and five new native models pass 730 fresh obligations;
+sixty-two inherited models remain equal after source-location normalization.
+The retained subtree helper has a false precondition and zero obligations: its
+correctness is excluded, while the admitted child path proves its call unreachable.
+Two qualified solver sensitivity controls and seventeen record checks pass.
+
+The isolated dependency normalizes one combined flag initializer to its literal
+bits to avoid a compiler failure. Both ordinary Rust checks produce 768. The
+selected Option library interpretation remains explicit. Four generated
+constant-spec declarations have the full form `false -> invariant`; none is an
+unconditional false axiom.
+
+The exact child entry contract is translated into Lean. The composition derives
+local-name matching, the collector's recursive `Good` requirement and membership
+in the original anchor's Children region for the same candidate. It then composes
+the actual cache lookup with actual private relative collection/query rejection.
+A successful native child match cannot be rejected by that query under the stated
+contracts. Four modules pass six axiom audits; fresh source, object and output
+bytes reproduce the discovery build. Three proof dependency controls weaken name
+hash membership, parent agreement or selector identity, and fail in the intended
+theorem. The cache theorem's opaque-library inventory exactly matches the prior
+raw-cache theorem; this is not a foundation-only result.
+
+Independent review rebuilds all four modules with identical source, object and
+output bytes. It checks the full native entry task, all seventeen roots, twenty
+definitions and both guarded laws. Four typed contract dependency controls and
+thirty-eight export/schema/diagnostic/record corruption checks pass. Root replay
+authenticates all 104,450 pinned inputs and reproduces the review record exactly.
+
+The captured matching predicate law, name equality and precomputed hashing,
+provider membership, physical selector
+representation, coherent parent/navigation observations, stable DOM/hash values,
+and the selected cache/library/epoch contracts remain explicit. The outer public
+Has/cache call, broader relative compounds, nested relative Is/Where, subtree and
+sibling hints remain outside this result. M6 remains open; no new Firefox defect
+is claimed.
+
+A separate audit corrects historical canonical-task coverage for three Subject
+Rule exports. Their earlier canonical programs selected the complex-matcher
+helper even though metadata named the Rule entry. Fresh comparisons now select
+`vc_matches_selector_I`, preserve all eleven roots at each stage, and compare the
+full actual Rule task: 662, 662 and 661 declarations. Twelve corruptions are
+rejected. The existing full-source/pre/post exports and Lean theorems are unchanged;
+this supplement adds the previously missing entry-task preservation evidence.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-relative-anchor-v1/ROOT-REVIEW-v1.json` | `aa5fd59d9513ca920f05124d81ea83fcce54f576269d78996f0d7fa606c578c0` |
+| `native-relative-child-translation-v1/COMPOSITION-v1.json` | `c739fa4675678eb90793fc7bcbdb8e758f181d4cc6fa3b0499f4b03eb9b21d26` |
+| `native-relative-child-translation-v1/ROOT-REVIEW-v1.json` | `897f20f6ae962245f4104765a9a1ca4c64625f50f221b740bf447635965f326c` |
+| `native-relative-child-translation-review-v1/REVIEW-v1.json` | `9aa9f7df19fef80b7fb04190ec5bb2e806d15a5a494f1ef16f973555661d51e8` |
+| `subject-rule-task-preservation-v1/ROOT-REVIEW-v1.json` | `9f649bc6058876249c0f9fd7db5a2d0ce44a64fe8b0948f7105579a5f9dc4d8b` |
