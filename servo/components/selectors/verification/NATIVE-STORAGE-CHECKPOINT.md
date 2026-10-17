@@ -1530,6 +1530,42 @@ predicates and observer meanings remain explicit premises. The complete storage
 value is preserved abstractly; this result does not itself identify all storage
 observers with the existing `Live` interpretation or establish execution.
 
+## Reviewed conditional flush composition
+
+`native-recovery-flush-v1` adds fifteen Lean proofs connecting the interpreted
+native pending-pop result to the shared storage push contract. Separate hash and
+record budgets derive the full `push_internal` precondition. The interpreted
+posts preserve the combined pending/ancestor path, remaining budgets and `Live`.
+A separate root condition permits an empty ancestor chain only when the next
+element has no parent in the supplied parent snapshot.
+
+Independent review rebuilds four modules and checks 31 standard-axiom audits,
+including the fifteen new proofs. Nine semantic mutations cover path order,
+both budgets, root admissibility, borrowed endpoints, popped identity, output
+path, `Live` endpoints and consumed hash cost. Five physical controls reject
+changed, missing or unexpected output, a changed reference and a forged report.
+All 1,782 review capsule pins were independently rechecked.
+
+The accepted 53-module parent closure remains an authenticated cache. Its
+14,049 source pins, 141,236 external lookup entries and 904 outputs are checked
+before and after the fresh four-module replay. This is not a fresh rebuild of
+the complete dependency closure.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-flush-review-v1/REVIEW-EVIDENCE-v1.json` | `32aedb33c632102462673ebd5b8c86d9cfb0f0c9b50df75b85df034d6fdbc35f` |
+| `native-recovery-flush-review-v1/check-v1/gate-report.json` | `4114901a8d597bbc61d57339c4ae39014e6104a71e5feda0f687d77e3d818a41` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-flush-review-v1/rebuild.py /private/tmp/native-flush-replay
+```
+
+Use a fresh output directory. Every composed call retains an explicit borrowed
+storage endpoint, intrinsic validity and native postcondition premise. The
+parent snapshot is not yet tied to the native parent observer. The next target
+is the actual `RecoveryStack.push` contract and its pending frame. Provider
+completion, successful extracted calls and the full recovery loop remain open.
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -1562,8 +1598,9 @@ relation and loops. The constructor, queries and pending wrappers now have
 checked native bodies and frames, as do the storage mutation and parent wrappers.
 Their shared trait binding is now checked under the complete projected contracts.
 The pending-sequence interpretation now retains its exact ordering and storage
-frames. The next connection is one native flush iteration, preserving history
-and ancestor order while deriving each call's full precondition.
+frames. Conditional pending-pop to storage-push composition now preserves history,
+ancestor order and budgets while deriving the full `push_internal` precondition.
+The actual recovery-stack push frame and parent observer binding remain open.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises and its postcondition now uses the shared storage observers.
