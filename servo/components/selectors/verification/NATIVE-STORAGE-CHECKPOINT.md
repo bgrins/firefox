@@ -4031,3 +4031,52 @@ The independent root review records are under `artifacts/stylo-bloom-tools`:
 `e7c3f9143eeae7bee2c6820ca02500d787ba38ca08940cb053c16b489e7bbdad`;
 `subject-recovered-root-review-v1/ROOT-REVIEW-v1.json` has SHA-256
 `49fc175b764606e3bdb091d137d380db24f73fdb43de5d560fa11f26e240adca`.
+## Concrete native matching and recovery interpretation
+
+The finite native Subject wrapper now has a bounded checkpoint. It calls the
+actual subject helper and suffix matcher for `section > span`; checked converse
+contracts carry matching names through their unchanged runtime bodies. All 588
+obligations across the 57 emitted models pass. Four compiled controls each leave
+one intended obligation unproved while the other six pass. These are sensitivity
+checks, not discovered counterexamples.
+
+The same wrapper runs against the concrete two-node mock and production parser.
+It returns True for the section/span pair and False for a wrong parent name or a
+root target. Source checks distinguish the two runtime-only adaptations from the
+checked proof annotations. The root replay reproduces the evidence collector's
+report exactly and authenticates all 530 package pins. This does not instantiate
+every native logical primitive, prove termination for arbitrary trees, or
+rebuild the cached compiler and library dependencies.
+
+A separate concrete recovery interpretation now proves the selected full
+recovery precondition and postcondition from initialized storage. Its insertion
+trace includes each intermediate borrowed state and all final filter, vector and
+count endpoints. A first draft retained only aggregate insertion effects; that
+weaker draft was not accepted. The replacement exports both native trace
+predicates through Why3's typed AST and proves definitional equivalence with the
+specialized interpretation. Five Lean modules pass 44 axiom audits; four recovery
+controls, seven trace mutations and four schema controls pass their rejection
+checks. The bounded manual formula review covers every trace conjunct. Independent
+replay and review of the new generator and query extension remain pending.
+
+The recovered section hash sets two counters to one. The generated packed query
+accepts the actual nonzero collector output against this filter and rejects the
+empty filter. The option postcondition follows from that query and the caller's
+closure and filter invariants. This is a logical contract witness, not an
+observation of native recovery execution. The snapshot storage dictionary still
+needs a full treatment of native field borrow lifetimes and shared final values
+before claiming a joint model of the complete native call sequence.
+
+The next gate connects the concrete Subject, matcher, recovery, constructor and
+query interpretations using one selector, DOM and complete context/cache endpoint
+mapping. Actual execution evidence and logical contract inhabitation must retain
+their separate scopes. Milestones 4 and 6 remain open, as do the broader selector
+obligations; the confirmed production bug count remains two.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `subject-instance-native-v1/NATIVE-FINITE-SUBJECT-EVIDENCE-v1.json` | `378217c812eaa7cf31f4fd59ac4d790308ba3a7fa1df9b4a14a86f5232813131` |
+| `section-span-recovery-v1/SECTION-SPAN-RECOVERY-v2.json` | `3d05d6e4cf38ca37e5cf67921ab32dfe0f74135787eb2795fa75a1af1ae74958` |
+| `section-span-recovery-review-v1/REVIEW-v1.json` | `00ce405d8092dd2861a1814dffd2a41c62033fa1e7f3a1493738e26c691900a9` |
