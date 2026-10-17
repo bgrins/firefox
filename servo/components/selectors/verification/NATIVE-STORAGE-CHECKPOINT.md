@@ -4651,3 +4651,49 @@ Paths are relative to `provider-bindings-v1`:
 | `identity-subject-context-root-review-v1/REVIEW-v1.json` | `0f6742781ec5a2eba50fadd1407a2ad82ed89ccc51da76fe3f5c175f993ffa87` |
 | `identity-runtime-v1/IDENTITY-RUNTIME-v2.json` | `2b4ad2ce54314442b696049b68131a8c90a4a2d903ba16cfa6f5cec25ccd8f1e` |
 | `identity-traversal-runtime-v1/IDENTITY-TRAVERSAL-RUNTIME-v1.json` | `32aa8a9f8527b116967c3ba459f139b7ad13b1a30e6e2610b28532b6307d8de4` |
+
+## Native attribute presence and typed matcher coverage
+
+The attribute observation checkpoint preserves the native no-namespace match and
+attribute-enumeration wrapper bodies over one decoded observation. Thirteen
+models pass fifty-nine obligations; four inspected helpers have no remaining
+goals. The ordered callback contract retains callback invariants and final
+resolution. A successful aligned name match occurs in that same ordered name
+sequence. Six finite runtime cases and four behavior mutations exercise the
+model. Five compiled timeout controls are sensitivity evidence only. Independent
+review and exact aggregate replay accept the hardened collector, including its
+sixteen evidence-corruption controls.
+
+The native matcher now admits attribute-presence components alongside local
+names, IDs and classes. Runtime bodies are unchanged. A fresh independent replay
+passes 624 obligations across sixty models, with eight inspected zero-goal
+helpers. Three compiled mutations leave the intended matcher obligation
+unproved; eighteen collector controls reject corrupted evidence.
+
+The typed matcher export preserves all twelve original roots and the complete
+canonical task. Five Lean modules pass twenty-six axiom audits, including an
+independent root compilation. Ten semantic controls reject changed name choice,
+reversed original/lowercase payloads, element-name substitution and the inherited
+identity/context/query errors. Ten schema, six export, six diagnostic and sixteen
+collector controls pass. The attribute helper retains both name payloads and the
+native name-equality/HTML branch; coverage still requires actual slice and hash
+alignment, valid history and the complete successful native postcondition.
+
+M6 remains open. Attribute observation uses 64-bit pointer/name identities, while
+the provider fixture has a separate 32-bit identity field. Their connection must
+use an explicit stable map to complete provider atoms, with hash and eligibility
+laws; truncation and hash injectivity are not justified. Ordered callback and
+borrow transport, actual collector gates, the broader Subject helper and the
+constructed caller composition remain subsequent connections. Unsafe decoding,
+allocation/lifetimes, library refinement and physical call traces remain outside
+these results. No additional Firefox defect is claimed.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `attribute-gecko-observations-v1/NATIVE-ATTRIBUTE-OBSERVATION-v2.json` | `c89d2c51ce033de81f491569e39a7c1cf77818b650d329df3589b7d57babaa99` |
+| `attribute-gecko-observations-review-v1/REVIEW-v1.json` | `cf2d8d702c044eefe07514c6363e5d51994a96d7e12e1dab60b1ad8e40e0a97c` |
+| `native-attribute-matcher-v1/NATIVE-ATTRIBUTE-MATCHER-v1.json` | `3f8bacb0b40b62ec281aaa846251c7d55d5302df92126607b0cb0a73a13d7faf` |
+| `native-attribute-matcher-v1/translation-v1/ATTRIBUTE-INTERPRETATION-v1.json` | `84136424fe26bfe6fd3e6f62f9e20ce9b3edfb73375aee22a6c61f1188b00209` |
+| `native-attribute-matcher-v1/translation-v1/SOURCE-REVIEW-v1.json` | `4d2cde31443146f53b77305a4880e1d1428ee25db077348e95b04ba19e9b3689` |
