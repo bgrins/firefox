@@ -5104,3 +5104,63 @@ Paths are relative to `provider-bindings-v1`:
 | `recursive-definitional-model-v1/RECURSIVE-DEFINITIONAL-v1.json` | `ec5d3f0dea3c083099d30e50df4c646001ef70de517b46d936dadb026fcf333a` |
 | `recursive-matcher-translation-v1/reviews/provider-integration-review-v1/REVIEW-v1.json` | `d86ac6aaa1526843f96f053139b04e39d9e2ae3dfad0b63eafdabb284e6d75e1` |
 | `recursive-matcher-translation-v1/ROOT-PROVIDER-CHECKPOINT-v1.json` | `85e6a017fdff13737f3a8d3db688f54ba76db099cd17f69eb26ed953faffbbb3` |
+
+## Recursive Rule result and iterator checkpoint
+
+The separate native Rule profile now calls the recursive matcher. A subsequent
+strengthening proves that the admitted matcher returns either True or False on
+normal return. The native Rule can therefore derive both recursive coverage
+conditions from its boolean success result. The no-Unknown package checks 425
+obligations across seventeen changed models; seventy-five models are inherited
+exactly, including eight explicitly empty models. Four semantic controls leave
+their intended obligations unproved, and fifteen evidence controls reject
+corrupted records. Solver timeouts in these controls are rejection evidence,
+not counterexamples.
+
+The strengthening adds logical predicates, conditional callback contracts and
+loop invariants. It does not strengthen the public admission requirements or
+change the twelve affected runtime function bodies after ghost erasure. The
+isolated runtime-recursion compiler and explicit DOM, library, representation
+and resource assumptions remain. This establishes partial correctness on normal
+return, not termination or compiler soundness.
+
+Recovery, context transport, the coherent provider model and the full iterator
+payload mapping have now passed independent review. A fresh seven-module build
+checks thirty-seven declarations and reproduces every compiled object. Twelve
+existing semantic controls were authenticated from their original compiler
+outputs; they were not rerun by this review. Physical iterator contents, the
+shared iterator view, context phases, generation quirks and live recovered
+storage remain explicit boundaries.
+
+A typed export of the stronger public matcher contract preserves fifty types,
+134 function identities and sixteen layouts. Fourteen definitions and both
+recursive laws are unchanged; the only new postcondition conjunct excludes
+Unknown. Independent regeneration confirms this correspondence. Two axiom-free
+Lean lemmas connect the stronger postcondition to the prior True-result proof.
+Four semantic controls and nine export-corruption controls pass.
+
+The constructed recursive caller and a classifier-to-caller wrapper also
+compile. Independent review rebuilt all three composition modules with three
+axiom audits and identical compiled objects. It authenticated the nine caller
+and four classifier controls from their original outputs and replayed all nine
+export-corruption controls. The wrapper uses the existing atomic-subject
+classifier profile and can retain recursive ancestor selectors;
+it does not cover recursive subject classification. The native Rule contract's
+typed caller adapter is being checked separately.
+
+Next are the reviewed Rule/caller integration and a checked recursive classifier,
+including singleton propagation and multi-selector disjoint-bucket mutation.
+Relative selectors, broader combinators and the complete unsupported inventory
+retain their original M6 scope. M4 remains conditional and M6 remains open.
+There are still two confirmed Firefox defects.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recursive-no-unknown-v1/NATIVE-RECURSIVE-NO-UNKNOWN-v1.json` | `5a7b2285b176a218174801c218e6071fba70994922d72b013de76745246ec3b2` |
+| `native-recursive-no-unknown-v1/ROOT-REVIEW-v1.json` | `e15b03753d2054404678d5d15d9500c4c187680e2ed2f7f6ca05294f92f3168f` |
+| `recursive-matcher-translation-v1/ROOT-RECOVERY-ITERATOR-REVIEW-v1.json` | `fe22aea3a79fc9b7e70c29a3987db7bf9d1f805f299eeba230e2e6338ba6f367` |
+| `recursive-strong-contract-v1/ROOT-STRONG-CALLER-CHECKPOINT-v1.json` | `7aaa3dd5cc4701aa80ce126e9faac961e54d5295fb72ee49e1e2efd931d88470` |
+| `recursive-matcher-translation-v1/ROOT-CLASSIFIED-CALLER-CHECKPOINT-v1.json` | `e3c0d988931adb9aa51814dadabaf40576e20908fc2a00c82d962c351241506c` |
+| `recursive-matcher-translation-v1/ROOT-CALLER-REVIEW-v1.json` | `1202c2185b87d34d5666256bbb4e19fb32480635f29a97b494d26fec50fb74e9` |
