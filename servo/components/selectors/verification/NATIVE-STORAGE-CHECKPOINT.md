@@ -4803,3 +4803,48 @@ Paths are relative to `provider-bindings-v1`:
 | `attribute-selected-callback-v1/full-v1/ATTRIBUTE-CALLBACK-TERMINAL-v1.json` | `2c537aa8a73a465e523c2585e62fc2d4d3a4ee0f01e9f9d479151c6f34ca8c02` |
 | `attribute-runtime-v1/ATTRIBUTE-RUNTIME-v1.json` | `6f59b0d479c92f07c694f414b3cbb98f34eb23ff0cfb41a53e015143ed98c1e2` |
 | `attribute-runtime-review-v1/REVIEW-v1.json` | `f543d07a75d0b03ab8b2c3e0cfbe8ebef00948c22489b9a8bf35936cdc142e27` |
+
+## Longer ancestor chains and production bucket routing
+
+The longer-ancestor Subject checkpoint now passes its complete evidence gates.
+Nine Lean modules pass thirty-two axiom audits, fifteen semantic controls, ten
+schema controls and twenty-eight collector/output corruption checks. The native
+checkpoint independently replays 624 obligations across sixty models, including
+eight inspected zero-goal helpers. Its runtime bodies retain the original
+behavior. The typed composition connects the full ancestor suffix to matching,
+collection, recovered storage, constructed caller and selected callbacks. The
+subject is still one atomic component followed by Child or Descendant.
+
+Production routing limits where that Subject result applies. Fresh Searchfox
+source, checked byte-for-byte against this checkout, shows that `find_bucket`
+marks a second specific subject component Unknown; attribute presence itself
+also sets Unknown. Thus `.card.active > span` can use the supported Subject
+route, while `section > .target.active` and `[data-x] > [data-y]` require full
+matching. Earlier conditional Subject proofs and runtime cases that explicitly
+set Subject do not establish the classifier's choice for those examples.
+`SelectorMap::insert` computes and sets the decision after Rule construction.
+
+A new Unknown caller candidate connects the full native iterator contract,
+successful full matching, final recovered filter, selected Rule construction,
+setter and context frames. Its two modules pass eight axiom audits and eleven
+semantic controls. The proof derives query acceptance without assuming a packed
+query result or the inherited `finite_success` predicate. That predicate is
+false on the compound full selectors, so its wrapper implication would not
+prove completeness for these cases. Production classifier/dispatch linkage and
+full dependency-guarded acceptance remain pending for the Unknown candidate.
+
+M6 remains open. The next production connection uses the actual Unknown route;
+namespace, nested `:is()`/`:where()`, relative-selector and broader combinator
+work retain their original scope. Normal-return, DOM/hash, policy, borrow and
+primitive/library assumptions remain explicit. No additional Firefox defect is
+claimed.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-compound-subject-v1/NATIVE-COMPOUND-SUBJECT-v1.json` | `a685c8dc30da0363f978f14c0a5c7d6bf0b3021a1b19698b7c7300d757282bc1` |
+| `compound-subject-v1/full-v2/COMPOUND-SUBJECT-TERMINAL-v1.json` | `f7fd2eb4e852f7683415612add526f4da7fab430542d3df3b39b2c8dd66f9a63` |
+| `compound-subject-review-v1/ROUTING-v1.json` | `ce2b20e0e20368a8ea42966d0c69b64bca0b0a5dbaf43aedcdc5c908fecdabd7` |
+| `compound-subject-review-v1/CLASSIFIER-CALLSITE-v1.json` | `d961773058b95c3e63679f2e070eaff2edf601446235409fece130b4fa9396ef` |
+| `unknown-caller-v1/CANDIDATE-v1.json` | `3b7e0647bd06ced07131d2ce3d67679e26e435db9507887c446f222e7bb1efdf` |
