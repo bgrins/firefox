@@ -1687,8 +1687,11 @@ The pending-sequence interpretation now retains its exact ordering and storage
 frames. Conditional pending-pop to storage-push composition now preserves history,
 ancestor order and budgets while deriving the full `push_internal` precondition.
 The selected recovery-stack push frames and parent-result equation now share this
-interpretation. The next connection is a finite native flush trace, including its
-final empty-pop transition. DOM correspondence remains separate.
+interpretation. The finite native flush trace, including its final empty-pop
+transition, now preserves the same storage invariant and ancestor observations.
+The complete native rebuild body has a reviewed conditional checkpoint; its
+clear/collection/flush relation is being connected to that Lean interpretation.
+Actual DOM correspondence and the remaining `recover` branches remain separate.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises and its postcondition now uses the shared storage observers.
@@ -1860,4 +1863,57 @@ Rebuild into a fresh output directory:
 
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-trace-translation-v1/gate-v1/rebuild.py /tmp/native-recovery-trace-replay
+```
+
+## Reviewed native rebuild composition
+
+The isolated `native-recovery-rebuild-v1` package checks the complete production
+`rebuild` body specialized to the concrete recovery stack. Erasing ghost snapshots,
+annotations and checked helper calls restores the production clear, ancestor
+collection and pending flush statements. Both loops remain in the body.
+
+The native postcondition connects the initial clear contract to a collected state
+with identical storage and the supplied ancestor sequence as its pending values,
+then connects that state to the returned state through the finite flush trace.
+It also establishes empty pending storage and a final record count equal to the
+ancestor count. Entry requires clear readiness, initially empty pending storage,
+a finite stable parent-chain witness and separate pending, hash and record
+capacity budgets. These budgets exclude vector growth.
+
+All 115 models pass in both configurations: 112 support models contribute 1,064
+debug and 956 release obligations, and three induction models contribute 289
+shared obligations. Totals are 1,353 debug and 1,245 release, or 2,309 counting
+the shared induction once. The nine new models contribute 197 obligations per
+configuration, including 87 for rebuild and three for the checked sequence
+extensionality helper. The first two attempts left an ordering assertion
+unproved; their evidence is retained separately.
+
+Independent review reproduces the checkpoint and control collectors, checks the
+complete model and raw-output inventories, authenticates cached dependencies and
+verifies production-body erasure and inherited helper correspondence. Five source
+and five physical evidence mutations reject. All 35,536 review pins were checked
+again by the root agent.
+
+Five compiled controls remove initial pending emptiness or one of the three
+capacity budgets, or bind the clear contract to the wrong initial state. Removing
+initial emptiness leaves three intended timeouts and 194 valid obligations; each
+other mutation leaves one timeout and 196 valid obligations. These are sensitivity
+checks, not counterexamples.
+
+The native method and library meanings and normal return remain explicit. This
+checkpoint does not prove actual DOM ancestry, allocation-enabled completion or
+the surrounding `recover` algorithm. The generated rebuild-to-Lean interpretation
+is a separate gate in progress. Milestones 4 and 6 remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-rebuild-v1/checkpoint-v1.json` | `95a526735e89a91c34212cfa078cc38d17f880a342ef3eecf1d38d91f6876622` |
+| `native-recovery-rebuild-v1/reviews/checkpoint-review-v1/REVIEW-EVIDENCE-v1.json` | `9c87c5ee026c30cbd7c261bce5d96f357e163d6bf0fdb7ebf3988a165b943d21` |
+| `NATIVE-RECOVERY-REBUILD-EVIDENCE-v1.json` | `2e2b341c69842a3bef5bbddab5370c5767f3d8b4566bfc7353ba7eb2c3639c3f` |
+
+The authoritative snapshot audit includes the expanded input anchors and checks
+the completed evidence without rerunning solvers:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-rebuild-v1/reviews/checkpoint-review-v1/audit_v2.py --report /tmp/native-rebuild-review.json
 ```
