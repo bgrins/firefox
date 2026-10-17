@@ -4520,3 +4520,40 @@ Paths are relative to `provider-bindings-v1`:
 | `identity-class-enumeration-v1/NATIVE-CLASS-ENUMERATION-v1.json` | `5c898f3311a039ae27346848900eabee8b719bf2a225cc3cff1049b11a8b661d` |
 | `identity-class-enumeration-v1/NATIVE-CLASS-INVARIANTS-v1.json` | `7ae500d7266b9023e14cb3e0599c14c5da4c62b0267b2f91246ce2a0a5f75d76` |
 | `identity-class-strengthening-review-v1/REVIEW-v1.json` | `6e1efd254f8a865e62a45ddc683d26bc323f6db5ea498f7e768e04742916e0ac` |
+
+## ID observations through stored recovery and caller queries
+
+A six-module composition now connects captured native ID match success to the
+provider policy, live storage membership, recovery and the caller's option query.
+Eleven axiom audits pass. Alignment is restricted to actual selector indices;
+absent class components require no class-match premise. The same selector key,
+ID observation and stable hash interpretation supply every selected ID hash.
+
+The stored-policy representation identifies the emitted list with the actual
+storage policy. Live storage proves masked hash membership. Complete captured
+recovery pre/post contracts then preserve live storage and establish rooted
+ancestry, with an explicit relation between matching and traversal parent edges.
+The caller query uses the final recovered filter. Non-rejection remains under
+the collected packed-hash observation for the same rule.
+
+Seven semantic controls reject an unconstrained hash, reversed ancestry, missing
+match witness, wrong identifier hash, unrelated stored filter, reversed recovery
+edges and an initial-filter query. All failures are located type mismatches;
+resource failures and unrelated diagnostics are rejected. Independent source
+review accepts the composition. The frozen collector authenticates complete
+selected cached-library inventories; it does not claim a fresh library rebuild.
+
+M6 remains open. The native identity checkpoint already proves the broader
+ID/class Subject helper. Its older Lean helper export retains the local-name
+profile, so fresh typed component, suffix and full context/cache transport is
+required. Rule construction and Subject-setter pairing remain to be composed.
+The current result retains full matcher pre/post, selector representation,
+same-call normal return, primitive DOM/atom/borrow/library and resource premises.
+No physical call-trace theorem or additional Firefox defect is claimed.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `identity-provider-terminal-v1/ID-PROVIDER-RECOVERY-v1.json` | `c30f43a049040e403ff29062d5c15ebb0acbdd61501391d931b875e02e2467c8` |
+| `identity-provider-terminal-review-v1/REVIEW-v1.json` | `09d0b8f465f891bc368bb1bf37a7ed6087b6f8c3fd1381606dd38226f5acf2c1` |
