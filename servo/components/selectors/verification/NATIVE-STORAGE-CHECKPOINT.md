@@ -2938,3 +2938,48 @@ Paths below are relative to `provider-state/native-storage-pop-concrete`:
 | --- | --- |
 | `native-owner-mutations-v1/translation-preflight-v1/NATIVE-OWNER-MUTATIONS-INTERPRETATION-PROTOTYPE-v1.json` | `70a172fdbf9ec4010c007878e0f956ca6ff7124df17c2bfe427662e7522892a8` |
 | `reviews/native-owner-readiness-root-v1/REVIEW-v1.json` | `5890bc1b757e18036881ff1ecdd04048a22e693812a355013a40454b8337095c` |
+
+## Subject-local shadow premise and native ancestor membership
+
+The child-matcher prototype now requires absence of a shadow-root parent only
+for the subject and its ancestors. The earlier global premise excluded unrelated
+shadow trees and could not follow merely from a light-DOM subject. Parent
+inclusion and transitivity carry the new condition into recursive matching.
+The old globally restricted theorem remains unchanged in its frozen package.
+
+An exact source audit permits only this contract change. All runtime bodies
+remain unchanged. A fresh native compile produces 33 models and all 377 proof
+obligations pass. Three compiled controls remove the subject condition, ancestor
+condition or public entry premise. They leave exactly two, one and one intended
+call-precondition obligations unproved. Those solver timeouts are sensitivity
+results, not counterexamples. Six source controls reject implementation or
+contract drift.
+
+The typed export now includes eight predicates, 47 types, 106 symbols and
+thirteen datatype layouts. Its canonical audit preserves the original task.
+Lean interprets the revised complete pre/postconditions and derives the same
+conditional collector rejection result. A finite inductive parent relation
+satisfies the parent laws. The actual native `ancestorsFrom` witness establishes
+a rooted list containing the subject followed by its collected ancestors;
+every inductive ancestor belongs to that list's ancestor portion.
+
+Five fresh modules pass nineteen axiom audits, twenty-two typed controls and
+four ancestry controls. The final rejection theorem retains the existing opaque
+formatter type axiom; the other audits use only standard Lean axioms. Bounded
+independent source review finds no blocker. All listed Lean lookup roots are
+authenticated before and after the gate; cached collector/recovery dependencies
+are reused.
+
+Milestone 6 remains open. The parent interpretation still needs its concrete
+Gecko observer binding. Native policy/name hashing, iterator representation and
+the identity between recovered filter storage and `MatchingContext.bloom_filter`
+remain explicit connections. No native completion or whole-selector claim is
+made.
+
+Paths below are relative to the public-entry prototype's `subject-ancestry-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-SUBJECT-ANCESTRY-PROTOTYPE-v1.json` | `b81c6bf3e797d2b8caeb11c8bbf16d888c80c44e3dfb58ec1fc492e5a9f1215c` |
+| `reviews/source-review-v1/check-v2/REVIEW-v1.json` | `f422efa314e45b92b1edbb18e57c9df6769b1a7be14463d56dcdb3215ebbd40a` |
+| `translation-preflight-v1/SUBJECT-ANCESTRY-INTERPRETATION-PROTOTYPE-v1.json` | `69f535a17e74c6442d445097c1e41dd58da98cdb6e511b4cbcb745bb357d626e` |
