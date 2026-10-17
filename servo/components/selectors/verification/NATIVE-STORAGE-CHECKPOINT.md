@@ -2550,3 +2550,53 @@ Regenerate and check the interpretation in a fresh directory:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-style-bloom-storage-v1/translation-v1/gate-v1/rebuild.py /tmp/native-owner-storage-interpretation-replay
 ```
+
+## Native selector fold prototype
+
+The separate `actual-context-v1/native-selector-fold-v1` package connects the
+specialized native `any_false` body to the checked native `SelectorIter::next`
+body. Its core retains the native `any_value` runtime statements after explicit
+`for`-loop lowering. The source audit checks signatures, ghost erasure, the
+lowering, the iterator body and the paired conjunction contract.
+
+On normal return, `True` establishes exhaustion of the actual final iterator
+through an ordinary component prefix. At the slice boundary the remainder is
+empty; at a combinator boundary the combinator has been consumed and recorded
+in the final iterator. Every visited component has an independent successful
+callback witness. Readiness ranges over ordinary components in the original
+remaining slice and history-related callback states. The loop establishes the
+no-pending-combinator precondition before every native next call.
+
+Five models pass 77 obligations. A separate fresh Cargo target produces identical
+models and passes all 77 again. Four compiled controls corrupt early success,
+omit the first result, repeat next after the terminal boundary and remove
+callback readiness. Three have one intended timeout each; the repeated-next
+control has 79 obligations and two intended timeouts, including the native next
+precondition. These are sensitivity checks, not concrete counterexamples.
+
+A separate optimized MIR comparison with debug assertions enabled matches 21
+blocks, including normal and unwind edges. It permits the checked next-call
+correspondence, block renaming, one goto-only block per side and storage markers
+for two non-addressed Copy locals. Review found overly permissive call
+normalization and incomplete parser consumption in the initial checker. The
+final checker closes both gaps, passes nine rejection controls and has five
+additional independent physical controls. This is a bounded compiler-output
+comparison, not a verified general MIR equivalence theorem.
+
+Independent contract review also reproduced the collector exactly and checked
+the actual-final-iterator postcondition. The prototype has 702 pins; its contract
+review has 704. A genuine borrowed iterator is still an entry premise. Unsafe
+`HeaderSlice` entry, connected callback execution/final context restoration,
+native derived equality, full matcher composition, termination and complete
+compiler/Cargo lookup guarding remain open. This is not aggregate acceptance
+or completion of milestone 6.
+
+Paths below are relative to `actual-context-v1/native-selector-fold-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-SELECTOR-FOLD-PROTOTYPE-v1.json` | `17530d4d708bde536906429794f6f84b76a48f83d3f237bf0fedd7ac7b807ea3` |
+| `SOURCE-AUDIT-v3.json` | `4a418b53fe580cdeec15764e5e36e8d984d769673d3fd3840092c5748c12272e` |
+| `mir-comparison-v1/GRAPH-CHECK-v4.json` | `756b22eba7668991cbc7d07d56d0be41b55f45ad9ebbc9d9f1ae444c9f88e764` |
+| `mir-comparison-v1/reviews/source-review-v2/REVIEW-v2.json` | `83e4ac211f4da826d9932651fff9cfd088adeec0c3bf85cf7d7feac16759ed4b` |
+| `reviews/contract-review-v1/REVIEW-v1.json` | `68b71a7f5204a4885d88bafe52a22baf6a4a83ad50d4d7bdc28a43fdc01710f5` |
