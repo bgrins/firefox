@@ -3221,3 +3221,53 @@ of the implicated APIs; emitted-model and indirect-library impact remains under
 review. The experimental `Guarded<FullBorrow>` protocol needs separate review.
 An isolated compiler correction must preserve the failing invariant controls
 before this route can be used. No accepted compiler or proof package is changed.
+
+## Native Gecko parent fast-path interpretation
+
+The unchanged Rust `flattened_tree_parent_is_parent` body now has a conditional
+proof under stable node and element observer contracts. All twenty obligations
+pass. Three compiled controls remove the anonymous-root test, remove the slot
+test or change the root observer contract; they leave exactly one, one and two
+intended postcondition obligations unproved.
+
+The typed export retains the complete pre/postconditions and fast-path predicate.
+Its audit preserves all twelve original roots and the original task's 294
+declarations and 639 identities. Three exported definitions use six types,
+twenty symbols and three datatype layouts. The generated Lean interpretation
+connects the successful native postcondition to the manually transcribed
+Gecko style-parent model and derives retention of the supplied element-parent
+edge under its structural and root-meaning premises.
+
+The binding keeps the associated Element carrier distinct and relates each
+root, slot and shadow observation explicitly. The word carrier, zero, bitwise
+operation and mask remain opaque observations, connected through the exact
+native-root bit predicate. This does not interpret the full Why3 arithmetic
+axioms or establish raw node representation or flag stability.
+
+The guarded replay checks the native positive and three compiled controls, then
+builds three fresh Lean modules with four standard-only axiom audits. Three
+semantic and four schema controls pass. Independent bounded source review covers
+the exact runtime body, typed generator, complete observer binding and proof
+statements, and reproduces the export/source audits and targeted rejection
+checks. Listed Lean/Why3 lookup roots are authenticated before and after replay.
+Rust compilation and all compiler dependencies are not freshly rebuilt by this
+gate. The first gate pinned a different Z3 executable; the accepted second gate
+pins the actual configured solver.
+
+Milestone 6 remains open. The C++ model is still a manual transcription; native
+observer correspondence, the Relaxed flags snapshot, root meaning and caller
+eligibility remain explicit. This fast-path result does not discharge slot or
+shadow slow paths, all matching ancestry, or filter allocation identity.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1/gecko-parent-v1/rust-fast-path-v1/native-body-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-FAST-PARENT-INTERPRETATION-v1.json` | `f221cd3dac8b7db3a715cd82b1cbbf27ff16bf045dfd801f9d5607c34ac93003` |
+
+The independent review is relative to `provider-state/native-storage-pop-concrete`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `reviews/gecko-fast-parent-review-v2/REVIEW-v1.json` | `1136e6100b0917aa2cd698604dc8ccab450a5976f415e8fb473fc4fe031f6c61` |
