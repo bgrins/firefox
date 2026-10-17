@@ -5164,3 +5164,52 @@ Paths are relative to `provider-bindings-v1`:
 | `recursive-strong-contract-v1/ROOT-STRONG-CALLER-CHECKPOINT-v1.json` | `7aaa3dd5cc4701aa80ce126e9faac961e54d5295fb72ee49e1e2efd931d88470` |
 | `recursive-matcher-translation-v1/ROOT-CLASSIFIED-CALLER-CHECKPOINT-v1.json` | `e3c0d988931adb9aa51814dadabaf40576e20908fc2a00c82d962c351241506c` |
 | `recursive-matcher-translation-v1/ROOT-CALLER-REVIEW-v1.json` | `1202c2185b87d34d5666256bbb4e19fb32480635f29a97b494d26fec50fb74e9` |
+
+## Recursive Rule laws and classifier checkpoint
+
+The Rule interpretation now aligns its primitive observations, selector members
+and components with the recursive matcher model. Lean proves both guarded
+recursive laws for that dictionary and constructs a coherent instance without
+assuming those laws. Successful Rule regions then connect to the actual Aeneas
+collector, packing and query. This derivation uses independent filter history
+and atomic hash witnesses; it does not use the Rule postcondition's own query
+success clause.
+
+Independent review rebuilt four modules, checked nineteen declarations and
+reproduced all four compiled objects. Eight altered sources fail at the intended
+proof dependencies. These are dependency checks, not eight runtime
+counterexamples. A hardened evidence collector also rejects nineteen corrupted
+records, reconstructing the complete commands, environments, working directories
+and fixed mutations. Root replay reproduces the accepted capsule exactly.
+
+The native recursive classifier now checks the actual nested classification
+path instead of using an unreachable trusted wrapper. Thirteen new models pass
+321 obligations; ninety-two inherited models remain exact after source/compile-path
+normalization. Two new models have explicitly empty proof roots. Four qualified sensitivity controls leave their
+intended obligations unproved. A separate missing-library-contract experiment
+has nine failures and is retained only as diagnostic evidence. Seventeen record
+corruption controls pass, and root replay reproduces the classifier capsule.
+
+The classifier result establishes rank bounds and sufficient conditions for
+Unknown, including multi-selector and empty is/where lists. It does not establish
+a complete characterization, all singleton propagation, or disjoint bucket
+contents, order or frame preservation. Selector-list length/slice observations
+and minimal SmallVec validity contracts remain primitive boundaries. The runtime
+body audit preserves the earlier for-loop lowering boundary; normal-return
+correctness does not prove termination or whole-compiler soundness.
+
+Rule provider/recovery composition and an explicit comparison of unfiltered
+matching with the recovered-filter query are being checked separately. Actual
+selected construction, classifier routing and physical observations must remain
+connected throughout. Relative selectors, broader combinators and the complete
+unsupported inventory retain their original scope. M4 remains conditional and
+M6 remains open. There are still two confirmed Firefox defects.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `recursive-rule-composition-v1/RECURSIVE-RULE-COMPOSITION-v2.json` | `fc22b9e76d55e108703fb42fc94c04713f02ea6251adaf922b1f63f2d9a0b026` |
+| `recursive-rule-composition-v1/ROOT-REVIEW-v2.json` | `d29890d2603a6dfdd7b83a2bc2ec38fdbdf2195069d71d10409c411f6162beb9` |
+| `native-recursive-classifier-v1/NATIVE-RECURSIVE-CLASSIFIER-v1.json` | `add8b768cd5383cb47ff91d0f288c79ed091bc51128b9eec827d79612e9e3046` |
+| `native-recursive-classifier-v1/ROOT-REVIEW-v1.json` | `eddac81cad5e51f7894e6a81363192cd749d5661ce40c09fa4cb8dd7b357186f` |
