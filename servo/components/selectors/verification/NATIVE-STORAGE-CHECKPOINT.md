@@ -4697,3 +4697,58 @@ Paths are relative to `provider-bindings-v1`:
 | `native-attribute-matcher-v1/NATIVE-ATTRIBUTE-MATCHER-v1.json` | `3f8bacb0b40b62ec281aaa846251c7d55d5302df92126607b0cb0a73a13d7faf` |
 | `native-attribute-matcher-v1/translation-v1/ATTRIBUTE-INTERPRETATION-v1.json` | `84136424fe26bfe6fd3e6f62f9e20ce9b3edfb73375aee22a6c61f1188b00209` |
 | `native-attribute-matcher-v1/translation-v1/SOURCE-REVIEW-v1.json` | `4d2cde31443146f53b77305a4880e1d1428ee25db077348e95b04ba19e9b3689` |
+
+## Attribute provider, Subject traversal and native callbacks
+
+The typed attribute provider checkpoint connects decoded 64-bit names to complete
+provider atoms through an explicit stable map. Six modules pass twenty-two axiom
+audits and eight semantic controls. Twelve schema, six export, six diagnostic
+and sixteen collector controls pass. Independent compilation reproduces the
+producer objects and audit output. Successful matching supplies membership in
+the same ordered attribute sequence; the mapped policy uses the actual offset
+after the name, optional ID and class hashes.
+
+The extracted collector's two gates are checked separately. Different original
+and lowercase names produce no hash; an excluded name also produces no hash.
+Only the selected branch needs hash and eligibility premises. Two modules pass
+five audits and five semantic controls, with six diagnostic and fourteen
+collector controls. The native matcher link preserves the HTML/name-choice
+branch and connects the selected name to that same element's observation. Its
+three audits and five semantic controls pass. Independent bounded source review
+accepts both connections without claiming another compiler replay.
+
+The broader Subject export preserves all thirteen original roots and the complete
+canonical task. Four modules pass eighteen audits and ten semantic controls;
+ten schema, three canonical-task and six diagnostic controls pass. Attribute
+presence joins local names, IDs and classes on either side of the supported
+Child/Descendant boundary. Complete component maps preserve both attribute name
+payloads, and helper pre/postconditions retain exact suffix indices, element and
+context frames. Independent bounded source review finds no semantic blocker.
+
+The native attribute callback checkpoint retains the complete captured closure
+pre/postconditions, exclusion identities, inner and outer borrows, history and
+resolution. Excluded attributes preserve the whole closure. Eligible attributes
+consume the actual hash-callback postcondition. Ordered enumeration preserves
+the inner final value and borrow ID, and ends at the initial inner final value.
+Four modules pass thirteen standard-axiom audits, eleven semantic controls and
+eight structural controls. Independent root compilation reproduces all four
+objects and audit outputs; full aggregate replay is byte-identical.
+
+M6 remains open. These results retain normal-return contracts, decoded name and
+full-atom/hash coherence, mapped/callback laws and selected primitive/library
+interpretations. They do not prove unsafe decoding, allocation identity,
+lifetimes or physical execution traces. Mixed storage/recovery and constructed
+caller extensions pass their initial Lean checks but are separate candidates
+until their evidence and review gates finish. Concrete runtime attribute filter
+activation remains to be checked. No additional Firefox defect is claimed.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `attribute-provider-link-v1/typed-v1/ATTRIBUTE-PROVIDER-INTERPRETATION-v1.json` | `ea477009784b66750e3e5d18dbd78922931b278d16bf8f221f3052868387353e` |
+| `attribute-collector-link-v1/ATTRIBUTE-COLLECTOR-v1.json` | `be3ca65f663d25f92243131fab835604639cf29827374d03a6da004fabe9cba8` |
+| `attribute-subject-v1/ATTRIBUTE-SUBJECT-INTERPRETATION-v1.json` | `fc02edf26922097e4bb919041eada3d1723261c14840c3f3a4d3cbe109109f62` |
+| `attribute-matcher-link-v1/NATIVE-ATTRIBUTE-LINK-v1.json` | `e55c7a8b70268124b89de91ec8cd00c5afbd56f56b5417351ca33a17b2c28de4` |
+| `attribute-callback-v1/NATIVE-ATTRIBUTE-CALLBACK-v1.json` | `32e464505c3587ea851201b3c01d3e5e1bb5008b397a78b2c9ecc657d81ec8ad` |
+| `attribute-callback-v1/ROOT-REVIEW-v1.json` | `46c954c6a232ea061bb690302a5620ed8538415454cfea60a7b0c40029bea029` |
