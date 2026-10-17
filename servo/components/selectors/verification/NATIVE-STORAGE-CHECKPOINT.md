@@ -2600,3 +2600,43 @@ Paths below are relative to `actual-context-v1/native-selector-fold-v1`:
 | `mir-comparison-v1/GRAPH-CHECK-v4.json` | `756b22eba7668991cbc7d07d56d0be41b55f45ad9ebbc9d9f1ae444c9f88e764` |
 | `mir-comparison-v1/reviews/source-review-v2/REVIEW-v2.json` | `83e4ac211f4da826d9932651fff9cfd088adeec0c3bf85cf7d7feac16759ed4b` |
 | `reviews/contract-review-v1/REVIEW-v1.json` | `68b71a7f5204a4885d88bafe52a22baf6a4a83ad50d4d7bdc28a43fdc01710f5` |
+## Native local-name callback prototype
+
+The `actual-context-v1/native-local-name-callback-v1` package checks the full
+native simple-selector body under a LocalName-component premise and the native
+nesting assertion. Every runtime branch remains present. Checked copies of
+`matches_local_name` and `select_name` establish the exact modeled Kleene result;
+the simple-selector body also preserves the complete local matching context.
+The native context, mutable borrows and dynamic callback field remain present.
+
+Six models pass 112 obligations, reproduced with identical models in a separate
+Cargo target. These comprise 101 simple-selector, four local-name, five
+name-selection and two boolean-conversion obligations; the two native accessor
+models simplify to zero goals. Three compiled controls retain all 112 goals:
+wrong name selection leaves three unproved goals, inverted name matching leaves
+one and an unexpected context mutation times out at one postcondition. These
+are sensitivity checks, not concrete counterexamples.
+
+Independent review reproduced the source audit and rejected five physical
+changes to the signature, body, interface contracts, logical model and context
+postcondition. Root replay reproduced the complete collector byte-for-byte.
+The prototype pins 362 inputs/evidence files; the independent interface review
+pins 197. Source auditing compares runtime bodies and signatures, inventories
+all proof additions and checks the precise elementary interface contracts.
+
+HTML-document mode and name lookup still rely on explicit Element interface
+contracts. Borrow preserves name models and PartialEq agrees with model
+equality; concrete Gecko/atom implementations of these laws are not proved.
+Namespace bounds and the inherited OpaqueElement model support translation of
+excluded branches. Compound/ancestor composition, native equality, termination
+and complete compiler/Cargo lookup guarding remain open. This conditional
+prototype does not complete milestone 6 or establish aggregate acceptance.
+
+Paths below are relative to `actual-context-v1/native-local-name-callback-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-LOCAL-NAME-CALLBACK-PROTOTYPE-v1.json` | `0bbbf2218f8bcb1a464a4401c65c062884b033be61c0d15303489f75f2fd74b4` |
+| `SOURCE-AUDIT-v1.json` | `e1909e6198dfcbc7a25b5bcf8c7e4217d6151dad2636d1cb975d5a01a83788a9` |
+| `reviews/interface-review-v1/REVIEW-v1.json` | `df8cf5826eca9a61665f2380b8ad8511f9f40ed566bf4884b1b28c30330cffdf` |
+| `reviews/collector-root-v1/report.json` | `8099beaf3fbbd0667f337e7e5e6f3cc6022f23351ec0d27092ef3ba8efa77f97` |
