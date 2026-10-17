@@ -3204,3 +3204,20 @@ Paths below are relative to the public-entry prototype's
 | --- | --- |
 | `GECKO-PARENT-OBSERVATIONS-v1.json` | `acd9937ac8c6efe050c3f9cc1a64a3c8c1b667dd1e8a1f7e53641634e30bf3b8` |
 | `reviews/source-review-v1/REVIEW-v1.json` | `9214bfa16042c2a075e66344dd630453e93fdfbdbc0b7a13265715659570c5e3` |
+
+## Implicit guard cleanup verifier defect
+
+The native permission investigation found a pinned Creusot cleanup defect. A
+small program writes one through a zero-guarded mutable reference, exits its
+scope and asserts zero. Both proof obligations pass, but ordinary execution
+fails the assertion. Independent fresh dependency compilation, solver replay
+and identical-source runtime execution reproduce the mismatch. Explicit drop
+exposes the missing guard-invariant requirement. See
+[the finding](GUARDED-DROP-FINDING.md) for the reproducer, controls and evidence.
+
+Milestone 4 remains open. Implicit `Guarded` cleanup cannot justify the proposed
+stored-reference loan route. A bounded native source scan found no direct uses
+of the implicated APIs; emitted-model and indirect-library impact remains under
+review. The experimental `Guarded<FullBorrow>` protocol needs separate review.
+An isolated compiler correction must preserve the failing invariant controls
+before this route can be used. No accepted compiler or proof package is changed.
