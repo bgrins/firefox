@@ -3562,3 +3562,55 @@ Paths below are relative to the public-entry prototype's
 | `filter-query-translation-review-v1/REVIEW-EVIDENCE-v1.json` | `55e87424f7863cb3c5ff420c02481fcce2b66178601c624539efe25fc0e2c532` |
 | `ancestor-query-v1/ANCESTOR-QUERY-PROTOTYPE-v1.json` | `1823e72f2c4dab9f05b59eee8945f785c9385e4f7cc1e131a9b86500f37841c4` |
 | `reviews/ancestor-rule-root-v1/replay-v2/REVIEW-v2.json` | `ce7f4d7102009a75a2a88a5caa4568862e5112f2738d83f37d8811d44dfd1ae0` |
+
+## Conditional native Rule context preservation
+
+The Rule fixture now calls the checked ancestor-query module. Its runtime body
+and contracts are unchanged; the integration changes only the query import,
+module registration and two dependency paths selecting concrete Bloom storage.
+The exact source union and all 53 emitted models are authenticated. All thirteen
+caller obligations pass, closing the earlier query-callback readiness failure.
+
+Every inherited matcher model is freshly checked with the concrete storage
+layout. The initial run proves 548 of 549 obligations. One context-wrapper
+precondition still times out with a larger limit. Independent investigation
+finds that a second standard `split_vc` pass proves the unchanged model in 179
+obligations. This replaces that model's original 87 obligations: complete
+selected coverage is 641 obligations across 53 models, with one proof strategy
+per model. Seven models have explicitly empty proof-goal lists.
+
+Restoring the unsupported query call leaves one callback-readiness obligation
+unproved. Clearing the context's Bloom field leaves two context-postcondition
+obligations unproved. Every other selected caller obligation passes. Six
+physical source controls reject changes to the module, import, frame, query,
+dependency and source inventory. Independent review reproduces the complete
+collector byte for byte and reruns those controls. Commands, proof roots,
+control spans and the removed unsupported-query warning are checked exactly.
+
+The subject-loop lowering also has a bounded operational comparison. All 25
+executable blocks match after one original goto block is removed; two promoted
+constants match exactly. The checker compares all remaining statements, types,
+branches and unwind behavior. Its narrow normalization of exclusive iterator
+references and an unused shared-reference payload has a manual justification.
+Root review reproduces the collector and fifteen rejection controls. This is
+not a general MIR or Rust memory-model theorem; valid selector borrowing and
+cached compiler/dependency behavior remain premises.
+
+This result establishes complete context preservation under the existing
+local-name/child selector domain, selector-access and parent/primitive contracts.
+It does not establish the Full bucket shortcut's meaning, actual HeaderSlice
+ownership, packed-hash construction or the complete no-false-rejection result.
+The next gate connects the actual query argument at caller entry to the
+accepted getter/context/query interpretation. The proved return-state frame
+cannot alone identify the intermediate query or matcher-call state. Export
+those observations with explicit endpoints. Milestones 4 and 6 remain open.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `rule-query-integration-v1/NATIVE-RULE-QUERY-v1.json` | `22a04a061041d7788a2be1e720ed16f1eacdb7089fc87420160630cffca934e0` |
+| `rule-query-integration-review-v1/full-review-v1/REVIEW-v1.json` | `b2f53d889e27b1d0c122e4234c7fb7db5c23b25c1fcfa7a609d187b1755190c9` |
+| `caller-field-frame-v1/native-wrapper-v1/mir-lowering-v1/MIR-LOWERING-PROTOTYPE-v1.json` | `738af110b179f9be667b10c011f7eb905e3e219242883be26c70a08ea05d00ed` |
+| `reviews/mir-root-v1/replay-v1/REVIEW-v1.json` | `e95c8b14c0bcc0eeef3057c5293d1b643c82ada56174c1d5ad586f792a799781` |
