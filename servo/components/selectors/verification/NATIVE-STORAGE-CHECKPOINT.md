@@ -1489,6 +1489,47 @@ ancestor/pending interpretation, explicit borrow validity and separate hash and
 record capacity budgets. Relational native postconditions alone cannot instantiate
 the existing extracted recovery theorem's successful-call requirements.
 
+## Reviewed native pending interpretation
+
+`native-pending-contract-translation-v1` translates the actual trait pending-push
+and pending-pop contracts, including their complete entry/exit predicates and
+borrowed endpoints. Two freshly built Lean modules pass 16 standard-axiom audits.
+The interpreted pending stack reverses the actual ordered pending sequence.
+Theorems establish push/pop order, the empty case, strict decrease after a
+successful pop, validity/capacity frames and preservation of the complete storage
+value. The next pop's precondition follows under an explicit new borrow endpoint
+and its intrinsic validity.
+
+Independent replay produces byte-identical Lean sources and objects and the same
+16 audits. Six fresh native canonical/typed export replays reproduce complete
+stdout and stderr exactly. The original theory prefixes and both roots per model
+are retained; only complete pre/post predicates are appended. The inherited
+export summary incorrectly named the earlier clear model. That stale summary is
+explicitly rejected; provenance comes from actual command paths, guarded pending
+model hashes and exact contract capture.
+
+Twelve structural, eleven generated semantic, five shared-binding and four
+canonical controls pass. Each semantic mutant compiles as a generated module,
+then fails exactly its expected interpretation check. Bindings check 22 shared
+function signatures, four datatype/borrow layouts, native observer locations and
+both pending aliases. The fresh replay authenticates 17,894 toolchain lookup
+entries; all 272 independent review capsule pins were rechecked.
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-PENDING-CONTRACT-EVIDENCE-v1.json` | `08a0cf74b5d2338b575e15ecaea4207d3baedac4893eef4366908ae1d9a87e81` |
+| `native-pending-contract-translation-v1/check-v1/report.json` | `8fa1f186d4dd3654fcedf31e0e889af3176b8ed2be9058c49b39d3f43d0b8707` |
+| `reviews/native-pending-translation-review-v1/REVIEW-EVIDENCE-v1.json` | `1ae6f42472d173002fcb4d89377c95cdadafb1743c65312cd31b1d9db8f77a47` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-pending-contract-translation-v1/gate-v1/rebuild.py /private/tmp/native-pending-replay
+```
+
+Use a fresh output directory. Sequence length/snoc laws, native intrinsic
+predicates and observer meanings remain explicit premises. The complete storage
+value is preserved abstractly; this result does not itself identify all storage
+observers with the existing `Live` interpretation or establish execution.
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -1520,9 +1561,9 @@ next priority is connecting them to recovery's pending sequence, parent
 relation and loops. The constructor, queries and pending wrappers now have
 checked native bodies and frames, as do the storage mutation and parent wrappers.
 Their shared trait binding is now checked under the complete projected contracts.
-The next connection is pending-sequence interpretation and one native flush
-iteration, preserving history and ancestor order while deriving each call's
-full precondition.
+The pending-sequence interpretation now retains its exact ordering and storage
+frames. The next connection is one native flush iteration, preserving history
+and ancestor order while deriving each call's full precondition.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises and its postcondition now uses the shared storage observers.
