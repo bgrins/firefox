@@ -4368,3 +4368,52 @@ Paths are relative to `provider-bindings-v1`:
 | `descendant-subject-recovery-review-v1/REVIEW-v1.json` | `b498f17f66cc53fe8d4369586bc217aa96bbc366195afc2c91ec1c876b9ad3e1` |
 | `descendant-subject-context-v1/DESCENDANT-SUBJECT-CALLER-v1.json` | `f5a2cbfaab88880ea9feb3a6448e10e52839eedd587ea4f4ffbfdcf6c8739ada` |
 | `descendant-subject-caller-review-v1/REVIEW-v1.json` | `54df083fb3c3cc07183f0358a95b86eb91279ade33192e88b64d976d50f11e12` |
+
+
+## ID/class observations and native matching
+
+The provider policy now has checked ID and class membership lemmas. Seven Lean
+audits cover the ID position, class offset, represented sequence membership and
+coherent atom identity/hash correspondence; five semantic controls pass.
+
+A further five-module checkpoint connects these lemmas to the full captured
+native ID postcondition and recursive class mapping law. Sixteen audits derive
+both absent/present ID results and every bounded unfiltered class hash, including
+sequence length and order. Exact shared symbol origins, signatures, ranges and
+nominal layouts connect the exports to the provider policy. Both exports retain
+the original canonical task and all fifteen roots. Seven semantic controls and
+fifteen malformed-export controls pass. Independent review reproduces the
+59,709-input evidence record exactly. Gecko accessor implementations, observed
+class membership, atom hash coherence and provider representation remain
+explicit boundaries.
+
+Native matching now propagates LocalName, ID and Class success through compound
+and Child/Descendant ancestor matching. All sixty emitted models pass 620
+obligations; eight models have no remaining goals, including the inspected direct
+sensitivity getter. Two initial five-second timeouts pass at twenty seconds.
+Five compiled mutations each leave one intended postcondition unproved; these
+timeouts show proof sensitivity and are not counterexamples.
+
+The callback success witness now retains the exact callback state. The existing
+fold invariant and callable state-preservation contract prove this stronger
+witness without runtime changes. Its older history-only relation did not retain
+the current case sensitivity needed by ID/class reasoning. Region entry requires
+the actual stored CaseSensitive value; a non-quirks enum alone is insufficient
+for arbitrary contexts. The Child-only finite-success predicate is unchanged,
+while its selected wrapper also carries that sensitivity premise. Independent
+source review and exact evidence replay accept this checkpoint.
+
+M6 still needs typed ID/class matcher coverage joined to provider observations,
+quirks-aware collection, recovery and queries. Attributes/namespaces, singleton
+`:is()`/`:where()`, relative selectors and portable tooling remain subsequent
+work. These checkpoints establish no additional Firefox bug.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `identity-policy-v1/IDENTITY-POLICY-v1.json` | `92d1d3050a57bbe56c623e7d152f19f26b5d5b8b56ac526c26aa0095d8edd959` |
+| `identity-policy-review-v1/REVIEW-v1.json` | `5489e6792a269eda454822c79b2c9ac2d930bd27a76e58175e8f3b0e36fea29b` |
+| `identity-observation-v1/IDENTITY-OBSERVATION-v1.json` | `41eb22e8f8a8b88274a4ec3cef35994717e934ebdd4b2dcc84b0b3d44fc9a81b` |
+| `identity-observation-review-v1/REVIEW-v1.json` | `8e692bec6d724dca6040e62fa47765a3ac0124e2bd3d7263bba9af9df8956868` |
+| `native-identity-matcher-v1/NATIVE-IDENTITY-MATCHER-v1.json` | `c2ab621088ca86f252e07b5525aed616538f3d993eea554bbd979cd1c5e15990` |
