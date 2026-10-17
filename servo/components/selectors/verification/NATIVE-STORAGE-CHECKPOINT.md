@@ -2505,3 +2505,48 @@ Audit the completed evidence:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/native-style-bloom-storage-root-v1/audit.py --report /tmp/native-style-bloom-storage-review.json
 ```
+
+## Reviewed owner storage interpretation
+
+The `native-style-bloom-storage-v1/translation-v1` package exports the exact
+native owner storage pre/post predicates without changing the original
+245-declaration, 478-identity verification task. Typed metadata and recursive
+validation cover eleven types, 24 functions and five layouts. Shared binding
+checks compare thirteen functions, three layouts and the storage intrinsic
+closure with the accepted constructor export. Four explicit field-projection
+renamings account for the enclosing owner's field names.
+
+Two owner posts and a shared owner endpoint establish four old-final to
+new-current storage observations and guard preservation. Combining these with
+four explicit prior recovery field-resolution equations supplies the observations
+needed by the accepted caller-reuse theorem. The resulting theorem establishes
+the complete next recovery precondition, reusable invariants and unchanged
+ancestor chain. It preserves the stable DOM/policy, ancestry, identity, intrinsic,
+common-root and independent capacity premises, including retained counts.
+
+Independent replay rebuilds three modules and passes six axiom audits: five
+axiom-free interpretation lemmas and one standard-only composition lemma. All
+29 controls pass: five structural, four binding, eight generated semantic, six
+source, two canonical and four provenance. Of 103 outputs, 101 are identical and
+two dependency lists differ only by output path. The snapshot audit checks all
+23,026 producer pins; the complete review contains 23,136 pins. Both replay gates
+authenticate cached parents and external lookup closure; the parent Lean graph
+is not rebuilt here.
+
+The actual caller must still establish the four field-resolution equations and
+current-state borrow endpoint. Complete reference identities are not equated.
+TLS acquisition, ownership protocol, native completion and preservation across
+DOM/policy changes remain open. Milestones 4 and 6 remain incomplete.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-style-bloom-storage-v1/translation-v1/OWNER-STORAGE-INTERPRETATION-PROTOTYPE-v1.json` | `08255520499267729553d02a9ea83aa7693010803d19ed474e3fe2d825962a5d` |
+| `reviews/native-owner-translation-root-v1/report.json` | `306cd296e907441ce9dad405f026f13a64c281e9b65a87a201e0aab5c892156f` |
+| `reviews/native-owner-translation-review-v1/REVIEW-EVIDENCE-v1.json` | `53cf4d703ca77edfc04e37e63699b1224c2e997ccafa7c1be196de52eec47604` |
+| `NATIVE-OWNER-STORAGE-INTERPRETATION-EVIDENCE-v1.json` | `03a54cfc1348a08d05f69f499121a7f24255dd6594d47e6d22df3a80a45374c7` |
+
+Regenerate and check the interpretation in a fresh directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-style-bloom-storage-v1/translation-v1/gate-v1/rebuild.py /tmp/native-owner-storage-interpretation-replay
+```
