@@ -4250,3 +4250,63 @@ Paths are relative to `provider-bindings-v1`:
 | `section-span-terminal-v1/SECTION-SPAN-TERMINAL-v2.json` | `c42bf92eb24eb171b048d9de83634f33876d9ebb81853106232f07c9c7beba41` |
 | `section-span-terminal-review-v1/REVIEW-v2.json` | `beb1bdfb138fa18392207c934e5c18e373d2e8c04bf0aea9dc1ce3abcee4d619` |
 | `section-span-terminal-review-v1/REVIEW-v3.json` | `6923fe6730216a0e65c2dc3836642cc87bcbe1b8fae62cfeb2b304b4190abea0` |
+
+## Descendant matching and recovered filter composition
+
+The source-preserved native matcher now supports local names separated by Child
+or Descendant in its success-to-ancestor-region contract. All 59 emitted models
+pass 608 obligations; seven empty models are byte-equivalent to the inherited
+checkpoint. Two compiled mutations leave only the intended loop invariant or
+wrapper postcondition unproved. These timeout controls demonstrate rejection
+within the solver budget, not concrete counterexamples. The production runtime
+bodies are unchanged. The finite-success converse remains Child-only.
+
+The typed bridge preserves the complete native pre/postconditions, all eighteen
+context fields and every cache borrow endpoint. Its four modules pass seventeen
+Lean audits. Root review freshly reproduces their source, object and output
+bytes. Successful native matching supplies the collector's ancestor witnesses;
+the actual ancestor collector, packing and lookup then compose without assuming
+whole-collector acceptance. Five semantic, ten schema and six export controls
+check the bridge.
+
+A further six-module composition passes nine audits and derives final storage
+history and ancestor membership from the full native recovery contracts.
+Matching-parent ancestry embeds explicitly in the recovered traversal chain.
+The captured provider policy and local-name accessor contract supply matched
+name hashes. The final theorem preserves the matcher context and connects the
+query's current filter to final recovered storage. Same-selector contents,
+exact rule packing, stable primitive identity/hash observations and normal-return
+resource conditions remain explicit. No new formatting behavior axiom is used:
+the inherited `core.fmt.Formatter` declaration introduces only an opaque type.
+
+The new iterator transport preserves all thirty component variants and seven
+combinators in both directions. Eight audits connect the exact native iterator
+post to the descendant matcher and collector, with five semantic controls.
+Its primitive selector observation now constrains Descendant as well as Child;
+the older Child-only observation cannot replace it. This supplies a separate
+route to discharge the slice correspondence used by the recovery composition.
+
+The runtime fixture exercises 24 cases using actual parser, bucket classifier,
+rule and collector bodies. For zero, one, eight and sixty-four intervening divs,
+`section span` matches with one, two, nine and sixty-five local-name checks;
+`section > span` matches only the direct child. Omitting the section hash rejects
+both before any local-name check. Context observations remain unchanged. The
+fixture uses mock DOM nodes and direct ancestor-hash insertion; it does not run
+StyleBloom recovery or replace browser tests.
+
+M6 remains open. These generic descendant results still need the selected Rule
+construction/Subject-suffix route and its generation/packing relationship, plus
+the planned IDs/classes, attribute/namespace, singleton `:is()`/`:where()` and
+relative-selector compositions. There are still two confirmed Firefox bugs.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-descendant-region-v1/NATIVE-DESCENDANT-REGION-v1.json` | `87303ef3e8682a3dbf9f9ab0318bafbe95343f8253a0583633077f2708a06141` |
+| `native-descendant-region-v1/translation-v1/DESCENDANT-INTERPRETATION-v1.json` | `ac5a5449d6056d329f34d067f88b0453440e42f6dad47104409445793204c894` |
+| `descendant-recovery-composition-v1/DESCENDANT-RECOVERY-COMPOSITION-v1.json` | `9b835e5c9a73295ec71f0b797ef7faaee764cb130b657e9a14f58874bb3211a6` |
+| `descendant-iterator-composition-v1/DESCENDANT-ITERATOR-v1.json` | `47f2454ab6ee3cab3aa03916dc84583e1251639aaa6dab5dc82e13955754b9d1` |
+| `descendant-runtime-v1/DESCENDANT-RUNTIME-v1.json` | `99651c1a608cef0274ff3ff866f81c44dbd5d4a27b1261388ff0d0ffe82ff64c` |
+| `descendant-runtime-review-v1/REVIEW-v1.json` | `ebdea0b0d79773a2bfa70417df787ffb3c651b480efdba5d353ea182ea493797` |
+| `descendant-iterator-review-v1/REVIEW-v1.json` | `1925b2f17253f328bd4941b91176bb4c3dad432c38d099f034bdd689f1204c48` |
