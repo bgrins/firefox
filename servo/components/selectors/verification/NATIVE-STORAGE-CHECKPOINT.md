@@ -2115,3 +2115,59 @@ Audit the completed native evidence without rerunning solvers:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-complete-v1/reviews/checkpoint-review-v1/audit.py --report /tmp/native-recovery-complete-review.json
 ```
+
+## Reviewed complete recovery interpretation
+
+The isolated `native-recovery-complete-translation-v1` package binds the full
+native recovery contract to the accepted storage, pending, rebuild and flush
+interpretations. Exact typed exports preserve the native proof tasks and retain
+the entire pre/post interface. Source and signature checks distinguish the
+caller's opaque search edge from its separate flush edge and bind both search
+helpers to their checked definitions.
+
+The mixed search path preserves vector validity, counter size and `Live`;
+initial validity and history derive hereditary search readiness. Rooted native
+records and the complete ancestor witness use the same parent observation.
+Their finite-chain properties establish the exact retained suffix for search
+and the complete chain for a cache hit. Composing all four native outcomes
+establishes final vector validity, 4096 counters, `Live`, empty pending and the
+exact requested ancestor chain. Each represented ancestor's policy hash is
+retained, and lookup on the encoded native filter returns true. Final validity
+and history also derive renewed clear and search readiness.
+
+Independent fresh replay compiles eight modules with 43 standard-only axiom
+audits and reproduces 73 controls: fourteen structural, 21 generated semantic,
+four Lean source, thirteen binding, six canonical and fifteen provenance checks.
+All source files, objects and axiom outputs match. Of 385 output files, 325 are
+byte-identical and sixty differ only by the fresh output path. Both gates
+authenticate six accepted cached parent output trees and the complete external
+Lean lookup inventory before and after checking. The snapshot audit rechecks
+all 17,556 producer pins; the complete review record contains 17,947 pins.
+
+The result retains explicit library, borrow and observation laws, initial
+validity/history, stable finite parents and hash policy, identity reflection,
+depth, shared-root and resource premises. Logical state-pair adapters supply no
+runtime borrow witnesses. Lookup concerns the encoding of native observations;
+actual native query and matcher calls remain separate. The old Aeneas provider
+backward-function correspondence is not a premise of this native composition,
+but remains required for claiming the earlier Aeneas execution equivalence.
+
+Milestones 4 and 6 remain open. The next native work binds actual initialization
+and wrapper entry: `StyleBloom::new` borrows an existing thread-local filter
+without clearing it. First default construction, prior successful drop/clear
+and exclusive borrowing must establish its zero state. A separate follow-on
+also derives final pending validity and native rooted records for subsequent
+entry; it is outside this frozen checkpoint.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-complete-translation-v1/RECOVERY-COMPLETE-TRANSLATION-PROTOTYPE-v1.json` | `6402cb97f7df00d3648eb7913972e5ec9f14f541d0a2a1e5841a9ab57d7f90cf` |
+| `reviews/native-recovery-complete-root-v1/report.json` | `296cf25fa6b5f590d3391ea362032195e2c0cb69e1fb55556c693661c83779d7` |
+| `reviews/native-recovery-complete-review-v1/REVIEW-EVIDENCE-v1.json` | `42549cc4b617aa8e8c238bb06ae392de1766513928d50f851c44782d89ee7018` |
+| `NATIVE-RECOVERY-COMPLETE-INTERPRETATION-EVIDENCE-v1.json` | `9d4a97b0802dc5305ac2fe67c3870b2537524fc9aacb725fb281f440bfcc0297` |
+
+Regenerate and check the interpretation in a fresh output directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-complete-translation-v1/gate-v1/rebuild.py /tmp/native-recovery-complete-replay
+```
