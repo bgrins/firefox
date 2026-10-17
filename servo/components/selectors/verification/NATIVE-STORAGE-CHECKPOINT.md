@@ -2207,3 +2207,45 @@ Replay the additional proof in a fresh output directory:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-reuse-v1/gate-v1/rebuild.py /tmp/native-recovery-reuse-replay
 ```
+
+## Reviewed native storage constructor
+
+The isolated `native-recovery-initialization-v1` package adds the exact production
+`Storage::new` body to the complete recovery proof. Its four postconditions
+equate each returned field reference to its input, preserving complete borrowed
+references rather than only their current values. The generated model retains
+the current, final and identity information needed for the wrapper bridge.
+
+Both configurations pass all 123 models: 120 support models contribute 1,336
+debug and 1,216 release obligations, and three shared provider induction models
+contribute 289. The combined count is 2,841 with induction counted once. The
+constructor adds eleven obligations per configuration. Three compiled controls
+each retain exactly one intended timeout: resetting the high-water value,
+collapsing a final borrowed value to an entry value, and denying filter reference
+identity. These are sensitivity checks, not counterexamples. An earlier
+clear-filter mutant has an unbound raw-counter import and is excluded.
+
+Independent review checks exact source correspondence, reproduces the complete
+evidence collector, audits all 1,231 checkpoint inputs and 2,375 outputs, and
+rejects three physical source mutations. A fresh focused solver replay also
+passes all eleven constructor obligations. The review record contains 3,613
+pins. The complete support and induction solver runs are producer evidence,
+independently checked through their raw outputs.
+
+This constructor does not establish initial zero counters, empty vectors,
+thread-local ownership or native completion. The separate typed interpretation
+must connect explicit initial observations to valid storage history; actual
+`StyleBloom` acquisition and drop remain lifecycle obligations. Milestones 4
+and 6 remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-initialization-v1/checkpoint-v1.json` | `166f23bcde7da5e82eaf8a2461be06e3f345be0bf55b6849e80b17c997fa9a18` |
+| `reviews/native-recovery-initialization-root-v1/REVIEW-EVIDENCE-v1.json` | `c07240b95a8798bd99ed8018af01f352fea63f5d90226d870abe8b0a0b58c80b` |
+| `NATIVE-RECOVERY-INITIALIZATION-EVIDENCE-v1.json` | `895d459b6c612af1de60bb4e09473f72f58a8b8dc803c187688ccd5b3742d2cb` |
+
+Audit the completed constructor evidence:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/native-recovery-initialization-root-v1/audit.py --report /tmp/native-recovery-initialization-review.json
+```
