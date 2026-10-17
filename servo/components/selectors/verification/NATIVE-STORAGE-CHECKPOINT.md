@@ -4971,3 +4971,32 @@ Paths are relative to `provider-bindings-v1`:
 | `namespace-runtime-v1/NAMESPACE-RUNTIME-v1.json` | `b7acc79b7072c37228846c4f3071b8f7f25243cb67b9b4985b0e0353b3c9386d` |
 | `native-nested-context-v1/scoped-v1/NATIVE-NESTING-HELPER-v2.json` | `6b1bbddd3f58256b200825f4e144028043ff2e062a5d3e794edd5e784851ec49` |
 | `native-selector-list-any-v1/scoped-v1/NATIVE-SELECTOR-LIST-ANY-v1.json` | `37a00fe5fd5e55e40b27ac768a7cb935f39a641c7474fd26d714a75dcad2a949` |
+
+## Selector-list control baseline correction and native list caller
+
+Three compile-record corruption checks in the original selector-list evidence
+runner used a historical compile report as their baseline. They did not
+establish rejection relative to the accepted producer. The corrected runner
+first validates the authoritative compile-v4 report, then rejects all twenty
+mutations. The original evidence is preserved; the v2 checkpoint supersedes its
+control-count claim. Positive solver results and source correspondence are
+unchanged. Separate audits confirm the nesting and matching-list runners use
+their correct compile baselines.
+
+The actual complex-selector list caller now has a scoped checkpoint with five
+successful obligations and 65 inherited models equal apart from source paths.
+Its callback uses the checked iterator and actual complex matcher. A true result
+supplies one member of the same input list, both its subject-inclusive and
+strict ancestor coverage, and the complete context frame. Three controls leave
+the intended obligations unproved when success is fabricated, borrow readiness
+is removed, or the actual matcher's coverage guarantee is removed. Twenty
+evidence/body checks pass. The current children retain the accepted flat profile;
+recursive Is/Where admission and the remaining M6 scope are still open.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-selector-list-any-v1/scoped-v1/NATIVE-SELECTOR-LIST-ANY-v2.json` | `e139bc3555a83ef52f4a20e6f0d1a68fded92a09f9005868637c64c6fbaf3a86` |
+| `native-matching-list-v1/scoped-v1/NATIVE-MATCHING-LIST-v1.json` | `c1d36c6eaf203223f9d5aca26869ae0da6c8809dafd449406d38424798591e13` |
+| `nested-selector-design-review-v1/BASELINE-AUDIT-v1.json` | `13fc3aa20777f0e2228385f2e4ebeb784c86b56d1a76908b9ec053b8e6a170fd` |
