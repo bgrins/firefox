@@ -4904,3 +4904,70 @@ Paths are relative to `provider-bindings-v1`:
 | `native-empty-namespace-matcher-v1/NATIVE-EMPTY-NAMESPACE-MATCHER-v1.json` | `867f1335140e960869e57d7d6b666cbf42249bf02783ca945d3a4839681e9ce7` |
 | `namespace-provider-identity-v1/CANDIDATE-v1.json` | `8e44c7f14d4527780ba30f87c9c3b94ab31003c3eec2c325dc7f44be6a7ffafa` |
 | `namespace-provider-identity-review-v1/REVIEW-v1.json` | `593caa9771ea13dcde5d8860cf221ac49a0baf298d4674fe86c96b2e577307ea` |
+
+## Namespace caller composition and nested-selector prerequisites
+
+The namespace composition now passes its complete guarded checkpoint: twenty
+modules, fifty axiom audits, twenty-four semantic controls, twenty-eight
+record/output corruption checks and three diagnostic checks. The same native
+matcher result supplies namespace, ID, class and attribute observations through
+collection, storage recovery, rule classification, the returned setter bucket
+and the constructed caller. The callback specialization retains the selected
+ancestor's ordered attribute trace and borrow endpoints; the generic caller
+does not require that additional attribute witness.
+
+The typed classifier binds its exported addition symbol to integer addition and
+checks the exact compiled source model. The iterator bridge preserves all thirty
+component constructors, seven combinators and their complete payloads. The
+accepted matching profile remains nine atomic component families with Child and
+Descendant. Its Unknown routing criterion is explicit; this does not claim that
+every supported selector chooses Unknown. The recorded scope inventory lists
+the remaining component and combinator families.
+
+A separate runtime checkpoint passes 485 cases using the production parser,
+classifier and Rule bodies: 320 select Unknown, 160 select Subject and five
+select Full. Namespace hashes and callback counts check filter activation.
+Three executable mutations fail their intended assertions, and ten evidence
+corruption checks pass. The mock DOM uses a shared URL/hash interpretation;
+these checks do not execute native recovery or full selector-map lookup and do
+not establish mock-to-Gecko refinement. A disk-exhaustion attempt is preserved
+and excluded from successful verification evidence.
+
+Two scoped native checkpoints prepare nested matching. The actual nesting helper
+passes six obligations; its changed simple-matcher dependency passes 113, with
+sixty other models equal to the accepted parent apart from source paths. The
+contract preserves the complete context and connects the returned value to the
+same callback at the incremented nesting level. Three sensitivity controls and
+sixteen evidence checks pass under explicit capacity, callback and normal-return
+premises.
+
+The actual selector-list loop, specialized to a slice iterator, passes 39
+obligations. Its three-valued OR body and public any wrapper pass five and two
+more. A true result yields a member of the same list and that callback's actual
+postcondition. All 62 inherited models remain equal apart from source paths.
+Three compiled sensitivity controls and twenty evidence/body checks pass.
+Sensitivity failures are recorded solver timeouts or unknown results, not
+counterexamples. These scoped checkpoints do not claim fresh proof of every
+inherited model or the complete historical tool dependency closure.
+
+M6 remains open. Recursive Is/Where admission must preserve both collector modes:
+nested subject scanning excludes the nested subject's own hashes, whereas
+collection after an outer ancestor boundary can include them. Multiple-selector
+lists contribute no nested hashes; surrounding collection still continues.
+The recursive classifier must retain its actual singleton and multiple-list
+routing. Relative selectors and broader combinators retain their original scope.
+Native representation, DOM/hash stability, library and normal-return assumptions
+remain explicit. No additional Firefox defect is claimed.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `namespace-matcher-translation-v1/NAMESPACE-MATCHER-INTERPRETATION-v1.json` | `240ff5898e6920d81d97b10a142eb456906ac6599c6e3e310b4b0aea57430efc` |
+| `namespace-classifier-translation-v1/CANDIDATE-v3.json` | `728686b80be8e477f49ea2870418768ad2b8428e630ff57d6b87c4d32e99cde4` |
+| `namespace-iterator-v1/NAMESPACE-ITERATOR-v1.json` | `1d4b66ba1e8b9d6e1886f7ef626e5d5d4e8558fedc9483af44755a8be12c0f15` |
+| `namespace-composition-v1/full-v1/NAMESPACE-CALLER-COMPOSITION-v1.json` | `9de29882a10edd30fcf8936105a93ac60de764f9a4343249b2fccb10a3573bfc` |
+| `namespace-terminal-review-v1/FULL-GATE-REVIEW-v1.json` | `d2f9481b45039eaa94e35f3a5409ee02137be2700a8465448b78083f9d9eab44` |
+| `namespace-runtime-v1/NAMESPACE-RUNTIME-v1.json` | `b7acc79b7072c37228846c4f3071b8f7f25243cb67b9b4985b0e0353b3c9386d` |
+| `native-nested-context-v1/scoped-v1/NATIVE-NESTING-HELPER-v2.json` | `6b1bbddd3f58256b200825f4e144028043ff2e062a5d3e794edd5e784851ec49` |
+| `native-selector-list-any-v1/scoped-v1/NATIVE-SELECTOR-LIST-ANY-v1.json` | `37a00fe5fd5e55e40b27ac768a7cb935f39a641c7474fd26d714a75dcad2a949` |
