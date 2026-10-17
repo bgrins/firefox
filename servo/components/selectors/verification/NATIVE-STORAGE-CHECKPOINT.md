@@ -3772,3 +3772,71 @@ Paths below are relative to the public-entry prototype's
 | `matcher-storage-review-v1/REVIEW-v1.json` | `c229d90dafe9729c9a17bd840139a39ac59713fcc7807d389ac5a625dc82187b` |
 | `recovered-entry-composition-v1/RECOVERED-ENTRY-COMPOSITION-v1.json` | `5e1b26a770a8032c05d291677ae70e0c1e12647143a50cde1eac10c76c7b63a0` |
 | `recovered-entry-review-v1/REVIEW-v1.json` | `0033cd3732c1dafa4dc29bdd61de99a994547a97c50db2bdc41bb3be8c757896` |
+
+
+## Native rule construction and atom/provider membership
+
+The native rule-origin checkpoint now covers the unchanged constructor, bucket
+setter and hash packing bodies. Its 31 fresh solver obligations pass. The typed
+bridge preserves all rule fields and derives packed-word observations from the
+native packing input, exact count value and full constructor postcondition.
+The bucket setter preserves the selector/hash pair. Public field mutation,
+stylesheet generation and the relation to the matching selector remain separate
+obligations; this is not a global rule invariant.
+
+The guarded typed run rebuilds six Lean modules with thirteen axiom audits,
+replays nine exporter commands, and checks seven semantic, eight malformed
+export, six binding and five diagnostic controls. Five physical evidence controls
+reject missing, changed or forged outputs. The root independently reconstructs
+the collector report and authenticates the frozen package. Native proof records
+remain cached for this typed run. The thirteen theorem audits use only standard
+Lean axioms; pair-preservation lemmas are axiom-free.
+
+A separate atom/provider composition interprets the unchanged native `policy_E`
+definition, retaining the identity/hash fields and atom wrappers. Concrete
+sequence operations, nonnegative mapped lengths and exact bounded observations
+establish that the local-name hash is in the provider history. A shared coherent
+atom hash table then derives matching-name membership. This discharges the
+previously supplied membership callback in the recovered-storage/query theorem.
+The fixture's independent identity/hash fields do not imply equal hashes from
+equal identities alone; its checked countermodel is not a Firefox defect.
+
+The atom composition freshly rebuilds four modules with eight axiom audits.
+Eight semantic controls include a typed native-policy mutation that swaps the
+first two hashes while preserving the dictionary interface. Nine malformed
+export controls, five diagnostic controls and six physical evidence controls
+also pass. The gate checks 92 output files and authenticates inputs and complete
+listed lookup directories before and after execution. Independent bounded
+review reproduces the four-module proof and native hash-swap control.
+A separate review reconstructs the revised collector report and independently
+replays all six physical evidence controls; it does not repeat the full gate.
+
+The first atom gate remains rejected: its collector did not require exact
+validator/diagnostic inventories and imported the parent's diagnostic parser.
+The second version loads the intended parser explicitly, pins complete control
+records and rejects reindexed duplicate inventories. These corrections do not
+change any proof proposition.
+
+Only the final atom/recovery composition retains `core.fmt.Formatter`; the other
+atom lemmas use standard Lean axioms or none. Native local-name/hash and matching
+identity bindings, selector hashing, coherent atom observations, sequence/list
+representation, resource conditions and the prior recovery/query contracts remain
+explicit. No local-name native contract was exported. Source observations support
+the intended Gecko bindings without proving the C++ atom table.
+
+The next composition connects these two packages and removes the packed-word
+observation premise. Actual collector input/count correspondence, the same
+selector and quirks at construction and matching, and caller lifecycle remain
+the next gates. Milestones 4 and 6 remain open; there are still two confirmed
+Firefox bugs.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `rule-origin-native-v1/NATIVE-RULE-ORIGIN-v3.json` | `46b438cec4f4272684b93555423479718a2c8955241c16aa2bc214c77af13ac8` |
+| `rule-origin-translation-v1/RULE-ORIGIN-INTERPRETATION-v1.json` | `9b208fe019072e4b9c3f1fe1696c37c98a49c96e35287609f18bed88cbd7c07e` |
+| `atom-provider-binding-v1/typed-policy-v1/ATOM-PROVIDER-COMPOSITION-v1.json` | `a0b0f852d38a12b5dd23f92ee97cc22d72206a69fd6705111f791d7c93700c98` |
+| `atom-provider-review-v1/REVIEW-v2.json` | `5e504b2601adc03486d0150e4fd837f4fb6ec13713f0ebd9ef4e777f69fb1d10` |
+| `atom-provider-review-v1/GATE-REVIEW-v1.json` | `b8fbb2ca27ab2e1c81e5ae943f8511d00b1f35dd94c0701c6014f2de6b220778` |
