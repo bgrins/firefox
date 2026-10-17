@@ -5213,3 +5213,52 @@ Paths are relative to `provider-bindings-v1`:
 | `recursive-rule-composition-v1/ROOT-REVIEW-v2.json` | `d29890d2603a6dfdd7b83a2bc2ec38fdbdf2195069d71d10409c411f6162beb9` |
 | `native-recursive-classifier-v1/NATIVE-RECURSIVE-CLASSIFIER-v1.json` | `add8b768cd5383cb47ff91d0f288c79ed091bc51128b9eec827d79612e9e3046` |
 | `native-recursive-classifier-v1/ROOT-REVIEW-v1.json` | `eddac81cad5e51f7894e6a81363192cd749d5661ce40c09fa4cb8dd7b357186f` |
+## Unfiltered matching and classified query checkpoint
+
+The recovered-filter query now has a separate unfiltered matching antecedent.
+Both Bloom fields are cleared in the matching context, with the remaining
+fields, caches and borrow identity preserved. The query uses the recovered final
+storage filter. Actual selected construction supplies the selector and packed
+hashes, so no arbitrary hash-observation premise is needed.
+
+The provider composition passed independent fresh compilation of five modules
+and six axiom audits, with six dependency controls authenticated. The unfiltered
+comparison passed four modules and ten audits, with eight controls covering
+filter clearing, context phases, recovery endpoints and constructor identity.
+Every compiled object matched the original build in each independent replay.
+
+The recursive classifier interpretation and caller passed four fresh modules
+and eight audits. Its checks include eight handwritten and three typed semantic
+mutations, ten schema controls, nine export controls and seventeen record
+corruption controls. Root replay reproduced the complete accepted capsule.
+
+A further adapter connects sufficient Unknown classification to the actual
+setter result. It derives classifier support from the same unfiltered Rule
+precondition and preserves the selector, recursive member dictionary, iterator
+contents, generation quirks and budget. Constructor-derived Unknown and the
+setter postcondition establish equality of all nine Rule fields. The query
+therefore receives that exact classified Rule. Two fresh modules, three audits
+and eight authenticated mutation controls passed independent review.
+
+These results prove recovered-filter query acceptance from unfiltered matching
+within the supported Unknown route. They do not prove equivalence of whole
+filtered and unfiltered Rule executions. Physical selector/list/iterator and
+DOM/provider observations, normal return and recovery assumptions remain
+explicit. Native solver runs and a complete dependency rebuild were not repeated
+by these Lean composition reviews.
+
+The original `section > span` example takes the Subject route. Exact Subject
+classification and the matcher's skipped-subject path are the next integration
+work; forcing that example through Unknown would not cover its production path.
+Singleton propagation, disjoint bucket behavior, relative selectors, broader
+combinators and the unsupported inventory remain open. M4 remains conditional
+and M6 remains open. There are still two confirmed Firefox defects.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Root review | SHA-256 |
+| --- | --- |
+| `recursive-rule-provider-v1/ROOT-REVIEW-v1.json` | `ea36f644ea8e0b2099d033edeb89a68aca219f4dc98ae7eb5bcd06e0345d47b4` |
+| `recursive-rule-unfiltered-v1/ROOT-REVIEW-v1.json` | `7d0b813f67f9e57cddfdb1c029661afc4d9f12071c57e7d3e294da0fbdcbb2ff` |
+| `recursive-classifier-translation-v1/ROOT-REVIEW-v1.json` | `85e3a803c4bb7e90981c61e4022d80a3b1111afc1a1cd7d5425dcb79c9384073` |
+| `recursive-rule-classified-v1/ROOT-REVIEW-v1.json` | `f6fb8e06367ac83c47d77cd104aa6b50c58ab79370166c50f145fb6e06763108` |
