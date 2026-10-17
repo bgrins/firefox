@@ -3669,3 +3669,54 @@ Paths below are relative to the public-entry prototype's
 | `rule-query-entry-v1/QUERY-ENTRY-INTERPRETATION-v2.json` | `d3d7089c7a25f14109505cddb26066206d4f097e3be9feb536447f4a9879ec2c` |
 | `rule-query-entry-review-v1/REVIEW-v1.json` | `54dd232d31355590c25f044e8cff6e1ddb55f714ffef607275f0953a667e2c67` |
 | `rule-query-entry-review-v1/supplement-v1/REVIEW-SUPPLEMENT-v1.json` | `b81e69c3512bf088b2388d3c16ed9c8679aefcf455b62f2d828e6d8c515a33a0` |
+
+
+## Stored counters, ancestor collection and entry rejection
+
+A concrete storage interpretation now connects the query's counter observations
+to the existing valid-history invariant. Its sequence update laws, constants,
+encoded slots and current getter endpoint are proved. The stored raw hash history
+is normalized before use by the packed query. Membership of a hash emitted by an
+ancestor's provider policy follows from the stored chain and accounting invariant.
+
+The extracted ancestor collector and packing function now compose with this
+history and the actual query-entry predicate. Pointwise observation of the three
+complete packed words determines masking and reconstruction of the fourth hash;
+those results are proved rather than separately assumed. A nonzero raw word can
+have zero low bits, so raw-word emptiness and normalized membership stay distinct.
+
+The guarded run rebuilds five modules with 29 audited declarations and checks
+five compiled negative controls. They reject shifted reads, shifted updates,
+a future getter endpoint, unnormalized history and a future entry context. The
+getter control uses a locally opaque encoding definition in both a successful
+positive compilation and its failing mutation, avoiding a resource-limit failure
+as evidence. Five diagnostic controls reject unrelated compiler failures.
+All inputs and complete listed lookup directories are authenticated before and
+after execution, and the collector checks 98 output files against exact commands,
+source mutations, diagnostics and theorem inventories.
+
+The collector theorem and two final composition theorems retain the inherited
+`core.fmt.Formatter` dependency. Other axioms are limited to `propext`,
+`Classical.choice` and `Quot.sound`. Native proof records, Aeneas generation and
+dependency objects are cached. Independent review checked the collector adapter,
+storage composition and guarded runner within their stated scopes; the latest
+runner review does not claim a second complete replay.
+
+Remaining premises include the live storage invariant, the collector's hash
+membership policy, observation of the Rule's packed hashes, the current-entry
+filter relation and the Option call's normal-return postcondition. This chosen
+storage interpretation does not prove allocation identity or the complete native
+library. The next steps derive the collector policy from a successful native
+match and bind the Rule's hashes to the same selector and quirks used to create
+it. Public Rule mutation and stylesheet generation still need explicit lifecycle
+reasoning. Milestones 4 and 6 remain open.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `packed-query-composition-v1/STORED-COLLECTOR-COMPOSITION-v1.json` | `ffe9c5a9cd97e6cbec5adb5afe93178cfeee75eaba880fbf75be70009e8d690e` |
+| `packed-query-composition-review-v1/COLLECTED-PACKING-PROTOTYPE-v1.json` | `1ef9a579434bdc027460632cdcd1d97fed8c2c85a1b1cff4d2a84404fbdc6940` |
+| `packed-query-stored-review-v1/REVIEW-v1.json` | `706c7be7620d16d1048e52b9bd37712e9833cd12493b42052a00b6a83b04ca58` |
+| `packed-query-gate-review-v1/REVIEW-v1.json` | `8d3ae8adb7ecf884dadeaeef28c2c5c2117f104fba8cad08263417a28aff0245` |
