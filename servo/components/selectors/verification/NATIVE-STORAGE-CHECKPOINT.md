@@ -3090,3 +3090,42 @@ Paths below are relative to the public-entry prototype:
 | --- | --- |
 | `subject-ancestry-v1/translation-preflight-v1/native-composition-v1/RECOVERY-MATCHER-PROTOTYPE-v2.json` | `b5401ccb98b226f57aafb7b00f8f57ad062e7b84b2a671cd253d5a551819086d` |
 | `provider-bindings-v1/SOURCE-CONNECTIONS-v1.json` | `7611a2ab5fc2fa55409c068c70993af512eb2e29ef46b134d37f2b1a8b5d41d0` |
+
+## Distinct matching and traversal parent relations
+
+The new composition permits different matching and recovery parent functions.
+For every matching-parent edge on the subject's matching ancestry, an explicit
+premise supplies a nonempty path in traversal ancestry. Induction lifts the
+matching ancestor relation through those paths. Rootedness of the recovered
+traversal chain then establishes membership for every matched ancestor.
+
+The provider and recovery composition retain the complete native contracts,
+initial state premises and final recovered-filter query. They now consume this
+edge embedding instead of identifying the two parent functions. An equality
+lemma covers callers whose parent functions agree on the relevant ancestry.
+A finite example has different subject parents, with an intermediate slot node
+in the traversal chain, and proves that all matching ancestors are retained.
+This is a relational example, not a proof of Gecko slot assignment.
+
+Four fresh modules pass nine axiom audits and four strict semantic controls.
+Missing or reversed embedding, the wrong rooted parent relation and exclusion
+of the subject from the embedding domain fail their intended proof sites.
+The latter mutation produces errors in both the lifting and equality lemmas;
+the gate requires both. The three generic bridge/composition modules pass
+independent source review. A surrounding gate authenticates every listed Lean
+lookup tree and evidence input before and after fresh builds and controls.
+The final query theorems retain the existing formatter type axiom.
+
+Milestone 6 remains open. The next concrete topology obligation must establish
+the edge embedding for Gecko's actual caller domain, including slot, shadow and
+native-anonymous branches. Atom/hash policy, iterator representation and filter
+allocation identity remain separate bindings. The checked relation avoids an
+unsupported parent-equality assumption without claiming those bindings are done.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1/parent-relations-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `PARENT-EMBEDDING-PROTOTYPE-v1.json` | `bbf7cfa95b5d236d151b12dd8d98ec598d56ea1ad93c6c417b93839f12ce881b` |
+| `reviews/source-review-v1/REVIEW-v1.json` | `5ae8cd996c83c1884a92981da906c8398860c5d7d8eadcc5f99918daabb95d85` |
