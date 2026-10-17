@@ -3162,3 +3162,45 @@ Paths below are relative to `provider-state/native-storage-pop-concrete`:
 | --- | --- |
 | `native-owner-lifecycle-v1/translation-preflight-v1/OWNER-LIFECYCLE-INTERPRETATION-PROTOTYPE-v1.json` | `f785e5f122851981582ae6b865e8dcbe40110cf59ec9b83c583b93fa54b5583b` |
 | `native-owner-lifecycle-v1/translation-preflight-v1/reviews/root-source-v1/REVIEW-v1.json` | `da593b37de6f811196985b864dcd6b9341da7e3f834142632fd6abab05da466b` |
+
+## Gecko style-parent observations and caller boundary
+
+A manually transcribed observation model now follows the complete C++
+`GetFlattenedTreeParentNode` branch order specialized to `eForStyle`. It derives
+the element-parent formula, including document-level native anonymous content,
+assigned slots and inactive fallback. Conditional edge retention supplies the
+previous matching-to-traversal ancestry embedding. Its cut exclusions and
+assigned-slot ancestor paths remain explicit requirements.
+
+Abstract countermodels show why DOM-parent retention cannot be assumed globally.
+The unassigned-child and document-level anonymous examples have no shadow-root
+DOM parents; inactive fallback explicitly has a shadow boundary in its ancestry.
+These are abstract observation assignments, not constructed native DOMs or new
+browser bug reproductions.
+
+The ordinary flattened-parent model also distinguishes the computed-style
+caller's `IsInFlatTree` check from style traversal. Ordinary connectivity to a
+document does not exclude the style-specific anonymous-content cut. The native
+loop, its `HasServoData` shortcut and the actual caller domain remain unproved.
+
+Four fresh modules pass fifteen standard-only axiom audits and six strict
+semantic controls. Independent bounded source review checks all four modules
+against the native branch order. The gate authenticates all listed Lean lookup
+roots and evidence inputs before and after fresh builds and controls. The source
+map pins the native bodies and their manual correspondence; it is not C++
+extraction or verification. The separate Rust fast-path experiment is excluded
+from this checkpoint.
+
+Milestone 6 remains open. Native observer meanings, DOM structure and slot-path
+invariants, caller eligibility and the Rust fast-path connection still need
+bindings. Atom/hash policy, iterator representation and recovered-filter
+allocation identity remain separate obligations. The next work connects the
+native fast-path body and identifies sufficient conditions at actual callers.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1/gecko-parent-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `GECKO-PARENT-OBSERVATIONS-v1.json` | `acd9937ac8c6efe050c3f9cc1a64a3c8c1b667dd1e8a1f7e53641634e30bf3b8` |
+| `reviews/source-review-v1/REVIEW-v1.json` | `9214bfa16042c2a075e66344dd630453e93fdfbdbc0b7a13265715659570c5e3` |
