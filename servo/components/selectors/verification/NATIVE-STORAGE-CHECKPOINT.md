@@ -1966,3 +1966,56 @@ Rebuild into a fresh output directory:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-rebuild-translation-v1/gate-v1/rebuild.py /tmp/native-recovery-rebuild-replay
 ```
+
+## Reviewed native recovery depth trimming
+
+The isolated `native-recovery-trim-v1` package specializes the actual depth-trimming
+block in `recover`. Ghost erasure restores the initial depth calculation, pop
+assertion, loop condition and decrement exactly. Entry requires a nonempty record
+stack, positive requested depth and pop readiness at every state reachable from
+the initial state through a finite sequence of explicit successful-pop contracts.
+
+The post retains that finite pop trace and establishes a positive final record
+count equal to the smaller of the initial count and requested depth. Pending,
+provider and high-water values are unchanged. This native checkpoint leaves the
+hereditary readiness premise explicit. A separate eleven-theorem Lean experiment
+preserves validity, counter size and `Live` through finite pop paths, derives the
+next storage precondition and identifies the final ancestor list as the initial
+list with the popped prefix removed. Exact native predicate binding is the next
+gate; logical endpoint adapters do not create native borrow witnesses.
+
+All 109 native models pass in both configurations. The 106 support models have
+926 debug and 818 release obligations; three provider induction models add 289
+shared obligations. Totals are 1,215 debug and 1,107 release, or 2,033 counting
+induction once. The three added models contribute 59 obligations per configuration.
+Independent review reproduces the checkpoint and control collectors, checks exact
+model/output inventories and cached inputs, and rejects five source and five
+physical evidence mutations. All 35,199 review pins were independently rechecked.
+
+Five compiled controls retain all 59 obligations. Removing readiness or positive
+requested depth leaves the primary assertion or overflow obligation and an
+ancillary trace-endpoint invariant unresolved, with 57 valid obligations. Removing
+positive initial length, changing the final endpoint or using a constant variant
+leaves one intended timeout and 58 valid obligations. These establish sensitivity,
+not counterexamples or separate endpoint defects.
+
+Native library meanings, borrow intrinsics and normal return remain explicit.
+After binding readiness, the next target is a single source-preserved complete
+`recover` composition with the accepted rebuild and flush results. Its initial
+compilation experiment exposes the element equality boundary: Creusot requires
+`DeepModel`, and the generated comparison contracts compare deep models. A
+`Copy + Eq` bound alone does not establish identity correspondence. Actual DOM
+parent/depth consistency and equality interpretation must be stated separately.
+Milestones 4 and 6 remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-trim-v1/checkpoint-v1.json` | `0a4d2bb37a31ab5761cc7544a11281b8fb7769972329921145294dae692b35ca` |
+| `native-recovery-trim-v1/reviews/checkpoint-review-v1/REVIEW-EVIDENCE-v1.json` | `2fdc019174996b2fdad828795dc6aced9eec7830df7e854034c6f272207e38bf` |
+| `NATIVE-RECOVERY-TRIM-EVIDENCE-v1.json` | `d4825a7faef2da4c942070e8c4a0ed3f3d7081d74ea4a596ee0c9420d9b4b890` |
+
+Audit the completed native evidence without rerunning solvers:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-trim-v1/reviews/checkpoint-review-v1/audit.py --report /tmp/native-trim-review.json
+```
