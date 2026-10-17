@@ -3337,3 +3337,41 @@ compiler input. The bounded independent review is
 `reviews/native-root-review-v1/REVIEW.json`, SHA-256
 `9dc5728c0d28d712724132a3448abb45240564d0212f0f899ed3fd591bf88098`.
 Existing accepted compiler binaries and earlier capsules are unchanged.
+
+## Restricted guard restoration diagnostic
+
+Independent review now reproduces the restricted permission-protocol evidence
+collector byte for byte and regenerates all thirteen transformed COMA models.
+The fixed-program gate covers six models and ten bodies, with fifteen physical
+integrity controls and four handwritten Lean restoration lemmas. It enforces an
+exact reviewed program; it does not admit arbitrary clients or establish a
+general compiler correction.
+
+The diagnostic removes the projected future Guarded assumption, weakens the
+entry and Ghost contracts to current-state invariants, and checks the outer
+current invariant before resolution. It retains the actual projection,
+reborrow and permission-call transitions. No stronger entry assumption is
+introduced. The original complete guard check before resolution still leaves
+two obligations unproved.
+
+A separate variant checks current guard restoration before resolution and the
+complete current/final guard relation afterward. Independent local solver
+replay proves all 32 obligations. Removing the cell's final-permission ward
+guarantee leaves four obligations unproved: the current restoration check,
+both post-resolution ward checks, and the outer current guard check. All other
+28 obligations pass. These timeouts show sensitivity, not counterexamples.
+
+This is a transformed verification-condition result, not a source-preserved
+native proof. The handwritten Lean endpoint model remains separate. Existing
+permission, lifetime, Ghost and atomic primitives remain trusted; replacement
+and escaped-reference provenance, primitive-cache provenance, native
+AtomicRefCell, automatic Drop and TLS are not established. Milestone 4 remains
+open. The general Guarded correction is outside this restricted experiment;
+the preserved verifier reproducer remains an independent tool limitation.
+
+Paths below are relative to `provider-state/native-storage-pop-concrete`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-owner-lifecycle-v1/native-permission-boundary-v1/protocol-fragment-v1/evidence-v1/RESTRICTED-PROTOCOL-CANDIDATE-v1.json` | `6eaf45306a42b1ea8cba4cee0cfab51b6f04b47bd00c751b6c1d8dfd887e7917` |
+| `reviews/restricted-protocol-root-v1/REVIEW-v1.json` | `5f2e1f19b06d442fd6cccdfd9bd42b6a51687d9eefb55a35c65308946d1462f7` |
