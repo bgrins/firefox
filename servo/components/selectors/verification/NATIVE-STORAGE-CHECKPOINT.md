@@ -2171,3 +2171,39 @@ Regenerate and check the interpretation in a fresh output directory:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-complete-translation-v1/gate-v1/rebuild.py /tmp/native-recovery-complete-replay
 ```
+
+## Reviewed recovery entry invariants
+
+The separate `native-recovery-reuse-v1` package strengthens the complete recovery
+interpretation with final pending validity and native rooted records. Flush
+obtains pending validity from its terminal pending-pop contract; clear preserves
+it through the pending frame, and an unchanged cache hit uses entry validity.
+The exact final ancestor chain yields the native root-first record predicate,
+including the root's terminal parent. These results compose with final vector
+validity, counter size, `Live`, empty pending and clear/search readiness without
+adding external premises.
+
+Independent replay passes one module, seven standard-only axiom audits and three
+source controls. The controls change the pending endpoint, omit entry pending
+validity, and reverse record orientation; their exact failure diagnostics match.
+Fifteen outputs are byte-identical and one control report differs only by output
+path. The snapshot audit checks all 17,599 producer pins and both complete output
+inventories; the review record contains 17,621 pins.
+
+This establishes reusable state invariants, not every precondition of a future
+call. Fresh target ancestry, resource budgets and actual borrow acquisition
+remain separate. Initialization, thread-local ownership, native completion and
+actual matching are still open, so milestones 4 and 6 remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-reuse-v1/RECOVERY-REUSE-PROTOTYPE-v1.json` | `1dbce95cbd6ec26d82eb980a556665401c54b0d16ee0605eec18f2d8b750f0ba` |
+| `reviews/native-recovery-reuse-root-v1/report.json` | `46dd98d10b78c0b060f7430d476e68569f2095cf4d00db480882a8eab6c0ea01` |
+| `reviews/native-recovery-reuse-review-v1/REVIEW-EVIDENCE-v1.json` | `c4df9f50d798d51ee0a38e4759eea607949cb242cab8b99ca69d925b61e37ded` |
+| `NATIVE-RECOVERY-REUSE-EVIDENCE-v1.json` | `b08c365ee7bc1a589799eb748b6a6d62d984a2dbd73498a37ae12a34e78a5923` |
+
+Replay the additional proof in a fresh output directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-reuse-v1/gate-v1/rebuild.py /tmp/native-recovery-reuse-replay
+```
