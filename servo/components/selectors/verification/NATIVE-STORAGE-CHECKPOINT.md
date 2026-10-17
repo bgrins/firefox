@@ -3287,3 +3287,53 @@ This text scan does not prove absence of indirect compiler defects or cover all
 accepted artifacts. The separate permission protocol uses `Guarded<FullBorrow>`
 and remains subject to further review. Compiler corrections are experimental;
 no replacement compiler or native lifecycle acceptance follows from this scan.
+
+## Native Gecko root observer interpretation
+
+The conditional root-observer prototype is frozen at
+`NATIVE-ROOT-INTERPRETATION-v1.json`, SHA-256
+`de649a8649ab90a61ea4a460241b83ce1c4fc01232d8a6de4f22febabc775977`,
+with 15,036 authenticated file entries. Its directory is
+`native-body-v1/native-root-v1` under the existing
+`gecko-parent-v1/rust-fast-path-v1` experiment.
+
+The fixture copies the Rust `GeckoElement::is_root` and
+`GeckoNode::is_in_document` bodies, including the debug assertion and closure.
+Fresh compilation produces four models, and all 18 obligations pass under
+stable observer contracts and an explicit debug-readiness premise. The C++
+`Gecko_IsRootElement` equality is source-authenticated and represented by a
+manual generic adapter; this is not a C++ extraction proof.
+
+Four compiled controls remove either early guard, remove debug readiness, or
+replace the FFI observer contract with an always-true result. They leave two,
+two, one and one intended obligations unproved, respectively; every unrelated
+obligation passes. These solver rejections are sensitivity checks, not Firefox
+runtime counterexamples.
+
+The typed export retains four actual definitions: debug readiness, the root
+result, and exact native pre/post predicates. Appending the two exported
+predicates preserves all nine original roots and the selected task's
+82 declarations and 155 identities. Two fresh Lean modules pass three
+standard-only axiom audits. Four schema controls and three semantic controls
+pass; each semantic mutation first compiles its generated module and then
+fails at the intended bridge lemma. Independent review reproduces both Lean
+modules and the source/export audit without repeating the native solver run.
+
+The new bridge derives the earlier `rootMeaning` premise using explicit
+element projection/injectivity, document-root observations, parent/child
+owner-document agreement, root flags, document-parent topology, receiver
+validity and the checked native root contract. It then composes with the
+existing native fast-parent theorem. These native DOM connections remain
+premises. Raw pointer validity, flag layout, cache maintenance, bind/unbind
+behavior, concurrent mutation, caller eligibility and the manual C++ parent
+interpretation remain outside this proof. Milestones 4 and 6 stay open.
+
+The collection report is `COLLECTION-v3.json`, SHA-256
+`cb102d454d1ef1d559b336833a3fe1eabd1e9a20606459098e4c74724e56da7a`.
+It authenticates recorded native model/raw-goal inventories, checked Lean
+sources and resolved imports, and inherited listed lookup roots before and
+after collection. It does not repeat compilation or proofs or inventory every
+compiler input. The bounded independent review is
+`reviews/native-root-review-v1/REVIEW.json`, SHA-256
+`9dc5728c0d28d712724132a3448abb45240564d0212f0f899ed3fd591bf88098`.
+Existing accepted compiler binaries and earlier capsules are unchanged.
