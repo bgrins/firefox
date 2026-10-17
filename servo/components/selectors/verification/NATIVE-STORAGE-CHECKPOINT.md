@@ -5262,3 +5262,67 @@ Paths are relative to `provider-bindings-v1`:
 | `recursive-rule-unfiltered-v1/ROOT-REVIEW-v1.json` | `7d0b813f67f9e57cddfdb1c029661afc4d9f12071c57e7d3e294da0fbdcbb2ff` |
 | `recursive-classifier-translation-v1/ROOT-REVIEW-v1.json` | `85e3a803c4bb7e90981c61e4022d80a3b1111afc1a1cd7d5425dcb79c9384073` |
 | `recursive-rule-classified-v1/ROOT-REVIEW-v1.json` | `f6fb8e06367ac83c47d77cd104aa6b50c58ab79370166c50f145fb6e06763108` |
+
+## Subject classification and recovered-query checkpoint
+
+The Subject route now has a checked native contract for an atomic subject,
+Child or Descendant combinator, and atomic ancestor. The original runtime body
+is retained under the recorded source transport. The checked ghost suffix helper
+and actual Rule contribute twenty fresh valid obligations; ninety-one inherited
+models remain equal after source-location normalization. Two sensitivity controls
+leave their intended postconditions unproved. Success establishes ancestor
+suffix coverage without asserting that the skipped subject was matched.
+
+The native classifier now determines exact local-name bucket payloads and
+Subject state for equal-case local names and supported pure singleton chains.
+Sixteen selected models pass 340 obligations; ninety-two inherited models remain
+equal after normalization. Six qualified sensitivity controls and nineteen
+record corruption controls pass. The typed interpretation derives both guarded
+recursive laws using a concrete depth model. Four independent fresh modules,
+nineteen axiom audits and exact object comparisons pass; eight source and three
+typed mutations fail at their intended proof dependencies.
+
+The ancestor-only collector proves that supported selectors with nonnested
+components need no subject matching witness. The Subject interpretation preserves the full native
+precondition, postcondition and recursive laws, reuses exactly the accepted Rule
+data types, and proves the source sequence-slice contract under its bounds.
+Suffix ancestry then supplies the actual collector, packing and recovered-filter
+query. The constructor supplies the actual packed hashes. Both Bloom fields are
+cleared for the matching antecedent; the queried filter is final recovered
+storage. The Subject setter changes only the bucket and preserves every other
+Rule field.
+
+Independent review rebuilt ten modules and checked seventeen declarations, with
+all objects and diagnostic streams identical. It reproduced both evidence
+capsules and eighteen schema/source controls, and checked all twelve actual
+source-control failure records. The reusable collectors for those two capsules
+only require an intended theorem failure; independent review additionally checks
+complete diagnostic counts and ownership. Historical malformed controls are
+excluded. These checks establish dependency sensitivity, not runtime
+counterexamples.
+
+The classifier-to-query adapter passes independent fresh compilation, one axiom
+audit, exact object comparison and eight authenticated dependency controls.
+It derives Subject and the exact local-name payload from the same actual
+iterator, selector, member dictionary and native admission, then supplies the
+actual setter's final Rule to the recovered-filter query. The collector checks
+total error-header counts and every error's ownership; independent review also
+checks the frozen logs for diagnostics outside that delimiter format.
+
+This is a bounded production-connected result with explicit DOM, hash/provider,
+selector/iterator, recovery and normal-return assumptions. General compound and
+nested Subject shapes, broader combinators, relative selectors and the complete
+unsupported inventory remain open. Whole filtered-call equivalence is a stronger
+follow-up, not a new prerequisite for the original matching-to-rejection gate.
+The next implementation target is an atomic subject with an arbitrary supported
+ancestor suffix. Milestone 4's remaining conditions also need a closure audit
+against its original invariant and recovery requirements. M4 remains conditional
+and M6 remains open; there are still two confirmed Firefox defects.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recursive-subject-translation-v1/ROOT-REVIEW-v1.json` | `51a8d5c3d6c1e27d52dfe9f6d952e30f559aaaf918f838d9595d69a8c8c7ca77` |
+| `recursive-classifier-exact-translation-v1/ROOT-REVIEW-v1.json` | `b1e6e236a8aaa7c0c5a65ac0098963a29132e0cc42aa6904d766f36b7b15acda` |
+| `subject-classified-entry-v1/ROOT-REVIEW-v1.json` | `8aa145803c26d29bc0a5e7595389f4723a5ba5a39577775c01d5dd341883a84c` |
