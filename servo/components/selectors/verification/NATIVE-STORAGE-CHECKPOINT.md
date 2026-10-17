@@ -2019,3 +2019,47 @@ Audit the completed native evidence without rerunning solvers:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-trim-v1/reviews/checkpoint-review-v1/audit.py --report /tmp/native-trim-review.json
 ```
+
+## Reviewed native depth-trimming interpretation
+
+The isolated `native-recovery-trim-translation-v1` package binds the checked
+trimming contracts to the actual successful-pop edge and the accepted storage
+interpretation. The finite indexed native path becomes a Lean pop path. Initial
+vector validity, counter size 4096 and `Live` now derive the native hereditary
+readiness predicate; it is no longer an unexplained assumption in this selected
+interpretation.
+
+The generated post preserves validity, counter size and `Live` and establishes
+that the final ancestor chain is a suffix of the initial chain. Full pre/post
+equivalences retain positive initial and requested depths, exact borrowed
+endpoints, the conditional final record count, and pending/provider/high-water
+frames. Logical Unit endpoint adapters do not establish actual native borrows or
+runtime return witnesses. Counter, sequence and record laws remain explicit.
+
+Independent fresh replay compiles three modules with 28 standard-only axiom
+audits and reproduces twelve schema, twelve generated semantic, three state-pair,
+ten binding, four canonical and eight provenance controls. All sources, objects
+and axiom output are byte-identical. Of 196 outputs, 168 are byte-identical and
+28 differ only by output-directory paths. Both gates authenticate the cached
+53-module chain checkpoint, its 904 outputs and external lookup trees before
+and after compilation. The first gate's packaging failure remains recorded;
+the accepted runner is `gate-v2/rebuild.py`.
+
+This closes the selected trimming readiness and post interpretation. Complete
+recovery must use a mixed search relation because pending pushes change the
+recovery state while preserving its storage. Native call completion, actual
+DOM ancestry and provider execution remain separate. Milestones 4 and 6 remain
+open; the separate exact-drop suffix experiment is outside this checkpoint.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-trim-translation-v1/RECOVERY-TRIM-TRANSLATION-PROTOTYPE-v1.json` | `265617c37fdb516285d395edcf337e1e2832361058d861429201ea17658a1680` |
+| `reviews/native-recovery-trim-root-v1/report.json` | `0bc91952cfa1b4596243d30b373a03a137880d7acefa097ac11c5fa2188034dc` |
+| `reviews/native-recovery-trim-review-v1/REVIEW-EVIDENCE-v1.json` | `119744f74ee77e43a1b09025b36d81020cc661c8c2972a3d59d6e31d240e560a` |
+| `NATIVE-RECOVERY-TRIM-INTERPRETATION-EVIDENCE-v1.json` | `0694ed25a36114d2fbf66547f85a8bbe7c3e916fb0fb0587a4dc910c4eea6fcb` |
+
+Rebuild into a fresh output directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-trim-translation-v1/gate-v2/rebuild.py /tmp/native-recovery-trim-replay
+```
