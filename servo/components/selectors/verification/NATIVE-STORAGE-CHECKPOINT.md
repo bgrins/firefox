@@ -3908,3 +3908,71 @@ Paths below are relative to the public-entry prototype's
 | `native-constructed-recovered-entry-v1/NATIVE-CONSTRUCTED-RECOVERED-v1.json` | `77b95a9aca0fd273e466ec37f134f3398a2466322085a53eb97c3baef0d8115d` |
 | `local-name-contract-review-v1/REVIEW-v1.json` | `e6f93c03e3a383520625e6b1e28a4fbccea19a932e957f4188e21cbbdc7754dd` |
 | `native-constructed-recovered-entry-review-v1/REVIEW-v1.json` | `a236d770a25418a696eb54052c245cc069f9d17b9b83fbefb0178f4e4dbfcd81` |
+
+
+## Selected rule and native iterator composition
+
+The next checked composition follows the actual extracted rule construction,
+retains all nine returned fields, and uses that rule's selector and packed
+hashes in the recovered query. The native iterator's complete postcondition
+connects its component view to the same selector and establishes the initial
+empty combinator. The Lean bridge derives the previous iterator correspondence
+from this postcondition and an explicit same-selector storage observation.
+All thirty component variants and their payloads are retained; both component
+conversions are inverses, including the `Part` and `Has` slice representations.
+Matching semantics remain restricted to the local-name/child domain.
+
+The guarded run regenerates the typed model and freshly checks six modules with
+seventeen exact axiom audits. Ten semantic mutations, six malformed typed-input
+checks and two well-typed contract mutations pass their rejection checks. The
+113-output inventory and all listed dependency lookup trees are authenticated.
+Native extraction and solver evidence are cached and authenticated; this run
+does not repeat them. The actual native iterator has two successful solver
+obligations under its raw-iterator contract. Its two COMA sensitivity controls
+leave the intended postcondition unproved; timeouts are not counterexamples.
+
+Independent review found an evidence-integrity limitation in the first auditor:
+a reindexed change to a compiled proof object passed an existence-only check.
+The fresh proof run itself remained valid. The revised auditor authenticates
+a separately pinned original producer report and requires exact bytes for all
+six positive and two typed-control proof objects. Eight physical output controls
+and a forged-reference control pass. Independent bounded source and collector
+reviews accept the correction; they do not claim an independent full proof or
+transitive lookup rerun. The failed auditor and its reproducer remain recorded.
+
+The final theorem preserves the matcher context, proves no Bloom rejection and
+retains the actual returned selector and iterator identity. The raw iterator
+contract, same-selector Arc/HeaderSlice observation, DOM ancestry/stability,
+provider and atom coherence, query, library and resource assumptions remain
+explicit. No allocation-identity, general rule-field mutation or stylesheet
+freshness invariant is claimed.
+
+Ordinary `section > span` uses the `Subject` bucket after selection. A separate
+native checkpoint proves its iterator advancement and actual caller obligations
+(39 and seventeen respectively). A six-audit Lean bridge transfers ancestor
+witnesses from the suffix to the full collector using exact shifted indices;
+it needs neither successful subject-name matching nor prior Bloom acceptance.
+The native Subject postcondition still needs to establish that suffix
+representation before the complete production instance is accepted.
+
+The differential test `local_name_child_has_nonzero_ancestor_contribution`
+provides a concrete runtime check using the actual parser, ancestor collector
+and matcher. In its two-node mock DOM, `section > span` matches without a filter,
+an empty filter rejects, and inserting only the parent-name hash restores the
+match. The deterministic test provider returns raw hash `0xfcdd0ccc`, producing
+packed words `[0xdd0ccc, 0, 0]`. The targeted optimized test, formatting and lint
+checks pass. This is a nonzero runtime witness for the mock provider, not Gecko
+atom, Subject-bucket or recovery evidence. A consistent nonzero formal instance
+and the Subject coupling are next. Milestones 4 and 6 remain open; the broader
+combinator, `:is()`/`:where()` and relative-selector obligations remain in scope.
+There are still two confirmed Firefox bugs.
+
+Paths below are relative to the public-entry prototype's `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `iterator-selected-gate-v1/SELECTED-ITERATOR-COMPOSITION-v1.json` | `3c23bd988ecef6a838011ce41c355d38471a3b0da16988922156e504289894c6` |
+| `iterator-selected-review-v1/REVIEW-v1.json` | `46f8bbc02248ecb968873dd25e93d88202bd32bc2af033a60f59568ecad3f61b` |
+| `iterator-selected-gate-review-v1/REVIEW-v2.json` | `3ca1313582202a0383a70d461e69f0853b9d66b6bc3f81ec7f04c646a66cf3bb` |
+| `rule-subject-callsite-v1/NATIVE-SUBJECT-CALLSITE-PROTOTYPE-v1.json` | `aa43c04571edfc44e29aa0b4d9859b26eaadb756da67194b64df70371462813a` |
+| `subject-collector-bridge-v1/SUBJECT-COLLECTOR-PROTOTYPE-v1.json` | `443841fa0f71f035e7e6b351f4894e1a580bdb97ac722db3b3d9ea5a17a705e1` |
