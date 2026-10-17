@@ -3375,3 +3375,55 @@ Paths below are relative to `provider-state/native-storage-pop-concrete`:
 | --- | --- |
 | `native-owner-lifecycle-v1/native-permission-boundary-v1/protocol-fragment-v1/evidence-v1/RESTRICTED-PROTOCOL-CANDIDATE-v1.json` | `6eaf45306a42b1ea8cba4cee0cfab51b6f04b47bd00c751b6c1d8dfd887e7917` |
 | `reviews/restricted-protocol-root-v1/REVIEW-v1.json` | `5f2e1f19b06d442fd6cccdfd9bd42b6a51687d9eefb55a35c65308946d1462f7` |
+
+## Native matching-context constructor interpretation
+
+The copied `MatchingContext::new_internal` and `new_for_visited` bodies now
+establish preservation of the supplied optional Bloom filter value and final
+mutable selector-cache observation. Their runtime statements are unchanged
+apart from qualifying the extracted constructor and callee names. The native
+quirks-mode helper is separately copied and proved against its external
+contract. All eleven obligations across the three models pass.
+
+Three compiled controls discard the filter, confuse current and final cache
+observations, or change the quirks helper. They leave one, two and two intended
+obligations unproved, respectively, with every unrelated obligation passing.
+The cache control affects both constructor postconditions. These are solver
+sensitivity checks, not Firefox runtime failures.
+
+The typed exports retain the full constructor pre/postconditions and preserve
+the original verification tasks. A fixed-point layout inventory records each
+export's 23 types, 57 functions and fourteen layouts. The generated context
+keeps all eighteen fields, including the dynamic callback, associated data and
+mutable cache borrow. The bridge to the accepted matcher record preserves the
+cache's current value, final value and identity separately.
+
+Four fresh Lean modules pass fourteen axiom-free theorem audits. The gate also
+replays six canonical/typed exports and checks ten schema, four binding, two
+canonical and eight compiled semantic controls. Independent source review
+rebuilds all four modules, reproduces the export audit, and rejects two further
+borrow-layout mutations. The complete listed Lean/Why3 lookup inventories are
+authenticated before and after the producer gate. Native compilation/proof
+records are authenticated; this gate does not rebuild their toolchains.
+
+The resulting observation theorem transports a supplied filter query through
+construction into the matcher record. Preservation of the mutable context's
+Bloom field between construction and use remains an explicit premise. The
+native owner getter, its filter representation binding, caller frames, DOM
+stability and allocation identity are separate obligations. Milestones 4 and 6
+remain open.
+
+The accepted snapshot collector checks exact relative output paths, including
+nested reports. Four physical controls reject missing, altered and unexpected
+outputs and a forged report. Its independently reproduced collection is
+byte-identical. The initial collector, which excluded every file named
+`report.json`, is preserved and superseded.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1/context-filter-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-CONSTRUCTORS-v1.json` | `8244f0934c91ccb8da12e05d183979587490700ac02898e4d674c79d94cc37d4` |
+| `translation-v1/CONTEXT-CONSTRUCTOR-INTERPRETATION-v2.json` | `e12e9014b33858005b80cea9e08659052f4e2397a047af3eccc570af0b71db8e` |
+| `reviews/root-constructor-v1/REVIEW-v1.json` | `34db2619f82f601b3271f559ae7cd8fc232e09ea1a90bc102f2c778c1ad2be08` |
