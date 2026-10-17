@@ -4417,3 +4417,54 @@ Paths are relative to `provider-bindings-v1`:
 | `identity-observation-v1/IDENTITY-OBSERVATION-v1.json` | `41eb22e8f8a8b88274a4ec3cef35994717e934ebdd4b2dcc84b0b3d44fc9a81b` |
 | `identity-observation-review-v1/REVIEW-v1.json` | `8e692bec6d724dca6040e62fa47765a3ac0124e2bd3d7263bba9af9df8956868` |
 | `native-identity-matcher-v1/NATIVE-IDENTITY-MATCHER-v1.json` | `c2ab621088ca86f252e07b5525aed616538f3d993eea554bbd979cd1c5e15990` |
+
+## Typed identity matching and constructor observations
+
+The full native matcher contracts now have a typed LocalName/ID/Class
+interpretation. Five freshly checked Lean modules pass twenty-three audits.
+Successful matching supplies ancestor witnesses for atomic selectors after
+Child/Descendant boundaries. Collection uses the quirks mode from the same
+native context. Seven semantic, ten schema, six export and six diagnostic
+controls pass. Independent source review and exact collector replay confirm
+this conditional matching-to-query composition; matcher-to-provider hash
+alignment and valid live history remain explicit premises.
+
+The collector connection separately proves ID/class hash emission in NoQuirks
+and LimitedQuirks and omission in Quirks. Two modules pass eight audits and four
+semantic controls. The provider composition consumes the checked ID and mapped
+class observations, with explicit selector hash correspondence. This does not
+yet connect the native matcher observations to the actual provider atoms.
+
+The native ID fixture preserves the ID accessor, ID matcher and case-sensitive
+atom-dispatch bodies. Thirteen models pass fifteen obligations; four direct or
+derived models have no remaining goals. Two compiled mutations each leave the
+intended postcondition unproved. Independent review also rejects three physical
+source mutations. The result connects successful ID matching to enumeration on
+the same decoded observation. Raw Gecko attribute decoding, atom pointer
+identity, lifetimes and hash interpretation remain model boundaries.
+
+The actual context constructor bodies now establish the stored quirks mode and
+case sensitivity together with the filter and final cache observations. Three
+native models pass eleven obligations, and both compiled mutations fail at their
+intended postconditions. Three Lean modules pass nineteen audits, with six
+semantic and twenty-four structural or diagnostic controls. The complete
+context map preserves all eighteen fields and the cache current/final/identity
+endpoints. A non-quirks constructor input yields CaseSensitive at matcher entry
+under an explicit complete context frame. Public field mutation prevents this
+from being an unconditional property of every matching context.
+
+Independent replay authenticates the native and typed constructor evidence.
+M6 remains open: native identifier/provider hash transport, class enumeration,
+recovery and caller composition are the current obligations. The class matching
+fixture is being checked separately. No additional Firefox defect is claimed.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `identity-collector-v1/IDENTITY-COLLECTOR-v1.json` | `dab2d34349306362d25559a0719b5c67c5764bc10834ba5a7e167c5b41370ea2` |
+| `native-identity-matcher-v1/translation-v1/IDENTITY-INTERPRETATION-v2.json` | `6335dd2581c750994a8b69f6825bb7f55682c3e3b882bb308cdbff25c87e5ef0` |
+| `identity-gecko-observations-v1/NATIVE-ID-OBSERVATION-v1.json` | `eb33bd41b5d02010e2f61100f1e1b432771bc07716b09277c83d90a86d654258` |
+| `identity-gecko-observations-review-v1/REVIEW-v1.json` | `5b5b6840ae13b7b7cf5ff4357743036dc9784a093fbd949b7dd0418f59b33b92` |
+| `identity-context-v1/NATIVE-IDENTITY-CONTEXT-v2.json` | `5f586cfee3e3c87f08c888b71e39285b862c005d43645b13408d1a1cc8f98252` |
+| `identity-context-v1/translation-v1/IDENTITY-CONTEXT-INTERPRETATION-v1.json` | `2c93ef77a779c65f753ca191f6e458ddcbc90846b46578b5e05a3fcf97595b52` |
