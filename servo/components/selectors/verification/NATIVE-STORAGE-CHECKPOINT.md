@@ -2686,3 +2686,50 @@ Paths below are relative to `actual-context-v1/native-compound-callback-v1`:
 | `SOURCE-AUDIT-v2.json` | `9982660378cecf80c5a996ad7f9c30c2aa3adf9a853f343d5c1ffac8b6c4bc8c` |
 | `reviews/css-independent-v1/REVIEW.json` | `252b69ce2a7b12043d5d5a5b55fbb504c36e3d90120b9a46830961b17cb415f6` |
 | `../../closure-body-v1/CLOSURE-BODY-PROTOTYPE-v1.json` | `e931744ee7a65ebcc36d5984ee006f8845860a09dbd8a5f4a4b86b5de9be3a9f` |
+
+## Native recovery owner composition
+
+The `native-recovery-prophecy-frame-v1` package proves preservation of all four
+storage field-reference final values through the native storage mutations,
+recovery operations and loops. The native caller then establishes initial/final
+recovery witnesses, empty pending work, restored owner observations and an
+unchanged atomic borrow guard. These are field-value guarantees; complete borrow
+identity is not asserted.
+
+The native evidence contains 126 models per configuration: 1,381 debug and 1,246
+release support obligations, plus 289 shared induction obligations counted once.
+The sole differing non-Gecko caller adds ten obligations; its other 125 models
+are identical. One release recovery timeout at ten seconds is preserved, with
+all 235 obligations for that model passing at twenty seconds. Four compiled
+controls leave their targeted obligations unproved, and six physical source
+controls are rejected. Independent review freshly proved 1,417 selected
+obligations and authenticated the remaining evidence.
+
+The `translation-preflight-v1` interpretation connects these native contracts to
+the reusable-storage and exact-ancestor-chain results. Its actual helper closure
+includes the stronger clear/pop/push frame posts. Separate Lean implications
+transport accepted readiness into the stronger interface and actual outcomes
+back into the accepted recovery invariants. The caller readiness premise is
+derived from reusable storage and explicit DOM/resource premises.
+
+Independent replay reproduced seven Lean modules and their compiled outputs,
+32 axiom audits using only standard Lean axioms, and all 66 controls. The typed
+binding couples visible record observations without equating the caller's opaque
+private carrier with the recovery model's count representation. The previous
+parent Lean graph is authenticated rather than rebuilt. A preserved first replay
+failed only when Python tuples were compared with JSON lists; the second runner
+normalizes that representation before the same exact comparison.
+
+Milestone 4 remains open. These results assume normal return, elementary
+library/primitive laws, valid vector/borrow domains, finite ancestry,
+identity/common-root properties and capacity bounds. TLS acquisition, automatic
+Drop dispatch and termination are not established by this checkpoint.
+
+Paths below are relative to `provider-state/native-storage-pop-concrete`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-prophecy-frame-v1/checkpoint-v2.json` | `b6d60ad9077bd5ff8e2f48cbecebf9cc593aacc4b80657cbee7640b08697fda7` |
+| `reviews/native-prophecy-frame-root-v1/REVIEW-v1.json` | `ff224f3fd4541e91c1da9abf40a1726b3008b3bd550bf856c30b1cd4e23d0dce` |
+| `native-recovery-prophecy-frame-v1/translation-preflight-v1/NATIVE-CALLER-FRAME-INTERPRETATION-PROTOTYPE-v1.json` | `5acb8063c2996ee3e2f89b170a34d26013bb62771bb5d2973569d96f222b3742` |
+| `reviews/native-caller-frame-root-v2/REVIEW-v1.json` | `0d178c3abd2d5b692539eefa815c6811b914bcc303e13e074d44e1bdbf136c68` |
