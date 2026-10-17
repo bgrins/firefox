@@ -49,14 +49,20 @@ Record paths below are relative to `native-storage-pop-concrete`.
 | --- | --- |
 | `reviews/guarded-implicit-drop-root-v1/REVIEW-v1.json` | `838f9a87117569c81f06400e54882f86e4512d7691b43824fb79d952e6b05d9f` |
 | `native-owner-lifecycle-v1/native-permission-boundary-v1/loan-api-v1/reduction-v1/GUARDED-IMPLICIT-CLEANUP-DEFECT-v1.json` | `7e5e6f1554c46a280e99d9b0956ef737429247cdc0960b43f7c97056af7215fa` |
+| `reviews/guarded-implicit-drop-root-v1/IMPACT-MODEL-COLLECTION.json` | `f11db1fa7e1d395bb923f16554067d63c74349db7aea86d46b05eb7225d3d90a` |
 
 ## Scope and next step
 
 This is a pinned-verifier defect, not a new Firefox bug or a claim about the
 current upstream release. A bounded scan of native fixture sources found no
-uses of `Guarded` or `NonAtomicInvariant`; emitted models and indirect library
-uses still need separate impact review. The experimental permission protocol
-uses `Guarded<FullBorrow>` and needs that review before further reliance on it.
+uses of `Guarded` or `NonAtomicInvariant`. A separately reproduced scan of
+16 direct native checkpoint manifests authenticated 15,746 recorded model
+paths (10,397 distinct file hashes), including positive and control copies.
+None contained `Guarded`, `NonAtomicInvariant` or `guarded`. This is a symbol
+and body text scan of those manifest entries, not a proof of compiler or
+library soundness or coverage of every accepted artifact. The experimental
+permission protocol is separate: it uses `Guarded<FullBorrow>` and needs
+further review before reliance on it.
 The Lean proofs and their stated assumptions are not changed by this finding.
 
 Do not use implicit guard cleanup to close the native lifecycle obligation.

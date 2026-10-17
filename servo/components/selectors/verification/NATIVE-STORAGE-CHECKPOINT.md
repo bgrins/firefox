@@ -3271,3 +3271,19 @@ The independent review is relative to `provider-state/native-storage-pop-concret
 | Record | SHA-256 |
 | --- | --- |
 | `reviews/gecko-fast-parent-review-v2/REVIEW-v1.json` | `1136e6100b0917aa2cd698604dc8ccab450a5976f415e8fb473fc4fe031f6c61` |
+
+## Guarded emitted-model impact scan
+
+The independent replay of the bounded Guarded impact scan matches the recorded
+report byte for byte: SHA-256
+`f11db1fa7e1d395bb923f16554067d63c74349db7aea86d46b05eb7225d3d90a`.
+It authenticates 15,746 model paths with 10,397 distinct file hashes from
+16 direct native checkpoint manifests, including positive and control copies.
+None contains `Guarded`, `NonAtomicInvariant` or `guarded`. The report is
+`reviews/guarded-implicit-drop-root-v1/IMPACT-MODEL-COLLECTION.json` under
+`artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete`.
+
+This text scan does not prove absence of indirect compiler defects or cover all
+accepted artifacts. The separate permission protocol uses `Guarded<FullBorrow>`
+and remains subject to further review. Compiler corrections are experimental;
+no replacement compiler or native lifecycle acceptance follows from this scan.
