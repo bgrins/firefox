@@ -2415,3 +2415,48 @@ Regenerate and check the caller composition in a fresh directory:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-caller-reuse-v1/gate-v1/rebuild.py /tmp/native-recovery-caller-reuse-replay
 ```
+
+## Imported native Kleene helper prototype
+
+The separate `actual-context-v1/native-kleene-imported-v1` package uses the actual
+imported `KleeneValue` type through the frozen verification-library dependency
+arrangement. Ten native helper bodies are checked as free functions, with explicit
+receiver, `Self` and call-name transport. Two external operator contracts match
+the contracts of separately checked conjunction and disjunction bodies. The source
+audit checks every transported signature and runtime body against production.
+
+Callback readiness now ranges over items in sequences the initial iterator can
+produce, rather than every value of the generic item type. The conditional
+normal-return result remains iterator exhaustion and independent successful
+callback witnesses when `any_false` returns `True`, with the dual for `any`.
+It does not establish a connected callback trace or final borrow restoration.
+
+Eleven models pass 71 obligations. A fresh Cargo target reproduces all models
+exactly and passes the same obligations. Four compiled controls reject early
+success, an omitted first result, a missing conjunction operand and a missing
+readiness premise. Three retain one intended timeout each; the conjunction
+control has 70 obligations and two intended `Unknown(sat)` results. These are
+sensitivity checks, not concrete counterexamples. Independent source review
+prompted the complete signature inventory and checks four physical source
+mutations. The prototype records 476 pins.
+
+The first control runner reused a Cargo target and encountered a successful
+compile without regenerated models. Its inventory check rejected that run;
+the retained controls each use a separate target. A collector diagnostic also
+identified four expected warning-location shifts in the missing-premise control;
+the final collector checks those exact shifts.
+
+No `IteratorSpec` instance for native `SelectorIter` is installed. Its `next`
+requires no pending combinator for debug assertion safety, while stopping at a
+combinator sets one. The actual caller must establish readiness for every call;
+relation laws alone do not discharge that obligation. Native equality binding,
+iterator/callback execution, borrow restoration and complete toolchain lookup
+guarding remain open. This is not aggregate acceptance or milestone 6 completion.
+
+Paths below are relative to `actual-context-v1/native-kleene-imported-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `IMPORTED-KLEENE-PROTOTYPE-v1.json` | `ab914b2cd9c99a6a4bad6ac6a749b1a3db0bfbff2f61d60b4f0e62ce488d9089` |
+| `SOURCE-AUDIT-v2.json` | `890d97aae561cf34fb072cd0ba72f4cefaa594d7b87335c195f032ebc8b05749` |
+| `reviews/imported-source-review-v2/REVIEW-v2.json` | `e972cc9e1e66c087e6d881416f224b0914ca38310ef6ea2079ffddaf53b7cdaf` |
