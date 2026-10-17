@@ -3427,3 +3427,43 @@ Paths below are relative to the public-entry prototype's
 | `NATIVE-CONSTRUCTORS-v1.json` | `8244f0934c91ccb8da12e05d183979587490700ac02898e4d674c79d94cc37d4` |
 | `translation-v1/CONTEXT-CONSTRUCTOR-INTERPRETATION-v2.json` | `e12e9014b33858005b80cea9e08659052f4e2397a047af3eccc570af0b71db8e` |
 | `reviews/root-constructor-v1/REVIEW-v1.json` | `34db2619f82f601b3271f559ae7cd8fc232e09ea1a90bc102f2c778c1ad2be08` |
+
+## Native filter getter interpretation
+
+The copied `StyleBloom::filter` body establishes that its shared result equals
+its owner's current guarded filter value. Native proof records contain three
+getter obligations and one shared-guard helper obligation. Controls selecting
+the future value or removing the shared-dereference guarantee each leave the
+intended getter postcondition unproved. These are solver sensitivity checks.
+
+The selected typed export preserves the full owner intrinsic precondition and
+the result intrinsic plus current-value equality postcondition. All four owner
+fields and the guard's current value, final value and borrow identity remain
+represented. Layout correspondence is checked against the independently
+accepted owner-constructor export; this does not jointly interpret the entire
+owner invariant dictionary.
+
+Seven fresh Lean modules pass 21 axiom-free theorem audits, including fourteen
+inherited constructor audits. The producer gate records eight schema, four
+binding, two canonical and seven compiled semantic controls, plus three exact
+exporter replays. Four physical controls protect its output inventory.
+Independent review authenticates the frozen inputs and listed lookup roots,
+reproduces the collector byte for byte, checks the export audit, and rebuilds
+all seven modules with isolated imports and warnings treated as errors. Native
+compiler/prover records are authenticated rather than rebuilt by this review.
+
+The bridge transports the current owner filter through context construction to
+a matcher query under explicit representation, query-alignment and later
+context-field preservation premises. Those premises remain open. Storage
+identity, allocation identity, automatic cleanup and TLS ownership are not
+established. Milestones 4 and 6 remain open; the next work connects the concrete
+query implementation and native caller frames.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `filter-getter-v1/NATIVE-GETTER-v1.json` | `c176d2fb04656c74e47369ec63fca5890c22c90a4892bbf4c0ea66cabed00956` |
+| `filter-getter-translation-v1/FILTER-GETTER-INTERPRETATION-v1.json` | `68c878c7e3d680e7365855e717bd392677a1cfce009bc506a9f5c752835d7ad5` |
+| `reviews/getter-root-v1/REVIEW-v1.json` | `a32efa6c684e5fc07cef966e62eae4c62f20f72e9bce00ab0c8d25d6109126cf` |
