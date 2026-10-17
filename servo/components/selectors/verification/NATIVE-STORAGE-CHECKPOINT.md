@@ -2820,3 +2820,41 @@ Paths below are relative to `provider-state/native-storage-pop-concrete`:
 | `reviews/native-owner-clear-root-v1/REVIEW-v1.json` | `fd217300de385cb7ce49fb0565280ed7542957993f555226556ffb74570ecca0` |
 | `native-owner-clear-v1/translation-preflight-v1/NATIVE-OWNER-CLEAR-READINESS-PROTOTYPE-v1.json` | `b59c52f1f8fb93abfb570697558ab75bbb11ad956c6b5ffa6d1ef6b76b0c7132` |
 | `reviews/native-owner-clear-readiness-root-v1/REVIEW-v1.json` | `10408dda6d76ada02c4647b95126bec190ac6505c6c4cd0080b2717d9d808bba` |
+
+## Reviewed native owner push and rebuild
+
+The `native-owner-mutations-v1` package checks the unchanged `StyleBloom::push`
+and `StyleBloom::rebuild` runtime wrappers. Their contracts expose actual
+storage/recovery endpoints, preserve the atomic borrow guard and restore owner
+field observations after the temporary storage borrow. Rebuild retains the
+erased finite-ancestry witness and the existing capacity/readiness premises.
+
+The complete fifteen-conjunct `Storage::push` postcondition is packaged as a
+checked module-local predicate. This preserves private record fields and all
+six original preconditions. Four original field-prophecy equalities are also
+exported directly for callers. The source audit reconstructs the predicate
+from the original postconditions and checks the exact runtime bodies.
+
+Each guarded configuration contains 129 models. Five affected models are
+freshly proved: forty debug obligations and thirty-five release obligations.
+The other 124 models reuse accepted proofs after checking identical declarations
+and bodies, with each relocated source range checked against its Rust fragment.
+Changing conjunct packaging changes raw goal counts; those counts do not measure
+semantic coverage.
+
+Independent review reproduces the checkpoint and reruns eight physical source
+and model controls. Five compiled controls are authenticated against their exact
+intended failures. The wrong high-water result causes one storage postcondition
+timeout and two propagated caller postcondition timeouts. These are sensitivity
+checks, not concrete counterexamples or a new Firefox bug.
+
+Milestone 4 remains open. Native-to-Lean mutation interpretation and clear
+readiness composition are next. Drop, TLS acquisition/release, unwinding,
+termination and native primitive refinement remain separate obligations.
+
+Paths below are relative to `provider-state/native-storage-pop-concrete`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-owner-mutations-v1/checkpoint-v2.json` | `b3af898965be3ffaaee165062eed3f9bdffe8bd874f29b1563a62267aadff885` |
+| `reviews/native-owner-mutations-root-v1/REVIEW-v1.json` | `c4a746d5882e0b978e0da5d46f414981057c64a7b8b2655af6fe57459c23ebe7` |
