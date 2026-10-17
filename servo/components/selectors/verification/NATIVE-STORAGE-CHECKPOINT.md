@@ -3018,3 +3018,36 @@ Paths below are relative to `provider-state/native-storage-pop-concrete`:
 | --- | --- |
 | `native-owner-mutations-v1/lifecycle-observations-v1/OWNER-INVARIANT-PROTOTYPE-v1.json` | `2f01243a17ddd3e4f0fe962fb16bb7afec3615cdde40ee41c98b439011052ed0` |
 | `reviews/native-owner-invariant-root-v1/REVIEW-v1.json` | `210bbf9cf7c19034793eea4c30490c50c1740089bc0447fa2228c30a4120769e` |
+
+## Conditional native construction and Drop body
+
+The native lifecycle prototype checks the exact constructor tail after
+`BLOOM_KEY.with` supplies an owned guard, plus the exact `self.clear()` Drop
+body exposed as a named adapter. The constructor preserves the supplied guard
+and establishes empty valid vectors, their inline capacities, zero high-water
+state and a zeroed 4096-counter filter. Its input-zero requirement is explicit
+in both configurations; the release proof does not rely on `debug_assert!`.
+
+Paired contracts check the actual `SmallVec::default` and `AtomicRefMut::deref`
+bodies. The concrete Bloom default uses the explicit specialization of its
+one-field derived constructor. Both configurations compile 135 models; 129
+inherited bodies are authenticated unchanged. Six new models pass twenty debug
+and sixteen release obligations. Four compiled mutations fail their intended
+obligations, and six physical controls reject source or contract drift. The
+compiled failures are solver sensitivity results, not concrete counterexamples.
+
+Independent review reproduces the checkpoint collector, both native compiles,
+all thirty-six new obligations and the six physical controls. Original compiled
+mutation evidence is authenticated and reviewed without a second solver replay.
+Milestone 4 remains open: supplying the owned zero guard does not verify TLS
+acquisition, and checking a named Drop body does not verify automatic destruction.
+Allocation identity, the borrow-counter/payload connection, unwinding and
+completion remain separate obligations. The next experiment uses explicit
+permission tokens and Acquire/Release synchronization to represent that protocol.
+
+Paths below are relative to `provider-state/native-storage-pop-concrete`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-owner-lifecycle-v1/checkpoint-v2.json` | `b8aaa893c95045c78cc40c25497df86bf90a80bb3a78e65d21e3a93f93b39ee9` |
+| `reviews/native-owner-lifecycle-root-review-v1/REVIEW-v1.json` | `8cf6045fd287b14553889f597d7813eee4058cd30abf0c39588a1e28b27b002c` |
