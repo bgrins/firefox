@@ -2733,3 +2733,46 @@ Paths below are relative to `provider-state/native-storage-pop-concrete`:
 | `reviews/native-prophecy-frame-root-v1/REVIEW-v1.json` | `ff224f3fd4541e91c1da9abf40a1726b3008b3bd550bf856c30b1cd4e23d0dce` |
 | `native-recovery-prophecy-frame-v1/translation-preflight-v1/NATIVE-CALLER-FRAME-INTERPRETATION-PROTOTYPE-v1.json` | `5acb8063c2996ee3e2f89b170a34d26013bb62771bb5d2973569d96f222b3742` |
 | `reviews/native-caller-frame-root-v2/REVIEW-v1.json` | `0d178c3abd2d5b692539eefa815c6811b914bcc303e13e074d44e1bdbf136c68` |
+## Native child matcher and public entry
+
+The `actual-context-v1/native-ancestor-callback-v1` package connects compound
+matching to the native recursive matcher and parent-element traversal. All
+runtime branches remain, with premises restricting components to local names
+and Child combinators. A Matched result establishes name coverage on the current
+element or an element in the abstract `ancestor_of` relation; names after a Child
+combinator have a witness in that relation. Both native context wrappers restore
+the complete context through the recursive callbacks.
+
+The recursive package passes 353 obligations across thirty models. Its
+`public-entry-v1` extension checks `matches_complex_selector`, the matching-mode
+accessor and result conversion: 377 obligations across 33 models, including
+nineteen for the public entry. Separate Cargo targets reproduce identical models
+and all positive proofs. The public entry retains the pseudo-element branch and
+excludes its mode through an explicit premise. Its iterator call is specialized
+to a checked copy of the identical native `Iterator::next` body; recursive clone
+specialization remains inherited from the parent package.
+
+Independent review reproduced both collectors, checked recursive/context
+semantics and eight additional elementary adapters, and ran seven physical
+source controls for each package. Three compiled public-entry controls each leave
+the entry postcondition unproved: unchecked success, discarded matching result
+and context mutation. Their Timeout results are sensitivity evidence, not
+counterexamples. Review authenticates the producer and fresh proof evidence;
+it does not claim a third independent solver run.
+
+The relation `ancestor_of` remains abstract. Earlier prototype wording about
+strict ancestry describes its intended DOM interpretation, which is not proved
+by parent inclusion and transitivity alone. Valid borrowed iterators, elementary
+DOM/name/library laws, non-featureless/non-quirks contexts, nesting conditions,
+normal return and disabled logging remain explicit. Native HeaderSlice entry,
+concrete ancestor/hash correspondence, Bloom composition, termination and full
+compiler/Cargo lookup guarding remain open. Milestone 6 is not complete.
+
+Paths below are relative to `actual-context-v1/native-ancestor-callback-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-ANCESTOR-CALLBACK-PROTOTYPE-v1.json` | `cdd04152849d03ee6c33c04a534a5234680bfbd662ca160d4b62847005b9bbfc` |
+| `reviews/source-review-v1/REVIEW-v1.json` | `319a4fe52201517873e92cb1917a8de57c18adc0ac177e4b1642a1ccd8d62ccb` |
+| `public-entry-v1/NATIVE-PUBLIC-ENTRY-PROTOTYPE-v1.json` | `cc6e965897fe7c35d63d2f749b065611f52b456623609832903231c56df5379a` |
+| `public-entry-v1/reviews/source-review-v1/REVIEW-v1.json` | `65bf931b335ba26550a36ce2e291a0dfb8827b6ab517eeb830e4c0f953f803a9` |
