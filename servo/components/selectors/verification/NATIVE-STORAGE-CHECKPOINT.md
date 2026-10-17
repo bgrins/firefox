@@ -3467,3 +3467,49 @@ Paths below are relative to the public-entry prototype's
 | `filter-getter-v1/NATIVE-GETTER-v1.json` | `c176d2fb04656c74e47369ec63fca5890c22c90a4892bbf4c0ea66cabed00956` |
 | `filter-getter-translation-v1/FILTER-GETTER-INTERPRETATION-v1.json` | `68c878c7e3d680e7365855e717bd392677a1cfce009bc506a9f5c752835d7ad5` |
 | `reviews/getter-root-v1/REVIEW-v1.json` | `a32efa6c684e5fc07cef966e62eae4c62f20f72e9bce00ab0c8d25d6109126cf` |
+
+## Native filter query and actual selectors storage
+
+The native query path now has a concrete byte-counter contract in both the
+copied owner fixture and an isolated fixture using the actual imported
+selectors `BloomFilter` and `BloomStorageU8` types. Eight query/index runtime
+bodies are checked against source. The actual-type fixture specializes the
+storage receiver and qualifies checked free helpers; its dependency fork
+changes only the visibility of the storage and counter fields. The copied
+verification library changes only its selectors dependency path.
+
+The owner fixture adds six models with 51 proved obligations. All 136 inherited
+models remain byte-identical after exact insertion-only source-line and path
+relocation. Three compiled controls change conjunction to disjunction, use the
+first slot for the second query, or invert the empty-slot test. Each leaves two
+intended postcondition obligations unproved, with every unrelated obligation
+passing. An initial array-bound timeout is preserved; enabling the existing
+bit-vector proof mode resolves it without changing runtime code or premises.
+
+The actual-type fixture freshly compiles its Cargo dependencies and proves all
+58 obligations across ten emitted models. Its conjunction-to-disjunction
+control produces 59 obligations: two intended query postconditions time out
+and the other 57 pass. These controls are solver sensitivity checks, not
+browser counterexamples.
+
+Independent review added checks omitted by the initial body audit: all three
+constants, all eight full receiver/argument/result signatures, and exact
+bijections between compiled models and selected proof roots. Twenty physical
+controls exercise those checks. Root review reproduces those controls and the
+review collector byte for byte. Native proof records are authenticated rather
+than replayed by this review; no complete compiler lookup closure is claimed.
+
+The concrete COMA records expose both the filter storage and its byte array.
+Typed Lean interpretation, the external native query contract, packed ancestor
+queries, caller frames and allocation identity remain separate obligations.
+Milestones 4 and 6 remain open.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `filter-query-v1/NATIVE-QUERY-v1.json` | `4a3f34748f371974a134ced6442f4bba5aec0fd1384dcd1e673d26d1f9a92827` |
+| `filter-query-actual-v1/ACTUAL-QUERY-v1.json` | `6d5b985d256f27e4647d3124defd488ca479e6c17a89779215aced07846f3f7c` |
+| `filter-query-review-v2/REVIEW-EVIDENCE-v1.json` | `a7feb46e3ab12822bc889130a9f8e84e3915926f87ae3605abea29a61ffc1f39` |
+| `reviews/query-review-root-v1/REVIEW-v1.json` | `778eae8aa408c6e387248809d597d41ef244a5bbf76cbd0d6c6fed971492e4c3` |
