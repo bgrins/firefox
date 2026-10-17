@@ -4752,3 +4752,54 @@ Paths are relative to `provider-bindings-v1`:
 | `attribute-matcher-link-v1/NATIVE-ATTRIBUTE-LINK-v1.json` | `e55c7a8b70268124b89de91ec8cd00c5afbd56f56b5417351ca33a17b2c28de4` |
 | `attribute-callback-v1/NATIVE-ATTRIBUTE-CALLBACK-v1.json` | `32e464505c3587ea851201b3c01d3e5e1bb5008b397a78b2c9ecc657d81ec8ad` |
 | `attribute-callback-v1/ROOT-REVIEW-v1.json` | `46c954c6a232ea061bb690302a5620ed8538415454cfea60a7b0c40029bea029` |
+
+## Attribute matching through recovery and the constructed caller
+
+The mixed local-name, ID, class and attribute-presence composition now passes its
+storage and recovery gates. Seven modules pass seventeen audits and thirteen
+semantic controls, including missing live state, reversed parent edges and use
+of the initial filter instead of the recovered final filter. Attribute selection
+retains original/lowercase equality and eligibility before requiring its hash.
+The provider composition preserves the same selected element and key throughout.
+
+The constructed caller extension passes three modules, thirteen audits and eight
+semantic controls. Independent fresh compilation reproduces every source,
+object and diagnostic output. Complete context fields, constructor and setter
+results, cache generation, selected rule and final filter remain connected.
+
+The final callback specialization passes four modules, five audits, sixteen
+semantic controls and twenty-seven collector/output corruption checks. It
+instantiates the caller result with the actual exported callback closure and
+exclusion predicate. The same matcher postcondition supplies the selected
+ancestor's attribute match and ordered callback trace, with current/final/ID
+borrow frames. It does not assume an independent match, trace or packed-hash
+result. The runner authenticates its listed sources, import roots, tools and
+accepted parent records before and after compilation. Root bounded source review
+checks the terminal's direct use of the caller theorem and same matcher result.
+
+A separate runtime harness passes 240 cases across HTML/XML, direct/distant
+ancestors, Child/Descendant, six attribute spellings and five filter states.
+Production parsing, hash collection, rule construction, Subject setup and
+matching dispatch are exercised using a mock DOM and hash implementation.
+Instrumentation checks that selected hashes reject before attribute matching
+when the filter lacks them; skipped attributes still reach the matcher.
+Independent replay of the pinned executable and strict collector also passes.
+This is not a browser test or a proof of the mock-to-Gecko correspondence.
+
+M6 remains open. These accepted results retain the three-component Subject
+profile and the existing normal-return, DOM/hash, policy, callback, borrow and
+library assumptions. A separate longer-ancestor candidate passes its native,
+typed, storage/recovery and caller proofs, but its complete evidence gates are
+still pending. Subject compounds, namespaces and nested selector families remain
+future work. No additional Firefox defect is claimed.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `attribute-combined-provider-v1/ATTRIBUTE-SUBJECT-RECOVERY-v1.json` | `97d782a66fbf81cb5fce66cb1ccdd1007022c8a8096169400a53daf663adeb83` |
+| `attribute-subject-context-v1/ATTRIBUTE-SUBJECT-CALLER-v1.json` | `7be69a0bafb38df865e6b437d072218d056445f340eb380fb86604aedf765e6b` |
+| `attribute-subject-context-review-v1/REVIEW-v1.json` | `669fcfe43217fec789f3c9ff5e2db4e41290a51671fabe47c73f55800099f139` |
+| `attribute-selected-callback-v1/full-v1/ATTRIBUTE-CALLBACK-TERMINAL-v1.json` | `2c537aa8a73a465e523c2585e62fc2d4d3a4ee0f01e9f9d479151c6f34ca8c02` |
+| `attribute-runtime-v1/ATTRIBUTE-RUNTIME-v1.json` | `6f59b0d479c92f07c694f414b3cbb98f34eb23ff0cfb41a53e015143ed98c1e2` |
+| `attribute-runtime-review-v1/REVIEW-v1.json` | `f543d07a75d0b03ab8b2c3e0cfbe8ebef00948c22489b9a8bf35936cdc142e27` |
