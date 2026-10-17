@@ -4207,3 +4207,46 @@ Paths are relative to `provider-bindings-v1`:
 | `section-span-terminal-review-v1/REVIEW-v1.json` | `111fced16b8d3dbd56c95ce3d9d6863869a24b851b6adc04f7da680b65de6c02` |
 | `section-span-bucket-runtime-v1/BUCKET-RUNTIME-v1.json` | `e6092c3d52dc77f05a87aaaa07015a6793d13fe69da489e51e68520ebb9ff2db` |
 | `native-provider-recovery-map-v1/INVENTORY-v1.json` | `160eff7fcf4cffe45d14c1d174ff9942a816aea740d3df21d1f59cb4b6d37328` |
+
+## Milestone 4 conditional completion
+
+Milestone 4 is complete under the recorded normal-return, stable DOM/hash-policy,
+capacity and primitive-library assumptions. The independent aggregate review
+checks every original invariant, removal, retention, clear and recovery-branch
+requirement. The root review reproduces its evidence audit exactly and checks
+the generic provider maps and initialization/reuse interfaces. Historical
+checkpoints retain their earlier incomplete labels; this decision supersedes
+those status labels for the combined evidence, without modifying their proofs.
+
+The constructor interpretation derives the initial invariant from actual
+constructor posts and zero/empty observations. The stack constructor establishes
+the complete first recovery precondition under separate ancestry and resource
+premises. Recovery restores rooted records, vector validity, history and renewed
+readiness. Owner field-frame and resolution proofs transport all four storage
+observations into subsequent calls, including calls with retained nonempty
+records. Clear establishes zero counters, hashes, records and historical high
+water. The native branch inventory includes cache hits, depth alignment, siblings,
+allowed separate roots, rebuild and flush.
+
+This does not complete M6 or prove automatic Drop, TLS/UnsafeCell, unwinding,
+unrestricted allocation completion, arbitrary DOM mutation or every concrete
+Gecko primitive law. The original Aeneas backward-function equality remains
+unproved; the checked native route supplies the conditional recovery result.
+
+The terminal checkpoint also received an independent fresh single-module build:
+all thirteen audits, source, object and output reproduce exactly. Review found
+that the v1 reusable collector checked only whether its object was nonempty.
+The v2 collector authenticates the original frozen capsule and every local
+source/object/log byte. Twenty corrupt-evidence controls pass independent review,
+including replacement of the compiled object and reference capsule. The original
+proof snapshot is unchanged.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `milestone4-completion-review-v1/REVIEW-v1.json` | `0be24785ac8bacde84d3926ab490711afa95407021c9e537996e45bc1256510c` |
+| `milestone4-acceptance-v1/MILESTONE4-ACCEPTANCE-v1.json` | `3537bcf3ccac12a57d1350eef6b2d9df554d92059570ea5797f0aa75bd02868d` |
+| `section-span-terminal-v1/SECTION-SPAN-TERMINAL-v2.json` | `c42bf92eb24eb171b048d9de83634f33876d9ebb81853106232f07c9c7beba41` |
+| `section-span-terminal-review-v1/REVIEW-v2.json` | `beb1bdfb138fa18392207c934e5c18e373d2e8c04bf0aea9dc1ce3abcee4d619` |
+| `section-span-terminal-review-v1/REVIEW-v3.json` | `6923fe6730216a0e65c2dc3836642cc87bcbe1b8fae62cfeb2b304b4190abea0` |
