@@ -4468,3 +4468,55 @@ Paths are relative to `provider-bindings-v1`:
 | `identity-gecko-observations-review-v1/REVIEW-v1.json` | `5b5b6840ae13b7b7cf5ff4357743036dc9784a093fbd949b7dd0418f59b33b92` |
 | `identity-context-v1/NATIVE-IDENTITY-CONTEXT-v2.json` | `5f586cfee3e3c87f08c888b71e39285b862c005d43645b13408d1a1cc8f98252` |
 | `identity-context-v1/translation-v1/IDENTITY-CONTEXT-INTERPRETATION-v1.json` | `2c93ef77a779c65f753ca191f6e458ddcbc90846b46578b5e05a3fcf97595b52` |
+
+## Native class enumeration and ID provider transport
+
+The native ID observation now exposes its exact returned optional ID as well as
+successful-match membership. Thirteen models pass fifteen obligations with two
+compiled controls. The typed bridge connects that observation to the provider
+and actual case-sensitive matcher result, retaining arbitrary DOM elements and
+a separate stable decoded observation. Elements with equal IDs are not
+identified. Three Lean modules pass ten audits, with seven semantic, twelve
+schema, two canonical-export and six diagnostic controls. Independent source
+review and exact evidence replay accept this conditional bridge; atom identity,
+selector hash correspondence and the same-call observation remain explicit.
+
+Class matching and enumeration now share the decoded attribute observation.
+The first enumeration checkpoint passes ninety-seven obligations across twenty-five
+models, with three qualified compiled controls and independent review. The
+trace records each callback in class order, and successful matching supplies
+membership in that same sequence. A further checked version retains the callback
+invariant at the initial, every intermediate and final state. Exact Gecko
+class-matching and enumeration wrapper bodies preserve these contracts through
+the shared optional attribute projection. All thirty models pass 110 obligations;
+seven direct or derived models have no remaining goals, including the inspected
+attribute projection. Independent source review accepts the stronger contracts.
+Five compiled mutations each leave exactly the intended obligation unproved;
+these timeouts are sensitivity evidence, not solver counterexamples. The final
+collector checks exact source, model, goal, tool and diagnostic inventories.
+Earlier collector path and unused-import inventory failures are retained; the
+third collector is authoritative.
+
+These are proofs over source-preserved bodies with explicit models for decoded
+attributes, atom pointer identity, borrows, callbacks and library operations.
+The generic reference loop justifies the stated iterator contract; equivalence
+to the standard library implementation remains a boundary. The attribute getter
+is a shared projection, and the enumeration composition adapter is not a native
+caller. Unsafe decoding, physical lifetimes, mutation and unwinding remain
+outside this result.
+
+M6 remains open. The next connection transports every callback state and atom
+into the captured class hash provider, then joins matching, collection, recovery
+and query contracts. Attributes, namespaces, additional selector forms and
+portable packaging remain subsequent work. No additional Firefox bug is claimed.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `identity-native-link-v1/NATIVE-ID-LINK-v1.json` | `9b80204996e6186195cef6c30ed725db2f09ec42e78d02ca495afbddd552d385` |
+| `identity-native-link-v1/translation-v1/NATIVE-ID-PROVIDER-LINK-v1.json` | `f349e9e25b36131297acefcf3f25c63dbc6d27db714a5b743fc8fd46a4496c82` |
+| `identity-class-observations-v1/NATIVE-CLASS-OBSERVATION-v1.json` | `f59677367c75c963c1d663ad8af552da8ac9383083bae01cfa2a09b16a9454a3` |
+| `identity-class-enumeration-v1/NATIVE-CLASS-ENUMERATION-v1.json` | `5c898f3311a039ae27346848900eabee8b719bf2a225cc3cff1049b11a8b661d` |
+| `identity-class-enumeration-v1/NATIVE-CLASS-INVARIANTS-v1.json` | `7ae500d7266b9023e14cb3e0599c14c5da4c62b0267b2f91246ce2a0a5f75d76` |
+| `identity-class-strengthening-review-v1/REVIEW-v1.json` | `6e1efd254f8a865e62a45ddc683d26bc323f6db5ea498f7e768e04742916e0ac` |
