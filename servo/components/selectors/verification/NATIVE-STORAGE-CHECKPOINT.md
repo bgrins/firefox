@@ -2983,3 +2983,38 @@ Paths below are relative to the public-entry prototype's `subject-ancestry-v1`:
 | `NATIVE-SUBJECT-ANCESTRY-PROTOTYPE-v1.json` | `b81c6bf3e797d2b8caeb11c8bbf16d888c80c44e3dfb58ec1fc492e5a9f1215c` |
 | `reviews/source-review-v1/check-v2/REVIEW-v1.json` | `f422efa314e45b92b1edbb18e57c9df6769b1a7be14463d56dcdb3215ebbd40a` |
 | `translation-preflight-v1/SUBJECT-ANCESTRY-INTERPRETATION-PROTOTYPE-v1.json` | `69f535a17e74c6442d445097c1e41dd58da98cdb6e511b4cbcb745bb357d626e` |
+
+## Reviewed direct owner invariant
+
+The lifecycle prototype now states its invariant directly over the owner's
+filter, element vector, hash vector and high-water observations. It includes
+vector validity, 4096 counters, contribution accounting and insertion/removal
+history. Establishing it does not require inventing a temporary `Storage`
+reference. An observation lemma transfers it to genuine storage values returned
+by the native contracts.
+
+Ten lemmas establish initialization from supplied zero/empty observations,
+derive clear readiness, and prove preservation by the exported normal-return
+clear, push, rebuild and recover postconditions. Recovery handles all four
+native outcomes. This invariant does not include rooted ancestry; matching
+retains that separate requirement.
+
+Independent source review and fresh replay pass all ten standard-only axiom
+audits and seven semantic controls. Changed initial counters/high-water values,
+missing initial invariants and incorrect current/final endpoints fail in their
+intended lemmas. Listed parent dependencies are authenticated before and after
+replay without rebuilding them.
+
+Milestone 4 remains open. Actual construction must establish the supplied
+zero/empty facts, and automatic destruction must consume the maintained
+invariant. Preserving an opaque guard value does not by itself prove its
+allocation identity. The connection between the borrow counter, filter storage,
+acquisition and release still needs refinement, including cross-thread release.
+TLS reuse, unwind behavior and termination remain open.
+
+Paths below are relative to `provider-state/native-storage-pop-concrete`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-owner-mutations-v1/lifecycle-observations-v1/OWNER-INVARIANT-PROTOTYPE-v1.json` | `2f01243a17ddd3e4f0fe962fb16bb7afec3615cdde40ee41c98b439011052ed0` |
+| `reviews/native-owner-invariant-root-v1/REVIEW-v1.json` | `210bbf9cf7c19034793eea4c30490c50c1740089bc0447fa2228c30a4120769e` |
