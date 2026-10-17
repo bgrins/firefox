@@ -3129,3 +3129,36 @@ Paths below are relative to the public-entry prototype's
 | --- | --- |
 | `PARENT-EMBEDDING-PROTOTYPE-v1.json` | `bbf7cfa95b5d236d151b12dd8d98ec598d56ea1ad93c6c417b93839f12ce881b` |
 | `reviews/source-review-v1/REVIEW-v1.json` | `5ae8cd996c83c1884a92981da906c8398860c5d7d8eadcc5f99918daabb95d85` |
+## Constructor and Drop contract interpretation
+
+The exact native constructor-tail and named Drop-body contracts now have a
+checked typed Lean interpretation. The constructor postcondition establishes
+the direct owner invariant, preserves the supplied atomic field and establishes
+inline capacities of sixteen element records and sixty-four hashes. The full
+Drop-body precondition is definitionally the accepted clear precondition; the
+maintained owner invariant supplies it together with the existing intrinsic
+premise. The Drop postcondition establishes zero counters and guard preservation.
+It does not establish a final vector reuse invariant.
+
+Two fresh modules pass six standard-only axiom audits and thirty-four controls:
+seven semantic, fifteen structural/binding and twelve native export checks.
+The bindings retain the shared observer, layout and intrinsic closures and keep
+private record carriers opaque. Independent bounded source review reproduces
+the generator byte-for-byte and the binding audit. Independent capsule collection
+reproduces the same digest; that collection authenticates the recorded proof
+outputs and dependency closure without rerunning the solver or all Lean builds.
+The original gate authenticates listed cached dependencies before and after its
+fresh modules and controls.
+
+Milestone 4 remains open. Construction still begins with an acquired zero guard,
+and automatic destruction is not implied by a named Drop-body adapter. Native
+allocation identity, the stored mutable reference, the atomic borrow counter,
+TLS acquisition/release, unwinding and completion remain separate connections.
+The permission experiment is evaluating those native primitive boundaries.
+
+Paths below are relative to `provider-state/native-storage-pop-concrete`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-owner-lifecycle-v1/translation-preflight-v1/OWNER-LIFECYCLE-INTERPRETATION-PROTOTYPE-v1.json` | `f785e5f122851981582ae6b865e8dcbe40110cf59ec9b83c583b93fa54b5583b` |
+| `native-owner-lifecycle-v1/translation-preflight-v1/reviews/root-source-v1/REVIEW-v1.json` | `da593b37de6f811196985b864dcd6b9341da7e3f834142632fd6abab05da466b` |
