@@ -4080,3 +4080,71 @@ Paths are relative to `provider-bindings-v1`:
 | `subject-instance-native-v1/NATIVE-FINITE-SUBJECT-EVIDENCE-v1.json` | `378217c812eaa7cf31f4fd59ac4d790308ba3a7fa1df9b4a14a86f5232813131` |
 | `section-span-recovery-v1/SECTION-SPAN-RECOVERY-v2.json` | `3d05d6e4cf38ca37e5cf67921ab32dfe0f74135787eb2795fa75a1af1ae74958` |
 | `section-span-recovery-review-v1/REVIEW-v1.json` | `00ce405d8092dd2861a1814dffd2a41c62033fa1e7f3a1493738e26c691900a9` |
+
+## Borrowed storage and the concrete Subject composition
+
+The concrete Subject composition now connects the full helper and matcher
+contexts, constructor, bucket setter, recovered filter and packed query.
+Its eighteen audits and six mutation controls pass. Independent compilation
+reproduces its source, object and audit output exactly using cached imports.
+The recovery interpretation also received independent replay: all five modules
+and 44 audits reproduce exactly. Neither replay rebuilds the entire dependency
+chain or reruns all inherited controls.
+
+The selected storage interpretation now represents all four native fields as
+borrows, retaining current values, final values and identities. Its filter
+invariant checks both endpoints. Full constructor, push and recovery contracts
+hold, and the existing composition accepts this dictionary. Five modules pass
+45 axiom audits. Six endpoint, identity and early-resolution controls fail at
+the intended theorems; a malformed future filter fails its invariant.
+
+The actual insertion provider's typed `advanced` predicate retains all seven
+clauses, including both future endpoints. Exact generated equivalence and the
+complete insertion trace hold for the same selected sinks. Seven clause-deletion
+controls fail the definitional binding; four malformed schemas are rejected.
+These check translation completeness, including clauses that are redundant in
+this fixed-capacity interpretation. The earlier snapshot sinks fail the future
+filter requirement. This is a witness-model limitation, not a new Firefox bug.
+Independent source review includes exact regeneration of the typed predicate;
+independent replay of this new five-module package remains separate work.
+
+An ordinary Rust fixture also executes the copied native rule constructor,
+Subject setter and matching entry with the production parser and hash collector.
+The populated filter accepts; empty and wrong-hash filters reject. It directly
+inserts the hash and chooses the bucket, so this is not execution of recovery or
+proof of bucket classification. A deliberately unjustified Subject bucket shows
+why that classification remains a required caller obligation.
+
+The next gate joins native Subject dispatch to the independently derived query
+result, preserving one rule generation, selector suffix and current filter.
+Then the terminal scoped theorem and generic recovery branch inventory can be
+reviewed. Milestones 4 and 6 remain open, including the later selector families.
+Complete unsafe-library semantics and allocation-enabled termination remain
+explicit extensions of the conditional normal-return result.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `section-span-composed-v1/SECTION-SPAN-COMPOSED-v1.json` | `964aaff410889b4719f69b9d253b201b355bcf8e97c865aef6343bf246079a0d` |
+| `section-span-recovery-review-v1/REVIEW-v2.json` | `2062062d49fa73e0cc91f36c0ece6e20c1ea3a29dde152b12f0202f3fdab6e27` |
+| `section-span-storage-borrows-v1/BORROWED-STORAGE-INSTANCE-v1.json` | `031c29d345b1f4d92e2ea4be20a8e3c08cd1f81d6e7da4cff81a6e5681781350` |
+| `section-span-storage-borrows-review-v1/REVIEW-v2.json` | `664796dd3324c8927f28e4609b3466b6b99802f5946a0f582568e921c85c5eda` |
+| `section-span-rule-runtime-v1/RUNTIME-EVIDENCE-v1.json` | `7641f4c0dd85d7b93fbeadb25ec376ae3625ded839c71271ee930a0200f6cd3f` |
+| `milestone-exit-review-v1/ASSESSMENT-v1.json` | `1a7ae4d291fa39bb76e396a6e43a0bd46eead3ef71c88ef649c24f760bfea5c0` |
+
+The independent composition replay is recorded under
+`artifacts/stylo-bloom-tools/section-span-composed-root-review-v1/REVIEW-v1.json`,
+with SHA-256 `e0d9ce1940b5f01222960629d7397ac82c5c357a42538070a60c268a69dbb729`.
+
+The storage package's v2 acceptance supersedes its v1 reusable collector.
+Independent review found loose control inventories and diagnostic checks;
+a separate strict audit confirms that all recorded failures were genuine.
+The revised collector checks exact mutations, inventories, execution provenance
+and semantic diagnostics. Fourteen corrupted-evidence controls are rejected.
+The proof sources and 45 audits are unchanged. The v2 capsule is
+`section-span-storage-borrows-v1/BORROWED-STORAGE-INSTANCE-v2.json`, SHA-256
+`55a53cae6dc84e23e1bf1c748b04ae307e71e85ce8b0867c536df67104cc9b04`.
+The independent strict snapshot review is
+`section-span-storage-borrows-review-v1/REVIEW-v3.json`, SHA-256
+`75aaa31b7c825f9a65d068f439dea5eb4f0fa292889f58a2ebb6ca8b34f72f9a`.
