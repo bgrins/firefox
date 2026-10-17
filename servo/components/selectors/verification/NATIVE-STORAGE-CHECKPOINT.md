@@ -2898,3 +2898,43 @@ Paths below are relative to the public-entry prototype's
 | Record | SHA-256 |
 | --- | --- |
 | `NATIVE-MATCHER-COLLECTOR-PROTOTYPE-v1.json` | `c6bec2c484bbc6f71674d97c777ee2d38fd08ca39185ad9a5aa4c0d99d36f5c5` |
+
+## Reviewed owner mutation interpretation and clear readiness
+
+The native owner push/rebuild contracts now have a checked Lean interpretation.
+Three fresh modules provide nineteen standard-only axiom audits. Their typed
+bindings check six shared symbol/layout inventories, the complete storage push
+pre/postconditions, and the visible record projection without equating its
+private carrier with a public count.
+
+The `Stored` invariant combines vector validity, 4096 counters, record/hash
+accounting and high-water history. Native owner push preserves it and the
+borrow guard. Native rebuild establishes it, empties the pending sequence and
+produces the exact ancestor chain. Both establish clear readiness. The next
+clear call retains an explicit final-to-current owner endpoint equality and
+the next borrow's intrinsic invariant.
+
+Complete push and rebuild preconditions follow from these invariants together
+with explicit ancestry, root, intrinsic and resource premises. In particular,
+push does not establish rooted ancestry for an arbitrary element, and rebuild
+does not assume an unexplained universally ready temporary stack.
+
+Independent source review and a fresh replay pass all nineteen audits and
+fifty controls: ten structural, six binding, twelve generated semantic, four
+readiness semantic and eighteen canonical/provenance checks. Changed owner
+endpoints, root conditions, pending/hash budgets, high-water observations and
+field prophecies fail in the intended lemmas. Listed cached dependencies are
+authenticated before and after replay; they are not rebuilt.
+
+Milestone 4 remains open. The next connection is an invariant over owner fields
+that survives public normal-return mutations and can be established by actual
+allocation/borrow acquisition and consumed by destruction. Guard identity must
+follow the allocation across threads. TLS reuse, unwinding, termination and
+native primitive refinement remain separate obligations.
+
+Paths below are relative to `provider-state/native-storage-pop-concrete`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-owner-mutations-v1/translation-preflight-v1/NATIVE-OWNER-MUTATIONS-INTERPRETATION-PROTOTYPE-v1.json` | `70a172fdbf9ec4010c007878e0f956ca6ff7124df17c2bfe427662e7522892a8` |
+| `reviews/native-owner-readiness-root-v1/REVIEW-v1.json` | `5890bc1b757e18036881ff1ecdd04048a22e693812a355013a40454b8337095c` |
