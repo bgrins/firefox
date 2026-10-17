@@ -3614,3 +3614,58 @@ Paths below are relative to the public-entry prototype's
 | `rule-query-integration-review-v1/full-review-v1/REVIEW-v1.json` | `b2f53d889e27b1d0c122e4234c7fb7db5c23b25c1fcfa7a609d187b1755190c9` |
 | `caller-field-frame-v1/native-wrapper-v1/mir-lowering-v1/MIR-LOWERING-PROTOTYPE-v1.json` | `738af110b179f9be667b10c011f7eb905e3e219242883be26c70a08ea05d00ed` |
 | `reviews/mir-root-v1/replay-v1/REVIEW-v1.json` | `e95c8b14c0bcc0eeef3057c5293d1b643c82ada56174c1d5ad586f792a799781` |
+
+## Rule query at entry and concrete word interpretation
+
+The caller's complete contracts and initial query observations now have a typed
+Lean interpretation. All Rule fields, eighteen context fields, cache fields and
+borrow endpoints are retained. The entry observation reads the current Bloom
+field and captures the Rule's actual hashes. The Option result and closure
+negation derive acceptance of the generated packed-query predicate. The return
+frame is separate and is not used to identify the entry state.
+
+Distinct concrete integer and bit-vector dictionaries agree on masking,
+shifting, the first and second Bloom indices and packed fourth-hash construction.
+Their standalone checkpoint has 25 theorem audits, seven compiled operation
+controls and six metadata controls. The integer library leaves some operations
+underconstrained: these are chosen interpretations, not a theorem about every
+model of that library. The bounded shift conversion does not rely on unspecified
+out-of-range conversion behavior.
+
+The composed entry package freshly checks twenty modules with 95 theorem audits,
+including 36 new entry, query, owner and constructor lemmas. Six canonical/typed
+exporter executions reproduce the selected exports, and regenerated Lean matches
+the pinned source. Eight compiled semantic controls reject wrong operations,
+indices, counter observations, packed shifts, query conjunctions and state
+endpoints. Only standard `propext` and `Quot.sound` axioms occur. A separate
+runner revision rejects resource exhaustion and unrelated compiler diagnostics
+as evidence of semantic rejection; five parser controls check that distinction.
+
+Independent review repeats the twenty-module proof and checks the complete
+original task/theory prefixes, contract capture and initial COMA call sequence.
+Thirteen source/observer controls and five validator controls pass. A supplement
+binds the caller's opaque observers to the checked packed helpers by exact
+source origins, signatures and layouts. It checks the native mask initializer
+with four axiom-free calculations and twelve binding controls, and reproduces
+the guarded collector byte for byte. Native solver records and previously built
+exporters are authenticated; this is not a new native solver or compiler run.
+
+The result connects the entry query to the getter's current owner filter under
+an explicit constructor-to-entry field frame and the Option call's normal-return
+postcondition. The call-site interpretation is a bounded manual operational
+argument, not a general COMA semantics theorem. Complete array/intrinsic library
+interpretation, allocation identity, native selector ownership and actual
+collector/packing and recovery composition remain open. The next experiment
+connects the selected counter observations to the existing valid-history result,
+then derives packed-query acceptance from actual collected ancestor hashes.
+Milestones 4 and 6 remain open.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `query-word-interpretation-v1/QUERY-WORD-INTERPRETATION-v1.json` | `c4860c98e472c5ced2580428a7639b2701c15303e4114323c4b02dc008e82caf` |
+| `rule-query-entry-v1/QUERY-ENTRY-INTERPRETATION-v2.json` | `d3d7089c7a25f14109505cddb26066206d4f097e3be9feb536447f4a9879ec2c` |
+| `rule-query-entry-review-v1/REVIEW-v1.json` | `54dd232d31355590c25f044e8cff6e1ddb55f714ffef607275f0953a667e2c67` |
+| `rule-query-entry-review-v1/supplement-v1/REVIEW-SUPPLEMENT-v1.json` | `b81e69c3512bf088b2388d3c16ed9c8679aefcf455b62f2d828e6d8c515a33a0` |
