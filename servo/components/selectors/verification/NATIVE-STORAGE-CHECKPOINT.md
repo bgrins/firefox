@@ -5439,3 +5439,69 @@ Paths are relative to `provider-bindings-v1`:
 | `native-subject-recursive-ancestors-translation-v1/ROOT-REVIEW-v1.json` | `8b28e8e239cad116c58bd21f094f49933dc3bc32e1377bb511183eb87ed8fe48` |
 | `subject-ancestor-runtime-v1/RUNTIME-v1.json` | `9565d86b001f032c322e9766150df64699c0970817181f4a045d70798e2fcb90` |
 | `subject-ancestor-runtime-review-v1/REVIEW-v1.json` | `077ead1c29fa64fdb640e86edbd4b27bc600f337b2070bcb053802b3f1153d94` |
+
+## Relative query and cached-filter composition
+
+The native matcher now exports a rightmost-compound witness at the original
+candidate. Seven new or changed models pass 152 fresh obligations; eighty-nine
+inherited models remain equal after source-location normalization. Two qualified
+solver sensitivity controls and fourteen record checks pass. This strengthens the
+outer prefix witness without adding a rightmost witness for nested Is/Where
+children or admitting relative anchors.
+
+The actual private relative-selector `fast_reject` function and recursive
+collector extract together. Thirteen modules pass twenty-four axiom audits,
+including eight new declarations. Under the recursive `Good` premise, actual
+collection yields a covered live prefix and the actual query loop returns false.
+The proof uses the returned length directly, without ancestor packing or a
+zero-tail premise. A concrete counter bridge connects this result to Bloom
+coverage. Four source dependency controls and twenty-five record corruption
+checks pass. Fresh extraction reproduces all four generated Lean source files.
+Independent compilation reproduces all thirteen sources and outputs and eleven
+objects; two generated type objects differ, without an asserted explanation or
+object equivalence.
+
+The relative cache bridge composes M5 traversal, provider and cache coverage with
+that query. Five modules pass forty-three axiom audits. A fresh build reproduces
+the five source, object and output sets exactly. Three controls remove region
+membership, use hashes from the wrong candidate, or remove epoch validity; each
+fails in the intended composed theorem. A generated discriminant macro is
+expanded with a qualified instance name to avoid an import collision. Constructor
+order, all six values and the read function are preserved; hint enums are not
+converted between models by ordinal.
+
+The first cache theorem required collector hashes to occur directly in the
+provider list. Because collection masks hashes to 24 bits while providers insert
+full hashes, the raw-hash extension instead uses membership in the mapped list.
+The existing mask-invariance theorem proves that querying either representation
+has the same result. Two further modules pass four audits. A concrete witness
+uses the previously observed section hash `0xfcdd0ccc` to distinguish the two
+membership premises; another proves that incorrectly dropping bit 23 changes the
+actual second-slot function. Both masking dependency controls fail at their
+intended declarations, including the explicitly dependent theorem diagnostic.
+This corrects a proof integration restriction, not a Firefox defect.
+
+Four finite Rust tests exercise actual public `section:has(> span)` matching,
+match-cache bypass, first lookup, successful filter reuse, empty regions and
+failed or partial provider builds followed by retry. All four pass. Context
+anchor, nesting level and absent ancestor filter are checked after each call.
+The fixture uses mock DOM/providers and does not replace browser regression
+coverage or instantiate a complete concrete Gecko dictionary.
+
+Stable DOM/hash observations, cache epochs, selected map/library contracts and
+provider alignment remain explicit. Actual successful relative matching must
+still establish the same candidate region and recursive `Good` premises.
+M1–M5 remain complete within their documented assumptions; M6 remains open.
+There are still two confirmed Firefox bugs.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-rightmost-prefix-v1/ROOT-REVIEW-v1.json` | `1741f91bcbf77dbc38292c80578fc6378e1c9474e8aa0a731f126ae6226887dc` |
+| `relative-query-loop-v1/ROOT-REVIEW-v2.json` | `d452b35f6846c962c72270532cb189fa259415fe5f002479ea4f7a38d354d88d` |
+| `relative-query-cache-v1/RELATIVE-QUERY-CACHE-v1.json` | `5f64b7d3538e9c38aec0db16ac63a35ea237d8c4bd9207a3e08243688320cfa7` |
+| `relative-query-cache-review-v1/REVIEW-v1.json` | `e847cdb6322b883a1d38182b827bc6f90812c5b796a1b418a9517206fd5f489c` |
+| `relative-query-cache-v1/RELATIVE-RAW-QUERY-CACHE-v1.json` | `8f256f9806bbf68d48eceb6be1de4fd2b6ac391337a3de1cd1d78a54e6487aea` |
+| `relative-child-runtime-v1/RUNTIME-v1.json` | `4358a0eeb2c6cf8fa29e315cfb9d1db137bbb8affe31f07fd451b28495c0e6ed` |
+| `relative-child-runtime-review-v1/REVIEW-v1.json` | `6c5af5c0f7ec34acc7cf4272cbd2c0a19310ee02911d24a758ff77d05da44040` |
