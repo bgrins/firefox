@@ -5365,3 +5365,77 @@ Paths are relative to `provider-bindings-v1`:
 | --- | --- |
 | `milestone4-acceptance-v1/MILESTONE4-ACCEPTANCE-v1.json` | `3537bcf3ccac12a57d1350eef6b2d9df554d92059570ea5797f0aa75bd02868d` |
 | `milestone6-subject-next-assessment-v1/ASSESSMENT-v1.json` | `443d4760db2a110da5fe3368fd25ca94d1bfd5808c6b830c3b526a44ed81a50d` |
+
+## Longer Subject suffixes and recursive ancestor collection
+
+The native Subject profile now permits an atomic subject followed by Child or
+Descendant and an arbitrary supported nonnested ancestor suffix. The runtime
+bodies are unchanged. Four affected models pass sixty-six fresh obligations;
+eighty-nine inherited models remain equal after source-location normalization.
+Two qualified sensitivity controls and twelve record corruption checks pass.
+The generalized typed bridge passes nine fresh modules and fifteen axiom audits,
+with identical replayed objects, eight qualified dependency controls and eighteen
+schema/source checks. It preserves the actual suffix endpoint, constructor
+hashes, all Rule fields, current and final contexts and final recovered filter. Its classifier
+connection remains separate.
+
+A further native checkpoint removes exactly seven whole-selector nonnestedness
+annotations while retaining the atomic head, first Child/Descendant boundary,
+recursive admission and exact suffix contracts. Four affected models pass
+sixty-four fresh obligations; eighty-nine inherited models remain equal after
+source-location normalization. Two sensitivity controls and twelve record checks
+pass. This admits supported finite Is/Where nesting in the ancestor suffix; it
+does not establish a match for the skipped subject.
+
+The separate recursive collector proof requires nonnestedness only in the
+subject phase. An atomic head and the boundary at index one establish that
+restriction. Strict ancestor witnesses, transitivity and the same successful
+nested child supply the actual collector, packing and query result. One module
+and five audits pass independent fresh compilation and exact capsule replay,
+with six dependency controls and nine record corruption checks. The inherited
+Formatter declaration remains an opaque type carrier. The full recursive native,
+provider, classifier and recovered-query composition now passes independent fresh
+compilation of ten modules and nineteen audits, with identical objects and exact
+capsule replay. Eighteen qualified dependency controls and eighteen schema/source
+checks pass. The subject-phase restriction is derived from the same native head
+and boundary; no whole-selector nonnestedness premise is retained.
+The integrated classified endpoint recorded earlier retains its matching-case
+LocalName head and prefix-one premises; broader native atomic admission does not
+by itself integrate every classifier route.
+
+A fresh finite runtime case binds the original `section > span` example to the
+actual parser, classifier, Rule constructor/setter and unfiltered matching call.
+The classifier returns Subject with the span key. The section hash is
+`0xfcdd0ccc`, and actual ancestor construction produces the nonzero packed words
+`[0xdd0ccc, 0, 0]`, agreeing with the checked finite collector witness. The separate
+query rejects an empty filter and a span-only filter, and accepts the section-only
+filter. Independent replay repeats these assertions. Direct mock insertion is
+used; this does not execute native recovery or instantiate a complete concrete
+Gecko dictionary for the conditional theorem.
+
+Six further finite cases exercise actual Subject classification and unfiltered
+matching for a longer ancestor chain, singleton Is/Where ancestors, nested child
+selectors and double nesting. Five cases have nonzero contributions: empty and
+span-only filters reject, while the ancestor filter accepts. The non-singleton Is
+case explicitly contributes no rejection hash and conservatively accepts every
+filter. Independent source/output review authenticates the exact appended test
+and all producer pins; it does not claim a duplicate execution of those six cases.
+
+Normal-return primitive meanings, stable DOM/hash observations, physical
+selector/list/iterator correspondence, provider alignment and recovery assumptions
+remain explicit. Unknown results in the negative solver controls establish sensitivity, not
+runtime counterexamples. M4 remains complete under its published assumptions;
+M6 remains open, including broader routing, combinators and relative selectors.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Root review | SHA-256 |
+| --- | --- |
+| `native-subject-ancestor-suffix-v1/ROOT-REVIEW-v1.json` | `84880034d344f01c53c1202a95a9cc16760eabe932a45f6461a0b6cd2441e990` |
+| `native-subject-ancestor-suffix-translation-v1/ROOT-REVIEW-v1.json` | `f19fa35931945807d9e08ddbfd23742d0e4b8753a62f8e00b91e59b2e2dc654d` |
+| `native-subject-recursive-ancestors-v1/ROOT-REVIEW-v1.json` | `c8321513d4958683116036f88d7c2a125a70e905693cf9e3355cd86a2dd28531` |
+| `recursive-subject-region-v1/ROOT-REVIEW-v1.json` | `508e5add5e43d7720b86f9068388e2739e08030c4e928e8fa14882af928f105a` |
+| `section-span-first-instance-binding-v1/ROOT-REVIEW-v1.json` | `06b1acccdb29663092cbf07e4ebac14843741d6ebac8536484d77edf669d485c` |
+| `native-subject-recursive-ancestors-translation-v1/ROOT-REVIEW-v1.json` | `8b28e8e239cad116c58bd21f094f49933dc3bc32e1377bb511183eb87ed8fe48` |
+| `subject-ancestor-runtime-v1/RUNTIME-v1.json` | `9565d86b001f032c322e9766150df64699c0970817181f4a045d70798e2fcb90` |
+| `subject-ancestor-runtime-review-v1/REVIEW-v1.json` | `077ead1c29fa64fdb640e86edbd4b27bc600f337b2070bcb053802b3f1153d94` |
