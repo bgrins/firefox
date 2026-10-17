@@ -3976,3 +3976,58 @@ Paths below are relative to the public-entry prototype's `provider-bindings-v1`:
 | `iterator-selected-gate-review-v1/REVIEW-v2.json` | `3ca1313582202a0383a70d461e69f0853b9d66b6bc3f81ec7f04c646a66cf3bb` |
 | `rule-subject-callsite-v1/NATIVE-SUBJECT-CALLSITE-PROTOTYPE-v1.json` | `aa43c04571edfc44e29aa0b4d9859b26eaadb756da67194b64df70371462813a` |
 | `subject-collector-bridge-v1/SUBJECT-COLLECTOR-PROTOTYPE-v1.json` | `443841fa0f71f035e7e6b351f4894e1a580bdb97ac722db3b3d9ea5a17a705e1` |
+
+
+## Native Subject contracts and a concrete collector result
+
+The native Subject helper's complete pre/post now supplies the full-selector
+prefix and returned-suffix correspondence. The interpretation preserves all
+seven precondition and six postcondition conjuncts, the complete context and
+borrow records, and all component payloads. Its bounded sequence interpretation
+proves the exact `[1..3]` length/index contract. Thirteen theorem audits, six
+compiled semantic controls and six schema controls pass. An independent fresh
+two-module build reproduces the original proof objects and axiom reports.
+
+A separate three-module composition has four passing audits and five compiled
+controls. It combines this helper contract with prospective suffix matching,
+recovered ancestor storage, the actual hash constructor and the full rule
+constructor postcondition. The rule constructor uses the helper selector's
+carrier. The conclusion preserves both context frames and the selector, and
+proves no rejection by the recovered filter. Root review freshly rebuilt these
+modules and reproduced their proof objects and reports. Neither review reran
+the native solver or rebuilt inherited proof dependencies.
+
+The concrete `SectionSpanWitness.constructed` theorem now checks the extracted
+collector and constructor for the explicit `[span, Child, section]` selector.
+It returns exactly one collected hash, `0xdd0ccc`, and packed words
+`[0xdd0ccc, 0, 0]`. The primitive section hash is `0xfcdd0ccc`, matching the Rust
+fixture. Twelve audited declarations and four compiled controls pass; changing
+the name hash, boundary, collected contribution or packed value breaks the
+expected proofs. The package authenticates its accepted parent dependency pins.
+Unused primitive operations diverge, but the proved normal return establishes
+that this collector execution never calls them. This does not establish
+readiness of those operations for a different execution.
+
+The complete instance remains open. The next obligation is successful actual
+native suffix matching on the same finite DOM, followed by a concrete recovery
+trace from initialized storage and the helper/matcher/query endpoint maps.
+Independently chosen successful postconditions do not establish these calls.
+A joint interpretation must satisfy the full preconditions with a nonzero
+ancestor contribution. The concrete collector result is not a parser-refinement,
+Gecko-atom, native matcher or recovery witness. Milestones 4 and 6 and their
+broader selector obligations remain open; there are still two confirmed bugs.
+
+Paths below are relative to the public-entry prototype's `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `subject-contract-translation-v1/SUBJECT-CONTRACT-INTERPRETATION-v1.json` | `5b0474d9bbad62fe1dbc769124778fd60683b07139db32a23ca4324caf1d0556` |
+| `subject-recovered-query-v1/SUBJECT-RECOVERED-QUERY-PROTOTYPE-v1.json` | `6ae97965287d73ca4ac30b2544d78bde7577a24a33c67b073f366cb2e778c368` |
+| `section-span-witness-v1/SECTION-SPAN-WITNESS-v1.json` | `9bbdb1be7d7d10b198c4a42d57c92938e4a3dbe2c371bf3e0628751d7758f702` |
+| `subject-instance-plan-v1/PLAN-v1.json` | `3321856a72b43b322388d62413d6f7ac5a08ccbb66cd9aa3c146349d1effed85` |
+
+The independent root review records are under `artifacts/stylo-bloom-tools`:
+`subject-contract-root-review-v1/ROOT-REVIEW-v1.json` has SHA-256
+`e7c3f9143eeae7bee2c6820ca02500d787ba38ca08940cb053c16b489e7bbdad`;
+`subject-recovered-root-review-v1/ROOT-REVIEW-v1.json` has SHA-256
+`49fc175b764606e3bdb091d137d380db24f73fdb43de5d560fa11f26e240adca`.
