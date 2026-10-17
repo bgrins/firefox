@@ -2640,3 +2640,49 @@ Paths below are relative to `actual-context-v1/native-local-name-callback-v1`:
 | `SOURCE-AUDIT-v1.json` | `e1909e6198dfcbc7a25b5bcf8c7e4217d6151dad2636d1cb975d5a01a83788a9` |
 | `reviews/interface-review-v1/REVIEW-v1.json` | `df8cf5826eca9a61665f2380b8ad8511f9f40ed566bf4884b1b28c30330cffdf` |
 | `reviews/collector-root-v1/report.json` | `8099beaf3fbbd0667f337e7e5e6f3cc6022f23351ec0d27092ef3ba8efa77f97` |
+
+## Native compound-selector prototype
+
+The `actual-context-v1/native-compound-callback-v1` package connects the native
+compound body to the checked local-name/simple-selector callback and specialized
+iterator fold. All native runtime branches remain. The declared premises select
+LocalName/Combinator input, no pending combinator, a non-featureless context
+outside quirks mode and the native nesting condition.
+
+On normal return the complete matching context is restored. A True result
+establishes exhaustion of an ordinary prefix of the actual final iterator and
+successful modeled local-name matching for each visited component. The fold
+requires callback readiness for valid component values and preservation of the
+captured state. Its body proves the corresponding loop invariant and final
+borrow resolution. No new trusted success contract replaces callback execution.
+The fold's runtime statements and previously checked loop lowering are unchanged.
+
+Fourteen models pass 203 obligations; a separate fresh Cargo target reproduces
+identical models and all 203 proofs. Three compiled controls each leave the
+compound postcondition unproved: immediate success without traversal (201 total
+obligations), ignored callback result (203), and context mutation (203). Their
+Timeout results establish sensitivity, not concrete counterexamples.
+
+A separate compiler experiment permits callable contracts for exact local
+closure types eligible for the existing body translation pass. Eligibility is
+not proof completion. Four query controls reject raw/nested dynamic callbacks
+and closures under trusted/untranslated parents. Direct, forwarded and nested
+dynamic calls, plus a false result, retain unproved obligations. All forty prior
+compilation outcomes and emitted models remain identical. A fresh second compiler
+build and complete compiler/Cargo lookup guarding are still open.
+
+Independent review reproduced the 10,921-pin collector byte-for-byte and rejected
+seven physical source mutations. It checked the complete source reconstruction,
+callback state/borrow contracts and compiler eligibility condition. DOM/name
+interface laws, native equality, valid borrowed iterator/HeaderSlice entry and
+termination remain explicit boundaries. Actual ancestor matching and the
+connection to nonempty ancestor Bloom hashes are still required for milestone 6.
+
+Paths below are relative to `actual-context-v1/native-compound-callback-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-COMPOUND-CALLBACK-PROTOTYPE-v1.json` | `c63be64e3b17ee2675544982760a14662d5648af888221325a18a174af383664` |
+| `SOURCE-AUDIT-v2.json` | `9982660378cecf80c5a996ad7f9c30c2aa3adf9a853f343d5c1ffac8b6c4bc8c` |
+| `reviews/css-independent-v1/REVIEW.json` | `252b69ce2a7b12043d5d5a5b55fbb504c36e3d90120b9a46830961b17cb415f6` |
+| `../../closure-body-v1/CLOSURE-BODY-PROTOTYPE-v1.json` | `e931744ee7a65ebcc36d5984ee006f8845860a09dbd8a5f4a4b86b5de9be3a9f` |
