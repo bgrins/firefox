@@ -4603,3 +4603,51 @@ Paths are relative to `provider-bindings-v1`:
 | `identity-class-callback-v1/NATIVE-CLASS-CALLBACK-v1.json` | `e8b48c2ace37def831e1a1a0a413683a54b3e7f138c38fe102f7f19ffa557cf0` |
 | `identity-subject-v1/IDENTITY-SUBJECT-INTERPRETATION-v1.json` | `fcdeecbefd08994bee1ba682594e67c9d851d179ce95f83e0b23971d9c64ae0d` |
 | `identity-subject-review-v1/REVIEW-v1.json` | `70ab40a589923990153e75380a45804f563e74bbf3140559d3d1668563629145` |
+
+## Mixed identity recovery, constructed context and Rule queries
+
+The mixed local-name/ID/class Subject proof now composes matching, provider
+policy, live storage, recovery and the caller query. Independent review and exact
+aggregate replay pass for three modules, six axiom audits and eight semantic
+controls. Each selected hash comes from the corresponding actual selector index
+and matching ancestor; the caller queries the final recovered filter.
+
+A subsequent three-module checkpoint supplies full context and Rule construction
+transport. Thirteen axiom audits, eight semantic controls and six source controls
+pass. Independent root review includes a fresh Lean check of all three modules
+and exact aggregate replay. All eighteen context fields are preserved, including
+both cache borrow endpoints and its logical ID. The captured constructor post
+establishes case sensitivity under non-quirks mode, generation quirks, the current
+filter and the final cache. Selected Rule construction supplies the packed hashes;
+the Subject setter transports the complete captured Rule invariant. The terminal
+no-false-rejection theorem no longer assumes an independent packed-hash
+observation.
+
+Concrete runtime evidence exercises twenty ID/class Child/Descendant cases with
+no filter, ancestor hashes, only the required hash, an empty filter and an
+unrelated hash. Twelve additional three-node cases distinguish a matching
+grandparent from a nonmatching immediate parent. The production parser,
+classifier, Rule construction, setter and matching dispatch run with a mock DOM
+and FNV atom hashes. Independent root runs reproduce both suites. These finite
+runs demonstrate nonzero collected hashes and filter activation; they do not
+instantiate every formal dictionary or execute native recovery.
+
+M6 remains open. The proofs retain normal-return contracts, decoded DOM/atom and
+library assumptions, ancestry embedding and explicit links between call phases.
+Logical borrow maps do not prove physical allocation identity. Actual parser
+vectors show that no-namespace attribute presence fits the current three-component
+profile, while namespace-qualified types require longer compounds and singleton
+`:is()`/`:where()` retain nested selectors. Attribute matching and enumeration are
+being checked separately before joining the complete caller theorem. No additional
+Firefox defect is claimed.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `identity-combined-provider-v1/IDENTITY-SUBJECT-RECOVERY-v1.json` | `852626d8c75a564f2b3178e3bc425852fc7f7c7753f14e61dbb2a986b3759af7` |
+| `identity-combined-provider-review-v1/REVIEW-v1.json` | `aced79d04162d9a4c59062b51152ee9f646b96ceb9900dece958f2042014fefc` |
+| `identity-subject-context-v1/IDENTITY-SUBJECT-CALLER-v2.json` | `1397f5b4b1de792538c8b511ee9a5fc636502a1a0ec040fcc3a6dcbb8713e928` |
+| `identity-subject-context-root-review-v1/REVIEW-v1.json` | `0f6742781ec5a2eba50fadd1407a2ad82ed89ccc51da76fe3f5c175f993ffa87` |
+| `identity-runtime-v1/IDENTITY-RUNTIME-v2.json` | `2b4ad2ce54314442b696049b68131a8c90a4a2d903ba16cfa6f5cec25ccd8f1e` |
+| `identity-traversal-runtime-v1/IDENTITY-TRAVERSAL-RUNTIME-v1.json` | `32aa8a9f8527b116967c3ba459f139b7ad13b1a30e6e2610b28532b6307d8de4` |
