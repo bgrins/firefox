@@ -3513,3 +3513,52 @@ Paths below are relative to the public-entry prototype's
 | `filter-query-actual-v1/ACTUAL-QUERY-v1.json` | `6d5b985d256f27e4647d3124defd488ca479e6c17a89779215aced07846f3f7c` |
 | `filter-query-review-v2/REVIEW-EVIDENCE-v1.json` | `a7feb46e3ab12822bc889130a9f8e84e3915926f87ae3605abea29a61ffc1f39` |
 | `reviews/query-review-root-v1/REVIEW-v1.json` | `778eae8aa408c6e387248809d597d41ef244a5bbf76cbd0d6c6fed971492e4c3` |
+## Concrete query interpretation and ancestor lookup
+
+The selected full owner and actual-type query contracts now have a typed Lean
+interpretation. Concrete filter/storage records preserve the counter-array
+carrier and its sequence observation. A shared primitive dictionary gives both
+sides the same bitwise operations, width conversions, mask, array view and
+sequence lookup. The getter's storage carrier is specialized to that record,
+and its current-value postcondition supplies query readiness and alignment.
+
+The producer builds twelve modules with 34 axiom-free audits, including thirteen
+new audits. Six canonical/typed exporter replays and nineteen schema, binding,
+canonical and semantic controls pass. Four physical controls protect the exact
+237-file output inventory. Independent review rebuilds the five new modules
+against seven authenticated inherited modules, reproducing their source,
+object and diagnostic bytes. Root review reproduces its frozen collector.
+This interprets selected contracts under common primitive and intrinsic
+dictionaries; it does not interpret the entire native array/invariant library,
+identify allocations, or discharge the later mutable context-field frame.
+
+A separate native ancestor-query fixture retains the actual imported
+`AncestorHashes` and `BloomFilter` types. The complete `fourth_hash`, `may_match`
+and `selector_may_match` runtime bodies are checked against source, with only
+receiver/callee qualification and a proof-only loop invariant. The original
+array iteration remains, using the previously checked borrowed-array iterator
+contract. All 105 obligations across thirteen models pass, including fresh
+checks of the ten inherited query models.
+
+Four compiled controls change the zero sentinel, fourth query, fourth-hash shift
+or forwarding result. They leave one, two, one and two intended postconditions
+unproved, respectively; every unrelated obligation passes. Root source review
+reproduces both the ancestor and conditional Rule-helper collectors, and all
+six physical ancestor-source controls. Raw native solver evidence is
+authenticated by that review; it is not a new solver run.
+
+The Rule helper still has its separately recorded uncontracted-query failure.
+Connecting the checked query to that caller is a new experiment. Packed-hash
+construction, native selector-borrow readiness, operational loop correspondence,
+complete caller semantics and aggregate composition remain open. Milestones 4
+and 6 are not complete.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `filter-query-translation-v1/FILTER-QUERY-INTERPRETATION-v1.json` | `56457b0d7397ecbda33000039fc1cef95a9d02b9aac6a735c74b25a4eeb6f9b0` |
+| `filter-query-translation-review-v1/REVIEW-EVIDENCE-v1.json` | `55e87424f7863cb3c5ff420c02481fcce2b66178601c624539efe25fc0e2c532` |
+| `ancestor-query-v1/ANCESTOR-QUERY-PROTOTYPE-v1.json` | `1823e72f2c4dab9f05b59eee8945f785c9385e4f7cc1e131a9b86500f37841c4` |
+| `reviews/ancestor-rule-root-v1/replay-v2/REVIEW-v2.json` | `ce7f4d7102009a75a2a88a5caa4568862e5112f2738d83f37d8811d44dfd1ae0` |
