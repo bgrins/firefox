@@ -1566,6 +1566,50 @@ parent snapshot is not yet tied to the native parent observer. The next target
 is the actual `RecoveryStack.push` contract and its pending frame. Provider
 completion, successful extracted calls and the full recovery loop remain open.
 
+## Reviewed native pending flush loop
+
+`native-recovery-flush-loop-v1` checks a concrete specialization of the identical
+pending-flush loops in `rebuild` and `recover`. Explicit qualification retains
+`RecoveryState` dispatch. Removing snapshots, annotations and ghost calls restores
+the production loop; deleting the inserted fragment restores the accepted trait
+crate byte-for-byte.
+
+The loop preserves the old record prefix, appends the initial pending elements
+in reverse order and empties the pending stack. It establishes exact hash and
+record totals, validity and capacity/provider frames under separate resource
+budgets. A decreasing pending-length variant is checked. The root premise applies
+when the record list is initially empty; complete ancestor correspondence remains
+separate.
+
+Four new models contribute 64 obligations per configuration: 58 for the loop,
+one for the checked order-extension procedure and five for the hash-cost helpers.
+The guarded inventory contains 110 models per configuration, comprising 107
+support models and three provider induction models. All 931 debug and 823 release
+support obligations pass. With 289 shared induction leaves, totals are 1,220 and
+1,112, or 2,043 counting shared induction once.
+
+Five compiled mutations each leave one intended timeout and 63 valid obligations:
+missing hash budget, missing record budget, missing root condition, forward output
+order and a constant loop variant. These are sensitivity results, not
+counterexamples. Independent review reproduces the collector, checks raw results,
+commands, inherited task correspondence, cached compiler dependencies and complete
+output inventories. Five physical source controls and five evidence controls
+reject. All 23,749 review capsule pins were independently rechecked.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-flush-loop-v1/checkpoint-v1.json` | `ad222f69fad1f186bfb50e8787c7276a5754a827306cef9545b403adf518f5d8` |
+| `native-recovery-flush-loop-v1/reviews/checkpoint-review-v1/REVIEW-EVIDENCE-v1.json` | `db78d3fc1db52a70e20f7178025c833c7f9e5278dad657157a4a0fb356168e24` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-flush-loop-v1/reviews/checkpoint-review-v1/audit.py --report /private/tmp/native-flush-loop-audit.json
+```
+
+This audits the completed snapshot without rerunning solvers. Native method and
+library contracts remain explicit. Provider completion, DOM parent stability and
+the surrounding recovery algorithms remain open. The next native target is a
+finite trace connecting each actual pop/push transition to the Lean invariant.
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
