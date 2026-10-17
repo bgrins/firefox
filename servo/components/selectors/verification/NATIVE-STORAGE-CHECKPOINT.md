@@ -2063,3 +2063,55 @@ Rebuild into a fresh output directory:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-trim-translation-v1/gate-v2/rebuild.py /tmp/native-recovery-trim-replay
 ```
+
+## Reviewed complete native recovery
+
+The isolated `native-recovery-complete-v1` package verifies the complete production
+`recover` body specialized to the native recovery stack. Source erasure restores
+all runtime branches and loops, including depth trimming, target ascent,
+common-parent search and final pending flush. The post records four outcomes:
+rebuild, clear, unchanged cache hit, or a finite search followed by flush. Pending
+is empty on return. Search edges are actual successful storage pops or pending
+pushes; pending pushes change recovery state while preserving storage.
+
+All 122 models pass in each configuration. The 119 support models contribute
+1,325 debug and 1,205 release obligations; three provider induction models add
+289 shared obligations. Totals are 1,614 debug and 1,494 release, or 2,819 counting
+induction once. The complete recover model contributes 239 debug and 227 release
+obligations, with 22 further obligations from six new helpers. Six debug and
+seven release models retain their explicitly inventoried zero-goal status.
+
+All twelve compiled controls retain the complete 239-goal recover inventory.
+They exercise readiness, exact depth, rooted records, shared roots, identity
+reflection, independent record/hash/pending budgets, ancestry, the search
+endpoint, pending order and the loop variant. Exact primary and ancillary
+timeouts are checked; they demonstrate sensitivity, not counterexamples.
+Independent review also rejects five physical source mutations and five physical
+evidence mutations. Its audit reproduces the completed collector, source erasure,
+raw output inventories and dependency checks. A separate root replay matches the
+review exactly, and all 28,099 review pins pass a fresh hash check.
+
+The original full-splitting proof attempt exceeded the bounded preprocessing
+memory experiment. The successful recover run uses `compute_specified` and
+`split_vc` without filtering goals. The failed attempt remains recorded, as does
+an initial reviewer-only misclassification of the checked logical cost helper.
+
+Native primitive and borrow semantics, finite stable parents, rooted initial
+records, exact depth, equality reflection, shared roots when required, initial
+empty pending, clear/search readiness and no-growth budgets remain explicit.
+The separate generated Lean interpretation must still derive readiness and
+compose final validity, storage history, exact ancestors and retained-hash lookup.
+This checkpoint does not establish runtime completion or concrete DOM
+correspondence. Milestones 4 and 6 remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-complete-v1/checkpoint-v1.json` | `df73824f8219508fc3ef0569ad68408541b1d6a375cca9d9129c83ad1963530e` |
+| `native-recovery-complete-v1/reviews/checkpoint-review-v1/REVIEW-EVIDENCE-v1.json` | `97c53640c6a7f95856dba7b0d1809056cfcb00ccd2a73a0ab117dfb6a6669c6b` |
+| `NATIVE-RECOVERY-COMPLETE-EVIDENCE-v1.json` | `12a359f6ecdcb0438fc30df856c62cf96e53c38af4b119c30f18af77e5bf712a` |
+
+Audit the completed native evidence without rerunning solvers:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-complete-v1/reviews/checkpoint-review-v1/audit.py --report /tmp/native-recovery-complete-review.json
+```
