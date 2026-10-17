@@ -3051,3 +3051,42 @@ Paths below are relative to `provider-state/native-storage-pop-concrete`:
 | --- | --- |
 | `native-owner-lifecycle-v1/checkpoint-v2.json` | `b8aaa893c95045c78cc40c25497df86bf90a80bb3a78e65d21e3a93f93b39ee9` |
 | `reviews/native-owner-lifecycle-root-review-v1/REVIEW-v1.json` | `8cf6045fd287b14553889f597d7813eee4058cd30abf0c39588a1e28b27b002c` |
+
+## Recovery to native matcher composition
+
+The composition now derives rooted ancestry from the complete native recovery
+pre/postconditions, then uses the native matcher pre/postconditions to establish
+that collection, packing and querying the recovered final filter cannot reject
+a successful local-name/Child match. Initial validity/history, primitive and
+sequence laws, hash policy and iterator correspondence remain explicit premises.
+The query endpoint is the final recovered storage.
+
+Three fresh modules pass three axiom audits and four qualified semantic controls.
+Missing initial history or rootedness, the wrong rooted-chain endpoint and a
+different matching subject fail their intended lemmas. A direct query-endpoint
+mutation reached elaboration or diagnostic resource limits and is not counted.
+The final query results retain the existing opaque formatter type axiom.
+Independent bounded source review passes, and a surrounding gate authenticates
+all listed Lean lookup trees and evidence inputs before and after fresh builds
+and controls. Parent dependencies are reused without rebuilding them.
+
+The concrete Gecko source check identifies a required refinement: recovery calls
+`traversal_parent`, which follows the flattened tree, while matching calls
+`parent_element`, which follows DOM parents. This prototype uses one parent
+relation and therefore cannot directly instantiate both Gecko observers when
+slotting changes the chain. Absence of shadow-root parents on the matching
+ancestry alone does not establish their equality. The next composition must
+carry an explicit inclusion of matching ancestry in traversal ancestry.
+
+Milestone 6 remains open. Concrete parent relations, atom/hash correspondence,
+iterator ownership, and the identity between the recovered filter and the
+matching context still need checked bindings. The source check confirms the
+style resolver forwards `StyleBloom::filter()` into the matching context, but
+that observation alone does not prove the allocation correspondence.
+
+Paths below are relative to the public-entry prototype:
+
+| Record | SHA-256 |
+| --- | --- |
+| `subject-ancestry-v1/translation-preflight-v1/native-composition-v1/RECOVERY-MATCHER-PROTOTYPE-v2.json` | `b5401ccb98b226f57aafb7b00f8f57ad062e7b84b2a671cd253d5a551819086d` |
+| `provider-bindings-v1/SOURCE-CONNECTIONS-v1.json` | `7611a2ab5fc2fa55409c068c70993af512eb2e29ef46b134d37f2b1a8b5d41d0` |
