@@ -2249,3 +2249,44 @@ Audit the completed constructor evidence:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/reviews/native-recovery-initialization-root-v1/audit.py --report /tmp/native-recovery-initialization-review.json
 ```
+
+## Reviewed storage constructor interpretation
+
+The separate `native-recovery-initialization-v1/translation-v1` package preserves
+the full typed constructor pre/post, including the result intrinsic and equality
+of all four complete reference fields. Exact origin and signature checks bind
+twelve shared functions, three layouts and the shared intrinsic declarations to
+the accepted recovery export. A preflight origin mutation exposed an insufficient
+normalized-name comparison; the final binding checks exact origins as well.
+
+The Lean interpretation transports supplied observations through those reference
+equalities. Zero counters, empty records and hashes, and a zero high-water mark
+establish accounting and storage history. Explicit vector validity and counter
+size then yield an intrinsic, valid result with 4096 counters, `Live` and an empty
+ancestor chain. A separate lemma establishes the native rooted-empty predicate.
+
+Independent fresh replay passes three modules, eight standard-only or axiom-free
+audits and all 22 controls: five structural, three binding, four generated
+semantic, three missing-observation source, two canonical and five provenance.
+Of 59 outputs, 56 are byte-identical and three differ only by the output path.
+The snapshot audit checks all 20,973 producer pins; the complete review contains
+21,038 pins. Both gates authenticate the accepted cached parent and external
+lookup inventories before and after checking.
+
+The initial observations are premises, not consequences of acquiring the
+thread-local filter. Actual default construction, `AtomicRefMut` acquisition,
+native completion and the remaining recovery entry composition remain separate.
+Milestones 4 and 6 remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-initialization-v1/translation-v1/STORAGE-CONSTRUCTOR-INTERPRETATION-PROTOTYPE-v1.json` | `b053b2b410d4fa553dc2f27072ade296ac72c58aee015ee63e69b6df37484176` |
+| `reviews/native-storage-constructor-interpretation-root-v1/report.json` | `595c9cc56786ac0a7f42e7b1a9c0dd17a8f1533cf559fa3d541514b6fa86ba2b` |
+| `reviews/native-storage-constructor-interpretation-review-v1/REVIEW-EVIDENCE-v1.json` | `a11abc31cf1e7c50d73b4b1dd30de8a124c5415363e183b3f3a0d35c1354cbb8` |
+| `NATIVE-STORAGE-CONSTRUCTOR-INTERPRETATION-EVIDENCE-v1.json` | `8ed1134c108e1a8e0462d5e052e80d4d049cbf13d06893b661381eb00adc50c3` |
+
+Regenerate and check the interpretation in a fresh directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-initialization-v1/translation-v1/gate-v1/rebuild.py /tmp/native-storage-constructor-interpretation-replay
+```
