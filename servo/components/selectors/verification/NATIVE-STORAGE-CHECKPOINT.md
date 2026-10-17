@@ -1445,6 +1445,50 @@ python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-p
 This audit authenticates the completed replay snapshot. New timed solver runs
 need fresh review anchors.
 
+## Reviewed recovery trait binding
+
+`native-recovery-trait-v1` binds the eight source-preserved runtime methods to
+`bloom_recovery::RecoveryState`, imported by the sibling storage module. Sixteen
+private logical predicates retain the complete native preconditions and
+postconditions, with explicit before/after projections. The verification trait
+adds `Sized` for value observers; the concrete implementation adds the existing
+element equality bound. That bound supplies no proof relating runtime equality
+to logical equality.
+
+The eight method models, eight trait-refinement models and a generic pop-dispatch
+probe add 103 checked obligations in each configuration. The probe transports
+the abstract pop contract; it does not establish readiness or completion.
+The complete inventories each contain 106 models: 103 support models and three
+provider induction models. Supporting totals are 867 debug and 759 release.
+With 289 shared induction leaves, totals are 1,156 and 1,048, or 1,915 counting
+shared induction once. Supporting counts remain separate per configuration.
+
+Independent review checks 2,630 outputs, 17,862 review inputs and 7,116 dependency
+pins. All 20,509 review capsule pins were rechecked. Removing the two inserted
+source fragments restores the inherited source byte-for-byte; all eight runtime
+bodies also match exactly. Full contract reconstruction, unchanged inherited
+goals, induction tasks and empty-model classifications pass. Three compiled
+controls each produce one intended timeout: omitted trait pop, weakened trait
+postcondition and strengthened trait precondition. Five source controls and five
+physical evidence controls reject. These controls do not supply counterexamples.
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-RECOVERY-TRAIT-EVIDENCE-v1.json` | `40678362dd092f8eee34e9e256b98906e7425a23e215da121a4d6adad9b2a65c` |
+| `native-recovery-trait-v1/checkpoint-v1.json` | `5e7399a83e04ac6d9fc9e48618201c124eee0614e12603ca3146b58dfda7877e` |
+| `native-recovery-trait-v1/reviews/checkpoint-review-v1/REVIEW-EVIDENCE-v1.json` | `6903866405670df58b17d2c41331293819d58dfb23d4ec4647e966504d00ee4b` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-trait-v1/reviews/checkpoint-review-v1/audit.py --report /private/tmp/native-recovery-trait-audit.json
+```
+
+This authenticates the completed replay snapshot, with cached compiler
+dependencies and inherited library contracts. New timed runs need fresh anchors.
+The next proof target is one pending-pop to storage-push iteration under a shared
+ancestor/pending interpretation, explicit borrow validity and separate hash and
+record capacity budgets. Relational native postconditions alone cannot instantiate
+the existing extracted recovery theorem's successful-call requirements.
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -1475,7 +1519,10 @@ observers. The ancestor-chain observations now follow those same posts. The
 next priority is connecting them to recovery's pending sequence, parent
 relation and loops. The constructor, queries and pending wrappers now have
 checked native bodies and frames, as do the storage mutation and parent wrappers.
-Their shared trait binding is the next connection.
+Their shared trait binding is now checked under the complete projected contracts.
+The next connection is pending-sequence interpretation and one native flush
+iteration, preserving history and ancestor order while deriving each call's
+full precondition.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises and its postcondition now uses the shared storage observers.
@@ -1501,6 +1548,10 @@ Native allocation-enabled completion, enumeration correspondence, DOM hash
 stability, thread safety and complete recovery remain open. No additional
 Firefox defect is established by this checkpoint. The two existing production
 fixes and their WPT commits are unchanged.
+
+The separate [HeaderSlice finding](HEADER-SLICE-FINDING.md) records a library API
+defect encountered during matcher modeling. Browser reachability and a production
+fix remain unestablished.
 
 The old roadmap is retained byte-for-byte because earlier reviewed evidence
 pins its contents. Experimental packages and their toolchains remain local
