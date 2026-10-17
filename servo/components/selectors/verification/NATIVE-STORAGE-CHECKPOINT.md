@@ -5056,3 +5056,51 @@ Paths are relative to `provider-bindings-v1`:
 | `native-recursive-selector-v1/scoped-native-v1/ROOT-REVIEW-v1.json` | `5b46b6366bdc455fff78a6772de046cb43c73730379d34ec0941c54a7217acb6` |
 | `recursive-matcher-translation-v1/reviews/export-review-v1/REVIEW-v1.json` | `aefe46cb2d9697aba8fc845290f81f91a2961c1870b5ecf1fc461cbe29480628` |
 | `recursive-matcher-translation-v1/reviews/region-review-v1/REVIEW-v1.json` | `f22736aaccb82d4ee87277b0bc399af8d0d52a9c67224cc3b9858e0a2939bb8b` |
+
+## Recursive interpretation and provider composition
+
+The typed query and component interpretation passed an independent fresh build
+with nineteen axiom audits and twelve semantic controls. The transport covers
+all thirty component constructors and seven combinators, preserving selector
+and list identities and complete payloads. The subsequent native-contract bridge
+passed eight audits and seven controls. It derives the recursive collector's
+shape and matching witnesses from the exported native pre/postconditions.
+Its query filter remains a separately supplied valid-history filter.
+
+A definitional model now satisfies both captured recursive laws. Well-founded
+recursion on nesting depth and query phase defines their interpretation; no
+recursive law or nested-success axiom is introduced. The collection specialization
+uses these proved laws. Seven audits and five semantic controls pass, and the
+root replay reproduces the package exactly. This chooses a coherent dictionary;
+it does not prove an arbitrary dictionary equal to that interpretation or
+realize the DOM and library contracts.
+
+The provider composition now handles atomic components inside nested selectors.
+An independent source review and fresh seven-module build passed sixteen audits;
+all seven compiled objects match the baseline. Six additional controls reject
+wrong namespace/name fields, wrong identifier identity, missing ancestor storage
+membership, an unbound entry filter and the wrong collection depth.
+
+Root checks also pass for recovery, context transport and a coherent provider
+dictionary. Three controls reject use of the initial rather than recovered
+filter, a missing helper frame and unbound generation quirks. These additional
+modules await independent review. The checkpoint does not claim a fresh audit
+of the complete transitive tool closure.
+
+The existing native Rule profile still calls the flat matcher. Recursive Rule
+callee binding, complete iterator payload transport and constructed caller
+composition are the next integration work. A boolean Rule result cannot yet be
+identified with recursive True coverage because the current recursive contract
+also permits Unknown. Recursive classifier routing, relative selectors, broader
+combinators and the explicit unsupported inventory retain their original M6
+scope. M6 remains open; no additional Firefox defect is claimed.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `recursive-matcher-translation-v1/reviews/query-view-review-v1/REVIEW-v1.json` | `12fe234047ded54dc7a0251ae5c469ea574dfb03ad0f0d6971d5c8efb6605a44` |
+| `recursive-matcher-translation-v1/reviews/bridge-contract-review-v1/REVIEW-v1.json` | `77849956c2764c276038d7a6c140e60ccbcf2caa6d9c675bd5c70a565f298db8` |
+| `recursive-definitional-model-v1/RECURSIVE-DEFINITIONAL-v1.json` | `ec5d3f0dea3c083099d30e50df4c646001ef70de517b46d936dadb026fcf333a` |
+| `recursive-matcher-translation-v1/reviews/provider-integration-review-v1/REVIEW-v1.json` | `d86ac6aaa1526843f96f053139b04e39d9e2ae3dfad0b63eafdabb284e6d75e1` |
+| `recursive-matcher-translation-v1/ROOT-PROVIDER-CHECKPOINT-v1.json` | `85e6a017fdff13737f3a8d3db688f54ba76db099cd17f69eb26ed953faffbbb3` |
