@@ -1812,3 +1812,52 @@ body: clear, collect ancestors, then flush the pending sequence.
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-collect-v1/reviews/checkpoint-review-v1/audit.py --report /tmp/native-collect-review.json
 ```
+
+
+## Reviewed native flush trace interpretation
+
+The isolated `native-recovery-trace-translation-v1` package translates the native
+edge, indexed path, existential run, complete flush pre/postconditions and helper
+pre/postconditions. It binds the caller's opaque edge to the helper's actual
+explicit pending-pop/push conjunction, with checked source identities, signatures,
+datatype layouts and prior contract definitions.
+
+The three fresh Lean modules pass 22 standard-only axiom audits. Logical state-pair
+adapters support the storage lemmas without asserting that an actual native borrow
+exists. Explicit pending-pop contracts are used directly, without adding return
+intrinsics. Bounded induction covers every edge, and the separate final empty pop
+preserves the complete storage value while emptying the pending observation.
+It does not identify the whole recovery state before and after that final pop.
+
+Given the native flush postcondition, initial `Live` invariant and counter size,
+the proof preserves both and obtains an empty pending observation. The final
+record chain is the original stored pending sequence followed by the original
+record chain. Equivalently, it is the reverse of the original pending pop order
+followed by that chain. Counter, record, sequence and hash-operation laws remain
+explicit. Actual DOM stability, native call completion and the full recovery
+composition are not established by this theorem.
+
+Independent replay reproduced all modules, audits and controls: 162 outputs are
+byte-identical and 26 differ only by output-directory paths. Both fresh gates
+authenticate the cached 53 chain, four flush and three push modules, their completed
+output inventories and external lookup trees before and after compilation.
+
+Controls reject 12 schema mutations, ten generated semantic mutations, five
+state-pair mutations, six binding mutations, four canonical-task mutations and
+eight provenance mutations. Two earlier metadata inequality checks remain labeled
+as sensitivity probes; the six binding mutations invoke the actual positive
+checker on rebuilt mutated indices. Milestones 4 and 6 remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-trace-translation-v1/RECOVERY-TRACE-TRANSLATION-PROTOTYPE-v1.json` | `32f21246a23c05d3d06e97358abb7fe77268b9e9bcde2460aad4a38e33819bab` |
+| `native-recovery-trace-translation-v1/check-v1/report.json` | `4b2b139152afaf19dc6613952f451289ccbb1e2e7892fb4aa7f98d111ac21b1f` |
+| `reviews/native-recovery-trace-root-v1/report.json` | `887edef6d14f6eb66408dfa94b4b3696e74f8b84db525c59b9b8ad9e904a73e3` |
+| `reviews/native-recovery-trace-review-v1/REVIEW-EVIDENCE-v1.json` | `e09244696a7ae9d5539876a7ed2690328580f4f3092df098d1eb06242137b82d` |
+| `NATIVE-RECOVERY-TRACE-INTERPRETATION-EVIDENCE-v1.json` | `c0dd5c7eb7a0d08f539ebcffeebc61f0885b874218e49da8c2602f408c298747` |
+
+Rebuild into a fresh output directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-trace-translation-v1/gate-v1/rebuild.py /tmp/native-recovery-trace-replay
+```
