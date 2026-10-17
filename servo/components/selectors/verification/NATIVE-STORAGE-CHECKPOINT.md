@@ -2290,3 +2290,49 @@ Regenerate and check the interpretation in a fresh directory:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-initialization-v1/translation-v1/gate-v1/rebuild.py /tmp/native-storage-constructor-interpretation-replay
 ```
+
+## Kleene helper proof prototype
+
+The matcher experiment under
+`matcher-dyn-capability-candidate/backend-v1/actual-context-v1/native-kleene-v1`
+preserves the production Kleene enum variants and handwritten helper bodies.
+Proof adapters add named generic parameters, `IteratorSpec` bounds, enum proof
+derives, contracts and erased witnesses. The copied enum is still a distinct
+nominal type.
+
+The exact truth-table contracts prove the operator law used by `any_value`.
+On normal return, `any_false` returning `True` implies iterator exhaustion and,
+for every visited item, a successful callback postcondition witness from a state
+related to the initial callback by its history invariant. The dual property
+holds when `any` returns `False`. These are independent per-item witnesses, not
+a connected callback trace or final borrow-restoration result. Readiness for
+every generic item and history-related callback state remains an explicit
+premise; the actual selector caller needs a narrower reachable-item condition.
+
+All sixteen models pass 85 obligations, with one generated `Eq` marker model
+simplifying to zero goals. A fresh Cargo target reproduces every model exactly
+and passes all 85 obligations again. Three compiled controls reject early success,
+omitting the first callback result and dropping the left conjunction operand.
+The first two retain 85 goals and one intended timeout each; the last has 84
+goals and two intended `Unknown(sat)` results. No concrete counterexample is
+claimed. Bounded independent review finds no blocker in the conditional theorem.
+The prototype has 303 evidence pins; complete compiler and Cargo lookup guarding
+remains pending, so it is not an aggregate acceptance checkpoint.
+
+A separate `native-enum-model-v1` experiment reverses the dependency: an isolated
+verification-library copy depends on ordinary selectors and owns proof models
+for its native enums. The original compound body now translates with both Rust
+enum comparisons unchanged. Adding exact context accessor contracts yields
+three models, eight valid obligations and two timeouts at the featureless-host
+helper and `any_false` boundaries. The two accessor models simplify to zero goals.
+This establishes translation feasibility, not actual matching. Native equality,
+the iterator relation and actual `next`, callback execution, and `HeaderSlice`
+ownership still require binding and proof. No production source is changed.
+
+The following paths are relative to `actual-context-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-kleene-v1/KLEENE-PROTOTYPE-v1.json` | `21cd57c4e742ce70e7a65b520c180cf84cabf62fe2f50ac755042b7d0d98d928` |
+| `native-kleene-v1/reviews/source-review-v1/REVIEW-v1.json` | `083a76f69fcfbf22b996f25799eb98581309dd9beb3922c4c9160ffbdea866a6` |
+| `native-enum-model-v1/DIAGNOSTIC-v1.json` | `29dffa7c0be37f3a1392c154c2e5216aa4c4849b83f09fc93a6d6e122b49efb5` |
