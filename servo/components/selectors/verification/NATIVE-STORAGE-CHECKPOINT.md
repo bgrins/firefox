@@ -2377,3 +2377,41 @@ Regenerate and check the entry interpretation in a fresh directory:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-stack-initialization-v1/translation-v1/gate-v1/rebuild.py /tmp/native-recovery-stack-entry-replay
 ```
+
+## Reviewed caller reuse composition
+
+The separate `native-recovery-caller-reuse-v1` package derives reusable rooted
+records, `Valid`, 4096 counters and `Live` from the previous recovery post. A
+second lemma joins those invariants to fresh constructor posts and establishes
+the complete next recovery precondition, preserved invariants and unchanged
+ancestor chain, including when retained records are nonempty.
+
+Four explicit current-value correspondences connect the previous final storage
+to the new filter, records, hashes and high-water inputs. Old and new reference
+identities need not agree. The parent snapshot, policy/hash observers and equality
+interpretation remain shared across calls; preservation across DOM or policy
+mutation is not claimed. Common root, ancestry/depth, intrinsics and independent
+budgets remain premises. Record and hash budgets include retained counts.
+
+Independent replay passes one module, two standard-only axiom audits and eight
+source controls. Thirty outputs are identical; the remaining control report
+differs only by output path. The snapshot audit checks all 21,376 producer pins;
+the complete review contains 21,417 pins and includes the accepted stack-entry
+evidence. Both gates authenticate the cached parent and external lookup closure.
+
+Actual wrapper field restoration, `AtomicRefMut` dereferencing, TLS acquisition
+and native completion remain open. This is a conditional composition checkpoint;
+milestones 4 and 6 are not complete.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-caller-reuse-v1/CALLER-REUSE-PROTOTYPE-v1.json` | `f19677b89eff491311f9c75f50e0b58b88cdf04e928e0967af2c2c44e902ad6f` |
+| `reviews/native-recovery-caller-reuse-root-v1/report.json` | `47399bb89bce2ec84ff68731a271646100e8159134d2cf5ba25c80c487d76c8d` |
+| `reviews/native-recovery-caller-reuse-review-v1/REVIEW-EVIDENCE-v1.json` | `35087f2aecfcb171ce6e7542a4db8e6d5bcb7229f0676f19375570ac8200df0c` |
+| `NATIVE-RECOVERY-CALLER-REUSE-EVIDENCE-v1.json` | `68775f127aeb93b208585ee65c63227c1618912a0187088ad7098b50a6ed764f` |
+
+Regenerate and check the caller composition in a fresh directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-caller-reuse-v1/gate-v1/rebuild.py /tmp/native-recovery-caller-reuse-replay
+```
