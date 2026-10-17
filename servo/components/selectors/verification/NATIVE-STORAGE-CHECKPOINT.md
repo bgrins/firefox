@@ -1610,6 +1610,48 @@ library contracts remain explicit. Provider completion, DOM parent stability and
 the surrounding recovery algorithms remain open. The next native target is a
 finite trace connecting each actual pop/push transition to the Lean invariant.
 
+## Reviewed recovery push and parent interpretation
+
+`native-recovery-push-translation-v1` translates the complete native trait push
+and parent contracts. Its three fresh Lean modules pass seventeen standard-axiom
+audits. The push bridge retains all eleven storage postconditions and the exact
+pending/provider frames. It derives the complete trait entry condition from the
+separate budgets, root relation and explicit intrinsic validity.
+
+Composition now reaches the final recovery state: path, `Live`, remaining hash
+and record budgets, pending decrease and the parent-result equation are checked.
+Both nested storage endpoints and the join between consecutive recovery-state
+calls remain explicit. The parent equation describes the supplied native snapshot;
+DOM stability and call completion remain open.
+
+Independent replay produces byte-identical sources, objects and all seventeen
+audits. Of 156 outputs, 130 are identical and 26 differ only in the fresh output
+path. Twelve schema, nine generated semantic, three endpoint, six binding, four
+canonical and eight provenance controls pass. Source review corrected stale
+function/type indices in the binding checker and added normalized-key and Option
+branch checks. A discovery run exposed relative Lean paths selecting an original
+module; the final gate checks absolute import resolution for every positive and
+mutated module.
+
+Both replays authenticate the cached 53-module chain and four-module flush
+closures before and after compilation. This remains a selected interpretation,
+with explicit primitive/sequence laws, borrowed endpoints and intrinsic predicates.
+The generated provider value is unit. No joint global intrinsic interpretation,
+provider completion or complete recovery result is inferred.
+
+| Record | SHA-256 |
+| --- | --- |
+| `NATIVE-RECOVERY-PUSH-INTERPRETATION-EVIDENCE-v1.json` | `68cde98a70e5b10a3febadb4ed7f4081b244afaa44e91231980ca2c932576659` |
+| `native-recovery-push-translation-v1/RECOVERY-PUSH-TRANSLATION-PROTOTYPE-v1.json` | `8ed1141b3fc0a915fd12da508f610b5798286cc34fc39a7e447dce0d03c6acd6` |
+| `reviews/native-recovery-push-review-v1/REVIEW-EVIDENCE-v1.json` | `e8ee35db39ed06a90789e27dd0f1b2eacfb37474072c224027010d5a223068a8` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-push-translation-v1/gate-v1/rebuild.py /private/tmp/native-recovery-push-replay
+```
+
+Use a fresh output directory. The next connection is the finite native flush
+trace, retaining each explicit transition and the final empty-pop frame.
+
 ## Remaining interpretation work
 
 Connect the native enumeration trace to the exact successful return of the
@@ -1644,7 +1686,9 @@ Their shared trait binding is now checked under the complete projected contracts
 The pending-sequence interpretation now retains its exact ordering and storage
 frames. Conditional pending-pop to storage-push composition now preserves history,
 ancestor order and budgets while deriving the full `push_internal` precondition.
-The actual recovery-stack push frame and parent observer binding remain open.
+The selected recovery-stack push frames and parent-result equation now share this
+interpretation. The next connection is a finite native flush trace, including its
+final empty-pop transition. DOM correspondence remains separate.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises and its postcondition now uses the shared storage observers.
