@@ -4848,3 +4848,59 @@ Paths are relative to `provider-bindings-v1`:
 | `compound-subject-review-v1/ROUTING-v1.json` | `ce2b20e0e20368a8ea42966d0c69b64bca0b0a5dbaf43aedcdc5c908fecdabd7` |
 | `compound-subject-review-v1/CLASSIFIER-CALLSITE-v1.json` | `d961773058b95c3e63679f2e070eaff2edf601446235409fece130b4fa9396ef` |
 | `unknown-caller-v1/CANDIDATE-v1.json` | `3b7e0647bd06ced07131d2ce3d67679e26e435db9507887c446f222e7bb1efdf` |
+
+## Classified full matching and namespace progress
+
+The full Unknown caller and callback composition now passes its guarded
+checkpoint: five modules, twelve axiom audits, twenty semantic controls and
+twenty-eight collector/output corruption checks. The same successful full
+matcher result supplies the ancestor witnesses and ordered callback trace.
+Collection, storage recovery, selected Rule and final filter remain connected.
+The result does not assume a separate packed-query success or use the limited
+`finite_success` converse to establish compound matching.
+
+The classifier extension freshly checks three modules and four axiom audits.
+It consumes the actual flat classifier postcondition and the setter's returned
+bucket, deriving Unknown for the supported subject profile. The constructed
+Rule supplies the same selector identity, and classification uses the caller's
+quirks mode. Nine semantic controls, twenty-eight collector/output checks and
+three diagnostic checks pass. Ten schema controls are inherited from the typed
+classifier checkpoint; complete export and shared-layout checks run during
+input authentication. The earlier failed run is preserved: an expected type
+mismatch also emitted a secondary no-goals diagnostic that its harness rejected.
+The revised harness requires a substantive failure before that diagnostic and
+keeps every diagnostic within the intended proof body.
+
+Native namespace matching has separate reviewed checkpoints for explicit,
+default and wildcard namespaces, universal type, and explicit empty namespace.
+The latest covers 646 obligations across sixty-one models, including eight
+inspected zero-goal models. Three compiled sensitivity controls and eighteen
+collector corruption checks pass. The empty-namespace helper retains its actual
+Default call under an explicit empty decoded-identity law. An isolated library
+copy removes only the conflicting empty generic Default specification; accepted
+libraries and runtime bodies remain unchanged.
+
+The namespace collector and identity bridge pass nine Lean audits and eight
+semantic controls in bounded candidates. Equal decoded identities imply equal
+hashes under a common stable hash interpretation; hash injectivity is not
+required. The actual provider's second emission supplies namespace membership.
+Typed native matching-post transport, namespace-aware routing and complete
+recovery/caller composition remain pending. The expanded classifier's initial
+256 obligations and three sensitivity controls pass, but its guarded acceptance
+is not yet installed.
+
+M6 remains open, including the original nested selector, relative selector and
+broader combinator scope. These results retain explicit normal-return,
+DOM/hash, borrowed representation, primitive/library and source-interpretation
+boundaries. No additional Firefox defect is claimed.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `unknown-callback-v1/full-v1/UNKNOWN-CALLBACK-TERMINAL-v1.json` | `003555003d76b739e014340769f3174e1023bfddc1bfce2ce3d579fdac80dba9` |
+| `classified-unknown-callback-v1/full-v2/CLASSIFIED-UNKNOWN-CALLBACK-v1.json` | `456ea1cb387196ae8fecff1144ca10ddd9ddeac36f9438c3c9a0596213a213a0` |
+| `native-namespace-matcher-v1/NATIVE-NAMESPACE-MATCHER-v1.json` | `3227bfd1478b3b300c831a2a676b933539a35495534fbafe3e10df8c0014047e` |
+| `native-empty-namespace-matcher-v1/NATIVE-EMPTY-NAMESPACE-MATCHER-v1.json` | `867f1335140e960869e57d7d6b666cbf42249bf02783ca945d3a4839681e9ce7` |
+| `namespace-provider-identity-v1/CANDIDATE-v1.json` | `8e44c7f14d4527780ba30f87c9c3b94ab31003c3eec2c325dc7f44be6a7ffafa` |
+| `namespace-provider-identity-review-v1/REVIEW-v1.json` | `593caa9771ea13dcde5d8860cf221ac49a0baf298d4674fe86c96b2e577307ea` |
