@@ -4557,3 +4557,49 @@ Paths are relative to `provider-bindings-v1`:
 | --- | --- |
 | `identity-provider-terminal-v1/ID-PROVIDER-RECOVERY-v1.json` | `c30f43a049040e403ff29062d5c15ebb0acbdd61501391d931b875e02e2467c8` |
 | `identity-provider-terminal-review-v1/REVIEW-v1.json` | `09d0b8f465f891bc368bb1bf37a7ed6087b6f8c3fd1381606dd38226f5acf2c1` |
+
+## Native class callback and identity Subject composition
+
+The class provider bridge now has independent source review and exact aggregate
+replay: ten modules, thirty axiom audits and seven semantic controls. Actual
+case-sensitive class matching and ordered enumeration use the same decoded
+optional attribute. Member identity and selected hash share one stable hash
+interpretation; other matcher observations remain unchanged.
+
+A subsequent three-module, twelve-audit checkpoint replaces the free callback
+state, invariant, postcondition and resolution transports with fixed maps of the
+captured native provider closure. The complete generated body pre/postconditions
+retain outer and inner borrow fields. Hash-callback readiness implies the full
+closure precondition. Enumeration preserves the inner final value and borrow ID,
+and its ending current value equals the initial inner final value. Nine semantic
+and eight structural controls reject incorrect endpoints, readiness and metadata.
+Independent root review and exact aggregate replay pass.
+
+This remains a selected interpretation: the class fixture carries atom identity,
+and the provider atom also carries its hash through the same stable mapping.
+Underlying hash-callback laws, normal return, decoded observations and primitive
+library semantics remain premises. The result does not prove a concrete Rust
+monomorphization, unsafe decoder or allocation identity from logical borrow IDs.
+
+The generalized Subject helper has a separate accepted checkpoint: three fresh
+modules, sixteen axiom audits, eight semantic controls, ten schema controls,
+three canonical-task controls and six diagnostic controls. Its complete native
+pre/post export preserves all thirteen original roots and the original task.
+The three-component profile admits local names, IDs and classes on each side of
+a Child or Descendant boundary. Atomic subject exclusion and exact suffix
+indices lift successful suffix matching to full-selector hash coverage.
+
+Independent review and exact aggregate replay pass. Actual-index provider/hash
+alignment and distinct helper/matcher context frames remain explicit. Mixed
+identity recovery/query composition and constructor/cache/Rule/Subject-setter
+pairing are subsequent work; M6 remains open. No additional Firefox defect is
+claimed. Cached dependencies are authenticated rather than rebuilt.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `identity-class-provider-link-v1/typed-v2/NATIVE-CLASS-PROVIDER-LINK-v1.json` | `d231d6534a37561de08082c7dd574e6ed60d025f0e1aca449a58c627a6fbf5fc` |
+| `identity-class-callback-v1/NATIVE-CLASS-CALLBACK-v1.json` | `e8b48c2ace37def831e1a1a0a413683a54b3e7f138c38fe102f7f19ffa557cf0` |
+| `identity-subject-v1/IDENTITY-SUBJECT-INTERPRETATION-v1.json` | `fcdeecbefd08994bee1ba682594e67c9d851d179ce95f83e0b23971d9c64ae0d` |
+| `identity-subject-review-v1/REVIEW-v1.json` | `70ab40a589923990153e75380a45804f563e74bbf3140559d3d1668563629145` |
