@@ -5566,3 +5566,150 @@ Paths are relative to `provider-bindings-v1`:
 | `native-relative-child-translation-v1/ROOT-REVIEW-v1.json` | `897f20f6ae962245f4104765a9a1ca4c64625f50f221b740bf447635965f326c` |
 | `native-relative-child-translation-review-v1/REVIEW-v1.json` | `9aa9f7df19fef80b7fb04190ec5bb2e806d15a5a494f1ef16f973555661d51e8` |
 | `subject-rule-task-preservation-v1/ROOT-REVIEW-v1.json` | `9f649bc6058876249c0f9fd7db5a2d0ce44a64fe8b0948f7105579a5f9dc4d8b` |
+
+## Completion of the original six milestones
+
+The original six Bloom milestones are complete within the assumptions and
+selector profiles below. This conclusion supersedes the earlier open status
+entries retained in this append-only checkpoint and the frozen roadmap. It does
+not assert verification of all selectors or the complete Gecko implementation.
+
+| Milestone | Accepted result |
+| --- | --- |
+| 1. Differential checking | Five adversarial hash profiles, deeper trees and nested selectors, filter execution counters, and reducers preserving deliberately injected ancestor and warmed-cache relative failures. Historical release runs cover 33,450,624 comparisons. |
+| 2. Hash normalization | Raw/masked insertion, removal and lookup equivalence, history normalization, and packing/rejection composition for collection lengths zero through four. Thirteen normalization declarations are audited. |
+| 3. Gecko state changes | Three WPTs cover mutations, reparenting, removal/reinsertion, namespace/case distinctions, shadow roots and slots. Three repetitions pass 33 checks; the later five-test run including both bug regressions passes 42 checks. |
+| 4. Recovery and clearing | Production-connected path/hash/history invariants, valid removals, retained ancestor contributions, empty state after clear, initialization and reuse, including sibling, ancestor and separate-root recovery. |
+| 5. Relative traversal and caching | Production children/subtree traversal terminates and covers its region without crossing boundaries. Failed hash collection remains conservative; cache reuse preserves coverage within a stable epoch. |
+| 6. Collection soundness | Actual successful matching implies that collected rejection hashes occur in the appropriate ancestor or Children region for the declared profiles, and the separate query accepts. |
+
+The closing M1–M5 audit checks the original requirement table, current sources,
+historical logs and accepted proof inventories. The three mutation WPTs and
+normalization proof source remain identical to their original milestone commits.
+The original differential harness is preserved with one later first-instance test
+added. Independent review accepts the requirement mapping. These closing audits
+do not claim new browser, Rust or inherited solver runs.
+
+The browser checks observe computed style after mutations. They do not count
+filter hits or compare against a browser with filters disabled. The original
+roadmap assessed a bypass requiring plumbing through both ancestor and relative
+matching and deferred it; the instrumented Rust harness supplies that comparison
+within its finite mock DOM.
+
+### Final relative policy connection
+
+The relative child theorem now constructs the captured matching predicate from
+the supported finite recursive semantics. It also defines `policyHashes` as the
+finite list of the actual exported `GeneratedPolicy.policy_E` values. The policy
+head is the element's local-name hash. Membership in that exact list is proved
+for every valid index and supplied to the cache composition.
+
+The final theorem therefore has neither an independent matching-law premise nor
+an arbitrary emitted-list membership premise. The same `policyHashes` supplies
+the M5 Provider contract and cache-epoch coverage. Primitive name/hash coherence,
+physical selector representation, parent/navigation agreement and the Provider
+contract remain explicit. This does not prove the full Gecko callback's library
+implementation. The coherent-policy extension passes four modules and ten axiom
+audits; the final policy-list extension adds two modules and two audits. Its
+truncated-list control fails inside the membership proof.
+
+The first composed instance remains `section > span`, with raw section hash
+`0xfcdd0ccc` and packed hashes `[0xdd0ccc, 0, 0]`. Actual unfiltered matching
+succeeds; separate empty and wrong-name filters reject, while the section filter
+accepts. Finite runtime checks also exercise active hashes for nested ancestor
+`:is()`/`:where()` and the public `section:has(> span)` path, including incomplete
+provider retry and cache reuse. These are mock-DOM execution witnesses alongside
+the conditional proofs, not complete concrete Gecko interpretations.
+
+### Declared selector profiles
+
+The ancestor domain includes local names, IDs, classes, non-namespaced attribute
+existence, namespace/default-namespace/no-namespace/any-namespace components and
+the universal type. It supports Child and Descendant combinators and finite
+recursive `:is()`/`:where()` ancestors. The final Subject route has a matching-case
+local-name subject and its first Child/Descendant boundary at index one. The
+separate Unknown route requires the proved sufficient classifier conditions.
+Earlier atomic-domain endpoints retain their individual case and quirks profiles.
+
+The relative matching domain is exactly InChild with LocalName, Child and
+RelativeSelectorAnchor. The successful native call supplies a candidate whose
+parent is the original anchor; that same candidate supplies collector membership
+and Children-region coverage. The actual cache lookup and private rejection query
+are composed. The outer public `:has()` wrapper has executable evidence only.
+
+Unsupported matching-to-region profiles include sibling combinators,
+PseudoElement/SlotAssignment/Part combinators, attribute value operators and
+namespaced attribute predicates, general negation and structural pseudos,
+scope/root/empty, host/slotted/part, invalidation modes, and classifier routes
+outside the proved conditions. General relative compounds, relative IDs/classes/
+attributes/namespaces, nested relative `:is()`/`:where()`, and subtree/sibling search
+hints are also outside this result. No complete SelectorMap retrieval or whole
+filtered-call equivalence is claimed.
+
+All compositions retain the selected primitive/library interpretations, stable
+DOM and hashing, coherent selector and borrow observations, normal return and
+resource bounds. M4 retains its owner/storage/capacity contracts. M5 retains
+Navigation, Provider, MapContract and EpochSound. Automatic Drop/TLS/UnsafeCell,
+unwinding, arbitrary cross-epoch mutation and unrestricted allocation growth
+remain outside the proofs. The old Aeneas backward-function equality is not
+claimed; the accepted native route supplies the scoped recovery result.
+
+### Final reproduction and review
+
+The final guard authenticates 105,449 inputs and 107 Lean lookup roots, then
+rebuilds four final modules in three separate environments: classified Unknown,
+classified Subject, and the two relative policy-list modules. Source, object and
+audit output bytes match their accepted baselines exactly. All four axiom audits
+pass. Ancestor endpoints retain Formatter; the relative cache endpoint retains
+the published opaque library inventory. No `sorryAx` is admitted.
+
+Twenty-three record/output/scope/input corruptions are rejected. The historical
+control named `lost-provider-boundary` actually removes the final tool/unsafe
+assumption; a supplemental check removes the exact relative Provider assumption
+and also rejects. Root review reproduces all these control records and checks the
+full input inventory and endpoint outputs. These validator controls are distinct
+from proof dependency controls and production bug reproducers.
+
+From the repository root, use the retained local tools and inputs:
+
+```sh
+bloom_gate=artifacts/stylo-bloom-tools/creusot-gate
+bloom_gate=$bloom_gate/matcher-dyn-capability-candidate/backend-v1/actual-context-v1
+bloom_gate=$bloom_gate/native-ancestor-callback-v1/public-entry-v1/provider-bindings-v1
+bloom_gate=$bloom_gate/milestone6-closure-v1
+python3 "$bloom_gate/gate.py" run "$bloom_gate/check-local" \
+  2510590532b9ef7472d7fdaf749b3585db572520c7cb1c11dbb264d8625a90cf
+```
+
+The output directory must not exist. This authenticates inherited evidence and
+freshly rebuilds the final four modules; it does not rerun every inherited solver
+task or runtime test. Preserve the recorded repository/tool paths. The separate
+`collect.py` reconstructs the accepted closure into a new report path and requires
+normal Python assertion checking for its inherited policy audit.
+
+There remain two confirmed Firefox defects: saturation-aware clearing and the
+recursive subtree walk. Their commits contain only the production fixes and
+browser regression files; supporting tooling precedes each fix. No additional
+Firefox defect is established by this closing checkpoint. Work and commits remain
+local. The separate CSS specification model continues independently.
+
+Closing records under `artifacts/stylo-bloom-tools`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `MILESTONES1-5-ROOT-AUDIT-v1.json` | `b772229e347f1048c57b92ba5e687e6cf9ec90bca7d76eadc9192f1616bb69d7` |
+| `milestones1-5-peer-review-v1/REVIEW-v1.json` | `e9a4767465f30b1ce6dc06b751a1d7367804077fd4f17f6fb6ab218be51a69a6` |
+
+The remaining paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-relative-child-translation-v1/POLICY-COHERENT-ROOT-REVIEW-v1.json` | `5a1b39f7e662056cf04c92673dbfb0b9cf2ebede2c7e0e70847d26754fe9fa87` |
+| `native-relative-child-translation-v1/POLICY-LIST-v1.json` | `6892cc5f8260202203a59b98c3592ad5e20b6e683d7a8c337dd5e7a75c0ec498` |
+| `milestone6-closure-v1/MILESTONE6-CLOSURE-v1.json` | `779acc8e0fb3b8dff996f1cc2039a4cb0ada7a0f8a2ee3813cfcca5f97d0938b` |
+| `milestone6-closure-v1/ROOT-ACCEPTANCE-v1.json` | `a266618610e4c5a83198b4c60b8cb475f9430a82ab1c27eea4af6d15cf8b57d5` |
+
+The frozen closure candidate retains its pending-review flags; the separate root
+acceptance resolves them. Earlier open status entries remain as historical
+records. The guarded reproduction retains the exact scope and assumption
+inventory used in that acceptance.
