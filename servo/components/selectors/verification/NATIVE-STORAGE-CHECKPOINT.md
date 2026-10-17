@@ -4310,3 +4310,61 @@ Paths are relative to `provider-bindings-v1`:
 | `descendant-runtime-v1/DESCENDANT-RUNTIME-v1.json` | `99651c1a608cef0274ff3ff866f81c44dbd5d4a27b1261388ff0d0ffe82ff64c` |
 | `descendant-runtime-review-v1/REVIEW-v1.json` | `ebdea0b0d79773a2bfa70417df787ffb3c651b480efdba5d353ea182ea493797` |
 | `descendant-iterator-review-v1/REVIEW-v1.json` | `1925b2f17253f328bd4941b91176bb4c3dad432c38d099f034bdd689f1204c48` |
+
+## Descendant Subject construction and recovery
+
+The native Subject helper now admits the three-component local-name shape with
+Child or Descendant between the names. The runtime bodies remain unchanged.
+All 59 native models pass 608 obligations, with seven inherited empty models.
+The finite-success converse remains Child-only; a separate control rejects
+using it to assert descendant success.
+
+The full typed helper bridge passes thirteen Lean audits. Exact selector
+contents and the returned suffix establish a one-component prefix relation;
+successful native suffix matching then supplies full-selector ancestor coverage.
+Six semantic and ten schema controls pass. Independent source review and exact
+collector replay authenticate the native task, complete contracts, component
+payloads and bounded subsequence interpretation.
+
+The four-module recovery composition passes five audits and six semantic
+controls. It derives final live history and ancestor membership from actual
+recovery contracts, obtains local-name hashes through the typed native accessor
+and provider, and binds the queried hashes to the full selector and quirks mode
+through hash construction and the native Rule constructor. It requires no
+independent final-history or packed-hash observation premise. Independent review
+reproduces its evidence exactly.
+
+The three-module caller composition passes twelve audits. It consumes the
+actual selected-rule return and Subject setter post, preserves all eighteen
+context fields and cache borrow endpoints, and concludes caller restoration,
+Bloom-query acceptance, the same selector and the Subject bucket. The selected
+closure invariant retains all seven native Rule invariant fields; the setter
+therefore preserves it. Hash equality alone would not justify transporting an
+arbitrary closure invariant. Seven semantic controls and six structural
+callsite controls distinguish these dependencies.
+
+The caller's sequential endpoint equations remain explicit premises. The native
+callsite audit binds them to the checked source but does not introduce a formal
+execution semantics or prove physical allocation/lifetime correspondence.
+Successful suffix matching is a premise, independently of query acceptance;
+falling through the query cannot establish that acceptance. The native matcher
+retains its shadow-free, non-featureless, non-quirks and normal matching-mode
+restrictions. Initial validity, capacity, stable DOM/hash observations and
+primitive library interpretations remain explicit.
+
+M6 remains open for IDs/classes, selected attributes/namespaces, singleton
+`:is()`/`:where()` and relative-selector composition. ID/class provider
+membership is the next work package. No additional Firefox bug is established.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-descendant-subject-v1/NATIVE-DESCENDANT-SUBJECT-v1.json` | `72e96a48742eeb6249538d70920d8022b10f6de16525e3d1b1169cef3e46c29d` |
+| `native-descendant-subject-v1/translation-v1/DESCENDANT-SUBJECT-INTERPRETATION-v1.json` | `4ca202258f68727cb87de2f2275537a3b661011a82f7e55dd67d7301c15d95b0` |
+| `descendant-selected-recovery-v1/DESCENDANT-SELECTED-RECOVERY-v1.json` | `eb0e06bcee1a98198af9a57b32d042a0f32f8a1b38762239709553dab1f261db` |
+| `descendant-selected-review-v1/REVIEW-v1.json` | `bb159e3e0ad6676bc90d8594d1ef263ab6b845c4f7ac3c7e1ca70a7e17871cf3` |
+| `descendant-subject-recovery-v1/DESCENDANT-SUBJECT-RECOVERY-v1.json` | `ec2fe57cde7edcb25972ce71eb7d03ffba1a76cf2e67f2c852488ef7f5312e85` |
+| `descendant-subject-recovery-review-v1/REVIEW-v1.json` | `b498f17f66cc53fe8d4369586bc217aa96bbc366195afc2c91ec1c876b9ad3e1` |
+| `descendant-subject-context-v1/DESCENDANT-SUBJECT-CALLER-v1.json` | `f5a2cbfaab88880ea9feb3a6448e10e52839eedd587ea4f4ffbfdcf6c8739ada` |
+| `descendant-subject-caller-review-v1/REVIEW-v1.json` | `54df083fb3c3cc07183f0358a95b86eb91279ade33192e88b64d976d50f11e12` |
