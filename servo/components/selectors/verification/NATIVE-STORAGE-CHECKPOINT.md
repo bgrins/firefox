@@ -1722,3 +1722,49 @@ fix remain unestablished.
 The old roadmap is retained byte-for-byte because earlier reviewed evidence
 pins its contents. Experimental packages and their toolchains remain local
 artifacts; this file records their scope and reproduction entry points.
+
+
+## Reviewed native pending flush trace
+
+The isolated `native-recovery-flush-trace-v1` package retains the concrete
+specialization of the production pending flush loop and adds a finite trace of
+its explicit pop/push contracts. A separate final empty-pop transition connects
+the last trace state to the returned state. The contract preserves the complete
+storage value at that transition; it does not assert equality of the whole
+recovery state.
+
+All 111 models pass in both configurations: 108 support models contribute 929
+debug and 821 release obligations, and three identical induction models add 289
+shared obligations. That is 1,218 debug and 1,110 release obligations, or 2,039
+counting the shared induction once. Supporting obligations are still counted
+separately per configuration. The trace loop and four helpers contribute 62
+obligations per configuration. The earlier indexed-order loop checkpoint remains
+separate and unchanged.
+
+Independent review reproduced the checkpoint and mutation collectors, checked
+complete output inventories and cached dependencies, and verified that erasing
+ghost code recovers the production loop. Five source mutations and five physical
+evidence mutations were rejected. Five compiled controls each leave exactly one
+intended obligation unresolved and the other 61 valid: reversed push endpoints,
+a wrong next state, a nonempty terminal pop, whole-state equality at termination,
+and an initial endpoint bound to the final state. Four timeouts and one Unknown
+result establish sensitivity, not counterexamples.
+
+The caller's edge predicate is opaque. Its checked introduction helper contains
+the actual conjunction of explicit pending-pop and push contracts. Binding that
+definition and the finite trace into Lean is the next step. This checkpoint does
+not establish actual DOM ancestry, provider completion, or the surrounding
+`recover` and `rebuild` algorithms. Milestones 4 and 6 remain open.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-flush-trace-v1/checkpoint-v1.json` | `7ddc3a00638a7c7eca6fc02961dc193960c79e634dc6af72118b7862ac3a1f78` |
+| `native-recovery-flush-trace-v1/reviews/checkpoint-review-v1/REVIEW-EVIDENCE-v1.json` | `d5d5408a9d0dfa59f89bf1851127002b466abc19ca82afdeb4c0c7d7e999dfdf` |
+| `NATIVE-RECOVERY-FLUSH-TRACE-EVIDENCE-v1.json` | `8baf847d99769701ac47f4dea215aa6ce183ab36bd17c30d7c1e8c1fa73ef2d4` |
+
+The snapshot auditor checks the completed native proof evidence without rerunning
+the compiler or solvers:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-flush-trace-v1/reviews/checkpoint-review-v1/audit.py --report /tmp/native-flush-trace-review.json
+```
