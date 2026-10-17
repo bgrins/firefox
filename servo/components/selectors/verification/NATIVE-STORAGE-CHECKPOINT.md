@@ -1768,3 +1768,47 @@ the compiler or solvers:
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-flush-trace-v1/reviews/checkpoint-review-v1/audit.py --report /tmp/native-flush-trace-review.json
 ```
+
+
+## Reviewed native ancestor collection
+
+The isolated `native-recovery-collect-v1` package specializes the first loop in
+`rebuild`. An additional erased snapshot supplies a finite ancestor sequence:
+the first entry is the element's parent, each next entry is the preceding
+entry's parent, and the last entry has no parent. The empty sequence means the
+element has no parent. These are conditions on the native stable parent
+observer, not a proof that the actual DOM supplies such a sequence.
+
+The loop and checked ordering helper prove 45 obligations per configuration.
+They preserve the old pending prefix, append the supplied ancestors in order,
+and preserve the complete storage and provider values, pending validity and
+capacity. A decreasing remaining-length measure bounds the loop, subject to
+normal return of the native parent and pending-push calls. The entry capacity
+budget excludes pending-vector growth.
+
+The complete replay passes all 108 models: 912 debug and 804 release support
+obligations, plus 289 shared induction obligations. Totals are 1,201 debug and
+1,093 release, or 2,005 counting the induction once. Independent review reproduces
+the checkpoint and controls, checks raw proof and model inventories, authenticates
+cached dependencies, and reconstructs the exact production loop after ghost
+erasure. Five source and five physical evidence mutations are rejected.
+
+Five compiled controls remove the capacity premise, finite parent-chain premise,
+storage-frame invariant or decreasing measure, or reverse the required final
+order. Each leaves one intended obligation unresolved. The storage-invariant
+removal also removes one obligation, leaving 43 valid; the other controls leave
+44 valid. These timeouts establish sensitivity, not counterexamples.
+
+Native call completion, actual DOM ancestry and the surrounding recovery
+algorithms remain open. The next composition target is the complete `rebuild`
+body: clear, collect ancestors, then flush the pending sequence.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-collect-v1/checkpoint-v1.json` | `ef24d9e860c9e1a0f7a1214145878eb2f170ce6cdf6e5ea33a0a305723086687` |
+| `native-recovery-collect-v1/reviews/checkpoint-review-v1/REVIEW-EVIDENCE-v1.json` | `537210b72f75de999ff60ff2222489803381afdf83266dada4f895e9f1a8fc34` |
+| `NATIVE-RECOVERY-COLLECT-EVIDENCE-v1.json` | `3567b3a70f3b6149697c03d283bd58b19cb3f3cf267d4ec8d2ead8fa8ca036c9` |
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-collect-v1/reviews/checkpoint-review-v1/audit.py --report /tmp/native-collect-review.json
+```
