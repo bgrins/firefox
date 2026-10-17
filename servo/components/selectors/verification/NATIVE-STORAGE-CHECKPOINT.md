@@ -2776,3 +2776,47 @@ Paths below are relative to `actual-context-v1/native-ancestor-callback-v1`:
 | `reviews/source-review-v1/REVIEW-v1.json` | `319a4fe52201517873e92cb1917a8de57c18adc0ac177e4b1642a1ccd8d62ccb` |
 | `public-entry-v1/NATIVE-PUBLIC-ENTRY-PROTOTYPE-v1.json` | `cc6e965897fe7c35d63d2f749b065611f52b456623609832903231c56df5379a` |
 | `public-entry-v1/reviews/source-review-v1/REVIEW-v1.json` | `65bf931b335ba26550a36ce2e291a0dfb8827b6ab517eeb830e4c0f953f803a9` |
+
+## Native owner clear and readiness
+
+The `native-owner-clear-v1` package checks the unchanged `StyleBloom::clear`
+wrapper through its checked storage helper. Its precondition requires valid
+record/hash vectors and either a high-water count above the clear threshold or
+an exact small-history counter representation. Nine postconditions establish
+empty records/hashes, valid vectors, preserved capacities, zero high-water count,
+4096 zero counters and an unchanged atomic borrow guard.
+
+Fresh debug and release builds each add one nine-obligation model to the 126
+inherited models. Independent review checks that the inherited models differ
+only in source-location filenames and freshly proves the eighteen new goals.
+Four compiled controls each leave one intended pre/post obligation unproved;
+their Unknown results are not counterexamples. Source and correspondence
+controls reject physical changes to the checked wrapper and model comparisons.
+
+The `translation-preflight-v1` package interprets the full native pre/post and
+connects them to reusable storage. Seven Lean proofs establish exact pre/post
+interpretations, clear readiness after recovery, readiness after clearing and
+the next clear precondition. Both the bulk-clear and small-history branches are
+covered. Composition retains explicit equality between the previous borrow's
+final owner and the next borrow's current owner, plus intrinsic borrow validity.
+No storage witness or automatic Drop behavior is assumed into existence.
+
+Independent replay reproduces both generated/proof modules and their compiled
+outputs, all seven standard-axiom audits, and 32 controls: ten structural, six
+binding, ten generated semantic and six canonical/provenance checks. The binding
+checks 33 shared owner symbols, 35 count symbols and seven datatype layouts.
+The accepted recovery dependency graph is authenticated rather than rebuilt.
+
+Milestone 4 remains open. The next lifecycle step is preservation of owner
+observations and clear readiness through the public push/rebuild wrappers.
+TLS allocation/borrow identity, release/reacquisition, automatic Drop dispatch,
+unwinding and termination remain outside this conditional normal-return result.
+
+Paths below are relative to `provider-state/native-storage-pop-concrete`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-owner-clear-v1/checkpoint-v1.json` | `c63b65d4822c468fa042c975ee7112bd5e82dca9043e56b5b818b84fa749ada7` |
+| `reviews/native-owner-clear-root-v1/REVIEW-v1.json` | `fd217300de385cb7ce49fb0565280ed7542957993f555226556ffb74570ecca0` |
+| `native-owner-clear-v1/translation-preflight-v1/NATIVE-OWNER-CLEAR-READINESS-PROTOTYPE-v1.json` | `b59c52f1f8fb93abfb570697558ab75bbb11ad956c6b5ffa6d1ef6b76b0c7132` |
+| `reviews/native-owner-clear-readiness-root-v1/REVIEW-v1.json` | `10408dda6d76ada02c4647b95126bec190ac6505c6c4cd0080b2717d9d808bba` |
