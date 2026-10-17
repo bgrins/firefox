@@ -1051,6 +1051,48 @@ fn adversarial_hash_profiles_have_the_intended_collisions() {
 }
 
 #[test]
+fn local_name_child_has_nonzero_ancestor_contribution() {
+    with_profile(HashProfile::Normal, || {
+        let mut tree = make_tree(&[None, Some(0)], 0);
+        tree.nodes[0].name = Atom::from("section");
+        tree.nodes[1].name = Atom::from("span");
+        tree.nodes[1].namespace = Atom::from("urn:html");
+        let element = El {
+            tree: &tree,
+            index: 1,
+        };
+        let list = parse("section > span");
+        let selector = &list.slice()[0];
+        let raw = tree.nodes[0].name.precomputed_hash();
+        let hashes = AncestorHashes::new(selector, QuirksMode::NoQuirks);
+        assert_ne!(raw & 0xffffff, 0);
+        assert_eq!(hashes.packed_hashes, [raw & 0xffffff, 0, 0]);
+        eprintln!(
+            "section > span: raw={raw:#010x}, packed={:x?}",
+            hashes.packed_hashes
+        );
+
+        let matches_with_filter = |filter: Option<&BloomFilter>| {
+            let mut caches = SelectorCaches::default();
+            let mut context = MatchingContext::new(
+                MatchingMode::Normal,
+                filter,
+                &mut caches,
+                QuirksMode::NoQuirks,
+                NeedsSelectorFlags::No,
+                MatchingForInvalidation::No,
+            );
+            matches_selector(selector, 0, Some(&hashes), element, &mut context)
+        };
+        assert!(matches_with_filter(None));
+        let mut filter = BloomFilter::new();
+        assert!(!matches_with_filter(Some(&filter)));
+        filter.insert_hash(raw);
+        assert!(matches_with_filter(Some(&filter)));
+    });
+}
+
+#[test]
 fn shrinker_preserves_cache_warmup_for_an_injected_relative_failure() {
     struct Reset;
     impl Drop for Reset {
