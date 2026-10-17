@@ -4148,3 +4148,62 @@ The proof sources and 45 audits are unchanged. The v2 capsule is
 The independent strict snapshot review is
 `section-span-storage-borrows-review-v1/REVIEW-v3.json`, SHA-256
 `75aaa31b7c825f9a65d068f439dea5eb4f0fa292889f58a2ebb6ca8b34f72f9a`.
+## Selected matching without Bloom filtering and recovered acceptance
+
+The section/span composition now states the first comparison directly:
+normal return of the checked native Subject route without a Bloom filter yields
+True, and the independently computed query accepts the recovered filter's
+nonzero ancestor contribution. The selected rule, selector suffix, subject and
+hash generation are shared. The dispatch result does not supply the premise
+used to prove query acceptance.
+
+The full storage constructor, rule constructor, Subject setter, recovery and
+provider contracts hold in the same selected interpretation. For an arbitrary
+final matching context, the native postcondition derives restoration of the
+complete entry context. This is a composition of normal-return contracts and a
+coherent instance, not a recording of physical recovery calls. Stable finite
+DOM and name/hash observations, immutable selector views, library interpretations
+and resource assumptions remain explicit. The package README lists them.
+
+The native dispatch extension checks all 57 models and 588 obligations, retaining
+the existing full context frame. Its three compiled mutations each leave the
+intended postcondition unproved and the other sixteen obligations valid. The
+typed interpretation preserves all eighteen context fields, nine rule fields
+and cache borrow endpoints. An independent fresh compilation reproduces its ten
+Lean audits, source, object and output exactly using cached dependencies.
+
+The terminal module passes thirteen audits with only standard Lean logical
+axioms. Five source mutations fail at the expected proof obligations: wrong
+recovered filter, unexpected empty filter, swapped entry endpoint, wrong returned
+result and false empty-filter acceptance. The acceptance collector checks exact
+source mutations, commands, environments, ordered inventories and diagnostics;
+sixteen corrupt-report tests are rejected. Independent source review covers all
+thirteen statements and proofs. A complete dependency rebuild is not claimed.
+
+A separate Rust fixture now includes the entire production bucket classifier
+bodies, including branches outside this selected case. Actual parsing,
+classification, rule construction and dispatch accept the populated section/span
+case, reject empty and wrong-hash filters, and skip a rule with the wrong subject
+bucket key. It also exercises a descendant selector. The fixture directly
+inserts the hash and models selected local-name key lookup; full SelectorMap
+classification, lookup and cascade are not formally proved. Its descendant
+observation does not establish the descendant matching-to-region theorem.
+
+The generic M4 inventory identifies the existing provider-to-push-to-recovery
+maps. Recovery consumes the checked aggregate counter, hash, record and historical
+high-water clauses; the native insertion trace is additionally retained. Final
+aggregate acceptance remains separate from this finite instance. M6 still needs
+composed results for descendant combinators, IDs/classes, attributes/namespaces,
+`:is()`/`:where()` and relative selectors. There are still two confirmed Firefox
+bugs.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-subject-dispatch-v1/NATIVE-SUBJECT-DISPATCH-v1.json` | `cd67123a0cbad14e4650c60461799d82b144b333aec02b38e1eb3b731023ae72` |
+| `native-subject-dispatch-v1/translation-v1/SUBJECT-DISPATCH-INTERPRETATION-v2.json` | `aecb25f3753004f6e9c32caf1dc5e9d1c00f473d0351694d2975c93f0145dead` |
+| `section-span-terminal-v1/SECTION-SPAN-TERMINAL-v1.json` | `2617308c8e0a470e8d21ae3c59bb9eecc4320f1a04511dbdc3d5a328e0746d70` |
+| `section-span-terminal-review-v1/REVIEW-v1.json` | `111fced16b8d3dbd56c95ce3d9d6863869a24b851b6adc04f7da680b65de6c02` |
+| `section-span-bucket-runtime-v1/BUCKET-RUNTIME-v1.json` | `e6092c3d52dc77f05a87aaaa07015a6793d13fe69da489e51e68520ebb9ff2db` |
+| `native-provider-recovery-map-v1/INVENTORY-v1.json` | `160eff7fcf4cffe45d14c1d174ff9942a816aea740d3df21d1f59cb4b6d37328` |
