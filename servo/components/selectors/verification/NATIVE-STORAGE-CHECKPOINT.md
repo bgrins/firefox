@@ -3720,3 +3720,55 @@ Paths below are relative to the public-entry prototype's
 | `packed-query-composition-review-v1/COLLECTED-PACKING-PROTOTYPE-v1.json` | `1ef9a579434bdc027460632cdcd1d97fed8c2c85a1b1cff4d2a84404fbdc6940` |
 | `packed-query-stored-review-v1/REVIEW-v1.json` | `706c7be7620d16d1048e52b9bd37712e9833cd12493b42052a00b6a83b04ca58` |
 | `packed-query-gate-review-v1/REVIEW-v1.json` | `8d3ae8adb7ecf884dadeaeef28c2c5c2117f104fba8cad08263417a28aff0245` |
+
+
+## Successful matching and recovered storage at query entry
+
+The collector's hash-membership premise now follows from the successful native
+matcher contract in the local-name/Child domain. The proof transports its
+ancestor witnesses through selector slice correspondence and name/provider
+alignment, then uses the stored chain and accounting invariant. A second lemma
+composes this result with the actual query-entry predicate. Both compile against
+the accepted stored-collector objects. Three semantic controls reject an
+unsuccessful matcher result, membership of the subject instead of the ancestor,
+and the subject's provider instead of the ancestor's provider.
+
+The next composition removes the separately assumed ancestry membership and
+final live-history premises. It interprets matching ancestry through
+`ParentMatcher.withParentChain`, uses `ParentEmbedding.member` for distinct
+matching and traversal parents, and applies the complete recovery outcome to
+derive rootedness and live history at the final storage endpoint. The concrete
+`EntryStorage` dictionary supplies proved constants and sequence laws.
+The final recovered filter is the exact filter required at query entry; the
+complete matcher-context return frame is also retained.
+
+A guarded run freshly rebuilds these two composition modules, checks their two
+exact axiom audits and runs four semantic controls. Reversed parent embedding,
+a rooted chain missing its subject, the old filter at entry and missing initial
+history each fail the intended theorem. The gate authenticates all listed inputs
+and lookup directories before and after execution and checks 41 output files.
+Native proof records, model generation and dependency objects remain cached.
+Independent review checks the source, premise transport and gate within this
+scope; it does not claim another complete dependency replay.
+
+All four new theorem audits retain the inherited `core.fmt.Formatter` dependency,
+with only `propext`, `Classical.choice` and `Quot.sound` otherwise. Initial
+validity, history and resource conditions, record/pending contracts, actual
+parent-edge embedding, atom/hash policy, selector representation, Rule packing
+observation and the current-entry filter relation remain explicit. Independent
+matcher and entry dictionaries, selector and quirks identities, and caller
+transport are not silently identified. Milestones 4 and 6 remain open.
+
+The next gates bind Rule construction and packing to the same selector, then
+instantiate atom identity/hash and concrete parent/caller observations. A proof
+under these explicit relations is not yet the complete implementation result.
+
+Paths below are relative to the public-entry prototype's
+`provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `matcher-storage-composition-v1/MATCHED-COLLECTOR-PROTOTYPE-v1.json` | `8a53d27fcb7be5ad173ab641174e2c9b865344c12c6516b9c85226b15eb4cf69` |
+| `matcher-storage-review-v1/REVIEW-v1.json` | `c229d90dafe9729c9a17bd840139a39ac59713fcc7807d389ac5a625dc82187b` |
+| `recovered-entry-composition-v1/RECOVERED-ENTRY-COMPOSITION-v1.json` | `5e1b26a770a8032c05d291677ae70e0c1e12647143a50cde1eac10c76c7b63a0` |
+| `recovered-entry-review-v1/REVIEW-v1.json` | `0033cd3732c1dafa4dc29bdd61de99a994547a97c50db2bdc41bb3be8c757896` |
