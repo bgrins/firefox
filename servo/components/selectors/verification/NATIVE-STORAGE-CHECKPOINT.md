@@ -2336,3 +2336,44 @@ The following paths are relative to `actual-context-v1`:
 | `native-kleene-v1/KLEENE-PROTOTYPE-v1.json` | `21cd57c4e742ce70e7a65b520c180cf84cabf62fe2f50ac755042b7d0d98d928` |
 | `native-kleene-v1/reviews/source-review-v1/REVIEW-v1.json` | `083a76f69fcfbf22b996f25799eb98581309dd9beb3922c4c9160ffbdea866a6` |
 | `native-enum-model-v1/DIAGNOSTIC-v1.json` | `29dffa7c0be37f3a1392c154c2e5216aa4c4849b83f09fc93a6d6e122b49efb5` |
+
+## Reviewed complete recovery entry
+
+The `native-recovery-stack-initialization-v1/translation-v1` interpretation joins
+the exact `Storage::new` and `RecoveryStack::new` posts. The latter preserves the
+state intrinsic, storage identity, empty pending values, capacity 16 and pending
+validity. An explicit current-borrow endpoint connects the constructed state to
+the actual argument of the recovery contract.
+
+With the initial zero/empty/valid observations, the theorem establishes the
+complete recovery precondition and `Valid`, 4096 counters, `Live` and an empty
+ancestor chain. It derives clear/search readiness and rooted-empty records;
+the shared-root condition is vacuous for empty records. Borrow and element
+intrinsics, finite ancestry, exact depth, equality reflection and independent
+pending/record/hash budgets remain explicit premises.
+
+Independent replay passes two modules, three standard-only or axiom-free audits
+and all 26 controls: five structural, three binding, six generated semantic,
+five source, two canonical and five provenance. Of 73 outputs, 70 are identical
+and three differ only by the output path. The snapshot audit checks 21,256
+producer pins; the complete review contains 21,335 pins. Both gates authenticate
+cached parents and the external lookup closure. Binding checks cover fifteen
+shared functions, two layouts and the shared intrinsic declarations and rewrites.
+
+This closes the conditional constructor-to-entry composition. Initial observations
+are still premises; actual TLS acquisition, `AtomicRefMut`, wrapper execution,
+DOM/provider binding and native completion remain open. Milestones 4 and 6
+are not complete.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-stack-initialization-v1/translation-v1/STACK-CONSTRUCTOR-ENTRY-PROTOTYPE-v1.json` | `79a4c1a3102471a6282c0f64e355b4fd6867b3e6b8180abf772b4a9cc547df77` |
+| `reviews/native-recovery-stack-entry-root-v1/report.json` | `b6c353c9b5a61286702cb7f875108429066c3ddc5e17569ace835facb08c3b6f` |
+| `reviews/native-recovery-stack-entry-review-v1/REVIEW-EVIDENCE-v1.json` | `4660bd0bed9412608b725269cf9f1709a374e470b707f7c796827051b1a3d2a2` |
+| `NATIVE-RECOVERY-STACK-ENTRY-EVIDENCE-v1.json` | `405436de05beecd64b7ea63d20e90cfad5e45f7be67296e45570d83eaa5d70dd` |
+
+Regenerate and check the entry interpretation in a fresh directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-stack-initialization-v1/translation-v1/gate-v1/rebuild.py /tmp/native-recovery-stack-entry-replay
+```
