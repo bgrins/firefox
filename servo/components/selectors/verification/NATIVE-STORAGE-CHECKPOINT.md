@@ -1689,9 +1689,11 @@ ancestor order and budgets while deriving the full `push_internal` precondition.
 The selected recovery-stack push frames and parent-result equation now share this
 interpretation. The finite native flush trace, including its final empty-pop
 transition, now preserves the same storage invariant and ancestor observations.
-The complete native rebuild body has a reviewed conditional checkpoint; its
-clear/collection/flush relation is being connected to that Lean interpretation.
-Actual DOM correspondence and the remaining `recover` branches remain separate.
+The complete native rebuild body and its generated clear/collection/flush relation
+now have a reviewed conditional connection to that Lean interpretation. The
+interpreted rebuild post establishes `Live`, empty pending and the exact supplied
+ancestor chain. Actual DOM correspondence and the remaining `recover` branches
+remain separate.
 The native filter reset now has conditional extracted endpoint correspondence.
 The native storage reset path is now checked under its count/high-water and
 library premises and its postcondition now uses the shared storage observers.
@@ -1916,4 +1918,51 @@ the completed evidence without rerunning solvers:
 
 ```sh
 python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-rebuild-v1/reviews/checkpoint-review-v1/audit_v2.py --report /tmp/native-rebuild-review.json
+```
+
+## Reviewed native rebuild interpretation
+
+The isolated `native-recovery-rebuild-translation-v1` package binds the reviewed
+complete rebuild contract to the accepted clear and finite flush interpretations.
+The generated run retains the initial clear edge, identical storage between the
+cleared and collected states, exact supplied pending sequence and final flush.
+The clear binding retains all nine storage clauses and both pending/provider
+frames. Logical Unit endpoint adapters do not establish actual native borrows.
+
+The interpreted native rebuild post now establishes counter size 4096, the `Live`
+storage invariant, empty pending observation and a stored ancestor chain exactly
+equal to the supplied ancestor view. Initial `Live` is unnecessary because the
+clear post establishes empty history. Native clear entry, valid borrowed execution,
+finite stable ancestry, no-growth budgets and normal return remain separate.
+The full entry predicate retains its distinct state and element intrinsics.
+
+Independent fresh replay compiles three modules with fourteen standard-only axiom
+audits and reproduces all controls: twelve schema, eleven generated semantic,
+three relational-source, ten actual binding, four canonical and eight provenance
+controls. All sources, objects and axiom output are byte-identical. Of 183 output
+files, 157 are byte-identical and 26 differ only by the fresh output path.
+
+Both gates authenticate the cached three trace, three push, four flush and 53
+chain modules, their output inventories and external lookup trees before and
+after compilation. Source review checks the limited unsigned-carrier transport:
+exact ranges, value projections and unsigned comparisons, without normalizing
+bitwise operations. Historical pending-provenance wording in frozen comparison
+reports is superseded by the authoritative v2 native export capsule.
+
+This closes the selected rebuild post interpretation. It does not establish
+native call completion, actual DOM correspondence, full `recover` or milestone
+4 completion. The next target is the remaining recovery control flow using the
+same storage observers and explicit parent/depth and equality correspondence.
+
+| Record | SHA-256 |
+| --- | --- |
+| `native-recovery-rebuild-translation-v1/RECOVERY-REBUILD-TRANSLATION-PROTOTYPE-v1.json` | `6992919e2655d5e0edcfd4ebeb1be701abfef81f1af28b5e1bc7b64352e22360` |
+| `reviews/native-recovery-rebuild-root-v1/report.json` | `42a024ce25eea6b6765ce6935584cf02fec855ad6fc709273adbcfad327f8389` |
+| `reviews/native-recovery-rebuild-review-v1/REVIEW-EVIDENCE-v1.json` | `d28015694ea25bded4ba462d86d7e8c53b0911603552f2f1cb70d337c4e29592` |
+| `NATIVE-RECOVERY-REBUILD-INTERPRETATION-EVIDENCE-v1.json` | `1170ec7a74ccd4939b6b2b89af09013c3f030c4c42dd92e5501ea3bbda8414d5` |
+
+Rebuild into a fresh output directory:
+
+```sh
+python3 artifacts/stylo-bloom-tools/creusot-gate/provider-state/native-storage-pop-concrete/native-recovery-rebuild-translation-v1/gate-v1/rebuild.py /tmp/native-recovery-rebuild-replay
 ```
