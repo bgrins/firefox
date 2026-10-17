@@ -5000,3 +5000,59 @@ Paths are relative to `provider-bindings-v1`:
 | `native-selector-list-any-v1/scoped-v1/NATIVE-SELECTOR-LIST-ANY-v2.json` | `e139bc3555a83ef52f4a20e6f0d1a68fded92a09f9005868637c64c6fbaf3a86` |
 | `native-matching-list-v1/scoped-v1/NATIVE-MATCHING-LIST-v1.json` | `c1d36c6eaf203223f9d5aca26869ae0da6c8809dafd449406d38424798591e13` |
 | `nested-selector-design-review-v1/BASELINE-AUDIT-v1.json` | `13fc3aa20777f0e2228385f2e4ebeb784c86b56d1a76908b9ec053b8e6a170fd` |
+## Recursive matcher and collection proof checkpoints
+
+The recursive Is/Where matcher now has a scoped native checkpoint with 575
+successful obligations across thirty selected roots: 263 for eight new native
+roots and 312 for changed inherited roots. Sixty-two other models remain equal
+to the accepted logical parent, including eight explicitly inherited zero-goal
+models. Five transferred roots require exact model equality apart from source
+directory names; the list and public entry roots were freshly proved after
+source-span changes. Three native sensitivity controls and twenty evidence/body
+corruption checks pass. The root replay reproduces the checkpoint exactly.
+
+This proof uses an isolated compiler candidate that permits mutual recursion
+only for local, translated, ordinary impure runtime functions connected by call
+edges. Ghost, logical, trusted and termination-annotated functions retain their
+existing restrictions. The result concerns normal returns; it does not prove
+termination or the compiler's soundness. The original compiler remains intact.
+The candidate preserves the actual matcher bodies, checked nesting callback,
+list iteration and full context frame. A true nested match supplies one selected
+child with both coverage conditions at the reduced nesting budget. Native list
+and iterator observations remain explicit representation boundaries.
+
+The typed export preserves the original canonical verification task and captures
+fifteen definitions and two guarded recursive laws. Twelve Lean interpretation
+theorems pass, with seven well-typed semantic mutations failing their intended
+proofs, ten schema controls and five export controls. The captured laws are
+explicit theorem premises, not newly declared Lean axioms. Their coherent
+interpretation and connection to native contents remain part of the composition
+work.
+
+A separate generic Lean theorem connects recursive matching witnesses to the
+existing collection, packing and Bloom-query proof. Its induction preserves both
+collector modes and uses singleton identity to retain the same selected child.
+The independent review rebuilt both modules, audited three declarations and
+checked six semantic mutations. The audited dependencies are Lean's standard
+logical axioms and the inherited opaque type `Aeneas.Std.core.fmt.Formatter`.
+This theorem assumes a transitive ancestor relation, exact list membership,
+atomic hash alignment and valid filter history. It does not establish that those
+premises describe the native matcher and caller; that typed connection is in
+progress. The ancestor relation's interpretation as strict DOM ancestry belongs
+to the native parent/chain boundary.
+
+M6 remains open. Native recursive shape and contents interpretation, provider
+and caller composition, relative selectors, broader combinators and the explicit
+unsupported inventory retain their original scope. No additional Firefox defect
+is claimed.
+
+Paths are relative to `provider-bindings-v1`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `runtime-mutual-recursion-candidate-v1/CANDIDATE-v1.json` | `6baffc3fd0651452769ee1a8252300b0f90eff40de3b986b4a36d4b47d2c9796` |
+| `native-recursive-selector-v1/RECURSIVE-LOGICAL-v2.json` | `f0a94367d868b17e444c124d2a0f90740fbfe25f19c62c37dc935f95c1967cbc` |
+| `native-recursive-selector-v1/scoped-native-v1/NATIVE-RECURSIVE-MATCHER-v1.json` | `79f15c2b8e09370bc04ec5d60ffdf590e798cdf40d8fdf262d52edcbe37f209a` |
+| `native-recursive-selector-v1/scoped-native-v1/ROOT-REVIEW-v1.json` | `5b46b6366bdc455fff78a6772de046cb43c73730379d34ec0941c54a7217acb6` |
+| `recursive-matcher-translation-v1/reviews/export-review-v1/REVIEW-v1.json` | `aefe46cb2d9697aba8fc845290f81f91a2961c1870b5ecf1fc461cbe29480628` |
+| `recursive-matcher-translation-v1/reviews/region-review-v1/REVIEW-v1.json` | `f22736aaccb82d4ee87277b0bc399af8d0d52a9c67224cc3b9858e0a2939bb8b` |
