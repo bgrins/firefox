@@ -39,16 +39,19 @@ impl RelativeSelectorCachedMatch {
 struct Key {
     element: OpaqueElement,
     selector: SelectorKey,
+    scope_element: Option<OpaqueElement>,
 }
 
 impl Key {
     pub fn new<Impl: SelectorImpl>(
         element: OpaqueElement,
         selector: &RelativeSelector<Impl>,
+        scope_element: Option<OpaqueElement>,
     ) -> Self {
         Key {
             element,
             selector: SelectorKey::new(&selector.selector),
+            scope_element,
         }
     }
 }
@@ -65,9 +68,11 @@ impl RelativeSelectorCache {
         &mut self,
         anchor: OpaqueElement,
         selector: &RelativeSelector<Impl>,
+        scope_element: Option<OpaqueElement>,
         matched: RelativeSelectorCachedMatch,
     ) {
-        self.cache.insert(Key::new(anchor, selector), matched);
+        self.cache
+            .insert(Key::new(anchor, selector, scope_element), matched);
     }
 
     /// Check if we have a cache entry for the element.
@@ -75,7 +80,10 @@ impl RelativeSelectorCache {
         &mut self,
         element: OpaqueElement,
         selector: &RelativeSelector<Impl>,
+        scope_element: Option<OpaqueElement>,
     ) -> Option<RelativeSelectorCachedMatch> {
-        self.cache.get(&Key::new(element, selector)).copied()
+        self.cache
+            .get(&Key::new(element, selector, scope_element))
+            .copied()
     }
 }

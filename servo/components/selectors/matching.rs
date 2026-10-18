@@ -569,11 +569,11 @@ fn relative_selector_match_early<E: Element>(
     context: &mut MatchingContext<E::Impl>,
 ) -> Option<bool> {
     // See if we can return a cached result.
-    if let Some(cached) = context
-        .selector_caches
-        .relative_selector
-        .lookup(element.opaque(), selector)
-    {
+    if let Some(cached) = context.selector_caches.relative_selector.lookup(
+        element.opaque(),
+        selector,
+        context.scope_element,
+    ) {
         return Some(cached.matched());
     }
     // See if we can fast-reject.
@@ -586,6 +586,7 @@ fn relative_selector_match_early<E: Element>(
         context.selector_caches.relative_selector.add(
             element.opaque(),
             selector,
+            context.scope_element,
             RelativeSelectorCachedMatch::NotMatched,
         );
         return Some(false);
@@ -658,6 +659,7 @@ fn do_match_relative_selectors<E: Element>(
         context.selector_caches.relative_selector.add(
             element.opaque(),
             relative_selector,
+            context.scope_element,
             if matched {
                 RelativeSelectorCachedMatch::Matched
             } else {
