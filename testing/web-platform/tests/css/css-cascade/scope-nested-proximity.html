@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Nested scope proximity considers every outer scope</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-6/#scope-scope">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-6/#cascade-sort">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const cases = [
+  ["alternative inner roots", ":scope > .x, :scope > .o .y", "", "#target", "#target", "hidden"],
+  ["reversed inner selector list", ":scope > .o .y, :scope > .x", "", "#target", "#target", "hidden"],
+  ["near inner root only", ":scope > .o .y", "", "#target", "#target", "hidden"],
+  ["far inner root only", ":scope > .x", "", "#target", "#target", "visible"],
+  ["only near root matches the rule", ":scope > .x, :scope > .o .y", "", ":scope > #target", ":scope #target", "hidden"],
+  ["only far root matches the rule", ":scope > .x, :scope > .o .y", "", ":scope > .y > #target", ":scope .y #target", "visible"],
+  ["near root excluded by limit", ":scope > .x, :scope > .o .y", "to (:scope > #target)", "#target", "#target", "visible"],
+];
+
+for (const [name, start, end, selector, competingSelector, expected] of cases) {
+  for (const important of [false, true]) {
+    promise_test(async t => {
+      const frame = document.createElement("iframe");
+      t.add_cleanup(() => frame.remove());
+      const priority = important ? "!important" : "";
+      const loaded = new Promise(resolve => frame.onload = resolve);
+      frame.srcdoc = `<!doctype html><style>
+        @scope (.o) {
+          @scope (${start}) ${end} {
+            ${selector} { visibility: hidden ${priority}; }
+          }
+        }
+        @scope (.x) {
+          ${competingSelector} { visibility: visible ${priority}; }
+        }
+        </style>
+        <div class="o"><div class="o"><div class="x"><div class="y">
+          <span id="target"></span>
+        </div></div></div></div>`;
+      document.body.append(frame);
+      await loaded;
+      const target = frame.contentDocument.getElementById("target");
+      assert_equals(frame.contentWindow.getComputedStyle(target).visibility, expected);
+    }, `${name}, ${important ? "important" : "normal"} declarations`);
+  }
+}
+</script>

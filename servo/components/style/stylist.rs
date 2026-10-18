@@ -3198,6 +3198,8 @@ where
             );
             result.append(&mut this_result);
         }
+        // Inner roots from different outer scopes may have interleaved proximities.
+        result.sort_by_key(|candidate| std::cmp::Reverse(candidate.proximity));
         result
     };
 
