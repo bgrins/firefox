@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Import conditions determine whether an import establishes layer order</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#at-import">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#layer-ordering">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const cases = [
+  ["no import", "", false],
+  ["false supports", '@import "data:text/css," layer(a) supports(visibility:0);', false],
+  ["parenthesized false supports", '@import "data:text/css," layer(a) supports((visibility:0));', false],
+  ["true supports", '@import "data:text/css," layer(a) supports(visibility:visible);', true],
+  ["false media", '@import "data:text/css," layer(a) not all;', false],
+  ["empty imported sheet", '@import "data:text/css," layer(a);', true],
+  ["failed imported sheet", '@import "/common/blank.html?pipe=status(404)" layer(a);', true],
+  ["false supports group", '@supports (visibility:0) { @layer a; }', false],
+];
+
+for (const [name, prefix, registersLayer] of cases) {
+  for (const important of [false, true]) {
+    promise_test(async t => {
+      const frame = document.createElement("iframe");
+      t.add_cleanup(() => frame.remove());
+      const priority = important ? "!important" : "";
+      const loaded = new Promise(resolve => frame.onload = resolve);
+      frame.srcdoc = `<!doctype html><style>
+        ${prefix}
+        @layer b,a;
+        @layer a { #target { visibility: hidden ${priority}; } }
+        @layer b { #target { visibility: visible ${priority}; } }
+        </style><div id="target"></div>`;
+      document.body.append(frame);
+      await loaded;
+      const target = frame.contentDocument.getElementById("target");
+      const expected = registersLayer === important ? "hidden" : "visible";
+      assert_equals(frame.contentWindow.getComputedStyle(target).visibility, expected);
+    }, `${name}, ${important ? "important" : "normal"} declarations`);
+  }
+}
+</script>

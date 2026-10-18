@@ -274,6 +274,13 @@ impl NestedRuleIterationCondition for EffectiveRules {
         custom_media_map: &CustomMediaMap,
         rule: &ImportRule,
     ) -> bool {
+        if rule
+            .supports
+            .as_ref()
+            .is_some_and(|supports| !supports.enabled)
+        {
+            return false;
+        }
         match rule.stylesheet.media(guard) {
             Some(m) => m.evaluate(
                 device,
