@@ -123,11 +123,16 @@ impl RuleTree {
         //
         // Important rules are sorted differently from unimportant ones by
         // shadow order and cascade order.
-        if !important_author.is_empty()
-            && important_author.first().unwrap().1 != important_author.last().unwrap().1
-        {
+        for important in [
+            &mut important_author,
+            &mut important_user,
+            &mut important_ua,
+        ] {
+            if important.is_empty() || important.first().unwrap().1 == important.last().unwrap().1 {
+                continue;
+            }
             // We only need to sort if the important rules come from
-            // different trees, but we need this sort to be stable.
+            // different trees or layers, but we need this sort to be stable.
             //
             // FIXME(emilio): This could maybe be smarter, probably by chunking
             // the important rules while inserting, and iterating the outer
@@ -138,7 +143,7 @@ impl RuleTree {
             // inside the same chunk already sorted. Seems like we could try to
             // keep a SmallVec-of-SmallVecs with the chunks and just iterate the
             // outer in reverse.
-            important_author.sort_by_key(|&(_, priority)| priority);
+            important.sort_by_key(|&(_, priority)| priority);
         }
 
         for (source, priority) in important_author.drain(..) {

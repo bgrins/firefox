@@ -1,0 +1,40 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Important user and agent declarations reverse layer order</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const cases = [
+  ["normal b,a", "@layer b,a; @layer a { #target { visibility:hidden } } @layer b { #target { visibility:collapse } }", "hidden"],
+  ["normal a,b", "@layer a,b; @layer a { #target { visibility:hidden } } @layer b { #target { visibility:collapse } }", "collapse"],
+  ["important b,a", "@layer b,a; @layer a { #target { visibility:hidden!important } } @layer b { #target { visibility:collapse!important } }", "collapse"],
+  ["important a,b", "@layer a,b; @layer a { #target { visibility:hidden!important } } @layer b { #target { visibility:collapse!important } }", "hidden"],
+  ["important layered versus unlayered", "@layer b,a; #target { visibility:visible!important } @layer a { #target { visibility:hidden!important } } @layer b { #target { visibility:collapse!important } }", "collapse"],
+  ["equal-priority source order", "@layer b,a; @layer a { #target { visibility:visible!important } } @layer b { #target { visibility:hidden!important } #target { visibility:collapse!important } }", "collapse"],
+  ["equal-priority specificity", "@layer b,a; @layer a { #target { visibility:visible!important } } @layer b { #target { visibility:collapse!important } div { visibility:hidden!important } }", "collapse"],
+];
+
+for (const origin of ["USER_SHEET", "AGENT_SHEET", "AUTHOR_SHEET"]) {
+  for (const [name, css, expected] of cases) {
+    promise_test(async t => {
+      const frame = document.createElement("iframe");
+      t.add_cleanup(() => frame.remove());
+      const loaded = new Promise(resolve => frame.onload = resolve);
+      frame.srcdoc = '<!doctype html><div id="target"></div>';
+      document.body.append(frame);
+      await loaded;
+      const utils = SpecialPowers.getDOMWindowUtils(frame.contentWindow);
+      const uri = "data:text/css," + encodeURIComponent(css);
+      utils.loadSheetUsingURIString(uri, utils[origin]);
+      try {
+        const target = frame.contentDocument.getElementById("target");
+        assert_equals(frame.contentWindow.getComputedStyle(target).visibility, expected);
+      } finally {
+        utils.removeSheetUsingURIString(uri, utils[origin]);
+      }
+    }, `${origin}: ${name}`);
+  }
+}
+</script>
