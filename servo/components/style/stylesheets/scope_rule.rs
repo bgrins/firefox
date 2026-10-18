@@ -351,9 +351,9 @@ where
             if parent.is_none()
                 && root_may_be_shadow_host
                 && let Some(host) = p.containing_shadow_host()
+                && host.opaque() == root
             {
-                // Pretty much an edge case where user specified scope-start and -end of :host
-                return host.opaque() == root;
+                parent = Some(host);
             }
         }
         false

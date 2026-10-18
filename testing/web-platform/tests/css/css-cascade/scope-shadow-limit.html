@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Reaching a shadow host does not imply a scoping limit matched</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-6/#scope-limits">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const start of ["(:host)", "(:host(div))", ""]) {
+  for (const [end, expected] of [
+    ["", ["1", "1", "1"]],
+    ["to (.never)", ["1", "1", "1"]],
+    ["to (.stop)", ["1", "1", "auto"]],
+  ]) {
+    test(t => {
+      const host = document.createElement("div");
+      t.add_cleanup(() => host.remove());
+      document.body.append(host);
+      const shadow = host.attachShadow({mode: "open"});
+      shadow.innerHTML = `<style>
+        @scope ${start} ${end} {
+          :scope, .target { z-index: 1; }
+        }
+        </style>
+        <span class="target" id="before"></span>
+        <div class="stop"><span class="target" id="inside"></span></div>`;
+      const elements = [host, shadow.getElementById("before"), shadow.getElementById("inside")];
+      assert_array_equals(elements.map(element => getComputedStyle(element).zIndex), expected);
+    }, `@scope ${start} ${end} checks the limit selector for shadow descendants`);
+  }
+}
+</script>
