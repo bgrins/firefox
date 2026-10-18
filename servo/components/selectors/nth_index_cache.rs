@@ -29,6 +29,7 @@ impl NthIndexCache {
         is_of_type: bool,
         is_from_end: bool,
         selectors: &[Selector<Impl>],
+        scope_element: Option<OpaqueElement>,
     ) -> &mut NthIndexCacheInner {
         if is_of_type {
             return if is_from_end {
@@ -39,9 +40,9 @@ impl NthIndexCache {
         }
         if !selectors.is_empty() {
             return if is_from_end {
-                self.nth_last_of_selectors.lookup(selectors)
+                self.nth_last_of_selectors.lookup(selectors, scope_element)
             } else {
-                self.nth_of_selectors.lookup(selectors)
+                self.nth_of_selectors.lookup(selectors, scope_element)
             };
         }
         if is_from_end {
@@ -53,13 +54,16 @@ impl NthIndexCache {
 }
 
 #[derive(Hash, Eq, PartialEq)]
-struct SelectorListCacheKey(usize);
+struct SelectorListCacheKey(usize, Option<OpaqueElement>);
 
-/// Use the selector list's pointer as the cache key
+/// Use the selector list's pointer and scope element as the cache key.
 impl SelectorListCacheKey {
     // :nth-child of selectors are reference-counted with `ThinArc`, so we know their pointers are stable.
-    fn new<Impl: SelectorImpl>(selectors: &[Selector<Impl>]) -> Self {
-        Self(selectors.as_ptr() as usize)
+    fn new<Impl: SelectorImpl>(
+        selectors: &[Selector<Impl>],
+        scope_element: Option<OpaqueElement>,
+    ) -> Self {
+        Self(selectors.as_ptr() as usize, scope_element)
     }
 }
 
@@ -73,9 +77,10 @@ impl NthIndexOfSelectorsCaches {
     pub fn lookup<Impl: SelectorImpl>(
         &mut self,
         selectors: &[Selector<Impl>],
+        scope_element: Option<OpaqueElement>,
     ) -> &mut NthIndexCacheInner {
         self.0
-            .entry(SelectorListCacheKey::new(selectors))
+            .entry(SelectorListCacheKey::new(selectors, scope_element))
             .or_default()
     }
 }

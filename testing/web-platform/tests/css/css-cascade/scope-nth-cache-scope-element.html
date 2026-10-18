@@ -1,0 +1,53 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Scoped nth-child of selectors distinguish overlapping roots</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-6/#scoped-style-rules">
+<link rel="help" href="https://drafts.csswg.org/selectors-4/#the-nth-child-pseudo">
+<link rel="help" href="https://drafts.csswg.org/selectors-4/#the-nth-last-child-pseudo">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const fromEnd of [false, true]) {
+  const pseudo = fromEnd ? 'nth-last-child' : 'nth-child';
+  const target = '<span id="target" class="item"></span>';
+  const trigger = '<i class="trigger"></i>';
+  const markup = `
+    <div class="o" id="outer"><div class="o" id="inner"><div class="lim">
+      ${fromEnd ? target + trigger : trigger + target}
+    </div></div></div>
+  `;
+  const selector = `#target:${pseudo}(1 of .item, :scope > .lim > .trigger)`;
+  const variants = [
+    ['overlapping roots', `@scope (.o) { ${selector} { z-index: 1 } }`, '1'],
+    ['outer-first root list', `@scope (#outer, #inner) { ${selector} { z-index: 1 } }`, '1'],
+    ['inner-first root list', `@scope (#inner, #outer) { ${selector} { z-index: 1 } }`, '1'],
+    [':is() in filter', `@scope (.o) {
+      #target:${pseudo}(1 of .item, :is(:scope > .lim > .trigger)) { z-index: 1 }
+    }`, '1'],
+    [':where() in filter', `@scope (.o) {
+      #target:${pseudo}(1 of .item, :where(:scope > .lim > .trigger)) { z-index: 1 }
+    }`, '1'],
+    ['separate scope rules', `
+      @scope (#outer) { ${selector} { z-index: 1 } }
+      @scope (#inner) { ${selector} { z-index: 1 } }
+    `, '1'],
+    ['outer root only', `@scope (#outer) { ${selector} { z-index: 1 } }`, '1'],
+    ['inner root only', `@scope (#inner) { ${selector} { z-index: 1 } }`, '0'],
+    ['scope-independent match', `@scope (.o) { #target:${pseudo}(1 of .item) { z-index: 1 } }`, '1'],
+    ['scope-independent nonmatch', `@scope (.o) { #target:${pseudo}(2 of .item) { z-index: 1 } }`, '0'],
+  ];
+  for (const [label, rules, expected] of variants) {
+    promise_test(async t => {
+      const frame = document.createElement('iframe');
+      t.add_cleanup(() => frame.remove());
+      const loaded = new Promise(resolve => frame.onload = resolve);
+      frame.srcdoc = '<!doctype html><style>#target { z-index: 0 }' + rules + '</style>' + markup;
+      document.body.append(frame);
+      await loaded;
+      const target = frame.contentDocument.getElementById('target');
+      assert_equals(frame.contentWindow.getComputedStyle(target).zIndex, expected);
+    }, pseudo + ' scope-dependent of-list: ' + label);
+  }
+}
+</script>

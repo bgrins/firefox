@@ -304,7 +304,7 @@ where
     ) -> &mut NthIndexCacheInner {
         self.selector_caches
             .nth_index
-            .get(is_of_type, is_from_end, selectors)
+            .get(is_of_type, is_from_end, selectors, self.scope_element)
     }
 
     /// Whether we're matching a nested selector.
