@@ -1439,16 +1439,22 @@ pub fn note_scope_dependency_force_at_subject<'selectors>(
     let mut invalidations: Vec<Invalidation> = Vec::new();
     if let Some(next) = dependency.next.as_ref() {
         for dep in next.slice() {
-            if dep.selector.is_rightmost(dep.selector_offset) && !traversed_non_subject {
+            if dep.selector.is_rightmost(dep.selector_offset)
+                && !traversed_non_subject
+                && !matches!(
+                    dep.invalidation_kind(),
+                    DependencyInvalidationKind::Relative(_)
+                )
+            {
                 continue;
             }
 
-            // Follow the normal dependencies as far as we can, leaving
+            // Follow normal and relative dependencies as far as we can, leaving
             // other kinds to their own invalidation mechanisms elsewhere
             if dep.next.is_some()
                 && matches!(
                     dep.invalidation_kind(),
-                    DependencyInvalidationKind::Normal(_)
+                    DependencyInvalidationKind::Normal(_) | DependencyInvalidationKind::Relative(_)
                 )
             {
                 invalidations.extend(note_scope_dependency_force_at_subject(

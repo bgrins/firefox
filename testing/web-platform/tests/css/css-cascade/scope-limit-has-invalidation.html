@@ -1,0 +1,55 @@
+<!doctype html>
+<title>Scope limit invalidation through :scope inside :has()</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-6/#scope-atrule">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const selectors = [
+  ["negative scope in :has()", ".lim:has(> .trigger:not(:scope > .lim > .trigger)) .item", ".item"],
+  ["positive scope in :has()", ".lim:has(> .trigger:is(:scope .trigger)) .item", ".item"],
+  ["child after :has()", ".lim:has(> .trigger:not(:scope > .lim > .trigger)) > .item", ".item"],
+  [":has() on subject", ".lim:has(> .trigger:is(:scope .trigger))", ".lim"],
+  ["negated :has() on subject", ".item:not(:has(:scope))", ".item"],
+  ["negated sibling :has()", ".item:not(:has(~ :scope))", ".item"],
+  ["negated sibling subtree :has()", ".item:not(:has(+ * :scope))", ".item"],
+  ["negated :has() before subject", ".lim:not(:has(:scope)) .item", ".item"],
+  ["scope-independent :has()", ".lim:has(> .trigger) .item", ".item"],
+  ["literal root inside :has()", ".lim:has(> .trigger:is(#outer .trigger)) .item", ".item"],
+];
+
+for (const [limit, mutationTarget] of [[".stop", ".inner"], [".inner:has(> .stop)", ".lim"]]) {
+  for (const [name, selector, subject] of selectors) {
+    for (const initiallyLimited of [false, true]) {
+      test(t => {
+        const fixture = document.createElement("div");
+        fixture.innerHTML = `
+          <style>
+            .lim, .item { z-index: 0; }
+            @scope (#outer) to (${limit}) {
+              ${selector} { z-index: 7; }
+            }
+          </style>
+          <div id="outer">
+            <div class="inner">
+              <div class="lim">
+                <span class="trigger"></span>
+                <span class="item"></span>
+              </div>
+            </div>
+          </div>`;
+        const changed = fixture.querySelector(mutationTarget);
+        changed.classList.toggle("stop", initiallyLimited);
+        document.body.append(fixture);
+        t.add_cleanup(() => fixture.remove());
+        const target = fixture.querySelector(subject);
+        assert_equals(getComputedStyle(target).zIndex, initiallyLimited ? "0" : "7", "initial style");
+        changed.classList.toggle("stop");
+        assert_equals(getComputedStyle(target).zIndex, initiallyLimited ? "7" : "0", "changed limit");
+        changed.classList.toggle("stop");
+        assert_equals(getComputedStyle(target).zIndex, initiallyLimited ? "0" : "7", "restored limit");
+      }, `${limit}: ${name}, ${initiallyLimited ? "remove" : "add"} limit`);
+    }
+  }
+}
+</script>
