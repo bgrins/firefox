@@ -139,6 +139,8 @@ pub struct RevalidationResult {
     pub selectors_matched: SmallBitVec,
     /// The set of attributes of this element that were relevant for its style.
     pub relevant_attributes: RelevantAttributes,
+    /// Wildcard scope matching cannot preserve filtered nth positions.
+    pub has_scope_dependent_nth: bool,
 }
 
 /// The results from trying to revalidate scopes this element is in.

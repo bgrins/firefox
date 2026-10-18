@@ -1,0 +1,70 @@
+<!doctype html>
+<title>Style sharing preserves scoped filtered nth positions</title>
+<link rel="help" href="https://drafts.csswg.org/selectors/#nth-child-pseudo">
+<link rel="help" href="https://drafts.csswg.org/selectors/#nth-last-child-pseudo">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-6/#scope-atrule">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function fixture(t, shadow, css, html) {
+  const host = document.createElement("div");
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const container = shadow ? host.attachShadow({mode: "open"}) : host;
+  container.innerHTML = `<style>${css}</style>${html}`;
+  return container;
+}
+
+for (const [direction, expected] of [
+  ["nth-child", ["0", "7", "0", "0"]],
+  ["nth-last-child", ["0", "0", "0", "7"]],
+]) {
+  for (const shadow of [false, true]) {
+    for (const mode of ["scope inside filter", "scope outside filter", "scope-independent filter"]) {
+      test(t => {
+        const filter = mode === "scope inside filter" ? ".item:not(:scope > .rows > .bad)" : ".item:not(.bad)";
+        const prefix = mode === "scope outside filter" ? ":scope > .rows > " : "";
+        const container = fixture(t, shadow, `
+          .item { z-index: 0; }
+          @scope (.root) { ${prefix}.item:${direction}(odd of ${filter}) { z-index: 7; } }
+        `, `<section class="root"><div class="rows">
+          <i class="item bad"></i><i class="item"></i>
+          <i class="item bad"></i><i class="item"></i>
+        </div></section>`);
+        assert_array_equals([...container.querySelectorAll(".item")].map(e => getComputedStyle(e).zIndex), expected);
+      }, `${direction}: ${mode}, ${shadow ? "shadow tree" : "document"}`);
+    }
+
+    test(t => {
+      const forward = direction === "nth-child";
+      const panels = [false, true].map(extra => {
+        const classes = forward ? [extra ? "" : "bad", "", "bad", "target"] :
+          ["target", extra ? "" : "bad", "bad", ""];
+        return `<div class="panel"><div class="rows">${classes.map(c => `<i class="item ${c}"></i>`).join("")}</div></div>`;
+      }).join("");
+      const container = fixture(t, shadow, `
+        .panel { z-index: 0; }
+        @scope (.root) {
+          .panel:has(> .rows > .target:${direction}(odd of .item:not(:scope > .panel > .rows > .bad))) { z-index: 7; }
+        }
+      `, `<section class="root">${panels}</section>`);
+      assert_array_equals([...container.querySelectorAll(".panel")].map(e => getComputedStyle(e).zIndex), ["0", "7"]);
+    }, `${direction} nested in :has(), ${shadow ? "shadow tree" : "document"}`);
+  }
+
+  for (const scopedFilter of [false, true]) {
+    test(t => {
+      const filter = scopedFilter ? ".item:not(:scope .bad)" : ".item:not(.bad)";
+      const container = fixture(t, false, `
+        .item { z-index: 0; }
+        .item:${direction}(odd of ${filter}) { z-index: 7; }
+      `, `<div class="rows">
+        <i class="item bad"></i><i class="item"></i>
+        <i class="item bad"></i><i class="item"></i>
+      </div>`);
+      assert_array_equals([...container.querySelectorAll(".item")].map(e => getComputedStyle(e).zIndex), expected);
+    }, `${direction}: unscoped rule, ${scopedFilter ? "document :scope in filter" : "scope-independent filter"}`);
+  }
+}
+</script>

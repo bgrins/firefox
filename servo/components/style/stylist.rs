@@ -1930,6 +1930,7 @@ impl Stylist {
         let mut result = RevalidationResult::default();
         let mut relevant_attributes = &mut result.relevant_attributes;
         let selectors_matched = &mut result.selectors_matched;
+        let has_scope_dependent_nth = &mut result.has_scope_dependent_nth;
 
         let matches_document_rules =
             element.each_applicable_non_document_style_rule_data(|data, host| {
@@ -1939,6 +1940,10 @@ impl Stylist {
                         self.quirks_mode,
                         Some(&mut relevant_attributes),
                         |selector_and_hashes| {
+                            if selector_and_hashes.has_scope_dependent_nth {
+                                *has_scope_dependent_nth = true;
+                                return false;
+                            }
                             selectors_matched.push(matches_selector(
                                 &selector_and_hashes.selector,
                                 selector_and_hashes.selector_offset,
@@ -1962,6 +1967,10 @@ impl Stylist {
                 self.quirks_mode,
                 Some(&mut relevant_attributes),
                 |selector_and_hashes| {
+                    if selector_and_hashes.has_scope_dependent_nth {
+                        *has_scope_dependent_nth = true;
+                        return false;
+                    }
                     selectors_matched.push(matches_selector(
                         &selector_and_hashes.selector,
                         selector_and_hashes.selector_offset,
@@ -2541,10 +2550,15 @@ struct RevalidationSelectorAndHashes {
     selector: Selector<SelectorImpl>,
     selector_offset: usize,
     hashes: AncestorHashes,
+    has_scope_dependent_nth: bool,
 }
 
 impl RevalidationSelectorAndHashes {
-    fn new(selector: Selector<SelectorImpl>, hashes: AncestorHashes) -> Self {
+    fn new(
+        selector: Selector<SelectorImpl>,
+        hashes: AncestorHashes,
+        has_scope_dependent_nth: bool,
+    ) -> Self {
         let selector_offset = {
             // We basically want to check whether the first combinator is a
             // pseudo-element combinator.  If it is, we want to use the offset
@@ -2570,6 +2584,7 @@ impl RevalidationSelectorAndHashes {
             selector,
             selector_offset,
             hashes,
+            has_scope_dependent_nth,
         }
     }
 }
@@ -2589,6 +2604,8 @@ struct StylistSelectorVisitor<'a> {
 
     /// Whether the selector needs revalidation for the style sharing cache.
     needs_revalidation: &'a mut bool,
+
+    has_scope_dependent_nth: &'a mut bool,
 
     /// Whether any selector can make the match result of an element that isn't
     /// itself a link depend on the visitedness of a link.
@@ -2731,6 +2748,10 @@ impl<'a> SelectorVisitor for StylistSelectorVisitor<'a> {
         *self.needs_revalidation = *self.needs_revalidation || component_needs_revalidation(s);
 
         match *s {
+            Component::Scope | Component::ImplicitScope => {
+                *self.has_scope_dependent_nth |=
+                    self.in_selector_list_of.contains(SelectorListKind::NTH_OF);
+            },
             Component::NonTSPseudoClass(NonTSPseudoClass::CustomState(ref name)) => {
                 // CustomStateSet is special cased as it is a functional pseudo
                 // class with unbounded inner values. This is different to
@@ -4000,9 +4021,11 @@ impl CascadeData {
                     None,
                 )?;
                 let mut needs_revalidation = false;
+                let mut has_scope_dependent_nth = false;
                 let mut visitor = StylistSelectorVisitor {
                     passed_rightmost_selector: false,
                     needs_revalidation: &mut needs_revalidation,
+                    has_scope_dependent_nth: &mut has_scope_dependent_nth,
                     non_link_visited_dependency: &mut self.non_link_visited_dependency,
                     in_selector_list_of: SelectorListKind::default(),
                     mapped_ids: &mut self.mapped_ids,
@@ -4022,6 +4045,7 @@ impl CascadeData {
                         RevalidationSelectorAndHashes::new(
                             rule.selector.clone(),
                             rule.hashes.clone(),
+                            has_scope_dependent_nth,
                         ),
                         quirks_mode,
                     )?;
@@ -4534,9 +4558,11 @@ impl CascadeData {
                 let cur_scope = &self.scope_conditions[scope_idx.0 as usize];
                 if let Some(cond) = cur_scope.condition.as_ref() {
                     let mut _unused = false;
+                    let mut has_scope_dependent_nth = false;
                     let visitor = StylistSelectorVisitor {
                         passed_rightmost_selector: true,
                         needs_revalidation: &mut _unused,
+                        has_scope_dependent_nth: &mut has_scope_dependent_nth,
                         non_link_visited_dependency: &mut self.non_link_visited_dependency,
                         in_selector_list_of: SelectorListKind::default(),
                         mapped_ids: &mut self.mapped_ids,
@@ -5128,6 +5154,7 @@ size_of_test!(Rule, 40);
 /// A function to be able to test the revalidation stuff.
 pub fn needs_revalidation_for_testing(s: &Selector<SelectorImpl>) -> bool {
     let mut needs_revalidation = false;
+    let mut has_scope_dependent_nth = false;
     let mut mapped_ids = Default::default();
     let mut nth_of_mapped_ids = Default::default();
     let mut attribute_dependencies = Default::default();
@@ -5141,6 +5168,7 @@ pub fn needs_revalidation_for_testing(s: &Selector<SelectorImpl>) -> bool {
     let mut visitor = StylistSelectorVisitor {
         passed_rightmost_selector: false,
         needs_revalidation: &mut needs_revalidation,
+        has_scope_dependent_nth: &mut has_scope_dependent_nth,
         non_link_visited_dependency: &mut non_link_visited_dependency,
         in_selector_list_of: SelectorListKind::default(),
         mapped_ids: &mut mapped_ids,
