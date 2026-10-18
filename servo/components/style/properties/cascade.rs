@@ -883,8 +883,7 @@ impl<'a> Cascade<'a> {
             context.builder.stylist.is_some(),
             "Need a Stylist to substitute variables!"
         );
-        declaration.value.substitute_variables(
-            declaration.id,
+        declaration.substitute_variables(
             context.builder.substitution_functions(),
             context.builder.stylist.unwrap(),
             context,

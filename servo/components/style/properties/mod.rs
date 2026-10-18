@@ -1611,22 +1611,22 @@ impl ToTyped for UnparsedValue {
 /// A simple cache for properties that come from a shorthand and have variable
 /// references.
 ///
-/// This cache works because of the fact that you can't have competing values
-/// for a given longhand coming from the same shorthand (but note that this is
-/// why the shorthand needs to be part of the cache key).
+/// Entries retain their source because rollback can select different declarations
+/// of the same shorthand for different longhands.
 pub type ShorthandsWithPropertyReferencesCache =
-    FxHashMap<(ShorthandId, LonghandId), PropertyDeclaration>;
+    FxHashMap<(ShorthandId, LonghandId), (Arc<UnparsedValue>, PropertyDeclaration)>;
 
-impl UnparsedValue {
+impl VariableDeclaration {
     fn substitute_variables<'cache>(
         &self,
-        longhand_id: LonghandId,
         substitution_functions: &ComputedSubstitutionFunctions,
         stylist: &Stylist,
         computed_context: &computed::Context,
         shorthand_cache: &'cache mut ShorthandsWithPropertyReferencesCache,
         attribute_tracker: &mut AttributeTracker,
     ) -> Cow<'cache, PropertyDeclaration> {
+        let longhand_id = self.id;
+        let unparsed = &self.value;
         let invalid_at_computed_value_time = || {
             let keyword = if longhand_id.inherited() {
                 CSSWideKeyword::Inherit
@@ -1644,24 +1644,27 @@ impl UnparsedValue {
             return invalid_at_computed_value_time();
         }
 
-        if let Some(shorthand_id) = self.from_shorthand {
+        if let Some(shorthand_id) = unparsed.from_shorthand {
             let key = (shorthand_id, longhand_id);
-            if shorthand_cache.contains_key(&key) {
+            if shorthand_cache
+                .get(&key)
+                .is_some_and(|(source, _)| Arc::ptr_eq(source, unparsed))
+            {
                 // FIXME: This double lookup should be avoidable, but rustc
                 // doesn't like that, see:
                 //
                 // https://github.com/rust-lang/rust/issues/82146
-                return Cow::Borrowed(&shorthand_cache[&key]);
+                return Cow::Borrowed(&shorthand_cache[&key].1);
             }
         }
 
-        let property_id = PropertyIdRef::from(match self.from_shorthand {
+        let property_id = PropertyIdRef::from(match unparsed.from_shorthand {
             Some(shorthand_id) => NonCustomPropertyId::from(shorthand_id),
             None => NonCustomPropertyId::from(longhand_id),
         });
 
         let SubstitutionResult { css, attr_taint } = match custom_properties::substitute(
-            &self.variable_value,
+            &unparsed.variable_value,
             Some(property_id),
             substitution_functions,
             stylist,
@@ -1684,7 +1687,7 @@ impl UnparsedValue {
         // FIXME(emilio): ParsingMode is slightly fishy...
         let mut context = ParserContext::new(
             Origin::Author,
-            &self.variable_value.url_data,
+            &unparsed.variable_value.url_data,
             None,
             ParsingMode::DEFAULT,
             computed_context.quirks_mode,
@@ -1701,7 +1704,7 @@ impl UnparsedValue {
             return Cow::Owned(PropertyDeclaration::css_wide_keyword(longhand_id, keyword));
         }
 
-        let shorthand = match self.from_shorthand {
+        let shorthand = match unparsed.from_shorthand {
             None => {
                 return match context.with_property_declaration(property_id, |context| {
                     input.parse_entirely(|input| longhand_id.parse_value(context, input))
@@ -1730,15 +1733,15 @@ impl UnparsedValue {
                 let writing_mode = computed_context.builder.writing_mode;
                 shorthand_cache.insert(
                     (shorthand, longhand.to_physical(writing_mode)),
-                    declaration.clone(),
+                    (unparsed.clone(), declaration.clone()),
                 );
             }
-            shorthand_cache.insert((shorthand, longhand), declaration);
+            shorthand_cache.insert((shorthand, longhand), (unparsed.clone(), declaration));
         }
 
         let key = (shorthand, longhand_id);
         match shorthand_cache.get(&key) {
-            Some(decl) => Cow::Borrowed(decl),
+            Some((source, decl)) if Arc::ptr_eq(source, unparsed) => Cow::Borrowed(decl),
             // NOTE: Under normal circumstances we should always have a value, but when prefs
             // change we might hit this case. Consider something like `animation-timeline`, which
             // is a conditionally-enabled longhand of `animation`:
@@ -1750,7 +1753,7 @@ impl UnparsedValue {
             // `animation-timeline`, parse_into won't generate any declaration for it anymore, so
             // we haven't inserted in the cache. Computing to invalid / initial seems like the most
             // sensible thing to do here.
-            None => invalid_at_computed_value_time(),
+            _ => invalid_at_computed_value_time(),
         }
     }
 }

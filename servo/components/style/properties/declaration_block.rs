@@ -1033,9 +1033,7 @@ impl PropertyDeclarationBlock {
             // |computed_values| is supplied, we use it to expand such variable
             // declarations. This will be fixed properly in Gecko bug 1391537.
             (PropertyDeclaration::WithVariables(declaration), Some(_)) => declaration
-                .value
                 .substitute_variables(
-                    declaration.id,
                     &context.builder.substitution_functions,
                     stylist,
                     &context,
