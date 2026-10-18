@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Name-only container queries respond to container-name changes</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#container-rule">
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#container-name">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+  for (const type of ["normal", "inline-size", "size"]) {
+    for (const shadow of [false, true]) {
+      for (const initiallyMatching of [false, true]) {
+        test(t => {
+          const container = document.createElement("div");
+          container.style.containerType = type;
+          container.style.containerName = initiallyMatching ? "card" : "none";
+          const root = shadow ? container.attachShadow({ mode: "open" }) : container;
+          root.innerHTML = `
+            <style>
+              .target { z-index: 0; }
+              @container card {
+                .target { z-index: 7; }
+              }
+            </style>
+            <div><div class="target"></div></div>
+          `;
+          document.body.append(container);
+          t.add_cleanup(() => container.remove());
+          const target = root.querySelector(".target");
+
+          assert_equals(getComputedStyle(target).zIndex,
+                        initiallyMatching ? "7" : "0", "Initial value");
+
+          container.style.containerName = initiallyMatching ? "none" : "card";
+          assert_equals(getComputedStyle(target).zIndex,
+                        initiallyMatching ? "0" : "7", "After changing the name");
+
+          container.style.containerName = initiallyMatching ? "card" : "none";
+          assert_equals(getComputedStyle(target).zIndex,
+                        initiallyMatching ? "7" : "0", "After restoring the name");
+        }, `Name-only query invalidation with container-type: ${type}, ` +
+           `${shadow ? "shadow" : "document"} descendant, ` +
+           `initially ${initiallyMatching ? "matching" : "not matching"}`);
+      }
+    }
+  }
+</script>

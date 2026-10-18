@@ -322,6 +322,7 @@ impl ContainerCondition {
         let condition = match self.condition {
             Some(ref c) => c,
             None => {
+                invalidation_flags.insert(ComputedValueFlags::DEPENDS_ON_CONTAINER_STYLE_QUERY);
                 // Condition-less container query (name only): matches if a
                 // named container was found.
                 return KleeneValue::from(result.is_some());
