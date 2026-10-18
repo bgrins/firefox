@@ -1,0 +1,33 @@
+<!doctype html>
+<title>round() preserves zero signs with relative lengths and infinite steps</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#round-infinities">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#sign-funcs">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const unit of ["em", "px"]) {
+  for (const strategy of ["nearest", "to-zero", "up", "down"]) {
+    for (const step of ["infinity", "-infinity"]) {
+      for (const [input, expected] of [
+        [`-1${unit}`, "0"],
+        [`(-1 * 0${unit})`, "0"],
+        [`0${unit}`, "1"],
+        [`1${unit}`, "1"],
+      ]) {
+        const expression = `clamp(0, 1 / sign(round(${strategy}, ${input}, ${step} * 1px)), 1)`;
+        test(t => {
+          const target = document.createElement("div");
+          target.style.fontSize = "16px";
+          target.style.opacity = expression;
+          document.body.append(target);
+          t.add_cleanup(() => target.remove());
+          assert_not_equals(target.style.opacity, "", "The expression parses");
+          assert_equals(getComputedStyle(target).opacity, expected);
+        }, expression);
+      }
+    }
+  }
+}
+</script>

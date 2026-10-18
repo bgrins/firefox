@@ -1958,7 +1958,12 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
                 if value_or_stop!(step.is_infinite_leaf()) {
                     match strategy {
                         RoundingStrategy::Nearest | RoundingStrategy::ToZero => {
-                            value_or_stop!(value.coerce_to_value(0.0));
+                            let zero = if value_or_stop!(value.is_negative_leaf()) {
+                                -0.0
+                            } else {
+                                0.0
+                            };
+                            value_or_stop!(value.coerce_to_value(zero));
                             replace_self_with!(&mut **value);
                             return SimplificationResult::Simplified;
                         },
@@ -1975,7 +1980,7 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
                                 replace_self_with!(&mut **value);
                                 return SimplificationResult::Simplified;
                             } else {
-                                value_or_stop!(value.coerce_to_value(0.0));
+                                value_or_stop!(value.coerce_to_value(-0.0));
                                 replace_self_with!(&mut **value);
                                 return SimplificationResult::Simplified;
                             }
