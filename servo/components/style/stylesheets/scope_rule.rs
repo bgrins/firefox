@@ -340,12 +340,12 @@ where
     let mut parent = Some(element);
     context.nest_for_scope_condition(Some(root), |context| {
         while let Some(p) = parent {
-            if matches_selector(selector, 0, None, p, context) {
-                return true;
-            }
             if p.opaque() == root {
                 // Reached the top, not lying outside of scope.
                 break;
+            }
+            if matches_selector(selector, 0, None, p, context) {
+                return true;
             }
             parent = p.parent_element();
             if parent.is_none()

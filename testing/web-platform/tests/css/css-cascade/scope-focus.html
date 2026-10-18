@@ -72,9 +72,8 @@ promise_test(async (t) => {
 
   assert_equals(getComputedStyle(a).zIndex, '1');
   await test_driver.bless('focus', () => a.focus());
-  // After focus(), we're no longer in scope because the limit (to-selector)
-  // kicks in.
-  assert_equals(getComputedStyle(a).zIndex, 'auto');
+  // The scoping root cannot be a scoping limit.
+  assert_equals(getComputedStyle(a).zIndex, '1');
 }, ':focus in limit, :scope in subject');
 </script>
 

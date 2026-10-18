@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>A scope root cannot be its own scoping limit</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-6/#scope-limits">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const green = "rgb(0, 128, 0)";
+const red = "rgb(255, 0, 0)";
+const cases = [
+  [":scope", [green, green, green]],
+  ["&", [green, green, green]],
+  [":is(:scope)", [green, green, green]],
+  [":where(:scope)", [green, green, green]],
+  [":scope, .limit", [green, green, red]],
+  [".limit", [green, green, red]],
+  ["#root", [green, green, green]],
+  ["span", [green, red, red]],
+  [":scope > span", [green, red, green]],
+  [":scope > .limit", [green, green, red]],
+];
+
+for (const [end, expected] of cases) {
+  promise_test(async t => {
+    const frame = document.createElement("iframe");
+    t.add_cleanup(() => frame.remove());
+    const loaded = new Promise(resolve => frame.onload = resolve);
+    frame.srcdoc = `<!doctype html><style>
+      :where(*) { background-color: red; }
+      @scope (#root) to (${end}) {
+        :scope, span { background-color: green; }
+      }
+      </style>
+      <div id="root">
+        <span id="before"></span>
+        <div class="limit"><span id="after"></span></div>
+      </div>`;
+    document.body.append(frame);
+    await loaded;
+    const actual = ["root", "before", "after"].map(id =>
+      frame.contentWindow.getComputedStyle(frame.contentDocument.getElementById(id)).backgroundColor);
+    assert_array_equals(actual, expected);
+  }, `Scoping limit ${end} only matches strict descendants of the root`);
+}
+</script>
