@@ -1,0 +1,58 @@
+<!doctype html>
+<title>Filtered nth invalidation through non-subject :has()</title>
+<link rel="help" href="https://drafts.csswg.org/selectors/#the-nth-child-pseudo">
+<link rel="help" href="https://drafts.csswg.org/selectors/#the-nth-last-child-pseudo">
+<link rel="help" href="https://drafts.csswg.org/selectors/#relational">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const [nth, positions] of [
+  ["nth-child", [2, 1, 1, 2, 2]],
+  ["nth-last-child", [2, 2, 1, 1, 2]],
+]) {
+  for (const [name, tail, target] of [
+    ["direct anchor", "", ".row"],
+    ["descendant", " .leaf", ".leaf"],
+    ["next sibling", " + .row", ".row"],
+    ["next sibling descendant", " + .row .leaf", ".leaf"],
+    ["following sibling descendant", " ~ .row .leaf", ".leaf"],
+  ]) {
+    test(t => {
+      const fixture = document.createElement("div");
+      fixture.innerHTML = `
+        <style>
+          .row, .leaf { z-index: 0; }
+          .row:${nth}(2 of :has(.on))${tail} { z-index: 7; }
+        </style>
+        <div class="rows">${[0, 1, 2, 3].map(i => `
+          <div class="row">
+            <span class="mark ${i ? "on" : ""}"></span>
+            <i class="leaf"></i>
+          </div>`).join("")}
+        </div>`;
+      document.body.append(fixture);
+      t.add_cleanup(() => fixture.remove());
+      const marks = fixture.querySelectorAll(".mark");
+      const targets = [...fixture.querySelectorAll(target)];
+      const changes = [
+        ["initial", () => {}],
+        ["add first witness", () => marks[0].classList.add("on")],
+        ["remove last witness", () => marks[3].classList.remove("on")],
+        ["restore first witness", () => marks[0].classList.remove("on")],
+        ["restore last witness", () => marks[3].classList.add("on")],
+      ];
+      for (const [step, [label, change]] of changes.entries()) {
+        change();
+        const position = positions[step];
+        const expected = targets.map((_, i) => {
+          const selected = name.startsWith("next sibling") ? i === position + 1 :
+            name === "following sibling descendant" ? i > position : i === position;
+          return selected ? "7" : "0";
+        });
+        assert_array_equals(targets.map(e => getComputedStyle(e).zIndex), expected, label);
+      }
+    }, `${nth}(2 of :has(.on)): ${name}`);
+  }
+}
+</script>

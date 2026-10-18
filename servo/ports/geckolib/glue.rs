@@ -8338,13 +8338,16 @@ fn relative_selector_invalidated_at(element: GeckoElement, result: &Invalidation
         unsafe { bindings::Gecko_NoteDirtySubtreeForInvalidation(element.0) };
     } else if result.has_invalidated_self() {
         unsafe { bindings::Gecko_NoteDirtyElement(element.0) };
-        let flags = element
-            .parent_element()
-            .map_or(ElementSelectorFlags::empty(), |e| e.slow_selector_flags());
-        // We invalidated up to the anchor, and it has a flag for nth-of invalidation.
-        if !flags.is_empty() {
-            restyle_for_nth_of(element, flags);
+    }
+    let flags = element
+        .parent_element()
+        .map_or(ElementSelectorFlags::empty(), |e| e.slow_selector_flags());
+    // A potential anchor change can affect filtered positions even without an outer match.
+    if !flags.is_empty() {
+        unsafe {
+            element.note_explicit_hints(RestyleHint::restyle_subtree(), nsChangeHint(0));
         }
+        restyle_for_nth_of(element, flags);
     }
 }
 

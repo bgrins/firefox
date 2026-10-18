@@ -997,6 +997,7 @@ where
             traversal_map: &self.sibling_traversal_map,
         };
         let result = TreeStyleInvalidator::new(element, None, &mut processor).invalidate();
+        drop(data);
         (self.invalidated)(element, &result);
     }
 
