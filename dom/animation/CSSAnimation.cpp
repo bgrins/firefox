@@ -180,7 +180,7 @@ void CSSAnimation::QueueEvents(const StickyTimeDuration& aActiveTime) {
     return;
   }
 
-  uint64_t currentIteration = 0;
+  double currentIteration = 0.0;
   ComputedTiming::AnimationPhase currentPhase;
   StickyTimeDuration intervalStartTime;
   StickyTimeDuration intervalEndTime;
@@ -203,12 +203,17 @@ void CSSAnimation::QueueEvents(const StickyTimeDuration& aActiveTime) {
     intervalStartTime = IntervalStartTime(computedTiming.mActiveDuration);
     intervalEndTime = IntervalEndTime(computedTiming.mActiveDuration);
 
-    uint64_t iterationBoundary = mPreviousIteration > currentIteration
-                                     ? currentIteration + 1
-                                     : currentIteration;
-    double multiplier = iterationBoundary - computedTiming.mIterationStart;
-    if (multiplier != 0.0) {
-      iterationStartTime = computedTiming.mDuration.MultDouble(multiplier);
+    if (mPreviousPhase == AnimationPhase::Active &&
+        currentPhase == AnimationPhase::Active) {
+      // CSS Animations 2's iteration boundary, relative to iterationStart.
+      // Subtract first so adding one is not lost for large iteration indices.
+      double multiplier = currentIteration - computedTiming.mIterationStart;
+      if (mPreviousIteration > currentIteration) {
+        multiplier += 1.0;
+      }
+      if (multiplier != 0.0) {
+        iterationStartTime = computedTiming.mDuration.MultDouble(multiplier);
+      }
     }
   }
 
@@ -242,8 +247,6 @@ void CSSAnimation::QueueEvents(const StickyTimeDuration& aActiveTime) {
 
   const TimeStamp startTimeStamp = ElapsedTimeToTimeStamp(intervalStartTime);
   const TimeStamp endTimeStamp = ElapsedTimeToTimeStamp(intervalEndTime);
-  const TimeStamp iterationTimeStamp =
-      ElapsedTimeToTimeStamp(iterationStartTime);
 
   switch (mPreviousPhase) {
     case AnimationPhase::Idle:
@@ -265,7 +268,7 @@ void CSSAnimation::QueueEvents(const StickyTimeDuration& aActiveTime) {
         // returned early above.
         MOZ_ASSERT(currentIteration != mPreviousIteration);
         appendAnimationEvent(eAnimationIteration, iterationStartTime,
-                             iterationTimeStamp);
+                             ElapsedTimeToTimeStamp(iterationStartTime));
       } else if (currentPhase == AnimationPhase::After) {
         appendAnimationEvent(eAnimationEnd, intervalEndTime, endTimeStamp);
       }

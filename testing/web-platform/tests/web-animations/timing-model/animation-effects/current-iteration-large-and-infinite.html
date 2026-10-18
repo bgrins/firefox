@@ -1,0 +1,66 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Large finite and infinite current iteration indices</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-the-current-iteration">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-the-directed-progress">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="../../testcommon.js"></script>
+<body>
+<script>
+  const directions = ["normal", "reverse", "alternate", "alternate-reverse"];
+  const cases = [
+    { name: "zero iteration start", duration: 1000, iterations: 1,
+      iterationStart: 0, currentIteration: 0, progress: [0, 1, 0, 1] },
+    { name: "odd iteration start", duration: 1000, iterations: 1,
+      iterationStart: 1, currentIteration: 1, progress: [0, 1, 1, 0] },
+    { name: "iteration start of 2 ** 53", duration: 1000, iterations: 1,
+      iterationStart: 2 ** 53, currentIteration: 2 ** 53, progress: [0, 1, 0, 1] },
+    { name: "iteration start of 2 ** 64", duration: 1000, iterations: 1,
+      iterationStart: 2 ** 64, currentIteration: 2 ** 64, progress: [0, 1, 0, 1] },
+    { name: "infinite iteration count with finite even current iteration",
+      duration: 1000, iterations: Infinity, iterationStart: 0,
+      currentIteration: 0, progress: [0, 1, 0, 1] },
+    { name: "infinite iteration count with finite odd current iteration",
+      duration: 1000, iterations: Infinity, iterationStart: 1,
+      currentIteration: 1, progress: [0, 1, 1, 0] },
+    { name: "zero duration with one iteration", duration: 0, iterations: 1,
+      iterationStart: 0, currentIteration: 0, progress: [1, 0, 1, 0] },
+    { name: "zero duration with two iterations", duration: 0, iterations: 2,
+      iterationStart: 0, currentIteration: 1, progress: [1, 0, 0, 1] },
+    { name: "zero duration with 2 ** 53 + 2 iterations", duration: 0,
+      iterations: 2 ** 53 + 2, iterationStart: 0,
+      currentIteration: 2 ** 53, progress: [1, 0, 0, 1] },
+    { name: "zero duration with 2 ** 64 iterations", duration: 0,
+      iterations: 2 ** 64, iterationStart: 0,
+      currentIteration: 2 ** 64, progress: [1, 0, 0, 1] },
+    { name: "zero duration with infinite iterations", duration: 0,
+      iterations: Infinity, iterationStart: 0, currentIteration: Infinity,
+      progress: [1, 0, 1, 1] },
+  ];
+
+  for (const testcase of cases) {
+    for (const [index, direction] of directions.entries()) {
+      test(t => {
+        const target = createDiv(t);
+        const effect = new KeyframeEffect(target, [{ opacity: 0 }, { opacity: 1 }], {
+          duration: testcase.duration,
+          iterations: testcase.iterations,
+          iterationStart: testcase.iterationStart,
+          fill: "both",
+          direction,
+        });
+        const animation = new Animation(effect, document.timeline);
+        t.add_cleanup(() => animation.cancel());
+        animation.currentTime = 0;
+
+        const timing = effect.getComputedTiming();
+        assert_equals(timing.currentIteration, testcase.currentIteration,
+                      "Current iteration");
+        assert_equals(timing.progress, testcase.progress[index], "Progress");
+        assert_equals(getComputedStyle(target).opacity,
+                      String(testcase.progress[index]), "Computed opacity");
+      }, `${testcase.name}, direction: ${direction}`);
+    }
+  }
+</script>

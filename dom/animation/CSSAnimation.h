@@ -180,7 +180,7 @@ class CSSAnimation final : public Animation {
   // Phase and current iteration from the previous time we queued events.
   // This is used to determine what new events to dispatch.
   ComputedTiming::AnimationPhase mPreviousPhase;
-  uint64_t mPreviousIteration;
+  double mPreviousIteration;
 
   // Properties that would normally be defined by the cascade but which have
   // since been explicitly set via the Web Animations API.

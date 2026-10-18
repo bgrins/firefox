@@ -337,7 +337,7 @@ static AnimationHelper::SampleResult SampleAnimationForProperty(
         Servo_ComposeAnimationSegment(
             &animSegment, aAnimationValue,
             animation.mSegments.LastElement().mEndValue, iterCompositeOperation,
-            portion, computedTiming.mCurrentIteration)
+            portion, computedTiming.mCurrentIterationForAccumulation)
             .Consume();
 
 #ifdef DEBUG
@@ -348,7 +348,8 @@ static AnimationHelper::SampleResult SampleAnimationForProperty(
 
     hasInEffectAnimations = true;
     animation.mProgressOnLastCompose = computedTiming.mProgress;
-    animation.mCurrentIterationOnLastCompose = computedTiming.mCurrentIteration;
+    animation.mCurrentIterationOnLastCompose =
+        computedTiming.mCurrentIterationForAccumulation;
     animation.mSegmentIndexOnLastCompose = segmentIndex;
     animation.mPortionInSegmentOnLastCompose.SetValue(portion);
   }

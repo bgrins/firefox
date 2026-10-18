@@ -32,7 +32,9 @@ struct ComputedTiming {
   // filling at the sampled time.
   dom::Nullable<double> mProgress;
   // Zero-based iteration index (meaningless if mProgress is null).
-  uint64_t mCurrentIteration = 0;
+  double mCurrentIteration = 0.0;
+  // Saturated count used by iteration accumulation and its composition caches.
+  uint64_t mCurrentIterationForAccumulation = 0;
   // Unlike TimingParams::mIterations, this value is
   // guaranteed to be in the range [0, Infinity].
   double mIterations = 1.0;

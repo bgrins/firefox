@@ -1,0 +1,66 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CSS animation events with large finite and infinite iteration indices</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#event-dispatch">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/web-animations/testcommon.js"></script>
+<style>
+  @keyframes test {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+</style>
+<body>
+<script>
+  for (const start of [0, 2 ** 53, 2 ** 64]) {
+    for (const backwards of [false, true]) {
+      promise_test(async t => {
+        const target = createDiv(t);
+        target.style.animation = "test 1s linear infinite paused";
+        const animation = target.getAnimations()[0];
+        t.add_cleanup(() => animation.cancel());
+        animation.effect.updateTiming({
+          iterationStart: backwards ? start + 4096 : start,
+        });
+        animation.currentTime = 0;
+        await animation.ready;
+        await waitForAnimationFrames(2);
+
+        const elapsedTimes = [];
+        target.addEventListener("animationiteration", event => {
+          elapsedTimes.push(event.elapsedTime);
+        });
+        animation.effect.updateTiming({
+          iterationStart: backwards ? start : start + 4096,
+        });
+        await waitForAnimationFrames(2);
+
+        assert_array_equals(elapsedTimes, [backwards ? 1 : 0]);
+      }, `Iteration events after changing iterationStart ${backwards ? "backwards" : "forwards"} near ${start}`);
+    }
+  }
+
+  for (const iterations of [1, Infinity]) {
+    promise_test(async t => {
+      const target = createDiv(t);
+      const events = [];
+      for (const type of ["animationstart", "animationiteration", "animationend"]) {
+        target.addEventListener(type, event => {
+          events.push([event.type, event.elapsedTime]);
+        });
+      }
+      target.style.animation = "test 0s linear both paused";
+      const animation = target.getAnimations()[0];
+      t.add_cleanup(() => animation.cancel());
+      animation.effect.updateTiming({ iterations });
+      animation.currentTime = 0;
+      await animation.ready;
+      await waitForAnimationFrames(2);
+
+      assert_array_equals(events.map(event => event[0]),
+                          ["animationstart", "animationend"]);
+      assert_array_equals(events.map(event => event[1]), [0, 0]);
+    }, `Zero-duration CSS animation with ${iterations} iterations emits start and end events`);
+  }
+</script>

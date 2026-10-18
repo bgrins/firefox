@@ -214,13 +214,19 @@ ComputedTiming AnimationEffect::GetComputedTimingAt(
 
   // Determine the 0-based index of the current iteration.
   // https://drafts.csswg.org/web-animations/#current-iteration
-  result.mCurrentIteration =
-      (result.mIterations >= double(UINT64_MAX) &&
+  const bool infiniteCurrentIteration =
+      (std::isinf(result.mIterations) &&
        result.mPhase == ComputedTiming::AnimationPhase::After) ||
-              overallProgress >= double(UINT64_MAX)
-          ? UINT64_MAX  // In GetComputedTimingDictionary(),
-                        // we will convert this into Infinity
-          : static_cast<uint64_t>(std::max(overallProgress, 0.0));
+      std::isinf(overallProgress);
+  result.mCurrentIteration = infiniteCurrentIteration
+                                 ? PositiveInfinity<double>()
+                                 : floor(std::max(overallProgress, 0.0));
+  result.mCurrentIterationForAccumulation =
+      result.mCurrentIteration >= double(UINT64_MAX)
+          ? UINT64_MAX
+          : static_cast<uint64_t>(result.mCurrentIteration);
+  bool oddCurrentIteration =
+      !infiniteCurrentIteration && fmod(result.mCurrentIteration, 2.0) == 1.0;
 
   // Convert the overall progress to a fraction of a single iteration--the
   // simply iteration progress.
@@ -244,12 +250,20 @@ ComputedTiming AnimationEffect::GetComputedTimingAt(
     MOZ_ASSERT(result.mCurrentIteration != 0,
                "Should not have zero current iteration");
     progress = 1.0;
-    if (result.mCurrentIteration != UINT64_MAX) {
+    if (!infiniteCurrentIteration) {
       result.mCurrentIteration--;
+      // Preserve parity when the decremented index is not representable as a
+      // double, while retaining the exact accumulation count when it fits.
+      oddCurrentIteration = !oddCurrentIteration;
+      if (result.mCurrentIterationForAccumulation != UINT64_MAX) {
+        result.mCurrentIterationForAccumulation--;
+      }
     }
   }
 
-  // Factor in the direction.
+  // Factor in the direction. Infinite current iterations are forwards for
+  // either alternating direction.
+  // https://drafts.csswg.org/web-animations/#calculating-the-directed-progress
   bool thisIterationReverse = false;
   switch (aTiming.Direction()) {
     case PlaybackDirection::Normal:
@@ -259,10 +273,10 @@ ComputedTiming AnimationEffect::GetComputedTimingAt(
       thisIterationReverse = true;
       break;
     case PlaybackDirection::Alternate:
-      thisIterationReverse = (result.mCurrentIteration & 1) == 1;
+      thisIterationReverse = oddCurrentIteration;
       break;
     case PlaybackDirection::Alternate_reverse:
-      thisIterationReverse = (result.mCurrentIteration & 1) == 0;
+      thisIterationReverse = !infiniteCurrentIteration && !oddCurrentIteration;
       break;
     default:
       MOZ_ASSERT_UNREACHABLE("Unknown PlaybackDirection type");
@@ -387,13 +401,7 @@ void AnimationEffect::GetComputedTimingAsDict(
   aRetVal.mProgress = computedTiming.mProgress;
 
   if (!aRetVal.mProgress.IsNull()) {
-    // Convert the returned currentIteration into Infinity if we set
-    // (uint64_t) computedTiming.mCurrentIteration to UINT64_MAX
-    double iteration =
-        computedTiming.mCurrentIteration == UINT64_MAX
-            ? PositiveInfinity<double>()
-            : static_cast<double>(computedTiming.mCurrentIteration);
-    aRetVal.mCurrentIteration.SetValue(iteration);
+    aRetVal.mCurrentIteration.SetValue(computedTiming.mCurrentIteration);
   }
 }
 

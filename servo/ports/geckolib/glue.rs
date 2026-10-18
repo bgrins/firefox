@@ -663,7 +663,7 @@ pub extern "C" fn Servo_AnimationCompose(
                                 segment.mToComposite != CompositeOperation::Replace ||
                                 // ... or if we accumulate onto the last value and it is null.
                                 (iteration_composite == IterationCompositeOperation::Accumulate &&
-                                 computed_timing.mCurrentIteration > 0 &&
+                                 computed_timing.mCurrentIterationForAccumulation > 0 &&
                                  last_segment.mToValue.mServo.mRawPtr.is_null());
 
     // If either of the segment endpoints are null, get the underlying value to
@@ -701,7 +701,7 @@ pub extern "C" fn Servo_AnimationCompose(
         underlying_value,
         last_value,
         iteration_composite,
-        computed_timing.mCurrentIteration,
+        computed_timing.mCurrentIterationForAccumulation,
         progress,
         position,
     );

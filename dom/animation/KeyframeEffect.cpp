@@ -606,7 +606,8 @@ void KeyframeEffect::EnsureBaseStyle(
 void KeyframeEffect::WillComposeStyle() {
   ComputedTiming computedTiming = GetComputedTiming();
   mProgressOnLastCompose = computedTiming.mProgress;
-  mCurrentIterationOnLastCompose = computedTiming.mCurrentIteration;
+  mCurrentIterationOnLastCompose =
+      computedTiming.mCurrentIterationForAccumulation;
 }
 
 void KeyframeEffect::ComposeStyleRule(StyleAnimationValueMap& aAnimationValues,
@@ -1972,7 +1973,8 @@ bool KeyframeEffect::HasComputedTimingChanged(
   // changed, since that will often produce a different result.
   return aComputedTiming.mProgress != aProgressOnLastCompose ||
          (aIterationComposite == IterationCompositeOperation::Accumulate &&
-          aComputedTiming.mCurrentIteration != aCurrentIterationOnLastCompose);
+          aComputedTiming.mCurrentIterationForAccumulation !=
+              aCurrentIterationOnLastCompose);
 }
 
 bool KeyframeEffect::HasComputedTimingChanged() const {
