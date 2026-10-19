@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Bad URL recovery preserves escapes after whitespace</title>
+<link rel="help" href="https://drafts.csswg.org/css-syntax/#consume-url-token">
+<link rel="help" href="https://drafts.csswg.org/css-syntax/#consume-remnants-of-bad-url">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const backslash = "\\";
+const cases = [
+  ["space, escaped close", " " + backslash + ")", "red"],
+  ["tab, escaped close", "\t" + backslash + ")", "red"],
+  ["LF, escaped close", "\n" + backslash + ")", "red"],
+  ["CRLF, escaped close", "\r\n" + backslash + ")", "red"],
+  ["FF, escaped close", "\f" + backslash + ")", "red"],
+  ["space, escaped backslash", " " + backslash.repeat(2) + ")", "green"],
+  ["space, three backslashes", " " + backslash.repeat(3) + ")", "red"],
+  ["literal close", " )", "green"],
+  ["backslash and LF", " " + backslash + "\n)", "green"],
+  ["backslash and CRLF", " " + backslash + "\r\n)", "green"],
+  ["backslash and FF", " " + backslash + "\f)", "green"],
+  ["quote before escaped close", '" ' + backslash + ")", "red"],
+  ["quote before escaped backslash", '" ' + backslash.repeat(2) + ")", "green"],
+  ["hex escaped close", " " + backslash + "29 ", "red"],
+  ["invalid byte before escaped close", " x" + backslash + ")", "red"],
+  ["escaped close without whitespace", backslash + ")", "red"],
+];
+const colors = {red: "rgb(255, 0, 0)", green: "rgb(0, 128, 0)"};
+
+for (const mode of ["inline", "stylesheet"]) {
+  for (const prefix of ["a", backslash + "_a"]) {
+    for (const [name, suffix, expected] of cases) {
+      test(t => {
+        const target = document.createElement("div");
+        target.id = "target";
+        document.body.append(target);
+        t.add_cleanup(() => target.remove());
+        const text = `color:red;--bad:url(${prefix}${suffix};color:green;--sink:);--after:present;`;
+        let declaration;
+        if (mode === "inline") {
+          target.style.cssText = text;
+          declaration = target.style;
+        } else {
+          const sheet = document.createElement("style");
+          sheet.textContent = `#target { ${text} }`;
+          document.head.append(sheet);
+          t.add_cleanup(() => sheet.remove());
+          declaration = sheet.sheet.cssRules[0].style;
+        }
+        const computed = getComputedStyle(target);
+        assert_equals(computed.getPropertyValue("--after").trim(), "present",
+                      "Parsing resumes after the final closing parenthesis");
+        assert_equals(declaration.getPropertyValue("color"), expected,
+                      "Declarations inside a bad URL do not escape recovery");
+        assert_equals(computed.color, colors[expected]);
+      }, `${mode}, ${JSON.stringify(prefix)} prefix: ${name}`);
+    }
+  }
+}
+</script>
