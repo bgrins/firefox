@@ -25,6 +25,28 @@ active proof tracks. Existing finite corpora are held fixed absent a concrete
 remaining risk. Component theorem counts and bounded replay success do not
 close these obligations.
 
+## Latest commit and proof checkpoint
+
+There are 50 signed standalone native/WPT fixes. Worker font removal is now
+`32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
+`07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
+worker FontFaceSet delete/clear. All 16 new checks pass and regression results
+are unchanged. Root fresh replay passes 18 conditional reconstruction theorems;
+full native heap/concurrency verification is not claimed.
+
+The conditional cascade source-identity component is signed as
+`7962023938cab2f91384bf1bfff9a0cf43eecf04`. A further observer/provider extension
+has independent producer replay (58 modules, 33 new audits); root review/replay
+is next. It preserves raw pre-guard observations and derives constructor
+coverage. Post-guard substitution/cache/attribute semantics remain open;
+arbitrary evaluation-trace equality has a counterexample.
+
+Hyphenation coordinate repair now has an independent closed source-only
+candidate replay package and a constructor-derived guard proof. Root must run
+and review that replay before acceptance. The full ownership proof remains open.
+The larger loaded FontFace descriptor/provider repair is still in design;
+backend clone code remains an unapplied artifact patch.
+
 ## Loaded FontFace provider follow-up
 
 The static audit's loaded `sizeAdjust` lead is confirmed. The local WPT has four

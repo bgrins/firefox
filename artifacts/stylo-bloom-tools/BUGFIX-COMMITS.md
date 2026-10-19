@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **49 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **50 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -48,8 +48,22 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | text-emphasis-pua | `bbf5a4095f85fb250ea442695a311f2547ffdc19` | `75401fe2983110104c3f0a3bef1686d807701033` |
 | negative-ligature | `8ee543a6ff23cc097f54f1c3e984f7d5f7e56fea` | `3f61a60e15b32e88afdf5975fd65b49fd760d568` |
 | complex-utf16-ahom | `39ce7571a61097a80d5bf07adbc3ae48a2f0262e` | `28d9e8cc1065d7b00e3d891b42049c82d5e7058c` |
+| worker-font-removal | `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a` | `07dc1d27343268a8add266605c33fc5f966ef155` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
+
+## Worker font removal committed
+
+`32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a` contains only the four-line worker-family
+rebuild and its WPT. Proof/evidence companion: `07dc1d27343268a8add266605c33fc5f966ef155`.
+Four worker failures become passes; all 16 new checks pass. Nine existing files
+retain 10 passes and one expected failure. Root freshly replayed the 18 Lean
+list-model theorems and accepted the independent source/lifetime review within
+its explicit provider, heap and concurrency limits. Discovery was static audit
+and browser isolation, not Lean. Final WPT differs from the paired test only by
+two spec metadata comments. The loaded-descriptor/provider repair is separate.
+See [acceptance](../css-worker-font-removal-fix-v1/ROOT-SCOPED-ACCEPTANCE-v1.json)
+and [commit check](../css-worker-font-removal-fix-v1/ROOT-COMMIT-CHECK-v1.json).
 
 ## New native-verified patches
 
