@@ -81,6 +81,10 @@ impl ModRemOp {
             return f32::NAN;
         }
 
+        if dividend.is_finite() && divisor.is_infinite() {
+            return dividend;
+        }
+
         let (r, same_sign_as) = match self {
             Self::Mod => (dividend - divisor * (dividend / divisor).floor(), divisor),
             Self::Rem => (dividend - divisor * (dividend / divisor).trunc(), dividend),
