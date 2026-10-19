@@ -1,0 +1,46 @@
+--- frozen-six-case
++++ root-live-twelve-case
+@@ -16,6 +16,20 @@
+   inherits: true;
+   initial-value: 1in;
+ }
++@property --initial-universal-reset {
++  syntax: "*";
++  inherits: false;
++  initial-value: 1in;
++}
++@property --initial-universal-inherited {
++  syntax: "*";
++  inherits: true;
++  initial-value: 1in;
++}
++@property --initial-empty {
++  syntax: "*";
++  inherits: true;
++}
+ </style>
+ <body>
+ <script>
+@@ -33,4 +47,22 @@
+     }, `${property}: ${value} computes the registered initial length`);
+   }
+ }
++for (const [property, expected] of [
++  ["--initial-universal-reset", "1in"],
++  ["--initial-universal-inherited", "1in"],
++  ["--initial-empty", ""],
++]) {
++  for (const value of ["initial", "var(--missing, initial)"]) {
++    test(t => {
++      const parent = document.createElement("div");
++      const child = document.createElement("div");
++      parent.style.setProperty(property, "192px");
++      child.style.setProperty(property, value);
++      parent.append(child);
++      document.body.append(parent);
++      t.add_cleanup(() => parent.remove());
++      assert_equals(getComputedStyle(child).getPropertyValue(property), expected);
++    }, `${property}: ${value} preserves the universal initial value`);
++  }
++}
+ </script>

@@ -1,0 +1,34 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered keyframes interpolate CSS-wide substitution fallbacks</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#substitution-in-properties">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#animation-behavior">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@property --fallback-number {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 10;
+}
+</style>
+<body>
+<script>
+for (const endpoint of ["10", "initial", "var(--missing, initial)",
+                        "var(--missing, 10)", "var(--missing)"]) {
+  test(t => {
+    const target = document.createElement("div");
+    target.style.setProperty("--fallback-number", "42");
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    const animation = target.animate(
+      { "--fallback-number": ["14", endpoint] },
+      { duration: 1000, fill: "both" }
+    );
+    t.add_cleanup(() => animation.cancel());
+    animation.pause();
+    animation.currentTime = 500;
+    assert_equals(getComputedStyle(target).getPropertyValue("--fallback-number"), "12");
+  }, `Registered number keyframe endpoint: ${endpoint}`);
+}
+</script>

@@ -1,0 +1,48 @@
+# Independent registered initial-value repair review
+
+## Recommendation
+
+Accept the scoped two-native-file repair and ordinary twelve-case WPT, with root retaining the final commit gate. I found no source, oracle or packaging blocker. This is independent source/spec and retained-runtime review, with a fresh source-only patch/checker replay. No new Lean theorem, universal cascade/registration-invalidation proof or isolated upstream runtime claim is made.
+
+The causal defect is concrete: `remove_and_insert_initial_value` wrapped specified initial tokens as `Universal`, bypassing typed computation. The repair copies the registration-selected entry from the same computed initial cache used by ordinary default seeding. It fixes an existing provider representation error; it does not change keyframe dependency policy.
+
+## Authenticated inputs and independent work
+
+Authenticated all 47 entries of `css-keyframe-initial-provider-review-v1` against root-supplied FREEZE `d56f5df8de8af203545dc0d0ad521eea398c03d0a9f86133bd221661aa5f0e7d` and MANIFEST `8110dfa03e685c576c8eeca06cb8bb4c7c30175394c606fa924d4853c1f25b36` before executing its helper. Read the checker and strict generator in full. Fresh replay in a new temporary directory passed both current and pre-fix70 source apply/reverse checks and historical probe JavaScript syntax. Those checks are bounded source transformations, not native compilation.
+
+Read both complete helper caller definitions and surrounding cache construction, registration validation/selection, computed-map getters/insertion/removal, style seeding/final publication, initial computation context and CSSOM serialization. The complete files are retained in `provider/source`; proposed complete files match root's final runtime snapshots byte-for-byte. Source discovery used Searchfox; its indexed registration invalidation excerpt is contextual rather than a whole current-file identity claim.
+
+The independent `check.py` authenticates the closed review roster before work, reconstructs raw outcome keys, binds the twelve-case test and both native phases, verifies compilation/link log markers and applies/reverses the exact final three-file patch on two retained Git bases. It does not invoke Mach, a compiler or a browser.
+
+## Source contract and caller readiness
+
+- `Stylist::rebuild_initial_values_for_custom_properties` creates a fresh cache. It selects script registrations before stylesheet registrations, uses the same origin/name ordering as registration lookup, chooses inherited/noninherited buckets, computes each chosen initial value, records flags, then replaces the published cache. Computation failure leaves that name absent instead of manufacturing an uncomputed typed value.
+- `PropertyRegistration::validate_initial_value` rejects substitution references and inadmissible/dependent typed initial values. `compute_initial_value` preserves universal syntax deliberately, returns absence for no initial value, otherwise invokes typed computation in the existing initial-value context with empty initial attr taint. Registration descriptor tokens and URL data remain separate immutable inputs.
+- `Cascade::init_custom_properties` already seeds noninherited and root inherited properties from this cache. `cascade_custom_property` already obtains it before checking whether a declaration can affect style. The direct inherited initial branch now passes that existing reference. Noninherited direct initial retains its seeded fast path.
+- `substitute_references_if_needed_and_apply` obtains the registration from its supplied stylist and uses the same stylist cache when a substituted sole CSS-wide keyword selects initial defaulting. Its inherited-value branch, invalid-value handler, cycle traversal and revert-policy TODOs are untouched. The added argument is an immutable stylist borrow; builder storage is a separate mutable map.
+- `ComputedCustomProperties::get/insert/remove` consistently select the bucket with `registration.inherits()`. The helper first removes the existing selected entry, then clones an optional cached value. An absent universal initial therefore removes the parent's value rather than retaining it; universal 1in remains token text rather than becoming typed 96px.
+- `Value`'s derived Clone preserves the inner typed/list/universal representation, original URL context and attr-taint field. The helper still replaces the input with the registration initial; it does not transfer discarded fallback taint. No new security/defaulting rule is claimed. `ComputedSubstitutionFunctions::insert_var/remove_var` do not alter attribute entries.
+- Ordinary cascade already adds the complete initial-cache ComputedValueFlags before custom-property work. `Stylist::flush` rebuilds the cache after changed stylesheets; successful `register_custom_property` rebuilds after registry insertion; the viewport-unit invalidation entry point refreshes relevant initial values before invalidation. Searchfox's `ServoStyleSet::RegisterProperty` also shows successful registration requesting subtree recascade. These are inspected scheduler/provider paths, not an exhaustive proof of all device, allocation or registration histories.
+- CSSPropertyRule serialization continues to read the registration descriptors. The fix never writes those descriptors. Existing 40-case CSSPropertyRule runtime controls pass unchanged. Dynamic registration replacement/removal and viewport histories were not newly browser-tested in this gate.
+
+## Independent WPT oracle and observations
+
+`SPEC.md` supplies the current primary normative trace. A sole substituted initial keyword must act like direct initial. Typed length computation canonicalizes 1in to 96px; universal syntax preserves 1in; an omitted universal initial is guaranteed-invalid. Each fixture has a parent value of 192px, so inherited-value substitution cannot accidentally pass the intended defaulting assertion. Synchronous computed-style reads need no timing or animation sampling. Unique registered names and per-test cleanup prevent cross-fixture style state.
+
+The twelve cases cover both inheritance buckets, direct versus substituted initial, literal typed parsing, universal syntax and absent initial. In the baseline exactly three typed cases fail: reset-property substituted initial, inherited direct initial and inherited substituted initial. Each reports 1in rather than 96px. All twelve candidate cases pass.
+
+Independently reconstructed the complete raw pair by `(action, test, subtest)`, rejecting duplicate keys: 107 keys in each phase. Four FAIL→PASS changes comprise the three ordinary cases plus one supplemental keyframe fallback case; 103 outcomes are unchanged. Candidate total: 102 subtests PASS and five harness OK. Existing default-initial 29, descriptor CSSOM 40 and typed-keyframe 16 subtests pass unchanged. The supplemental five-case keyframe diagnostic is context-only and is excluded from the standalone patch; it relies on the earlier keyframe conversion repair on this stack.
+
+Root's paired driver binds both source snapshots, stable dirty-source/test pins, post-build binary hashes and post-test unchanged hashes. Both logs show actual style/gkrust compilation and XUL linkage. Both builds exit 0 and the candidate WPT command exits 0, but each build log retains four build-monitor `KeyError: 'export'` tracebacks. This is a successful build/runtime gate with monitor errors, not a clean-log assertion.
+
+## Standalone package and performance
+
+`final-inputs/final.patch` SHA256 `76114a77efba4a7851a0bcbe0d0fac89564f58614928f9eb8babf575183c00b0` contains exactly custom_properties.rs, properties/cascade.rs and registered-initial-computed-value.html. The native prefix is byte-identical to the reviewed native.patch. Read-only Git snapshots were retained for branch `a0fd12cec58398240400ddef035e2fc05cbf762d` and upstream `976279105b2e78b8666a959eb3f25c9176cefaf8a`; independent patch application/reversal checks both with no fuzz and verifies exact output pins.
+
+The runtime candidate cascade hash is `e6a452adb9184362fdf26bc6617b7be22f4247227bc7ccf17b81b2ab2fd1aa29`; the isolated branch result is `99e576f2d785ade6549a27e540fd06eb4ea9bdc9ea55ff0c66895c96d986d61a`. This difference is intentional: unrelated source-identity/rollback edits were already in the paired runtime tree. `UNRELATED-CASCADE-CONTEXT.patch` retains that distinction. Those edits are not included in this repair. The ordinary initial-value cases have no revert declarations and use unchanged registration/provider contracts; standalone application is verified, but no isolated upstream build or execution is asserted.
+
+The extra work on an explicit initial-defaulting path is a cache lookup and computed-value clone replacing a specified-value Arc clone. Lists may cost proportionally more to clone than the old wrapper, but no new parsing, recursive traversal, cache rebuild or per-element registration recomputation is introduced. No benchmark claim is made.
+
+## Boundaries
+
+This review does not close whole-cascade, all CSS-wide/revert, animation dependency, taint-security, resource/allocator, compiler or scheduler proofs. It does not newly establish all device-dependent initial-value refreshes. The existing computed cache is the explicit provider boundary. The ordinary regression is independent of fix70's animation conversion branch; root's supplemental animation observation is kept separate. No remaining mandatory source/oracle gate was found for this narrow fix. Root format exited 0 without further source changes. Final lint exited 0 with zero errors and one ignored-HTML eslint warning; its log is retained. Root retains final integration and signing responsibility.

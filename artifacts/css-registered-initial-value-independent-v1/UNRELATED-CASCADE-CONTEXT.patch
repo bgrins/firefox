@@ -1,0 +1,309 @@
+--- committed-branch
++++ runtime-original
+@@ -4,7 +4,6 @@
+ 
+ //! The main cascading algorithm of the style system.
+ 
+-use crate::{FxHashMap, Namespace};
+ use crate::applicable_declarations::{CascadePriority, RevertKind};
+ use crate::color::AbsoluteColor;
+ use crate::computed_value_flags::ComputedValueFlags;
+@@ -21,8 +20,8 @@
+ use crate::properties::{
+     CASCADE_PROPERTY, CSSWideKeyword, ComputedValues, DeclarationImportanceIterator, LonghandId,
+     LonghandIdSet, PrioritaryPropertyId, PrioritaryPropertyIdSet, PropertyDeclaration,
+-    PropertyDeclarationId, PropertyFlags, PropertyIdRef, ShorthandsWithPropertyReferencesCache,
+-    StyleBuilder, property_counts,
++    PropertyDeclarationBlock, PropertyDeclarationId, PropertyFlags, PropertyIdRef,
++    ShorthandsWithPropertyReferencesCache, StyleBuilder, property_counts,
+ };
+ use crate::properties::{CustomDeclaration, CustomDeclarationValue, UnparsedValue};
+ use crate::properties_and_values::rule::Descriptors as PropertyDescriptors;
+@@ -42,6 +41,7 @@
+ use crate::values::specified::length::FontBaseSize;
+ use crate::values::specified::position::PositionTryFallbacksTryTactic;
+ use crate::values::{computed, specified};
++use crate::{FxHashMap, FxHashSet, Namespace};
+ use hashbrown::hash_map::{Entry, EntryRef};
+ use selectors::matching::ElementSelectorFlags;
+ use servo_arc::Arc;
+@@ -123,6 +123,7 @@
+     current_rule_node: Option<&'a StrongRuleNode>,
+     // Per rule state.
+     declarations: DeclarationImportanceIterator<'a>,
++    source: Option<&'a PropertyDeclarationBlock>,
+     priority: CascadePriority,
+ }
+ 
+@@ -143,6 +144,7 @@
+                 RuleCascadeFlags::empty(),
+             ),
+             declarations: DeclarationImportanceIterator::default(),
++            source: None,
+             restriction,
+         };
+         iter.update_for_node(rule_node);
+@@ -152,15 +154,20 @@
+     fn update_for_node(&mut self, node: &'a StrongRuleNode) {
+         self.priority = node.cascade_priority();
+         let guard = self.priority.cascade_level().origin().guard(self.guards);
+-        self.declarations = match node.style_source() {
+-            Some(source) => source.read(guard).declaration_importance_iter(),
+-            None => DeclarationImportanceIterator::default(),
+-        };
++        self.source = node.style_source().map(|source| source.read(guard));
++        self.declarations = self.source.map_or_else(
++            DeclarationImportanceIterator::default,
++            PropertyDeclarationBlock::declaration_importance_iter,
++        );
+     }
+ }
+ 
+ impl<'a> Iterator for DeclarationIterator<'a> {
+-    type Item = (&'a PropertyDeclaration, CascadePriority);
++    type Item = (
++        &'a PropertyDeclaration,
++        CascadePriority,
++        &'a PropertyDeclarationBlock,
++    );
+ 
+     #[inline]
+     fn next(&mut self) -> Option<Self::Item> {
+@@ -183,7 +190,7 @@
+                     }
+                 }
+ 
+-                return Some((decl, self.priority));
++                return Some((decl, self.priority, self.source.unwrap()));
+             }
+ 
+             let next_node = self.current_rule_node.take()?.parent()?;
+@@ -249,19 +256,25 @@
+ }
+ 
+ fn iter_declarations<'c, 'decls: 'c>(
+-    iter: impl Iterator<Item = (&'decls PropertyDeclaration, CascadePriority)>,
++    iter: impl Iterator<
++        Item = (
++            &'decls PropertyDeclaration,
++            CascadePriority,
++            &'decls PropertyDeclarationBlock,
++        ),
++    >,
+     declarations: &mut Declarations<'decls>,
+     mut custom: Option<(&mut Cascade<'c>, &mut computed::Context)>,
+     attribute_tracker: &mut AttributeTracker,
+ ) {
+-    for (declaration, priority) in iter {
++    for (declaration, priority, source) in iter {
+         if let PropertyDeclaration::Custom(ref declaration) = *declaration {
+             if let Some((ref mut cascade, ref mut context)) = custom {
+                 cascade.cascade_custom_property(context, declaration, priority);
+             }
+         } else {
+             let id = declaration.id().as_longhand().unwrap();
+-            declarations.note_declaration(declaration, priority, id);
++            declarations.note_declaration(declaration, priority, source, id);
+             if Cascade::might_have_non_custom_or_attr_dependency(id, declaration)
+                 && let Some((ref mut cascade, ref mut context)) = custom
+             {
+@@ -298,7 +311,13 @@
+ ) -> Arc<ComputedValues>
+ where
+     E: TElement,
+-    I: Iterator<Item = (&'decls PropertyDeclaration, CascadePriority)>,
++    I: Iterator<
++        Item = (
++            &'decls PropertyDeclaration,
++            CascadePriority,
++            &'decls PropertyDeclarationBlock,
++        ),
++    >,
+ {
+     debug_assert!(layout_parent_style.is_none() || parent_style.is_some());
+     let device = stylist.device();
+@@ -639,6 +658,7 @@
+ #[derive(Copy, Clone)]
+ struct Declaration<'a> {
+     decl: &'a PropertyDeclaration,
++    source: *const PropertyDeclarationBlock,
+     priority: CascadePriority,
+     next_index: DeclarationIndex,
+ }
+@@ -681,6 +701,7 @@
+         &mut self,
+         decl: &'a PropertyDeclaration,
+         priority: CascadePriority,
++        source: &'a PropertyDeclarationBlock,
+         id: LonghandId,
+     ) {
+         if let Some(id) = PrioritaryPropertyId::from_longhand(id) {
+@@ -688,9 +709,54 @@
+         }
+         self.longhand_declarations.push(Declaration {
+             decl,
++            source,
+             priority,
+             next_index: 0,
+         });
++    }
++}
++
++// Origin, layer, and important-inline rollbacks can exclude different regions.
++#[derive(Default)]
++struct RevertState {
++    origin: Option<CascadePriority>,
++    layer: Option<CascadePriority>,
++    important_style_attribute: Option<CascadePriority>,
++}
++
++impl RevertState {
++    fn add(&mut self, priority: CascadePriority, kind: RevertKind) {
++        let bound = match kind {
++            RevertKind::Origin => &mut self.origin,
++            RevertKind::Layer
++                if priority.cascade_level().is_important()
++                    && priority.layer_order().is_style_attribute_layer() =>
++            {
++                &mut self.important_style_attribute
++            },
++            RevertKind::Layer => &mut self.layer,
++            RevertKind::Rule => return,
++        };
++        if bound.is_none_or(|previous| match kind {
++            RevertKind::Origin => {
++                priority.cascade_level().origin().origin()
++                    < previous.cascade_level().origin().origin()
++            },
++            _ => priority.unimportant() < previous.unimportant(),
++        }) {
++            *bound = Some(priority);
++        }
++    }
++
++    fn allows(&self, priority: &CascadePriority) -> bool {
++        self.origin
++            .is_none_or(|cutoff| cutoff.allows_when_reverted(priority, RevertKind::Origin))
++            && self
++                .layer
++                .is_none_or(|cutoff| cutoff.allows_when_reverted(priority, RevertKind::Layer))
++            && self
++                .important_style_attribute
++                .is_none_or(|cutoff| cutoff.allows_when_reverted(priority, RevertKind::Layer))
+     }
+ }
+ 
+@@ -698,8 +764,10 @@
+ struct RevertedSet {
+     // Just to avoid the hashmap lookup in the common case.
+     longhands_set: LonghandIdSet,
+-    longhands: FxHashMap<LonghandId, (CascadePriority, RevertKind)>,
+-    custom: PrecomputedHashMap<Name, (CascadePriority, RevertKind)>,
++    longhands: FxHashMap<LonghandId, RevertState>,
++    // Pointers are only compared; callers keep the source blocks alive while cascading.
++    longhand_rules: FxHashSet<(LonghandId, CascadePriority, *const PropertyDeclarationBlock)>,
++    custom: PrecomputedHashMap<Name, RevertState>,
+ }
+ 
+ #[derive(Default)]
+@@ -919,6 +987,7 @@
+                 longhand_id,
+                 decl.decl,
+                 decl.priority,
++                decl.source,
+                 cache,
+                 attr_provider,
+             );
+@@ -1043,6 +1112,7 @@
+                 longhand_id,
+                 declaration.decl,
+                 declaration.priority,
++                declaration.source,
+                 shorthand_cache,
+                 attribute_tracker,
+             );
+@@ -1085,6 +1155,7 @@
+         longhand_id: LonghandId,
+         declaration: &PropertyDeclaration,
+         priority: CascadePriority,
++        source: *const PropertyDeclarationBlock,
+         cache: &mut ShorthandsWithPropertyReferencesCache,
+         attribute_tracker: &mut AttributeTracker,
+     ) {
+@@ -1097,12 +1168,19 @@
+             return;
+         }
+ 
+-        if self.reverted.longhands_set.contains(longhand_id)
+-            && let Some(&(reverted_priority, revert_kind)) =
+-                self.reverted.longhands.get(&longhand_id)
+-            && !reverted_priority.allows_when_reverted(&priority, revert_kind)
+-        {
+-            return;
++        if self.reverted.longhands_set.contains(longhand_id) {
++            if let Some(reverted) = self.reverted.longhands.get(&longhand_id)
++                && !reverted.allows(&priority)
++            {
++                return;
++            }
++            if self
++                .reverted
++                .longhand_rules
++                .contains(&(longhand_id, priority.unimportant(), source))
++            {
++                return;
++            }
+         }
+ 
+         let mut declaration =
+@@ -1127,9 +1205,19 @@
+                     // `self.seen.longhands`, `reverted` takes care of rejecting
+                     // other declarations as needed.
+                     self.reverted.longhands_set.insert(longhand_id);
+-                    self.reverted
+-                        .longhands
+-                        .insert(longhand_id, (priority, revert_kind));
++                    if revert_kind == RevertKind::Rule {
++                        self.reverted.longhand_rules.insert((
++                            longhand_id,
++                            priority.unimportant(),
++                            source,
++                        ));
++                    } else {
++                        self.reverted
++                            .longhands
++                            .entry(longhand_id)
++                            .or_default()
++                            .add(priority, revert_kind);
++                    }
+                     return;
+                 }
+ 
+@@ -1747,8 +1835,8 @@
+             ref value,
+         } = *declaration;
+ 
+-        if let Some(&(reverted_priority, revert_kind)) = self.reverted.custom.get(name)
+-            && !reverted_priority.allows_when_reverted(&priority, revert_kind)
++        if let Some(reverted) = self.reverted.custom.get(name)
++            && !reverted.allows(&priority)
+         {
+             return;
+         }
+@@ -1829,9 +1917,13 @@
+             CustomDeclarationValue::CSSWideKeyword(keyword) => match keyword.revert_kind() {
+                 Some(revert_kind) => {
+                     self.seen.custom.var.remove(name);
+-                    self.reverted
+-                        .custom
+-                        .insert(name.clone(), (priority, revert_kind));
++                    if revert_kind != RevertKind::Rule {
++                        self.reverted
++                            .custom
++                            .entry(name.clone())
++                            .or_default()
++                            .add(priority, revert_kind);
++                    }
+                 },
+                 None => match keyword {
+                     CSSWideKeyword::Initial => {
