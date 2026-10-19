@@ -7496,7 +7496,10 @@ pub extern "C" fn Servo_GetComputedKeyframeValues(
     computed_keyframes: &mut nsTArray<structs::ComputedKeyframeValues>,
 ) {
     use style::applicable_declarations::CascadePriority;
-    use style::properties::{KeyframeCustomPropertiesBuilder, PropertyDeclaration};
+    use style::properties::{
+        CustomDeclarationValue, KeyframeCustomPropertiesBuilder, PropertyDeclaration,
+    };
+    use style::properties_and_values::value::CustomAnimatedValue;
     let data = raw_data.borrow();
     let element = GeckoElement(element);
     let pseudo = PseudoElement::from_pseudo_type(pseudo_type, None);
@@ -7620,10 +7623,34 @@ pub extern "C" fn Servo_GetComputedKeyframeValues(
 
             let declarations = unsafe { &*property.mServoDeclarationBlock.mRawPtr };
             let guard = declarations.read_with(&guard);
-            let iter = guard.to_animation_value_iter(&mut context, style, &default_values);
+            for declaration in guard.normal_declaration_iter() {
+                if let PropertyDeclaration::Custom(custom) = declaration
+                    && matches!(custom.value, CustomDeclarationValue::Unparsed(_))
+                {
+                    let registration = data.stylist.get_custom_property_registration(&custom.name);
+                    if !registration.is_universal() {
+                        let value = context
+                            .builder
+                            .custom_properties()
+                            .get(registration, &custom.name);
+                        let value = AnimationValue::Custom(CustomAnimatedValue::from_computed(
+                            &custom.name,
+                            value,
+                        ));
+                        maybe_append_animation_value(value.id(), Some(value.clone()));
+                        continue;
+                    }
+                }
 
-            for value in iter {
-                maybe_append_animation_value(value.id(), Some(value.clone()));
+                if let Some(value) = AnimationValue::from_declaration(
+                    declaration,
+                    &mut context,
+                    style,
+                    &default_values,
+                    &mut AttributeTracker::new_dummy(),
+                ) {
+                    maybe_append_animation_value(value.id(), Some(value.clone()));
+                }
             }
         }
     }
