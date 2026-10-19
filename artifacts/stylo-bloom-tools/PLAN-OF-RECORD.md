@@ -245,5 +245,7 @@ Their outputs are kept under ../css-whole-spec-roadmap-research-v1/:
 This research does not replace the bug-fix queue or close existing assumptions.
 Separate specification-model coverage, executable-model correctness and native
 refinement. The existing standalone inventory's 127 fragment records overlap;
-its line/audit counts are not coverage percentages. Findings will be synthesized
-before adopting new library milestones.
+its line/audit counts are not coverage percentages. The [research synthesis](../css-whole-spec-roadmap-research-v1/README.md) proposes
+a requirement-ledger and property-stage/dependency pilot, then box/layout and
+animation integration. These are proposed library milestones; no new semantic
+coverage or native refinement is claimed by the research.
