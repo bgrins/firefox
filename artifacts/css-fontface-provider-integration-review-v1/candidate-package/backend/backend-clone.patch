@@ -1,0 +1,256 @@
+--- a/gfx/thebes/CoreTextFontList.cpp
++++ b/gfx/thebes/CoreTextFontList.cpp
+@@ -475,6 +475,17 @@
+   mIsLocalUserFont = aIsLocalUserFont;
+ }
+ 
++already_AddRefed<gfxFontEntry> CTFontEntry::CloneUserFontEntry(
++    WeightRange aWeight, WidthRange aWidth, SlantStyleRange aStyle) const {
++  MOZ_ASSERT(IsUserFont());
++  AutoReadLock lock(mLock);
++  MOZ_ASSERT(mFontRefInitialized && mFontRef);
++  RefPtr fe = MakeRefPtr<CTFontEntry>(Name(), mFontRef, aWeight, aWidth, aStyle,
++                                    mIsDataUserFont, mIsLocalUserFont);
++  CopyUserFontResourceFlagsTo(*fe);
++  return fe.forget();
++}
++
+ gfxFontEntry* CTFontEntry::Clone() const {
+   MOZ_ASSERT(!IsUserFont(), "we can only clone installed fonts!");
+   CTFontEntry* fe = new CTFontEntry(Name(), Weight(), mStandardFace, mSizeHint);
+--- a/gfx/thebes/CoreTextFontList.h
++++ b/gfx/thebes/CoreTextFontList.h
+@@ -41,6 +41,9 @@
+               bool aIsDataUserFont, bool aIsLocal);
+ 
+   gfxFontEntry* Clone() const override;
++  already_AddRefed<gfxFontEntry> CloneUserFontEntry(
++      WeightRange aWeight, WidthRange aWidth,
++      SlantStyleRange aStyle) const override;
+ 
+ #if MOZ_FONTATIONS
+   void InitSkrifaFontFace() override;
+--- a/gfx/thebes/gfxDWriteFontList.cpp
++++ b/gfx/thebes/gfxDWriteFontList.cpp
+@@ -374,6 +374,28 @@
+ 
+ ////////////////////////////////////////////////////////////////////////////////
+ // gfxDWriteFontEntry
++
++already_AddRefed<gfxFontEntry> gfxDWriteFontEntry::CloneUserFontEntry(
++    WeightRange aWeight, WidthRange aWidth, SlantStyleRange aStyle) const {
++  MOZ_ASSERT(IsUserFont());
++  AutoReadLock lock(mLock);
++  RefPtr<gfxDWriteFontEntry> fe;
++  if (mFont) {
++    fe = MakeRefPtr<gfxDWriteFontEntry>(Name(), mFont.get(), aWeight, aWidth,
++                                      aStyle);
++  } else {
++    MOZ_ASSERT(mFontFile && mFontFileStream);
++    fe = MakeRefPtr<gfxDWriteFontEntry>(Name(), mFontFile.get(),
++                                      mFontFileStream.get(), aWeight, aWidth,
++                                      aStyle);
++    fe->mFaceType = mFaceType;
++  }
++  fe->mIsSystemFont = mIsSystemFont;
++  fe->mForceGDIClassic = mForceGDIClassic;
++  fe->mMayUseGDIAccess = mMayUseGDIAccess;
++  CopyUserFontResourceFlagsTo(*fe);
++  return fe.forget();
++}
+ 
+ gfxFontEntry* gfxDWriteFontEntry::Clone() const {
+   MOZ_ASSERT(!IsUserFont(), "we can only clone installed fonts!");
+--- a/gfx/thebes/gfxDWriteFontList.h
++++ b/gfx/thebes/gfxDWriteFontList.h
+@@ -154,7 +154,7 @@
+    * \param aStyle italic or oblique of font
+    */
+   gfxDWriteFontEntry(const nsACString& aFaceName, IDWriteFontFile* aFontFile,
+-                     gfxDWriteFontFileStream* aFontFileStream,
++                     IDWriteFontFileStream* aFontFileStream,
+                      WeightRange aWeight, WidthRange aWidth,
+                      SlantStyleRange aStyle)
+       : gfxFontEntry(aFaceName),
+@@ -173,6 +173,9 @@
+   }
+ 
+   gfxFontEntry* Clone() const override;
++  already_AddRefed<gfxFontEntry> CloneUserFontEntry(
++      WeightRange aWeight, WidthRange aWidth,
++      SlantStyleRange aStyle) const override;
+ 
+   nsresult ReadCMAP(FontInfoData* aFontInfoData = nullptr) override;
+ 
+--- a/gfx/thebes/gfxFT2FontList.cpp
++++ b/gfx/thebes/gfxFT2FontList.cpp
+@@ -175,6 +175,21 @@
+     auto face = mFTFace.exchange(nullptr);
+     NS_IF_RELEASE(face);
+   }
++}
++
++already_AddRefed<gfxFontEntry> FT2FontEntry::CloneUserFontEntry(
++    WeightRange aWeight, WidthRange aWidth, SlantStyleRange aStyle) const {
++  MOZ_ASSERT(IsUserFont());
++  RefPtr fe = MakeRefPtr<FT2FontEntry>(Name());
++  fe->mFilename = mFilename;
++  fe->mFTFontIndex = mFTFontIndex;
++  RefPtr<SharedFTFace> face(mFTFace);
++  fe->mFTFace = face.forget().take();
++  fe->mWeightRange = aWeight;
++  fe->mWidthRange = aWidth;
++  fe->mStyleRange = aStyle;
++  CopyUserFontResourceFlagsTo(*fe);
++  return fe.forget();
+ }
+ 
+ gfxFontEntry* FT2FontEntry::Clone() const {
+--- a/gfx/thebes/gfxFT2FontList.h
++++ b/gfx/thebes/gfxFT2FontList.h
+@@ -35,6 +35,9 @@
+       : gfxFT2FontEntryBase(aFaceName), mFTFontIndex(0) {}
+ 
+   gfxFontEntry* Clone() const override;
++  already_AddRefed<gfxFontEntry> CloneUserFontEntry(
++      WeightRange aWeight, WidthRange aWidth,
++      SlantStyleRange aStyle) const override;
+ 
+   const nsCString& GetName() const { return Name(); }
+ 
+--- a/gfx/thebes/gfxFcPlatformFontList.cpp
++++ b/gfx/thebes/gfxFcPlatformFontList.cpp
+@@ -334,6 +334,37 @@
+       mFTFaceInitialized(false) {
+   GetFontProperties(aFontPattern, &mWeightRange, &mWidthRange, &mStyleRange);
+   GetUserFontFeatures(mFontPattern);
++}
++
++gfxFontconfigFontEntry::gfxFontconfigFontEntry(
++    const gfxFontconfigFontEntry& aEntry, WeightRange aWeight, WidthRange aWidth,
++    SlantStyleRange aStyle)
++    : gfxFT2FontEntryBase(aEntry.Name()),
++      mFontPattern(aEntry.mFontPattern),
++      mFTFaceInitialized(false) {
++#ifdef MOZ_FONTATIONS
++  mIsUserFontClone = true;
++#endif
++  RefPtr<SharedFTFace> face(aEntry.mFTFace);
++  if (face) {
++    mFTFace = face.forget().take();
++    mFTFaceInitialized = true;
++  }
++  mWeightRange = aWeight;
++  mWidthRange = aWidth;
++  mStyleRange = aStyle;
++  if (aEntry.IsLocalUserFont()) {
++    GetUserFontFeatures(mFontPattern);
++  }
++}
++
++already_AddRefed<gfxFontEntry> gfxFontconfigFontEntry::CloneUserFontEntry(
++    WeightRange aWeight, WidthRange aWidth, SlantStyleRange aStyle) const {
++  MOZ_ASSERT(IsUserFont());
++  RefPtr<gfxFontconfigFontEntry> fe =
++      new gfxFontconfigFontEntry(*this, aWeight, aWidth, aStyle);
++  CopyUserFontResourceFlagsTo(*fe);
++  return fe.forget();
+ }
+ 
+ gfxFontEntry* gfxFontconfigFontEntry::Clone() const {
+@@ -1112,6 +1143,12 @@
+ }
+ 
+ #ifdef MOZ_FONTATIONS
++void gfxFontconfigFontEntry::InitSkrifaFontFace() {
++  if (mIsUserFontClone && mFTFaceInitialized) {
++    InitSkrifaFont(mFontPattern);
++  }
++}
++
+ void gfxFontconfigFontEntry::InitSkrifaFont(FcPattern* aPattern) {
+   using mozilla::MemoryMappedFile;
+   using mozilla::gfx::SkrifaFontRef;
+--- a/gfx/thebes/gfxFcPlatformFontList.h
++++ b/gfx/thebes/gfxFcPlatformFontList.h
+@@ -88,6 +88,9 @@
+                                   WidthRange aWidth, SlantStyleRange aStyle);
+ 
+   gfxFontEntry* Clone() const override;
++  already_AddRefed<gfxFontEntry> CloneUserFontEntry(
++      WeightRange aWeight, WidthRange aWidth,
++      SlantStyleRange aStyle) const override;
+ 
+   AutoHBFace GetHBFace() override;
+ 
+@@ -110,6 +113,10 @@
+  protected:
+   virtual ~gfxFontconfigFontEntry();
+ 
++  gfxFontconfigFontEntry(const gfxFontconfigFontEntry& aEntry,
++                        WeightRange aWeight, WidthRange aWidth,
++                        SlantStyleRange aStyle);
++
+   gfxFont* CreateFontInstance(const gfxFontStyle* aFontStyle) override;
+ 
+   bool HasVariationsInternal() override;
+@@ -127,6 +134,8 @@
+ 
+ #ifdef MOZ_FONTATIONS
+   void InitSkrifaFont(FcPattern* aPattern);
++  void InitSkrifaFontFace() override;
++  bool mIsUserFontClone = false;
+ #endif
+ 
+   // FTFace - initialized when needed. Once mFTFaceInitialized is true,
+--- a/gfx/thebes/gfxFontEntry.cpp
++++ b/gfx/thebes/gfxFontEntry.cpp
+@@ -65,6 +65,24 @@
+   mTrakTable.exchange(kTrakTableUninitialized);
+   memset(&mDefaultSubSpaceFeatures, 0, sizeof(mDefaultSubSpaceFeatures));
+   memset(&mNonDefaultSubSpaceFeatures, 0, sizeof(mNonDefaultSubSpaceFeatures));
++}
++
++already_AddRefed<gfxFontEntry> gfxFontEntry::CloneUserFontEntry(
++    WeightRange aWeight, WidthRange aWidth, SlantStyleRange aStyle) const {
++  MOZ_ASSERT_UNREACHABLE("only platform user font entries can be cloned");
++  return nullptr;
++}
++
++void gfxFontEntry::CopyUserFontResourceFlagsTo(gfxFontEntry& aClone) const {
++  MOZ_ASSERT(IsUserFont());
++  aClone.mIsDataUserFont = mIsDataUserFont;
++  aClone.mIsLocalUserFont = mIsLocalUserFont;
++  aClone.mFixedPitch = mFixedPitch;
++  aClone.mIsBadUnderlineFont = mIsBadUnderlineFont;
++  aClone.mStandardFace = mStandardFace;
++  aClone.mIgnoreGDEF = mIgnoreGDEF;
++  aClone.mIgnoreGSUB = mIgnoreGSUB;
++  aClone.mSkipDefaultFeatureSpaceCheck = mSkipDefaultFeatureSpaceCheck;
+ }
+ 
+ gfxFontEntry::~gfxFontEntry() {
+--- a/gfx/thebes/gfxFontEntry.h
++++ b/gfx/thebes/gfxFontEntry.h
+@@ -222,6 +222,12 @@
+   // not user fonts.)
+   virtual gfxFontEntry* Clone() const = 0;
+ 
++  // Retains the user font's native resource with fresh entry caches. The caller
++  // must initialize CSS descriptors and user font metadata; feature settings
++  // contain only platform defaults.
++  virtual already_AddRefed<gfxFontEntry> CloneUserFontEntry(
++      WeightRange aWeight, WidthRange aWidth, SlantStyleRange aStyle) const;
++
+   // unique name for the face, *not* the family; not necessarily the
+   // "real" or user-friendly name, may be an internal identifier
+   const nsCString& Name() const { return mName; }
+@@ -768,6 +774,8 @@
+ 
+   // Protected destructor, to discourage deletion outside of Release():
+   virtual ~gfxFontEntry();
++
++  void CopyUserFontResourceFlagsTo(gfxFontEntry& aClone) const;
+ 
+   virtual gfxFont* CreateFontInstance(const gfxFontStyle* aFontStyle) = 0;
+ 
