@@ -11,11 +11,10 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 2. Trailing-backslash parity is committed as `89bad2d8b5260ad5fc9d5660a3a18a09433902e3`. Four failures become 18 passes; all 50 other outcomes are unchanged.
    Root replay and independent reviews pass the conditional terminal-run proof.
    Keep an upstream-based variant because the stack uses the endpoint flag.
-3. Escaped terminal quotes are accepted and queued for the separate native/WPT
-   commit. Four failures become 18 passes; the combined diagnostic now passes
+3. Escaped terminal quotes are committed as `ed9505d25ee4333c1764acc173f95f9517ca9b07`. Four failures become 18 passes; the combined diagnostic now passes
    all 22 checks. Build, lint, root replay and final independent review pass.
 
-There are 64 committed native/WPT fixes.
+There are 65 committed native/WPT fixes.
 The comment/observer proof has passed fresh root and independent replay; root
 acceptance and its separate proof checkpoint remain pending. String-loop proof
 work and public iterator/cache/reset source investigation continue in parallel.
@@ -70,7 +69,7 @@ close these obligations.
 
 ## Earlier proof checkpoints
 
-There are 64 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
+There are 65 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results

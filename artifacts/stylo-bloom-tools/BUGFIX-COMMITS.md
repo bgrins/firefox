@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **64 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **65 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -63,6 +63,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | numeric-compensated-exponent | `4391deb4751a8be2be98e838360f00c94808c5d5` | `ddb1799ad54ecdd4528ee894b09c44e80bd6816b` |
 | quoted-eof-fallback-endpoints | `2d658a9c5aa4139dc7f196933511abf4a594163f` | `5faa99644ddc4b49594651a34721119484ec88ef` |
 | quoted-eof-backslash-parity | `89bad2d8b5260ad5fc9d5660a3a18a09433902e3` | `5e0f8696a8de0b931b2aa679457683e3f881ecb8` |
+| quoted-eof-escaped-terminal-quote | `ed9505d25ee4333c1764acc173f95f9517ca9b07` | `1b9022a98dc38e54dc9415d5eab6a51980003d13` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -74,7 +75,7 @@ The baseline content crash becomes 38 passes; all 34 other outcomes are unchange
 The patch applies and reverses on the upstream base. Browser testing used the
 shared local tree. The proof covers conditional endpoint arithmetic; it does
 not close the full parser/provider model. Parity and escaped-quote value defects
-remain separate pending repairs. See
+are repaired in separate commits below. See
 [acceptance](../css-quoted-eof-offset-root-v1/ROOT-SCOPED-ACCEPTANCE.json) and
 [commit check](../css-quoted-eof-offset-root-v1/ROOT-COMMIT-CHECK.json).
 
@@ -90,6 +91,22 @@ patch applies/reverses at upstream base but was not separately browser-built.
 Conditional terminal-run proofs preserve explicit tokenizer/native assumptions.
 See [acceptance](../css-quoted-eof-parity-root-v1/ROOT-SCOPED-ACCEPTANCE.json)
 and [commit check](../css-quoted-eof-parity-root-v1/ROOT-COMMIT-CHECK.json).
+
+## Quoted EOF escaped terminal quote repair
+
+Stack commit: `ed9505d25ee4333c1764acc173f95f9517ca9b07`; companion: `1b9022a98dc38e54dc9415d5eab6a51980003d13`.
+For independent landing, use `2933b8c870641670e4c33950665a482cc11d47a0` on
+`stylo-css-quoted-eof-closure-fix`, following companion
+`811cadc617155a2260daf14c883e7a0b28bd78b6`. Each native commit contains only the
+Rust closure predicate change and its WPT. Four failures become 18 passes;
+the combined string diagnostic passes all 22 checks and 69 other outcomes are
+unchanged. The final run has no unexpected results. The standalone patch
+applies/reverses at upstream base but was not separately browser-built.
+The proof covers conditional terminal-quote classification and recovery,
+with tokenizer/native assumptions retained. Discovery was source inspection
+followed by browser reproduction, before the Lean companion.
+See [acceptance](../css-quoted-eof-closure-root-v1/ROOT-SCOPED-ACCEPTANCE.json)
+and [commit check](../css-quoted-eof-closure-root-v1/ROOT-COMMIT-CHECK.json).
 
 ## Test-only corrections
 
