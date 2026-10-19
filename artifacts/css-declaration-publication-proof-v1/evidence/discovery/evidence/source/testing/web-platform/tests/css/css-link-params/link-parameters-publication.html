@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Substitution parsing publishes one link-parameters declaration</title>
+<link rel="help" href="https://drafts.csswg.org/cssom/#dom-cssstyledeclaration-setproperty">
+<link rel="help" href="https://drafts.csswg.org/css-link-params-1/#propdef-link-parameters">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+const property = "link-parameters";
+test(() => assert_true(CSS.supports(property, "param(--a, red)")), "link-parameters is enabled");
+const values = [
+  ["param(--a, var(--x, red))", true],
+  ["param(--a, env(not-real, red))", true],
+  ["param(--a, attr(data-x))", true],
+  ["param(--a, )", true],
+  ["none", true],
+  ["param(--a, var(invalid))", false],
+];
+for (const [value, valid] of values) {
+  for (const operation of ["new", "existing", "cssText", "remove"]) {
+    test(() => {
+      const declaration = document.createElement("div").style;
+      if (operation === "existing") {
+        declaration.setProperty(property, "none");
+      }
+      if (operation === "cssText") {
+        declaration.cssText = `${property}: ${value};`;
+      } else {
+        declaration.setProperty(property, value);
+      }
+      if (operation === "remove") {
+        declaration.removeProperty(property);
+        assert_equals(declaration.length, 0);
+        assert_equals(declaration.getPropertyValue(property), "");
+        return;
+      }
+      const expected = valid || operation === "existing" ? 1 : 0;
+      assert_equals(declaration.length, expected);
+      assert_equals(Array.from(declaration).filter(name => name === property).length, expected);
+    }, `${operation}: ${value}`);
+  }
+}
+</script>
