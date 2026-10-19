@@ -1,0 +1,127 @@
+--- preformat/gfx/thebes/gfxUserFontSet.cpp
++++ candidate/gfx/thebes/gfxUserFontSet.cpp
+@@ -80,9 +80,8 @@
+   MOZ_RELEASE_ASSERT(aEntry.mUserFontLoadState == STATUS_LOADED);
+   MOZ_RELEASE_ASSERT(aEntry.mPlatformFontEntry);
+ 
+-  RefPtr<gfxFontEntry> platform =
+-      aEntry.mPlatformFontEntry->CloneUserFontEntry(Weight(), Width(),
+-                                                  SlantStyle());
++  RefPtr<gfxFontEntry> platform = aEntry.mPlatformFontEntry->CloneUserFontEntry(
++      Weight(), Width(), SlantStyle());
+   MOZ_RELEASE_ASSERT(platform);
+   platform->mFeatureSettings.AppendElements(mFeatureSettings);
+   platform->mVariationSettings.AppendElements(mVariationSettings);
+@@ -116,7 +115,7 @@
+   if (data->mFontData &&
+       StaticPrefs::gfx_font_rendering_fontations_enabled_AtStartup()) {
+     if (SkrifaFontRef* font = skrifa_font_new(data->mFontData->Data(),
+-                                            data->mFontData->Length())) {
++                                              data->mFontData->Length())) {
+       platform->SetSkrifaFont(font);
+     }
+   }
+--- preformat/layout/style/FontFaceImpl.cpp
++++ candidate/layout/style/FontFaceImpl.cpp
+@@ -469,8 +469,8 @@
+   if (previousEntry) {
+     gfxUserFontAttributes attr;
+     MOZ_RELEASE_ASSERT(GetAttributesFromRule(descriptors, attr));
+-    entry = mFontFaceSet->UpdateFontFaceDescriptor(
+-        previousEntry, std::move(attr), aRv);
++    entry = mFontFaceSet->UpdateFontFaceDescriptor(previousEntry,
++                                                   std::move(attr), aRv);
+     if (aRv.Failed()) {
+       return false;
+     }
+--- preformat/layout/style/FontFaceImpl.h
++++ candidate/layout/style/FontFaceImpl.h
+@@ -99,8 +99,7 @@
+   bool GetAttributes(gfxUserFontAttributes& aAttr);
+   gfxUserFontEntry* CreateUserFontEntry();
+   gfxUserFontEntry* GetUserFontEntry() const { return mUserFontEntry; }
+-  void SetUserFontEntry(gfxUserFontEntry* aEntry,
+-                        bool aUpdateStatus = true);
++  void SetUserFontEntry(gfxUserFontEntry* aEntry, bool aUpdateStatus = true);
+ 
+   /**
+    * Returns whether this object is in the specified FontFaceSet.
+--- preformat/layout/style/FontFaceSetImpl.cpp
++++ candidate/layout/style/FontFaceSetImpl.cpp
+@@ -394,8 +394,8 @@
+         mAttr(std::move(aAttr)) {}
+ 
+   bool MainThreadRun() override {
+-    mResult = mSet->UpdateFontFaceDescriptorOnMainThread(mEntry,
+-                                                       std::move(mAttr));
++    mResult =
++        mSet->UpdateFontFaceDescriptorOnMainThread(mEntry, std::move(mAttr));
+     return true;
+   }
+ 
+@@ -414,8 +414,8 @@
+   if (NS_IsMainThread()) {
+     return UpdateFontFaceDescriptorOnMainThread(aEntry, std::move(aAttr));
+   }
+-  auto task = MakeRefPtr<UpdateFontFaceDescriptorRunnable>(
+-      this, aEntry, std::move(aAttr));
++  auto task = MakeRefPtr<UpdateFontFaceDescriptorRunnable>(this, aEntry,
++                                                           std::move(aAttr));
+   task->Dispatch(GetCurrentThreadWorkerPrivate(), Canceling, aRv);
+   if (aRv.Failed()) {
+     return nullptr;
+--- preformat/gfx/thebes/CoreTextFontList.cpp
++++ candidate/gfx/thebes/CoreTextFontList.cpp
+@@ -481,7 +481,7 @@
+   AutoReadLock lock(mLock);
+   MOZ_ASSERT(mFontRefInitialized && mFontRef);
+   RefPtr fe = MakeRefPtr<CTFontEntry>(Name(), mFontRef, aWeight, aWidth, aStyle,
+-                                    mIsDataUserFont, mIsLocalUserFont);
++                                      mIsDataUserFont, mIsLocalUserFont);
+   CopyUserFontResourceFlagsTo(*fe);
+   return fe.forget();
+ }
+--- preformat/gfx/thebes/gfxDWriteFontList.cpp
++++ candidate/gfx/thebes/gfxDWriteFontList.cpp
+@@ -382,12 +382,12 @@
+   RefPtr<gfxDWriteFontEntry> fe;
+   if (mFont) {
+     fe = MakeRefPtr<gfxDWriteFontEntry>(Name(), mFont.get(), aWeight, aWidth,
+-                                      aStyle);
++                                        aStyle);
+   } else {
+     MOZ_ASSERT(mFontFile && mFontFileStream);
+     fe = MakeRefPtr<gfxDWriteFontEntry>(Name(), mFontFile.get(),
+-                                      mFontFileStream.get(), aWeight, aWidth,
+-                                      aStyle);
++                                        mFontFileStream.get(), aWeight, aWidth,
++                                        aStyle);
+     fe->mFaceType = mFaceType;
+   }
+   fe->mIsSystemFont = mIsSystemFont;
+--- preformat/gfx/thebes/gfxFcPlatformFontList.cpp
++++ candidate/gfx/thebes/gfxFcPlatformFontList.cpp
+@@ -337,8 +337,8 @@
+ }
+ 
+ gfxFontconfigFontEntry::gfxFontconfigFontEntry(
+-    const gfxFontconfigFontEntry& aEntry, WeightRange aWeight, WidthRange aWidth,
+-    SlantStyleRange aStyle)
++    const gfxFontconfigFontEntry& aEntry, WeightRange aWeight,
++    WidthRange aWidth, SlantStyleRange aStyle)
+     : gfxFT2FontEntryBase(aEntry.Name()),
+       mFontPattern(aEntry.mFontPattern),
+       mFTFaceInitialized(false) {
+--- preformat/gfx/thebes/gfxFcPlatformFontList.h
++++ candidate/gfx/thebes/gfxFcPlatformFontList.h
+@@ -114,8 +114,8 @@
+   virtual ~gfxFontconfigFontEntry();
+ 
+   gfxFontconfigFontEntry(const gfxFontconfigFontEntry& aEntry,
+-                        WeightRange aWeight, WidthRange aWidth,
+-                        SlantStyleRange aStyle);
++                         WeightRange aWeight, WidthRange aWidth,
++                         SlantStyleRange aStyle);
+ 
+   gfxFont* CreateFontInstance(const gfxFontStyle* aFontStyle) override;
+ 
