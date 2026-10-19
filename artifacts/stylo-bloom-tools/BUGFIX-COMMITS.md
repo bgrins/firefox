@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **65 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **66 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -64,6 +64,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | quoted-eof-fallback-endpoints | `2d658a9c5aa4139dc7f196933511abf4a594163f` | `5faa99644ddc4b49594651a34721119484ec88ef` |
 | quoted-eof-backslash-parity | `89bad2d8b5260ad5fc9d5660a3a18a09433902e3` | `5e0f8696a8de0b931b2aa679457683e3f881ecb8` |
 | quoted-eof-escaped-terminal-quote | `ed9505d25ee4333c1764acc173f95f9517ca9b07` | `1b9022a98dc38e54dc9415d5eab6a51980003d13` |
+| parser-depth-limit-declaration-recovery | `55d251b7a90003546994f6576e5ee78e8fa07cb2` | `19ca0c3c68c2fb7320290be7562c02dedf02d7da` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -107,6 +108,22 @@ with tokenizer/native assumptions retained. Discovery was source inspection
 followed by browser reproduction, before the Lean companion.
 See [acceptance](../css-quoted-eof-closure-root-v1/ROOT-SCOPED-ACCEPTANCE.json)
 and [commit check](../css-quoted-eof-closure-root-v1/ROOT-COMMIT-CHECK.json).
+
+## Parser nesting-limit recovery repair
+
+Stack commit: `55d251b7a90003546994f6576e5ee78e8fa07cb2`; companion: `19ca0c3c68c2fb7320290be7562c02dedf02d7da`.
+For independent landing, use `c653dfe4227ca193c18ff6ae8d6e8ccc06f88947` on
+`stylo-css-parser-depth-recovery-fix`, following companion
+`45e55b2280eb99fde35165cfd0c702d5fc9dca0b`. Each fix contains only the one-line
+parser cleanup, its required vendor checksum and the 22-case WPT.
+One failure becomes a pass; all 22 new checks pass and 46 other outcomes remain
+unchanged. The nesting limit stays unchanged. Root and independent review pass
+the 21-theorem token-level recovery component; byte/native/caller admissions
+remain open. The standalone patch applies/reverses at upstream base but was not
+separately browser-built. Discovery was source inspection followed by browser
+reproduction; the formal companion followed discovery. No novelty claim.
+See [acceptance](../css-parser-depth-recovery-root-v1/ROOT-SCOPED-ACCEPTANCE.json)
+and [commit check](../css-parser-depth-recovery-root-v1/ROOT-COMMIT-CHECK.json).
 
 ## Test-only corrections
 

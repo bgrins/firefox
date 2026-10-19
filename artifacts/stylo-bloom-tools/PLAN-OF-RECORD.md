@@ -14,7 +14,7 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 3. Escaped terminal quotes are committed as `ed9505d25ee4333c1764acc173f95f9517ca9b07`. Four failures become 18 passes; the combined diagnostic now passes
    all 22 checks. Build, lint, root replay and final independent review pass.
 
-There are 65 committed native/WPT fixes.
+There are 66 committed native/WPT fixes.
 The conditional comment/observer component is accepted after fresh root and
 independent review; its twelve remaining obligation statuses are recorded in
 css-tokenizer-comment-provider-root-v1/ROOT-ACCEPTANCE.json (signed checkpoint
@@ -23,8 +23,8 @@ is now accepted after fresh root and independent replay: 16 modules, 152 audits,
 808 native cases in each mode, with all native/public-history limits retained. Public iterator/cache/reset
 investigation reproduced a nesting-limit declaration-recovery bug in Firefox:
 inline padding-left at depth 76 applies an inner color declaration. All 19 other
-padding/width controls pass. The one-line iterative cleanup repair is accepted and queued for its separate
-native/WPT commit: all 22 final checks pass and 46 other outcomes are unchanged.
+padding/width controls pass. The one-line iterative cleanup repair is committed as
+`55d251b7a90003546994f6576e5ee78e8fa07cb2`: all 22 final checks pass and 46 other outcomes are unchanged.
 Root and independent review pass the 21-theorem recovery component. The signed
 string checkpoint is `a3e34003574adb8655431b391c77a422358af743`. Public cache and
 observer caller-history investigation continues with its counterexamples retained.
@@ -41,23 +41,18 @@ Immediate next steps:
    library contract. Full numerical conversion and native library correctness
    remain open; next compose this component with the remaining token providers.
    Evidence: css-tokenizer-numeric-repair-integration-root-v1/ROOT-ACCEPTANCE.json.
-2. Prove complete string and comment providers, beginning with comment loops
-   and observer state. The sealed static audit and fresh root replay pass 646
-   extracted cases in debug/release; all 21 new browser controls pass and eight
-   existing outcomes are unchanged. No new defect or full formal admission is
-   claimed. Trace existing escaped-EOF serialization failures separately; the
-   identifier round-trip test was blocked at its second stylesheet read. A
-   separate WPT-only correction now waits for a fresh stylesheet update, passes
-   the original assertion and removes expected-FAIL metadata; no native bug is
-   added. WPT-only commit: `ae4db18e4b3ec93bd9bd16bfa77236c484e2695d`.
-   The exact-spelling escaped-EOF oracle remains inconclusive under raw
-   custom-property preservation requirements.
-   Evidence: css-tokenizer-string-comment-root-v1/ROOT-REVIEW.json and
-   css-rule-identifier-roundtrip-fix-v2/ROOT-ACCEPTANCE.json.
-3. Compose all actual raw-token branches with fresh-suffix parser states and
-   selected-output dependency metadata. Name/escape and corrected-guard models
-   are signed as `71fd35e1276edfef665ff1a4fada28217174a1d5`; shared codecs,
-   packed line-counter headroom, compiler and full provider admission stay open.
+2. Compose accepted string/comment models with actual raw dispatch, preserving
+   raw endpoints and selected observer fields. Full preprocessing, native
+   codecs/memory/capacity and mutable-state refinement remain explicit proof
+   boundaries; the accepted components do not close those obligations.
+   Evidence: css-tokenizer-comment-provider-root-v1/ROOT-ACCEPTANCE.json and
+   css-tokenizer-string-provider-root-v1/ROOT-ACCEPTANCE.json.
+3. Establish admissible public parser histories for token caching, tracking
+   enable/query epochs, reset and block skipping. Keep the cached-function and
+   URL-observer counterexamples. A source audit and conditional epoch model are
+   underway; no new browser reachability or full caller proof is accepted yet.
+   Preserve the accepted nesting-limit recovery grammar as a component when
+   composing error paths. SourceMap and sourceURL contracts must be distinguished.
 4. Continue cascade source/observer and hyphenation stateful consumer admission,
    including actual reflow-to-display tab-cache coverage and lifetime. Retain
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
@@ -79,7 +74,7 @@ close these obligations.
 
 ## Earlier proof checkpoints
 
-There are 65 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
+There are 66 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
