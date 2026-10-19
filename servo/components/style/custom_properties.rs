@@ -1437,7 +1437,16 @@ fn parse_declaration_value_block(
                 let token_slice = input.slice_from(token_start);
                 let quote = &token_slice[..1];
                 debug_assert!(matches!(quote, "\"" | "'"));
-                if !(token_slice.ends_with(quote) && token_slice.len() > 1) {
+                if !(token_slice.ends_with(quote)
+                    && token_slice.len() > 1
+                    && token_slice[..token_slice.len() - 1]
+                        .bytes()
+                        .rev()
+                        .take_while(|&byte| byte == b'\\')
+                        .count()
+                        % 2
+                        == 0)
+                {
                     *removed_backslash = missing_closing_characters.is_empty()
                         && token_slice
                             .bytes()
