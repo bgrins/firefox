@@ -1600,7 +1600,7 @@ void AbsoluteContainingBlock::ResolveSizeDependentOffsets(
 void AbsoluteContainingBlock::ResolveAutoMarginsAfterLayout(
     ReflowInput& aKidReflowInput, const LogicalSize& aCBSize,
     const LogicalSize& aKidSize, LogicalMargin& aMargin,
-    const LogicalMargin& aOffsets) {
+    const LogicalMargin& aOffsets, bool aIInsetAuto, bool aBInsetAuto) {
   WritingMode outerWM = aKidReflowInput.mParentReflowInput->GetWritingMode();
   const auto& styleMargin = aKidReflowInput.mStyleMargin;
   const auto anchorResolutionParams =
@@ -1610,10 +1610,22 @@ void AbsoluteContainingBlock::ResolveAutoMarginsAfterLayout(
     const auto startSide = MakeLogicalSide(aAxis, LogicalEdge::Start);
     const auto endSide = MakeLogicalSide(aAxis, LogicalEdge::End);
 
+    const bool startSideMarginIsAuto =
+        styleMargin->GetMargin(startSide, outerWM, anchorResolutionParams)
+            ->IsAuto();
+    const bool endSideMarginIsAuto =
+        styleMargin->GetMargin(endSide, outerWM, anchorResolutionParams)
+            ->IsAuto();
+
+    if (!startSideMarginIsAuto && !endSideMarginIsAuto) {
+      return;
+    }
+
     // No need to substract border sizes because aKidSize has it included
     // already. Also, if any offset is auto, the auto margin resolves to zero.
     // https://drafts.csswg.org/css-position-3/#abspos-margins
     const bool autoOffset =
+        (aAxis == LogicalAxis::Inline ? aIInsetAuto : aBInsetAuto) ||
         aOffsets.Side(startSide, outerWM) == NS_AUTOOFFSET ||
         aOffsets.Side(endSide, outerWM) == NS_AUTOOFFSET;
 
@@ -1621,18 +1633,11 @@ void AbsoluteContainingBlock::ResolveAutoMarginsAfterLayout(
     if (autoOffset) {
       availMarginSpace = 0;
     } else {
-      const nscoord stretchFitSize = std::max(
-          0, aCBSize.Size(aAxis, outerWM) - aOffsets.StartEnd(aAxis, outerWM) -
-                 aMargin.StartEnd(aAxis, outerWM));
-      availMarginSpace = stretchFitSize - aKidSize.Size(aAxis, outerWM);
+      const nscoord insetModifiedSize = std::max(
+          0, aCBSize.Size(aAxis, outerWM) - aOffsets.StartEnd(aAxis, outerWM));
+      availMarginSpace = insetModifiedSize - aMargin.StartEnd(aAxis, outerWM) -
+                         aKidSize.Size(aAxis, outerWM);
     }
-
-    const bool startSideMarginIsAuto =
-        styleMargin->GetMargin(startSide, outerWM, anchorResolutionParams)
-            ->IsAuto();
-    const bool endSideMarginIsAuto =
-        styleMargin->GetMargin(endSide, outerWM, anchorResolutionParams)
-            ->IsAuto();
 
     if (aAxis == LogicalAxis::Inline) {
       ReflowInput::ComputeAbsPosInlineAutoMargin(availMarginSpace, outerWM,
@@ -2116,9 +2121,6 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
       ResolveSizeDependentOffsets(kidReflowInput, cbSize, kidSize, margin,
                                   cb.GetAnchorOffsetInfo(), offsets);
 
-      ResolveAutoMarginsAfterLayout(kidReflowInput, cbSize, kidSize, margin,
-                                    offsets);
-
       // If the inset is constrained as non-auto, we may have a child that does
       // not fill out the inset-reduced containing block. In this case, we need
       // to align the child by its margin box:
@@ -2152,6 +2154,10 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
                                        anchorResolutionParams)
               ->IsAuto();
       const bool bInsetAuto = bStartInsetAuto || bEndInsetAuto;
+
+      ResolveAutoMarginsAfterLayout(kidReflowInput, cbSize, kidSize, margin,
+                                    offsets, iInsetAuto, bInsetAuto);
+
       const LogicalSize kidMarginBox{
           outerWM, margin.IStartEnd(outerWM) + kidSize.ISize(outerWM),
           margin.BStartEnd(outerWM) + kidSize.BSize(outerWM)};

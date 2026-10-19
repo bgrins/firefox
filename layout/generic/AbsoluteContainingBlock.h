@@ -170,14 +170,17 @@ class AbsoluteContainingBlock {
    * aCBSize, aKidSize, aMargin, aOffsets, are all expected in the absolute
    * containing block's writing-mode.
    *
-   * aMargin and aOffsets are both outparams (though we only touch aOffsets if
-   * the position is overconstrained)
+   * aIInsetAuto and aBInsetAuto describe anchor-resolved styles, before auto
+   * insets are replaced with numeric offsets.
+   *
+   * aMargin is an outparam.
    */
   void ResolveAutoMarginsAfterLayout(ReflowInput& aKidReflowInput,
                                      const LogicalSize& aCBSize,
                                      const LogicalSize& aKidSize,
                                      LogicalMargin& aMargin,
-                                     const LogicalMargin& aOffsets);
+                                     const LogicalMargin& aOffsets,
+                                     bool aIInsetAuto, bool aBInsetAuto);
 
   void ReflowAbsoluteFrame(
       nsContainerFrame* aDelegatingFrame, nsPresContext* aPresContext,
