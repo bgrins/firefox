@@ -65,8 +65,10 @@ class SVGMaskFrame final : public SVGContainerFrame {
    *
    * The return surface can be null, it's the caller's responsibility to
    * null-check before dereferencing.
+   * aMaskAreaIsEmpty distinguishes an empty region from a rendering failure.
    */
-  already_AddRefed<SourceSurface> GetMaskForMaskedFrame(MaskParams& aParams);
+  already_AddRefed<SourceSurface> GetMaskForMaskedFrame(
+      MaskParams& aParams, bool* aMaskAreaIsEmpty = nullptr);
 
   gfxRect GetMaskArea(nsIFrame* aMaskedFrame);
 

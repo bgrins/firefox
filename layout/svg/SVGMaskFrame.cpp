@@ -33,7 +33,10 @@ namespace mozilla {
 NS_IMPL_FRAMEARENA_HELPERS(SVGMaskFrame)
 
 already_AddRefed<SourceSurface> SVGMaskFrame::GetMaskForMaskedFrame(
-    MaskParams& aParams) {
+    MaskParams& aParams, bool* aMaskAreaIsEmpty) {
+  if (aMaskAreaIsEmpty) {
+    *aMaskAreaIsEmpty = false;
+  }
   // Make sure we break reference loops and over long reference chains:
   static int16_t sRefChainLengthCounter = AutoReferenceChainGuard::noChain;
   AutoReferenceChainGuard refChainGuard(this, &mInUse, &sRefChainLengthCounter);
@@ -44,6 +47,9 @@ already_AddRefed<SourceSurface> SVGMaskFrame::GetMaskForMaskedFrame(
 
   gfxRect maskArea = GetMaskArea(aParams.maskedFrame);
   if (maskArea.IsEmpty()) {
+    if (aMaskAreaIsEmpty) {
+      *aMaskAreaIsEmpty = true;
+    }
     return nullptr;
   }
   // Get the clip extents in device space:

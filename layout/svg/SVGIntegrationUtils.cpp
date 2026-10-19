@@ -455,13 +455,21 @@ static bool PaintMaskSurface(const PaintFramesParams& aParams,
       SVGMaskFrame::MaskParams params(
           maskContext.GetDrawTarget(), aParams.frame, cssPxToDevPxMatrix,
           aOpacity, svgReset->mMask.mLayers[i].mMaskMode, aParams.imgParams);
-      RefPtr<SourceSurface> svgMask = maskFrame->GetMaskForMaskedFrame(params);
+      bool maskAreaIsEmpty;
+      RefPtr<SourceSurface> svgMask =
+          maskFrame->GetMaskForMaskedFrame(params, &maskAreaIsEmpty);
       if (svgMask) {
         Matrix tmp = aMaskDT->GetTransform();
         aMaskDT->SetTransform(Matrix());
         aMaskDT->MaskSurface(ColorPattern(DeviceColor(0.0, 0.0, 0.0, 1.0)),
                              svgMask, Point(0, 0),
                              DrawOptions(1.0, compositionOp));
+        aMaskDT->SetTransform(tmp);
+      } else if (maskAreaIsEmpty && (compositionOp == CompositionOp::OP_IN ||
+                                     compositionOp == CompositionOp::OP_OUT)) {
+        Matrix tmp = aMaskDT->GetTransform();
+        aMaskDT->SetTransform(Matrix());
+        aMaskDT->ClearRect(Rect(aMaskDT->GetRect()));
         aMaskDT->SetTransform(tmp);
       }
     } else if (svgReset->mMask.mLayers[i].mImage.IsResolved()) {
