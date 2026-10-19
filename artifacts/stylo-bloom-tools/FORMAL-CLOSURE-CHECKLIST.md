@@ -462,3 +462,33 @@ next/cache/reset/skip histories. Function is still the pre-caller delegation sea
 with the subsequent block-bit update checked separately. No new bug is counted.
 
 Evidence: ../css-tokenizer-url-native-state-root-v1/ROOT-SCOPED-ACCEPTANCE-V2.json.
+
+## Ordinary declaration batching checkpoint
+
+The separate ordinary prepare/update obligation is accepted within its declared
+model and finite native bridge scope. Initial plans refine a forward CSSOM setter
+sequence under unique destination/source IDs and nonopposing source mappings.
+Descending removals, the actual ascending count/rank loop, source-order updates
+and independent declaration/importance/membership operations compose. Theorems
+derive safe indices/subtraction, aligned final storage, exact reserve growth,
+plan/source length and guarded execution. Optional source publication connects
+to the batch contract under fixed metadata and value-provider admissions.
+
+The comparator requires true to imply abstract equality, but may return false
+for equal entries. A true update gate therefore need not imply changed abstract
+state or serialization. NaN-related nonreflexive native equality is not silently
+replaced by model equality; concrete value abstraction/congruence remains open.
+
+Independent full relocated replay and source/model review passed 172 audits
+(55 AllOrder, 5 Publication, 112 batching including 3 reused helpers), original and
+candidate 18-transaction traces, five compiled mutants and successful kernel
+witnesses, ten row controls and nine integrity controls. Root authenticated the
+closures, rechecked independent outcomes/source slices and matched the live
+native source. These finite checks do not prove Rust/LLVM or the concrete
+container/sort/mutable-reference implementation.
+
+Full parser-to-source and callback readiness, fresh counters, machine/heap/compiler
+behavior, concrete value/comparator interpretation, DOM serialization/observers
+and mixed public operation histories remain open. No new bug is counted.
+
+Evidence: ../css-declaration-batch-root-v1/ROOT-SCOPED-ACCEPTANCE.json.

@@ -11,8 +11,9 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
   `074086719e445ca72d3056f7fbf793af5e69d6f6`, with preceding formal companion
   `bad8f7998dbbb3ad1fa88c0ca6892488f912e898`. Its two-file commit contains only
   the native patch and WPT.
-- URL native state/capture is accepted within scope. Ordinary declaration
-  batching review, public storage composition and parser-history admission are active.
+- URL native state/capture and ordinary batching are accepted within scope.
+  Public storage composition, parser-priority winners and parser-history admission
+  are active.
 - Signing works. Nothing has been pushed or submitted externally.
 
 [Historical checkpoints](PLAN-HISTORY-20261019.md) preserve the previous plan
@@ -22,42 +23,27 @@ obligations remain open unless a later acceptance record explicitly closes them.
 
 ## In progress
 
-### 1. Prove ordinary declaration batching
+### 1. Ordinary batching accepted; compose public operations
 
-The all repair's sequential algorithm is accepted. The ordinary path plans all
-actions against one initial destination, removes indices in descending order,
-corrects surviving indices and executes source order. Its separate universal
-refinement theorem remains open.
+The indexed ordinary algorithm is accepted under explicit source/comparator/
+storage premises. It composes initial planning, sorted descending removals,
+ascending count/rank correction and source-order execution with separate raw
+storage. Source uniqueness and mapping uniformity are proved by the optional
+publication shape under the inspected metadata contract. Native parser lowering,
+callback readiness, sort/container/compiler and value abstraction remain open.
 
-Root bounded exploration agrees with an independent sequential setter in
-1,962,610 abstract cases. Removing source uniqueness or group mapping uniformity
-produces counterexamples; neither fabricated source is a new browser bug. Three
-initial kernel-checked helpers establish lower-lookup preservation and rank
-subtraction bounds. These do not complete the batched theorem.
+The component has 172 audits (109 newly authored), 18 extracted-native
+transactions per original/candidate variant and five distinguished compiled
+mutations. Independent manifest-only relocated replay, complete proof/source
+review and separate outcome checks passed. A supplied comparator allows false
+negatives, preserving the NaN audit's distinction between publication and changed
+serialization. No additional browser bug was found.
 
-The producer has sealed the full indexed batching and storage refinement,
-including the actual ascending count/correction loop, publication transfer and
-index/reserve/gate results. Canonical and relocated full replays pass; independent
-review and root acceptance remain pending. Its supplied comparator requires a true result to imply semantic
-equality, while permitting conservative false results. The NaN source audit does
-not establish a browser bug: CSSOM permits reporting an update when serialization
-is unchanged. Native value equality must not silently become reflexive model
-equality. [Audit](../css-cssom-nan-equality-static-v1/REPORT.md).
-
-A root source audit checks all eight setter callers and the exact ordered metadata
-for 94 ordinary shorthands. Five kernel-checked optional-publication lemmas preserve
-unique identities, group compatibility and capacity; fresh local and relocated
-replays pass. This does not mechanically compose the entire parser with batching.
-Independent review accepted these limited claims after its own relocated replay.
-Source interpretation, compiler behavior and callback stability remain explicit.
-[Source admission](../css-declaration-source-admission-root-v1/REPORT.md).
-
-The frozen component has 172 audits (109 newly authored), 18 extracted-native
-transactions per variant and five distinguished compiled mutations. Its next gate
-is independent review and scoped acceptance, not another corpus expansion.
-
-[Obligations](../css-declaration-batch-admission-root-v1/PLAN.md).
-Production: `../css-declaration-batch-proof-v1/`.
+[Scoped acceptance](../css-declaration-batch-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
+Next join this accepted component to legal mixed public operation histories and
+actual caller readiness. A separate declarative parser-winner proof is active in
+`../css-declaration-parse-winner-proof-v1/`: last important occurrence, otherwise
+last occurrence, retained in original source order.
 
 ### 2. URL state accepted; continue public parser histories
 
@@ -116,7 +102,11 @@ stability and animation-map key/value identity coherence as provider premises.
 
 ## Accepted checkpoints
 
-- **URL mutable state and raw capture:** accepted v2 closes the selected model
+- **Ordinary declaration batching:** accepted indexed/scheduled batch refinement
+  and optional-publication transfer under explicit native/source admissions.
+  [Acceptance](../css-declaration-batch-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
+- **URL mutable state and raw capture:** `e69ef82d29d9c3c9f9244a5174c46245634a3f89`
+  accepts v2 and closes the selected model
   bridges with derived helper assignments and original-source endpoint proofs.
   Whole parser histories and codec/machine/heap/compiler premises remain open.
   [Acceptance](../css-tokenizer-url-native-state-root-v1/ROOT-SCOPED-ACCEPTANCE-V2.json).
