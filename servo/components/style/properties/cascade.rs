@@ -1916,9 +1916,6 @@ impl<'a> Cascade<'a> {
         // values, which we need to track to support chained references and detect cycles.
         if refs.flags.intersects(ReferenceFlags::ATTR) {
             self.update_attributes_map(context, value, attribute_tracker);
-            if !refs.flags.intersects(ReferenceFlags::VAR) {
-                return;
-            }
         }
 
         // The non-custom node(s) this property feeds. We don't try to figure out here which
