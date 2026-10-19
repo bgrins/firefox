@@ -279,14 +279,15 @@ gfxTextRun::LigatureData gfxTextRun::ComputeLigatureData(
     }
   }
   NS_ASSERTION(totalClusterCount > 0, "Ligature involving no clusters??");
-  result.mPartAdvance = partClusterIndex * (ligatureWidth / totalClusterCount);
-  result.mPartWidth = partClusterCount * (ligatureWidth / totalClusterCount);
+  const int64_t advancePerCluster = int64_t(ligatureWidth) / totalClusterCount;
+  result.mPartAdvance = partClusterIndex * advancePerCluster;
+  result.mPartWidth = partClusterCount * advancePerCluster;
 
   // Any rounding errors are apportioned to the final part of the ligature,
   // so that measuring all parts of a ligature and summing them is equal to
   // the ligature width.
   if (aPartRange.end == result.mRange.end) {
-    gfxFloat allParts = totalClusterCount * (ligatureWidth / totalClusterCount);
+    gfxFloat allParts = totalClusterCount * advancePerCluster;
     result.mPartWidth += ligatureWidth - allParts;
   }
 
