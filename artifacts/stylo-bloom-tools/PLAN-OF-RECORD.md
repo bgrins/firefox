@@ -49,7 +49,13 @@ association is the next component. V1/v2 wrapper path failures are retained.
 
 The observer/provider extension is signed as
 `89d2fd2f7f305bbd497d00b0cc5dbf92cf92f462`. Its post-guard audit found a separate
-namespaced attr() cache-key hypothesis; the prepared probe has not yet run.
+namespaced attr() cache-key hypothesis. Root ran the prepared WPT: two
+namespace collisions reproduced, seven controls passed, and the harness completed
+OK with unchanged input pins. Independent repair review is pending; known
+bug2021110 overlap is not adjudicated. The post-guard component extension also
+passes a fresh root replay: six modules and 33 exact theorem audits. Its sharing
+and cache observations are preserved under common continuations; native choice
+of those continuations and full C1–C13 closure remain open.
 The larger loaded FontFace descriptor/provider implementation is now prepared
 as a 16-file artifact candidate. Root source-regeneration/live-original checks
 pass; integration, compilation and browser gates remain. No production edit

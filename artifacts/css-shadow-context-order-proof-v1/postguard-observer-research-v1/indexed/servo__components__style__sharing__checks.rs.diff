@@ -1,0 +1,17 @@
+--- indexed
++++ local
+@@ -136,10 +136,12 @@
+     let stylist = &shared_context.stylist;
+ 
+     let for_element = target.revalidation_match_results(stylist, bloom, selector_caches);
++    if for_element.has_scope_dependent_nth {
++        return false;
++    }
+ 
+     let for_candidate = candidate.revalidation_match_results(stylist, bloom, selector_caches);
+-
+-    for_element == for_candidate
++    !for_candidate.has_scope_dependent_nth && for_element == for_candidate
+ }
+ 
+ /// Whether the given element and a candidate have the same values for the the

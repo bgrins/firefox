@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typed attr namespace identity probe</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<link id="probe-sheet" rel="stylesheet" href="probe.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<div id="fixture"></div>
+<script src="probe.js"></script>
+<script>
+setup({explicit_done: true});
+window.addEventListener("load", () => {
+  const result = runAttrNamespaceProbe();
+  test(() => {
+    assert_true(result.support.typed);
+    assert_true(result.support.unit);
+    assert_equals(result.support.namespaceRules.length, 2);
+    assert_equals(result.fixtureWidth, "100px");
+  }, "Typed attr syntax and namespace declarations are supported");
+  for (const row of result.rows) {
+    test(() => {
+      assert_not_equals(row.declaration, "");
+      assert_equals(row.attributes.aX, "13px");
+      assert_equals(row.attributes.bX, "37px");
+      assert_equals(row.attributes.bY, "37px");
+      assert_equals(row.attributes.aN, "13");
+      assert_equals(row.attributes.bN, "37");
+      assert_equals(row.attributes.nullZ, "13px");
+      assert_equals(row.actual.width, row.expected.width, "width");
+      assert_equals(row.actual.height, row.expected.height, "height");
+    }, row.id);
+  }
+  done();
+});
+</script>
