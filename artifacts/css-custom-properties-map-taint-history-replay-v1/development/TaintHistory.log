@@ -1,0 +1,46 @@
+TaintHistory.lean:62:80: error: Tactic `decide` failed to reduce
+  @decide
+    (let s := LiveCount.run (payloadSame fun a b => a == b) LiveCount.initial exampleOps;
+    s.stored = 1 ∧
+      MapIterator.getIndex s.chain s.stored 0 = some (1, some { payload := 7, attr := false }) ∧
+        LiveCount.referenceRun (fun x => none) exampleOps 1 = some { payload := 7, attr := true })
+    instDecidableAnd
+to `true` or `false`.
+
+After unfolding the instances `instDecidableAnd`, `instDecidableEqBool`, `instDecidableEqNat`, `Bool.decEq`, `Nat.decEq`, `Nat.decLe`, `Nat.decLt`, and `Option.instDecidableEq`, reduction got stuck at
+  match
+    MapIterator.getIndex (LiveCount.run (payloadSame fun a b => a == b) LiveCount.initial exampleOps).chain
+      (LiveCount.run (payloadSame fun a b => a == b) LiveCount.initial exampleOps).stored 0 with
+  | none =>
+    match some (1, some { payload := 7, attr := false }) with
+    | none => isTrue ⋯
+    | some val => isFalse ⋯
+  | some a =>
+    match some (1, some { payload := 7, attr := false }) with
+    | none => isFalse ⋯
+    | some b =>
+      match (fun a b => instDecidableEqProd a b) a b with
+      | { decide := true, reflects_decide := h } => isTrue ⋯
+      | { decide := false, reflects_decide := n } => isFalse ⋯
+TaintHistory.lean:66:90: error: Tactic `decide` failed to reduce
+  @decide
+    (let s := LiveCount.run (metadataSame fun a b => a == b) LiveCount.initial exampleOps;
+    s.stored = 1 ∧ MapIterator.getIndex s.chain s.stored 0 = some (1, some { payload := 7, attr := true }))
+    instDecidableAnd
+to `true` or `false`.
+
+After unfolding the instances `instDecidableAnd`, `instDecidableEqBool`, `instDecidableEqNat`, `Bool.decEq`, `Nat.decEq`, `Nat.decLe`, `Nat.decLt`, and `Option.instDecidableEq`, reduction got stuck at
+  match
+    MapIterator.getIndex (LiveCount.run (metadataSame fun a b => a == b) LiveCount.initial exampleOps).chain
+      (LiveCount.run (metadataSame fun a b => a == b) LiveCount.initial exampleOps).stored 0 with
+  | none =>
+    match some (1, some { payload := 7, attr := true }) with
+    | none => isTrue ⋯
+    | some val => isFalse ⋯
+  | some a =>
+    match some (1, some { payload := 7, attr := true }) with
+    | none => isFalse ⋯
+    | some b =>
+      match (fun a b => instDecidableEqProd a b) a b with
+      | { decide := true, reflects_decide := h } => isTrue ⋯
+      | { decide := false, reflects_decide := n } => isFalse ⋯

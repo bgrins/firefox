@@ -1,0 +1,20 @@
+[
+  {
+    "id": "payload-only",
+    "old": "let cmp := metadataSame (fun a b : Nat => a == b)",
+    "new": "let cmp := payloadSame (fun a b : Nat => a == b)",
+    "expected": "true|false|false|true|false|false|true"
+  },
+  {
+    "id": "ignore-taint-addition",
+    "old": "let cmp := metadataSame (fun a b : Nat => a == b)",
+    "new": "let cmp := fun (a b : State Nat) => payloadSame (fun x y => x == y) a b && (a.isNone || b.isNone || (!((a.map Value.attr).getD false) || (b.map Value.attr).getD false))",
+    "expected": "true|false|false|true|true|true|true"
+  },
+  {
+    "id": "ignore-taint-removal",
+    "old": "let cmp := metadataSame (fun a b : Nat => a == b)",
+    "new": "let cmp := fun (a b : State Nat) => payloadSame (fun x y => x == y) a b && (a.isNone || b.isNone || ((a.map Value.attr).getD false || !((b.map Value.attr).getD false)))",
+    "expected": "true|true|true|true|false|false|true"
+  }
+]
