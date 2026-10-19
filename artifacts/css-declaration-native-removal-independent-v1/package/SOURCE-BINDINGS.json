@@ -1,0 +1,77 @@
+[
+  {
+    "anchor": "pub fn first_declaration_to_remove(",
+    "source": "source/declaration_block.rs",
+    "start": 32455,
+    "body": "    pub fn first_declaration_to_remove(&self, property: &PropertyId) -> Option<usize> {\n        if let Err(longhand_or_custom) = property.as_shorthand()\n            && !self.contains(longhand_or_custom)\n        {\n            return None;\n        }\n\n        self.declarations\n            .iter()\n            .position(|declaration| declaration.id().is_or_is_longhand_of(property))\n    }",
+    "sha256": "3fe48d41858574c9b42c1c039363230912dd9f9d9444cdb7af8b1af31d22a7af"
+  },
+  {
+    "anchor": "fn remove_declaration_at(",
+    "source": "source/declaration_block.rs",
+    "start": 32910,
+    "body": "    fn remove_declaration_at(&mut self, i: usize) {\n        self.property_ids.remove(self.declarations[i].id());\n        self.declarations_importance.remove(i);\n        self.declarations.remove(i);\n    }",
+    "sha256": "449b4e7e727fc08f8c0bdc84b9edf64b47ed872bead2404951d802dfece59b8e"
+  },
+  {
+    "anchor": "pub fn remove_property(",
+    "source": "source/declaration_block.rs",
+    "start": 33531,
+    "body": "    pub fn remove_property(&mut self, property: &PropertyId, first_declaration: usize) {\n        debug_assert_eq!(\n            Some(first_declaration),\n            self.first_declaration_to_remove(property)\n        );\n        debug_assert!(\n            self.declarations[first_declaration]\n                .id()\n                .is_or_is_longhand_of(property)\n        );\n\n        self.remove_declaration_at(first_declaration);\n\n        let shorthand = match property.as_shorthand() {\n            Ok(s) => s,\n            Err(_longhand_or_custom) => return,\n        };\n\n        let mut i = first_declaration;\n        let mut len = self.len();\n        while i < len {\n            if !self.declarations[i].id().is_longhand_of(shorthand) {\n                i += 1;\n                continue;\n            }\n\n            self.remove_declaration_at(i);\n            len -= 1;\n        }\n    }",
+    "sha256": "da4ead5f85177a986f0a4b77e45ab1ff4e1f21d3b857f34d1fd2192d50cd7130"
+  },
+  {
+    "anchor": "pub fn contains(",
+    "source": "source/declaration_block.rs",
+    "start": 16705,
+    "body": "    pub fn contains(&self, id: PropertyDeclarationId) -> bool {\n        self.property_ids.contains(id)\n    }",
+    "sha256": "4d4572e4329a0b8ebd26c302102ee4c49a130f40dfa2702b55854b908ade667d"
+  },
+  {
+    "anchor": "pub fn len(",
+    "source": "source/declaration_block.rs",
+    "start": 13238,
+    "body": "    pub fn len(&self) -> usize {\n        self.declarations.len()\n    }",
+    "sha256": "d86f1a07e762d31c1661684e65e518f22f0d025aaa6032e8fec06e66b1795e37"
+  },
+  {
+    "anchor": "pub fn is_or_is_longhand_of(",
+    "owner": "impl LonghandId {",
+    "source": "source/properties.rs",
+    "start": 21515,
+    "body": "    pub fn is_or_is_longhand_of(self, non_custom: NonCustomPropertyId) -> bool {\n        match non_custom.longhand_or_shorthand() {\n            Ok(lh) => self == lh,\n            Err(sh) => self.is_longhand_of(sh),\n        }\n    }",
+    "sha256": "04f8c1b0370e29642737fb64105c7bb7d2bdd70e5940ad4006c2fe9d4f2de96a"
+  },
+  {
+    "anchor": "pub fn is_longhand_of(",
+    "owner": "impl LonghandId {",
+    "source": "source/properties.rs",
+    "start": 21814,
+    "body": "    pub fn is_longhand_of(self, shorthand: ShorthandId) -> bool {\n        self.shorthands().any(|s| s == shorthand)\n    }",
+    "sha256": "d04231b6409860e24e8d8284d243f1d196195a509819836744bdc5f645d78caf"
+  },
+  {
+    "anchor": "pub fn is_or_is_longhand_of(",
+    "owner": "impl<'a> PropertyDeclarationId<'a> {",
+    "source": "source/properties.rs",
+    "start": 39924,
+    "body": "    pub fn is_or_is_longhand_of(&self, other: &PropertyId) -> bool {\n        match *self {\n            PropertyDeclarationId::Longhand(id) => match *other {\n                PropertyId::NonCustom(non_custom_id) => id.is_or_is_longhand_of(non_custom_id),\n                PropertyId::Custom(_) => false,\n            },\n            PropertyDeclarationId::Custom(name) => {\n                matches!(*other, PropertyId::Custom(ref other_name) if name == other_name)\n            },\n        }\n    }",
+    "sha256": "0d92fb75a18be87d3d956d503cde91ba9a134cdee5e86db5b6b852b74efa83c4"
+  },
+  {
+    "anchor": "pub fn is_longhand_of(",
+    "owner": "impl<'a> PropertyDeclarationId<'a> {",
+    "source": "source/properties.rs",
+    "start": 40506,
+    "body": "    pub fn is_longhand_of(&self, shorthand: ShorthandId) -> bool {\n        match *self {\n            PropertyDeclarationId::Longhand(ref id) => id.is_longhand_of(shorthand),\n            _ => false,\n        }\n    }",
+    "sha256": "51dbec2c4778b131d8c35d0c7c2ff1c35f1c8f5278297465ca72acbffdf32de7"
+  },
+  {
+    "anchor": "pub fn as_shorthand(",
+    "owner": "impl PropertyId {",
+    "source": "source/properties.rs",
+    "start": 15889,
+    "body": "    pub fn as_shorthand(&self) -> Result<ShorthandId, PropertyDeclarationId<'_>> {\n        match *self {\n            Self::NonCustom(id) => match id.longhand_or_shorthand() {\n                Ok(lh) => Err(PropertyDeclarationId::Longhand(lh)),\n                Err(sh) => Ok(sh),\n            },\n            Self::Custom(ref name) => Err(PropertyDeclarationId::Custom(name)),\n        }\n    }",
+    "sha256": "c7d888c145b408d9d0db331eb01f7658cb3408c44ef16f23aea7e07cad029159"
+  }
+]

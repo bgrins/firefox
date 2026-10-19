@@ -84,9 +84,14 @@ Static caller review completed without a new bug. It retains native callback
 stability and animation-map key/value identity coherence as provider premises.
 [Audit](../css-declaration-public-operations-static-v1/REPORT.md).
 
-The source-shaped changing-vector removal loop is under active proof in
-`../css-declaration-native-removal-loop-v1/`; its selected index, local length,
-read bounds and same-index-on-removal behavior are being joined to this model.
+The source-shaped changing-vector removal loop is now accepted in
+`../css-declaration-native-removal-loop-v1/`. Its current-vector reads, separate
+index/local length, termination, bounds and same-index-on-removal behavior
+compose with the direct query and mixed histories. Independent replay passed
+65 audits (44 inherited, 21 new including five examples), a semantic mutation
+rejection and two integrity guards. Native containers/compiler/usize and actual
+callback readiness remain open.
+[Acceptance](../css-declaration-native-removal-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
 
 Animation identity follow-up found no reachable key/value mismatch. Non-null
 keyframe entries derive keys from computed values, base extraction uses the map
@@ -98,6 +103,15 @@ Source-shaped endpoint/composition and map-constructor proofs are now active in
 `../css-animation-identity-proof-v1/`.
 
 ## Next, in priority order
+
+An animation-provider audit has produced a new browser discrepancy under
+investigation: registered numeric keyframes containing `attr()` or `var()` switch
+discretely at the midpoint, while literal and `calc()` controls interpolate.
+Four of six focused checks fail in the existing local build. The initial taint
+probe relied on unsupported inline `if()` and is retained as invalid evidence
+for that hypothesis. No new native repair is counted yet. Evidence is in
+`../css-animation-taint-probe-v1/`; independent source analysis is active in
+`../css-registered-keyframe-substitution-static-v1/`.
 
 1. Complete the active components above and their review/commit gates.
 2. Extend declaration storage verification to actual push/extend/removal
@@ -119,6 +133,10 @@ Source-shaped endpoint/composition and map-constructor proofs are now active in
 
 ## Accepted checkpoints
 
+- **Direct declaration removal loop:** 21 new audits connect a changing-vector
+  execution to query, singleton/shorthand removal and public operation histories.
+  Actual callback stability and native runtime/provider premises remain open.
+  [Acceptance](../css-declaration-native-removal-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
 - **Parser-priority winners:** 46 new universal lemmas connect arbitrary source
   histories to independent last-important/otherwise-last selection, source order,
   raw representation and exact return flags. Native interpretation and parser,

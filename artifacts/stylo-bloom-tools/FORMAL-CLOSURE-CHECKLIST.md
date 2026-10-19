@@ -520,3 +520,29 @@ remain open. Animation-map constructor identity and the changing-vector removal
 loop are active follow-up components, not silently discharged prerequisites.
 
 Evidence: ../css-declaration-parse-winner-root-v1/ROOT-SCOPED-ACCEPTANCE.json.
+
+## Direct declaration removal-loop checkpoint
+
+The accepted loop now reads the changing raw declaration vector at a numeric
+index and maintains a distinct local length. Its measure decreases on both
+branches. Under unique exact representation, the proof derives declaration and
+importance bounds, no absent read, same-index continuation after deletion,
+terminal index/length equality and exact final raw storage. Direct query,
+membership shortcut, singleton return and shorthand continuation compose into
+arbitrary finite parser-priority/remove/clear histories and each prefix.
+
+Independent relocated replay passed 65 exact audits: 44 inherited and 21 new,
+including five kernel witnesses. The exact mutated well-founded loop also
+kernel-compiles with a counterexample independently of the rejected proof
+script. Two integrity guards pass. Ten complete bindings and both native files
+matched current source at acceptance; root authenticated the records, read all
+new proofs and reran both evidence checkers.
+
+Native containers, usize representation, generated identity/predicates,
+allocation/compiler behavior, helper atomicity/abnormal completion and actual
+callback stability remain admitted. The callback theorem requires same ordered
+IDs and represented after-state. CSSOM batching, immutable flags, changed bits,
+animation constructors and full parser/provider lowering remain outside this
+component. No new native execution or browser repair is counted.
+
+Evidence: ../css-declaration-native-removal-root-v1/ROOT-SCOPED-ACCEPTANCE.json.
