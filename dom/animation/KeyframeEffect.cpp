@@ -226,6 +226,7 @@ static bool KeyframesEqualIgnoringComputedOffsets(
     const Keyframe& a = aLhs[i];
     const Keyframe& b = aRhs[i];
     if (a.mOffset != b.mOffset || a.mTimingFunction != b.mTimingFunction ||
+        a.mComposite != b.mComposite ||
         a.mPropertyValues != b.mPropertyValues) {
       return false;
     }
