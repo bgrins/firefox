@@ -356,6 +356,73 @@ void FontFaceSetImpl::InsertNonRuleFontFace(FontFaceImpl* aFontFace) {
   AddUserFontEntry(family, aFontFace->GetUserFontEntry());
 }
 
+void FontFaceSetImpl::NonRuleFontFaceChanged() {
+  AssertIsOnOwningThread();
+  {
+    RecursiveMutexAutoLock lock(mMutex);
+    mNonRuleFacesDirty = true;
+  }
+  MarkUserFontSetDirty();
+}
+
+already_AddRefed<gfxUserFontEntry>
+FontFaceSetImpl::UpdateFontFaceDescriptorOnMainThread(
+    gfxUserFontEntry* aEntry, gfxUserFontAttributes&& aAttr) {
+  MOZ_ASSERT(NS_IsMainThread());
+  if (aEntry->LoadState() != gfxUserFontEntry::STATUS_LOADED) {
+    UpdateUserFontEntry(aEntry, std::move(aAttr));
+    return do_AddRef(aEntry);
+  }
+
+  RefPtr<gfxUserFontEntry> entry =
+      CreateUserFontEntry(aEntry->SourceList().Clone(), std::move(aAttr));
+  entry->InitializeFromLoadedEntry(*aEntry);
+  return entry.forget();
+}
+
+class FontFaceSetImpl::UpdateFontFaceDescriptorRunnable final
+    : public WorkerMainThreadRunnable {
+ public:
+  UpdateFontFaceDescriptorRunnable(FontFaceSetImpl* aSet,
+                                   gfxUserFontEntry* aEntry,
+                                   gfxUserFontAttributes&& aAttr)
+      : WorkerMainThreadRunnable(
+            GetCurrentThreadWorkerPrivate(),
+            "FontFaceSetImpl :: UpdateFontFaceDescriptor"_ns),
+        mSet(aSet),
+        mEntry(aEntry),
+        mAttr(std::move(aAttr)) {}
+
+  bool MainThreadRun() override {
+    mResult =
+        mSet->UpdateFontFaceDescriptorOnMainThread(mEntry, std::move(mAttr));
+    return true;
+  }
+
+  already_AddRefed<gfxUserFontEntry> TakeResult() { return mResult.forget(); }
+
+ private:
+  RefPtr<FontFaceSetImpl> mSet;
+  RefPtr<gfxUserFontEntry> mEntry;
+  gfxUserFontAttributes mAttr;
+  RefPtr<gfxUserFontEntry> mResult;
+};
+
+already_AddRefed<gfxUserFontEntry> FontFaceSetImpl::UpdateFontFaceDescriptor(
+    gfxUserFontEntry* aEntry, gfxUserFontAttributes&& aAttr, ErrorResult& aRv) {
+  AssertIsOnOwningThread();
+  if (NS_IsMainThread()) {
+    return UpdateFontFaceDescriptorOnMainThread(aEntry, std::move(aAttr));
+  }
+  auto task = MakeRefPtr<UpdateFontFaceDescriptorRunnable>(this, aEntry,
+                                                           std::move(aAttr));
+  task->Dispatch(GetCurrentThreadWorkerPrivate(), Canceling, aRv);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
+  return task->TakeResult();
+}
+
 void FontFaceSetImpl::UpdateUserFontEntry(gfxUserFontEntry* aEntry,
                                           gfxUserFontAttributes&& aAttr) {
   MOZ_ASSERT(NS_IsMainThread());

@@ -597,6 +597,9 @@ class gfxUserFontEntry : public gfxFontEntry {
 
   ~gfxUserFontEntry() override;
 
+  // Initializes a detached wrapper without notifying FontFace owners.
+  void InitializeFromLoadedEntry(const gfxUserFontEntry& aEntry);
+
   // Update the attributes of the entry to the given values, without disturbing
   // the associated platform font entry or in-progress downloads.
   void UpdateAttributes(gfxUserFontAttributes&& aAttr);

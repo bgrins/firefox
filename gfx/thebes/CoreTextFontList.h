@@ -41,6 +41,9 @@ class CTFontEntry final : public gfxFontEntry {
               bool aIsDataUserFont, bool aIsLocal);
 
   gfxFontEntry* Clone() const override;
+  already_AddRefed<gfxFontEntry> CloneUserFontEntry(
+      WeightRange aWeight, WidthRange aWidth,
+      SlantStyleRange aStyle) const override;
 
 #if MOZ_FONTATIONS
   void InitSkrifaFontFace() override;

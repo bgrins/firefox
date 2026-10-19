@@ -154,7 +154,7 @@ class gfxDWriteFontEntry final : public gfxFontEntry {
    * \param aStyle italic or oblique of font
    */
   gfxDWriteFontEntry(const nsACString& aFaceName, IDWriteFontFile* aFontFile,
-                     gfxDWriteFontFileStream* aFontFileStream,
+                     IDWriteFontFileStream* aFontFileStream,
                      WeightRange aWeight, WidthRange aWidth,
                      SlantStyleRange aStyle)
       : gfxFontEntry(aFaceName),
@@ -173,6 +173,9 @@ class gfxDWriteFontEntry final : public gfxFontEntry {
   }
 
   gfxFontEntry* Clone() const override;
+  already_AddRefed<gfxFontEntry> CloneUserFontEntry(
+      WeightRange aWeight, WidthRange aWidth,
+      SlantStyleRange aStyle) const override;
 
   nsresult ReadCMAP(FontInfoData* aFontInfoData = nullptr) override;
 

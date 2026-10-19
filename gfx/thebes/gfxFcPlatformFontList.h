@@ -88,6 +88,9 @@ class gfxFontconfigFontEntry final : public gfxFT2FontEntryBase {
                                   WidthRange aWidth, SlantStyleRange aStyle);
 
   gfxFontEntry* Clone() const override;
+  already_AddRefed<gfxFontEntry> CloneUserFontEntry(
+      WeightRange aWeight, WidthRange aWidth,
+      SlantStyleRange aStyle) const override;
 
   AutoHBFace GetHBFace() override;
 
@@ -110,6 +113,10 @@ class gfxFontconfigFontEntry final : public gfxFT2FontEntryBase {
  protected:
   virtual ~gfxFontconfigFontEntry();
 
+  gfxFontconfigFontEntry(const gfxFontconfigFontEntry& aEntry,
+                         WeightRange aWeight, WidthRange aWidth,
+                         SlantStyleRange aStyle);
+
   gfxFont* CreateFontInstance(const gfxFontStyle* aFontStyle) override;
 
   bool HasVariationsInternal() override;
@@ -127,6 +134,8 @@ class gfxFontconfigFontEntry final : public gfxFT2FontEntryBase {
 
 #ifdef MOZ_FONTATIONS
   void InitSkrifaFont(FcPattern* aPattern);
+  void InitSkrifaFontFace() override;
+  bool mIsUserFontClone = false;
 #endif
 
   // FTFace - initialized when needed. Once mFTFaceInitialized is true,

@@ -35,6 +35,9 @@ class FT2FontEntry final : public gfxFT2FontEntryBase {
       : gfxFT2FontEntryBase(aFaceName), mFTFontIndex(0) {}
 
   gfxFontEntry* Clone() const override;
+  already_AddRefed<gfxFontEntry> CloneUserFontEntry(
+      WeightRange aWeight, WidthRange aWidth,
+      SlantStyleRange aStyle) const override;
 
   const nsCString& GetName() const { return Name(); }
 

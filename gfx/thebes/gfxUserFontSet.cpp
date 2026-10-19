@@ -72,6 +72,64 @@ gfxUserFontEntry::gfxUserFontEntry(nsTArray<gfxFontFaceSrc>&& aFontFaceSrcList,
   mFamilyName = aAttr.mFamilyName;
 }
 
+void gfxUserFontEntry::InitializeFromLoadedEntry(
+    const gfxUserFontEntry& aEntry) {
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(mUserFontLoadState == STATUS_NOT_LOADED);
+  MOZ_ASSERT(!mPlatformFontEntry && !mLoader);
+  MOZ_RELEASE_ASSERT(aEntry.mUserFontLoadState == STATUS_LOADED);
+  MOZ_RELEASE_ASSERT(aEntry.mPlatformFontEntry);
+
+  RefPtr<gfxFontEntry> platform = aEntry.mPlatformFontEntry->CloneUserFontEntry(
+      Weight(), Width(), SlantStyle());
+  MOZ_RELEASE_ASSERT(platform);
+  platform->mFeatureSettings.AppendElements(mFeatureSettings);
+  platform->mVariationSettings.AppendElements(mVariationSettings);
+  platform->mLanguageOverride = mLanguageOverride;
+  platform->SetFamilyName(FamilyName());
+  platform->mRangeFlags = mRangeFlags;
+  platform->mAscentOverride = mAscentOverride;
+  platform->mDescentOverride = mDescentOverride;
+  platform->mLineGapOverride = mLineGapOverride;
+  platform->mSizeAdjust = mSizeAdjust;
+
+  const gfxUserFontData* oldData =
+      aEntry.mPlatformFontEntry->mUserFontData.get();
+  MOZ_RELEASE_ASSERT(oldData);
+  auto data = MakeUnique<gfxUserFontData>();
+  data->mFontData = oldData->mFontData;
+  data->mMetadata.AppendElements(oldData->mMetadata);
+  data->mURI = oldData->mURI;
+  data->mPrincipal = oldData->mPrincipal;
+  data->mLocalName = oldData->mLocalName;
+  data->mRealName = oldData->mRealName;
+  data->mSrcIndex = oldData->mSrcIndex;
+  data->mMetaOrigLen = oldData->mMetaOrigLen;
+  data->mTechFlags = oldData->mTechFlags;
+  data->mFormatHint = oldData->mFormatHint;
+  data->mCompression = oldData->mCompression;
+  data->mPrivate = oldData->mPrivate;
+  data->mIsBuffer = oldData->mIsBuffer;
+
+#if MOZ_FONTATIONS
+  if (data->mFontData &&
+      StaticPrefs::gfx_font_rendering_fontations_enabled_AtStartup()) {
+    if (SkrifaFontRef* font = skrifa_font_new(data->mFontData->Data(),
+                                              data->mFontData->Length())) {
+      platform->SetSkrifaFont(font);
+    }
+  }
+#endif
+  platform->mUserFontData = std::move(data);
+  mCurrentSrcIndex = aEntry.mCurrentSrcIndex;
+  mPrincipal = aEntry.mPrincipal;
+  mSeenLocalSource = aEntry.mSeenLocalSource;
+  mUnsupportedFormat = aEntry.mUnsupportedFormat;
+  mFontDataLoadingState = aEntry.mFontDataLoadingState;
+  mPlatformFontEntry = std::move(platform);
+  mUserFontLoadState = STATUS_LOADED;
+}
+
 void gfxUserFontEntry::UpdateAttributes(gfxUserFontAttributes&& aAttr) {
   MOZ_ASSERT(NS_IsMainThread());
 

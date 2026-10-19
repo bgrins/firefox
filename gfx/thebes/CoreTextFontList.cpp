@@ -475,6 +475,17 @@ CTFontEntry::CTFontEntry(const nsACString& aPostscriptName, CGFontRef aFontRef,
   mIsLocalUserFont = aIsLocalUserFont;
 }
 
+already_AddRefed<gfxFontEntry> CTFontEntry::CloneUserFontEntry(
+    WeightRange aWeight, WidthRange aWidth, SlantStyleRange aStyle) const {
+  MOZ_ASSERT(IsUserFont());
+  AutoReadLock lock(mLock);
+  MOZ_ASSERT(mFontRefInitialized && mFontRef);
+  RefPtr fe = MakeRefPtr<CTFontEntry>(Name(), mFontRef, aWeight, aWidth, aStyle,
+                                      mIsDataUserFont, mIsLocalUserFont);
+  CopyUserFontResourceFlagsTo(*fe);
+  return fe.forget();
+}
+
 gfxFontEntry* CTFontEntry::Clone() const {
   MOZ_ASSERT(!IsUserFont(), "we can only clone installed fonts!");
   CTFontEntry* fe = new CTFontEntry(Name(), Weight(), mStandardFace, mSizeHint);

@@ -375,6 +375,28 @@ void gfxDWriteFontFamily::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
 ////////////////////////////////////////////////////////////////////////////////
 // gfxDWriteFontEntry
 
+already_AddRefed<gfxFontEntry> gfxDWriteFontEntry::CloneUserFontEntry(
+    WeightRange aWeight, WidthRange aWidth, SlantStyleRange aStyle) const {
+  MOZ_ASSERT(IsUserFont());
+  AutoReadLock lock(mLock);
+  RefPtr<gfxDWriteFontEntry> fe;
+  if (mFont) {
+    fe = MakeRefPtr<gfxDWriteFontEntry>(Name(), mFont.get(), aWeight, aWidth,
+                                        aStyle);
+  } else {
+    MOZ_ASSERT(mFontFile && mFontFileStream);
+    fe = MakeRefPtr<gfxDWriteFontEntry>(Name(), mFontFile.get(),
+                                        mFontFileStream.get(), aWeight, aWidth,
+                                        aStyle);
+    fe->mFaceType = mFaceType;
+  }
+  fe->mIsSystemFont = mIsSystemFont;
+  fe->mForceGDIClassic = mForceGDIClassic;
+  fe->mMayUseGDIAccess = mMayUseGDIAccess;
+  CopyUserFontResourceFlagsTo(*fe);
+  return fe.forget();
+}
+
 gfxFontEntry* gfxDWriteFontEntry::Clone() const {
   MOZ_ASSERT(!IsUserFont(), "we can only clone installed fonts!");
   gfxDWriteFontEntry* fe = new gfxDWriteFontEntry(Name(), mFont);

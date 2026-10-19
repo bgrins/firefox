@@ -67,6 +67,24 @@ gfxFontEntry::gfxFontEntry(const nsACString& aName, bool aIsStandardFace)
   memset(&mNonDefaultSubSpaceFeatures, 0, sizeof(mNonDefaultSubSpaceFeatures));
 }
 
+already_AddRefed<gfxFontEntry> gfxFontEntry::CloneUserFontEntry(
+    WeightRange aWeight, WidthRange aWidth, SlantStyleRange aStyle) const {
+  MOZ_ASSERT_UNREACHABLE("only platform user font entries can be cloned");
+  return nullptr;
+}
+
+void gfxFontEntry::CopyUserFontResourceFlagsTo(gfxFontEntry& aClone) const {
+  MOZ_ASSERT(IsUserFont());
+  aClone.mIsDataUserFont = mIsDataUserFont;
+  aClone.mIsLocalUserFont = mIsLocalUserFont;
+  aClone.mFixedPitch = mFixedPitch;
+  aClone.mIsBadUnderlineFont = mIsBadUnderlineFont;
+  aClone.mStandardFace = mStandardFace;
+  aClone.mIgnoreGDEF = mIgnoreGDEF;
+  aClone.mIgnoreGSUB = mIgnoreGSUB;
+  aClone.mSkipDefaultFeatureSpaceCheck = mSkipDefaultFeatureSpaceCheck;
+}
+
 gfxFontEntry::~gfxFontEntry() {
   // Should not be dropped by stylo
   MOZ_ASSERT(!gfxFontUtils::IsInServoTraversal());

@@ -222,6 +222,12 @@ class gfxFontEntry {
   // not user fonts.)
   virtual gfxFontEntry* Clone() const = 0;
 
+  // Retains the user font's native resource with fresh entry caches. The caller
+  // must initialize CSS descriptors and user font metadata; feature settings
+  // contain only platform defaults.
+  virtual already_AddRefed<gfxFontEntry> CloneUserFontEntry(
+      WeightRange aWeight, WidthRange aWidth, SlantStyleRange aStyle) const;
+
   // unique name for the face, *not* the family; not necessarily the
   // "real" or user-friendly name, may be an internal identifier
   const nsCString& Name() const { return mName; }
@@ -768,6 +774,8 @@ class gfxFontEntry {
 
   // Protected destructor, to discourage deletion outside of Release():
   virtual ~gfxFontEntry();
+
+  void CopyUserFontResourceFlagsTo(gfxFontEntry& aClone) const;
 
   virtual gfxFont* CreateFontInstance(const gfxFontStyle* aFontStyle) = 0;
 

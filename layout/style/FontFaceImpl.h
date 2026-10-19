@@ -99,7 +99,7 @@ class FontFaceImpl final {
   bool GetAttributes(gfxUserFontAttributes& aAttr);
   gfxUserFontEntry* CreateUserFontEntry();
   gfxUserFontEntry* GetUserFontEntry() const { return mUserFontEntry; }
-  void SetUserFontEntry(gfxUserFontEntry* aEntry);
+  void SetUserFontEntry(gfxUserFontEntry* aEntry, bool aUpdateStatus = true);
 
   /**
    * Returns whether this object is in the specified FontFaceSet.

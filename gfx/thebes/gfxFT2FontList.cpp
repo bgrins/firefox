@@ -177,6 +177,21 @@ FT2FontEntry::~FT2FontEntry() {
   }
 }
 
+already_AddRefed<gfxFontEntry> FT2FontEntry::CloneUserFontEntry(
+    WeightRange aWeight, WidthRange aWidth, SlantStyleRange aStyle) const {
+  MOZ_ASSERT(IsUserFont());
+  RefPtr fe = MakeRefPtr<FT2FontEntry>(Name());
+  fe->mFilename = mFilename;
+  fe->mFTFontIndex = mFTFontIndex;
+  RefPtr<SharedFTFace> face(mFTFace);
+  fe->mFTFace = face.forget().take();
+  fe->mWeightRange = aWeight;
+  fe->mWidthRange = aWidth;
+  fe->mStyleRange = aStyle;
+  CopyUserFontResourceFlagsTo(*fe);
+  return fe.forget();
+}
+
 gfxFontEntry* FT2FontEntry::Clone() const {
   MOZ_ASSERT(!IsUserFont(), "we can only clone installed fonts!");
   FT2FontEntry* fe = new FT2FontEntry(Name());

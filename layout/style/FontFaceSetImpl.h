@@ -158,6 +158,12 @@ class FontFaceSetImpl : public nsISupports, public gfxUserFontSet {
 
   virtual void MarkUserFontSetDirty() {}
 
+  void NonRuleFontFaceChanged();
+
+  already_AddRefed<gfxUserFontEntry> UpdateFontFaceDescriptor(
+      gfxUserFontEntry* aEntry, gfxUserFontAttributes&& aAttr,
+      ErrorResult& aRv);
+
   /**
    * Checks to see whether it is time to resolve mReady and dispatch any
    * "loadingdone" and "loadingerror" events.
@@ -222,6 +228,9 @@ class FontFaceSetImpl : public nsISupports, public gfxUserFontSet {
       nsTArray<FontFace*>& aFontFaces);
 
   class UpdateUserFontEntryRunnable;
+  class UpdateFontFaceDescriptorRunnable;
+  already_AddRefed<gfxUserFontEntry> UpdateFontFaceDescriptorOnMainThread(
+      gfxUserFontEntry* aEntry, gfxUserFontAttributes&& aAttr);
   void UpdateUserFontEntry(gfxUserFontEntry* aEntry,
                            gfxUserFontAttributes&& aAttr);
 

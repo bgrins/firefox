@@ -336,6 +336,37 @@ gfxFontconfigFontEntry::gfxFontconfigFontEntry(const nsACString& aFaceName,
   GetUserFontFeatures(mFontPattern);
 }
 
+gfxFontconfigFontEntry::gfxFontconfigFontEntry(
+    const gfxFontconfigFontEntry& aEntry, WeightRange aWeight,
+    WidthRange aWidth, SlantStyleRange aStyle)
+    : gfxFT2FontEntryBase(aEntry.Name()),
+      mFontPattern(aEntry.mFontPattern),
+      mFTFaceInitialized(false) {
+#ifdef MOZ_FONTATIONS
+  mIsUserFontClone = true;
+#endif
+  RefPtr<SharedFTFace> face(aEntry.mFTFace);
+  if (face) {
+    mFTFace = face.forget().take();
+    mFTFaceInitialized = true;
+  }
+  mWeightRange = aWeight;
+  mWidthRange = aWidth;
+  mStyleRange = aStyle;
+  if (aEntry.IsLocalUserFont()) {
+    GetUserFontFeatures(mFontPattern);
+  }
+}
+
+already_AddRefed<gfxFontEntry> gfxFontconfigFontEntry::CloneUserFontEntry(
+    WeightRange aWeight, WidthRange aWidth, SlantStyleRange aStyle) const {
+  MOZ_ASSERT(IsUserFont());
+  RefPtr<gfxFontconfigFontEntry> fe =
+      new gfxFontconfigFontEntry(*this, aWeight, aWidth, aStyle);
+  CopyUserFontResourceFlagsTo(*fe);
+  return fe.forget();
+}
+
 gfxFontEntry* gfxFontconfigFontEntry::Clone() const {
   MOZ_ASSERT(!IsUserFont(), "we can only clone installed fonts!");
   return new gfxFontconfigFontEntry(Name(), mFontPattern);
@@ -1112,6 +1143,12 @@ gfxFont* gfxFontconfigFontEntry::CreateFontInstance(
 }
 
 #ifdef MOZ_FONTATIONS
+void gfxFontconfigFontEntry::InitSkrifaFontFace() {
+  if (mIsUserFontClone && mFTFaceInitialized) {
+    InitSkrifaFont(mFontPattern);
+  }
+}
+
 void gfxFontconfigFontEntry::InitSkrifaFont(FcPattern* aPattern) {
   using mozilla::MemoryMappedFile;
   using mozilla::gfx::SkrifaFontRef;

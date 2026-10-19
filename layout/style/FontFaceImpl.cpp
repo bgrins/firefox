@@ -281,28 +281,14 @@ void FontFaceImpl::SetSizeAdjust(const nsACString& aValue, ErrorResult& aRv) {
 }
 
 void FontFaceImpl::DescriptorUpdated() {
-  // If we haven't yet initialized mUserFontEntry, no need to do anything here;
-  // we'll respect the updated descriptor when the time comes to create it.
   if (!mUserFontEntry) {
     return;
   }
-
-  gfxUserFontAttributes attr;
-  RefPtr<gfxUserFontEntry> newEntry;
-  if (GetAttributes(attr)) {
-    newEntry = mFontFaceSet->FindOrCreateUserFontEntryFromFontFace(
-        this, std::move(attr), StyleOrigin::Author);
-  }
-  SetUserFontEntry(newEntry);
-
-  // Behind the scenes, this will actually update the existing entry and return
-  // it, rather than create a new one.
-
   if (mInFontFaceSet) {
-    mFontFaceSet->MarkUserFontSetDirty();
+    mFontFaceSet->NonRuleFontFaceChanged();
   }
   for (auto& set : mOtherFontFaceSets) {
-    set->MarkUserFontSetDirty();
+    set->NonRuleFontFaceChanged();
   }
 }
 
@@ -446,9 +432,16 @@ bool FontFaceImpl::SetDescriptor(FontFaceDescriptorId aFontDesc,
 
   // FIXME(heycam): Should not allow modification of FontFaces that are
   // CSS-connected and whose rule is read only.
+  // Prepare existing providers before publishing new descriptors.
+  RefPtr<StyleLockedFontFaceRule> previousDescriptors = mDescriptors;
+  RefPtr<Entry> previousEntry = mUserFontEntry;
+  RefPtr<StyleLockedFontFaceRule> descriptors = GetData();
+  if (previousEntry) {
+    descriptors = Servo_FontFaceRule_Clone(descriptors).Consume();
+  }
   bool changed = false;
   const bool valid = [&] {
-    if (Servo_FontFaceRule_SetDescriptor(GetData(), aFontDesc, &aValue, url,
+    if (Servo_FontFaceRule_SetDescriptor(descriptors, aFontDesc, &aValue, url,
                                          &changed)) {
       return true;
     }
@@ -456,7 +449,7 @@ bool FontFaceImpl::SetDescriptor(FontFaceDescriptorId aFontDesc,
       // TODO: Warn to the console?
       nsAutoCString quoted;
       nsStyleUtil::AppendQuotedCSSString(aValue, quoted, '"');
-      if (Servo_FontFaceRule_SetDescriptor(GetData(), aFontDesc, &quoted, url,
+      if (Servo_FontFaceRule_SetDescriptor(descriptors, aFontDesc, &quoted, url,
                                            &changed)) {
         return true;
       }
@@ -472,10 +465,30 @@ bool FontFaceImpl::SetDescriptor(FontFaceDescriptorId aFontDesc,
     return false;
   }
 
+  RefPtr<gfxUserFontEntry> entry;
+  if (previousEntry) {
+    gfxUserFontAttributes attr;
+    MOZ_RELEASE_ASSERT(GetAttributesFromRule(descriptors, attr));
+    entry = mFontFaceSet->UpdateFontFaceDescriptor(previousEntry,
+                                                   std::move(attr), aRv);
+    if (aRv.Failed()) {
+      return false;
+    }
+    if (!mOwner || mDescriptors != previousDescriptors ||
+        mUserFontEntry != previousEntry) {
+      aRv.ThrowUncatchableException();
+      return false;
+    }
+  }
+
+  mDescriptors = std::move(descriptors);
   if (aFontDesc == FontFaceDescriptorId::UnicodeRange) {
     mUnicodeRangeDirty = true;
   }
-
+  if (entry) {
+    // Keep a queued native-load completion from settling the promise early.
+    SetUserFontEntry(entry, false);
+  }
   return true;
 }
 
@@ -559,7 +572,8 @@ void FontFaceImpl::GetDesc(FontFaceDescriptorId aDescID,
   }
 }
 
-void FontFaceImpl::SetUserFontEntry(gfxUserFontEntry* aEntry) {
+void FontFaceImpl::SetUserFontEntry(gfxUserFontEntry* aEntry,
+                                    bool aUpdateStatus) {
   AssertIsOnOwningThread();
 
   if (mUserFontEntry == aEntry) {
@@ -596,7 +610,7 @@ void FontFaceImpl::SetUserFontEntry(gfxUserFontEntry* aEntry) {
   // DoLoad call) comes after the author's call to load(), which set mStatus
   // to Loading.
   FontFaceLoadStatus newStatus = LoadStateToStatus(mUserFontEntry->LoadState());
-  if (newStatus > mStatus) {
+  if (aUpdateStatus && newStatus > mStatus) {
     SetStatus(newStatus);
   }
 }
