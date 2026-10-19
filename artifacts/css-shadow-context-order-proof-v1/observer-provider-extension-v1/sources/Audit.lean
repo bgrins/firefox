@@ -1,0 +1,41 @@
+import ConstructedCoverage
+import PreGuardObservers
+import ObservedPhases
+import TransitionObservers
+import AnimationConstructors
+import EvaluationBoundary
+import ProviderBits
+
+#print axioms ShadowOrder.important_projection_has_important_bit
+#print axioms ShadowOrder.constructed_important_covers_projected_rule
+#print axioms ShadowOrder.normal_only_has_no_important_projection
+#print axioms ShadowOrder.constructor_coverage_without_per_rule_coverage_premise
+#print axioms ShadowOrder.skip_sort_preserves_membership
+#print axioms ShadowOrder.exact_skip_constructor_coverage
+#print axioms ShadowOrder.resolved_event_has_important_bit
+#print axioms ShadowOrder.constructed_important_covers_resolved_event
+#print axioms ShadowOrder.pre_guard_observation_factorization
+#print axioms ShadowOrder.quotient_preserves_raw_observation
+#print axioms ShadowOrder.full_pre_guard_observer_refinement
+#print axioms ShadowOrder.writing_mode_observer_exact
+#print axioms ShadowOrder.writing_mode_debug_invariant_preserved
+#print axioms ShadowOrder.writing_mode_repeated_block_idempotent
+#print axioms ShadowOrder.annotated_phase_projection
+#print axioms ShadowOrder.annotated_phase_key_map
+#print axioms ShadowOrder.two_phase_full_pre_guard_refinement
+#print axioms ShadowOrder.pre_guard_fresh_deletion
+#print axioms ShadowOrder.no_rule_observed_prefix
+#print axioms ShadowOrder.no_rule_prefix_key_quotient
+#print axioms ShadowOrder.mapped_prefix_no_rule
+#print axioms ShadowOrder.transition_prefixed_observer_refinement
+#print axioms ShadowOrder.animation_constructor_lengths
+#print axioms ShadowOrder.animation_constructor_no_important
+#print axioms ShadowOrder.animation_constructor_normal_only
+#print axioms ShadowOrder.animation_constructor_no_rollback
+#print axioms ShadowOrder.animation_zip_provider_consistency
+#print axioms ShadowOrder.animation_observed_prefix_no_rule
+#print axioms ShadowOrder.constructed_transition_observer_refinement
+#print axioms ShadowOrder.exact_evaluation_visit_observer_not_quotient_invariant
+#print axioms ShadowOrder.rule_evaluation_counterexample_still_value_equal
+#print axioms ShadowOrder.visible_zip_important_implies_provider_bit
+#print axioms ShadowOrder.decoded_important_event_implies_native_any_important

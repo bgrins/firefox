@@ -36,8 +36,8 @@ full native heap/concurrency verification is not claimed.
 
 The conditional cascade source-identity component is signed as
 `7962023938cab2f91384bf1bfff9a0cf43eecf04`. A further observer/provider extension
-has independent producer replay (58 modules, 33 new audits); root review/replay
-is next. It preserves raw pre-guard observations and derives constructor
+now passes root's fresh replay and component review (58 modules, all 33 new
+theorem audits). It preserves raw pre-guard observations and derives constructor
 coverage. Post-guard substitution/cache/attribute semantics remain open;
 arbitrary evaluation-trace equality has a counterexample.
 

@@ -9,6 +9,16 @@ of the proof obligations below.
 
 ## Latest component progress
 
+Root freshly replayed the observer/provider extension: 58 modules and all 33 new
+standard-axiom theorem audits pass. Raw pre-guard observations are preserved
+alongside evaluator state; modeled bucket construction supplies important-event
+coverage, and the typed transition prefix composes with both importance phases.
+All six retained constructor source bindings still match the live files.
+Post-guard substitution/cache/attribute effects remain open: arbitrary exact
+evaluation-visit equality is refuted, so native idempotence or an appropriate
+observer abstraction must be established. C1–C13 are not closed. Evidence:
+`css-layer-cutoff-composition-probe-v1/ROOT-OBSERVER-PROVIDER-v1.json`.
+
 Root freshly replayed the source-projected quotient extension: 31 modules and
 26 new standard-axiom theorem audits pass. Its arbitrary mixed-block,
 two-importance-phase theorem relates semantic occurrence deletion to normalized
