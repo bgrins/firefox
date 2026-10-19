@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **74 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **75 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -73,6 +73,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | registered-inherit-invalid | `3a01fc986c7974161aadf4bfafe65c234b036b07` | `2e0f9f6b9ee5450cd21ac9341ef116dd91a8119b` |
 | registered-substituted-inherit-restyle | `60bf34f48ac63ca595d519c1e0c2b4a2fa731b66` | `1ad6ea9740aa7f73ca299625208edf9856be807a` |
 | custom-property-live-count | `0cac5c270615d04239bd4a4024a3ab5ffd0d24ae` | `d9d1047dd4b1592794229f3f7f7610ddedfd9aba` |
+| custom-property-enumeration-shadowing | `90ffac0a5e4076b6117ca152249f342a13995ee3` | `215c881ef243f0268be11836d6c2a45e91b29b6f` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1707,3 +1708,26 @@ Fifty-five conditional Lean audits cover count changes and COW histories;
 independent replay and four compiled model mutants passed their gates. Native
 container/compiler/bounds and complete CSSOM lifecycle assumptions remain.
 Discovery preceded the proof. See [acceptance](../css-custom-properties-map-count-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
+
+## Fix 75: skip shadowed custom-property ancestors
+
+Stack native + WPT: `90ffac0a5e4076b6117ca152249f342a13995ee3`, following proof/composition
+`215c881ef243f0268be11836d6c2a45e91b29b6f`. Its three files contain the loop-label correction
+and two WPTs (nine cases). It follows fix 74's count/filter repair.
+
+Independently applicable upstream alternative: `5d6308daf5f914cf851b69af0e04c146ef68aca6`
+on `stylo-css-custom-property-iterator-fix`, preceded by evidence
+`0dccc47ad01cadf9734aa06324c2b9870d5ee5c2`. This four-file alternative includes
+necessary count/filter support and all three WPTs. The historical label-only
+patch exposes an old count mismatch and is not a safe standalone option.
+
+The three remaining local enumeration failures become passes; all 41 checks
+pass in seven harnesses. The generic per-map Lean composition derives
+RawEnumeration, live-count coherence, valid indexed access, unique keys and
+nearest-owner values from finite repaired histories. Independent fresh replay
+passes 137 audits and eleven semantic model mutants. Native containers,
+compiler/bounds and complete CSSOM registration/publication remain admitted.
+The checker has a documented lexical output-path limitation; accepted replays
+used canonical external paths. No isolated-upstream or release runtime claim.
+
+[Acceptance](../css-custom-properties-map-iterator-root-v1/ROOT-SCOPED-ACCEPTANCE.json).

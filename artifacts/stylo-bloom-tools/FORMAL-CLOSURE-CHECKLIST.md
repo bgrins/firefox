@@ -623,3 +623,23 @@ otherFlags conjunct is model-only framing: native fresh-style construction may
 recompute unrelated flags. Local helper flag preservation is separate. Full
 scheduler, map/equality/provider, substitution and compiler refinement remain open.
 [Acceptance](../css-registered-substituted-inherit-fix-v1/ROOT-SCOPED-ACCEPTANCE.json).
+
+## Custom-property map composition — 19 October 2026
+
+Accepted conditional per-map composition: actual modeled iterator drain supplies
+RawEnumeration; finite repaired COW histories derive live-count coherence,
+indexed bounds, unique keys and nearest-owner values. Independent replay checks
+137 audits (32 new), eleven model mutants and exact source joins. Native fixes
+74 and 75 are committed, with count support included in the standalone iterator
+alternative. See `css-custom-properties-map-iterator-root-v1` acceptance.
+
+Still open: verified native lowering, IndexMap/Arc/Atom provider behavior,
+finite immutable heap graph, machine arithmetic and actual ancestor metadata;
+inherited/reset domain disjointness and registration lifecycle; CSSOM FFI and
+live publication. Requested-value history equivalence additionally requires a
+sound metadata-aware comparator. Four local browser taint failures now challenge
+the native payload-only shortcut; its separate repair/proof is in progress.
+
+The frozen composition/iterator checkers use a lexical output-location guard.
+Accepted replays used canonical fresh external outputs; a `..` alias predicate
+witness is retained, so no general output-alias rejection is claimed.

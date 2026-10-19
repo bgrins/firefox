@@ -1,0 +1,50 @@
+
+const imageA = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+const imageB = imageA + "#other";
+let serial = 0;
+function checkCase(label, syntax, inherits, initial, parentAttr, childValue, blocked) {
+  test(t => {
+    const name = "--map-taint-" + (++serial);
+    if (syntax !== null) {
+      CSS.registerProperty({name, syntax, inherits, initialValue: JSON.stringify(initial)});
+    }
+    const parent = document.createElement("div");
+    const child = document.createElement("div");
+    const calibration = document.createElement("div");
+    parent.append(child, calibration);
+    document.body.append(parent);
+    t.add_cleanup(() => { parent.remove(); });
+    parent.setAttribute("data-token", imageA);
+    child.setAttribute("data-token", imageA);
+    parent.style.setProperty(name, parentAttr ? "attr(data-token)" : JSON.stringify(imageA));
+    parent.style.backgroundImage = `image-set(var(${name}))`;
+    if (childValue !== null) {
+      child.style.setProperty(name, childValue);
+    }
+    child.style.backgroundImage = `image-set(var(${name}))`;
+    const expectedToken = childValue === JSON.stringify(imageB) ? imageB : imageA;
+    calibration.style.backgroundImage = `image-set(${JSON.stringify(expectedToken)})`;
+    const validImage = getComputedStyle(calibration).backgroundImage;
+    assert_not_equals(validImage, "none", "literal image-set calibration");
+    assert_equals(getComputedStyle(parent).getPropertyValue(name).trim(),
+                  JSON.stringify(imageA), "parent attr/literal computed value prerequisite");
+    const parentImage = getComputedStyle(parent).backgroundImage;
+    if (parentAttr) {
+      assert_equals(parentImage, "none", "parent taint blocks URL use");
+    } else {
+      assert_not_equals(parentImage, "none", "literal parent permits URL use");
+    }
+    assert_equals(getComputedStyle(child).getPropertyValue(name).trim(),
+                  JSON.stringify(expectedToken), "child computed token prerequisite");
+    assert_equals(getComputedStyle(child).backgroundImage, blocked ? "none" : validImage);
+  }, label);
+}
+checkCase("reset registered inherit preserves taint when initial text matches", "<string>", false, imageA, true, "inherit", true);
+checkCase("reset registered inherit with different initial text", "<string>", false, imageB, true, "inherit", true);
+checkCase("reset registered inherit from literal parent", "<string>", false, imageA, false, "inherit", false);
+checkCase("inherited registered literal clears equal parent taint", "<string>", true, imageB, true, JSON.stringify(imageA), false);
+checkCase("inherited registered different literal clears parent taint", "<string>", true, imageB, true, JSON.stringify(imageB), false);
+checkCase("unregistered literal clears equal parent taint", null, true, imageB, true, JSON.stringify(imageA), false);
+checkCase("universal registered literal clears equal parent taint", "*", true, imageB, true, JSON.stringify(imageA), false);
+checkCase("direct attr declaration keeps taint with equal literal parent", "<string>", true, imageB, false, "attr(data-token)", true);
+checkCase("ordinary inherited taint is retained without an override", "<string>", true, imageB, true, null, true);

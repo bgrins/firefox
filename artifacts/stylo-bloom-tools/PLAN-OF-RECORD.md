@@ -4,13 +4,13 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **74 committed native/WPT fixes.** The management index is
+- **75 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest repair:** custom-property live-value counting, signed as
-  `0cac5c270615d04239bd4a4024a3ab5ffd0d24ae`, after proof/review
-  `d9d1047dd4b1592794229f3f7f7610ddedfd9aba`. Eight failing checks repaired;
-  the two-file commit contains only the Rust change and ten-case WPT.
+- **Latest repairs:** custom-property live counts (`0cac5c270615`) and ancestor
+  shadow skipping (`90ffac0a5e40`). Both have separate native/WPT commits and
+  preceding proofs/reviews. The upstream iterator alternative is `5d6308daf5f9`
+  and includes necessary count support. Combined local matrix: 41/41 PASS.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.
@@ -119,23 +119,21 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Finish the corrected-iterator composition and commit after the count repair.
-   Final explicit-source-pinned local matrix: original 30 PASS / 11 FAIL,
-   count-only 38 PASS / 3 FAIL, combined 41 PASS; seven harnesses and identical
-   subtest identities. Last-value and inherited/reset-map offset cases are included.
-   Runtime evidence is committed in `7b2926f6ac7eeffee378a18d8321c3e6dbcfd32c`.
-   Count repair is now fix 74; its 55-audit conditional proof and independent replay
-   are accepted. The 50-audit iterator component has independent conditional
-   acceptance; the joint proof must derive RawEnumeration and indexed bounds
-   from actual update histories. An upstream iterator alternative must include
-   necessary count support: the label-only patch exposes old count corruption.
-   Preserve native container/compiler/bounds and CSSOM registration assumptions.
+1. Adjudicate the custom-property taint/equality repair. The new nine-case
+   diagnostic reproduces four final image-result failures with five controls
+   passing; all computed-token and parent/literal prerequisites pass. Existing
+   local build/source associations are retained in
+   `../css-custom-properties-map-routing-root-v1/`. Two shortcuts compare payload
+   without metadata: shared map insertion and universal cascade early return.
+   Independent source review and a scoped shortcut proof are active. Prepare
+   the minimal repair, paired browser results and native/WPT-only commit before
+   adding it to the ledger. No release exposure or novelty claim yet.
 2. Compose the declaration helper's saved-query/short-circuit paths after the
    accepted skip/next wrapper and production entry component;
    metadata, providers, callbacks and compiler admissions remain explicit.
-3. Audit persistent-map payload equality and registration routing after the
-   enumeration repair. A source-only taint/equality lead has calibrated browser
-   diagnostics prepared; no runtime or novelty claim yet.
+3. Extend persistent-map caller admission. Count and actual iteration now compose
+   through finite COW histories. Registration routing has a coherent-epoch source
+   argument, but arbitrary lifecycle/scheduler and two-map disjointness remain open.
 4. Continue the public declaration storage/CSSOM composition obligations above.
 5. Continue cascade source/observer and hyphenation stateful consumer admission,
    including reflow-to-display cache association and lifetime. Preserve the
@@ -155,6 +153,14 @@ admitted. It does not certify the substituted-inherit scheduler path.
 
 
 ## Accepted checkpoints
+
+- **Custom-property count/iterator composition:** 32 new plus 105 inherited
+  audits derive RawEnumeration, finite-history live count, exact indexed access,
+  unique keys and nearest-owner values. Independent fresh replay and eleven
+  semantic model mutants pass. Payload CompareSound is needed only for
+  requested-update value equivalence; native representation/compiler/bounds and
+  complete CSSOM lifecycle remain open.
+  [Acceptance](../css-custom-properties-map-iterator-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
 
 - **Direct declaration removal loop:** 21 new audits connect a changing-vector
   execution to query, singleton/shorthand removal and public operation histories.
