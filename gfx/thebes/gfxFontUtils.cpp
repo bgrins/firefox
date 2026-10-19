@@ -1909,11 +1909,11 @@ double StyleDistance(const mozilla::SlantStyleRange& aRange,
     return kNegate - maxAngle;
   }
 
-  const double kDefaultAngle = mozilla::FontSlantStyle::DEFAULT_OBLIQUE_DEGREES;
+  const double kObliqueSearchThreshold = 11.0;
 
   if (aTargetStyle.IsItalic()) {
     MOZ_ASSERT(!minStyle.IsItalic());  // we checked for equality above
-    double targetAngle = kDefaultAngle;
+    double targetAngle = kObliqueSearchThreshold;
     double fallbackBias = 0.0;
     if (!aItalicToObliqueFallback) {
       // If 'font-style-synthesis: oblique-only' is applied, we should not use
@@ -1950,7 +1950,7 @@ double StyleDistance(const mozilla::SlantStyleRange& aRange,
     return kBadFallback + kNegate + kReverse;
   }
 
-  if (targetAngle >= kDefaultAngle) {
+  if (targetAngle >= kObliqueSearchThreshold) {
     const double minAngle = minStyle.ObliqueAngle();
     if (minAngle >= targetAngle) {
       return minAngle - targetAngle;
@@ -1965,7 +1965,7 @@ double StyleDistance(const mozilla::SlantStyleRange& aRange,
     return kReverse + kNegate + (targetAngle - maxAngle);
   }
 
-  if (targetAngle <= -kDefaultAngle) {
+  if (targetAngle <= -kObliqueSearchThreshold) {
     const double maxAngle = maxStyle.ObliqueAngle();
     if (maxAngle <= targetAngle) {
       return targetAngle - maxAngle;
@@ -1995,7 +1995,7 @@ double StyleDistance(const mozilla::SlantStyleRange& aRange,
     return kReverse + kNegate + (targetAngle - maxAngle);
   }
 
-  // last case: (targetAngle < 0.0 && targetAngle > kDefaultAngle)
+  // last case: (targetAngle < 0.0 && targetAngle > -kObliqueSearchThreshold)
   const double maxAngle = maxStyle.ObliqueAngle();
   if (maxAngle < targetAngle) {
     return kReverse + (targetAngle - maxAngle);
