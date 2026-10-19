@@ -656,3 +656,17 @@ the native payload-only shortcut; its separate repair/proof is in progress.
 The frozen composition/iterator checkers use a lexical output-location guard.
 Accepted replays used canonical fresh external outputs; a `..` alias predicate
 witness is retained, so no general output-alias rejection is claimed.
+
+## Retained animation endpoints — 19 October 2026
+
+Accepted local component: ordinary equality derives aligned array/segment reads;
+metadata scan equals independent endpoint-bit observation; retention preserves it
+for every finite modeled history/prefix. Root replay passes 25 audits and two
+compiled omission mutants. See css-animation-endpoint-final-root-v1/REVIEW.md.
+
+Remaining: actual property/provider variant association, native indexed-loop
+translation and lifetime, raw-keyframe computation and delivered calls, base-map
+change notification, compositor/publication scheduling, interpolation, URL-data
+quotient and complete URL observation. Four browser failures now challenge the
+separate EnsureBaseStyles scheduling boundary; do not transfer endpoint proof
+acceptance to that boundary.

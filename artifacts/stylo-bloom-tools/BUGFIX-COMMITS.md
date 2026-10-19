@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **77 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **78 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -76,6 +76,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | custom-property-enumeration-shadowing | `90ffac0a5e4076b6117ca152249f342a13995ee3` | `215c881ef243f0268be11836d6c2a45e91b29b6f` |
 | custom-property-equal-payload-taint | `e04d672a735edcf0e6529c854207b5ee9555ea7c` | `01c98e4fd49ed6061c1a7ebdd87c124cd2b77254` |
 | attr-taint-half-open-ranges | `8c04b6787e36c9ee42fec440103cf33372c097f1` | `91e709f931abf5ef2d59a77158f66662500bd2ff` |
+| animation-retained-endpoint-taint | `4b4a00e707583382f4773039f13a4f335f48f41a` | `922272780824ee77c05f96972c7bb51a95de7ead` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1781,3 +1782,31 @@ Discovery came from reviewing the source-shaped range observer used in the taint
 proof, followed by source investigation and browser reproduction.
 [Acceptance](../css-attr-taint-touching-ranges-final-root-v1/ACCEPTANCE.json) and
 [commit check](../css-attr-taint-touching-ranges-final-root-v1/ROOT-COMMIT-CHECK.json).
+
+## Fix 78: retain attribute taint when replacing animation endpoints
+
+Stack native + WPT: `4b4a00e707583382f4773039f13a4f335f48f41a`; preceding
+proof/runtime/review companion: `922272780824ee77c05f96972c7bb51a95de7ead`.
+The four-file stack commit depends on fix76's shared-map insertion check.
+
+For independent landing, use `f1a3f777395b157a2c098dae1b3f2ad29fa5c642` on
+`stylo-css-animation-endpoint-taint-fix`, preceded by evidence commit
+`5ebe0eff84805264edd6696356e29b8123f7a895`. It includes that one necessary map
+prerequisite, three endpoint source files and the six-case CSS-wide WPT.
+Both variants apply/reverse exactly; isolated upstream runtime was not run.
+
+Four equal-payload replacement failures become passes; all 101 matrix cases and
+80 existing setKeyframes cases pass. The CSS-wide test avoids the earlier typed
+keyframe provider repair. Format/lint pass with one warning; one checked C++
+line-wrap is the sole difference from compiled/proof-bound source.
+
+The bounded Lean component passes 25 audits and two compiled endpoint-omission
+mutants. It derives safe shape and preserves metadata through finite modeled
+replacement histories. Native providers, publication, scheduler and full URL
+semantics remain admitted. Source investigation/browser reproduction preceded
+formalization. A separate base-style scheduling probe has four reproduced
+failures and is under independent review; it is not included in this fix.
+
+[Acceptance](../css-animation-endpoint-final-root-v1/ACCEPTANCE.json),
+[commit verification](../css-animation-endpoint-final-root-v1/ROOT-COMMIT-CHECK.json),
+[standalone verification](../css-animation-endpoint-final-root-v1/ROOT-STANDALONE-CHECK.json).

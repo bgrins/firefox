@@ -4,12 +4,12 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **77 committed native/WPT fixes.** The management index is
+- **78 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest repairs:** equal-payload custom-property taint (`e04d672a735e`) and
-  half-open URL taint ranges (`8c04b6787e36`). Each has a standalone native/WPT
-  commit and preceding evidence. The latest local matrix passes all 89 checks.
+- **Latest repair:** retained animation endpoint taint (`4b4a00e70758`), with
+  independent upstream alternative `f1a3f777395b`. All 101 local matrix checks
+  and80 existing setKeyframes checks pass. Evidence precedes native/WPT commits.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.
@@ -118,13 +118,12 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Repair equal-payload keyframe replacement: the current six-case diagnostic
-   has two failures with four controls passing. A source proposal confines
-   metadata-aware comparison to retained animation endpoints. A CSS-wide
-   endpoint test avoids the earlier typed-keyframe constructor repair, but
-   publication may require the map portion of fix76; keep exact standalone
-   support explicit and verify runtime before acceptance. Evidence is in
-   `../css-custom-properties-animation-taint-root-v1/`.
+1. Repair the separate underlying-animation base metadata scheduling issue.
+   Eight-case probe reproduces four same-payload neutral-endpoint failures;
+   changed-payload, explicit-replacement and forced-resample controls pass.
+   Independent review of EnsureBaseStyles and standalone prerequisites is active.
+   Keep it separate from accepted endpoint fix78. Evidence:
+   `../css-animation-base-metadata-root-v1/`.
 2. Compose the declaration helper's saved-query/short-circuit paths after the
    accepted skip/next wrapper and production entry component;
    metadata, providers, callbacks and compiler admissions remain explicit.
@@ -276,3 +275,18 @@ fresh replay: nine new results and three compiled mutants connect payload and
 taint to lookup and indexed observations of already-computed map updates.
 Full native provider/COW and CSSOM routing admissions remain.
 [Acceptance](../css-custom-properties-map-taint-history-root-v1/ACCEPTANCE.json).
+
+## Animation endpoint retention accepted — 19 October 2026
+
+Twenty-five audited results derive array/segment read readiness, independent
+metadata-scan equivalence, exact added change decisions and finite/prefix
+retention histories. Root replay and two compiled missing-endpoint mutants pass.
+Native traversal,providers, publication, scheduler and payload/URL-data quotient
+remain explicit admissions. This closes the local endpoint retention component,
+not the whole animation path. See
+[review](../css-animation-endpoint-final-root-v1/REVIEW.md).
+
+Whole-CSS v4 research is producing an executable requirement-ledger prototype,
+compiled phase/epoch interface experiments and independent acceptance examples.
+Review these before adopting them as infrastructure; no new whole-spec coverage
+claim follows from the prototypes.
