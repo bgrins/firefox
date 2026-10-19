@@ -213,6 +213,10 @@ void FontFaceSetWorkerImpl::FlushUserFontSet() {
   const bool modified = mNonRuleFacesDirty;
   mNonRuleFacesDirty = false;
 
+  for (const auto& fontFamily : mFontFamilies.Values()) {
+    fontFamily->DetachFontEntries();
+  }
+
   for (size_t i = 0, i_end = mNonRuleFaces.Length(); i < i_end; ++i) {
     InsertNonRuleFontFace(mNonRuleFaces[i].mFontFace);
   }
