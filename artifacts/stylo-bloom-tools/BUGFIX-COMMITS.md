@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **53 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **54 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -52,6 +52,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | hyphenation-coordinate | `18871240dc7d077bf223822013e7a50cf581e2d1` | `a1eed2e249aed69af41142c5a55e49a5d88fbb2e` |
 | attr-namespace-cache | `3aa7d25635ff9dc3bc105269dd9b7b13b5f80cb0` | `adde61d9742f3f9939514bdfe10fde08a794aeff` |
 | attr-invalid-entry | `fd9c07e1130bcb68684c25e7527f5b0ff3c3bd73` | `76bda27b8dfdb88ebdcb7e4706508688d0a3f064` |
+| attr-fallback-preparation | `7822bb6d17b1381cdb3e56deb20c5ec3e078adec` | `31265260cc3daa2bbea93c237a9491b6f2afcaa4` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1344,3 +1345,16 @@ Fresh construction agrees with the dynamic result. Evidence:
 `css-shadow-context-depth-probe-v1/ROOT-BASELINE-v1.json`.
 Independent adjudication and representation design precede a fix; excluded from
 the accepted-repair count. Discovery came from static analysis, not a Lean proof.
+
+## Recursive attribute fallback preparation committed
+
+`7822bb6d17b1381cdb3e56deb20c5ec3e078adec` contains only `Cascade::update_attributes_map` and its sixteen-case WPT.
+Proof companion: `31265260cc3daa2bbea93c237a9491b6f2afcaa4`; browser evidence: `222c13771e052dae71bb6f62cc35e1a0522a91c3`.
+Ten failures become passes; seventy existing checks pass. Three unchanged
+type-eligibility diagnostics remain failing. Fresh root Lean replay passes
+54 theorem audits (38 new) and rejects four semantic mutants. This is a finite
+worklist/preparation model with manual source binding; native parser, provider,
+observer and graph composition remain open. The browser pair used the shared
+experimental tree; the exact commit excludes those unrelated changes.
+See [acceptance](../css-attr-fallback-preload-browser-v1/ROOT-SCOPED-ACCEPTANCE-v1.json)
+and [commit check](../css-attr-fallback-preload-browser-v1/ROOT-COMMIT-CHECK-v1.json).

@@ -6,13 +6,17 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 Immediate next steps:
 
-1. Repair recursive fallback attribute preparation: the frozen 19-case browser
-   probe still has nine failures and ten controls after both attr cache repairs.
-   Keep preparation separate from used dependency edges.
-2. Resolve occurrence-specific typed-fallback graph readiness. The six-case probe
-   has three failures and three controls. Exact requested-syntax parsing needs
-   declaration context; traversal-node identity alone loses originating longhand
-   context. Preserve this source-admission gap rather than assume equivalence.
+1. Recursive fallback preparation is signed as `7822bb6d17b1381cdb3e56deb20c5ec3e078adec`.
+   Its sixteen-case WPT and seventy regressions pass. Worklist proof companion
+   `31265260cc3daa2bbea93c237a9491b6f2afcaa4` passes 54 audits and four mutation gates.
+   Preserve the separate provider/parser/observer/graph admissions.
+2. Resolve occurrence-specific typed-fallback graph readiness. After preparation,
+   the unchanged nineteen-case diagnostic has one failure and the six-case probe
+   has two failures. Exact requested-syntax parsing needs declaration context;
+   traversal-node identity alone loses originating longhand context. The signed
+   local eligibility model `bd97b69e209cc493200cbbb06bc88c50694c1723` passes fifteen
+   theorem audits and rejects both semantic mutants. Native parser admission,
+   property-context preservation and full graph composition remain open.
 3. Continue cascade source/observer and hyphenation stateful consumer admissions,
    including actual reflow-to-display tab-cache coverage and lifetime. Preserve
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
@@ -32,7 +36,7 @@ close these obligations.
 
 ## Latest commit and proof checkpoint
 
-There are 53 signed standalone native/WPT fixes. Worker font removal is now
+There are 54 signed standalone native/WPT fixes. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
@@ -2942,3 +2946,11 @@ build, lint and independent review pass. Index/reload component checkpoint
 traversal/evaluator admission remains open. The exact stack patch uses namespace
 APIs; `../css-attr-tombstone-base-port-v1/fix.patch` is an uncompiled alternate
 for the older name-only map, requiring its own build/browser gate.
+
+## MathML geometry candidate
+
+A calibrated Range WPT reproduces four glyph-width failures. The sole-function
+GetTrimmedOffsets candidate makes all sixteen cases pass; all 260 existing
+MathML styling checks pass on both builds. Build and lint pass. Preserved
+newlines, trailing whitespace and all-whitespace boundary review is pending;
+this candidate is not accepted or counted as a committed fix.
