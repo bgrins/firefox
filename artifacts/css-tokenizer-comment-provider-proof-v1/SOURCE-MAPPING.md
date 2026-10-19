@@ -1,0 +1,25 @@
+# Source-to-model map and external admissions
+
+The static input capsule and helper capsule were authenticated in full before reuse; INPUT-AUTHENTICATION.json retains their manifest/freeze pins. SOURCE-PINS.json binds full current tokenizer and parser snapshots. The tokenizer includes the already accepted numeric guard and identifier/URL changes; SOURCE-COMPARISON.json and retained Searchfox diffs distinguish those from the indexed implementation. No comment helper changed. Existing name/escape module hashes are retained exactly; inherited/ also preserves their original tokenizer, source bindings and parent freeze/manifest. They are used for `Boundary.Unit`, ASCII-prefix removal and `Escape.width`, not as proof of unrelated current identifier dispatch.
+
+| Complete native body | Model / relation |
+|---|---|
+| `consume_comment` | `CommentExecution.nativeRaw`, `run`, `run_scan`, `run_observer`, `raw_reference`. Native saves raw slice start after opening, remembers star endpoint before advancing, then checks slash; the model fuses those two closing-byte advances. A lone star takes one ordinary-byte step. EOF still updates directives. |
+| `check_for_source_map` | `CommentDirectives.nativeDirective/nativeUpdate`; independent parsed-header `referenceDirective/referenceUpdate`. Rust starts_with uses byte-exact ASCII headers, split stops at one of five ASCII whitespace characters. Empty split input yields Some(""); no match preserves the old field. Both checks run; neither depends on the previous field's value. |
+| `consume_newline` | `newline`, grouped `nativeObserve`; reference uses a pending-CR fold, then whole-unit observer. Actual source advances CRLF by two and increments line once. |
+| `consume_continuation_byte`, `consume_4byte_intro`, `advance` | `nativeWidth`, `ordinary`; column arithmetic identities and modulo projection. Source adjusts stored line-start by +1/-1 while advancing the byte cursor. Debug assertions require matching byte classes; raw valid-unit admission supports them. |
+| `ParserState::source_location/line_number/advance_line_number` | `CommentNativeBounds` packed-counter/column relations. Two block bits are a source constant, not an arbitrary model parameter. Nat result only agrees within the explicit capacity conditions. |
+| `position`, `slice`, `slice_from` | `exact_body`, `run_endpoint`, UTF-8 body/suffix results; native slices original input. The Rust fixture additionally checks returned pointer offset, not merely string value. |
+| `next_byte`, `is_eof`, `has_at_least`, `next_byte_unchecked`, `byte_at` | Finite list bounds and consumed endpoint. Standard Rust byte indexing, slice semantics and usize capacity are external primitives. All actual complete bodies are extracted. |
+
+EXTRACTIONS.json binds full function spans, not snippets; generate.py and reproduces both span hashes and the executable witness. Type definitions in the harness are minimal facades, not claims of Firefox ABI layout. Their fields and the two-bit constant are source-matched. `match_byte!` is lowered to ordinary `match` for the finite Rust replay. Existing separate macro-table proofs are not silently imported: matching the actual fast macro expansion and native compiler remains outside this capsule's universal theorem. This boundary does not turn the finite ordinary-match execution into whole-compiler proof.
+
+## Deliberately uncomposed callers
+
+The full snapshots retain tokenizer `next_unchecked`, `skip_whitespace`, `skip_cdc_and_cdo` and parser `next_including_whitespace`, `next_including_whitespace_and_comments`, `reset`, and block machinery. They establish where comments are consumed or returned. They are not modeled as one interchangeable loop. In particular cached-token replay restores `ParserState`; directive fields live outside that struct. Direct helper history equivalence cannot prove cache/reset observer behavior. No assumption of arbitrary history equality is substituted for this missing source composition.
+
+## Primitive and normative limits
+
+The independent first-marker algorithm and byte observer prove mathematical relations, not the CSS specification itself. Retained primary CSS Syntax text supplies the ignored-comment first-terminator/EOF rule and preprocessing semantics. The observer URL fields and raw payload are implementation extensions, so their contract is the complete pinned implementation rather than an invented CSS requirement. Replacing raw NUL/CR/FF for the spec's ignored content cannot introduce `*/`; a full preprocessing/endpoint transducer theorem is still part of obligation 2.
+
+Native admission still requires: valid UTF-8 input and starting cursor, capacity and initial-state correspondence, Rust string prefix/split/slice and list/byte interpretations, standard codecs, stable immutable input lifetimes, correct macro/compiler execution, and runtime memory availability. Source extraction authenticates the inspected code; it does not prove that the Lean functions were produced by a verified lowering. Fresh finite replay is retained specifically as evidence of that separate bridge.

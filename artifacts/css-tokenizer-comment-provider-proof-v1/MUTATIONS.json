@@ -1,0 +1,34 @@
+[
+  {
+    "name": "closing-byte",
+    "module": "CommentScan",
+    "definition": "stop",
+    "before": "def stop (b : Byte) (bs : List Byte) : Bool := b == 42 && bs.head? == some 47",
+    "after": "def stop (b : Byte) (bs : List Byte) : Bool := b == 42 && bs.head? == some 42",
+    "witness": "example : stop 42 [47] \u2260 CommentScan.stop 42 [47] := by decide"
+  },
+  {
+    "name": "utf16-width",
+    "module": "CommentObservers",
+    "definition": "nativeWidth",
+    "before": "else if 240 \u2264 b.val then 2 else 1",
+    "after": "else if 240 \u2264 b.val then 1 else 1",
+    "witness": "example : nativeWidth 240 \u2260 CommentObservers.nativeWidth 240 := by decide"
+  },
+  {
+    "name": "form-feed",
+    "module": "CommentDirectives",
+    "definition": "nativeSpace",
+    "before": "b == 32 || b == 9 || b == 12 || b == 13 || b == 10",
+    "after": "b == 32 || b == 9 || b == 13 || b == 10",
+    "witness": "example : nativeSpace 12 \u2260 CommentDirectives.nativeSpace 12 := by decide"
+  },
+  {
+    "name": "URL-field-crosswrite",
+    "module": "CommentDirectives",
+    "definition": "nativeUpdate",
+    "before": "\u27e8m.or old.sourceMap,u.or old.source\u27e9",
+    "after": "\u27e8m.or old.sourceMap,u.or old.sourceMap\u27e9",
+    "witness": "example : nativeUpdate [] \u27e8some [1],some [2]\u27e9 \u2260 CommentDirectives.nativeUpdate [] \u27e8some [1],some [2]\u27e9 := by decide"
+  }
+]

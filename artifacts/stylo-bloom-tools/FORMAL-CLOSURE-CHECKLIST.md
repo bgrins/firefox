@@ -280,3 +280,23 @@ whole-tokenizer composition remain open. The rejecting-library and changed-
 payload witnesses prevent unconditional completion or value claims.
 
 Evidence: `../css-tokenizer-numeric-repair-integration-root-v1/ROOT-ACCEPTANCE.json`.
+
+## Comment loop and direct-call observer checkpoint
+
+Root and independent review accept the conditional component: eleven modules,
+100 standard-axiom audits (seven new modules and 62 new audits), and 405 native
+calls in each debug/release mode. The reference independently expresses the
+first terminator, pending-CR location fold and literal directive headers. Four
+Lean definition mutations compile with witnesses and fail unchanged theorems;
+these are not Rust mutation checks. Complete native bodies were inspected.
+
+This supplies a universal mathematical comment-loop and direct-observer result,
+with complete-unit return boundaries and explicit arithmetic premises. It does
+not verify Rust lowering, native memory/compiler semantics or full public
+parser histories. All twelve original obligations retain their scoped statuses
+in the acceptance record: actual dispatch, preprocessing, borrowed/owned string
+loops and escape composition, public cache/reset/block skipping, native bounds
+admission and evaluator/CSSOM remain open. The separate string component is
+under review. No new bug or native-fix count is attached to this checkpoint.
+
+Evidence: `../css-tokenizer-comment-provider-root-v1/ROOT-ACCEPTANCE.json`.
