@@ -14,7 +14,7 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 3. Escaped terminal quotes are committed as `ed9505d25ee4333c1764acc173f95f9517ca9b07`. Four failures become 18 passes; the combined diagnostic now passes
    all 22 checks. Build, lint, root replay and final independent review pass.
 
-There are 66 committed native/WPT fixes.
+There are 67 committed native/WPT fixes.
 The conditional comment/observer component is accepted after fresh root and
 independent review; its twelve remaining obligation statuses are recorded in
 css-tokenizer-comment-provider-root-v1/ROOT-ACCEPTANCE.json (signed checkpoint
@@ -36,7 +36,7 @@ Evidence: css-parser-cache-observer-root-v1/ROOT-ACCEPTANCE.json; signed checkpo
 `e9f6a83409e49efdd3018acc2263f247baf007e6`.
 
 
-### Declaration fallback lead
+### Declaration fallback repair
 
 A new browser probe reproduces 24 failures and 24 passing controls: noncustom
 font-family values can bypass the top-level curly-block restriction after a
@@ -46,10 +46,12 @@ The reset-before-validation candidate now builds and passes all 48 new checks
 and 41 existing regression checks. All 24 failures are repaired; paired source,
 configuration and binary pins are stable. The same two-file patch applies and
 reverses on retained upstream without previous repairs. Runtime is the shared
-macOS tree; no isolated upstream browser build is claimed. Root and independent native/formal reviews pass the conditional component
+macOS tree; no isolated upstream browser build is claimed. Root and independent
+native/formal reviews pass the conditional component
 invariant: 27 exact audits, four native semantic mutants and five tamper gates.
-Raw-byte/pending-state and property-provider admissions remain open. The native
-repair is being packaged after its proof/evidence companion. The committed native/WPT fix count remains 66.
+Raw byte and pending parser state mappings, and property providers, remain open. The native
+repair is committed as `095c5be548a2bddf5f3ff01e01da66c6098a8ee5`, after companion
+`320a3d100d7669c4508ab89570b9833390baed2d`. The committed native/WPT fix count is 67.
 Evidence: css-declaration-curly-root-v1/ROOT-SCOPED-ACCEPTANCE.json.
 
 ## Next proof work
@@ -76,6 +78,10 @@ Immediate next steps:
    accepted for cold/non-Function cache entries. Next derive actual byte-parser
    events and compose query/disable epochs; browser URL reachability and a full
    caller proof remain open.
+   Admit whole-value declaration validation from actual parser state next,
+   including successful property callbacks, saved observation queries and
+   scratch declaration publication. The conditional component is accepted;
+   those native provider obligations remain open.
    Preserve the accepted nesting-limit recovery grammar as a component when
    composing error paths. SourceMap and sourceURL contracts must be distinguished.
 4. Continue cascade source/observer and hyphenation stateful consumer admission,
@@ -99,7 +105,7 @@ close these obligations.
 
 ## Earlier proof checkpoints
 
-There are 66 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
+There are 67 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results

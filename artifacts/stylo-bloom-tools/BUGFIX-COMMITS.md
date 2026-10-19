@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **66 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **67 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -65,6 +65,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | quoted-eof-backslash-parity | `89bad2d8b5260ad5fc9d5660a3a18a09433902e3` | `5e0f8696a8de0b931b2aa679457683e3f881ecb8` |
 | quoted-eof-escaped-terminal-quote | `ed9505d25ee4333c1764acc173f95f9517ca9b07` | `1b9022a98dc38e54dc9415d5eab6a51980003d13` |
 | parser-depth-limit-declaration-recovery | `55d251b7a90003546994f6576e5ee78e8fa07cb2` | `19ca0c3c68c2fb7320290be7562c02dedf02d7da` |
+| declaration-fallback-top-level-curly | `095c5be548a2bddf5f3ff01e01da66c6098a8ee5` | `320a3d100d7669c4508ab89570b9833390baed2d` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1557,3 +1558,19 @@ or IEEE proof. The measured extracted-body overhead remains approximately
 shared tree. The standalone version applies and reverses on upstream without
 prior local repairs, but has no isolated-base browser run.
 See [validation](../css-tokenizer-numeric-root-v1/README.md).
+
+## Whole-value declaration fallback committed
+
+Native + WPT: `095c5be548a2bddf5f3ff01e01da66c6098a8ee5`, after proof/evidence companion
+`320a3d100d7669c4508ab89570b9833390baed2d`. The commit contains only the parser reset and
+its 48-check WPT. Property-parser cleanup can consume a forbidden top-level
+curly block; validation now restarts at the saved value beginning.
+
+All 24 reproduced failures become passes; all 48 new and 41 existing subtests
+pass. The unchanged patch applies and reverses on retained upstream without
+previous local repairs. Runtime pairing uses the shared macOS tree; no isolated
+upstream build is claimed. Root and independent reviews accept 27 conditional
+component theorems, four compiled native mutations and five integrity gates.
+Raw byte/pending-state mapping, generated property grammars and complete
+VariableValue semantics remain admitted. Source inspection found the bug before
+the Lean component. Evidence: [acceptance](../css-declaration-curly-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
