@@ -1,0 +1,15 @@
+import Dependency
+#print axioms SubstitutedInherit.selected_value
+#print axioms SubstitutedInherit.exact_dependency
+#print axioms SubstitutedInherit.other_flags
+#print axioms SubstitutedInherit.reset_only_provider
+#print axioms SubstitutedInherit.inherited_change_forces
+#print axioms SubstitutedInherit.exact_conditional_consumption
+#print axioms SubstitutedInherit.corrected_publication
+#print axioms SubstitutedInherit.refresh_correct
+#print axioms SubstitutedInherit.history_correct
+#print axioms SubstitutedInherit.publication_history
+#print axioms SubstitutedInherit.original_missing_flag
+#print axioms SubstitutedInherit.absent_parent_history
+#print axioms SubstitutedInherit.unchanged_event_requires_soundness
+#print axioms SubstitutedInherit.root_and_inherited_no_extra_marker

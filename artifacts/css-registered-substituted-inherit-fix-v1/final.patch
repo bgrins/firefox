@@ -1,0 +1,88 @@
+diff --git a/servo/components/style/custom_properties.rs b/servo/components/style/custom_properties.rs
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -7,6 +7,7 @@
+ //! [custom]: https://drafts.csswg.org/css-variables/
+ 
+ use crate::FxHashMap;
++use crate::computed_value_flags::ComputedValueFlags;
+ use crate::custom_properties_map::{CustomPropertiesMap, OwnMap};
+ use crate::device::Device;
+ use crate::dom::AttributeTracker;
+@@ -1656,6 +1657,11 @@
+                 | (CSSWideKeyword::RevertRule, true, false)
+                 | (CSSWideKeyword::Inherit, _, false)
+                 | (CSSWideKeyword::Unset, true, false) => {
++                    if !registration.inherits() {
++                        context
++                            .style()
++                            .add_flags(ComputedValueFlags::INHERITS_RESET_STYLE);
++                    }
+                     match inherited.get(registration, name) {
+                         Some(value) => {
+                             context.builder.substitution_functions.insert_var(
+diff --git a/testing/web-platform/tests/css/css-properties-values-api/registered-substituted-inherit-restyle.html b/testing/web-platform/tests/css/css-properties-values-api/registered-substituted-inherit-restyle.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-substituted-inherit-restyle.html
+@@ -0,0 +1,60 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Substituted inherit follows changes to registered reset properties</title>
++<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#inherit">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#substitution-in-properties">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++for (const changePadding of [false, true]) {
++  for (const [kind, value, expected] of [
++    ["direct", "inherit", "20px"],
++    ["substituted", "var(--missing, inherit)", "20px"],
++    ["unset", "var(--missing, unset)", "1px"],
++  ]) {
++    test(t => {
++      const name = `--reset-follow-${kind}-${changePadding}`;
++      CSS.registerProperty({name, syntax: "<length>", inherits: false, initialValue: "1px"});
++      const parent = document.createElement("div");
++      const child = document.createElement("div");
++      parent.style.setProperty(name, "10px");
++      child.style.setProperty(name, value);
++      parent.append(child);
++      document.body.append(parent);
++      t.add_cleanup(() => parent.remove());
++      assert_equals(getComputedStyle(child).getPropertyValue(name), kind === "unset" ? "1px" : "10px", "initial child value");
++      parent.style.setProperty(name, "20px");
++      if (changePadding) parent.style.paddingLeft = "1px";
++      assert_equals(getComputedStyle(parent).getPropertyValue(name), "20px", "parent changed");
++      assert_equals(getComputedStyle(child).getPropertyValue(name), expected, "child after parent change");
++    }, `${kind} with simultaneous reset-property change ${changePadding}`);
++  }
++}
++test(t => {
++  const name = "--reset-follow-invalid";
++  CSS.registerProperty({name, syntax: "*", inherits: false, initialValue: "initial-token"});
++  const parent = document.createElement("div");
++  const child = document.createElement("div");
++  parent.style.setProperty(name, "var(--missing)");
++  child.style.setProperty(name, "var(--missing, inherit)");
++  child.style.setProperty("--observed", `var(${name}, fallback-token)`);
++  parent.append(child);
++  document.body.append(parent);
++  t.add_cleanup(() => parent.remove());
++  for (const [value, expected] of [
++    ["var(--missing)", ""],
++    ["parent-token", "parent-token"],
++    ["var(--missing)", ""],
++  ]) {
++    parent.style.setProperty(name, value);
++    assert_equals(getComputedStyle(parent).getPropertyValue(name), expected, "parent value");
++    const style = getComputedStyle(child);
++    assert_array_equals(
++      [style.getPropertyValue(name), style.getPropertyValue("--observed")],
++      [expected, expected || "fallback-token"],
++      `child after parent becomes ${value}`
++    );
++  }
++}, "Substituted inheritance follows invalid to valid to invalid parent changes");
++</script>

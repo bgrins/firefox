@@ -1,0 +1,34 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Substituted inherit follows changes to registered reset properties</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#inherit">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#substitution-in-properties">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const changePadding of [false, true]) {
+  for (const [kind, value, expected] of [
+    ["direct", "inherit", "20px"],
+    ["substituted", "var(--missing, inherit)", "20px"],
+    ["unset", "var(--missing, unset)", "1px"],
+  ]) {
+    test(t => {
+      const name = `--reset-follow-${kind}-${changePadding}`;
+      CSS.registerProperty({name, syntax: "<length>", inherits: false, initialValue: "1px"});
+      const parent = document.createElement("div");
+      const child = document.createElement("div");
+      parent.style.setProperty(name, "10px");
+      child.style.setProperty(name, value);
+      parent.append(child);
+      document.body.append(parent);
+      t.add_cleanup(() => parent.remove());
+      assert_equals(getComputedStyle(child).getPropertyValue(name), kind === "unset" ? "1px" : "10px", "initial child value");
+      parent.style.setProperty(name, "20px");
+      if (changePadding) parent.style.paddingLeft = "1px";
+      assert_equals(getComputedStyle(parent).getPropertyValue(name), "20px", "parent changed");
+      assert_equals(getComputedStyle(child).getPropertyValue(name), expected, "child after parent change");
+    }, `${kind} with simultaneous reset-property change ${changePadding}`);
+  }
+}
+</script>
