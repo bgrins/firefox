@@ -16,6 +16,7 @@
 #include "mozilla/TextEditor.h"
 #include "mozilla/Utf16.h"
 #include "mozilla/gfx/2D.h"
+#include "mozilla/intl/String.h"
 #include "nsLineBreaker.h"
 #include "nsSpecialCasingData.h"
 #include "nsStyleConsts.h"
@@ -297,6 +298,55 @@ static LanguageSpecificCasingBehavior GetCasingFor(const nsAtom* aLang) {
   return eLSCB_None;
 }
 
+// Unicode Final_Sigma context, with masked characters acting as boundaries.
+static bool IsFinalSigma(const nsAString& aString, uint32_t aIndex,
+                         const nsTransformedTextRun* aTextRun) {
+  MOZ_ASSERT(aIndex < aString.Length() &&
+             aString.CharAt(aIndex) == GREEK_CAPITAL_LETTER_SIGMA);
+  MOZ_ASSERT(!aTextRun || aTextRun->mStyles.Length() == aString.Length());
+  const char16_t* str = aString.BeginReading();
+  auto isMasked = [aTextRun](uint32_t aPosition) {
+    return aTextRun && aTextRun->mStyles[aPosition]->mMaskPassword;
+  };
+  bool precededByCased = false;
+  for (uint32_t index = aIndex; index > 0;) {
+    uint32_t ch = str[--index];
+    bool masked = isMasked(index);
+    if (index > 0 && mozilla::IsSurrogatePair(str[index - 1], ch)) {
+      ch = mozilla::SurrogateToUCS4(str[index - 1], ch);
+      masked |= isMasked(--index);
+    }
+    if (masked) {
+      return false;
+    }
+    if (mozilla::intl::String::IsCaseIgnorable(ch)) {
+      continue;
+    }
+    precededByCased = mozilla::intl::String::IsCased(ch);
+    break;
+  }
+  if (!precededByCased) {
+    return false;
+  }
+  for (uint32_t index = aIndex + 1; index < aString.Length(); ++index) {
+    uint32_t ch = str[index];
+    bool masked = isMasked(index);
+    if (index + 1 < aString.Length() &&
+        mozilla::IsSurrogatePair(ch, str[index + 1])) {
+      ch = mozilla::SurrogateToUCS4(ch, str[index + 1]);
+      masked |= isMasked(++index);
+    }
+    if (masked) {
+      return true;
+    }
+    if (mozilla::intl::String::IsCaseIgnorable(ch)) {
+      continue;
+    }
+    return !mozilla::intl::String::IsCased(ch);
+  }
+  return true;
+}
+
 bool nsCaseTransformTextRunFactory::TransformString(
     const nsAString& aString, nsString& aConvertedString,
     const Maybe<StyleTextTransform>& aGlobalTransform, char16_t aMaskChar,
@@ -323,7 +373,6 @@ bool nsCaseTransformTextRunFactory::TransformString(
                           // when doing Irish lowercasing
   bool seenSoftDotted = false;  // true immediately after an I or J that is
                                 // converted to lowercase in Lithuanian mode
-  uint32_t sigmaIndex = uint32_t(-1);
   nsUGenCategory cat;
 
   StyleTextTransform style = aGlobalTransform.valueOr(StyleTextTransform::NONE);
@@ -394,13 +443,11 @@ bool nsCaseTransformTextRunFactory::TransformString(
             if (ch == 'I') {
               ch = LATIN_SMALL_LETTER_DOTLESS_I;
               prevIsLetter = true;
-              sigmaIndex = uint32_t(-1);
               break;
             }
             if (ch == LATIN_CAPITAL_LETTER_I_WITH_DOT_ABOVE) {
               ch = 'i';
               prevIsLetter = true;
-              sigmaIndex = uint32_t(-1);
               break;
             }
           }
@@ -424,7 +471,6 @@ bool nsCaseTransformTextRunFactory::TransformString(
               ch = ToLowerCase(ch);
               prevIsLetter = true;
               seenSoftDotted = true;
-              sigmaIndex = uint32_t(-1);
               break;
             }
             if (ch == 0x00CC) {
@@ -434,7 +480,6 @@ bool nsCaseTransformTextRunFactory::TransformString(
               ch = 0x0300;
               prevIsLetter = true;
               seenSoftDotted = false;
-              sigmaIndex = uint32_t(-1);
               break;
             }
             if (ch == 0x00CD) {
@@ -444,7 +489,6 @@ bool nsCaseTransformTextRunFactory::TransformString(
               ch = 0x0301;
               prevIsLetter = true;
               seenSoftDotted = false;
-              sigmaIndex = uint32_t(-1);
               break;
             }
             if (ch == 0x0128) {
@@ -454,7 +498,6 @@ bool nsCaseTransformTextRunFactory::TransformString(
               ch = 0x0303;
               prevIsLetter = true;
               seenSoftDotted = false;
-              sigmaIndex = uint32_t(-1);
               break;
             }
           }
@@ -490,53 +533,17 @@ bool nsCaseTransformTextRunFactory::TransformString(
           // listed as context-sensitive in Unicode's SpecialCasing.txt, but is
           // *not* a language-specific mapping; it applies regardless of the
           // language of the element.
-          //
-          // The lowercase mapping for CAPITAL SIGMA should be to SMALL SIGMA
-          // (i.e. the non-final form) whenever there is a following letter, or
-          // when the CAPITAL SIGMA occurs in isolation (neither preceded nor
-          // followed by a LETTER); and to FINAL SIGMA when it is preceded by
-          // another letter but not followed by one.
-          //
-          // To implement the context-sensitive nature of this mapping, we keep
-          // track of whether the previous character was a letter. If not,
-          // CAPITAL SIGMA will map directly to SMALL SIGMA. If the previous
-          // character was a letter, CAPITAL SIGMA maps to FINAL SIGMA and we
-          // record the position in the converted string; if we then encounter
-          // another letter, that FINAL SIGMA is replaced with a standard
-          // SMALL SIGMA.
-
-          // If sigmaIndex is not -1, it marks where we have provisionally
-          // mapped a CAPITAL SIGMA to FINAL SIGMA; if we now find another
-          // letter, we need to change it to SMALL SIGMA.
-          if (sigmaIndex != uint32_t(-1)) {
-            if (cat == nsUGenCategory::kLetter) {
-              aConvertedString.SetCharAt(GREEK_SMALL_LETTER_SIGMA, sigmaIndex);
-            }
-          }
-
           if (ch == GREEK_CAPITAL_LETTER_SIGMA) {
-            // If preceding char was a letter, map to FINAL instead of SMALL,
-            // and note where it occurred by setting sigmaIndex; we'll change
-            // it to standard SMALL SIGMA later if another letter follows
-            if (prevIsLetter) {
-              ch = GREEK_SMALL_LETTER_FINAL_SIGMA;
-              sigmaIndex = aConvertedString.Length();
-            } else {
-              // CAPITAL SIGMA not preceded by a letter is unconditionally
-              // mapped to SMALL SIGMA
-              ch = GREEK_SMALL_LETTER_SIGMA;
-              sigmaIndex = uint32_t(-1);
-            }
+            ch = IsFinalSigma(aTextRun ? aTextRun->mString : aString,
+                              aTextRun ? aOffsetInTextRun : i, aTextRun)
+                     ? GREEK_SMALL_LETTER_FINAL_SIGMA
+                     : GREEK_SMALL_LETTER_SIGMA;
             prevIsLetter = true;
             break;
           }
 
-          // ignore diacritics for the purpose of contextual sigma mapping;
-          // otherwise, reset prevIsLetter appropriately and clear the
-          // sigmaIndex marker
           if (cat != nsUGenCategory::kMark) {
             prevIsLetter = (cat == nsUGenCategory::kLetter);
-            sigmaIndex = uint32_t(-1);
           }
 
           mcm = unicode::SpecialLower(ch);
