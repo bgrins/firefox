@@ -4306,6 +4306,9 @@ bool nsTextFrame::PropertyProvider::GetSpacingInternal(Range aRange,
 // aX and the result are in whole appunits.
 static gfxFloat AdvanceToNextTab(gfxFloat aX, gfxFloat aTabWidth,
                                  gfxFloat aMinAdvance) {
+  if (aTabWidth == 0.0) {
+    return aX;
+  }
   // Advance aX to the next multiple of aTabWidth. We must advance
   // by at least aMinAdvance.
   gfxFloat nextPos = aX + aMinAdvance;
