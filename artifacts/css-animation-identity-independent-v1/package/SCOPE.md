@@ -1,0 +1,7 @@
+# Animation value identity
+
+Prove source-shaped endpoint composition, accumulation and segment composition preserve the owning property identity and are ready for all unwrap/expect operations after the actual underlying-value guard. Arbitrary arithmetic providers may fail; successful operations preserve identity for matching-ID inputs. Payloads have no equality requirement. Optional values, all composite modes, active/inactive iteration accumulation, zero-length segments and interpolation fallback remain in scope.
+
+Compose finite map updates from empty, including invalid/nonanimatable-property and missing-base early returns. Independently construct declaration storage, membership and normal importance from any finite map enumeration; require key uniqueness and prove its relation from coherent map values and identity-preserving uncompute. Prove nonvacuity and concrete counterexamples when key admissions are removed.
+
+Bind complete native functions and generated/custom identity providers from the authenticated static capsule. No native execution/compiler proof, complete segment grouping proof, arithmetic correctness, numerical timing/NaN semantics, unsafe FFI/layout, allocation or machine-integer theorem is claimed. The direct Servo_ComposeAnimationSegment wrapper has an external readiness contract; the map wrapper derives readiness from its guard. No live source/WPT/browser/Mach/Git changes.

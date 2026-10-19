@@ -546,3 +546,15 @@ animation constructors and full parser/provider lowering remain outside this
 component. No new native execution or browser repair is counted.
 
 Evidence: ../css-declaration-native-removal-root-v1/ROOT-SCOPED-ACCEPTANCE.json.
+
+## Animation identity component accepted — 19 October 2026
+
+The source-shaped endpoint/composition, guarded map history and separate
+constructor representation component is accepted within its frozen historical
+scope. Independent source-only replay passes 49 audits and nine integrity
+controls; root read all five modules and fifteen complete bindings. Readiness is
+derived from the map wrapper guard. Arithmetic payload semantics, segment
+grouping/provider associations, direct-wrapper caller readiness, generated
+layout/FFI, containers and compiler remain open. The numeric keyframe substitution
+candidate is not certified by an identity theorem.
+[Acceptance](../css-animation-identity-root-v1/ROOT-SCOPED-ACCEPTANCE.json).

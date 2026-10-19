@@ -12,8 +12,8 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
   `bad8f7998dbbb3ad1fa88c0ca6892488f912e898`. Its two-file commit contains only
   the native patch and WPT.
 - URL native state/capture, ordinary batching and parser-priority winners are
-  accepted within scope. Public storage composition, animation identity and
-  parser-history admission are active.
+  accepted within scope. Animation identity is now accepted within scope; public storage composition and
+  parser-history admission remain active.
 - Signing works. Nothing has been pushed or submitted externally.
 
 [Historical checkpoints](PLAN-HISTORY-20261019.md) preserve the previous plan
@@ -96,11 +96,15 @@ callback readiness remain open.
 Animation identity follow-up found no reachable key/value mismatch. Non-null
 keyframe entries derive keys from computed values, base extraction uses the map
 key, and transition replacement checks the owning property before assignment.
-Segment grouping, option readiness, composition histories and generated layout
-remain proof obligations. Non-NaN offset validity is required by the grouping
+Segment grouping and generated layout remain provider obligations. The new
+identity component derives option readiness from the map wrapper and proves
+coherent finite composition histories under explicit arithmetic/provider premises. Non-NaN offset validity is required by the grouping
 control flow. [Source audit](../css-declaration-animation-identity-static-v1/REPORT.md).
-Source-shaped endpoint/composition and map-constructor proofs are now active in
-`../css-animation-identity-proof-v1/`.
+The endpoint/composition and separate map-constructor component is accepted after
+full root model/source review and independent fresh replay: 49 audits and nine
+integrity controls. It targets the frozen historical source and does not certify
+the keyframe-substitution candidate or numeric payload correctness.
+[Acceptance](../css-animation-identity-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
 
 ## Next, in priority order
 

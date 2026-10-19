@@ -1,0 +1,24 @@
+@SegmentIdentity.compose_ready : ∀ {ι ν : Type} {key : ι} {arith : AnimationIdentity.Arithmetic ι ν}
+  (s : SegmentIdentity.Segment ι ν) (u last : Option (AnimationIdentity.Value ι ν)) (iter : Bool) (count : Nat),
+  AnimationIdentity.Preserves arith →
+    SegmentIdentity.SegmentId key s →
+      AnimationIdentity.OptId key u →
+        AnimationIdentity.OptId key last →
+          (SegmentIdentity.need s last iter count = true → u.isSome = true) →
+            AnimationIdentity.Ready key (SegmentIdentity.compose arith s u last iter count)
+@MapIdentity.from_empty : ∀ {ι ν : Type} [inst : DecidableEq ι] {arith : AnimationIdentity.Arithmetic ι ν}
+  (actions : List (MapIdentity.Action ι ν)),
+  AnimationIdentity.Preserves arith →
+    (∀ (a : MapIdentity.Action ι ν), a ∈ actions → MapIdentity.ActionId a) →
+      ∃ out, MapIdentity.run arith [] actions = some out ∧ MapIdentity.Coherent out ∧ MapIdentity.Unique out
+@ConstructorIdentity.map_history_constructor : ∀ {ι ν σ : Type} [inst : DecidableEq ι]
+  {arith : AnimationIdentity.Arithmetic ι ν} {uncompute : AnimationIdentity.Value ι ν → AnimationIdentity.Value ι σ}
+  (actions : List (MapIdentity.Action ι ν)),
+  AnimationIdentity.Preserves arith →
+    (∀ (a : MapIdentity.Action ι ν), a ∈ actions → MapIdentity.ActionId a) →
+      (∀ (v : AnimationIdentity.Value ι ν), (uncompute v).id = v.id) →
+        ∃ xs,
+          MapIdentity.run arith [] actions = some xs ∧
+            ConstructorIdentity.Valid (ConstructorIdentity.build uncompute xs) ∧
+              List.map AnimationIdentity.Value.id (ConstructorIdentity.build uncompute xs).declarations =
+                List.map Prod.fst xs
