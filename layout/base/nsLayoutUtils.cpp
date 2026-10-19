@@ -3834,9 +3834,7 @@ static nsSize ComputeConcreteObjectSize(const nsSize& aConstraintSize,
                                         const AspectRatio& aIntrinsicRatio,
                                         StyleObjectFit aObjectFit) {
   // Handle default behavior (filling the container) w/ fast early return.
-  // (Also: if there's no valid intrinsic ratio, then we have the "fill"
-  // behavior & just use the constraint size.)
-  if (MOZ_LIKELY(aObjectFit == StyleObjectFit::Fill) || !aIntrinsicRatio) {
+  if (MOZ_LIKELY(aObjectFit == StyleObjectFit::Fill)) {
     return aConstraintSize;
   }
 
