@@ -34,10 +34,23 @@ produces counterexamples; neither fabricated source is a new browser bug. Three
 initial kernel-checked helpers establish lower-lookup preservation and rank
 subtraction bounds. These do not complete the batched theorem.
 
-Production now targets movement-decision stability, a survivor/replacement/append
-normal form, descending-removal and rank-correction refinement, and independent
-declaration/importance/membership storage operations. Actual generated source
-metadata, parser publication, equality and callback admissions stay explicit.
+The producer reports a kernel-checked numeric batching refinement with descending
+removals and index correction; independent review and native storage composition
+remain pending. Its supplied comparator requires a true result to imply semantic
+equality, while permitting conservative false results. The NaN source audit does
+not establish a browser bug: CSSOM permits reporting an update when serialization
+is unchanged. Native value equality must not silently become reflexive model
+equality. [Audit](../css-cssom-nan-equality-static-v1/REPORT.md).
+
+A root source audit checks all eight setter callers and the exact ordered metadata
+for 94 ordinary shorthands. Five kernel-checked optional-publication lemmas preserve
+unique identities, group compatibility and capacity; fresh local and relocated
+replays pass. This does not mechanically compose the entire parser with batching.
+Source interpretation, compiler behavior and callback stability remain explicit.
+[Source admission](../css-declaration-source-admission-root-v1/REPORT.md).
+
+Production now targets independent declaration/importance/membership storage
+composition and native mutation checks, followed by review and scoped acceptance.
 
 [Obligations](../css-declaration-batch-admission-root-v1/PLAN.md).
 Production: `../css-declaration-batch-proof-v1/`.
