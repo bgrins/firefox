@@ -1,0 +1,68 @@
+{
+  "input_manifest": "efd7862ea0aa638729f42349178b61b4a604368f245c496142dd61c18b2afe57",
+  "input_files": {
+    "Flush.lean": "4a6841fefccff73bc5675247042cf129a00d6570b1226277517c4c9ee5a6c026",
+    "SegmentCache.lean": "5c0e3e11a490c583c6fe0d4433cbe6b87ae1d171149b833850d3996eed86fcb3",
+    "Sink.lean": "b45f51e8b3f3a208edf8123e25286bb243542a3fb610588181e2f55e0774fb50",
+    "Transport.lean": "bb0a501c0618bcf25ec8f248836b187575215783b130756e73755ab268c0890d",
+    "FlushRange.lean": "e0756271ccb1a4bf7bcaee1e609904e8e30f22a4f0e09c86a1dfeaea02fcf78e",
+    "PolicyMutation.lean": "1faffc80e1fe7c92a215abd9833492e8c4c4b8a4356659a5bb2c78846e3ab622",
+    "Append.lean": "2d20cc28f667f13f4a72cf26cb0afc68832ba246424db4d13bad3bff3ecd212c",
+    "IdentityWorld.lean": "621871cc8aacd1580893f3dc08c700860757bfefb7143e323f3f1b7ed0519ff5",
+    "SinkIdentity.lean": "eab1fa4e44929852f39bcee4bded6ed334596331c2fe9349f540c009cc10215a",
+    "Resolver.lean": "1fa6267ba2cb3046e638af1fdca2b7d323f1680c96c22f9409aee22e4209b0b5",
+    "Words.lean": "2398f03c8c0e6b6c34e73a34eeedde1096ee01243fe4e0afdcf2b25e94add3f1",
+    "ResolverMutation.lean": "ddd5ee2b3848182b5ca07af401fb95577cb03a1167fd64d7b1f85b8e66134032",
+    "ScanWords.lean": "a0745a9203ebfe55028e7033d0cd958c39da2c0da32303f81bf1f54210d96277",
+    "WordInvariant.lean": "7bf6a701c95a36b59c75e374e64b9f705c811f01955c18ab9bab100f7ffcea96",
+    "ProjectionMutation.lean": "ed9aea85cab37e09725dc6b2cdc32908fb1c2ef7248e63d0959fc6dd29d2f85c",
+    "Operations.lean": "281ddc557b02c2db9eb1427fd013c971bec45aa643854f135ad751a9259c52a0",
+    "Policy.lean": "104d58b4b7dad4a05faf103b05da31d2b8faed818e98f48cb1acd3110a43258a",
+    "PartitionCounterexamples.lean": "b61f3c9395697ad8c9c8073bbbb49265df4de61fd4ae9fd96e9e9d4effa92116",
+    "CachePacking.lean": "7f95ba927758c01cb204a5cce38a42473859bed1f0a75af26c3cddb89459b642",
+    "StreamDriver.lean": "93240be9b30f000eb1c172bf858bd44adbca4afab8088724cd5b54a635055f59",
+    "AppendCache.lean": "f333df620f9910b5c6969a9bb3eeb523eeb9c06c1a612e39340e6a5c41a550e3",
+    "Buffer.lean": "9680e5da83863a31f07d2edafecc428209842d2f7965aa27ddc8a9a2eafab949",
+    "ScanBounds.lean": "443d3c62a77cee0cfbc2cc489992f44df84b6c8d8aed5b4c1cc1a3c5e1ab103f",
+    "Projection.lean": "ed1fe56fcb26df3f7141a14e5324a846992de9d983efdc54c6946d3fd58cc82d",
+    "ContributionCover.lean": "f4d32cd2cfc38fe28ee803c03414ae4d576e72affea2f02fe601eaea1c67b3c9",
+    "WordWitness.lean": "596df797542fe2c5e0800d19b1de0e5e1e8d675d7599925ea4382fb2fe1189c6",
+    "StreamLanguage.lean": "86c5aa5cbf40df7105103a9bd4c4017d1edb04c37c7e8c63f2ca94029a0db500",
+    "WordLanguage.lean": "42ae95cf0e59f0ea8af1a27823b669a8a14e079307a3f8490f2708a0ddf2b082",
+    "MutationWitness.lean": "948a4a99a397a46952f7e68fa272dbe7c866ad3ca6c5140bf5d4246d4e182a36",
+    "FlushDriver.lean": "6beab7b07603ce7d03396127f54d767d01f018175e2f9fa03949f349edf7b921"
+  },
+  "changes": [
+    {
+      "module": "Append.lean",
+      "before": "  limits : AuxLimits\n",
+      "after": "  limits : AuxLimits\n  capturedLimits : AuxLimits\n  ownedPieces : List (BufferedPiece \u00d7 AuxLimits) := []\n"
+    },
+    {
+      "module": "Append.lean",
+      "before": "flushBuffered providers.breaks state.policy state.limits",
+      "after": "flushBuffered providers.breaks state.policy state.capturedLimits"
+    },
+    {
+      "module": "Append.lean",
+      "before": "\u27e8{state with policy := result.state},result.events.map flushEvent\u27e9",
+      "after": "\u27e8{state with policy := result.state,ownedPieces := []},result.events.map flushEvent\u27e9"
+    },
+    {
+      "module": "Append.lean",
+      "before": "{state with policy := {state.policy with transport := {state.policy.transport with buffer := appendPiece state.policy.transport.buffer piece}}}",
+      "after": "{state with policy := {state.policy with transport := {state.policy.transport with buffer := appendPiece state.policy.transport.buffer piece}},capturedLimits := state.limits,ownedPieces := state.ownedPieces ++ [(piece,state.limits)]}"
+    },
+    {
+      "module": "Operations.lean",
+      "before": "   \u27e8\u27e80,by decide\u27e9,\u27e80,by decide\u27e9,\u27e80,by decide\u27e9\u27e9\u27e9",
+      "after": "   \u27e8\u27e80,by decide\u27e9,\u27e80,by decide\u27e9,\u27e80,by decide\u27e9\u27e9,\n   \u27e8\u27e80,by decide\u27e9,\u27e80,by decide\u27e9,\u27e80,by decide\u27e9\u27e9,[]\u27e9"
+    },
+    {
+      "module": "StreamDriver.lean",
+      "before": "(\"limits\",ints [state.limits.word.val,state.limits.start.val,state.limits.finish.val])]",
+      "after": "(\"limits\",ints [state.limits.word.val,state.limits.start.val,state.limits.finish.val]),\n    (\"captured_limits\",ints [state.capturedLimits.word.val,state.capturedLimits.start.val,state.capturedLimits.finish.val])]"
+    }
+  ],
+  "scope": "Full language stream source copied with exact ownership capture changes. ownedPieces is ghost provenance, not native storage. Formal reachable nonempty append premise and caller composition remain required."
+}

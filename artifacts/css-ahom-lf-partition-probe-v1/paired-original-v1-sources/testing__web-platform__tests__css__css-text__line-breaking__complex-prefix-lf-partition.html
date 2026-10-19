@@ -1,0 +1,125 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Text node boundaries before a newline preserve later CJK wrapping</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-3/#line-breaking">
+<meta name="assert" content="Splitting identically styled text before a preserved newline does not change soft wrapping on the following line.">
+<style>
+  .sample { font: 32px/48px sans-serif; margin: 0; padding: 0; border: 0;
+    text-indent: 0; letter-spacing: 0; word-spacing: 0; hyphens: none;
+    text-align: start; direction: ltr; writing-mode: horizontal-tb; }
+  .calibration { width: max-content; white-space: pre; }
+  .normal { word-break: normal; }
+  .break-all { word-break: break-all; }
+  .keep-all { word-break: keep-all; }
+  .pre-wrap { white-space: pre-wrap; }
+  .pre-line { white-space: pre-line; }
+  .capitalize { text-transform: capitalize; }
+  #fixtures { position: absolute; left: 0; top: 0; visibility: hidden; }
+</style>
+<div id="fixtures"></div>
+
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+const probePromise = (async () => {
+  await document.fonts.ready;
+  const fixtures = document.querySelector("#fixtures");
+  const measure = (text, partition, whitespace, policy, transform, width) => {
+    const element = document.createElement("div");
+    element.className = `sample ${whitespace} ${policy} ${transform}`;
+    element.lang = "th";
+    element.style.width = width;
+    const lf = text.indexOf("\n");
+    if (partition === "whole" || lf < 0) {
+      element.append(document.createTextNode(text));
+    } else {
+      const cut = lf + (partition === "after-lf" ? 1 : 0);
+      element.append(document.createTextNode(text.slice(0, cut)));
+      const last = document.createTextNode(text.slice(cut));
+      if (partition === "nested-before-lf") {
+        const outer = document.createElement("span");
+        const inner = document.createElement("span");
+        inner.append(last);
+        outer.append(inner);
+        element.append(outer);
+      } else {
+        element.append(last);
+      }
+    }
+    fixtures.append(element);
+    const box = element.getBoundingClientRect();
+    const glyphs = [];
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let globalOffset = 0;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      let localOffset = 0;
+      for (const scalar of node.data) {
+        const range = document.createRange();
+        range.setStart(node, localOffset);
+        range.setEnd(node, localOffset + scalar.length);
+        const rect = range.getBoundingClientRect();
+        glyphs.push({scalar: scalar.codePointAt(0), offset: globalOffset + localOffset,
+          x: rect.x - box.x, y: rect.y - box.y, width: rect.width, height: rect.height});
+        localOffset += scalar.length;
+      }
+      globalOffset += node.length;
+    }
+    const result = {width: box.width, height: box.height, glyphs};
+    element.remove();
+    return result;
+  };
+  const calibration = Object.fromEntries(["一", "二", "一二"].map(text =>
+    [text, measure(text, "whole", "calibration", "normal", "none", "max-content")]));
+  const single = Math.max(calibration["一"].width, calibration["二"].width);
+  const pair = calibration["一二"].width;
+  if (!(single > 0 && pair > single + 2)) throw new Error("CJK calibration failed");
+  const widths = {narrow: (single + pair) / 2, wide: pair + 10};
+  const prefixes = {ahom: "\u0e01\u{11700}\u0e01", bmp: "\u0e01\u1950\u0e01", ascii: "A"};
+  const controls = [];
+  const rows = [];
+  for (const whitespace of ["pre-wrap", "pre-line"]) {
+    for (const policy of ["normal", "break-all", "keep-all"]) {
+      for (const transform of ["none", "capitalize"]) {
+        for (const [widthName, width] of Object.entries(widths)) {
+          const reference = measure("一二", "whole", whitespace, policy, transform, `${width}px`);
+          const expectedWrap = widthName === "narrow" && policy !== "keep-all";
+          const referenceWrap = reference.glyphs[1].y > reference.glyphs[0].y + 1;
+          controls.push({whitespace, policy, transform, widthName, reference, expectedWrap,
+            passed: referenceWrap === expectedWrap});
+          for (const [prefix, value] of Object.entries(prefixes)) {
+            const text = `${value}\n一二`;
+            const partitions = {};
+            for (const partition of ["whole", "before-lf", "after-lf", "nested-before-lf"]) {
+              const observation = measure(text, partition, whitespace, policy, transform, `${width}px`);
+              const suffix = observation.glyphs.slice(-2);
+              const wrap = suffix[1].y > suffix[0].y + 1;
+              partitions[partition] = {...observation, suffixWrap: wrap,
+                expectedSuffixWrap: expectedWrap, passed: wrap === expectedWrap};
+            }
+            rows.push({prefix, text, whitespace, policy, transform, widthName, width, partitions,
+              partitionEqual: Object.values(partitions).every(value =>
+                value.suffixWrap === partitions.whole.suffixWrap)});
+          }
+        }
+      }
+    }
+  }
+  const result = {calibration, widths, controls, rows};
+  return result;
+})();
+
+promise_test(async () => {
+  const result = await probePromise;
+  for (const row of result.controls) {
+    test(() => assert_true(row.passed, JSON.stringify(row)),
+      `CJK control: ${row.whitespace} ${row.policy} ${row.transform} ${row.widthName}`);
+  }
+  for (const row of result.rows) {
+    for (const [partition, observation] of Object.entries(row.partitions)) {
+      test(() => assert_equals(observation.suffixWrap, observation.expectedSuffixWrap,
+        JSON.stringify(observation)),
+        `${row.prefix} ${row.whitespace} ${row.policy} ${row.transform} ${row.widthName} ${partition}`);
+    }
+  }
+}, "Calibrate widths and measure partitioned text");
+</script>

@@ -1,0 +1,18 @@
+AutoTArray<MappedFlow, 10> mMappedFlows;
+AutoTArray<nsTextFrame*, 50> mLineBreakBeforeFrames;
+AutoTArray<UniquePtr<BreakSink>, 10> mBreakSinks;
+nsLineBreaker mLineBreaker;
+RefPtr<gfxTextRun> mCurrentFramesAllSameTextRun;
+DrawTarget* mDrawTarget=nullptr;
+nsIFrame* mLineContainer=nullptr;
+nsTextFrame* mLastFrame=nullptr;
+nsIFrame* mCommonAncestorWithLastFrame=nullptr;
+gfxMissingFontRecorder* mMissingFonts=nullptr;
+uint32_t mMaxTextLength=0;
+bool mDoubleByteText=false;
+bool mStartOfLine=true;
+bool mSkipIncompleteTextRuns=false;
+nsTextFrame::TextRunType mWhichTextRun=nsTextFrame::TextRunType::Inflated;
+void AccumulateRunInfo(nsTextFrame*);
+void SetupBreakSinksForTextRun(gfxTextRun*,const void*);
+void FlushLineBreaks(gfxTextRun*);

@@ -1,0 +1,37 @@
+import json,re,runpy
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'development-build/full'
+helper=runpy.run_path(str(ROOT/'native/extract-full.py'));full=helper['full'];changes=[]
+def once(text,before,after,name):
+ n=text.count(before);assert n==1,(name,n);changes.append({'name':name,'before':before,'after':after});return text.replace(before,after)
+source=ROOT/'source/candidate/layout/generic/nsTextFrame.cpp'
+style=ROOT/'source/providers/layout/style/nsStyleStruct.cpp'
+hints=helper['strip']((ROOT/'source/providers/layout/style/nsChangeHint.h').read_text())
+(OUT/'change-hints.hpp').write_text(hints)
+bits=(ROOT/'source/providers/layout/generic/nsFrameStateBits.h').read_text()
+prefix='#include "change-hints.hpp"\nclass PresShell;struct nsIFrame;struct ChildList{std::vector<nsIFrame*>mList;};\n'
+for name in ['NS_FRAME_FIRST_REFLOW','NS_FRAME_IS_DIRTY','NS_FRAME_HAS_DIRTY_CHILDREN','NS_FRAME_REFLOW_ROOT','NS_FRAME_DYNAMIC_REFLOW_ROOT','NS_FRAME_DESCENDANT_INTRINSIC_ISIZE_DEPENDS_ON_BSIZE','NS_FRAME_PART_OF_IBSPLIT']:
+ bit=re.search(r'FRAME_STATE_BIT\(Generic,\s*(\d+),\s*'+name+r'\)',bits)[1];prefix+=f'constexpr uint64_t {name}=uint64_t(1)<<{bit};\n'
+prefix+='constexpr uint64_t NS_FRAME_STATE_NONE=0;\n'
+for marker in ['enum class IntrinsicDirty {','enum class ReflowRootHandling {']:
+ prefix+=full(ROOT/'source/providers/layout/base/PresShellForwards.h',marker,True)+'\n'
+base=(OUT/'lifecycle-types.hpp').read_text()
+base=prefix+base
+fields=['mTextCombineUpright','mMozControlCharacterVisibility','mOverflowWrap','mRubyAlign','mRubyPosition','mTextSizeAdjust','mLetterSpacing','mTextIndent','mTextBoxEdge','mTextJustify','mWordSpacing','mTabSize','mHyphenateCharacter','mTextWrapStyle','mTextAutospace','mTextEmphasisPosition','mTextRendering','mTextShadow','mTextEmphasisStyle','mWebkitTextStrokeWidth','mTextUnderlineOffset','mTextDecorationSkipInk','mTextUnderlinePosition','mColor','mTextEmphasisColor','mWebkitTextFillColor','mWebkitTextStrokeColor','mForcedColorAdjust']
+methods=full(ROOT/'source/providers/layout/style/nsStyleStruct.h','bool WhiteSpaceOrNewlineIsSignificant() const')+'\nnsChangeHint CalcDifference(const nsStyleText&)const;\n'
+base=once(base,'struct nsStyleText{','struct nsStyleText{'+''.join('int '+f+'=0;'for f in fields)+methods,'opaque style equality fields')
+frameMethods='\n ::PresShell*shell=nullptr;::PresShell*PresShell()const{return shell;}std::vector<ChildList>children;nsIFrame*continuation=nullptr;nsIFrame*ibSibling=nullptr;\n bool absolute=false,placeholder=false,bsizeChanged=false;size_t intrinsicMarks=0;\n virtual~nsIFrame()=default;virtual nsIFrame*GetNextContinuation()const{return continuation;}nsIFrame*FirstContinuation()const{return const_cast<nsIFrame*>(this);}static int IBSplitSibling(){return 1;}nsIFrame*GetProperty(int)const{return ibSibling;}\n virtual void MarkIntrinsicISizesDirty(){++intrinsicMarks;}bool IsAbsolutelyPositioned()const{return absolute;}bool IsPlaceholderFrame()const{return placeholder;}\n bool IsSubtreeDirty()const{return HasAnyStateBits(NS_FRAME_IS_DIRTY|NS_FRAME_HAS_DIRTY_CHILDREN);}void AddStateBits(uint64_t bits){state|=bits;}void ChildIsDirty(nsIFrame*){state|=NS_FRAME_HAS_DIRTY_CHILDREN;}const auto&ChildLists()const{return children;}void SetHasBSizeChange(bool value){bsizeChanged=value;}\n'
+base=once(base,'struct nsIFrame{','struct nsIFrame{'+frameMethods,'frame tree reflow providers')
+base=once(base,'void SetTextRun(gfxTextRun*,TextRunType,float);','void MarkIntrinsicISizesDirty()override;void ClearTextRuns(){ClearTextRun(nullptr,eInflated);if(HasFontSizeInflation())ClearTextRun(nullptr,eNotInflated);}void SetTextRun(gfxTextRun*,TextRunType,float);','text dirty virtual dispatch')
+post='\nstruct nsPlaceholderFrame:nsIFrame{nsIFrame*outOfFlow=nullptr;nsIFrame*GetOutOfFlowFrame()const{return outOfFlow;}};\nstruct DirtyRoots{std::vector<nsIFrame*>roots;void Add(nsIFrame*f){roots.push_back(f);}};\nclass PresShell{public:bool mDidInitialize=true,mIsDestroying=false,mIsReflowing=false;DirtyRoots mDirtyRoots;size_t layoutFlushes=0;void FrameNeedsReflow(nsIFrame*,IntrinsicDirty,nsFrameState,ReflowRootHandling);void SetNeedLayoutFlush(){}void EnsureLayoutFlush(){++layoutFlushes;}void VerifyHasDirtyRootAncestor(nsIFrame*){}};\nnamespace nsLayoutUtils{bool IsProperAncestorFrame(const nsIFrame*,const nsIFrame*,const nsIFrame*=nullptr);nsIFrame*GetNextContinuationOrIBSplitSibling(const nsIFrame*);}\n'
+post=post.replace('nsIFrame*=nullptr','nsIFrame* = nullptr')
+post+='\n'+full(ROOT/'source/providers/layout/base/nsLayoutUtils.cpp','bool nsLayoutUtils::IsProperAncestorFrame(')+'\n'+full(ROOT/'source/providers/layout/base/nsLayoutUtils.cpp','nsIFrame* nsLayoutUtils::GetNextContinuationOrIBSplitSibling(')
+post+='\n'+full(style,'nsChangeHint nsStyleText::CalcDifference(')+'\n'+full(source,'void nsTextFrame::MarkIntrinsicISizesDirty(')+'\n'+full(ROOT/'source/providers/layout/base/PresShell.cpp','void PresShell::FrameNeedsReflow(')+'\n'+full(ROOT/'source/providers/layout/style/RestyleManager.cpp','static void StyleChangeReflow(')
+(OUT/'event-types.hpp').write_text(base+post)
+for flavor in ['original','candidate','standalone']:
+ text=(OUT/f'reuse-{flavor}.cpp').read_text()
+ text=once(text,'#include "lifecycle-types.hpp"','#include "event-types.hpp"',flavor+' types')
+ text=once(text,'nsIFrame container;BuildTextRunsScanner scanner;','nsIFrame container;PresShell shell;container.shell=&shell;BuildTextRunsScanner scanner;',flavor+' shell provider')
+ text=once(text,'if(mode==2)for(auto&group:frames)for(auto&f:group)f.ClearTextRun(nullptr,nsTextFrame::eInflated);', 'if(mode==2){\n   unsigned topology=std::stoul(id.substr(2))%4;container.children.resize(2);size_t ordinal=0;\n   for(auto&group:frames)for(auto&f:group){\n    nsIFrame*parent=&container;\n    if(topology){\n     auto wrapper=std::make_unique<nsIFrame>();wrapper->shell=&shell;wrapper->children.resize(2);\n     if(topology==3){auto placeholder=std::make_unique<nsPlaceholderFrame>();placeholder->placeholder=true;placeholder->parent=&container;placeholder->shell=&shell;placeholder->outOfFlow=wrapper.get();container.children[ordinal%2].mList.push_back(placeholder.get());ancestors.push_back(std::move(placeholder));}\n     else{wrapper->parent=&container;container.children[ordinal%2].mList.push_back(wrapper.get());}\n     parent=wrapper.get();if(topology==2)parent->state|=NS_FRAME_REFLOW_ROOT;ancestors.push_back(std::move(wrapper));\n    }\n    f.parent=parent;f.shell=&shell;parent->children[ordinal++%2].mList.push_back(&f);\n   }\n   nsStyleText oldStyle=container.style,newStyle=oldStyle;newStyle.mHyphenateLimitChars.total_word_length.value=100;\n   auto hint=oldStyle.CalcDifference(newStyle);assert(hint&nsChangeHint_ClearDescendantIntrinsics);\n   StyleChangeReflow(&container,hint);\n   for(auto&group:frames)for(auto&f:group)assert(!f.GetTextRun(nsTextFrame::eInflated)&&f.intrinsicMarks);\n  }',flavor+' full native change-hint and reflow traversal')
+ (OUT/f'event-{flavor}.cpp').write_text(text)
+(OUT/'event-extraction.json').write_text(json.dumps({'functions':helper['records'],'adaptations':changes,'scope':'full CalcDifference/StyleChangeReflow/FrameNeedsReflow/MarkIntrinsicISizesDirty native control flow; equality-only opaque non-target style fields, frame-tree/virtual-dispatch/dirty scheduling primitives explicit; first-line reparent and restyle coalescing still separate'},indent=2)+'\n')

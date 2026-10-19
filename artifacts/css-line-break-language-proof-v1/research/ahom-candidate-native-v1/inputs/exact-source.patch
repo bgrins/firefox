@@ -1,0 +1,43 @@
+--- original/src/line.rs
++++ candidate/src/line.rs
+@@ -1267,10 +1267,18 @@
+         // word segmenter doesn't define break rules for some languages such as Thai.
+         let start_iter = iterator.iter.clone();
+         let start_point = iterator.current_pos_data;
+-        let mut s = vec![left_codepoint as u16];
++        let mut buffer = [0; 2];
++        let mut s = char::from_u32(left_codepoint)
++            .unwrap_or(char::REPLACEMENT_CHARACTER)
++            .encode_utf16(&mut buffer)
++            .to_vec();
+         loop {
+             debug_assert!(!iterator.is_eof());
+-            s.push(iterator.get_current_codepoint()? as u16);
++            s.extend_from_slice(
++                char::from_u32(iterator.get_current_codepoint()?)
++                    .unwrap_or(char::REPLACEMENT_CHARACTER)
++                    .encode_utf16(&mut buffer),
++            );
+             iterator.advance_iter();
+             if let Some(current_codepoint) = iterator.get_current_codepoint() {
+                 if !Self::use_complex_breaking(iterator, current_codepoint) {
+@@ -1287,9 +1295,8 @@
+         iterator.current_pos_data = start_point;
+         let breaks = iterator.complex.complex_language_segment_utf16(&s);
+         iterator.result_cache = breaks;
+-        // result_cache vector is utf-16 index that is in BMP.
+         let first_pos = *iterator.result_cache.first()?;
+-        let mut i = 1;
++        let mut i = Self::char_len(left_codepoint);
+         loop {
+             if i == first_pos {
+                 // Re-calculate breaking offset
+@@ -1306,7 +1313,7 @@
+                 "we should always arrive at first_pos: near index {:?}",
+                 iterator.get_current_position()
+             );
+-            i += 1;
++            i += iterator.get_current_codepoint().map_or(0, Self::char_len);
+             iterator.advance_iter();
+             if iterator.is_eof() {
+                 iterator.result_cache.clear();

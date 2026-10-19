@@ -1,0 +1,51 @@
+{
+  "model": "lean-stream/MeasurementCoordinates.lean",
+  "model_sha256": "f7713327a6c9deeb8ab18179f637d93ce4347ed70435de04140b0d64ed7bdc76",
+  "native_source": {
+    "original": "0896ff983f076aa6a8cae54b08a2b65f4f7990a6bbc1f7cce28c7c7ed713444d",
+    "candidate": "5380ac7f8ed9238784ef8c25652c9556b9fb2c8ce2a1bf25ed950d90c73bc8e5",
+    "patch": "522759dd497f501996715f8d3adffd2b5ad48befcebbd2bbe3ddb627adeb0e0d"
+  },
+  "complete_function_extraction": [
+    {
+      "source": "source/providers/gfx/thebes/gfxTextRun.cpp",
+      "sha256": "0896ff983f076aa6a8cae54b08a2b65f4f7990a6bbc1f7cce28c7c7ed713444d",
+      "marker": "uint32_t gfxTextRun::BreakAndMeasureText(",
+      "definition_count": 1,
+      "start_character": 34453,
+      "end_character": 46776,
+      "extracted_sha256": "e5c08f16d8797eb53829fc713793044609610561d60ee99d15c949a255119d09"
+    },
+    {
+      "source": "source/measurement-coordinate-candidate/gfx/thebes/gfxTextRun.cpp",
+      "sha256": "5380ac7f8ed9238784ef8c25652c9556b9fb2c8ce2a1bf25ed950d90c73bc8e5",
+      "marker": "uint32_t gfxTextRun::BreakAndMeasureText(",
+      "definition_count": 1,
+      "start_character": 34453,
+      "end_character": 46772,
+      "extracted_sha256": "09f81c96261b72c4b9613bba30d98fa95a57be4b8c0695ed0d75cca236d91110"
+    }
+  ],
+  "binding": {
+    "Buffer.start": "aStart",
+    "Buffer.coveredEnd": "previous bufferRange.end, equal to i at an admitted refill",
+    "Buffer.length": "hyphenBuffer.Length() before successful AppendElements",
+    "nextEnd": "new bufferRange.end",
+    "refill": "hyphenBuffer.AppendElements(bufferRange.Length(), fallible) success",
+    "boundary": "wordState.mostRecentBoundary saved before ClassifyAutoHyphenations",
+    "new_chunk_start": "bufferRange.start = i",
+    "guard": "prevMostRecentWordBoundary < bufferRange.start"
+  },
+  "proved": "Initial cover, preservation through arbitrary admitted finite successful refills, absolute/relative guard equivalence, translation invariance, selected rescan within fetched buffer and old-comparison counterexample. Nat arithmetic model kernel checked separately.",
+  "native_premises": [
+    "Array length agrees with count of successful appends; allocation failure disables haveHyphenation and is not a successful refill.",
+    "Range endpoints are monotone and representable; integer addition/subtraction correspond to Nat on admitted paths.",
+    "aStart <= boundary, matching classifier assertion.",
+    "Fetched ranges are contiguous; refills occur at previous end. The complete native replay exercises actual rescanLimit/control flow, but this is not its universal proof."
+  ],
+  "unproved": [
+    "No full C++ memory safety, array allocation proof, font metric/shaping refinement, or complete BreakAndMeasureText refinement.",
+    "The unsigned boundary-1 then loop increment and i+100 machine-limit behavior require separate native bounds justification; this model does not silently assume global maximum text-run length.",
+    "Arbitrary glyph/provider partition equality is false in retained neighboring examples."
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "source": "imports/complex-encoding-diagnostic-v1/imports/bridge-v1/icu/vendor/icu_segmenter/src/line.rs",
+  "candidate": "inputs/third_party__rust__icu_segmenter__src__line.rs",
+  "original_impl_sha256": "fa1264b485b79efc8fa3254dfb1aa9db31c2496eb597c8d32f315d25da1d479c",
+  "candidate_impl_sha256": "d1a89d5bd92561679f9b91532137ca4552ad048a494b5a1af1076308fda917a0",
+  "replacements": [
+    [
+      "let mut s = vec![left_codepoint as u16];",
+      "let mut buffer = [0; 2];\n        let mut s = char::from_u32(left_codepoint)\n            .unwrap_or(char::REPLACEMENT_CHARACTER)\n            .encode_utf16(&mut buffer)\n            .to_vec();"
+    ],
+    [
+      "s.push(iterator.get_current_codepoint()? as u16);",
+      "s.extend_from_slice(\n                char::from_u32(iterator.get_current_codepoint()?)\n                    .unwrap_or(char::REPLACEMENT_CHARACTER)\n                    .encode_utf16(&mut buffer),\n            );"
+    ],
+    [
+      "        // result_cache vector is utf-16 index that is in BMP.\n",
+      ""
+    ],
+    [
+      "let mut i = 1;",
+      "let mut i = Self::char_len(left_codepoint);"
+    ],
+    [
+      "i += 1;",
+      "i += iterator.get_current_codepoint().map_or(0, Self::char_len);"
+    ]
+  ],
+  "boundary": "Only full Utf16 LineBreakType impl changes. Rust standard encode_utf16 and actual property/provider alignment remain external semantics."
+}
