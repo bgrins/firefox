@@ -1,0 +1,27 @@
+# Delivered readiness: native bridge
+
+## Inputs and completion evidence
+
+`readiness.py` consumes the pinned input actions and completed native output rows. The native row is emitted after the called extracted functions return. Entry trace markers therefore certify that those full pinned bodies executed on a completed row; an entry marker by itself, before completion, is not a completion claim. The full independent oracle has already checked the entire actual row and provider/event trace before readiness checking runs.
+
+The monitor maintains immutable per-case raw provider versions (base, scale, computation-failure flag, target and style availability), offset-input delivery certificates, property-input delivery certificates and active base-provider versions. Property input keys contain specified frames, consumed derived offsets, the effect default and raw provider version; they do not contain expected property segments or expected base outputs. Offset keys include specified inputs and relevant raw geometry/timeline availability. `RUNNING` modifies an observed flag outside the current consumer segment equation; it is not a universal model action.
+
+| Native action / complete extraction | Monitor / Lean connection |
+| --- | --- |
+| Successful changed JS/array `SetKeyframes` | Actual `compute` records completed offset distribution and invalidates readiness; actual `update`/`build`/`base-styles` dispatch supplies current property/base certificates. `afterChanged` and `changed_setter_dispatch_ready` prove this transition. |
+| Equal `SetKeyframes` | No compute/update/notify trace; retained raw specified/derived state. Pre-ready admission is required; `admitted_equal_skip_current` and `every_equal_prefix_current` derive and preserve full current coherence. |
+| Processing failure | Complete JS setter returns before style acquisition/array mutation. Monitor retains certificates; `failure_atomic` and sequence induction retain readiness/invariants. |
+| `SetComposite` | A changed default invalidates readiness; actual target/style dispatch rebuilds. `default_setter_dispatch_ready` derives readiness when raw offset inputs remain delivered. Unchanged default preserves status. |
+| `GetKeyframes` / `MaybeUpdateKeyframeComputedOffsets` | Context changes geometry only. A completed actual refresh certifies its current offset inputs, and changed derived offsets require current property delivery. Missing timeline/animation dispatch retains pending state. No synthetic rebuild is inserted. `context_offset_delivery` covers the delivered offset gate. |
+| `UpdateProperties` / `BuildProperties` / `EnsureBaseStyles` | Actual update/build/base markers and raw provider version certify rebuild completion. Target absence retains inactive base storage exactly as native code does. `style_delivery_from_raw_inputs` and `offset_then_style_delivery_ready` prove current readiness from raw offset delivery, without assuming a final cache equation. |
+| Raw `INVALIDATE` interval | Adapter changes only raw provider/target/style inputs and invokes no native function. Pending state records the external scheduling interval. A later actual completed dispatch is required. |
+
+The monitor's readiness test is conservative: it requires not-pending status plus matching raw offset/property delivery keys and active base-provider version. A semantically redundant raw change can require another delivery even if resulting values coincide. The native and kernel unchanged-valued-provider control explicitly verifies this withholding. Every ready row is then independently checked against current raw-input offset derivation, segment construction and base eligibility. The current-value check cannot make a row ready.
+
+`DELIVERED-READINESS.json` records every prefix, actual trace, raw keys/version, ready/withheld classification, ready current-value checks, and per-case admission. Its `admitted_equal_step_sequence` means all equal-setter steps have ready predecessors; it does not assert that intermediate invalidation/dispatch prefixes are ready. All ready prefixes are separately checked. An actual GET during a pending interval remains a diagnostic getter observation; it is not promoted to a current-cache observation. Ready GET/CONTEXT prefixes are current-cache observation points under the declared delivery discipline.
+
+## Scope and scheduling premise
+
+The external caller/scheduler must supply immutable raw provider snapshots and complete relevant refresh/rebuild dispatch before an admitted equal-setter or declared current-cache observation. A style delivery with stale offsets does not satisfy this premise. The explicit offset-then-style sequence proves restoration; missing-timeline cases demonstrate the withheld state. The proof does not claim scheduler liveness, universal browser freshness, parsing/JS reentrancy correctness or rendered equivalence.
+
+The model's pending bit and historical certificates are mathematical metadata, not added Gecko fields. The finite trace monitor checks their correspondence through actual raw provider inputs and complete extracted control flow. There is no verified Python/C++→Lean translator. Numeric native agreement retains the declared tolerance, while kernel proofs use rational values and typed optional values. The universal sequence result, finite native checks, complete source/extraction authentication and external scheduling premise must be reported together.
