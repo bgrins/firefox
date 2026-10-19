@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **58 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **59 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -57,6 +57,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | attr-typed-fallback-eligibility | `e3ba54f6f826fe265eb5bc4731f66f64465dd47c` | `30c8dfeb4b746104b53ad5bc6440c1d53734f570` |
 | attr-noncustom-dependency-collection | `3892ab844694fedd987f5ce1dd2165f53fc2dbed` | `0db19774e6f2bf6692790459f8e6e54ca426e366` |
 | resolved-unit-dependency-summary | `58200fa81a6f92f92a1898ba2866a2fbcbac0daa` | `03bad7f708329254a9af2073f0b4106ba557e914` |
+| unit-token-classification | `26e0fa16e89eacd9fd9cab0ce6bb1be813d9e406` | `2e1f5f62c8a6325679a83adc7f637e104c488bf7` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1411,3 +1412,14 @@ Evidence and independent reviews precede it in `03bad7f708329254a9af2073f0b4106b
 composition is conditional on token/provider correspondence; full tokenizer and
 graph proofs remain open. Incomplete env payload scans retain their previous
 behavior, and added scan cost is unmeasured.
+
+## Token-category dependency repair committed
+
+`26e0fa16e89eacd9fd9cab0ce6bb1be813d9e406` contains the Dimension-only guard and its 14-case WPT.
+Identifiers, URLs, at-keywords and hashes no longer acquire false relative-unit
+dependencies from their spelling. Seven baseline failures are repaired; all
+241 checks pass. Evidence precedes the repair in `2e1f5f62c8a6325679a83adc7f637e104c488bf7`. The patch applies
+and reverses against retained upstream/main `976279105b2e78b8666a959eb3f25c9176cefaf8`
+without earlier local fixes; that isolated base was not built or browser-tested.
+The discovery came from manual source/spec admission review, not a new Lean
+counterexample. Full tokenizer and graph proofs remain open.

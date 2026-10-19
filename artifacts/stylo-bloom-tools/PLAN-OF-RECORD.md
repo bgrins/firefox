@@ -18,11 +18,12 @@ Immediate next steps:
 3. Resolved relative-unit summaries are signed as `58200fa81a6f92f92a1898ba2866a2fbcbac0daa`. All 21 new,
    13 diagnostic and 193 prior checks pass; 13 baseline failures are repaired.
    Selected-output Lean composition remains conditional on actual tokenizer and
-   provider correspondence. Incomplete env payloads retain old behavior. Next,
-   browser-confirm the independently audited original-parser token-classification
-   candidate: identifiers and URLs that spell unit names may create false font
-   cycles. The fourteen-case probe predicts seven failures; it is not yet run.
-   Preserve the separate ambiguous unused-relative-fallback oracle.
+   provider correspondence. Incomplete env payloads retain old behavior. The
+   original-parser token-category repair is signed as `26e0fa16e89eacd9fd9cab0ce6bb1be813d9e406`:
+   seven failures fixed, all 241 checks pass. Native lexer admission is next,
+   including source-bound fast_match_byte dispatch equivalence; full progress,
+   UTF-8 boundary and suffix-restart obligations remain open. Preserve the
+   separate ambiguous unused-relative-fallback oracle.
 4. Continue cascade source/observer and hyphenation stateful consumer admissions,
    including actual reflow-to-display tab-cache coverage and lifetime. Preserve
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
@@ -42,7 +43,7 @@ close these obligations.
 
 ## Latest commit and proof checkpoint
 
-There are 58 signed standalone native/WPT fixes. Worker font removal is now
+There are 59 signed standalone native/WPT fixes. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
@@ -3006,3 +3007,19 @@ The next original-parser token-category audit is frozen in
 `../css-unit-token-classification-audit-v1/REPORT.md`; browser confirmation and
 repair acceptance remain pending. FontFace integration remains queued after the
 attribute/parser work, with its fresh baseline and platform build gates open.
+
+## Dimension token acceptance checkpoint
+
+`26e0fa16e89eacd9fd9cab0ce6bb1be813d9e406` follows companion `2e1f5f62c8a6325679a83adc7f637e104c488bf7`. The frozen fourteen-case test
+reproduced seven failures exactly as predicted, then all 241 paired checks pass
+with only the intended native source and binaries changing. Build passes; lint
+reports only the ignored-WPT warning. Independent review and exact application
+to retained upstream/main confirm this repair does not require the earlier
+local fixes. The old March origin/main reference predates the current storage
+API; its failed applicability check is retained rather than treated as an
+upstream test. Neither check is a clean-base build.
+
+Next work runs in parallel: source-bound tokenizer feature admission and root
+preparation for the reviewed FontFace provider candidate. The latter still needs
+a fresh fixed 68-case baseline, macOS build/pair and explicit remaining platform
+and lifetime gates. No FontFace native repair is accepted yet.
