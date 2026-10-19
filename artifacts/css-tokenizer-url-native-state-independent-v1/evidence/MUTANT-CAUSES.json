@@ -1,0 +1,86 @@
+{
+  "native": [
+    {
+      "id": "astral-line-start",
+      "row": 15,
+      "input": "url(é𝄞)",
+      "actual_exit": [
+        11,
+        5,
+        0
+      ],
+      "expected_exit": [
+        11,
+        3,
+        0
+      ],
+      "cause": "intro changed subtract-one to add-one; final lineStart differs by 2"
+    },
+    {
+      "id": "continuation-line-start",
+      "row": 15,
+      "input": "url(é𝄞)",
+      "actual_exit": [
+        11,
+        4294967291,
+        0
+      ],
+      "expected_exit": [
+        11,
+        3,
+        0
+      ],
+      "cause": "continuation changed add-one to subtract-one; four continuation bytes make difference 8 modulo 2^32"
+    },
+    {
+      "id": "bulk-last-newline",
+      "row": 58,
+      "input": "url(\r\n\r\f\té𝄞)tail",
+      "actual_exit": [
+        16,
+        10,
+        12
+      ],
+      "expected_exit": [
+        16,
+        11,
+        12
+      ],
+      "cause": "last-newline assignment omits +1; old58 survival retained and reproduced"
+    },
+    {
+      "id": "bad-capture-after-close",
+      "row": 22,
+      "input": "url(a b)tail",
+      "actual_raw": "a b)",
+      "expected_raw": "a b",
+      "actual_end": 8,
+      "expected_end": 7,
+      "source_bytes": 12,
+      "cause": "slice moved after closing parenthesis; end equals exit yet not EOF; intended endpoint assertion fails"
+    }
+  ],
+  "lean": [
+    {
+      "id": "astral-sign",
+      "witness": "intro 0 lineStart = 1",
+      "rejected": "intro relation; initial wrap and location concrete decide propositions false"
+    },
+    {
+      "id": "capture-after-close",
+      "witness": "run [41] initial.rawEnd = 1",
+      "rejected": "URLNativeBad positions/capture close branch reduces to False"
+    },
+    {
+      "id": "bulk-last-newline",
+      "witness": "apply 1 <1,0> at offset4 lineStart=4",
+      "rejected": "bulk metadata field relation, omega counterexample"
+    },
+    {
+      "id": "quote-rollback",
+      "witness": "run [space,quote] at offset4 returns Function at5",
+      "rejected": "quote rollback requires bulk application to equal unchanged initial state"
+    }
+  ],
+  "verdict": "All four native and four Lean mutations fail for intended state/span or theorem discrepancies; successful compiled semantic witnesses and full logs retained. Validator blocker is independent."
+}

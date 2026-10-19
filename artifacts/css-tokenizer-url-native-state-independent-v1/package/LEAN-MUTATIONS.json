@@ -1,0 +1,30 @@
+[
+  {
+    "id": "astral-sign",
+    "module": "URLNativeState",
+    "old": "currentLineStart:=wrap (s.currentLineStart-1)",
+    "new": "currentLineStart:=wrap (s.currentLineStart+1)",
+    "witness": "example : intro \u27e80,0,0\u27e9 = \u27e81,1,0\u27e9 := by decide"
+  },
+  {
+    "id": "capture-after-close",
+    "module": "URLNativeBad",
+    "old": "if b==41 then \u27e8advance s 1,s.position,true,1\u27e9",
+    "new": "if b==41 then \u27e8advance s 1,s.position+1,true,1\u27e9",
+    "witness": "example : (run [41] \u27e80,0,0\u27e9).rawEnd=1 := by simp [run,advance]"
+  },
+  {
+    "id": "bulk-last-newline",
+    "module": "URLNativeLeadingBulk",
+    "old": "currentLineStart:=wrap (s.position+stats.last+1)",
+    "new": "currentLineStart:=wrap (s.position+stats.last)",
+    "witness": "example : (apply 1 \u27e81,0\u27e9 \u27e84,0,0\u27e9).currentLineStart=4 := by decide"
+  },
+  {
+    "id": "quote-rollback",
+    "module": "URLNativeLeading",
+    "old": "else if URLLeading.quote b then .function s",
+    "new": "else if URLLeading.quote b then .function (URLNativeLeadingBulk.apply index stats s)",
+    "witness": "example : run [32,34] \u27e84,0,0\u27e9 = .function \u27e85,0,0\u27e9 := by decide"
+  }
+]
