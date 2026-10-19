@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Attribute taint through registered property interpolation</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-security">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@property --animation-taint-number {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+</style>
+<body>
+<script>
+const image = 'url("about:blank#animation-taint")';
+const attribute = "attr(data-value type(<number>))";
+
+for (const [name, from, to, expected] of [
+  ["untainted endpoints", "0", "42", image],
+  ["tainted end value", "0", attribute, "none"],
+  ["tainted start value", attribute, "0", "none"],
+]) {
+  test(t => {
+    const target = document.createElement("div");
+    target.dataset.value = "42";
+    target.style.backgroundImage =
+      `if(style(--animation-taint-number: 21): ${image}; else: none)`;
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    const animation = target.animate(
+      { "--animation-taint-number": [from, to] },
+      { duration: 1000, fill: "both" }
+    );
+    t.add_cleanup(() => animation.cancel());
+    animation.pause();
+    animation.currentTime = 500;
+    const style = getComputedStyle(target);
+    assert_equals(style.getPropertyValue("--animation-taint-number"), "21");
+    assert_equals(style.backgroundImage, expected);
+  }, `Interpolation with ${name}`);
+}
+
+test(t => {
+  const target = document.createElement("div");
+  target.dataset.value = "42";
+  target.style.setProperty("--animation-taint-number", attribute);
+  target.style.backgroundImage =
+    `if(style(--animation-taint-number: 42): ${image}; else: none)`;
+  document.body.append(target);
+  t.add_cleanup(() => target.remove());
+  const style = getComputedStyle(target);
+  assert_equals(style.getPropertyValue("--animation-taint-number"), "42");
+  assert_equals(style.backgroundImage, "none");
+}, "Direct attribute value remains tainted");
+</script>

@@ -1,0 +1,40 @@
+--- head/servo/ports/geckolib/glue.rs
++++ current/servo/ports/geckolib/glue.rs
+@@ -7620,10 +7620,33 @@
+ 
+             let declarations = unsafe { &*property.mServoDeclarationBlock.mRawPtr };
+             let guard = declarations.read_with(&guard);
+-            let iter = guard.to_animation_value_iter(&mut context, style, &default_values);
+-
+-            for value in iter {
+-                maybe_append_animation_value(value.id(), Some(value.clone()));
++            for declaration in guard.normal_declaration_iter() {
++                if let PropertyDeclaration::Custom(custom) = declaration
++                    && matches!(custom.value, style::properties::CustomDeclarationValue::Unparsed(_))
++                {
++                    let registration = data.stylist.get_custom_property_registration(&custom.name);
++                    if !registration.is_universal() {
++                        let value = context.builder.custom_properties().get(registration, &custom.name);
++                        let value = AnimationValue::Custom(
++                            style::properties_and_values::value::CustomAnimatedValue::from_computed(
++                                &custom.name,
++                                value,
++                            ),
++                        );
++                        maybe_append_animation_value(value.id(), Some(value.clone()));
++                        continue;
++                    }
++                }
++
++                if let Some(value) = AnimationValue::from_declaration(
++                    declaration,
++                    &mut context,
++                    style,
++                    &default_values,
++                    &mut AttributeTracker::new_dummy(),
++                ) {
++                    maybe_append_animation_value(value.id(), Some(value.clone()));
++                }
+             }
+         }
+     }

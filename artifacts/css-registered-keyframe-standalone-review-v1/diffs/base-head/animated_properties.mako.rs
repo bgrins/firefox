@@ -1,0 +1,12 @@
+--- base/servo/components/style/properties/helpers/animated_properties.mako.rs
++++ head/servo/components/style/properties/helpers/animated_properties.mako.rs
+@@ -380,8 +380,7 @@
+                         context.builder.stylist.is_some(),
+                         "Need a Stylist to substitute variables!"
+                     );
+-                    declaration.value.substitute_variables(
+-                        declaration.id,
++                    declaration.substitute_variables(
+                         substitution_functions,
+                         context.builder.stylist.unwrap(),
+                         context,

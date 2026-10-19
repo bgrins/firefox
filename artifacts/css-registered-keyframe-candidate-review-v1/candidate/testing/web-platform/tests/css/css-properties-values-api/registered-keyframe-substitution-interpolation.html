@@ -1,0 +1,78 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered custom property keyframes interpolate substituted values</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#animation-behavior">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@property --keyframe-number {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+@property --keyframe-inherited {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+</style>
+<body>
+<script>
+for (const [name, from, to] of [
+  ["literal control", "0", "42"],
+  ["attribute end value", "0", "attr(data-value type(<number>))"],
+  ["attribute start value", "attr(data-value type(<number>))", "0"],
+  ["attribute fallback", "0", "attr(data-missing type(<number>), 42)"],
+  ["variable end value", "0", "var(--endpoint)"],
+  ["calculation end value control", "0", "calc(40 + 2)"],
+]) {
+  test(t => {
+    const target = document.createElement("div");
+    target.dataset.value = "42";
+    target.style.setProperty("--endpoint", "42");
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    const animation = target.animate(
+      { "--keyframe-number": [from, to] },
+      { duration: 1000, fill: "both" }
+    );
+    t.add_cleanup(() => animation.cancel());
+    animation.pause();
+    animation.currentTime = 500;
+    assert_equals(
+      getComputedStyle(target).getPropertyValue("--keyframe-number"), "21"
+    );
+  }, `Registered number interpolation: ${name}`);
+}
+
+for (const [property, endpoint, expected] of [
+  ["--keyframe-number", "initial", "7"],
+  ["--keyframe-number", "unset", "7"],
+  ["--keyframe-number", "inherit", "22"],
+  ["--keyframe-number", "invalid", "7"],
+  ["--keyframe-number", "var(--missing)", "7"],
+  ["--keyframe-inherited", "initial", "7"],
+  ["--keyframe-inherited", "unset", "22"],
+  ["--keyframe-inherited", "inherit", "22"],
+  ["--keyframe-inherited", "invalid", "22"],
+  ["--keyframe-inherited", "var(--missing)", "22"],
+]) {
+  test(t => {
+    const parent = document.createElement("div");
+    const target = document.createElement("div");
+    parent.style.setProperty(property, "30");
+    target.style.setProperty(property, "42");
+    parent.append(target);
+    document.body.append(parent);
+    t.add_cleanup(() => parent.remove());
+    const animation = target.animate(
+      { [property]: ["14", endpoint] }, { duration: 1000, fill: "both" }
+    );
+    t.add_cleanup(() => animation.cancel());
+    animation.pause();
+    animation.currentTime = 500;
+    assert_equals(getComputedStyle(target).getPropertyValue(property), expected);
+  }, `${property} interpolates ${endpoint} independently of the base value`);
+}
+</script>
