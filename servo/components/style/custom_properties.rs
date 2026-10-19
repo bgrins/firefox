@@ -840,7 +840,7 @@ impl AttrTaint {
     pub fn should_disallow_urls_in_range(&self, range: &AttrTaintedRange) -> bool {
         self.0
             .iter()
-            .any(|r| r.start <= range.end && r.end >= range.start)
+            .any(|r| r.start.max(range.start) < r.end.min(range.end))
     }
 
     /// Returns true if the attr()-tainted range contains no elements.
