@@ -1036,7 +1036,7 @@ uint32_t gfxTextRun::BreakAndMeasureText(
             // we need to go back to the start of the current word.
             // So, we can correct the wrong candidates that we set
             // in the previous runs of the loop.
-            if (prevMostRecentWordBoundary < oldHyphenBufferLength) {
+            if (prevMostRecentWordBoundary < bufferRange.start) {
               rescanLimit = i;
               i = prevMostRecentWordBoundary - 1;
               continue;

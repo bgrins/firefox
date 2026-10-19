@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hyphenation measurement after preceding lines</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-3/#valdef-hyphens-auto">
+<link rel="stylesheet" href="/fonts/ahem.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.sample {
+  width: 1200px;
+  margin: 0;
+  font: 10px/20px Ahem;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphenate-limit-chars: 5 2 2;
+}
+</style>
+<div id="log"></div>
+<script>
+function makeSample(text, hyphens) {
+  const element = document.createElement("div");
+  element.className = "sample";
+  element.lang = "en-US";
+  element.style.hyphens = hyphens;
+  element.textContent = text;
+  document.body.append(element);
+  return element;
+}
+
+function position(element, offset) {
+  const range = document.createRange();
+  range.setStart(element.firstChild, offset);
+  range.setEnd(element.firstChild, offset + 1);
+  const rect = range.getBoundingClientRect();
+  return {x: rect.x - element.getBoundingClientRect().x, y: rect.y};
+}
+
+for (const [name, word] of [
+  ["counterrevolutionaries", "counterrevolutionaries".repeat(8)],
+  ["characteristically", "characteristically".repeat(10)],
+]) {
+  for (const [hyphens, soft] of [["auto", true], ["auto", false], ["manual", true], ["none", true]]) {
+    promise_test(async t => {
+      await document.fonts.load("10px Ahem");
+      await document.fonts.ready;
+      const target = soft ? word.slice(0, 110) + "\u00ad" + word.slice(110) : word;
+      const body = "a".repeat(20) + " " + target;
+      const direct = makeSample(body, hyphens);
+      const shifted = makeSample("x ".repeat(120) + body, hyphens);
+      t.add_cleanup(() => { direct.remove(); shifted.remove(); });
+      const a = position(direct, 0);
+      const b = position(shifted, 240);
+      assert_approx_equals(a.x, 0, 0.01, "Direct suffix starts at line origin");
+      assert_approx_equals(b.x, 0, 0.01, "Shifted suffix starts at line origin");
+      const shiftedStart = position(shifted, 0);
+      assert_approx_equals(b.y - shiftedStart.y, 40, 0.01, "Prefix occupies exactly two complete lines");
+      for (let i = 0; i < body.length; i++) {
+        if (body[i] === "\u00ad" || body[i] === " ") continue;
+        const left = position(direct, i);
+        const right = position(shifted, 240 + i);
+        assert_approx_equals(right.x, left.x, 0.01, `x at suffix offset ${i}`);
+        assert_approx_equals(right.y - b.y, left.y - a.y, 0.01, `line at suffix offset ${i}`);
+      }
+    }, `${name}: ${hyphens}, conditional hyphen ${soft ? "present" : "absent"}`);
+  }
+}
+</script>
