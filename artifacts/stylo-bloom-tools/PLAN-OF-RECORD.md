@@ -43,7 +43,10 @@ serialization. No additional browser bug was found.
 Next join this accepted component to legal mixed public operation histories and
 actual caller readiness. A separate declarative parser-winner proof is active in
 `../css-declaration-parse-winner-proof-v1/`: last important occurrence, otherwise
-last occurrence, retained in original source order.
+last occurrence, retained in original source order. Its producer is frozen with
+46 new universal lemmas and nine kernel examples; independent review is in
+progress. It also characterizes push/extend return flags without equating a true
+flag to a different final serialization. No new native execution is claimed.
 
 ### 2. URL state accepted; continue public parser histories
 
@@ -80,6 +83,17 @@ Static caller review completed without a new bug. It retains native callback
 stability and animation-map key/value identity coherence as provider premises.
 [Audit](../css-declaration-public-operations-static-v1/REPORT.md).
 
+The source-shaped changing-vector removal loop is under active proof in
+`../css-declaration-native-removal-loop-v1/`; its selected index, local length,
+read bounds and same-index-on-removal behavior are being joined to this model.
+
+Animation identity follow-up found no reachable key/value mismatch. Non-null
+keyframe entries derive keys from computed values, base extraction uses the map
+key, and transition replacement checks the owning property before assignment.
+Segment grouping, option readiness, composition histories and generated layout
+remain proof obligations. Non-NaN offset validity is required by the grouping
+control flow. [Source audit](../css-declaration-animation-identity-static-v1/REPORT.md).
+
 ## Next, in priority order
 
 1. Complete the active components above and their review/commit gates.
@@ -102,7 +116,8 @@ stability and animation-map key/value identity coherence as provider premises.
 
 ## Accepted checkpoints
 
-- **Ordinary declaration batching:** accepted indexed/scheduled batch refinement
+- **Ordinary declaration batching:** `bb029748eaa6f3aab43b3afa58a1ab0c594ddc2d`
+  accepts indexed/scheduled batch refinement
   and optional-publication transfer under explicit native/source admissions.
   [Acceptance](../css-declaration-batch-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
 - **URL mutable state and raw capture:** `e69ef82d29d9c3c9f9244a5174c46245634a3f89`
