@@ -186,8 +186,8 @@ syn/quote, primitive representation and Rust compiler semantics remain external.
 1. Refine complete name and escape consumption, proving return boundaries and
    positive progress under actual `is_ident_start` admission. Internal byte
    advances need not preserve UTF-8 boundaries.
-2. Transfer numeric lexical refinement to the repaired current source and admit
-   its added slice/conversion path. Refine string, comment and URL providers,
+2. Complete native admission beyond the conditional numeric repair transfer
+   recorded below. Refine string, comment and URL providers,
    including early returns, owned buffers, invalid tokens and lookahead.
    Helpers do not all advance.
 3. Establish native arithmetic/input-size admission from all persistence paths;
@@ -262,3 +262,21 @@ must prove captured prefix/slice and Rust FromStr grammar admission plus
 normal-return conditions before transferring lexical projections. No whole
 tokenizer, floating-point or CSS correctness is claimed.
 Evidence: `../css-tokenizer-numeric-admission-root-v1/ROOT-ACCEPTANCE.json`.
+
+## Repaired numeric lexical component checkpoint
+
+Root and independent review accept the v2 additive component for current
+repair62. The 23-module replay has 158 exact theorem audits (28 new); 90
+original/candidate rows preserve lexical observations, and 84 instrumentation
+traces match independent numeric-prefix/offset expectations. A compiled
+extended-slice mutation fails, and changed source is rejected before replay.
+
+The model derives consumed-prefix membership in the documented Rust numeric
+grammar and captured-slice ASCII/boundary/bounds facts. Projection preservation
+is an unchanged-source wrapper argument conditional on the borrowed parser
+API and successful normal return. FromStr implementation/termination, numeric
+values, codec/UTF8 representation, usize/packed metadata, heap/compiler and
+whole-tokenizer composition remain open. The rejecting-library and changed-
+payload witnesses prevent unconditional completion or value claims.
+
+Evidence: `../css-tokenizer-numeric-repair-integration-root-v1/ROOT-ACCEPTANCE.json`.

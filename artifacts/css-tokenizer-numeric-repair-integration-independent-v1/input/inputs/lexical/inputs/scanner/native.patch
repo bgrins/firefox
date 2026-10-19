@@ -1,0 +1,68 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -926,6 +926,26 @@
+     }
+ }
+ 
++fn resolved_token_dependencies(mut css: &str) -> Option<ReferenceFlags> {
++    let mut flags = ReferenceFlags::empty();
++    while !css.is_empty() {
++        // Restart at each token to visit block contents without recursion.
++        let mut input = Parser::new(css);
++        match input.next_including_whitespace_and_comments().ok()? {
++            Token::Dimension { unit, .. } => flags.insert(ReferenceFlags::from_unit(unit)),
++            Token::Function(name) if SubstitutionFunctionKind::from_ident(name).is_ok() => {
++                return None;
++            },
++            Token::BadUrl(_) | Token::BadString(_) => return None,
++            _ => {},
++        }
++        let consumed = input.position().byte_index();
++        debug_assert!(consumed > 0);
++        css = &css[consumed..];
++    }
++    Some(flags)
++}
++
+ impl VariableValue {
+     fn empty(url_data: &UrlExtraData) -> Self {
+         Self {
+@@ -954,6 +974,20 @@
+             references: References::default(),
+             explicitly_attr_tainted: false,
+         }
++    }
++
++    fn new_resolved(
++        css: String,
++        url_data: &UrlExtraData,
++        first_token_type: TokenSerializationType,
++        last_token_type: TokenSerializationType,
++    ) -> Self {
++        let mut value = Self::new(css, url_data, first_token_type, last_token_type);
++        // Unresolved env payloads keep the previous empty summary.
++        if let Some(flags) = resolved_token_dependencies(&value.css) {
++            value.references.flags = flags;
++        }
++        value
+     }
+ 
+     fn push(
+@@ -1636,7 +1670,7 @@
+                 .insert_var(registration, name, value);
+         },
+         Some(namespace) => {
+-            let mut value = ComputedRegisteredValue::universal(Arc::new(VariableValue::new(
++            let mut value = ComputedRegisteredValue::universal(Arc::new(VariableValue::new_resolved(
+                 substitution.css.into_owned(),
+                 url_data,
+                 substitution.first_token_type,
+@@ -1677,7 +1711,7 @@
+         property_id: Option<PropertyIdRef>,
+     ) -> Result<ComputedRegisteredValue, ()> {
+         if registration.is_universal() {
+-            let mut value = ComputedRegisteredValue::universal(Arc::new(VariableValue::new(
++            let mut value = ComputedRegisteredValue::universal(Arc::new(VariableValue::new_resolved(
+                 self.css.into_owned(),
+                 url_data,
+                 self.first_token_type,

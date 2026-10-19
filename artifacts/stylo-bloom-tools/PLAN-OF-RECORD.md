@@ -6,11 +6,14 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 Immediate next steps:
 
-1. Transfer the accepted original numeric lexical model to the repaired source:
-   captured prefix/slice, forward position subtraction, Rust FromStr grammar
-   and normal return, then unchanged lexical/unit projections. Root and
-   independent original-model replays pass 20 modules and 130 audits; full
-   numerical conversion and native library correctness remain open.
+1. Numeric lexical transfer to the repaired source is conditionally accepted.
+   Root and independent fresh replays pass 23 modules and 158 exact audits
+   (28 new), 90 native source-pair comparisons and 84 captured-slice checks.
+   The model derives the consumed-prefix Rust grammar and slice bounds, then
+   preserves lexical/unit projections under the explicit normal-return and
+   library contract. Full numerical conversion and native library correctness
+   remain open; next compose this component with the remaining token providers.
+   Evidence: css-tokenizer-numeric-repair-integration-root-v1/ROOT-ACCEPTANCE.json.
 2. Prove complete string and comment providers, beginning with comment loops
    and observer state. The sealed static audit and fresh root replay pass 646
    extracted cases in debug/release; all 21 new browser controls pass and eight

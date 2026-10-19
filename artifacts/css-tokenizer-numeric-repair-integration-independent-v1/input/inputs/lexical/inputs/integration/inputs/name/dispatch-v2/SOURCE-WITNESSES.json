@@ -1,0 +1,37 @@
+{
+  "status": "source-derived operational witnesses; no fresh native execution",
+  "witnesses": [
+    {
+      "name": "advance-is-not-a-scalar-boundary-step",
+      "source": "consume_name / advance_while / consume_continuation_byte",
+      "input": "é ",
+      "entry_position": 0,
+      "intermediate_position": 1,
+      "return_position": 2,
+      "reason": "Fast name table admits UTF-8 leader C3; continuation A9 is consumed in a separate branch. Valid native temporary state, not a scanner bug."
+    },
+    {
+      "name": "quoted-url-helper-can-return-without-progress",
+      "source": "consume_ident_like / consume_unquoted_url",
+      "input": "url( \n\"1em\")",
+      "helper_entry_position": 4,
+      "helper_return_position": 4,
+      "token_return_position": 4,
+      "reason": "Initial lookahead sees quote and returns Err without moving; name and opening parenthesis already guarantee overall progress."
+    },
+    {
+      "name": "unadmitted-name-can-be-empty",
+      "source": "consume_name / is_ident_start",
+      "input": "\\\n",
+      "helper_entry_position": 0,
+      "helper_return_position": 0,
+      "reason": "Owned-name path stops at escaped newline; dispatcher does not call name on this initial input."
+    },
+    {
+      "name": "public-parser-is-not-flat-lexical-reference",
+      "source": "skip_block_at_start / next_including_whitespace_and_comments",
+      "input": "calc(1em) 2px",
+      "reason": "Second public parser next skips calc contents. Suffix restart is intended to visit interior Dimension, so equivalence must use raw lexer with block markers cleared."
+    }
+  ]
+}

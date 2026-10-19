@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Finite CSS numeric values survive compensating exponents</title>
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-a-number">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#numeric-types">
+<link rel="help" href="https://drafts.csswg.org/css-color-4/#transparency">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const cases = [
+  ["literal half", "0.5", 0.5],
+  ["ordinary exponent half", "5e-1", 0.5],
+  ["overflowing coefficient with finite compensating factor", "5" + "0".repeat(308) + "e-309", 0.5],
+  ["overflowing coefficient with underflowing compensating factor", "5" + "0".repeat(399) + "e-400", 0.5],
+  ["underflowing fraction with overflowing compensating factor", "0." + "0".repeat(399) + "5e399", 0.5],
+  ["zero with large positive exponent", "0e999", 0],
+  ["genuinely large value clamps opacity", "1e999", 1],
+];
+for (const [name, input, expected] of cases) {
+  test(t => {
+    const target = document.createElement("div");
+    target.style.opacity = "0.25";
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    assert_equals(getComputedStyle(target).opacity, "0.25", "Initial calibration");
+    assert_true(CSS.supports("opacity", input), "The numeric syntax is supported");
+    target.style.opacity = input;
+    assert_approx_equals(Number(getComputedStyle(target).opacity), expected, 0.00001,
+      "Computed opacity reflects the complete numeric literal");
+  }, name);
+}
+</script>

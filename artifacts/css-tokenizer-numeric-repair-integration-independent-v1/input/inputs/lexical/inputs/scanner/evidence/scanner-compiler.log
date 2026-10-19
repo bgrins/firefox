@@ -1,0 +1,93 @@
+warning: unnecessary transmute
+   --> /private/tmp/resolved-summary-final-replay-v2/source/scanner/vendor/dtoa/src/diyfp.rs:120:29
+    |
+120 |           let u: $mask_type = mem::transmute(d);
+    |                               --------------^^^
+    |                               |
+    |                               help: replace this with: `f32::to_bits`
+    |
+   ::: /private/tmp/resolved-summary-final-replay-v2/source/scanner/vendor/dtoa/src/lib.rs:84:9
+    |
+ 84 | /         dtoa! {
+ 85 | |             floating_type: f32,
+ 86 | |             significand_type: u32,
+ 87 | |             exponent_type: i32,
+...   |
+ 98 | |             min_power: (-36),
+ 99 | |         };
+    | |_________- in this macro invocation
+    |
+    = note: `#[warn(unnecessary_transmutes)]` on by default
+    = note: this warning originates in the macro `diyfp` which comes from the expansion of the macro `dtoa` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: the type `[u8; 24]` does not permit being left uninitialized
+   --> /private/tmp/resolved-summary-final-replay-v2/source/scanner/vendor/dtoa/src/dtoa.rs:493:36
+    |
+493 |           let mut buffer: [u8; 24] = mem::uninitialized();
+    |                                      ^^^^^^^^^^^^^^^^^^^^
+    |                                      |
+    |                                      this code causes undefined behavior when executed
+    |                                      help: use `MaybeUninit<T>` instead, and only call `assume_init` after initialization is done
+    |
+   ::: /private/tmp/resolved-summary-final-replay-v2/source/scanner/vendor/dtoa/src/lib.rs:84:9
+    |
+ 84 | /         dtoa! {
+ 85 | |             floating_type: f32,
+ 86 | |             significand_type: u32,
+ 87 | |             exponent_type: i32,
+...   |
+ 98 | |             min_power: (-36),
+ 99 | |         };
+    | |_________- in this macro invocation
+    |
+    = note: integers must be initialized
+    = note: `#[warn(invalid_value)]` on by default
+    = note: this warning originates in the macro `dtoa` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unnecessary transmute
+   --> /private/tmp/resolved-summary-final-replay-v2/source/scanner/vendor/dtoa/src/diyfp.rs:120:29
+    |
+120 |           let u: $mask_type = mem::transmute(d);
+    |                               --------------^^^
+    |                               |
+    |                               help: replace this with: `f64::to_bits`
+    |
+   ::: /private/tmp/resolved-summary-final-replay-v2/source/scanner/vendor/dtoa/src/lib.rs:106:9
+    |
+106 | /         dtoa! {
+107 | |             floating_type: f64,
+108 | |             significand_type: u64,
+109 | |             exponent_type: isize,
+...   |
+120 | |             min_power: (-348),
+121 | |         };
+    | |_________- in this macro invocation
+    |
+    = note: this warning originates in the macro `diyfp` which comes from the expansion of the macro `dtoa` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: the type `[u8; 24]` does not permit being left uninitialized
+   --> /private/tmp/resolved-summary-final-replay-v2/source/scanner/vendor/dtoa/src/dtoa.rs:493:36
+    |
+493 |           let mut buffer: [u8; 24] = mem::uninitialized();
+    |                                      ^^^^^^^^^^^^^^^^^^^^
+    |                                      |
+    |                                      this code causes undefined behavior when executed
+    |                                      help: use `MaybeUninit<T>` instead, and only call `assume_init` after initialization is done
+    |
+   ::: /private/tmp/resolved-summary-final-replay-v2/source/scanner/vendor/dtoa/src/lib.rs:106:9
+    |
+106 | /         dtoa! {
+107 | |             floating_type: f64,
+108 | |             significand_type: u64,
+109 | |             exponent_type: isize,
+...   |
+120 | |             min_power: (-348),
+121 | |         };
+    | |_________- in this macro invocation
+    |
+    = note: integers must be initialized
+    = note: this warning originates in the macro `dtoa` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: 4 warnings emitted
+
+SCANNER_PASS deep_groups=100000 depth=300000 stack=65536
