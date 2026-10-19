@@ -19,9 +19,11 @@ Immediate next steps:
    persistence sinks. Three browser failures are retained: attribute cycle,
    universal-chain cycle and acyclic 1em ordering (23px instead of 17px).
    Use successful output tokens, preserve bytes/taint and avoid unused-fallback
-   contamination. Selected-output Lean composition is underway; tokenizer and
-   separator admission, bounded-stack scanning and unresolved env payloads
-   need explicit treatment. The unused-relative-fallback oracle is ambiguous.
+   contamination. Selected-output Lean composition is signed as `5e683f6f79b008037878453525df4cce3707efba`:
+   root replay passes three modules, 25 audits and four semantic mutation gates.
+   Tokenizer/serialization admission and actual native scanner gates remain open.
+   The source-reviewed suffix scan avoids recursion/depth cutoffs; unresolved env
+   payloads explicitly retain old behavior outside complete-summary correspondence. The unused-relative-fallback oracle is ambiguous.
 4. Continue cascade source/observer and hyphenation stateful consumer admissions,
    including actual reflow-to-display tab-cache coverage and lifetime. Preserve
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
@@ -2978,3 +2980,15 @@ manual admission analysis identified the missing collection and summary paths,
 then browser probes confirmed the predictions. Full SCC correctness remains open.
 FontFace now has an independent sealed source review; expanded window/worker
 WPT preparation is underway before fresh baseline, integration and platform gates.
+
+## Selected-output model and FontFace preparation
+
+Model `5e683f6f79b008037878453525df4cce3707efba` proves arbitrary selected-stream summary composition,
+inert separators and unused-fallback independence. The tokenizer bridge assumes
+actual token correspondence; it is not native parser or graph verification.
+The native scanner candidate is still under source/scanner/WPT preparation.
+FontFace readiness/test proposal commit `1310e24935af5dddf9768261c216089b25b63bd3`
+contains independently reviewed source readiness and 68 proposed browser cases.
+Root replay authenticates the source closure and test registration, not browser
+behavior. No FontFace native patch or build is accepted; local font admission,
+loading-race scheduling and platform compilation remain open.
