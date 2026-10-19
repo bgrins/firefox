@@ -1,0 +1,23 @@
+[
+  {
+    "id": "omit-form-feed",
+    "module": "WrapperWhitespace",
+    "old": "b=10 \u2228 b=12 \u2228 b=13",
+    "new": "b=10 \u2228 b=13",
+    "witness": "example : nativeUnit [12]=none := by decide"
+  },
+  {
+    "id": "raw-scan-clears-cache",
+    "module": "WrapperWhitespace",
+    "old": " { s with cursor := {s.cursor with position:=s.cursor.position+u.count},",
+    "new": " { s with cache := none, cursor := {s.cursor with position:=s.cursor.position+u.count},",
+    "witness": "def sample : State := {constructor \u27e8none,none\u27e9 with cache:=some \u27e80,\u27e8.colon,\u27e81,none\u27e9\u27e9\u27e9}\nexample : (run [32] 2 sample).cache=none := by decide"
+  },
+  {
+    "id": "omit-pending-cleanup",
+    "module": "WrapperSkip",
+    "old": " let pending := PublicCleanup.pending bytes.length read names s",
+    "new": " let pending : PublicCleanup.Output := \u27e8s,[],true\u27e9",
+    "witness": "def source : List Byte := [40,41]\ndef reader := ByteLex.read (fun _ _=>1) source\ndef opened := (PublicNext.native source reader (fun _=>false) [] (constructor \u27e8none,none\u27e9)).state\nexample : (native source reader [] opened).state.cursor=\u27e81,some .parenthesis\u27e9 := by decide"
+  }
+]

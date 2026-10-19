@@ -1,0 +1,119 @@
+[
+  {
+    "input": " \t\r\n\f/*# sourceURL=é */: var()",
+    "ops": [
+      "skip",
+      "next",
+      "enable:var",
+      "next",
+      "query"
+    ],
+    "purpose": "All five whitespace bytes, CRLF, nonASCII comment, cold cache and Colon entry"
+  },
+  {
+    "input": "(var() [env()] {attr(x)}) :",
+    "ops": [
+      "fetch",
+      "enable:var,env,attr",
+      "skip",
+      "query",
+      "next"
+    ],
+    "purpose": "Pending cleanup observes nested Functions before raw prefix"
+  },
+  {
+    "input": ": /*# sourceMappingURL=A */ var()",
+    "ops": [
+      "save",
+      "colon",
+      "reset:0",
+      "colon",
+      "skip",
+      "enable:var",
+      "next",
+      "query"
+    ],
+    "purpose": "Cached successful Colon and raw skip preserve safe entry"
+  },
+  {
+    "input": "var()",
+    "ops": [
+      "save",
+      "next",
+      "reset:0",
+      "enable:var",
+      "next",
+      "query"
+    ],
+    "purpose": "Retained late-enable failure also reaches next wrapper"
+  },
+  {
+    "input": "var()",
+    "ops": [
+      "enable:var",
+      "save",
+      "next",
+      "query",
+      "reset:0",
+      "enable:var",
+      "next",
+      "query"
+    ],
+    "purpose": "Retained query/re-enable failure"
+  },
+  {
+    "input": " \r\n/*# sourceURL= */;var()",
+    "ops": [
+      "nextstop",
+      "fetch",
+      "enable:var",
+      "next",
+      "query"
+    ],
+    "purpose": "Raw skip precedes delimiter gate and distinguishes empty annotation"
+  },
+  {
+    "input": "(/*# sourceMappingURL=A */)/*# sourceMappingURL=B */",
+    "ops": [
+      "fetch",
+      "save",
+      "fetch",
+      "reset:0",
+      "next"
+    ],
+    "purpose": "Raw trailing comment restores B after pending replay A; cache remains B"
+  },
+  {
+    "input": "var() /*# sourceURL=tail",
+    "ops": [
+      "next",
+      "skip",
+      "query",
+      "next"
+    ],
+    "purpose": "Unterminated comment EOF and raw cache preservation"
+  },
+  {
+    "input": "var()",
+    "ops": [
+      "save",
+      "colon",
+      "reset:0",
+      "enable:var",
+      "next",
+      "query"
+    ],
+    "purpose": "Failed Colon must not grant safe entry"
+  },
+  {
+    "input": "url( \r\n x) :",
+    "ops": [
+      "enable:url",
+      "next",
+      "skip",
+      "colon",
+      "query"
+    ],
+    "purpose": "Unquoted URL is not a Function; wrapper whitespace follows consumed URL"
+  }
+]

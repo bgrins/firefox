@@ -1,0 +1,643 @@
+[
+  {
+    "source": "tokenizer.rs",
+    "name": "next_token_unchecked",
+    "indent": 0,
+    "start": 19490,
+    "end": 24337,
+    "sha256": "452792043689d0adaac8abad6615bdd824647298536bd3ad5c9725471d9ad5fa",
+    "full_body": "fn next_token_unchecked<'a>(parser: &mut Parser<'a>) -> Token<'a> {\n    debug_assert!(!parser.is_eof());\n    let b = parser.next_byte_unchecked();\n    match_byte! { b,\n        b' ' | b'\\t' => {\n            consume_whitespace(parser, false)\n        },\n        b'\\n' | b'\\x0C' | b'\\r' => consume_whitespace(parser, true),\n        b'\"' => consume_string(parser, false),\n        b'#' => {\n            parser.advance(1);\n            if is_ident_start(parser) { IDHash(consume_name(parser)) }\n            else if !parser.is_eof() &&\n                matches!(parser.next_byte_unchecked(), b'0'..=b'9' | b'-') {\n                // Any other valid case here already resulted in IDHash.\n                Hash(consume_name(parser))\n            }\n            else { Delim('#') }\n        },\n        b'$' => {\n            if parser.starts_with(b\"$=\") { parser.advance(2); SuffixMatch }\n            else { parser.advance(1); Delim('$') }\n        },\n        b'\\'' => consume_string(parser, true),\n        b'(' => {\n            parser.advance(1);\n            parser.state.set_at_start_of(BlockType::Parenthesis);\n            ParenthesisBlock\n        },\n        b')' => { parser.advance(1); CloseParenthesis },\n        b'*' => {\n            if parser.starts_with(b\"*=\") { parser.advance(2); SubstringMatch }\n            else { parser.advance(1); Delim('*') }\n        },\n        b'+' => {\n            if (\n                parser.has_at_least(1)\n                && parser.byte_at(1).is_ascii_digit()\n            ) || (\n                parser.has_at_least(2)\n                && parser.byte_at(1) == b'.'\n                && parser.byte_at(2).is_ascii_digit()\n            ) {\n                consume_numeric(parser)\n            } else {\n                parser.advance(1);\n                Delim('+')\n            }\n        },\n        b',' => { parser.advance(1); Comma },\n        b'-' => {\n            if (\n                parser.has_at_least(1)\n                && parser.byte_at(1).is_ascii_digit()\n            ) || (\n                parser.has_at_least(2)\n                && parser.byte_at(1) == b'.'\n                && parser.byte_at(2).is_ascii_digit()\n            ) {\n                consume_numeric(parser)\n            } else if parser.starts_with(b\"-->\") {\n                parser.advance(3);\n                CDC\n            } else if is_ident_start(parser) {\n                consume_ident_like(parser)\n            } else {\n                parser.advance(1);\n                Delim('-')\n            }\n        },\n        b'.' => {\n            if parser.has_at_least(1)\n                && parser.byte_at(1).is_ascii_digit() {\n                consume_numeric(parser)\n            } else {\n                parser.advance(1);\n                Delim('.')\n            }\n        }\n        b'/' => {\n            if parser.starts_with(b\"/*\") {\n                Comment(consume_comment(parser))\n            } else {\n                parser.advance(1);\n                Delim('/')\n            }\n        }\n        b'0'..=b'9' => consume_numeric(parser),\n        b':' => { parser.advance(1); Colon },\n        b';' => { parser.advance(1); Semicolon },\n        b'<' => {\n            if parser.starts_with(b\"<!--\") {\n                parser.advance(4);\n                CDO\n            } else {\n                parser.advance(1);\n                Delim('<')\n            }\n        },\n        b'@' => {\n            parser.advance(1);\n            if is_ident_start(parser) { AtKeyword(consume_name(parser)) }\n            else { Delim('@') }\n        },\n        b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'\\0' => consume_ident_like(parser),\n        b'[' => {\n            parser.advance(1);\n            parser.state.set_at_start_of(BlockType::SquareBracket);\n            SquareBracketBlock\n        },\n        b'\\\\' => {\n            if !parser.has_newline_at(1) { consume_ident_like(parser) }\n            else { parser.advance(1); Delim('\\\\') }\n        },\n        b']' => { parser.advance(1); CloseSquareBracket },\n        b'^' => {\n            if parser.starts_with(b\"^=\") { parser.advance(2); PrefixMatch }\n            else { parser.advance(1); Delim('^') }\n        },\n        b'{' => {\n            parser.advance(1);\n            parser.state.set_at_start_of(BlockType::CurlyBracket);\n            CurlyBracketBlock\n        },\n        b'|' => {\n            if parser.starts_with(b\"|=\") { parser.advance(2); DashMatch }\n            else { parser.advance(1); Delim('|') }\n        },\n        b'}' => { parser.advance(1); CloseCurlyBracket },\n        b'~' => {\n            if parser.starts_with(b\"~=\") { parser.advance(2); IncludeMatch }\n            else { parser.advance(1); Delim('~') }\n        },\n        _ => {\n            if !b.is_ascii() {\n                consume_ident_like(parser)\n            } else {\n                parser.advance(1);\n                Delim(b as char)\n            }\n        },\n    }\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "is_ident_start",
+    "indent": 0,
+    "start": 31187,
+    "end": 31811,
+    "sha256": "cfd44d9546707fe8f4841aee9dd2d230c720806c5086ec36882fc39147031058",
+    "full_body": "fn is_ident_start(parser: &Parser) -> bool {\n    !parser.is_eof()\n        && match_byte! { parser.next_byte_unchecked(),\n            b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'\\0' => true,\n            b'-' => {\n                parser.has_at_least(1) && match_byte! { parser.byte_at(1),\n                    b'a'..=b'z' | b'A'..=b'Z' | b'-' | b'_' | b'\\0' => {\n                        true\n                    }\n                    b'\\\\' => !parser.has_newline_at(2),\n                    b => !b.is_ascii(),\n                }\n            },\n            b'\\\\' => !parser.has_newline_at(1),\n            b => !b.is_ascii(),\n        }\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_ident_like",
+    "indent": 0,
+    "start": 31813,
+    "end": 32366,
+    "sha256": "ed4f8ce2270302e4b351fdeb6f28503b2b99d009cd237630d0d787e4d6dde744",
+    "full_body": "fn consume_ident_like<'a>(parser: &mut Parser<'a>) -> Token<'a> {\n    let value = consume_name(parser);\n    if !parser.is_eof() && parser.next_byte_unchecked() == b'(' {\n        parser.advance(1);\n        if value.eq_ignore_ascii_case(\"url\") {\n            if let Ok(url) = consume_unquoted_url(parser) {\n                return url;\n            }\n        }\n        parser.state.set_at_start_of(BlockType::Parenthesis);\n        parser.arbitrary_substitution_functions.see_function(&value);\n        Function(value)\n    } else {\n        Ident(value)\n    }\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_name",
+    "indent": 0,
+    "start": 32368,
+    "end": 34994,
+    "sha256": "3871d7165a648655deca6baf231e4894880a1559ae6a4002edda6f6542836ada",
+    "full_body": "fn consume_name<'a>(parser: &mut Parser<'a>) -> CowRcStr<'a> {\n    // These are the overwhelmingly common bytes, that we can just skip over in a tight loop.\n    static IS_SIMPLE_NAME_BYTE: [bool; 256] = {\n        let mut table = [false; 256];\n        let mut i = 0;\n        while i < 256 {\n            table[i as usize] = matches!(i as u8, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'-' | b'\\xC0'..=b'\\xEF');\n            i += 1;\n        }\n        table\n    };\n\n    // start_pos is the end of the previous token, therefore at a code point boundary\n    let start_pos = parser.position();\n    let mut value_bytes;\n    loop {\n        parser.advance_while(|b| IS_SIMPLE_NAME_BYTE[b as usize]);\n        if parser.is_eof() {\n            return parser.slice_from(start_pos).into();\n        }\n        match_byte! { parser.next_byte_unchecked(),\n            b'\\\\' | b'\\0' => {\n                // * The parser\u2019s input is UTF-8 since it\u2019s `&str`.\n                // * start_pos is at a code point boundary\n                // * so is the current position (which is before '\\\\' or '\\0'\n                //\n                // So `value_bytes` is well-formed UTF-8.\n                value_bytes = parser.slice_from(start_pos).as_bytes().to_owned();\n                break\n            }\n            b'\\x80'..=b'\\xBF' => { parser.consume_continuation_byte(); }\n            b'\\xF0'..=b'\\xFF' => { parser.consume_4byte_intro(); }\n            _b => {\n                return parser.slice_from(start_pos).into();\n            }\n        }\n    }\n\n    loop {\n        value_bytes.extend(parser.advance_while(|b| IS_SIMPLE_NAME_BYTE[b as usize]));\n        if parser.is_eof() {\n            break;\n        }\n        let b = parser.next_byte_unchecked();\n        match_byte! { b,\n            b'\\\\' => {\n                if parser.has_newline_at(1) { break }\n                parser.advance(1);\n                // This pushes one well-formed code point\n                consume_escape_and_write(parser, &mut value_bytes)\n            }\n            b'\\0' => {\n                parser.advance(1);\n                value_bytes.extend(\"\\u{FFFD}\".as_bytes());\n            },\n            b'\\x80'..=b'\\xBF' => {\n                parser.consume_continuation_byte();\n                value_bytes.push(b)\n            }\n            b'\\xF0'..=b'\\xFF' => {\n                parser.consume_4byte_intro();\n                value_bytes.push(b)\n            }\n            _ => {\n                // ASCII\n                break;\n            }\n        }\n    }\n    // string_bytes is well-formed UTF-8, see other comments.\n    unsafe { from_utf8_release_unchecked(value_bytes) }.into()\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_string",
+    "indent": 0,
+    "start": 26987,
+    "end": 27214,
+    "sha256": "d4d1e16c53a142b27f774782a0fe958ce63d44c46d4aa82d28b5f48d9de3f3f0",
+    "full_body": "fn consume_string<'a>(parser: &mut Parser<'a>, single_quote: bool) -> Token<'a> {\n    match consume_quoted_string(parser, single_quote) {\n        Ok(value) => QuotedString(value),\n        Err(value) => BadString(value),\n    }\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_quoted_string",
+    "indent": 0,
+    "start": 27277,
+    "end": 31175,
+    "sha256": "6feca92e6b3d4e288e90741e1f4e1be0e0531a9dd07512dcbcbf4a37ae038203",
+    "full_body": "fn consume_quoted_string<'a>(\n    parser: &mut Parser<'a>,\n    single_quote: bool,\n) -> Result<CowRcStr<'a>, CowRcStr<'a>> {\n    parser.advance(1); // Skip the initial quote\n    // start_pos is at code point boundary, after \" or '\n    let start_pos = parser.position();\n    let mut string_bytes;\n    loop {\n        if parser.is_eof() {\n            return Ok(parser.slice_from(start_pos).into());\n        }\n        match_byte! { parser.next_byte_unchecked(),\n            b'\"' => {\n                if !single_quote {\n                    let value = parser.slice_from(start_pos);\n                    parser.advance(1);\n                    return Ok(value.into())\n                }\n                parser.advance(1);\n            }\n            b'\\'' => {\n                if single_quote {\n                    let value = parser.slice_from(start_pos);\n                    parser.advance(1);\n                    return Ok(value.into())\n                }\n                parser.advance(1);\n            }\n            b'\\\\' | b'\\0' => {\n                // * The parser\u2019s input is UTF-8 since it\u2019s `&str`.\n                // * start_pos is at a code point boundary\n                // * so is the current position (which is before '\\\\' or '\\0'\n                //\n                // So `string_bytes` is well-formed UTF-8.\n                string_bytes = parser.slice_from(start_pos).as_bytes().to_owned();\n                break\n            }\n            b'\\n' | b'\\r' | b'\\x0C' => {\n                return Err(parser.slice_from(start_pos).into())\n            },\n            b'\\x80'..=b'\\xBF' => { parser.consume_continuation_byte(); }\n            b'\\xF0'..=b'\\xFF' => { parser.consume_4byte_intro(); }\n            _ => {\n                // ASCII or other leading byte.\n                parser.advance(1);\n            }\n        }\n    }\n\n    while !parser.is_eof() {\n        let b = parser.next_byte_unchecked();\n        match_byte! { b,\n            b'\\n' | b'\\r' | b'\\x0C' => {\n                return Err(\n                    // string_bytes is well-formed UTF-8, see other comments.\n                    unsafe {\n                        from_utf8_release_unchecked(string_bytes)\n                    }.into()\n                );\n            }\n            b'\"' => {\n                parser.advance(1);\n                if !single_quote {\n                    break;\n                }\n            }\n            b'\\'' => {\n                parser.advance(1);\n                if single_quote {\n                    break;\n                }\n            }\n            b'\\\\' => {\n                parser.advance(1);\n                if !parser.is_eof() {\n                    match parser.next_byte_unchecked() {\n                        // Escaped newline\n                        b'\\n' | b'\\x0C' | b'\\r' => {\n                            parser.consume_newline();\n                        }\n                        // This pushes one well-formed code point\n                        _ => consume_escape_and_write(parser, &mut string_bytes)\n                    }\n                }\n                // else: escaped EOF, do nothing.\n                continue;\n            }\n            b'\\0' => {\n                parser.advance(1);\n                string_bytes.extend(\"\\u{FFFD}\".as_bytes());\n                continue;\n            }\n            b'\\x80'..=b'\\xBF' => { parser.consume_continuation_byte(); }\n            b'\\xF0'..=b'\\xFF' => { parser.consume_4byte_intro(); }\n            _ => {\n                // ASCII or other leading byte.\n                parser.advance(1);\n            },\n        }\n\n        // If this byte is part of a multi-byte code point,\n        // we\u2019ll end up copying the whole code point before this loop does something else.\n        string_bytes.push(b);\n    }\n\n    Ok(\n        // string_bytes is well-formed UTF-8, see other comments.\n        unsafe { from_utf8_release_unchecked(string_bytes) }.into(),\n    )\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_unquoted_url",
+    "indent": 0,
+    "start": 39256,
+    "end": 47377,
+    "sha256": "9d27c91c447b37677aae8b31c940fe1658b5c50f6a0681dc5592759c2073996c",
+    "full_body": "fn consume_unquoted_url<'a>(parser: &mut Parser<'a>) -> Result<Token<'a>, ()> {\n    // This is only called after \"url(\", so the current position is a code point boundary.\n    let start_position = parser.state.position;\n    let from_start = &parser.input[parser.state.position..];\n    let mut newlines = 0;\n    let mut last_newline = 0;\n    let mut found_printable_char = false;\n    let mut iter = from_start.bytes().enumerate();\n    loop {\n        let (offset, b) = match iter.next() {\n            Some(item) => item,\n            None => {\n                parser.state.position = parser.input.len();\n                break;\n            }\n        };\n        match_byte! { b,\n            b' ' | b'\\t' => {},\n            b'\\n' | b'\\x0C' => {\n                newlines += 1;\n                last_newline = offset;\n            }\n            b'\\r' => {\n                if from_start.as_bytes().get(offset + 1) != Some(&b'\\n') {\n                    newlines += 1;\n                    last_newline = offset;\n                }\n            }\n            b'\"' | b'\\'' => return Err(()),  // Do not advance\n            b')' => {\n                // Don't use advance, because we may be skipping\n                // newlines here, and we want to avoid the assert.\n                parser.state.position += offset + 1;\n                break\n            }\n            _ => {\n                // Don't use advance, because we may be skipping\n                // newlines here, and we want to avoid the assert.\n                parser.state.position += offset;\n                found_printable_char = true;\n                break\n            }\n        }\n    }\n\n    if newlines > 0 {\n        parser.state.advance_line_number(newlines);\n        // No need for wrapping_add here, because there's no possible\n        // way to wrap.\n        parser.state.current_line_start_position = (start_position + last_newline + 1) as u32;\n    }\n\n    if found_printable_char {\n        // This function only consumed ASCII (whitespace) bytes,\n        // so the current position is a code point boundary.\n        return Ok(consume_unquoted_url_internal(parser));\n    } else {\n        return Ok(UnquotedUrl(\"\".into()));\n    }\n\n    fn consume_unquoted_url_internal<'a>(parser: &mut Parser<'a>) -> Token<'a> {\n        // This function is only called with start_pos at a code point boundary.\n        let start_pos = parser.position();\n        let mut string_bytes: Vec<u8>;\n        loop {\n            if parser.is_eof() {\n                return UnquotedUrl(parser.slice_from(start_pos).into());\n            }\n            match_byte! { parser.next_byte_unchecked(),\n                b' ' | b'\\t' | b'\\n' | b'\\r' | b'\\x0C' => {\n                    let value = parser.slice_from(start_pos);\n                    return consume_url_end(parser, start_pos, value.into())\n                }\n                b')' => {\n                    let value = parser.slice_from(start_pos);\n                    parser.advance(1);\n                    return UnquotedUrl(value.into())\n                }\n                b'\\x01'..=b'\\x08' | b'\\x0B' | b'\\x0E'..=b'\\x1F' | b'\\x7F'  // non-printable\n                    | b'\"' | b'\\'' | b'(' => {\n                    parser.advance(1);\n                    return consume_bad_url(parser, start_pos)\n                },\n                b'\\\\' | b'\\0' => {\n                    // * The parser\u2019s input is UTF-8 since it\u2019s `&str`.\n                    // * start_pos is at a code point boundary\n                    // * so is the current position (which is before '\\\\' or '\\0'\n                    //\n                    // So `string_bytes` is well-formed UTF-8.\n                    string_bytes = parser.slice_from(start_pos).as_bytes().to_owned();\n                    break\n                }\n                b'\\x80'..=b'\\xBF' => { parser.consume_continuation_byte(); }\n                b'\\xF0'..=b'\\xFF' => { parser.consume_4byte_intro(); }\n                _ => {\n                    // ASCII or other leading byte.\n                    parser.advance(1);\n                }\n            }\n        }\n        while !parser.is_eof() {\n            let b = parser.next_byte_unchecked();\n            match_byte! { b,\n                b' ' | b'\\t' | b'\\n' | b'\\r' | b'\\x0C' => {\n                    // string_bytes is well-formed UTF-8, see other comments.\n                    let string = unsafe { from_utf8_release_unchecked(string_bytes) }.into();\n                    return consume_url_end(parser, start_pos, string)\n                }\n                b')' => {\n                    parser.advance(1);\n                    break;\n                }\n                b'\\x01'..=b'\\x08' | b'\\x0B' | b'\\x0E'..=b'\\x1F' | b'\\x7F'  // non-printable\n                    | b'\"' | b'\\'' | b'(' => {\n                    parser.advance(1);\n                    return consume_bad_url(parser, start_pos);\n                }\n                b'\\\\' => {\n                    parser.advance(1);\n                    if parser.has_newline_at(0) {\n                        return consume_bad_url(parser, start_pos)\n                    }\n\n                    // This pushes one well-formed code point to string_bytes\n                    consume_escape_and_write(parser, &mut string_bytes)\n                },\n                b'\\0' => {\n                    parser.advance(1);\n                    string_bytes.extend(\"\\u{FFFD}\".as_bytes());\n                }\n                b'\\x80'..=b'\\xBF' => {\n                    // We\u2019ll end up copying the whole code point\n                    // before this loop does something else.\n                    parser.consume_continuation_byte();\n                    string_bytes.push(b);\n                }\n                b'\\xF0'..=b'\\xFF' => {\n                    // We\u2019ll end up copying the whole code point\n                    // before this loop does something else.\n                    parser.consume_4byte_intro();\n                    string_bytes.push(b);\n                }\n                // If this byte is part of a multi-byte code point,\n                // we\u2019ll end up copying the whole code point before this loop does something else.\n                b => {\n                    // ASCII or other leading byte.\n                    parser.advance(1);\n                    string_bytes.push(b)\n                }\n            }\n        }\n        UnquotedUrl(\n            // string_bytes is well-formed UTF-8, see other comments.\n            unsafe { from_utf8_release_unchecked(string_bytes) }.into(),\n        )\n    }\n\n    fn consume_url_end<'a>(\n        parser: &mut Parser<'a>,\n        start_pos: SourcePosition,\n        string: CowRcStr<'a>,\n    ) -> Token<'a> {\n        while !parser.is_eof() {\n            match_byte! { parser.next_byte_unchecked(),\n                b')' => {\n                    parser.advance(1);\n                    break\n                }\n                b' ' | b'\\t' => { parser.advance(1); }\n                b'\\n' | b'\\x0C' | b'\\r' => {\n                    parser.consume_newline();\n                }\n                _ => {\n                    return consume_bad_url(parser, start_pos);\n                }\n            }\n        }\n        UnquotedUrl(string)\n    }\n\n    fn consume_bad_url<'a>(parser: &mut Parser<'a>, start_pos: SourcePosition) -> Token<'a> {\n        // Consume up to the closing )\n        while !parser.is_eof() {\n            match_byte! { parser.next_byte_unchecked(),\n                b')' => {\n                    let contents = parser.slice_from(start_pos).into();\n                    parser.advance(1);\n                    return BadUrl(contents)\n                }\n                b'\\\\' => {\n                    parser.advance(1);\n                    if matches!(parser.next_byte(), Some(b')') | Some(b'\\\\')) {\n                        parser.advance(1); // Skip an escaped ')' or '\\'\n                    }\n                }\n                b'\\n' | b'\\x0C' | b'\\r' => {\n                    parser.consume_newline();\n                }\n                b => {\n                    parser.consume_known_byte(b);\n                }\n            }\n        }\n        BadUrl(parser.slice_from(start_pos).into())\n    }\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_hex_digits",
+    "indent": 0,
+    "start": 47416,
+    "end": 47848,
+    "sha256": "e0cd2f3d2ebc855903f71a73fb332e67dff5507839f576ff75f9bf12aef888e0",
+    "full_body": "fn consume_hex_digits(parser: &mut Parser<'_>) -> (u32, u32) {\n    let mut value = 0;\n    let mut digits = 0;\n    while digits < 6 && !parser.is_eof() {\n        match byte_to_hex_digit(parser.next_byte_unchecked()) {\n            Some(digit) => {\n                value = value * 16 + digit;\n                digits += 1;\n                parser.advance(1);\n            }\n            None => break,\n        }\n    }\n    (value, digits)\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_escape_and_write",
+    "indent": 0,
+    "start": 47957,
+    "end": 48107,
+    "sha256": "ad362555b0ee24b3c0c99b25f92e86113c78abeb56b4c896175ed44b8d56c45b",
+    "full_body": "fn consume_escape_and_write(parser: &mut Parser, bytes: &mut Vec<u8>) {\n    bytes.extend(consume_escape(parser).encode_utf8(&mut [0; 4]).as_bytes())\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_escape",
+    "indent": 0,
+    "start": 48269,
+    "end": 49296,
+    "sha256": "c9f3431e8e6c7404093930ad3350b5171d0dfbde909321d80f9e3bd32ed02e97",
+    "full_body": "fn consume_escape(parser: &mut Parser) -> char {\n    if parser.is_eof() {\n        return '\\u{FFFD}';\n    } // Escaped EOF\n    match_byte! { parser.next_byte_unchecked(),\n        b'0'..=b'9' | b'A'..=b'F' | b'a'..=b'f' => {\n            let (c, _) = consume_hex_digits(parser);\n            if !parser.is_eof() {\n                match_byte! { parser.next_byte_unchecked(),\n                    b' ' | b'\\t' => {\n                        parser.advance(1)\n                    }\n                    b'\\n' | b'\\x0C' | b'\\r' => {\n                        parser.consume_newline();\n                    }\n                    _ => {}\n                }\n            }\n            static REPLACEMENT_CHAR: char = '\\u{FFFD}';\n            if c != 0 {\n                let c = char::from_u32(c);\n                c.unwrap_or(REPLACEMENT_CHAR)\n            } else {\n                REPLACEMENT_CHAR\n            }\n        },\n        b'\\0' => {\n            parser.advance(1);\n            '\\u{FFFD}'\n        }\n        _ => parser.consume_char(),\n    }\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "byte_to_hex_digit",
+    "indent": 0,
+    "start": 34996,
+    "end": 35246,
+    "sha256": "e8d1d7b22916b658e20270f021c39033bf510eb0108634a3a251dcf7aed0bc89",
+    "full_body": "fn byte_to_hex_digit(b: u8) -> Option<u32> {\n    Some(match_byte! { b,\n        b'0' ..= b'9' => b - b'0',\n        b'a' ..= b'f' => b - b'a' + 10,\n        b'A' ..= b'F' => b - b'A' + 10,\n        _ => {\n            return None\n        }\n    } as u32)\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "from_utf8_release_unchecked",
+    "indent": 0,
+    "start": 38991,
+    "end": 39254,
+    "sha256": "863e7289dc351dd59b53cb105fa53f6a2f022503066a23fa9a2f82a3ef82bc1e",
+    "full_body": "unsafe fn from_utf8_release_unchecked(string_bytes: Vec<u8>) -> String {\n    unsafe {\n        if cfg!(debug_assertions) {\n            String::from_utf8(string_bytes).unwrap()\n        } else {\n            String::from_utf8_unchecked(string_bytes)\n        }\n    }\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_comment",
+    "indent": 0,
+    "start": 25868,
+    "end": 26985,
+    "sha256": "eb215d6da4d855022aaf0a74f4b4ebfb36a6c05062f0e373bceb5caaa14cc626",
+    "full_body": "fn consume_comment<'a>(parser: &mut Parser<'a>) -> &'a str {\n    parser.advance(2); // consume \"/*\"\n    let start_position = parser.position();\n    while !parser.is_eof() {\n        match_byte! { parser.next_byte_unchecked(),\n            b'*' => {\n                let end_position = parser.position();\n                parser.advance(1);\n                if parser.next_byte() == Some(b'/') {\n                    parser.advance(1);\n                    let contents = parser.slice(start_position..end_position);\n                    check_for_source_map(parser, contents);\n                    return contents\n                }\n            }\n            b'\\n' | b'\\x0C' | b'\\r' => {\n                parser.consume_newline();\n            }\n            b'\\x80'..=b'\\xBF' => { parser.consume_continuation_byte(); }\n            b'\\xF0'..=b'\\xFF' => { parser.consume_4byte_intro(); }\n            _ => {\n                // ASCII or other leading byte.\n                parser.advance(1);\n            }\n        }\n    }\n    let contents = parser.slice_from(start_position);\n    check_for_source_map(parser, contents);\n    contents\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "check_for_source_map",
+    "indent": 0,
+    "start": 25053,
+    "end": 25866,
+    "sha256": "bab364ba6a367f26958793dc078470ee596b6e931a4736305fdc83e1576f07e4",
+    "full_body": "fn check_for_source_map<'a>(parser: &mut Parser<'a>, contents: &'a str) {\n    let directive = \"# sourceMappingURL=\";\n    let directive_old = \"@ sourceMappingURL=\";\n\n    // If there is a source map directive, extract the URL.\n    if contents.starts_with(directive) || contents.starts_with(directive_old) {\n        let contents = &contents[directive.len()..];\n        parser.source_map_url = contents.split([' ', '\\t', '\\x0C', '\\r', '\\n']).next();\n    }\n\n    let directive = \"# sourceURL=\";\n    let directive_old = \"@ sourceURL=\";\n\n    // If there is a source map directive, extract the URL.\n    if contents.starts_with(directive) || contents.starts_with(directive_old) {\n        let contents = &contents[directive.len()..];\n        parser.source_url = contents.split([' ', '\\t', '\\x0C', '\\r', '\\n']).next()\n    }\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_whitespace",
+    "indent": 0,
+    "start": 24339,
+    "end": 24959,
+    "sha256": "1fb3d4417a1ac229dfa465ea4edbf0ff377383868a92f69697bb9496357bd40a",
+    "full_body": "fn consume_whitespace<'a>(parser: &mut Parser<'a>, newline: bool) -> Token<'a> {\n    let start_position = parser.position();\n    if newline {\n        parser.consume_newline();\n    } else {\n        parser.advance(1);\n    }\n    while !parser.is_eof() {\n        let b = parser.next_byte_unchecked();\n        match_byte! { b,\n            b' ' | b'\\t' => {\n                parser.advance(1);\n            }\n            b'\\n' | b'\\x0C' | b'\\r' => {\n                parser.consume_newline();\n            }\n            _ => {\n                break\n            }\n        }\n    }\n    WhiteSpace(parser.slice_from(start_position))\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_numeric",
+    "indent": 0,
+    "start": 35392,
+    "end": 38979,
+    "sha256": "1227b7492ac91a4b1ec4940be74db31e9357c4e50416d383549dd6c7c566bf62",
+    "full_body": "fn consume_numeric<'a>(parser: &mut Parser<'a>) -> Token<'a> {\n    // Parse [+-]?\\d*(\\.\\d+)?([eE][+-]?\\d+)?\n    // But this is always called so that there is at least one digit in \\d*(\\.\\d+)?\n\n    // Do all the math in f64 so that large numbers overflow to +/-inf\n    // and i32::{MIN, MAX} are within range.\n\n    let start_position = parser.position();\n    let (has_sign, sign) = match parser.next_byte_unchecked() {\n        b'-' => (true, -1.),\n        b'+' => (true, 1.),\n        _ => (false, 1.),\n    };\n    if has_sign {\n        parser.advance(1);\n    }\n\n    let mut integral_part: f64 = 0.;\n    while let Some(digit) = byte_to_decimal_digit(parser.next_byte_unchecked()) {\n        integral_part = integral_part * 10. + digit as f64;\n        parser.advance(1);\n        if parser.is_eof() {\n            break;\n        }\n    }\n\n    let mut is_integer = true;\n\n    let mut fractional_part: f64 = 0.;\n    if parser.has_at_least(1)\n        && parser.next_byte_unchecked() == b'.'\n        && parser.byte_at(1).is_ascii_digit()\n    {\n        is_integer = false;\n        parser.advance(1); // Consume '.'\n        let mut factor = 0.1;\n        while let Some(digit) = byte_to_decimal_digit(parser.next_byte_unchecked()) {\n            fractional_part += digit as f64 * factor;\n            factor *= 0.1;\n            parser.advance(1);\n            if parser.is_eof() {\n                break;\n            }\n        }\n    }\n\n    let mut value = sign * (integral_part + fractional_part);\n\n    if parser.has_at_least(1)\n        && matches!(parser.next_byte_unchecked(), b'e' | b'E')\n        && (parser.byte_at(1).is_ascii_digit()\n            || (parser.has_at_least(2)\n                && matches!(parser.byte_at(1), b'+' | b'-')\n                && parser.byte_at(2).is_ascii_digit()))\n    {\n        is_integer = false;\n        parser.advance(1);\n        let (has_sign, sign) = match parser.next_byte_unchecked() {\n            b'-' => (true, -1.),\n            b'+' => (true, 1.),\n            _ => (false, 1.),\n        };\n        if has_sign {\n            parser.advance(1);\n        }\n        let mut exponent: f64 = 0.;\n        while let Some(digit) = byte_to_decimal_digit(parser.next_byte_unchecked()) {\n            exponent = exponent * 10. + digit as f64;\n            parser.advance(1);\n            if parser.is_eof() {\n                break;\n            }\n        }\n        value *= f64::powf(10., sign * exponent);\n    }\n\n    // Reparse long numbers as a whole: exponents can compensate for intermediate overflow/underflow.\n    // Below 256 bytes, finite underflow cannot affect the final f32 payload.\n    if parser.position().byte_index() - start_position.byte_index() >= 256 || !value.is_finite() {\n        value = parser.slice_from(start_position).parse::<f64>().unwrap();\n    }\n\n    let int_value = if is_integer {\n        Some(if value >= i32::MAX as f64 {\n            i32::MAX\n        } else if value <= i32::MIN as f64 {\n            i32::MIN\n        } else {\n            value as i32\n        })\n    } else {\n        None\n    };\n\n    if !parser.is_eof() && parser.next_byte_unchecked() == b'%' {\n        parser.advance(1);\n        return Percentage {\n            unit_value: (value / 100.) as f32,\n            int_value,\n            has_sign,\n        };\n    }\n    let value = value as f32;\n    if is_ident_start(parser) {\n        let unit = consume_name(parser);\n        Dimension {\n            value,\n            int_value,\n            has_sign,\n            unit,\n        }\n    } else {\n        Number {\n            value,\n            int_value,\n            has_sign,\n        }\n    }\n}"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "see_function",
+    "indent": 4,
+    "start": 6827,
+    "end": 7087,
+    "sha256": "37fca74b8df100acab3d1ed36c401a1933047ebacfad86c18d683f7abee8fc70",
+    "full_body": "    pub(crate) fn see_function(&mut self, name: &str) {\n        if let SeenStatus::LookingForThem(fns) = *self {\n            if fns.iter().any(|a| name.eq_ignore_ascii_case(a)) {\n                *self = SeenStatus::SeenAtLeastOne;\n            }\n        }\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "look_for_arbitrary_substitution_functions",
+    "indent": 4,
+    "start": 7289,
+    "end": 7505,
+    "sha256": "b0eb3e2a6767687ae295830e8059a873ad0bac6a324cc148913a074f914e903f",
+    "full_body": "    pub fn look_for_arbitrary_substitution_functions(\n        &mut self,\n        fns: ArbitrarySubstitutionFunctions<'a>,\n    ) {\n        self.arbitrary_substitution_functions = SeenStatus::LookingForThem(fns);\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "seen_arbitrary_substitution_functions",
+    "indent": 4,
+    "start": 7680,
+    "end": 7926,
+    "sha256": "3c12624ec43ce2c85d5dfa42e0ebc594b9a277226084dc87f73263bd577ae5fa",
+    "full_body": "    pub fn seen_arbitrary_substitution_functions(&mut self) -> bool {\n        let seen = self.arbitrary_substitution_functions == SeenStatus::SeenAtLeastOne;\n        self.arbitrary_substitution_functions = SeenStatus::DontCare;\n        seen\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "next_unchecked",
+    "indent": 4,
+    "start": 8067,
+    "end": 8225,
+    "sha256": "fc726af05990e460d84fe647fe5957a764aaf8b4123da458f9891d8c79f74789",
+    "full_body": "    pub(crate) fn next_unchecked(&mut self) -> Token<'a> {\n        debug_assert!(self.state.at_start_of().is_none());\n        next_token_unchecked(self)\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "position",
+    "indent": 4,
+    "start": 8675,
+    "end": 8844,
+    "sha256": "9b2feac66d25495f5eaa0376f6b2794b7b4756d1d25217dd7a817c22d5bbb7cb",
+    "full_body": "    pub fn position(&self) -> SourcePosition {\n        debug_assert!(self.input.is_char_boundary(self.state.position));\n        SourcePosition(self.state.position)\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "current_source_location",
+    "indent": 4,
+    "start": 8911,
+    "end": 9015,
+    "sha256": "05f3c29a958e44ca307ff6ae72b5313d98b28a7e7f0f15f683031f31d4c8cb8d",
+    "full_body": "    pub fn current_source_location(&self) -> SourceLocation {\n        self.state.source_location()\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "slice_from",
+    "indent": 4,
+    "start": 9754,
+    "end": 9875,
+    "sha256": "6997b97a380da0a1bf52fed0dea621519392d879cc70f56564997cf9b28f5a8d",
+    "full_body": "    pub fn slice_from(&self, start_pos: SourcePosition) -> &'a str {\n        self.slice(start_pos..self.position())\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "slice",
+    "indent": 4,
+    "start": 9931,
+    "end": 10207,
+    "sha256": "c48305a0e0134adcd4be69e69633be546714aded39c5238f585e7d5d47beeb2c",
+    "full_body": "    pub fn slice(&self, range: Range<SourcePosition>) -> &'a str {\n        debug_assert!(self.input.is_char_boundary(range.start.0));\n        debug_assert!(self.input.is_char_boundary(range.end.0));\n        unsafe { self.input.get_unchecked(range.start.0..range.end.0) }\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "next_byte",
+    "indent": 4,
+    "start": 11023,
+    "end": 11211,
+    "sha256": "4d3aa6d8fe68243798083f727b15f0bf606bfe0894c404da2699ac159229281c",
+    "full_body": "    pub(crate) fn next_byte(&self) -> Option<u8> {\n        if self.is_eof() {\n            None\n        } else {\n            Some(self.input.as_bytes()[self.state.position])\n        }\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "next_byte_unchecked",
+    "indent": 4,
+    "start": 13056,
+    "end": 13127,
+    "sha256": "45bc76ac28bcc6f16f440ff5b44c63e2624c53572a2a956ab9f617d851316e81",
+    "full_body": "    fn next_byte_unchecked(&self) -> u8 {\n        self.byte_at(0)\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "is_eof",
+    "indent": 4,
+    "start": 11281,
+    "end": 11358,
+    "sha256": "7d89095116bd6cb43cdda3c1988f24a8d73443ae67c94e886bc28d2e3ab8755b",
+    "full_body": "    pub(crate) fn is_eof(&self) -> bool {\n        !self.has_at_least(0)\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "has_at_least",
+    "indent": 4,
+    "start": 11505,
+    "end": 11608,
+    "sha256": "87c5914e93dd21d662d4aea6391b08345e7b08f2a8795a7b6fa71ff1a2dd2b79",
+    "full_body": "    fn has_at_least(&self, n: usize) -> bool {\n        self.state.position + n < self.input.len()\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "has_newline_at",
+    "indent": 4,
+    "start": 15912,
+    "end": 16098,
+    "sha256": "ce998272a7213555b919d54295bcb04674f25d099c2305cda9504bfe9b3bab0d",
+    "full_body": "    fn has_newline_at(&self, offset: usize) -> bool {\n        self.state.position + offset < self.input.len()\n            && matches!(self.byte_at(offset), b'\\n' | b'\\r' | b'\\x0C')\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "advance",
+    "indent": 4,
+    "start": 11814,
+    "end": 12349,
+    "sha256": "c44c38d0f53665fbf52cc06d3b11447d3a39baa2cbc9569019366089a87f3394",
+    "full_body": "    pub(crate) fn advance(&mut self, n: usize) {\n        if cfg!(debug_assertions) {\n            // Each byte must either be an ASCII byte or a sequence\n            // leader, but not a 4-byte leader; also newlines are\n            // rejected.\n            for i in 0..n {\n                let b = self.byte_at(i);\n                debug_assert!(b.is_ascii() || (b & 0xF0 != 0xF0 && b & 0xC0 != 0x80));\n                debug_assert!(b != b'\\r' && b != b'\\n' && b != b'\\x0C');\n            }\n        }\n        self.state.position += n\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "advance_while",
+    "indent": 4,
+    "start": 12489,
+    "end": 13017,
+    "sha256": "5967eb7aac1f0c7a43866c025678132ea0dc018d26fa7cc6a4e1410b47a57020",
+    "full_body": "    fn advance_while(&mut self, mut matches: impl FnMut(u8) -> bool) -> &[u8] {\n        let start = self.state.position;\n        let mut position = start;\n\n        let bytes = &self.input.as_bytes()[start..];\n        for b in bytes {\n            if !matches(*b) {\n                break;\n            }\n            position += 1;\n        }\n\n        // Equivalent to self.state.position = position, but with advance()'s debug_assert!s\n        self.advance(position - self.state.position);\n\n        self.byte_slice_from(start)\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "byte_at",
+    "indent": 4,
+    "start": 13143,
+    "end": 13253,
+    "sha256": "e6df6a97831ca77c0bbe157dc4aedc5b4f4f3ff4c9789183bea407035a7ee7a8",
+    "full_body": "    fn byte_at(&self, offset: usize) -> u8 {\n        self.input.as_bytes()[self.state.position + offset]\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_known_byte",
+    "indent": 4,
+    "start": 14373,
+    "end": 15168,
+    "sha256": "61fe21f396d30160dcf583bbd9120f660df61d29ca3b49b44523d8aedc3d429c",
+    "full_body": "    fn consume_known_byte(&mut self, byte: u8) {\n        debug_assert!(byte != b'\\r' && byte != b'\\n' && byte != b'\\x0C');\n        self.state.position += 1;\n        // Continuation bytes contribute to column overcount.\n        if byte & 0xF0 == 0xF0 {\n            // This takes two UTF-16 characters to represent, so we\n            // actually have an undercount.\n            self.state.current_line_start_position =\n                self.state.current_line_start_position.wrapping_sub(1);\n        } else if byte & 0xC0 == 0x80 {\n            // Note that due to the special case for the 4-byte\n            // sequence intro, we must use wrapping add here.\n            self.state.current_line_start_position =\n                self.state.current_line_start_position.wrapping_add(1);\n        }\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_4byte_intro",
+    "indent": 4,
+    "start": 13375,
+    "end": 13741,
+    "sha256": "7aea8c8f88adae4b53fb582435e4759d8460775ec1e8dba86c64bdfe343803a8",
+    "full_body": "    fn consume_4byte_intro(&mut self) {\n        debug_assert!(self.next_byte_unchecked() & 0xF0 == 0xF0);\n        // This takes two UTF-16 characters to represent, so we\n        // actually have an undercount.\n        self.state.current_line_start_position =\n            self.state.current_line_start_position.wrapping_sub(1);\n        self.state.position += 1;\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_continuation_byte",
+    "indent": 4,
+    "start": 13843,
+    "end": 14292,
+    "sha256": "cc4c5d93624692be37f4c054c4086af4d9a8fb7bf592aa633dfb6a56da24a36b",
+    "full_body": "    fn consume_continuation_byte(&mut self) {\n        debug_assert!(self.next_byte_unchecked() & 0xC0 == 0x80);\n        // Continuation bytes contribute to column overcount.  Note\n        // that due to the special case for the 4-byte sequence intro,\n        // we must use wrapping add here.\n        self.state.current_line_start_position =\n            self.state.current_line_start_position.wrapping_add(1);\n        self.state.position += 1;\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "next_char",
+    "indent": 4,
+    "start": 15184,
+    "end": 15357,
+    "sha256": "97b849e004f0325b52f3ac2111a4297fd0136f2cf914c2f0d857816e5ac5e134",
+    "full_body": "    fn next_char(&self) -> char {\n        unsafe { self.input.get_unchecked(self.state.position().0..) }\n            .chars()\n            .next()\n            .unwrap()\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_newline",
+    "indent": 4,
+    "start": 15470,
+    "end": 15896,
+    "sha256": "4bfd97c8e840dca375f3df52094599b7ec19191415fe8f86250597dec56fe9f6",
+    "full_body": "    fn consume_newline(&mut self) {\n        let byte = self.next_byte_unchecked();\n        debug_assert!(byte == b'\\r' || byte == b'\\n' || byte == b'\\x0C');\n        self.state.position += 1;\n        if byte == b'\\r' && self.next_byte() == Some(b'\\n') {\n            self.state.position += 1;\n        }\n        self.state.current_line_start_position = self.state.position as u32;\n        self.state.advance_line_number(1);\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_char",
+    "indent": 4,
+    "start": 16114,
+    "end": 16576,
+    "sha256": "d5d7e37410df4c2a4425f1a0cb31a247440012cfa155f82567663d441088f0f9",
+    "full_body": "    fn consume_char(&mut self) -> char {\n        let c = self.next_char();\n        let len_utf8 = c.len_utf8();\n        self.state.position += len_utf8;\n        // Note that due to the special case for the 4-byte sequence\n        // intro, we must use wrapping add here.\n        self.state.current_line_start_position = self\n            .state\n            .current_line_start_position\n            .wrapping_add((len_utf8 - c.len_utf16()) as u32);\n        c\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_unquoted_url_internal",
+    "indent": 4,
+    "start": 41437,
+    "end": 45740,
+    "sha256": "42b8e110efc4528bbdf0fb6ed2f0efe5ab73d090857868e637990020775f773e",
+    "full_body": "    fn consume_unquoted_url_internal<'a>(parser: &mut Parser<'a>) -> Token<'a> {\n        // This function is only called with start_pos at a code point boundary.\n        let start_pos = parser.position();\n        let mut string_bytes: Vec<u8>;\n        loop {\n            if parser.is_eof() {\n                return UnquotedUrl(parser.slice_from(start_pos).into());\n            }\n            match_byte! { parser.next_byte_unchecked(),\n                b' ' | b'\\t' | b'\\n' | b'\\r' | b'\\x0C' => {\n                    let value = parser.slice_from(start_pos);\n                    return consume_url_end(parser, start_pos, value.into())\n                }\n                b')' => {\n                    let value = parser.slice_from(start_pos);\n                    parser.advance(1);\n                    return UnquotedUrl(value.into())\n                }\n                b'\\x01'..=b'\\x08' | b'\\x0B' | b'\\x0E'..=b'\\x1F' | b'\\x7F'  // non-printable\n                    | b'\"' | b'\\'' | b'(' => {\n                    parser.advance(1);\n                    return consume_bad_url(parser, start_pos)\n                },\n                b'\\\\' | b'\\0' => {\n                    // * The parser\u2019s input is UTF-8 since it\u2019s `&str`.\n                    // * start_pos is at a code point boundary\n                    // * so is the current position (which is before '\\\\' or '\\0'\n                    //\n                    // So `string_bytes` is well-formed UTF-8.\n                    string_bytes = parser.slice_from(start_pos).as_bytes().to_owned();\n                    break\n                }\n                b'\\x80'..=b'\\xBF' => { parser.consume_continuation_byte(); }\n                b'\\xF0'..=b'\\xFF' => { parser.consume_4byte_intro(); }\n                _ => {\n                    // ASCII or other leading byte.\n                    parser.advance(1);\n                }\n            }\n        }\n        while !parser.is_eof() {\n            let b = parser.next_byte_unchecked();\n            match_byte! { b,\n                b' ' | b'\\t' | b'\\n' | b'\\r' | b'\\x0C' => {\n                    // string_bytes is well-formed UTF-8, see other comments.\n                    let string = unsafe { from_utf8_release_unchecked(string_bytes) }.into();\n                    return consume_url_end(parser, start_pos, string)\n                }\n                b')' => {\n                    parser.advance(1);\n                    break;\n                }\n                b'\\x01'..=b'\\x08' | b'\\x0B' | b'\\x0E'..=b'\\x1F' | b'\\x7F'  // non-printable\n                    | b'\"' | b'\\'' | b'(' => {\n                    parser.advance(1);\n                    return consume_bad_url(parser, start_pos);\n                }\n                b'\\\\' => {\n                    parser.advance(1);\n                    if parser.has_newline_at(0) {\n                        return consume_bad_url(parser, start_pos)\n                    }\n\n                    // This pushes one well-formed code point to string_bytes\n                    consume_escape_and_write(parser, &mut string_bytes)\n                },\n                b'\\0' => {\n                    parser.advance(1);\n                    string_bytes.extend(\"\\u{FFFD}\".as_bytes());\n                }\n                b'\\x80'..=b'\\xBF' => {\n                    // We\u2019ll end up copying the whole code point\n                    // before this loop does something else.\n                    parser.consume_continuation_byte();\n                    string_bytes.push(b);\n                }\n                b'\\xF0'..=b'\\xFF' => {\n                    // We\u2019ll end up copying the whole code point\n                    // before this loop does something else.\n                    parser.consume_4byte_intro();\n                    string_bytes.push(b);\n                }\n                // If this byte is part of a multi-byte code point,\n                // we\u2019ll end up copying the whole code point before this loop does something else.\n                b => {\n                    // ASCII or other leading byte.\n                    parser.advance(1);\n                    string_bytes.push(b)\n                }\n            }\n        }\n        UnquotedUrl(\n            // string_bytes is well-formed UTF-8, see other comments.\n            unsafe { from_utf8_release_unchecked(string_bytes) }.into(),\n        )\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_url_end",
+    "indent": 4,
+    "start": 45742,
+    "end": 46412,
+    "sha256": "bf99e9069eeed3e84e42c8285dfdc386c629e674de26870903bfa5cbb2e47c63",
+    "full_body": "    fn consume_url_end<'a>(\n        parser: &mut Parser<'a>,\n        start_pos: SourcePosition,\n        string: CowRcStr<'a>,\n    ) -> Token<'a> {\n        while !parser.is_eof() {\n            match_byte! { parser.next_byte_unchecked(),\n                b')' => {\n                    parser.advance(1);\n                    break\n                }\n                b' ' | b'\\t' => { parser.advance(1); }\n                b'\\n' | b'\\x0C' | b'\\r' => {\n                    parser.consume_newline();\n                }\n                _ => {\n                    return consume_bad_url(parser, start_pos);\n                }\n            }\n        }\n        UnquotedUrl(string)\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "consume_bad_url",
+    "indent": 4,
+    "start": 46414,
+    "end": 47375,
+    "sha256": "9aa5c2eb60ea0dd6c3e351fc0f5cf7c477445f3ad84ab7393036e67eba7c052d",
+    "full_body": "    fn consume_bad_url<'a>(parser: &mut Parser<'a>, start_pos: SourcePosition) -> Token<'a> {\n        // Consume up to the closing )\n        while !parser.is_eof() {\n            match_byte! { parser.next_byte_unchecked(),\n                b')' => {\n                    let contents = parser.slice_from(start_pos).into();\n                    parser.advance(1);\n                    return BadUrl(contents)\n                }\n                b'\\\\' => {\n                    parser.advance(1);\n                    if matches!(parser.next_byte(), Some(b')') | Some(b'\\\\')) {\n                        parser.advance(1); // Skip an escaped ')' or '\\'\n                    }\n                }\n                b'\\n' | b'\\x0C' | b'\\r' => {\n                    parser.consume_newline();\n                }\n                b => {\n                    parser.consume_known_byte(b);\n                }\n            }\n        }\n        BadUrl(parser.slice_from(start_pos).into())\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "skip_block_at_start",
+    "indent": 4,
+    "start": 8332,
+    "end": 8521,
+    "sha256": "c7a4ad1311fefde7773bc15203bb7460af7c00ee18f1fe184720bb4e7ddbda50",
+    "full_body": "    pub(crate) fn skip_block_at_start(&mut self) {\n        if let Some(block_type) = self.state.take_at_start_of() {\n            self.consume_until_end_of_block(block_type);\n        }\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "skip_whitespace",
+    "indent": 4,
+    "start": 16806,
+    "end": 17444,
+    "sha256": "3115d9243b18670910dcd857a44905963a3550e635b4408014e1851ff533e309",
+    "full_body": "    pub fn skip_whitespace(&mut self) {\n        self.skip_block_at_start();\n        while !self.is_eof() {\n            match_byte! { self.next_byte_unchecked(),\n                b' ' | b'\\t' => {\n                    self.advance(1)\n                },\n                b'\\n' | b'\\x0C' | b'\\r' => {\n                    self.consume_newline();\n                },\n                b'/' => {\n                    if self.starts_with(b\"/*\") {\n                        consume_comment(self);\n                    } else {\n                        return\n                    }\n                }\n                _ => return,\n            }\n        }\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "skip_cdc_and_cdo",
+    "indent": 4,
+    "start": 17446,
+    "end": 18564,
+    "sha256": "e4f8145ac9b37cd2b86033d272cb2b27317abe91ff54c5d0002356ca327b2e6d",
+    "full_body": "    pub(crate) fn skip_cdc_and_cdo(&mut self) {\n        self.skip_block_at_start();\n        while !self.is_eof() {\n            match_byte! { self.next_byte_unchecked(),\n                b' ' | b'\\t' => {\n                    self.advance(1)\n                },\n                b'\\n' | b'\\x0C' | b'\\r' => {\n                    self.consume_newline();\n                },\n                b'/' => {\n                    if self.starts_with(b\"/*\") {\n                        consume_comment(self);\n                    } else {\n                        return\n                    }\n                }\n                b'<' => {\n                    if self.starts_with(b\"<!--\") {\n                        self.advance(4)\n                    } else {\n                        return\n                    }\n                }\n                b'-' => {\n                    if self.starts_with(b\"-->\") {\n                        self.advance(3)\n                    } else {\n                        return\n                    }\n                }\n                _ => {\n                    return\n                }\n            }\n        }\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "current_source_map_url",
+    "indent": 4,
+    "start": 9247,
+    "end": 9342,
+    "sha256": "8b504fd233ff694a87c4ee6e93ea51429f1eea8c431234aa48fbc2d56234b231",
+    "full_body": "    pub fn current_source_map_url(&self) -> Option<&'a str> {\n        self.source_map_url\n    }"
+  },
+  {
+    "source": "tokenizer.rs",
+    "name": "current_source_url",
+    "indent": 4,
+    "start": 9566,
+    "end": 9653,
+    "sha256": "00379a33e1aab5e8c9e0a03d2ca15d7403a899f5f4799e90a6af5ae3b6f92509",
+    "full_body": "    pub fn current_source_url(&self) -> Option<&'a str> {\n        self.source_url\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "position",
+    "indent": 4,
+    "start": 1685,
+    "end": 1775,
+    "sha256": "c52b82aa04cc000a20f29c4390c80c8b173a316bf1dd460f8bdc89200afa0d34",
+    "full_body": "    pub fn position(&self) -> SourcePosition {\n        SourcePosition(self.position)\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "source_location",
+    "indent": 4,
+    "start": 1833,
+    "end": 2106,
+    "sha256": "e23db44e77d7082557de33674d0fa749c5a082de7acd9f8e073a9e34859bdf93",
+    "full_body": "    pub fn source_location(&self) -> SourceLocation {\n        SourceLocation {\n            line: self.line_number(),\n            column: (self.position as u32)\n                .wrapping_sub(self.current_line_start_position)\n                .wrapping_add(1),\n        }\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "line_number",
+    "indent": 4,
+    "start": 2122,
+    "end": 2238,
+    "sha256": "f140d4320aa6cb287c04b5778a3e035ca1e9411afd7490f4e6bf1b0848da0188",
+    "full_body": "    pub(crate) fn line_number(&self) -> u32 {\n        self.line_number_and_block_type >> Self::BLOCK_TYPE_BITS\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "advance_line_number",
+    "indent": 4,
+    "start": 2254,
+    "end": 2397,
+    "sha256": "de6280a425d2c7ded852a9eba4e10ecbdec4ca24ba93e0ba1524de71383f5ee7",
+    "full_body": "    pub(crate) fn advance_line_number(&mut self, count: u32) {\n        self.line_number_and_block_type += count << Self::BLOCK_TYPE_BITS;\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "set_at_start_of",
+    "indent": 4,
+    "start": 2625,
+    "end": 2879,
+    "sha256": "cdd255846fb6c806593d3008ea80fb3fad91afe0920a87a5641ad8a5e38fc4f6",
+    "full_body": "    pub(crate) fn set_at_start_of(&mut self, block_type: BlockType) {\n        debug_assert!(self.at_start_of().is_none());\n        self.line_number_and_block_type |= block_type as u32;\n        debug_assert_eq!(self.at_start_of(), Some(block_type));\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "take_at_start_of",
+    "indent": 4,
+    "start": 2895,
+    "end": 3100,
+    "sha256": "bcb33101e9054a05a0cbd6c9175cc75f132218a456f0926547fb08d4ad949cab",
+    "full_body": "    pub(crate) fn take_at_start_of(&mut self) -> Option<BlockType> {\n        let block_type = self.at_start_of();\n        self.line_number_and_block_type &= !Self::BLOCK_TYPE_MASK;\n        block_type\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "at_start_of",
+    "indent": 4,
+    "start": 2413,
+    "end": 2609,
+    "sha256": "f78fbd48f3bad4ca55e9c5fadd0b549669fbe4cb913add3850a5f6efd65d503d",
+    "full_body": "    pub(crate) fn at_start_of(&self) -> Option<BlockType> {\n        let block_type = (self.line_number_and_block_type & Self::BLOCK_TYPE_MASK) as u8;\n        BlockType::from_byte(block_type)\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "state",
+    "indent": 4,
+    "start": 16167,
+    "end": 16240,
+    "sha256": "63e61fdd4e25d913f645fbdae09f8d20293594aebb76d8af96bef833895658d4",
+    "full_body": "    pub fn state(&self) -> ParserState {\n        self.state.clone()\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "reset",
+    "indent": 4,
+    "start": 16893,
+    "end": 16985,
+    "sha256": "08cb330364b01bc13ce3b5c1594ff9fc6bbddb8422daa705a9018c99af13cb60",
+    "full_body": "    pub fn reset(&mut self, state: &ParserState) {\n        self.state = state.clone();\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "try_parse",
+    "indent": 4,
+    "start": 17520,
+    "end": 17813,
+    "sha256": "0aa74e265fb836ece629b0ba84c1c924af4d3a4efa7b25ba865c158b8b32a2b5",
+    "full_body": "    pub fn try_parse<F, T, E>(&mut self, thing: F) -> Result<T, E>\n    where\n        F: FnOnce(&mut Parser<'i>) -> Result<T, E>,\n    {\n        let start = self.state();\n        let result = thing(self);\n        if result.is_err() {\n            self.reset(&start)\n        }\n        result\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "expect_exhausted",
+    "indent": 4,
+    "start": 15201,
+    "end": 15681,
+    "sha256": "b65ee3e8c1c1aa721abaebf080510901ba2cccc8e389c4ffafe9da05d63daad3",
+    "full_body": "    pub fn expect_exhausted(&mut self) -> Result<(), BasicParseError> {\n        let start = self.state();\n        let result = match self.next() {\n            Err(BasicParseError {\n                kind: BasicParseErrorKind::EndOfInput,\n                ..\n            }) => Ok(()),\n            Err(e) => unreachable!(\"Unexpected error encountered: {:?}\", e),\n            Ok(_) => Err(BasicParseError::unexpected_token()),\n        };\n        self.reset(&start);\n        result\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "next_byte_before_delimiter",
+    "indent": 4,
+    "start": 16388,
+    "end": 16621,
+    "sha256": "b99293cc88443b7ea23c3496a28baeb5a3e61c6f5b109875e12f70169f136542",
+    "full_body": "    pub(crate) fn next_byte_before_delimiter(&self) -> Option<u8> {\n        let byte = self.next_byte()?;\n        if self.stop_before.contains(Delimiters::from_byte(byte)) {\n            return None;\n        }\n        Some(byte)\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "next",
+    "indent": 4,
+    "start": 18455,
+    "end": 18614,
+    "sha256": "e5474fcaad34ab17fe6301900ca40c2d5b3eb03cefb819cbea9097483cbf850c",
+    "full_body": "    pub fn next(&mut self) -> Result<&Token<'i>, BasicParseError> {\n        self.skip_whitespace();\n        self.next_including_whitespace_and_comments()\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "next_including_whitespace",
+    "indent": 4,
+    "start": 18685,
+    "end": 18940,
+    "sha256": "965c45e9a2ba5d1f15f9e90433b2edb6e2924902f9edbb9ef0cb04f0b46e4ea7",
+    "full_body": "    pub fn next_including_whitespace(&mut self) -> Result<&Token<'i>, BasicParseError> {\n        while let Token::Comment(..) = self.next_including_whitespace_and_comments()? {\n            // Keep going\n        }\n        Ok(&self.cached_token.token)\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "next_including_whitespace_and_comments",
+    "indent": 4,
+    "start": 19282,
+    "end": 20137,
+    "sha256": "635f1df1be62a9e72d7eb9a9913ed048a0d7b1aca27004bd073c2f793918d570",
+    "full_body": "    pub fn next_including_whitespace_and_comments(\n        &mut self,\n    ) -> Result<&Token<'i>, BasicParseError> {\n        self.skip_block_at_start();\n\n        if self.next_byte_before_delimiter().is_none() {\n            return Err(BasicParseError::new(BasicParseErrorKind::EndOfInput));\n        }\n\n        let token_start_position = self.position();\n        let using_cached_token = self.cached_token.start_position == token_start_position;\n        if using_cached_token {\n            self.state = self.cached_token.end_state.clone();\n        } else {\n            let new_token = self.next_unchecked();\n            self.cached_token = CachedToken {\n                token: new_token,\n                start_position: token_start_position,\n                end_state: self.state.clone(),\n            };\n        }\n\n        Ok(&self.cached_token.token)\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "parse_entirely",
+    "indent": 4,
+    "start": 20393,
+    "end": 20650,
+    "sha256": "fb710f0eb440ddfd88c534bc58abf78835288a1daf28663ab911bd9b577859ae",
+    "full_body": "    pub fn parse_entirely<F, T, E>(&mut self, parse: F) -> Result<T, ParseError<E>>\n    where\n        F: FnOnce(&mut Parser<'i>) -> Result<T, ParseError<E>>,\n    {\n        let result = parse(self)?;\n        self.expect_exhausted()?;\n        Ok(result)\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "consume_until_end_of_block",
+    "indent": 4,
+    "start": 36619,
+    "end": 37406,
+    "sha256": "0ab4b0f57cfc209f477509c06f2555d8c5062d4e86f95e8f1cd248373a2b1766",
+    "full_body": "    pub(crate) fn consume_until_end_of_block(&mut self, block_type: BlockType) {\n        let mut stack = SmallVec::<[BlockType; 16]>::new();\n        stack.push(block_type);\n\n        // FIXME: have a special-purpose tokenizer method for this that does less work.\n        while !self.is_eof() {\n            let token = self.next_unchecked();\n            if let Some(nested_block_type) = self.state.take_at_start_of() {\n                stack.push(nested_block_type);\n                continue;\n            }\n            if let Some(b) = BlockType::closing(&token) {\n                if *stack.last().unwrap() == b {\n                    stack.pop();\n                    if stack.is_empty() {\n                        return;\n                    }\n                }\n            }\n        }\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "expect_no_error_token",
+    "indent": 4,
+    "start": 32263,
+    "end": 33143,
+    "sha256": "ec9d53684ef2a85546b170cb9882d92b3c4e0912bf361983e0c8a52f5375dfd8",
+    "full_body": "    pub fn expect_no_error_token(&mut self) -> Result<(), BasicParseError> {\n        loop {\n            match self.next_including_whitespace_and_comments() {\n                Ok(&Token::Function(_))\n                | Ok(&Token::ParenthesisBlock)\n                | Ok(&Token::SquareBracketBlock)\n                | Ok(&Token::CurlyBracketBlock) => self\n                    .parse_nested_block(|input| input.expect_no_error_token().map_err(Into::into))\n                    .map_err(ParseError::<()>::basic)?,\n                Ok(t) => {\n                    // FIXME: maybe these should be separate variants of\n                    // BasicParseError instead?\n                    if t.is_parse_error() {\n                        return Err(BasicParseError::unexpected_token());\n                    }\n                }\n                Err(_) => return Ok(()),\n            }\n        }\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "expect_colon",
+    "indent": 4,
+    "start": 29467,
+    "end": 29609,
+    "sha256": "605dc8d47a8375515de1042306173ad8bd3e78b4485994e03af36ded9193de00",
+    "full_body": "    pub fn expect_colon(&mut self) -> Result<(), BasicParseError> {\n        expect! {self,\n            Token::Colon => Ok(()),\n        }\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "Parser constructor",
+    "start": 13611,
+    "end": 14307,
+    "sha256": "230e31c17892d0a99a706bb203da09d9c7a17e9e0e300b933d711ebcba2e381b",
+    "full_body": "    pub fn new(input: &'i str) -> Self {\n        Self {\n            input,\n            state: ParserState::default(),\n            stop_before: Delimiter::None,\n            nested_block_limit: Self::REASONABLE_NESTED_BLOCK_LIMIT,\n            current_block_depth: 0,\n            cached_token: CachedToken {\n                token: Token::Semicolon,                    // Anything would do.\n                start_position: SourcePosition(usize::MAX), // No token would match this cache.\n                end_state: ParserState::default(),\n            },\n            arbitrary_substitution_functions: SeenStatus::DontCare,\n            source_map_url: None,\n            source_url: None,\n        }\n    }"
+  },
+  {
+    "source": "parser.rs",
+    "name": "Parser fields",
+    "start": 8998,
+    "end": 9430,
+    "sha256": "ceb7affbac4feef31aadf05b6606680d4d5d3c2a37f7aa74c37115778808ca89",
+    "full_body": "pub struct Parser<'i> {\n    pub(crate) input: &'i str,\n    pub(crate) state: ParserState,\n    cached_token: CachedToken<'i>,\n    current_block_depth: u8,\n    nested_block_limit: u8,\n    /// For parsers from `parse_until` or `parse_nested_block`\n    stop_before: Delimiters,\n    pub(crate) arbitrary_substitution_functions: SeenStatus<'i>,\n    pub(crate) source_map_url: Option<&'i str>,\n    pub(crate) source_url: Option<&'i str>,\n}"
+  },
+  {
+    "source": "parser.rs",
+    "name": "CachedToken fields",
+    "start": 9432,
+    "end": 9544,
+    "sha256": "af0a480a8e86b7780daa7eff504e95a4d3e2f3a35d9f56acd11d4300e9af2565",
+    "full_body": "struct CachedToken<'i> {\n    token: Token<'i>,\n    start_position: SourcePosition,\n    end_state: ParserState,\n}"
+  },
+  {
+    "source": "parser.rs",
+    "name": "ParserState fields",
+    "start": 682,
+    "end": 1009,
+    "sha256": "954c10f7c41dc03a5b5105e593465cbf8f7da10913ff54e49cdfde911f3f38d7",
+    "full_body": "pub struct ParserState {\n    pub(crate) position: usize,\n    pub(crate) current_line_start_position: u32,\n    /// Current line number shifted by `Self::BLOCK_TYPE_BITS`, with the low 2 bits holding the\n    /// `BlockType` discriminant of the block the last returned token opened (if any).\n    line_number_and_block_type: u32,\n}"
+  },
+  {
+    "source": "parser.rs",
+    "name": "expect macro",
+    "start": 12927,
+    "end": 13211,
+    "sha256": "c1d866f3e3f57deb9aa71eb7b67c027e009aff14a0a8187ae302cfdca892c4bb",
+    "full_body": "macro_rules! expect {\n    ($parser: ident, $($branches: tt)+) => {\n        {\n            match *$parser.next()? {\n                $($branches)+\n                _ => {\n                    return Err(BasicParseError::unexpected_token())\n                }\n            }\n        }\n    }\n}"
+  },
+  {
+    "source": "parser.rs",
+    "name": "BlockType complete implementation",
+    "start": 9806,
+    "end": 10465,
+    "sha256": "8bc22814e340dea2a211dcf37678626aca20c247503654b7ef31667b7cbd20b3",
+    "full_body": "impl BlockType {\n    #[inline]\n    fn from_byte(b: u8) -> Option<BlockType> {\n        let ty = match b {\n            1 => BlockType::Parenthesis,\n            2 => BlockType::SquareBracket,\n            3 => BlockType::CurlyBracket,\n            _ => return None,\n        };\n        debug_assert_eq!(ty as u8, b);\n        Some(ty)\n    }\n\n    fn closing(token: &Token) -> Option<BlockType> {\n        Some(match *token {\n            Token::CloseParenthesis => BlockType::Parenthesis,\n            Token::CloseSquareBracket => BlockType::SquareBracket,\n            Token::CloseCurlyBracket => BlockType::CurlyBracket,\n            _ => return None,\n        })\n    }\n}"
+  },
+  {
+    "source": "parser.rs",
+    "name": "Delimiters complete implementation",
+    "start": 12086,
+    "end": 12886,
+    "sha256": "82e661998113281b1672a955fa5decf6a137ab61d6578a1b2e9a57ebe5144fb5",
+    "full_body": "impl Delimiters {\n    #[inline]\n    fn contains(self, other: Delimiters) -> bool {\n        (self.bits & other.bits) != 0\n    }\n\n    #[inline]\n    pub(crate) fn from_byte(byte: u8) -> Delimiters {\n        const TABLE: [Delimiters; 256] = {\n            let mut table = [Delimiter::None; 256];\n            table[b';' as usize] = Delimiter::Semicolon;\n            table[b'!' as usize] = Delimiter::Bang;\n            table[b',' as usize] = Delimiter::Comma;\n            table[b'{' as usize] = Delimiter::CurlyBracketBlock;\n            table[b'}' as usize] = ClosingDelimiter::CloseCurlyBracket;\n            table[b']' as usize] = ClosingDelimiter::CloseSquareBracket;\n            table[b')' as usize] = ClosingDelimiter::CloseParenthesis;\n            table\n        };\n\n        TABLE[byte as usize]\n    }\n}"
+  }
+]

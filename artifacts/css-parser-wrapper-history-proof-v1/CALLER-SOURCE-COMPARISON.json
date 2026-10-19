@@ -1,0 +1,57 @@
+{
+  "kind": "read-only local comparison at packaging; not a future live-source assertion",
+  "rows": [
+    {
+      "path": "third_party/rust/cssparser/src/parser.rs",
+      "audit_source_sha256": "2ac2c7f820ff5095c705446ff8a0f31507affe08e68bf6cc3735d5fb5bc38788",
+      "observed_current_sha256": "2ac2c7f820ff5095c705446ff8a0f31507affe08e68bf6cc3735d5fb5bc38788",
+      "whole_file_equal": true
+    },
+    {
+      "path": "third_party/rust/cssparser/src/tokenizer.rs",
+      "audit_source_sha256": "5319a01e403cd2a93bfc3dd4c53a7e5ec95129360da58c6f9f76f480ae5e6211",
+      "observed_current_sha256": "5319a01e403cd2a93bfc3dd4c53a7e5ec95129360da58c6f9f76f480ae5e6211",
+      "whole_file_equal": true
+    },
+    {
+      "path": "servo/components/style/properties/mod.rs",
+      "audit_source_sha256": "2ef96482f50b06dcf87a18abc4d1a9aa0109a9063aa71cadc53e7737022c094d",
+      "observed_current_sha256": "2ef96482f50b06dcf87a18abc4d1a9aa0109a9063aa71cadc53e7737022c094d",
+      "whole_file_equal": true
+    },
+    {
+      "path": "servo/components/style/properties/declaration_block.rs",
+      "audit_source_sha256": "8474218db02f8787c212f47a08be33a468553b4ab809e774f2d26d4ae098812a",
+      "observed_current_sha256": "8474218db02f8787c212f47a08be33a468553b4ab809e774f2d26d4ae098812a",
+      "whole_file_equal": true
+    },
+    {
+      "path": "servo/ports/geckolib/glue.rs",
+      "audit_source_sha256": "94d5ea189192d43b7e11f5046d9ba520134024750618050acd32baf2ff9419fb",
+      "observed_current_sha256": "94d5ea189192d43b7e11f5046d9ba520134024750618050acd32baf2ff9419fb",
+      "whole_file_equal": true,
+      "compared_definition": "compute_arbritrary_substitution_functions",
+      "full_definition_equal": true,
+      "definition_sha256": "39f19d0b4aed2c239e8fcc540df33662a432d21da1415ac1ebc9ce8770bef61c",
+      "full_definition": "fn compute_arbritrary_substitution_functions(\n    string: &str,\n    element: GeckoElement,\n    style: &ComputedValues,\n    data: &PerDocumentStyleDataImpl,\n    parser_context: &ParserContext,\n    context: &Context,\n) -> Option<String> {\n    use style::custom_properties::VariableValue;\n    use style::properties::ARBITRARY_SUBSTITUTION_FUNCTIONS;\n\n    let mut parser = Parser::new(&string);\n\n    // Let's check if we have substitution functions (`var()`, `attr()`, `env()`) to handle.\n    parser.look_for_arbitrary_substitution_functions(ARBITRARY_SUBSTITUTION_FUNCTIONS);\n    let Ok(variable_value) = VariableValue::parse(\n        &mut parser,\n        Some(&parser_context.namespaces.prefixes),\n        &parser_context.url_data,\n    ) else {\n        return None;\n    };\n\n    if !parser.seen_arbitrary_substitution_functions() {\n        return None;\n    }\n\n    // Build the attributes Map that ComputedSubstitutionFunctions needs\n    let stylist = &data.stylist;\n    let mut attribute_tracker = AttributeTracker::new(&element);\n    let mut substitution_functions = custom_properties::ComputedSubstitutionFunctions::new(\n        Some(style.custom_properties().clone()),\n        None,\n    );\n    for reference in &variable_value.references.refs {\n        if !reference.is_attr_with_type() {\n            continue;\n        }\n        let Some(namespace) = reference.attribute_data.namespace() else {\n            continue;\n        };\n        let Ok(value) = custom_properties::get_attr_value_for_cycle_resolution(\n            &reference.name,\n            &reference.attribute_data,\n            &variable_value.url_data,\n            &mut attribute_tracker,\n        ) else {\n            continue;\n        };\n        substitution_functions.insert_attr(&reference.name, namespace, value);\n    }\n\n    let Ok(result) = custom_properties::substitute(\n        &variable_value,\n        // TODO(Bug 2071366) - Thread the property being explained through InspectorUtils so\n        // that random() resolves the same way it does in the cascade.\n        None,\n        &substitution_functions,\n        stylist,\n        &context,\n        &mut attribute_tracker,\n    ) else {\n        return None;\n    };\n\n    Some(result.css.to_string())\n}"
+    },
+    {
+      "path": "third_party/rust/cssparser/src/rules_and_declarations.rs",
+      "audit_source_sha256": "d62e3ac18f2807e70606d79bde55af811f17720d01926ee492c0f294306aca6b",
+      "observed_current_sha256": "d62e3ac18f2807e70606d79bde55af811f17720d01926ee492c0f294306aca6b",
+      "whole_file_equal": true
+    },
+    {
+      "path": "servo/components/style/stylesheets/supports_rule.rs",
+      "audit_source_sha256": "d4aa87d1622509fbab92cbaea8d36ae16b8d1748875d2ff4ebe5adfbd037150c",
+      "observed_current_sha256": "d4aa87d1622509fbab92cbaea8d36ae16b8d1748875d2ff4ebe5adfbd037150c",
+      "whole_file_equal": true
+    },
+    {
+      "path": "servo/components/style/stylesheets/rule_parser.rs",
+      "audit_source_sha256": "4fcd95a8c51da73c0e0537c7083f9a6b6029e34c55e0450e8694b3bf5d2e17a6",
+      "observed_current_sha256": "4fcd95a8c51da73c0e0537c7083f9a6b6029e34c55e0450e8694b3bf5d2e17a6",
+      "whole_file_equal": true
+    }
+  ]
+}
