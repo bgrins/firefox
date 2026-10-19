@@ -1,0 +1,428 @@
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1517-    pub fn first_declaration_start(&self) -> SourceLocation {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1518-        self.first_declaration_start
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1519-    }
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1520-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1521-    /// Returns whether any parsed declarations have been parsed so far.
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1522-    pub fn has_parsed_declarations(&self) -> bool {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1523-        !self.output_block.is_empty()
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1524-    }
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1525-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1526-    /// Takes the parsed declarations.
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1527-    pub fn take_declarations(&mut self) -> PropertyDeclarationBlock {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1528-        std::mem::take(&mut self.output_block)
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1529-    }
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1530-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1531-    /// Parse a single declaration value.
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs:1532:    pub fn parse_value(
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1533-        &mut self,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1534-        context: &mut ParserContext,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1535-        name: CowRcStr<'i>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1536-        input: &mut Parser<'i>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1537-        declaration_start: &ParserState,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1538-    ) -> Result<(), ParseError> {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1539-        let id = match PropertyId::parse(&name, context) {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1540-            Ok(id) => id,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1541-            Err(..) => {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1542-                return Err(ParseError::custom(StyleParseErrorKind::UnknownProperty));
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1543-            },
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1544-        };
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1545-        if context.error_reporting_enabled() {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1546-            self.last_parsed_property_id = Some(id.clone());
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1547-        }
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs:1548:        input.parse_until_before(Delimiter::Bang, |input| {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1549-            PropertyDeclaration::parse_into(&mut self.declarations, id, context, input)
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1550-        })?;
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1551-        self.importance = match input.try_parse(parse_important) {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1552-            Ok(()) => {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1553-                if !context.allows_important_declarations() {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1554-                    return Err(ParseError::custom(
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1555-                        StyleParseErrorKind::UnexpectedImportantDeclaration,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1556-                    ));
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1557-                }
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1558-                Importance::Important
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1559-            },
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1560-            Err(_) => Importance::Normal,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1561-        };
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1562-        // In case there is still unparsed text in the declaration, we should roll back.
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1563-        input.expect_exhausted()?;
+--
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1637-impl<'a, 'b, 'i> QualifiedRuleParser<'i> for PropertyDeclarationParser<'a, 'b, 'i> {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1638-    type Prelude = ();
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1639-    type QualifiedRule = ();
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1640-    type Error = StyleParseErrorKind;
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1641-}
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1642-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1643-/// Based on NonMozillaVendorIdentifier from Gecko's CSS parser.
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1644-fn is_non_mozilla_vendor_identifier(name: &str) -> bool {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1645-    (name.starts_with("-") && !name.starts_with("-moz-")) || name.starts_with("_")
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1646-}
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1647-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1648-impl<'a, 'b, 'i> DeclarationParser<'i> for PropertyDeclarationParser<'a, 'b, 'i> {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1649-    type Declaration = ();
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1650-    type Error = StyleParseErrorKind;
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1651-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs:1652:    fn parse_value(
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1653-        &mut self,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1654-        name: CowRcStr<'i>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1655-        input: &mut Parser<'i>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1656-        declaration_start: &ParserState,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1657-    ) -> Result<(), ParseError> {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1658-        self.state
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs:1659:            .parse_value(self.context, name, input, declaration_start)
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1660-    }
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1661-}
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1662-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1663-impl<'a, 'b, 'i> RuleBodyItemParser<'i, (), StyleParseErrorKind>
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1664-    for PropertyDeclarationParser<'a, 'b, 'i>
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1665-{
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1666-    fn parse_declarations(&self) -> bool {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1667-        true
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1668-    }
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1669-    // TODO(emilio): Nesting.
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1670-    fn parse_qualified(&self) -> bool {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1671-        false
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1672-    }
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1673-}
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/declaration_block.rs-1674-
+--
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-1-/* This Source Code Form is subject to the terms of the Mozilla Public
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-2- * License, v. 2.0. If a copy of the MPL was not distributed with this
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-3- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-4-
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-5-// https://drafts.csswg.org/css-syntax/#parsing
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-6-
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-7-use super::{BasicParseError, BasicParseErrorKind, Delimiter, ParseError, Parser, Token};
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-8-use crate::cow_rc_str::CowRcStr;
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-9-use crate::parser::{ParseUntilErrorBehavior, ParserState, parse_nested_block, parse_until_after};
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-10-use crate::tokenizer::SourceLocation;
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-11-
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-12-/// Parse `!important`.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-13-///
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-14-/// Typical usage is `input.try_parse(parse_important).is_ok()`
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs:15:/// at the end of a `DeclarationParser::parse_value` implementation.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-16-pub fn parse_important(input: &mut Parser) -> Result<(), BasicParseError> {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-17-    input.expect_delim('!')?;
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-18-    input.expect_ident_matching("important")
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-19-}
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-20-
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-21-/// A trait to provide various parsing of declaration values.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-22-///
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-23-/// For example, there could be different implementations for property declarations in style rules
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-24-/// and for descriptors in `@font-face` rules.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-25-pub trait DeclarationParser<'i> {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-26-    /// The finished representation of a declaration.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-27-    type Declaration;
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-28-
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-29-    /// The error type that is included in the ParseError value that can be returned.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-30-    type Error;
+--
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-34-    /// Return the finished representation for the declaration
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-35-    /// as returned by `RuleBodyParser::next`,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-36-    /// or an `Err(..)` to ignore the entire declaration as invalid.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-37-    ///
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-38-    /// Declaration name matching should be case-insensitive in the ASCII range.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-39-    /// This can be done with `std::ascii::Ascii::eq_ignore_ascii_case`,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-40-    /// or with the `match_ignore_ascii_case!` macro.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-41-    ///
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-42-    /// The given `input` is a "delimited" parser
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-43-    /// that ends wherever the declaration value should end.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-44-    /// (In declaration lists, before the next semicolon or end of the current block.)
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-45-    ///
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-46-    /// If `!important` can be used in a given context,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-47-    /// `input.try_parse(parse_important).is_ok()` should be used at the end
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-48-    /// of the implementation of this method and the result should be part of the return value.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs:49:    fn parse_value(
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-50-        &mut self,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-51-        _name: CowRcStr<'i>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-52-        _input: &mut Parser<'i>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-53-        _declaration_start: &ParserState,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-54-    ) -> Result<Self::Declaration, ParseError<Self::Error>> {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-55-        Err(ParseError::unexpected_token())
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-56-    }
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-57-}
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-58-
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-59-/// A trait to provide various parsing of at-rules.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-60-///
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-61-/// For example, there could be different implementations for top-level at-rules
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-62-/// (`@media`, `@font-face`, …)
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-63-/// and for page-margin rules inside `@page`.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-64-///
+--
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-273-                Token::Ident(name) if self.parser.parse_declarations() => {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-274-                    let name = name.clone();
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-275-                    let parse_qualified = self.parser.parse_qualified();
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-276-                    let result = {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-277-                        let error_behavior = if parse_qualified {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-278-                            ParseUntilErrorBehavior::Stop
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-279-                        } else {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-280-                            ParseUntilErrorBehavior::Consume
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-281-                        };
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-282-                        let parser = &mut self.parser;
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-283-                        parse_until_after(
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-284-                            self.input,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-285-                            Delimiter::Semicolon,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-286-                            error_behavior,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-287-                            |input| {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs:288:                                input.expect_colon()?;
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs:289:                                parser.parse_value(name, input, &start)
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-290-                            },
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-291-                        )
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-292-                    };
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-293-                    if result.is_err() && parse_qualified {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-294-                        self.input.reset(&start);
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-295-                        // We ignore the resulting error here. The property declaration parse error
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-296-                        // is likely to be more relevant.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-297-                        if let Ok(qual) = parse_qualified_rule(
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-298-                            &start,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-299-                            self.input,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-300-                            &mut *self.parser,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-301-                            /* nested = */ true,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-302-                        ) {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-303-                            return Some(Ok(qual));
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-304-                        }
+--
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-425-}
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-426-
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-427-/// Parse a single declaration, such as an `( /* ... */ )` parenthesis in an `@supports` prelude.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-428-pub fn parse_one_declaration<'i, P, E>(
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-429-    input: &mut Parser<'i>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-430-    parser: &mut P,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-431-) -> Result<<P as DeclarationParser<'i>>::Declaration, (ParseError<E>, &'i str, SourceLocation)>
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-432-where
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-433-    P: DeclarationParser<'i, Error = E>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-434-{
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-435-    let start = input.state();
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-436-    let start_position = input.position();
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-437-    input
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-438-        .parse_entirely(|input| {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-439-            let name = input.expect_ident()?.clone();
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs:440:            input.expect_colon()?;
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs:441:            parser.parse_value(name, input, &start)
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-442-        })
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-443-        .map_err(|e| (e, input.slice_from(start_position), start.source_location()))
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-444-}
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-445-
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-446-/// Parse a single rule, such as for CSSOM’s `CSSStyleSheet.insertRule`.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-447-pub fn parse_one_rule<'i, R, P, E>(
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-448-    input: &mut Parser<'i>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-449-    parser: &mut P,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-450-) -> Result<R, ParseError<E>>
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-451-where
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-452-    P: QualifiedRuleParser<'i, QualifiedRule = R, Error = E>
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-453-        + AtRuleParser<'i, AtRule = R, Error = E>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-454-{
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-455-    input.parse_entirely(|input| {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-456-        input.skip_whitespace();
+--
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-473-            parse_qualified_rule(&start, input, parser, /* nested = */ false)
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-474-        }
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-475-    })
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-476-}
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-477-
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-478-fn parse_at_rule<'i, P, E>(
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-479-    start: &ParserState,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-480-    name: CowRcStr<'i>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-481-    input: &mut Parser<'i>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-482-    parser: &mut P,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-483-) -> Result<<P as AtRuleParser<'i>>::AtRule, (ParseError<E>, &'i str, SourceLocation)>
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-484-where
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-485-    P: AtRuleParser<'i, Error = E>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-486-{
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-487-    let delimiters = Delimiter::Semicolon | Delimiter::CurlyBracketBlock;
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs:488:    let result = input.parse_until_before(delimiters, |input| parser.parse_prelude(name, input));
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-489-    match result {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-490-        Ok(prelude) => {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-491-            let result = match input.next() {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-492-                Ok(&Token::Semicolon) | Err(_) => parser
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-493-                    .rule_without_block(prelude, start)
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-494-                    .map_err(|()| ParseError::unexpected_token()),
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-495-                Ok(&Token::CurlyBracketBlock) => {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-496-                    parse_nested_block(input, |input| parser.parse_block(prelude, start, input))
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-497-                }
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-498-                Ok(_) => unreachable!(),
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-499-            };
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-500-            result.map_err(|e| {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-501-                (
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-502-                    e,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-503-                    input.slice_from(start.position()),
+--
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-515-                error,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-516-                input.slice(start.position()..end_position),
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-517-                start.source_location(),
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-518-            ))
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-519-        }
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-520-    }
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-521-}
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-522-
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-523-//  If the first two non-<whitespace-token> values of rule’s prelude are an <ident-token> whose
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-524-//  value starts with "--" followed by a <colon-token>, then...
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-525-fn looks_like_a_custom_property(input: &mut Parser) -> bool {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-526-    let ident = match input.expect_ident() {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-527-        Ok(i) => i,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-528-        Err(..) => return false,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-529-    };
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs:530:    ident.starts_with("--") && input.expect_colon().is_ok()
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-531-}
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-532-
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-533-// https://drafts.csswg.org/css-syntax/#consume-a-qualified-rule
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-534-fn parse_qualified_rule<'i, P, E>(
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-535-    start: &ParserState,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-536-    input: &mut Parser<'i>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-537-    parser: &mut P,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-538-    nested: bool,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-539-) -> Result<<P as QualifiedRuleParser<'i>>::QualifiedRule, ParseError<E>>
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-540-where
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-541-    P: QualifiedRuleParser<'i, Error = E>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-542-{
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-543-    input.skip_whitespace();
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-544-    let prelude = {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-545-        let state = input.state();
+--
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-551-                Delimiter::Semicolon
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-552-            } else {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-553-                Delimiter::CurlyBracketBlock
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-554-            };
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-555-            let _: Result<(), ParseError<()>> = input.parse_until_after(delimiters, |_| Ok(()));
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-556-            return Err(ParseError::from_basic_kind(
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-557-                BasicParseErrorKind::QualifiedRuleInvalid,
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-558-            ));
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-559-        }
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-560-        let delimiters = if nested {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-561-            Delimiter::Semicolon | Delimiter::CurlyBracketBlock
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-562-        } else {
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-563-            Delimiter::CurlyBracketBlock
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-564-        };
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-565-        input.reset(&state);
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs:566:        input.parse_until_before(delimiters, |input| parser.parse_prelude(input))
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-567-    };
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-568-
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-569-    input.expect_curly_bracket_block()?;
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-570-    // Do this here so that we consume the `{` even if the prelude is `Err`.
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-571-    let prelude = prelude?;
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-572-    parse_nested_block(input, |input| parser.parse_block(prelude, start, input))
+artifacts/css-tokenizer-public-stream-scout-v1/source/third_party/rust/cssparser/src/rules_and_declarations.rs-573-}
+--
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-777-    pub fn is_legacy_shorthand(self) -> bool {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-778-        self.flags().contains(PropertyFlags::IS_LEGACY_SHORTHAND)
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-779-    }
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-780-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-781-    /// Returns whether this shorthand remains enabled even if some subproperties are pref-disabled.
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-782-    #[inline]
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-783-    pub fn allows_disabled_subproperties(self) -> bool {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-784-        self.flags()
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-785-            .contains(PropertyFlags::ALLOWS_DISABLED_SUBPROPERTIES)
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-786-    }
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-787-}
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-788-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-789-/// The arbitrary substitution functions we support.
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-790-pub const ARBITRARY_SUBSTITUTION_FUNCTIONS: &[&str] = &["var", "env", "attr"];
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-791-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs:792:fn parse_non_custom_property_declaration_value_into(
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-793-    declarations: &mut SourcePropertyDeclaration,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-794-    context: &ParserContext,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-795-    input: &mut Parser,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-796-    start: &cssparser::ParserState,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-797-    parse_entirely_into: impl FnOnce(
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-798-        &mut SourcePropertyDeclaration,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-799-        &mut Parser,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-800-    ) -> Result<(), ParseError>,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-801-    parsed_wide_keyword: impl FnOnce(&mut SourcePropertyDeclaration, CSSWideKeyword),
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-802-    parsed_custom: impl FnOnce(&mut SourcePropertyDeclaration, custom_properties::VariableValue),
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-803-) -> Result<(), ParseError> {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-804-    let mut starts_with_curly_block = false;
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-805-    input.look_for_arbitrary_substitution_functions(ARBITRARY_SUBSTITUTION_FUNCTIONS);
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-806-    if let Ok(token) = input.next() {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-807-        match token {
+--
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-963-                        )?,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-964-                    )),
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-965-                };
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-966-                declarations.push(PropertyDeclaration::Custom(CustomDeclaration {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-967-                    name: property_name,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-968-                    value,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-969-                }));
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-970-                return Ok(());
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-971-            },
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-972-            PropertyId::NonCustom(id) => id,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-973-        };
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-974-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-975-        context.with_property_declaration(PropertyIdRef::from(non_custom_id), |context| {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-976-            match non_custom_id.longhand_or_shorthand() {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-977-                Ok(longhand_id) => {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs:978:                    parse_non_custom_property_declaration_value_into(
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-979-                        declarations,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-980-                        context,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-981-                        input,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-982-                        &start,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-983-                        |declarations, input| {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-984-                            let decl = input
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs:985:                                .parse_entirely(|input| longhand_id.parse_value(context, input))?;
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-986-                            declarations.push(decl);
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-987-                            Ok(())
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-988-                        },
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-989-                        |declarations, wk| {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-990-                            declarations
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-991-                                .push(PropertyDeclaration::css_wide_keyword(longhand_id, wk));
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-992-                        },
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-993-                        |declarations, variable_value| {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-994-                            declarations.push(PropertyDeclaration::WithVariables(
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-995-                                VariableDeclaration {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-996-                                    id: longhand_id,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-997-                                    value: Arc::new(UnparsedValue {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-998-                                        variable_value,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-999-                                        from_shorthand: None,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1000-                                    }),
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1001-                                },
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1002-                            ))
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1003-                        },
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1004-                    )?;
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1005-                },
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1006-                Err(shorthand_id) => {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs:1007:                    parse_non_custom_property_declaration_value_into(
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1008-                        declarations,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1009-                        context,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1010-                        input,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1011-                        &start,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1012-                        // Not using parse_entirely here: each ShorthandId::parse_into function
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1013-                        // needs to do so *before* pushing to `declarations`.
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1014-                        |declarations, input| shorthand_id.parse_into(declarations, context, input),
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1015-                        |declarations, wk| {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1016-                            if shorthand_id == ShorthandId::All {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1017-                                declarations.all_shorthand = AllShorthand::CSSWideKeyword(wk)
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1018-                            } else {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1019-                                for longhand in shorthand_id.longhands() {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1020-                                    declarations
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1021-                                        .push(PropertyDeclaration::css_wide_keyword(longhand, wk));
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1022-                                }
+--
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1701-            None,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1702-            None,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1703-            attr_taint,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1704-        );
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1705-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1706-        let mut input = Parser::new(&css);
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1707-        input.skip_whitespace();
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1708-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1709-        if let Ok(keyword) = input.try_parse(CSSWideKeyword::parse) {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1710-            return Cow::Owned(PropertyDeclaration::css_wide_keyword(longhand_id, keyword));
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1711-        }
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1712-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1713-        let shorthand = match unparsed.from_shorthand {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1714-            None => {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1715-                return match context.with_property_declaration(property_id, |context| {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs:1716:                    input.parse_entirely(|input| longhand_id.parse_value(context, input))
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1717-                }) {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1718-                    Ok(decl) => Cow::Owned(decl),
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1719-                    Err(..) => invalid_at_computed_value_time(),
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1720-                };
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1721-            },
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1722-            Some(shorthand) => shorthand,
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1723-        };
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1724-
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1725-        let mut decls = SourcePropertyDeclaration::default();
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1726-        // parse_into takes care of doing `parse_entirely` for us.
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1727-        if context
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1728-            .with_property_declaration(property_id, |context| {
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1729-                shorthand.parse_into(&mut decls, context, &mut input)
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1730-            })
+artifacts/css-tokenizer-public-stream-scout-v1/source/servo/components/style/properties/mod.rs-1731-            .is_err()

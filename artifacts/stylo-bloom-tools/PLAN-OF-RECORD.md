@@ -27,7 +27,12 @@ padding/width controls pass. The one-line iterative cleanup repair is committed 
 `55d251b7a90003546994f6576e5ee78e8fa07cb2`: all 22 final checks pass and 46 other outcomes are unchanged.
 Root and independent review pass the 21-theorem recovery component. The signed
 string checkpoint is `a3e34003574adb8655431b391c77a422358af743`. Public cache and
-observer caller-history investigation continues with its counterexamples retained.
+observer caller-history review now accepts a conditional tracking-epoch component:
+ten exact theorem audits, fourteen native observations, two compiled Lean semantic
+mutants and four tamper gates pass fresh root and independent replay. Cold or
+Colon-cache entry provides the proved invariant. Both public-API counterexamples
+remain retained; browser URL reachability and full native event generation are open.
+Evidence: css-parser-cache-observer-root-v1/ROOT-ACCEPTANCE.json.
 
 ## Next proof work
 
@@ -49,8 +54,10 @@ Immediate next steps:
    css-tokenizer-string-provider-root-v1/ROOT-ACCEPTANCE.json.
 3. Establish admissible public parser histories for token caching, tracking
    enable/query epochs, reset and block skipping. Keep the cached-function and
-   URL-observer counterexamples. A source audit and conditional epoch model are
-   underway; no new browser reachability or full caller proof is accepted yet.
+   URL-observer counterexamples. The source audit and conditional epoch model are
+   accepted for cold/non-Function cache entries. Next derive actual byte-parser
+   events and compose query/disable epochs; browser URL reachability and a full
+   caller proof remain open.
    Preserve the accepted nesting-limit recovery grammar as a component when
    composing error paths. SourceMap and sourceURL contracts must be distinguished.
 4. Continue cascade source/observer and hyphenation stateful consumer admission,

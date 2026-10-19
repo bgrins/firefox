@@ -337,3 +337,22 @@ caller path. Public cache/reset/function-tracking and URL observer histories
 remain separate open leads. Full parser/tokenizer verification is not closed.
 
 Evidence: `../css-parser-depth-recovery-root-v1/ROOT-SCOPED-ACCEPTANCE.json`.
+
+## Parser tracking-epoch checkpoint
+
+Root and independent review accept a conditional event-level component: ten
+exact theorem audits, fourteen actual cssparser observations, two compiled Lean
+semantic mutants and four preexecution tamper gates pass fresh replay. The
+independent observation-list reference includes cache hits; the native model
+does not. A derived invariant bridges them: a relevant cached Function has
+already set the seen bit. Cold or non-Function cache entries establish it.
+
+The discovered production callers start with a fresh parser or a Colon cache.
+This is a source audit, not a whole-program proof. Query/disable phases, nested
+re-enabling, byte-to-event generation, native memory/bounds/compiler semantics
+and full public-parser execution remain open. Late-enable and query/re-enable
+counterexamples remain explicit. URL replay can still overwrite metadata; no
+actual stylesheet publication trace is established. All twelve original
+obligations remain scoped, and the native/WPT fix count stays 66.
+
+Evidence: `../css-parser-cache-observer-root-v1/ROOT-ACCEPTANCE.json`.
