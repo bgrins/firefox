@@ -29,13 +29,11 @@ Immediate next steps:
 4. Continue cascade source/observer and hyphenation stateful consumer admissions,
    including actual reflow-to-display tab-cache coverage and lifetime. Preserve
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
-5. Complete isolated-upstream validation and standalone packaging for the
-   loaded FontFace provider candidate (known bug 1072149 family). The local
-   build and final 68-case matrix pass; 38 failures and the existing style/family
-   regression improve. Eight descriptor-retirement cases also pass. The worker
-   family rebuild from #50 is necessary support; include it in the standalone
-   patch and record that the stacked tree already contains it. Isolated build,
-   no-support comparison and other-platform gates remain open.
+5. Loaded FontFace descriptors are committed: standalone `f393d2d8c3b0abd6fa17709ab8dd519d8fdd5db2`;
+   stacked integration `6bd0b00dcff5514a3234423787920ed44491a4bc`. Isolated macOS build and all 90 expected
+   browser checks pass, including 76 new subtests. The standalone patch carries
+   worker cleanup already present in stack repair #50. Other backends and full
+   native lifetime/concurrency proofs remain open.
 6. Keep every accepted repair independently reviewable in CURRENT-COMMITS.json,
    with proof/tooling preceding its standalone native/WPT commit. Full closure
    requirements remain in the linked checklist.
@@ -49,7 +47,7 @@ close these obligations.
 
 ## Latest commit and proof checkpoint
 
-There are 59 signed standalone native/WPT fixes. Worker font removal is now
+There are 61 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
@@ -3137,3 +3135,21 @@ the signed count remains60.
 
 Signed name/escape component checkpoint: `71fd35e1276edfef665ff1a4fada28217174a1d5`. Numeric lexical and
 decoded-unit formal production proceeds separately from the numerical repair.
+
+## Standalone FontFace completion and numeric repair cost
+
+FontFace repair61 is signed: standalone `f393d2d8c3b0abd6fa17709ab8dd519d8fdd5db2`, stacked
+`6bd0b00dcff5514a3234423787920ed44491a4bc`. The isolated upstream build succeeds. Without worker family
+cleanup the candidate has 68/76 new passes; with only that cleanup added all76
+pass, eight checks improve and82 remain unchanged. All90 outcomes are expected.
+The standalone branch includes required support and preceding evidence; native
+commits contain only code, WPT and necessary metadata. Other backends remain
+source-reviewed rather than compiled.
+
+The expanded numeric baseline has five failures and six passing controls; all21
+existing tokenizer checks retain their expected results. Relative tolerance
+exposes tiny finite underflow values. The first rare-path repair passes852
+extracted Rust cases but independent microbenchmarks measure normal-path cost.
+Investigate a cheaper guard before live integration. These are extracted body
+timings, not browser performance. Lexical numeric proof work continues separately.
+Current count61; accepted pending0.

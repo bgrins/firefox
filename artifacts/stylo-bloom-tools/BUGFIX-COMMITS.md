@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **60 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **61 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -59,6 +59,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | resolved-unit-dependency-summary | `58200fa81a6f92f92a1898ba2866a2fbcbac0daa` | `03bad7f708329254a9af2073f0b4106ba557e914` |
 | unit-token-classification | `26e0fa16e89eacd9fd9cab0ce6bb1be813d9e406` | `2e1f5f62c8a6325679a83adc7f637e104c488bf7` |
 | identifier-start-escaped-newline | `09b008b3320fa29fcbcf081b252053e3721c5e10` | `b69763a1817a7a4824e6df0d04e0e4e52684c897` |
+| loaded-fontface-descriptors | `6bd0b00dcff5514a3234423787920ed44491a4bc` | `ae298df56390ff98baa873bfcea3896e6c112d48` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1445,3 +1446,20 @@ build reused a stale parser library. Both attempts are retained. Lean proves
 the modeled predicate correction and exact change domain under the stated
 source/primitive assumptions. Source applicability is checked on upstream;
 runtime validation uses the shared experimental tree, not an isolated build.
+
+## Loaded FontFace descriptors committed
+
+Standalone native + WPT: `f393d2d8c3b0abd6fa17709ab8dd519d8fdd5db2` on local branch
+`stylo-fontface-loaded-descriptors-fix`, after evidence companion
+`b8aa63373899fdab2d6b93848a12e8c2d506ad91`. Working-branch integration: `6bd0b00dcff5514a3234423787920ed44491a4bc`.
+These are two versions of one repair. The standalone patch includes the required
+worker family cleanup; the stack already has it from repair #50.
+
+The standalone upstream-based candidate builds and passes all 76 new subtests;
+all 90 checks have expected outcomes, including one unchanged expected failure.
+Removing only the worker cleanup produces eight failures. Earlier shared-tree
+pairing repaired 38 failures in the original 68-case matrix. Source and binary
+pins, exact patches and both isolated runs are in
+[validation](../css-fontface-provider-isolated-v1/README.md). Runtime validation
+is macOS only; other backends have source review. The existing abstract provider
+model does not establish full native lifetime or concurrency correctness.
