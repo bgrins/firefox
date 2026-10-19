@@ -19,7 +19,8 @@ Immediate next steps:
    identifier round-trip test was blocked at its second stylesheet read. A
    separate WPT-only correction now waits for a fresh stylesheet update, passes
    the original assertion and removes expected-FAIL metadata; no native bug is
-   added. The exact-spelling escaped-EOF oracle remains inconclusive under raw
+   added. WPT-only commit: `ae4db18e4b3ec93bd9bd16bfa77236c484e2695d`.
+   The exact-spelling escaped-EOF oracle remains inconclusive under raw
    custom-property preservation requirements.
    Evidence: css-tokenizer-string-comment-root-v1/ROOT-REVIEW.json and
    css-rule-identifier-roundtrip-fix-v2/ROOT-ACCEPTANCE.json.

@@ -64,6 +64,18 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
+## Test-only corrections
+
+These commits improve existing tests and are excluded from the native-fix count.
+
+| Correction | WPT + metadata commit | Evidence/tooling commit |
+| --- | --- | --- |
+| Await imported stylesheet completion before identifier round-trip comparison | `ae4db18e4b3ec93bd9bd16bfa77236c484e2695d` | `8d1658d8e6743a853126093b0888a00cc2ffc7ba` |
+
+The original equality assertion now passes. The correction uses a fresh style
+element and its completion event; no native serializer change is included.
+
+
 ## Hyphenation coordinates committed
 
 `18871240dc7d077bf223822013e7a50cf581e2d1` contains one native comparison and its WPT,
