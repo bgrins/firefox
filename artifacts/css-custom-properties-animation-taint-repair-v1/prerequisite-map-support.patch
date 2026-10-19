@@ -1,0 +1,11 @@
+--- a/servo/components/style/custom_properties_map.rs
++++ b/servo/components/style/custom_properties_map.rs
+@@ -205,7 +205,7 @@
+         if let Some(inner) = Arc::get_mut(&mut self.0) {
+             return inner.insert(name, value);
+         }
+-        if self.get(name) == value.as_ref() {
++        if can_deduplicate_values(self.get(name), value.as_ref()) {
+             return;
+         }
+         if !self.0.should_expand_chain() {
