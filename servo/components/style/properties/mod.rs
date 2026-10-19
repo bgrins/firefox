@@ -835,7 +835,9 @@ fn parse_non_custom_property_declaration_value_into(
         Err(e) => e,
     };
 
-    // Look for var(), env() and top-level curly blocks after the error.
+    input.reset(start);
+
+    // Look for var(), env() and top-level curly blocks in the whole value.
     let start_pos = start.position();
     let mut at_start = start_pos == input.position();
     let mut invalid = false;
