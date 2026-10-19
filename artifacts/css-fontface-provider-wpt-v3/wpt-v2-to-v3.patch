@@ -1,0 +1,34 @@
+--- a/testing/web-platform/tests/css/css-font-loading/fontface-loaded-size-adjust-update.html
++++ b/testing/web-platform/tests/css/css-font-loading/fontface-loaded-size-adjust-update.html
+@@ -29,7 +29,9 @@
+ });
+ 
+ async function loadedFace(t, sourceKind, sizeAdjust) {
+-  const source = sourceKind === "buffer" ? fontData.slice(0) : 'url("/fonts/Ahem.ttf")';
++  const source = sourceKind === "buffer"
++    ? fontData.slice(0)
++    : 'url("/fonts/Ahem.ttf")';
+   const face = new FontFace(`LoadedSizeAdjust${nextFamily++}`, source, {sizeAdjust});
+   t.add_cleanup(() => { document.fonts.delete(face); });
+   const promise = face.loaded;
+--- a/testing/web-platform/tests/css/css-font-loading/fontface-loaded-size-adjust-canvas.any.js
++++ b/testing/web-platform/tests/css/css-font-loading/fontface-loaded-size-adjust-canvas.any.js
+@@ -1,5 +1,7 @@
+ // META: title=Loaded FontFace sizeAdjust updates preserve independent faces
+ // META: global=window,dedicatedworker
++// META: spec=https://drafts.csswg.org/css-font-loading-3/#fontface-interface
++// META: spec=https://drafts.csswg.org/css-fonts-5/#size-adjust-desc
+ 
+ const fontSet = GLOBAL.isWindow() ? document.fonts : self.fonts;
+ let fontData;
+@@ -16,7 +18,9 @@
+ }
+ 
+ async function loadedFace(t, sourceKind, family, descriptors = {}, add = true) {
+-  const source = sourceKind === "buffer" ? fontData.slice(0) : 'url("/fonts/Ahem.ttf")';
++  const source = sourceKind === "buffer"
++    ? fontData.slice(0)
++    : 'url("/fonts/Ahem.ttf")';
+   const face = new FontFace(family, source, descriptors);
+   t.add_cleanup(() => { fontSet.delete(face); });
+   if (add) {

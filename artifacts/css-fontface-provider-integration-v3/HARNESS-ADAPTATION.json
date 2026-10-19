@@ -1,0 +1,30 @@
+{
+  "v2_harness_sha256": "436dca3431d3f47de4f059da321bea24039ac14cb1de4c5c301af22bbbab1592",
+  "replacements": [
+    {
+      "old": "    for key in ['phase', 'fixed', 'mach_sha256', 'python_sha256', 'package_manifest_sha256']:\n        assert build_before[key] == before[key], ('build-to-run drift', key)",
+      "new": "    from admission import admit_build_snapshot\n    build_admission = admit_build_snapshot(build_before, before)\n    (args.out / 'build-admission.json').write_text(json.dumps(build_admission, indent=2) + '\\n')"
+    },
+    {
+      "old": "               'build': {'before_sha256': digest(args.build_before),",
+      "new": "               'build_admission': build_admission,\n               'build': {'before_sha256': digest(args.build_before),"
+    },
+    {
+      "old": "for name in ['before.json', 'after.json', 'raw.jsonl', 'console.log']}}",
+      "new": "for name in ['before.json', 'after.json', 'raw.jsonl', 'console.log', 'build-admission.json']}}"
+    },
+    {
+      "old": "    receipt = {'phase': args.phase, 'suite': args.suite, 'command': command,",
+      "new": "    final_regression_success = None\n    if args.phase == 'candidate' and args.suite == 'regressions':\n        from admission import final_regressions_match\n        final_regression_success = valid and final_regressions_match(statuses, endings, result.returncode)\n    receipt = {'phase': args.phase, 'suite': args.suite, 'command': command,"
+    },
+    {
+      "old": "               'valid_observation': valid, 'candidate_matrix_success': candidate_success,",
+      "new": "               'valid_observation': valid, 'candidate_matrix_success': candidate_success,\n               'final_regression_success': final_regression_success,"
+    },
+    {
+      "old": "    assert valid and candidate_success is not False, 'invalid or failing candidate run; inspect retained receipt'",
+      "new": "    assert valid and candidate_success is not False and final_regression_success is not False, 'invalid or failing final run; inspect retained receipt'"
+    }
+  ],
+  "all_other_harness_bytes_unchanged": true
+}

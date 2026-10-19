@@ -29,11 +29,13 @@ Immediate next steps:
 4. Continue cascade source/observer and hyphenation stateful consumer admissions,
    including actual reflow-to-display tab-cache coverage and lifetime. Preserve
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
-5. Build and test the revised loaded FontFace.sizeAdjust provider candidate
-   within the known bug 1072149 family. Fresh baseline evidence is signed as
-   `1593b2a5093910808171807f6037a10982ff18a8`: 38 failures, 30 passing controls and
-   three OK harnesses. Preserve shared wrappers, promises, memberships and
-   worker publication; candidate build/browser and other-platform gates are open.
+5. Complete isolated-upstream validation and standalone packaging for the
+   loaded FontFace provider candidate (known bug 1072149 family). The local
+   build and final 68-case matrix pass; 38 failures and the existing style/family
+   regression improve. Eight descriptor-retirement cases also pass. The worker
+   family rebuild from #50 is necessary support; include it in the standalone
+   patch and record that the stacked tree already contains it. Isolated build,
+   no-support comparison and other-platform gates remain open.
 6. Keep every accepted repair independently reviewable in CURRENT-COMMITS.json,
    with proof/tooling preceding its standalone native/WPT commit. Full closure
    requirements remain in the linked checklist.
@@ -3056,3 +3058,36 @@ avoids cloning descriptors before a provider exists and retains cloning for
 existing providers. Its compile/browser, non-macOS, controlled local-font and
 lifetime gates remain open. No FontFace repair is accepted. The native fix
 count remains 59, with zero accepted repairs awaiting commits.
+
+## FontFace runtime checkpoint and tokenizer recovery finding
+
+Preparation `fb49bb0428d601256f11e0db6189d78bf3bcc55b` and paired evidence
+`99c3f66e204b167e1d27acd0e5e589e6a30d6e14` are signed. Root build 72558 exits 0.
+The exact v2 pair repairs 38/68 matrix cases and the existing style/family-swap
+regression; all other 26 regression tuples are unchanged. Final metadata/whitespace
+test edits preserve all case names. The final matrix and regressions both exit 0:
+68 PASS plus three OK, and 19 PASS subtests plus four PASS, one expected FAIL and
+three OK endings. The existing descriptor-override reftest failure remains.
+
+The independent prerequisite audit found a real dependency on #50's four-line
+worker family rebuild. Same-family newest-entry matching can hide stale entries;
+renaming a loaded face must retire its old family as well. Eight descriptor-only
+family/coverage tests pass on the combined branch. The isolated checkout at
+`/private/tmp/firefox-fontface-standalone-20261019`, based on upstream
+`976279105b2e78b8666a959eb3f25c9176cefaf8`, is building the provider patch without
+that support first. Next run the descriptor witness, add the shared support,
+rebuild and validate the standalone patch. Keep the stacked integration dependency
+and independently applicable export explicit. No native acceptance yet.
+
+During source-to-spec tokenizer refinement, `is_ident_start` was found to check
+offset 1 instead of 2 after hyphen/backslash. Root's unchanged-parser browser
+diagnostic reproduces four failures (LF, CR, CRLF, FF) with seven controls passing
+and one OK ending. Error recovery incorrectly preserves the following style
+rule. The proposed repair changes one offset and its vendored checksum. A narrow
+formal companion is in preparation; no repaired binary or accepted fix is claimed
+yet. Discovery came from building the source model, followed by browser evidence;
+full name/escape return-boundary refinement remains open.
+
+The signed native count remains 59, with zero accepted native fixes awaiting
+commit. Both candidates still need their stated gates; do not infer acceptance
+from the number of successful proof or browser checks.
