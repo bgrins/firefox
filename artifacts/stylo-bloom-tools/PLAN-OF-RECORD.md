@@ -80,7 +80,11 @@ bad-URL escaped-close-at-EOF raw endpoint. No new browser bug is established.
 2. Prove ordinary declaration batching: actual generated source uniqueness and
    one mapping kind per logical group, descending removals, rank correction,
    aligned importance and identity membership. The all-specific proof does not
-   supply this batched theorem. Extend to actual push/extend/removal sequences.
+   supply this batched theorem. A separate bounded exploration agrees in
+   1,962,610 abstract cases and retains counterexamples when source uniqueness or
+   mapping uniformity is removed; the universal proof remains open. See
+   [batch proof obligations](../css-declaration-batch-admission-root-v1/PLAN.md).
+   Extend to actual push/extend/removal sequences.
 3. Compose public parser histories: byte-to-event admission, cache/reset,
    enable/query epochs, nested blocks and recovery. Preserve the cached-Function
    and URL annotation counterexamples. Cold/non-Function entry is a proved
