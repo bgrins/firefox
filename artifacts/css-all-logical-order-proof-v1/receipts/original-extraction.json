@@ -1,0 +1,261 @@
+[
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "enum DeclarationUpdate",
+    "start": 2674,
+    "sha256": "5772b7dab2c7e3f87295e5fee926d1112a8d8906764b2a50746580139ec46b9c",
+    "body": "enum DeclarationUpdate {\n    /// The given declaration doesn't update anything.\n    None,\n    /// The given declaration is new, and should be append directly.\n    Append,\n    /// The given declaration can be updated in-place at the given position.\n    UpdateInPlace { pos: usize },\n    /// The given declaration cannot be updated in-place, and an existing\n    /// one needs to be removed at the given position.\n    AppendAndRemove { pos: usize },\n}"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub struct SourcePropertyDeclarationUpdate",
+    "start": 3246,
+    "sha256": "0412eb4902f8d7410d9518a8056327af36a22b85149a9d13d5e8451a695364c2",
+    "body": "pub struct SourcePropertyDeclarationUpdate {\n    updates: SubpropertiesVec<DeclarationUpdate>,\n    new_count: usize,\n    any_removal: bool,\n}"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub enum Importance",
+    "start": 3578,
+    "sha256": "7f0a112edf8f81eaa56f1e97c9e64b4b04ac4e151781d6927cdcde7cb3d8baac",
+    "body": "pub enum Importance {\n    /// Indicates a declaration without `!important`.\n    #[default]\n    Normal,\n\n    /// Indicates a declaration with `!important`.\n    Important,\n}"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub struct PropertyDeclarationIdSet",
+    "start": 4056,
+    "sha256": "84274fda2b4fd36754cecacc709b3f79a8766f4fd32464b42147c5298b90f549",
+    "body": "pub struct PropertyDeclarationIdSet {\n    longhands: LonghandIdSet,\n    custom: PrecomputedHashSet<custom_properties::Name>,\n}"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub struct PropertyDeclarationBlock",
+    "start": 7609,
+    "sha256": "c445ea7e4f7c4a7286c32d4fb412f457dd98380bbb52e29f4ca0b9452388471d",
+    "body": "pub struct PropertyDeclarationBlock {\n    /// The group of declarations, along with their importance.\n    ///\n    /// Only deduplicated declarations appear here.\n    declarations: ThinVec<PropertyDeclaration>,\n\n    /// The \"important\" flag for each declaration in `declarations`.\n    declarations_importance: SmallBitVec,\n\n    /// The set of properties that are present in the block.\n    property_ids: PropertyDeclarationIdSet,\n\n    /// Whether this declaration block may be mutated by CSSOM without copying.\n    /// Set when a declaration is shared across elements and needs to be copied, even when not in\n    /// the rule tree, e.g. via the style attribute or the XUL prototype caches.\n    pub immutable: AtomicBool,\n}"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "impl Importance",
+    "start": 3751,
+    "sha256": "4d51e41e114650a4c36373a53c09ab7a931821be455604d9ece8d84a2931d42c",
+    "body": "impl Importance {\n    /// Return whether this is an important declaration.\n    pub fn important(self) -> bool {\n        match self {\n            Self::Normal => false,\n            Self::Important => true,\n        }\n    }\n}"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn insert(",
+    "start": 4263,
+    "sha256": "fc698ea256d445fe6131fab6d270441d528c1244e5f015d396bd8c446de9b372",
+    "body": "pub fn insert(&mut self, id: PropertyDeclarationId) -> bool {\n        match id {\n            PropertyDeclarationId::Longhand(id) => {\n                if self.longhands.contains(id) {\n                    return false;\n                }\n                self.longhands.insert(id);\n                true\n            },\n            PropertyDeclarationId::Custom(name) => self.custom.insert((*name).clone()),\n        }\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn contains(",
+    "start": 4743,
+    "sha256": "598f8c6f86f758d84f62e45d385569f4038e31d334580b3646cf9f81e1156185",
+    "body": "pub fn contains(&self, id: PropertyDeclarationId) -> bool {\n        match id {\n            PropertyDeclarationId::Longhand(id) => self.longhands.contains(id),\n            PropertyDeclarationId::Custom(name) => self.custom.contains(name),\n        }\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn remove(",
+    "start": 5050,
+    "sha256": "eb64fbe6df1f1dc9df34a39a690253ba1f9874b3bee5afe32ae0d1aea7571c98",
+    "body": "pub fn remove(&mut self, id: PropertyDeclarationId) {\n        match id {\n            PropertyDeclarationId::Longhand(id) => self.longhands.remove(id),\n            PropertyDeclarationId::Custom(name) => {\n                self.custom.remove(name);\n            },\n        }\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn clear(",
+    "start": 5376,
+    "sha256": "a17084edd58a4f155cd2a5b9fd71f56ef72daa5ae95663f805719f9409bfafcd",
+    "body": "pub fn clear(&mut self) {\n        self.longhands.clear();\n        self.custom.clear();\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn is_empty(",
+    "start": 5530,
+    "sha256": "24b635caf7f27008e05dac74758347c5645715a6cd006860d8de860e3cd69d0e",
+    "body": "pub fn is_empty(&self) -> bool {\n        self.longhands.is_empty() && self.custom.is_empty()\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn len(",
+    "start": 13242,
+    "sha256": "7d468b6f0a30147d729200c70b8a4adbbcdd5b0045f44f3a9e5ccebe9d2269ab",
+    "body": "pub fn len(&self) -> usize {\n        self.declarations.len()\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn new(",
+    "start": 13497,
+    "sha256": "8480a2e97dfd14d52a8b474c529b3c167c7f4c27995ff1927612de3ab7d0c622",
+    "body": "pub fn new() -> Self {\n        PropertyDeclarationBlock {\n            declarations: ThinVec::new(),\n            declarations_importance: SmallBitVec::new(),\n            property_ids: PropertyDeclarationIdSet::default(),\n            immutable: AtomicBool::new(false),\n        }\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn contains(",
+    "start": 16709,
+    "sha256": "a100af51f3b9c220c6eec03290a368116dfcea4317664db48dc2165a2f23a831",
+    "body": "pub fn contains(&self, id: PropertyDeclarationId) -> bool {\n        self.property_ids.contains(id)\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn get(",
+    "start": 17209,
+    "sha256": "fbf25fc8f855e956861e36439e835768c7e1531a2010d832c103f0dced90413a",
+    "body": "pub fn get(\n        &self,\n        property: PropertyDeclarationId,\n    ) -> Option<(&PropertyDeclaration, Importance)> {\n        if !self.contains(property) {\n            return None;\n        }\n        self.declaration_importance_iter()\n            .find(|(declaration, _)| declaration.id() == property)\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn declaration_importance_iter(",
+    "start": 14777,
+    "sha256": "fdc33e0ef18eeef7aac98e670031e9cf6667683d5e76e691bf5f228ac7576020",
+    "body": "pub fn declaration_importance_iter(&self) -> DeclarationImportanceIterator<'_> {\n        DeclarationImportanceIterator::new(&self.declarations, &self.declarations_importance)\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn extend(",
+    "start": 21919,
+    "sha256": "92364841208ef93daf7579d6580d18e20781ce79f734a028938f2afea4a7a959",
+    "body": "pub fn extend(\n        &mut self,\n        mut drain: SourcePropertyDeclarationDrain,\n        importance: Importance,\n    ) -> bool {\n        let all_shorthand_len = match drain.all_shorthand {\n            AllShorthand::NotSet => 0,\n            AllShorthand::CSSWideKeyword(_) | AllShorthand::WithVariables(_) => {\n                property_counts::ALL_SHORTHAND_EXPANDED\n            },\n        };\n        let push_calls_count = drain.declarations.len() + all_shorthand_len;\n\n        // With deduplication the actual length increase may be less than this.\n        self.declarations.reserve(push_calls_count);\n\n        let mut changed = false;\n        for decl in &mut drain.declarations {\n            changed |= self.push(decl, importance);\n        }\n        drain\n            .all_shorthand\n            .declarations()\n            .fold(changed, |changed, decl| {\n                changed | self.push(decl, importance)\n            })\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn push(",
+    "start": 23065,
+    "sha256": "5ad432c22f12ab4ef800956401e7a034c6d248b9566099536543984fde296244",
+    "body": "pub fn push(&mut self, declaration: PropertyDeclaration, importance: Importance) -> bool {\n        let id = declaration.id();\n        if !self.property_ids.insert(id) {\n            let mut index_to_remove = None;\n            for (i, slot) in self.declarations.iter_mut().enumerate() {\n                if slot.id() != id {\n                    continue;\n                }\n\n                let important = self.declarations_importance[i];\n\n                // For declarations from parsing, non-important declarations\n                // shouldn't override existing important one.\n                if important && !importance.important() {\n                    return false;\n                }\n\n                index_to_remove = Some(i);\n                break;\n            }\n\n            if let Some(index) = index_to_remove {\n                self.declarations.remove(index);\n                self.declarations_importance.remove(index);\n                self.declarations.push(declaration);\n                self.declarations_importance.push(importance.important());\n                return true;\n            }\n        }\n\n        self.declarations.push(declaration);\n        self.declarations_importance.push(importance.important());\n        true\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn prepare_for_update(",
+    "start": 24485,
+    "sha256": "00c84d4b6e20574e6a9a433be05671faf1057b3cad38448a36ca9b8ec3de0bfb",
+    "body": "pub fn prepare_for_update(\n        &self,\n        source_declarations: &SourcePropertyDeclaration,\n        importance: Importance,\n        updates: &mut SourcePropertyDeclarationUpdate,\n    ) -> bool {\n        debug_assert!(updates.updates.is_empty());\n        // Check whether we are updating for an all shorthand change.\n        if !matches!(source_declarations.all_shorthand, AllShorthand::NotSet) {\n            debug_assert!(source_declarations.declarations.is_empty());\n            return source_declarations\n                .all_shorthand\n                .declarations()\n                .any(|decl| {\n                    !self.contains(decl.id())\n                        || self\n                            .declarations\n                            .iter()\n                            .enumerate()\n                            .find(|&(_, d)| d.id() == decl.id())\n                            .is_none_or(|(i, d)| {\n                                let important = self.declarations_importance[i];\n                                *d != decl || important != importance.important()\n                            })\n                });\n        }\n        // Fill `updates` with update information.\n        let mut any_update = false;\n        let new_count = &mut updates.new_count;\n        let any_removal = &mut updates.any_removal;\n        let updates = &mut updates.updates;\n        updates.extend(\n            source_declarations\n                .declarations\n                .iter()\n                .map(|declaration| {\n                    if !self.contains(declaration.id()) {\n                        return DeclarationUpdate::Append;\n                    }\n                    let longhand_id = declaration.id().as_longhand();\n                    if let Some(longhand_id) = longhand_id\n                        && let Some(logical_group) = longhand_id.logical_group()\n                    {\n                        let mut needs_append = false;\n                        for (pos, decl) in self.declarations.iter().enumerate().rev() {\n                            let id = match decl.id().as_longhand() {\n                                Some(id) => id,\n                                None => continue,\n                            };\n                            if id == longhand_id {\n                                if needs_append {\n                                    return DeclarationUpdate::AppendAndRemove { pos };\n                                }\n                                let important = self.declarations_importance[pos];\n                                if decl == declaration && important == importance.important() {\n                                    return DeclarationUpdate::None;\n                                }\n                                return DeclarationUpdate::UpdateInPlace { pos };\n                            }\n                            if !needs_append\n                                && id.logical_group() == Some(logical_group)\n                                && id.is_logical() != longhand_id.is_logical()\n                            {\n                                needs_append = true;\n                            }\n                        }\n                        unreachable!(\"Longhand should be found in loop above\");\n                    }\n                    self.declarations\n                        .iter()\n                        .enumerate()\n                        .find(|&(_, decl)| decl.id() == declaration.id())\n                        .map_or(DeclarationUpdate::Append, |(pos, decl)| {\n                            let important = self.declarations_importance[pos];\n                            if decl == declaration && important == importance.important() {\n                                DeclarationUpdate::None\n                            } else {\n                                DeclarationUpdate::UpdateInPlace { pos }\n                            }\n                        })\n                })\n                .inspect(|update| {\n                    if matches!(update, DeclarationUpdate::None) {\n                        return;\n                    }\n                    any_update = true;\n                    match update {\n                        DeclarationUpdate::Append => {\n                            *new_count += 1;\n                        },\n                        DeclarationUpdate::AppendAndRemove { .. } => {\n                            *any_removal = true;\n                        },\n                        _ => {},\n                    }\n                }),\n        );\n        any_update\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn update(",
+    "start": 29122,
+    "sha256": "5dc33aa0ebad3132e088fa68485cb87aa4bf5be6f6ee19b3ee56afcd727f87f0",
+    "body": "pub fn update(\n        &mut self,\n        drain: SourcePropertyDeclarationDrain,\n        importance: Importance,\n        updates: &mut SourcePropertyDeclarationUpdate,\n    ) {\n        let important = importance.important();\n        if !matches!(drain.all_shorthand, AllShorthand::NotSet) {\n            debug_assert!(updates.updates.is_empty());\n            for decl in drain.all_shorthand.declarations() {\n                let id = decl.id();\n                if self.property_ids.insert(id) {\n                    self.declarations.push(decl);\n                    self.declarations_importance.push(important);\n                } else {\n                    let (idx, slot) = self\n                        .declarations\n                        .iter_mut()\n                        .enumerate()\n                        .find(|(_, d)| d.id() == decl.id())\n                        .unwrap();\n                    *slot = decl;\n                    self.declarations_importance.set(idx, important);\n                }\n            }\n            return;\n        }\n\n        self.declarations.reserve(updates.new_count);\n        if updates.any_removal {\n            // Prepare for removal and fixing update positions.\n            struct UpdateOrRemoval<'a> {\n                item: &'a mut DeclarationUpdate,\n                pos: usize,\n                remove: bool,\n            }\n            let mut updates_and_removals: SubpropertiesVec<UpdateOrRemoval> = updates\n                .updates\n                .iter_mut()\n                .filter_map(|item| {\n                    let (pos, remove) = match *item {\n                        DeclarationUpdate::UpdateInPlace { pos } => (pos, false),\n                        DeclarationUpdate::AppendAndRemove { pos } => (pos, true),\n                        _ => return None,\n                    };\n                    Some(UpdateOrRemoval { item, pos, remove })\n                })\n                .collect();\n            // Execute removals. It's important to do it in reverse index order,\n            // so that removing doesn't invalidate following positions.\n            updates_and_removals.sort_unstable_by_key(|update| update.pos);\n            updates_and_removals\n                .iter()\n                .rev()\n                .filter(|update| update.remove)\n                .for_each(|update| {\n                    self.declarations.remove(update.pos);\n                    self.declarations_importance.remove(update.pos);\n                });\n            // Fixup pos field for updates.\n            let mut removed_count = 0;\n            for update in updates_and_removals.iter_mut() {\n                if update.remove {\n                    removed_count += 1;\n                    continue;\n                }\n                debug_assert_eq!(\n                    *update.item,\n                    DeclarationUpdate::UpdateInPlace { pos: update.pos }\n                );\n                *update.item = DeclarationUpdate::UpdateInPlace {\n                    pos: update.pos - removed_count,\n                };\n            }\n        }\n        // Execute updates and appends.\n        for (decl, update) in drain.declarations.zip_eq(updates.updates.iter()) {\n            match *update {\n                DeclarationUpdate::None => {},\n                DeclarationUpdate::Append | DeclarationUpdate::AppendAndRemove { .. } => {\n                    self.property_ids.insert(decl.id());\n                    self.declarations.push(decl);\n                    self.declarations_importance.push(important);\n                },\n                DeclarationUpdate::UpdateInPlace { pos } => {\n                    self.declarations[pos] = decl;\n                    self.declarations_importance.set(pos, important);\n                },\n            }\n        }\n        updates.updates.clear();\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn first_declaration_to_remove(",
+    "start": 33040,
+    "sha256": "b96a4b05e30550933fbdaf7f10b455f447351abb3c02f30384b629941f1bb3ee",
+    "body": "pub fn first_declaration_to_remove(&self, property: &PropertyId) -> Option<usize> {\n        if let Err(longhand_or_custom) = property.as_shorthand()\n            && !self.contains(longhand_or_custom)\n        {\n            return None;\n        }\n\n        self.declarations\n            .iter()\n            .position(|declaration| declaration.id().is_or_is_longhand_of(property))\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "fn remove_declaration_at(",
+    "start": 33495,
+    "sha256": "4f47c542e54e4b129ef7ae418a4393938da25272b3b52460971b91aa65290ad0",
+    "body": "fn remove_declaration_at(&mut self, i: usize) {\n        self.property_ids.remove(self.declarations[i].id());\n        self.declarations_importance.remove(i);\n        self.declarations.remove(i);\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn clear(",
+    "start": 33767,
+    "sha256": "d1a1759dd194f10e9c7dc2efccde9f944533d5c27358478e71519e177894875b",
+    "body": "pub fn clear(&mut self) {\n        self.declarations_importance.clear();\n        self.declarations.clear();\n        self.property_ids.clear();\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub fn remove_property(",
+    "start": 34116,
+    "sha256": "62744be8e62376268d96feb13b44a138eeaac16c05a3c6700c52402d2eee3d7f",
+    "body": "pub fn remove_property(&mut self, property: &PropertyId, first_declaration: usize) {\n        debug_assert_eq!(\n            Some(first_declaration),\n            self.first_declaration_to_remove(property)\n        );\n        debug_assert!(\n            self.declarations[first_declaration]\n                .id()\n                .is_or_is_longhand_of(property)\n        );\n\n        self.remove_declaration_at(first_declaration);\n\n        let shorthand = match property.as_shorthand() {\n            Ok(s) => s,\n            Err(_longhand_or_custom) => return,\n        };\n\n        let mut i = first_declaration;\n        let mut len = self.len();\n        while i < len {\n            if !self.declarations[i].id().is_longhand_of(shorthand) {\n                i += 1;\n                continue;\n            }\n\n            self.remove_declaration_at(i);\n            len -= 1;\n        }\n    }"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "pub struct DeclarationImportanceIterator",
+    "start": 9876,
+    "sha256": "e40002fb9ced6396cf529ed254521fdc545446c4bfa0e15000a4cf3dfceb446a",
+    "body": "pub struct DeclarationImportanceIterator<'a> {\n    iter: Zip<Iter<'a, PropertyDeclaration>, smallbitvec::Iter<'a>>,\n}"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "impl<'a> DeclarationImportanceIterator",
+    "start": 10176,
+    "sha256": "c21e66b6338ec4bc4fe258d8352649db667058464c87fd80dcef80459e70528c",
+    "body": "impl<'a> DeclarationImportanceIterator<'a> {\n    /// Constructor.\n    fn new(declarations: &'a [PropertyDeclaration], important: &'a SmallBitVec) -> Self {\n        DeclarationImportanceIterator {\n            iter: declarations.iter().zip(important.iter()),\n        }\n    }\n}"
+  },
+  {
+    "source_file": "evidence/declaration_block.original.rs",
+    "anchor": "impl<'a> Iterator for DeclarationImportanceIterator",
+    "start": 10452,
+    "sha256": "67951883ac73321d01d0d36b115506d08124092b978030a6d8d946266cf4a009",
+    "body": "impl<'a> Iterator for DeclarationImportanceIterator<'a> {\n    type Item = (&'a PropertyDeclaration, Importance);\n\n    #[inline]\n    fn next(&mut self) -> Option<Self::Item> {\n        self.iter.next().map(|(decl, important)| {\n            (\n                decl,\n                if important {\n                    Importance::Important\n                } else {\n                    Importance::Normal\n                },\n            )\n        })\n    }\n\n    #[inline]\n    fn size_hint(&self) -> (usize, Option<usize>) {\n        self.iter.size_hint()\n    }\n}"
+  },
+  {
+    "source_file": "evidence/static/evidence/source/servo/components/style/properties/mod.rs",
+    "anchor": "pub enum CSSWideKeyword",
+    "start": 3567,
+    "sha256": "ca43da36f4d5d88f6b83e01a5a72bf35e48fffe2c20a0dbd09554e8755898c15",
+    "body": "pub enum CSSWideKeyword {\n    /// The `initial` keyword.\n    Initial,\n    /// The `inherit` keyword.\n    Inherit,\n    /// The `unset` keyword.\n    Unset,\n    /// The `revert` keyword.\n    Revert,\n    /// The `revert-layer` keyword.\n    RevertLayer,\n    /// The `revert-rule` keyword.\n    RevertRule,\n}"
+  },
+  {
+    "source_file": "evidence/static/evidence/source/servo/components/style/properties/mod.rs",
+    "anchor": "pub enum AllShorthand",
+    "start": 61410,
+    "sha256": "5a0d86212dfc3b1c4926ccd254ba9851be7d0de3c32ec88d36f1cca05c276724",
+    "body": "pub enum AllShorthand {\n    /// Not present.\n    #[default]\n    NotSet,\n    /// A CSS-wide keyword.\n    CSSWideKeyword(CSSWideKeyword),\n    /// An all shorthand with var() references that we can't resolve right now.\n    WithVariables(Arc<UnparsedValue>),\n}"
+  },
+  {
+    "source_file": "evidence/static/evidence/source/servo/components/style/properties/mod.rs",
+    "anchor": "impl AllShorthand",
+    "start": 61668,
+    "sha256": "ecedb591b816cd27ff6e735a222935bc8225bdfd8bf3cb04990bcb060867e78f",
+    "body": "impl AllShorthand {\n    /// Iterates property declarations from the given all shorthand value.\n    #[inline]\n    pub fn declarations(&self) -> AllShorthandDeclarationIterator<'_> {\n        AllShorthandDeclarationIterator {\n            all_shorthand: self,\n            longhands: ShorthandId::All.longhands(),\n        }\n    }\n}"
+  },
+  {
+    "source_file": "evidence/static/evidence/source/servo/components/style/properties/mod.rs",
+    "anchor": "pub struct AllShorthandDeclarationIterator",
+    "start": 62061,
+    "sha256": "dc92cc09165f844ee9f236a30bfe7354dabacdf3105fbf56870d9b3418497406",
+    "body": "pub struct AllShorthandDeclarationIterator<'a> {\n    all_shorthand: &'a AllShorthand,\n    longhands: NonCustomPropertyIterator<LonghandId>,\n}"
+  },
+  {
+    "source_file": "evidence/static/evidence/source/servo/components/style/properties/mod.rs",
+    "anchor": "impl<'a> Iterator for AllShorthandDeclarationIterator",
+    "start": 62204,
+    "sha256": "5d55e6b3bc84b76a2c425f5e40d6b57db0e70b3090e8e17722aa05e6fddc5ff5",
+    "body": "impl<'a> Iterator for AllShorthandDeclarationIterator<'a> {\n    type Item = PropertyDeclaration;\n\n    #[inline]\n    fn next(&mut self) -> Option<Self::Item> {\n        match *self.all_shorthand {\n            AllShorthand::NotSet => None,\n            AllShorthand::CSSWideKeyword(ref keyword) => Some(\n                PropertyDeclaration::css_wide_keyword(self.longhands.next()?, *keyword),\n            ),\n            AllShorthand::WithVariables(ref unparsed) => {\n                Some(PropertyDeclaration::WithVariables(VariableDeclaration {\n                    id: self.longhands.next()?,\n                    value: unparsed.clone(),\n                }))\n            },\n        }\n    }\n}"
+  },
+  {
+    "source_file": "evidence/static/evidence/source/servo/components/style/properties/mod.rs",
+    "anchor": "pub struct NonCustomPropertyIterator",
+    "start": 63028,
+    "sha256": "eccf41dccd069da3a889b90ba6a32b46f4dcf11e85bc346a51552b9aa2505487",
+    "body": "pub struct NonCustomPropertyIterator<Item: 'static> {\n    filter: bool,\n    iter: std::slice::Iter<'static, Item>,\n}"
+  },
+  {
+    "source_file": "evidence/static/evidence/source/servo/components/style/properties/mod.rs",
+    "anchor": "impl<Item> Iterator for NonCustomPropertyIterator",
+    "start": 63146,
+    "sha256": "1087ab562456081d1196a10cbfdda96a01490ee142d38e0716f2470f920ac885",
+    "body": "impl<Item> Iterator for NonCustomPropertyIterator<Item>\nwhere\n    Item: 'static + Copy + Into<NonCustomPropertyId>,\n{\n    type Item = Item;\n\n    fn next(&mut self) -> Option<Self::Item> {\n        loop {\n            let id = *self.iter.next()?;\n            if !self.filter || id.into().enabled_for_all_content() {\n                return Some(id);\n            }\n        }\n    }\n}"
+  },
+  {
+    "source_file": "evidence/static/evidence/source/servo/components/style/properties/mod.rs",
+    "anchor": "pub struct SourcePropertyDeclaration {",
+    "start": 52120,
+    "sha256": "3e748954d293c5c0076e9487ffdb5c0623b343bb85ce8a8c862639191247a3c3",
+    "body": "pub struct SourcePropertyDeclaration {\n    /// The storage for the actual declarations (except for all).\n    pub declarations: SubpropertiesVec<PropertyDeclaration>,\n    /// Stored separately to keep SubpropertiesVec smaller.\n    pub all_shorthand: AllShorthand,\n}"
+  },
+  {
+    "source_file": "evidence/static/evidence/source/servo/components/style/properties/mod.rs",
+    "anchor": "impl SourcePropertyDeclaration {",
+    "start": 52674,
+    "sha256": "d7ffe6fdde25ec567d9d13455c6aa242233e795bb7343d1c08a4b19152116744",
+    "body": "impl SourcePropertyDeclaration {\n    /// Create one with a single PropertyDeclaration.\n    #[inline]\n    pub fn with_one(decl: PropertyDeclaration) -> Self {\n        let mut result = Self::default();\n        result.declarations.push(decl);\n        result\n    }\n\n    /// Similar to Vec::drain: leaves this empty when the return value is dropped.\n    pub fn drain(&mut self) -> SourcePropertyDeclarationDrain<'_> {\n        SourcePropertyDeclarationDrain {\n            declarations: self.declarations.drain(..),\n            all_shorthand: mem::replace(&mut self.all_shorthand, AllShorthand::NotSet),\n        }\n    }\n\n    /// Reset to initial state\n    pub fn clear(&mut self) {\n        self.declarations.clear();\n        self.all_shorthand = AllShorthand::NotSet;\n    }\n\n    /// Whether we're empty.\n    pub fn is_empty(&self) -> bool {\n        self.declarations.is_empty() && matches!(self.all_shorthand, AllShorthand::NotSet)\n    }\n\n    /// Push a single declaration.\n    pub fn push(&mut self, declaration: PropertyDeclaration) {\n        let _result = self.declarations.try_push(declaration);\n        debug_assert!(_result.is_ok());\n    }\n}"
+  },
+  {
+    "source_file": "evidence/static/evidence/source/servo/components/style/properties/mod.rs",
+    "anchor": "pub struct SourcePropertyDeclarationDrain<'a>",
+    "start": 53868,
+    "sha256": "0f81f51b62204d9c87a9bc04e40c4f40de0258baafc62b91e072d2c64bf5a22e",
+    "body": "pub struct SourcePropertyDeclarationDrain<'a> {\n    /// A drain over the non-all declarations.\n    pub declarations:\n        ArrayVecDrain<'a, PropertyDeclaration, { property_counts::MAX_SHORTHAND_EXPANDED }>,\n    /// The all shorthand that was set.\n    pub all_shorthand: AllShorthand,\n}"
+  }
+]
