@@ -884,7 +884,11 @@ impl NoCalcLength {
                 } else {
                     context.device().root_line_height()
                 };
-                let reference_size = reference_size.zoom(context.builder.effective_zoom);
+                let reference_size = if context.builder.is_root_element {
+                    reference_size
+                } else {
+                    reference_size.zoom(context.builder.effective_zoom)
+                };
                 (reference_size, length)
             },
             _ => unreachable!("reference_font_size_and_length: not a font-relative unit"),
