@@ -1442,7 +1442,9 @@ fn parse_declaration_value_block(
             | Token::Dimension {
                 unit: ref value, ..
             } => {
-                references.flags.insert(ReferenceFlags::from_unit(value));
+                if matches!(token, Token::Dimension { .. }) {
+                    references.flags.insert(ReferenceFlags::from_unit(value));
+                }
                 let is_unquoted_url = matches!(token, Token::UnquotedUrl(_));
                 if value.ends_with("�") && input.slice_from(token_start).ends_with("\\") {
                     // Unescaped backslash at EOF in these contexts is interpreted as U+FFFD
