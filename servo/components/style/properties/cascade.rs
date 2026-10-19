@@ -1861,6 +1861,11 @@ impl<'a> Cascade<'a> {
                                 name,
                                 inherited_value,
                             );
+                        } else {
+                            context
+                                .builder
+                                .substitution_functions
+                                .remove_var(registration, name);
                         }
                     },
                     // handled in value_may_affect_style or in the revert_kind branch above.
@@ -2010,15 +2015,8 @@ impl<'a> Cascade<'a> {
                 match kw {
                     CSSWideKeyword::Inherit => {
                         debug_assert!(!registration.inherits(), "Should've been handled earlier");
-                        // existing_value is the registered initial value.
-                        // Don't bother adding it to self.custom_properties.non_inherited
-                        // if the key is also absent from self.inherited.non_inherited.
-                        if context
-                            .inherited_custom_properties()
-                            .non_inherited
-                            .get(name)
-                            .is_none()
-                        {
+                        // Root inheritance uses the already-seeded initial value.
+                        if context.is_root_element() {
                             return false;
                         }
                     },
