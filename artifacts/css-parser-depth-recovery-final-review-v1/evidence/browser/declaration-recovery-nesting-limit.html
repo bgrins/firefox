@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Declaration recovery preserves function boundaries at nesting limits</title>
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-a-declaration">
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-a-function">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function colorFor(t, declarations, mode) {
+  const target = document.createElement("div");
+  target.id = "target";
+  document.body.append(target);
+  t.add_cleanup(() => target.remove());
+  if (mode === "inline") {
+    target.style.cssText = declarations;
+  } else {
+    const style = document.createElement("style");
+    style.textContent = `#target { ${declarations} }`;
+    document.head.append(style);
+    t.add_cleanup(() => style.remove());
+  }
+  return getComputedStyle(target).color;
+}
+
+function nestedValue(depth) {
+  return "calc(".repeat(depth) + "1px" +
+    ")".repeat(depth - 1) + ";color:blue;)";
+}
+
+for (const mode of ["inline", "stylesheet"]) {
+  for (const property of ["padding-left", "width"]) {
+    for (const depth of [1, 74, 75, 76]) {
+      test(t => {
+        assert_equals(
+          colorFor(t, `color:red;${property}:${nestedValue(depth)}`, mode),
+          "rgb(255, 0, 0)");
+      }, `${mode} ${property}: semicolon inside ${depth} nested functions stays in the value`);
+    }
+    test(t => {
+      assert_equals(
+        colorFor(t, `color:red;${property}:calc(1px);color:blue`, mode),
+        "rgb(0, 0, 255)");
+    }, `${mode} ${property}: a declaration outside the function applies`);
+  }
+  test(t => {
+    assert_equals(
+      colorFor(t, `color:red;padding-left:${nestedValue(76)};color:green`, mode),
+      "rgb(0, 128, 0)");
+  }, `${mode}: recovery preserves declarations after the deep function`);
+}
+</script>

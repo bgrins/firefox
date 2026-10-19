@@ -1,15 +1,17 @@
 # Parser nesting-limit recovery
 
-The local Firefox WPT reproduces one declaration-recovery failure: an inner
-color declaration becomes visible after depth rejection in inline padding-left.
-Nine other padding cases and ten width controls pass. Both test harnesses finish
-normally, with fixed source/configuration/binary pins before and after the run.
+Accepted the one-call iterative cleanup repair with its 22-case WPT.
+The original inline padding-left failure becomes a pass; all 46 other test
+outcomes are unchanged. Root and independent source/kernel/native/browser
+reviews pass. ROOT-SCOPED-ACCEPTANCE.json records the scope and evidence.
 
-Root replay authenticates the static scout and reproduces all 16 actual parser
-API/declaration observations. The reduced property callback is not full Gecko;
-the browser run establishes this particular caller bridge. The complete parser
-source retrieved through Searchfox matches the live source.
+The 21-theorem component relates a flat cleanup stack to an independent nested
+body/EOF grammar. Tokenization, native metadata/heap/compiler and general caller
+admission remain open. Existing nesting-limit and outer-cleanup test bodies pass
+against the fresh full candidate crate; this is not a full Cargo test-suite run.
 
-The bug was found by static inspection during formal verification work. Repair
-and formal recovery model remain pending, as does independent adjudication.
-No native source change or accepted native-fix count is attached to this record.
+The three-file patch contains only parser source, vendor checksum and WPT.
+The upstream alternative preserves upstream checksum entries for other files.
+It applies/reverses exactly, but was not separately browser-built. Discovery
+was source inspection during formal work, followed by browser reproduction;
+the proof followed discovery. No novelty or performance claim is made.

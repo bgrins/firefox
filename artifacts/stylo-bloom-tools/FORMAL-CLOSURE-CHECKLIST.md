@@ -320,3 +320,20 @@ All twelve obligations remain tracked. Full preprocessing, raw dispatch/public
 next/cache/reset/block skipping and evaluator/CSSOM are the next boundaries.
 
 Evidence: `../css-tokenizer-string-provider-root-v1/ROOT-ACCEPTANCE.json`.
+
+## Nesting-limit recovery component
+
+A static public-parser audit exposed a lost pending-block obligation on depth
+rejection, reproduced by an inline padding-left WPT. The one-call iterative
+cleanup repair passes all 22 new checks, with 46 other outcomes unchanged.
+Root and independent review accept 21 universal token-level theorems relating
+the cleanup stack to a separate nested-body/EOF grammar, suffix/progress and
+parent rejection composition. Exact source/native/mutation replays pass.
+
+The source bridge still admits byte-to-token projection/progress, metadata,
+allocation, machine representation and compiler semantics. The reduced native
+property callback is not full Gecko; browser execution supplies this particular
+caller path. Public cache/reset/function-tracking and URL observer histories
+remain separate open leads. Full parser/tokenizer verification is not closed.
+
+Evidence: `../css-parser-depth-recovery-root-v1/ROOT-SCOPED-ACCEPTANCE.json`.

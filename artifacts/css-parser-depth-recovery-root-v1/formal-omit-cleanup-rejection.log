@@ -1,0 +1,55 @@
+/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean:152:9: warning: Variable name `k` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _k
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean:184:82: error: unsolved goals
+k : Kind
+content tail : List Token
+s : State
+limit : s.depth ≥ s.limit ∧ s.limit ≠ 0
+pending : s.pending = some k
+body : Body k content
+input : s.input = content ++ Token.close k :: tail
+⊢ some
+      {
+        state :=
+          { pending := none, input := content ++ Token.close k :: tail, depth := s.depth, limit := s.limit,
+            stop := s.stop },
+        error := Error.tooDeep } =
+    some
+      { state := { pending := none, input := tail, depth := s.depth, limit := s.limit, stop := s.stop },
+        error := Error.tooDeep }
+/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean:187:39: warning: This simp argument is unused:
+  cleanup_exact_suffix body
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [rejected, pending, input]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean:191:80: error: unsolved goals
+k : Kind
+s : State
+limit : s.depth ≥ s.limit ∧ s.limit ≠ 0
+pending : s.pending = some k
+eof : AtEOF k s.input
+⊢ some
+      { state := { pending := none, input := s.input, depth := s.depth, limit := s.limit, stop := s.stop },
+        error := Error.tooDeep } =
+    some
+      { state := { pending := none, input := [], depth := s.depth, limit := s.limit, stop := s.stop },
+        error := Error.tooDeep }
+/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean:194:32: warning: This simp argument is unused:
+  cleanup_eof eof
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [rejected, pending]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean:210:96: error: Tactic `decide` proved that the proposition
+  (match rejected witness with
+    | Except.ok s => cleanup Kind.paren s.input
+    | x => []) =
+    [Token.atom 3]
+is false

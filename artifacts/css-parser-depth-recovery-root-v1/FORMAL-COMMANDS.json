@@ -1,0 +1,61 @@
+[
+  {
+    "command": [
+      "/Users/bgrins/miniconda3/bin/python3",
+      "/Users/bgrins/code/firefox/artifacts/css-parser-depth-recovery-repair-v1/native/build.py",
+      "--output",
+      "/private/tmp/css-parser-depth-repair-root-fresh-v1/native"
+    ],
+    "exit": 0,
+    "stdout": "PASS: original and candidate observations; both compiled semantic mutants rejected\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
+      "-o",
+      "/private/tmp/css-parser-depth-repair-root-fresh-v1/Recovery.olean",
+      "/private/tmp/css-parser-depth-repair-root-fresh-v1/Recovery.lean"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
+      "/private/tmp/css-parser-depth-repair-root-fresh-v1/Audit.lean"
+    ],
+    "exit": 0,
+    "stdout": "'Recovery.stack_empty_only_on_matching_last' depends on axioms: [propext]\n'Recovery.leaf_advance' depends on axioms: [propext]\n'Recovery.grammar_cleanup' depends on axioms: [propext]\n'Recovery.body_without_closer' depends on axioms: [propext]\n'Recovery.body_prefix' depends on axioms: [propext]\n'Recovery.eof_cleanup' depends on axioms: [propext]\n'Recovery.remaining_suffix' depends on axioms: [propext]\n'Recovery.remaining_length' depends on axioms: [propext, Quot.sound]\n'Recovery.active_progress' depends on axioms: [propext, Quot.sound]\n'Recovery.empty_input' depends on axioms: [propext]\n'Recovery.cleanup_exact_suffix' depends on axioms: [propext]\n'Recovery.cleanup_eof' depends on axioms: [propext]\n'Recovery.rejection_preserves_context' depends on axioms: [propext]\n'Recovery.limit_zero_not_rejected' depends on axioms: [propext]\n'Recovery.limit_recovery' depends on axioms: [propext]\n'Recovery.limit_eof_recovery' depends on axioms: [propext]\n'Recovery.parent_after_rejection' depends on axioms: [propext]\n'Recovery.old_parent_exposes_inner' depends on axioms: [propext]\n'Recovery.repaired_parent_hides_inner' depends on axioms: [propext]\n'Recovery.mismatched_closer_not_a_stop' depends on axioms: [propext]\n'Recovery.nested_semicolon_not_a_stop' depends on axioms: [propext]\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
+      "/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean"
+    ],
+    "exit": 1,
+    "stdout": "/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean:152:9: warning: Variable name `k` is not explicitly referenced.\n\nHint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:\n  [apply] _k\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean:184:82: error: unsolved goals\nk : Kind\ncontent tail : List Token\ns : State\nlimit : s.depth \u2265 s.limit \u2227 s.limit \u2260 0\npending : s.pending = some k\nbody : Body k content\ninput : s.input = content ++ Token.close k :: tail\n\u22a2 some\n      {\n        state :=\n          { pending := none, input := content ++ Token.close k :: tail, depth := s.depth, limit := s.limit,\n            stop := s.stop },\n        error := Error.tooDeep } =\n    some\n      { state := { pending := none, input := tail, depth := s.depth, limit := s.limit, stop := s.stop },\n        error := Error.tooDeep }\n/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean:187:39: warning: This simp argument is unused:\n  cleanup_exact_suffix body\n\nHint: Omit it from the simp argument list.\n  [apply] simp only [rejected, pending, input]\n\nNote: This linter can be disabled with `set_option linter.unusedSimpArgs false`\n/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean:191:80: error: unsolved goals\nk : Kind\ns : State\nlimit : s.depth \u2265 s.limit \u2227 s.limit \u2260 0\npending : s.pending = some k\neof : AtEOF k s.input\n\u22a2 some\n      { state := { pending := none, input := s.input, depth := s.depth, limit := s.limit, stop := s.stop },\n        error := Error.tooDeep } =\n    some\n      { state := { pending := none, input := [], depth := s.depth, limit := s.limit, stop := s.stop },\n        error := Error.tooDeep }\n/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean:194:32: warning: This simp argument is unused:\n  cleanup_eof eof\n\nHint: Omit it from the simp argument list.\n  [apply] simp only [rejected, pending]\n\nNote: This linter can be disabled with `set_option linter.unusedSimpArgs false`\n/private/tmp/css-parser-depth-repair-root-fresh-v1/omit-cleanup/Recovery.lean:210:96: error: Tactic `decide` proved that the proposition\n  (match rejected witness with\n    | Except.ok s => cleanup Kind.paren s.input\n    | x => []) =\n    [Token.atom 3]\nis false\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
+      "/private/tmp/css-parser-depth-repair-root-fresh-v1/pop-mismatch/Recovery.lean"
+    ],
+    "exit": 1,
+    "stdout": "/private/tmp/css-parser-depth-repair-root-fresh-v1/pop-mismatch/Recovery.lean:17:4: warning: Variable name `k` is not explicitly referenced.\n\nHint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:\n  [apply] _k\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/tmp/css-parser-depth-repair-root-fresh-v1/pop-mismatch/Recovery.lean:17:23: warning: Variable name `c` is not explicitly referenced.\n\nHint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:\n  [apply] _c\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/tmp/css-parser-depth-repair-root-fresh-v1/pop-mismatch/Recovery.lean:28:4: error: unsolved goals\ncase neg\nk : Kind\nstack : List Kind\nchild : Kind\nh : \u00acchild = k\n\u22a2 \u00acstack = []\n/private/tmp/css-parser-depth-repair-root-fresh-v1/pop-mismatch/Recovery.lean:49:29: error: unsolved goals\ncase mismatch\nk : Kind\nstack : List Kind\nother : Kind\ndifferent : other \u2260 k\n\u22a2 False\n/private/tmp/css-parser-depth-repair-root-fresh-v1/pop-mismatch/Recovery.lean:49:47: warning: This simp argument is unused:\n  different\n\nHint: Omit it from the simp argument list.\n  [apply] simp [advance]\n\nNote: This linter can be disabled with `set_option linter.unusedSimpArgs false`\n/private/tmp/css-parser-depth-repair-root-fresh-v1/pop-mismatch/Recovery.lean:213:88: error: Tactic `decide` proved that the proposition\n  cleanup Kind.square [Token.close Kind.paren, Token.atom 1, Token.close Kind.square, Token.atom 2] = [Token.atom 2]\nis false\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/opt/homebrew/Cellar/node/25.6.1/bin/node",
+      "--check",
+      "/private/tmp/css-parser-depth-repair-root-fresh-v1/probe.js"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

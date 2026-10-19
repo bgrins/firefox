@@ -23,9 +23,11 @@ is now accepted after fresh root and independent replay: 16 modules, 152 audits,
 808 native cases in each mode, with all native/public-history limits retained. Public iterator/cache/reset
 investigation reproduced a nesting-limit declaration-recovery bug in Firefox:
 inline padding-left at depth 76 applies an inner color declaration. All 19 other
-padding/width controls pass. The one-line iterative cleanup candidate is building; repair proof and final
-browser gates are underway;
-this is not yet an accepted repair or an increment to the committed-fix count.
+padding/width controls pass. The one-line iterative cleanup repair is accepted and queued for its separate
+native/WPT commit: all 22 final checks pass and 46 other outcomes are unchanged.
+Root and independent review pass the 21-theorem recovery component. The signed
+string checkpoint is `a3e34003574adb8655431b391c77a422358af743`. Public cache and
+observer caller-history investigation continues with its counterexamples retained.
 
 ## Next proof work
 
