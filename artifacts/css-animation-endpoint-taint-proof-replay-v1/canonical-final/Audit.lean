@@ -1,0 +1,26 @@
+import Witnesses
+#print axioms EndpointTaint.pairs_length
+#print axioms EndpointTaint.pairs_index
+#print axioms EndpointTaint.property_ready
+#print axioms EndpointTaint.array_ready
+#print axioms EndpointTaint.indexed_reads_ready
+#print axioms EndpointTaint.endpoint_presence
+#print axioms EndpointTaint.counter_headroom
+#print axioms EndpointTaint.segment_metadata_iff
+#print axioms EndpointTaint.segments_metadata_iff
+#print axioms EndpointTaint.property_metadata_iff
+#print axioms EndpointTaint.metadata_scan_iff
+#print axioms EndpointTaint.original_changes_preserved
+#print axioms EndpointTaint.new_change_exact
+#print axioms EndpointTaint.retained_metadata
+#print axioms EndpointTaint.history_metadata
+#print axioms EndpointTaint.every_prefix_metadata
+#print axioms EndpointTaint.decision_delta_exact
+#print axioms EndpointTaint.equal_payload_from_change
+#print axioms EndpointTaint.equal_payload_to_change
+#print axioms EndpointTaint.both_reverse_directions
+#print axioms EndpointTaint.noncustom_ignored
+#print axioms EndpointTaint.different_shape_uses_original_decision
+#print axioms EndpointTaint.changed_payload_uses_original_decision
+#print axioms EndpointTaint.null_and_invalid_distinguished
+#print axioms EndpointTaint.both_endpoint_history

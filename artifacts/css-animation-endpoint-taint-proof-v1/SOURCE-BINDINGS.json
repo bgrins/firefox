@@ -1,0 +1,146 @@
+[
+  {
+    "file": "source/candidate/dom/animation/KeyframeEffect.cpp",
+    "signature": "void KeyframeEffect::UpdateProperties(",
+    "scope": "",
+    "start_byte": 15419,
+    "end_byte": 17905,
+    "body": "void KeyframeEffect::UpdateProperties(const ComputedStyle* aStyle,\n                                      const AnimationTimeline* aTimeline) {\n  MOZ_ASSERT(aStyle);\n\n  nsTArray<AnimationProperty> properties = BuildProperties(\n      aStyle, aTimeline ? aTimeline\n                        : (mAnimation ? mAnimation->GetTimeline() : nullptr));\n\n  bool propertiesChanged = mProperties != properties;\n  if (!propertiesChanged) {\n    auto attrTainted = [](const AnimationValue& aValue) {\n      return aValue.mServo && Servo_AnimationValue_IsAttrTainted(aValue.mServo);\n    };\n    for (size_t i = 0; i < properties.Length() && !propertiesChanged; ++i) {\n      if (!properties[i].mProperty.IsCustom()) {\n        continue;\n      }\n      const auto& oldSegments = mProperties[i].mSegments;\n      const auto& newSegments = properties[i].mSegments;\n      for (size_t j = 0; j < newSegments.Length(); ++j) {\n        const auto& oldSegment = oldSegments[j];\n        const auto& newSegment = newSegments[j];\n        if (attrTainted(oldSegment.mFromValue) !=\n                attrTainted(newSegment.mFromValue) ||\n            attrTainted(oldSegment.mToValue) != attrTainted(newSegment.mToValue)) {\n          propertiesChanged = true;\n          break;\n        }\n      }\n    }\n  }\n\n  // We need to update base styles even if any properties are not changed at all\n  // since base styles might have been changed due to parent style changes, etc.\n  bool baseStylesChanged = false;\n  EnsureBaseStyles(aStyle, properties, aTimeline,\n                   !propertiesChanged ? &baseStylesChanged : nullptr);\n\n  if (!propertiesChanged) {\n    if (baseStylesChanged) {\n      RequestRestyle(EffectCompositor::RestyleType::Layer);\n    }\n    return;\n  }\n\n  // Preserve the state of the mIsRunningOnCompositor flag.\n  nsCSSPropertyIDSet runningOnCompositorProperties;\n\n  for (const AnimationProperty& property : mProperties) {\n    if (property.mIsRunningOnCompositor) {\n      runningOnCompositorProperties.AddProperty(property.mProperty.mId);\n    }\n  }\n\n  mProperties = std::move(properties);\n  UpdateEffectSet();\n\n  mCumulativeChanges = {};\n  for (AnimationProperty& property : mProperties) {\n    property.mIsRunningOnCompositor =\n        runningOnCompositorProperties.HasProperty(property.mProperty);\n    CalculateCumulativeChangesForProperty(property);\n  }\n\n  MarkCascadeNeedsUpdate();\n\n  if (mAnimation) {\n    mAnimation->NotifyEffectPropertiesUpdated();\n  }\n\n  RequestRestyle(EffectCompositor::RestyleType::Layer);\n}",
+    "sha256": "8dcf90d2cf1945af43e130c53ca7d167c7dfd31702cb49fb4e397b617bbf8783"
+  },
+  {
+    "file": "source/candidate/dom/animation/KeyframeEffect.cpp",
+    "signature": "void KeyframeEffect::EnsureBaseStyles(",
+    "scope": "",
+    "start_byte": 18153,
+    "end_byte": 20387,
+    "body": "void KeyframeEffect::EnsureBaseStyles(\n    const ComputedStyle* aComputedValues,\n    const nsTArray<AnimationProperty>& aProperties,\n    const AnimationTimeline* aTimeline, bool* aBaseStylesChanged) {\n  if (aBaseStylesChanged != nullptr) {\n    *aBaseStylesChanged = false;\n  }\n\n  if (!mTarget) {\n    return;\n  }\n\n  BaseValuesHashmap previousBaseStyles;\n  if (aBaseStylesChanged != nullptr) {\n    previousBaseStyles = std::move(mBaseValues);\n  }\n\n  mBaseValues.Clear();\n\n  nsPresContext* presContext =\n      nsContentUtils::GetContextForContent(mTarget.mElement);\n  // If |aProperties| is empty we're not going to dereference |presContext| so\n  // we don't care if it is nullptr.\n  //\n  // We could just return early when |aProperties| is empty and save looking up\n  // the pres context, but that won't save any effort normally since we don't\n  // call this function if we have no keyframes to begin with. Furthermore, the\n  // case where |presContext| is nullptr is so rare (we've only ever seen in\n  // fuzzing, and even then we've never been able to reproduce it reliably)\n  // it's not worth the runtime cost of an extra branch.\n  MOZ_ASSERT(presContext || aProperties.IsEmpty(),\n             \"Typically presContext should not be nullptr but if it is\"\n             \" we should have also failed to calculate the computed values\"\n             \" passed-in as aProperties\");\n\n  if (!aTimeline) {\n    // If we pass a valid timeline, we use it (note: this happens when we create\n    // a new animation or replace the old one, for CSS Animations and CSS\n    // Transitions). Otherwise, we check the timeline from |mAnimation|.\n    aTimeline = mAnimation ? mAnimation->GetTimeline() : nullptr;\n  }\n\n  RefPtr<const ComputedStyle> baseComputedStyle;\n  for (const AnimationProperty& property : aProperties) {\n    EnsureBaseStyle(property, presContext, aComputedValues, aTimeline,\n                    baseComputedStyle);\n  }\n\n  if (aBaseStylesChanged != nullptr &&\n      std::any_of(\n          mBaseValues.cbegin(), mBaseValues.cend(), [&](const auto& entry) {\n            return AnimationValue(entry.GetData()) !=\n                   AnimationValue(previousBaseStyles.Get(entry.GetKey()));\n          })) {\n    *aBaseStylesChanged = true;\n  }\n}",
+    "sha256": "aaab603c0d145df99360ddc7dab31fe8599b78e917563437d7dd0b5eaf046e98"
+  },
+  {
+    "file": "source/candidate/dom/animation/KeyframeEffect.cpp",
+    "signature": "void KeyframeEffect::SetKeyframes(nsTArray<Keyframe>&&",
+    "scope": "",
+    "start_byte": 9297,
+    "end_byte": 10136,
+    "body": "void KeyframeEffect::SetKeyframes(nsTArray<Keyframe>&& aKeyframes,\n                                  const ComputedStyle* aStyle,\n                                  const AnimationTimeline* aTimeline,\n                                  const AnimationRange* aRange) {\n  if (KeyframesEqualIgnoringComputedOffsets(aKeyframes, mKeyframes)) {\n    return;\n  }\n\n  mKeyframes = std::move(aKeyframes);\n  mKeyframeOffsetsHasRangeOffset = KeyframeUtils::ComputeMissingKeyframeOffsets(\n      mKeyframes, aTimeline, aRange);\n\n  if (mAnimation && mAnimation->IsRelevant()) {\n    MutationObservers::NotifyAnimationChanged(mAnimation);\n  }\n\n  // We need to call UpdateProperties() unless the target element doesn't have\n  // style (e.g. the target element is not associated with any document).\n  if (aStyle) {\n    UpdateProperties(aStyle, aTimeline);\n  }\n}",
+    "sha256": "6c896086390410693581f68766017bf50085d645a6e887743cdaa73cd9359042"
+  },
+  {
+    "file": "source/candidate/dom/animation/KeyframeEffect.cpp",
+    "signature": "nsTArray<AnimationProperty> KeyframeEffect::BuildProperties(",
+    "scope": "",
+    "start_byte": 32466,
+    "end_byte": 34430,
+    "body": "nsTArray<AnimationProperty> KeyframeEffect::BuildProperties(\n    const ComputedStyle* aStyle, const AnimationTimeline* aTimeline) {\n  MOZ_ASSERT(aStyle);\n\n  nsTArray<AnimationProperty> result;\n  // If mTarget is false (i.e. mTarget.mElement is null), return an empty\n  // property array.\n  if (!mTarget) {\n    return result;\n  }\n\n  // When GetComputedKeyframeValues or GetAnimationPropertiesFromKeyframes\n  // calculate computed values from |mKeyframes|, they could possibly\n  // trigger a subsequent restyle in which we rebuild animations. If that\n  // happens we could find that |mKeyframes| is overwritten while it is\n  // being iterated over. Normally that shouldn't happen but just in case we\n  // make a copy of |mKeyframes| first and iterate over that instead.\n  auto keyframesCopy(mKeyframes.Clone());\n\n  // We generate the missing 0%/100% keyframes and append the missing\n  // properties to 0%/100% only if the keyframes come from CSS Keyframes rule.\n  // Note: We probably can avoid an extra copy above if GetComputedKeyframes()\n  // return true. However, we use the same function in GetKeyframes() so for\n  // readibility we still keep it as it is. If this result in any performance\n  // impact, we should write a special version of GetComputedKeyframes() here.\n  nsTArray<Keyframe> computedKeyframes;\n  const nsTArray<Keyframe>& keyframes = GetComputedKeyframes(computedKeyframes)\n                                            ? computedKeyframes\n                                            : keyframesCopy;\n\n  result = KeyframeUtils::GetAnimationPropertiesFromKeyframes(\n      keyframes, mTarget.mElement, mTarget.mPseudoRequest, aStyle,\n      mEffectOptions.mComposite, aTimeline);\n\n#ifdef DEBUG\n  MOZ_ASSERT(SpecifiedKeyframeArraysAreEqual(mKeyframes, keyframesCopy),\n             \"Apart from the computed offset members, the keyframes array\"\n             \" should not be modified\");\n#endif\n\n  mKeyframes = std::move(keyframesCopy);\n  return result;\n}",
+    "sha256": "add93b94e3e33dc70fd0727e187d86b9feb286800f52d69fe6a6e887ee80e930"
+  },
+  {
+    "file": "source/original/dom/animation/KeyframeEffect.cpp",
+    "signature": "void KeyframeEffect::UpdateProperties(",
+    "scope": "",
+    "start_byte": 15419,
+    "end_byte": 17039,
+    "body": "void KeyframeEffect::UpdateProperties(const ComputedStyle* aStyle,\n                                      const AnimationTimeline* aTimeline) {\n  MOZ_ASSERT(aStyle);\n\n  nsTArray<AnimationProperty> properties = BuildProperties(\n      aStyle, aTimeline ? aTimeline\n                        : (mAnimation ? mAnimation->GetTimeline() : nullptr));\n\n  bool propertiesChanged = mProperties != properties;\n\n  // We need to update base styles even if any properties are not changed at all\n  // since base styles might have been changed due to parent style changes, etc.\n  bool baseStylesChanged = false;\n  EnsureBaseStyles(aStyle, properties, aTimeline,\n                   !propertiesChanged ? &baseStylesChanged : nullptr);\n\n  if (!propertiesChanged) {\n    if (baseStylesChanged) {\n      RequestRestyle(EffectCompositor::RestyleType::Layer);\n    }\n    return;\n  }\n\n  // Preserve the state of the mIsRunningOnCompositor flag.\n  nsCSSPropertyIDSet runningOnCompositorProperties;\n\n  for (const AnimationProperty& property : mProperties) {\n    if (property.mIsRunningOnCompositor) {\n      runningOnCompositorProperties.AddProperty(property.mProperty.mId);\n    }\n  }\n\n  mProperties = std::move(properties);\n  UpdateEffectSet();\n\n  mCumulativeChanges = {};\n  for (AnimationProperty& property : mProperties) {\n    property.mIsRunningOnCompositor =\n        runningOnCompositorProperties.HasProperty(property.mProperty);\n    CalculateCumulativeChangesForProperty(property);\n  }\n\n  MarkCascadeNeedsUpdate();\n\n  if (mAnimation) {\n    mAnimation->NotifyEffectPropertiesUpdated();\n  }\n\n  RequestRestyle(EffectCompositor::RestyleType::Layer);\n}",
+    "sha256": "88079b853089e87296a56cf611a0a1183a674200e83bc03d43e6551d81aa508d"
+  },
+  {
+    "file": "source/candidate/servo/components/style/properties_and_values/value.rs",
+    "signature": "pub fn is_attr_tainted(&self)",
+    "scope": "impl CustomAnimatedValue",
+    "start_byte": 27929,
+    "end_byte": 28042,
+    "body": "pub fn is_attr_tainted(&self) -> bool {\n        self.value.as_ref().is_some_and(|value| value.attr_tainted)\n    }",
+    "sha256": "ec3d24f110093a77c0f898f1641480a615ddb4ad4e40099997c30c3edd0df616"
+  },
+  {
+    "file": "source/candidate/servo/components/style/properties_and_values/value.rs",
+    "signature": "pub fn from_computed(",
+    "scope": "impl CustomAnimatedValue",
+    "start_byte": 23949,
+    "end_byte": 24170,
+    "body": "pub fn from_computed(\n        name: &crate::custom_properties::Name,\n        value: Option<&ComputedValue>,\n    ) -> Self {\n        Self {\n            name: name.clone(),\n            value: value.cloned(),\n        }\n    }",
+    "sha256": "c038954352386d0f77198fba97cae4a928148caa9bb2a0ff2b36624c1c457420"
+  },
+  {
+    "file": "source/candidate/servo/components/style/properties_and_values/value.rs",
+    "signature": "pub(crate) fn from_declaration(",
+    "scope": "impl CustomAnimatedValue",
+    "start_byte": 24176,
+    "end_byte": 27863,
+    "body": "pub(crate) fn from_declaration(\n        declaration: &properties::CustomDeclaration,\n        context: &mut computed::Context,\n    ) -> Option<Self> {\n        let computed_value = match declaration.value {\n            properties::CustomDeclarationValue::Unparsed(ref value) => Some({\n                debug_assert!(\n                    context.builder.stylist.is_some(),\n                    \"Need a Stylist to get property registration!\"\n                );\n                let registration = context\n                    .builder\n                    .stylist\n                    .unwrap()\n                    .get_custom_property_registration(&declaration.name);\n                if registration.is_universal() {\n                    // FIXME: Do we need to perform substitution here somehow?\n                    ComputedValue::universal(Arc::clone(value))\n                } else {\n                    let mut input = CSSParser::new(&value.css);\n                    SpecifiedValue::compute(\n                        &mut input,\n                        registration,\n                        None,\n                        &value.url_data,\n                        context,\n                        AllowComputationallyDependent::Yes,\n                        /* attr_taint */ Default::default(),\n                        Some(PropertyIdRef::from(&declaration.name)),\n                    )\n                    .unwrap_or_else(|_| ComputedValue::universal(Arc::clone(value)))\n                }\n            }),\n            properties::CustomDeclarationValue::Parsed(ref v) => Some(v.to_computed_value(context)),\n            properties::CustomDeclarationValue::CSSWideKeyword(keyword) => {\n                let stylist = context.builder.stylist.unwrap();\n                let registration = stylist.get_custom_property_registration(&declaration.name);\n                match keyword {\n                    CSSWideKeyword::Initial => stylist\n                        .get_custom_property_initial_values()\n                        .get(registration, &declaration.name),\n                    CSSWideKeyword::Inherit => context\n                        .builder\n                        .inherited_custom_properties()\n                        .get(registration, &declaration.name),\n                    CSSWideKeyword::Unset => {\n                        if registration.inherits() {\n                            context\n                                .builder\n                                .inherited_custom_properties()\n                                .get(registration, &declaration.name)\n                        } else {\n                            stylist\n                                .get_custom_property_initial_values()\n                                .get(registration, &declaration.name)\n                        }\n                    },\n                    // FIXME(emilio, bug 1533327): I think revert (and\n                    // revert-layer) handling is not fine here, but what to\n                    // do instead?\n                    //\n                    // Seems we'd need the computed value as if it was\n                    // revert, somehow. Returning `None` seems fine for now...\n                    //\n                    // Note that once this is fixed, this method should be\n                    // able to return `Self` instead of Option<Self>`.\n                    CSSWideKeyword::Revert\n                    | CSSWideKeyword::RevertRule\n                    | CSSWideKeyword::RevertLayer => return None,\n                }\n                .cloned()\n            },\n        };\n        Some(Self {\n            name: declaration.name.clone(),\n            value: computed_value,\n        })\n    }",
+    "sha256": "e8c9a7c1d92435dc9c7ef11d40b0c1e6b07ebaef9085cde39360b07169d130dc"
+  },
+  {
+    "file": "source/candidate/servo/components/style/properties_and_values/value.rs",
+    "signature": "pub(crate) fn to_declaration(&self)",
+    "scope": "impl CustomAnimatedValue",
+    "start_byte": 28048,
+    "end_byte": 28455,
+    "body": "pub(crate) fn to_declaration(&self) -> properties::PropertyDeclaration {\n        properties::PropertyDeclaration::Custom(properties::CustomDeclaration {\n            name: self.name.clone(),\n            value: match &self.value {\n                Some(value) => value.to_declared_value(),\n                None => CustomDeclarationValue::CSSWideKeyword(CSSWideKeyword::Initial),\n            },\n        })\n    }",
+    "sha256": "20214180ecbba9d6727ee3361746f6fda5133423dcc1457c902ae6014230ebc3"
+  },
+  {
+    "file": "source/candidate/servo/components/style/properties_and_values/value.rs",
+    "signature": "pub struct CustomAnimatedValue",
+    "scope": "",
+    "start_byte": 23196,
+    "end_byte": 23476,
+    "body": "pub struct CustomAnimatedValue {\n    /// The name of the custom property.\n    pub(crate) name: crate::custom_properties::Name,\n    /// The computed value of the custom property.\n    /// `None` represents the guaranteed-invalid value.\n    pub(crate) value: Option<ComputedValue>,\n}",
+    "sha256": "a94cff85a13b39a989b42afd1df5c0ac6254e0b331a4f91c8f5397de3b79a0f2"
+  },
+  {
+    "file": "source/candidate/servo/components/style/properties_and_values/value.rs",
+    "signature": "impl<Component: PartialEq> PartialEq for Value<Component>",
+    "scope": "",
+    "start_byte": 7214,
+    "end_byte": 7431,
+    "body": "impl<Component: PartialEq> PartialEq for Value<Component> {\n    // Ignore the url_data and tainting fields when comparing values for equality.\n    fn eq(&self, other: &Self) -> bool {\n        self.v == other.v\n    }\n}",
+    "sha256": "721137c3749cbc26dc0ecab29e657700fd52c4b6b516d63261ae3a6869aa1fe9"
+  },
+  {
+    "file": "source/candidate/servo/ports/geckolib/glue.rs",
+    "signature": "pub extern \"C\" fn Servo_AnimationValue_DeepEqual(",
+    "scope": "",
+    "start_byte": 35110,
+    "end_byte": 35246,
+    "body": "pub extern \"C\" fn Servo_AnimationValue_DeepEqual(\n    this: &AnimationValue,\n    other: &AnimationValue,\n) -> bool {\n    this == other\n}",
+    "sha256": "e631ac6fc8f68ec3f0bab75f7553293fe337fb83f94a2d7190adf621aeccc325"
+  },
+  {
+    "file": "source/candidate/servo/ports/geckolib/glue.rs",
+    "signature": "pub extern \"C\" fn Servo_AnimationValue_IsAttrTainted(",
+    "scope": "",
+    "start_byte": 35269,
+    "end_byte": 35467,
+    "body": "pub extern \"C\" fn Servo_AnimationValue_IsAttrTainted(value: &AnimationValue) -> bool {\n    match value {\n        AnimationValue::Custom(value) => value.is_attr_tainted(),\n        _ => false,\n    }\n}",
+    "sha256": "855c8e45157dea5e2ea4fcff53bc5cfaffac157dabcb417b264fceaa290c76c2"
+  },
+  {
+    "file": "source/context/dom/animation/AnimationPropertySegment.h",
+    "signature": "bool operator==(",
+    "scope": "",
+    "start_byte": 1363,
+    "end_byte": 1734,
+    "body": "bool operator==(const AnimationPropertySegment& aOther) const {\n    return mFromKey == aOther.mFromKey && mToKey == aOther.mToKey &&\n           mFromValue == aOther.mFromValue && mToValue == aOther.mToValue &&\n           mTimingFunction == aOther.mTimingFunction &&\n           mFromComposite == aOther.mFromComposite &&\n           mToComposite == aOther.mToComposite;\n  }",
+    "sha256": "4797c984f17488501498bb2890a0ee4785224958a72fde7462e4cfeae5f2644a"
+  },
+  {
+    "file": "source/context/dom/animation/KeyframeEffect.h",
+    "signature": "bool operator==(",
+    "scope": "",
+    "start_byte": 3230,
+    "end_byte": 3365,
+    "body": "bool operator==(const AnimationProperty& aOther) const {\n    return mProperty == aOther.mProperty && mSegments == aOther.mSegments;\n  }",
+    "sha256": "0bb3aa1f00078fc610e88df8c91a7da951f0d1a8312f49245a1e3640c7647ca5"
+  },
+  {
+    "file": "source/context/layout/style/StyleAnimationValue.cpp",
+    "signature": "bool AnimationValue::operator==(",
+    "scope": "",
+    "start_byte": 1029,
+    "end_byte": 1275,
+    "body": "bool AnimationValue::operator==(const AnimationValue& aOther) const {\n  if (mServo && aOther.mServo) {\n    return Servo_AnimationValue_DeepEqual(mServo, aOther.mServo);\n  }\n  if (!mServo && !aOther.mServo) {\n    return true;\n  }\n  return false;\n}",
+    "sha256": "7b10153369f3260812fba49d6bbf2993f8d90926156780b8cc672a77b008ff3d"
+  }
+]
