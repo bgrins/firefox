@@ -3042,8 +3042,9 @@ static bool MayCharacterHaveEmphasisMark(uint32_t aCh) {
   switch (unicode::GetGenCategory(aCh)) {
     case nsUGenCategory::kSeparator:  // whitespace, line- & para-separators
       return false;
-    case nsUGenCategory::kOther:  // control categories
-      return false;
+    case nsUGenCategory::kOther:
+      return unicode::GetGeneralCategory(aCh) ==
+             HB_UNICODE_GENERAL_CATEGORY_PRIVATE_USE;
     case nsUGenCategory::kPunctuation:
       return aCh <= 0xffff &&
              kPunctuationAcceptsEmphasis.Contains(char16_t(aCh));
