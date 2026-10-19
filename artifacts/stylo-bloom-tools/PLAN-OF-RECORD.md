@@ -4,13 +4,14 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **75 committed native/WPT fixes.** The management index is
+- **76 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest repairs:** custom-property live counts (`0cac5c270615`) and ancestor
-  shadow skipping (`90ffac0a5e40`). Both have separate native/WPT commits and
-  preceding proofs/reviews. The upstream iterator alternative is `5d6308daf5f9`
-  and includes necessary count support. Combined local matrix: 41/41 PASS.
+- **Latest repair:** equal-payload custom-property taint (`e04d672a735e`),
+  independently packaged as two Rust changes and a nine-case WPT. The paired
+  local matrix improves 78 PASS / 4 FAIL to 82 PASS; scoped proof/review precedes
+  the native commit. Count/iterator repairs and their standalone alternative
+  remain in the ledger.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.
@@ -119,15 +120,14 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Adjudicate the custom-property taint/equality repair. The new nine-case
-   diagnostic reproduces four final image-result failures with five controls
-   passing; all computed-token and parent/literal prerequisites pass. Existing
-   local build/source associations are retained in
-   `../css-custom-properties-map-routing-root-v1/`. Two shortcuts compare payload
-   without metadata: shared map insertion and universal cascade early return.
-   Independent source review and a scoped shortcut proof are active. Prepare
-   the minimal repair, paired browser results and native/WPT-only commit before
-   adding it to the ledger. No release exposure or novelty claim yet.
+1. Repair the two new independently reproduced taint candidates, each with its
+   own native/WPT commit: touching URL/tainted-resolution byte ranges (1 FAIL /
+   4 PASS) and equal-payload keyframe replacement (2 FAIL / 4 PASS). The range
+   candidate has a one-expression proposal, 14 draft range proofs and extracted
+   Rust checks; native candidate runtime/review remain. Animation needs a minimal
+   comparison repair and a standalone provider/dependency audit. Evidence is in
+   `../css-attr-taint-touching-ranges-root-v1/` and
+   `../css-custom-properties-animation-taint-root-v1/`.
 2. Compose the declaration helper's saved-query/short-circuit paths after the
    accepted skip/next wrapper and production entry component;
    metadata, providers, callbacks and compiler admissions remain explicit.
@@ -271,5 +271,8 @@ algorithms, and works through a historical CSSOM semantic change. Root reviewed
 and authenticated all three tracks. No requirement is newly certified closed.
 Next implement the source-lock/ledger validator and bind a complete custom-property
 CSSOM slice; use the property/dependency pilot to reach an ordinary box/layout
-observation before expanding independent families. Research agents have returned
-to the active count/iterator proof and review tasks.
+observation before expanding independent families. The [third research pass](../css-whole-spec-feasibility-v3/README.md) is reviewed
+and authenticated: versioned normative views, persistent permitted choices,
+phase/owner-aware interfaces, observation-specific sampling and transitive
+assumption closure. It adds research proposals, not coverage claims. Comparator-to-map-history composition now
+has nine new results and three compiled mutants; independent review remains.

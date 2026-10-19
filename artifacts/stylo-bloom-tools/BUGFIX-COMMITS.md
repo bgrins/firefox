@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **75 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **76 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -74,6 +74,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | registered-substituted-inherit-restyle | `60bf34f48ac63ca595d519c1e0c2b4a2fa731b66` | `1ad6ea9740aa7f73ca299625208edf9856be807a` |
 | custom-property-live-count | `0cac5c270615d04239bd4a4024a3ab5ffd0d24ae` | `d9d1047dd4b1592794229f3f7f7610ddedfd9aba` |
 | custom-property-enumeration-shadowing | `90ffac0a5e4076b6117ca152249f342a13995ee3` | `215c881ef243f0268be11836d6c2a45e91b29b6f` |
+| custom-property-equal-payload-taint | `e04d672a735edcf0e6529c854207b5ee9555ea7c` | `01c98e4fd49ed6061c1a7ebdd87c124cd2b77254` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1731,3 +1732,29 @@ The checker has a documented lexical output-path limitation; accepted replays
 used canonical external paths. No isolated-upstream or release runtime claim.
 
 [Acceptance](../css-custom-properties-map-iterator-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
+
+## Fix 76: preserve taint when equal custom-property payloads are replaced
+
+Native + WPT: `e04d672a735edcf0e6529c854207b5ee9555ea7c`, after independent acceptance
+`01c98e4fd49ed6061c1a7ebdd87c124cd2b77254`, proof `7466d4284b1e946050a4d649ceab9a6944ee1ce6`
+and paired runtime `017ddb9cb213e3870afca39af6f37dac5db9937f`. The three-file repair
+checks taint in shared-map insertion and the universal cascade shortcut, with a
+nine-case WPT. Global payload equality is unchanged.
+
+Four final image-result failures become passes; all 82 local checks pass in nine
+harnesses. The exact patch applies to the recorded upstream base. Unrelated
+cascade work is excluded; no isolated upstream runtime is claimed.
+
+Thirty-one conditional Lean results and four compiled semantic mutants passed
+root and independent fresh replay. Both shortcuts must preserve metadata: either
+old shortcut can mask repair of the other. Native payload/URL-data quotient,
+state-dependent eligibility, reference-free provider, byte ranges and complete
+map/caller refinement remain open. Source investigation and browser reproduction
+preceded this formalization.
+
+[Acceptance](../css-custom-properties-map-taint-acceptance-v1/ACCEPTANCE.json) and
+[commit check](../css-custom-properties-map-taint-root-v1/ROOT-COMMIT-CHECK.json).
+
+Separate uncommitted candidates: adjacent URL/tainted-resolution ranges reproduce
+one failure with four controls passing; equal-payload keyframe replacement
+reproduces two failures with four controls passing. Neither is counted above.
