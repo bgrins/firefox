@@ -1,0 +1,49 @@
+SelectedOutput.lean:10:23: warning: Variable name `tokens` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _tokens
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+SelectedOutput.lean:39:20: error: unsolved goals
+case cons.replacement.some
+boundary : Boundary
+rest : List Piece
+ih : ∀ (out : List Token), Option.map scan (execute boundary rest out) = accumulate rest (scan out)
+out : List Token
+fallback : Option (List Token)
+tokens : List Token
+⊢ Option.map scan
+      (match fallback with
+      | none => none
+      | some tokens => execute boundary rest (emit boundary out tokens)) =
+    accumulate rest (combine (scan out) (scan tokens))
+SelectedOutput.lean:39:58: warning: This simp argument is unused:
+  ih
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [execute, select, accumulate, emit_scan]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+SelectedOutput.lean:39:62: warning: This simp argument is unused:
+  emit_scan
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [execute, select, accumulate, ih]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+SelectedOutput.lean:55:89: error: unsolved goals
+boundary : Boundary
+before after : List Piece
+out primary : List Token
+fallback₁ fallback₂ : Option (List Token)
+⊢ ((execute boundary before out).bind fun x =>
+      match fallback₁ with
+      | none => none
+      | some tokens => execute boundary after (emit boundary x tokens)) =
+    (execute boundary before out).bind fun x =>
+      match fallback₂ with
+      | none => none
+      | some tokens => execute boundary after (emit boundary x tokens)
+SelectedOutput.lean:83:39: error: unsolved goals
+boundary : Boundary
+⊢ False
