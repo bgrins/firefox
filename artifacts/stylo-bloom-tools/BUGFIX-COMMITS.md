@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **73 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **74 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -72,6 +72,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | registered-initial-computed-value | `6aa2138c144aa6eee8e07aac77e7a68a8c7f7617` | `3d194d59545c331fabc7ad1502af96522aa67c90` |
 | registered-inherit-invalid | `3a01fc986c7974161aadf4bfafe65c234b036b07` | `2e0f9f6b9ee5450cd21ac9341ef116dd91a8119b` |
 | registered-substituted-inherit-restyle | `60bf34f48ac63ca595d519c1e0c2b4a2fa731b66` | `1ad6ea9740aa7f73ca299625208edf9856be807a` |
+| custom-property-live-count | `0cac5c270615d04239bd4a4024a3ab5ffd0d24ae` | `d9d1047dd4b1592794229f3f7f7610ddedfd9aba` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1692,3 +1693,17 @@ The model history's unrelated-flag preservation is a frame assumption; a native
 recascade constructs a new style and is not proved to preserve those flags.
 Caller delivery, change providers, maps and compiler remain admitted. Discovery
 preceded formalization. [Acceptance](../css-registered-substituted-inherit-fix-v1/ROOT-SCOPED-ACCEPTANCE.json).
+
+## Fix 74: exclude invalid custom properties from enumeration
+
+Native + WPT: `0cac5c270615d04239bd4a4024a3ab5ffd0d24ae`, following count proof/review `d9d1047dd4b1592794229f3f7f7610ddedfd9aba` and runtime evidence `7b2926f6ac7eeffee378a18d8321c3e6dbcfd32c`.
+The two-file commit updates live-value counting and filters tombstones from indexed
+access, with a ten-case WPT. Tombstones still mask ancestor values.
+
+The final local comparison improves 30/41 passing checks to 38/41; the remaining
+three shadowing failures belong to the separate iterator repair. Count-only adds
+no failures in this matrix and applies independently to the recorded upstream.
+Fifty-five conditional Lean audits cover count changes and COW histories;
+independent replay and four compiled model mutants passed their gates. Native
+container/compiler/bounds and complete CSSOM lifecycle assumptions remain.
+Discovery preceded the proof. See [acceptance](../css-custom-properties-map-count-root-v1/ROOT-SCOPED-ACCEPTANCE.json).

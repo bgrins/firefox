@@ -4,13 +4,13 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **73 committed native/WPT fixes.** The management index is
+- **74 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest repair:** substituted-inherit restyle dependency tracking, signed as
-  `60bf34f48ac63ca595d519c1e0c2b4a2fa731b66`, after evidence
-  `1ad6ea9740aa7f73ca299625208edf9856be807a`. Three failures repaired;
-  the two-file commit contains only the Rust change and seven-case WPT.
+- **Latest repair:** custom-property live-value counting, signed as
+  `0cac5c270615d04239bd4a4024a3ab5ffd0d24ae`, after proof/review
+  `d9d1047dd4b1592794229f3f7f7610ddedfd9aba`. Eight failing checks repaired;
+  the two-file commit contains only the Rust change and ten-case WPT.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.
@@ -119,23 +119,23 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Finish the custom-property count and iterator repairs, with count first.
-   The 39-case diagnostic matrix gives original 9 FAIL, iterator-only 6 FAIL,
-   count-only 3 FAIL, combined 39 PASS. The iterator-only patch exposes a restored
-   tombstone count mismatch as a literal `--` indexed name; it is not a safe
-   standalone upstream artifact. Evidence is committed in
-   `8b945c35975b6ba5db935a6205d7a92fbc8652de`;
-   [scope and results](../css-custom-properties-enumeration-boundary-probe-v1/README.md).
-   Add last-value and inherited/reset-map offset cases, rerun with explicit native
-   before/after pins (the diagnostic original omitted a clean file), and finish
-   independent count/iterator proofs and source review. Keep fix/WPT commits
-   separate; an upstream iterator alternative must include necessary count support.
-   Neither candidate is accepted or counted among the 73 committed fixes.
+1. Finish the corrected-iterator composition and commit after the count repair.
+   Final explicit-source-pinned local matrix: original 30 PASS / 11 FAIL,
+   count-only 38 PASS / 3 FAIL, combined 41 PASS; seven harnesses and identical
+   subtest identities. Last-value and inherited/reset-map offset cases are included.
+   Runtime evidence is committed in `7b2926f6ac7eeffee378a18d8321c3e6dbcfd32c`.
+   Count repair is now fix 74; its 55-audit conditional proof and independent replay
+   are accepted. The 50-audit iterator component has independent conditional
+   acceptance; the joint proof must derive RawEnumeration and indexed bounds
+   from actual update histories. An upstream iterator alternative must include
+   necessary count support: the label-only patch exposes old count corruption.
+   Preserve native container/compiler/bounds and CSSOM registration assumptions.
 2. Compose the declaration helper's saved-query/short-circuit paths after the
    accepted skip/next wrapper and production entry component;
    metadata, providers, callbacks and compiler admissions remain explicit.
-3. Extend persistent-map verification after the enumeration repair: nearest-owner
-   iteration, stored-length/live-value distinctions, tombstones and COW histories.
+3. Audit persistent-map payload equality and registration routing after the
+   enumeration repair. A source-only taint/equality lead has calibrated browser
+   diagnostics prepared; no runtime or novelty claim yet.
 4. Continue the public declaration storage/CSSOM composition obligations above.
 5. Continue cascade source/observer and hyphenation stateful consumer admission,
    including reflow-to-display cache association and lifetime. Preserve the
