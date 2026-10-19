@@ -2,6 +2,24 @@
 
 Updated 19 October 2026. Work stays local; the user owns pushing.
 
+## Current repair work
+
+Three quoted-EOF recovery leads are reproduced on the pinned shared build:
+
+1. Nested fallback substitution crashes after late backslash deletion leaves
+   enclosing reference endpoints one byte too large.
+2. Even positive terminal-backslash runs lose a literal backslash during repair.
+3. An escaped terminal quote is mistaken for a closing quote.
+
+The two value errors produce eight failures with fourteen passing controls;
+the endpoint case crashes in `do_substitute_chunk`. Keep three independently
+reviewable native/WPT repairs with preceding proof/tooling. The endpoint WPT
+uses odd terminal runs to avoid depending on the parity correction. Source
+witness/proof work and independent adjudication are active; no native repair
+is applied or accepted yet, so the committed native count remains 62.
+Evidence: css-quoted-eof-fallback-probe-v1/ROOT-BASELINE.json and
+css-quoted-eof-semantics-probe-v1/ROOT-BASELINE.json.
+
 ## Next proof work
 
 Immediate next steps:

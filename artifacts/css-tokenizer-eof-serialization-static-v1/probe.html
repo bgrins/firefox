@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Custom property EOF serialization</title>
+<pre id="output"></pre>
+<script>
+const inputs = ["foo\\", "1foo\\", "url(foo\\", '"foo\\',
+  "foo\\\\", "foo\\fffd ", "var(--missing, foo\\",
+  "f(var(--missing, foo\\"];
+const rows = inputs.map(input => {
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync("x { --v:" + input);
+  const declaration = sheet.cssRules[0].style;
+  const value = declaration.getPropertyValue("--v");
+  const copy = new CSSStyleSheet();
+  copy.replaceSync(sheet.cssRules[0].cssText);
+  return {input, value, codepoints: Array.from(value, c => c.codePointAt(0)),
+    rule: sheet.cssRules[0].cssText,
+    stable: copy.cssRules[0].style.getPropertyValue("--v") === value};
+});
+output.textContent = JSON.stringify(rows, null, 2);
+</script>

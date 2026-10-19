@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Quoted EOF recovery in a variable fallback</title>
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-string-token">
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#resolve-a-variable">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const [name, value] of [
+  ["closed fallback", 'var(--absent, "example")'],
+  ["missing quote and parenthesis", 'var(--absent, "example'],
+  ["escaped EOF in fallback", 'var(--absent, "example\\'],
+]) {
+  test(t => {
+    const target = document.createElement('div');
+    const reference = document.createElement('div');
+    t.add_cleanup(() => { target.remove(); reference.remove(); });
+    target.style.fontFamily = value;
+    reference.style.fontFamily = '"example"';
+    assert_not_equals(target.style.fontFamily, '', 'specified value accepted');
+    document.body.append(target, reference);
+    assert_equals(getComputedStyle(target).fontFamily,
+                  getComputedStyle(reference).fontFamily);
+  }, name);
+}
+</script>
