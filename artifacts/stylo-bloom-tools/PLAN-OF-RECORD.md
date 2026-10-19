@@ -4,16 +4,16 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **70 committed native/WPT fixes.** The management index is
+- **71 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest repair:** registered keyframe substitution, signed as
-  `188644f6d9833b485f35c2abcfad23cef2c5e9f7`, after evidence companion
-  `1cf91c4def90e6e7cce4e76106020ffcd4b45692`. Eight baseline failures are repaired;
+- **Latest repair:** computed registered initial values, signed as
+  `6aa2138c144aa6eee8e07aac77e7a68a8c7f7617`, after evidence companion
+  `3d194d59545c331fabc7ad1502af96522aa67c90`. Three ordinary baseline failures are repaired;
   its three-file commit contains only native changes and WPT.
-- URL native state/capture, ordinary batching and parser-priority winners are
-  accepted within scope. Animation identity is now accepted within scope; public storage composition and
-  parser-history admission remain active.
+- URL native state/capture, ordinary batching, parser-priority winners, animation
+  identity and primary parser-history admission are accepted within scope. Public
+  parser wrappers and storage composition remain active.
 - Signing works. Nothing has been pushed or submitted externally.
 
 [Historical checkpoints](PLAN-HISTORY-20261019.md) preserve the previous plan
@@ -63,9 +63,19 @@ remains valid; v2 rejects those exact traces and 3,043 corruption checks. No Lea
 theorem was refuted and no new browser bug was established.
 
 [Scoped acceptance](../css-tokenizer-url-native-state-root-v1/ROOT-SCOPED-ACCEPTANCE-V2.json).
-The next producer task is actual byte-driven public cache/reset and observer
-history admission, starting from existing counterexamples and epoch components:
-`../css-parser-public-history-admission-v1/`.
+The primary public-history component is accepted in `1c787870e8f816d6610872d15d1f0d995de7b667`:
+46 modules / 371 reports (108 new), constructor-derived cache coherence, raw
+pending cleanup, fetch/save/reset and admitted enable/query histories. Independent
+fresh replay agrees on 87 snapshots per debug/release mode; three Lean and four
+native semantic mutations distinguish the modeled behavior. Metadata, provider,
+machine and safe-entry premises remain explicit.
+[Acceptance](../css-parser-public-history-root-acceptance-v1/ACCEPTANCE.json).
+
+Next compose actual skip_whitespace/next wrappers and production cold/Colon entry.
+The source audit finds no reachable late-enable defect in the two production
+enable sites. Wrapper proofs are in progress; nested/depth/callback protocols and
+the declaration helper's saved-query/short-circuit automaton remain separate.
+[Source audit](../css-parser-entry-wrapper-static-v1/REPORT.md).
 
 ### 3. Compose parsing, removal and clear
 
@@ -108,18 +118,20 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-The registered-keyframe substitution repair is committed. Its final paired test
-changes eight failures/eight passes to sixteen passes. A separate fallback probe
-now reproduces `var(--missing, initial)` switching discretely (10 instead of12),
-with four controls passing. Provider/caller and standalone-dependency review is
-active; this is not counted as another repair. The same-effect dependency audit
-shows why simply overwriting skipped CSS-wide defaults is not a valid general
-fix: keyframe dependencies use current computed values.
+The registered-keyframe and registered initial-value repairs are committed.
+Continue narrowly auditing registered custom-property defaulting and provider
+readiness. A ten-case browser probe reproduces two direct-inheritance failures for a
+guaranteed-invalid noninherited registered value, with eight controls passing.
+This is not yet an accepted repair. Preserve root-element inheritance semantics
+in any candidate. Evidence: ../css-registered-inherit-invalid-probe-v1/.
 
-Public parser-history admission is now produced and independently reviewing:
-46 modules /371 audits (108 new),87 actual-source snapshots in each debug/release
-mode,3 Lean and4 native semantic mutations. It retains primary-API, metadata,
-provider and enable-entry boundaries; no whole-parser acceptance yet.
+The same-effect animation dependency audit remains separate: simply overwriting
+skipped CSS-wide defaults is not a valid general fix because keyframe dependencies
+use current computed values.
+
+Public parser-history admission is accepted. Actual whitespace/next wrapper and
+Colon-entry composition is the active proof extension; retain all prior metadata,
+provider, cache-enable and annotation counterexamples.
 
 1. Complete the active components above and their review/commit gates.
 2. Extend declaration storage verification to actual push/extend/removal
@@ -186,7 +198,9 @@ provider and enable-entry boundaries; no whole-parser acceptance yet.
   full floating-point/library correctness remains open.
 - **Parser tracking epoch:** `e9f6a83409e49efdd3018acc2263f247baf007e6`
   supplies ten conditional event-level lemmas and fourteen native observations.
-  Query/disable composition and actual byte-parser event generation remain open.
+  The later public-history checkpoint composes query/disable and selected byte
+  providers under explicit safe-entry and provider premises; wrapper composition
+  remains open.
 - **Declaration structure/publication:** the top-level curly fallback and
   exclusive-publication repairs are committed as
   `095c5be548a2bddf5f3ff01e01da66c6098a8ee5` and

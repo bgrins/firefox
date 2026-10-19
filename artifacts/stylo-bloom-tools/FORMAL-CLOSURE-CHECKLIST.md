@@ -558,3 +558,29 @@ grouping/provider associations, direct-wrapper caller readiness, generated
 layout/FFI, containers and compiler remain open. The numeric keyframe substitution
 candidate is not certified by an identity theorem.
 [Acceptance](../css-animation-identity-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
+
+## Primary public parser histories accepted — 19 October 2026
+
+Constructor-derived cache coherence now composes raw pending-block cleanup,
+primary fetch, save/reset and complete admitted enable/history/query epochs. A
+separate source-driven token/cursor reference removes cached-value and tracker
+machinery; a key-aware annotation reference derives actual fresh/raw write
+chronology. Successful nonrelevant token return, including Colon, derives safe
+entry. Strict provider progress separately proves byte-fuel cleanup completeness.
+
+Root read all fifteen new modules and the inherited TrackingEpoch contract,
+inspected native primary bindings and drivers, authenticated the closures and ran
+the independent retained-evidence checker. Fresh independent replay passes 371
+reports (108 new), 87 snapshots in each of two native modes, three Lean and four
+native semantic mutants, six trace corruptions and eight integrity challenges.
+
+Remaining admissions include full line/UTF-16 metadata, other-family consumption
+providers, shared token/stack semantics, immutable same-instance saved states,
+valid UTF-8 boundaries, codec and machine/heap/compiler behavior. Each enable
+epoch still requires no relevant cached Function. Annotation chronology is not
+a proof of ideal publication. Late-enable/query-reenable and annotation-reset
+counterexamples remain. Public skipping/callback/depth wrappers and actual
+production caller protocols remain separate; the next wrapper component is active.
+No new browser bug belongs to this acceptance.
+
+[Acceptance](../css-parser-public-history-root-acceptance-v1/ACCEPTANCE.json).

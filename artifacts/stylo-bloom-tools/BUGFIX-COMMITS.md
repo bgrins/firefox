@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **70 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **71 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -69,6 +69,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | declaration-substitution-publication | `780495d90a85052cff69713f1086180253cb9730` | `53e30d418ef77e3b9626aa3c1cd99e7fb9a87cbf` |
 | all-shorthand-logical-order | `074086719e445ca72d3056f7fbf793af5e69d6f6` | `bad8f7998dbbb3ad1fa88c0ca6892488f912e898` |
 | registered-keyframe-substitution | `188644f6d9833b485f35c2abcfad23cef2c5e9f7` | `1cf91c4def90e6e7cce4e76106020ffcd4b45692` |
+| registered-initial-computed-value | `6aa2138c144aa6eee8e07aac77e7a68a8c7f7617` | `3d194d59545c331fabc7ad1502af96522aa67c90` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1634,7 +1635,30 @@ shared macOS tree, with no isolated upstream runtime claim.
 Discovery was source inspection and browser reproduction during verifier work.
 Independent source/spec, dependency and final native/WPT reviews passed. The
 separate animation-identity proof does not establish numeric payload correctness.
-Fallback-produced CSS-wide wrappers and dynamic dependency behavior remain
-separate investigations; no second fix is counted.
+The subsequent registered initial-value repair below resolves the fallback-initial
+provider defect. Dynamic animation dependency behavior remains separate.
 [Acceptance](../css-animation-taint-probe-v1/ROOT-SCOPED-ACCEPTANCE.json) and
 [commit check](../css-registered-keyframe-root-commit-v1/ROOT-COMMIT-CHECK.json).
+
+## Computed registered initial values committed
+
+Native + WPT: `6aa2138c144aa6eee8e07aac77e7a68a8c7f7617`, following evidence companion
+`3d194d59545c331fabc7ad1502af96522aa67c90`. Two Rust files use the existing computed initial-value
+cache when explicit initial defaulting replaces a custom property. The twelve-case
+WPT covers inherited/reset lengths, universal syntax and absent initial values.
+Registration descriptor text is preserved.
+
+Three ordinary failures become passes; all twelve new cases and 85 existing
+checks pass. A separate five-case animation diagnostic also passes, repairing one
+additional observation of this same provider defect; it depends on fix 70 and is
+excluded from this standalone WPT. Both builds exit 0 with retained monitor errors.
+Exact patch application/reversal passes on upstream and branch snapshots; runtime
+pairing uses the shared macOS tree. Unrelated cascade changes are excluded from
+the commit. No isolated upstream execution or performance claim.
+
+Discovery was source inspection and browser reproduction during verifier work;
+there is no Lean-discovered counterexample or universal theorem for this repair.
+Root and independent source/spec/runtime reviews passed. Existing Stylist cache
+freshness remains a provider contract.
+[Acceptance](../css-registered-initial-value-fix-v1/ROOT-SCOPED-ACCEPTANCE.json) and
+[commit check](../css-registered-initial-value-root-commit-v1/ROOT-COMMIT-CHECK.json).
