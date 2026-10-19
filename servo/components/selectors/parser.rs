@@ -8,6 +8,7 @@ use crate::bloom::BLOOM_HASH_MASK;
 use crate::builder::{
     SelectorBuilder, SelectorFlags, Specificity, SpecificityAndFlags,
     relative_selector_list_specificity_and_flags, selector_list_specificity_and_flags,
+    specificity_and_flags,
 };
 use crate::context::QuirksMode;
 use crate::sink::Push;
@@ -1175,16 +1176,14 @@ impl<Impl: SelectorImpl> Selector<Impl> {
             /* for_nesting_parent = */ true,
         );
 
-        let mut specificity = Specificity::from(self.specificity());
+        let mut specificity = Specificity::default();
         let mut flags = self.flags() - SelectorFlags::HAS_PARENT;
         let forbidden_flags = SelectorFlags::forbidden_for_nesting();
 
         fn replace_parent_on_selector_list<Impl: SelectorImpl>(
             orig: &[Selector<Impl>],
             parent: &SelectorList<Impl>,
-            specificity: &mut Specificity,
             flags: &mut SelectorFlags,
-            propagate_specificity: bool,
             forbidden_flags: SelectorFlags,
         ) -> Option<SelectorList<Impl>> {
             if !orig.iter().any(|s| s.has_parent_selector()) {
@@ -1198,16 +1197,6 @@ impl<Impl: SelectorImpl> Selector<Impl> {
                 result.slice().iter(),
                 /* for_nesting_parent = */ false,
             );
-            if propagate_specificity {
-                *specificity += Specificity::from(
-                    result_specificity_and_flags.specificity
-                        - selector_list_specificity_and_flags(
-                            orig.iter(),
-                            /* for_nesting_parent = */ false,
-                        )
-                        .specificity,
-                );
-            }
             flags.insert(result_specificity_and_flags.flags - forbidden_flags);
             Some(result)
         }
@@ -1215,7 +1204,6 @@ impl<Impl: SelectorImpl> Selector<Impl> {
         fn replace_parent_on_relative_selector_list<Impl: SelectorImpl>(
             orig: &[RelativeSelector<Impl>],
             parent: &SelectorList<Impl>,
-            specificity: &mut Specificity,
             flags: &mut SelectorFlags,
             forbidden_flags: SelectorFlags,
         ) -> Box<[RelativeSelector<Impl>]> {
@@ -1243,25 +1231,16 @@ impl<Impl: SelectorImpl> Selector<Impl> {
                 &result, /* for_nesting_parent = */ false,
             );
             flags.insert(result_specificity_and_flags.flags - forbidden_flags);
-            *specificity += Specificity::from(
-                result_specificity_and_flags.specificity
-                    - relative_selector_list_specificity_and_flags(
-                        orig, /* for_nesting_parent = */ false,
-                    )
-                    .specificity,
-            );
             result
         }
 
         fn replace_parent_on_selector<Impl: SelectorImpl>(
             orig: &Selector<Impl>,
             parent: &SelectorList<Impl>,
-            specificity: &mut Specificity,
             flags: &mut SelectorFlags,
             forbidden_flags: SelectorFlags,
         ) -> Selector<Impl> {
             let new_selector = orig.replace_parent_selector(parent);
-            *specificity += Specificity::from(new_selector.specificity() - orig.specificity());
             flags.insert(new_selector.flags() - forbidden_flags);
             new_selector
         }
@@ -1301,54 +1280,40 @@ impl<Impl: SelectorImpl> Selector<Impl> {
                     flags.insert(parent_specificity_and_flags.flags - forbidden_flags);
                     Is(parent.clone())
                 },
-                Negation(ref selectors) => {
-                    Negation(
-                        replace_parent_on_selector_list(
-                            selectors.slice(),
-                            parent,
-                            &mut specificity,
-                            &mut flags,
-                            /* propagate_specificity = */ true,
-                            forbidden_flags,
-                        )
-                        .unwrap_or_else(|| selectors.clone()),
-                    )
-                },
-                Is(ref selectors) => {
-                    Is(replace_parent_on_selector_list(
+                Negation(ref selectors) => Negation(
+                    replace_parent_on_selector_list(
                         selectors.slice(),
                         parent,
-                        &mut specificity,
                         &mut flags,
-                        /* propagate_specificity = */ true,
                         forbidden_flags,
                     )
-                    .unwrap_or_else(|| selectors.clone()))
-                },
-                Where(ref selectors) => {
-                    Where(
-                        replace_parent_on_selector_list(
-                            selectors.slice(),
-                            parent,
-                            &mut specificity,
-                            &mut flags,
-                            /* propagate_specificity = */ false,
-                            forbidden_flags,
-                        )
-                        .unwrap_or_else(|| selectors.clone()),
+                    .unwrap_or_else(|| selectors.clone()),
+                ),
+                Is(ref selectors) => Is(replace_parent_on_selector_list(
+                    selectors.slice(),
+                    parent,
+                    &mut flags,
+                    forbidden_flags,
+                )
+                .unwrap_or_else(|| selectors.clone())),
+                Where(ref selectors) => Where(
+                    replace_parent_on_selector_list(
+                        selectors.slice(),
+                        parent,
+                        &mut flags,
+                        forbidden_flags,
                     )
-                },
+                    .unwrap_or_else(|| selectors.clone()),
+                ),
                 Has(ref selectors) => Has(replace_parent_on_relative_selector_list(
                     selectors,
                     parent,
-                    &mut specificity,
                     &mut flags,
                     forbidden_flags,
                 )),
                 Host(Some(ref selector)) => Host(Some(replace_parent_on_selector(
                     selector,
                     parent,
-                    &mut specificity,
                     &mut flags,
                     forbidden_flags,
                 ))),
@@ -1356,9 +1321,7 @@ impl<Impl: SelectorImpl> Selector<Impl> {
                     let selectors = replace_parent_on_selector_list(
                         data.selectors(),
                         parent,
-                        &mut specificity,
                         &mut flags,
-                        /* propagate_specificity = */ true,
                         forbidden_flags,
                     );
                     NthOf(match selectors {
@@ -1371,13 +1334,24 @@ impl<Impl: SelectorImpl> Selector<Impl> {
                 Slotted(ref selector) => Slotted(replace_parent_on_selector(
                     selector,
                     parent,
-                    &mut specificity,
                     &mut flags,
                     forbidden_flags,
                 )),
             }
         });
         let mut items = UniqueArc::from_header_and_iter(Default::default(), iter);
+        // Direct parent selectors already contributed their cached specificity.
+        specificity += Specificity::from(
+            specificity_and_flags(
+                self.iter_raw_match_order()
+                    .zip(items.slice().iter())
+                    .filter_map(|(original, replaced)| {
+                        (!matches!(original, Component::ParentSelector)).then_some(replaced)
+                    }),
+                /* for_nesting_parent = */ false,
+            )
+            .specificity,
+        );
         *items.header_mut() = SpecificityAndFlags {
             specificity: specificity.into(),
             flags,

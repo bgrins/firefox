@@ -32,7 +32,6 @@ use derive_more::{Add, AddAssign};
 use servo_arc::Arc;
 use smallvec::SmallVec;
 use std::cmp;
-use std::slice;
 
 #[cfg(feature = "to_shmem")]
 use to_shmem_derive::ToShmem;
@@ -282,12 +281,12 @@ impl From<Specificity> for u32 {
     }
 }
 
-fn specificity_and_flags<Impl>(
-    iter: slice::Iter<Component<Impl>>,
+pub(crate) fn specificity_and_flags<'a, Impl>(
+    iter: impl Iterator<Item = &'a Component<Impl>>,
     for_nesting_parent: bool,
 ) -> SpecificityAndFlags
 where
-    Impl: SelectorImpl,
+    Impl: SelectorImpl + 'a,
 {
     fn component_specificity<Impl>(
         simple_selector: &Component<Impl>,
