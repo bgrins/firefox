@@ -433,3 +433,32 @@ explicit. Provider composition shares dispatch finishing logic and is not an
 independently specified whole-tokenizer theorem. No new native fix is counted.
 
 Evidence: `../css-tokenizer-url-provider-root-v1/ROOT-ACCEPTANCE.json`.
+
+## URL mutable-state and original-source capture checkpoint
+
+The accepted v2 component supersedes exactly the two model gaps identified in
+the preceding URL checkpoint: metadata is now derived through actual-shaped
+mutable helper/loop assignments, and BadUrl raw-source capture is derived from
+original start and close/EOF endpoint. Whole structural UTF8 entry and endpoint
+markers are proved; canonical Rust codec/unsafe slicing remains external. The
+reachable astral line-start wrap is modeled modulo 2^32 rather than excluded.
+Packed shift/addition headroom and exact-column bounds remain explicit.
+
+Independent fresh replay accepts 51 modules / 388 exact reports (17 new modules /
+107 reports), 44 complete native functions and five field declarations. Complete
+cssparser builds in three modes agree on 59 cases / 503 ordered events and 112
+Lean seam observations. Four native and four Lean semantic mutations are
+distinguished. V1's trace checker accepted five malformed traces; the negative
+review remains immutable. V2 derives the entire expected ordered trace from
+input, rejects those exact five cases and 3,043 trace corruptions, and passes
+eight independent integrity challenges. These counts are finite evidence.
+
+Root authenticated the independent and producer source/evidence closures, read
+the corrected oracle and scope, checked five live native source hashes and
+reran the ordered comparator. Root did not duplicate the independent full native
+rebuild. This acceptance does not close usize/allocation bounds, canonical codec,
+standard-library/heap/compiler behavior, arbitrary annotation state or public
+next/cache/reset/skip histories. Function is still the pre-caller delegation seam,
+with the subsequent block-bit update checked separately. No new bug is counted.
+
+Evidence: ../css-tokenizer-url-native-state-root-v1/ROOT-SCOPED-ACCEPTANCE-V2.json.

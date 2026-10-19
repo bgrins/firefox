@@ -11,8 +11,8 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
   `074086719e445ca72d3056f7fbf793af5e69d6f6`, with preceding formal companion
   `bad8f7998dbbb3ad1fa88c0ca6892488f912e898`. Its two-file commit contains only
   the native patch and WPT.
-- URL native-state review, ordinary declaration batching, and public storage
-  composition are active.
+- URL native state/capture is accepted within scope. Ordinary declaration
+  batching review, public storage composition and parser-history admission are active.
 - Signing works. Nothing has been pushed or submitted externally.
 
 [Historical checkpoints](PLAN-HISTORY-20261019.md) preserve the previous plan
@@ -59,31 +59,23 @@ is independent review and scoped acceptance, not another corpus expansion.
 [Obligations](../css-declaration-batch-admission-root-v1/PLAN.md).
 Production: `../css-declaration-batch-proof-v1/`.
 
-### 2. Derive native URL metadata and raw slice behavior
+### 2. URL state accepted; continue public parser histories
 
-The accepted component proves URL/bad-URL algorithms over modeled inputs and
-checks finite native correspondence. The next component derives actual mutable
-helper updates through the complete loops and captures the native slice
-endpoints, addressing two specific remaining bridges.
+The v2 state/capture component is accepted after independent model/source review,
+fresh complete replay, root authentication and ordered-trace rechecking. It has
+51 modules / 388 reports (17 new / 107), actual cssparser builds in three modes,
+59 cases and 503 input-derived ordered events. It derives mutable metadata and
+original-source capture; codec, machine headroom, allocation/compiler and public
+history premises remain explicit.
 
-Model modulo-2^32 line-start storage: four-byte UTF8 intros intentionally wrap
-that field. Preserve packed block bits and state explicit shift/addition
-headroom. Compose ordinary, continuation, newline, escape, borrowed/owned,
-whitespace-end and bad-remnant steps with independent raw-prefix observation.
-Derive slice ranges from full-input/remaining-suffix invariants. Keep codec,
-allocation/lifetime, machine-domain and compiler premises explicit.
+V1's trace validator accepted five malformed traces. The sealed negative review
+remains valid; v2 rejects those exact traces and 3,043 corruption checks. No Lean
+theorem was refuted and no new browser bug was established.
 
-Production: `../css-tokenizer-url-native-state-v1/PLAN.md`.
-The producer has sealed 17 new modules and actual native state/slice checks in
-three modes. Independent review found that v1 accepts missing, duplicated, unknown, extended
-and reordered trace events. V1 acceptance is blocked; a v2 checker compares the
-full ordered trace with an input-derived control interpreter. V2 has passed fresh
-producer and independent replay; final independent sealing and root acceptance
-remain pending. The sealed negative review preserves all five counterexamples.
-No Lean theorem was refuted.
-The fixed corpus adds only the escaped-close-at-EOF case and an unquoted leading
-newline case required to reject a previously surviving bulk-field mutant. No
-new browser bug is established.
+[Scoped acceptance](../css-tokenizer-url-native-state-root-v1/ROOT-SCOPED-ACCEPTANCE-V2.json).
+The next producer task is actual byte-driven public cache/reset and observer
+history admission, starting from existing counterexamples and epoch components:
+`../css-parser-public-history-admission-v1/`.
 
 ### 3. Compose parsing, removal and clear
 
@@ -123,6 +115,11 @@ stability and animation-map key/value identity coherence as provider premises.
    passing browser pairs do not close broader requirements.
 
 ## Accepted checkpoints
+
+- **URL mutable state and raw capture:** accepted v2 closes the selected model
+  bridges with derived helper assignments and original-source endpoint proofs.
+  Whole parser histories and codec/machine/heap/compiler premises remain open.
+  [Acceptance](../css-tokenizer-url-native-state-root-v1/ROOT-SCOPED-ACCEPTANCE-V2.json).
 
 - **All-shorthand ordering:** native `074086719e445ca72d3056f7fbf793af5e69d6f6`
   follows companion `bad8f7998dbbb3ad1fa88c0ca6892488f912e898`. Sixteen baseline
