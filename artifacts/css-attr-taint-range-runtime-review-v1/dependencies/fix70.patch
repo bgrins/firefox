@@ -1,0 +1,152 @@
+diff --git a/servo/components/style/properties_and_values/value.rs b/servo/components/style/properties_and_values/value.rs
+index cda68d85be94..ef317299ab26 100644
+--- a/servo/components/style/properties_and_values/value.rs
++++ b/servo/components/style/properties_and_values/value.rs
+@@ -674,7 +674,8 @@ impl Animate for CustomAnimatedValue {
+ }
+ 
+ impl CustomAnimatedValue {
+-    pub(crate) fn from_computed(
++    /// Construct an animation value with the computed value of this custom property.
++    pub fn from_computed(
+         name: &crate::custom_properties::Name,
+         value: Option<&ComputedValue>,
+     ) -> Self {
+diff --git a/servo/ports/geckolib/glue.rs b/servo/ports/geckolib/glue.rs
+index e89b2baf2f19..83104bb5bcf2 100644
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -7496,7 +7496,10 @@ pub extern "C" fn Servo_GetComputedKeyframeValues(
+     computed_keyframes: &mut nsTArray<structs::ComputedKeyframeValues>,
+ ) {
+     use style::applicable_declarations::CascadePriority;
+-    use style::properties::{KeyframeCustomPropertiesBuilder, PropertyDeclaration};
++    use style::properties::{
++        CustomDeclarationValue, KeyframeCustomPropertiesBuilder, PropertyDeclaration,
++    };
++    use style::properties_and_values::value::CustomAnimatedValue;
+     let data = raw_data.borrow();
+     let element = GeckoElement(element);
+     let pseudo = PseudoElement::from_pseudo_type(pseudo_type, None);
+@@ -7620,10 +7623,34 @@ pub extern "C" fn Servo_GetComputedKeyframeValues(
+ 
+             let declarations = unsafe { &*property.mServoDeclarationBlock.mRawPtr };
+             let guard = declarations.read_with(&guard);
+-            let iter = guard.to_animation_value_iter(&mut context, style, &default_values);
++            for declaration in guard.normal_declaration_iter() {
++                if let PropertyDeclaration::Custom(custom) = declaration
++                    && matches!(custom.value, CustomDeclarationValue::Unparsed(_))
++                {
++                    let registration = data.stylist.get_custom_property_registration(&custom.name);
++                    if !registration.is_universal() {
++                        let value = context
++                            .builder
++                            .custom_properties()
++                            .get(registration, &custom.name);
++                        let value = AnimationValue::Custom(CustomAnimatedValue::from_computed(
++                            &custom.name,
++                            value,
++                        ));
++                        maybe_append_animation_value(value.id(), Some(value.clone()));
++                        continue;
++                    }
++                }
+ 
+-            for value in iter {
+-                maybe_append_animation_value(value.id(), Some(value.clone()));
++                if let Some(value) = AnimationValue::from_declaration(
++                    declaration,
++                    &mut context,
++                    style,
++                    &default_values,
++                    &mut AttributeTracker::new_dummy(),
++                ) {
++                    maybe_append_animation_value(value.id(), Some(value.clone()));
++                }
+             }
+         }
+     }
+diff --git a/testing/web-platform/tests/css/css-properties-values-api/registered-keyframe-substitution-interpolation.html b/testing/web-platform/tests/css/css-properties-values-api/registered-keyframe-substitution-interpolation.html
+new file mode 100644
+index 000000000000..15e6746dcd97
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-keyframe-substitution-interpolation.html
+@@ -0,0 +1,78 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Registered custom property keyframes interpolate substituted values</title>
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#animation-behavior">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++@property --keyframe-number {
++  syntax: "<number>";
++  inherits: false;
++  initial-value: 0;
++}
++@property --keyframe-inherited {
++  syntax: "<number>";
++  inherits: true;
++  initial-value: 0;
++}
++</style>
++<body>
++<script>
++for (const [name, from, to] of [
++  ["literal control", "0", "42"],
++  ["attribute end value", "0", "attr(data-value type(<number>))"],
++  ["attribute start value", "attr(data-value type(<number>))", "0"],
++  ["attribute fallback", "0", "attr(data-missing type(<number>), 42)"],
++  ["variable end value", "0", "var(--endpoint)"],
++  ["calculation end value control", "0", "calc(40 + 2)"],
++]) {
++  test(t => {
++    const target = document.createElement("div");
++    target.dataset.value = "42";
++    target.style.setProperty("--endpoint", "42");
++    document.body.append(target);
++    t.add_cleanup(() => target.remove());
++    const animation = target.animate(
++      { "--keyframe-number": [from, to] },
++      { duration: 1000, fill: "both" }
++    );
++    t.add_cleanup(() => animation.cancel());
++    animation.pause();
++    animation.currentTime = 500;
++    assert_equals(
++      getComputedStyle(target).getPropertyValue("--keyframe-number"), "21"
++    );
++  }, `Registered number interpolation: ${name}`);
++}
++
++for (const [property, endpoint, expected] of [
++  ["--keyframe-number", "initial", "7"],
++  ["--keyframe-number", "unset", "7"],
++  ["--keyframe-number", "inherit", "22"],
++  ["--keyframe-number", "invalid", "7"],
++  ["--keyframe-number", "var(--missing)", "7"],
++  ["--keyframe-inherited", "initial", "7"],
++  ["--keyframe-inherited", "unset", "22"],
++  ["--keyframe-inherited", "inherit", "22"],
++  ["--keyframe-inherited", "invalid", "22"],
++  ["--keyframe-inherited", "var(--missing)", "22"],
++]) {
++  test(t => {
++    const parent = document.createElement("div");
++    const target = document.createElement("div");
++    parent.style.setProperty(property, "30");
++    target.style.setProperty(property, "42");
++    parent.append(target);
++    document.body.append(parent);
++    t.add_cleanup(() => parent.remove());
++    const animation = target.animate(
++      { [property]: ["14", endpoint] }, { duration: 1000, fill: "both" }
++    );
++    t.add_cleanup(() => animation.cancel());
++    animation.pause();
++    animation.currentTime = 500;
++    assert_equals(getComputedStyle(target).getPropertyValue(property), expected);
++  }, `${property} interpolates ${endpoint} independently of the base value`);
++}
++</script>

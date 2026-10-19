@@ -1,0 +1,94 @@
+{
+  "audits": 14,
+  "bindings": {
+    "original": {
+      "source_sha256": "757f4f19f5fbd463afa7f93844a4139ef86865440517eee6088dc576ac4b6f22",
+      "start_byte": 27668,
+      "end_byte": 27859,
+      "method": "    pub fn should_disallow_urls_in_range(&self, range: &AttrTaintedRange) -> bool {\n        self.0\n            .iter()\n            .any(|r| r.start <= range.end && r.end >= range.start)\n    }"
+    },
+    "candidate": {
+      "source_sha256": "18b61124b705887b6a103c015bfedec7bfdea63873248e067701c6097c90e56f",
+      "start_byte": 27668,
+      "end_byte": 27862,
+      "method": "    pub fn should_disallow_urls_in_range(&self, range: &AttrTaintedRange) -> bool {\n        self.0\n            .iter()\n            .any(|r| r.start.max(range.start) < r.end.min(range.end))\n    }"
+    }
+  },
+  "observations": {
+    "original": [
+      "441 146",
+      "[true, true, true, true, true]"
+    ],
+    "candidate": [
+      "441 0",
+      "[true, false, false, false, false]"
+    ]
+  },
+  "commands": [
+    {
+      "command": [
+        "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
+        "-o",
+        "Ranges.olean",
+        "Ranges.lean"
+      ],
+      "exit": 0,
+      "label": "compile"
+    },
+    {
+      "command": [
+        "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
+        "Audit.lean"
+      ],
+      "exit": 0,
+      "label": "audit"
+    },
+    {
+      "command": [
+        "/Users/bgrins/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+        "--edition=2021",
+        "original.rs",
+        "-o",
+        "original"
+      ],
+      "exit": 0,
+      "label": "original-compile"
+    },
+    {
+      "command": [
+        "/private/tmp/css-attr-taint-range-final-20261019/original"
+      ],
+      "exit": 0,
+      "label": "original-run"
+    },
+    {
+      "command": [
+        "/Users/bgrins/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+        "--edition=2021",
+        "candidate.rs",
+        "-o",
+        "candidate"
+      ],
+      "exit": 0,
+      "label": "candidate-compile"
+    },
+    {
+      "command": [
+        "/private/tmp/css-attr-taint-range-final-20261019/candidate"
+      ],
+      "exit": 0,
+      "label": "candidate-run"
+    },
+    {
+      "command": [
+        "/Users/bgrins/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+        "--version",
+        "--verbose"
+      ],
+      "exit": 0,
+      "label": "rust-version"
+    }
+  ],
+  "rust_version": "rustc 1.92.0 (ded5c06cf 2025-12-08)\nbinary: rustc\ncommit-hash: ded5c06cf21d2b93bffd5d884aa6e96934ee4234\ncommit-date: 2025-12-08\nhost: aarch64-apple-darwin\nrelease: 1.92.0\nLLVM version: 21.1.3\n",
+  "scope": "Lean natural-number predicate proof plus extracted unchanged Rust methods using Vec storage. Native producers, SmallVec representation and browser integration remain separate."
+}

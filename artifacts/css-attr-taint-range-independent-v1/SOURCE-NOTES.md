@@ -1,0 +1,13 @@
+# Static source findings
+
+The source predicate is the only changed expression. `max(start)<min(end)` rejects both endpoint contact and empty spans without added arithmetic or Rust slicing. A shared-byte interpretation is independently defined by existence of a byte satisfying both half-open membership predicates. The Lean proof derives that equivalence and list existential composition; it does not assume it as source admission.
+
+Complete retained `VariableValue::push` validates bounded length, returns on empty input, inserts required comment separator, then captures start, appends CSS, captures end, and pushes a taint range. Thus injected separator bytes are excluded. `AttrTaint::new_fully_tainted` and the optimized whole-reference substitution can produce an empty [0,0) span. `substitute_internal` always passes start0; recursive fallback `do_substitute_chunk` calls pass no range accumulator. No inspected recording caller supplies nonzero fallback start with Some accumulator.
+
+`Substitution::into_value` preserves the whole-substitution taint flag and, for typed computation, creates a full region. `substitute_one_reference` preserves outer computed taint and recursive result taint. The patch does not change those booleans or propagation. Empty substitution range behavior cannot establish full empty-substitution normative correctness; its URL relevance needs actual produced bytes/query.
+
+The two `parse_from_string` callers are `CssUrl::parse_with_cors_mode` and `ImageSetItem::parse`. Both capture start before successful URL/string token consumption and end afterwards. Even decoded empty strings have nonzero raw spans. The start may include parser-skipped whitespace; this repair does not normalize it. Raw character offset production and taint offset correctness remain source/manual admission, not a theorem of the intersection component.
+
+The five-case WPT calibrates typed resolution distinct from registration initial and literal adjacency, then compares computed values. The failing case's URL and tainted resolution touch at a byte boundary; explicit whitespace separates them. Direct attr URL and whole custom-property substitution remain blocking controls. Useful bounded additions are URL-function adjacency and a second truly tainted URL following the first untainted adjacent option. Do not invent reverse-order image-set syntax merely to realize symmetric helper input; the source helper proof covers symmetry.
+
+The native change is a permissiveness change only where the old inclusive interval test had no common byte. For correctly located nonempty overlapping ranges, blocking is preserved. This conclusion depends on actual range placement and does not establish all CSS substitution or parser safety.

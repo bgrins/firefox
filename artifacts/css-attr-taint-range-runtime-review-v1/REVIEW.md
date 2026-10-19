@@ -1,0 +1,30 @@
+# Independent range repair runtime and dependency review
+
+## Verdict
+
+Accept the reported local candidate result for the exact seven-case boundary WPT and retained regression corpus. Independently parsing the raw events gives **89 unique subtests PASS and ten harnesses OK**: the two previously failing boundary cases improve, and 87 passing cases remain passing. This is independent evidence review, not a new browser execution. The static/native and bounded Lean verdict remains in the separately sealed css-attr-taint-range-independent-v1 package.
+
+## Paired evidence
+
+The baseline is explicitly composed from the prior metadata repair's validated 82-case candidate run and the separate final seven-case boundary baseline. It is not presented as a single 89-case baseline run. Their receipt/raw hashes and recorded Firefox/XUL hashes join exactly. The original/candidate pin maps differ only at `servo/components/style/custom_properties.rs`, from 757f4f19f5fbd463afa7f93844a4139ef86865440517eee6088dc576ac4b6f22 to 18b61124b705887b6a103c015bfedec7bfdea63873248e067701c6097c90e56f. Those are the previously reviewed original/candidate snapshots.
+
+The candidate raw records equal the receipt's row and harness arrays. Keying by test URL and subtest name finds no missing, extra or duplicate identities. Exactly “Touching untainted URL and attr resolution” and “Touching URL function and attr resolution” change FAIL to PASS. All test and harness completions precede the unique suite end. WPT exits0. In particular, direct attr URLs, whole custom-property substitution, and the later genuinely tainted URL remain rejected by the tested computed-value expectations.
+
+Build receipt exit0 and the terminal successful-build message are retained. The log also contains four `KeyError: 'export'` build-monitor exceptions; they are preserved, not hidden or counted as compiler failures. Source stability during build and source/binary stability after WPT are root-driver recorded assertions. This review verifies their receipt consistency and exact pin deltas, not a new temporal observation of historical files. Both candidate binary hashes differ from baseline; the driver's source-writing/build order is read but never executed/imported here.
+
+The retained scoped format log reports zero errors/warnings/fixes. This log by itself does not authenticate future source edits. Root owns final format-byte confirmation and standalone temporary-index apply/reverse checks on upstream976279105b2e78b8666a959eb3f25c9176cefaf8. No isolated-upstream browser result is claimed.
+
+## Standalone seven-case source dependencies
+
+The exact final test hash is 6b29bcb18f02123f74ff715bf3873943b902d6209b99edc946ac45632247a32a. Each fixture uses fresh names, registers a non-inherited resolution with initial2x, then applies attr-derived1x and separately literal1x. Its prerequisite distinguishes real typed resolution computation from initial-value fallback. It builds ordinary background-image declarations and compares to a same-document literal calibration; there are no animations, keyframes, style queries, inheritance keywords, source-relative URLs or indexed CSSOM enumeration.
+
+- **70, typed animation value construction:** the retained patch changes `Servo_GetComputedKeyframeValues` and visibility of an animation constructor. This test never requests keyframe processing or constructs an animation. Its style changes are ordinary direct declarations.
+- **71, registered initial provider:** the retained patch changes `remove_and_insert_initial_value` and passes the computed initial cache into that replacement. Neither the successful attr1x declaration nor literal1x uses initial/unset/inherit or a substitution that resolves to a CSS-wide keyword. The registration's initial2x is deliberately distinct and provides only a failure-detecting calibration. A fallback to it would fail the prerequisite, not conceal dependence. The whole-image control is unregistered and does not exercise the repaired typed-initial replacement.
+- **76, metadata-preserving shortcuts:** typed resolution payload changes from initial2x to1x, so the old payload-only no-op cannot mistake it for the seeded initial value. No parent contributes an equal payload with opposite taint. Each element's --whole-image is a fresh own unregistered declaration with no inherited same-name value, so the old universal gate has no existing equal payload to retain. Its ordinary taint propagation is already part of the earlier implementation. The direct adjacency failures do not consume --whole-image at all; it is used only by the explicit blocking control.
+- **72/73 inheritance fixes:** no direct or substituted inheritance keyword, absent-parent defaulting or parent-after-flush update occurs. **74 live-count /75 iterator fixes:** no tombstone/resurrection or indexed enumeration occurs; named getPropertyValue and normal property parsing are used. Each test document has seven registrations and no chain-size stress fixture.
+
+This is bounded source reasoning against the concrete predecessor patches and inspected call paths, not proof that every historical project change is unreachable, nor an upstream execution. The exact test has no missing/unknown attribute, fallback chain, variable cycle, namespace, EOF recovery, deep nesting, extreme exponent, or relative-unit dependency fixture; earlier related repairs of those specific domains are not its discriminating premise. Root's upstream application gate remains separate.
+
+## Evidence and replay
+
+Copies of the final/raw candidate and baseline records, prior82 record/raw, driver, test, format log, and relevant70/71/76 patches are closed in this package. `check.py` authenticates the entire review before parsing receipts and recomputes exact keyed comparisons and hash joins. It executes no captured driver, compiler, browser or Git command. `COMPARISON.json` is its human-readable result, not the oracle. Spec/source interpretation and full-substitution limits remain those of the prior independently sealed review.
