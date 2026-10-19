@@ -1,0 +1,17 @@
+{
+  "v1_harness_sha256": "4d9329207b0302dd49c65fc60da605fc6c2d57babdb44d449651d3ad4a9b73c4",
+  "old_authentication": "def authenticate():\n    freeze = load(PACKAGE / 'FREEZE.json')\n    assert digest(PACKAGE / 'INPUTS.json') == freeze['inputs_sha256']\n    for rel, sha in load(PACKAGE / 'INPUTS.json').items():\n        assert digest(PACKAGE / rel) == sha, rel\n",
+  "new_authentication": "def authenticate():\n    freeze = load(PACKAGE / 'FREEZE.json')\n    assert digest(PACKAGE / 'INPUTS.json') == freeze['inputs_sha256']\n    inputs = load(PACKAGE / 'INPUTS.json')\n    assert len(inputs) == freeze['entries']\n    for rel, sha in inputs.items():\n        assert digest(PACKAGE / rel) == sha, rel\n    for directory, pins in load(PACKAGE / 'DEPENDENCIES.json').items():\n        dependency = PACKAGE.parent / directory\n        assert digest(dependency / 'FREEZE.json') == pins['freeze_sha256'], directory\n        assert digest(dependency / 'INPUTS.json') == pins['inputs_sha256'], directory\n        for rel, sha in load(dependency / 'INPUTS.json').items():\n            assert digest(dependency / rel) == sha, (directory, rel)\n",
+  "other_harness_bytes_unchanged": true,
+  "fixed_json_copies": [
+    "CONTEXT-PINS.json",
+    "RESOURCE-PINS.json",
+    "REGRESSION-PINS.json",
+    "METADATA-PINS.json",
+    "CONFIG-PINS.json",
+    "TEST-PINS.json",
+    "CASES.json",
+    "RUN.json"
+  ],
+  "native_pin_source": "css-fontface-provider-candidate-v2/NATIVE-PINS.json"
+}
