@@ -1,0 +1,121 @@
+{
+  "result": "PASS",
+  "rejections": 8,
+  "records": [
+    {
+      "label": "unlisted source",
+      "command": [
+        "python3",
+        "-I",
+        "-S",
+        "-B",
+        "/private/tmp/url-provider-independent-integrity-v2/package/check.py"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 30, in <module>\n    p=argparse.ArgumentParser();p.add_argument('--run',action='store_true');p.add_argument('--output',type=Path);a=p.parse_args();m=authenticate();print('AUTHENTICATED',len(m),'inputs')\n                                                                                                                                    ~~~~~~~~~~~~^^\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 23, in authenticate\n    assert actual==expected,'closed input roster mismatch: '+str(sorted(actual^expected))\n           ^^^^^^^^^^^^^^^^\nAssertionError: closed input roster mismatch: ['unlisted.py']\n"
+    },
+    {
+      "label": "unlisted symlink",
+      "command": [
+        "python3",
+        "-I",
+        "-S",
+        "-B",
+        "/private/tmp/url-provider-independent-integrity-v2/package/check.py"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 30, in <module>\n    p=argparse.ArgumentParser();p.add_argument('--run',action='store_true');p.add_argument('--output',type=Path);a=p.parse_args();m=authenticate();print('AUTHENTICATED',len(m),'inputs')\n                                                                                                                                    ~~~~~~~~~~~~^^\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 18, in authenticate\n    assert not q.is_symlink(),'symlink input: '+str(q)\n           ^^^^^^^^^^^^^^^^^^\nAssertionError: symlink input: /private/tmp/url-provider-independent-integrity-v2/package/unlisted-symlink\n"
+    },
+    {
+      "label": "listed symlink with correct bytes",
+      "command": [
+        "python3",
+        "-I",
+        "-S",
+        "-B",
+        "/private/tmp/url-provider-independent-integrity-v2/package/check.py"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 30, in <module>\n    p=argparse.ArgumentParser();p.add_argument('--run',action='store_true');p.add_argument('--output',type=Path);a=p.parse_args();m=authenticate();print('AUTHENTICATED',len(m),'inputs')\n                                                                                                                                    ~~~~~~~~~~~~^^\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 18, in authenticate\n    assert not q.is_symlink(),'symlink input: '+str(q)\n           ^^^^^^^^^^^^^^^^^^\nAssertionError: symlink input: /private/tmp/url-provider-independent-integrity-v2/package/native/reference.py\n"
+    },
+    {
+      "label": "listed source byte tamper",
+      "command": [
+        "python3",
+        "-I",
+        "-S",
+        "-B",
+        "/private/tmp/url-provider-independent-integrity-v2/package/check.py"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 30, in <module>\n    p=argparse.ArgumentParser();p.add_argument('--run',action='store_true');p.add_argument('--output',type=Path);a=p.parse_args();m=authenticate();print('AUTHENTICATED',len(m),'inputs')\n                                                                                                                                    ~~~~~~~~~~~~^^\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 28, in authenticate\n    p=Path(name);assert not p.is_absolute()and '..'not in p.parts and str(p)==name,'unsafe input path';q=R/p;assert q.resolve().is_relative_to(R.resolve()),'input path escape';assert q.is_file()and sha(q)==pin,'input authentication: '+name\n                                                                                                                                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: input authentication: native/reference.py\n"
+    },
+    {
+      "label": "duplicate manifest key with matching outer hash",
+      "command": [
+        "python3",
+        "-I",
+        "-S",
+        "-B",
+        "/private/tmp/url-provider-independent-integrity-v2/package/check.py"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 30, in <module>\n    p=argparse.ArgumentParser();p.add_argument('--run',action='store_true');p.add_argument('--output',type=Path);a=p.parse_args();m=authenticate();print('AUTHENTICATED',len(m),'inputs')\n                                                                                                                                    ~~~~~~~~~~~~^^\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 21, in authenticate\n    m=read_json(R/'MANIFEST.json');expected=set(m)|{'MANIFEST.json','FREEZE.json'}\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 14, in read_json\n    def read_json(path):return json.loads(path.read_text(),object_pairs_hook=unique)\n                               ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/bgrins/miniconda3/lib/python3.13/json/__init__.py\", line 359, in loads\n    return cls(**kw).decode(s)\n           ~~~~~~~~~~~~~~~~^^^\n  File \"/Users/bgrins/miniconda3/lib/python3.13/json/decoder.py\", line 345, in decode\n    obj, end = self.raw_decode(s, idx=_w(s, 0).end())\n               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/bgrins/miniconda3/lib/python3.13/json/decoder.py\", line 361, in raw_decode\n    obj, end = self.scan_once(s, idx)\n               ~~~~~~~~~~~~~~^^^^^^^^\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 11, in unique\n    assert key not in out,'duplicate JSON key: '+key\n           ^^^^^^^^^^^^^^\nAssertionError: duplicate JSON key: AUDIT-NAMES.json\n"
+    },
+    {
+      "label": "parent path with matching outer hash",
+      "command": [
+        "python3",
+        "-I",
+        "-S",
+        "-B",
+        "/private/tmp/url-provider-independent-integrity-v2/package/check.py"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 30, in <module>\n    p=argparse.ArgumentParser();p.add_argument('--run',action='store_true');p.add_argument('--output',type=Path);a=p.parse_args();m=authenticate();print('AUTHENTICATED',len(m),'inputs')\n                                                                                                                                    ~~~~~~~~~~~~^^\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 23, in authenticate\n    assert actual==expected,'closed input roster mismatch: '+str(sorted(actual^expected))\n           ^^^^^^^^^^^^^^^^\nAssertionError: closed input roster mismatch: ['../same-reference.py']\n"
+    },
+    {
+      "label": "absolute path with matching outer hash",
+      "command": [
+        "python3",
+        "-I",
+        "-S",
+        "-B",
+        "/private/tmp/url-provider-independent-integrity-v2/package/check.py"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 30, in <module>\n    p=argparse.ArgumentParser();p.add_argument('--run',action='store_true');p.add_argument('--output',type=Path);a=p.parse_args();m=authenticate();print('AUTHENTICATED',len(m),'inputs')\n                                                                                                                                    ~~~~~~~~~~~~^^\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 23, in authenticate\n    assert actual==expected,'closed input roster mismatch: '+str(sorted(actual^expected))\n           ^^^^^^^^^^^^^^^^\nAssertionError: closed input roster mismatch: ['/private/tmp/url-provider-independent-integrity-v2/same-reference.py']\n"
+    },
+    {
+      "label": "nonisolated invocation",
+      "command": [
+        "python3",
+        "-B",
+        "/private/tmp/url-provider-independent-integrity-v2/package/check.py"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/private/tmp/url-provider-independent-integrity-v2/package/check.py\", line 4, in <module>\n    assert sys.flags.isolated and sys.flags.no_site, 'invoke Python with -I -S'\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: invoke Python with -I -S\n"
+    },
+    {
+      "label": "restored authentication",
+      "command": [
+        "python3",
+        "-I",
+        "-S",
+        "-B",
+        "/private/tmp/url-provider-independent-integrity-v2/package/check.py"
+      ],
+      "exit": 0,
+      "stdout": "AUTHENTICATED 436 inputs\n",
+      "stderr": ""
+    }
+  ]
+}

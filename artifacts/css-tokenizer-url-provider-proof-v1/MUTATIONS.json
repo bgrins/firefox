@@ -1,0 +1,30 @@
+[
+  {
+    "id": "escaped-close",
+    "scope": "url",
+    "old": "Some(b')') | Some(b'\\\\')",
+    "new": "Some(b'\\\\')",
+    "contract": "Escaped close must not end bad-URL recovery."
+  },
+  {
+    "id": "single-quote-delegation",
+    "scope": "url",
+    "old": "b'\"' | b'\\'' => return Err(()),",
+    "new": "b'\"' => return Err(()),",
+    "contract": "Both quote kinds delegate without advancing."
+  },
+  {
+    "id": "nul-replacement",
+    "scope": "url",
+    "old": "string_bytes.extend(\"\\u{FFFD}\".as_bytes());",
+    "new": "string_bytes.extend(\"?\".as_bytes());",
+    "contract": "NUL decodes to the replacement scalar."
+  },
+  {
+    "id": "bad-url-newline-location",
+    "scope": "bad-url",
+    "old": "parser.consume_newline();",
+    "new": "parser.state.position += 1;",
+    "contract": "Bad-URL recovery preserves line and UTF16 location metadata."
+  }
+]

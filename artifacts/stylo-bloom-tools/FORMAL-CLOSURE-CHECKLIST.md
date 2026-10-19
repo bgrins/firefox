@@ -407,3 +407,29 @@ vector/membership set, removal, importance and logical order. All wider parser a
 CSS conformance obligations remain open.
 
 Evidence: `../css-declaration-publication-root-v1/ROOT-SCOPED-ACCEPTANCE.json`.
+
+## URL and bad-URL provider checkpoint
+
+Fresh root and independent review accept 34 modules / 281 exact axiom reports,
+including 11 new modules / 96 new reports. The native bad-remnant shortcut refines
+an independent slash-parity boundary and full escaped-codepoint consumption on
+admitted UTF8-shaped units. Borrowed/owned URL loops refine separate classifier
+and whitespace references. A derived Function-return decomposition supplies the
+quoted whitespace/quote premise for completed string observation equality; exact
+intermediate cursor equality is false. Leading whitespace metadata is modeled
+explicitly, and generic requested-function observation is a separate component.
+
+Complete source replay covers 57 fixed inputs in three modes, 57 first tokens
+and 11 delegated strings, four native and four Lean semantic mutations. Native
+annotation checks distinguish absent from present-empty, but exercise absence
+only. Independent comparator and source-integrity challenges reject.
+
+Full native closure remains open: body metadata theorems currently apply a raw
+prefix observer, rather than deriving every mutable Rust helper transition;
+exact BadUrl raw-slice equality is finite correspondence. Structural UTF8 shape
+is not canonical scalar/codec or unsafe-memory verification. Compiler, allocation,
+lifetimes, integer headroom and public next/cache/reset/skip histories remain
+explicit. Provider composition shares dispatch finishing logic and is not an
+independently specified whole-tokenizer theorem. No new native fix is counted.
+
+Evidence: `../css-tokenizer-url-provider-root-v1/ROOT-ACCEPTANCE.json`.

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "invalid-apostrophe",
+    "module": "URLScan",
+    "old": "([34,39,40] : List Byte)",
+    "new": "([34,40] : List Byte)",
+    "witness": "example : nativeClass 39 \u2260 referenceClass 39 := by decide"
+  },
+  {
+    "id": "escaped-close",
+    "module": "BadURL",
+    "old": "bs.head? == some 41 || bs.head? == some 92",
+    "new": "bs.head? == some 92",
+    "witness": "example : native [92,41,41] \u2260 reference [92,41,41] := by simp [native,reference,labels,add,List.findIdx_cons]"
+  },
+  {
+    "id": "crlf-double-count",
+    "module": "URLWhitespace",
+    "old": "(b == 13 && bs.head? != some 10)",
+    "new": "(b == 13)",
+    "witness": "example : marks 13 [10] = true := by decide"
+  },
+  {
+    "id": "casefold",
+    "module": "URLDispatch",
+    "old": "name.map lower == [117,114,108]",
+    "new": "name.map Fin.val == [117,114,108]",
+    "witness": "example : nativeURL [85,82,76] \u2260 referenceURL [85,82,76] := by decide"
+  }
+]

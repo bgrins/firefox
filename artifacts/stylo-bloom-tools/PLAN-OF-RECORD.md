@@ -69,9 +69,42 @@ proof establishes exclusive selected-branch output; callback canonicality is an
 explicit premise. Sequence lemmas retain independent transaction outputs and do
 not prove CSSOM destination updates. Next derive vector/membership consistency and
 uniqueness from the actual prepare/update/remove algorithms, including importance
-and logical ordering. URL provider proofs are in independent review; their quoted
-Function cursor exception must be tied to the exact whitespace/quote relation.
+and logical ordering. The URL provider component is now accepted within its
+explicit mathematical/native correspondence scope; details follow.
 Evidence: css-declaration-publication-root-v1/ROOT-SCOPED-ACCEPTANCE.json.
+
+### URL provider checkpoint
+
+Fresh root and independent source-only replay accept 34 modules and 281 exact
+axiom reports (11 new modules, 96 new reports), 44 complete native definitions,
+and 57 native inputs across debug, release and actual fast_match_byte release.
+Four native and four Lean semantic mutants are detected. Independent comparator
+and integrity challenges reject. Quoted Function return derives the whitespace
+and quote admission for completed string observation; exact intermediate cursor
+equality is false and retained as a witness. Explicit Option encoding preserves
+the distinction between absent and present-empty directive observations.
+
+Native body metadata updates and raw-slice correspondence still require universal
+bridges. Canonical codec, heap/lifetime, machine arithmetic and compiler premises
+remain, as do public next/cache/reset histories. No new bug or native fix is
+counted by this checkpoint. Evidence: css-tokenizer-url-provider-root-v1/ROOT-ACCEPTANCE.json.
+
+### All shorthand logical ordering candidate
+
+The declaration planner audit found a CSSOM ordering defect in the special `all`
+path. The final baseline has 16 failures: eight value-changing assignments and
+eight equal-value assignments requiring reordering. A shared per-declaration
+planner and sequential all executor repair them. The local rebuilt candidate
+passes all 40 new and 61 existing subtests; 89 other outcomes are unchanged.
+The same native/WPT patch applies and reverses on retained upstream. No isolated
+upstream runtime is claimed. Source discovery preceded the new formal companion.
+
+The test compares opposing-mapping pair order against fresh all expansion;
+it does not choose an absolute expansion order, which CSSWG issue 5741 leaves
+unresolved. Independent spec/source review accepts this fixed-order relational
+expectation. Final native review and the new formal companion remain in progress;
+the accepted committed native fix count stays 68. Evidence:
+css-all-logical-order-final-browser-v1/PAIR-CHECK.json.
 
 ## Next proof work
 

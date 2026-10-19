@@ -1,0 +1,50 @@
+# Quoted-string provider component
+
+Status: bounded source-model component, independent review pending. The original twelve obligations are retained verbatim in PROOF-TARGET.md. This package adds the complete modeled borrowed and owned string loops and their escape/EOF/newline composition; it does not complete public tokenizer iteration, CSSOM persistence or the full tokenizer.
+
+## Mathematical result
+
+Five new Lean modules contain 52 audited theorems. The inherited closure contains the eleven unchanged comment/name/escape modules and their 100 audited theorems. All 152 audits are replayed. Counts describe inventory, not proof strength.
+
+- **StringTransitions:** The native model appends bytes to an explicit owned buffer, or scans a borrowed prefix and transfers that prefix into owned storage at NUL/backslash. An independent one-phase reference prepends semantic pieces to recursive output. Universal `owned_reference` and `borrowed_reference` equate output, consumed-byte count and termination kind for arbitrary finite byte lists, both quote kinds and arbitrary buffer/prefix. Independent finite classifiers specify matching versus opposite quotes and newline classes. Escape composition uses the separately proved native/reference hex/scalar/whitespace providers. The caller explicitly discards escaped EOF; it does not use the generic escape helper's replacement result in that branch.
+- **StringUTF8:** Scalar domain and UTF-8 encoding shape, escaped-output and remaining-input boundaries, whole-unit ordinary copying and all modeled return boundaries are proved. `partial_copy_rejoin` and `partial_copy_return_valid` allow an incomplete copied unit in the internal owned buffer: continuation copying finishes that unit before any return. No premise requires every intermediate byte buffer to be valid UTF-8. The rejoin theorem relates the actual byte-at-a-time schedule to whole-unit output.
+- **StringContracts:** A BadString return leaves a newline at the remaining input head; EOF exhausts the input. The unallocated result is an exact raw prefix slice with closing-delimiter accounting. Raw admission examines the actual first byte for a single/double quote, derives the quote mode, and proves at least one byte of total progress and an input-length endpoint bound. Inputs lacking an opening quote return None in this totalized wrapper; that is not a claim about calling the native private helper outside its precondition.
+- **StringTrace:** A separate native-action execution accumulates consumed raw bytes, including exact variable-length escape consumption. `trace_exact` derives that trace as the consumed input prefix; it is not supplied as a premise. Applying the source-bound comment observer to that trace agrees with an independent location fold over the selected input prefix. The observable tuple includes value, location and both unchanged URL fields. The trace interpreter is a mathematical source projection, not a verified lowering of mutable Rust parser state.
+- **StringAdmission:** Raw quote admission is composed with the location relation and return-boundary theorem. Conservative output bounds hold for arbitrary bytes: reference output length is at most four times input length; an existing buffer adds its own length. These are useful for future native capacity admission and do not prove allocator success.
+
+The reference does not call either native loop. Its byte action table and native classifier are separately defined; escape references use the prior independent digit table/selected-prefix algorithm and scalar/whitespace specifications. The mathematical reference uses encoded-byte output with distinguished ASCII controls. The finite Python oracle independently preprocesses code points, handles six-digit escapes/scalar replacement, and maps back to raw byte endpoints. A complete formal upstream decoding/preprocessing transducer is still open.
+
+## Native agreement and source binding
+
+The replay regenerates 25 complete function extractions: both string consumers, full escape/hex providers, unchecked UTF-8 conversion, byte/slice access and all location helpers. It additionally includes the entire actual `CowRcStr` source module. The local storage-provider bytes exactly match the fresh Searchfox snapshot; STORAGE-PROVIDER.json records this. Shared versus borrowed storage is observed by an artifact-only inspector inside that module. The initial development facade was replaced before the accepted replay; no runtime ownership claim relies on std::borrow::Cow standing in for CowRcStr.
+
+The final debug/release matrix contains 808 distinct raw strings. Every row checks token kind, payload, storage mode, raw borrowed pointer when applicable, exact byte cursor, unconsumed suffix, UTF-8 output/boundary, line/UTF-16 column and both unchanged URL fields. It exercises the real storage provider's clone/drop path as a finite control. Cases include both quote kinds, opposite quotes, borrowed/owned prefixes, partial multibyte copies, simple Unicode escapes, NUL, scalar limits, six-digit stopping, all newline forms, optional hexadecimal whitespace, escaped EOF, unescaped bad newline and ignored suffixes. This is finite extracted-source agreement, not Firefox/browser execution or a universal memory-safety proof.
+
+The 25 native bodies are manually mapped to the Lean functions in SOURCE-MAPPING.md. No verified Rust-to-Lean translator is claimed. Rust match dispatch in the witness is an ordinary-match facade; the actual optimized macro/compiler bridge remains separately admitted. Parser/ParserState facades preserve the inspected fields and complete helper bodies, without an ABI claim. Full current source snapshots, the original helper version bindings and exact unchanged escape-body comparisons are retained.
+
+## Explicit limits
+
+1. `Boundary.Unit` describes an encoding shape broader than valid Unicode. The proof establishes complete-unit boundaries and sanitizes generated scalar values. Admission from Rust valid `str`, standard scalar decoding/encoding and `len_utf16` remains explicit. There is no claim that arbitrary malformed byte input is safe for the native helper; only the mathematical functions totalize it.
+2. The source trace interpreter and the pinned imperative helper implementations are connected by source inspection and finite execution, plus the inherited helper arithmetic/unit theorems. The package does not turn trace equality into an assumption, but it also does not prove a compiler-level small-step refinement of heap/parser state. Standard slicing, indexing, prefix/list interpretation, UTF-8 primitives and immutable input lifetimes remain external.
+3. Natural-number location results correspond to native storage only inside explicit bounds: initial offset plus input length below usize capacity; initial line plus input length below 2^30; initial column plus twice input length below 2^32. Include the opening quote when applying complete-call bounds. The inherited modular column and packed-line results remain authoritative outside naive integer arithmetic. No natural-location claim is made beyond packed counter capacity. Allocation/output capacity must also fit the target's object limits and available memory; conservative length bounds do not supply memory.
+4. EOF is a parse error in CSS Syntax but still returns a string token. `Ending.eof` is a ghost distinction; this package does not invent a separately exposed native parse-error observer. The diagnostic payload attached to BadString is an implementation extension.
+5. Public next/cache/reset/block behavior, parsing callers, raw custom-property persistence, CSSOM and serialization remain open. The expected-failure metadata for escaped EOF and identifier serialization is not discharged here. No Stylo EOF serialization patch or test is added.
+
+## Twelve-obligation checkpoint
+
+| Obligation | Status after this component |
+|---|---|
+| 1. Raw admission/dispatch | Quote-prefix mode derivation, return boundary and progress modeled/proved. Full native dispatcher/public iterator and upstream byte decoding remain open. |
+| 2. Preprocessing | Local NUL replacement, raw newline classes, escaped CRLF and endpoint behavior included. Complete upstream codepoint preprocessing relation remains open. |
+| 3. Borrowed string loop | Universal modeled prefix/transfer/result proof and exact unallocated raw slice; finite exact-source agreement. Native representation/compiler admission remains explicit. |
+| 4. Owned string loop | Universal accumulator/reference equality and boundary proof, including in-flight partial units. Rust codecs and actual storage safety remain external. |
+| 5. Escape composition | Existing source-bound helpers composed with the complete modeled string caller, including bounds, optional whitespace, scalar replacement and simple escapes. Codec/native primitives remain admitted. |
+| 6. EOF versus bad newline | Modeled escaped-EOF distinction, EOF exhaustion, BadString reconsume and decoded diagnostic prefix proved/tested. No external parse-error event is claimed. |
+| 7. Comment loop | Previous sealed component inherited unchanged; no scope expansion or alteration. |
+| 8. Public stream composition | Open: ignored/preserved comments, cached tokens, reset and block skipping. |
+| 9. Observers | Exact consumed trace and raw-opening location relation, unchanged URL fields; finite actual-helper observer checks. Public cache/reset histories remain open. |
+| 10. Native bounds | Prior modular/packed arithmetic and new output/count bounds composed conditionally. Compiler, allocation, standard primitives and full native-state refinement remain external. |
+| 11. Evaluator/CSSOM | Open; explicitly outside this tokenizer transition component. |
+| 12. Replay/independence | Source-only regeneration, fresh kernel builds/axiom audits, compiled semantic mutants, relocation and tamper gates for this component. Whole-provider acceptance still requires the open obligations. |
+
+No browser defect, new native repair, performance claim or whole-tokenizer correctness claim is made. Parent owns independent acceptance and integration.
