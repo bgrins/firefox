@@ -11,7 +11,8 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
   `074086719e445ca72d3056f7fbf793af5e69d6f6`, with preceding formal companion
   `bad8f7998dbbb3ad1fa88c0ca6892488f912e898`. Its two-file commit contains only
   the native patch and WPT.
-- URL native state and ordinary declaration batching proofs are active.
+- URL native-state review, ordinary declaration batching, and public storage
+  composition are active.
 - Signing works. Nothing has been pushed or submitted externally.
 
 [Historical checkpoints](PLAN-HISTORY-20261019.md) preserve the previous plan
@@ -46,6 +47,7 @@ A root source audit checks all eight setter callers and the exact ordered metada
 for 94 ordinary shorthands. Five kernel-checked optional-publication lemmas preserve
 unique identities, group compatibility and capacity; fresh local and relocated
 replays pass. This does not mechanically compose the entire parser with batching.
+Independent review accepted these limited claims after its own relocated replay.
 Source interpretation, compiler behavior and callback stability remain explicit.
 [Source admission](../css-declaration-source-admission-root-v1/REPORT.md).
 
@@ -70,12 +72,27 @@ Derive slice ranges from full-input/remaining-suffix invariants. Keep codec,
 allocation/lifetime, machine-domain and compiler premises explicit.
 
 Production: `../css-tokenizer-url-native-state-v1/PLAN.md`.
-Add a native case only for a concrete gap, such as the previously untested
-bad-URL escaped-close-at-EOF raw endpoint. No new browser bug is established.
+The producer has sealed 17 new modules and actual native state/slice checks in
+three modes. Independent review is running; root acceptance remains pending.
+The fixed corpus adds only the escaped-close-at-EOF case and an unquoted leading
+newline case required to reject a previously surviving bulk-field mutant. No
+new browser bug is established.
+
+### 3. Compose parsing, removal and clear
+
+The root model now kernel-checks 26 lemmas for parser-priority push/extend,
+separate storage operations, deletion target bounds, removal-loop safety, the
+earliest-removal optimization, and arbitrary mixed parse/remove/clear histories.
+Duplicate source identities are admitted for sequential extend. These histories
+do not yet include CSSOM setting; native interpretation and caller stability
+remain open. The immutable flag and changed-return bits are outside this model.
+
+[Checkpoint and replay](../css-declaration-public-storage-proof-v1/PLAN.md).
+Static caller review: `../css-declaration-public-operations-static-v1/`.
 
 ## Next, in priority order
 
-1. Complete the two active components above and their review/commit gates.
+1. Complete the active components above and their review/commit gates.
 2. Extend declaration storage verification to actual push/extend/removal
    sequences. Bind parser output canonicality and source metadata to each public
    operation's premises; distinguish CSSOM setting from parsing priority rules.
