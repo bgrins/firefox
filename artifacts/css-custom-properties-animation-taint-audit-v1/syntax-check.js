@@ -1,0 +1,62 @@
+
+const imageA = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+const imageB = imageA + "#other";
+let serial = 0;
+function setup(t) {
+  const name = `--animation-taint-${serial++}`;
+  CSS.registerProperty({name, syntax: "<string>", inherits: false, initialValue: '"initial"'});
+  const element = document.createElement("div");
+  const reference = document.createElement("div");
+  document.body.append(element, reference);
+  t.add_cleanup(() => { element.remove(); reference.remove(); });
+  element.style.backgroundImage = `image-set(var(${name}))`;
+  return {name, element, reference};
+}
+function expectedImage(reference, text) {
+  reference.style.backgroundImage = `image-set(${JSON.stringify(text)})`;
+  const value = getComputedStyle(reference).backgroundImage;
+  assert_not_equals(value, "none", "Literal image calibration");
+  return value;
+}
+function frames(name, tainted, text) {
+  const value = tainted ? "attr(data-image)" : JSON.stringify(text);
+  return [{[name]: value}, {[name]: value}];
+}
+function start(t, element, name, tainted, text) {
+  const animation = element.animate(frames(name, tainted, text), {duration: 1000, fill: "both"});
+  t.add_cleanup(() => { animation.cancel(); });
+  animation.pause();
+  animation.currentTime = 500;
+  return animation;
+}
+function observe(element, reference, name, text, tainted, label) {
+  reference.style.setProperty(name, JSON.stringify(text));
+  assert_equals(getComputedStyle(element).getPropertyValue(name),
+                getComputedStyle(reference).getPropertyValue(name), label + " computed payload");
+  assert_equals(getComputedStyle(element).backgroundImage,
+                tainted ? "none" : expectedImage(reference, text), label + " URL taint");
+}
+for (const initialTainted of [false, true]) {
+  for (const samePayload of [true, false]) {
+    test(t => {
+      const {name, element, reference} = setup(t);
+      const finalTainted = !initialTainted;
+      const finalText = samePayload ? imageA : imageB;
+      element.setAttribute("data-image", initialTainted ? imageA : finalText);
+      const animation = start(t, element, name, initialTainted, imageA);
+      observe(element, reference, name, imageA, initialTainted, "Initial effect");
+      animation.effect.setKeyframes(frames(name, finalTainted, finalText));
+      assert_equals(animation.effect.getKeyframes()[0][name],
+                    finalTainted ? "attr(data-image)" : JSON.stringify(finalText),
+                    "New raw keyframes stored");
+      animation.currentTime = 501;
+      observe(element, reference, name, finalText, finalTainted, "Updated effect");
+    }, `setKeyframes ${initialTainted ? "attr to literal" : "literal to attr"}, ${samePayload ? "same" : "different"} payload`);
+  }
+  test(t => {
+    const {name, element, reference} = setup(t);
+    element.setAttribute("data-image", imageA);
+    start(t, element, name, initialTainted, imageA);
+    observe(element, reference, name, imageA, initialTainted, "Fresh effect");
+  }, `Fresh ${initialTainted ? "attr" : "literal"} effect`);
+}
