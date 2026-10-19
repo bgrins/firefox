@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **55 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **56 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -54,6 +54,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | attr-invalid-entry | `fd9c07e1130bcb68684c25e7527f5b0ff3c3bd73` | `76bda27b8dfdb88ebdcb7e4706508688d0a3f064` |
 | attr-fallback-preparation | `7822bb6d17b1381cdb3e56deb20c5ec3e078adec` | `31265260cc3daa2bbea93c237a9491b6f2afcaa4` |
 | mathml-token-range-origin | `f843fd7568f30e14e664c37c36544d8d88e8c1bb` | `6eb5a90e3fa3b6128ddd6397d9dae9f1ab34b88d` |
+| attr-typed-fallback-eligibility | `e3ba54f6f826fe265eb5bc4731f66f64465dd47c` | `30c8dfeb4b746104b53ad5bc6440c1d53734f570` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1372,3 +1373,16 @@ Pre-reflow/intrinsic measurement, element-box sizing and broader cache lifetime
 remain separate. Browser pairing used the shared experimental tree.
 See [acceptance](../css-mathml-tab-cache-wpt-v1/ROOT-SCOPED-ACCEPTANCE-v1.json)
 and [commit check](../css-mathml-tab-cache-wpt-v1/ROOT-COMMIT-CHECK-v1.json).
+
+## Typed attribute fallback eligibility committed
+
+`e3ba54f6f826fe265eb5bc4731f66f64465dd47c` contains only three Rust files and the twelve-case WPT.
+Review and browser evidence precede it in `30c8dfeb4b746104b53ad5bc6440c1d53734f570`.
+Five new-case failures and three retained diagnostics become passes; all 183
+checks pass. Build and lint pass (zero errors, two warnings). The earlier
+generic-parser model has fifteen theorem audits; this integration adds no
+new theorem and does not close native parser, provider or graph admission.
+The exact isolated patch excludes unrelated experiments; browser pairing used
+the shared tree. Additional parse cost is unmeasured.
+See [acceptance](../css-attr-typed-eligibility-browser-v1/ROOT-SCOPED-ACCEPTANCE-v1.json)
+and [commit check](../css-attr-typed-eligibility-browser-v1/ROOT-COMMIT-CHECK-v1.json).

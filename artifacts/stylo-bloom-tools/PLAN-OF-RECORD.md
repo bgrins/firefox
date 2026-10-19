@@ -10,13 +10,13 @@ Immediate next steps:
    Its sixteen-case WPT and seventy regressions pass. Worklist proof companion
    `31265260cc3daa2bbea93c237a9491b6f2afcaa4` passes 54 audits and four mutation gates.
    Preserve the separate provider/parser/observer/graph admissions.
-2. Resolve occurrence-specific typed-fallback graph readiness. After preparation,
-   the unchanged nineteen-case diagnostic has one failure and the six-case probe
-   has two failures. Exact requested-syntax parsing needs declaration context;
-   traversal-node identity alone loses originating longhand context. The signed
-   local eligibility model `bd97b69e209cc493200cbbb06bc88c50694c1723` passes fifteen
-   theorem audits and rejects both semantic mutants. Native parser admission,
-   property-context preservation and full graph composition remain open.
+2. Typed-fallback eligibility is signed as `e3ba54f6f826fe265eb5bc4731f66f64465dd47c`.
+   All twelve new cases and 171 other checks pass, repairing eight failures.
+   Follow the graph-admission audit into dependencies hidden in attribute values:
+   relative-unit ordering and non-custom properties with no lexical var().
+   Require normative adjudication and browser reproduction before counting bugs;
+   the unused-fallback unit-dependency oracle remains ambiguous. Preserve native
+   parser/property-context and full graph-composition obligations.
 3. Continue cascade source/observer and hyphenation stateful consumer admissions,
    including actual reflow-to-display tab-cache coverage and lifetime. Preserve
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
@@ -36,7 +36,7 @@ close these obligations.
 
 ## Latest commit and proof checkpoint
 
-There are 55 signed standalone native/WPT fixes. Worker font removal is now
+There are 56 signed standalone native/WPT fixes. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
@@ -2956,7 +2956,9 @@ preserves the source audit, raw receipts and 128-case finite branch check.
 Pre-reflow/intrinsic measurement and broad cache-lifetime proof remain open;
 no universal newline-origin equality or element-box sizing repair is claimed.
 
-The next native candidate is occurrence-specific typed attribute fallback
-eligibility. Its three-file draft shares the primary-only parser and preserves
-originating longhand/shorthand context. Producer sealing, independent final
-review, native compilation and paired WPT execution are still pending.
+Typed-fallback eligibility is now signed as `e3ba54f6f826fe265eb5bc4731f66f64465dd47c`.
+The prior fifteen-audit conditional model guided the local parser/graph boundary;
+source review, paired browser results and build support the native integration.
+Full parser and SCC correctness remain open. FontFace provider integration has
+a sealed source-readiness report, but no native build or browser acceptance yet;
+it is the original producer's second pass, not independent implementation review.
