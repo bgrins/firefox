@@ -1,0 +1,102 @@
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-values/attr-repeated-invalid-value.html
+@@ -0,0 +1,99 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Repeated references to invalid typed attributes use their fallbacks</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#substitute-arbitrary-substitution-function">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++const cases = [
++  {
++    name: "Repeated references to a self-cyclic attribute use separate fallbacks",
++    value: "attr(x type(*), 13px) attr(x type(*), 37px)",
++    attributes: {x: "attr(x type(*))"},
++    expected: "13px 37px", top: "13px", right: "37px",
++  },
++  {
++    name: "A single reference to a self-cyclic attribute uses its fallback",
++    value: "attr(x type(*), 13px)",
++    attributes: {x: "attr(x type(*))"},
++    expected: "13px", top: "13px", right: "13px",
++  },
++  {
++    name: "Repeated length-typed references to a cyclic attribute use separate fallbacks",
++    value: "attr(x type(<length>), 13px) attr(x type(<length>), 37px)",
++    attributes: {x: "attr(x type(*))"},
++    expected: "13px 37px", top: "13px", right: "37px",
++  },
++  {
++    name: "Repeated references to an attribute with a missing variable use separate fallbacks",
++    value: "attr(x type(*), 13px) attr(x type(*), 37px)",
++    attributes: {x: "var(--missing)"},
++    expected: "13px 37px", top: "13px", right: "37px",
++  },
++  {
++    name: "A single reference to an attribute with a missing variable uses its fallback",
++    value: "attr(x type(*), 13px)",
++    attributes: {x: "var(--missing)"},
++    expected: "13px", top: "13px", right: "13px",
++  },
++  {
++    name: "Repeated references to a valid attribute preserve its value",
++    value: "attr(x type(*), 13px) attr(x type(*), 37px)",
++    attributes: {x: "19px"},
++    expected: "19px 19px", top: "19px", right: "19px",
++  },
++  {
++    name: "References to independently cyclic attributes use separate fallbacks",
++    value: "attr(x type(*), 13px) attr(y type(*), 37px)",
++    attributes: {x: "attr(x type(*))", y: "attr(y type(*))"},
++    expected: "13px 37px", top: "13px", right: "37px",
++  },
++  {
++    name: "Repeated references to an attribute in a two-attribute cycle use separate fallbacks",
++    value: "attr(x type(*), 13px) attr(x type(*), 37px)",
++    attributes: {x: "attr(y type(*))", y: "attr(x type(*))"},
++    expected: "13px 37px", top: "13px", right: "37px",
++  },
++  {
++    name: "Different attributes sharing a cyclic dependency use separate fallbacks",
++    value: "attr(x type(*), 13px) attr(y type(*), 37px)",
++    attributes: {x: "attr(x type(*))", y: "attr(x type(*))"},
++    expected: "13px 37px", top: "13px", right: "37px",
++  },
++  {
++    name: "References to a cyclic attribute in separate declarations use separate fallbacks",
++    value: "attr(x type(*), 13px)",
++    second: "attr(x type(*), 37px)",
++    attributes: {x: "attr(x type(*))"},
++    expected: "13px", top: "13px", right: "37px",
++  },
++];
++
++for (const item of cases) {
++  test(t => {
++    const target = document.createElement("div");
++    t.add_cleanup(() => target.remove());
++    for (const [name, value] of Object.entries(item.attributes)) {
++      target.setAttribute(name, value);
++    }
++    target.style.setProperty("--out", item.value);
++    target.style.margin = "var(--out)";
++    if (item.second) {
++      target.style.setProperty("--second", item.second);
++      target.style.margin = "var(--out) var(--second)";
++    }
++    document.body.append(target);
++    const computed = getComputedStyle(target);
++    assert_equals(computed.getPropertyValue("--out").trim().replace(/\s+/g, " "),
++                  item.expected, "Computed custom property");
++    if (item.second) {
++      assert_equals(computed.getPropertyValue("--second").trim(), "37px",
++                    "Computed second custom property");
++    }
++    assert_equals(computed.marginTop, item.top, "Computed margin-top");
++    assert_equals(computed.marginRight, item.right, "Computed margin-right");
++  }, item.name);
++}
++</script>

@@ -1,0 +1,27 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -738,6 +738,13 @@
+         name: &Name,
+     ) -> Option<&ComputedRegisteredValue> {
+         self.custom_properties.get(registration, name)
++    }
++
++    #[inline(always)]
++    pub(crate) fn contains_attr(&self, name: &Name, namespace: &Namespace) -> bool {
++        self.attributes
++            .get(namespace)
++            .is_some_and(|attributes| attributes.contains_key(name))
+     }
+ 
+     #[inline(always)]
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -2436,7 +2436,7 @@
+                         }
+                         continue;
+                     };
+-                    if context.map().get_attr(&next.name, namespace).is_none()
++                    if !context.map().contains_attr(&next.name, namespace)
+                         && let Ok(val) = get_attr_value_for_cycle_resolution(
+                             &next.name,
+                             &next.attribute_data,
