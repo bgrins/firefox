@@ -1,0 +1,26 @@
+[
+  {
+    "name": "prefer_fallback_over_success",
+    "module": "SelectedOutput",
+    "old": "| .replacement (some tokens) _ => some tokens",
+    "new": "| .replacement (some tokens) fallback => fallback"
+  },
+  {
+    "name": "accumulate_unused_fallback",
+    "module": "SelectedOutput",
+    "old": "| .replacement (some primary) _ :: rest, summary =>\n      accumulate rest (combine summary (scan primary))",
+    "new": "| .replacement (some primary) fallback :: rest, summary =>\n      let extra := match fallback with\n        | none => some emptyFlags\n        | some tokens => scan tokens\n      accumulate rest (combine summary (combine (scan primary) extra))"
+  },
+  {
+    "name": "separator_adds_font_dependency",
+    "module": "TokenSummary",
+    "old": "| .separator => some emptyFlags",
+    "new": "| .separator => some (unitFlags .font)"
+  },
+  {
+    "name": "incomplete_scan_becomes_exact_zero",
+    "module": "TokenSummary",
+    "old": "| .unresolved => none",
+    "new": "| .unresolved => some emptyFlags"
+  }
+]

@@ -1,0 +1,26 @@
+import SelectedOutput
+#print axioms ResolvedDependencies.join_assoc
+#print axioms ResolvedDependencies.join_empty_left
+#print axioms ResolvedDependencies.join_empty_right
+#print axioms ResolvedDependencies.combine_assoc
+#print axioms ResolvedDependencies.combine_empty_left
+#print axioms ResolvedDependencies.combine_empty_right
+#print axioms ResolvedDependencies.combine_incomplete_left
+#print axioms ResolvedDependencies.combine_incomplete_right
+#print axioms ResolvedDependencies.scan_append
+#print axioms ResolvedDependencies.inert_separator_preserves_summary
+#print axioms ResolvedDependencies.unresolved_output_is_not_exact_zero
+#print axioms ResolvedDependencies.unresolved_anywhere_is_incomplete
+#print axioms ResolvedDependencies.emit_scan
+#print axioms ResolvedDependencies.erase_separators_preserves_summary
+#print axioms ResolvedDependencies.equal_tokens_modulo_separators
+#print axioms ResolvedDependencies.missing_lexical_boundary_can_create_dependency
+#print axioms ResolvedDependencies.selected_output_summary
+#print axioms ResolvedDependencies.execute_append
+#print axioms ResolvedDependencies.unused_fallback_independence
+#print axioms ResolvedDependencies.unused_fallback_summary_independence
+#print axioms ResolvedDependencies.failed_primary_uses_fallback
+#print axioms ResolvedDependencies.failed_selected_output_propagates
+#print axioms ResolvedDependencies.successful_unknown_is_distinct_from_failure
+#print axioms ResolvedDependencies.successful_primary_ignores_unknown_fallback
+#print axioms ResolvedDependencies.tokenizer_bridge
