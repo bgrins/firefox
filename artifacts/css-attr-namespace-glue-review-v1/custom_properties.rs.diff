@@ -1,0 +1,23 @@
+--- candidate-v2/custom_properties.rs
++++ candidate-v3/custom_properties.rs
+@@ -704,8 +704,9 @@
+         self.custom_properties.insert(registration, name, value);
+     }
+ 
++    /// Store a computed attribute value by its expanded name.
+     #[inline(always)]
+-    pub(crate) fn insert_attr(
++    pub fn insert_attr(
+         &mut self,
+         name: &Name,
+         namespace: &Namespace,
+@@ -769,7 +770,8 @@
+ }
+ 
+ impl AttributeData {
+-    pub(crate) fn namespace(&self) -> Option<&Namespace> {
++    /// The resolved namespace, including the null namespace.
++    pub fn namespace(&self) -> Option<&Namespace> {
+         match &self.namespace {
+             ParsedNamespace::Known(namespace) => Some(namespace),
+             ParsedNamespace::Unknown => None,

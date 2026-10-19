@@ -1,0 +1,490 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -19,6 +19,7 @@
+         SpecifiedValue as SpecifiedRegisteredValue,
+     },
+ };
++use crate::selector_map::PrecomputedHashMap;
+ use crate::stylesheets::UrlExtraData;
+ use crate::stylesheets::container_rule::AttrReferenceSet;
+ use crate::stylist::Stylist;
+@@ -676,7 +677,7 @@
+     /// The applicable custom properties (includes inherited and non-inherited).
+     pub custom_properties: ComputedCustomProperties,
+     /// The applicable DOM attributes.
+-    pub attributes: OwnMap,
++    pub attributes: PrecomputedHashMap<Namespace, OwnMap>,
+ }
+ 
+ impl ComputedSubstitutionFunctions {
+@@ -685,7 +686,7 @@
+     #[inline(always)]
+     pub fn new(
+         custom_properties: Option<ComputedCustomProperties>,
+-        attributes: Option<OwnMap>,
++        attributes: Option<PrecomputedHashMap<Namespace, OwnMap>>,
+     ) -> Self {
+         Self {
+             custom_properties: custom_properties.unwrap_or_default(),
+@@ -704,8 +705,16 @@
+     }
+ 
+     #[inline(always)]
+-    pub(crate) fn insert_attr(&mut self, name: &Name, value: ComputedRegisteredValue) {
+-        self.attributes.insert(name.clone(), Some(value));
++    pub(crate) fn insert_attr(
++        &mut self,
++        name: &Name,
++        namespace: &Namespace,
++        value: ComputedRegisteredValue,
++    ) {
++        self.attributes
++            .entry(namespace.clone())
++            .or_default()
++            .insert(name.clone(), Some(value));
+     }
+ 
+     #[inline(always)]
+@@ -714,8 +723,11 @@
+     }
+ 
+     #[inline(always)]
+-    pub(crate) fn remove_attr(&mut self, name: &Name) {
+-        self.attributes.insert(name.clone(), None);
++    pub(crate) fn remove_attr(&mut self, name: &Name, namespace: &Namespace) {
++        self.attributes
++            .entry(namespace.clone())
++            .or_default()
++            .insert(name.clone(), None);
+     }
+ 
+     #[inline(always)]
+@@ -728,8 +740,15 @@
+     }
+ 
+     #[inline(always)]
+-    pub(crate) fn get_attr(&self, name: &Name) -> Option<&ComputedRegisteredValue> {
+-        self.attributes.get(name).and_then(|p| p.as_ref())
++    pub(crate) fn get_attr(
++        &self,
++        name: &Name,
++        namespace: &Namespace,
++    ) -> Option<&ComputedRegisteredValue> {
++        self.attributes
++            .get(namespace)?
++            .get(name)
++            .and_then(|p| p.as_ref())
+     }
+ }
+ 
+@@ -747,6 +766,15 @@
+ pub struct AttributeData {
+     kind: AttributeType,
+     namespace: ParsedNamespace,
++}
++
++impl AttributeData {
++    pub(crate) fn namespace(&self) -> Option<&Namespace> {
++        match &self.namespace {
++            ParsedNamespace::Known(namespace) => Some(namespace),
++            ParsedNamespace::Unknown => None,
++        }
++    }
+ }
+ 
+ /// For a CSS string, the range, counted in bytes, that is attr()-tainted.
+@@ -1460,14 +1488,13 @@
+ /// Replace `var()`, `env()`, and `attr()` functions in a pre-existing variable value.
+ pub fn substitute_references_if_needed_and_apply(
+     name: &Name,
+-    kind: SubstitutionFunctionKind,
++    namespace: Option<&Namespace>,
+     value: &Arc<VariableValue>,
+     stylist: &Stylist,
+     context: &mut computed::Context,
+     attribute_tracker: &mut AttributeTracker,
+ ) {
+-    debug_assert_ne!(kind, SubstitutionFunctionKind::Env);
+-    let is_var = matches!(kind, SubstitutionFunctionKind::Var);
++    let is_var = namespace.is_none();
+     let registration = stylist.get_custom_property_registration(name);
+     if is_var && !value.has_references() && registration.is_universal() {
+         // Trivial path: no references and no need to compute the value, just apply it directly.
+@@ -1494,8 +1521,11 @@
+     let Ok(substitution) = substitution else {
+         if is_var {
+             handle_invalid_at_computed_value_time(name, registration, context);
+-        } else {
+-            context.builder.substitution_functions.remove_attr(name);
++        } else if let Some(namespace) = namespace {
++            context
++                .builder
++                .substitution_functions
++                .remove_attr(name, namespace);
+         }
+         return;
+     };
+@@ -1556,8 +1586,8 @@
+         }
+     }
+ 
+-    match kind {
+-        SubstitutionFunctionKind::Var => {
++    match namespace {
++        None => {
+             let value = match substitution.into_value(
+                 url_data,
+                 registration,
+@@ -1575,7 +1605,7 @@
+                 .substitution_functions
+                 .insert_var(registration, name, value);
+         },
+-        SubstitutionFunctionKind::Attr => {
++        Some(namespace) => {
+             let mut value = ComputedRegisteredValue::universal(Arc::new(VariableValue::new(
+                 substitution.css.into_owned(),
+                 url_data,
+@@ -1586,9 +1616,8 @@
+             context
+                 .builder
+                 .substitution_functions
+-                .insert_attr(name, value);
++                .insert_attr(name, namespace, value);
+         },
+-        SubstitutionFunctionKind::Env => unreachable!("Kind cannot be env."),
+     }
+ }
+ 
+@@ -1912,7 +1941,7 @@
+                                 attr
+                             } else {
+                                 substitution_functions
+-                                    .get_attr(&reference.name)
++                                    .get_attr(&reference.name, namespace?)
+                                     .map(|v| v.to_variable_value())?
+                                     .css
+                             }
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -4,7 +4,7 @@
+ 
+ //! The main cascading algorithm of the style system.
+ 
+-use crate::FxHashMap;
++use crate::{FxHashMap, Namespace};
+ use crate::applicable_declarations::{CascadePriority, RevertKind};
+ use crate::color::AbsoluteColor;
+ use crate::computed_value_flags::ComputedValueFlags;
+@@ -707,7 +707,7 @@
+     /// The boolean means whether the value may have references. If false, we don't need to bother
+     /// performing lookups for cycle detection.
+     var: PrecomputedHashMap<&'a Name, bool>,
+-    attr: PrecomputedHashSet<&'a Name>,
++    attr: PrecomputedHashMap<&'a Namespace, PrecomputedHashSet<&'a Name>>,
+ }
+ 
+ #[derive(Default)]
+@@ -1802,7 +1802,7 @@
+                     // afterwards.
+                     substitute_references_if_needed_and_apply(
+                         name,
+-                        SubstitutionFunctionKind::Var,
++                        None,
+                         unparsed_value,
+                         self.stylist,
+                         context,
+@@ -2057,9 +2057,22 @@
+         self.may_have_custom_property_cycles = true;
+ 
+         for next in &refs.refs {
+-            if !next.is_attr_with_type() || !self.seen.custom.attr.insert(&next.name) {
++            if !next.is_attr_with_type() {
+                 // Only type() can have nested references, so we don't need to eagerly look at
+                 // others.
++                continue;
++            }
++            let Some(namespace) = next.attribute_data.namespace() else {
++                continue;
++            };
++            if !self
++                .seen
++                .custom
++                .attr
++                .entry(namespace)
++                .or_default()
++                .insert(&next.name)
++            {
+                 continue;
+             }
+             if let Ok(v) = get_attr_value_for_cycle_resolution(
+@@ -2071,7 +2084,7 @@
+                 context
+                     .builder
+                     .substitution_functions
+-                    .insert_attr(&next.name, v);
++                    .insert_attr(&next.name, namespace, v);
+             }
+         }
+     }
+@@ -2139,9 +2152,18 @@
+ 
+     #[derive(Clone, Eq, PartialEq, Debug)]
+     enum VarType {
+-        Attr(Name),
++        Attr(Name, Namespace),
+         Custom(Name),
+         NonCustom(SingleNonCustomReference),
++    }
++
++    impl VarType {
++        fn namespace(&self) -> Option<&Namespace> {
++            match self {
++                Self::Attr(_, namespace) => Some(namespace),
++                _ => None,
++            }
++        }
+     }
+ 
+     /// Struct recording necessary information for each variable.
+@@ -2162,7 +2184,7 @@
+         /// The map from the custom property name to its order index.
+         var: PrecomputedHashMap<Name, usize>,
+         /// The map from the attribute name to its order index.
+-        attr: PrecomputedHashMap<Name, usize>,
++        attr: PrecomputedHashMap<Namespace, PrecomputedHashMap<Name, usize>>,
+     }
+ 
+     impl OrderIndexMap {
+@@ -2223,11 +2245,11 @@
+         /// Marks a given `name` as being in a loop.
+         fn handle_loop(&mut self, name: &VarType) {
+             match name {
+-                VarType::Attr(name) => {
++                VarType::Attr(name, namespace) => {
+                     self.computed_context
+                         .builder
+                         .substitution_functions
+-                        .remove_attr(name);
++                        .remove_attr(name, namespace);
+                 },
+                 VarType::Custom(name) => {
+                     // This variable is in a loop. Resolve to invalid.
+@@ -2316,7 +2338,13 @@
+                     if !can_chain {
+                         continue;
+                     }
+-                    if context.map().get_attr(&next.name).is_none()
++                    let Some(namespace) = next.attribute_data.namespace() else {
++                        if let Some(ref fallback) = next.fallback {
++                            refs_stack.push(&fallback.references);
++                        }
++                        continue;
++                    };
++                    if context.map().get_attr(&next.name, namespace).is_none()
+                         && let Ok(val) = get_attr_value_for_cycle_resolution(
+                             &next.name,
+                             &next.attribute_data,
+@@ -2324,9 +2352,9 @@
+                             attribute_tracker,
+                         )
+                     {
+-                        context.map_mut().insert_attr(&next.name, val);
++                        context.map_mut().insert_attr(&next.name, namespace, val);
+                     }
+-                    VarType::Attr(next.name.clone())
++                    VarType::Attr(next.name.clone(), namespace.clone())
+                 } else {
+                     VarType::Custom(next.name.clone())
+                 };
+@@ -2350,7 +2378,10 @@
+                             context.stylist.get_custom_property_registration(&next.name);
+                         context.map().get_var(registration, &next.name)
+                     },
+-                    SubstitutionFunctionKind::Attr => context.map().get_attr(&next.name),
++                    SubstitutionFunctionKind::Attr => next
++                        .attribute_data
++                        .namespace()
++                        .and_then(|namespace| context.map().get_attr(&next.name, namespace)),
+                     SubstitutionFunctionKind::Env => unreachable!("Handled above"),
+                 };
+                 // The primary is guaranteed-invalid if it's absent from the map, or still
+@@ -2435,7 +2466,7 @@
+         let mut value_non_custom_refs = ReferenceFlags::empty();
+         let mut registered = false;
+         let value = match var {
+-            VarType::Custom(ref name) | VarType::Attr(ref name) => {
++            VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
+                 let map = &context.computed_context.builder.substitution_functions;
+                 let (registration, value, kind) = if matches!(var, VarType::Custom(..)) {
+                     let registration = context.stylist.get_custom_property_registration(name);
+@@ -2448,7 +2479,8 @@
+                     // `attr()` is always treated as unregistered.
+                     (
+                         PropertyDescriptors::unregistered(),
+-                        map.get_attr(name)?.as_universal()?,
++                        map.get_attr(name, var.namespace().unwrap())?
++                            .as_universal()?,
+                         SubstitutionFunctionKind::Attr,
+                     )
+                 };
+@@ -2474,7 +2506,7 @@
+                         let value = value.clone();
+                         substitute_references_if_needed_and_apply(
+                             name,
+-                            kind,
++                            var.namespace(),
+                             &value,
+                             context.stylist,
+                             context.computed_context,
+@@ -2488,7 +2520,11 @@
+                 let index_map = if kind == SubstitutionFunctionKind::Var {
+                     &mut context.index_map.var
+                 } else {
+-                    &mut context.index_map.attr
++                    context
++                        .index_map
++                        .attr
++                        .entry(var.namespace().unwrap().clone())
++                        .or_default()
+                 };
+                 match index_map.entry_ref(name) {
+                     EntryRef::Occupied(entry) => {
+@@ -2526,7 +2562,7 @@
+         let mut lowlink = index;
+         if let Some(v) = value.as_ref() {
+             debug_assert!(
+-                matches!(var, VarType::Custom(_) | VarType::Attr(_)),
++                matches!(var, VarType::Custom(_) | VarType::Attr(..)),
+                 "Non-custom property has references?"
+             );
+ 
+@@ -2650,18 +2686,13 @@
+ 
+         // Not in a loop, apply the value.
+         match var {
+-            VarType::Custom(ref name) | VarType::Attr(ref name) => {
++            VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
+                 if let Some(ref v) = value {
+-                    let kind = if matches!(var, VarType::Custom(..)) {
+-                        SubstitutionFunctionKind::Var
+-                    } else {
+-                        SubstitutionFunctionKind::Attr
+-                    };
+                     // We know we're not in a loop now, perform substitution.
+                     // TODO(emilio): Merge with the cycle detection loop instead?
+                     substitute_references_if_needed_and_apply(
+                         name,
+-                        kind,
++                        var.namespace(),
+                         v,
+                         context.stylist,
+                         context.computed_context,
+@@ -2713,7 +2744,9 @@
+     }
+     // Traverse potentially untraversed chained references from `attr(type())` in non-custom
+     // properties.
+-    for attr in &seen.attr {
+-        run_one(VarType::Attr((*attr).clone()));
++    for (namespace, attributes) in &seen.attr {
++        for attr in attributes {
++            run_one(VarType::Attr((*attr).clone(), (*namespace).clone()));
++        }
+     }
+ }
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-values/attr-namespace-cache.html
+@@ -0,0 +1,94 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Typed attr() preserves attribute namespace identity</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style id="sheet">
++@namespace a url(urn:attr-test:a);
++@namespace b url(urn:attr-test:b);
++@namespace alias url(urn:attr-test:a);
++.target { display: block; box-sizing: content-box; padding: 0; border: 0; }
++</style>
++<div id="fixture"></div>
++<script>
++const namespaces = {a: "urn:attr-test:a", b: "urn:attr-test:b", "": null};
++let nextId = 0;
++
++function makeTarget(t, declarations, attributes) {
++  const target = document.createElement("div");
++  target.id = `target-${nextId++}`;
++  target.className = "target";
++  for (const [prefix, name, value] of attributes) {
++    target.setAttributeNS(namespaces[prefix], prefix ? `${prefix}:${name}` : name, value);
++  }
++  const sheet = document.getElementById("sheet").sheet;
++  const index = sheet.insertRule(`#${target.id} { ${declarations} }`, sheet.cssRules.length);
++  assert_not_equals(sheet.cssRules[index].style.width, "", "width declaration parsed");
++  assert_not_equals(sheet.cssRules[index].style.height, "", "height declaration parsed");
++  document.getElementById("fixture").append(target);
++  t.add_cleanup(() => target.remove());
++  return target;
++}
++
++function assertSize(target, width, height) {
++  const style = getComputedStyle(target);
++  assert_equals(style.width, width, "width");
++  assert_equals(style.height, height, "height");
++}
++
++const a = "attr(a|x type(<length>), 5px)";
++const b = "attr(b|x type(<length>), 7px)";
++const literals = [["a", "x", "13px"], ["b", "x", "37px"]];
++const cases = [
++  ["Different namespaces, width first", `width: ${a}; height: ${b}`, literals, "13px", "37px"],
++  ["Different namespaces, height first", `height: ${b}; width: ${a}`, literals, "13px", "37px"],
++  ["First namespace alone", `width: ${a}; height: 7px`, literals, "13px", "7px"],
++  ["Second namespace alone", `width: 5px; height: ${b}`, literals, "5px", "37px"],
++  ["Different local names", `width: ${a}; height: attr(b|y type(<length>), 7px)`,
++    [["a", "x", "13px"], ["b", "y", "37px"]], "13px", "37px"],
++  ["Same qualified name", `width: ${a}; height: ${a}`, literals, "13px", "13px"],
++  ["Prefixes for the same namespace", `width: ${a}; height: attr(alias|x type(<length>), 7px)`,
++    literals, "13px", "13px"],
++  ["Numeric units", "width: attr(a|x px, 5px); height: attr(b|x px, 7px)",
++    [["a", "x", "13"], ["b", "x", "37"]], "13px", "37px"],
++  ["Null and named namespaces, width first", `width: attr(x type(<length>), 5px); height: ${b}`,
++    [["", "x", "13px"], ["b", "x", "37px"]], "13px", "37px"],
++  ["Null and named namespaces, height first", `height: ${b}; width: attr(x type(<length>), 5px)`,
++    [["", "x", "13px"], ["b", "x", "37px"]], "13px", "37px"],
++  ["Explicit null namespace", `width: attr(|x type(<length>), 5px); height: ${b}`,
++    [["", "x", "13px"], ["b", "x", "37px"]], "13px", "37px"],
++  ["Unknown namespace uses fallback", `--good: 11px; width: attr(unknown|x type(<length>), var(--good)); height: ${b}`,
++    literals, "11px", "37px"],
++  ["Attribute values reference custom properties", `--av: 13px; --bv: 37px; width: ${a}; height: ${b}`,
++    [["a", "x", "var(--av)"], ["b", "x", "var(--bv)"]], "13px", "37px"],
++  ["Attribute values reference custom properties, height first", `--av: 13px; --bv: 37px; height: ${b}; width: ${a}`,
++    [["a", "x", "var(--av)"], ["b", "x", "var(--bv)"]], "13px", "37px"],
++  ["Chain to the same local name in the null namespace", `width: ${a}; height: ${b}`,
++    [["a", "x", "attr(x type(<length>))"], ["", "x", "13px"], ["b", "x", "37px"]], "13px", "37px"],
++  ["Cycle does not invalidate another namespace", `--loop: ${a}; width: ${a}; height: ${b}`,
++    [["a", "x", "var(--loop)"], ["b", "x", "37px"]], "5px", "37px"],
++  ["Cycle does not invalidate another namespace, height first", `--loop: ${a}; height: ${b}; width: ${a}`,
++    [["a", "x", "var(--loop)"], ["b", "x", "37px"]], "5px", "37px"],
++  ["Invalid substitution does not invalidate another namespace", `width: ${a}; height: ${b}`,
++    [["a", "x", "var(--missing)"], ["b", "x", "37px"]], "5px", "37px"],
++  ["Invalid type does not invalidate another namespace", `width: ${a}; height: ${b}`,
++    [["a", "x", "not-a-length"], ["b", "x", "37px"]], "5px", "37px"],
++  ["Missing attribute uses fallback", `width: ${a}; height: ${b}`,
++    [["b", "x", "37px"]], "5px", "37px"],
++];
++for (const [name, declarations, attributes, width, height] of cases) {
++  test(t => assertSize(makeTarget(t, declarations, attributes), width, height), name);
++}
++
++test(t => {
++  const target = makeTarget(t, `width: ${a}; height: ${b}`, literals);
++  assertSize(target, "13px", "37px");
++  target.setAttributeNS(namespaces.b, "b:x", "53px");
++  assertSize(target, "13px", "53px");
++  target.removeAttributeNS(namespaces.a, "x");
++  assertSize(target, "5px", "53px");
++  target.setAttributeNS(namespaces.a, "a:x", "19px");
++  assertSize(target, "19px", "53px");
++}, "Changes and removal affect only the matching namespace");
++</script>
