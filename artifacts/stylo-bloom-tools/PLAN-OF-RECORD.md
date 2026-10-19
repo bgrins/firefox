@@ -12,18 +12,23 @@ Immediate next steps:
    Preserve the separate provider/parser/observer/graph admissions.
 2. Typed-fallback eligibility is signed as `e3ba54f6f826fe265eb5bc4731f66f64465dd47c`.
    All twelve new cases and 171 other checks pass, repairing eight failures.
-   Follow the graph-admission audit into dependencies hidden in attribute values:
-   relative-unit ordering and non-custom properties with no lexical var().
-   Require normative adjudication and browser reproduction before counting bugs;
-   the unused-fallback unit-dependency oracle remains ambiguous. Preserve native
-   parser/property-context and full graph-composition obligations.
-3. Continue cascade source/observer and hyphenation stateful consumer admissions,
+   The follow-up attr-only collection repair is signed as `3892ab844694fedd987f5ce1dd2165f53fc2dbed`.
+   Its ten new cases and 183 prior checks pass. Preserve native parser/context
+   and full graph-composition obligations.
+3. Repair resolved relative-unit summaries at the attribute and universal-value
+   persistence sinks. Three browser failures are retained: attribute cycle,
+   universal-chain cycle and acyclic 1em ordering (23px instead of 17px).
+   Use successful output tokens, preserve bytes/taint and avoid unused-fallback
+   contamination. Selected-output Lean composition is underway; tokenizer and
+   separator admission, bounded-stack scanning and unresolved env payloads
+   need explicit treatment. The unused-relative-fallback oracle is ambiguous.
+4. Continue cascade source/observer and hyphenation stateful consumer admissions,
    including actual reflow-to-display tab-cache coverage and lifetime. Preserve
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
-4. Integrate the prepared loaded FontFace.sizeAdjust provider candidate within
+5. Integrate the prepared loaded FontFace.sizeAdjust provider candidate within
    the known bug 1072149 family after these attr repairs. Preserve shared wrappers,
    promises, memberships and worker publication; its build/browser gates are open.
-5. Keep every accepted repair independently reviewable in CURRENT-COMMITS.json,
+6. Keep every accepted repair independently reviewable in CURRENT-COMMITS.json,
    with proof/tooling preceding its standalone native/WPT commit. Full closure
    requirements remain in the linked checklist.
 
@@ -36,7 +41,7 @@ close these obligations.
 
 ## Latest commit and proof checkpoint
 
-There are 56 signed standalone native/WPT fixes. Worker font removal is now
+There are 57 signed standalone native/WPT fixes. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
@@ -2962,3 +2967,14 @@ source review, paired browser results and build support the native integration.
 Full parser and SCC correctness remain open. FontFace provider integration has
 a sealed source-readiness report, but no native build or browser acceptance yet;
 it is the original producer's second pass, not independent implementation review.
+
+## Attribute graph admission checkpoint
+
+`3892ab844694fedd987f5ce1dd2165f53fc2dbed` repairs attr-only collection with one three-line deletion.
+Across 217 paired result rows, four failures improve and 213 outcomes are
+unchanged. The separate metadata-loss diagnostic remains at three failures.
+The generic typed-eligibility model did not automatically discover these bugs:
+manual admission analysis identified the missing collection and summary paths,
+then browser probes confirmed the predictions. Full SCC correctness remains open.
+FontFace now has an independent sealed source review; expanded window/worker
+WPT preparation is underway before fresh baseline, integration and platform gates.

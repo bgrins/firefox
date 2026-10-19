@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **56 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **57 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -55,6 +55,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | attr-fallback-preparation | `7822bb6d17b1381cdb3e56deb20c5ec3e078adec` | `31265260cc3daa2bbea93c237a9491b6f2afcaa4` |
 | mathml-token-range-origin | `f843fd7568f30e14e664c37c36544d8d88e8c1bb` | `6eb5a90e3fa3b6128ddd6397d9dae9f1ab34b88d` |
 | attr-typed-fallback-eligibility | `e3ba54f6f826fe265eb5bc4731f66f64465dd47c` | `30c8dfeb4b746104b53ad5bc6440c1d53734f570` |
+| attr-noncustom-dependency-collection | `3892ab844694fedd987f5ce1dd2165f53fc2dbed` | `0db19774e6f2bf6692790459f8e6e54ca426e366` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1386,3 +1387,16 @@ The exact isolated patch excludes unrelated experiments; browser pairing used
 the shared tree. Additional parse cost is unmeasured.
 See [acceptance](../css-attr-typed-eligibility-browser-v1/ROOT-SCOPED-ACCEPTANCE-v1.json)
 and [commit check](../css-attr-typed-eligibility-browser-v1/ROOT-COMMIT-CHECK-v1.json).
+
+## Attribute-only non-custom dependencies committed
+
+`3892ab844694fedd987f5ce1dd2165f53fc2dbed` deletes the lexical-VAR early return in
+`Cascade::maybe_note_non_custom_dependency` and adds a ten-case WPT.
+Review/browser companion: `0db19774e6f2bf6692790459f8e6e54ca426e366`.
+The ten new and 183 prior checks pass. Four baseline failures improve across
+the scoped WPT and diagnostic; three resolved-unit metadata failures remain.
+Build passes; warning-enabled lint has zero errors and one ignored-WPT warning.
+Independent syntax and source/oracle review pass. No new native graph theorem
+is claimed; discovery came from manual analysis of formal admission gaps.
+See [acceptance](../css-attr-noncustom-browser-v1/ROOT-SCOPED-ACCEPTANCE-v1.json)
+and [commit check](../css-attr-noncustom-browser-v1/ROOT-COMMIT-CHECK-v1.json).
