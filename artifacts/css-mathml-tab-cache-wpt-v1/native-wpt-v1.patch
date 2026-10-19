@@ -1,0 +1,181 @@
+--- a/layout/generic/nsTextFrame.cpp
++++ b/layout/generic/nsTextFrame.cpp
+@@ -3313,17 +3313,22 @@
+   const nsStyleText* textStyle = StyleText();
+   // Note that pre-line newlines should still allow us to trim spaces
+   // for display
+-  if (textStyle->WhiteSpaceIsSignificant()) {
++  const bool isMathMLToken = HasAnyStateBits(TEXT_IS_IN_TOKEN_MATHML);
++  if (textStyle->WhiteSpaceIsSignificant() && !isMathMLToken) {
+     return offsets;
+   }
+ 
+   if (!(aFlags & TrimmedOffsetFlags::NoTrimBefore) &&
+       ((aFlags & TrimmedOffsetFlags::NotPostReflow) ||
+-       HasAnyStateBits(TEXT_START_OF_LINE))) {
++       HasAnyStateBits(TEXT_START_OF_LINE) || isMathMLToken)) {
+     int32_t whitespaceCount = GetTrimmableWhitespaceCount(
+         aBuffer, offsets.mStart, offsets.mLength, 1);
+     offsets.mStart += whitespaceCount;
+     offsets.mLength -= whitespaceCount;
++  }
++
++  if (textStyle->WhiteSpaceIsSignificant()) {
++    return offsets;
+   }
+ 
+   if (!(aFlags & TrimmedOffsetFlags::NoTrimAfter) &&
+--- /dev/null
++++ b/testing/web-platform/tests/mathml/relations/css-styling/token-leading-whitespace-range.html
+@@ -0,0 +1,59 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>MathML token character ranges with leading whitespace</title>
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-range-getclientrects">
++<link rel="stylesheet" href="/fonts/ahem.css">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++math, mtext {
++  font: 20px/1 Ahem;
++  font-synthesis: none;
++  font-kerning: none;
++  font-variant: normal;
++  text-transform: none;
++  letter-spacing: 0;
++  word-spacing: 0;
++  direction: ltr;
++}
++</style>
++<div id="fixtures"></div>
++<script>
++function token(text, whiteSpace, tabSize) {
++  const math = document.createElementNS("http://www.w3.org/1998/Math/MathML", "math");
++  const mtext = document.createElementNS(math.namespaceURI, "mtext");
++  mtext.style.whiteSpace = whiteSpace;
++  mtext.style.tabSize = tabSize;
++  mtext.textContent = text;
++  math.append(mtext);
++  const row = document.createElement("div");
++  row.append(math);
++  document.getElementById("fixtures").append(row);
++  return mtext.firstChild;
++}
++function width(node, offset) {
++  const range = document.createRange();
++  range.setStart(node, offset);
++  range.setEnd(node, offset + 1);
++  return range.getBoundingClientRect().width;
++}
++const ready = document.fonts.load("20px Ahem");
++for (const whiteSpace of ["normal", "pre"]) {
++  for (const tabSize of [4, 8]) {
++    const a = token("A", whiteSpace, tabSize);
++    const b = token("B", whiteSpace, tabSize);
++    for (const prefix of ["", " ", "\t", "\t\t"]) {
++      const text = prefix + "A\tB";
++      const node = token(text, whiteSpace, tabSize);
++      promise_test(async () => {
++        await ready;
++        await document.fonts.ready;
++        assert_approx_equals(width(a, 0), 20, 0.02, "A calibration");
++        assert_approx_equals(width(b, 0), 20, 0.02, "B calibration");
++        assert_approx_equals(width(node, text.indexOf("A")), width(a, 0), 0.02, "A range");
++        assert_approx_equals(width(node, text.indexOf("B")), width(b, 0), 0.02, "B range");
++      }, `Character ranges with ${JSON.stringify(prefix)}, ${whiteSpace}, tab-size ${tabSize}`);
++    }
++  }
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/mathml/relations/css-styling/token-whitespace-range-controls.html
+@@ -0,0 +1,89 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>MathML token ranges after newline and whitespace reconstruction</title>
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-range-getclientrects">
++<link rel="help" href="https://w3c.github.io/mathml-core/#css-styling">
++<link rel="stylesheet" href="/fonts/ahem.css">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++math, mtext {
++  font: 20px/1 Ahem;
++  font-synthesis: none;
++  font-kerning: none;
++  font-variant: normal;
++  text-transform: none;
++  letter-spacing: 0;
++  word-spacing: 0;
++  direction: ltr;
++}
++</style>
++<div id="fixtures"></div>
++<script>
++function token(text, whiteSpace, tabSize) {
++  const math = document.createElementNS("http://www.w3.org/1998/Math/MathML", "math");
++  const mtext = document.createElementNS(math.namespaceURI, "mtext");
++  mtext.style.whiteSpace = whiteSpace;
++  mtext.style.tabSize = tabSize;
++  mtext.textContent = text;
++  math.append(mtext);
++  const row = document.createElement("div");
++  row.append(math);
++  document.getElementById("fixtures").append(row);
++  return mtext.firstChild;
++}
++function width(node, offset) {
++  const range = document.createRange();
++  range.setStart(node, offset);
++  range.setEnd(node, offset + 1);
++  return range.getBoundingClientRect().width;
++}
++const ready = document.fonts.load("20px Ahem");
++const cases = [
++  ["leading newline", "\n\tA\tB", null],
++  ["interior newline", " A\n\tB", null],
++  ["trailing tab", "\tA\tB\t", null],
++  ["newline-only prefix reconstruction", "\tA\tB\t", "\t \n"],
++  ["tab-only reconstruction", " A\n\tB", "\t\t"],
++];
++for (const whiteSpace of ["normal", "pre"]) {
++  for (const [label, text, initial] of cases) {
++    promise_test(async t => {
++      await ready;
++      await document.fonts.ready;
++      const nodes = [];
++      function make(value) {
++        const node = token(value, whiteSpace, 8);
++        nodes.push(node);
++        return node;
++      }
++      t.add_cleanup(() => {
++        for (const node of nodes) {
++          node.parentNode.parentNode.parentNode.remove();
++        }
++      });
++      const a = make("A");
++      const b = make("B");
++      const node = make(initial === null ? text : initial);
++      if (initial !== null) {
++        const range = document.createRange();
++        range.selectNodeContents(node);
++        const rect = range.getBoundingClientRect();
++        assert_true(Number.isFinite(rect.width) && rect.width >= 0,
++                    "Whitespace range has a finite nonnegative width");
++        node.data = text;
++      }
++      const fresh = make(text);
++      for (const [letter, calibration] of [["A", a], ["B", b]]) {
++        assert_approx_equals(width(calibration, 0), 20, 0.02,
++                             `${letter} calibration`);
++        assert_approx_equals(width(node, text.indexOf(letter)), 20, 0.02,
++                             `${letter} range`);
++        assert_approx_equals(width(node, text.indexOf(letter)),
++                             width(fresh, text.indexOf(letter)), 0.02,
++                             `${letter} matches fresh token`);
++      }
++    }, `${label}, ${whiteSpace}`);
++  }
++}
++</script>

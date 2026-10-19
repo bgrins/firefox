@@ -1,0 +1,27 @@
+--- a/layout/generic/nsTextFrame.cpp
++++ b/layout/generic/nsTextFrame.cpp
+@@ -3331,17 +3331,22 @@
+   const nsStyleText* textStyle = StyleText();
+   // Note that pre-line newlines should still allow us to trim spaces
+   // for display
+-  if (textStyle->WhiteSpaceIsSignificant()) {
++  const bool isMathMLToken = HasAnyStateBits(TEXT_IS_IN_TOKEN_MATHML);
++  if (textStyle->WhiteSpaceIsSignificant() && !isMathMLToken) {
+     return offsets;
+   }
+ 
+   if (!(aFlags & TrimmedOffsetFlags::NoTrimBefore) &&
+       ((aFlags & TrimmedOffsetFlags::NotPostReflow) ||
+-       HasAnyStateBits(TEXT_START_OF_LINE))) {
++       HasAnyStateBits(TEXT_START_OF_LINE) || isMathMLToken)) {
+     int32_t whitespaceCount = GetTrimmableWhitespaceCount(
+         aBuffer, offsets.mStart, offsets.mLength, 1);
+     offsets.mStart += whitespaceCount;
+     offsets.mLength -= whitespaceCount;
++  }
++
++  if (textStyle->WhiteSpaceIsSignificant()) {
++    return offsets;
+   }
+ 
+   if (!(aFlags & TrimmedOffsetFlags::NoTrimAfter) &&
