@@ -1,0 +1,126 @@
+{
+  "status": "ACCEPTED_SCOPED_REPAIR",
+  "repair": "identifier-start-escaped-newline",
+  "native_patch": {
+    "path": "artifacts/css-tokenizer-escaped-newline-root-v1/native-wpt.patch",
+    "sha256": "b6f301306d3b5981cf36e6be94d9a62a587316019438a576e3ca47e3407c3f8d"
+  },
+  "formal_companion_commit": "fe127ff2a0b8",
+  "predicate_theorem_audits": 8,
+  "independent_review_freeze": "7ab697d5a80ec23f435b8b2900791ec4c87b9429476ce88a7eca6bc9d29ec363",
+  "root_fresh_replay_exit": 0,
+  "build_phases": [
+    {
+      "phase": "clean-parser",
+      "command": [
+        "/Users/bgrins/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+        "--config",
+        "objdir-full.noindex/.cargo/config.toml",
+        "clean",
+        "--offline",
+        "-p",
+        "cssparser",
+        "--release",
+        "--target",
+        "aarch64-apple-darwin",
+        "--target-dir",
+        "objdir-full.noindex"
+      ],
+      "exit_code": 0,
+      "started": 1792432456.4019132,
+      "ended": 1792432463.1698,
+      "log_sha256": "4907268b9e8eebef5c15c58cc3bdfc5c4a22535656971968ee925cbe26179d91"
+    },
+    {
+      "phase": "force-rust",
+      "command": [
+        "/Users/bgrins/venvs/firefox/bin/python",
+        "./mach",
+        "build",
+        "--allow-subdirectory-build",
+        "toolkit/library/rust/force-cargo-library-build"
+      ],
+      "exit_code": 0,
+      "started": 1792432463.179447,
+      "ended": 1792432500.358855,
+      "log_sha256": "c94aae3df52755d921bbac677ade9721fed82523167eb853515d5728100d1a1b"
+    },
+    {
+      "phase": "link",
+      "command": [
+        "/Users/bgrins/venvs/firefox/bin/python",
+        "./mach",
+        "build",
+        "binaries"
+      ],
+      "exit_code": 0,
+      "started": 1792432500.359712,
+      "ended": 1792432536.4158778,
+      "log_sha256": "80f7d41511038df54c9ca3186ea1f3991926b646bf2d466115e17c8cb9337f4c"
+    }
+  ],
+  "browser_pair": {
+    "status": "PASS",
+    "exit_code": 0,
+    "checks": 21,
+    "improvements": [
+      [
+        "test_status",
+        "/css/css-syntax/identifier-start-escaped-newline.html",
+        "Invalid escaped LF after a hyphen does not form an at-keyword"
+      ],
+      [
+        "test_status",
+        "/css/css-syntax/identifier-start-escaped-newline.html",
+        "Invalid escaped CR after a hyphen does not form an at-keyword"
+      ],
+      [
+        "test_status",
+        "/css/css-syntax/identifier-start-escaped-newline.html",
+        "Invalid escaped CRLF after a hyphen does not form an at-keyword"
+      ],
+      [
+        "test_status",
+        "/css/css-syntax/identifier-start-escaped-newline.html",
+        "Invalid escaped FF after a hyphen does not form an at-keyword"
+      ]
+    ],
+    "unchanged_checks": 17,
+    "new_wpt_pass": 11,
+    "prior_regression_checks": 9,
+    "prior_expected_failures": 4,
+    "pins_stable": true,
+    "raw_sha256": "e8c4d091ffac1d1793406052c225c546d1744b6eb9d314832df5729cd77ff849",
+    "console_sha256": "57d82d5b22229e45849948056d672e07e08fa85dfaf6e4c4fe62f71e66ba0c39",
+    "runtime_scope": "Shared experimental tree; no isolated-base run"
+  },
+  "changed_fixed_inputs": [
+    "third_party/rust/cssparser/.cargo-checksum.json",
+    "third_party/rust/cssparser/src/tokenizer.rs"
+  ],
+  "lint": {
+    "exit_code": 1,
+    "session": 1408,
+    "errors": 0,
+    "warnings": 1,
+    "warning": "ESLint ignored WPT file",
+    "log_sha256": "4601e89054090e532da0eeef5e03f59a36ac9187c254918f9c1fa4d4195703a6"
+  },
+  "standalone": {
+    "patch": "artifacts/css-tokenizer-escaped-newline-standalone-v1/fix-upstream-v1.patch",
+    "sha256": "1890e4836a868730cba61df19bfae2c8eb76fcb4735ef4e2ba6299cfaf36f2bb",
+    "semantic_dependency": "None; earlier URL repair only conflicts with complete-file checksum",
+    "source_apply_reverse": "PASS",
+    "isolated_base_build_browser": "NOT RUN"
+  },
+  "discovery": "Manual source/spec audit during model construction, then Lean witnesses and browser reproduction.",
+  "limits": [
+    "Finite browser matrix and reviewed Rust-to-model correspondence; no whole-tokenizer proof.",
+    "UTF-8 representation, native arithmetic, compiler and allocation remain external assumptions.",
+    "Shared experimental runtime tree, not an isolated-base build."
+  ],
+  "rejected_attempts": [
+    "Initial mach build binaries reused stale parser library; browser still 4FAIL/7PASS.",
+    "Targeted cargo clean initially rejected missing vendor configuration in offline mode; retry used generated Cargo config."
+  ]
+}
