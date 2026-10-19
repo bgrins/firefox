@@ -221,14 +221,17 @@ pub fn mix_many(
     for item in rest {
         let weight = item.weight * weight_scale;
         let combined = accumulated_weight + weight;
-        if combined == 0.0 {
-            // If both are 0, this fold doesn't contribute anything to the result.
+        if !normalize && combined == 0.0 {
             continue;
         }
         let right = convert_for_mix(&item.color, interpolation.space);
 
         let (left_weight, right_weight) = if normalize {
-            (accumulated_weight / combined, weight / combined)
+            if combined == 0.0 {
+                (0.5, 0.5)
+            } else {
+                (accumulated_weight / combined, weight / combined)
+            }
         } else {
             (accumulated_weight, weight)
         };
