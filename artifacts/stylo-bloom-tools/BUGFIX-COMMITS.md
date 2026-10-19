@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **63 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **64 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -62,6 +62,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | loaded-fontface-descriptors | `6bd0b00dcff5514a3234423787920ed44491a4bc` | `ae298df56390ff98baa873bfcea3896e6c112d48` |
 | numeric-compensated-exponent | `4391deb4751a8be2be98e838360f00c94808c5d5` | `ddb1799ad54ecdd4528ee894b09c44e80bd6816b` |
 | quoted-eof-fallback-endpoints | `2d658a9c5aa4139dc7f196933511abf4a594163f` | `5faa99644ddc4b49594651a34721119484ec88ef` |
+| quoted-eof-backslash-parity | `89bad2d8b5260ad5fc9d5660a3a18a09433902e3` | `5e0f8696a8de0b931b2aa679457683e3f881ecb8` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -76,6 +77,19 @@ not close the full parser/provider model. Parity and escaped-quote value defects
 remain separate pending repairs. See
 [acceptance](../css-quoted-eof-offset-root-v1/ROOT-SCOPED-ACCEPTANCE.json) and
 [commit check](../css-quoted-eof-offset-root-v1/ROOT-COMMIT-CHECK.json).
+
+## Quoted EOF backslash parity repair
+
+Stack commit: `89bad2d8b5260ad5fc9d5660a3a18a09433902e3`; companion: `5e0f8696a8de0b931b2aa679457683e3f881ecb8`.
+For independent landing without the endpoint repair, use
+`d4a792717bddfb6f757327b5ac23af3e3e96555f` on `stylo-css-quoted-eof-parity-fix`,
+following companion `62e25919335875d7db961f1d30c55bf74ab240a1`.
+Both contain only the applicable Rust predicate change and the same WPT.
+Four failures become 18 passes; 50 other outcomes remain unchanged. The standalone
+patch applies/reverses at upstream base but was not separately browser-built.
+Conditional terminal-run proofs preserve explicit tokenizer/native assumptions.
+See [acceptance](../css-quoted-eof-parity-root-v1/ROOT-SCOPED-ACCEPTANCE.json)
+and [commit check](../css-quoted-eof-parity-root-v1/ROOT-COMMIT-CHECK.json).
 
 ## Test-only corrections
 
