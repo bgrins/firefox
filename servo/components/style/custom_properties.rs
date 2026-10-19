@@ -1647,6 +1647,7 @@ pub fn substitute_references_if_needed_and_apply(
                     remove_and_insert_initial_value(
                         name,
                         registration,
+                        stylist.get_custom_property_initial_values(),
                         &mut context.builder.substitution_functions,
                     );
                 },
@@ -1816,16 +1817,16 @@ fn compute_value(
     )
 }
 
-/// Removes the named registered custom property and inserts its uncomputed initial value.
+/// Removes the named registered custom property and inserts its computed initial value.
 pub(crate) fn remove_and_insert_initial_value(
     name: &Name,
     registration: &PropertyDescriptors,
+    initial_values: &ComputedCustomProperties,
     substitution_functions: &mut ComputedSubstitutionFunctions,
 ) {
     substitution_functions.remove_var(registration, name);
-    if let Some(ref initial_value) = registration.initial_value {
-        let value = ComputedRegisteredValue::universal(Arc::clone(initial_value));
-        substitution_functions.insert_var(registration, name, value);
+    if let Some(value) = initial_values.get(registration, name) {
+        substitution_functions.insert_var(registration, name, value.clone());
     }
 }
 

@@ -1840,6 +1840,7 @@ impl<'a> Cascade<'a> {
                         remove_and_insert_initial_value(
                             name,
                             registration,
+                            initial_values,
                             &mut context.builder.substitution_functions,
                         );
                     },
