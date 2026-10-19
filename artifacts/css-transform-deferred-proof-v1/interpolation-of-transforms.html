@@ -1,0 +1,84 @@
+<h2 class="heading settled" data-level="9" id="interpolation-of-transforms"><span class="secno">9. </span><span class="content">Interpolation of Transforms</span><a class="self-link" href="#interpolation-of-transforms"></a></h2>
+   <p><a data-link-type="dfn" href="https://drafts.csswg.org/css-values-4/#interpolation" id="ref-for-interpolation">Interpolation</a> of transform function lists is performed as follows:</p>
+   <ul>
+    <li id="none-none-interpolation">
+     <a class="self-link" href="#none-none-interpolation"></a>
+    If both <var>V<sub>a</sub></var> and <var>V<sub>b</sub></var>
+    are <span class="css">none</span>:
+
+     <ul>
+      <li data-md>
+       <p><var>V<sub>result</sub></var> is <span class="css">none</span>.</p>
+     </ul>
+    <li id="transform-interpolation-length-fixup">
+     <a class="self-link" href="#transform-interpolation-length-fixup"></a>
+    Treating <span class="css">none</span> as a list of zero length,
+    if <var>V<sub>a</sub></var> or <var>V<sub>b</sub></var> differ in length:
+
+     <ul>
+      <li data-md>
+       <p>extend the shorter list to the length of the longer list,
+setting the function at each additional position
+to the <a data-link-type="dfn" href="#identity-transform-function" id="ref-for-identity-transform-function">identity transform function</a> matching
+the function at the corresponding position in the longer list.
+Both transform function lists are then interpolated
+following the next rule.</p>
+     </ul>
+     <div class="example" id="example-fa107865"><a class="self-link" href="#example-fa107865"></a>
+        For example, if <var>V<sub>a</sub></var> is <span class="css">scale(2)</span>
+        and <var>V<sub>b</sub></var> is <span class="css">none</span>
+        then the value <span class="css">scale(1)</span> will be used for <var>V<sub>b</sub></var>
+        and interpolation will proceed using the next rule.
+        Similarly, if <var>V<sub>a</sub></var> is <span class="css">scale(1)</span>
+        and <var>V<sub>b</sub></var> is <span class="css">scale(2) rotate(50deg)</span>
+        then the interpolation will be performed as if
+        <var>V<sub>a</sub></var> were <span class="css">scale(1) rotate(0)</span>.
+    </div>
+    <li>
+     
+    Let <var>V<sub>result</sub></var> be an empty list.
+    Beginning at the start of
+    <var>V<sub>a</sub></var> and <var>V<sub>b</sub></var>,
+    compare the corresponding functions at each position:
+
+     <ul>
+      <li data-md>
+       <p>While the functions have either the same name,
+or are derivatives of the same
+<a href="#transform-primitives">primitive transform function</a>,
+interpolate the corresponding pair of functions as described in
+<a href="#interpolation-of-transform-functions">§ 10 Interpolation of primitives and derived transform functions</a>
+and append the result to <var>V<sub>result</sub></var>.</p>
+      <li data-md>
+       <p>If the pair do not have a common name
+or <a href="#transform-primitives">primitive transform function</a>,
+post-multiply the remaining transform functions in each of
+<var>V<sub>a</sub></var> and <var>V<sub>b</sub></var> respectively
+to produce two 4x4 matrices.
+<a data-link-type="dfn" href="https://drafts.csswg.org/css-values-4/#interpolation" id="ref-for-interpolation①">Interpolate</a> these two matrices as described in
+<a href="#matrix-interpolation">§ 11 Interpolation of Matrices</a>,
+append the result to <var>V<sub>result</sub></var>,
+and cease iterating over
+<var>V<sub>a</sub></var> and <var>V<sub>b</sub></var>.</p>
+     </ul>
+     <div class="example" id="example-922432e3">
+      <a class="self-link" href="#example-922432e3"></a>
+        For example,
+        if <var>V<sub>a</sub></var> is <span class="css">rotate(0deg) scale(1) translate(20px)</span>
+        and <var>V<sub>b</sub></var> is <span class="css">rotate(270deg) translate(10px) scale(2)</span>,
+        the <span class="css">rotate(0deg)</span> and <span class="css">rotate(360deg)</span> functions will be interpolated
+        according to <a href="#interpolation-of-transform-functions">§ 10 Interpolation of primitives and derived transform functions</a>
+        while the remainder of each list—​<span class="css">scale(1) translate(20px)</span> and <span class="css">translate(10px) scale(2)</span>—​will first be converted to equivalent 4x4 matrices
+        and then interpolated as described in <a href="#matrix-interpolation">§ 11 Interpolation of Matrices</a>.
+
+
+      <p>A previous version of this specification
+        did not attempt to interpolate matching pairs of transform functions
+        unless all functions in the list matched.
+        As a result, the two lists in this example would be interpolated
+        using matrix interpolation only
+        and the <span class="css">rotate(360deg)</span> component of the second list would be lost.</p>
+     </div>
+   </ul>
+   <p>In some cases, an animation might cause a transformation matrix to be singular or non-invertible. For example, an animation in which scale moves from 1 to -1. At the time when the matrix is in such a state, the transformed element is not rendered.</p>
+   

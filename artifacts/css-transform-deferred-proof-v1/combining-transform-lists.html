@@ -1,0 +1,64 @@
+<h2 class="heading settled" data-level="15" id="combining-transform-lists"><span class="secno">15. </span><span class="content">Addition and accumulation of transform lists</span><a class="self-link" href="#combining-transform-lists"></a></h2>
+   <div class="algorithm" data-algorithm="transform list addition">
+	<a data-link-type="dfn" href="https://drafts.csswg.org/css-values-4/#addition" id="ref-for-addition">Addition</a> of two transform lists
+	<var>V<sub>a</sub></var> and <var>V<sub>b</sub></var>
+	is defined as <a data-link-type="dfn" href="https://infra.spec.whatwg.org/#list" id="ref-for-list">list</a> concatenation
+	such that <var>V<sub>result</sub></var> is equal to
+	<var>V<sub>b</sub></var> <a data-link-type="dfn" href="https://infra.spec.whatwg.org/#list-append" id="ref-for-list-append">appended</a> to
+	<var>V<sub>a</sub></var>.
+</div>
+   <div class="algorithm" data-algorithm="transform list accumulation">
+    
+	<a data-link-type="dfn" href="https://drafts.csswg.org/css-values-4/#accumulation" id="ref-for-accumulation">Accumulation</a> of two transform lists
+	<var>V<sub>a</sub></var> and <var>V<sub>b</sub></var>
+	follows the same steps as interpolation
+	with regards to matching transform functions including
+	padding lists with <a data-link-type="dfn" href="#identity-transform-function" id="ref-for-identity-transform-function">identity transform functions</a>,
+	converting <span class="css">none</span> to an <span id="ref-for-identity-transform-function①">identity transform function</span>,
+	and converting both arguments to matrices as necessary (see
+	<a href="https://drafts.csswg.org/css-transforms-1/#interpolation-of-transforms"><cite>CSS Transforms 1</cite> § 9 Interpolation of Transforms</a>).
+	However, instead of interpolating the individual parameters,
+	they are combined using arithmetic addition—​except in the case of parameters whose value is one in the
+	<span id="ref-for-identity-transform-function②">identity transform function</span>
+	(e.g. scale parameters and matrix elements
+	<var>m11</var>, <var>m22</var>,
+	<var>m33</var>, and <var>m44</var>),
+	which combine using <dfn class="dfn-paneled" data-dfn-type="dfn" data-export id="accumulation-for-one-based-values">accumulation for one-based values</dfn>
+	as follows:
+
+
+    <p><var>V<sub>result</sub></var> =
+		<var>V<sub>a</sub></var> + <var>V<sub>b</sub></var> - 1</p>
+    <div class="note" role="note">
+     
+		The above definition preserves the intent of <a data-link-type="dfn" href="https://drafts.csswg.org/css-values-4/#accumulation" id="ref-for-accumulation①">accumulation</a> which is that
+		<var>V<sub>b</sub></var> acts as
+		a delta from <var>V<sub>a</sub></var>
+		and allows an animation such as:
+
+		
+<pre class="highlight lang-javascript">div<c- p>.</c->animate<c- p>(</c->
+  <c- p>{</c-> transform<c- o>:</c-> <c- p>[</c-><c- t>'scale(1)'</c-><c- p>,</c-> <c- t>'scale(2)'</c-><c- p>]</c-> <c- p>},</c->
+  <c- p>{</c->
+    duration<c- o>:</c-> <c- mf>1000</c-><c- p>,</c->
+    easing<c- o>:</c-> <c- t>'ease'</c-><c- p>,</c->
+  <c- p>}</c->
+<c- p>);</c->
+</pre>
+     <p>to produce the expected behavior when extended as follows:</p>
+<pre class="highlight lang-javascript">div<c- p>.</c->animate<c- p>(</c->
+  <c- p>{</c-> transform<c- o>:</c-> <c- p>[</c-><c- t>'scale(1)'</c-><c- p>,</c-> <c- t>'scale(2)'</c-><c- p>]</c-> <c- p>},</c->
+  <c- p>{</c->
+    duration<c- o>:</c-> <c- mf>1000</c-><c- p>,</c->
+    easing<c- o>:</c-> <c- t>'ease'</c-><c- p>,</c->
+    <strong>iterations<c- o>:</c-> <c- mf>5</c-><c- p>,</c->
+    iterationComposite<c- o>:</c-> <c- t>'accumulate'</c-><c- p>,</c-></strong>
+  <c- p>}</c->
+<c- p>);</c->
+</pre>
+    </div>
+   </div>
+   <h3 class="heading settled" data-level="15.1" id="neutral-element"><span class="secno">15.1. </span><span class="content">Neutral element for addition</span><a class="self-link" href="#neutral-element"></a></h3>
+   <p>Some animations require a neutral element for addition. For transform functions this is a scalar or a list of scalars of 0. Examples of neutral elements for transform functions are <span class="css">translate(0)</span>, <span class="css">translate3d(0, 0, 0)</span>, <span class="css">translateX(0)</span>, <span class="css">translateY(0)</span>, <span class="css">translateZ(0)</span>, <span class="css">scale(0)</span>, <span class="css">scaleX(0)</span>, <span class="css">scaleY(0)</span>, <span class="css">scaleZ(0)</span>, <span class="css">rotate(0)</span>, <span class="css">rotate3d(v<sub>x</sub>, v<sub>y</sub>, v<sub>z</sub>, 0)</span> (where <var>v</var> is a context dependent vector), <span class="css">rotateX(0)</span>, <span class="css">rotateY(0)</span>, <span class="css">rotateZ(0)</span>, <span class="css">skew(0, 0)</span>, <span class="css">skewX(0)</span>, <span class="css">skewY(0)</span>, <span class="css">matrix(0, 0, 0, 0, 0, 0)</span>, <span class="css">matrix3d(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)</span> and <span class="css">perspective(none)</span>.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> Animations to or from the neutral element of additions <a class="css production" data-link-type="function" href="https://drafts.csswg.org/css-transforms-1/#funcdef-transform-matrix" id="ref-for-funcdef-transform-matrix⑤">&lt;matrix()></a>, <a class="css" data-link-type="maybe" href="#funcdef-matrix3d" id="ref-for-funcdef-matrix3d⑤">matrix3d()</a> and <a class="css" data-link-type="maybe" href="#funcdef-perspective" id="ref-for-funcdef-perspective⑤">perspective()</a> fall back to discrete animations (See <a href="#matrix-interpolation">§ 13 Interpolation of Matrices</a>).</p>
+   
