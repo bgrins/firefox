@@ -356,3 +356,30 @@ actual stylesheet publication trace is established. All twelve original
 obligations remain scoped, and the native/WPT fix count stays 66.
 
 Evidence: `../css-parser-cache-observer-root-v1/ROOT-ACCEPTANCE.json`.
+
+## Whole-value declaration structure checkpoint
+
+The declaration fallback repair is supported by 27 kernel-audited component
+lemmas. The native-shaped scan accepts exactly sequences without a top-level
+curly component or a single curly component. Recursive children are retained
+and not flattened. Rewind validation is independent of the consumed complete
+component prefix; a suffix-only counterexample is proved. Saved-query Boolean
+retention and fallback publication compose with explicit provider premises.
+
+Fresh source-only replays execute six helper variants with 57 rows each. Four
+native semantic mutations discriminate against the candidate and have successful
+Lean witnesses; these are not failed-compilation Lean mutation tests. Of the 18
+original forbidden gateways, nine use the comma callback and nine an injected
+successful callback. The candidate has zero. The real Firefox pair repairs 24
+failures; all 48 new and 41 existing subtests pass. Five tamper checks reject
+before replay starts. Native and formal independent reviews preserve scope.
+
+Recovery partitions complete projected components, not arbitrary native byte
+cursors. Raw tokenizer/pending-block/reset mapping, actual VariableValue
+validation, generated property grammars and ordinary successful publication,
+compiler/heap semantics and full CSS conformance remain open. scanSteps bounds
+modeled top-level visits only, not native bytes or nested-tokenization work.
+The accepted cache-epoch component supplies relevant prior reasoning; its old
+whole-file source binding is not silently treated as the new file's proof.
+
+Evidence: `../css-declaration-curly-root-v1/ROOT-SCOPED-ACCEPTANCE.json`.

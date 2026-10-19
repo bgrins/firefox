@@ -1,0 +1,130 @@
+# Bug 2077906 - Rules hides declarations after a custom property with a balanced curly block value
+
+## Basic Information
+- **Status**: RESOLVED
+- **Severity**: S3
+- **Product**: DevTools
+- **Component**: Inspector: Rules
+- **Version**: Firefox 159
+- **Platform**: x86_64
+- **OS**: Linux
+- **Created**: 2026-10-04T11:08:56Z
+- **Last Updated**: 2026-10-14T12:45:40Z
+
+## People Involved
+- **Reporter**: Nguyen Tuan Hung (nguyentuanhung1149@gmail.com)
+- **Assignee**: Nicolas Chevobbe [:nchevobbe][PTO - back October 26] (nchevobbe@mozilla.com)
+- **CC Count**: 1 people
+
+## Bug Timeline
+
+**2026-10-04 11:08:56** - Comment #0 by nguyentuanhung1149@gmail.com
+Reporter credit: Nguyen Tuan Hung (nguyentuanhung1149@gmail.com), VNU HCM - UIT.
+
+The Inspector Rules view can show an applied CSS style rule with no declarations when a custom property starts with a balanced `{ ... }` value. It also hides otherwise valid declarations after the custom property. Because those declarations have no Rules editors, they cannot be edited there or tracked through the normal Inspector Changes workflow.
+
+Minimal testcase:
+
+<style>
+div { --payload: { a: b; c: d }; color: red; margin: 0; }
+</style>
+<div id="test">sample</div>
+
+Steps to reproduce:
+1. Load the testcase in Firefox.
+2. Inspect `#test` and look at the `div` rule in the Rules view.
+3. Compare the displayed declarations with `document.styleSheets[0].cssRules[0].style` in the page console.
+
+Actual: The `div` rule is shown with zero declarations. CSSOM retains `--payload` as `{ a: b; c: d }`, `color` as `red`, and `margin` as `0px`; the element's computed color is red. The three authored declarations are absent from Rules.
+
+Expected: Rules shows the custom property and the following `color` and `margin` declarations, allowing the latter two to be edited normally.
+
+This CSS is valid. CSS Custom Properties Level 1 permits balanced blocks and semicolons inside a custom property's value; the semicolons in this testcase are inside the `{ ... }` block. See https://www.w3.org/TR/css-variables-1/#syntax . The live Firefox CSSOM and computed style independently confirm that the declarations parsed and applied.
+
+Reproduced in two fresh Firefox Nightly 159.0a1 profiles and one fresh Firefox 157.0 profile on Linux. The attached browser-chrome regression test passes six CSSOM/live-rule checks and fails only the assertion that Rules shows the three authored declarations. Attached are the standalone test patch and three-run evidence.
+
+Likely cause: `parseDeclarationsInternal()` in `devtools/shared/css/parsing-utils.js` treats every top-level `CurlyBracketBlock` token as the start of a nested rule when `currentBlocks` is empty. It does not check that a custom property's value is already in progress (`lastProp.isCustomProperty`). It then discards that declaration and stops parsing before `color` and `margin`. This code remains in the latest Firefox main revision checked on 2026-10-04.
+
+Duplicate check: Reviewed 2,112 public Inspector: Rules summaries and targeted public searches for custom properties, braces, blocks and declaration parsing. Bug 1544223 was fixed for a complex custom-property block nested inside parentheses, where semicolons produced bogus declarations; this minimal bare `{ ... }` value now causes the nested-rule detection to discard the custom property and all following declarations. Bugs 1841502 and 1946445 concern different shorthand fallback or actual nested-rule behavior.
+
+This is a functional DevTools defect (S3). No security impact is claimed.
+
+---
+
+**2026-10-04 11:08:59** - Comment #1 by nguyentuanhung1149@gmail.com
+Created attachment 9652563
+Failing browser-chrome regression test for block-valued custom property
+
+---
+
+**2026-10-04 11:09:01** - Comment #2 by nguyentuanhung1149@gmail.com
+Created attachment 9652564
+Two Nightly and one Release real-browser Rules/CSSOM comparison
+
+---
+
+**2026-10-06 14:40:54** - Comment #3 by nchevobbe@mozilla.com
+Created attachment 9653684
+Bug 2077906 - [devtools] Handle custom property declaration with curly brackets in their value. r=#devtools
+
+**2026-10-06 14:40:54** - Changes by phab-bot@bmo.tld
+  - status: 'UNCONFIRMED' → 'ASSIGNED'
+  - is_confirmed: '0' → '1'
+  - assigned_to: 'nobody@mozilla.org' → 'nchevobbe@mozilla.com'
+
+---
+
+**2026-10-06 14:41:39** - Changes by nchevobbe@mozilla.com
+  - priority: '--' → 'P3'
+
+---
+
+**2026-10-06 16:29:35** - Comment #4 by jdescottes@mozilla.com
+Please do not set severity or priority when filing bugs, this messes up with triage.
+
+**2026-10-06 16:29:35** - Changes by jdescottes@mozilla.com
+  - severity: 'S3' → '--'
+
+---
+
+**2026-10-06 16:33:00** - Changes by jdescottes@mozilla.com
+  - severity: '--' → 'S3'
+
+---
+
+**2026-10-07 18:49:58** - Comment #5 by pulsebot@bmo.tld
+Pushed by nchevobbe@mozilla.com:
+https://github.com/mozilla-firefox/firefox/commit/386bd09d536a
+https://hg.mozilla.org/integration/autoland/rev/9ac6e81c0769
+[devtools] Handle custom property declaration with curly brackets in their value. r=devtools-reviewers,jdescottes
+
+---
+
+**2026-10-08 04:26:01** - Comment #6 by csabou@mozilla.com
+https://hg.mozilla.org/mozilla-central/rev/9ac6e81c0769
+
+**2026-10-08 04:26:01** - Changes by csabou@mozilla.com
+  - status: 'ASSIGNED' → 'RESOLVED'
+  - target_milestone: '---' → '159 Branch'
+  - resolution: '' → 'FIXED'
+  - cf_last_resolved: '' → '2026-10-08T04:26:01Z'
+  - cf_status_firefox159: '---' → 'fixed'
+
+---
+
+**2026-10-08 04:26:02** - Changes by csabou@mozilla.com
+  - comment_tag: '' → 'bugherder'
+
+---
+
+**2026-10-08 06:46:58** - Comment #7 by jdescottes@mozilla.com
+Per initial summary
+> This is a functional DevTools defect (S3). No security impact is claimed.
+
+Please stop setting sec-bounty on non-security bugs.
+
+---
+
+**2026-10-14 12:45:40** - Changes by btot@mozilla.com
+  - cf_qa_whiteboard: '' → '[qa-triage-done-c160/b159]'
+

@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Declaration fallback preserves the top-level curly-block restriction</title>
+<link rel="help" href="https://drafts.csswg.org/css-syntax/#consume-declaration">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+const cases = [
+  ["font-family", "serif {var(--x)}", false],
+  ["font-family", "serif, {var(--x)}", false],
+  ["font-family", "{var(--x)} serif", false],
+  ["font-family", "serif {} var(--x)", false],
+  ["font-family", "serif {env(x)}", false],
+  ["font-family", "serif {attr(x)}", false],
+  ["font-family", "serif {}", false],
+  ["font-family", "{var(--x)}", true],
+  ["font-family", "var(--x)", true],
+  ["font-family", "serif [var(--x)]", true],
+  ["color", "red {var(--x)}", false],
+  ["--custom", "serif {var(--x)}", true],
+];
+for (const [property, value, valid] of cases) {
+  for (const api of ["setProperty", "cssText", "stylesheet", "supports"]) {
+    test(t => {
+      if (api === "supports") {
+        assert_equals(CSS.supports(property, value), valid);
+        return;
+      }
+      const previous = property === "color" ? "blue" : "monospace";
+      let declaration;
+      if (api === "stylesheet") {
+        const style = document.createElement("style");
+        style.textContent = `.target { ${property}: ${previous}; ${property}: ${value}; opacity: 0.5; }`;
+        document.head.append(style);
+        t.add_cleanup(() => style.remove());
+        declaration = style.sheet.cssRules[0].style;
+        assert_equals(declaration.opacity, "0.5");
+      } else {
+        declaration = document.createElement("div").style;
+        if (api === "setProperty") {
+          declaration.setProperty(property, previous);
+          declaration.setProperty(property, value);
+        } else {
+          declaration.cssText = `${property}: ${previous}; ${property}: ${value}; opacity: 0.5;`;
+          assert_equals(declaration.opacity, "0.5");
+        }
+      }
+      assert_equals(declaration.getPropertyValue(property).trim(), valid ? value : previous);
+    }, `${api}: ${property}: ${value}`);
+  }
+}
+</script>

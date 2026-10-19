@@ -1,0 +1,110 @@
+{
+  "status": "Accepted native/WPT repair and conditional component proof after fresh root and independent review",
+  "repair": "declaration-fallback-top-level-curly",
+  "discovery": "Static source/spec inspection during formal verification work. Exact helper and browser reproduction preceded Lean proof.",
+  "native_source": "servo/components/style/properties/mod.rs",
+  "native_patch": "native-wpt.patch",
+  "native_patch_sha256": "94e0730424570c206d35f9f35017407e8171c886f0453f1aa77b8377aafbb4ec",
+  "native_paths": [
+    "servo/components/style/properties/mod.rs",
+    "testing/web-platform/tests/css/css-syntax/declaration-curly-fallback.html"
+  ],
+  "source_pins": {
+    "path": "servo/components/style/properties/mod.rs",
+    "original": "4ba82684d7ca10e3f180aa3694b139f89eab7238cb46e6573cd39dce63781d47",
+    "candidate": "6754d46e612a369fa6b3853151dc6179a60a92beb25a0a2dc1b8827b80669f92",
+    "wpt_path": "testing/web-platform/tests/css/css-syntax/declaration-curly-fallback.html",
+    "wpt_sha256": "91f53a6374da006d1243256356e43a0554387db8ee0b6bdcc29729c3cb3c4ab7"
+  },
+  "source_review": [
+    "Complete noncustom helper, PropertyDeclaration::parse_into and actual FontFamily/SingleFontFamily bodies read.",
+    "Comma parsing uses parse_until_before cleanup, which consumes the forbidden block and records substitution before returning failure.",
+    "Normal successful parses return before the new reset. Successful substitution parses retain their prior positive query; failed parses retain enabled tracking.",
+    "New reset restores the saved post-whitespace beginning, retaining observer state. Full scan checks top-level structure before arbitrary VariableValue fallback.",
+    "Custom properties bypass the noncustom helper; a sole curly block is allowed. Substitution functions do not override the declaration-level structural restriction."
+  ],
+  "root_static_replay": {
+    "authenticated_inputs": 162,
+    "exact_relocation_inputs": 164,
+    "rows_per_variant": 26,
+    "forbidden_gateways": {
+      "original": 7,
+      "candidate": 0
+    },
+    "changed_rows": 7,
+    "limits": "Complete helper and actual cssparser with explicit accepting VariableValue and simplified property-provider adapters; this is a gateway witness."
+  },
+  "browser": {
+    "capsule": "../css-declaration-curly-final-browser-v1",
+    "freeze_sha256": "7d506ad6b395eeccc090646d760d14feee43878592a3b5a0f05345ab171707d1",
+    "manifest_sha256": "fb7ad93158892a1163537020d224d3a830a1fd66f8c668c6a3570fe32c6cb2b4",
+    "new_subtests_pass": 48,
+    "failures_fixed": 24,
+    "other_subtests_unchanged": 41,
+    "candidate_subtests_pass": 89,
+    "harnesses_OK": 5,
+    "unchanged_keyed_outcomes": 70,
+    "stable_pins": true,
+    "candidate_exit": 0
+  },
+  "build": {
+    "force_rust": 0,
+    "binaries_link": 0,
+    "style_recompiled": true,
+    "monitor_note": "Link log includes four Python build-monitor KeyError(export) traces; command exits0, records XUL link, resulting candidate binary passes the paired suite. No warning-free-build claim."
+  },
+  "lint": {
+    "wpt": 0,
+    "changed_hunk_rustfmt_stable": true,
+    "whole_file_formatting": "Existing unrelated substitution_property_id formatting mismatch present in original and candidate."
+  },
+  "standalone": {
+    "base": "976279105b2e78b8666a959eb3f25c9176cefaf8",
+    "same_patch_applies_and_reverses": true,
+    "isolated_base_build_browser": "NOT_RUN"
+  },
+  "performance": "Adds a consumed-prefix rescan only on fallback/error paths; no browser timing measurement or complete native complexity proof.",
+  "limitations": [
+    "Runtime tested on shared macOS tree.",
+    "Full raw byte/component/parser-state refinement and generated property grammar correctness remain open.",
+    "Static witness uses explicit provider adapters; full Gecko acceptance is supplied only by the bounded browser tests.",
+    "No novelty claim.",
+    "Native repair count remains 66 until the separate native commit."
+  ],
+  "independent_native": {
+    "capsule": "../css-declaration-curly-independent-v1",
+    "pins": {
+      "FREEZE.json": "7f799b2ddce67c09cf21af0cef539d72ae91a5ea2e3c0ffc33bc2eec89f7ae54",
+      "MANIFEST.json": "58c7de4fdd43227a74a2a79c12983d044bbbbb0e616ba2e0b01708fb9632087c",
+      "REPORT.md": "bf9bd6bc7eec1ffc24f2a726eedc7af5b76787793ae24badcceace4a2bce29bb"
+    },
+    "result": "PASS"
+  },
+  "formal": {
+    "capsule": "../css-declaration-curly-proof-v1",
+    "freeze_sha256": "009cbbdf37ddaaffae96ecb226d2f8c529f5cc418b8656244cc5eed9314be847",
+    "manifest_sha256": "1e173c8a0dd411d57ece94f5a2cbcf929bac5482a6e7b1678c5590b845dcfbdf",
+    "exact_axiom_audits": 27,
+    "compiled_native_variants": 6,
+    "rows_per_variant": 57,
+    "semantic_native_mutants": 4,
+    "kernel_counterexample_witnesses": 4,
+    "tamper_guards": 5,
+    "source_only_inputs": 224,
+    "independent_review": {
+      "path": "../css-declaration-curly-formal-independent-v1",
+      "pins": {
+        "FREEZE.json": "60b63b1d5bdf009bad059ab6e0fe76a4144d8a55aaf7853ae4f0dc840ffb7db1",
+        "MANIFEST.json": "6cf12cae99fd8cece593dada44a9656e0ec3f50dcee7f55ef087124abcab1140",
+        "REPORT.md": "ac4e8adf289c20e5becb95a53add794621cfa9b38fd467d19632c2221de179ba"
+      }
+    },
+    "limitations": [
+      "Recursive component grammar and complete-component partitions; raw byte cursors and pending-block state require admitted projection.",
+      "scanSteps counts top-level model visits, not bytes, nested tokenizer steps or machine time.",
+      "VariableValue validity and generated ordinary-success property grammar remain external contracts.",
+      "Positive-query mutant uses a synthetic successful callback; no production reachability claim for that fixture.",
+      "Direct rustc disables optional fast-match features; no all-configuration native proof."
+    ]
+  }
+}

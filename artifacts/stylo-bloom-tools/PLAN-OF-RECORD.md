@@ -42,10 +42,15 @@ A new browser probe reproduces 24 failures and 24 passing controls: noncustom
 font-family values can bypass the top-level curly-block restriction after a
 comma-list parser consumes the invalid value during recovery. CSS.supports,
 setProperty, cssText and stylesheet parsing expose the same acceptance error.
-Evidence and a proposed reset-before-validation patch are retained in
-css-declaration-curly-browser-v1. The patch has not been applied or browser-tested;
-independent source/spec review and a formal whole-value invariant are next.
-The committed native/WPT fix count remains 66.
+The reset-before-validation candidate now builds and passes all 48 new checks
+and 41 existing regression checks. All 24 failures are repaired; paired source,
+configuration and binary pins are stable. The same two-file patch applies and
+reverses on retained upstream without previous repairs. Runtime is the shared
+macOS tree; no isolated upstream browser build is claimed. Root and independent native/formal reviews pass the conditional component
+invariant: 27 exact audits, four native semantic mutants and five tamper gates.
+Raw-byte/pending-state and property-provider admissions remain open. The native
+repair is being packaged after its proof/evidence companion. The committed native/WPT fix count remains 66.
+Evidence: css-declaration-curly-root-v1/ROOT-SCOPED-ACCEPTANCE.json.
 
 ## Next proof work
 
