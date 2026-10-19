@@ -1,0 +1,59 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MathML token character ranges with leading whitespace</title>
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-range-getclientrects">
+<link rel="stylesheet" href="/fonts/ahem.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+math, mtext {
+  font: 20px/1 Ahem;
+  font-synthesis: none;
+  font-kerning: none;
+  font-variant: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  word-spacing: 0;
+  direction: ltr;
+}
+</style>
+<div id="fixtures"></div>
+<script>
+function token(text, whiteSpace, tabSize) {
+  const math = document.createElementNS("http://www.w3.org/1998/Math/MathML", "math");
+  const mtext = document.createElementNS(math.namespaceURI, "mtext");
+  mtext.style.whiteSpace = whiteSpace;
+  mtext.style.tabSize = tabSize;
+  mtext.textContent = text;
+  math.append(mtext);
+  const row = document.createElement("div");
+  row.append(math);
+  document.getElementById("fixtures").append(row);
+  return mtext.firstChild;
+}
+function width(node, offset) {
+  const range = document.createRange();
+  range.setStart(node, offset);
+  range.setEnd(node, offset + 1);
+  return range.getBoundingClientRect().width;
+}
+const ready = document.fonts.load("20px Ahem");
+for (const whiteSpace of ["normal", "pre"]) {
+  for (const tabSize of [4, 8]) {
+    const a = token("A", whiteSpace, tabSize);
+    const b = token("B", whiteSpace, tabSize);
+    for (const prefix of ["", " ", "\t", "\t\t"]) {
+      const text = prefix + "A\tB";
+      const node = token(text, whiteSpace, tabSize);
+      promise_test(async () => {
+        await ready;
+        await document.fonts.ready;
+        assert_approx_equals(width(a, 0), 20, 0.02, "A calibration");
+        assert_approx_equals(width(b, 0), 20, 0.02, "B calibration");
+        assert_approx_equals(width(node, text.indexOf("A")), width(a, 0), 0.02, "A range");
+        assert_approx_equals(width(node, text.indexOf("B")), width(b, 0), 0.02, "B range");
+      }, `Character ranges with ${JSON.stringify(prefix)}, ${whiteSpace}, tab-size ${tabSize}`);
+    }
+  }
+}
+</script>

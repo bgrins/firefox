@@ -1,0 +1,101 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tab cache origin</title>
+<style>
+@font-face { font-family: AuditAhem; src: url(Ahem.ttf); }
+body { margin: 20px; }
+.fixture { margin-block: 12px; min-block-size: 25px; }
+.fixture > span, math, mtext {
+  font: 20px/1 AuditAhem;
+  font-synthesis: none;
+  font-kerning: none;
+  text-transform: none;
+  letter-spacing: 0;
+  word-spacing: 0;
+  tab-size: 8;
+}
+.preserve { white-space: pre; }
+.collapse { white-space: normal; }
+.tab4 { tab-size: 4; }
+label { display: inline-block; inline-size: 200px; font: 12px sans-serif; }
+pre { font: 12px monospace; white-space: pre-wrap; }
+</style>
+<div id="fixtures"></div>
+<pre id="output"></pre>
+<script>
+const cases = [
+  ["math-base", true, "A\tB", "preserve"],
+  ["math-leading-tab", true, "\tA\tB", "preserve"],
+  ["math-leading-space", true, " A\tB", "preserve"],
+  ["math-two-leading-tabs", true, "\t\tA\tB", "preserve"],
+  ["math-leading-tab-tab4", true, "\tA\tB", "preserve tab4"],
+  ["math-normal-base", true, "A\tB", "collapse"],
+  ["math-normal-leading-tab", true, "\tA\tB", "collapse"],
+  ["html-base", false, "A\tB", "preserve"],
+  ["html-leading-tab", false, "\tA\tB", "preserve"],
+  ["html-leading-space", false, " A\tB", "preserve"],
+  ["math-glyph-calibration", true, "A", "preserve"],
+  ["html-glyph-calibration", false, "A", "preserve"],
+];
+const fixtures = cases.map(([id, math, text, className]) => {
+  const row = document.createElement("div");
+  row.className = "fixture";
+  const label = document.createElement("label");
+  label.textContent = id;
+  row.append(label);
+  const target = math
+    ? document.createElementNS("http://www.w3.org/1998/Math/MathML", "mtext")
+    : document.createElement("span");
+  target.setAttribute("class", className);
+  const node = document.createTextNode(text);
+  target.append(node);
+  if (math) {
+    const wrapper = document.createElementNS("http://www.w3.org/1998/Math/MathML", "math");
+    wrapper.append(target);
+    row.append(wrapper);
+  } else {
+    row.append(target);
+  }
+  document.getElementById("fixtures").append(row);
+  return { id, target, node, text };
+});
+function interval(node, first, end) {
+  const range = document.createRange();
+  range.setStart(node, first);
+  range.setEnd(node, end);
+  const box = range.getBoundingClientRect();
+  return { x: box.x, y: box.y, width: box.width, height: box.height };
+}
+async function runProbe() {
+  await document.fonts.load("20px AuditAhem");
+  await document.fonts.ready;
+  const rows = fixtures.map(({ id, target, node, text }) => {
+    const origin = target.getBoundingClientRect();
+    const samples = [];
+    for (let pass = 0; pass < 3; ++pass) {
+      samples.push({
+        pass,
+        chars: [...text].map((char, index) => ({
+          char, index, ...interval(node, index, index + 1),
+        })),
+        whole: interval(node, 0, text.length),
+      });
+    }
+    const style = getComputedStyle(target);
+    return {
+      id, text, width: origin.width, x: origin.x,
+      style: {
+        whiteSpace: style.whiteSpace, tabSize: style.tabSize,
+        fontFamily: style.fontFamily, fontSize: style.fontSize,
+      },
+      samples,
+    };
+  });
+  const result = { fontLoaded: document.fonts.check("20px AuditAhem"), rows };
+  window.probeResult = result;
+  document.getElementById("output").textContent = JSON.stringify(result, null, 2);
+  return result;
+}
+window.runProbe = runProbe;
+runProbe();
+</script>
