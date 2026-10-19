@@ -6,17 +6,21 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 Immediate next steps:
 
-1. Close cascade source-identity and observer admissions against the corrected
-   two-patch stack; preserve cycle/animation and scope-ownership counterexamples.
-2. Repair the confirmed loaded FontFace.sizeAdjust provider defect within the
-   known bug 1072149 family. Local WPT has eight failures and four controls for
-   URL/buffer sources. Preserve shared wrappers/providers, loaded promises, all
-   set memberships and worker publication. Resource-preserving local-font cloning
-   and transactional descriptor updates remain design obligations.
-3. Resume the remaining formal/native acceptance work after the signed commit
-   checkpoint. The previously accepted queue is recorded in
-   [CURRENT-COMMITS.json](CURRENT-COMMITS.json), with each proof/tooling companion
-   preceding its separate native/WPT fix. New repairs still need their own gates.
+1. Repair the browser-confirmed repeated-invalid-attribute reload defect. Keep
+   invalid cache entries distinct from never-loaded entries; preserve retry and
+   namespace semantics. Require its own native/WPT commit and preceding evidence.
+2. Repair fallback attribute preparation and separately resolve occurrence-specific
+   typed-fallback graph readiness. The frozen browser probes currently reproduce
+   nine fallback failures and four repeated-reference failures; neither is counted.
+3. Continue cascade source/observer and hyphenation stateful consumer admissions,
+   including actual reflow-to-display tab-cache coverage and lifetime. Preserve
+   cycle/animation, scope-ownership and uncovered-cache counterexamples.
+4. Integrate the prepared loaded FontFace.sizeAdjust provider candidate within
+   the known bug 1072149 family after these attr repairs. Preserve shared wrappers,
+   promises, memberships and worker publication; its build/browser gates are open.
+5. Keep every accepted repair independently reviewable in CURRENT-COMMITS.json,
+   with proof/tooling preceding its standalone native/WPT commit. Full closure
+   requirements remain in the linked checklist.
 
 
 [Full-proof closure checklist](FORMAL-CLOSURE-CHECKLIST.md) records the remaining
@@ -27,7 +31,7 @@ close these obligations.
 
 ## Latest commit and proof checkpoint
 
-There are 51 signed standalone native/WPT fixes. Worker font removal is now
+There are 52 signed standalone native/WPT fixes. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
@@ -49,10 +53,13 @@ association is the next component. V1/v2 wrapper path failures are retained.
 
 The observer/provider extension is signed as
 `89d2fd2f7f305bbd497d00b0cc5dbf92cf92f462`. Its post-guard audit found a separate
-namespaced attr() cache-key hypothesis. Root ran the prepared WPT: two
-namespace collisions reproduced, seven controls passed, and the harness completed
-OK with unchanged input pins. Independent repair review is pending; known
-bug2021110 overlap is not adjudicated. The post-guard component extension also
+namespaced attr() cache-key defect. The namespace fix is signed as
+`3aa7d25635ff9dc3bc105269dd9b7b13b5f80cb0`, following validation companion
+`adde61d9742f3f9939514bdfe10fde08a794aeff` and proof checkpoint
+`1da809deee725e6694dae0901dd98d26ba53c9c4`. Same-configuration browser pairing
+repairs 13 failures; all 21 new and 39 existing checks pass. Both InspectorUtils
+tests pass 179 assertions. Direct collision overlaps known bug 2021110; no
+novelty claim or complete CSS substitution proof is made. The post-guard component extension also
 passes a fresh root replay: six modules and 33 exact theorem audits. Its sharing
 and cache observations are preserved under common continuations; native choice
 of those continuations and full C1–C13 closure remain open.
@@ -2908,8 +2915,9 @@ property lifetime remain the next ownership gates. See
 The namespace-key candidate now has independent static approval and an isolated
 patch that applies/reverses against committed HEAD. Expanded baseline: 13 new
 failures, eight passing controls, and 39 existing regression checks passing.
-The candidate build is in progress; no namespace fix is accepted or counted yet.
-A separate nested-fallback preload lead is under static investigation.
+The accepted namespace fix is now committed and counted above. Subsequent
+browser probes reproduce nine nested-fallback/preparation failures and four
+repeated-invalid-entry failures; both remain separate unaccepted repair tracks.
 
 ## Stateful spacing consumer checkpoint
 
