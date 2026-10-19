@@ -2003,8 +2003,9 @@ impl<'a> Cascade<'a> {
             CustomDeclarationValue::Unparsed(value) => {
                 // Don't bother overwriting an existing value with the same
                 // specified value.
-                if let Some(existing_value) = existing_value.as_universal() {
-                    return existing_value != value;
+                if let Some(existing_unparsed) = existing_value.as_universal() {
+                    return existing_value.attr_tainted != value.is_attr_tainted()
+                        || existing_unparsed != value;
                 }
             },
             CustomDeclarationValue::Parsed(..) => {

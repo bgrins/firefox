@@ -210,7 +210,7 @@ impl CustomPropertiesMap {
         if let Some(inner) = Arc::get_mut(&mut self.0) {
             return inner.insert(name, value);
         }
-        if self.get(name) == value.as_ref() {
+        if can_deduplicate_values(self.get(name), value.as_ref()) {
             return;
         }
         if !self.0.should_expand_chain() {
