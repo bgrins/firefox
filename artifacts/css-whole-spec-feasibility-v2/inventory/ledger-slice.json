@@ -1,0 +1,487 @@
+{
+  "schema_version": 1,
+  "research_only": true,
+  "date": "2026-10-19",
+  "universe": "Worked cross-version slice; not one combined conformance target",
+  "requirements": [
+    {
+      "id": "CSSREQ-CUSTOM-NAME-IDENTITY",
+      "revision": 1,
+      "kind": "identity",
+      "source": {
+        "document": "https://www.w3.org/TR/2022/CR-css-variables-1-20220616/",
+        "section_url": "https://www.w3.org/TR/2022/CR-css-variables-1-20220616/#defining-variables",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Custom property names compare by exact code points, preserving case and normalization distinctions.",
+      "dependencies": [
+        "EXT:Infra-identical",
+        "EXT:CSS-Syntax-decoded-ident"
+      ],
+      "coverage": {
+        "feature_ids": [
+          "named-custom-declaration-cascade"
+        ],
+        "status": "related_fragment",
+        "claim": "Exact normalized names feed per-name cascade lookup.",
+        "remaining": "Decode/source-name identity and all host acquisition must be composed; string equality alone is not the pipeline."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-CUSTOM-VAR-GRAMMAR",
+      "revision": 1,
+      "kind": "grammar",
+      "source": {
+        "document": "https://www.w3.org/TR/2022/CR-css-variables-1-20220616/",
+        "section_url": "https://www.w3.org/TR/2022/CR-css-variables-1-20220616/#using-variables",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "The var grammar distinguishes absent fallback from an explicitly empty fallback.",
+      "dependencies": [
+        "EXT:CSS-Values-grammar",
+        "EXT:CSS-Syntax-component-values",
+        "CSSREQ-CUSTOM-NAME-IDENTITY"
+      ],
+      "coverage": {
+        "feature_ids": [
+          "closed-raw-values"
+        ],
+        "status": "related_fragment",
+        "claim": "Closed ASCII name/keyword/var grammar retains empty fallback.",
+        "remaining": "General identifier grammar and arbitrary component values exceed this closed profile."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-CUSTOM-INVALID-VS-EMPTY",
+      "revision": 1,
+      "kind": "value-domain",
+      "source": {
+        "document": "https://www.w3.org/TR/2022/CR-css-variables-1-20220616/",
+        "section_url": "https://www.w3.org/TR/2022/CR-css-variables-1-20220616/#guaranteed-invalid",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Initial guaranteed-invalid and valid empty values remain distinct despite identical empty serialization.",
+      "dependencies": [
+        "EXT:Cascade-initial",
+        "EXT:CSSOM-serialization"
+      ],
+      "coverage": {
+        "feature_ids": [
+          "variables1-static-dependencies",
+          "custom-property-keyword-completion"
+        ],
+        "status": "related_fragment",
+        "claim": "Option-valued normalized token semantics distinguishes invalid from empty.",
+        "remaining": "Complete source-to-value and serialization composition; registered initial values require separate rules."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-CUSTOM-CYCLE-EDGES-SNAPSHOT",
+      "revision": 1,
+      "kind": "algorithm",
+      "source": {
+        "document": "https://www.w3.org/TR/2022/CR-css-variables-1-20220616/",
+        "section_url": "https://www.w3.org/TR/2022/CR-css-variables-1-20220616/#cycles",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Per-element directed dependency graph includes every var reference, including fallback references.",
+      "dependencies": [
+        "CSSREQ-CUSTOM-NAME-IDENTITY",
+        "CSSREQ-CUSTOM-VAR-GRAMMAR",
+        "EXT:Cascade-selected-bindings"
+      ],
+      "coverage": {
+        "feature_ids": [
+          "variables1-static-dependencies"
+        ],
+        "status": "related_fragment",
+        "claim": "VariableExpr.references_iff and VariableBindings.cyclicBool_iff cover normalized static graph.",
+        "remaining": "Raw declarations, selected winners and graph construction must be joined; modern draft policy is separate."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-CUSTOM-CYCLE-INVALIDATION-SNAPSHOT",
+      "revision": 1,
+      "kind": "algorithm",
+      "source": {
+        "document": "https://www.w3.org/TR/2022/CR-css-variables-1-20220616/",
+        "section_url": "https://www.w3.org/TR/2022/CR-css-variables-1-20220616/#cycles",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Cycle participants are invalid at computed-value time.",
+      "dependencies": [
+        "CSSREQ-CUSTOM-CYCLE-EDGES-SNAPSHOT",
+        "CSSREQ-CUSTOM-INVALID-VS-EMPTY"
+      ],
+      "coverage": {
+        "feature_ids": [
+          "variables1-recursive-computation",
+          "variables1-inherited-environments"
+        ],
+        "status": "related_fragment",
+        "claim": "Recursive normalized solver and cycle_invalid cover admitted owners.",
+        "remaining": "Source/registration/animation/host premises remain; noncycle consumers require their own failure/fallback path."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-CUSTOM-INHERIT-COMPUTED",
+      "revision": 1,
+      "kind": "stage-order",
+      "source": {
+        "document": "https://www.w3.org/TR/2022/CR-css-variables-1-20220616/",
+        "section_url": "https://www.w3.org/TR/2022/CR-css-variables-1-20220616/#cycles",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Inherited custom values are already computed before child references use them.",
+      "dependencies": [
+        "EXT:Cascade-inheritance-tree",
+        "CSSREQ-CUSTOM-CYCLE-INVALIDATION-SNAPSHOT"
+      ],
+      "coverage": {
+        "feature_ids": [
+          "variables1-inherited-environments"
+        ],
+        "status": "related_fragment",
+        "claim": "VariableEnvironment.compute_iff and missing_inherits use the supplied forest and computed parent values.",
+        "remaining": "Actual flat/shadow inheritance and dynamic histories are external to this fragment."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-CUSTOM-VAR-REPLACE-DRAFT",
+      "revision": 1,
+      "kind": "algorithm",
+      "source": {
+        "document": "https://drafts.csswg.org/css-variables-2/",
+        "section_url": "https://drafts.csswg.org/css-variables-2/#using-variables",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Resolve and parse the first argument, obtain the property value and apply the replacement rules.",
+      "dependencies": [
+        "EXT:Values5-arbitrary-substitution",
+        "CSSREQ-CUSTOM-NAME-IDENTITY"
+      ],
+      "coverage": {
+        "feature_ids": [
+          "variables2-fresh-root-guarded-substitution"
+        ],
+        "status": "related_fragment",
+        "claim": "Fresh-root normalized var-only guarded solver.",
+        "remaining": "General first-argument substitution, other function kinds, registration, taint and caching are not fully covered."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-SUBSTITUTION-CONTEXT-GUARDS-DRAFT",
+      "revision": 1,
+      "kind": "algorithm",
+      "source": {
+        "document": "https://drafts.csswg.org/css-values-5/",
+        "section_url": "https://drafts.csswg.org/css-values-5/#arbitrary-substitution",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Guard substitution contexts; propagate cycle markings through relevant active replacements.",
+      "dependencies": [
+        "EXT:Values5-property-replacement",
+        "EXT:Infra-list-identity"
+      ],
+      "coverage": {
+        "feature_ids": [
+          "variables2-fresh-root-guarded-substitution"
+        ],
+        "status": "related_fragment",
+        "claim": "GuardedSolver.compute_iff and retained snapshot_draft_difference witness.",
+        "remaining": "Full arbitrary-function and mixed property/attribute/function domains remain outside the var-only profile."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-DECLARATION-HEADER-RECOVERY",
+      "revision": 1,
+      "kind": "algorithm",
+      "source": {
+        "document": "https://drafts.csswg.org/css-syntax-3/",
+        "section_url": "https://drafts.csswg.org/css-syntax-3/#consume-declaration",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Require identifier then colon, with prescribed whitespace and bad-declaration recovery.",
+      "dependencies": [
+        "EXT:CSS-Syntax-token-stream",
+        "EXT:CSS-Syntax-bad-declaration"
+      ],
+      "coverage": {
+        "feature_ids": [
+          "declaration-consumption-boundary"
+        ],
+        "status": "related_fragment",
+        "claim": "Candidate/header and remnants relations preserve input suffix and diagnostics.",
+        "remaining": "Full contextual validity and every declaration consumer are separate."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-DECLARATION-IMPORTANT",
+      "revision": 1,
+      "kind": "algorithm",
+      "source": {
+        "document": "https://drafts.csswg.org/css-syntax-3/",
+        "section_url": "https://drafts.csswg.org/css-syntax-3/#consume-declaration",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Recognize terminal !important case-insensitively and remove it before value finalization.",
+      "dependencies": [
+        "EXT:CSS-Syntax-component-values",
+        "EXT:Infra-ASCII-case-insensitive"
+      ],
+      "coverage": {
+        "feature_ids": [
+          "declaration-consumption-boundary"
+        ],
+        "status": "related_fragment",
+        "claim": "Related declaration structural finalization; exact coverage needs per-theorem review.",
+        "remaining": "This research does not certify a complete important/source correspondence from the summary record."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-DECLARATION-CUSTOM-ORIGINAL-TEXT",
+      "revision": 1,
+      "kind": "source-observation",
+      "source": {
+        "document": "https://drafts.csswg.org/css-syntax-3/",
+        "section_url": "https://drafts.csswg.org/css-syntax-3/#consume-declaration",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Retain original source text for custom-property values after declaration processing.",
+      "dependencies": [
+        "CSSREQ-CUSTOM-NAME-IDENTITY",
+        "CSSREQ-DECLARATION-IMPORTANT",
+        "EXT:CSS-Syntax-source-spans"
+      ],
+      "coverage": {
+        "feature_ids": [
+          "declaration-consumption-boundary"
+        ],
+        "status": "related_fragment",
+        "claim": "Coverage explicitly separates candidate parsing from source-dependent finalization.",
+        "remaining": "No full arbitrary custom-property original-text/CSSOM bridge identified in this mapping."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-CSSOM-COMPUTED-APPLICABILITY",
+      "revision": 1,
+      "kind": "host-condition",
+      "source": {
+        "document": "https://drafts.csswg.org/cssom/",
+        "section_url": "https://drafts.csswg.org/cssom/#dom-window-getcomputedstyle",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Apply object, connectedness, flat-tree and browsing-context rendering conditions.",
+      "dependencies": [
+        "EXT:DOM-connected-flat-shadow",
+        "EXT:HTML-browsing-context",
+        "EXT:Selectors-pseudo-elements"
+      ],
+      "coverage": {
+        "feature_ids": [],
+        "status": "no_complete_mapping_identified",
+        "claim": "No complete getComputedStyle host gate found in inspected coverage.",
+        "remaining": "Requires actual host and pseudo selection semantics."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-CSSOM-CUSTOM-MEMBERSHIP",
+      "revision": 1,
+      "kind": "observable-algorithm",
+      "source": {
+        "document": "https://drafts.csswg.org/cssom/",
+        "section_url": "https://drafts.csswg.org/cssom/#dom-window-getcomputedstyle",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Append all custom properties with non-guaranteed-invalid computed values.",
+      "dependencies": [
+        "CSSREQ-CSSOM-COMPUTED-APPLICABILITY",
+        "CSSREQ-CUSTOM-INVALID-VS-EMPTY",
+        "EXT:Complete-computed-custom-map"
+      ],
+      "coverage": {
+        "feature_ids": [],
+        "status": "no_complete_mapping_identified",
+        "claim": "Native iterator work is separate and currently incomplete as a full CSSOM contract.",
+        "remaining": "Must compose complete computation, invalid-value exclusion, unique enumeration and host condition."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-CSSOM-CUSTOM-ORDER",
+      "revision": 1,
+      "kind": "underspecified-choice",
+      "source": {
+        "document": "https://drafts.csswg.org/cssom/",
+        "section_url": "https://drafts.csswg.org/cssom/#dom-window-getcomputedstyle",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "No custom-property enumeration order is currently specified.",
+      "dependencies": [
+        "CSSREQ-CSSOM-CUSTOM-MEMBERSHIP"
+      ],
+      "coverage": {
+        "feature_ids": [],
+        "status": "no_complete_mapping_identified",
+        "claim": "Record permitted ordering separately; do not impose alphabetical custom ordering.",
+        "remaining": "Track issue #4947 and preserve membership/index coherence regardless of selected order."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-CSSOM-DECLARATION-LENGTH",
+      "revision": 1,
+      "kind": "observable-algorithm",
+      "source": {
+        "document": "https://drafts.csswg.org/cssom/",
+        "section_url": "https://drafts.csswg.org/cssom/#dom-cssstyledeclaration-length",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Length equals the declaration-list size.",
+      "dependencies": [
+        "CSSREQ-CSSOM-CUSTOM-MEMBERSHIP",
+        "EXT:CSSOM-longhand-list"
+      ],
+      "coverage": {
+        "feature_ids": [],
+        "status": "no_complete_mapping_identified",
+        "claim": "No complete CSSOM length theorem mapped.",
+        "remaining": "Correct count is not implied by iterator uniqueness; retained tombstone/count lead is separate."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-CSSOM-DECLARATION-ITEM",
+      "revision": 1,
+      "kind": "observable-algorithm",
+      "source": {
+        "document": "https://drafts.csswg.org/cssom/",
+        "section_url": "https://drafts.csswg.org/cssom/#dom-cssstyledeclaration-item",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Item returns the indexed declaration name, or empty string out of range.",
+      "dependencies": [
+        "CSSREQ-CSSOM-DECLARATION-LENGTH",
+        "CSSREQ-CSSOM-CUSTOM-ORDER",
+        "EXT:WebIDL-index-conversion"
+      ],
+      "coverage": {
+        "feature_ids": [],
+        "status": "no_complete_mapping_identified",
+        "claim": "Map get_index proof in progress is conditional on stored-count equality.",
+        "remaining": "FFI/WebIDL/index/coherent list and native lifecycle remain separate."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-CSSOM-COMPUTED-LIVE",
+      "revision": 1,
+      "kind": "temporal",
+      "source": {
+        "document": "https://drafts.csswg.org/cssom/",
+        "section_url": "https://drafts.csswg.org/cssom/#dom-window-getcomputedstyle",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Return a live computed, readonly style object with the specified owner and rule fields.",
+      "dependencies": [
+        "CSSREQ-CSSOM-COMPUTED-APPLICABILITY",
+        "EXT:DOM-mutation",
+        "EXT:CSSOM-declaration-object"
+      ],
+      "coverage": {
+        "feature_ids": [],
+        "status": "no_complete_mapping_identified",
+        "claim": "No whole live computed-style history proof mapped.",
+        "remaining": "Static style output is insufficient; resource/style/tree updates and publication must compose."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-MATH-RESOURCE-LOWER-BOUND",
+      "revision": 1,
+      "kind": "bounded-UA-choice",
+      "source": {
+        "document": "https://drafts.csswg.org/css-values-4/",
+        "section_url": "https://drafts.csswg.org/css-values-4/#calc-syntax",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Support at least 32 terms, nesting levels and arbitrary-function arguments; excess beyond supported limits is invalid.",
+      "dependencies": [
+        "EXT:CSS-Syntax-recovery",
+        "EXT:CSS-Values-math-grammar"
+      ],
+      "coverage": {
+        "feature_ids": [],
+        "status": "no_complete_mapping_identified",
+        "claim": "Mathematical expression fragments do not establish native capacity/rejection obligations.",
+        "remaining": "Parameterize supported limits with normative minima; prove atomic rejection and recovery, not an unlimited-resource premise."
+      },
+      "certified_closed": false
+    },
+    {
+      "id": "CSSREQ-PARTIAL-SUPPORT-ATOMIC-INVALIDITY",
+      "revision": 1,
+      "kind": "conformance",
+      "source": {
+        "document": "https://drafts.csswg.org/css-values-4/",
+        "section_url": "https://drafts.csswg.org/css-values-4/#partial",
+        "binding": "reviewed rendered primary excerpts; complete HTML/source lock pending"
+      },
+      "statement": "Unsupported constructs are invalid; do not retain supported components of an invalid multi-value declaration.",
+      "dependencies": [
+        "EXT:UA-support-classifier",
+        "EXT:CSS-Syntax-context-validity",
+        "EXT:Cascade-invalid-declaration"
+      ],
+      "coverage": {
+        "feature_ids": [],
+        "status": "no_complete_mapping_identified",
+        "claim": "Bounded supported profiles exist, but no exhaustive current UA capability classifier mapped.",
+        "remaining": "Keep all conformance classes and unavailable feature obligations in the master inventory."
+      },
+      "certified_closed": false
+    }
+  ],
+  "external_dependencies": [
+    "EXT:CSS-Syntax-bad-declaration",
+    "EXT:CSS-Syntax-component-values",
+    "EXT:CSS-Syntax-context-validity",
+    "EXT:CSS-Syntax-decoded-ident",
+    "EXT:CSS-Syntax-recovery",
+    "EXT:CSS-Syntax-source-spans",
+    "EXT:CSS-Syntax-token-stream",
+    "EXT:CSS-Values-grammar",
+    "EXT:CSS-Values-math-grammar",
+    "EXT:CSSOM-declaration-object",
+    "EXT:CSSOM-longhand-list",
+    "EXT:CSSOM-serialization",
+    "EXT:Cascade-inheritance-tree",
+    "EXT:Cascade-initial",
+    "EXT:Cascade-invalid-declaration",
+    "EXT:Cascade-selected-bindings",
+    "EXT:Complete-computed-custom-map",
+    "EXT:DOM-connected-flat-shadow",
+    "EXT:DOM-mutation",
+    "EXT:HTML-browsing-context",
+    "EXT:Infra-ASCII-case-insensitive",
+    "EXT:Infra-identical",
+    "EXT:Infra-list-identity",
+    "EXT:Selectors-pseudo-elements",
+    "EXT:UA-support-classifier",
+    "EXT:Values5-arbitrary-substitution",
+    "EXT:Values5-property-replacement",
+    "EXT:WebIDL-index-conversion"
+  ]
+}

@@ -1,0 +1,100 @@
+CSS Values and Units Module Level 5 (https://drafts.csswg.org/css-values-5/)
+citeturn1343view0 [wordlim: 200] Crawled: today; Content type: text/html; Source: click({"ref_id":"turn1341view3","id":177}); Total lines: 2842
+L0: # CSS Values and Units Module Level 5
+L1: 
+L2: cite0†Editor’s Draft†www.w3.org , 4 September 2026
+L3: 
+L4: More details about this document
+L5: This version:
+L6:     cite1†https://drafts.csswg.org/css-values-5/ L7: Latest published version:
+L8:     cite2†https://www.w3.org/TR/css-values-5/†www.w3.org L9: Feedback:
+L10:     cite3†CSSWG Issues Repository†github.com L11:     cite4†Inline In Spec L12: Editors:
+L13:     cite5†Tab Atkins†xanthir.com (Google)
+L14:     cite6†Elika J. Etemad / fantasai†fantasai.inkedblade.net (Apple)
+L15:     cite7†Miriam E. Suzanne†miriamsuzanne.com (Invited Expert)
+L16: Suggest an Edit for this Spec:
+L17:     cite8†GitHub Editor†github.com L18: Test Suite:
+L19:     cite9†https://wpt.fyi/results/css/css-values/†wpt.fyi L20: cite10†Copyright†www.w3.org © 2026 cite11†World Wide Web Consortium†www.w3.org . W3C (World Wide Web Consortium)^{®} cite12†liability†www.w3.org , cite13†trademark†www.w3.org and cite14†permissive document license†www.w3.org rules apply.
+L21: 
+L22: * * *
+L23: ## Abstract
+L24: 
+L25: This CSS module describes the common values and units that CSS properties accept and the syntax used for describing them in CSS property definitions.
+L26: 
+L27: cite15†CSS†www.w3.org is a language for describing the rendering of structured documents (such as HTML and XML) on screen, on paper, etc.
+L28: ## Status of this document
+L29: 
+L30: This is a public copy of the editors’ draft. It is provided for discussion only and may change at any moment. Its publication here does not imply endorsement of its contents by W3C. Don’t cite this document other than as work in progress.
+L31: Please send feedback by cite16†filing issues in GitHub†github.com (preferred), including the spec code “css-values” in the title, like this: “[css-values] …summary of comment…”. All issues and comments are cite17†archived†lists.w3.org . Alternately, feedback can be sent to the (cite18†archived†lists.w3.org ) public mailing list www-style@w3.org.
+L32: 
+L33: This document is governed by the cite19†18 August 2025 W3C Process Document†www.w3.org .
+L34: This spec is in the early exploration phase. Feedback is welcome, and and major breaking changes are expected.
+L35: ## Table of Contents
+L36:   1. cite20†1 Introduction L37:     1. cite21†1.1 Module Interactions L38:   2. cite22†2 Textual Data Types L39:   3. cite23†3 Value Definition Syntax L40:     1. cite24†3.1 Functional Notation Definitions L41:       1. cite25†3.1.1 Commas in Function Arguments L42:     2. cite26†3.2 Boolean Expression Multiplier <boolean-expr[]> L43:     3. cite27†3.3 Specifying CSS Syntax in CSS: the <syntax> type L44:       1. cite28†3.3.1 Parsing as <syntax> L45:   4. cite29†4 Extensions to Level 4 Value Types L46:     1. cite30†4.1 Resource Locators: the <url> type L47:       1. cite31†4.1.1 Request URL Modifiers L48:     2. cite32†4.2 2D Positioning: the <position> type L49:       1. cite33†4.2.1 Parsing <position> L50:       2. cite34†4.2.2 Serializing <position> L51:       3. cite35†4.2.3 Combination of <position> L52:   5. cite36†5 Interpolation Progress Calculations: the progress() notation L53:   6. cite37†6 Weighted Average Notations: the *-mix() family L54:     1. cite38†6.1 Normalizing Mix Percentages L55:     2. cite39†6.2 Mix Resolution L56:     3. cite40†6.3 Weighted Average of Numeric and Dimensional Values: the calc-mix() notation L57:     4. cite41†6.4 Weighted Average of Transform Values: the transform-mix() notation L58:   7. cite42†7 Interpolation Mapping Notations: the *-interpolate() family L59:     1. cite43†7.1 Global Syntax of the *-interpolate() family L60:       1. cite44†7.1.1 Specifying the Interpolation Progress L61:         1. cite45†7.1.1.1 Easing Interpolation Progress: the by <easing-function> argument L62:       2. cite46†7.1.2 Defining the Interpolation Map L63:     2. cite47†7.2 Validation and Normalization L64:       1. cite48†7.2.1 Type Checking L65:       2. cite49†7.2.2 Calculating the Absolute Interpolation Range L66:       3. cite50†7.2.3 Normalizing Absolute Positions and Progress L67:       4. cite51†7.2.4 Interpolation Stop Fixup L68:     3. cite52†7.3 Interpolation Resolution L69:     4. cite53†7.4 Interpolated Numeric and Dimensional Values: the calc-interpolate() notation L70:     5. cite54†7.5 Interpolated Color Values: the color-interpolate() notation L71:     6. cite55†7.6 Interpolated Transform Values: the transform-interpolate() notation L72:     7. cite56†7.7 Interpolated Property Values: the interpolate() notation L73:   8. cite57†8 Miscellaneous Value Substituting Functions L74:     1. cite58†8.1 Representing An Entire Property Value: the <whole-value> type L75:     2. cite59†8.2 Selecting the First Supported Value: the first-valid() notation L76:     3. cite60†8.3 Conditional Value Selection: the if() notation L77:     4. cite61†8.4 Toggling Between Values: the cycle() notation L78:     5. cite62†8.5 Custom Property References: the var() notation L79:     6. cite63†8.6 Inherited Value References: the inherit() notation L80:     7. cite64†8.7 Attribute References: the attr() notation L81:       1. cite65†8.7.1 Substitution L82:       2. cite66†8.7.2 Security L83:     8. cite67†8.8 Constructing <custom-ident> values: the ident() function L84:   9. cite68†9 Generating Random Values L85:     1. cite69†9.1 Generating a Random Numeric Value: the random() function L86:       1. cite70†9.1.1 Argument Ranges L87:     2. cite71†9.2 Picking a Random Item From a List: the random-item() function L88:     3. cite72†9.3 Evaluating Random Values L89:     4. cite73†9.4 Sharing (Or Not) Random Values: the <random-key> value L90:       1. cite74†9.4.1 Simplification of <random-key> L91:   10. cite75†10 Tree Counting Functions: the sibling-count() and sibling-index() notations L92:   11. cite76†11 Calculating With Intrinsic Sizes: the calc-size() function L93:     1. cite77†11.1 Resolving calc-size() L94:     2. cite78†11.2 Interpolating calc-size() L95:       1. cite79†11.2.1 Simplifying calc-size() L96:     3. cite80†11.3 Automatically interpolating sizing keywords: the interpolate-size property L97:   12. cite81†Appendix A: Arbitrary Substitution Functions L98:     1. cite82†Substitution L99:     2. cite83†Argument Grammars and Spread Syntax L100:     3. cite84†Resolving in Properties L101:     4. cite85†Invalid Substitution L102:     5. cite86†Substitution in Shorthand Properties L103:     6. cite87†Safely Handling Overly-Long Substitution L104:   13. cite88†Appendix B: Boolean Logic L105:   14. cite89†Acknowledgments L106:   15. cite90†Changes L107:     1. cite91†Recent Changes L108:     2. cite92†Additions Since Level 4 L109:   16. cite93†Security Considerations L110:   17. cite94†Privacy Considerations L111:   18. cite95†Conformance L112:     1. cite96†Document conventions L113:     2. cite97†Conformance classes L114:     3. cite98†Partial implementations L115:       1. cite99†Implementations of Unstable and Proprietary Features L116:     4. cite100†Non-experimental implementations L117:   19. cite101†Index L118:     1. cite102†Terms defined by this specification L119:     2. cite103†Terms defined by reference L120:   20. cite104†References L121:     1. cite105†Normative References L122:     2. cite106†Non-Normative References L123:   21. cite107†Property Index L124:   22. cite4†Issues Index L125: ## 1. Introduction
+L126: 
+L127: This is a diff spec against cite108†CSS Values and Units Level 4†www.w3.org .
+L128: 
+L129: ### 1.1. Module Interactions
+L130: 
+L131: This module extends cite109†[CSS-VALUES-4] which replaces and extends the data type definitions in cite110†[CSS21] sections cite111†1.4.2.1†www.w3.org , cite112†4.3†www.w3.org , and cite113†A.2†www.w3.org .
+L132: 
+L133: ## 2. Textual Data Types
+L134: 
+L135: See cite114†CSS Values 4 § 4 Textual Data Types .
+L136: ## 3. Value Definition Syntax
+L137: 
+L138: See cite115†CSS Values 4 § 2 Value Definition Syntax .
+L139: 
+L140: Additionally,
+L141: 
+L142:   1. Boolean combinations of a conditional notation. These are written using the cite116†<boolean-expr[]>†www.w3.org notation, and represent recursive expressions of boolean logic using keywords and parentheses, applied to the grammar specified in brackets, e.g. cite117†<boolean-expr[ ( &lt;media-feature&gt; ) ]> to express cite118†media queries .
+L143: ### 3.1. Functional Notation Definitions
+L144: 
+L145: See cite119†CSS Values 4 § 2.6 Functional Notation Definitions .
+L146: #### 3.1.1. Commas in Function Arguments
+L147: 
+L148: cite120†Functional notation often uses commas to separate parts of its internal grammar, and occasionally other syntax (such as `:` or `;` in cite121†if() ). However, some functions (such as cite122†mix()†www.w3.org ) allow values that, themselves, could contain these argument-separating tokens. These values (currently cite58†<whole-value> , cite123†<declaration-value> , and cite124†<any-value> ) are free-form productions.
+L149: To accommodate these sorts of grammars unambiguously, the cite125†free-form productions can be optionally wrapped in curly braces {}. These braces are syntactic, not part of the actual value, and only serve to explicitly indicate the bounds of the production. A free-form production can either (after optional whitespace) start with a cite126†<{-token> , or not:
+L150: 
+L151: If it does not start with a "{" token
+L152: The production does not match any top-level commas or {} blocks. (The production stops parsing at that point, so the comma or {} block is matched by the next grammar term instead; probably the function’s own argument-separating comma.) Individual usages of the production can define additional tokens that are similarly restricted from matching at the top-level.
+L153: 
+L154: If it does start with a "{" token
+L155: The production matches just the {} block that the "{" token opens. It represents the contents of that block, ignoring the {} block wrapper itself.
+L156: 
+L157: Note: General restrictions defined for a particular cite125†free-form production , like cite123†<declaration-value> not matching cite127†<semicolon-token> s, apply regardless of whether it’s {}-wrapped or not.
+L158: 
+L159: For example, the grammar of the cite128†random-item() function is:
+L160: 
+L161:     random-item( cite129†<random-key> , [cite123†<declaration-value> ?]# )
+L162: The # indicates comma-separated repetitions, so randomly choosing between three keywords would be written as normal for functions, like:
+L163: 
+L164:     font-family: random-item(--x, serif, sans-serif, monospace);
+L165: However, sometimes the values you want to choose between need to include commas. When this is the case, wrapping the values in {} allows their commas to be distinguished from the function’s argument-separating commas:
+L166: 
+L167:     font-family: random-item(--x, {Times, serif}, {Arial, sans-serif}, {Courier, monospace});
+L168: 
+L169: 
+L170: This randomly chooses one of three font-family lists: either Times, serif, or Arial, sans-serif, or Courier, monospace.
+L171: This is not all-or-nothing; you can use {} around some arguments that need it, while leaving others bare when they don’t need it. You are also allowed to use {} around a value when it’s not strictly required. For example:
+L172: 
+L173:     font-family: random-item(--x, {Times, serif}, sans-serif, {monospace});
+L174: 
+L175: 
+L176: This represents choosing between three font-family lists: either Times, serif, or cite130†sans-serif , or cite131†monospace .
+--------------------------------------------------------------------------------
+CSS Values and Units Module Level 5 (https://drafts.csswg.org/css-values-5/)
+citeturn1343view1 [wordlim: 200] Crawled: today; Content type: text/html; Source: click({"ref_id":"turn1341view3","id":534}); Total lines: 2842
+--------------------------------------------------------------------------------
+CSS Custom Properties for Cascading Variables Module Level 1 (https://www.w3.org/TR/2022/CR-css-variables-1-20220616/)
+citeturn1343view2 [wordlim: 200] Crawled: yesterday; Content type: text/html; Source: click({"ref_id":"turn1341view0","id":45}); Total lines: 1067
+--------------------------------------------------------------------------------
+CSS Values and Units Module Level 4 (https://drafts.csswg.org/css-values-4/)
+citeturn1343view3 [wordlim: 200] Crawled: today; Content type: text/html; Source: click({"ref_id":"turn1341view4","id":95}); Total lines: 2959
+--------------------------------------------------------------------------------
+CSS Object Model (CSSOM) Module Level 1 (https://drafts.csswg.org/cssom/)
+citeturn1343view4 [wordlim: 200] Crawled: today; Content type: text/html; Source: click({"ref_id":"turn1334view2","id":878}); Total lines: 2901
+--------------------------------------------------------------------------------
+CSS Object Model (CSSOM) Module Level 1 (https://drafts.csswg.org/cssom/)
+citeturn1343view5 [wordlim: 200] Crawled: today; Content type: text/html; Source: click({"ref_id":"turn1334view3","id":700}); Total lines: 2901
+

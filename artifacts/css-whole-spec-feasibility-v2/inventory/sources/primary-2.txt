@@ -1,0 +1,219 @@
+CSS Custom Properties for Cascading Variables Module Level 1 (https://www.w3.org/TR/2022/CR-css-variables-1-20220616/)
+citeturn1334view0 [wordlim: 200] Crawled: yesterday; Content type: text/html; Source: open({"ref_id":"https://www.w3.org/TR/2022/CR-css-variables-1-20220616/","lineno":125}); Total lines: 1067
+L109:   * cite94†variable-declaration-29.html†wpt.fyi cite95†(live test)†wpt.live cite96†(source)†github.com L110:   * cite97†variable-declaration-31.html†wpt.fyi cite98†(live test)†wpt.live cite99†(source)†github.com L111:   * cite100†variable-declaration-32.html†wpt.fyi cite101†(live test)†wpt.live cite102†(source)†github.com L112:   * cite103†variable-declaration-33.html†wpt.fyi cite104†(live test)†wpt.live cite105†(source)†github.com L113:   * cite106†variable-declaration-34.html†wpt.fyi cite107†(live test)†wpt.live cite108†(source)†github.com L114:   * cite109†variable-declaration-35.html†wpt.fyi cite110†(live test)†wpt.live cite111†(source)†github.com L115:   * cite112†variable-declaration-36.html†wpt.fyi cite113†(live test)†wpt.live cite114†(source)†github.com L116:   * cite115†variable-declaration-40.html†wpt.fyi cite116†(live test)†wpt.live cite117†(source)†github.com L117:   * cite118†variable-declaration-41.html†wpt.fyi cite119†(live test)†wpt.live cite120†(source)†github.com L118:   * cite121†variable-declaration-42.html†wpt.fyi cite122†(live test)†wpt.live cite123†(source)†github.com L119:   * cite124†variable-empty-name-reserved.html†wpt.fyi cite125†(live test)†wpt.live cite126†(source)†github.com L120: Custom properties define variables, referenced with the cite74†var() notation, which can be used for many purposes. For example, a page that consistently uses a small set of colors in its design can store the colors in custom properties and use them with variables:
+L121: 
+L122:     :root {
+L123:       --main-color: #06c;
+L124:       --accent-color: #006;
+L125:     }
+L126:     /* The rest of the CSS file */
+L127:     #foo h1 {
+L128:       color: var(--main-color);
+L129:     }
+L130: The naming provides a mnemonic for the colors, prevents difficult-to-spot typos in the color codes, and if the theme colors are ever changed, focuses the change on one simple spot (the custom property value) rather than requiring many edits across all stylesheets in the webpage.
+L131: Unlike other CSS properties, custom property names are not cite127†ASCII case-insensitive†infra.spec.whatwg.org . Instead, custom property names are only equal to each other if they are cite128†identical to†infra.spec.whatwg.org each other.
+L132: 
+L133: Tests
+L134: 
+L135:   * cite129†css-vars-custom-property-case-sensitive-001.html†wpt.fyi cite130†(live test)†wpt.live cite131†(source)†github.com L136: While both --foo and --FOO are valid, they are distinct properties —using var(--foo) will refer to the first one, while using var(--FOO) will refer to the second.
+L137: Perhaps more surprisingly, --foó and --foó are distinct properties. The first is spelled with U+00F3 (LATIN SMALL LETTER O WITH ACUTE) while the second is spelled with an ASCII "o" followed by U+0301 (COMBINING ACUTE ACCENT), and the "cite128†identical to†infra.spec.whatwg.org " relation uses direct codepoint-by-codepoint comparison to determine if two strings are equal, to avoid the complexities and pitfalls of unicode normalization and locale-specific collation.
+L138: Operating systems, keyboards, or input methods sometimes encode visually-identical text using different codepoint sequences. Authors are advised to choose variable names that avoid potential confusion or to use escapes and other means to ensure that similar appearing sequences are identical. See Section 2.3 in cite132†[CHARMOD-NORM] for examples.
+L139: Developers maintaining the following CSS might be confused why the test patch is red:
+L140: 
+L141:     --fijord: red;
+L142:     --fĳord: green;
+L143:     --ﬁjord: blue;
+L144: 
+L145:     .test {
+L146:       background-color: var(--fijord);
+L147:     }
+L148: The reason is that the first custom property uses the character sequence LATIN SMALL LETTER F + LATIN SMALL LETTER I + LATIN SMALL LETTER J; the second, identical-looking one uses the character sequence LATIN SMALL LETTER F + LATIN SMALL LIGATURE IJ while the third uses the character sequence LATIN SMALL LIGATURE FI + LATIN SMALL LETTER J.
+L149: 
+L150: So the CSS contains three distinct custom properties, two of which are unused.
+L151: Custom properties are not reset by the cite133†all property. We may define a property in the future that resets all variables.
+L152: 
+L153: The cite79†CSS-wide keywords can be used in custom properties, with the same meaning as in any another property.
+L154: 
+L155: Tests
+--------------------------------------------------------------------------------
+CSS Custom Properties for Cascading Variables Module Level 1 (https://www.w3.org/TR/2022/CR-css-variables-1-20220616/)
+citeturn1334view1 [wordlim: 200] Crawled: yesterday; Content type: text/html; Source: open({"ref_id":"https://www.w3.org/TR/2022/CR-css-variables-1-20220616/","lineno":330}); Total lines: 1067
+L306:   * cite305†variable-declaration-51.html†wpt.fyi cite306†(live test)†wpt.live cite307†(source)†github.com L307:   * cite308†variable-declaration-52.html†wpt.fyi cite309†(live test)†wpt.live cite310†(source)†github.com L308: 
+L309: For example, given the following structure, these custom properties are not cyclic, and all define valid variables:
+L310: 
+L311:     <one><two><three /></two></one>
+L312:     <style>
+L313:     one   { --foo: 10px; }
+L314:     two   { --bar: calc(var(--foo) + 10px); }
+L315:     three { --foo: calc(var(--bar) + 10px); }
+L316:     </style>
+L317: The <one> element defines a value for --foo. The <two> element inherits this value, and additionally assigns a value to --bar using the foo variable. Finally, the <three> element inherits the --bar value after variable substitution (in other words, it sees the value calc(10px + 10px)), and then redefines --foo in terms of that value.
+L318: Since the value it inherited for --bar no longer contains a reference to the --foo property defined on <one>, defining --foo using the var(--bar) variable is not cyclic, and actually defines a value that will eventually (when referenced as a variable in a normal property) resolve to 30px.
+L319: ## 3. Using Cascading Variables: the cite74†var() notation
+L320: 
+L321: The value of a cite73†custom property can be substituted into the value of another property with the cite74†var() function. The syntax of var() is:
+L322: 
+L323:     var() = var( cite311†<custom-property-name> cite312†, cite82†<declaration-value> cite83†? )
+L324: 
+L325: 
+L326: Tests
+L327:   * cite313†variable-reference-07.html†wpt.fyi cite314†(live test)†wpt.live cite315†(source)†github.com L328:   * cite316†variable-reference-08.html†wpt.fyi cite317†(live test)†wpt.live cite318†(source)†github.com L329:   * cite319†variable-reference-09.html†wpt.fyi cite320†(live test)†wpt.live cite321†(source)†github.com L330:   * cite322†variable-reference-10.html†wpt.fyi cite323†(live test)†wpt.live cite324†(source)†github.com L331:   * cite325†variable-reference-17.html†wpt.fyi cite326†(live test)†wpt.live cite327†(source)†github.com L332:   * cite328†variable-reference-20.html†wpt.fyi cite329†(live test)†wpt.live cite330†(source)†github.com L333:   * cite331†variable-reference-21.html†wpt.fyi cite332†(live test)†wpt.live cite333†(source)†github.com L334:   * cite334†variable-reference-22.html†wpt.fyi cite335†(live test)†wpt.live cite336†(source)†github.com L335:   * cite337†variable-reference-23.html†wpt.fyi cite338†(live test)†wpt.live cite339†(source)†github.com L336:   * cite340†variable-reference-24.html†wpt.fyi cite341†(live test)†wpt.live cite342†(source)†github.com L337:   * cite343†variable-reference-25.html†wpt.fyi cite344†(live test)†wpt.live cite345†(source)†github.com L338:   * cite346†variable-reference-28.html†wpt.fyi cite347†(live test)†wpt.live cite348†(source)†github.com L339:   * cite349†variable-reference-29.html†wpt.fyi cite350†(live test)†wpt.live cite351†(source)†github.com L340:   * cite352†variable-reference-31.html†wpt.fyi cite353†(live test)†wpt.live cite354†(source)†github.com L341:   * cite355†variable-reference-32.html†wpt.fyi cite356†(live test)†wpt.live cite357†(source)†github.com L342:   * cite358†variable-reference-33.html†wpt.fyi cite359†(live test)†wpt.live cite360†(source)†github.com L343:   * cite361†variable-reference-34.html†wpt.fyi cite362†(live test)†wpt.live cite363†(source)†github.com L344:   * cite364†variable-reference-35.html†wpt.fyi cite365†(live test)†wpt.live cite366†(source)†github.com L345:   * cite367†variable-reference.html†wpt.fyi cite368†(live test)†wpt.live cite369†(source)†github.com L346: @supports
+L347:   * cite370†variable-supports-01.html†wpt.fyi cite371†(live test)†wpt.live cite372†(source)†github.com L348:   * cite373†variable-supports-02.html†wpt.fyi cite374†(live test)†wpt.live cite375†(source)†github.com L349:   * cite376†variable-supports-03.html†wpt.fyi cite377†(live test)†wpt.live cite378†(source)†github.com L350:   * cite379†variable-supports-04.html†wpt.fyi cite380†(live test)†wpt.live cite381†(source)†github.com L351:   * cite382†variable-supports-05.html†wpt.fyi cite383†(live test)†wpt.live cite384†(source)†github.com L352:   * cite385†variable-supports-06.html†wpt.fyi cite386†(live test)†wpt.live cite387†(source)†github.com L353:   * cite388†variable-supports-07.html†wpt.fyi cite389†(live test)†wpt.live cite390†(source)†github.com L354:   * cite391†variable-supports-08.html†wpt.fyi cite392†(live test)†wpt.live cite393†(source)†github.com L355:   * cite394†variable-supports-09.html†wpt.fyi cite395†(live test)†wpt.live cite396†(source)†github.com L356:   * cite397†variable-supports-10.html†wpt.fyi cite398†(live test)†wpt.live cite399†(source)†github.com L357:   * cite400†variable-supports-11.html†wpt.fyi cite401†(live test)†wpt.live cite402†(source)†github.com L358:   * cite403†variable-supports-12.html†wpt.fyi cite404†(live test)†wpt.live cite405†(source)†github.com L359:   * cite406†variable-supports-13.html†wpt.fyi cite407†(live test)†wpt.live cite408†(source)†github.com L360:   * cite409†variable-supports-14.html†wpt.fyi cite410†(live test)†wpt.live cite411†(source)†github.com L361:   * cite412†variable-supports-15.html†wpt.fyi cite413†(live test)†wpt.live cite414†(source)†github.com --------------------------------------------------------------------------------
+CSS Object Model (CSSOM) Module Level 1 (https://drafts.csswg.org/cssom/)
+citeturn1334view2 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"https://drafts.csswg.org/cssom/","lineno":1708}); Total lines: 2901
+L1672: Before  | After
+L1673: --- | ---
+L1674: `background: none`  | `background: rgba(0, 0, 0, 0)`
+L1675: `outline: none`  | `outline: invert`
+L1676: `border: none`  | `border: medium`
+L1677: `list-style: none`  | `list-style: disc`
+L1678: `margin: 0 1px 1px 1px`  | `margin: 0px 1px 1px`
+L1679: `azimuth: behind left`  | `azimuth: 220deg`
+L1680: `font-family: a, 'b"', serif`  | `font-family: "a", "b\"", serif`
+L1681: `content: url('h)i') '\[\]'`  | `content: url("h)i") "[]"`
+L1682: `azimuth: leftwards`  | `azimuth: leftwards`
+L1683: `color: rgb(18, 52, 86)`  | `color: #123456`
+L1684: `color: rgba(000001, 0, 0, 1)`  | `color: #000000`
+L1685: Some of these need to be updated per the new rules.
+L1686: ## 7. DOM Access to CSS Declaration Blocks
+L1687: ### 7.1. The `cite863†ElementCSSInlineStyle ` Mixin
+L1688: 
+L1689: The `ElementCSSInlineStyle` mixin provides access to inline style properties of an element.
+L1690: 
+L1691:     interface mixin `ElementCSSInlineStyle` {
+L1692:       [cite306†SameObject†webidl.spec.whatwg.org , cite307†PutForwards†webidl.spec.whatwg.org =cssText] readonly attribute cite578†CSSStyleProperties cite864†style ;
+L1693:     };
+L1694: The `style` attribute must return a `cite578†CSSStyleProperties ` object whose cite601†readonly flag is unset, whose cite604†parent CSS rule is null, and whose cite606†owner node is cite605†this†webidl.spec.whatwg.org .
+L1695: 
+L1696: If the user agent supports HTML, the following IDL applies: cite117†[HTML] L1697: 
+L1698:     cite865†HTMLElement†html.spec.whatwg.org includes cite863†ElementCSSInlineStyle ;
+L1699: If the user agent supports SVG, the following IDL applies: cite866†[SVG11] L1700: 
+L1701:     cite867†SVGElement†w3c.github.io includes cite863†ElementCSSInlineStyle ;
+L1702: 
+L1703: 
+L1704: If the user agent supports MathML, the following IDL applies: cite868†[MathML-Core] L1705: 
+L1706:     cite869†MathMLElement†w3c.github.io includes cite863†ElementCSSInlineStyle ;
+L1707: 
+L1708: 
+L1709: Tests
+L1710:   * cite870†css-style-attribute-modifications.html†wpt.fyi cite871†(live test)†wpt.live cite872†(source)†github.com L1711:   * cite873†inline-style-001.html†wpt.fyi cite874†(live test)†wpt.live cite875†(source)†github.com L1712: ### 7.2. Extensions to the `cite876†Window†html.spec.whatwg.org ` Interface
+L1713: 
+L1714:     partial interface cite876†Window†html.spec.whatwg.org {
+L1715:       [cite877†NewObject†webidl.spec.whatwg.org ] cite578†CSSStyleProperties cite878†getComputedStyle (cite301†Element†dom.spec.whatwg.org `elt`, optional cite169†CSSOMString ? `pseudoElt`);
+L1716:     };
+L1717: 
+L1718: 
+L1719: The `getComputedStyle(`elt`, `pseudoElt`)` method must run these steps:
+L1720:   1. Let `doc` be `elt`’s cite396†node document†dom.spec.whatwg.org .
+L1721:   2. Let `obj` be `elt`.
+L1722:   3. If `pseudoElt` is provided, is not the empty string, and starts with a colon, then:
+L1723:     1. cite823†Parse `pseudoElt` as a cite879†<pseudo-element-selector> , and let `type` be the result.
+L1724:     2. If `type` is failure, or is a cite880†::slotted() or cite881†::part() pseudo-element, let `obj` be null.
+L1725:     3. Otherwise let `obj` be the given pseudo-element of `elt`.
+L1726: Note: CSS2 pseudo-elements should match both the double and single-colon versions. That is, both `:before` and `::before` should match above.
+L1727:   4. Let `decls` be an empty list of cite653†CSS declarations .
+L1728:   5.
+L1729: If `obj` is not null, and `elt` is cite882†connected†dom.spec.whatwg.org , part of the cite883†flat tree , and its cite884†shadow-including root†dom.spec.whatwg.org has a cite885†browsing context†html.spec.whatwg.org which either doesn’t have a browsing context container, or whose browsing context container is cite886†being rendered†html.spec.whatwg.org , set `decls` to a list of all longhand properties that are cite125†supported CSS properties , in lexicographical order, with the value being the cite887†resolved value computed for `obj` using the style rules associated with `doc`.
+L1730: Additionally, append to `decls` all the cite124†custom properties whose cite888†computed value for `obj` is not the cite889†guaranteed-invalid value .
+L1731: There are UAs that handle shorthands, and all UAs handle shorthands that used to be longhands like cite890†overflow , see cite891†#2529†github.com .
+L1732: 
+L1733: Order of custom properties is currently undefined, see cite892†#4947†github.com .
+L1734: 
+L1735:   6. Return a live `cite578†CSSStyleProperties ` object with the following properties:
+L1736: 
+L1737: cite600†computed flag L1738:     Set.
+L1739: cite601†readonly flag L1740:     Set.
+L1741: cite602†declarations L1742:     `decls`.
+L1743: cite604†parent CSS rule L1744:     Null.
+L1745: cite606†owner node L1746:     `obj`.
+L1747: The `cite878†getComputedStyle() ` method exposes information from cite217†CSS style sheets with the cite231†origin-clean flag unset.
+L1748: 
+L1749: Tests
+--------------------------------------------------------------------------------
+CSS Object Model (CSSOM) Module Level 1 (https://drafts.csswg.org/cssom/)
+citeturn1334view3 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"https://drafts.csswg.org/cssom/","lineno":1395}); Total lines: 2901
+L1382:   * cite733†cssstyledeclaration-custom-properties.html†wpt.fyi cite734†(live test)†wpt.live cite735†(source)†github.com L1383:   * cite736†cssstyledeclaration-mutability.html†wpt.fyi cite737†(live test)†wpt.live cite738†(source)†github.com L1384:   * cite739†cssstyledeclaration-mutationrecord-001.html†wpt.fyi cite740†(live test)†wpt.live cite741†(source)†github.com L1385:   * cite742†cssstyledeclaration-mutationrecord-002.html†wpt.fyi cite743†(live test)†wpt.live cite744†(source)†github.com L1386:   * cite745†cssstyledeclaration-mutationrecord-003.html†wpt.fyi cite746†(live test)†wpt.live cite747†(source)†github.com L1387:   * cite748†cssstyledeclaration-mutationrecord-004.html†wpt.fyi cite749†(live test)†wpt.live cite750†(source)†github.com L1388:   * cite751†cssstyledeclaration-mutationrecord-005.html†wpt.fyi cite752†(live test)†wpt.live cite753†(source)†github.com L1389:   * cite754†cssstyledeclaration-properties.html†wpt.fyi cite755†(live test)†wpt.live cite756†(source)†github.com L1390:   * cite757†cssstyledeclaration-registered-custom-properties.html†wpt.fyi cite758†(live test)†wpt.live cite759†(source)†github.com L1391:   * cite760†cssstyledeclaration-removeProperty-all.html†wpt.fyi cite761†(live test)†wpt.live cite762†(source)†github.com L1392:   * cite763†cssstyledeclaration-setter-attr.html†wpt.fyi cite764†(live test)†wpt.live cite765†(source)†github.com L1393:   * cite766†cssstyledeclaration-setter-declarations.html†wpt.fyi cite767†(live test)†wpt.live cite768†(source)†github.com L1394:   * cite769†cssstyledeclaration-setter-form-controls.html†wpt.fyi cite770†(live test)†wpt.live cite771†(source)†github.com L1395:   * cite772†cssstyledeclaration-setter-logical.html†wpt.fyi cite773†(live test)†wpt.live cite774†(source)†github.com L1396:   * cite775†page-descriptors.html†wpt.fyi cite776†(live test)†wpt.live cite777†(source)†github.com L1397:   * cite778†property-accessors.html†wpt.fyi cite779†(live test)†wpt.live cite780†(source)†github.com L1398: The object’s cite177†supported property indices†heycam.github.io are the numbers in the range zero to one less than the number of cite653†CSS declarations in the cite602†declarations . If there are no such CSS declarations, then there are no supported property indices.
+L1399: 
+L1400: Getting the `cssText` attribute must run these steps:
+L1401: 
+L1402:   1. If the cite600†computed flag is set, then return the empty string.
+L1403: 
+L1404:   2. Return the result of cite514†serializing the cite602†declarations .
+L1405: Setting the `cite700†cssText ` attribute must run these steps:
+L1406: 
+L1407:   1. If the cite601†readonly flag is set, then cite200†throw†heycam.github.io a `cite781†NoModificationAllowedError†webidl.spec.whatwg.org ` exception.
+L1408:   2. Empty the cite602†declarations .
+L1409:   3. cite541†Parse the given value and, if the return value is not the empty list, insert the items in the list into the cite602†declarations , in cite603†specified order .
+L1410:   4. cite782†Update style attribute for the cite655†CSS declaration block .
+L1411: The `length` attribute must return the number of cite653†CSS declarations in the cite602†declarations .
+L1412: 
+L1413: The `item(`index`)` method must return the cite654†property name of the cite653†CSS declaration at position `index`. If there is no `index`th object in the collection, then the method must return the empty string.
+L1414: 
+L1415: The `getPropertyValue(`property`)` method must run these steps:
+L1416:   1. If `property` is not a cite124†custom property , follow these substeps:
+L1417:     1. Let `property` be `property` cite147†converted to ASCII lowercase†infra.spec.whatwg.org .
+L1418:     2. If `property` is a shorthand property, then follow these substeps:
+L1419:       1. Let `list` be a new empty array.
+L1420:       2. For each longhand property `longhand` that `property` maps to, in canonical order, follow these substeps:
+L1421:         1. If `longhand` is a cite128†case-sensitive†w3c.github.io match for a cite654†property name of a cite653†CSS declaration in the cite602†declarations , let `declaration` be that CSS declaration, or null otherwise.
+L1422:         2. If `declaration` is null, then return the empty string.
+L1423:         3. Append the `declaration` to `list`.
+L1424:       3. If cite665†important flags of all declarations in `list` are same, then return the cite134†serialization of `list`.
+L1425:       4. Return the empty string.
+L1426:   2. If `property` is a cite128†case-sensitive†w3c.github.io match for a cite654†property name of a cite653†CSS declaration in the cite602†declarations , then return the result of invoking cite134†serialize a CSS value of that declaration.
+L1427:   3. Return the empty string.
+L1428: Tests
+--------------------------------------------------------------------------------
+CSS Syntax Module Level 3 (https://drafts.csswg.org/css-syntax-3/)
+citeturn1334view4 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"https://drafts.csswg.org/css-syntax-3/","lineno":1200}); Total lines: 2053
+L1192:   * If you see a recognized property name, a colon, and a {}-block, but the first non-whitespace tokens following that block isn’t either immediately the final semicolon, or the !important followed by the semicolon, you can immediately stop parsing as a declaration and reparse as a rule instead.
+L1193: 
+L1194: (That is, cite325†font: {} bar ... is guaranteed to be an invalid property; you don’t need to keep parsing until you hit a semicolon.)
+L1195: Similarly, even tho the parsing requirements are specified to rely on checking the grammar of the declarations as you parse, a generic processor trying to implement a non-CSS language on top of the generic CSS syntax can still get away with just verifying that declarations start with an ident, a colon, and then either contain solely a {}-block or no {}-block at all. They’ll just spent a little more time on parsing than an implementation with grammar knowledge in cases like foo:hover ...
+L1196: {}, since they can’t early-exit on the first token.
+L1197: Tests
+L1198: 
+L1199:   * cite326†at-rule-in-declaration-list.html†wpt.fyi cite327†(live test)†wpt.live cite328†(source)†github.com L1200: #### 5.5.6. Consume a declaration
+L1201: 
+L1202: To consume a declaration from a cite237†token stream `input`, given an optional bool `nested` (default false):
+L1203: 
+L1204: Let `decl` be a new cite242†declaration , with an initially empty name and a value set to an empty cite259†list†infra.spec.whatwg.org .
+L1205: 
+L1206:   1. If the cite265†next token is an cite154†<ident-token> , cite308†consume a token from `input` and set `decl`'s name to the token’s value.
+L1207: Otherwise, cite311†consume the remnants of a bad declaration from `input`, with `nested`, and return nothing.
+L1208: 
+L1209:   2. cite299†Discard whitespace from `input`.
+L1210:   3. If the cite265†next token is a cite202†<colon-token> , cite268†discard a token from `input`.
+L1211: 
+L1212: Otherwise, cite311†consume the remnants of a bad declaration from `input`, with `nested`, and return nothing.
+L1213:   4. cite299†Discard whitespace from `input`.
+L1214:   5. cite305†Consume a list of component values from `input`, with `nested`, and with cite130†<semicolon-token> as the stop token, and set `decl`’s value to the result.
+L1215:   6. If the last two non-cite166†<whitespace-token> s in `decl`’s value are a cite159†<delim-token> with the value "!" followed by an cite154†<ident-token> with a value that is an cite219†ASCII case-insensitive†infra.spec.whatwg.org match for "important", remove them from `decl`’s value and set `decl`’s `important` flag.
+L1216:   7. While the last item in `decl`’s value is a cite166†<whitespace-token> , cite329†remove†infra.spec.whatwg.org that token.
+L1217:   8. If `decl`’s name is a cite330†custom property name string†drafts.css-houdini.org , then set `decl`’s `original text` to the segment of the original source text string corresponding to the tokens of `decl`’s value.
+L1218: Otherwise, if `decl`’s value contains a top-level cite249†simple block with an associated token of cite131†<{-token> , and also contains any other non-cite166†<whitespace-token> value, return nothing. (That is, a top-level {}-block is only allowed as the entire value of a non-custom property.)
+L1219: Otherwise, if `decl`’s name is an cite219†ASCII case-insensitive†infra.spec.whatwg.org match for "unicode-range", cite235†consume the value of a unicode-range descriptor from the segment of the original source text string corresponding to the tokens returned by the cite305†consume a list of component values call, and replace `decl`’s value with the result.
+L1220: Tests
+L1221:      * cite331†var-with-blocks.html†wpt.fyi cite332†(live test)†wpt.live cite333†(source)†github.com L1222:   9. If `decl` is valid in the current context, return it; otherwise return nothing.
+L1223: 
+L1224: To consume the remnants of a bad declaration from a cite237†token stream `input`, given a bool `nested`:
+L1225: 
+L1226: cite269†Process `input`:
+L1227: 
+L1228: cite153†<eof-token> L1229: cite130†<semicolon-token> L1230: 
+L1231: 
+L1232: cite268†Discard a token from `input`, and return nothing.
+L1233: 
+L1234: cite132†<}-token> L1235: If `nested` is true, return nothing. Otherwise, cite268†discard a token .
+L1236: 
+L1237: anything else
+L1238: 
+L1239: 
+L1240: cite304†Consume a component value from `input`, and do nothing.
+L1241: #### 5.5.7. Consume a list of component values
+L1242: 
+L1243: To consume a list of component values from a cite237†token stream `input`, given an optional cite257†token `stop token` and an optional boolean `nested` (default false):
+L1244: 
+L1245: Let `values` be an empty cite259†list†infra.spec.whatwg.org of cite240†component values .
+L1246: 
+

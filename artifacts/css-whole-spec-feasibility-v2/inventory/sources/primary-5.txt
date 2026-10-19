@@ -1,0 +1,240 @@
+CSS Custom Properties for Cascading Variables Module Level 1 (https://www.w3.org/TR/2022/CR-css-variables-1-20220616/)
+citeturn1341view0 [wordlim: 200] Crawled: yesterday; Content type: text/html; Source: open({"ref_id":"https://www.w3.org/TR/2022/CR-css-variables-1-20220616/","lineno":275}); Total lines: 1067
+L269: This value serializes as the empty string, but actually writing an empty value into a custom property, like --foo: ;, is a valid (empty) value, not the cite85†guaranteed-invalid value . If, for whatever reason, one wants to manually reset a variable to the guaranteed-invalid value, using the keyword cite284†initial will do this.
+L270: ### 2.3. Resolving Dependency Cycles
+L271: 
+L272: cite73†Custom properties are left almost entirely unevaluated, except that they allow and evaluate the cite74†var() function in their value. This can create cyclic dependencies where a custom property uses a var() referring to itself, or two or more custom properties each attempt to refer to each other.
+L273: For each element, create a directed dependency graph, containing nodes for each cite73†custom property . If the value of a custom property `prop` contains a cite74†var() function referring to the property `var` (including in the fallback argument of var()), add an edge between `prop` and the `var`. Edges are possible from a custom property to itself.
+L274: 
+L275: If there is a cycle in the dependency graph, all the cite73†custom properties in the cycle are cite283†invalid at computed-value time .
+L276: 
+L277: Tests
+L278:   * cite285†variable-cycles.html†wpt.fyi cite286†(live test)†wpt.live cite287†(source)†github.com L279:   * cite288†variable-declaration-30.html†wpt.fyi cite289†(live test)†wpt.live cite290†(source)†github.com L280:   * cite291†variable-declaration-48.html†wpt.fyi cite292†(live test)†wpt.live cite293†(source)†github.com L281:   * cite294†variable-declaration-49.html†wpt.fyi cite295†(live test)†wpt.live cite296†(source)†github.com L282:   * cite297†variable-declaration-50.html†wpt.fyi cite298†(live test)†wpt.live cite299†(source)†github.com L283:   * cite300†variable-reference-39.html†wpt.fyi cite301†(live test)†wpt.live cite302†(source)†github.com L284: Note: Defined properties that participate in a dependency cycle either end up with invalid variables in their value (becoming cite283†invalid at computed-value time ), or define their own cyclic handling (like cite303†font-size using cite304†em values). They do not compute to the cite85†guaranteed-invalid value like custom properties do.
+L285: This example shows a custom property safely using a variable:
+L286: 
+L287:     :root {
+L288:       --main-color: #c06;
+L289:       --accent-background: linear-gradient(to top, var(--main-color), white);
+L290:     }
+L291: 
+L292: 
+L293: The --accent-background property (along with any other properties that use var(--main-color)) will automatically update when the --main-color property is changed.
+L294: On the other hand, this example shows an invalid instance of variables depending on each other:
+L295: 
+L296:     :root {
+L297:       --one: calc(var(--two) + 20px);
+L298:       --two: calc(var(--one) - 20px);
+L299:     }
+L300: 
+L301: 
+L302: Both --one and --two are now cite283†invalid at computed-value time , and compute to the cite85†guaranteed-invalid value rather than lengths.
+--------------------------------------------------------------------------------
+CSS Custom Properties for Cascading Variables Module Level 1 (https://www.w3.org/TR/2022/CR-css-variables-1-20220616/)
+citeturn1341view1 [wordlim: 200] Crawled: yesterday; Content type: text/html; Source: open({"ref_id":"https://www.w3.org/TR/2022/CR-css-variables-1-20220616/","lineno":75}); Total lines: 1067
+L49:   1. cite40†1 Introduction L50:     1. cite41†1.1 Value Definitions L51:   2. cite42†2 Defining Custom Properties: the --* family of properties L52:     1. cite43†2.1 Custom Property Value Syntax L53:     2. cite44†2.2 Guaranteed-Invalid Values L54:     3. cite45†2.3 Resolving Dependency Cycles L55:   3. cite46†3 Using Cascading Variables: the var() notation L56:     1. cite47†3.1 Invalid Variables L57:     2. cite48†3.2 Variables in Shorthand Properties L58:     3. cite49†3.3 Safely Handling Overly-Long Variables L59:   4. cite50†4 APIs L60:     1. cite51†4.1 Serializing Custom Properties L61:   5. cite52†5 Changes L62:     1. cite53†5.1 Changes Since the 11 November 2021 CR Draft L63:     2. cite54†5.2 Changes Since the 03 December 2015 CR L64:     3. cite55†5.3 Changes since the May 6 2014 Last Call Working Draft L65:   6. cite56†6 Acknowledgments L66:   7. cite57†7 Privacy Considerations L67:   8. cite58†8 Security Considerations L68:   9. cite59†Conformance L69:     1. cite60†Document conventions L70:     2. cite61†Conformance classes L71:     3. cite62†Partial implementations L72:       1. cite63†Implementations of Unstable and Proprietary Features L73:     4. cite64†Non-experimental implementations L74:     5. cite65†CR exit criteria L75:   10. cite66†Index L76:     1. cite67†Terms defined by this specification L77:     2. cite68†Terms defined by reference L78:   11. cite69†References L79:     1. cite70†Normative References L80:     2. cite71†Informative References L81:   12. cite72†Property Index L82: ## 1. Introduction
+L83: 
+L84: This section is not normative.
+L85: 
+L86: Large documents or applications (and even small ones) can contain quite a bit of CSS. Many of the values in the CSS file will be duplicate data; for example, a site may establish a color scheme and reuse three or four colors throughout the site. Altering this data can be difficult and error-prone, since it’s scattered throughout the CSS file (and possibly across multiple files), and may not be amenable to Find-and-Replace.
+L87: This module introduces a family of custom author-defined properties known collectively as cite73†custom properties , which allow an author to assign arbitrary values to a property with an author-chosen name, and the cite74†var() function, which allow an author to then use those values in other properties elsewhere in the document.
+L88: This makes it easier to read large files, as seemingly-arbitrary values now have informative names, and makes editing such files much easier and less error-prone, as one only has to change the value once, in the custom property, and the change will propagate to all uses of that variable automatically.
+L89: ### 1.1. Value Definitions
+L90: 
+L91: This specification follows the cite75†CSS property definition conventions from cite76†[CSS2] using the cite77†value definition syntax from cite78†[CSS-VALUES-3] . Value types not defined in this specification are defined in CSS Values & Units [CSS-VALUES-3]. Combination with other CSS modules may expand the definitions of these value types.
+L92: In addition to the property-specific values listed in their definitions, all properties defined in this specification also accept the cite79†CSS-wide keywords as their property value. For readability they have not been repeated explicitly.
+L93: ## 2. Defining Custom Properties: the --* family of properties
+L94: 
+L95: This specification defines an open-ended set of properties called cite73†custom properties , which, among other things, are used to define the cite80†substitution value of cite74†var() functions.
+--------------------------------------------------------------------------------
+CSS Custom Properties for Cascading Variables Module Level 2 (https://drafts.csswg.org/css-variables-2/)
+citeturn1341view2 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"https://drafts.csswg.org/css-variables-2/","lineno":380}); Total lines: 829
+L369: In an exception to the usual cite270†comma elision rules , which require commas to be omitted when they’re not separating values, a bare comma, with nothing following it, must be treated as valid in cite48†var() , indicating an empty fallback value.
+L370: 
+L371: Tests
+L372:   * cite552†variable-declaration-07.html†wpt.fyi cite553†(live test)†wpt.live cite554†(source)†github.com L373:   * cite555†variable-declaration-37.html†wpt.fyi cite556†(live test)†wpt.live cite557†(source)†github.com L374:   * cite558†variable-reference-06.html†wpt.fyi cite559†(live test)†wpt.live cite560†(source)†github.com L375:   * cite561†variable-reference-11.html†wpt.fyi cite562†(live test)†wpt.live cite563†(source)†github.com L376:   * cite564†variable-reference-26.html†wpt.fyi cite565†(live test)†wpt.live cite566†(source)†github.com L377:   * cite567†variable-reference-27.html†wpt.fyi cite568†(live test)†wpt.live cite569†(source)†github.com L378: Note: That is, var(--a,) is a valid function, specifying that if the --a custom property is invalid or missing, the cite48†var() should be replaced with nothing.
+L379: 
+L380: Note: The syntax of the fallback, like that of cite47†custom properties , allows commas. For example, var(--foo, red, blue) defines a fallback of red, blue; that is, anything between the first comma and the end of the function is considered a fallback value.
+L381: The fallback value allows for some types of defensive coding. For example, an author may create a component intended to be included in a larger application, and use variables to style it so that it’s easy for the author of the larger application to theme the component to match the rest of the app.
+L382: Without fallback, the app author must supply a value for every variable that your component uses. With fallback, the component author can supply defaults, so the app author only needs to supply values for the variables they wish to override.
+L383: 
+L384:     /* In the component's style: */
+L385:     .component .header {
+L386:       color: var(--header-color, blue);
+L387:     }
+L388:     .component .text {
+L389:       color: var(--text-color, black);
+L390:     }
+L391: 
+L392:     /* In the larger application's style: */
+L393:     .component {
+L394:       --text-color: #080;
+L395:       /* header-color isn't set,
+L396:          and so remains blue,
+L397:          the fallback value */
+L398:     }
+L399: To cite570†replace a var() function†www.w3.org , given a list of `arguments`:
+L400: 
+L401:   1. Let `el` be the element that the style containing the cite48†var() function is being applied to. Let `first arg` be the first cite56†<declaration-value> in `arguments`. Let `second arg` be the <declaration-value>? passed after the comma, or null if there was no comma.
+L402:   2. cite54†Substitute arbitrary substitution functions in `first arg`, then cite571†parse it as a cite269†<custom-property-name> . If parsing returned a <custom-property-name>, let `result` be the cite264†computed value of the corresponding cite47†custom property on `el`. Otherwise, let `result` be the cite59†guaranteed-invalid value .
+L403: 
+L404: Note: Determining the cite264†computed value for the cite47†custom property implies that cite572†property replacement takes place, which may cause a cite573†cycle .
+--------------------------------------------------------------------------------
+CSS Values and Units Module Level 5 (https://drafts.csswg.org/css-values-5/)
+citeturn1341view3 [wordlim: 200] Crawled: today; Content type: text/html; Source: find({"ref_id":"https://drafts.csswg.org/css-values-5/","pattern":"substitution context"}); Total lines: 2842
+L847: If a cite526†<style-query> in `condition` tests the value of a property, and cite534†guarding a cite535†substitution context «"property", referenced-property-name» would mark it as a cite536†cyclic substitution context , that query evaluates to false.
+L848: 
+L849: For example, in --foo: if(style(--foo: bar): baz); the style() query is automatically false, since cite537†property replacement has already established a «"property", "--foo"» cite535†substitution context .
+L1061:   5. If `syntax` is null or the keyword raw-string, return a CSS cite156†<string> whose value is `attr value`.
+L1062: 
+L1063: Note: No parsing or modification of any kind is performed on the value.
+L1064: 
+L1065:   6. cite177†Substitute arbitrary substitution functions in `attr value`, with «"attribute", `attr name`» as the cite535†substitution context , then cite172†parse with a <syntax> `attr value`, with `syntax` and `el`. If that succeeds, return the result; otherwise, jump to the last step (labeled FAILURE).
+L1066: 
+L1067:   7. FAILURE:
+L1845: It might leave some arguments completely unsubstituted (for example, the fallback argument of an cite144†attr() function, if the attribute value exists and correctly parses), or only parse some arguments based on the results of evaluating other arguments (for example, later cite521†<if-condition> values in an cite121†if() function are only evaluated if earlier ones evaluated as false, and only the result in the "successful" cite520†<if-branch> is evaluated).
+L1846: To substitute arbitrary substitution functions in a sequence of cite174†component values `values`, given an optional cite535†substitution context `context`:
+L1847: 
+L1848:   1. cite534†Guard `context` for the remainder of this algorithm. If `context` is marked as a cite536†cyclic substitution context , return the cite175†guaranteed-invalid value .
+L1849:   2. cite532†For each†infra.spec.whatwg.org cite132†arbitrary substitution function `func` in `values` (ordered via a depth-first pre-order traversal) that is not nested in the contents of another arbitrary substitution function:
+L1850: 
+L1851:     1. cite1068†Substitute early-invoked functions in `func`’s contents, and let `early result` be the result.
+L1852: 
+L1853:     2. If `early result` contains the cite175†guaranteed-invalid value , replace `func` in `values` with the guaranteed-invalid value and cite533†continue†infra.spec.whatwg.org .
+L1854:     3. cite166†Parse `early result` according to `func`’s cite527†argument grammar . If this returns failure, replace `func` in values with the cite175†guaranteed-invalid value and cite533†continue†infra.spec.whatwg.org ; otherwise, let `arguments` be the result.
+L1855: 
+L1856:     4. cite531†Replace an arbitrary substitution function for `func`, given `arguments`, as defined by that function. Let `result` be the returned list of cite174†component values .
+L1857:     5. If `result` contains the cite175†guaranteed-invalid value , replace `func` in `values` with the guaranteed-invalid value. Otherwise, replace `func` in `values` with `result`.
+L1858: 
+L1859:   3. If `context` is marked as a cite536†cyclic substitution context , return the cite175†guaranteed-invalid value . Nested cite132†arbitrary substitution functions may have marked `context` as cite536†cyclic in step 2.
+L1860: 
+L1861:   4. Return `values`.
+L1862: A substitution context is a cite160†list†infra.spec.whatwg.org consisting of: the dependency type, as a string; one or more additional values, specific to the dependency type. (Usually, just one additional string.)
+L1863: 
+L1864: As cite132†arbitrary substitution functions are cite1069†resolved†webidl.spec.whatwg.org they accumulate cite535†substitution contexts which affect how nested arbitrary substitution functions resolve.
+L1865: For example, while resolving a var(--foo) function, the value of the --foo property is fetched and cite177†substituted , with a cite535†substitution context of `«"property", "--foo"»`, preventing any nested cite132†arbitrary substitution functions from cyclicly depending on --foo as well.
+L1866: While resolving an attr(foo) function, the value of the foo attribute on the element is fetched and cite177†substituted , with a cite535†substitution context of `«"attribute", "foo"»`, preventing any nested functions from cyclicly depending on the foo attribute as well.
+L1867: 
+L1868: The types of cite535†substitution contexts are currently:
+L1869: 
+L1870:   * "property", followed by a property name, and optionally a cite774†custom function .
+L1871: 
+L1872:   * "attribute", followed by an attribute name.
+L1873:   * "function", followed by a cite774†custom function .
+L1874: 
+L1875: As cite177†substitution is recursively invoked by nested cite132†arbitrary substitution functions being cite531†replaced , cite534†guards "stack up" the cite535†substitution contexts passed to each invocation.
+L1876: 
+L1877: When a cite535†substitution context is guarded, it means that, for the duration of the guard, an attempt to guard a matching substitution context again will mark all substitution contexts involved in the cycle as cyclic substitution contexts.
+L1878: For example, given the following style:
+L1879: 
+L1880:     .foo {
+L1881:       --one: var(--two);
+L1882:       --two: var(--one);
+L1883:     }
+L1884: cite537†Property replacement for --one invokes cite177†substitution with a cite535†substitution context of «"property", "--one"». Substitution sees the var(--two) function and invokes cite531†replace a var() function , which fetches the values of --two and substitutes again, this time with a substitution context of «"property", "--two"».
+L1885: That substitution sees the var(--one) function and invokes replace a var() function, which fetches the value of --one and substitutes again, with a substitution context of «"property", "--one"».
+L1886: This, finally, is a cite536†cyclic substitution context , since it matches the cite535†substitution context from the first cite177†substitution , causing the substitution to just produce the cite175†guaranteed-invalid value . This percolates back up the nested invocations, eventually resulting in --one becoming cite492†invalid at computed-value time . The same happens, in opposite order, when performing cite537†property replacement on --two.
+L1887: When a cite536†cycle is detected , all participants in the cycle become invalid. For example, all of the following declarations become cite492†invalid at computed-value time .
+L1888: 
+L1889:     .foo {
+L1890:       --one: var(--two);
+L1891:       --two: var(--three, baz);
+L1892:       --three: var(--one);
+L1893:     }
+L1894: 
+L1895: 
+L1896: The presence of a fallback in `var(--three, baz)` does not affect the outcome.
+L1897: ### Argument Grammars and Spread Syntax
+L1898: 
+L1899: Each cite132†arbitrary substitution function , in addition to its standard grammar, must define an argument grammar: a much less specific and less restrictive version of its normal grammar, which serves solely to separate the function’s contents into distinct arguments.
+L1900: 
+L1901: Note: Typically, an cite527†argument grammar will only consist of some punctuation (usually commas) and the cite123†<declaration-value> production. See the cite121†if() function for an example.
+L1902: Each function, in its cite531†replacement algorithm, will apply cite177†substitution to its arguments and then cite166†parse them according to the appropriate parts of its standard grammar. As it is in control of this process, however, some arguments can be left unresolved and unparsed.
+L1903: For example, the cite121†if() function’s cite527†argument grammar merely divides its value into alternating "test" and "result" arguments, separated by `:` and `;`. It then evaluates tests one by one, and only evaluates a single argument matching the first successful test.
+L1904: This allows cite121†if() to achieve behavior similar to `if` constructs in other programming languages, where later "branches" aren’t evaluated at all (beyond a basic parse) and thus can’t cause errors in cases that would be caught by earlier branches.
+L1905: This means the following is a valid declaration when the viewport is 600px or wider, resulting in the value cite1070†blue . Only when the viewport is narrower than 600px does the cite121†if() trigger cyclic behavior and cause --color to be cite492†invalid at computed-value time .
+L1906: 
+L1907:     .foo {
+L1908:       --color: if(media(width >= 600px): blue; else: var(--color));
+L1909:     }
+L1910: This also means that, ordinarily, parsing according to a function’s cite527†argument grammar does not see the results of any nested cite132†arbitrary substitution functions ; the contents are divided into arguments based only on the values literally present inside the function.
+L1911: For example, in random-item(auto, var(--foo), var(--bar)), the cite128†random-item() function selects between two random values, either the result of var(--foo) or var(--bar). This is true even if one of them contains commas, like:
+L1912: 
+L1913:     .random-fonts {
+L1914:       --foo: Courier, monospace;
+L1915:       --bar: Arial, serif;
+L1916:       font-family: random-item(auto, var(--foo), var(--bar));
+L1917:       /* equivalent to: */
+L1918:       font-family: random-item(auto, {Courier, monospace}, {Arial, serif});
+L2018:   1. cite177†Substitute arbitrary substitution functions in `prop`’s value, given «"property", `prop`’s name» as the cite535†substitution context . Let `result` be the returned cite174†component value sequence.
+L2019: 
+L2020:   2. If `result` contains the cite175†guaranteed-invalid value , `prop` is cite492†invalid at computed-value time ; return.
+L2021: 
+L2022:   3. cite166†Parse `result` according to `prop`’s grammar. If this returns failure, `prop` is cite492†invalid at computed-value time ; return.
+L2412:   * cite1048†substitute into a calc-size calculation , in § 11.2.1
+L2413:   * cite177†substitution , in § Unnumbered section
+L2414:   * cite535†substitution context , in § Unnumbered section
+L2415:   * cite143†<syntax> , in § 3.3
+L2416:   * cite149†<syntax-combinator> , in § 3.3
+L2417:   * cite148†<syntax-component> , in § 3.3
+L2418:   * cite152†<syntax-multiplier> , in § 3.3
+L2419:   * cite151†<syntax-single-component> , in § 3.3
+L2420:   * cite150†<syntax-string> , in § 3.3
+L2421:   * cite154†<syntax-type-name> , in § 3.3
+L2422:   * cite1316†top , in § 4.2
+L2423:   * cite455†transform-interpolate() , in § 7.6
+--------------------------------------------------------------------------------
+CSS Values and Units Module Level 4 (https://drafts.csswg.org/css-values-4/)
+citeturn1341view4 [wordlim: 200] Crawled: today; Content type: text/html; Source: find({"ref_id":"https://drafts.csswg.org/css-values-4/","pattern":"Conformance classes"}); Total lines: 2959
+L101:     4. cite86†10.4 Trigonometric Functions: sin(), cos(), tan(), asin(), acos(), atan(), and atan2() L102:       1. cite87†10.4.1 Argument Ranges L103:     5. cite88†10.5 Exponential Functions: pow(), sqrt(), hypot(), log(), exp() L104:       1. cite89†10.5.1 Argument Ranges L105:     6. cite90†10.6 Sign-Related Functions: abs(), sign() L106:     7. cite91†10.7 Numeric Keywords L107:       1. cite92†10.7.1 Numeric Constants: e, pi L108:       2. cite93†10.7.2 Degenerate Numeric Constants: infinity, -infinity, NaN L109:       3. cite94†10.7.3 Numeric Variables L110:     8. cite95†10.8 Syntax L111:     9. cite96†10.9 Type Checking L112:       1. cite97†10.9.1 Calculation Contexts L113:       2. cite98†10.9.2 Infinities, NaN, and Signed Zero L114:     10. cite99†10.10 Internal Representation L115:       1. cite100†10.10.1 Simplification L116:     11. cite101†10.11 Computed Value L117:     12. cite102†10.12 Range Checking L118:     13. cite103†10.13 Serialization L119:     14. cite104†10.14 Combination of Math Functions L120:   11. cite105†Appendix A: Coordinating List-Valued Properties L121:   12. cite106†Appendix B: IANA Considerations L122:     1. cite107†Registration for the `about:invalid` URL scheme L123:   13. cite108†Appendix C: Quirky Lengths L124:   14. cite109†Acknowledgments L125:   15. cite110†Changes L126:     1. cite111†Recent Changes L127:     2. cite112†Additions Since Level 3 L128:   16. cite113†Security Considerations L129:   17. cite114†Privacy Considerations L130:   18. cite115†Conformance L131:     1. cite116†Document conventions L132:     2. cite117†Conformance classes L133:     3. cite118†Partial implementations L134:       1. cite119†Implementations of Unstable and Proprietary Features L135:     4. cite120†Non-experimental implementations L136:   19. cite121†Index L137:     1. cite122†Terms defined by this specification L138:     2. cite123†Terms defined by reference L139:   20. cite124†References L140:     1. cite125†Normative References L141:     2. cite126†Non-Normative References L142:   21. cite4†Issues Index L143: ## 1. Introduction
+L144: 
+L145: The value definition field of each CSS property can contain keywords, data types (which appear between < and >), and information on how they can be combined. Generic data types (cite127†<length> being the most widely used) that can be used by many properties are described in this specification, while more specific data types (e.g., <spacing-limit>) are described in the corresponding modules.
+L146: ### 1.1. Module Interactions
+L147: 
+L148: This module replaces and extends the data type definitions in cite128†[CSS2] sections cite129†1.4.2.1†www.w3.org , cite130†4.3†www.w3.org , and cite131†A.2†www.w3.org .
+L149: 
+L150: ## 2. Value Definition Syntax
+L151: 
+L152: The value definition syntax described here is used to define the set of valid values for CSS properties (and the valid syntax of many other parts of CSS). A value so described can have one or more components.
+L153: ### 2.1. Component Value Types
+L154: 
+L155: Component value types are designated in several ways:
+L156: 
+L157:   1. cite33†Keyword values (such as `auto`, cite132†disc , etc.) and at-keywords representing the start of an cite133†at-rule , which appear literally, without quotes (e.g. `auto` or `@media`).
+L158: Note: It is possible, with cite134†escaping , to construct a cite135†CSS identifier whose value ends with `(` or starts with `@`. Such a token is an cite136†<ident-token> (i.e. a cite137†keyword ), not a cite138†<function-token> or an cite139†<at-keyword-token> .
+L159: 
+L160:   2. Basic data types, which appear between `<` and `>` (e.g., cite127†<length> , cite140†<percentage> , etc.). For cite141†numeric data types , this type notation can annotate any range restrictions using the cite45†bracketed range notation described below.
+L2267: All of the text of this specification is normative except sections explicitly marked as non-normative, examples, and notes. cite949†[RFC2119] L2268: 
+L2269: Examples in this specification are introduced with the words “for example” or are set apart from the normative text with `class="example"`, like this:
+L2270: 
+L2271: This is an example of an informative example.
+L2272: 
+L2273: Informative notes begin with the word “Note” and are set apart from the normative text with `class="note"`, like this:
+L2274: 
+L2275: Note, this is an informative note.
+L2276: Advisements are normative sections styled to evoke special attention and are set apart from other normative text with `<strong class="advisement">`, like this: UAs MUST provide an accessible alternative.
+L2277: 
+L2278: Tests
+L2279: 
+L2280: Tests relating to the content of this specification may be documented in “Tests” blocks like this one. Any such block is non-normative.
+L2281: 
+L2282: * * *
+L2283: ### Conformance classes
+L2284: 
+L2285: Conformance to this specification is defined for three conformance classes:
+L2286: 
+L2287: style sheet
+L2288:     A cite950†CSS style sheet†www.w3.org .
+L2289: renderer
+L2290:     A cite951†UA†www.w3.org that interprets the semantics of a style sheet and renders documents that use them.
+L2291: authoring tool
+L2292:     A cite951†UA†www.w3.org that writes a style sheet.
+L2293: A style sheet is conformant to this specification if all of its statements that use syntax defined in this module are valid according to the generic CSS grammar and the individual grammars of each feature defined in this module.
+L2294: A renderer is conformant to this specification if, in addition to interpreting the style sheet as defined by the appropriate specifications, it supports all the features defined by this specification by parsing them correctly and rendering the document accordingly. However, the inability of a UA to correctly render a document due to limitations of the device does not make the UA non-conformant. (For example, a UA is not required to render color on a monochrome monitor.)
+L2295: An authoring tool is conformant to this specification if it writes style sheets that are syntactically correct according to the generic CSS grammar and the individual grammars of each feature in this module, and meet all other conformance requirements of style sheets as described in this module.
+L2296: ### Partial implementations
+L2297: So that authors can exploit the forward-compatible parsing rules to assign fallback values, CSS renderers must treat as invalid (and cite952†ignore as appropriate†www.w3.org ) any at-rules, properties, property values, keywords, and other syntactic constructs for which they have no usable level of support.
+L2298: In particular, user agents must not selectively ignore unsupported component values and honor supported values in a single multi-value property declaration: if any value is considered invalid (as unsupported values must be), CSS requires that the entire declaration be ignored.
+L2299: #### Implementations of Unstable and Proprietary Features
+L2300: 
+L2301: To avoid clashes with future stable CSS features, the CSSWG recommends cite953†following best practices†www.w3.org for the implementation of cite954†unstable†www.w3.org features and cite955†proprietary extensions†www.w3.org to CSS.
+

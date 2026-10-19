@@ -1,0 +1,259 @@
+CSS Custom Properties for Cascading Variables Module Level 1 (https://www.w3.org/TR/2022/CR-css-variables-1-20220616/)
+citeturn1335view0 [wordlim: 200] Crawled: yesterday; Content type: text/html; Source: find({"ref_id":"https://www.w3.org/TR/2022/CR-css-variables-1-20220616/","pattern":"fallback"}); Total lines: 1067
+L440: This is not equivalent to setting cite598†margin-top: 20px; . Instead, the second declaration is simply thrown away as a syntax error for having an invalid property name.
+L441: 
+L442: The first argument to the function is the name of the cite73†custom property to be substituted. The second argument to the function, if provided, is a fallback value, which is used as the substitution value when the value of the referenced custom property is the cite85†guaranteed-invalid value .
+L443: 
+L444: Tests
+L445:   * cite599†variable-declaration-08.html†wpt.fyi cite600†(live test)†wpt.live cite601†(source)†github.com L446:   * cite602†variable-declaration-09.html†wpt.fyi cite603†(live test)†wpt.live cite604†(source)†github.com L447:   * cite605†variable-declaration-10.html†wpt.fyi cite606†(live test)†wpt.live cite607†(source)†github.com L448:   * cite608†variable-declaration-11.html†wpt.fyi cite609†(live test)†wpt.live cite610†(source)†github.com L449:   * cite611†variable-declaration-12.html†wpt.fyi cite612†(live test)†wpt.live cite613†(source)†github.com L450:   * cite614†variable-declaration-13.html†wpt.fyi cite615†(live test)†wpt.live cite616†(source)†github.com L451:   * cite617†variable-declaration-22.html†wpt.fyi cite618†(live test)†wpt.live cite619†(source)†github.com L452: Note: The syntax of the fallback, like that of cite73†custom properties , allows commas. For example, var(--foo, red, blue) defines a fallback of red, blue; that is, anything between the first comma and the end of the function is considered a fallback value.
+L453: The fallback value allows for some types of defensive coding. For example, an author may create a component intended to be included in a larger application, and use variables to style it so that it’s easy for the author of the larger application to theme the component to match the rest of the app.
+L454: Without fallback, the app author must supply a value for every variable that your component uses. With fallback, the component author can supply defaults, so the app author only needs to supply values for the variables they wish to override.
+L455: 
+L456:     /* In the component’s style: */
+L457:     .component .header {
+L458:       color: var(--header-color, blue);
+L459:     }
+L460:     .component .text {
+L461:       color: var(--text-color, black);
+L462:     }
+L463: 
+L464:     /* In the larger application’s style: */
+L465:     .component {
+L466:       --text-color: #080;
+L467:       /* header-color isn’t set,
+L468:          and so remains blue,
+L469:          the fallback value */
+L470:     }
+L471: If a property contains one or more cite74†var() functions, and those functions are syntactically valid, the entire property’s grammar must be assumed to be valid at parse time. It is only syntax-checked at computed-value time, after var() functions have been cite80†substituted .
+L472: 
+L473: Tests
+L474:   * cite620†variable-reference-18.html†wpt.fyi cite621†(live test)†wpt.live cite622†(source)†github.com L475:   * cite623†variable-reference-19.html†wpt.fyi cite624†(live test)†wpt.live cite625†(source)†github.com L476:   * cite626†variable-reference-30.html†wpt.fyi cite627†(live test)†wpt.live cite628†(source)†github.com L477: 
+L478: To substitute a var() in a property’s value:
+L479:   1. If the cite73†custom property named by the first argument to the cite74†var() function is cite242†animation-tainted , and the var() function is being used in a property that is cite629†not animatable , treat the custom property as having its initial value for the rest of this algorithm.
+L480:   2. If the value of the cite73†custom property named by the first argument to the cite74†var() function is anything but the initial value, replace the var() function by the value of the corresponding custom property.
+L481:   3. Otherwise, if the cite74†var() function has a fallback value as its second argument, replace the var() function by the fallback value. If there are any var() references in the fallback, cite80†substitute them as well.
+L482:   4. Otherwise, the property containing the cite74†var() function is cite283†invalid at computed-value time .
+L483: Note: Other things can also make a property cite283†invalid at computed-value time .
+L484: 
+L485: Tests
+L486:   * cite630†css-variable-change-style-001.html†wpt.fyi cite631†(live test)†wpt.live cite632†(source)†github.com L487:   * cite633†css-variable-change-style-002.html†wpt.fyi cite634†(live test)†wpt.live cite635†(source)†github.com L488:   * cite636†variable-declaration-01.html†wpt.fyi cite637†(live test)†wpt.live cite638†(source)†github.com L489:   * cite639†variable-declaration-02.html†wpt.fyi cite640†(live test)†wpt.live cite641†(source)†github.com L490:   * cite642†variable-declaration-03.html†wpt.fyi cite643†(live test)†wpt.live cite644†(source)†github.com L491:   * cite645†variable-declaration-04.html†wpt.fyi cite646†(live test)†wpt.live cite647†(source)†github.com L492:   * cite648†variable-declaration-05.html†wpt.fyi cite649†(live test)†wpt.live cite650†(source)†github.com L493:   * cite651†variable-generated-content-dynamic-001.html†wpt.fyi cite652†(live test)†wpt.live cite653†(source)†github.com L494:   * cite654†variable-presentation-attribute.html†wpt.fyi cite655†(live test)†wpt.live cite656†(source)†github.com L495:   * cite657†variable-reference-01.html†wpt.fyi cite658†(live test)†wpt.live cite659†(source)†github.com L496:   * cite660†variable-reference-02.html†wpt.fyi cite661†(live test)†wpt.live cite662†(source)†github.com L497:   * cite663†variable-reference-03.html†wpt.fyi cite664†(live test)†wpt.live cite665†(source)†github.com L498:   * cite666†variable-reference-04.html†wpt.fyi cite667†(live test)†wpt.live cite668†(source)†github.com L499:   * cite669†variable-reference-05.html†wpt.fyi cite670†(live test)†wpt.live cite671†(source)†github.com L559: If the property was one that’s inherited by default, such as cite751†color , it would compute to the inherited value rather than the initial value.
+L560: 
+L561: While a cite74†var() function can’t get a cite79†CSS-wide keyword from the cite73†custom property itself—if you tried to specify that, like --foo: initial;, it would just trigger cite752†explicit defaulting for the custom property—it can have a CSS-wide keyword in its fallback:
+L562: 
+L563:     p { color: var(--does-not-exist, initial); }
+L564: In the above code, if the --does-not-exist property didn’t exist or is cite283†invalid at computed-value time , the cite74†var() will instead substitute in the cite284†initial keyword, making the property behave as if it was originally cite751†color: initial . This will make it take on the document’s initial color value, rather than defaulting to inheritance, as it would if there were no fallback.
+L565: ### 3.1. Invalid Variables
+L566: 
+L567: When a cite73†custom property’s value is the cite85†guaranteed-invalid value , cite74†var() functions cannot use it for substitution. Attempting to do so makes the declaration cite283†invalid at computed-value time , unless a valid fallback is specified.
+--------------------------------------------------------------------------------
+CSS Custom Properties for Cascading Variables Module Level 1 (https://www.w3.org/TR/2022/CR-css-variables-1-20220616/)
+citeturn1335view1 [wordlim: 200] Crawled: yesterday; Content type: text/html; Source: find({"ref_id":"https://www.w3.org/TR/2022/CR-css-variables-1-20220616/","pattern":"Initial:"}); Total lines: 1067
+L266: ### 2.2. Guaranteed-Invalid Values
+L267: 
+L268: The initial value of a cite73†custom property is a guaranteed-invalid value. As defined in cite46†§ 3 Using Cascading Variables: the var() notation , using cite74†var() to substitute a custom property with this as its value makes the property referencing it cite283†invalid at computed-value time .
+L269: This value serializes as the empty string, but actually writing an empty value into a custom property, like --foo: ;, is a valid (empty) value, not the cite85†guaranteed-invalid value . If, for whatever reason, one wants to manually reset a variable to the guaranteed-invalid value, using the keyword cite284†initial will do this.
+L479:   1. If the cite73†custom property named by the first argument to the cite74†var() function is cite242†animation-tainted , and the var() function is being used in a property that is cite629†not animatable , treat the custom property as having its initial value for the rest of this algorithm.
+L480:   2. If the value of the cite73†custom property named by the first argument to the cite74†var() function is anything but the initial value, replace the var() function by the value of the corresponding custom property.
+L547: If a declaration, once all cite74†var() functions are substituted in, contains only a cite79†CSS-wide keyword (and possibly whitespace), its value is determined as if that keyword were its cite746†specified value all along.
+L548: 
+L549: Tests
+L550: 
+L551:   * cite747†wide-keyword-fallback.html†wpt.fyi cite748†(live test)†wpt.live cite749†(source)†github.com L552: For example, the following usage is fine from a syntax standpoint, but results in nonsense when the variable is substituted in:
+L553: 
+L554:     :root { --looks-valid: 20px; }
+L555:     p { background-color: var(--looks-valid); }
+L556: 
+L557: 
+L558: Since 20px is an invalid value for cite243†background-color , this instance of the property computes to cite750†transparent (the initial value for background-color) instead.
+L559: If the property was one that’s inherited by default, such as cite751†color , it would compute to the inherited value rather than the initial value.
+L560: 
+L561: While a cite74†var() function can’t get a cite79†CSS-wide keyword from the cite73†custom property itself—if you tried to specify that, like --foo: initial;, it would just trigger cite752†explicit defaulting for the custom property—it can have a CSS-wide keyword in its fallback:
+L562: 
+L563:     p { color: var(--does-not-exist, initial); }
+L564: In the above code, if the --does-not-exist property didn’t exist or is cite283†invalid at computed-value time , the cite74†var() will instead substitute in the cite284†initial keyword, making the property behave as if it was originally cite751†color: initial . This will make it take on the document’s initial color value, rather than defaulting to inheritance, as it would if there were no fallback.
+L565: ### 3.1. Invalid Variables
+L566: 
+L567: When a cite73†custom property’s value is the cite85†guaranteed-invalid value , cite74†var() functions cannot use it for substitution. Attempting to do so makes the declaration cite283†invalid at computed-value time , unless a valid fallback is specified.
+L568: A declaration can be invalid at computed-value time if it contains a cite74†var() that references a cite73†custom property with the cite85†guaranteed-invalid value , as explained above, or if it uses a valid custom property, but the property value, after substituting its var() functions, is invalid. When this happens, the computed value is one of the following depending on the property’s type:
+L569: The property is a non-registered cite73†custom property L570: The property is a cite753†registered custom property†drafts.css-houdini.org with cite754†universal syntax†drafts.css-houdini.org L571: 
+L572: 
+L573: The computed value is the cite85†guaranteed-invalid value .
+L574: 
+L575: Otherwise
+L576: 
+L577: 
+L578: Either the property’s inherited value or its initial value depending on whether the property is inherited or not, respectively, as if the property’s value had been specified as the cite755†unset keyword.
+L579: 
+L580: Tests
+L581:   * cite756†variables-substitute-guaranteed-invalid.html†wpt.fyi cite757†(live test)†wpt.live cite758†(source)†github.com L582: 
+L583: For example, in the following code:
+L584: 
+L585:     :root { --not-a-color: 20px; }
+L586:     p { background-color: red; }
+L587:     p { background-color: var(--not-a-color); }
+L588: the <p> elements will have transparent backgrounds (the initial value for cite243†background-color ), rather than red backgrounds. The same would happen if the cite73†custom property itself was unset, or contained an invalid cite74†var() function.
+L589: Note the difference between this and what happens if the author had just written cite243†background-color: 20px directly in their stylesheet - that would be a normal syntax error, which would cause the rule to be discarded, so the background-color: red rule would be used instead.
+L590: Note: The cite283†invalid at computed-value time concept exists because variables can’t "fail early" like other syntax errors can, so by the time the user agent realizes a property value is invalid, it’s already thrown away the other cascaded values.
+L591: ### 3.2. Variables in Shorthand Properties
+L592: 
+L593: cite74†var() functions produce some complications when parsing cite759†shorthand properties into their component longhands, and when serializing shorthand properties from their component longhands.
+L594: If a cite759†shorthand property contains a cite74†var() function in its value, the cite760†longhand properties it’s associated with must instead be filled in with a special, unobservable-to-authors pending-substitution value that indicates the shorthand contains a variable, and thus the longhand’s value can’t be determined until variables are cite80†substituted .
+--------------------------------------------------------------------------------
+CSS Values and Units Module Level 5 (https://drafts.csswg.org/css-values-5/)
+citeturn1335view2 [wordlim: 200] Crawled: today; Content type: text/html; Source: find({"ref_id":"https://drafts.csswg.org/css-values-5/","pattern":"cycle"}); Total lines: 2842
+L856: ### 8.4. Toggling Between Values: the cite539†cycle() notation
+L857: 
+L858: The cycle() expression allows descendant elements to cycle over a list of values instead of inheriting the same value.
+L859: 
+L860: The following example makes `<em>` elements italic in general, but makes them normal if they’re inside something that’s italic:
+L861: 
+L862:     em { font-style: cycle(italic, normal); }
+L863: The following example cycles markers for nested lists, so that a top level list has cite540†disc -shaped markers, but nested lists use cite541†circle , then cite542†square , then box, and then repeat through the list of marker shapes, starting again (for the 5th list deep) with disc.
+L864: 
+L865:     ul { list-style-type: cycle(disc, circle, square, box); }
+L866: 
+L867: The syntax of the cite539†cycle() expression is:
+L868: 
+L869:     cite539†<cycle()> = cycle( cite58†<whole-value> cite427†# )
+L870: The cite539†cycle() notation is a cite58†<whole-value> . However, it is not allowed to be nested, nor may it contain cite144†attr() or cite426†calc() notations; declarations containing such constructs are invalid.
+L871: 
+L872: The following cite539†cycle() examples are all invalid:
+L873: 
+L874:     background-position: 10px cycle(50px, 100px);
+L875:     /* cycle() must be the sole value of the property */
+L876: 
+L877:     list-style-type: cycle(disc, 50px);
+L878:     /* ''50px'' isn't a valid value of 'list-style-type' */
+L879: To determine the computed value of cite539†cycle() , first evaluate each argument as if it were the sole value of the property in which cycle() is placed to determine the computed value that each represents, called `C_{n}` for the `n`-th argument to cycle(). Then, compare the property’s cite543†inherited value with each `C_{n}`. For the earliest `C_{n}` that matches the inherited value, the computed value of cycle() is `C_{n+1}`.
+L880: If the match was the last argument in the list, or there was no match, the computed value of cycle() is the computed value that the first argument represents.
+L881: Note: This means that repeating values in a cite539†cycle() short-circuits the list. For example cycle(1em, 2em, 1em, 4em) will be equivalent to cycle(1em, 2em).
+L882: 
+L883: Note: That cite539†cycle() explicitly looks at the computed value of the parent, so it works even on non-inherited properties. This is similar to the cite544†inherit keyword, which works even on non-inherited properties.
+L884: Note: The cite179†computed value of a property is an abstract set of values, not a particular serialization cite110†[CSS21] , so comparison between computed values should always be unambiguous and have the expected result. For example, a Level 2 cite545†background-position computed value is just two offsets, each represented as an absolute length or a percentage, so the declarations cite389†background-position: top center and background-position: 50% 0% produce identical computed values.
+L885: If the "Computed Value" line of a property definition seems to define something ambiguous or overly strict, please cite546†provide feedback so we can fix it.
+L886: If cite539†cycle() is used on a cite547†shorthand property , it sets each of its longhands to a cycle() value with arguments corresponding to what the longhand would have received had each of the original cycle() arguments been the sole value of the shorthand.
+L887: 
+L888: For example, the following shorthand declaration:
+L889: 
+L890:     margin: cycle(1px 2px, 4px, 1px 5px 4px);
+L891: is equivalent to the following longhand declarations:
+L892: 
+L893:     margin-top:    cycle(1px, 4px, 1px);
+L894:     margin-right:  cycle(2px, 4px, 5px);
+L895:     margin-bottom: cycle(1px, 4px, 4px);
+L896:     margin-left:   cycle(2px, 4px, 5px);
+L897: Note that, since 1px appears twice in the top margin and 4px appears twice in bottom margin, they will cycle between only two values while the left and right margins cycle through three. In other words, the declarations above will yield the same computed values as the longhand declarations below:
+L898: 
+L899:     margin-top:    cycle(1px, 4px);
+L900:     margin-right:  cycle(2px, 4px, 5px);
+L901:     margin-bottom: cycle(1px, 4px);
+L902:     margin-left:   cycle(2px, 4px, 5px);
+L903: 
+L904: 
+L905: which may not be what was intended.
+L906: ### 8.5. Custom Property References: the cite133†var() notation
+L907: 
+L908: The cite133†var() notation substitutes the value of a cite548†custom property , see the cite549†CSS Custom Properties for Cascading Variables Module†www.w3.org . cite550†[CSS-VARIABLES] L909: ### 8.6. Inherited Value References: the cite551†inherit() notation
+L910: 
+L911: Tests
+L912: 
+L913:   * cite552†inherit-function-basic.html†wpt.fyi cite553†(live test)†wpt.live cite554†(source)†github.com L914:   * cite555†inherit-function-invalidation.html†wpt.fyi cite556†(live test)†wpt.live cite557†(source)†github.com L915:   * cite558†inherit-function-parsing.html†wpt.fyi cite559†(live test)†wpt.live cite560†(source)†github.com L916: Like the cite544†inherit keyword, the inherit() cite120†functional notation resolves to the cite179†computed value of a property on the parent. Rather than resolving to the value of the same property, however, it resolves to a sequence of cite174†component values representing the computed value of the property specified as its first argument. Its second argument, if present, is used as a fallback in case the first argument resolves to the cite175†guaranteed-invalid value .
+L917: cite551†inherit() is an cite132†arbitrary substitution function whose syntax is defined as:
+L918: 
+L919:     cite551†<inherit()> = inherit( cite561†<custom-property-name> cite417†, cite123†<declaration-value> cite153†? )
+L920: 
+L921: 
+L922: The cite551†inherit() function’s cite527†argument grammar is:
+L923: 
+L924:     cite562†<inherit-args> = inherit( cite123†<declaration-value> cite417†, cite123†<declaration-value> cite153†? )
+L925: Like cite133†var() , a bare comma can be used with nothing following it, indicating that the second cite123†<declaration-value> was passed, just as an empty sequence.
+L926: 
+L927: Note: That is, inherit(--foo) does not pass a fallback value, but inherit(--foo,) does (the fallback is just empty).
+L928: 
+L929: To cite531†replace an inherit() function , given a list of `arguments`:
+--------------------------------------------------------------------------------
+CSS Values and Units Module Level 4 (https://drafts.csswg.org/css-values-4/)
+citeturn1335view3 [wordlim: 200] Crawled: today; Content type: text/html; Source: find({"ref_id":"https://drafts.csswg.org/css-values-4/","pattern":"at least 32"}); Total lines: 2959
+L206:   * An asterisk (*) indicates that the preceding type, word, or group occurs zero or more times.
+L207:   * A plus (+) indicates that the preceding type, word, or group occurs one or more times.
+L208:   * A question mark (?) indicates that the preceding type, word, or group is optional (occurs zero or one times).
+L209:   * A single number in curly braces ({`A`}) indicates that the preceding type, word, or group occurs `A` times.
+L210:   * A comma-separated pair of numbers in curly braces ({`A`,`B`}) indicates that the preceding type, word, or group occurs at least `A` and at most `B` times. The `B` may be omitted ({`A`,}) to indicate that there must be at least `A` repetitions, with no upper bound on the number of repetitions.
+L211:   * A hash mark (#) indicates that the preceding type, word, or group occurs one or more times, separated by comma tokens (which may optionally be surrounded by cite153†white space†www.w3.org and/or comments). It may optionally be followed by the curly brace forms, above, to indicate precisely how many times the repetition occurs, like <length>#{1,4}.
+L212:   * An exclamation point (!) after a group indicates that the group is required and must produce at least one value; even if the grammar of the items within the group would otherwise allow the entire contents to be omitted, at least one component value must not be omitted.
+L213: The + and # multipliers may be stacked as +#; similarly, the # and ? multipliers, {A} and ? multipliers, and {A,B} and ? multipliers may be stacked as #?, {A}?, and {A,B}?, respectively. These stacks each represent the later multiplier applied to the result of the earlier multiplier. (These same stacks can be represented using grouping, but in complex grammars this can push the number of brackets beyond readability.)
+L214: For repeated component values (indicated by *, +, or #), cite158†UAs must support at least 20 repetitions of the component. If a property value contains more than the supported number of repetitions, the declaration must be ignored as if it were invalid.
+L215: ### 2.4. Combinator and Multiplier Patterns
+L216: 
+L217: There are a small set of common ways to combine multiple independent cite159†component values in particular numbers and orders. In particular, it’s common to want to express that, from a set of component value, the author must select zero or more, one or more, or all of them, and in either the order specified in the grammar or in any order.
+L218: 
+L219: All of these can be easily expressed using simple patterns of cite23†combinators and cite24†multipliers :
+L220:  | in order  | any order
+L221: --- | --- | ---
+L222: zero or more  | `A? B? C?`  | `A? || B? || C?`
+L223: one or more  | `[ A? B? C? ]!`  | `A || B || C`
+L224: all  | `A B C `  | `A && B && C`
+L225: 
+L226: Note that all of the "any order" possibilities are expressed using combinators, while the "in order" possibilities are all variants on juxtaposition.
+L227: ### 2.5. Component Values and White Space
+L228: 
+L229: Unless otherwise specified, cite153†white space†www.w3.org and/or comments may appear before, after, and/or between components combined using the above cite23†combinators and cite24†multipliers .
+L230: Note: In many cases, spaces will in fact be required between components in order to distinguish them from each other. For example, the value 1em2em would be parsed as a single cite160†<dimension-token> with the number 1 and the identifier em2em, which is an invalid unit. In this case, a space would be required before the 2 to get this parsed as the two lengths 1em and 2em.
+L1295: Or, if you only wanted to impose a minimum size, but allow the font-size to grow as large as it wants:
+L1296: 
+L1297:     .type {
+L1298:       /* Force the font-size to be at least 12px */
+L1299:       font-size: clamp(12px, 10 * (1vw + 1vh) / 2, none);
+L1300:     }
+L1301: 
+L1302: 
+L1303: Note that cite710†clamp() , matching CSS conventions elsewhere, has its minimum value "win" over its maximum value if the two are in the "wrong order". That is, clamp(100px, ..., 50px) will resolve to 100px, exceeding its stated "max" value.
+L1454: Requiring authors to cast their value down into a number, do all the math on the raw number, then finally send it back to the desired unit, while inconvenient, ensures that numerical precision won’t bite anyone: calc(pow(pow(30px / 1px, 3), 1/3) * 1px) is guaranteed to resolve to a cite127†<length> , with a value that, if not exactly 30, is at least very close to 30, even if numerical precision actually prevents the powers from exactly canceling.
+L1611: In some contexts, additional cite776†<calc-keyword> values can be defined to be valid. (For example, in cite773†relative color syntax, appropriate channel keywords are allowed.)
+L1612: 
+L1613: In addition, cite777†whitespace is required on both sides of the + and - operators. (The * and / operators can be used without white space around them.)
+L1614: 
+L1615: Several of the math functions above have additional constraints on what their cite714†<calc-sum> arguments can contain. Check the definitions of the individual functions for details.
+L1616: UAs must support cite715†calculations of at least 32 cite775†<calc-value> terms and at least 32 levels of nesting (parentheses and/or functions). For functions that support an arbitrary number of arguments (such as cite730†min() ), it must also support at least 32 arguments. If a calculation contains more than the supported number of terms, arguments, or nesting it must be treated as if it were invalid.
+L1617: ### 10.9. Type Checking
+L1618: 
+L1619: A cite181†math function can be many possible types, such as cite127†<length> , cite279†<number> , etc., depending on the cite715†calculations it contains, as defined below. It can be used anywhere a value of that type is allowed.
+L1620: 
+L1621: For example, the cite347†width property accepts cite127†<length> values, so a cite181†math function that resolves to a <length>, such as calc(5px + 1em), can be used in width.
+L1622: Additionally, cite181†math functions that resolve to cite279†<number> can be used in any place that only accepts cite147†<integer> ; the value is cite306†rounded to the nearest integer as it resolves.
+L1623: 
+L1624: Operators form sub-expressions, which gain types based on their arguments.
+L1780:   * Dividing zero by zero, dividing ±∞ by ±∞, multiplying 0 by ±∞, adding +∞ to −∞, or subtracting two infinities of the same sign produces NaN.
+L1781: 
+L1782: These rules override any other result, if there’s a conflict. For example, 0 / 0 is NaN, not +∞.
+L1783: 
+L1784:   * Certain argument combinations in cite181†math functions are defined to produce cite772†NaN (for example, asin(2) produces NaN).
+L1785: 
+L1786:   * Any operation with at least one NaN argument produces NaN.
+--------------------------------------------------------------------------------
+CSS Custom Properties for Cascading Variables Module Level 2 (https://drafts.csswg.org/css-variables-2/)
+citeturn1335view4 [wordlim: 200] Crawled: today; Content type: text/html; Source: find({"ref_id":"https://drafts.csswg.org/css-variables-2/","pattern":"Editor's Draft"}); Total lines: 829
+L0: # CSS Custom Properties for Cascading Variables Module Level 2
+L1: 
+L2: cite0†Editor’s Draft†www.w3.org , 9 October 2026
+L3: 
+L4: More details about this document
+L5: This version:
+L6:     cite1†https://drafts.csswg.org/css-variables-2/ L7: Implementation Report:
+L8:     cite2†https://wpt.fyi/results/css/css-variables†wpt.fyi L9: Issue Tracking:
+L10:     cite3†CSSWG Issues Repository†github.com L11: Editor:
+L12:     cite4†Tab Atkins Jr.†xanthir.com (Google)
+L13: Suggest an Edit for this Spec:
+L14:     cite5†GitHub Editor†github.com L15: Test Suite:
+L16:     cite6†https://wpt.fyi/results/css/css-variables/†wpt.fyi L17: cite7†Copyright†www.w3.org © 2026 cite8†World Wide Web Consortium†www.w3.org . W3C (World Wide Web Consortium)^{®} cite9†liability†www.w3.org , cite10†trademark†www.w3.org and cite11†permissive document license†www.w3.org rules apply.
+L18: 
+L19: * * *
+L20: ## Abstract
+L21: 
+L22: This module introduces cascading variables as a new primitive value type that is accepted by all CSS properties, and custom properties for defining them.
+L23: 
+L24: cite12†CSS†www.w3.org is a language for describing the rendering of structured documents (such as HTML and XML) on screen, on paper, etc.
+L25: ## Status of this document
+L26: 
+L27: This is a public copy of the editors’ draft. It is provided for discussion only and may change at any moment. Its publication here does not imply endorsement of its contents by W3C. Don’t cite this document other than as work in progress.
+

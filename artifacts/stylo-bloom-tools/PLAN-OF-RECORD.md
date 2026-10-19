@@ -119,10 +119,18 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Integrate the separately reproduced custom-property map enumeration repair.
-   Seven cases give two failures and five passing controls; direct values remain
-   correct while indexed names duplicate/omit entries. Review tombstone/counting
-   boundaries, pair the small loop-target patch, and keep its fix/WPT standalone.
+1. Finish the custom-property count and iterator repairs, with count first.
+   The 39-case diagnostic matrix gives original 9 FAIL, iterator-only 6 FAIL,
+   count-only 3 FAIL, combined 39 PASS. The iterator-only patch exposes a restored
+   tombstone count mismatch as a literal `--` indexed name; it is not a safe
+   standalone upstream artifact. Evidence is committed in
+   `8b945c35975b6ba5db935a6205d7a92fbc8652de`;
+   [scope and results](../css-custom-properties-enumeration-boundary-probe-v1/README.md).
+   Add last-value and inherited/reset-map offset cases, rerun with explicit native
+   before/after pins (the diagnostic original omitted a clean file), and finish
+   independent count/iterator proofs and source review. Keep fix/WPT commits
+   separate; an upstream iterator alternative must include necessary count support.
+   Neither candidate is accepted or counted among the 73 committed fixes.
 2. Compose the declaration helper's saved-query/short-circuit paths after the
    accepted skip/next wrapper and production entry component;
    metadata, providers, callbacks and compiler admissions remain explicit.
@@ -249,3 +257,13 @@ its line/audit counts are not coverage percentages. The [research synthesis](../
 a requirement-ledger and property-stage/dependency pilot, then box/layout and
 animation integration. These are proposed library milestones; no new semantic
 coverage or native refinement is claimed by the research.
+
+The [second research pass](../css-whole-spec-feasibility-v2/README.md) makes the
+inventory concrete with 19 provisional requirement records, adds a layout and
+fragmentation protocol, distinguishes external inputs from unmodeled CSS
+algorithms, and works through a historical CSSOM semantic change. Root reviewed
+and authenticated all three tracks. No requirement is newly certified closed.
+Next implement the source-lock/ledger validator and bind a complete custom-property
+CSSOM slice; use the property/dependency pilot to reach an ordinary box/layout
+observation before expanding independent families. Research agents have returned
+to the active count/iterator proof and review tasks.
