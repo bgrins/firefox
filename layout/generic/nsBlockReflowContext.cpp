@@ -200,6 +200,20 @@ done:
     *aBlockIsEmpty = aRI.mFrame->IsEmpty();
   }
 
+  if (aBlockIsEmpty && *aBlockIsEmpty &&
+      !aRI.mFrame->IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
+    const auto borderPadding = aRI.ComputedLogicalBorderPadding(wm);
+    const auto isPositiveSize = [](nscoord aSize) {
+      return aSize != NS_UNCONSTRAINEDSIZE && aSize > 0;
+    };
+    // Endpoint tests in IsSelfEmpty cannot detect every positive calc() value.
+    if (borderPadding.BStart(wm) != 0 || borderPadding.BEnd(wm) != 0 ||
+        isPositiveSize(aRI.ComputedBSize()) ||
+        isPositiveSize(aRI.ComputedMinBSize())) {
+      *aBlockIsEmpty = false;
+    }
+  }
+
 #ifdef NOISY_BLOCK_DIR_MARGINS
   aRI.mFrame->ListTag(stdout);
   printf(": => %d\n", aMargin->get());
