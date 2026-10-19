@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **72 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **73 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -71,6 +71,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | registered-keyframe-substitution | `188644f6d9833b485f35c2abcfad23cef2c5e9f7` | `1cf91c4def90e6e7cce4e76106020ffcd4b45692` |
 | registered-initial-computed-value | `6aa2138c144aa6eee8e07aac77e7a68a8c7f7617` | `3d194d59545c331fabc7ad1502af96522aa67c90` |
 | registered-inherit-invalid | `3a01fc986c7974161aadf4bfafe65c234b036b07` | `2e0f9f6b9ee5450cd21ac9341ef116dd91a8119b` |
+| registered-substituted-inherit-restyle | `60bf34f48ac63ca595d519c1e0c2b4a2fa731b66` | `1ad6ea9740aa7f73ca299625208edf9856be807a` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1677,3 +1678,17 @@ Initial seeding, map/flag APIs, callers and compiler behavior remain admitted.
 Source inspection and browser reproduction preceded this proof. The separate
 substituted-inherit dynamic restyle defect remains a candidate.
 [Acceptance](../css-registered-inherit-invalid-fix-v1/ROOT-SCOPED-ACCEPTANCE.json).
+
+## Substituted inheritance restyle dependency committed
+
+Native + WPT: `60bf34f48ac63ca595d519c1e0c2b4a2fa731b66`, after evidence `1ad6ea9740aa7f73ca299625208edf9856be807a`.
+The two-file patch records reset-property inheritance after substitution, including
+an absent parent value. Three baseline failures become passes; all 44 subtests
+pass. Exact upstream patch apply/reverse succeeds, without isolated upstream
+runtime. Format/lint pass; WPT ESLint ignore warning is retained.
+
+Independent fresh replay accepts 14 conditional selected-value/dependency audits.
+The model history's unrelated-flag preservation is a frame assumption; a native
+recascade constructs a new style and is not proved to preserve those flags.
+Caller delivery, change providers, maps and compiler remain admitted. Discovery
+preceded formalization. [Acceptance](../css-registered-substituted-inherit-fix-v1/ROOT-SCOPED-ACCEPTANCE.json).

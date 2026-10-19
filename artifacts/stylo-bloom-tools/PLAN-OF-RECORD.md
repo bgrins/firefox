@@ -4,13 +4,13 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **72 committed native/WPT fixes.** The management index is
+- **73 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest repair:** explicit inheritance of guaranteed-invalid registered values,
-  signed as `3a01fc986c7974161aadf4bfafe65c234b036b07`, after evidence
-  `2e0f9f6b9ee5450cd21ac9341ef116dd91a8119b`. Three failures repaired; the
-  two-file commit contains only the Rust change and WPT.
+- **Latest repair:** substituted-inherit restyle dependency tracking, signed as
+  `60bf34f48ac63ca595d519c1e0c2b4a2fa731b66`, after evidence
+  `1ad6ea9740aa7f73ca299625208edf9856be807a`. Three failures repaired;
+  the two-file commit contains only the Rust change and seven-case WPT.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.
@@ -73,8 +73,8 @@ machine and safe-entry premises remain explicit.
 
 Next compose actual skip_whitespace/next wrappers and production cold/Colon entry.
 The source audit finds no reachable late-enable defect in the two production
-enable sites. The wrapper producer is sealed (57 modules / 448 audits, 77 new) and independent
-fresh replay/review is active; nested/depth/callback protocols and
+enable sites. The wrapper component is accepted in `ea0a06720982c8716a501fb58f8fbb95d7029ece`
+(57 modules / 448 audits, 77 new), after independent fresh replay and full review; nested/depth/callback protocols and
 the declaration helper's saved-query/short-circuit automaton remain separate.
 [Source audit](../css-parser-entry-wrapper-static-v1/REPORT.md).
 
@@ -119,16 +119,15 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Repair substituted-inherit restyle dependency tracking. Two numeric browser
-   cases reproduce stale child values; direct-inherit and unset controls pass.
-   Native review is active. Add an absent-parent transition control, run paired
-   builds, and commit only the native change plus WPT after review.
-2. Independently review the sealed skip/next wrapper proof and production entry
-   model. Then compose the declaration helper's saved-query/short-circuit paths;
+1. Integrate the separately reproduced custom-property map enumeration repair.
+   Seven cases give two failures and five passing controls; direct values remain
+   correct while indexed names duplicate/omit entries. Review tombstone/counting
+   boundaries, pair the small loop-target patch, and keep its fix/WPT standalone.
+2. Compose the declaration helper's saved-query/short-circuit paths after the
+   accepted skip/next wrapper and production entry component;
    metadata, providers, callbacks and compiler admissions remain explicit.
-3. Audit persistent custom-property map iteration. A descendant-shadowing loop
-   is a source lead, not yet an observable bug; derive chain reachability before
-   adding a browser test or counting a repair.
+3. Extend persistent-map verification after the enumeration repair: nearest-owner
+   iteration, stored-length/live-value distinctions, tombstones and COW histories.
 4. Continue the public declaration storage/CSSOM composition obligations above.
 5. Continue cascade source/observer and hyphenation stateful consumer admission,
    including reflow-to-display cache association and lifetime. Preserve the
@@ -233,3 +232,18 @@ process/open-file checks pass, and source plus required logs/receipts are retain
 Keep active Firefox object directories and ongoing independent replay outputs.
 Record exact removed paths and verify retained evidence rather than deleting
 entire research capsules.
+
+## Whole-CSS library research
+
+The user requested three parallel assessments of eventual complete CSS coverage.
+Their outputs are kept under ../css-whole-spec-roadmap-research-v1/:
+
+- Specification inventory, version policy, supersession and dependency closure.
+- Lean semantic architecture, composition contracts and staged implementation.
+- Spec-to-model interpretation, validation, maintenance and completion criteria.
+
+This research does not replace the bug-fix queue or close existing assumptions.
+Separate specification-model coverage, executable-model correctness and native
+refinement. The existing standalone inventory's 127 fragment records overlap;
+its line/audit counts are not coverage percentages. Findings will be synthesized
+before adopting new library milestones.

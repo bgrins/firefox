@@ -599,3 +599,27 @@ coherence, allocation/compiler and complete cascade remain admitted. The
 substituted-inherit invalidation defect is a separate path and remains active.
 Discovery preceded formalization. See
 [acceptance](../css-registered-inherit-invalid-fix-v1/ROOT-SCOPED-ACCEPTANCE.json).
+
+## Parser skip/next wrapper component accepted — 19 October 2026
+
+Commit ea0a06720982c8716a501fb58f8fbb95d7029ece accepts raw prefix scanning,
+observer-active pending cleanup, next composition, mixed wrapper histories and
+cold/successful-Colon entry. Independent replay passes 448 audits (77 new),
+69 native snapshots per debug/release mode, seven native and three model
+mutants. Source/model correspondence remains manually reviewed. Full metadata,
+UTF-8/provider/machine/compiler admission and declaration callback/control flow
+remain open. Every enable epoch still needs safe entry; retained cache and
+annotation counterexamples remain valid. No new browser defect is claimed.
+[Acceptance](../css-parser-wrapper-history-root-v1/ACCEPTANCE.json).
+
+## Substituted inheritance dependency component accepted — 19 October 2026
+
+Fourteen conditional audits compose selected parent-value publication, marker
+recording, reset-only difference/hint consumption and finite parent histories.
+Independent fresh replay checks thirteen full source bindings and four semantic
+model mutants. Correct no-change observations and fresh recascade under a stable
+declaration/registration remain explicit caller contracts. The history theorem's
+otherFlags conjunct is model-only framing: native fresh-style construction may
+recompute unrelated flags. Local helper flag preservation is separate. Full
+scheduler, map/equality/provider, substitution and compiler refinement remain open.
+[Acceptance](../css-registered-substituted-inherit-fix-v1/ROOT-SCOPED-ACCEPTANCE.json).
