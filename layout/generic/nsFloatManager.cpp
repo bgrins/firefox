@@ -1722,7 +1722,7 @@ nscoord nsFloatManager::PolygonShapeInfo::XInterceptAtY(const nscoord aY,
   MOZ_ASSERT(aP1.y != aP2.y,
              "A horizontal line segment results in dividing by zero error!");
 
-  return aP1.x + (aY - aP1.y) * (aP2.x - aP1.x) / (aP2.y - aP1.y);
+  return aP1.x + NSCoordMulDiv(aY - aP1.y, aP2.x - aP1.x, aP2.y - aP1.y);
 }
 
 /////////////////////////////////////////////////////////////////////////////
