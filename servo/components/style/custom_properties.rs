@@ -777,6 +777,27 @@ pub struct AttributeData {
 }
 
 impl AttributeData {
+    pub(crate) fn parse_typed_value(
+        &self,
+        input: &mut Parser,
+        url_data: &UrlExtraData,
+        property_id: Option<PropertyIdRef>,
+    ) -> Result<SpecifiedRegisteredValue, ()> {
+        let AttributeType::Type(syntax) = &self.kind else {
+            return Err(());
+        };
+        SpecifiedRegisteredValue::parse(
+            input,
+            syntax,
+            url_data,
+            None,
+            AllowComputationallyDependent::Yes,
+            AttrTaint::default(),
+            property_id,
+        )
+        .map_err(|_| ())
+    }
+
     /// The resolved namespace, including the null namespace.
     pub fn namespace(&self) -> Option<&Namespace> {
         match &self.namespace {
@@ -1981,17 +2002,11 @@ fn substitute_one_reference<'a>(
                                     value, /* attr_tainted */ true,
                                 ))
                             },
-                            AttributeType::Type(syntax) => {
-                                let value = SpecifiedRegisteredValue::parse(
-                                    &mut parser,
-                                    syntax,
-                                    url_data,
-                                    None,
-                                    AllowComputationallyDependent::Yes,
-                                    AttrTaint::default(),
-                                    property_id,
-                                )
-                                .ok()?;
+                            AttributeType::Type(_) => {
+                                let value = reference
+                                    .attribute_data
+                                    .parse_typed_value(&mut parser, url_data, property_id)
+                                    .ok()?;
                                 let value = value.to_variable_value();
                                 Some(Substitution::from_value(
                                     value, /* attr_tainted */ true,

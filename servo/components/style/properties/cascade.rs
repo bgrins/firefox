@@ -21,8 +21,8 @@ use crate::font_metrics::FontMetricsOrientation;
 use crate::properties::{
     CASCADE_PROPERTY, CSSWideKeyword, ComputedValues, DeclarationImportanceIterator, LonghandId,
     LonghandIdSet, PrioritaryPropertyId, PrioritaryPropertyIdSet, PropertyDeclaration,
-    PropertyDeclarationId, PropertyFlags, ShorthandsWithPropertyReferencesCache, StyleBuilder,
-    property_counts,
+    PropertyDeclarationId, PropertyFlags, PropertyIdRef, ShorthandsWithPropertyReferencesCache,
+    StyleBuilder, property_counts,
 };
 use crate::properties::{CustomDeclaration, CustomDeclarationValue, UnparsedValue};
 use crate::properties_and_values::rule::Descriptors as PropertyDescriptors;
@@ -798,6 +798,8 @@ impl<'a> KeyframeCustomPropertiesBuilder<'a> {
     }
 }
 
+type NonCustomPropertyReferences = NonCustomReferenceMap<Vec<(LonghandId, Arc<UnparsedValue>)>>;
+
 pub(crate) struct Cascade<'a> {
     first_line_reparenting: FirstLineReparenting<'a>,
     stylist: &'a Stylist,
@@ -807,7 +809,7 @@ pub(crate) struct Cascade<'a> {
     author_or_user_specified: LonghandIdSet,
     declarations_to_apply_unless_overridden: DeclarationsToApplyUnlessOverriden,
     may_have_custom_property_cycles: bool,
-    references_from_non_custom_properties: NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,
+    references_from_non_custom_properties: NonCustomPropertyReferences,
     /// Set of prioritary properties that have already been applied.
     ensured_prioritary: PrioritaryPropertyIdSet,
 }
@@ -1939,7 +1941,7 @@ impl<'a> Cascade<'a> {
         references.for_each_non_custom(context.is_root_element(), |idx| {
             self.references_from_non_custom_properties[idx]
                 .get_or_insert_with(Vec::new)
-                .push(v.value.clone());
+                .push((v.id, v.value.clone()));
         });
     }
 
@@ -2143,7 +2145,7 @@ impl<'a> Cascade<'a> {
 
 fn substitute_all(
     seen: &SeenSubstitutionFunctions,
-    references_from_non_custom_properties: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,
+    references_from_non_custom_properties: &NonCustomPropertyReferences,
     stylist: &Stylist,
     computed_context: &mut computed::Context,
     cascade: &mut Cascade,
@@ -2309,8 +2311,9 @@ fn substitute_all(
         var: &VarType,
         root: &References,
         url_data: &UrlExtraData,
+        property_id: Option<PropertyIdRef>,
         index: usize,
-        references_from_non_custom_properties: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,
+        references_from_non_custom_properties: &NonCustomPropertyReferences,
         context: &mut Context<'a, 'b, 'c, 'd>,
         lowlink: &mut usize,
         self_ref: &mut bool,
@@ -2402,6 +2405,17 @@ fn substitute_all(
                         // Resolved and computed value, no other custom references left.
                         primary_valid = true;
                     }
+                    if primary_valid && next.is_attr_with_type() {
+                        let value = resolved.to_variable_value();
+                        primary_valid = next
+                            .attribute_data
+                            .parse_typed_value(
+                                &mut cssparser::Parser::new(&value.css),
+                                url_data,
+                                property_id,
+                            )
+                            .is_ok();
+                    }
                 }
 
                 if !primary_valid && let Some(ref fallback) = next.fallback {
@@ -2416,7 +2430,7 @@ fn substitute_all(
     fn visit_link<'a, 'b, 'c, 'd>(
         var: VarType,
         index: usize,
-        non_custom_references: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,
+        non_custom_references: &NonCustomPropertyReferences,
         context: &mut Context<'a, 'b, 'c, 'd>,
         lowlink: &mut usize,
         self_ref: &mut bool,
@@ -2463,7 +2477,7 @@ fn substitute_all(
     /// * There is no such variable at all.
     fn traverse<'a, 'b, 'c, 'd>(
         var: VarType,
-        references_from_non_custom_properties: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,
+        references_from_non_custom_properties: &NonCustomPropertyReferences,
         context: &mut Context<'a, 'b, 'c, 'd>,
         attribute_tracker: &mut AttributeTracker,
     ) -> Option<usize> {
@@ -2573,11 +2587,16 @@ fn substitute_all(
                 "Non-custom property has references?"
             );
 
+            let property_id = match &var {
+                VarType::Custom(name) | VarType::Attr(name, _) => Some(PropertyIdRef::from(name)),
+                VarType::NonCustom(_) => unreachable!(),
+            };
             // Visit the references in this value...
             visit_value_references(
                 &var,
                 &v.references,
                 &v.url_data,
+                property_id,
                 index,
                 references_from_non_custom_properties,
                 context,
@@ -2626,18 +2645,20 @@ fn substitute_all(
             }
             let entry = &references_from_non_custom_properties[non_custom];
             if let Some(values) = entry.as_ref() {
-                for value in values {
+                for (longhand_id, value) in values {
                     // Traverse the non-custom property's declaration value(s), creating edges to
                     // the custom properties they reference (directly or through a used fallback)
                     // that might cycle back to this node. Note we traverse unregistered/universal
                     // references too: while their own font-relative units are textual (resolved
                     // against the parent, see `find_non_custom_references`), they may chain to a
                     // registered property that does cycle back.
+                    let property_id = value.substitution_property_id(*longhand_id);
                     let value = &value.variable_value;
                     visit_value_references(
                         &var,
                         &value.references,
                         &value.url_data,
+                        Some(property_id),
                         index,
                         references_from_non_custom_properties,
                         context,

@@ -1585,6 +1585,15 @@ pub struct UnparsedValue {
     from_shorthand: Option<ShorthandId>,
 }
 
+impl UnparsedValue {
+    pub(crate) fn substitution_property_id(&self, longhand_id: LonghandId) -> PropertyIdRef<'static> {
+        PropertyIdRef::from(match self.from_shorthand {
+            Some(shorthand_id) => NonCustomPropertyId::from(shorthand_id),
+            None => NonCustomPropertyId::from(longhand_id),
+        })
+    }
+}
+
 impl ToCss for UnparsedValue {
     fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result
     where
@@ -1658,10 +1667,7 @@ impl VariableDeclaration {
             }
         }
 
-        let property_id = PropertyIdRef::from(match unparsed.from_shorthand {
-            Some(shorthand_id) => NonCustomPropertyId::from(shorthand_id),
-            None => NonCustomPropertyId::from(longhand_id),
-        });
+        let property_id = unparsed.substitution_property_id(longhand_id);
 
         let SubstitutionResult { css, attr_taint } = match custom_properties::substitute(
             &unparsed.variable_value,
