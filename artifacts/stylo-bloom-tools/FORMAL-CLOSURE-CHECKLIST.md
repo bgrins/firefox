@@ -46,9 +46,11 @@ The narrow candidate encoding/provider gate now passes, including root’s fresh
 complete native/provider/kernel replay. Its three-file backport is signed; this
 scoped acceptance does not close the original language/LF obligations.
 
-The ownership full-scope dossier is ready for independent review. It explicitly
-retains native heap/FFI, temporal DOM/style, dictionary/source association,
-persistent measurement cache, shaping and numeric admissions. Unrestricted
+The ownership full-scope dossier has independent review, with the original scope
+still open. The separate coordinate repair now passes root's fresh closed
+native/model replay and is signed. Its constructor-derived guard relation does
+not discharge native heap/FFI, temporal DOM/style, dictionary/source association,
+persistent measurement cache, shaping or numeric admissions. Unrestricted
 partition/locality and all-opportunity completeness have counterexamples.
 Historical gfxFont.cpp/.h identity is now established at HEAD/base; font semantics
 are not thereby proved. The original end-to-end obligations below remain the

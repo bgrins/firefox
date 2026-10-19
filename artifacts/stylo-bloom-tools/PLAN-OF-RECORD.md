@@ -27,7 +27,7 @@ close these obligations.
 
 ## Latest commit and proof checkpoint
 
-There are 50 signed standalone native/WPT fixes. Worker font removal is now
+There are 51 signed standalone native/WPT fixes. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
@@ -41,11 +41,19 @@ theorem audits). It preserves raw pre-guard observations and derives constructor
 coverage. Post-guard substitution/cache/attribute semantics remain open;
 arbitrary evaluation-trace equality has a counterexample.
 
-Hyphenation coordinate repair now has an independent closed source-only
-candidate replay package and a constructor-derived guard proof. Root must run
-and review that replay before acceptance. The full ownership proof remains open.
-The larger loaded FontFace descriptor/provider repair is still in design;
-backend clone code remains an unapplied artifact patch.
+Hyphenation coordinate repair is signed as `18871240dc7d077bf223822013e7a50cf581e2d1`,
+following companion `a1eed2e249aed69af41142c5a55e49a5d88fbb2e`. Root's fresh relocated
+v3 wrapper replay passes both native provider variants and the 31-module guard
+proof. The full ownership proof remains open; persistent tab-cache/query
+association is the next component. V1/v2 wrapper path failures are retained.
+
+The observer/provider extension is signed as
+`89d2fd2f7f305bbd497d00b0cc5dbf92cf92f462`. Its post-guard audit found a separate
+namespaced attr() cache-key hypothesis; the prepared probe has not yet run.
+The larger loaded FontFace descriptor/provider implementation is now prepared
+as a 16-file artifact candidate. Root source-regeneration/live-original checks
+pass; integration, compilation and browser gates remain. No production edit
+has been applied.
 
 ## Loaded FontFace provider follow-up
 
