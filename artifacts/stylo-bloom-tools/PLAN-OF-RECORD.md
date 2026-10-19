@@ -32,7 +32,20 @@ ten exact theorem audits, fourteen native observations, two compiled Lean semant
 mutants and four tamper gates pass fresh root and independent replay. Cold or
 Colon-cache entry provides the proved invariant. Both public-API counterexamples
 remain retained; browser URL reachability and full native event generation are open.
-Evidence: css-parser-cache-observer-root-v1/ROOT-ACCEPTANCE.json.
+Evidence: css-parser-cache-observer-root-v1/ROOT-ACCEPTANCE.json; signed checkpoint
+`e9f6a83409e49efdd3018acc2263f247baf007e6`.
+
+
+### Declaration fallback lead
+
+A new browser probe reproduces 24 failures and 24 passing controls: noncustom
+font-family values can bypass the top-level curly-block restriction after a
+comma-list parser consumes the invalid value during recovery. CSS.supports,
+setProperty, cssText and stylesheet parsing expose the same acceptance error.
+Evidence and a proposed reset-before-validation patch are retained in
+css-declaration-curly-browser-v1. The patch has not been applied or browser-tested;
+independent source/spec review and a formal whole-value invariant are next.
+The committed native/WPT fix count remains 66.
 
 ## Next proof work
 
