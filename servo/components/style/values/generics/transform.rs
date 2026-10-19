@@ -786,15 +786,7 @@ where
             ),
             Matrix3D(ref m) => m.clone().try_into()?,
             Matrix(ref m) => m.clone().try_into()?,
-            InterpolateMatrix { .. } | AccumulateMatrix { .. } => {
-                // TODO: Convert InterpolateMatrix/AccumulateMatrix into a valid Transform3D by
-                // the reference box and do interpolation on these two Transform3D matrices.
-                // Both Gecko and Servo don't support this for computing distance, and Servo
-                // doesn't support animations on InterpolateMatrix/AccumulateMatrix, so
-                // return an identity matrix.
-                // Note: DOMMatrix doesn't go into this arm.
-                Transform3D::identity()
-            },
+            InterpolateMatrix { .. } | AccumulateMatrix { .. } => return Err(()),
         };
         Ok(matrix)
     }
