@@ -313,6 +313,7 @@ impl AbsoluteColor {
         // Greens           g, y
         // Blues            b, z
         if source.color_space.is_rgb_or_xyz_like() && self.color_space.is_rgb_or_xyz_like() {
+            self.flags |= source.flags & (F::C0_IS_NONE | F::C1_IS_NONE | F::C2_IS_NONE);
             return;
         }
 

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>color-mix() carries missing components across RGB and XYZ spaces</title>
+<link rel="help" href="https://drafts.csswg.org/css-color-4/#interpolation-missing">
+<link rel="help" href="https://drafts.csswg.org/css-color-5/#color-mix-result">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/css/support/computed-testcommon.js"></script>
+<script src="/css/support/color-testcommon.js"></script>
+<div id="target"></div>
+<script>
+const spaces = [
+  "srgb", "srgb-linear", "display-p3", "display-p3-linear", "a98-rgb",
+  "prophoto-rgb", "rec2020", "xyz-d50", "xyz-d65"
+];
+const pairs = spaces.map((space, index) =>
+  [space, spaces[(index + 1) % spaces.length]]);
+pairs.push(["srgb-linear", "srgb-linear"], ["xyz-d50", "xyz-d50"]);
+
+for (const [source, destination] of pairs) {
+  for (let channel = 0; channel < 3; ++channel) {
+    const missing = [0, 0, 0];
+    const endpoint = [0, 0, 0];
+    missing[channel] = "none";
+    endpoint[channel] = 1;
+    const first = `color(${source} ${missing.join(" ")})`;
+    const second = `color(${destination} ${endpoint.join(" ")})`;
+    const expected = `color(${destination} ${endpoint.join(" ")})`;
+    for (const endpoints of [[first, second], [second, first]]) {
+      fuzzy_test_computed_color(
+        `color-mix(in ${destination}, ${endpoints.join(", ")})`,
+        expected, 0.00001);
+    }
+    fuzzy_test_computed_color(
+      `color-mix(in ${destination}, ${first}, color(${destination} ${missing.join(" ")}))`,
+      `color(${destination} ${missing.join(" ")})`, 0.00001);
+  }
+  fuzzy_test_computed_color(
+    `color-mix(in ${destination}, color(${source} 0 0 0), color(${destination} 1 1 1))`,
+    `color(${destination} 0.5 0.5 0.5)`, 0.00001);
+  fuzzy_test_computed_color(
+    `color-mix(in ${destination}, color(${source} 0 0 0 / none), color(${destination} 1 1 1 / 0.5))`,
+    `color(${destination} 0.5 0.5 0.5 / 0.5)`, 0.00001);
+  fuzzy_test_computed_color(
+    `color-mix(in ${destination}, color(${source} 0 0 0 / none), color(${destination} 1 1 1 / none))`,
+    `color(${destination} 0.5 0.5 0.5 / none)`, 0.00001);
+}
+</script>
