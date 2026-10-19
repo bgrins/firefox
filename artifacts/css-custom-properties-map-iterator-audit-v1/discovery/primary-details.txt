@@ -1,0 +1,478 @@
+CSS Object Model (CSSOM) Module Level 1 (https://drafts.csswg.org/cssom/)
+citeturn1295view0 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"https://drafts.csswg.org/cssom/","lineno":1720}); Total lines: 2901
+L1712: ### 7.2. Extensions to the `cite876†Window†html.spec.whatwg.org ` Interface
+L1713: 
+L1714:     partial interface cite876†Window†html.spec.whatwg.org {
+L1715:       [cite877†NewObject†webidl.spec.whatwg.org ] cite578†CSSStyleProperties cite878†getComputedStyle (cite301†Element†dom.spec.whatwg.org `elt`, optional cite169†CSSOMString ? `pseudoElt`);
+L1716:     };
+L1717: 
+L1718: 
+L1719: The `getComputedStyle(`elt`, `pseudoElt`)` method must run these steps:
+L1720:   1. Let `doc` be `elt`’s cite396†node document†dom.spec.whatwg.org .
+L1721:   2. Let `obj` be `elt`.
+L1722:   3. If `pseudoElt` is provided, is not the empty string, and starts with a colon, then:
+L1723:     1. cite823†Parse `pseudoElt` as a cite879†<pseudo-element-selector> , and let `type` be the result.
+L1724:     2. If `type` is failure, or is a cite880†::slotted() or cite881†::part() pseudo-element, let `obj` be null.
+L1725:     3. Otherwise let `obj` be the given pseudo-element of `elt`.
+L1726: Note: CSS2 pseudo-elements should match both the double and single-colon versions. That is, both `:before` and `::before` should match above.
+L1727:   4. Let `decls` be an empty list of cite653†CSS declarations .
+L1728:   5.
+L1729: If `obj` is not null, and `elt` is cite882†connected†dom.spec.whatwg.org , part of the cite883†flat tree , and its cite884†shadow-including root†dom.spec.whatwg.org has a cite885†browsing context†html.spec.whatwg.org which either doesn’t have a browsing context container, or whose browsing context container is cite886†being rendered†html.spec.whatwg.org , set `decls` to a list of all longhand properties that are cite125†supported CSS properties , in lexicographical order, with the value being the cite887†resolved value computed for `obj` using the style rules associated with `doc`.
+--------------------------------------------------------------------------------
+CSS Object Model (CSSOM) Module Level 1 (https://drafts.csswg.org/cssom/)
+citeturn1295view1 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"https://drafts.csswg.org/cssom/","lineno":1408}); Total lines: 2901
+L1405: Setting the `cite700†cssText ` attribute must run these steps:
+L1406: 
+L1407:   1. If the cite601†readonly flag is set, then cite200†throw†heycam.github.io a `cite781†NoModificationAllowedError†webidl.spec.whatwg.org ` exception.
+L1408:   2. Empty the cite602†declarations .
+L1409:   3. cite541†Parse the given value and, if the return value is not the empty list, insert the items in the list into the cite602†declarations , in cite603†specified order .
+L1410:   4. cite782†Update style attribute for the cite655†CSS declaration block .
+L1411: The `length` attribute must return the number of cite653†CSS declarations in the cite602†declarations .
+L1412: 
+L1413: The `item(`index`)` method must return the cite654†property name of the cite653†CSS declaration at position `index`. If there is no `index`th object in the collection, then the method must return the empty string.
+L1414: 
+L1415: The `getPropertyValue(`property`)` method must run these steps:
+L1416:   1. If `property` is not a cite124†custom property , follow these substeps:
+L1417:     1. Let `property` be `property` cite147†converted to ASCII lowercase†infra.spec.whatwg.org .
+L1418:     2. If `property` is a shorthand property, then follow these substeps:
+L1419:       1. Let `list` be a new empty array.
+L1420:       2. For each longhand property `longhand` that `property` maps to, in canonical order, follow these substeps:
+--------------------------------------------------------------------------------
+firefox/servo/components/style/custom_properties_map.rs at main · mozilla-firefox/firefox · GitHub (https://github.com/mozilla-firefox/firefox/blob/main/servo/components/style/custom_properties_map.rs)
+citeturn1295view2 [wordlim: 200] Crawled: 3 weeks ago; Content type: text/html; Source: find({"ref_id":"turn1294view0","pattern":"for descendant"}); Total lines: 1112
+L770: pub struct Iter<'a> {
+L771: 
+L772: current: &'a Inner,
+L773: 
+L774: current_iter: indexmap::map::Iter<'a, Name, Option<ComputedRegisteredValue>>,
+L775: 
+L776: descendants: smallvec::SmallVec<[&'a Inner; ANCESTOR_COUNT_LIMIT]>,
+L777: 
+L778: }
+L779: 
+L780: impl<'a> Iterator for Iter<'a> {
+L781: 
+L782: type Item = (&'a Name, &'a Option<ComputedRegisteredValue>);
+L783: 
+L784: fn next(&mut self) -> Option<Self::Item> {
+L785: 
+L786: loop {
+L787: 
+L788: let (name, value) = match self.current_iter.next() {
+L789: 
+L790: Some(v) => v,
+L791: 
+L792: None => {
+L793: 
+L794: let parent = self.current.parent.as_deref()?;
+L795: 
+L796: self.descendants.push(self.current);
+L797: self.current = parent;
+L798: 
+L799: self.current_iter = parent.own_properties.iter();
+L800: 
+L801: continue;
+L802: 
+L803: },
+L804: 
+L805: };
+L806: 
+L807: // If the property is overridden by a descendant we've already visited it.
+L808: 
+L809: for descendant in &self.descendants {
+L810: 
+L811: if descendant.own_properties.contains_key(name) {
+L812: 
+L813: continue;
+L814: 
+L815: }
+L816: 
+L817: }
+L818: 
+L819: return Some((name, value));
+L820: 
+L821: }
+L822: 
+L823: }
+L824: 
+L825: }
+L826: #[inline]
+L827: 
+L828: fn can_deduplicate_values(
+L829: 
+L830: a: Option<&ComputedRegisteredValue>,
+L831: 
+L832: b: Option<&ComputedRegisteredValue>,
+L833: 
+L834: ) -> bool {
+L835: 
+L836: match (a, b) {
+L837: 
+L838: (Some(a), Some(b)) => {
+L839: 
+L840: // TODO(emilio): Seems we should compare `url_data` as well? It doesn't seem to matter
+L841: 
+L842: // much in practice since url values would be already-computed against the right base
+L843: 
+L844: // URI here, I think...
+L845: 
+L846: a == b && a.attr_tainted == b.attr_tainted
+L847: 
+L848: },
+L849: 
+L850: (None, None) => true,
+L851: 
+L852: _ => false,
+L853: 
+L854: }
+L855: 
+L856: }
+L857: 
+L858: impl PartialEq for Inner {
+L859: fn eq(&self, other: &Self) -> bool {
+L860: 
+L861: if self.len != other.len {
+L862: 
+L863: return false;
+L864: 
+L865: }
+L866: 
+L867: // NOTE(emilio): In order to speed up custom property comparison when tons of custom
+L868: 
+L869: // properties are involved, we return false in some cases where the ordering might be
+L870: 
+L871: // different, but the computed values end up being the same.
+L872: 
+L873: //
+L874: 
+L875: // This is a performance trade-off, on the assumption that if the ordering is different,
+L876: 
+L877: // there's likely a different value as well, but might over-invalidate.
+L878: 
+L879: //
+--------------------------------------------------------------------------------
+firefox/servo/components/style/custom_properties_map.rs at main · mozilla-firefox/firefox · GitHub (https://github.com/mozilla-firefox/firefox/blob/main/servo/components/style/custom_properties_map.rs)
+citeturn1295view3 [wordlim: 200] Crawled: 3 weeks ago; Content type: text/html; Source: find({"ref_id":"turn1294view0","pattern":"Latest commit"}); Total lines: 1112
+L113: You signed in with another tab or window. Reload to refresh your session. You signed out in another tab or window. Reload to refresh your session. You switched accounts on another tab or window. Reload to refresh your session. Dismiss alert
+L114: 
+L115: cite61†mozilla-firefox / cite62†firefox Public
+L116: 
+L117:   * cite63†Notifications You must be signed in to change notification settings
+L118:   * cite63†Fork 1.5k L119:   * cite63†Star L120: 
+L121:   * cite62†Code L122:   * cite64†Pull requests 1 L123:   * cite65†Actions L124:   * cite66†Security and quality 0 L125:   * cite67†Insights L126: Additional navigation options
+L127: ## Files Expand file tree
+L128: 
+L129: main
+L130: 
+L131: ## Breadcrumbs
+L132: 
+L133:   1. cite68†firefox L134:   2. /cite69†servo L135:   3. /cite70†components L136:   4. /cite71†style L137: 
+L138: /
+L139: 
+L140: # custom_properties_map.rs
+L141: 
+L142: Copy path
+L143: 
+L144: [Input: Go to file]
+L145: 
+L146: Blame More file actions
+L147: 
+L148: Blame More file actions
+L149: 
+L150: ## Latest commit
+L151: 
+L152: 
+L153: 
+L154: ## History
+L155: 
+L156: History
+L157: 
+L158: main
+L159: 
+L160: ## Breadcrumbs
+L161: 
+L162:   1. cite68†firefox L163:   2. /cite69†servo L164:   3. /cite70†components L165:   4. /cite71†style L166: 
+L167: /
+L168: 
+L169: # custom_properties_map.rs
+L170: 
+L171: Copy path
+L172: 
+L173: Top
+L174: ## File metadata and controls
+L175: 
+L176:   * Code
+L177: 
+L178:   * Blame
+L179: 
+L180: 248 lines (220 loc) · 8.05 KB
+L181: 
+L182: cite72†Raw L183: 
+L184: Copy raw file
+L185: 
+L186: Download raw file
+L187: 
+L188: Open symbols panel
+L189: 
+L190: Edit and raw actions
+L191: 
+L192: 1
+L193: 
+L194: 2
+L195: 
+L196: 3
+L197: 
+L198: 4
+L199: 
+L200: 5
+L201: 
+L202: 6
+L203: 
+L204: 7
+L205: 
+L206: 8
+L207: 
+L208: 9
+L209: 
+L210: 10
+L211: 
+L212: 11
+L213: 
+L214: 12
+L215: 
+L216: 13
+L217: 
+L218: 14
+L219: 
+L220: 15
+L221: 
+L222: 16
+L223: 
+L224: 17
+L225: 
+L226: 18
+L227: 
+L228: 19
+L229: 
+L230: 20
+L231: 
+L232: 21
+L233: 
+L234: 22
+L235: 
+L236: 23
+L237: 
+L238: 24
+L239: 
+L240: 25
+L241: 
+L242: 26
+L243: 
+L244: 27
+L245: 
+L246: 28
+L247: 
+L248: 29
+L249: 
+L250: 30
+L251: 
+L252: 31
+L253: 
+L254: 32
+L255: 
+L256: 33
+L257: 
+L258: 34
+L259: 
+L260: 35
+L261: 
+L262: 36
+L263: 
+L264: 37
+L265: 
+L266: 38
+L267: 
+L268: 39
+L269: 
+L270: 40
+L271: 
+L272: 41
+L273: 
+L274: 42
+L275: 
+L276: 43
+L277: 
+L278: 44
+L279: 
+L280: 45
+L281: 
+L282: 46
+L283: 
+L284: 47
+L285: 
+L286: 48
+L287: 
+L288: 49
+L289: 
+L290: 50
+L291: 
+L292: 51
+L293: 
+L294: 52
+L295: 
+L296: 53
+L297: 
+L298: 54
+L299: 
+L300: 55
+L301: 
+L302: 56
+L303: 
+L304: 57
+L305: 
+L306: 58
+L307: 
+L308: 59
+L309: 
+L310: 60
+L311: 
+L312: 61
+L313: 
+L314: 62
+L315: 
+L316: 63
+L317: 
+L318: 64
+L319: 
+L320: 65
+L321: 
+L322: 66
+L323: 
+L324: 67
+L325: 
+L326: 68
+L327: 
+L328: 69
+L329: 
+L330: 70
+L331: 
+L332: 71
+L333: 
+L334: 72
+L335: 
+L336: 73
+L337: 
+L338: 74
+L339: 
+L340: 75
+L341: 
+L342: 76
+L343: 
+L344: 77
+L345: 
+L346: 78
+L347: 
+L348: 79
+L349: 
+L350: 80
+L351: 
+L352: 81
+L353: 
+L354: 82
+L355: 
+L356: 83
+L357: 
+L358: 84
+L359: 
+L360: 85
+L361: 
+L362: 86
+L363: 
+L364: 87
+L365: 
+L366: 88
+L367: 89
+L368: 
+L369: 90
+L370: 
+L371: 91
+L372: 
+L373: 92
+L374: 
+L375: 93
+L376: 
+L377: 94
+L378: 
+L379: 95
+L380: 
+L381: 96
+L382: 
+L383: 97
+L384: 
+L385: 98
+L386: 
+L387: 99
+L388: 
+L389: 100
+L390: 
+L391: 101
+L392: 
+L393: 102
+L394: 
+L395: 103
+L396: 
+L397: 104
+L398: 
+L399: 105
+L400: 
+L401: 106
+L402: 
+L403: 107
+L404: 
+L405: 108
+L406: 
+L407: 109
+L408: 
+L409: 110
+L410: 
+L411: 111
+L412: 
+L413: 112
+L414: 
+L415: 113
+L416: 
+L417: 114
+L418: 
+L419: 115
+L420: 
+L421: 116
+L422: 
+L423: 117
+L424: 
+L425: 118
+L426: 
+L427: 119
+L428: 
+L429: 120
+L430: 
+L431: 121
+L432: 
+L433: 122
+L434: 
+L435: 123
+L436: 
+L437: 124
+L438: 
+L439: 125
+L440: 
+L441: 126
+L442: 
+L443: 127
+L444: 
+L445: 128
+L446: 
+L447: 129
+L448: 
+L449: 130
+L450: 
+

@@ -1,0 +1,681 @@
+firefox/servo/components/style/custom_properties_map.rs at main · mozilla-firefox/firefox · GitHub (https://github.com/mozilla-firefox/firefox/blob/main/servo/components/style/custom_properties_map.rs)
+citeturn1293search0 [wordlim: 200] Crawled: 2 months ago; # custom_properties_map.rs ... continue; ... for descendant in &self.descendants {
+
+use servo_arc::Arc;
+
+use std::hash::BuildHasherDefault;
+
+use std::sync::LazyLock;
+
+/// A map for a set of custom properties, which implements copy-on-write behavior on insertion with
+
+/// cheap copying.
+
+#[derive(Clone, Debug, PartialEq)]
+
+pub struct CustomPropertiesMap(Arc<Inner>);
+
+impl Default for CustomPropertiesMap {
+
+fn default() -> Self {
+
+Self(EMPTY.clone())
+
+}
+
+}
+
+/// We use None in the value to represent a removed entry.
+
+pub type OwnMap =
+
+IndexMap<Name, Option<ComputedRegisteredValue>, BuildHasherDefault<PrecomputedHasher>>;
+
+static EMPTY: LazyLock<Arc<Inner>> = LazyLock::new(|| {
+
+Arc::new_leaked(Inner {
+
+own_properties: Default::default(),
+
+parent: None,
+
+len: 0,
+
+ancestor_count: 0,
+
+})
+
+});
+
+#[derive(Debug, Clone)]
+
+struct Inner {
+
+own_properties: OwnMap,
+
+parent: Option<Arc<Inner>>,
+
+/// The number of custom properties we store. Note that this is different from the sum of our
+
+/// own and our parent's length, since we might store duplicate entries.
+
+len: usize,
+
+/// The number of ancestors we have.
+
+ancestor_count: u8,
+
+}
+
+/// A not-too-large, not too small ancestor limit, to prevent creating too-big chains.
+
+const ANCESTOR_COUNT_LIMIT: usize = 4;
+
+/// An iterator over the custom properties.
+
+pub struct Iter<'a> {
+
+current: &'a Inner,
+
+current_iter: indexmap::map::Iter<'a, Name, Option<ComputedRegisteredValue>>,
+
+descendants: smallvec::SmallVec<[&'a Inner; ANCESTOR_COUNT_LIMIT]>,
+
+}
+
+impl<'a> Iterator for Iter<'a> {
+
+type Item = (&'a Name, &'a Option<ComputedRegisteredValue>);
+
+fn next(&mut self) -> Option<Self::Item> {
+
+loop {
+
+let (name, value) = match self.current_iter.next() {
+
+Some(v) => v,
+
+None => {
+
+let parent = self.current.parent.as_deref()?;
+
+self.descendants.push(self.current);
+
+self.current = parent;
+
+self.current_iter = parent.own_properties.iter();
+
+continue;
+
+},
+
+};
+
+// If the property is overridden by a descendant we've already visited it.
+
+for descendant in &self.descendants {
+
+if descendant.own_properties.contains_key(name) {
+
+continue;
+
+}
+
+}
+
+return Some((name, value));
+
+}
+
+}
+
+}
+
+impl PartialEq for Inner {
+
+fn eq(&self, other: &Self) -> bool {
+
+if self.len != other.len {
+
+return false;
+
+}
+
+// NOTE(emilio): In order to speed up custom property comparison when tons of custom
+
+// properties are involved, we return false in some cases where the ordering might be
+
+// different, but the computed values end up being the same.
+
+//
+
+// This is a performance trade-off, on the assumption that if the ordering is different,
+
+// there's likely a different value as well, but might over-invalidate.
+
+//
+
+// Doing the slow thing (checking all the keys) shows up a lot in profiles, see
+
+// bug 1926423.
+
+//
+
+// Note that self.own_properties != other.own_properties is not the same, as by default
+
+// IndexMap comparison is not order-aware.
+
+if self.own_properties.as_slice() != other.own_properties.as_slice() {
+
+return false;
+
+}
+
+self.parent == other.parent
+
+}
+
+}
+
+impl Inner {
+
+fn iter(&self) -> Iter<'_> {
+
+Iter {
+
+current: self,
+
+current_iter: self.own_properties.iter(),
+
+descendants: Default::default(),
+
+}
+
+}
+
+fn is_empty(&self) -> bool {
+
+self.len == 0
+
+}
+
+fn len(&self) -> usize {
+
+self.len
+
+}
+
+fn get(&self, name: &Name) -> Option<&ComputedRegisteredValue> {
+
+if let Some(p) = self.own_properties.get(name) {
+
+return p.as_ref();
+
+}
+
+self.parent.as_ref()?.get(name)
+
+}
+
+fn insert(&mut self, name: &Name, value: Option<ComputedRegisteredValue>) {
+
+let new = self.own_properties.insert(name.clone(), value).is_none();
+
+if new && self.parent.as_ref().map_or(true, |p| p.get(name).is_none()) {
+
+self.len += 1;
+
+}
+
+}
+
+/// Whether we should expand the chain, or just copy-on-write.
+
+fn should_expand_chain(&self) -> bool {
+
+const SMALL_THRESHOLD: usize = 8;
+
+if self.own_properties.len() <= SMALL_THRESHOLD {
+
+return false; // Just copy, to avoid very long chains.
+
+}
+
+self.ancestor_count < ANCESTOR_COUNT_LIMIT as u8
+
+}
+
+}
+
+impl CustomPropertiesMap {
+
+/// Returns whether the map has no properties in it.
+
+pub fn is_empty(&self) -> bool {
+
+self.0.is_empty()
+
+}
+
+/// Returns the amount of different properties in the map.
+
+pub fn len(&self) -> usize {
+
+self.0.len()
+
+--------------------------------------------------------------------------------
+1853395 - Computed values of custom properties of type <length> do not evaluate calc() function (https://bugzilla.mozilla.org/show_bug.cgi?id=1853395)
+citeturn1293search1 [wordlim: 200] Crawled: 5 months ago; # Computed values of custom properties of type <length> do not evaluate calc() function ... RESOLVED DUPLICATE of bug 1846632
+
+Closed Bug 1853395 Opened 2 years ago Closed 2 years ago
+
+# Computed values of custom properties of type <length> do not evaluate calc() function
+
+* Summary:
+
+Computed values of custom properties of type <length> do not evaluate calc() function
+
+## Categories
+
+### (Core :: CSS Parsing and Computation, defect)
+
+Product:
+
+Core ▾
+
+Component:
+
+CSS Parsing and Computation ▾
+
+Version:
+
+unspecified
+
+Platform:
+
+Unspecified
+
+Unspecified
+
+Type:
+
+defect
+
+Priority:
+
+Not set
+
+Severity:
+
+--
+
+Points:
+
+---
+
+## Tracking
+
+### ()
+
+Status:
+
+RESOLVED DUPLICATE of bug 1846632
+
+Status:
+
+RESOLVED
+
+DUPLICATE
+
+of [Input]
+
+## People
+
+### (Reporter: fwang, Unassigned)
+
+Assignee:
+
+Unassigned
+
+Assignee:
+
+[Input] Reset Assignee to default
+
+### Description
+
+• 2 years ago
+
+Attached file custom-property-calc.html — Details
+
+See the attached testcase. It is extracted from testing/web-platform/tests/css/css-properties-values-api/registered-properties-inheritance.html simplified so it does not involved non-inherited values or inheritance at all.
+    
+    `    --inherited-length-1: 10px;
+        --inherited-length-2: var(--inherited-length-1);
+        --inherited-length-3: calc(var(--inherited-length-1) * 10);
+        margin-top: 10px;
+        margin-left: var(--inherited-length-1);
+        margin-right: calc(var(--inherited-length-1) * 10);
+    `
+
+For the standard properties, computed values are 10px, 10px and 100px as expected.
+
+For the --inherited-length-* custom properties, computed values are 10px, 10px and calc(10px * 10).
+
+Tested at https://hg.mozilla.org/mozilla-central/rev/f4b0e304ecebf431616ce014dd198c1d361b37c1
+
+
+### Comment 1
+
+• 2 years ago
+
+This is bug 1846632.
+
+Status: NEW → RESOLVED
+
+Closed: 2 years ago
+
+Duplicate of bug: 1846632
+
+Resolution: --- → DUPLICATE
+
+## Attachment
+
+[Button: Hide Details]
+
+### General
+
+Creator:
+
+Frédéric Wang Nélar
+
+Created:
+
+Updated:
+
+Size:
+
+### Description
+
+[Input]
+
+### File Name
+
+[Input]
+
+### Content Type
+
+[Input]
+
+[Button: Raw] [Button: Diff] [Button: Splinter Review]--------------------------------------------------------------------------------
+1626234 - Display the computed value of custom properties on hover, where they are defined (https://bugzilla.mozilla.org/show_bug.cgi?id=1626234)
+citeturn1293search2 [wordlim: 200] Crawled: 4 months ago; Note that we now show custom properties in the computed panel, but people are still interested in having the computed value directly in the tooltip ... Duplicate of this bug: 1446579
+
+Image  | Pulsebot  | 
+
+### Comment 7
+
+• 1 year ago
+
+Pushed by nchevobbe@mozilla.com: https://hg.mozilla.org/integration/autoland/rev/35657b4631ea [devtools] Display the computed value of custom property in var() tooltip. r=devtools-reviewers,bomsy.
+
+Image  | pstanciu  | 
+
+### Comment 8
+
+• 1 year ago
+bugherder
+
+https://hg.mozilla.org/mozilla-central/rev/35657b4631ea
+
+Status: ASSIGNED → RESOLVED
+
+Closed: 1 year ago
+
+status-firefox131: --- → fixed
+
+Resolution: --- → FIXED
+
+### Updated
+
+• 1 year ago
+
+Duplicate of this bug: 1446579
+
+Image  | Nicolas Chevobbe [:nchevobbe] Assignee  | 
+
+## Attachment
+
+[Button: Hide Details]
+
+### General
+
+Creator:
+
+Nicolas Chevobbe [:nchevobbe]
+
+Created:
+
+Updated:
+
+Size:
+
+### Description
+
+[Input]
+
+### File Name
+
+[Input]
+
+### Content Type
+
+[Input]
+
+[Button: Raw] [Button: Diff] [Button: Splinter Review]--------------------------------------------------------------------------------
+1846632 - [css-properties-values-api] Use canonical units for custom properties with font-independent values (https://bugzilla.mozilla.org/show_bug.cgi?id=1846632)
+citeturn1293search3 [wordlim: 200] Crawled: 4 months ago; Duplicate of this bug: 1853395 ... Summary: [css-properties-values-api] Use canonical units for computed values → [css-properties-values-api] Use canonical units for custom properties with font-independent values
+
+• 2 years ago
+
+Attached file Bug 1846632 - [css-properties-values-api] Use canonical values for font-independent types r=fredw,zsun,#style,#layout — Details
+
+We resolve calc expressions and use appropriate units by computing
+ToComputedValue trait, computing each component's value, then converting
+it back to that component's type, before making a new VariableValue from
+the computed value's CSS string to store in the computed properties map.
+
+Depends on D190253
+
+Image  | Frédéric Wang Nélar  | 
+
+### Updated
+
+• 2 years ago
+
+Duplicate of this bug: 1857255
+
+Image  | Tess Hoffman [:zrhoffman] Assignee  | 
+
+### Updated
+
+• 2 years ago
+
+Blocks: 1857674
+
+Image  | Tess Hoffman [:zrhoffman] Assignee  | 
+
+### Updated
+
+• 2 years ago
+
+Blocks: 1857716
+
+Image  | Tess Hoffman [:zrhoffman] Assignee  | 
+--------------------------------------------------------------------------------
+2077931 - Changes Copy Rule inserts whitespace into custom-property data and changes its value (https://bugzilla.mozilla.org/show_bug.cgi?id=2077931)
+citeturn1293search4 [wordlim: 200] Crawled: 2 weeks ago; When the copied rule is pasted into a stylesheet, Firefox exposes a different specified/computed custom-property string to page JavaScript. ... CSS Custom Properties Level 1 explicitly requires specified values to serialize exactly as authored and explains that authors can store non-CSS information whose meaning changes when whitespace is normalized: https://www.w3.org/TR/css-variables-1/#serializing-custom-properties . ... Duplicate check: Reviewed 154 public Inspector: Changes descriptions and targeted Copy Rule/prettify/custom-property searches.
+
+### Description
+
+• 1 day ago
+
+Reporter credit: Nguyen Tuan Hung (nguyentuanhung1149@gmail.com), VNU HCM - UIT.
+
+Changes > Copy Rule inserts a newline and indentation inside an unchanged CSS custom-property value. When the copied rule is pasted into a stylesheet, Firefox exposes a different specified/computed custom-property string to page JavaScript. A page consuming that value as exact data can change behavior, even though the developer only edited another declaration in Rules.
+
+Minimal testcase:
+
+<style>div { color: red; --payload: [a;b]; }</style>
+<div id="test">sample</div>
+
+Steps to reproduce:
+
+  1. Load the testcase, inspect `#test`, and change `color: red` to `color: blue` in Rules.
+  2. Open Changes and use Copy Rule on the changed `div` rule.
+  3. Compare the copied `--payload` value with `getComputedStyle(document.querySelector("#test")).getPropertyValue("--payload")`.
+  4. Paste the copied rule into a new `<style>` after the original and compare the computed custom-property value again.
+--------------------------------------------------------------------------------
+1370344 - Implement CSS Properties & Values in Firefox, via Stylo/Servo (https://bugzilla.mozilla.org/show_bug.cgi?id=1370344)
+citeturn1293search5 [wordlim: 200] Crawled: 5 months ago; Precomputed variant, to save us from recomputation and also to save us ... properties except when it comes to inheritance, computed values, and ... Currently a CustomPropertiesMap parameterizes custom property
+
+### Comment 6
+
+• 7 years ago
+
+Attached file Bug 1370344 - Part 3: Add/refactor types of custom_properties for Properties & Values. r=#style — Details
+
+Add a new ExtraData enum. We carry it along with a custom property's
+specified value in order to compute it, if it ends up being registered
+as being able to contain URLs through Properties & Values. When the
+specified value comes from a declaration, we keep track of the
+associated UrlExtraData in the Specified variant. However, specified
+values will also be able to come from animations: in that case we will
+eventually (when we add support for registered custom properties to
+animations) be able to carry along a copy of the computed value in the
+Precomputed variant, to save us from recomputation and also to save us
+from having to re-resolve the URL.
+
+The properties_and_values module is addded by a later patch in this
+series, so we omit the Precomputed variant for now.
+
+Depends on D30859
+
+Image  | Jonathan Chan [:jyc] Reporter  | 
+
+--------------------------------------------------------------------------------
+1273706 - (css-properties-values-api) [META] implement Houdini CSS Properties and Values API (https://bugzilla.mozilla.org/show_bug.cgi?id=1273706)
+citeturn1293search6 [wordlim: 200] Crawled: 6 days ago; aPropertiesSetAtEnd.HasProperty(prop)) { > + AppendProperty(aPresContext, prop, endKeyframe->mPropertyValues); > + } > + } Similar comment here: can we make IterCustomProps() return the iterator, or do the AppendProperty work inside the anonymous function instead of building up an array? ::: layout/style/nsComputedDOMStyle.cpp:6320 (Diff revision 5) > - if (cssprop == eCSSPropertyExtra_all_properties) > + if (cssprop == eCSSPropertyExtra_all_properties) > - property->SetIdent(eCSSKeyword_all); > + property->SetIdent(eCSSKeyword_all); > - else if (cssprop == eCSSPropertyExtra_no_properties) > + else if (cssprop == eCSSPropertyExtra_no_properties) > - property->SetIdent(eCSSKeyword_none); > + property->SetIdent(eCSSKeyword_none); > - else if (cssprop == eCSSProperty_UNKNOWN || > + else if (cssprop == eCSSProperty_UNKNOWN || > - cssprop == eCSSPropertyExtra_variable) > + cssprop == eCSSPropertyExtra_variable) I'm a bit confused when we use eCSSPropertyExtra_variable now. ... Then you'll be able to point to more specific sections of the spec in each test file, from the <link rel=help>. ::: testing/web-platform/tests/css-houdini/properties-and-values.html:74 (Diff revision 3) > +<a id="link" href="/"></a> > + > +<script> > +let baseURL = document.getElementById("link").href; > + > +let animTests = [ Here are some additional animation tests I'd like to see: * animation of a <number>- and <length>-typed custom property with calc() values * animation of <color>-typed custom property, including something with currentColor * animation of <image>-typed custom property (marked as an expected fail, if we indeed don't support that) * animation of non-px <length> values (and <length>+ values) that tests how they compute down to px values * animation between px, % and calc() values for <length-percentage> * animation involving invalid token stream values * animation of custom properties that are referenced by unanimated fixed properties, e.g. animate a --color and use it in background-color ::: testing/web-platform/tests/css-houdini/properties-and-values.html:249 (Diff revision 3) > + // Transform function arguments should be computed. > + { registrations: [ > + { name: "--a", > + syntax: "<transform-function>", > + inherits: true, > + }, > + ], > + parent: "font-size: 10px;", > + child: "--a: translateX(5em);", > + expected: { > + "--a": "translateX(50px)", > + }, > + }, Per a comment on the previous patch, I think we shouldn't be computing transform function arguments down.
+aPropertiesSetAtEnd.HasProperty(prop)) { > + AppendProperty(aPresContext, prop, endKeyframe->mPropertyValues); > + } > + } Similar comment here: can we make IterCustomProps() return the iterator, or do the AppendProperty work inside the anonymous function instead of building up an array? ::: layout/style/nsComputedDOMStyle.cpp:6320 (Diff revision 5) > - if (cssprop == eCSSPropertyExtra_all_properties) > + if (cssprop == eCSSPropertyExtra_all_properties) > - property->SetIdent(eCSSKeyword_all); > + property->SetIdent(eCSSKeyword_all); > - else if (cssprop == eCSSPropertyExtra_no_properties) > + else if (cssprop == eCSSPropertyExtra_no_properties) > - property->SetIdent(eCSSKeyword_none); > + property->SetIdent(eCSSKeyword_none); > - else if (cssprop == eCSSProperty_UNKNOWN || > + else if (cssprop == eCSSProperty_UNKNOWN || > - cssprop == eCSSPropertyExtra_variable) > + cssprop == eCSSPropertyExtra_variable) I'm a bit confused when we use eCSSPropertyExtra_variable now. Should we assert that we never set that value in a MaybeCustomProperty? Or do we need that in places? ::: layout/style/nsComputedDOMStyle.cpp:6333 (Diff revision 5) > - property->SetString(nsCSSProps::GetStringValue(cssprop)); > + property->SetString(nsCSSProps::GetStringValue(cssprop)); > + } else { > + RefPtr<nsIAtom> custom = prop.AsCustom(); > + nsString name; > + custom->ToString(name); > + property->SetString(Move(name)); I don't think SetString takes an rvalue-reference. ::: layout/style/nsRuleNode.cpp:5536 (Diff revision 5) > - if (prop == eCSSProperty_UNKNOWN || > + if (prop == eCSSProperty_UNKNOWN) { > - prop == eCSSPropertyExtra_variable) { > transition->SetUnknownProperty(prop, propertyStr); > + } else if (prop == eCSSPropertyExtra_variable) { > + RefPtr<const CSSVariableRegistrations> registrations = > + CSSVariableRegistrationsOfStyleContext(aContext); > + CSSVariableRegistration* reg = nullptr; > + if (registrations && > + registrations->mData.Get(Substring(propertyStr, > + CSS_CUSTOM_NAME_PREFIX_LENGTH), > + &reg)) { > + transition->SetProperty(MaybeCustomProperty(reg->mAtom)); > + } else { > + transition->SetUnknownProperty(prop, propertyStr); > + } We can replace this section with the nsCSSProps::LookupProperty-like method I mentioned earlier. ::: layout/style/nsStyleStruct.h:2394 (Diff revision 5) > - NS_ASSERTION(aProperty != eCSSProperty_UNKNOWN && > - aProperty != eCSSPropertyExtra_variable, > +#ifdef DEBUG > + if (aProperty.IsFixed()) { > + nsCSSProperty fixed = aProperty.AsFixed(); > + NS_ASSERTION(fixed != eCSSProperty_UNKNOWN && > + fixed != eCSSPropertyExtra_variable, > - "invalid property"); > + "invalid property"); > + } > +#endif How about just: MOZ_ASSERT(aProperty.IsCustom() || aProperty.AsFixed() != eCSSProperty_UNKNOWN, "invalid property"); if that's the right condition.--------------------------------------------------------------------------------
+2077906 - Rules hides declarations after a custom property with a balanced curly block value (https://bugzilla.mozilla.org/show_bug.cgi?id=2077906)
+citeturn1293search7 [wordlim: 200] Crawled: 2 weeks ago; Duplicate check: Reviewed 2,112 public Inspector: Rules summaries and targeted public searches for custom properties, braces, blocks and declaration parsing.
+
+Reproduced in two fresh Firefox Nightly 159.0a1 profiles and one fresh Firefox 157.0 profile on Linux. The attached browser-chrome regression test passes six CSSOM/live-rule checks and fails only the assertion that Rules shows the three authored declarations. Attached are the standalone test patch and three-run evidence.
+
+Likely cause: `parseDeclarationsInternal()` in `devtools/shared/css/parsing-utils.js` treats every top-level `CurlyBracketBlock` token as the start of a nested rule when `currentBlocks` is empty. It does not check that a custom property's value is already in progress (`lastProp.isCustomProperty`). It then discards that declaration and stops parsing before `color` and `margin`. This code remains in the latest Firefox main revision checked on 2026-10-04.
+
+Duplicate check: Reviewed 2,112 public Inspector: Rules summaries and targeted public searches for custom properties, braces, blocks and declaration parsing. Bug 1544223 was fixed for a complex custom-property block nested inside parentheses, where semicolons produced bogus declarations; this minimal bare `{ ... }` value now causes the nested-rule detection to discard the custom property and all following declarations. Bugs 1841502 and 1946445 concern different shorthand fallback or actual nested-rule behavior.
+
+This is a functional DevTools defect (S3). No security impact is claimed.
+
+### Comment 1
+
+• 1 day ago
+
+Attached patch Failing browser-chrome regression test for block-valued custom property — Details — Splinter Review
+
+Image  | nguyentuanhung1149 Reporter  | 
+
+### Comment 2
+
+• 1 day ago
+
+Attached file Two Nightly and one Release real-browser Rules/CSSOM comparison — Details--------------------------------------------------------------------------------
+1856522 - [css-properties-values-api] Apply font-* properties before calculating registered custom properties (https://bugzilla.mozilla.org/show_bug.cgi?id=1856522)
+citeturn1293search8 [wordlim: 200] Crawled: 5 months ago; computed::Context is borrowed by the CustomPropertiesBuilder. ... Bug 1856522 could be closed as a duplicate of bug 1855110, but because some TODOs still reference bug 1856522, let's close bug 1856522 once those TODOs are removed:
+--------------------------------------------------------------------------------
+1287171 - Implement DevTools support for Properties & Values API (https://bugzilla.mozilla.org/show_bug.cgi?id=1287171)
+citeturn1293search9 [wordlim: 200] Crawled: 5 months ago; RESOLVED DUPLICATE of bug 1841021 ... The patches add a new computed variables style struct specifically for registered custom properties, so this should be not hard. - The Rules tab strikes out declarations that don't type correctly. ... It might also be worth exposing their definition info (initial value, syntax, and whether it inherits) directly within the Rules and Computed panel.
+--------------------------------------------------------------------------------
+1857849 - Implement Element.computedStyleMap() (https://bugzilla.mozilla.org/show_bug.cgi?id=1857849)
+citeturn1293search10 [wordlim: 200] Crawled: 5 months ago; Duplicate of this bug: 1852016 ... But for what is worth, you can enumerate custom properties on `getComputedStyle` too: `[...getComputedStyle(document.documentElement)].filter(v => v.startsWith("--"))`.
+--------------------------------------------------------------------------------
+1877383 - [css-properties-values-api] Animated registered property in @keyframes without end state doesn't seem to interpolate properly (https://bugzilla.mozilla.org/show_bug.cgi?id=1877383)
+citeturn1293search11 [wordlim: 200] Crawled: yesterday; Specifically, `hasAdditiveValues` <https://searchfox.org/mozilla-central/rev/6b8a3f804789fb865f42af54e9d2fef9dd3ec74d/dom/animation/KeyframeEffect.cpp#571> is returning `false` because `aProperty.mToValue` is initially null, resulting in trying to use a `ComputedValue::Universal` for the other value used for interpolation, since not yet having implemented bug 1864736 means that the computed style for registered custom properties is still untyped.
+--------------------------------------------------------------------------------
+CSS Object Model (CSSOM) Module Level 1 (https://drafts.csswg.org/cssom/)
+citeturn1293view0 [wordlim: 200] Crawled: today; Content type: text/html; Source: find({"ref_id":"turn1292view0","pattern":"custom properties whose computed value"}); Total lines: 2901
+L1729: If `obj` is not null, and `elt` is cite882†connected†dom.spec.whatwg.org , part of the cite883†flat tree , and its cite884†shadow-including root†dom.spec.whatwg.org has a cite885†browsing context†html.spec.whatwg.org which either doesn’t have a browsing context container, or whose browsing context container is cite886†being rendered†html.spec.whatwg.org , set `decls` to a list of all longhand properties that are cite125†supported CSS properties , in lexicographical order, with the value being the cite887†resolved value computed for `obj` using the style rules associated with `doc`.
+L1730: Additionally, append to `decls` all the cite124†custom properties whose cite888†computed value for `obj` is not the cite889†guaranteed-invalid value .
+L1731: There are UAs that handle shorthands, and all UAs handle shorthands that used to be longhands like cite890†overflow , see cite891†#2529†github.com .
+L1732: 
+L1733: Order of custom properties is currently undefined, see cite892†#4947†github.com .
+L1734: 
+L1735:   6. Return a live `cite578†CSSStyleProperties ` object with the following properties:
+L1736: 
+L1737: cite600†computed flag L1738:     Set.
+L1739: cite601†readonly flag L1740:     Set.
+L1741: cite602†declarations L1742:     `decls`.
+L1743: cite604†parent CSS rule L1744:     Null.
+L1745: cite606†owner node L1746:     `obj`.
+L1815: ## 9. Resolved Values
+L1816: 
+L1817: `cite878†getComputedStyle() ` was historically defined to return the "computed value" of an element or pseudo-element. However, the concept of "computed value" changed between revisions of CSS while the implementation of `cite878†getComputedStyle() ` had to remain the same for compatibility with deployed scripts. To address this issue this specification introduces the concept of a resolved value.
+L1818: 
+L1819: The cite887†resolved value for a given longhand property can be determined as follows:
+L1836:     The cite887†resolved value is cite1024†normal if the cite888†computed value is normal, or the cite1022†used value otherwise.
+L1837: cite1025†block-size L1838: cite1026†height L1839: cite1027†inline-size L1840: cite1028†margin-block-end L1841: cite1029†margin-block-start L1842: cite1030†margin-bottom L1843: cite1031†margin-inline-end L1844: cite1032†margin-inline-start L1845: cite1033†margin-left L1846: cite1034†margin-right L1847: cite1035†margin-top L1848: cite1036†padding-block-end L1849: cite1037†padding-block-start L1850: cite1038†padding-bottom L1851: cite1039†padding-inline-end L1852: cite1040†padding-inline-start L1853: cite1041†padding-left L1854: cite1042†padding-right L1855: cite1043†padding-top L1856: cite1044†width L1857: A resolved value special case property like cite1026†height defined in another specification
+L1858:     If the property applies to the element or pseudo-element and the cite887†resolved value of the cite1045†display property is not cite1046†none or cite1047†contents , then the resolved value is the cite1022†used value . Otherwise the resolved value is the cite888†computed value .
+L1859: cite1048†bottom L1860: cite1049†left L1861: cite1050†inset-block-end L1862: cite1051†inset-block-start L1863: cite1052†inset-inline-end L1864: cite1053†inset-inline-start L1865: cite1054†right L1866: cite1055†top L1867: A resolved value special case property like cite1055†top defined in another specification
+L1868:     If the property applies to a positioned element and the cite887†resolved value of the cite1045†display property is not cite1046†none or cite1047†contents , and the property is not over-constrained, then the resolved value is the cite1022†used value . Otherwise the resolved value is the cite888†computed value .
+L1869: A resolved value special case property defined in another specification
+L1870:     As defined in the relevant specification.
+L1871: Any other property
+L1872:     The cite887†resolved value is the cite888†computed value .
+L1873: Tests
+L1874:   * cite1056†computed-style-001.html†wpt.fyi cite1057†(live test)†wpt.live cite1058†(source)†github.com L1875:   * cite1059†computed-style-002.html†wpt.fyi cite1060†(live test)†wpt.live cite1061†(source)†github.com L1876:   * cite1062†computed-style-003.html†wpt.fyi cite1063†(live test)†wpt.live cite1064†(source)†github.com L1877:   * cite1065†computed-style-004.html†wpt.fyi cite1066†(live test)†wpt.live cite1067†(source)†github.com L1878:   * cite1068†computed-style-005.html†wpt.fyi cite1069†(live test)†wpt.live cite1070†(source)†github.com L1936:   * LinkStyle.sheet now returns `CSSStyleSheet` instead of `StyleSheet`
+L1937: 
+L1938:   * Deprecated CSSStyleSheet members are defined.
+L1939: 
+L1940:   * The `CSSRule.type` attribute is deprecated.
+L1941: 
+L1942:   * Serialization of cite853†<ratio> is added.
+L1943: 
+L1944:   * `CSSStyleDeclaration.cssText` now returns the empty string for computed style.
+L1945: 
+L1946:   * cite124†Custom properties are included in `getComputedStyle`.
+L1947: 
+L1948:   * MathML IDL is introduced.
+L1949: 
+L1950:   * Serialization of `cite533†CSSKeyframesRule ` and `cite536†CSSKeyframeRule ` is added.
+--------------------------------------------------------------------------------
+CSS Object Model (CSSOM) Module Level 1 (https://drafts.csswg.org/cssom/)
+citeturn1293view1 [wordlim: 200] Crawled: today; Content type: text/html; Source: find({"ref_id":"turn1292view0","pattern":"The item(index)"}); Total lines: 2901
+L309:   1. Empty the cite178†collection of media queries .
+L310:   2. If the given value is the empty string, then return.
+L311:   3. Append all the media queries as a result of cite143†parsing the given value to the cite178†collection of media queries .
+L312: 
+L313: The `item(`index`)` method must return a cite144†serialization of the media query in the cite178†collection of media queries given by `index`, or null, if `index` is greater than or equal to the number of media queries in the collection of media queries.
+L691: The object’s cite177†supported property indices†heycam.github.io are the numbers in the range zero to one less than the number of cite217†CSS style sheets represented by the collection. If there are no such CSS style sheets, then there are no supported property indices.
+L692: 
+L693: The `item(`index`)` method must return the `index`th cite217†CSS style sheet in the collection. If there is no `index`th object in the collection, then the method must return null.
+L981: The object’s cite177†supported property indices†heycam.github.io are the numbers in the range zero to one less than the number of `cite323†CSSRule ` objects represented by the collection. If there are no such `cite323†CSSRule ` objects, then there are no supported property indices.
+L982: 
+L983: The `item(`index`)` method must return the `index`th `cite323†CSSRule ` object in the collection. If there is no `index`th object in the collection, then the method must return null.
+L1411: The `length` attribute must return the number of cite653†CSS declarations in the cite602†declarations .
+L1412: 
+L1413: The `item(`index`)` method must return the cite654†property name of the cite653†CSS declaration at position `index`. If there is no `index`th object in the collection, then the method must return the empty string.
+L1414: 
+L1415: The `getPropertyValue(`property`)` method must run these steps:
+L2154:     * cite327†method for CSSStyleSheet , in § 6.1.2
+L2155:   * insertRule(rule, index)
+L2156:     * cite625†method for CSSGroupingRule , in § 6.4.5
+L2157:     * cite327†method for CSSStyleSheet , in § 6.1.2
+L2158:   * cite670†intermixed properties , in § 6.6
+L2159:   * item(index)
+L2160:     * cite551†method for CSSRuleList , in § 6.4.1
+L2161:     * cite702†method for CSSStyleDeclaration , in § 6.6.1
+L2162:     * cite173†method for MediaList , in § 4.4
+L2163:     * cite417†method for StyleSheetList , in § 6.2.2
+L2164:   * cite400†last CSS style sheet set name , in § 6.2
+L2165:   * cite611†layerName , in § 6.4.4
+
