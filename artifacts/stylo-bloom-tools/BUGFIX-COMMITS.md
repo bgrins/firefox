@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **68 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **69 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -67,6 +67,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | parser-depth-limit-declaration-recovery | `55d251b7a90003546994f6576e5ee78e8fa07cb2` | `19ca0c3c68c2fb7320290be7562c02dedf02d7da` |
 | declaration-fallback-top-level-curly | `095c5be548a2bddf5f3ff01e01da66c6098a8ee5` | `320a3d100d7669c4508ab89570b9833390baed2d` |
 | declaration-substitution-publication | `780495d90a85052cff69713f1086180253cb9730` | `53e30d418ef77e3b9626aa3c1cd99e7fb9a87cbf` |
+| all-shorthand-logical-order | `074086719e445ca72d3056f7fbf793af5e69d6f6` | `bad8f7998dbbb3ad1fa88c0ca6892488f912e898` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1594,3 +1595,22 @@ representation and full CSSOM destination lifecycle remain separate obligations.
 Discovery was source inspection and browser reproduction before the Lean companion.
 See [acceptance](../css-declaration-publication-root-v1/ROOT-SCOPED-ACCEPTANCE.json)
 and [commit check](../css-declaration-publication-root-v1/ROOT-COMMIT-CHECK.json).
+
+## All-shorthand logical ordering committed
+
+Native + WPT: `074086719e445ca72d3056f7fbf793af5e69d6f6`, after formal companion
+`bad8f7998dbbb3ad1fa88c0ca6892488f912e898`. The native commit contains only the shared
+per-declaration ordering planner, sequential all executor and 40-case WPT.
+Sixteen baseline failures are repaired; all 40 new and 61 existing subtests pass,
+with 89 other outcomes unchanged. The same patch applies and reverses on retained
+upstream; isolated upstream runtime was not run. The WPT compares relative order
+with a fixed fresh expansion, without choosing the absolute canonical order left
+open by CSSWG issue 5741. No rendering or measured performance impact is claimed.
+
+Root and independent fresh source-only replays accept 55 model theorem audits,
+3,042 passing candidate operations and six compiled mutation witnesses. Native container,
+provider/equality, callback, compiler and full CSSOM lifecycle premises remain
+explicit. Ordinary batching's universal proof is separate. Source/spec inspection
+and browser reproduction preceded the formal companion.
+See [acceptance](../css-all-logical-order-root-v1/ROOT-SCOPED-ACCEPTANCE.json) and
+[commit check](../css-all-logical-order-root-v1/ROOT-COMMIT-CHECK.json).

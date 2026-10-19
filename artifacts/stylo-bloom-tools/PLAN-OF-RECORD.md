@@ -4,15 +4,14 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **68 committed native/WPT fixes.** The management index is
+- **69 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **One tested candidate awaits its formal companion:** CSSOM `all` shorthand
-  ordering. The candidate is applied locally and built. Its native/WPT commit
-  will follow the proof/tooling commit after formal replay and review.
-- **Latest accepted proof checkpoint:** URL providers, signed as
-  `1a67c0ab4a65227222ce5d3e553b84a2c5914f56`. This does not close full native
-  tokenizer verification or increase the bug count.
+- **Latest repair:** CSSOM all-shorthand ordering, signed as
+  `074086719e445ca72d3056f7fbf793af5e69d6f6`, with preceding formal companion
+  `bad8f7998dbbb3ad1fa88c0ca6892488f912e898`. Its two-file commit contains only
+  the native patch and WPT.
+- URL native state and ordinary declaration batching proofs are active.
 - Signing works. Nothing has been pushed or submitted externally.
 
 [Historical checkpoints](PLAN-HISTORY-20261019.md) preserve the previous plan
@@ -22,39 +21,26 @@ obligations remain open unless a later acceptance record explicitly closes them.
 
 ## In progress
 
-### 1. Finish the all shorthand ordering repair
+### 1. Prove ordinary declaration batching
 
-The special `all` path bypassed the ordinary logical-group ordering planner.
-The final WPT baseline has sixteen failures: eight value-changing assignments
-and eight equal-value assignments requiring reordering. A shared per-declaration
-planner and sequential all executor repair them. The rebuilt candidate passes
-all 40 new and 61 existing subtests; the other 89 outcomes are unchanged.
-The same two-file patch applies and reverses on retained upstream; an isolated
-upstream runtime has not been run. Independent native and spec review pass.
+The all repair's sequential algorithm is accepted. The ordinary path plans all
+actions against one initial destination, removes indices in descending order,
+corrects surviving indices and executes source order. Its separate universal
+refinement theorem remains open.
 
-The test compares opposing-mapping pair order with fresh all expansion. It does
-not choose an absolute canonical expansion order, which CSSWG issue 5741 leaves
-unresolved. The relational expectation assumes a fixed order for the same
-shorthand/provider context. Source discovery and browser reproduction preceded
-the formal companion.
+Root bounded exploration agrees with an independent sequential setter in
+1,962,610 abstract cases. Removing source uniqueness or group mapping uniformity
+produces counterexamples; neither fabricated source is a new browser bug. Three
+initial kernel-checked helpers establish lower-lookup preservation and rank
+subtraction bounds. These do not complete the batched theorem.
 
-Remaining gates:
+Production now targets movement-decision stability, a survivor/replacement/append
+normal form, descending-removal and rank-correction refinement, and independent
+declaration/importance/membership storage operations. Actual generated source
+metadata, parser publication, equality and callback admissions stay explicit.
 
-1. Prove the reverse-scan planner refines the independent forward setter.
-2. Prove concrete declaration-vector, importance-bit and membership transitions,
-   including planner-derived index bounds and public-boundary uniqueness.
-3. Prove sequential all refinement and opposing-pair convergence under a fixed
-   unique expansion. Connect the initial preparation gate to existence of a
-   changing step, without equating it to final serialization inequality.
-4. Replay complete extracted native control flow with explicit storage, payload
-   and metadata adapters; discriminate semantic mutations.
-5. Authenticate and replay the final source-only companion independently and at
-   root. Commit that companion, the two-file native/WPT fix, then its ledger entry.
-
-Evidence checkpoint: `8e546da543b28a053c2830f51df51d4007c6d75e`.
-Browser evidence: `../css-all-logical-order-final-browser-v1/PAIR-CHECK.json`.
-Native review: `../css-all-logical-order-native-independent-v1/REPORT.md`.
-Proof production: `../css-all-logical-order-proof-v1/`.
+[Obligations](../css-declaration-batch-admission-root-v1/PLAN.md).
+Production: `../css-declaration-batch-proof-v1/`.
 
 ### 2. Derive native URL metadata and raw slice behavior
 
@@ -77,14 +63,9 @@ bad-URL escaped-close-at-EOF raw endpoint. No new browser bug is established.
 ## Next, in priority order
 
 1. Complete the two active components above and their review/commit gates.
-2. Prove ordinary declaration batching: actual generated source uniqueness and
-   one mapping kind per logical group, descending removals, rank correction,
-   aligned importance and identity membership. The all-specific proof does not
-   supply this batched theorem. A separate bounded exploration agrees in
-   1,962,610 abstract cases and retains counterexamples when source uniqueness or
-   mapping uniformity is removed; the universal proof remains open. See
-   [batch proof obligations](../css-declaration-batch-admission-root-v1/PLAN.md).
-   Extend to actual push/extend/removal sequences.
+2. Extend declaration storage verification to actual push/extend/removal
+   sequences. Bind parser output canonicality and source metadata to each public
+   operation's premises; distinguish CSSOM setting from parsing priority rules.
 3. Compose public parser histories: byte-to-event admission, cache/reset,
    enable/query epochs, nested blocks and recovery. Preserve the cached-Function
    and URL annotation counterexamples. Cold/non-Function entry is a proved
@@ -101,6 +82,17 @@ bad-URL escaped-close-at-EOF raw endpoint. No new browser bug is established.
 
 ## Accepted checkpoints
 
+- **All-shorthand ordering:** native `074086719e445ca72d3056f7fbf793af5e69d6f6`
+  follows companion `bad8f7998dbbb3ad1fa88c0ca6892488f912e898`. Sixteen baseline
+  failures are repaired; all 40 new and 61 existing subtests pass. Independent
+  native/spec and formal review plus root replay accept 55 model theorem audits,
+  3,042 candidate transactions and six compiled mutant witnesses. Actual raw
+  declaration/importance/membership operations and arbitrary sequential all
+  histories refine the forward setter under explicit admissions. The gate
+  characterizes a changing intermediate step, not final cssText inequality.
+  Pair order converges for any fixed unique expansion; absolute canonical order
+  remains open. Ordinary batching and full native/provider/CSSOM lifecycle are
+  not proved. [Acceptance](../css-all-logical-order-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
 - **Original Bloom milestones 1–6:** accepted within their declared selector,
   provider and native-interpretation scope. Historical M6 replay and the separate
   bounded cache-delta review are recorded in [CONTINUATION-20261017.md](CONTINUATION-20261017.md).
