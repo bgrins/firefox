@@ -11,10 +11,13 @@ Immediate next steps:
    and normal return, then unchanged lexical/unit projections. Root and
    independent original-model replays pass 20 modules and 130 audits; full
    numerical conversion and native library correctness remain open.
-2. Audit complete string and comment providers against CSS Syntax, including
-   bad-string recovery, escaped EOF and comment observer state. Preserve known
-   expected failures and distinguish tokenizer defects from serialization or
-   declaration recovery before proposing a fix.
+2. Prove complete string and comment providers, beginning with comment loops
+   and observer state. The sealed static audit and fresh root replay pass 646
+   extracted cases in debug/release; all 21 new browser controls pass and eight
+   existing outcomes are unchanged. No new defect or full formal admission is
+   claimed. Trace existing escaped-EOF serialization failures separately; the
+   identifier round-trip test currently fails before its serialization assertion.
+   Evidence: css-tokenizer-string-comment-root-v1/ROOT-REVIEW.json.
 3. Compose all actual raw-token branches with fresh-suffix parser states and
    selected-output dependency metadata. Name/escape and corrected-guard models
    are signed as `71fd35e1276edfef665ff1a4fada28217174a1d5`; shared codecs,

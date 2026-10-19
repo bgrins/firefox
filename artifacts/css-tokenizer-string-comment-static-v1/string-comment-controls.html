@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>String and comment consumer admission controls</title>
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-string-token">
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-comments">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+const strings = [["ordinary string", "\"ab\"", "\"ab\""], ["string EOF", "\"ab", "\"ab\""], ["escaped EOF", "\"ab\\", "\"ab\""], ["escaped LF", "\"a\\\nb\"", "\"ab\""], ["escaped CRLF", "\"a\\\r\nb\"", "\"ab\""], ["escaped FF", "\"a\\\fb\"", "\"ab\""], ["NUL replacement", "\"a\u0000b\"", "\"a�b\""], ["hex escape whitespace", "\"\\61 b\"", "\"ab\""], ["supplementary scalar escape", "\"\\10000 \"", "\"𐀀\""], ["raw Unicode", "\"é𐀀\"", "\"é𐀀\""]];
+for (const [name, input, expected] of strings) {
+  test(() => {
+    const actual = document.createElement("div").style;
+    const reference = document.createElement("div").style;
+    reference.fontFamily = expected;
+    assert_not_equals(reference.fontFamily, "", "reference accepted");
+    actual.fontFamily = input;
+    assert_equals(actual.fontFamily, reference.fontFamily);
+  }, name);
+}
+const invalid = [["unescaped LF", "\"a\nb\""], ["unescaped CRLF", "\"a\r\nb\""], ["unescaped FF", "\"a\fb\""]];
+for (const [name, input] of invalid) {
+  test(() => {
+    const style = document.createElement("div").style;
+    style.fontFamily = input;
+    assert_equals(style.fontFamily, "");
+  }, name);
+}
+const comments = [["trailing comment", "17px/**/", "17px"], ["unterminated comment", "17px/*", "17px"], ["leading comment", "/*é𐀀\r\n*/17px", "17px"], ["number/unit boundary", "17/**/px", ""], ["two numeric tokens", "1/**/7px", ""], ["first terminator", "17px/* outer /* inner */ garbage", ""]];
+for (const [name, input, expected] of comments) {
+  test(() => {
+    const style = document.createElement("div").style;
+    style.width = input;
+    assert_equals(style.width, expected);
+  }, name);
+}
+</script>

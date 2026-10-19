@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>BadString recovery context for rust-cssparser issue 393</title>
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-string-token">
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-declaration">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+const rows = [["quote after newline starts a new string", "text-decoration:'\n';color:green", false], ["semicolon after newline remains a token", "text-decoration:'\n;color:green", true]];
+for (const [name, css, retainsColor] of rows) {
+  test(() => {
+    const style = document.createElement("div").style;
+    const reference = document.createElement("div").style;
+    reference.color = "green";
+    style.cssText = css;
+    assert_equals(style.color, retainsColor ? reference.color : "");
+  }, name);
+}
+</script>
