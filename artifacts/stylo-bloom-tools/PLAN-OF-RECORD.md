@@ -4,13 +4,13 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **69 committed native/WPT fixes.** The management index is
+- **70 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest repair:** CSSOM all-shorthand ordering, signed as
-  `074086719e445ca72d3056f7fbf793af5e69d6f6`, with preceding formal companion
-  `bad8f7998dbbb3ad1fa88c0ca6892488f912e898`. Its two-file commit contains only
-  the native patch and WPT.
+- **Latest repair:** registered keyframe substitution, signed as
+  `188644f6d9833b485f35c2abcfad23cef2c5e9f7`, after evidence companion
+  `1cf91c4def90e6e7cce4e76106020ffcd4b45692`. Eight baseline failures are repaired;
+  its three-file commit contains only native changes and WPT.
 - URL native state/capture, ordinary batching and parser-priority winners are
   accepted within scope. Animation identity is now accepted within scope; public storage composition and
   parser-history admission remain active.
@@ -108,14 +108,18 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-An animation-provider audit has produced a new browser discrepancy under
-investigation: registered numeric keyframes containing `attr()` or `var()` switch
-discretely at the midpoint, while literal and `calc()` controls interpolate.
-Four of six focused checks fail in the existing local build. The initial taint
-probe relied on unsupported inline `if()` and is retained as invalid evidence
-for that hypothesis. No new native repair is counted yet. Evidence is in
-`../css-animation-taint-probe-v1/`; independent source analysis is active in
-`../css-registered-keyframe-substitution-static-v1/`.
+The registered-keyframe substitution repair is committed. Its final paired test
+changes eight failures/eight passes to sixteen passes. A separate fallback probe
+now reproduces `var(--missing, initial)` switching discretely (10 instead of12),
+with four controls passing. Provider/caller and standalone-dependency review is
+active; this is not counted as another repair. The same-effect dependency audit
+shows why simply overwriting skipped CSS-wide defaults is not a valid general
+fix: keyframe dependencies use current computed values.
+
+Public parser-history admission is now produced and independently reviewing:
+46 modules /371 audits (108 new),87 actual-source snapshots in each debug/release
+mode,3 Lean and4 native semantic mutations. It retains primary-API, metadata,
+provider and enable-entry boundaries; no whole-parser acceptance yet.
 
 1. Complete the active components above and their review/commit gates.
 2. Extend declaration storage verification to actual push/extend/removal
@@ -211,3 +215,11 @@ for that hypothesis. No new native repair is counted yet. Evidence is in
 - Do not expand finite matrices without a concrete remaining risk. Once the
   required local gates pass, proceed to the accepted commit rather than repeat them.
 - No pushes, Try jobs or external submissions.
+
+## Build output retention
+
+Retire task-owned generated build targets after their work is complete, active
+process/open-file checks pass, and source plus required logs/receipts are retained.
+Keep active Firefox object directories and ongoing independent replay outputs.
+Record exact removed paths and verify retained evidence rather than deleting
+entire research capsules.

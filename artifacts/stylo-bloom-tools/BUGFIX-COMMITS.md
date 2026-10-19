@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **69 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **70 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -68,6 +68,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | declaration-fallback-top-level-curly | `095c5be548a2bddf5f3ff01e01da66c6098a8ee5` | `320a3d100d7669c4508ab89570b9833390baed2d` |
 | declaration-substitution-publication | `780495d90a85052cff69713f1086180253cb9730` | `53e30d418ef77e3b9626aa3c1cd99e7fb9a87cbf` |
 | all-shorthand-logical-order | `074086719e445ca72d3056f7fbf793af5e69d6f6` | `bad8f7998dbbb3ad1fa88c0ca6892488f912e898` |
+| registered-keyframe-substitution | `188644f6d9833b485f35c2abcfad23cef2c5e9f7` | `1cf91c4def90e6e7cce4e76106020ffcd4b45692` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1614,3 +1615,26 @@ explicit. Ordinary batching's universal proof is separate. Source/spec inspectio
 and browser reproduction preceded the formal companion.
 See [acceptance](../css-all-logical-order-root-v1/ROOT-SCOPED-ACCEPTANCE.json) and
 [commit check](../css-all-logical-order-root-v1/ROOT-COMMIT-CHECK.json).
+
+## Registered keyframe substitution committed
+
+Native + WPT: `188644f6d9833b485f35c2abcfad23cef2c5e9f7`, following evidence companion
+`1cf91c4def90e6e7cce4e76106020ffcd4b45692`. Its three files expose the existing computed
+custom-value constructor, consume the completed keyframe map for typed Unparsed
+declarations, and add the sixteen-case WPT. Direct CSS-wide, Parsed, universal
+and other declaration conversion paths are preserved.
+
+Eight baseline failures become passes; all sixteen new checks pass. Six adjacent
+passes remain and the existing cross-animation test remains expected FAIL, now
+reaching a later assertion with different diagnostic values. Both builds and
+scoped format/lint exit 0, with one ignored-WPT warning. Exact source application
+and reversal pass on upstream and branch snapshots; browser pairing uses the
+shared macOS tree, with no isolated upstream runtime claim.
+
+Discovery was source inspection and browser reproduction during verifier work.
+Independent source/spec, dependency and final native/WPT reviews passed. The
+separate animation-identity proof does not establish numeric payload correctness.
+Fallback-produced CSS-wide wrappers and dynamic dependency behavior remain
+separate investigations; no second fix is counted.
+[Acceptance](../css-animation-taint-probe-v1/ROOT-SCOPED-ACCEPTANCE.json) and
+[commit check](../css-registered-keyframe-root-commit-v1/ROOT-COMMIT-CHECK.json).
