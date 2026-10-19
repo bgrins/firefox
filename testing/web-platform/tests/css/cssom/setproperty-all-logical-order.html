@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CSSOM all shorthand logical property ordering</title>
+<link rel="help" href="https://drafts.csswg.org/cssom/#dom-cssstyledeclaration-setproperty">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+const pair = ["padding-top", "padding-block-start"];
+const order = style => Array.from(style).filter(name => pair.includes(name));
+const make = names => {
+  const style = document.createElement("div").style;
+  for (const name of names) {
+    style.setProperty(name, "1px");
+  }
+  return style;
+};
+for (const value of ["initial", "inherit", "revert", "var(--all)"]) {
+  for (const priority of ["", "important"]) {
+    const label = `${value}, priority ${JSON.stringify(priority)}`;
+    test(() => {
+      const fresh = make([]);
+      fresh.setProperty("all", value, priority);
+      const expected = order(fresh);
+      assert_equals(expected.length, 2);
+      for (const names of [pair, pair.slice().reverse()]) {
+        const style = make(names);
+        style.setProperty("all", value, priority);
+        assert_array_equals(order(style), expected, `seed ${names}`);
+      }
+    }, `all expansion order: ${label}`);
+    test(() => {
+      const style = make([]);
+      style.setProperty("all", value, priority);
+      const expected = order(style);
+      style.setProperty(expected[0], value, priority);
+      assert_array_equals(order(style), expected.slice().reverse());
+      style.setProperty("all", value, priority);
+      assert_array_equals(order(style), expected);
+    }, `equal-value all reordering: ${label}`);
+    test(() => {
+      const style = make(pair);
+      const oldPriority = priority ? "" : "important";
+      for (const name of pair) {
+        style.setProperty(name, "2px", oldPriority);
+      }
+      style.setProperty("direction", "rtl", "important");
+      style.setProperty("unicode-bidi", "isolate", "important");
+      style.setProperty("--keep", "kept", "important");
+      style.setProperty("all", value, priority);
+      for (const name of pair) {
+        assert_equals(style.getPropertyPriority(name), priority, name);
+      }
+      for (const [name, expected] of [
+        ["direction", "rtl"],
+        ["unicode-bidi", "isolate"],
+        ["--keep", "kept"],
+      ]) {
+        assert_equals(style.getPropertyValue(name), expected, name);
+        assert_equals(style.getPropertyPriority(name), "important", name);
+      }
+      assert_equals(new Set(style).size, style.length);
+    }, `all priority and excluded-property control: ${label}`);
+    test(() => {
+      const expected = ["padding-block-start", "padding-top"];
+      for (const names of [pair, pair.slice().reverse()]) {
+        const style = make(names);
+        style.setProperty("padding-top", value, priority);
+        assert_array_equals(order(style), expected, `seed ${names}`);
+      }
+    }, `longhand reordering control: ${label}`);
+    test(() => {
+      const styles = [make(pair), make(pair.slice().reverse())];
+      for (const style of styles) {
+        const suffix = priority ? " !important" : "";
+        style.cssText += `all: ${value}${suffix};`;
+      }
+      assert_array_equals(order(styles[0]), order(styles[1]));
+    }, `declaration-list control: ${label}`);
+  }
+}
+</script>
