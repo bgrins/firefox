@@ -1,0 +1,80 @@
+diff --git a/servo/components/style/custom_properties.rs b/servo/components/style/custom_properties.rs
+index 59ab8a9440f0..2f3965e160c0 100644
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1437,7 +1437,16 @@ fn parse_declaration_value_block(
+                 let token_slice = input.slice_from(token_start);
+                 let quote = &token_slice[..1];
+                 debug_assert!(matches!(quote, "\"" | "'"));
+-                if !(token_slice.ends_with(quote) && token_slice.len() > 1) {
++                if !(token_slice.ends_with(quote)
++                    && token_slice.len() > 1
++                    && token_slice[..token_slice.len() - 1]
++                        .bytes()
++                        .rev()
++                        .take_while(|&byte| byte == b'\\')
++                        .count()
++                        % 2
++                        == 0)
++                {
+                     *removed_backslash = missing_closing_characters.is_empty()
+                         && token_slice
+                             .bytes()
+diff --git a/testing/web-platform/tests/css/css-variables/quoted-eof-escaped-terminal-quote.html b/testing/web-platform/tests/css/css-variables/quoted-eof-escaped-terminal-quote.html
+new file mode 100644
+index 000000000000..140254fad23e
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-variables/quoted-eof-escaped-terminal-quote.html
+@@ -0,0 +1,52 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Close EOF strings after escaped terminal quotes</title>
++<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-string-token">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++function quoted(value) {
++  return '"' + value.replaceAll('\\', '\\\\').replaceAll('"', '\\"') + '"';
++}
++
++for (const quote of ['"', "'"]) {
++  for (let count = 0; count <= 4; count++) {
++    for (const terminalQuote of count > 0 && count % 2 === 0 ? [true] : [false, true]) {
++      const raw = quote + 'example' + '\\'.repeat(count) + (terminalQuote ? quote : '');
++      const decoded = 'example' + '\\'.repeat(Math.floor(count / 2)) +
++        (terminalQuote && count % 2 ? quote : '');
++      test(t => {
++        const target = document.createElement('div');
++        const reference = document.createElement('div');
++        t.add_cleanup(() => { target.remove(); reference.remove(); });
++        target.style.setProperty('--family', raw);
++        target.style.fontFamily = 'var(--family), serif';
++        reference.style.fontFamily = quoted(decoded) + ', serif';
++        assert_not_equals(target.style.getPropertyValue('--family'), '', 'custom value accepted');
++        assert_not_equals(reference.style.fontFamily, '', 'reference accepted');
++        document.body.append(target, reference);
++        assert_equals(getComputedStyle(target).fontFamily,
++                      getComputedStyle(reference).fontFamily);
++      }, `${quote} with ${count} backslashes and ${terminalQuote ? 'a final quote' : 'EOF'}`);
++    }
++  }
++}
++
++for (const [name, value] of [
++  ['closed fallback', 'var(--absent, "example")'],
++  ['missing quote and parenthesis', 'var(--absent, "example'],
++]) {
++  test(t => {
++    const target = document.createElement('div');
++    const reference = document.createElement('div');
++    t.add_cleanup(() => { target.remove(); reference.remove(); });
++    target.style.fontFamily = value;
++    reference.style.fontFamily = '"example"';
++    assert_not_equals(target.style.fontFamily, '', 'specified value accepted');
++    document.body.append(target, reference);
++    assert_equals(getComputedStyle(target).fontFamily,
++                  getComputedStyle(reference).fontFamily);
++  }, name);
++}
++</script>

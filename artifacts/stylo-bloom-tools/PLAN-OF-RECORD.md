@@ -11,9 +11,9 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 2. Trailing-backslash parity is committed as `89bad2d8b5260ad5fc9d5660a3a18a09433902e3`. Four failures become 18 passes; all 50 other outcomes are unchanged.
    Root replay and independent reviews pass the conditional terminal-run proof.
    Keep an upstream-based variant because the stack uses the endpoint flag.
-3. Escaped terminal quotes remain a separate source/proof proposal with positive
-   independent review; root formatting/build/browser gates are next. Four
-   semantic failures remain in the combined diagnostic.
+3. Escaped terminal quotes are accepted and queued for the separate native/WPT
+   commit. Four failures become 18 passes; the combined diagnostic now passes
+   all 22 checks. Build, lint, root replay and final independent review pass.
 
 There are 64 committed native/WPT fixes.
 The comment/observer proof has passed fresh root and independent replay; root
