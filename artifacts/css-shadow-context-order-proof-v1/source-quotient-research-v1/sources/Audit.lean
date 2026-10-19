@@ -1,0 +1,33 @@
+import BlockProjection
+import GroupedQuotient
+import PhasePruning
+import TwoPhaseQuotient
+import ObserverBoundary
+import Nonvacuity
+
+#print axioms ShadowOrder.source_half_membership
+#print axioms ShadowOrder.coherent_alias_has_important_rule
+#print axioms ShadowOrder.source_derived_normal_alias_blocked
+#print axioms ShadowOrder.same_occurrence_list_coverage
+#print axioms ShadowOrder.atomic_set_execution
+#print axioms ShadowOrder.atomic_reference_transport
+#print axioms ShadowOrder.atomic_phase_quotient
+#print axioms ShadowOrder.heads_are_atomic
+#print axioms ShadowOrder.active_occurrences_map
+#print axioms ShadowOrder.mixed_block_phase_quotient
+#print axioms ShadowOrder.blocked_event_step
+#print axioms ShadowOrder.prune_blocked_events
+#print axioms ShadowOrder.exclusion_membership_local
+#print axioms ShadowOrder.fresh_exclusion_origin
+#print axioms ShadowOrder.phase_event_membership
+#print axioms ShadowOrder.phase_filter
+#print axioms ShadowOrder.normal_phase_reduction
+#print axioms ShadowOrder.two_phase_reduced
+#print axioms ShadowOrder.filter_occurrences_map
+#print axioms ShadowOrder.two_phase_occurrence_quotient
+#print axioms ShadowOrder.source_projected_deletion_quotient
+#print axioms ShadowOrder.observation_before_guard_not_deletion_invariant
+#print axioms ShadowOrder.witness_selected_value_unchanged
+#print axioms ShadowOrder.observer_composition_requires_an_observer_relation
+#print axioms ShadowOrder.nonvacuous_mixed_two_phase_admission
+#print axioms ShadowOrder.nonvacuous_important_rule_blocks_mixed_normal_aliases

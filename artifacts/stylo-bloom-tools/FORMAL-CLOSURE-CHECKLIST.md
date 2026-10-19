@@ -9,6 +9,16 @@ of the proof obligations below.
 
 ## Latest component progress
 
+Root freshly replayed the source-projected quotient extension: 31 modules and
+26 new standard-axiom theorem audits pass. Its arbitrary mixed-block,
+two-importance-phase theorem relates semantic occurrence deletion to normalized
+keys under explicit immutable-block, coverage and eligibility premises. Actual
+native constructor/provider/evaluator admission remains open. A retained
+counterexample shows that deleting before raw logical-property observation can
+lose a writing-mode dependency even when selected values agree; observer
+composition must preserve that behavior. Evidence:
+`css-layer-cutoff-composition-probe-v1/ROOT-SOURCE-QUOTIENT-v1.json`.
+
 Root freshly replayed the 24-module cutoff-intersection closure. The three-family
 summary retains the conjunction of all earlier removals without a nesting
 assumption. Independent review binds the actual helper and changed consumer
