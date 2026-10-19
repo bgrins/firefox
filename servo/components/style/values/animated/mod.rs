@@ -59,8 +59,9 @@ impl PropertyCategory {
 
 /// A comparator to sort PropertyIds such that physical longhands are sorted
 /// before logical longhands and shorthands, shorthands with fewer components
-/// are sorted before shorthands with more components, and otherwise shorthands
-/// are sorted by IDL name as defined by [Web Animations][property-order].
+/// are sorted before shorthands with more components, and equal-size shorthands
+/// sort physical properties before logical properties, then by IDL name as
+/// defined by [Web Animations][property-order].
 ///
 /// Using this allows us to prioritize values specified by longhands (or smaller
 /// shorthand subsets) when longhands and shorthands are both specified on the
@@ -81,12 +82,17 @@ pub fn compare_property_priority(a: &PropertyId, b: &PropertyId) -> cmp::Orderin
 
     let a = a.as_shorthand().unwrap();
     let b = b.as_shorthand().unwrap();
-    // Within shorthands, sort by the number of subproperties, then by IDL
-    // name.
+    // Within shorthands, sort by the number of subproperties, then physical
+    // before logical, then by IDL name.
     let subprop_count_a = a.longhands().count();
     let subprop_count_b = b.longhands().count();
     subprop_count_a
         .cmp(&subprop_count_b)
+        .then_with(|| {
+            let a_is_logical = a.longhands().all(|id| id.is_logical());
+            let b_is_logical = b.longhands().all(|id| id.is_logical());
+            a_is_logical.cmp(&b_is_logical)
+        })
         .then_with(|| a.idl_name_sort_order().cmp(&b.idl_name_sort_order()))
 }
 
