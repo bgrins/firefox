@@ -61,7 +61,7 @@ impl<'a> Iterator for Iter<'a> {
     type Item = (&'a Name, &'a Option<ComputedRegisteredValue>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
+        'properties: loop {
             let (name, value) = match self.current_iter.next() {
                 Some(v) => v,
                 None => {
@@ -75,7 +75,7 @@ impl<'a> Iterator for Iter<'a> {
             // If the property is overridden by a descendant we've already visited it.
             for descendant in &self.descendants {
                 if descendant.own_properties.contains_key(name) {
-                    continue;
+                    continue 'properties;
                 }
             }
             return Some((name, value));
