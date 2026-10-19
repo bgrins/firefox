@@ -4,13 +4,13 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **71 committed native/WPT fixes.** The management index is
+- **72 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest repair:** computed registered initial values, signed as
-  `6aa2138c144aa6eee8e07aac77e7a68a8c7f7617`, after evidence companion
-  `3d194d59545c331fabc7ad1502af96522aa67c90`. Three ordinary baseline failures are repaired;
-  its three-file commit contains only native changes and WPT.
+- **Latest repair:** explicit inheritance of guaranteed-invalid registered values,
+  signed as `3a01fc986c7974161aadf4bfafe65c234b036b07`, after evidence
+  `2e0f9f6b9ee5450cd21ac9341ef116dd91a8119b`. Three failures repaired; the
+  two-file commit contains only the Rust change and WPT.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.
@@ -73,7 +73,8 @@ machine and safe-entry premises remain explicit.
 
 Next compose actual skip_whitespace/next wrappers and production cold/Colon entry.
 The source audit finds no reachable late-enable defect in the two production
-enable sites. Wrapper proofs are in progress; nested/depth/callback protocols and
+enable sites. The wrapper producer is sealed (57 modules / 448 audits, 77 new) and independent
+fresh replay/review is active; nested/depth/callback protocols and
 the declaration helper's saved-query/short-circuit automaton remain separate.
 [Source audit](../css-parser-entry-wrapper-static-v1/REPORT.md).
 
@@ -118,38 +119,33 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-The registered-keyframe and registered initial-value repairs are committed.
-Continue narrowly auditing registered custom-property defaulting and provider
-readiness. A ten-case browser probe reproduces two direct-inheritance failures for a
-guaranteed-invalid noninherited registered value, with eight controls passing.
-This is not yet an accepted repair. Preserve root-element inheritance semantics
-in any candidate. Evidence: ../css-registered-inherit-invalid-probe-v1/.
-
-The same-effect animation dependency audit remains separate: simply overwriting
-skipped CSS-wide defaults is not a valid general fix because keyframe dependencies
-use current computed values.
-
-Public parser-history admission is accepted. Actual whitespace/next wrapper and
-Colon-entry composition is the active proof extension; retain all prior metadata,
-provider, cache-enable and annotation counterexamples.
-
-1. Complete the active components above and their review/commit gates.
-2. Extend declaration storage verification to actual push/extend/removal
-   sequences. Bind parser output canonicality and source metadata to each public
-   operation's premises; distinguish CSSOM setting from parsing priority rules.
-3. Compose public parser histories: byte-to-event admission, cache/reset,
-   enable/query epochs, nested blocks and recovery. Preserve the cached-Function
-   and URL annotation counterexamples. Cold/non-Function entry is a proved
-   component premise, not a whole-caller proof.
-4. Continue cascade source/observer and hyphenation stateful consumer admission,
-   including actual reflow-to-display cache association and lifetime. Retain
+1. Repair substituted-inherit restyle dependency tracking. Two numeric browser
+   cases reproduce stale child values; direct-inherit and unset controls pass.
+   Native review is active. Add an absent-parent transition control, run paired
+   builds, and commit only the native change plus WPT after review.
+2. Independently review the sealed skip/next wrapper proof and production entry
+   model. Then compose the declaration helper's saved-query/short-circuit paths;
+   metadata, providers, callbacks and compiler admissions remain explicit.
+3. Audit persistent custom-property map iteration. A descendant-shadowing loop
+   is a source lead, not yet an observable bug; derive chain reachability before
+   adding a browser test or counting a repair.
+4. Continue the public declaration storage/CSSOM composition obligations above.
+5. Continue cascade source/observer and hyphenation stateful consumer admission,
+   including reflow-to-display cache association and lifetime. Preserve the
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
-5. Use ranked spec/implementation audits to choose further semantic extensions.
-   Validate observable discrepancies with a spec-derived oracle; unsupported or
-   ambiguous behavior stays explicit. Existing breadth audits do not survey all CSS.
-6. Use the [full-proof closure checklist](FORMAL-CLOSURE-CHECKLIST.md) to track
-   unresolved universal/native obligations. Finite corpora, theorem counts and
-   passing browser pairs do not close broader requirements.
+6. Use ranked spec/implementation audits for further extensions, and the
+   [closure checklist](FORMAL-CLOSURE-CHECKLIST.md) for unresolved obligations.
+   Finite corpora and theorem counts do not establish whole-CSS coverage.
+
+The same-effect animation dependency audit remains separate: overwriting skipped
+CSS-wide defaults is not a general repair because keyframe dependencies use
+current computed values.
+
+The explicit-inherit repair has a separately accepted conditional component:
+17 audits, four model mutants, and independent fresh replay. Readiness, root
+parent absence, concrete map/flag APIs and native compilation semantics remain
+admitted. It does not certify the substituted-inherit scheduler path.
+
 
 ## Accepted checkpoints
 

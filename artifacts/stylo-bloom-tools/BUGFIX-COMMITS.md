@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **71 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **72 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -70,6 +70,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | all-shorthand-logical-order | `074086719e445ca72d3056f7fbf793af5e69d6f6` | `bad8f7998dbbb3ad1fa88c0ca6892488f912e898` |
 | registered-keyframe-substitution | `188644f6d9833b485f35c2abcfad23cef2c5e9f7` | `1cf91c4def90e6e7cce4e76106020ffcd4b45692` |
 | registered-initial-computed-value | `6aa2138c144aa6eee8e07aac77e7a68a8c7f7617` | `3d194d59545c331fabc7ad1502af96522aa67c90` |
+| registered-inherit-invalid | `3a01fc986c7974161aadf4bfafe65c234b036b07` | `2e0f9f6b9ee5450cd21ac9341ef116dd91a8119b` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1662,3 +1663,17 @@ Root and independent source/spec/runtime reviews passed. Existing Stylist cache
 freshness remains a provider contract.
 [Acceptance](../css-registered-initial-value-fix-v1/ROOT-SCOPED-ACCEPTANCE.json) and
 [commit check](../css-registered-initial-value-root-commit-v1/ROOT-COMMIT-CHECK.json).
+
+## Explicit inheritance of invalid registered values committed
+
+Native + WPT: `3a01fc986c7974161aadf4bfafe65c234b036b07`, following evidence `2e0f9f6b9ee5450cd21ac9341ef116dd91a8119b`.
+The two-file patch copies an absent parent value instead of keeping the registered
+initial value, while preserving root defaulting and restyle dependency tracking.
+Three baseline failures become passes; all 40 subtests pass. Exact upstream patch
+application/reversal passes; isolated upstream runtime was not run.
+
+Independent replay accepts 17 conditional Lean audits and four model mutants.
+Initial seeding, map/flag APIs, callers and compiler behavior remain admitted.
+Source inspection and browser reproduction preceded this proof. The separate
+substituted-inherit dynamic restyle defect remains a candidate.
+[Acceptance](../css-registered-inherit-invalid-fix-v1/ROOT-SCOPED-ACCEPTANCE.json).

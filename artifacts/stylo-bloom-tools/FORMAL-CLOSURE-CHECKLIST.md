@@ -584,3 +584,18 @@ production caller protocols remain separate; the next wrapper component is activ
 No new browser bug belongs to this acceptance.
 
 [Acceptance](../css-parser-public-history-root-acceptance-v1/ACCEPTANCE.json).
+
+## Registered explicit inheritance component accepted — 19 October 2026
+
+Seventeen Lean audits characterize the selected gate/update composition under
+initial seeding and root-parent absence premises. The corrected store copies
+parent absence, preserves other keys/buckets and flags, and records the exact
+reset-dependency condition. Four compiled model mutants fail their intended
+semantic witnesses; independent relocated replay passes. Twelve complete source
+bindings support manual abstraction review, not automatic Rust refinement.
+
+Concrete map/COW/tombstone behavior, native flag APIs, registration/root caller
+coherence, allocation/compiler and complete cascade remain admitted. The
+substituted-inherit invalidation defect is a separate path and remains active.
+Discovery preceded formalization. See
+[acceptance](../css-registered-inherit-invalid-fix-v1/ROOT-SCOPED-ACCEPTANCE.json).
