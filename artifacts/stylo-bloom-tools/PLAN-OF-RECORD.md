@@ -3091,3 +3091,25 @@ full name/escape return-boundary refinement remains open.
 The signed native count remains 59, with zero accepted native fixes awaiting
 commit. Both candidates still need their stated gates; do not infer acceptance
 from the number of successful proof or browser checks.
+
+## Escaped-newline repair committed; next provider gates
+
+Repair60 is signed: working-branch `09b008b3320fa29fcbcf081b252053e3721c5e10`, standalone upstream-based
+`2ad505512c621776d62be9f1eb0bd7c137b93ee8` on `stylo-css-identifier-start-fix`. The preceding
+proof/review and validation companions are `fe127ff2a0b8` and `b69763a1817a7a4824e6df0d04e0e4e52684c897`.
+The standalone branch has its own preceding proof/evidence companion. Ledger
+records both versions as one repair and explains the vendor checksum conflict.
+New WPT11/11 passes, four failures repaired; all nine existing checks unchanged.
+Fresh crate rebuild and link pass after rejecting a stale incremental build.
+
+The full original-source name/escape capsule has a fresh root replay:
+9 modules,48 audits,21 source definitions and4 semantic mutants. Independent
+review and corrected-guard integration remain open; codec/metadata arithmetic,
+compiler/heap and full-tokenizer/provider obligations remain explicit.
+Numeric-provider source analysis has intermediate-overflow witnesses; normative
+range adjudication and browser reachability are pending, with no accepted bug.
+
+FontFace isolated upstream build continues without the four-line worker support,
+which is intentionally omitted for the dependency witness. Next run the eight
+retirement cases, add support, rebuild and run the final76-case matrix plus
+regressions. FontFace is not yet accepted. Current count60, accepted pending0.

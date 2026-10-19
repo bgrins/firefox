@@ -198,3 +198,23 @@ syn/quote, primitive representation and Rust compiler semantics remain external.
 No full tokenizer, scanner or CSS implementation correctness follows yet.
 Evidence: `../css-resolved-tokenizer-root-v2/ROOT-REVIEW.json` and
 `../css-resolved-tokenizer-independent-v1/REVIEW.md`.
+
+## Identifier-start predicate component
+
+Signed companion `fe127ff2a0b8` adds eight theorem audits for the full original
+and corrected identifier-start predicate, against an independently expressed
+CSS grammar reference. For arbitrary finite modeled input, the correction
+agrees with the reference and differs from the original exactly after
+hyphen/backslash followed by LF, CR or FF. Three arbitrary-suffix witnesses
+explain the old false admissions. Root fresh replay and independent review pass;
+two semantic mutants are rejected. Byte/state representation, UTF-8 boundary,
+primitive arithmetic and compiler correspondence remain reviewed assumptions.
+
+This component does not close name/escape consumption, its callers' return
+boundaries, or any of the five full tokenizer obligations above. Discovery was
+manual source/spec audit during model construction, followed by Lean witnesses
+and browser reproduction. The first incremental build reused a stale vendored
+parser library; its four unchanged browser failures are retained and excluded
+from repair acceptance. A targeted crate rebuild and final browser pairing pass: four failures repaired,
+eleven new subtests pass and nine existing checks are unchanged. Standalone source review preserves the upstream URL branch and
+recalculates the vendor checksum without importing the earlier URL repair.

@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **59 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **60 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -58,6 +58,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | attr-noncustom-dependency-collection | `3892ab844694fedd987f5ce1dd2165f53fc2dbed` | `0db19774e6f2bf6692790459f8e6e54ca426e366` |
 | resolved-unit-dependency-summary | `58200fa81a6f92f92a1898ba2866a2fbcbac0daa` | `03bad7f708329254a9af2073f0b4106ba557e914` |
 | unit-token-classification | `26e0fa16e89eacd9fd9cab0ce6bb1be813d9e406` | `2e1f5f62c8a6325679a83adc7f637e104c488bf7` |
+| identifier-start-escaped-newline | `09b008b3320fa29fcbcf081b252053e3721c5e10` | `b69763a1817a7a4824e6df0d04e0e4e52684c897` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1423,3 +1424,24 @@ and reverses against retained upstream/main `976279105b2e78b8666a959eb3f25c9176c
 without earlier local fixes; that isolated base was not built or browser-tested.
 The discovery came from manual source/spec admission review, not a new Lean
 counterexample. Full tokenizer and graph proofs remain open.
+
+## Identifier-start escaped-newline repair
+
+Standalone native + WPT commit: `2ad505512c621776d62be9f1eb0bd7c137b93ee8` on local branch
+`stylo-css-identifier-start-fix`, after proof/evidence companion
+`bebbe8380a6982e94f8fcd61cfc4375ee6485d7e`. This is the independently applicable version
+based on retained upstream `976279105b2e78b8666a959eb3f25c9176cefaf8`.
+
+Working-branch integration: `09b008b3320fa29fcbcf081b252053e3721c5e10`. Both versions contain only the one-line
+parser correction, its required vendor checksum update and the identical WPT.
+The standalone version preserves upstream's URL recovery; the branch version
+includes the prior URL correction in the file hash. They represent one repair,
+not two fixes. No pushes or submissions were made.
+
+Four reproduced LF/CR/CRLF/FF failures now pass. All eleven new subtests pass;
+nine existing checks are unchanged, including four expected failures. A forced
+vendored-crate rebuild and relink were necessary after the first incremental
+build reused a stale parser library. Both attempts are retained. Lean proves
+the modeled predicate correction and exact change domain under the stated
+source/primitive assumptions. Source applicability is checked on upstream;
+runtime validation uses the shared experimental tree, not an isolated build.
