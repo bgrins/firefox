@@ -1,0 +1,327 @@
+--- a/servo/components/style/custom_properties_map.rs
++++ b/servo/components/style/custom_properties_map.rs
+@@ -40,7 +40,7 @@
+ struct Inner {
+     own_properties: OwnMap,
+     parent: Option<Arc<Inner>>,
+-    /// The number of custom properties we store. Note that this is different from the sum of our
++    /// The number of custom properties with a value. Note that this is different from the sum of our
+     /// own and our parent's length, since we might store duplicate entries.
+     len: usize,
+     /// The number of ancestors we have.
+@@ -61,7 +61,7 @@
+     type Item = (&'a Name, &'a Option<ComputedRegisteredValue>);
+ 
+     fn next(&mut self) -> Option<Self::Item> {
+-        loop {
++        'properties: loop {
+             let (name, value) = match self.current_iter.next() {
+                 Some(v) => v,
+                 None => {
+@@ -75,7 +75,7 @@
+             // If the property is overridden by a descendant we've already visited it.
+             for descendant in &self.descendants {
+                 if descendant.own_properties.contains_key(name) {
+-                    continue;
++                    continue 'properties;
+                 }
+             }
+             return Some((name, value));
+@@ -160,10 +160,12 @@
+     }
+ 
+     fn insert(&mut self, name: &Name, value: Option<ComputedRegisteredValue>) {
+-        let new = self.own_properties.insert(name.clone(), value).is_none();
+-        if new && self.parent.as_ref().is_none_or(|p| p.get(name).is_none()) {
+-            self.len += 1;
+-        }
++        match (self.get(name).is_some(), value.is_some()) {
++            (false, true) => self.len += 1,
++            (true, false) => self.len -= 1,
++            _ => {},
++        }
++        self.own_properties.insert(name.clone(), value);
+     }
+ 
+     /// Whether we should expand the chain, or just copy-on-write.
+@@ -182,7 +184,7 @@
+         self.0.is_empty()
+     }
+ 
+-    /// Returns the amount of different properties in the map.
++    /// Returns the number of properties with a value in the map.
+     pub fn len(&self) -> usize {
+         self.0.len()
+     }
+@@ -193,7 +195,10 @@
+             return None;
+         }
+         // FIXME: This is O(n) which is a bit unfortunate.
+-        self.0.iter().nth(index)
++        self.0
++            .iter()
++            .filter(|(_, value)| value.is_some())
++            .nth(index)
+     }
+ 
+     /// Returns a given property value by name.
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-variables/invalid-custom-property-enumeration.html
+@@ -0,0 +1,121 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Guaranteed-invalid custom properties are absent from computed style enumeration</title>
++<link rel="help" href="https://drafts.csswg.org/cssom/#dom-window-getcomputedstyle">
++<link rel="help" href="https://drafts.csswg.org/css-variables/#guaranteed-invalid-value">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++const target = "--enumeration-target";
++const sentinel = "--enumeration-sentinel";
++
++function fixture(t, parentValue) {
++  const parent = document.createElement("div");
++  const child = document.createElement("div");
++  const reference = document.createElement("div");
++  if (parentValue !== null) parent.style.setProperty(target, parentValue);
++  parent.style.setProperty(sentinel, "sentinel");
++  parent.append(child);
++  document.body.append(parent, reference);
++  t.add_cleanup(() => { parent.remove(); reference.remove(); });
++  assert_equals(getComputedStyle(parent).getPropertyValue(target), parentValue ?? "", "Parent prerequisite");
++  assert_array_equals(Array.from(getComputedStyle(reference)).filter(name => name.startsWith("--")), [], "No ambient custom properties");
++  return { child, reference };
++}
++
++function check(child, reference, value, present) {
++  const style = getComputedStyle(child);
++  const names = Array.from(style).filter(name => name.startsWith("--")).sort();
++  const expected = present ? [sentinel, target].sort() : [sentinel];
++  const actualValue = style.getPropertyValue(target);
++  assert_array_equals([
++    present && value === "" ? actualValue.trim() : actualValue,
++    JSON.stringify(names),
++    style.length - getComputedStyle(reference).length
++  ], [value, JSON.stringify(expected), expected.length], "Value, indexed names and length delta");
++}
++
++const cases = [
++  ["20px", "initial", "", false, "Inherited value reset to initial"],
++  ["20px", "var(--enumeration-missing)", "", false, "Inherited value replaced by missing variable"],
++  ["20px", "var(--enumeration-target)", "", false, "Inherited value replaced by self cycle"],
++  [null, "initial", "", false, "Initial without parent value"],
++  [null, "var(--enumeration-missing)", "", false, "Missing variable without parent value"],
++  ["20px", "var(--enumeration-missing,)", "", true, "Valid empty value remains enumerable"],
++  ["20px", "inherit", "20px", true, "Inherited present value remains enumerable"]
++];
++for (const [parentValue, specified, value, present, name] of cases) {
++  test(t => {
++    const { child, reference } = fixture(t, parentValue);
++    child.style.setProperty(target, specified);
++    check(child, reference, value, present);
++  }, name);
++}
++
++test(t => {
++  const { child, reference } = fixture(t, "20px");
++  check(child, reference, "20px", true);
++  child.style.setProperty(target, "initial");
++  check(child, reference, "", false);
++  child.style.removeProperty(target);
++  check(child, reference, "20px", true);
++}, "Present to guaranteed-invalid to inherited present");
++
++test(t => {
++  const parent = document.createElement("div");
++  const child = document.createElement("div");
++  const reference = document.createElement("div");
++  const name = "--last-enumerated-value";
++  parent.style.setProperty(name, "10px");
++  parent.append(child);
++  document.body.append(parent, reference);
++  t.add_cleanup(() => { parent.remove(); reference.remove(); });
++  const style = getComputedStyle(child);
++  function checkLast(expectedNames, expectedValue) {
++    assert_array_equals(Array.from(style).filter(name => name.startsWith("--")), expectedNames);
++    assert_equals(style.length - getComputedStyle(reference).length, expectedNames.length);
++    const actualValue = style.getPropertyValue(name);
++    assert_equals(expectedNames.length && expectedValue === "" ? actualValue.trim() : actualValue, expectedValue);
++  }
++  checkLast([name], "10px");
++  child.style.setProperty(name, "initial");
++  checkLast([], "");
++  child.style.removeProperty(name);
++  checkLast([name], "10px");
++  child.style.setProperty(name, "initial");
++  checkLast([], "");
++  child.style.setProperty(name, "var(--last-missing,)");
++  checkLast([name], "");
++}, "Removing and restoring the last custom property updates a live computed style");
++
++test(t => {
++  const inherited = "--enumerated-inherited-value";
++  const reset = "--enumerated-reset-value";
++  CSS.registerProperty({name: reset, syntax: "*", inherits: false});
++  const parent = document.createElement("div");
++  const child = document.createElement("div");
++  const reference = document.createElement("div");
++  parent.style.setProperty(inherited, "10px");
++  child.style.setProperty(reset, "20px");
++  parent.append(child);
++  document.body.append(parent, reference);
++  t.add_cleanup(() => { parent.remove(); reference.remove(); });
++  const style = getComputedStyle(child);
++  function checkMaps(expectedNames, inheritedValue, resetValue) {
++    assert_array_equals(Array.from(style).filter(name => name.startsWith("--")).sort(), expectedNames.sort());
++    assert_equals(style.length - getComputedStyle(reference).length, expectedNames.length);
++    assert_equals(style.getPropertyValue(inherited), inheritedValue);
++    assert_equals(style.getPropertyValue(reset), resetValue);
++  }
++  checkMaps([inherited, reset], "10px", "20px");
++  child.style.setProperty(inherited, "initial");
++  checkMaps([reset], "", "20px");
++  child.style.setProperty(reset, "var(--enumerated-missing)");
++  checkMaps([], "", "");
++  child.style.setProperty(reset, "30px");
++  checkMaps([reset], "", "30px");
++  child.style.removeProperty(inherited);
++  checkMaps([inherited, reset], "10px", "30px");
++}, "Enumeration crosses inherited and non-inherited maps after values become invalid");
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-variables/custom-property-enumeration-shadowing.html
+@@ -0,0 +1,83 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Computed custom property enumeration after inherited overrides</title>
++<link rel="help" href="https://drafts.csswg.org/cssom/#dom-window-getcomputedstyle">
++<link rel="help" href="https://drafts.csswg.org/cssom/#dom-cssstyledeclaration-item">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++function propertyNames(style, prefix) {
++  return Array.from(style).filter(name => name.startsWith(prefix));
++}
++
++function fixture(t, count) {
++  const parent = document.createElement("div");
++  const child = document.createElement("div");
++  const prefix = "--iterator-";
++  const expected = [];
++  for (let i = 0; i < count; ++i) {
++    const name = `${prefix}${i}`;
++    expected.push(name);
++    parent.style.setProperty(name, "parent");
++  }
++  parent.append(child);
++  document.body.append(parent);
++  t.add_cleanup(() => parent.remove());
++  const parentStyle = getComputedStyle(parent);
++  const names = propertyNames(parentStyle, prefix);
++  assert_array_equals([...names].sort(), [...expected].sort(), "parent enumeration");
++  return {parent, child, prefix, expected, first: names[0], second: names[1]};
++}
++
++for (const count of [8, 9]) {
++  test(t => {
++    const {child, prefix, expected, first} = fixture(t, count);
++    child.style.setProperty(first, "child");
++    const style = getComputedStyle(child);
++    assert_equals(style.getPropertyValue(first), "child", "override lookup");
++    for (const name of expected.filter(name => name !== first)) {
++      assert_equals(style.getPropertyValue(name), "parent", "inherited lookup");
++    }
++    assert_array_equals(propertyNames(style, prefix).sort(), expected.sort());
++  }, `One inherited override with ${count} custom properties enumerates each name once`);
++}
++
++test(t => {
++  const {child, prefix, expected, first, second} = fixture(t, 9);
++  child.style.setProperty(first, "first");
++  child.style.setProperty(second, "second");
++  const style = getComputedStyle(child);
++  assert_equals(style.getPropertyValue(first), "first");
++  assert_equals(style.getPropertyValue(second), "second");
++  assert_array_equals(propertyNames(style, prefix).sort(), expected.sort());
++}, "Two inherited overrides enumerate each name once");
++
++test(t => {
++  const {child, prefix, expected} = fixture(t, 9);
++  assert_array_equals(propertyNames(getComputedStyle(child), prefix).sort(), expected.sort());
++}, "Unchanged inheritance preserves enumeration");
++
++test(t => {
++  const {child, prefix, expected, first} = fixture(t, 9);
++  child.style.setProperty(first, "parent");
++  assert_array_equals(propertyNames(getComputedStyle(child), prefix).sort(), expected.sort());
++}, "Equal-value override preserves enumeration");
++
++test(t => {
++  const {child, prefix, expected} = fixture(t, 9);
++  child.style.setProperty(`${prefix}new`, "new");
++  expected.push(`${prefix}new`);
++  assert_array_equals(propertyNames(getComputedStyle(child), prefix).sort(), expected.sort());
++}, "Adding a distinct inherited name preserves enumeration");
++
++test(t => {
++  const {child, prefix, expected, first} = fixture(t, 9);
++  child.style.setProperty(first, "child");
++  assert_equals(getComputedStyle(child).getPropertyValue(first), "child");
++  child.style.removeProperty(first);
++  const style = getComputedStyle(child);
++  assert_equals(style.getPropertyValue(first), "parent");
++  assert_array_equals(propertyNames(style, prefix).sort(), expected.sort());
++}, "Removing the overriding declaration restores inherited enumeration");
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-variables/resurrected-custom-property-enumeration.html
+@@ -0,0 +1,47 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Custom property enumeration after restoring an ancestor tombstone</title>
++<link rel="help" href="https://drafts.csswg.org/cssom/#dom-window-getcomputedstyle">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++for (const removed of [true, false]) {
++  test(t => {
++    const outer = document.createElement("div");
++    const middle = document.createElement("div");
++    const leaf = document.createElement("div");
++    const reference = document.createElement("div");
++    const target = "--restored-target";
++    const names = [target];
++    outer.style.setProperty(target, "10px");
++    for (let i = 0; i < 8; ++i) {
++      const name = `--restored-outer-${i}`;
++      names.push(name);
++      outer.style.setProperty(name, "outer");
++    }
++    middle.style.setProperty(target, removed ? "initial" : "15px");
++    for (let i = 0; i < 8; ++i) {
++      const name = `--restored-middle-${i}`;
++      names.push(name);
++      middle.style.setProperty(name, "middle");
++    }
++    leaf.style.setProperty(target, "20px");
++    middle.append(leaf);
++    outer.append(middle);
++    document.body.append(outer, reference);
++    t.add_cleanup(() => { outer.remove(); reference.remove(); });
++    assert_equals(getComputedStyle(outer).getPropertyValue(target), "10px", "Grandparent prerequisite");
++    assert_equals(getComputedStyle(middle).getPropertyValue(target), removed ? "" : "15px", "Parent prerequisite");
++    assert_array_equals(Array.from(getComputedStyle(reference)).filter(name => name.startsWith("--")), [], "No ambient custom properties");
++    const style = getComputedStyle(leaf);
++    assert_equals(style.getPropertyValue(target), "20px", "Leaf restores the value");
++    for (const name of names.slice(1)) {
++      assert_equals(style.getPropertyValue(name), name.includes("outer") ? "outer" : "middle", `Other value ${name}`);
++    }
++    const actual = Array.from(style).filter(name => name.startsWith("--")).sort();
++    assert_array_equals([JSON.stringify(actual), style.length - getComputedStyle(reference).length],
++                        [JSON.stringify(names.sort()), names.length], "Indexed names and exact count");
++  }, removed ? "Restore a removed name over a parent with nine own entries" : "Replace a present name over a parent with nine own entries");
++}
++</script>

@@ -1,0 +1,83 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Computed custom property enumeration after inherited overrides</title>
+<link rel="help" href="https://drafts.csswg.org/cssom/#dom-window-getcomputedstyle">
+<link rel="help" href="https://drafts.csswg.org/cssom/#dom-cssstyledeclaration-item">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function propertyNames(style, prefix) {
+  return Array.from(style).filter(name => name.startsWith(prefix));
+}
+
+function fixture(t, count) {
+  const parent = document.createElement("div");
+  const child = document.createElement("div");
+  const prefix = "--iterator-";
+  const expected = [];
+  for (let i = 0; i < count; ++i) {
+    const name = `${prefix}${i}`;
+    expected.push(name);
+    parent.style.setProperty(name, "parent");
+  }
+  parent.append(child);
+  document.body.append(parent);
+  t.add_cleanup(() => parent.remove());
+  const parentStyle = getComputedStyle(parent);
+  const names = propertyNames(parentStyle, prefix);
+  assert_array_equals([...names].sort(), [...expected].sort(), "parent enumeration");
+  return {parent, child, prefix, expected, first: names[0], second: names[1]};
+}
+
+for (const count of [8, 9]) {
+  test(t => {
+    const {child, prefix, expected, first} = fixture(t, count);
+    child.style.setProperty(first, "child");
+    const style = getComputedStyle(child);
+    assert_equals(style.getPropertyValue(first), "child", "override lookup");
+    for (const name of expected.filter(name => name !== first)) {
+      assert_equals(style.getPropertyValue(name), "parent", "inherited lookup");
+    }
+    assert_array_equals(propertyNames(style, prefix).sort(), expected.sort());
+  }, `One inherited override with ${count} custom properties enumerates each name once`);
+}
+
+test(t => {
+  const {child, prefix, expected, first, second} = fixture(t, 9);
+  child.style.setProperty(first, "first");
+  child.style.setProperty(second, "second");
+  const style = getComputedStyle(child);
+  assert_equals(style.getPropertyValue(first), "first");
+  assert_equals(style.getPropertyValue(second), "second");
+  assert_array_equals(propertyNames(style, prefix).sort(), expected.sort());
+}, "Two inherited overrides enumerate each name once");
+
+test(t => {
+  const {child, prefix, expected} = fixture(t, 9);
+  assert_array_equals(propertyNames(getComputedStyle(child), prefix).sort(), expected.sort());
+}, "Unchanged inheritance preserves enumeration");
+
+test(t => {
+  const {child, prefix, expected, first} = fixture(t, 9);
+  child.style.setProperty(first, "parent");
+  assert_array_equals(propertyNames(getComputedStyle(child), prefix).sort(), expected.sort());
+}, "Equal-value override preserves enumeration");
+
+test(t => {
+  const {child, prefix, expected} = fixture(t, 9);
+  child.style.setProperty(`${prefix}new`, "new");
+  expected.push(`${prefix}new`);
+  assert_array_equals(propertyNames(getComputedStyle(child), prefix).sort(), expected.sort());
+}, "Adding a distinct inherited name preserves enumeration");
+
+test(t => {
+  const {child, prefix, expected, first} = fixture(t, 9);
+  child.style.setProperty(first, "child");
+  assert_equals(getComputedStyle(child).getPropertyValue(first), "child");
+  child.style.removeProperty(first);
+  const style = getComputedStyle(child);
+  assert_equals(style.getPropertyValue(first), "parent");
+  assert_array_equals(propertyNames(style, prefix).sort(), expected.sort());
+}, "Removing the overriding declaration restores inherited enumeration");
+</script>

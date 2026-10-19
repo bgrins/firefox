@@ -1,0 +1,49 @@
+--- a/servo/components/style/custom_properties_map.rs
++++ b/servo/components/style/custom_properties_map.rs
+@@ -40,7 +40,7 @@
+ struct Inner {
+     own_properties: OwnMap,
+     parent: Option<Arc<Inner>>,
+-    /// The number of custom properties we store. Note that this is different from the sum of our
++    /// The number of custom properties with a value. Note that this is different from the sum of our
+     /// own and our parent's length, since we might store duplicate entries.
+     len: usize,
+     /// The number of ancestors we have.
+@@ -160,10 +160,12 @@
+     }
+ 
+     fn insert(&mut self, name: &Name, value: Option<ComputedRegisteredValue>) {
+-        let new = self.own_properties.insert(name.clone(), value).is_none();
+-        if new && self.parent.as_ref().is_none_or(|p| p.get(name).is_none()) {
+-            self.len += 1;
+-        }
++        match (self.get(name).is_some(), value.is_some()) {
++            (false, true) => self.len += 1,
++            (true, false) => self.len -= 1,
++            _ => {},
++        }
++        self.own_properties.insert(name.clone(), value);
+     }
+ 
+     /// Whether we should expand the chain, or just copy-on-write.
+@@ -182,7 +184,7 @@
+         self.0.is_empty()
+     }
+ 
+-    /// Returns the amount of different properties in the map.
++    /// Returns the number of properties with a value in the map.
+     pub fn len(&self) -> usize {
+         self.0.len()
+     }
+@@ -193,7 +195,10 @@
+             return None;
+         }
+         // FIXME: This is O(n) which is a bit unfortunate.
+-        self.0.iter().nth(index)
++        self.0
++            .iter()
++            .filter(|(_, value)| value.is_some())
++            .nth(index)
+     }
+ 
+     /// Returns a given property value by name.

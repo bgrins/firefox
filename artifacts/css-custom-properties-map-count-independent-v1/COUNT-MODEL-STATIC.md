@@ -1,0 +1,15 @@
+# Static count-proof checkpoint
+
+This is static review of unsealed development source, not kernel acceptance. Final externally supplied pins, complete source bindings, axiom inventory, mutation causes and relocated replay are pending.
+
+The six inspected modules use arbitrary decidable keys and opaque values. The independent key-roster projection computes presence by nearest-owner lookup; tombstones stop lookup. The finite roster is derived from stored keys plus future operation keys, so it does not assume a fixed finite global key type. Single-key balance, inherited masking, count preservation, unique-key preservation and arbitrary finite operation histories are substantive claims.
+
+Cow.Ready preservation quantifies arbitrary comparison functions: a skipped update preserves the existing count invariant even if it would not implement the requested value update. By contrast cow_lookup/history_lookup require CompareSound: comparison true implies equality of model Option payloads. Native do_insert uses PartialEq; VariableValue compares only CSS text, and can_deduplicate_values separately checks attr_tainted with a URL-data TODO. Therefore full native metadata identity is not discharged by CompareSound. A payload projection/quotient and its downstream observer contract must be stated before interpreting that theorem as native value-history equivalence. This is not an obstruction to the count invariant and not a new native bug finding.
+
+The model shouldExpand uses chain length minus one. Actual ancestor_count correspondence, Arc uniqueness/copy semantics, IndexMap insertion order and unique-key behavior remain source representation obligations unless separately proved. The depth theorem alone does not derive those fields. Empty-list model states are broader than actual initialized Inner nodes; admitted native encoding must map actual roots to singleton chains.
+
+Index.RawEnumeration requires unique keys and exactly the nearest owning entry, including None. filtered_count derives live-list length from that premise and Ready. It does not prove the actual iterator premise itself. The separately developed iterator component can supply it only through an explicit correspondence between its nearest-owner/chain definitions and these definitions; source-slice identity is not that Lean composition theorem.
+
+Machine bounds remain external to unbounded Nat histories. Decrement safety is derived from old presence; increment uses a finite-domain bound. u32 CSSOM conversions/sums, allocation success and normal completion are additional native boundaries. CSSOM whole-map uniqueness also needs disjoint inherited/reset name domains and stable registration routing; no per-map theorem establishes it.
+
+The nine current witness statements include old removal/resurrection count mismatch, replacement, tombstones, valid-empty Some, COW modes, expansion, and necessity of the raw-enumeration premise. They are examples alongside general proofs, not nine additional universal closure claims.
