@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Properly escape CSS identifiers</title>
+    <script src="/resources/testharness.js"></script>
+    <script src="/resources/testharnessreport.js"></script>
+    <link rel="help" href="https://crbug.com/343000522">
+    <style id="sheet">
+      @import 'abc' layer(\{\});
+      @counter-style abc\{\}oops {}
+      @font-feature-values abc\{\}oops {}
+      @font-palette-values --abc\{\}oops {}
+      @keyframes abc\{\}oops {}
+      @layer abc\;oops\!;
+      @media \( {}
+      @position-try abc\{\}oops {}
+      @counter-style abc\{\}oops {}
+      @namespace abc\{\}oops "test";
+      @page abc\{\}def {}
+    </style>
+  </head>
+  <body>
+  <script>
+    promise_test(async t=>{
+      const rules = Array.from(document.styleSheets[0].cssRules);
+      const text = rules.map(r => r.cssText).join('\n');
+      const reparsed = document.createElement('style');
+      t.add_cleanup(() => reparsed.remove());
+      const loaded = new Promise(resolve => {
+        reparsed.addEventListener('load', resolve, { once: true });
+        reparsed.addEventListener('error', resolve, { once: true });
+      });
+      reparsed.textContent = text;
+      document.head.append(reparsed);
+      await loaded;
+
+      const new_rules = Array.from(reparsed.sheet.cssRules);
+      const new_text = new_rules.map(r => r.cssText).join('\n');
+      assert_equals(new_text, text);
+    }, 'Rules must be the same after serialization round-trip, even with escaped characters');
+  </script>

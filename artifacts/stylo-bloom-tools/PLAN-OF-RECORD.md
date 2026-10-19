@@ -16,8 +16,13 @@ Immediate next steps:
    extracted cases in debug/release; all 21 new browser controls pass and eight
    existing outcomes are unchanged. No new defect or full formal admission is
    claimed. Trace existing escaped-EOF serialization failures separately; the
-   identifier round-trip test currently fails before its serialization assertion.
-   Evidence: css-tokenizer-string-comment-root-v1/ROOT-REVIEW.json.
+   identifier round-trip test was blocked at its second stylesheet read. A
+   separate WPT-only correction now waits for a fresh stylesheet update, passes
+   the original assertion and removes expected-FAIL metadata; no native bug is
+   added. The exact-spelling escaped-EOF oracle remains inconclusive under raw
+   custom-property preservation requirements.
+   Evidence: css-tokenizer-string-comment-root-v1/ROOT-REVIEW.json and
+   css-rule-identifier-roundtrip-fix-v2/ROOT-ACCEPTANCE.json.
 3. Compose all actual raw-token branches with fresh-suffix parser states and
    selected-output dependency metadata. Name/escape and corrected-guard models
    are signed as `71fd35e1276edfef665ff1a4fada28217174a1d5`; shared codecs,

@@ -1,0 +1,60 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CSS rule identifier round-trip diagnostic</title>
+<link rel="help" href="https://drafts.csswg.org/cssom/#serialize-a-css-rule">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+const cases = [
+  ["counter style", name => `@counter-style ${name} { system: cyclic; symbols: x; }`],
+  ["font feature values", name => `@font-feature-values ${name} { @styleset { style: 1; } }`],
+  ["font palette", name => `@font-palette-values --${name} { font-family: serif; base-palette: 0; }`],
+  ["keyframes", name => `@keyframes ${name} { from { opacity: 0; } }`],
+  ["layer statement", name => `@layer ${name};`],
+  ["layer block", name => `@layer ${name} { div { color: green; } }`],
+  ["position try", name => `@position-try --${name} { top: 10px; }`],
+  ["namespace prefix", name => `@namespace ${name} "urn:test";`],
+  ["page", name => `@page ${name} { margin: 1px; }`],
+  ["page pseudo", name => `@page ${name}:left { margin: 1px; }`],
+  ["container", name => `@container ${name} (width > 1px) { div { color: green; } }`],
+];
+for (const value of ["ordinary", "abc{}oops", "abc;oops!"]) {
+  for (const [name, source] of cases) {
+    test(() => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(source(CSS.escape(value)));
+      assert_equals(sheet.cssRules.length, 1, "source rule accepted");
+      const first = sheet.cssRules[0].cssText;
+      const clone = new CSSStyleSheet();
+      clone.replaceSync(first);
+      assert_equals(clone.cssRules.length, 1, `serialized rule accepted: ${first}`);
+      assert_equals(clone.cssRules[0].cssText, first);
+    }, `${name}: ${value}`);
+  }
+}
+
+function loadedStyle(t, text) {
+  return new Promise(resolve => {
+    const style = document.createElement("style");
+    t.add_cleanup(() => style.remove());
+    style.onload = () => resolve(style);
+    style.onerror = () => resolve(style);
+    style.textContent = text;
+    document.head.append(style);
+  });
+}
+
+for (const value of ["ordinary", "abc{}oops", "abc;oops!"]) {
+  promise_test(async t => {
+    const source = `@import url("data:text/css,div%7Bcolor%3Agreen%7D") layer(${CSS.escape(value)});`;
+    const style = await loadedStyle(t, source);
+    assert_not_equals(style.sheet, null, "loaded source sheet exists");
+    assert_equals(style.sheet.cssRules.length, 1, "source import accepted");
+    const first = style.sheet.cssRules[0].cssText;
+    const clone = await loadedStyle(t, first);
+    assert_not_equals(clone.sheet, null, "loaded serialized sheet exists");
+    assert_equals(clone.sheet.cssRules.length, 1, "serialized import accepted");
+    assert_equals(clone.sheet.cssRules[0].cssText, first);
+  }, `import layer after load: ${value}`);
+}
+</script>
