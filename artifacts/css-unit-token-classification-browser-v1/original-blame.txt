@@ -1,0 +1,14 @@
+f5d88e41a21bb (Nico Burns           2025-08-18 13:20:39 +0000 1437)             Token::Ident(ref value)
+f5d88e41a21bb (Nico Burns           2025-08-18 13:20:39 +0000 1438)             | Token::AtKeyword(ref value)
+f5d88e41a21bb (Nico Burns           2025-08-18 13:20:39 +0000 1439)             | Token::Hash(ref value)
+f5d88e41a21bb (Nico Burns           2025-08-18 13:20:39 +0000 1440)             | Token::IDHash(ref value)
+f5d88e41a21bb (Nico Burns           2025-08-18 13:20:39 +0000 1441)             | Token::UnquotedUrl(ref value)
+f5d88e41a21bb (Nico Burns           2025-08-18 13:20:39 +0000 1442)             | Token::Dimension {
+196912c9bf332 (Bobby Holley         2018-04-10 21:00:11 -0400 1443)                 unit: ref value, ..
+196912c9bf332 (Bobby Holley         2018-04-10 21:00:11 -0400 1444)             } => {
+640040463a197 (Emilio Cobos Álvarez 2026-06-11 22:03:57 +0000 1445)                 references.flags.insert(ReferenceFlags::from_unit(value));
+209da50aea393 (Emilio Cobos Álvarez 2019-11-25 19:14:37 +0000 1446)                 let is_unquoted_url = matches!(token, Token::UnquotedUrl(_));
+936fce49058a1 (Simon Sapin          2015-11-07 05:32:36 +0500 1447)                 if value.ends_with("�") && input.slice_from(token_start).ends_with("\\") {
+936fce49058a1 (Simon Sapin          2015-11-07 05:32:36 +0500 1448)                     // Unescaped backslash at EOF in these contexts is interpreted as U+FFFD
+936fce49058a1 (Simon Sapin          2015-11-07 05:32:36 +0500 1449)                     // Check the value in case the final backslash was itself escaped.
+936fce49058a1 (Simon Sapin          2015-11-07 05:32:36 +0500 1450)                     // Serialize as escaped U+FFFD, which is also interpreted as U+FFFD.

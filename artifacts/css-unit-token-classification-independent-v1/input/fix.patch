@@ -1,0 +1,195 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1442,7 +1442,9 @@
+             | Token::Dimension {
+                 unit: ref value, ..
+             } => {
+-                references.flags.insert(ReferenceFlags::from_unit(value));
++                if matches!(token, Token::Dimension { .. }) {
++                    references.flags.insert(ReferenceFlags::from_unit(value));
++                }
+                 let is_unquoted_url = matches!(token, Token::UnquotedUrl(_));
+                 if value.ends_with("�") && input.slice_from(token_start).ends_with("\\") {
+                     // Unescaped backslash at EOF in these contexts is interpreted as U+FFFD
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-property-unit-token-dependencies.html
+@@ -0,0 +1,179 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Registered relative-unit dependencies require dimension tokens</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#custom-idents">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#dimensions">
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#dependency-cycles">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++for (const [name, syntax, initialValue] of [
++  ["--token-mixed", "<custom-ident> | <length>", "11px"],
++  ["--token-ident", "<custom-ident>", "fallback"],
++  ["--token-url", "<url> | <length>", "11px"],
++  ["--token-length", "<length>", "11px"]
++]) {
++  CSS.registerProperty({name, syntax, inherits: false, initialValue});
++}
++const cases = [
++  {
++    "name": "An em custom identifier does not create a font dependency",
++    "property": "--token-mixed",
++    "value": "em",
++    "expected": {
++      "raw": "em",
++      "font": "23px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "A case-preserved EM identifier is not a dimension",
++    "property": "--token-mixed",
++    "value": "EM",
++    "expected": {
++      "raw": "EM",
++      "font": "23px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "An escaped em identifier is not a dimension",
++    "property": "--token-mixed",
++    "value": "e\\6d",
++    "expected": {
++      "raw": "em",
++      "font": "23px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "An lh custom identifier does not create font or line dependencies",
++    "property": "--token-mixed",
++    "value": "lh",
++    "expected": {
++      "raw": "lh",
++      "font": "23px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "An ordinary custom identifier remains valid",
++    "property": "--token-mixed",
++    "value": "ordinary",
++    "expected": {
++      "raw": "ordinary",
++      "font": "23px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "An identifier-only registration does not depend on font units",
++    "property": "--token-ident",
++    "value": "em",
++    "expected": {
++      "raw": "em",
++      "font": "23px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "A real em dimension still forms a registered font cycle",
++    "property": "--token-mixed",
++    "value": "1em",
++    "expected": {
++      "raw": "11px",
++      "font": "23px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "An absolute dimension substitutes into font-size",
++    "property": "--token-mixed",
++    "value": "13px",
++    "expected": {
++      "raw": "13px",
++      "font": "13px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "An unquoted URL named em is not a length dimension",
++    "property": "--token-url",
++    "value": "url(em)",
++    "expected": {
++      "raw": "$absolute-url-em",
++      "font": "23px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "A quoted URL named em remains valid",
++    "property": "--token-url",
++    "value": "url(\"em\")",
++    "expected": {
++      "raw": "$absolute-url-em",
++      "font": "23px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "An invalid at-keyword resets the registered value without a font cycle",
++    "property": "--token-length",
++    "value": "@em",
++    "expected": {
++      "raw": "11px",
++      "font": "11px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "An invalid hash resets the registered value without a font cycle",
++    "property": "--token-length",
++    "value": "#em",
++    "expected": {
++      "raw": "11px",
++      "font": "11px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "An ordinary invalid hash uses the registered initial value",
++    "property": "--token-length",
++    "value": "#ordinary",
++    "expected": {
++      "raw": "11px",
++      "font": "11px"
++    },
++    "fixed_font": null
++  },
++  {
++    "name": "A unit-spelled identifier remains valid without the font back edge",
++    "property": "--token-mixed",
++    "value": "em",
++    "expected": {
++      "raw": "em",
++      "font": "17px"
++    },
++    "fixed_font": "17px"
++  }
++];
++for (const item of cases) {
++  test(t => {
++    const parent = document.createElement("div");
++    parent.style.cssText = "font-size: 23px; line-height: 31px";
++    const target = document.createElement("div");
++    target.style.setProperty(item.property, item.value);
++    target.style.fontSize = item.fixed_font || `var(${item.property})`;
++    parent.append(target);
++    document.body.append(parent);
++    t.add_cleanup(() => parent.remove());
++    const computed = getComputedStyle(target);
++    const expectedRaw = item.expected.raw === "$absolute-url-em"
++      ? `url("${new URL("em", document.baseURI).href}")` : item.expected.raw;
++    assert_equals(computed.getPropertyValue(item.property).trim(), expectedRaw,
++                  "registered computed value");
++    assert_equals(computed.fontSize, item.expected.font, "font-size");
++  }, item.name);
++}
++</script>
