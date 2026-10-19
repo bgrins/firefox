@@ -35,9 +35,10 @@ produces counterexamples; neither fabricated source is a new browser bug. Three
 initial kernel-checked helpers establish lower-lookup preservation and rank
 subtraction bounds. These do not complete the batched theorem.
 
-The producer reports a kernel-checked numeric batching refinement with descending
-removals and index correction; independent review and native storage composition
-remain pending. Its supplied comparator requires a true result to imply semantic
+The producer has sealed the full indexed batching and storage refinement,
+including the actual ascending count/correction loop, publication transfer and
+index/reserve/gate results. Canonical and relocated full replays pass; independent
+review and root acceptance remain pending. Its supplied comparator requires a true result to imply semantic
 equality, while permitting conservative false results. The NaN source audit does
 not establish a browser bug: CSSOM permits reporting an update when serialization
 is unchanged. Native value equality must not silently become reflexive model
@@ -51,8 +52,9 @@ Independent review accepted these limited claims after its own relocated replay.
 Source interpretation, compiler behavior and callback stability remain explicit.
 [Source admission](../css-declaration-source-admission-root-v1/REPORT.md).
 
-Production now targets independent declaration/importance/membership storage
-composition and native mutation checks, followed by review and scoped acceptance.
+The frozen component has 172 audits (109 newly authored), 18 extracted-native
+transactions per variant and five distinguished compiled mutations. Its next gate
+is independent review and scoped acceptance, not another corpus expansion.
 
 [Obligations](../css-declaration-batch-admission-root-v1/PLAN.md).
 Production: `../css-declaration-batch-proof-v1/`.
@@ -75,18 +77,22 @@ Production: `../css-tokenizer-url-native-state-v1/PLAN.md`.
 The producer has sealed 17 new modules and actual native state/slice checks in
 three modes. Independent review found that v1 accepts missing, duplicated, unknown, extended
 and reordered trace events. V1 acceptance is blocked; a v2 checker compares the
-full ordered trace with an input-derived control interpreter. The sealed negative
-review preserves all five counterexamples. No Lean theorem was refuted.
+full ordered trace with an input-derived control interpreter. V2 has passed fresh
+producer and independent replay; final independent sealing and root acceptance
+remain pending. The sealed negative review preserves all five counterexamples.
+No Lean theorem was refuted.
 The fixed corpus adds only the escaped-close-at-EOF case and an unquoted leading
 newline case required to reject a previously surviving bulk-field mutant. No
 new browser bug is established.
 
 ### 3. Compose parsing, removal and clear
 
-The root model now kernel-checks 35 lemmas for parser-priority push/extend,
+The root model now kernel-checks 44 lemmas for parser-priority push/extend,
 separate storage operations, deletion target bounds, removal-loop safety, the
 earliest-removal query certificate, callback stability under unchanged ordered
 IDs, and arbitrary mixed parse/remove/clear histories.
+The first 35 results have independent review; nine new joins prove the native
+membership shortcut and single-property early return and use them in the history.
 Duplicate source identities are admitted for sequential extend. These histories
 do not yet include CSSOM setting; native interpretation and caller stability
 remain open. The immutable flag and changed-return bits are outside this model.

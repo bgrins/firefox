@@ -55,3 +55,22 @@ The completed static caller audit and animation-map follow-up are in
 ../css-declaration-public-operations-static-v1/ and
 ../css-declaration-animation-map-admission-static-v1/. They establish no browser
 bug. Animation map key/value identity coherence remains a constructor admission.
+
+## Native query and singleton transfer
+
+Independent review accepted the 35-result checkpoint, retaining its immutable
+snapshot in ../css-declaration-public-storage-independent-v1/. PublicAPI adds
+nine kernel results addressing two specific source joins from that review:
+exact membership justifies the native nonshorthand query shortcut; uniqueness
+justifies immediate return after single-property deletion. Shorthand deletion
+uses the suffix loop. The joined parse/remove/clear history now uses the queried
+API model, and a separate cached callback theorem preserves the same ordered-ID
+frame. The complete current audit roster is 44.
+
+The history does not include an intervening callback as an implicit no-op. Actual
+callback-aware caller histories still need the stated frame and valid postcallback
+storage, and native while-loop/container/machine translation remains open. Native
+property-ID membership is interpreted as a fixed predicate here; generated
+provider identity and callback stability of that predicate are explicit. These
+new joins have root kernel replay but are not included in the earlier independent
+35-result review.
