@@ -36,7 +36,7 @@ close these obligations.
 
 ## Latest commit and proof checkpoint
 
-There are 54 signed standalone native/WPT fixes. Worker font removal is now
+There are 55 signed standalone native/WPT fixes. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
@@ -2947,10 +2947,16 @@ traversal/evaluator admission remains open. The exact stack patch uses namespace
 APIs; `../css-attr-tombstone-base-port-v1/fix.patch` is an uncompiled alternate
 for the older name-only map, requiring its own build/browser gate.
 
-## MathML geometry candidate
+## MathML geometry repair committed
 
-A calibrated Range WPT reproduces four glyph-width failures. The sole-function
-GetTrimmedOffsets candidate makes all sixteen cases pass; all 260 existing
-MathML styling checks pass on both builds. Build and lint pass. Preserved
-newlines, trailing whitespace and all-whitespace boundary review is pending;
-this candidate is not accepted or counted as a committed fix.
+`f843fd7568f30e14e664c37c36544d8d88e8c1bb` repairs the token-leading origin in GetTrimmedOffsets.
+The final paired WPT suite repairs eight failures: all 26 new and 260 existing
+checks pass. Review/evidence companion `6eb5a90e3fa3b6128ddd6397d9dae9f1ab34b88d`
+preserves the source audit, raw receipts and 128-case finite branch check.
+Pre-reflow/intrinsic measurement and broad cache-lifetime proof remain open;
+no universal newline-origin equality or element-box sizing repair is claimed.
+
+The next native candidate is occurrence-specific typed attribute fallback
+eligibility. Its three-file draft shares the primary-only parser and preserves
+originating longhand/shorthand context. Producer sealing, independent final
+review, native compilation and paired WPT execution are still pending.
