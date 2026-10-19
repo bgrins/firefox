@@ -1,0 +1,256 @@
+[
+  {
+    "name": "Direct typed attribute",
+    "declarations": "width: attr(x type(<length>), 5px)",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "PASS",
+    "reason": "top-level preload",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Missing null-namespace primary",
+    "declarations": "width: attr(missing type(<length>), attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "FAIL:5px",
+    "reason": "no nested preload",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Missing known-namespace primary",
+    "declarations": "width: attr(a|missing type(<length>), attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "FAIL:5px",
+    "reason": "no nested preload",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Unknown namespace primary",
+    "declarations": "width: attr(unknown|missing type(<length>), attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "FAIL:5px",
+    "reason": "no nested preload",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Invalid typed primary",
+    "declarations": "width: attr(bad type(<length>), attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px",
+      "bad": "not-a-length"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "FAIL:5px",
+    "reason": "no nested preload after type failure",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Two nested fallbacks",
+    "declarations": "width: attr(missing type(<length>), attr(other type(<length>), attr(x type(<length>), 5px)))",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "FAIL:5px",
+    "reason": "arbitrary depth",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Typed attribute in var fallback",
+    "declarations": "width: var(--absent, attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "FAIL:5px",
+    "reason": "outer var is not a preload target",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Typed attribute in env fallback",
+    "declarations": "width: env(preload-probe-absent-environment-variable, attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "FAIL:5px",
+    "reason": "outer env is not a preload target",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Custom property root",
+    "declarations": "--result: attr(missing type(<length>), attr(x type(<length>), 5px)); width: var(--result)",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "PASS",
+    "reason": "custom node traverses used fallback",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Attribute value graph root",
+    "declarations": "width: attr(chain type(<length>), 7px)",
+    "attributes": {
+      "x": "13px",
+      "chain": "attr(missing type(<length>), attr(x type(<length>), 5px))"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "PASS",
+    "reason": "outer attr value graph traverses fallback",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Prioritary property without graph admission",
+    "declarations": "font-size: attr(missing type(<length>), attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "font-size": "13px"
+    },
+    "static_prediction": "FAIL:5px",
+    "reason": "priority alone does not traverse declaration",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Prioritary property with graph admission",
+    "declarations": "--preload-trigger: 1em; font-size: attr(missing type(<length>), var(--absent, attr(x type(<length>), 5px)))",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "font-size": "13px",
+      "--preload-trigger": "13px"
+    },
+    "static_prediction": "PASS",
+    "reason": "registered dependency reaches NonCustom font node",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Independent property preloads fallback attribute",
+    "declarations": "width: attr(missing type(<length>), attr(x type(<length>), 5px)); height: attr(x type(<length>), 5px)",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "width": "13px",
+      "height": "13px"
+    },
+    "static_prediction": "PASS",
+    "reason": "cache warming masks missing edge",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Numeric-unit inner fallback",
+    "declarations": "width: attr(missing type(<length>), attr(n px, 5px))",
+    "attributes": {
+      "n": "13"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "PASS",
+    "reason": "unit path bypasses typed cache",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Unused cyclic attribute fallback",
+    "declarations": "width: attr(x type(<length>), attr(cycle type(<length>), 7px))",
+    "attributes": {
+      "x": "13px",
+      "cycle": "attr(cycle type(<length>))"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "PASS",
+    "reason": "unused fallback must not create dependency",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Unused custom-property cycle",
+    "declarations": "--result: attr(x type(<length>), var(--result)); width: var(--result, 5px)",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "PASS",
+    "reason": "unused self edge excluded",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Used custom-property cycle",
+    "declarations": "--result: attr(missing type(<length>), var(--result)); width: var(--result, 5px)",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "width": "5px"
+    },
+    "static_prediction": "PASS",
+    "reason": "used self edge invalidates custom property",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Unused registered-property cycle",
+    "declarations": "--preload-trigger: 1em; font-size: attr(x type(<length>), var(--preload-trigger))",
+    "attributes": {
+      "x": "13px"
+    },
+    "expected": {
+      "font-size": "13px",
+      "--preload-trigger": "13px"
+    },
+    "static_prediction": "PASS",
+    "reason": "unused fallback cannot cycle font-size",
+    "status": "UNEXECUTED"
+  },
+  {
+    "name": "Invalid typed primary in custom property",
+    "declarations": "--result: attr(bad type(<length>), attr(x type(<length>), 5px)); width: var(--result)",
+    "attributes": {
+      "x": "13px",
+      "bad": "not-a-length"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "static_prediction": "FAIL:5px",
+    "reason": "separate graph primary-validity classification",
+    "status": "UNEXECUTED"
+  }
+]

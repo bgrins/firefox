@@ -1,0 +1,195 @@
+[
+  {
+    "name": "Direct typed attribute control",
+    "declarations": "width: attr(x type(<length>), 5px)",
+    "attributes": {
+      "x": "13px"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "control",
+    "origin": "parent19 case1",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Typed attribute in a missing attribute fallback",
+    "declarations": "width: attr(missing type(<length>), attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "preload witness",
+    "origin": "parent19 case2",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Typed attribute in a missing namespaced attribute fallback",
+    "declarations": "width: attr(a|missing type(<length>), attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "preload witness",
+    "origin": "parent19 case3",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Typed attribute in an unknown namespace fallback",
+    "declarations": "width: attr(unknown|missing type(<length>), attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "preload witness",
+    "origin": "parent19 case4",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Typed attribute in a type-invalid attribute fallback",
+    "declarations": "width: attr(bad type(<length>), attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px",
+      "bad": "not-a-length"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "preload witness",
+    "origin": "parent19 case5; ordinary property is evaluated after attr roots",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Typed attribute in two nested fallbacks",
+    "declarations": "width: attr(missing type(<length>), attr(other type(<length>), attr(x type(<length>), 5px)))",
+    "attributes": {
+      "x": "13px"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "preload witness",
+    "origin": "parent19 case6",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Typed attribute in a variable fallback",
+    "declarations": "width: var(--absent, attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "preload witness",
+    "origin": "parent19 case7",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Typed attribute in an environment fallback",
+    "declarations": "width: env(preload-probe-absent-environment-variable, attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "preload witness",
+    "origin": "parent19 case8",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Typed attribute fallback used by font-size",
+    "declarations": "font-size: attr(missing type(<length>), attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "property": "font-size",
+    "expected": "13px",
+    "role": "preload witness",
+    "origin": "parent19 case11",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Typed attribute in an untyped attribute fallback",
+    "declarations": "width: attr(missing, attr(x type(<length>), 5px))",
+    "attributes": {
+      "x": "13px"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "preload witness",
+    "origin": "new: worklist must queue before outer type test",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Custom property graph follows a missing primary fallback",
+    "declarations": "--result: attr(missing type(<length>), attr(x type(<length>), 5px)); width: var(--result)",
+    "attributes": {
+      "x": "13px"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "control",
+    "origin": "parent19 case9",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Numeric unit fallback does not require typed preparation",
+    "declarations": "width: attr(missing type(<length>), attr(n px, 5px))",
+    "attributes": {
+      "n": "13"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "control",
+    "origin": "parent19 case14",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Unused cyclic attribute fallback leaves the primary valid",
+    "declarations": "width: attr(x type(<length>), attr(cycle type(<length>), 7px))",
+    "attributes": {
+      "x": "13px",
+      "cycle": "attr(cycle type(<length>))"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "unused fallback control",
+    "origin": "parent19 case15",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Unused custom property cycle leaves the primary valid",
+    "declarations": "--result: attr(x type(<length>), var(--result)); width: var(--result, 5px)",
+    "attributes": {
+      "x": "13px"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "unused fallback control",
+    "origin": "parent19 case16",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Used custom property cycle selects the consumer fallback",
+    "declarations": "--result: attr(missing type(<length>), var(--result)); width: var(--result, 5px)",
+    "attributes": {},
+    "property": "width",
+    "expected": "5px",
+    "role": "used fallback control",
+    "origin": "parent19 case17",
+    "status": "UNEXECUTED final WPT"
+  },
+  {
+    "name": "Typed fallback attribute resolves its variable before ordinary-property substitution",
+    "declarations": "--v: 13px; width: attr(bad type(<length>), attr(chain type(<length>), 5px))",
+    "attributes": {
+      "bad": "not-a-length",
+      "chain": "var(--v)"
+    },
+    "property": "width",
+    "expected": "13px",
+    "role": "preload witness",
+    "origin": "readiness6 case1; contrast custom-root graph-eligibility failures retained in diagnostics",
+    "status": "UNEXECUTED final WPT"
+  }
+]
