@@ -1,0 +1,63 @@
+--- v1/custom_properties.rs
++++ v2/custom_properties.rs
+@@ -705,8 +705,16 @@
+     }
+ 
+     #[inline(always)]
+-    pub(crate) fn insert_attr(&mut self, name: &Name, namespace: &Namespace, value: ComputedRegisteredValue) {
+-        self.attributes.entry(namespace.clone()).or_default().insert(name.clone(), Some(value));
++    pub(crate) fn insert_attr(
++        &mut self,
++        name: &Name,
++        namespace: &Namespace,
++        value: ComputedRegisteredValue,
++    ) {
++        self.attributes
++            .entry(namespace.clone())
++            .or_default()
++            .insert(name.clone(), Some(value));
+     }
+ 
+     #[inline(always)]
+@@ -716,7 +724,10 @@
+ 
+     #[inline(always)]
+     pub(crate) fn remove_attr(&mut self, name: &Name, namespace: &Namespace) {
+-        self.attributes.entry(namespace.clone()).or_default().insert(name.clone(), None);
++        self.attributes
++            .entry(namespace.clone())
++            .or_default()
++            .insert(name.clone(), None);
+     }
+ 
+     #[inline(always)]
+@@ -729,8 +740,15 @@
+     }
+ 
+     #[inline(always)]
+-    pub(crate) fn get_attr(&self, name: &Name, namespace: &Namespace) -> Option<&ComputedRegisteredValue> {
+-        self.attributes.get(namespace)?.get(name).and_then(|p| p.as_ref())
++    pub(crate) fn get_attr(
++        &self,
++        name: &Name,
++        namespace: &Namespace,
++    ) -> Option<&ComputedRegisteredValue> {
++        self.attributes
++            .get(namespace)?
++            .get(name)
++            .and_then(|p| p.as_ref())
+     }
+ }
+ 
+@@ -1504,7 +1522,10 @@
+         if is_var {
+             handle_invalid_at_computed_value_time(name, registration, context);
+         } else if let Some(namespace) = namespace {
+-            context.builder.substitution_functions.remove_attr(name, namespace);
++            context
++                .builder
++                .substitution_functions
++                .remove_attr(name, namespace);
+         }
+         return;
+     };

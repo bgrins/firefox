@@ -1,0 +1,45 @@
+GraphIdentity.lean:109:5: error: Tactic `apply` failed: could not unify the conclusion of `@write_preserves_other`
+  write ?values ?key ?value ?other = ?values ?other
+with the goal
+  invalidateNode values (Node.attr other) key = values key
+
+Note: The full type of `@write_preserves_other` is
+  ∀ {Value : Type} (values : AttributeMap Value) (key other : Key),
+    other ≠ key → ∀ (value : Option Value), write values key value other = values other
+
+case cons.attr
+Value : Type
+key : Key
+rest : List Node
+ih : ∀ (values : AttributeMap Value), ¬Node.attr key ∈ rest → invalidateComponent values rest key = values key
+values : AttributeMap Value
+outsideRest : ¬Node.attr key ∈ rest
+other : Key
+outside : ¬Node.attr key ∈ Node.attr other :: rest
+⊢ invalidateNode values (Node.attr other) key = values key
+GraphIdentity.lean:129:18: error: unsolved goals
+case neg.attr
+Value : Type
+key : Key
+rest : List Node
+ih :
+  ∀ (values : AttributeMap Value),
+    invalidateComponent values rest key = if Node.attr key ∈ rest then some none else values key
+values : AttributeMap Value
+inRest : ¬Node.attr key ∈ rest
+other : Key
+⊢ (if key.name = other.name then some none else values key) = if key = other then some none else values key
+GraphIdentity.lean:129:42: warning: This simp argument is unused:
+  invalidate
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [invalidateNode, write]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+GraphIdentity.lean:129:53: warning: This simp argument is unused:
+  write
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [invalidateNode, invalidate]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

@@ -1,0 +1,52 @@
+--- v1/properties__cascade.rs
++++ v2/properties__cascade.rs
+@@ -2157,7 +2157,14 @@
+             let Some(namespace) = next.attribute_data.namespace() else {
+                 continue;
+             };
+-            if !self.seen.custom.attr.entry(namespace).or_default().insert(&next.name) {
++            if !self
++                .seen
++                .custom
++                .attr
++                .entry(namespace)
++                .or_default()
++                .insert(&next.name)
++            {
+                 continue;
+             }
+             if let Ok(v) = get_attr_value_for_cycle_resolution(
+@@ -2463,7 +2470,9 @@
+                             context.stylist.get_custom_property_registration(&next.name);
+                         context.map().get_var(registration, &next.name)
+                     },
+-                    SubstitutionFunctionKind::Attr => next.attribute_data.namespace()
++                    SubstitutionFunctionKind::Attr => next
++                        .attribute_data
++                        .namespace()
+                         .and_then(|namespace| context.map().get_attr(&next.name, namespace)),
+                     SubstitutionFunctionKind::Env => unreachable!("Handled above"),
+                 };
+@@ -2562,7 +2571,8 @@
+                     // `attr()` is always treated as unregistered.
+                     (
+                         PropertyDescriptors::unregistered(),
+-                        map.get_attr(name, var.namespace().unwrap())?.as_universal()?,
++                        map.get_attr(name, var.namespace().unwrap())?
++                            .as_universal()?,
+                         SubstitutionFunctionKind::Attr,
+                     )
+                 };
+@@ -2602,7 +2612,11 @@
+                 let index_map = if kind == SubstitutionFunctionKind::Var {
+                     &mut context.index_map.var
+                 } else {
+-                    context.index_map.attr.entry(var.namespace().unwrap().clone()).or_default()
++                    context
++                        .index_map
++                        .attr
++                        .entry(var.namespace().unwrap().clone())
++                        .or_default()
+                 };
+                 match index_map.entry_ref(name) {
+                     EntryRef::Occupied(entry) => {
