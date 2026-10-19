@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Variable fallback endpoints after quoted EOF recovery</title>
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-string-token">
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#replace-a-var-function">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function quoted(value) {
+  return '"' + value.replaceAll('\\', '\\\\').replaceAll('"', '\\"') + '"';
+}
+
+function check(t, value, expected, carrier = false) {
+  const target = document.createElement('div');
+  const reference = document.createElement('div');
+  t.add_cleanup(() => { target.remove(); reference.remove(); });
+  target.style.setProperty('--primary', '"first"');
+  if (carrier) {
+    target.style.setProperty('--carrier', value);
+    assert_not_equals(target.style.getPropertyValue('--carrier'), '', 'carrier accepted');
+    target.style.fontFamily = 'var(--carrier)';
+  } else {
+    target.style.fontFamily = value;
+  }
+  reference.style.fontFamily = expected;
+  assert_not_equals(target.style.fontFamily, '', 'specified value accepted');
+  assert_not_equals(reference.style.fontFamily, '', 'reference accepted');
+  document.body.append(target, reference);
+  assert_equals(getComputedStyle(target).fontFamily,
+                getComputedStyle(reference).fontFamily);
+}
+
+for (const quote of ['"', "'"]) {
+  for (const slashes of [1, 3]) {
+    const string = quote + 'example' + '\\'.repeat(slashes);
+    const expected = quoted('example' + '\\'.repeat((slashes - 1) / 2));
+    const cases = [
+      ['direct', `var(--absent, ${string}`, expected],
+      ['nested fallback', `var(--outer, var(--absent, ${string}`, expected],
+      ['custom-property carrier', `var(--absent, ${string}`, expected, true],
+      ['unused fallback', `var(--primary, ${string}`, '"first"'],
+      ['earlier sibling', `var(--primary), var(--absent, ${string}`, `"first", ${expected}`],
+      ['environment fallback', `env(unknown-endpoint-variable, ${string}`, expected],
+      ['attribute fallback', `attr(data-absent, ${string}`, expected],
+    ];
+    for (const [name, input, result, carrier] of cases) {
+      test(t => check(t, input, result, carrier), `${name}, ${quote}, ${slashes} terminal backslashes`);
+    }
+  }
+  for (const [name, input, result] of [
+    ['closed', `var(--absent, ${quote}example${quote})`, '"example"'],
+    ['unclosed without backslash', `var(--absent, ${quote}example`, '"example"'],
+    ['escaped newline', `var(--absent, ${quote}example\\\n`, '"example"'],
+    ['closed literal backslash', `var(--absent, ${quote}example\\\\${quote})`, quoted('example\\')],
+    ['UTF-8 prefix', `var(--primary), var(--absent, ${quote}é𐀀\\`, `"first", ${quoted('é𐀀')}`],
+  ]) {
+    test(t => check(t, input, result), `${name}, ${quote}`);
+  }
+}
+</script>
