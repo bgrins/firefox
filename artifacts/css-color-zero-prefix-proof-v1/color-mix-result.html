@@ -1,0 +1,225 @@
+<h3 class="heading settled" data-level="3.3" id="color-mix-result"><span class="secno">3.3. </span><span class="content">
+	Calculating the Result of color-mix
+</span><a class="self-link" href="#color-mix-result"></a></h3>
+   <div class="algorithm" data-algorithm="calculate a color-mix()">
+    
+	To <dfn class="dfn-paneled" data-dfn-type="dfn" data-export id="calculate-a-color-mix">calculate a color-mix()</dfn>:
+
+
+    <ol>
+     <li data-md>
+      <p><a data-link-type="dfn" href="https://drafts.csswg.org/css-values-5/#normalize-mix-percentages" id="ref-for-normalize-mix-percentages①">Normalize mix percentages</a> from the list of <a data-link-type="dfn" href="https://drafts.csswg.org/css-values-5/#mix-item" id="ref-for-mix-item">mix items</a> passed to the function,
+with the "forced normalization" flag set to true,
+letting <var>items</var> and <var>leftover</var> be the result.</p>
+     <li data-md>
+      <p>Let <var>alpha mult</var> be <code>1 - <var>leftover</var></code>,
+interpreting <var>leftover</var> as a number between 0 and 1.</p>
+     <li data-md>
+      <p>If <var>items</var> is length 1,
+set <var>color</var> to the color of that sole item,
+converted to the specified interpolation <a class="css production" data-link-type="type" href="#typedef-color-space" id="ref-for-typedef-color-space①">&lt;color-space></a>.</p>
+      <p>Otherwise:</p>
+      <ol>
+       <li data-md>
+        <p>Let <var>item stack</var> be a <a data-link-type="dfn" href="https://infra.spec.whatwg.org/#stack" id="ref-for-stack">stack</a> made by reversing <var>items</var>.
+(Thus, with the first item at the top of the stack.)</p>
+       <li data-md>
+        <p>While <var>item stack</var> has length 2 or greater:</p>
+        <ol>
+         <li data-md>
+          <p><a data-link-type="dfn" href="https://infra.spec.whatwg.org/#stack-pop" id="ref-for-stack-pop">Pop</a> from <var>item stack</var> twice,
+letting <var>a</var> and <var>b</var> be the two results in order.
+Let <var>combined percentage</var> be the sum of <var>a</var> and <var>b</var>’s percentages.</p>
+         <li data-md>
+          <p>Interpolate <var>a</var> and <var>b</var>’s colors
+as described in <a href="https://drafts.csswg.org/css-color-4/#interpolation"><cite>CSS Color 4</cite> §  13. Color Interpolation</a>,
+with a progress percentage equal to
+<code>(<var>b</var>’s percentage) / <var>combined percentage</var>)</code>,
+if <var>combined percentage</var> is greater than 0,
+and 0.5 otherwise.
+If the specified color space is a <a data-link-type="dfn" href="https://drafts.csswg.org/css-color-4/#cylindrical-polar-color" id="ref-for-cylindrical-polar-color①">cylindrical polar color</a> space,
+then the <a class="css production" data-link-type="type" href="#typedef-hue-interpolation-method" id="ref-for-typedef-hue-interpolation-method">&lt;hue-interpolation-method></a> controls the
+interpolation of hue, as described in
+<a href="https://drafts.csswg.org/css-color-4/#hue-interpolation"><cite>CSS Color 4</cite> § 13.5 Hue Interpolation</a>.
+If no <span class="production" id="ref-for-typedef-hue-interpolation-method①">&lt;hue-interpolation-method></span> is specified,
+assume <span class="css">shorter</span>.</p>
+         <li data-md>
+          <p>Create a new <a data-link-type="dfn" href="https://drafts.csswg.org/css-values-5/#mix-item" id="ref-for-mix-item①">mix item</a> with the resulting color
+and a percentage of <var>combined percentage</var>,
+and <a data-link-type="dfn" href="https://infra.spec.whatwg.org/#stack-push" id="ref-for-stack-push">push</a> it onto <var>item stack</var>.</p>
+        </ol>
+       <li data-md>
+        <p>Set <var>color</var> to the color of the sole remaining item in <var>item stack</var>.</p>
+      </ol>
+     <li data-md>
+      <p>Multiply the alpha component of <var>color</var> by <var>alpha mult</var>.</p>
+     <li data-md>
+      <p>Return <var>color</var>.</p>
+    </ol>
+    <p class="note" role="note"><span class="marker">Note:</span> In <a data-link-type="dfn" href="https://drafts.csswg.org/css-color-4/#cylindrical-polar-color" id="ref-for-cylindrical-polar-color②">cylindrical polar color</a> spaces,
+	mixing is order-dependent,
+	as which direction is “shorter” or “longer” around the hue circle
+	can change depending on what other mixes have already been performed.
+	This algorithm mixes each color in the specified order,
+	mixing the result with the next in the list.
+	For <a data-link-type="dfn" href="https://drafts.csswg.org/css-color-4/#rectangular-orthogonal-color" id="ref-for-rectangular-orthogonal-color①">rectangular orthogonal color</a> spaces,
+	the order doesn’t matter,
+	and the process can be simplified.</p>
+   </div>
+   <details class="wpt-tests-block" dir="ltr" lang="en">
+    <summary>Tests</summary>
+    <ul class="wpt-tests-list">
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/css/css-color/color-mix-basic-001.html" title="css/css-color/color-mix-basic-001.html">color-mix-basic-001.html</a> <a class="wpt-live" href="http://wpt.live/css/css-color/color-mix-basic-001.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/css/css-color/color-mix-basic-001.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/css/css-color/color-mix-missing-components.html" title="css/css-color/color-mix-missing-components.html">color-mix-missing-components.html</a> <a class="wpt-live" href="http://wpt.live/css/css-color/color-mix-missing-components.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/css/css-color/color-mix-missing-components.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/css/css-color/color-mix-non-srgb-001.html" title="css/css-color/color-mix-non-srgb-001.html">color-mix-non-srgb-001.html</a> <a class="wpt-live" href="http://wpt.live/css/css-color/color-mix-non-srgb-001.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/css/css-color/color-mix-non-srgb-001.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/css/css-color/parsing/color-computed-color-mix-function.html" title="css/css-color/parsing/color-computed-color-mix-function.html">color-computed-color-mix-function.html</a> <a class="wpt-live" href="http://wpt.live/css/css-color/parsing/color-computed-color-mix-function.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/css/css-color/parsing/color-computed-color-mix-function.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/css/css-color/parsing/color-invalid-color-mix-function.html" title="css/css-color/parsing/color-invalid-color-mix-function.html">color-invalid-color-mix-function.html</a> <a class="wpt-live" href="http://wpt.live/css/css-color/parsing/color-invalid-color-mix-function.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/css/css-color/parsing/color-invalid-color-mix-function.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/css/css-color/parsing/color-valid-color-mix-function.html" title="css/css-color/parsing/color-valid-color-mix-function.html">color-valid-color-mix-function.html</a> <a class="wpt-live" href="http://wpt.live/css/css-color/parsing/color-valid-color-mix-function.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/css/css-color/parsing/color-valid-color-mix-function.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/css/css-color/parsing/color-mix-out-of-gamut.html" title="css/css-color/parsing/color-mix-out-of-gamut.html">color-mix-out-of-gamut.html</a> <a class="wpt-live" href="http://wpt.live/css/css-color/parsing/color-mix-out-of-gamut.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/css/css-color/parsing/color-mix-out-of-gamut.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/html/canvas/element/fill-and-stroke-styles/2d.fillStyle.colormix.html" title="html/canvas/element/fill-and-stroke-styles/2d.fillStyle.colormix.html">2d.fillStyle.colormix.html</a> <a class="wpt-live" href="http://wpt.live/html/canvas/element/fill-and-stroke-styles/2d.fillStyle.colormix.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/fill-and-stroke-styles/2d.fillStyle.colormix.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/html/canvas/element/fill-and-stroke-styles/2d.fillStyle.colormix.currentcolor.html" title="html/canvas/element/fill-and-stroke-styles/2d.fillStyle.colormix.currentcolor.html">2d.fillStyle.colormix.currentcolor.html</a> <a class="wpt-live" href="http://wpt.live/html/canvas/element/fill-and-stroke-styles/2d.fillStyle.colormix.currentcolor.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/fill-and-stroke-styles/2d.fillStyle.colormix.currentcolor.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/html/canvas/element/fill-and-stroke-styles/2d.strokeStyle.colormix.html" title="html/canvas/element/fill-and-stroke-styles/2d.strokeStyle.colormix.html">2d.strokeStyle.colormix.html</a> <a class="wpt-live" href="http://wpt.live/html/canvas/element/fill-and-stroke-styles/2d.strokeStyle.colormix.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/html/canvas/element/fill-and-stroke-styles/2d.strokeStyle.colormix.html"><small>(source)</small></a>
+    </ul>
+   </details>
+   <div class="example" id="ex-mix-lch-peru40">
+    <a class="self-link" href="#ex-mix-lch-peru40"></a>
+	This example produces a mixture of 40% <span class="swatch" style="--color: peru"></span> peru
+	and 60% <span class="swatch" style="--color: palegoldenrod"></span> palegoldenrod.
+
+	
+<pre class="highlight lang-css"><c- nf>color-mix</c-><c- p>(</c->in lch<c- p>,</c-> peru <c- m>40</c-><c- k>%</c-><c- p>,</c-> palegoldenrod<c- p>)</c-></pre>
+    <p>The mixing is done in <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-color-4/#valdef-lch-lch" id="ref-for-valdef-lch-lch">lch</a> color space.
+	Here is a top-down view, looking along the neutral L axis:</p>
+    <figure id="fig-LCH-peru-goldenrod">
+     <object data="images/CH-mixing.svg" height="480" width="480">
+      <p>A mixture of two colors, and the mixed output.
+				We are looking down the CIE L axis onto the ab plane.
+				There are two axes, labelled <em>a</em> and <em>b</em>
+				which cross at the origin,
+				which is in the centre of the plot.</p>
+     </object>
+     <figcaption>Mixtures of peru and palegoldenrod in CIE LCH.
+			Peru has a hue angle, measured from the positive a axis,
+			of 63.677 degrees
+			while palegoldenrod has a hue angle of 98.834 degrees.
+			Peru has a chroma, or distance from the central neutral axis, of 54.011
+			while palegoldenrod has a chroma of 31.406.
+			All possible mixtures lie along the curve. A 40%/60% mixture is shown.
+		</figcaption>
+    </figure>
+    <p>The calculation is as follows:</p>
+    <ul>
+     <li data-md>
+      <p><span class="swatch" style="--color: peru"></span> peru is lch(62.253% 54.011 63.677)</p>
+     <li data-md>
+      <p><span class="swatch" style="--color: palegoldenrod"></span> palegoldenrod is lch(91.374% 31.406 98.834)</p>
+     <li data-md>
+      <p>the mixed lightness is 62.253 * 40/100 + 91.374 * (100-40)/100 = 79.7256</p>
+     <li data-md>
+      <p>the mixed chroma is 54.011 * 40/100 + 31.406 * (100-40)/100 = 40.448</p>
+     <li data-md>
+      <p>the mixed hue is 63.677 * 40/100 + 98.834 * (100-40)/100 = 84.771</p>
+     <li data-md>
+      <p>the mixed result is <span class="swatch" style="--color: rgb(87.416% 76.036% 47.637%)"></span> lch(79.7256% 40.448 84.771)</p>
+    </ul>
+   </div>
+   <div class="example" id="ex-mix-lch-teal65">
+    <a class="self-link" href="#ex-mix-lch-teal65"></a>
+	This example produces the mixture of teal and olive,
+	in <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-color-4/#valdef-lch-lch" id="ref-for-valdef-lch-lch①">lch</a> color space,
+	with each lch component being 65% of the value for teal
+	and 35% of the value for olive.
+
+
+    <p class="note" role="note"><span class="marker">Note:</span> interpolating on hue and chroma
+	keeps the intermediate colors
+	as saturated as the endpoint colors.</p>
+<pre class="highlight lang-css"><c- nf>color-mix</c-><c- p>(</c->in lch<c- p>,</c-> teal <c- m>65</c-><c- k>%</c-><c- p>,</c-> olive<c- p>);</c-></pre>
+    <figure id="fig-LCH-teal-olive">
+     <object data="images/CH-mixing3.svg" height="500" width="500">
+      <p>A mixture of two colors, and the mixed output.
+				We are looking down the CIE L axis onto the ab plane.
+				There are two axes, labelled <em>a</em> and <em>b</em>
+				which cross at the origin,
+				which is in the centre of the plot.
+			</p>
+     </object>
+     <figcaption>Mixtures of teal and olive.
+			Teal has a hue angle, measured from the positive a axis,
+			of 196.4524 degrees
+			while olive has a hue angle of 99.5746 degrees.
+			Teal has a chroma, or distance from the central neutral axis, of 31.6903
+			while olive has a chroma of 56.8124.
+			Mixtures lie along the dashed curve. A 65%/35% mixture is shown.
+		</figcaption>
+    </figure>
+    <p>The calculation is as follows:</p>
+    <ul>
+     <li data-md>
+      <p>sRGB  <span class="swatch" style="--color: teal"></span> teal (#008080) is lch(47.9855% 31.6903 196.4524)</p>
+     <li data-md>
+      <p>sRGB <span class="swatch" style="--color: olive"></span>  olive (#808000) is lch(52.1496% 56.8124 99.5746)</p>
+     <li data-md>
+      <p>mixed lightness is 47.9855 * 0.65 + 52.1496 * 0.35 = 49.4429</p>
+     <li data-md>
+      <p>mixed chroma is 31.6903 * 0.65 + 56.8124 * 0.35 = 40.4830</p>
+     <li data-md>
+      <p>mixed hue is 196.4524 * 0.65 + 99.5746 * 0.35 = 162.5452</p>
+     <li data-md>
+      <p>mixed result is lch(49.4429% 40.4830 162.5452)</p>
+     <li data-md>
+      <p>which is a slightly-blueish green: <span class="swatch" style="--color: rgb(7.7377% 52.5730% 37.3213%)"></span>  rgb(7.7377% 52.5730% 37.3213%)</p>
+    </ul>
+   </div>
+   <div class="example" id="ex-mix-zero-sum">
+    <a class="self-link" href="#ex-mix-zero-sum"></a>
+	In this example, both percentages are zero, 
+	so their sum is also zero;
+	thus, the alpha is zero 
+	and the color components are mixed 50% 50%:
+
+	
+<pre class="highlight lang-css"><c- nf>color-mix</c-><c- p>(</c->in oklch<c- p>,</c-> teal <c- m>0</c-><c- k>%</c-><c- p>,</c-> olive <c- m>0</c-><c- k>%</c-><c- p>);</c-></pre>
+    <p>The calculation is as follows:</p>
+    <ul>
+     <li data-md>
+      <p>sRGB teal (#008080) is oklch(54.31% 0.0927 194.8)</p>
+     <li data-md>
+      <p>sRGB olive (#808000) is oklch(58.07% 0.1266 109.8)</p>
+     <li data-md>
+      <p>mixed lightness is 54.31% * 0.5 + 58.07%  * 0.5 = 35.0395%</p>
+     <li data-md>
+      <p>mixed chroma is 0.0927 * 0.5 + 0.1266 * 0.5 = 0.10965</p>
+     <li data-md>
+      <p>mixed hue is 194.8 * 0.5 + 109.8 * 0.5 = 152.3</p>
+     <li data-md>
+      <p>mixed result is the fully transparent color <span class="swatch" style="--color: okch(35.0395%  0.10965 152.3 / 0)"></span>  okch(35.0395%  0.10965 152.3 / 0)</p>
+    </ul>
+   </div>
+   <div class="example" id="ex-mix-three-no-percents">
+    <a class="self-link" href="#ex-mix-three-no-percents"></a>
+	In this example three colors are mixed, 
+	and no percentages are given 
+	so each color contributes one-third of the final result.
+
+	
+<pre class="highlight lang-css"><c- nf>color-mix</c-><c- p>(</c->in oklab<c- p>,</c-> teal<c- p>,</c-> olive<c- p>,</c-> blue<c- p>);</c-></pre>
+    <p>The calculation is as follows:</p>
+    <ul>
+     <li data-md>
+      <p><span class="swatch" style="--color: teal"></span> teal (#008080) is oklab(54.31% -0.0896 -0.0236)</p>
+     <li data-md>
+      <p><span class="swatch" style="--color: olive"></span>  olive (#808000) is oklab(58.07% -0.0428 0.1191)</p>
+     <li data-md>
+      <p><span class="swatch" style="--color: blue"></span>  blue (#0000FF) is oklab(45.20% -0.0325 -0.3115)</p>
+     <li data-md>
+      <p>mixed lightness is (54.31 + 58.07 + 45.20) / 3 = 52.53%</p>
+     <li data-md>
+      <p>mixed a is (-0.0896 + -0.0428 + -0.0325) / 3 = -0.0550</p>
+     <li data-md>
+      <p>mixed b is (-0.0236 + 0.1191 + -0.3115) / 3 = -0.0720</p>
+     <li data-md>
+      <p>mixed result is <span class="swatch" style="--color: rgb(15.62% 45.07% 58.8%)"></span> oklab(52.53% -0.0550 -0.0720)</p>
+    </ul>
+   </div>
+   
