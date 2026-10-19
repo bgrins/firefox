@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>A hyphen before an escaped newline does not start an at-keyword</title>
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#would-start-an-identifier">
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-a-token">
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-a-stylesheets-contents">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let serial = 0;
+function checkRecovery(t, prefix, applies) {
+  const parent = document.createElement("div");
+  parent.style.color = "rgb(0, 128, 0)";
+  const target = document.createElement("span");
+  target.id = "target" + serial++;
+  target.textContent = "target";
+  parent.append(target);
+  const style = document.createElement("style");
+  style.textContent = prefix + "; #" + target.id + " { color: rgb(255, 0, 0); }";
+  document.body.append(parent, style);
+  t.add_cleanup(() => { parent.remove(); style.remove(); });
+  assert_equals(getComputedStyle(parent).color, "rgb(0, 128, 0)", "inherited color calibration");
+  assert_equals(style.sheet.cssRules.length, applies ? 1 : 0, "surviving rule count");
+  assert_equals(getComputedStyle(target).color,
+                applies ? "rgb(255, 0, 0)" : "rgb(0, 128, 0)", "following rule application");
+}
+for (const [label, newline] of [["LF", "\n"], ["CR", "\r"], ["CRLF", "\r\n"], ["FF", "\f"]]) {
+  test(t => checkRecovery(t, "@-\\" + newline, false),
+       "Invalid escaped " + label + " after a hyphen does not form an at-keyword");
+  test(t => checkRecovery(t, "@--\\" + newline, true),
+       "Two hyphens already form an at-keyword before escaped " + label);
+}
+test(t => checkRecovery(t, "@-x", true), "Ordinary at-keyword control");
+test(t => checkRecovery(t, "@-\\a", true), "Hex-escaped newline is a valid identifier character");
+test(t => checkRecovery(t, "@- ", false), "Delimiter hyphen recovery control");
+</script>

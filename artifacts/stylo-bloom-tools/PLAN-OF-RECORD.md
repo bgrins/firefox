@@ -6,11 +6,11 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 Immediate next steps:
 
-1. Finish root and independent review of the original numeric lexical model:
-   maximal prefix, read safety, progress, exact suffix, UTF-8 boundaries and
-   decoded-unit classification. Then bind the exact accepted numeric repair
-   `4391deb4751a8be2be98e838360f00c94808c5d5` and its new slice/FromStr admission. Floating conversion,
-   native libraries and whole-tokenizer correctness remain separate obligations.
+1. Transfer the accepted original numeric lexical model to the repaired source:
+   captured prefix/slice, forward position subtraction, Rust FromStr grammar
+   and normal return, then unchanged lexical/unit projections. Root and
+   independent original-model replays pass 20 modules and 130 audits; full
+   numerical conversion and native library correctness remain open.
 2. Audit complete string and comment providers against CSS Syntax, including
    bad-string recovery, escaped EOF and comment observer state. Preserve known
    expected failures and distinguish tokenizer defects from serialization or
@@ -3163,3 +3163,17 @@ proof of floating-point conversion. The original numeric lexical model now
 has a separate reviewer; final immutable admission and v2 transfer remain next.
 String/comment static auditing proceeds independently.
 Current count: 62 committed repairs, zero accepted repairs awaiting commits.
+
+## Original numeric lexical model accepted conditionally
+
+Root reviewed all ten new Lean modules and independently replayed the frozen
+384-input component. Twenty modules and 130 audits pass, including 73 new
+reports; 90 native cases include 81 direct seven-field comparisons. Independent
+review agrees and qualifies the derived-enum scanner shim. This establishes
+useful model contracts for maximal lexical prefixes, recorded reads, suffixes,
+return boundaries and decoded-unit summaries on the original source.
+
+The payload builder is symbolic, not an independent floating-point oracle.
+The original arithmetic counterexamples remain. Exact current-repair transfer
+is now assigned separately; string/comment provider auditing also continues.
+The accepted native repair count remains 62.

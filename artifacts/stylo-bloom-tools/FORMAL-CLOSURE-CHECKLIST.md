@@ -186,8 +186,10 @@ syn/quote, primitive representation and Rust compiler semantics remain external.
 1. Refine complete name and escape consumption, proving return boundaries and
    positive progress under actual `is_ident_start` admission. Internal byte
    advances need not preserve UTF-8 boundaries.
-2. Refine numeric, string, comment and URL providers, including early returns,
-   owned buffers, invalid tokens and lookahead. Helpers do not all advance.
+2. Transfer numeric lexical refinement to the repaired current source and admit
+   its added slice/conversion path. Refine string, comment and URL providers,
+   including early returns, owned buffers, invalid tokens and lookahead.
+   Helpers do not all advance.
 3. Establish native arithmetic/input-size admission from all persistence paths;
    a local substitution growth guard does not establish a global bound.
 4. Compose the actual raw-token dispatch and fresh-suffix parser states. Public
@@ -237,3 +239,26 @@ metadata outputs are outside the projection. Full input-bound, heap/compiler,
 other-provider and whole-tokenizer obligations remain unchanged.
 
 Evidence: `../css-tokenizer-name-escape-integration-root-v1/ROOT-ACCEPTANCE.json`.
+
+## Original numeric lexical component checkpoint
+
+Root fresh replay and independent review accept the historical original-source
+numeric lexical and decoded-unit model. Twenty modules have 130 standard-axiom
+audits: 57 inherited and 73 new. The component establishes guarded maximal
+prefixes, modeled read bounds, positive count/exact suffix, token-choice order,
+name-decoded units, return markers and selected unit flags. Native replay
+compares 81 rows on seven lexical observations; four native and four Lean
+mutants discriminate. These finite comparisons support source review rather
+than proving a native translation.
+
+The original arithmetic failures remain. Expression-tree equality uses a shared
+symbolic builder, and integer clamp lemmas are conditional branch facts. The
+scanner's derived-enum parser is supplied by an explicitly admitted shim; its
+nine extra control observations do not close that provider. Inherited UTF-8,
+packed metadata, machine arithmetic, heap and compiler boundaries remain.
+
+Current repair62 changes numeric payload construction. Separate integration
+must prove captured prefix/slice and Rust FromStr grammar admission plus
+normal-return conditions before transferring lexical projections. No whole
+tokenizer, floating-point or CSS correctness is claimed.
+Evidence: `../css-tokenizer-numeric-admission-root-v1/ROOT-ACCEPTANCE.json`.
