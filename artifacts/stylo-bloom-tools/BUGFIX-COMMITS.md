@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **62 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **63 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -61,8 +61,21 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | identifier-start-escaped-newline | `09b008b3320fa29fcbcf081b252053e3721c5e10` | `b69763a1817a7a4824e6df0d04e0e4e52684c897` |
 | loaded-fontface-descriptors | `6bd0b00dcff5514a3234423787920ed44491a4bc` | `ae298df56390ff98baa873bfcea3896e6c112d48` |
 | numeric-compensated-exponent | `4391deb4751a8be2be98e838360f00c94808c5d5` | `ddb1799ad54ecdd4528ee894b09c44e80bd6816b` |
+| quoted-eof-fallback-endpoints | `2d658a9c5aa4139dc7f196933511abf4a594163f` | `5faa99644ddc4b49594651a34721119484ec88ef` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
+
+## Quoted EOF endpoint repair
+
+`2d658a9c5aa4139dc7f196933511abf4a594163f` contains only the Rust endpoint correction and its WPT,
+following proof/evidence companion `5faa99644ddc4b49594651a34721119484ec88ef`.
+The baseline content crash becomes 38 passes; all 34 other outcomes are unchanged.
+The patch applies and reverses on the upstream base. Browser testing used the
+shared local tree. The proof covers conditional endpoint arithmetic; it does
+not close the full parser/provider model. Parity and escaped-quote value defects
+remain separate pending repairs. See
+[acceptance](../css-quoted-eof-offset-root-v1/ROOT-SCOPED-ACCEPTANCE.json) and
+[commit check](../css-quoted-eof-offset-root-v1/ROOT-COMMIT-CHECK.json).
 
 ## Test-only corrections
 

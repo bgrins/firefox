@@ -14,12 +14,11 @@ Three quoted-EOF recovery leads are reproduced on the pinned shared build:
 The two value errors produce eight failures with fourteen passing controls;
 the endpoint case crashes in `do_substitute_chunk`. Keep three independently
 reviewable native/WPT repairs with preceding proof/tooling. The endpoint WPT
-uses odd terminal runs to avoid depending on the parity correction. The endpoint repair is now accepted and queued for its native/WPT commit:
+uses odd terminal runs to avoid depending on the parity correction. The endpoint repair is committed as `2d658a9c5aa4139dc7f196933511abf4a594163f`:
 38 browser checks pass after the baseline crash, with 34 other outcomes
 unchanged. Root and independent replay pass ten conditional arithmetic lemmas,
 40 source cases and 360 additional independent cases. The two semantic repairs
-are sealed proposals under separate review. The committed native count remains
-62 until the endpoint commit is created.
+are sealed proposals under separate review. There are now 63 committed native/WPT fixes.
 Evidence: css-quoted-eof-fallback-probe-v1/ROOT-BASELINE.json and
 css-quoted-eof-semantics-probe-v1/ROOT-BASELINE.json.
 
@@ -73,7 +72,7 @@ close these obligations.
 
 ## Earlier proof checkpoints
 
-There are 62 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
+There are 63 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
