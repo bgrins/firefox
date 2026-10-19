@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **76 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **77 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -75,6 +75,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | custom-property-live-count | `0cac5c270615d04239bd4a4024a3ab5ffd0d24ae` | `d9d1047dd4b1592794229f3f7f7610ddedfd9aba` |
 | custom-property-enumeration-shadowing | `90ffac0a5e4076b6117ca152249f342a13995ee3` | `215c881ef243f0268be11836d6c2a45e91b29b6f` |
 | custom-property-equal-payload-taint | `e04d672a735edcf0e6529c854207b5ee9555ea7c` | `01c98e4fd49ed6061c1a7ebdd87c124cd2b77254` |
+| attr-taint-half-open-ranges | `8c04b6787e36c9ee42fec440103cf33372c097f1` | `91e709f931abf5ef2d59a77158f66662500bd2ff` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1755,6 +1756,28 @@ preceded this formalization.
 [Acceptance](../css-custom-properties-map-taint-acceptance-v1/ACCEPTANCE.json) and
 [commit check](../css-custom-properties-map-taint-root-v1/ROOT-COMMIT-CHECK.json).
 
-Separate uncommitted candidates: adjacent URL/tainted-resolution ranges reproduce
-one failure with four controls passing; equal-payload keyframe replacement
-reproduces two failures with four controls passing. Neither is counted above.
+The range candidate below is now committed. Equal-payload keyframe replacement
+remains separate: two failures with four controls passing, not counted above.
+
+## Fix 77: use half-open byte ranges for attribute-tainted URLs
+
+Native + WPT: `8c04b6787e36c9ee42fec440103cf33372c097f1`, following proof/runtime companion
+`91e709f931abf5ef2d59a77158f66662500bd2ff`. The two-file commit changes one overlap expression
+and adds a seven-case WPT. Min/max intersection rejects touching and empty spans
+while preserving genuinely shared bytes and existing whole-substitution taint.
+
+Two final URL-adjacency failures become passes; all 89 local checks pass in ten
+harnesses. Baseline is the joined validated 82-case run and seven-case diagnostic
+on identical binaries. Independent runtime/source/dependency review and exact
+upstream patch apply/reverse passed. No isolated upstream runtime is claimed.
+
+Fourteen Lean results characterize overlap by existence of a shared byte and
+compose finite taint lists. Extracted original/candidate methods yield 146/0
+mismatches across 441 pairs; an independent strict-pairwise mutation leaves 40
+mismatches. Range producers, URL parser positions, SmallVec/compiler and full
+native behavior remain outside the proved helper contract.
+
+Discovery came from reviewing the source-shaped range observer used in the taint
+proof, followed by source investigation and browser reproduction.
+[Acceptance](../css-attr-taint-touching-ranges-final-root-v1/ACCEPTANCE.json) and
+[commit check](../css-attr-taint-touching-ranges-final-root-v1/ROOT-COMMIT-CHECK.json).

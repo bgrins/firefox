@@ -9,6 +9,19 @@ of the proof obligations below.
 
 ## Latest component progress
 
+The metadata shortcut component and its map-history composition are accepted
+within scope: 31 shortcut audits plus nine new history results connect
+payload-and-taint equality to finite map updates, nearest-owner lookup and
+indexed observations. They do not derive the native payload/URL-data quotient,
+state-dependent cascade eligibility, reference-free substitution provider,
+Arc/COW representation or complete registration routing.
+
+The separate half-open range component proves 14 interval/list results,
+including overlap iff a shared byte exists. Extracted Rust comparisons and
+89 passing browser checks support the corresponding repair. Actual producer
+offsets, URL parser span placement, compiler/SmallVec behavior and the entire
+substitution pipeline remain open. Neither component proves all URL behavior.
+
 Root freshly replayed the observer/provider extension: 58 modules and all 33 new
 standard-axiom theorem audits pass. Raw pre-guard observations are preserved
 alongside evaluator state; modeled bucket construction supplies important-event

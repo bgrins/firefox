@@ -4,14 +4,12 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **76 committed native/WPT fixes.** The management index is
+- **77 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest repair:** equal-payload custom-property taint (`e04d672a735e`),
-  independently packaged as two Rust changes and a nine-case WPT. The paired
-  local matrix improves 78 PASS / 4 FAIL to 82 PASS; scoped proof/review precedes
-  the native commit. Count/iterator repairs and their standalone alternative
-  remain in the ledger.
+- **Latest repairs:** equal-payload custom-property taint (`e04d672a735e`) and
+  half-open URL taint ranges (`8c04b6787e36`). Each has a standalone native/WPT
+  commit and preceding evidence. The latest local matrix passes all 89 checks.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.
@@ -120,13 +118,12 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Repair the two new independently reproduced taint candidates, each with its
-   own native/WPT commit: touching URL/tainted-resolution byte ranges (1 FAIL /
-   4 PASS) and equal-payload keyframe replacement (2 FAIL / 4 PASS). The range
-   candidate has a one-expression proposal, 14 draft range proofs and extracted
-   Rust checks; native candidate runtime/review remain. Animation needs a minimal
-   comparison repair and a standalone provider/dependency audit. Evidence is in
-   `../css-attr-taint-touching-ranges-root-v1/` and
+1. Repair equal-payload keyframe replacement: the current six-case diagnostic
+   has two failures with four controls passing. A source proposal confines
+   metadata-aware comparison to retained animation endpoints. A CSS-wide
+   endpoint test avoids the earlier typed-keyframe constructor repair, but
+   publication may require the map portion of fix76; keep exact standalone
+   support explicit and verify runtime before acceptance. Evidence is in
    `../css-custom-properties-animation-taint-root-v1/`.
 2. Compose the declaration helper's saved-query/short-circuit paths after the
    accepted skip/next wrapper and production entry component;
@@ -274,5 +271,8 @@ CSSOM slice; use the property/dependency pilot to reach an ordinary box/layout
 observation before expanding independent families. The [third research pass](../css-whole-spec-feasibility-v3/README.md) is reviewed
 and authenticated: versioned normative views, persistent permitted choices,
 phase/owner-aware interfaces, observation-specific sampling and transitive
-assumption closure. It adds research proposals, not coverage claims. Comparator-to-map-history composition now
-has nine new results and three compiled mutants; independent review remains.
+assumption closure. It adds research proposals, not coverage claims. Comparator-to-map-history composition is accepted after root and independent
+fresh replay: nine new results and three compiled mutants connect payload and
+taint to lookup and indexed observations of already-computed map updates.
+Full native provider/COW and CSSOM routing admissions remain.
+[Acceptance](../css-custom-properties-map-taint-history-root-v1/ACCEPTANCE.json).
