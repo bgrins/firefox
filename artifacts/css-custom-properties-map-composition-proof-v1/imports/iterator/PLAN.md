@@ -1,0 +1,1 @@
+Prove actual cursor/descendant traversal refines independent nearest-owner enumeration on arbitrary finite chains. Preserve Option tombstones. Require per-node key uniqueness from IndexMap; require separately correct stored length for get_index. Native map lifecycle, live-value counting, heap and compiler refinement remain outside this component.

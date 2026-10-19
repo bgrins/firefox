@@ -1,0 +1,542 @@
+[
+  {
+    "variant": "original",
+    "impl": "impl Default for CustomPropertiesMap {",
+    "name": "default",
+    "start_byte": 788,
+    "end_byte": 848,
+    "body": "    fn default() -> Self {\n        Self(EMPTY.clone())\n    }",
+    "sha256": "66ee095584891a678f4251d5e51375a566c3454e8345b3532238de0904feaa5d",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl<'a> Iterator for Iter<'a> {",
+    "name": "next",
+    "start_byte": 2058,
+    "end_byte": 2861,
+    "body": "    fn next(&mut self) -> Option<Self::Item> {\n        loop {\n            let (name, value) = match self.current_iter.next() {\n                Some(v) => v,\n                None => {\n                    let parent = self.current.parent.as_deref()?;\n                    self.descendants.push(self.current);\n                    self.current = parent;\n                    self.current_iter = parent.own_properties.iter();\n                    continue;\n                },\n            };\n            // If the property is overridden by a descendant we've already visited it.\n            for descendant in &self.descendants {\n                if descendant.own_properties.contains_key(name) {\n                    continue;\n                }\n            }\n            return Some((name, value));\n        }\n    }",
+    "sha256": "2a86e09b11458f5a50ee638000a472d21b486f7cb2a049e21a33c188a2621861",
+    "scope": "proof bridge"
+  },
+  {
+    "variant": "original",
+    "impl": "impl PartialEq for Inner {",
+    "name": "eq",
+    "start_byte": 3432,
+    "end_byte": 4894,
+    "body": "    fn eq(&self, other: &Self) -> bool {\n        if self.len != other.len {\n            return false;\n        }\n        // NOTE(emilio): In order to speed up custom property comparison when tons of custom\n        // properties are involved, we return false in some cases where the ordering might be\n        // different, but the computed values end up being the same.\n        //\n        // This is a performance trade-off, on the assumption that if the ordering is different,\n        // there's likely a different value as well, but might over-invalidate.\n        //\n        // Doing the slow thing (checking all the keys) shows up a lot in profiles, see bug 1926423.\n        //\n        // Note that self.own_properties != other.own_properties is not the same, as by default\n        // IndexMap comparison is not order-aware.\n        //\n        // Note also that for this comparison we do care about e.g. attribute-tainting being\n        // different.\n        {\n            let own = self.own_properties.as_slice();\n            let other = other.own_properties.as_slice();\n            if own.len() != other.len() {\n                return false;\n            }\n            for ((own_k, own_v), (other_k, other_v)) in own.iter().zip(other.iter()) {\n                if own_k != other_k || !can_deduplicate_values(own_v.as_ref(), other_v.as_ref()) {\n                    return false;\n                }\n            }\n        }\n        self.parent == other.parent\n    }",
+    "sha256": "afd1f597756b525d98f8a275cbbeb1f871ab2bcccaa43fcb82f5dcbab04eafea",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl Inner {",
+    "name": "iter",
+    "start_byte": 4911,
+    "end_byte": 5100,
+    "body": "    fn iter(&self) -> Iter<'_> {\n        Iter {\n            current: self,\n            current_iter: self.own_properties.iter(),\n            descendants: Default::default(),\n        }\n    }",
+    "sha256": "07665f858d356c0f71f0de84b1bc3060fddf99772ca9022cc33c1d2d810c7b56",
+    "scope": "proof bridge"
+  },
+  {
+    "variant": "original",
+    "impl": "impl Inner {",
+    "name": "is_empty",
+    "start_byte": 5102,
+    "end_byte": 5162,
+    "body": "    fn is_empty(&self) -> bool {\n        self.len == 0\n    }",
+    "sha256": "d8d178b02059b3bc49674b0f10273594015a1b211bd76c8e6ec2796d1499fb0e",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl Inner {",
+    "name": "len",
+    "start_byte": 5164,
+    "end_byte": 5215,
+    "body": "    fn len(&self) -> usize {\n        self.len\n    }",
+    "sha256": "32a2d04627a10cb6baa38ed95f649636dfeaf420832283c406c4ec75e00afd73",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl Inner {",
+    "name": "get",
+    "start_byte": 5217,
+    "end_byte": 5429,
+    "body": "    fn get(&self, name: &Name) -> Option<&ComputedRegisteredValue> {\n        if let Some(p) = self.own_properties.get(name) {\n            return p.as_ref();\n        }\n        self.parent.as_ref()?.get(name)\n    }",
+    "sha256": "edc75ae1a4bce0ff3eb06d6b7f8d7ed089d088810cb1ecb6dab541099e4ee196",
+    "scope": "proof bridge"
+  },
+  {
+    "variant": "original",
+    "impl": "impl Inner {",
+    "name": "insert",
+    "start_byte": 5431,
+    "end_byte": 5709,
+    "body": "    fn insert(&mut self, name: &Name, value: Option<ComputedRegisteredValue>) {\n        let new = self.own_properties.insert(name.clone(), value).is_none();\n        if new && self.parent.as_ref().is_none_or(|p| p.get(name).is_none()) {\n            self.len += 1;\n        }\n    }",
+    "sha256": "b6a163c3776f660079d5f0b27dd1b96736c4771b937318b354945af5ccb8440f",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl Inner {",
+    "name": "should_expand_chain",
+    "start_byte": 5778,
+    "end_byte": 6061,
+    "body": "    fn should_expand_chain(&self) -> bool {\n        const SMALL_THRESHOLD: usize = 8;\n        if self.own_properties.len() <= SMALL_THRESHOLD {\n            return false; // Just copy, to avoid very long chains.\n        }\n        self.ancestor_count < ANCESTOR_COUNT_LIMIT as u8\n    }",
+    "sha256": "a0e36244d7803229f6c71f37a67446d5b368e53125d55428cf0c95e8c3459861",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "is_empty",
+    "start_byte": 6149,
+    "end_byte": 6217,
+    "body": "    pub fn is_empty(&self) -> bool {\n        self.0.is_empty()\n    }",
+    "sha256": "328e4f4fd5948bb3fc261216fc3616bd294c9dfc07c197c9156c08c44d84a11f",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "len",
+    "start_byte": 6282,
+    "end_byte": 6341,
+    "body": "    pub fn len(&self) -> usize {\n        self.0.len()\n    }",
+    "sha256": "94c8bfb661ee10a026f10ee496d229492284bc6a9ecfaad79ec514562d8944e1",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "get_index",
+    "start_byte": 6405,
+    "end_byte": 6667,
+    "body": "    pub fn get_index(&self, index: usize) -> Option<(&Name, &Option<ComputedRegisteredValue>)> {\n        if index >= self.len() {\n            return None;\n        }\n        // FIXME: This is O(n) which is a bit unfortunate.\n        self.0.iter().nth(index)\n    }",
+    "sha256": "bf4ad94bdc1c1ed9787dc26200bcd5fbb4ca9d5468bc3ece97dc743908d353a6",
+    "scope": "proof bridge"
+  },
+  {
+    "variant": "original",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "get",
+    "start_byte": 6717,
+    "end_byte": 6820,
+    "body": "    pub fn get(&self, name: &Name) -> Option<&ComputedRegisteredValue> {\n        self.0.get(name)\n    }",
+    "sha256": "5548788b2aa0df6e8a9a404aa81721c6f00d7dfe401eedef718b5f19148edee5",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "do_insert",
+    "start_byte": 6822,
+    "end_byte": 7621,
+    "body": "    fn do_insert(&mut self, name: &Name, value: Option<ComputedRegisteredValue>) {\n        if let Some(inner) = Arc::get_mut(&mut self.0) {\n            return inner.insert(name, value);\n        }\n        if self.get(name) == value.as_ref() {\n            return;\n        }\n        if !self.0.should_expand_chain() {\n            return Arc::make_mut(&mut self.0).insert(name, value);\n        }\n        let len = self.0.len;\n        let ancestor_count = self.0.ancestor_count + 1;\n        let mut new_inner = Inner {\n            own_properties: Default::default(),\n            // FIXME: Would be nice to avoid this clone.\n            parent: Some(self.0.clone()),\n            len,\n            ancestor_count,\n        };\n        new_inner.insert(name, value);\n        self.0 = Arc::new(new_inner);\n    }",
+    "sha256": "73f75daf962b994b1adbb29a2e2dc4ebebf1ba8462f1a1796329abc27414da88",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "insert",
+    "start_byte": 7662,
+    "end_byte": 7785,
+    "body": "    pub fn insert(&mut self, name: &Name, value: ComputedRegisteredValue) {\n        self.do_insert(name, Some(value))\n    }",
+    "sha256": "7d8ec75a0f62d48f402785e3f6dc172812078410afa9597a85de6d0192773b99",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "remove",
+    "start_byte": 7828,
+    "end_byte": 7912,
+    "body": "    pub fn remove(&mut self, name: &Name) {\n        self.do_insert(name, None)\n    }",
+    "sha256": "c28f648fadb7137a9d62d7821ec6eb618c4e6a316e1b167fff2d7f63fe0cfefb",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "shrink_to_fit",
+    "start_byte": 7959,
+    "end_byte": 8118,
+    "body": "    pub fn shrink_to_fit(&mut self) {\n        if let Some(inner) = Arc::get_mut(&mut self.0) {\n            inner.own_properties.shrink_to_fit()\n        }\n    }",
+    "sha256": "594265e6bafb7a2cf2b3eb13f1a8ed66f0eb80665cbbdde27556fd3d0a73136b",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "original",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "iter",
+    "start_byte": 8174,
+    "end_byte": 8238,
+    "body": "    pub fn iter(&self) -> Iter<'_> {\n        self.0.iter()\n    }",
+    "sha256": "fe1454b6da044b814db3ea6335362088a469344d8cf6728d52ecd080f87861dc",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl Default for CustomPropertiesMap {",
+    "name": "default",
+    "start_byte": 788,
+    "end_byte": 848,
+    "body": "    fn default() -> Self {\n        Self(EMPTY.clone())\n    }",
+    "sha256": "66ee095584891a678f4251d5e51375a566c3454e8345b3532238de0904feaa5d",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl<'a> Iterator for Iter<'a> {",
+    "name": "next",
+    "start_byte": 2058,
+    "end_byte": 2886,
+    "body": "    fn next(&mut self) -> Option<Self::Item> {\n        'properties: loop {\n            let (name, value) = match self.current_iter.next() {\n                Some(v) => v,\n                None => {\n                    let parent = self.current.parent.as_deref()?;\n                    self.descendants.push(self.current);\n                    self.current = parent;\n                    self.current_iter = parent.own_properties.iter();\n                    continue;\n                },\n            };\n            // If the property is overridden by a descendant we've already visited it.\n            for descendant in &self.descendants {\n                if descendant.own_properties.contains_key(name) {\n                    continue 'properties;\n                }\n            }\n            return Some((name, value));\n        }\n    }",
+    "sha256": "805cec9adbb689f149a4be20c9bd4742347baa1e1c7d89f9731918b9c400b045",
+    "scope": "proof bridge"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl PartialEq for Inner {",
+    "name": "eq",
+    "start_byte": 3457,
+    "end_byte": 4919,
+    "body": "    fn eq(&self, other: &Self) -> bool {\n        if self.len != other.len {\n            return false;\n        }\n        // NOTE(emilio): In order to speed up custom property comparison when tons of custom\n        // properties are involved, we return false in some cases where the ordering might be\n        // different, but the computed values end up being the same.\n        //\n        // This is a performance trade-off, on the assumption that if the ordering is different,\n        // there's likely a different value as well, but might over-invalidate.\n        //\n        // Doing the slow thing (checking all the keys) shows up a lot in profiles, see bug 1926423.\n        //\n        // Note that self.own_properties != other.own_properties is not the same, as by default\n        // IndexMap comparison is not order-aware.\n        //\n        // Note also that for this comparison we do care about e.g. attribute-tainting being\n        // different.\n        {\n            let own = self.own_properties.as_slice();\n            let other = other.own_properties.as_slice();\n            if own.len() != other.len() {\n                return false;\n            }\n            for ((own_k, own_v), (other_k, other_v)) in own.iter().zip(other.iter()) {\n                if own_k != other_k || !can_deduplicate_values(own_v.as_ref(), other_v.as_ref()) {\n                    return false;\n                }\n            }\n        }\n        self.parent == other.parent\n    }",
+    "sha256": "afd1f597756b525d98f8a275cbbeb1f871ab2bcccaa43fcb82f5dcbab04eafea",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl Inner {",
+    "name": "iter",
+    "start_byte": 4936,
+    "end_byte": 5125,
+    "body": "    fn iter(&self) -> Iter<'_> {\n        Iter {\n            current: self,\n            current_iter: self.own_properties.iter(),\n            descendants: Default::default(),\n        }\n    }",
+    "sha256": "07665f858d356c0f71f0de84b1bc3060fddf99772ca9022cc33c1d2d810c7b56",
+    "scope": "proof bridge"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl Inner {",
+    "name": "is_empty",
+    "start_byte": 5127,
+    "end_byte": 5187,
+    "body": "    fn is_empty(&self) -> bool {\n        self.len == 0\n    }",
+    "sha256": "d8d178b02059b3bc49674b0f10273594015a1b211bd76c8e6ec2796d1499fb0e",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl Inner {",
+    "name": "len",
+    "start_byte": 5189,
+    "end_byte": 5240,
+    "body": "    fn len(&self) -> usize {\n        self.len\n    }",
+    "sha256": "32a2d04627a10cb6baa38ed95f649636dfeaf420832283c406c4ec75e00afd73",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl Inner {",
+    "name": "get",
+    "start_byte": 5242,
+    "end_byte": 5454,
+    "body": "    fn get(&self, name: &Name) -> Option<&ComputedRegisteredValue> {\n        if let Some(p) = self.own_properties.get(name) {\n            return p.as_ref();\n        }\n        self.parent.as_ref()?.get(name)\n    }",
+    "sha256": "edc75ae1a4bce0ff3eb06d6b7f8d7ed089d088810cb1ecb6dab541099e4ee196",
+    "scope": "proof bridge"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl Inner {",
+    "name": "insert",
+    "start_byte": 5456,
+    "end_byte": 5734,
+    "body": "    fn insert(&mut self, name: &Name, value: Option<ComputedRegisteredValue>) {\n        let new = self.own_properties.insert(name.clone(), value).is_none();\n        if new && self.parent.as_ref().is_none_or(|p| p.get(name).is_none()) {\n            self.len += 1;\n        }\n    }",
+    "sha256": "b6a163c3776f660079d5f0b27dd1b96736c4771b937318b354945af5ccb8440f",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl Inner {",
+    "name": "should_expand_chain",
+    "start_byte": 5803,
+    "end_byte": 6086,
+    "body": "    fn should_expand_chain(&self) -> bool {\n        const SMALL_THRESHOLD: usize = 8;\n        if self.own_properties.len() <= SMALL_THRESHOLD {\n            return false; // Just copy, to avoid very long chains.\n        }\n        self.ancestor_count < ANCESTOR_COUNT_LIMIT as u8\n    }",
+    "sha256": "a0e36244d7803229f6c71f37a67446d5b368e53125d55428cf0c95e8c3459861",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "is_empty",
+    "start_byte": 6174,
+    "end_byte": 6242,
+    "body": "    pub fn is_empty(&self) -> bool {\n        self.0.is_empty()\n    }",
+    "sha256": "328e4f4fd5948bb3fc261216fc3616bd294c9dfc07c197c9156c08c44d84a11f",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "len",
+    "start_byte": 6307,
+    "end_byte": 6366,
+    "body": "    pub fn len(&self) -> usize {\n        self.0.len()\n    }",
+    "sha256": "94c8bfb661ee10a026f10ee496d229492284bc6a9ecfaad79ec514562d8944e1",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "get_index",
+    "start_byte": 6430,
+    "end_byte": 6692,
+    "body": "    pub fn get_index(&self, index: usize) -> Option<(&Name, &Option<ComputedRegisteredValue>)> {\n        if index >= self.len() {\n            return None;\n        }\n        // FIXME: This is O(n) which is a bit unfortunate.\n        self.0.iter().nth(index)\n    }",
+    "sha256": "bf4ad94bdc1c1ed9787dc26200bcd5fbb4ca9d5468bc3ece97dc743908d353a6",
+    "scope": "proof bridge"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "get",
+    "start_byte": 6742,
+    "end_byte": 6845,
+    "body": "    pub fn get(&self, name: &Name) -> Option<&ComputedRegisteredValue> {\n        self.0.get(name)\n    }",
+    "sha256": "5548788b2aa0df6e8a9a404aa81721c6f00d7dfe401eedef718b5f19148edee5",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "do_insert",
+    "start_byte": 6847,
+    "end_byte": 7646,
+    "body": "    fn do_insert(&mut self, name: &Name, value: Option<ComputedRegisteredValue>) {\n        if let Some(inner) = Arc::get_mut(&mut self.0) {\n            return inner.insert(name, value);\n        }\n        if self.get(name) == value.as_ref() {\n            return;\n        }\n        if !self.0.should_expand_chain() {\n            return Arc::make_mut(&mut self.0).insert(name, value);\n        }\n        let len = self.0.len;\n        let ancestor_count = self.0.ancestor_count + 1;\n        let mut new_inner = Inner {\n            own_properties: Default::default(),\n            // FIXME: Would be nice to avoid this clone.\n            parent: Some(self.0.clone()),\n            len,\n            ancestor_count,\n        };\n        new_inner.insert(name, value);\n        self.0 = Arc::new(new_inner);\n    }",
+    "sha256": "73f75daf962b994b1adbb29a2e2dc4ebebf1ba8462f1a1796329abc27414da88",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "insert",
+    "start_byte": 7687,
+    "end_byte": 7810,
+    "body": "    pub fn insert(&mut self, name: &Name, value: ComputedRegisteredValue) {\n        self.do_insert(name, Some(value))\n    }",
+    "sha256": "7d8ec75a0f62d48f402785e3f6dc172812078410afa9597a85de6d0192773b99",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "remove",
+    "start_byte": 7853,
+    "end_byte": 7937,
+    "body": "    pub fn remove(&mut self, name: &Name) {\n        self.do_insert(name, None)\n    }",
+    "sha256": "c28f648fadb7137a9d62d7821ec6eb618c4e6a316e1b167fff2d7f63fe0cfefb",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "shrink_to_fit",
+    "start_byte": 7984,
+    "end_byte": 8143,
+    "body": "    pub fn shrink_to_fit(&mut self) {\n        if let Some(inner) = Arc::get_mut(&mut self.0) {\n            inner.own_properties.shrink_to_fit()\n        }\n    }",
+    "sha256": "594265e6bafb7a2cf2b3eb13f1a8ed66f0eb80665cbbdde27556fd3d0a73136b",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "candidate",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "iter",
+    "start_byte": 8199,
+    "end_byte": 8263,
+    "body": "    pub fn iter(&self) -> Iter<'_> {\n        self.0.iter()\n    }",
+    "sha256": "fe1454b6da044b814db3ea6335362088a469344d8cf6728d52ecd080f87861dc",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl Default for CustomPropertiesMap {",
+    "name": "default",
+    "start_byte": 788,
+    "end_byte": 848,
+    "body": "    fn default() -> Self {\n        Self(EMPTY.clone())\n    }",
+    "sha256": "66ee095584891a678f4251d5e51375a566c3454e8345b3532238de0904feaa5d",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl<'a> Iterator for Iter<'a> {",
+    "name": "next",
+    "start_byte": 2062,
+    "end_byte": 2890,
+    "body": "    fn next(&mut self) -> Option<Self::Item> {\n        'properties: loop {\n            let (name, value) = match self.current_iter.next() {\n                Some(v) => v,\n                None => {\n                    let parent = self.current.parent.as_deref()?;\n                    self.descendants.push(self.current);\n                    self.current = parent;\n                    self.current_iter = parent.own_properties.iter();\n                    continue;\n                },\n            };\n            // If the property is overridden by a descendant we've already visited it.\n            for descendant in &self.descendants {\n                if descendant.own_properties.contains_key(name) {\n                    continue 'properties;\n                }\n            }\n            return Some((name, value));\n        }\n    }",
+    "sha256": "805cec9adbb689f149a4be20c9bd4742347baa1e1c7d89f9731918b9c400b045",
+    "scope": "proof bridge"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl PartialEq for Inner {",
+    "name": "eq",
+    "start_byte": 3461,
+    "end_byte": 4923,
+    "body": "    fn eq(&self, other: &Self) -> bool {\n        if self.len != other.len {\n            return false;\n        }\n        // NOTE(emilio): In order to speed up custom property comparison when tons of custom\n        // properties are involved, we return false in some cases where the ordering might be\n        // different, but the computed values end up being the same.\n        //\n        // This is a performance trade-off, on the assumption that if the ordering is different,\n        // there's likely a different value as well, but might over-invalidate.\n        //\n        // Doing the slow thing (checking all the keys) shows up a lot in profiles, see bug 1926423.\n        //\n        // Note that self.own_properties != other.own_properties is not the same, as by default\n        // IndexMap comparison is not order-aware.\n        //\n        // Note also that for this comparison we do care about e.g. attribute-tainting being\n        // different.\n        {\n            let own = self.own_properties.as_slice();\n            let other = other.own_properties.as_slice();\n            if own.len() != other.len() {\n                return false;\n            }\n            for ((own_k, own_v), (other_k, other_v)) in own.iter().zip(other.iter()) {\n                if own_k != other_k || !can_deduplicate_values(own_v.as_ref(), other_v.as_ref()) {\n                    return false;\n                }\n            }\n        }\n        self.parent == other.parent\n    }",
+    "sha256": "afd1f597756b525d98f8a275cbbeb1f871ab2bcccaa43fcb82f5dcbab04eafea",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl Inner {",
+    "name": "iter",
+    "start_byte": 4940,
+    "end_byte": 5129,
+    "body": "    fn iter(&self) -> Iter<'_> {\n        Iter {\n            current: self,\n            current_iter: self.own_properties.iter(),\n            descendants: Default::default(),\n        }\n    }",
+    "sha256": "07665f858d356c0f71f0de84b1bc3060fddf99772ca9022cc33c1d2d810c7b56",
+    "scope": "proof bridge"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl Inner {",
+    "name": "is_empty",
+    "start_byte": 5131,
+    "end_byte": 5191,
+    "body": "    fn is_empty(&self) -> bool {\n        self.len == 0\n    }",
+    "sha256": "d8d178b02059b3bc49674b0f10273594015a1b211bd76c8e6ec2796d1499fb0e",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl Inner {",
+    "name": "len",
+    "start_byte": 5193,
+    "end_byte": 5244,
+    "body": "    fn len(&self) -> usize {\n        self.len\n    }",
+    "sha256": "32a2d04627a10cb6baa38ed95f649636dfeaf420832283c406c4ec75e00afd73",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl Inner {",
+    "name": "get",
+    "start_byte": 5246,
+    "end_byte": 5458,
+    "body": "    fn get(&self, name: &Name) -> Option<&ComputedRegisteredValue> {\n        if let Some(p) = self.own_properties.get(name) {\n            return p.as_ref();\n        }\n        self.parent.as_ref()?.get(name)\n    }",
+    "sha256": "edc75ae1a4bce0ff3eb06d6b7f8d7ed089d088810cb1ecb6dab541099e4ee196",
+    "scope": "proof bridge"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl Inner {",
+    "name": "insert",
+    "start_byte": 5460,
+    "end_byte": 5781,
+    "body": "    fn insert(&mut self, name: &Name, value: Option<ComputedRegisteredValue>) {\n        match (self.get(name).is_some(), value.is_some()) {\n            (false, true) => self.len += 1,\n            (true, false) => self.len -= 1,\n            _ => {},\n        }\n        self.own_properties.insert(name.clone(), value);\n    }",
+    "sha256": "68753b8e88a5b7001491d08e7d208851ca8ded5dadfc30f4509679b9e9f97ca4",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl Inner {",
+    "name": "should_expand_chain",
+    "start_byte": 5850,
+    "end_byte": 6133,
+    "body": "    fn should_expand_chain(&self) -> bool {\n        const SMALL_THRESHOLD: usize = 8;\n        if self.own_properties.len() <= SMALL_THRESHOLD {\n            return false; // Just copy, to avoid very long chains.\n        }\n        self.ancestor_count < ANCESTOR_COUNT_LIMIT as u8\n    }",
+    "sha256": "a0e36244d7803229f6c71f37a67446d5b368e53125d55428cf0c95e8c3459861",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "is_empty",
+    "start_byte": 6221,
+    "end_byte": 6289,
+    "body": "    pub fn is_empty(&self) -> bool {\n        self.0.is_empty()\n    }",
+    "sha256": "328e4f4fd5948bb3fc261216fc3616bd294c9dfc07c197c9156c08c44d84a11f",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "len",
+    "start_byte": 6357,
+    "end_byte": 6416,
+    "body": "    pub fn len(&self) -> usize {\n        self.0.len()\n    }",
+    "sha256": "94c8bfb661ee10a026f10ee496d229492284bc6a9ecfaad79ec514562d8944e1",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "get_index",
+    "start_byte": 6480,
+    "end_byte": 6818,
+    "body": "    pub fn get_index(&self, index: usize) -> Option<(&Name, &Option<ComputedRegisteredValue>)> {\n        if index >= self.len() {\n            return None;\n        }\n        // FIXME: This is O(n) which is a bit unfortunate.\n        self.0\n            .iter()\n            .filter(|(_, value)| value.is_some())\n            .nth(index)\n    }",
+    "sha256": "c4b155fac62716186e0dfd14e2a2d48bc1872b7aedc81d04704e5fc017025d53",
+    "scope": "proof bridge"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "get",
+    "start_byte": 6868,
+    "end_byte": 6971,
+    "body": "    pub fn get(&self, name: &Name) -> Option<&ComputedRegisteredValue> {\n        self.0.get(name)\n    }",
+    "sha256": "5548788b2aa0df6e8a9a404aa81721c6f00d7dfe401eedef718b5f19148edee5",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "do_insert",
+    "start_byte": 6973,
+    "end_byte": 7772,
+    "body": "    fn do_insert(&mut self, name: &Name, value: Option<ComputedRegisteredValue>) {\n        if let Some(inner) = Arc::get_mut(&mut self.0) {\n            return inner.insert(name, value);\n        }\n        if self.get(name) == value.as_ref() {\n            return;\n        }\n        if !self.0.should_expand_chain() {\n            return Arc::make_mut(&mut self.0).insert(name, value);\n        }\n        let len = self.0.len;\n        let ancestor_count = self.0.ancestor_count + 1;\n        let mut new_inner = Inner {\n            own_properties: Default::default(),\n            // FIXME: Would be nice to avoid this clone.\n            parent: Some(self.0.clone()),\n            len,\n            ancestor_count,\n        };\n        new_inner.insert(name, value);\n        self.0 = Arc::new(new_inner);\n    }",
+    "sha256": "73f75daf962b994b1adbb29a2e2dc4ebebf1ba8462f1a1796329abc27414da88",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "insert",
+    "start_byte": 7813,
+    "end_byte": 7936,
+    "body": "    pub fn insert(&mut self, name: &Name, value: ComputedRegisteredValue) {\n        self.do_insert(name, Some(value))\n    }",
+    "sha256": "7d8ec75a0f62d48f402785e3f6dc172812078410afa9597a85de6d0192773b99",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "remove",
+    "start_byte": 7979,
+    "end_byte": 8063,
+    "body": "    pub fn remove(&mut self, name: &Name) {\n        self.do_insert(name, None)\n    }",
+    "sha256": "c28f648fadb7137a9d62d7821ec6eb618c4e6a316e1b167fff2d7f63fe0cfefb",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "shrink_to_fit",
+    "start_byte": 8110,
+    "end_byte": 8269,
+    "body": "    pub fn shrink_to_fit(&mut self) {\n        if let Some(inner) = Arc::get_mut(&mut self.0) {\n            inner.own_properties.shrink_to_fit()\n        }\n    }",
+    "sha256": "594265e6bafb7a2cf2b3eb13f1a8ed66f0eb80665cbbdde27556fd3d0a73136b",
+    "scope": "retained context, not count/COW proof"
+  },
+  {
+    "variant": "combined",
+    "impl": "impl CustomPropertiesMap {",
+    "name": "iter",
+    "start_byte": 8325,
+    "end_byte": 8389,
+    "body": "    pub fn iter(&self) -> Iter<'_> {\n        self.0.iter()\n    }",
+    "sha256": "fe1454b6da044b814db3ea6335362088a469344d8cf6728d52ecd080f87861dc",
+    "scope": "retained context, not count/COW proof"
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "original-inner-continue",
+    "old": "if shadow ds e.1 then walk ds cur rest ps",
+    "new": "if false then walk ds cur rest ps",
+    "meaning": "Checks descendants but fails to skip ancestral entry"
+  },
+  {
+    "id": "forget-visited-node",
+    "old": "walk (ds ++ [cur]) p p rest",
+    "new": "walk ds p p rest",
+    "meaning": "Parent advance omits completed descendant from shadow checks"
+  },
+  {
+    "id": "tombstone-not-owner",
+    "old": "n.any (fun e => e.1 == k)",
+    "new": "n.any (fun e => e.1 == k && e.2.isSome)",
+    "meaning": "Nearer None wrongly permits ancestor resurrection"
+  },
+  {
+    "id": "unfiltered-index",
+    "old": "(live (drain (start c)))[index]?",
+    "new": "(drain (start c))[index]?",
+    "meaning": "Indexed enumeration exposes raw tombstone"
+  }
+]

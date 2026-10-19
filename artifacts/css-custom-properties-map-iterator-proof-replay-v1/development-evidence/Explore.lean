@@ -1,0 +1,13 @@
+import Std
+#check List.pairwise_append
+#check List.pairwise_cons
+#check List.Pairwise.filter
+#check List.mem_filter
+#check List.find?_append
+#check List.find?_eq_none
+#check List.find?_filter
+#check List.getElem?_eq_none
+#check List.getElem?_eq_some_iff
+#check List.pairwise_iff_getElem
+#check List.pairwise_map
+#check List.nodup_iff_pairwise_ne
