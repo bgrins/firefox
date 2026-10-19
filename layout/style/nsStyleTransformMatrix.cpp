@@ -157,8 +157,6 @@ void TransformReferenceBox::EnsureDimensionsAreCached() {
       return;
     }
     case StyleTransformBox::StrokeBox:
-      // TODO: Implement this in the following patches.
-      return;
     case StyleTransformBox::ViewBox:
     case StyleTransformBox::BorderBox: {
       // If UNIFIED_CONTINUATIONS is not defined, this is simply the frame's
