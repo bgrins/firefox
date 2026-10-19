@@ -38,3 +38,20 @@ gates are pending. No new bug is claimed.
 Replay: `python3 -I -S replay.py --output /absolute/new/directory`. Source pins
 and the exact theorem roster are in CHECKPOINT.json. This active directory is
 not a sealed final component; the signed Git checkpoint preserves its version.
+
+## Query and callback checkpoint
+
+Nine additional kernel results in PublicRemoval derive absence and the earliest
+matching-index certificate from a forward query, prove queried and cached-index
+removal, and transfer the query across a callback preserving ordered property
+IDs. The callback may change values or importance provided the resulting storage
+is valid; actual callback stability is still a source/provider premise. A
+concrete witness shows why deleting an earlier entry invalidates a cached index.
+The total current roster is 35 results. Native query/removal correspondence and
+its container implementation remain pending; invalid-index branches in the total
+model are outside every admitted removal theorem.
+
+The completed static caller audit and animation-map follow-up are in
+../css-declaration-public-operations-static-v1/ and
+../css-declaration-animation-map-admission-static-v1/. They establish no browser
+bug. Animation map key/value identity coherence remains a constructor admission.

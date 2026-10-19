@@ -73,22 +73,28 @@ allocation/lifetime, machine-domain and compiler premises explicit.
 
 Production: `../css-tokenizer-url-native-state-v1/PLAN.md`.
 The producer has sealed 17 new modules and actual native state/slice checks in
-three modes. Independent review is running; root acceptance remains pending.
+three modes. Independent review found that v1 accepts missing, duplicated, unknown, extended
+and reordered trace events. V1 acceptance is blocked; a v2 checker compares the
+full ordered trace with an input-derived control interpreter. The sealed negative
+review preserves all five counterexamples. No Lean theorem was refuted.
 The fixed corpus adds only the escaped-close-at-EOF case and an unquoted leading
 newline case required to reject a previously surviving bulk-field mutant. No
 new browser bug is established.
 
 ### 3. Compose parsing, removal and clear
 
-The root model now kernel-checks 26 lemmas for parser-priority push/extend,
+The root model now kernel-checks 35 lemmas for parser-priority push/extend,
 separate storage operations, deletion target bounds, removal-loop safety, the
-earliest-removal optimization, and arbitrary mixed parse/remove/clear histories.
+earliest-removal query certificate, callback stability under unchanged ordered
+IDs, and arbitrary mixed parse/remove/clear histories.
 Duplicate source identities are admitted for sequential extend. These histories
 do not yet include CSSOM setting; native interpretation and caller stability
 remain open. The immutable flag and changed-return bits are outside this model.
 
 [Checkpoint and replay](../css-declaration-public-storage-proof-v1/PLAN.md).
-Static caller review: `../css-declaration-public-operations-static-v1/`.
+Static caller review completed without a new bug. It retains native callback
+stability and animation-map key/value identity coherence as provider premises.
+[Audit](../css-declaration-public-operations-static-v1/REPORT.md).
 
 ## Next, in priority order
 
