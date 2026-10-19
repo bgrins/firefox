@@ -1052,6 +1052,7 @@ fn consume_numeric<'a>(parser: &mut Parser<'a>) -> Token<'a> {
     // Do all the math in f64 so that large numbers overflow to +/-inf
     // and i32::{MIN, MAX} are within range.
 
+    let start_position = parser.position();
     let (has_sign, sign) = match parser.next_byte_unchecked() {
         b'-' => (true, -1.),
         b'+' => (true, 1.),
@@ -1118,6 +1119,12 @@ fn consume_numeric<'a>(parser: &mut Parser<'a>) -> Token<'a> {
             }
         }
         value *= f64::powf(10., sign * exponent);
+    }
+
+    // Reparse long numbers as a whole: exponents can compensate for intermediate overflow/underflow.
+    // Below 256 bytes, finite underflow cannot affect the final f32 payload.
+    if parser.position().byte_index() - start_position.byte_index() >= 256 || !value.is_finite() {
+        value = parser.slice_from(start_position).parse::<f64>().unwrap();
     }
 
     let int_value = if is_integer {
