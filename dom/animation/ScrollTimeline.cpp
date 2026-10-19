@@ -329,7 +329,7 @@ ScrollTimeline::StateSnapshot::StateSnapshot(
   }
 
   mActive = true;
-  mPhysicalAxis = ComputePhysicalAxis();
+  mPhysicalAxis = ComputePhysicalAxis(scrollContainerFrame->GetWritingMode());
   mScrollingDirectionAvailable =
       scrollContainerFrame->GetAvailableScrollingDirections().contains(
           mPhysicalAxis);
@@ -344,14 +344,12 @@ ScrollTimeline::StateSnapshot::StateSnapshot(
                           DisplayPortUtils::HasNonMinimalNonZeroDisplayPort(e);
 }
 
-layers::ScrollDirection ScrollTimeline::StateSnapshot::ComputePhysicalAxis()
-    const {
-  const Element* e = mSource.mElement;
-  MOZ_ASSERT(e && e->GetPrimaryFrame());
-  const WritingMode wm = e->GetPrimaryFrame()->GetWritingMode();
+layers::ScrollDirection ScrollTimeline::StateSnapshot::ComputePhysicalAxis(
+    WritingMode aWritingMode) const {
   return mAxis == StyleScrollAxis::X ||
-                 (!wm.IsVertical() && mAxis == StyleScrollAxis::Inline) ||
-                 (wm.IsVertical() && mAxis == StyleScrollAxis::Block)
+                 (!aWritingMode.IsVertical() &&
+                  mAxis == StyleScrollAxis::Inline) ||
+                 (aWritingMode.IsVertical() && mAxis == StyleScrollAxis::Block)
              ? layers::ScrollDirection::eHorizontal
              : layers::ScrollDirection::eVertical;
 }

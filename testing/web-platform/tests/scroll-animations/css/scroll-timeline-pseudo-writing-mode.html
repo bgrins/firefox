@@ -1,0 +1,160 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="timeout" content="long">
+<title>Scroll timeline axes use the pseudo-element's writing mode</title>
+<link rel="help" href="https://drafts.csswg.org/scroll-animations-1/#scroll-timeline-axis">
+<link rel="help" href="https://drafts.csswg.org/scroll-animations-1/#scroll-timeline-progress">
+<link rel="stylesheet" href="/fonts/ahem.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .fixture { position: relative; width: 300px; height: 300px; }
+  .host { width: 100px; height: 100px; }
+  .host::before, .host::after, .mirror {
+    display: block;
+    width: 100px;
+    height: 100px;
+    overflow: scroll;
+    scrollbar-width: none;
+    writing-mode: var(--pseudo-mode);
+    direction: ltr;
+    font: 20px/20px Ahem;
+    white-space: pre;
+    padding: 0;
+    border: 0;
+  }
+  .target {
+    position: absolute;
+    top: 0;
+    left: 200px;
+    width: 10px;
+    height: 10px;
+    opacity: .8;
+    animation: sample auto linear both;
+  }
+  @keyframes sample {
+    from { opacity: .2; }
+    to { opacity: .6; }
+  }
+</style>
+<body>
+<script>
+const modes = ["horizontal-tb", "vertical-rl"];
+const axes = ["inline", "block", "x", "y"];
+const content = "X".repeat(100);
+let nextId = 0;
+
+promise_setup(async () => {
+  await document.fonts.load("20px Ahem", "X");
+  assert_true(document.fonts.check("20px Ahem", "X"));
+});
+
+async function settle() {
+  for (let i = 0; i < 4; ++i) {
+    await new Promise(requestAnimationFrame);
+  }
+}
+
+function fixture(t, pseudo, hostMode, pseudoMode) {
+  const id = `fixture-${++nextId}`;
+  const names = axes.map(axis => `--${id}-${axis}`);
+  const root = document.createElement("div");
+  root.id = id;
+  root.className = "fixture";
+  root.style.timelineScope = names.join(", ");
+  root.style.setProperty("--pseudo-mode", pseudoMode);
+  const style = document.createElement("style");
+  style.textContent = `#${id} .host::${pseudo} {
+    content: var(--content, "${content}");
+    scroll-timeline-name: ${names.join(", ")};
+    scroll-timeline-axis: ${axes.join(", ")};
+  }`;
+  const host = document.createElement("div");
+  host.className = "host";
+  host.style.writingMode = hostMode;
+  const mirror = document.createElement("div");
+  mirror.className = "mirror";
+  mirror.textContent = content;
+  const targets = axes.map((axis, index) => {
+    const target = document.createElement("div");
+    target.className = "target";
+    target.style.animationTimeline = names[index];
+    return target;
+  });
+  root.append(style, host, mirror, ...targets);
+  document.body.append(root);
+  t.add_cleanup(() => root.remove());
+  return { root, host, mirror, targets, pseudo };
+}
+
+function check(f, mode, axis) {
+  assert_equals(getComputedStyle(f.host, `::${f.pseudo}`).writingMode,
+                mode, "Pseudo writing mode");
+  const horizontal = mode === "horizontal-tb";
+  assert_equals(f.mirror.clientWidth, 100, "Mirror scrollport width");
+  assert_equals(f.mirror.clientHeight, 100, "Mirror scrollport height");
+  assert_equals(f.mirror.scrollWidth, horizontal ? 2000 : 100,
+                "Mirror scroll width");
+  assert_equals(f.mirror.scrollHeight, horizontal ? 100 : 2000,
+                "Mirror scroll height");
+  const target = f.targets[axes.indexOf(axis)];
+  const animations = target.getAnimations();
+  assert_equals(animations.length, 1, "One animation");
+  const timeline = animations[0].timeline;
+  assert_true(timeline instanceof ScrollTimeline, "Scroll timeline exists");
+  assert_equals(timeline.source, f.host, "Source exposes the originating element");
+  const active = axis === "inline" || axis === (horizontal ? "x" : "y");
+  if (active) {
+    assert_not_equals(timeline.currentTime, null, `${axis} timeline is active`);
+    const time = timeline.currentTime;
+    assert_equals(typeof time === "number" ? time : time.to("percent").value,
+                  0, "Initial progress is zero");
+  } else {
+    assert_equals(timeline.currentTime, null, `${axis} timeline is inactive`);
+  }
+  assert_approx_equals(Number(getComputedStyle(target).opacity), active ? .2 : .8,
+                       .0001, "Opacity follows timeline activity");
+}
+
+for (const pseudo of ["before", "after"]) {
+  for (const hostMode of modes) {
+    for (const pseudoMode of modes) {
+      for (const axis of axes) {
+        promise_test(async t => {
+          const f = fixture(t, pseudo, hostMode, pseudoMode);
+          await settle();
+          check(f, pseudoMode, axis);
+        }, `::${pseudo}, host ${hostMode}, pseudo ${pseudoMode}, axis ${axis}`);
+      }
+    }
+  }
+  for (const mode of modes) {
+    const otherMode = modes.find(value => value !== mode);
+    promise_test(async t => {
+      const f = fixture(t, pseudo, mode, mode);
+      for (const hostMode of [mode, otherMode, mode]) {
+        f.host.style.writingMode = hostMode;
+        await settle();
+        for (const axis of axes) {
+          check(f, mode, axis);
+        }
+      }
+    }, `::${pseudo}, ${mode}: host writing-mode change and restoration`);
+
+    promise_test(async t => {
+      const f = fixture(t, pseudo, mode, mode);
+      for (const pseudoMode of [mode, otherMode, mode]) {
+        f.root.style.setProperty("--pseudo-mode", pseudoMode);
+        const fresh = fixture(t, pseudo, mode, pseudoMode);
+        await settle();
+        for (const axis of axes) {
+          check(f, pseudoMode, axis);
+          check(fresh, pseudoMode, axis);
+        }
+        fresh.root.remove();
+      }
+    }, `::${pseudo}, ${mode}: pseudo writing-mode change and restoration`);
+
+  }
+}
+</script>

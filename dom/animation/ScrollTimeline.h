@@ -194,7 +194,7 @@ class ScrollTimeline : public AnimationTimeline,
     StateSnapshot(const NonOwningAnimationTarget& aResolvedSource,
                   StyleScrollAxis aAxis, bool aIsRoot);
 
-    layers::ScrollDirection ComputePhysicalAxis() const;
+    layers::ScrollDirection ComputePhysicalAxis(WritingMode aWritingMode) const;
 
     OwningAnimationTarget mSource;
     StyleScrollAxis mAxis{};
