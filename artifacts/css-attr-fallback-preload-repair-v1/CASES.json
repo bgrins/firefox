@@ -1,0 +1,100 @@
+[
+  {
+    "name": "Direct typed fallback resolves an attribute containing var()",
+    "declarations": "--v: 13px; width: attr(bad type(<length>), attr(chain type(<length>), 5px))",
+    "attributes": {
+      "bad": "not-a-length",
+      "chain": "var(--v)"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "status": "UNEXECUTED",
+    "static_predictions": {
+      "namespace_candidate_v2": "5px",
+      "recursive_preload_draft": "13px"
+    }
+  },
+  {
+    "name": "Custom typed fallback uses a preloaded but unresolved attribute",
+    "declarations": "--v: 13px; --result: attr(bad type(<length>), attr(chain type(<length>), 5px)); width: var(--result); height: attr(chain type(<length>), 7px)",
+    "attributes": {
+      "bad": "not-a-length",
+      "chain": "var(--v)"
+    },
+    "expected": {
+      "width": "13px",
+      "height": "13px"
+    },
+    "status": "UNEXECUTED",
+    "static_predictions": {
+      "namespace_candidate_v2": "5px / 13px",
+      "recursive_preload_draft": "5px / 13px"
+    }
+  },
+  {
+    "name": "Literal preloaded attribute control",
+    "declarations": "--v: 13px; --result: attr(bad type(<length>), attr(chain type(<length>), 5px)); width: var(--result); height: attr(chain type(<length>), 7px)",
+    "attributes": {
+      "bad": "not-a-length",
+      "chain": "13px"
+    },
+    "expected": {
+      "width": "13px",
+      "height": "13px"
+    },
+    "status": "UNEXECUTED",
+    "static_predictions": {
+      "namespace_candidate_v2": "13px / 13px",
+      "recursive_preload_draft": "13px / 13px"
+    }
+  },
+  {
+    "name": "Missing primary traverses the fallback dependency",
+    "declarations": "--v: 13px; --result: attr(missing type(<length>), attr(chain type(<length>), 5px)); width: var(--result); height: attr(chain type(<length>), 7px)",
+    "attributes": {
+      "chain": "var(--v)"
+    },
+    "expected": {
+      "width": "13px",
+      "height": "13px"
+    },
+    "status": "UNEXECUTED",
+    "static_predictions": {
+      "namespace_candidate_v2": "13px / 13px",
+      "recursive_preload_draft": "13px / 13px"
+    }
+  },
+  {
+    "name": "Custom typed fallback without an independent preload",
+    "declarations": "--v: 13px; --result: attr(bad type(<length>), attr(chain type(<length>), 5px)); width: var(--result)",
+    "attributes": {
+      "bad": "not-a-length",
+      "chain": "var(--v)"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "status": "UNEXECUTED",
+    "static_predictions": {
+      "namespace_candidate_v2": "5px",
+      "recursive_preload_draft": "5px"
+    }
+  },
+  {
+    "name": "Unused fallback does not connect the width to a separate cycle",
+    "declarations": "--loop: attr(chain type(<length>)); width: attr(good type(<length>), attr(chain type(<length>), 7px))",
+    "attributes": {
+      "good": "13px",
+      "chain": "var(--loop)"
+    },
+    "expected": {
+      "width": "13px"
+    },
+    "status": "UNEXECUTED",
+    "static_predictions": {
+      "namespace_candidate_v2": "13px",
+      "recursive_preload_draft": "13px"
+    }
+  }
+]
