@@ -173,3 +173,28 @@ and lifetime, and final font observations remain open. The uncovered display
 cache witness `[8,8]` versus `[8,7]` is retained for caller investigation;
 browser reachability is unproved. This does not close the ownership milestone.
 Evidence: `../css-hyphenation-measurement-offset-probe-v1/ROOT-MEASUREMENT-QUERY-v1.json`.
+
+## Resolved-value tokenizer admission
+
+Byte-dispatch component `cac67dc34a5ce8e02088e8ef02a9354851690f77` proves abstract
+first-match table construction and binds all 22 current optimized macro calls
+through exhaustive byte checks and independently reviewed extraction. Six
+general theorem audits and two counterexample audits pass. Version 2 rejects
+multiple named bindings and uses actual UTF-8 byte offsets. Source parsing,
+syn/quote, primitive representation and Rust compiler semantics remain external.
+
+1. Refine complete name and escape consumption, proving return boundaries and
+   positive progress under actual `is_ident_start` admission. Internal byte
+   advances need not preserve UTF-8 boundaries.
+2. Refine numeric, string, comment and URL providers, including early returns,
+   owned buffers, invalid tokens and lookahead. Helpers do not all advance.
+3. Establish native arithmetic/input-size admission from all persistence paths;
+   a local substitution growth guard does not establish a global bound.
+4. Compose the actual raw-token dispatch and fresh-suffix parser states. Public
+   `next()` block skipping is not the flat-token reference.
+5. Connect lexical payloads and dimension/reference classification to the
+   selected-output dependency model and actual provider/graph consumers.
+
+No full tokenizer, scanner or CSS implementation correctness follows yet.
+Evidence: `../css-resolved-tokenizer-root-v2/ROOT-REVIEW.json` and
+`../css-resolved-tokenizer-independent-v1/REVIEW.md`.

@@ -20,16 +20,20 @@ Immediate next steps:
    Selected-output Lean composition remains conditional on actual tokenizer and
    provider correspondence. Incomplete env payloads retain old behavior. The
    original-parser token-category repair is signed as `26e0fa16e89eacd9fd9cab0ce6bb1be813d9e406`:
-   seven failures fixed, all 241 checks pass. Native lexer admission is next,
-   including source-bound fast_match_byte dispatch equivalence; full progress,
-   UTF-8 boundary and suffix-restart obligations remain open. Preserve the
-   separate ambiguous unused-relative-fallback oracle.
+   seven failures fixed, all 241 checks pass. Optimized byte-dispatch admission
+   is signed as `cac67dc34a5ce8e02088e8ef02a9354851690f77`: all 22 current calls and
+   5,632 byte decisions agree, with a universal table-construction theorem and
+   independent review. Full name/escape return-boundary refinement is next;
+   native compiler, progress, arithmetic and suffix-restart obligations remain
+   open. Preserve the separate ambiguous unused-relative-fallback oracle.
 4. Continue cascade source/observer and hyphenation stateful consumer admissions,
    including actual reflow-to-display tab-cache coverage and lifetime. Preserve
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
-5. Integrate the prepared loaded FontFace.sizeAdjust provider candidate within
-   the known bug 1072149 family after these attr repairs. Preserve shared wrappers,
-   promises, memberships and worker publication; its build/browser gates are open.
+5. Build and test the revised loaded FontFace.sizeAdjust provider candidate
+   within the known bug 1072149 family. Fresh baseline evidence is signed as
+   `1593b2a5093910808171807f6037a10982ff18a8`: 38 failures, 30 passing controls and
+   three OK harnesses. Preserve shared wrappers, promises, memberships and
+   worker publication; candidate build/browser and other-platform gates are open.
 6. Keep every accepted repair independently reviewable in CURRENT-COMMITS.json,
    with proof/tooling preceding its standalone native/WPT commit. Full closure
    requirements remain in the linked checklist.
@@ -3023,3 +3027,32 @@ Next work runs in parallel: source-bound tokenizer feature admission and root
 preparation for the reviewed FontFace provider candidate. The latter still needs
 a fresh fixed 68-case baseline, macOS build/pair and explicit remaining platform
 and lifetime gates. No FontFace native repair is accepted yet.
+
+## Optimized byte-dispatch checkpoint and FontFace baseline
+
+Signed proof/review commit `cac67dc34a5ce8e02088e8ef02a9354851690f77` records the
+source-bound optimized byte-dispatch component. Root's fresh replay passes six
+general theorem audits, two counterexample audits, all 22 current macro calls
+and 5,632 byte decisions. Independent inventory and pattern interpretation
+agree. Two semantic mutants fail on proof obligations. V2 also rejects the
+reviewer's multiple-binding witness and corrects UTF-8 offsets; the original
+V1 limitation remains recorded. Neither tooling finding is a current browser
+bug. Rust/syn/quote/compiler correspondence remains a reviewed assumption.
+Complete tokenizer/provider correctness is not proved.
+
+Next: complete `consume_name` and escape return-boundary refinement with actual
+caller admission. Individual byte advances may be inside a UTF-8 scalar; some
+helpers may return without progress, so those stronger premises are false.
+Strings, comments, URLs, numeric providers, arithmetic and suffix restart need
+separate completion before claiming the resolved scanner is verified.
+
+Signed baseline commit `1593b2a5093910808171807f6037a10982ff18a8` retains the
+FontFace integration harness, successful pre-baseline build, exact 68-case
+matrix and eight regression harnesses. The matrix has 38 FAIL and 30 PASS;
+all three harnesses are OK. Existing regressions include the style/family swap
+subtest in `fontface-descriptor-updates-2.html` and the descriptor override
+reftest; compare these actual outcomes with the candidate. The source revision
+avoids cloning descriptors before a provider exists and retains cloning for
+existing providers. Its compile/browser, non-macOS, controlled local-font and
+lifetime gates remain open. No FontFace repair is accepted. The native fix
+count remains 59, with zero accepted repairs awaiting commits.
