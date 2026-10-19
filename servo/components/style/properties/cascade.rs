@@ -2056,35 +2056,42 @@ impl<'a> Cascade<'a> {
         }
         self.may_have_custom_property_cycles = true;
 
-        for next in &refs.refs {
-            if !next.is_attr_with_type() {
-                // Only type() can have nested references, so we don't need to eagerly look at
-                // others.
-                continue;
-            }
-            let Some(namespace) = next.attribute_data.namespace() else {
-                continue;
-            };
-            if !self
-                .seen
-                .custom
-                .attr
-                .entry(namespace)
-                .or_default()
-                .insert(&next.name)
-            {
-                continue;
-            }
-            if let Ok(v) = get_attr_value_for_cycle_resolution(
-                &next.name,
-                &next.attribute_data,
-                &value.url_data,
-                attribute_tracker,
-            ) {
-                context
-                    .builder
-                    .substitution_functions
-                    .insert_attr(&next.name, namespace, v);
+        let mut refs_stack = SmallVec::<[&References; 5]>::new();
+        refs_stack.push(refs);
+        while let Some(refs) = refs_stack.pop() {
+            for next in &refs.refs {
+                if let Some(ref fallback) = next.fallback {
+                    refs_stack.push(&fallback.references);
+                }
+                if !next.is_attr_with_type() {
+                    // Only type() can have nested references, so we don't need to eagerly look at
+                    // others.
+                    continue;
+                }
+                let Some(namespace) = next.attribute_data.namespace() else {
+                    continue;
+                };
+                if !self
+                    .seen
+                    .custom
+                    .attr
+                    .entry(namespace)
+                    .or_default()
+                    .insert(&next.name)
+                {
+                    continue;
+                }
+                if let Ok(v) = get_attr_value_for_cycle_resolution(
+                    &next.name,
+                    &next.attribute_data,
+                    &value.url_data,
+                    attribute_tracker,
+                ) {
+                    context
+                        .builder
+                        .substitution_functions
+                        .insert_attr(&next.name, namespace, v);
+                }
             }
         }
     }
