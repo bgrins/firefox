@@ -1,0 +1,78 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Shorthand substitution after partial revert-layer</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#substitution-in-shorthands">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-layer">
+<link rel="help" href="https://drafts.csswg.org/css-logical-1/#box">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="target"></div>
+<script>
+const target = document.getElementById("target");
+const sides = ["top", "right", "bottom", "left"];
+
+function applyRules(t, shorthand, rollback, important, substituted = true,
+                    extra = "", lower = "110px 120px 130px 140px",
+                    upper = "10px 20px 30px 40px") {
+  const style = document.createElement("style");
+  const priority = important ? "!important" : "";
+  style.textContent = `
+    @layer fallback, preferred;
+    #target { --lower: ${lower}; --upper: ${upper}; ${extra} }
+    @layer fallback {
+      #target { ${shorthand}: ${substituted ? "var(--lower)" : lower}; }
+    }
+    @layer preferred {
+      #target {
+        ${shorthand}: ${substituted ? "var(--upper)" : upper} ${priority};
+        ${rollback}: revert-layer ${priority};
+      }
+    }
+  `;
+  document.head.append(style);
+  t.add_cleanup(() => style.remove());
+}
+
+function assertSides(property, expected) {
+  const computed = getComputedStyle(target);
+  sides.forEach((side, index) => {
+    assert_equals(computed.getPropertyValue(`${property}-${side}`),
+                  `${expected[index]}px`, `${property}-${side}`);
+  });
+}
+
+for (const important of [false, true]) {
+  const priority = important ? "important" : "normal";
+  for (const shorthand of ["margin", "padding"]) {
+    sides.forEach((side, index) => {
+      test(t => {
+        applyRules(t, shorthand, `${shorthand}-${side}`, important);
+        const expected = [10, 20, 30, 40];
+        expected[index] += 100;
+        assertSides(shorthand, expected);
+      }, `${priority} ${shorthand}: partial rollback of ${side} retains its shorthand source`);
+    });
+
+    test(t => {
+      applyRules(t, shorthand, `${shorthand}-left`, important, false);
+      assertSides(shorthand, [10, 20, 30, 140]);
+    }, `${priority} ${shorthand}: literal shorthand with partial rollback`);
+
+    test(t => {
+      applyRules(t, shorthand, shorthand, important);
+      assertSides(shorthand, [110, 120, 130, 140]);
+    }, `${priority} ${shorthand}: whole shorthand rollback`);
+  }
+
+  for (const [mode, expected] of [
+    ["writing-mode: horizontal-tb; direction: rtl", [0, 110, 0, 20]],
+    ["writing-mode: vertical-rl; direction: ltr", [110, 0, 20, 0]],
+  ]) {
+    test(t => {
+      applyRules(t, "margin-inline", "margin-inline-start", important, true,
+                 mode, "110px 120px", "10px 20px");
+      assertSides("margin", expected);
+    }, `${priority} margin-inline: partial rollback with ${mode}`);
+  }
+}
+</script>
