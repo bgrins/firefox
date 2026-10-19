@@ -2344,7 +2344,7 @@ fn substitute_all(
                         }
                         continue;
                     };
-                    if context.map().get_attr(&next.name, namespace).is_none()
+                    if !context.map().contains_attr(&next.name, namespace)
                         && let Ok(val) = get_attr_value_for_cycle_resolution(
                             &next.name,
                             &next.attribute_data,

@@ -741,6 +741,13 @@ impl ComputedSubstitutionFunctions {
     }
 
     #[inline(always)]
+    pub(crate) fn contains_attr(&self, name: &Name, namespace: &Namespace) -> bool {
+        self.attributes
+            .get(namespace)
+            .is_some_and(|attributes| attributes.contains_key(name))
+    }
+
+    #[inline(always)]
     pub(crate) fn get_attr(
         &self,
         name: &Name,
