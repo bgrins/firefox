@@ -443,6 +443,29 @@ void KeyframeEffect::UpdateProperties(const ComputedStyle* aStyle,
                         : (mAnimation ? mAnimation->GetTimeline() : nullptr));
 
   bool propertiesChanged = mProperties != properties;
+  if (!propertiesChanged) {
+    auto attrTainted = [](const AnimationValue& aValue) {
+      return aValue.mServo && Servo_AnimationValue_IsAttrTainted(aValue.mServo);
+    };
+    for (size_t i = 0; i < properties.Length() && !propertiesChanged; ++i) {
+      if (!properties[i].mProperty.IsCustom()) {
+        continue;
+      }
+      const auto& oldSegments = mProperties[i].mSegments;
+      const auto& newSegments = properties[i].mSegments;
+      for (size_t j = 0; j < newSegments.Length(); ++j) {
+        const auto& oldSegment = oldSegments[j];
+        const auto& newSegment = newSegments[j];
+        if (attrTainted(oldSegment.mFromValue) !=
+                attrTainted(newSegment.mFromValue) ||
+            attrTainted(oldSegment.mToValue) !=
+                attrTainted(newSegment.mToValue)) {
+          propertiesChanged = true;
+          break;
+        }
+      }
+    }
+  }
 
   // We need to update base styles even if any properties are not changed at all
   // since base styles might have been changed due to parent style changes, etc.

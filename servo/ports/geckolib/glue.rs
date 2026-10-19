@@ -987,6 +987,14 @@ pub extern "C" fn Servo_AnimationValue_DeepEqual(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn Servo_AnimationValue_IsAttrTainted(value: &AnimationValue) -> bool {
+    match value {
+        AnimationValue::Custom(value) => value.is_attr_tainted(),
+        _ => false,
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn Servo_AnimationValue_Uncompute(
     value: &AnimationValue,
 ) -> Strong<LockedDeclarationBlock> {

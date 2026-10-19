@@ -764,6 +764,11 @@ impl CustomAnimatedValue {
         })
     }
 
+    /// Whether the computed endpoint is attribute-tainted.
+    pub fn is_attr_tainted(&self) -> bool {
+        self.value.as_ref().is_some_and(|value| value.attr_tainted)
+    }
+
     pub(crate) fn to_declaration(&self) -> properties::PropertyDeclaration {
         properties::PropertyDeclaration::Custom(properties::CustomDeclaration {
             name: self.name.clone(),
