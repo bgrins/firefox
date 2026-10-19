@@ -1,0 +1,96 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1045,6 +1045,7 @@
+     ) -> Result<Self, ParseError> {
+         let mut references = References::default();
+         let mut missing_closing_characters = String::new();
++        let mut removed_backslash = false;
+         let start_position = input.position();
+         let (first_token_type, last_token_type) = parse_declaration_value(
+             input,
+@@ -1052,6 +1053,7 @@
+             namespaces,
+             &mut references,
+             &mut missing_closing_characters,
++            &mut removed_backslash,
+         )?;
+         let mut css = input
+             .slice_from(start_position)
+@@ -1059,9 +1061,7 @@
+             .to_owned();
+         if !missing_closing_characters.is_empty() {
+             // Unescaped backslash at EOF in a quoted string is ignored.
+-            if css.ends_with("\\")
+-                && matches!(missing_closing_characters.as_bytes()[0], b'"' | b'\'')
+-            {
++            if removed_backslash {
+                 css.pop();
+             }
+             css.push_str(&missing_closing_characters);
+@@ -1197,6 +1197,7 @@
+     namespaces: Option<&FxHashMap<Prefix, Namespace>>,
+     references: &mut References,
+     missing_closing_characters: &mut String,
++    removed_backslash: &mut bool,
+ ) -> Result<(TokenSerializationType, TokenSerializationType), ParseError> {
+     input.parse_until_before(Delimiter::Bang | Delimiter::Semicolon, |input| {
+         parse_declaration_value_block(
+@@ -1205,6 +1206,7 @@
+             namespaces,
+             references,
+             missing_closing_characters,
++            removed_backslash,
+         )
+     })
+ }
+@@ -1216,6 +1218,7 @@
+     namespaces: Option<&FxHashMap<Prefix, Namespace>>,
+     references: &mut References,
+     missing_closing_characters: &mut String,
++    removed_backslash: &mut bool,
+ ) -> Result<(TokenSerializationType, TokenSerializationType), ParseError> {
+     let mut is_first = true;
+     let mut first_token_type = TokenSerializationType::Nothing;
+@@ -1245,6 +1248,7 @@
+                         namespaces,
+                         references,
+                         missing_closing_characters,
++                        removed_backslash,
+                     )?;
+                     inner_end_position = Some(input.position());
+                     Ok(result)
+@@ -1371,6 +1375,7 @@
+                                 namespaces,
+                                 &mut references,
+                                 missing_closing_characters,
++                                removed_backslash,
+                             )?;
+                             fallback = Some(VariableFallback {
+                                 start: fallback_start,
+@@ -1390,6 +1395,7 @@
+                                 namespaces,
+                                 references,
+                                 missing_closing_characters,
++                                removed_backslash,
+                             )?;
+                             input_end_position = Some(input.position());
+                             input.reset(&state);
+@@ -1402,7 +1408,8 @@
+                     prev_reference_index = Some(our_ref_index);
+                     let reference = &mut references.refs[our_ref_index];
+                     reference.end = input.position().byte_index() - input_start.byte_index()
+-                        + missing_closing_characters.len();
++                        + missing_closing_characters.len()
++                        - usize::from(*removed_backslash);
+                     reference.fallback = fallback;
+                     references.flags |= match substitution_kind {
+                         SubstitutionFunctionKind::Var => ReferenceFlags::VAR,
+@@ -1431,6 +1438,8 @@
+                 let quote = &token_slice[..1];
+                 debug_assert!(matches!(quote, "\"" | "'"));
+                 if !(token_slice.ends_with(quote) && token_slice.len() > 1) {
++                    *removed_backslash =
++                        missing_closing_characters.is_empty() && token_slice.ends_with("\\");
+                     missing_closing_characters.push_str(quote)
+                 }
+             },

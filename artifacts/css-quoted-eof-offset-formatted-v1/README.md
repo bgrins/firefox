@@ -1,0 +1,5 @@
+# Final native source binding
+
+The sealed endpoint companion uses proposed source `18867c29bb98125b0a5b578a757c455366d792ab65199c57ab083ed663447801`. Root's formatter produced `94b2be42d6e7077214a4c2524b183604cbf3ce9ed99e424ed827743ed7df499d` by moving whitespace around one assignment. The checker requires exactly that literal replacement in the complete source and rejects every other change; this avoids depending on a token-normalization classifier for the equivalence claim. Rust ignores this whitespace outside strings/comments. All executable statements, arithmetic and providers remain identical.
+
+Authenticate this `MANIFEST.json` using `FREEZE.json`, then run `python3 check.py`. The complete replay is the command in `../css-quoted-eof-offset-design-v1/README.md`; its separate relocated receipt is `../css-quoted-eof-offset-design-v1-replay/FREEZE.json`. The original sealed capsule is unchanged. This directory contains the final native patch only; root owns the WPT, Gecko build, browser pairing and independent acceptance. Preserve all original scope limitations.

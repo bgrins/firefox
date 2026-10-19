@@ -14,9 +14,12 @@ Three quoted-EOF recovery leads are reproduced on the pinned shared build:
 The two value errors produce eight failures with fourteen passing controls;
 the endpoint case crashes in `do_substitute_chunk`. Keep three independently
 reviewable native/WPT repairs with preceding proof/tooling. The endpoint WPT
-uses odd terminal runs to avoid depending on the parity correction. Source
-witness/proof work and independent adjudication are active; no native repair
-is applied or accepted yet, so the committed native count remains 62.
+uses odd terminal runs to avoid depending on the parity correction. The endpoint repair is now accepted and queued for its native/WPT commit:
+38 browser checks pass after the baseline crash, with 34 other outcomes
+unchanged. Root and independent replay pass ten conditional arithmetic lemmas,
+40 source cases and 360 additional independent cases. The two semantic repairs
+are sealed proposals under separate review. The committed native count remains
+62 until the endpoint commit is created.
 Evidence: css-quoted-eof-fallback-probe-v1/ROOT-BASELINE.json and
 css-quoted-eof-semantics-probe-v1/ROOT-BASELINE.json.
 

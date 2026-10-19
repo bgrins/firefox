@@ -1,0 +1,165 @@
+diff --git a/servo/components/style/custom_properties.rs b/servo/components/style/custom_properties.rs
+index 50e8d93e3d77..20da63594621 100644
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1045,6 +1045,7 @@ impl VariableValue {
+     ) -> Result<Self, ParseError> {
+         let mut references = References::default();
+         let mut missing_closing_characters = String::new();
++        let mut removed_backslash = false;
+         let start_position = input.position();
+         let (first_token_type, last_token_type) = parse_declaration_value(
+             input,
+@@ -1052,6 +1053,7 @@ impl VariableValue {
+             namespaces,
+             &mut references,
+             &mut missing_closing_characters,
++            &mut removed_backslash,
+         )?;
+         let mut css = input
+             .slice_from(start_position)
+@@ -1059,9 +1061,7 @@ impl VariableValue {
+             .to_owned();
+         if !missing_closing_characters.is_empty() {
+             // Unescaped backslash at EOF in a quoted string is ignored.
+-            if css.ends_with("\\")
+-                && matches!(missing_closing_characters.as_bytes()[0], b'"' | b'\'')
+-            {
++            if removed_backslash {
+                 css.pop();
+             }
+             css.push_str(&missing_closing_characters);
+@@ -1197,6 +1197,7 @@ fn parse_declaration_value(
+     namespaces: Option<&FxHashMap<Prefix, Namespace>>,
+     references: &mut References,
+     missing_closing_characters: &mut String,
++    removed_backslash: &mut bool,
+ ) -> Result<(TokenSerializationType, TokenSerializationType), ParseError> {
+     input.parse_until_before(Delimiter::Bang | Delimiter::Semicolon, |input| {
+         parse_declaration_value_block(
+@@ -1205,6 +1206,7 @@ fn parse_declaration_value(
+             namespaces,
+             references,
+             missing_closing_characters,
++            removed_backslash,
+         )
+     })
+ }
+@@ -1216,6 +1218,7 @@ fn parse_declaration_value_block(
+     namespaces: Option<&FxHashMap<Prefix, Namespace>>,
+     references: &mut References,
+     missing_closing_characters: &mut String,
++    removed_backslash: &mut bool,
+ ) -> Result<(TokenSerializationType, TokenSerializationType), ParseError> {
+     let mut is_first = true;
+     let mut first_token_type = TokenSerializationType::Nothing;
+@@ -1245,6 +1248,7 @@ fn parse_declaration_value_block(
+                         namespaces,
+                         references,
+                         missing_closing_characters,
++                        removed_backslash,
+                     )?;
+                     inner_end_position = Some(input.position());
+                     Ok(result)
+@@ -1371,6 +1375,7 @@ fn parse_declaration_value_block(
+                                 namespaces,
+                                 &mut references,
+                                 missing_closing_characters,
++                                removed_backslash,
+                             )?;
+                             fallback = Some(VariableFallback {
+                                 start: fallback_start,
+@@ -1390,6 +1395,7 @@ fn parse_declaration_value_block(
+                                 namespaces,
+                                 references,
+                                 missing_closing_characters,
++                                removed_backslash,
+                             )?;
+                             input_end_position = Some(input.position());
+                             input.reset(&state);
+@@ -1402,7 +1408,8 @@ fn parse_declaration_value_block(
+                     prev_reference_index = Some(our_ref_index);
+                     let reference = &mut references.refs[our_ref_index];
+                     reference.end = input.position().byte_index() - input_start.byte_index()
+-                        + missing_closing_characters.len();
++                        + missing_closing_characters.len()
++                        - usize::from(*removed_backslash);
+                     reference.fallback = fallback;
+                     references.flags |= match substitution_kind {
+                         SubstitutionFunctionKind::Var => ReferenceFlags::VAR,
+@@ -1431,6 +1438,8 @@ fn parse_declaration_value_block(
+                 let quote = &token_slice[..1];
+                 debug_assert!(matches!(quote, "\"" | "'"));
+                 if !(token_slice.ends_with(quote) && token_slice.len() > 1) {
++                    *removed_backslash =
++                        missing_closing_characters.is_empty() && token_slice.ends_with("\\");
+                     missing_closing_characters.push_str(quote)
+                 }
+             },
+diff --git a/testing/web-platform/tests/css/css-variables/quoted-eof-fallback-endpoints.html b/testing/web-platform/tests/css/css-variables/quoted-eof-fallback-endpoints.html
+new file mode 100644
+index 000000000000..8f4e3b26a867
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-variables/quoted-eof-fallback-endpoints.html
+@@ -0,0 +1,61 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Variable fallback endpoints after quoted EOF recovery</title>
++<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-string-token">
++<link rel="help" href="https://drafts.csswg.org/css-variables-1/#replace-a-var-function">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++function quoted(value) {
++  return '"' + value.replaceAll('\\', '\\\\').replaceAll('"', '\\"') + '"';
++}
++
++function check(t, value, expected, carrier = false) {
++  const target = document.createElement('div');
++  const reference = document.createElement('div');
++  t.add_cleanup(() => { target.remove(); reference.remove(); });
++  target.style.setProperty('--primary', '"first"');
++  if (carrier) {
++    target.style.setProperty('--carrier', value);
++    assert_not_equals(target.style.getPropertyValue('--carrier'), '', 'carrier accepted');
++    target.style.fontFamily = 'var(--carrier)';
++  } else {
++    target.style.fontFamily = value;
++  }
++  reference.style.fontFamily = expected;
++  assert_not_equals(target.style.fontFamily, '', 'specified value accepted');
++  assert_not_equals(reference.style.fontFamily, '', 'reference accepted');
++  document.body.append(target, reference);
++  assert_equals(getComputedStyle(target).fontFamily,
++                getComputedStyle(reference).fontFamily);
++}
++
++for (const quote of ['"', "'"]) {
++  for (const slashes of [1, 3]) {
++    const string = quote + 'example' + '\\'.repeat(slashes);
++    const expected = quoted('example' + '\\'.repeat((slashes - 1) / 2));
++    const cases = [
++      ['direct', `var(--absent, ${string}`, expected],
++      ['nested fallback', `var(--outer, var(--absent, ${string}`, expected],
++      ['custom-property carrier', `var(--absent, ${string}`, expected, true],
++      ['unused fallback', `var(--primary, ${string}`, '"first"'],
++      ['earlier sibling', `var(--primary), var(--absent, ${string}`, `"first", ${expected}`],
++      ['environment fallback', `env(unknown-endpoint-variable, ${string}`, expected],
++      ['attribute fallback', `attr(data-absent, ${string}`, expected],
++    ];
++    for (const [name, input, result, carrier] of cases) {
++      test(t => check(t, input, result, carrier), `${name}, ${quote}, ${slashes} terminal backslashes`);
++    }
++  }
++  for (const [name, input, result] of [
++    ['closed', `var(--absent, ${quote}example${quote})`, '"example"'],
++    ['unclosed without backslash', `var(--absent, ${quote}example`, '"example"'],
++    ['escaped newline', `var(--absent, ${quote}example\\\n`, '"example"'],
++    ['closed literal backslash', `var(--absent, ${quote}example\\\\${quote})`, quoted('example\\')],
++    ['UTF-8 prefix', `var(--primary), var(--absent, ${quote}é𐀀\\`, `"first", ${quoted('é𐀀')}`],
++  ]) {
++    test(t => check(t, input, result), `${name}, ${quote}`);
++  }
++}
++</script>
