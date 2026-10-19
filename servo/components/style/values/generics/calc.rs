@@ -1891,14 +1891,59 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
                 ref mut center,
                 ref mut max,
             } => {
+                let (Some(min_leaf), Some(center_leaf), Some(max_leaf)) =
+                    (min.as_leaf(), center.as_leaf(), max.as_leaf())
+                else {
+                    return SimplificationResult::Unchanged;
+                };
+                let leaves = [min_leaf, center_leaf, max_leaf];
+                let mut has_relative_infinity = false;
+                for leaf in leaves {
+                    let Some(value) = leaf.unitless_value() else {
+                        return SimplificationResult::Unchanged;
+                    };
+                    if leaf
+                        .as_percentage()
+                        .is_some_and(|(_, hint)| hint != Optional::Some(NumericBaseType::Percent))
+                    {
+                        return SimplificationResult::Unchanged;
+                    }
+                    has_relative_infinity |=
+                        value.is_infinite() && leaf.canonical_value().is_none();
+                }
+
+                let strict_op = |a: f32, b: f32, op: fn(f32, f32) -> f32| {
+                    if a.is_nan() {
+                        a
+                    } else if b.is_nan() {
+                        b
+                    } else {
+                        op(a, b)
+                    }
+                };
+                let result = center_leaf
+                    .try_op(max_leaf, |a, b| strict_op(a, b, crate::values::calc_min))
+                    .and_then(|inner| {
+                        min_leaf.try_op(&inner, |a, b| strict_op(a, b, crate::values::calc_max))
+                    });
+                if let Ok(result) = result {
+                    if has_relative_infinity && result.unitless_value().is_none_or(f32::is_finite) {
+                        return SimplificationResult::Unchanged;
+                    }
+                    *self = Self::Leaf(result);
+                    return SimplificationResult::Simplified;
+                }
+                if has_relative_infinity || leaves.iter().any(|leaf| leaf.is_nan() != Ok(false)) {
+                    return SimplificationResult::Unchanged;
+                }
+
                 // NOTE: clamp() is max(min, min(center, max))
                 let min_cmp_center = match min.compare(center) {
                     Some(o) => o,
                     None => return SimplificationResult::Unchanged,
                 };
 
-                // So if we can prove that min is more than center, then we won,
-                // as that's what we should always return.
+                // All operands are non-NaN, so a lower bound above the center wins.
                 if matches!(min_cmp_center, cmp::Ordering::Greater) {
                     replace_self_with!(&mut **min);
                     return SimplificationResult::Simplified;
