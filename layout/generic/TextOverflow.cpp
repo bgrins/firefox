@@ -685,8 +685,10 @@ void TextOverflow::ProcessLine(const nsDisplayListSet& aLists, nsLineBox* aLine,
   }
 
   mIStart.Reset();
+  mIStart.mISize = mIStart.mIntrinsicISize;
   mIStart.mActive = !mIStart.mTextOverflowStyle->IsClip();
   mIEnd.Reset();
+  mIEnd.mISize = mIEnd.mIntrinsicISize;
   Maybe<Marker> prevIEnd;
   if (aLine->HasLineClampEllipsis()) {
     prevIEnd = Some(mIEnd);
