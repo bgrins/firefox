@@ -17,11 +17,14 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 There are 65 committed native/WPT fixes.
 The conditional comment/observer component is accepted after fresh root and
 independent review; its twelve remaining obligation statuses are recorded in
-css-tokenizer-comment-provider-root-v1/ROOT-ACCEPTANCE.json. The string-loop
-component is sealed and under independent review. Public iterator/cache/reset
+css-tokenizer-comment-provider-root-v1/ROOT-ACCEPTANCE.json (signed checkpoint
+`660934cb30d6efcf77cdfbb1ec99b64874e59706`). The conditional string-loop component
+is now accepted after fresh root and independent replay: 16 modules, 152 audits,
+808 native cases in each mode, with all native/public-history limits retained. Public iterator/cache/reset
 investigation reproduced a nesting-limit declaration-recovery bug in Firefox:
 inline padding-left at depth 76 applies an inner color declaration. All 19 other
-padding/width controls pass. Repair/proof and independent review are underway;
+padding/width controls pass. The one-line iterative cleanup candidate is building; repair proof and final
+browser gates are underway;
 this is not yet an accepted repair or an increment to the committed-fix count.
 
 ## Next proof work

@@ -300,3 +300,23 @@ admission and evaluator/CSSOM remain open. The separate string component is
 under review. No new bug or native-fix count is attached to this checkpoint.
 
 Evidence: `../css-tokenizer-comment-provider-root-v1/ROOT-ACCEPTANCE.json`.
+
+## Quoted-string provider checkpoint
+
+Root and independent review accept the conditional borrowed/owned string-loop
+component. Five new modules and 52 new audits compose with eleven unchanged
+comment/helper modules: all 152 exact audits pass. Fresh debug/release replays
+pass 808 source-bound cases with the actual CowRcStr module; an independent
+raw-codepoint oracle checks every expected row. Five Lean definition mutations
+compile with witnesses and fail unchanged theorems. These are not Rust mutants.
+
+The pure model proves prefix transfer, accumulator equality, escape composition,
+EOF/bad-newline behavior, raw quote admission/progress, complete-unit returns and
+rejoining of temporarily partial copied units. A derived consumed trace supports
+location composition; it is not a verified mutable Parser lowering. General
+semantic equality drops allocation mode. Native codecs, heap/Rc/lifetimes,
+capacity/packed metadata, primitives and compiler remain explicit admissions.
+All twelve obligations remain tracked. Full preprocessing, raw dispatch/public
+next/cache/reset/block skipping and evaluator/CSSOM are the next boundaries.
+
+Evidence: `../css-tokenizer-string-provider-root-v1/ROOT-ACCEPTANCE.json`.

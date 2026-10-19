@@ -1,0 +1,23 @@
+4.3.5. Consume a string token
+
+This section describes how to consume a string token from a stream of code points .
+	It returns either a <string-token> or <bad-string-token> .
+
+This algorithm may be called with an ending code point ,
+	which denotes the code point that ends the string.
+	If an ending code point is not specified,
+	the current input code point is used.
+
+Initially create a <string-token> with its value set to the empty string.
+
+Repeatedly consume the next input code point from the stream:
+
+ending code point Return the <string-token> . EOF This is a parse error .
+			Return the <string-token> . newline This is a parse error . Reconsume the current input code point ,
+			create a <bad-string-token> , and return it. U+005C REVERSE SOLIDUS (\) If the next input code point is EOF,
+			do nothing. Otherwise,
+			if the next input code point is a newline,
+			consume it. Otherwise, (the stream starts with a valid escape ) consume an escaped code point and append the returned code point to the <string-token> ’s value. anything else Append the current input code point to the <string-token> ’s value.
+
+Tests escaped-eof.html (live test) (source)
+

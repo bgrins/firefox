@@ -1,0 +1,42 @@
+[
+  {
+    "name": "opposite-quote",
+    "definition": "nativeClass",
+    "before": "else if b == 34 then if single then .copy else .close",
+    "after": "else if b == 34 then if single then .close else .close",
+    "witness": "example : nativeClass true 34 \u2260 StringTransitions.nativeClass true 34 := by decide",
+    "module": "StringTransitions"
+  },
+  {
+    "name": "escaped-EOF",
+    "definition": "nativeEscape",
+    "before": "if xs.isEmpty then \u27e8[],0\u27e9",
+    "after": "if xs.isEmpty then \u27e8Escape.encode 65533,0\u27e9",
+    "witness": "example : nativeEscape [] \u2260 StringTransitions.nativeEscape [] := by decide",
+    "module": "StringTransitions"
+  },
+  {
+    "name": "NUL-copy",
+    "definition": "owned",
+    "before": "owned single bs (buffer++Escape.encode 65533)",
+    "after": "owned single bs (buffer++[0])",
+    "witness": "example : owned false [0] [] \u2260 StringTransitions.owned false [0] [] := by simp [owned,StringTransitions.owned,nativeClass,extend,Escape.encode,Escape.byte]",
+    "module": "StringTransitions"
+  },
+  {
+    "name": "lost-borrowed-prefix",
+    "definition": "borrowed",
+    "before": "\u27e8owned single (b::bs) pre,true\u27e9",
+    "after": "\u27e8owned single (b::bs) [],true\u27e9",
+    "witness": "example : borrowed false [0] [65] \u2260 StringTransitions.borrowed false [0] [65] := by simp [borrowed,StringTransitions.borrowed,owned,nativeClass,extend,Escape.encode,Escape.byte]",
+    "module": "StringTransitions"
+  },
+  {
+    "name": "consumed-bad-newline",
+    "definition": "owned",
+    "before": "| .bad => \u27e8buffer,0,.bad\u27e9",
+    "after": "| .bad => \u27e8buffer,1,.bad\u27e9",
+    "witness": "example : owned false [10] [] \u2260 StringTransitions.owned false [10] [] := by simp [owned,StringTransitions.owned,nativeClass,extend,Escape.encode,Escape.byte]",
+    "module": "StringTransitions"
+  }
+]

@@ -1,0 +1,42 @@
+5.5.6. Consume a declaration
+
+To consume a declaration from a token stream input ,
+	given an optional bool nested (default false):
+
+Let decl be a new declaration ,
+	with an initially empty name
+	and a value set to an empty list .
+
+If the next token is an <ident-token> , consume a token from input and set decl 's name
+			to the token’s value. Otherwise, consume the remnants of a bad declaration from input ,
+			with nested ,
+			and return nothing. Discard whitespace from input . If the next token is a <colon-token> , discard a token from input . Otherwise, consume the remnants of a bad declaration from input ,
+			with nested ,
+			and return nothing. Discard whitespace from input . Consume a list of component values from input ,
+			with nested ,
+			and with <semicolon-token> as the stop token,
+			and set decl ’s value to the result. If the last two non- <whitespace-token> s in decl ’s value are
+			a <delim-token> with the value "!"
+			followed by an <ident-token> with a value that is an ASCII case-insensitive match for "important",
+			remove them from decl ’s value
+			and set decl ’s important flag. While the last item in decl ’s value is a <whitespace-token> , remove that token. If decl ’s name is a custom property name string ,
+			then set decl ’s original text to the segment of the original source text string
+			corresponding to the tokens
+			of decl ’s value. Otherwise, if decl ’s value contains a top-level simple block with an associated token of <{-token> ,
+			and also contains any other non- <whitespace-token> value,
+			return nothing.
+			(That is, a top-level {}-block is only allowed
+			as the entire value of a non-custom property.) Otherwise, if decl ’s name is an ASCII case-insensitive match for "unicode-range", consume the value of a unicode-range descriptor from the segment of the original source text string
+			corresponding to the tokens
+			returned by the consume a list of component values call,
+			and replace decl ’s value with the result. Tests var-with-blocks.html (live test) (source) If decl is valid in the current context,
+			return it;
+			otherwise return nothing.
+
+To consume the remnants of a bad declaration from a token stream input ,
+		given a bool nested : Process input : <eof-token> <semicolon-token> Discard a token from input ,
+and return nothing. <}-token> If nested is true,
+return nothing.
+Otherwise, discard a token . anything else Consume a component value from input ,
+and do nothing.
+
