@@ -1,0 +1,146 @@
+10.10.1.
+Simplification
+Internal representations of math functions are eagerly simplified to the extent possible,
+using standard algebraic simplifications
+(distributing multiplication over sums,
+combining similar units,
+etc.).
+When used in non-property contexts
+(such as in @font-face descriptors, for example),
+math functions are simplified
+as if they were specified values.
+To simplify a calculation tree root:
+If root is a numeric value:
+If root is a percentage that will be resolved against another value,
+and there is enough information available to resolve it,
+do so,
+and express the resulting numeric value
+in the appropriate canonical unit.
+Return the value.
+If root is a dimension
+that is not expressed in its canonical unit,
+and there is enough information available to convert it to the canonical unit,
+do so,
+and return the value.
+If root is a <calc-keyword> that can be resolved,
+return what it resolves to,
+simplified.
+Otherwise, return root.
+If root is any other leaf node
+(not an operator node):
+If there is enough information available to determine its numeric value,
+return its value,
+expressed in the value’s canonical unit.
+Otherwise, return root.
+At this point, root is an operator node.
+Simplify all the calculation children of root.
+If root is an operator node
+that’s not one of the calc-operator nodes,
+and all of its calculation children are numeric values
+with enough information to compute the operation root represents,
+return the result of running root’s operation
+using its children,
+expressed in the result’s canonical unit.
+If a percentage is left at this point,
+it will usually block simplification of the node,
+since it needs to be resolved against another value
+using information not currently available.
+(Otherwise, it would have been converted to a different value in an earlier step.)
+This includes operations such as "min",
+since percentages might resolve against a negative basis,
+and thus end up with an opposite comparative relationship
+than the raw percentage value would seem to indicate.
+However, "raw" percentages—​ones which do not resolve against another value,
+such as in opacity—​might not block simplification.
+If root is a Min or Max node,
+attempt to partially simplify it:
+For each node child of root’s children:
+If child is a numeric value
+with enough information to compare magnitudes with another child of the same unit
+(see note in previous step),
+and there are other children of root
+that are numeric values with the same unit,
+combine all such children
+with the appropriate operator per root,
+and replace child with the result,
+removing all other child nodes involved.
+If root has only one child,
+return the child.
+Otherwise, return root.
+If root is a Negate node:
+If root’s child is a numeric value,
+return an equivalent numeric value,
+but with the value negated
+(0 - value).
+If root’s child is a Negate node,
+return the child’s child.
+If root’s child is a Sum node:
+Let negated grandchildren be an empty list
+For each grandchild of the child’s children:
+If grandchild is a numeric value,
+create an equivalent numeric value,
+but with the value negated
+(0 - value),
+and append the result to negated grandchildren.
+If grandchild is a Negate node
+append grandchild’s child to negated grandchildren
+Otherwise,
+create a Negate node with grandchild as its child,
+and append the result to negated grandchildren
+Return a Sum node with negated grandchildren as its children
+Return root.
+If root is an Invert node:
+If root’s child is a number
+(not a percentage or dimension)
+return the reciprocal of the child’s value.
+If root’s child is an Invert node,
+return the child’s child.
+Return root.
+If root is a Sum node:
+For each of root’s children
+that are Sum nodes,
+replace them with their children.
+For each set of root’s children
+that are numeric values with identical units,
+remove those children
+and replace them with a single numeric value
+containing the sum of the removed nodes,
+and with the same unit.
+(E.g. combine numbers, combine percentages,
+combine px values, etc.)
+If root has only a single child at this point,
+return the child.
+Otherwise, return root.
+Note: Zero-valued terms cannot be simply removed from a Sum;
+they can only be combined with other values that have identical units.
+(This is because the mere presence of a unit, even with a zero value,
+can sometimes imply a change in behavior.)
+If root is a Product node:
+For each of root’s children
+that are Product nodes,
+replace them with their children.
+If root has multiple children that are numbers
+(not percentages or dimensions),
+remove them and replace them with a single number
+containing the product of the removed nodes.
+If root contains only two children,
+one of which is a number
+(not a percentage or dimension)
+and the other of which is a Sum
+whose children are all numeric values,
+multiply all of the Sum’s children by the number,
+then return the Sum.
+If root contains only numeric values
+and/or Invert nodes containing numeric values,
+and multiplying the types
+of all the children
+(noting that the type of an Invert node
+is the inverse of its child’s type)
+results in a type that matches
+any of the types that a math function can resolve to,
+return the result of multiplying all the values of the children
+(noting that the value of an Invert node
+is the reciprocal of its child’s value),
+expressed in the result’s canonical unit.
+Return root.
+Return root.

@@ -1,0 +1,94 @@
+<h3 class="heading settled" data-level="10.2" id="comp-func"><span class="secno">10.2. </span><span class="content">
+Comparison Functions: <a class="css" data-link-type="maybe" href="#funcdef-min" id="ref-for-funcdef-min">min()</a>, <a class="css" data-link-type="maybe" href="#funcdef-max" id="ref-for-funcdef-max">max()</a>, and <a class="css" data-link-type="maybe" href="#funcdef-clamp" id="ref-for-funcdef-clamp①">clamp()</a></span><a class="self-link" href="#comp-func"></a></h3>
+   <p>The comparison functions of <a class="css" data-link-type="maybe" href="#funcdef-min" id="ref-for-funcdef-min①">min()</a>, <a class="css" data-link-type="maybe" href="#funcdef-max" id="ref-for-funcdef-max①">max()</a>, and <a class="css" data-link-type="maybe" href="#funcdef-clamp" id="ref-for-funcdef-clamp②">clamp()</a>
+	compare multiple <a data-link-type="dfn" href="#calc-calculation" id="ref-for-calc-calculation②">calculations</a>
+	and represent the value of one of them.</p>
+   <p>The <dfn class="css dfn-paneled" data-dfn-type="function" data-export id="funcdef-min">min()</dfn> or <dfn class="css dfn-paneled" data-dfn-type="function" data-export id="funcdef-max">max()</dfn> functions
+	contain one or more comma-separated <a data-link-type="dfn" href="#calc-calculation" id="ref-for-calc-calculation③">calculations</a>,
+	and represent the smallest (most negative) or largest (most positive) of them, respectively.</p>
+   <p>The <dfn class="css dfn-paneled" data-dfn-type="function" data-export id="funcdef-clamp">clamp()</dfn> function takes three <a data-link-type="dfn" href="#calc-calculation" id="ref-for-calc-calculation④">calculations</a>—​a minimum value, a central value, and a maximum value—​and represents its central calculation,
+	clamped according to its min and max calculations,
+	favoring the min calculation if it conflicts with the max.
+	(That is, given <span class="css">clamp(MIN, VAL, MAX)</span>,
+	it represents exactly the same value as <span class="css">max(MIN, min(VAL, MAX))</span>).</p>
+   <p>Either the min or max calculations
+	(or even both)
+	can instead be the keyword <dfn class="css dfn-paneled" data-dfn-for="clamp()" data-dfn-type="value" data-export id="valdef-clamp-none">none</dfn>,
+	which indicates the value is <em>not</em> clamped from that side.
+	(That is, <span class="css">clamp(MIN, VAL, none)</span> is equivalent to <span class="css">max(MIN, VAL)</span>,
+	<span class="css">clamp(none, VAL, MAX)</span> is equivalent to <span class="css">min(VAL, MAX)</span>,
+	and <span class="css">clamp(none, VAL, none)</span> is equivalent to just <span class="css">calc(VAL)</span>.)</p>
+   <p>For all three functions,
+	the argument <a data-link-type="dfn" href="#calc-calculation" id="ref-for-calc-calculation⑤">calculations</a> can resolve to any <a class="css production" data-link-type="type" href="#number-value" id="ref-for-number-value①⑥">&lt;number></a>, <a class="css production" data-link-type="type" href="#typedef-dimension" id="ref-for-typedef-dimension②">&lt;dimension></a>, or <a class="css production" data-link-type="type" href="#percentage-value" id="ref-for-percentage-value②⑥">&lt;percentage></a>,
+	but must have a <a data-link-type="dfn" href="#css-consistent-type" id="ref-for-css-consistent-type">consistent type</a>
+	or else the function is invalid;
+	the result’s type will be the <span id="ref-for-css-consistent-type①">consistent type</span>.</p>
+   <div class="example" id="example-6875da4b">
+    <a class="self-link" href="#example-6875da4b"></a>
+
+
+    <p><a class="css" data-link-type="maybe" href="#funcdef-min" id="ref-for-funcdef-min②">min()</a>, <a class="css" data-link-type="maybe" href="#funcdef-max" id="ref-for-funcdef-max②">max()</a>, and <a class="css" data-link-type="maybe" href="#funcdef-clamp" id="ref-for-funcdef-clamp③">clamp()</a> can be used to make sure a value doesn’t exceed a "safe" limit:
+		For example, "responsive type" that sets <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-fonts-4/#propdef-font-size" id="ref-for-propdef-font-size⑤">font-size</a> with viewport units
+		might still want a minimum size to ensure readability:</p>
+<pre class="highlight lang-css">.type <c- p>{</c->
+  <c- c>/* Set font-size to 10x the average of vw and vh,</c->
+<c- c>     but don't let it go below 12px. */</c->
+  font-size: <c- nf>max</c-><c- p>(</c-><c- m>10</c-> * <c- p>(</c-><c- m>1</c-><c- k>vw</c-> + <c- m>1</c-><c- k>vh</c-><c- p>)</c-> / <c- m>2</c-><c- p>,</c-> <c- m>12</c-><c- k>px</c-><c- p>);</c->
+<c- p>}</c->
+</pre>
+    <p class="note" role="note"><span class="marker">Note:</span> Full math expressions are allowed in each of the arguments;
+		there’s no need to nest a <a class="css" data-link-type="maybe" href="#funcdef-calc" id="ref-for-funcdef-calc①④">calc()</a> inside!
+		You can also provide more than two arguments,
+		if you have multiple constraints to apply.</p>
+   </div>
+   <div class="example" id="example-50cf5aee">
+    <a class="self-link" href="#example-50cf5aee"></a>
+		An occasional point of confusion when using <a class="css" data-link-type="maybe" href="#funcdef-min" id="ref-for-funcdef-min③">min()</a>/<a class="css" data-link-type="maybe" href="#funcdef-max" id="ref-for-funcdef-max③">max()</a>
+		is that you use <span class="css" id="ref-for-funcdef-max④">max()</span> to impose a minimum value on something
+		(that is, properties like <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-sizing-3/#propdef-min-width" id="ref-for-propdef-min-width">min-width</a> effectively use <span class="css" id="ref-for-funcdef-max⑤">max()</span>),
+		and <span class="css" id="ref-for-funcdef-min④">min()</span> to impose a maximum value on something;
+		it’s easy to accidentally reach for the opposite function
+		and try to use <span class="css" id="ref-for-funcdef-min⑤">min()</span> to add a minimum size.
+		Using <a class="css" data-link-type="maybe" href="#funcdef-clamp" id="ref-for-funcdef-clamp④">clamp()</a> can make the code read more naturally,
+		as the value is nestled between its minimum and maximum:
+
+		
+<pre class="highlight lang-css">.type <c- p>{</c->
+  <c- c>/* Force the font-size to stay between 12px and 100px */</c->
+  font-size: <c- nf>clamp</c-><c- p>(</c-><c- m>12</c-><c- k>px</c-><c- p>,</c-> <c- m>10</c-> * <c- p>(</c-><c- m>1</c-><c- k>vw</c-> + <c- m>1</c-><c- k>vh</c-><c- p>)</c-> / <c- m>2</c-><c- p>,</c-> <c- m>100</c-><c- k>px</c-><c- p>);</c->
+<c- p>}</c->
+</pre>
+    <p>Or, if you only wanted to impose a minimum size,
+		but allow the font-size to grow as large as it wants:</p>
+<pre class="highlight lang-css">.type <c- p>{</c->
+  <c- c>/* Force the font-size to be at least 12px */</c->
+  font-size: <c- nf>clamp</c-><c- p>(</c-><c- m>12</c-><c- k>px</c-><c- p>,</c-> <c- m>10</c-> * <c- p>(</c-><c- m>1</c-><c- k>vw</c-> + <c- m>1</c-><c- k>vh</c-><c- p>)</c-> / <c- m>2</c-><c- p>,</c-> none<c- p>);</c->
+<c- p>}</c->
+</pre>
+   </div>
+   <div class="note" role="note">
+    
+		Note that <a class="css" data-link-type="maybe" href="#funcdef-clamp" id="ref-for-funcdef-clamp⑤">clamp()</a>,
+		matching CSS conventions elsewhere,
+		has its minimum value "win" over its maximum value
+		if the two are in the "wrong order".
+		That is, <span class="css">clamp(100px, ..., 50px)</span>
+		will resolve to <span class="css">100px</span>,
+		exceeding its stated "max" value.
+
+
+    <p>If alternate resolution mechanics are desired
+		they can be achieved by combining <a class="css" data-link-type="maybe" href="#funcdef-clamp" id="ref-for-funcdef-clamp⑥">clamp()</a> with <a class="css" data-link-type="maybe" href="#funcdef-min" id="ref-for-funcdef-min⑥">min()</a> or <a class="css" data-link-type="maybe" href="#funcdef-max" id="ref-for-funcdef-max⑥">max()</a>:</p>
+    <dl>
+     <dt data-md>To have MAX win over MIN:
+     <dd data-md>
+      <p><span class="css">clamp(min(MIN, MAX), VAL, MAX)</span>.
+If you want to avoid repeating the MAX calculation,
+you can just reverse the nesting of functions that <a class="css" data-link-type="maybe" href="#funcdef-clamp" id="ref-for-funcdef-clamp⑦">clamp()</a> is defined against—​<span class="css">min(MAX, max(MIN, VAL))</span>.</p>
+     <dt data-md>To have MAX and MIN "swap" when they’re in the wrong order:
+     <dd data-md>
+      <p><span class="css">clamp(min(MIN, MAX), VAL, max(MIN, MAX))</span>.
+Unfortunately, there’s no easy way to do this without repeating the MIN and MAX terms.</p>
+    </dl>
+   </div>
+   
