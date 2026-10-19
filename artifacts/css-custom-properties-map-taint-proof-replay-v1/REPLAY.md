@@ -1,0 +1,5 @@
+# Taint component replay receipts
+
+Final accepted producer replay directories are canonical-sealed and relocated-sealed-output; both CHECK.json files record 31 audits and four compiled semantic mutants. guards-sealed.log / GUARDS.json record nine pre-output rejections. The earlier canonical/canonical-final/relocated-output and initial logs are retained development evidence, not the final external checker identity. Initial Driver used a reserved identifier; an initial -O guard exposed an assert-only invocation check. Both were corrected before external handoff. guards-development.log preserves the latter failure.
+
+SOURCE-IDENTITY.json pins the final capsule. Full relocated input identities and scratch guard inventories are retained after removal; CLEANUP.json records exact bytes and paths. Object targets were removed only after their source and output receipts were retained. Recreate fresh replay from the source capsule with its README command. The guard script is retained as the executed protocol; its historical source-copy paths no longer exist after cleanup.
