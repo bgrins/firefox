@@ -4,23 +4,22 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current repair work
 
-Three quoted-EOF recovery leads are reproduced on the pinned shared build:
+1. Quoted EOF fallback endpoints are committed as
+   `2d658a9c5aa4139dc7f196933511abf4a594163f`: the crashing WPT now passes
+   all 38 checks. Its conditional arithmetic component and native scope are
+   recorded in css-quoted-eof-offset-root-v1.
+2. Trailing-backslash parity is accepted and queued for its separate native/WPT
+   commit. Four failures become 18 passes; all 50 other outcomes are unchanged.
+   Root replay and independent reviews pass the conditional terminal-run proof.
+   Keep an upstream-based variant because the stack uses the endpoint flag.
+3. Escaped terminal quotes remain a separate source/proof proposal with positive
+   independent review; root formatting/build/browser gates are next. Four
+   semantic failures remain in the combined diagnostic.
 
-1. Nested fallback substitution crashes after late backslash deletion leaves
-   enclosing reference endpoints one byte too large.
-2. Even positive terminal-backslash runs lose a literal backslash during repair.
-3. An escaped terminal quote is mistaken for a closing quote.
-
-The two value errors produce eight failures with fourteen passing controls;
-the endpoint case crashes in `do_substitute_chunk`. Keep three independently
-reviewable native/WPT repairs with preceding proof/tooling. The endpoint WPT
-uses odd terminal runs to avoid depending on the parity correction. The endpoint repair is committed as `2d658a9c5aa4139dc7f196933511abf4a594163f`:
-38 browser checks pass after the baseline crash, with 34 other outcomes
-unchanged. Root and independent replay pass ten conditional arithmetic lemmas,
-40 source cases and 360 additional independent cases. The two semantic repairs
-are sealed proposals under separate review. There are now 63 committed native/WPT fixes.
-Evidence: css-quoted-eof-fallback-probe-v1/ROOT-BASELINE.json and
-css-quoted-eof-semantics-probe-v1/ROOT-BASELINE.json.
+There are 63 committed native/WPT fixes until the parity commit is created.
+The comment/observer proof has passed fresh root and independent replay; root
+acceptance and its separate proof checkpoint remain pending. String-loop proof
+work and public iterator/cache/reset source investigation continue in parallel.
 
 ## Next proof work
 

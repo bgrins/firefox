@@ -1,0 +1,11 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1059,7 +1059,7 @@
+             .to_owned();
+         if !missing_closing_characters.is_empty() {
+             // Unescaped backslash at EOF in a quoted string is ignored.
+-            if css.ends_with("\\")
++            if css.bytes().rev().take_while(|&byte| byte == b'\\').count() % 2 == 1
+                 && matches!(missing_closing_characters.as_bytes()[0], b'"' | b'\'')
+             {
+                 css.pop();

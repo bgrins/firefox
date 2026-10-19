@@ -1,0 +1,12 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1439,7 +1439,8 @@
+                 debug_assert!(matches!(quote, "\"" | "'"));
+                 if !(token_slice.ends_with(quote) && token_slice.len() > 1) {
+                     *removed_backslash =
+-                        missing_closing_characters.is_empty() && token_slice.ends_with("\\");
++                        missing_closing_characters.is_empty()
++                        && token_slice.bytes().rev().take_while(|&byte| byte == b'\\').count() % 2 == 1;
+                     missing_closing_characters.push_str(quote)
+                 }
+             },
