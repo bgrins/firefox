@@ -2636,6 +2636,16 @@ ImgDrawResult nsCSSRendering::PaintStyleImageLayerWithSC(
       if (co != CompositionOp::OP_OVER) {
         aRenderingCtx.SetOp(CompositionOp::OP_OVER);
       }
+    } else if (paintMask && state.mImageRenderer.IsReady()) {
+      CompositionOp co = DetermineCompositionOp(aParams, layers, i);
+      if (co == CompositionOp::OP_IN || co == CompositionOp::OP_OUT) {
+        // An empty mask still participates in composition as transparent black.
+        DrawTarget* dt = aRenderingCtx.GetDrawTarget();
+        Matrix transform = dt->GetTransform();
+        dt->SetTransform(Matrix());
+        dt->ClearRect(Rect(dt->GetRect()));
+        dt->SetTransform(transform);
+      }
     }
   }
 
