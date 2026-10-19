@@ -2894,3 +2894,19 @@ caller/spec adjudication rather than filtered admissions. Uniform-word and calle
 composition continue. Hyphenation production now connects complete traversal,
 construction/assignment, transformed ranges and native break sinks in finite
 execution; its universal caller composition is still open.
+
+## Persistent spacing checkpoint and namespace repair
+
+Persistent-spacing v2 now passes root's fresh relocated replay: 28 modules,
+257 exact theorem audits (57 new), and 16 complete native definition bindings.
+Constructor-derived cache progression and clipping stability are proved in the
+model. The allowed history-dependent presence flag is retained. Actual
+measurement/refill/ligature request admission, provider/source preparation, and
+property lifetime remain the next ownership gates. See
+`../css-hyphenation-measurement-offset-probe-v1/ROOT-PERSISTENT-SPACING-v2.json`.
+
+The namespace-key candidate now has independent static approval and an isolated
+patch that applies/reverses against committed HEAD. Expanded baseline: 13 new
+failures, eight passing controls, and 39 existing regression checks passing.
+The candidate build is in progress; no namespace fix is accepted or counted yet.
+A separate nested-fallback preload lead is under static investigation.

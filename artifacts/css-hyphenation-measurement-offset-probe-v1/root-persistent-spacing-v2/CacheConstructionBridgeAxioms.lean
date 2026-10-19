@@ -1,0 +1,10 @@
+import CacheConstructionBridge
+#print axioms CacheConstructionBridge.reference_offsets
+#print axioms CacheConstructionBridge.collected_bounds
+#print axioms CacheConstructionBridge.collected_order
+#print axioms CacheConstructionBridge.reference_sorted
+#print axioms CacheConstructionBridge.reference_bounds
+#print axioms CacheConstructionBridge.reference_strict
+#print axioms CacheConstructionBridge.reference_extension
+#print axioms CacheConstructionBridge.constructed_query_stable
+#print axioms CacheConstructionBridge.history_query_stable

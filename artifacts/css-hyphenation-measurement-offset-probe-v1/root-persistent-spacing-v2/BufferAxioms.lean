@@ -1,0 +1,13 @@
+import Buffer
+#print axioms LanguageBreak.widening_preserves_units
+#print axioms LanguageBreak.widening_preserves_metadata
+#print axioms LanguageBreak.flatten_append
+#print axioms LanguageBreak.locate_append
+#print axioms LanguageBreak.locate_first
+#print axioms LanguageBreak.empty_buffer_valid
+#print axioms LanguageBreak.append_preserves_cover
+#print axioms LanguageBreak.arbitrary_pieces_preserve_cover
+#print axioms LanguageBreak.append_pieces_units
+#print axioms LanguageBreak.partition_same_provider_contents
+#print axioms LanguageBreak.encode_widen_same_piece
+#print axioms LanguageBreak.width_transition_contents

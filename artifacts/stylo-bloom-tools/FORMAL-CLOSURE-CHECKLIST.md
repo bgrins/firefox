@@ -152,3 +152,13 @@ Resolve lifetime, equality, publication/invalidation, detached/adopted roots,
 serialization/shared-memory and FFI contracts before production changes.
 
 Evidence: `../css-shadow-scope-ownership-probe-v1/SCOPE-REPRESENTATION-v2.md`.
+
+## Persistent tab-spacing component checkpoint
+
+Root replay and review of `persistent-spacing-v2` passed (28 modules, 257
+theorem reports, 57 new). Constructor histories derive cache progression,
+numerical prefix values, sortedness and covered-query clipping stability.
+The full presence flag remains history-dependent; its allowed zero-spacing
+witness is retained. This does not close ownership item 5: actual measurement
+and nested ligature request chronology, source/preparation stability, property
+lifetime and consumer-specific presence projection remain open.

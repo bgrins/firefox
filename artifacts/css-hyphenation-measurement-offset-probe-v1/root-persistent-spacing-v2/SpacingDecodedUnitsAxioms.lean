@@ -1,0 +1,8 @@
+import SpacingDecodedUnits
+#print axioms HyphenSpacingDecodedUnits.constructed_unit_bounds
+#print axioms HyphenSpacingDecodedUnits.complete_unit_bounds
+#print axioms HyphenSpacingDecodedUnits.decoded_inner_coordinate
+#print axioms HyphenSpacingDecodedUnits.constructed_trace_bounded
+#print axioms HyphenSpacingDecodedUnits.spacing_preserves_outside
+#print axioms HyphenSpacingDecodedUnits.cluster_backward_bounds
+#print axioms HyphenSpacingDecodedUnits.base_scalar_read_inside_run

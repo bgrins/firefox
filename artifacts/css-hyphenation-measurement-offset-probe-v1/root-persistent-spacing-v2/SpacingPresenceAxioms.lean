@@ -1,0 +1,4 @@
+import SpacingPresence
+#print axioms SpacingPresence.presence_depends_on_history
+#print axioms SpacingPresence.zero_values_despite_presence_difference
+#print axioms SpacingPresence.zero_width_observation

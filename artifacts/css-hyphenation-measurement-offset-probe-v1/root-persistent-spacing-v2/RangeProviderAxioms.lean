@@ -1,0 +1,15 @@
+import RangeProvider
+#print axioms HyphenRangeProvider.merged_contribution
+#print axioms HyphenRangeProvider.insert_preserves
+#print axioms HyphenRangeProvider.coalescing_exact_ownership
+#print axioms HyphenRangeProvider.splitting_exact_ownership
+#print axioms HyphenRangeProvider.all_skipped_no_contribution
+#print axioms HyphenRangeProvider.each_range_has_sink
+#print axioms HyphenRangeProvider.empty_range_keeps_first
+#print axioms HyphenRangeProvider.nonempty_range_consumes_first
+#print axioms HyphenRangeProvider.sink_at_current_offset
+#print axioms HyphenRangeProvider.omitted_characters_not_owned
+#print axioms HyphenRangeProvider.whole_flow_and_multi_flow
+#print axioms HyphenRangeProvider.frame_coverage
+#print axioms HyphenRangeProvider.mapped_coverage
+#print axioms HyphenRangeProvider.full_mapped_flow_coverage

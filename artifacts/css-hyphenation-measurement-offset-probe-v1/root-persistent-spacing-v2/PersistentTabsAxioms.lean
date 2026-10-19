@@ -1,0 +1,24 @@
+import PersistentTabs
+#print axioms PersistentTabs.step_analyzed
+#print axioms PersistentTabs.loop_analyzed
+#print axioms PersistentTabs.step_cache_retained
+#print axioms PersistentTabs.loop_cache_retained
+#print axioms PersistentTabs.query_frontier
+#print axioms PersistentTabs.query_requests
+#print axioms PersistentTabs.covered_lower
+#print axioms PersistentTabs.queries_frontier
+#print axioms PersistentTabs.adjacent_ranges
+#print axioms PersistentTabs.queries_requests
+#print axioms PersistentTabs.constructor_frontier
+#print axioms PersistentTabs.constructor_requests
+#print axioms PersistentTabs.step_values
+#print axioms PersistentTabs.loop_values
+#print axioms PersistentTabs.query_values
+#print axioms PersistentTabs.reference_chunks
+#print axioms PersistentTabs.queries_values
+#print axioms PersistentTabs.constructor_values
+#print axioms PersistentTabs.query_partition_values
+#print axioms PersistentTabs.query_partition_requests
+#print axioms PersistentTabs.persistent_nonvacuity
+#print axioms PersistentTabs.independently_seeded_state_counterexample
+#print axioms PersistentTabs.resetting_repeats_requests

@@ -1,0 +1,8 @@
+import SkipRunNativeStep
+#print axioms HyphenSkipRunNativeStep.initial_advance
+#print axioms HyphenSkipRunNativeStep.next_run_exact
+#print axioms HyphenSkipRunNativeStep.next_run_advances
+#print axioms HyphenSkipRunNativeStep.query_start_admission
+#print axioms HyphenSkipRunNativeStep.automatic_original_read_bound
+#print axioms HyphenSkipRunNativeStep.initialized_native_query
+#print axioms HyphenSkipRunNativeStep.complete_provider_query_length

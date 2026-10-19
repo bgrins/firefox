@@ -1,0 +1,6 @@
+import SpacingAssociation
+#print axioms SpacingAssociation.query_refines_complete_values
+#print axioms SpacingAssociation.query_preserves_association
+#print axioms SpacingAssociation.exact_ordered_values
+#print axioms SpacingAssociation.history_preserves_association
+#print axioms SpacingAssociation.history_answer_count

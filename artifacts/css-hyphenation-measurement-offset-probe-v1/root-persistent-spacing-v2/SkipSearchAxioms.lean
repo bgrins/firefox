@@ -1,0 +1,16 @@
+import SkipSearch
+#print axioms HyphenSkipSearch.binary_search_finds_cut
+#print axioms HyphenSkipSearch.sorted_cut
+#print axioms HyphenSkipSearch.native_binary_search_sorted
+#print axioms HyphenSkipSearch.sorted_index_selects_predecessor_by
+#print axioms HyphenSkipSearch.sorted_index_selects_predecessor
+#print axioms HyphenSkipSearch.wellformed_member_start
+#print axioms HyphenSkipSearch.wellformed_reverse_sorted
+#print axioms HyphenSkipSearch.selection_evaluates_lookup
+#print axioms HyphenSkipSearch.indexed_iterator_refines_lookup
+#print axioms HyphenSkipSearch.complete_original_iterator
+#print axioms HyphenSkipSearch.wellformed_member_skipped
+#print axioms HyphenSkipSearch.wellformed_skipped_sorted
+#print axioms HyphenSkipSearch.skipped_selection_evaluates_lookup
+#print axioms HyphenSkipSearch.indexed_skipped_iterator_refines_lookup
+#print axioms HyphenSkipSearch.complete_skipped_iterator

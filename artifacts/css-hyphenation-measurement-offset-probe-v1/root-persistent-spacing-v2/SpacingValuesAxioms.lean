@@ -1,0 +1,13 @@
+import SpacingValues
+#print axioms HyphenSpacingValues.ordered_values
+#print axioms HyphenSpacingValues.execute_append
+#print axioms HyphenSpacingValues.bounded_append
+#print axioms HyphenSpacingValues.writes_leave_outside
+#print axioms HyphenSpacingValues.visit_reference
+#print axioms HyphenSpacingValues.whole_loop_reference
+#print axioms HyphenSpacingValues.whole_loop_pointwise
+#print axioms HyphenSpacingValues.entry_bounds
+#print axioms HyphenSpacingValues.trace_bounds
+#print axioms HyphenSpacingValues.previous_stays_set
+#print axioms HyphenSpacingValues.no_repeated_predecessor
+#print axioms HyphenSpacingValues.at_most_one_predecessor

@@ -1,0 +1,15 @@
+import TransformedSlices
+#print axioms HyphenTransformedSlices.filter_drop_by_prefix
+#print axioms HyphenTransformedSlices.filter_take_by_prefix
+#print axioms HyphenTransformedSlices.filtered_prefix_length
+#print axioms HyphenTransformedSlices.native_skip_slice_reference
+#print axioms HyphenTransformedSlices.clamped_slice_reference
+#print axioms HyphenTransformedSlices.rangeSlice_decode_equals_contributed_cells
+#print axioms HyphenTransformedSlices.slice_of_parts
+#print axioms HyphenTransformedSlices.slice_storage_decodes
+#print axioms HyphenTransformedSlices.whole_buffer_binding_implies_range_admission
+#print axioms HyphenTransformedSlices.bounded_slice_in_context
+#print axioms HyphenTransformedSlices.kept_prefix_bound
+#print axioms HyphenTransformedSlices.multi_flow_range_admission
+#print axioms HyphenTransformedSlices.clamped_content_offset_rebases
+#print axioms HyphenTransformedSlices.mapped_flow_content_coordinates

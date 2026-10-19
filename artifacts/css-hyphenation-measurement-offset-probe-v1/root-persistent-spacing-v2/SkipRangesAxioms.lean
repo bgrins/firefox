@@ -1,0 +1,21 @@
+import SkipRanges
+#print axioms HyphenSkipRanges.omitted_cons
+#print axioms HyphenSkipRanges.wellformed_weaken
+#print axioms HyphenSkipRanges.omitted_after_end
+#print axioms HyphenSkipRanges.skipped_prefix_append
+#print axioms HyphenSkipRanges.kept_prefix_append
+#print axioms HyphenSkipRanges.empty_represents
+#print axioms HyphenSkipRanges.keep_represents
+#print axioms HyphenSkipRanges.skip_represents
+#print axioms HyphenSkipRanges.arbitrary_builder_operations
+#print axioms HyphenSkipRanges.constructor_builder_represents
+#print axioms HyphenSkipRanges.total_bound
+#print axioms HyphenSkipRanges.selected_range_arithmetic
+#print axioms HyphenSkipRanges.complementary_filter_lengths
+#print axioms HyphenSkipRanges.kept_prefix_count
+#print axioms HyphenSkipRanges.skipped_prefix_clamp
+#print axioms HyphenSkipRanges.original_iterator_refines_kept_prefix
+#print axioms HyphenSkipRanges.constructor_original_coordinate
+#print axioms HyphenSkipRanges.original_at_end
+#print axioms HyphenSkipRanges.skipped_iterator_bounded_inverse
+#print axioms HyphenSkipRanges.constructor_skipped_coordinate
