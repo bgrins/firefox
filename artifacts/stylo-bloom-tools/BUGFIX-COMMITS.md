@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **61 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **62 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -60,6 +60,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | unit-token-classification | `26e0fa16e89eacd9fd9cab0ce6bb1be813d9e406` | `2e1f5f62c8a6325679a83adc7f637e104c488bf7` |
 | identifier-start-escaped-newline | `09b008b3320fa29fcbcf081b252053e3721c5e10` | `b69763a1817a7a4824e6df0d04e0e4e52684c897` |
 | loaded-fontface-descriptors | `6bd0b00dcff5514a3234423787920ed44491a4bc` | `ae298df56390ff98baa873bfcea3896e6c112d48` |
+| numeric-compensated-exponent | `4391deb4751a8be2be98e838360f00c94808c5d5` | `ddb1799ad54ecdd4528ee894b09c44e80bd6816b` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1465,3 +1466,21 @@ pins, exact patches and both isolated runs are in
 [validation](../css-fontface-provider-isolated-v1/README.md). Runtime validation
 is macOS only; other backends have source review. The existing abstract provider
 model does not establish full native lifetime or concurrency correctness.
+
+## Compensating numeric exponents committed
+
+Standalone native + WPT: `12c1208d2c4f485942164b7df7c276401b8e7b8c` on local branch
+`stylo-css-numeric-range-fix`, after evidence companion
+`b1e034259a8e3d553bb1528fa1982769f1002236`. Working-branch integration: `4391deb4751a8be2be98e838360f00c94808c5d5`.
+Both versions contain only the numeric tokenizer change, vendor checksum and
+one eleven-case WPT. They count as one repair.
+
+Five reproduced failures become passes; all eleven new cases pass and 21
+existing checks are unchanged, including four expected failures. Root and
+independent source replays, rational bounds and semantic mutants pass. These
+are conditional range arguments and bounded execution, not a complete numeric
+or IEEE proof. The measured extracted-body overhead remains approximately
+0.3–0.85 ns/token; browser performance is unmeasured. Runtime pairing uses the
+shared tree. The standalone version applies and reverses on upstream without
+prior local repairs, but has no isolated-base browser run.
+See [validation](../css-tokenizer-numeric-root-v1/README.md).

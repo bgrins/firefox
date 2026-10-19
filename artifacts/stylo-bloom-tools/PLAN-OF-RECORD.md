@@ -6,37 +6,30 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 Immediate next steps:
 
-1. Recursive fallback preparation is signed as `7822bb6d17b1381cdb3e56deb20c5ec3e078adec`.
-   Its sixteen-case WPT and seventy regressions pass. Worklist proof companion
-   `31265260cc3daa2bbea93c237a9491b6f2afcaa4` passes 54 audits and four mutation gates.
-   Preserve the separate provider/parser/observer/graph admissions.
-2. Typed-fallback eligibility is signed as `e3ba54f6f826fe265eb5bc4731f66f64465dd47c`.
-   All twelve new cases and 171 other checks pass, repairing eight failures.
-   The follow-up attr-only collection repair is signed as `3892ab844694fedd987f5ce1dd2165f53fc2dbed`.
-   Its ten new cases and 183 prior checks pass. Preserve native parser/context
-   and full graph-composition obligations.
-3. Resolved relative-unit summaries are signed as `58200fa81a6f92f92a1898ba2866a2fbcbac0daa`. All 21 new,
-   13 diagnostic and 193 prior checks pass; 13 baseline failures are repaired.
-   Selected-output Lean composition remains conditional on actual tokenizer and
-   provider correspondence. Incomplete env payloads retain old behavior. The
-   original-parser token-category repair is signed as `26e0fa16e89eacd9fd9cab0ce6bb1be813d9e406`:
-   seven failures fixed, all 241 checks pass. Optimized byte-dispatch admission
-   is signed as `cac67dc34a5ce8e02088e8ef02a9354851690f77`: all 22 current calls and
-   5,632 byte decisions agree, with a universal table-construction theorem and
-   independent review. Full name/escape return-boundary refinement is next;
-   native compiler, progress, arithmetic and suffix-restart obligations remain
-   open. Preserve the separate ambiguous unused-relative-fallback oracle.
-4. Continue cascade source/observer and hyphenation stateful consumer admissions,
-   including actual reflow-to-display tab-cache coverage and lifetime. Preserve
+1. Finish root and independent review of the original numeric lexical model:
+   maximal prefix, read safety, progress, exact suffix, UTF-8 boundaries and
+   decoded-unit classification. Then bind the exact accepted numeric repair
+   `4391deb4751a8be2be98e838360f00c94808c5d5` and its new slice/FromStr admission. Floating conversion,
+   native libraries and whole-tokenizer correctness remain separate obligations.
+2. Audit complete string and comment providers against CSS Syntax, including
+   bad-string recovery, escaped EOF and comment observer state. Preserve known
+   expected failures and distinguish tokenizer defects from serialization or
+   declaration recovery before proposing a fix.
+3. Compose all actual raw-token branches with fresh-suffix parser states and
+   selected-output dependency metadata. Name/escape and corrected-guard models
+   are signed as `71fd35e1276edfef665ff1a4fada28217174a1d5`; shared codecs,
+   packed line-counter headroom, compiler and full provider admission stay open.
+4. Continue cascade source/observer and hyphenation stateful consumer admission,
+   including actual reflow-to-display tab-cache coverage and lifetime. Retain
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
-5. Loaded FontFace descriptors are committed: standalone `f393d2d8c3b0abd6fa17709ab8dd519d8fdd5db2`;
-   stacked integration `6bd0b00dcff5514a3234423787920ed44491a4bc`. Isolated macOS build and all 90 expected
-   browser checks pass, including 76 new subtests. The standalone patch carries
-   worker cleanup already present in stack repair #50. Other backends and full
-   native lifetime/concurrency proofs remain open.
-6. Keep every accepted repair independently reviewable in CURRENT-COMMITS.json,
-   with proof/tooling preceding its standalone native/WPT commit. Full closure
-   requirements remain in the linked checklist.
+5. Keep independently reproducible native fixes separate from proof/tooling.
+   Loaded FontFace descriptors and numeric compensated-exponent repairs are
+   now committed with standalone alternatives. Their platform, performance and
+   formal limits are recorded in CURRENT-COMMITS.json; neither closes the full
+   CSS model or all native provider invariants.
+6. Use the full closure checklist to select the next missing proof component;
+   do not treat finite corpora, theorem counts or a successful browser pair as
+   full implementation verification.
 
 
 [Full-proof closure checklist](FORMAL-CLOSURE-CHECKLIST.md) records the remaining
@@ -45,9 +38,9 @@ active proof tracks. Existing finite corpora are held fixed absent a concrete
 remaining risk. Component theorem counts and bounded replay success do not
 close these obligations.
 
-## Latest commit and proof checkpoint
+## Earlier proof checkpoints
 
-There are 61 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
+There are 62 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
@@ -84,7 +77,7 @@ as a 16-file artifact candidate. Root source-regeneration/live-original checks
 pass; integration, compilation and browser gates remain. No production edit
 has been applied.
 
-## Loaded FontFace provider follow-up
+## Initial loaded FontFace provider investigation
 
 The static audit's loaded `sizeAdjust` lead is confirmed. The local WPT has four
 passing fresh-face controls and eight failures across URL/buffer sources and
@@ -3153,3 +3146,20 @@ extracted Rust cases but independent microbenchmarks measure normal-path cost.
 Investigate a cheaper guard before live integration. These are extracted body
 timings, not browser performance. Lexical numeric proof work continues separately.
 Current count61; accepted pending0.
+
+## Numeric repair committed; lexical proof review next
+
+Repair62 is signed: standalone `12c1208d2c4f485942164b7df7c276401b8e7b8c`, working-branch
+`4391deb4751a8be2be98e838360f00c94808c5d5`. Evidence precedes both versions. Five browser failures
+improve, eleven new cases pass and 21 existing checks remain unchanged.
+Dedicated WPT lint and all build phases pass. Root fresh replay authenticates
+51 inputs and passes 852 debug/release cases and three semantic mutants; the
+independent review also checks closed-form bounds and 504 challenges.
+
+The final length/nonfinite guard keeps measured normal-path overhead in the
+isolated benchmark. Native IEEE/pow/parser/compiler assumptions and ordinary
+rounding limits remain explicit. This is a scoped native repair, not a Lean
+proof of floating-point conversion. The original numeric lexical model now
+has a separate reviewer; final immutable admission and v2 transfer remain next.
+String/comment static auditing proceeds independently.
+Current count: 62 committed repairs, zero accepted repairs awaiting commits.
