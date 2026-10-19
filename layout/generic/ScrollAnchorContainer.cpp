@@ -577,13 +577,9 @@ ScrollAnchorContainer::ExamineAnchorCandidate(nsIFrame* aFrame) const {
     return ExamineResult::Exclude;
   }
 
-  // Sticky positioned elements can move with the scroll frame, making them
-  // unsuitable scroll anchors. This isn't in the specification yet [1], but
-  // matches Blink's implementation.
-  //
-  // [1] https://github.com/w3c/csswg-drafts/issues/3319
-  if (aFrame->IsStickyPositioned()) {
-    ANCHOR_LOG("\t\tExcluding `position: sticky`.\n");
+  if (disp->mPosition == StylePositionProperty::Fixed ||
+      aFrame->IsStickyPositioned()) {
+    ANCHOR_LOG("\t\tExcluding fixed or sticky positioning.\n");
     return ExamineResult::Exclude;
   }
 
