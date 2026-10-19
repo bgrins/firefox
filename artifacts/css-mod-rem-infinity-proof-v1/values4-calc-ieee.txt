@@ -1,0 +1,102 @@
+10.9.2.
+Infinities, NaN, and Signed Zero
+Math functions follow IEEE-754 semantics,
+which means they recognize the concepts of
+positive and negative zero,
+positive and negative infinity,
+and NaN (not a number).
+However, these concepts are only retained within a calculation tree;
+if a top-level calculation
+(a math function not nested directly inside of another math function)
+would result in one of these special values,
+they’re instead "censored" into a standard representable value,
+as defined below.
+Signed zeros
+(indicated here as 0⁺ or 0⁻)
+can not be written directly in CSS;
+0, +0 and -0 all produce the standard "unsigned" zero,
+which is considered positive (0⁺)
+for the purposes of these rules.
+Signed zeroes are produced in the following ways:
+Negative zero
+(0⁻)
+can be produced by a multiplication or division that produces zero
+with exactly one negative argument
+(such as -5 * 0 or 1 / -infinity).
+0⁻ + 0⁻
+or 0⁻ - 0⁺
+produces 0⁻.
+All other additions or subtractions that would produce a zero
+produce 0⁺.
+Multiplying or dividing 0⁻ with a positive number
+(including 0⁺)
+produces a negative result
+(either 0⁻ or −∞),
+while multiplying or dividing 0⁻ with a negative number
+produces a positive result.
+(In other words,
+multiplying or dividing with 0⁻
+follows standard sign rules.)
+When comparing 0⁺ and 0⁻,
+0⁻ is less than 0⁺.
+For example, min(0⁺, 0⁻) must produce 0⁻,
+max(0⁺, 0⁻) must produce 0⁺,
+and clamp(0⁺, 0⁻, 1) must produce 0⁺.
+Certain argument combinations in math functions
+are defined to produce 0⁻
+(for example, round(-1, infinity)).
+All other operations that produce a zero
+produce positive zero (0⁺).
+Signed zeroes do not escape a top-level calculation;
+they’re censored into the "unsigned" zero.
+Infinities
+(indicated here as +∞ or −∞)
+can be written directly
+using the math constants
+infinity and -infinity,
+or produced as a result of some calculations:
+Dividing a value by zero produces either +∞ or −∞,
+according to the standard sign rules.
+Adding or subtracting ±∞ to anything produces the appropriate infinity.
+Multiplying any value by ±∞ produces the appropriate infinity.
+Dividing any value by ±∞ produces zero.
+Certain argument combinations in math functions
+are defined to produce infinities
+(for example, pow(0, -1) produces +∞).
+Note: The rules for producing NaN, below,
+supersede the above rules for producing infinities.
+Infinities do not escape a top-level calculation;
+they’re clamped to the minimum or maximum value allowed in the context,
+as defined in § 10.12 Range Checking.
+NaN
+(short for "not a number")
+is the result of certain operations
+that don’t have a well-defined value.
+It can be written directly
+using the math constants
+NaN,
+or produced as a result of some calculations:
+Dividing zero by zero,
+dividing ±∞ by ±∞,
+multiplying 0 by ±∞,
+adding +∞ to −∞,
+or subtracting two infinities of the same sign
+produces NaN.
+These rules override any other result,
+if there’s a conflict.
+For example, 0 / 0 is NaN, not +∞.
+Certain argument combinations in math functions
+are defined to produce NaN
+(for example, asin(2) produces NaN).
+Any operation with at least one NaN argument produces NaN.
+NaN does not escape a top-level calculation;
+it’s censored into a zero value
+For example, calc(-5 * 0) produces an unsigned zero—​the calculation resolves to 0⁻,
+but as it’s a top-level calculation,
+it’s then censored to an unsigned zero.
+On the other hand, calc(1 / calc(-5 * 0)) produces −∞,
+same as calc(1 / (-5 * 0))—​the inner calc resolves to 0⁻,
+and as it’s not a top-level calculation,
+it passes it up unchanged to the outer calc to produce −∞.
+If it was censored into an unsigned zero,
+it would instead produce +∞.
