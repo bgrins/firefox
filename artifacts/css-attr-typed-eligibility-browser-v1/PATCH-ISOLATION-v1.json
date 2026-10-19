@@ -1,0 +1,101 @@
+{
+  "head": "5e97b9033c1fd571acbe4ac907de464c910c7448",
+  "patch_sha256": "9bf5a8beacb5973f8b3513d58c98441889747adf8c561d0dbd75cf9019dc4795",
+  "native_files": {
+    "servo/components/style/custom_properties.rs": {
+      "head_sha256": "ff3bdc18766fc2188407719b62370e88a9b310b31c290765d95fac108d35cc3f",
+      "candidate_sha256": "9a508880b8037baf5c6bfbbaadbcc2da0ac869e683c0aded403df60a7df75da4",
+      "changes": [
+        {
+          "old": "                                    value, /* attr_tainted */ true,\n                                ))\n                            },\n                            AttributeType::Type(syntax) => {\n                                let value = SpecifiedRegisteredValue::parse(\n                                    &mut parser,\n                                    syntax,\n                                    url_data,\n                                    None,\n                                    AllowComputationallyDependent::Yes,\n                                    AttrTaint::default(),\n                                    property_id,\n                                )\n                                .ok()?;\n                                let value = value.to_variable_value();\n                                Some(Substitution::from_value(\n                                    value, /* attr_tainted */ true,\n",
+          "new": "                                    value, /* attr_tainted */ true,\n                                ))\n                            },\n                            AttributeType::Type(_) => {\n                                let value = reference\n                                    .attribute_data\n                                    .parse_typed_value(&mut parser, url_data, property_id)\n                                    .ok()?;\n                                let value = value.to_variable_value();\n                                Some(Substitution::from_value(\n                                    value, /* attr_tainted */ true,\n"
+        },
+        {
+          "old": "}\n\nimpl AttributeData {\n    /// The resolved namespace, including the null namespace.\n    pub fn namespace(&self) -> Option<&Namespace> {\n        match &self.namespace {\n",
+          "new": "}\n\nimpl AttributeData {\n    pub(crate) fn parse_typed_value(\n        &self,\n        input: &mut Parser,\n        url_data: &UrlExtraData,\n        property_id: Option<PropertyIdRef>,\n    ) -> Result<SpecifiedRegisteredValue, ()> {\n        let AttributeType::Type(syntax) = &self.kind else {\n            return Err(());\n        };\n        SpecifiedRegisteredValue::parse(\n            input,\n            syntax,\n            url_data,\n            None,\n            AllowComputationallyDependent::Yes,\n            AttrTaint::default(),\n            property_id,\n        )\n        .map_err(|_| ())\n    }\n\n    /// The resolved namespace, including the null namespace.\n    pub fn namespace(&self) -> Option<&Namespace> {\n        match &self.namespace {\n"
+        }
+      ]
+    },
+    "servo/components/style/properties/cascade.rs": {
+      "head_sha256": "7d9b627fa05e1da439fc7271c0ed503b9ca4808a804195c1f96eae3462537e46",
+      "candidate_sha256": "4808ee97bffbe61a04580a600560faa9839a4c2bd45b30a0b5caac3cd20f8519",
+      "changes": [
+        {
+          "old": "                        &var,\n                        &value.references,\n                        &value.url_data,\n                        index,\n                        references_from_non_custom_properties,\n                        context,\n",
+          "new": "                        &var,\n                        &value.references,\n                        &value.url_data,\n                        Some(property_id),\n                        index,\n                        references_from_non_custom_properties,\n                        context,\n"
+        },
+        {
+          "old": "                    // references too: while their own font-relative units are textual (resolved\n                    // against the parent, see `find_non_custom_references`), they may chain to a\n                    // registered property that does cycle back.\n                    let value = &value.variable_value;\n                    visit_value_references(\n                        &var,\n",
+          "new": "                    // references too: while their own font-relative units are textual (resolved\n                    // against the parent, see `find_non_custom_references`), they may chain to a\n                    // registered property that does cycle back.\n                    let property_id = value.substitution_property_id(*longhand_id);\n                    let value = &value.variable_value;\n                    visit_value_references(\n                        &var,\n"
+        },
+        {
+          "old": "            }\n            let entry = &references_from_non_custom_properties[non_custom];\n            if let Some(values) = entry.as_ref() {\n                for value in values {\n                    // Traverse the non-custom property's declaration value(s), creating edges to\n                    // the custom properties they reference (directly or through a used fallback)\n                    // that might cycle back to this node. Note we traverse unregistered/universal\n",
+          "new": "            }\n            let entry = &references_from_non_custom_properties[non_custom];\n            if let Some(values) = entry.as_ref() {\n                for (longhand_id, value) in values {\n                    // Traverse the non-custom property's declaration value(s), creating edges to\n                    // the custom properties they reference (directly or through a used fallback)\n                    // that might cycle back to this node. Note we traverse unregistered/universal\n"
+        },
+        {
+          "old": "                &var,\n                &v.references,\n                &v.url_data,\n                index,\n                references_from_non_custom_properties,\n                context,\n",
+          "new": "                &var,\n                &v.references,\n                &v.url_data,\n                property_id,\n                index,\n                references_from_non_custom_properties,\n                context,\n"
+        },
+        {
+          "old": "                \"Non-custom property has references?\"\n            );\n\n            // Visit the references in this value...\n            visit_value_references(\n                &var,\n",
+          "new": "                \"Non-custom property has references?\"\n            );\n\n            let property_id = match &var {\n                VarType::Custom(name) | VarType::Attr(name, _) => Some(PropertyIdRef::from(name)),\n                VarType::NonCustom(_) => unreachable!(),\n            };\n            // Visit the references in this value...\n            visit_value_references(\n                &var,\n"
+        },
+        {
+          "old": "    /// * There is no such variable at all.\n    fn traverse<'a, 'b, 'c, 'd>(\n        var: VarType,\n        references_from_non_custom_properties: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,\n        context: &mut Context<'a, 'b, 'c, 'd>,\n        attribute_tracker: &mut AttributeTracker,\n    ) -> Option<usize> {\n",
+          "new": "    /// * There is no such variable at all.\n    fn traverse<'a, 'b, 'c, 'd>(\n        var: VarType,\n        references_from_non_custom_properties: &NonCustomPropertyReferences,\n        context: &mut Context<'a, 'b, 'c, 'd>,\n        attribute_tracker: &mut AttributeTracker,\n    ) -> Option<usize> {\n"
+        },
+        {
+          "old": "    fn visit_link<'a, 'b, 'c, 'd>(\n        var: VarType,\n        index: usize,\n        non_custom_references: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,\n        context: &mut Context<'a, 'b, 'c, 'd>,\n        lowlink: &mut usize,\n        self_ref: &mut bool,\n",
+          "new": "    fn visit_link<'a, 'b, 'c, 'd>(\n        var: VarType,\n        index: usize,\n        non_custom_references: &NonCustomPropertyReferences,\n        context: &mut Context<'a, 'b, 'c, 'd>,\n        lowlink: &mut usize,\n        self_ref: &mut bool,\n"
+        },
+        {
+          "old": "                        // Resolved and computed value, no other custom references left.\n                        primary_valid = true;\n                    }\n                }\n\n                if !primary_valid && let Some(ref fallback) = next.fallback {\n",
+          "new": "                        // Resolved and computed value, no other custom references left.\n                        primary_valid = true;\n                    }\n                    if primary_valid && next.is_attr_with_type() {\n                        let value = resolved.to_variable_value();\n                        primary_valid = next\n                            .attribute_data\n                            .parse_typed_value(\n                                &mut cssparser::Parser::new(&value.css),\n                                url_data,\n                                property_id,\n                            )\n                            .is_ok();\n                    }\n                }\n\n                if !primary_valid && let Some(ref fallback) = next.fallback {\n"
+        },
+        {
+          "old": "        root: &References,\n        url_data: &UrlExtraData,\n        index: usize,\n        references_from_non_custom_properties: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,\n        context: &mut Context<'a, 'b, 'c, 'd>,\n        lowlink: &mut usize,\n        self_ref: &mut bool,\n",
+          "new": "        root: &References,\n        url_data: &UrlExtraData,\n        index: usize,\n        references_from_non_custom_properties: &NonCustomPropertyReferences,\n        context: &mut Context<'a, 'b, 'c, 'd>,\n        lowlink: &mut usize,\n        self_ref: &mut bool,\n"
+        },
+        {
+          "old": "        var: &VarType,\n        root: &References,\n        url_data: &UrlExtraData,\n        index: usize,\n        references_from_non_custom_properties: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,\n        context: &mut Context<'a, 'b, 'c, 'd>,\n",
+          "new": "        var: &VarType,\n        root: &References,\n        url_data: &UrlExtraData,\n        property_id: Option<PropertyIdRef>,\n        index: usize,\n        references_from_non_custom_properties: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,\n        context: &mut Context<'a, 'b, 'c, 'd>,\n"
+        },
+        {
+          "old": "\nfn substitute_all(\n    seen: &SeenSubstitutionFunctions,\n    references_from_non_custom_properties: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,\n    stylist: &Stylist,\n    computed_context: &mut computed::Context,\n    cascade: &mut Cascade,\n",
+          "new": "\nfn substitute_all(\n    seen: &SeenSubstitutionFunctions,\n    references_from_non_custom_properties: &NonCustomPropertyReferences,\n    stylist: &Stylist,\n    computed_context: &mut computed::Context,\n    cascade: &mut Cascade,\n"
+        },
+        {
+          "old": "        references.for_each_non_custom(context.is_root_element(), |idx| {\n            self.references_from_non_custom_properties[idx]\n                .get_or_insert_with(Vec::new)\n                .push(v.value.clone());\n        });\n    }\n\n",
+          "new": "        references.for_each_non_custom(context.is_root_element(), |idx| {\n            self.references_from_non_custom_properties[idx]\n                .get_or_insert_with(Vec::new)\n                .push((v.id, v.value.clone()));\n        });\n    }\n\n"
+        },
+        {
+          "old": "    author_or_user_specified: LonghandIdSet,\n    declarations_to_apply_unless_overridden: DeclarationsToApplyUnlessOverriden,\n    may_have_custom_property_cycles: bool,\n    references_from_non_custom_properties: NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,\n    /// Set of prioritary properties that have already been applied.\n    ensured_prioritary: PrioritaryPropertyIdSet,\n}\n",
+          "new": "    author_or_user_specified: LonghandIdSet,\n    declarations_to_apply_unless_overridden: DeclarationsToApplyUnlessOverriden,\n    may_have_custom_property_cycles: bool,\n    references_from_non_custom_properties: NonCustomPropertyReferences,\n    /// Set of prioritary properties that have already been applied.\n    ensured_prioritary: PrioritaryPropertyIdSet,\n}\n"
+        },
+        {
+          "old": "    }\n}\n\npub(crate) struct Cascade<'a> {\n    first_line_reparenting: FirstLineReparenting<'a>,\n    stylist: &'a Stylist,\n",
+          "new": "    }\n}\n\ntype NonCustomPropertyReferences = NonCustomReferenceMap<Vec<(LonghandId, Arc<UnparsedValue>)>>;\n\npub(crate) struct Cascade<'a> {\n    first_line_reparenting: FirstLineReparenting<'a>,\n    stylist: &'a Stylist,\n"
+        },
+        {
+          "old": "    PropertyDeclarationId, PropertyFlags, ShorthandsWithPropertyReferencesCache, StyleBuilder,\n    property_counts,\n",
+          "new": "    PropertyDeclarationId, PropertyFlags, PropertyIdRef, ShorthandsWithPropertyReferencesCache,\n    StyleBuilder, property_counts,\n"
+        }
+      ]
+    },
+    "servo/components/style/properties/mod.rs": {
+      "head_sha256": "d511effb056337736b05b834b7a22174fd0a0458bc9623cd9964ba2c8bd42d7e",
+      "candidate_sha256": "4ba82684d7ca10e3f180aa3694b139f89eab7238cb46e6573cd39dce63781d47",
+      "changes": [
+        {
+          "old": "            }\n        }\n\n        let property_id = PropertyIdRef::from(match unparsed.from_shorthand {\n            Some(shorthand_id) => NonCustomPropertyId::from(shorthand_id),\n            None => NonCustomPropertyId::from(longhand_id),\n        });\n\n        let SubstitutionResult { css, attr_taint } = match custom_properties::substitute(\n            &unparsed.variable_value,\n",
+          "new": "            }\n        }\n\n        let property_id = unparsed.substitution_property_id(longhand_id);\n\n        let SubstitutionResult { css, attr_taint } = match custom_properties::substitute(\n            &unparsed.variable_value,\n"
+        },
+        {
+          "old": "    from_shorthand: Option<ShorthandId>,\n}\n\nimpl ToCss for UnparsedValue {\n    fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result\n    where\n",
+          "new": "    from_shorthand: Option<ShorthandId>,\n}\n\nimpl UnparsedValue {\n    pub(crate) fn substitution_property_id(&self, longhand_id: LonghandId) -> PropertyIdRef<'static> {\n        PropertyIdRef::from(match self.from_shorthand {\n            Some(shorthand_id) => NonCustomPropertyId::from(shorthand_id),\n            None => NonCustomPropertyId::from(longhand_id),\n        })\n    }\n}\n\nimpl ToCss for UnparsedValue {\n    fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result\n    where\n"
+        }
+      ]
+    }
+  },
+  "scope": "Same reviewed semantic hunks; import context adapted to committed HEAD, excluding shared experimental changes. No clean-base build claimed."
+}

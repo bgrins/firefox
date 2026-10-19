@@ -1,0 +1,393 @@
+diff --git a/servo/components/style/custom_properties.rs b/servo/components/style/custom_properties.rs
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -777,6 +777,27 @@
+ }
+ 
+ impl AttributeData {
++    pub(crate) fn parse_typed_value(
++        &self,
++        input: &mut Parser,
++        url_data: &UrlExtraData,
++        property_id: Option<PropertyIdRef>,
++    ) -> Result<SpecifiedRegisteredValue, ()> {
++        let AttributeType::Type(syntax) = &self.kind else {
++            return Err(());
++        };
++        SpecifiedRegisteredValue::parse(
++            input,
++            syntax,
++            url_data,
++            None,
++            AllowComputationallyDependent::Yes,
++            AttrTaint::default(),
++            property_id,
++        )
++        .map_err(|_| ())
++    }
++
+     /// The resolved namespace, including the null namespace.
+     pub fn namespace(&self) -> Option<&Namespace> {
+         match &self.namespace {
+@@ -1981,17 +2002,11 @@
+                                     value, /* attr_tainted */ true,
+                                 ))
+                             },
+-                            AttributeType::Type(syntax) => {
+-                                let value = SpecifiedRegisteredValue::parse(
+-                                    &mut parser,
+-                                    syntax,
+-                                    url_data,
+-                                    None,
+-                                    AllowComputationallyDependent::Yes,
+-                                    AttrTaint::default(),
+-                                    property_id,
+-                                )
+-                                .ok()?;
++                            AttributeType::Type(_) => {
++                                let value = reference
++                                    .attribute_data
++                                    .parse_typed_value(&mut parser, url_data, property_id)
++                                    .ok()?;
+                                 let value = value.to_variable_value();
+                                 Some(Substitution::from_value(
+                                     value, /* attr_tainted */ true,
+diff --git a/servo/components/style/properties/cascade.rs b/servo/components/style/properties/cascade.rs
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -21,8 +21,8 @@
+ use crate::properties::{
+     CASCADE_PROPERTY, CSSWideKeyword, ComputedValues, DeclarationImportanceIterator, LonghandId,
+     LonghandIdSet, PrioritaryPropertyId, PrioritaryPropertyIdSet, PropertyDeclaration,
+-    PropertyDeclarationId, PropertyFlags, ShorthandsWithPropertyReferencesCache, StyleBuilder,
+-    property_counts,
++    PropertyDeclarationId, PropertyFlags, PropertyIdRef, ShorthandsWithPropertyReferencesCache,
++    StyleBuilder, property_counts,
+ };
+ use crate::properties::{CustomDeclaration, CustomDeclarationValue, UnparsedValue};
+ use crate::properties_and_values::rule::Descriptors as PropertyDescriptors;
+@@ -798,6 +798,8 @@
+     }
+ }
+ 
++type NonCustomPropertyReferences = NonCustomReferenceMap<Vec<(LonghandId, Arc<UnparsedValue>)>>;
++
+ pub(crate) struct Cascade<'a> {
+     first_line_reparenting: FirstLineReparenting<'a>,
+     stylist: &'a Stylist,
+@@ -807,7 +809,7 @@
+     author_or_user_specified: LonghandIdSet,
+     declarations_to_apply_unless_overridden: DeclarationsToApplyUnlessOverriden,
+     may_have_custom_property_cycles: bool,
+-    references_from_non_custom_properties: NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,
++    references_from_non_custom_properties: NonCustomPropertyReferences,
+     /// Set of prioritary properties that have already been applied.
+     ensured_prioritary: PrioritaryPropertyIdSet,
+ }
+@@ -1939,7 +1941,7 @@
+         references.for_each_non_custom(context.is_root_element(), |idx| {
+             self.references_from_non_custom_properties[idx]
+                 .get_or_insert_with(Vec::new)
+-                .push(v.value.clone());
++                .push((v.id, v.value.clone()));
+         });
+     }
+ 
+@@ -2143,7 +2145,7 @@
+ 
+ fn substitute_all(
+     seen: &SeenSubstitutionFunctions,
+-    references_from_non_custom_properties: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,
++    references_from_non_custom_properties: &NonCustomPropertyReferences,
+     stylist: &Stylist,
+     computed_context: &mut computed::Context,
+     cascade: &mut Cascade,
+@@ -2309,8 +2311,9 @@
+         var: &VarType,
+         root: &References,
+         url_data: &UrlExtraData,
++        property_id: Option<PropertyIdRef>,
+         index: usize,
+-        references_from_non_custom_properties: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,
++        references_from_non_custom_properties: &NonCustomPropertyReferences,
+         context: &mut Context<'a, 'b, 'c, 'd>,
+         lowlink: &mut usize,
+         self_ref: &mut bool,
+@@ -2402,6 +2405,17 @@
+                         // Resolved and computed value, no other custom references left.
+                         primary_valid = true;
+                     }
++                    if primary_valid && next.is_attr_with_type() {
++                        let value = resolved.to_variable_value();
++                        primary_valid = next
++                            .attribute_data
++                            .parse_typed_value(
++                                &mut cssparser::Parser::new(&value.css),
++                                url_data,
++                                property_id,
++                            )
++                            .is_ok();
++                    }
+                 }
+ 
+                 if !primary_valid && let Some(ref fallback) = next.fallback {
+@@ -2416,7 +2430,7 @@
+     fn visit_link<'a, 'b, 'c, 'd>(
+         var: VarType,
+         index: usize,
+-        non_custom_references: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,
++        non_custom_references: &NonCustomPropertyReferences,
+         context: &mut Context<'a, 'b, 'c, 'd>,
+         lowlink: &mut usize,
+         self_ref: &mut bool,
+@@ -2463,7 +2477,7 @@
+     /// * There is no such variable at all.
+     fn traverse<'a, 'b, 'c, 'd>(
+         var: VarType,
+-        references_from_non_custom_properties: &NonCustomReferenceMap<Vec<Arc<UnparsedValue>>>,
++        references_from_non_custom_properties: &NonCustomPropertyReferences,
+         context: &mut Context<'a, 'b, 'c, 'd>,
+         attribute_tracker: &mut AttributeTracker,
+     ) -> Option<usize> {
+@@ -2573,11 +2587,16 @@
+                 "Non-custom property has references?"
+             );
+ 
++            let property_id = match &var {
++                VarType::Custom(name) | VarType::Attr(name, _) => Some(PropertyIdRef::from(name)),
++                VarType::NonCustom(_) => unreachable!(),
++            };
+             // Visit the references in this value...
+             visit_value_references(
+                 &var,
+                 &v.references,
+                 &v.url_data,
++                property_id,
+                 index,
+                 references_from_non_custom_properties,
+                 context,
+@@ -2626,18 +2645,20 @@
+             }
+             let entry = &references_from_non_custom_properties[non_custom];
+             if let Some(values) = entry.as_ref() {
+-                for value in values {
++                for (longhand_id, value) in values {
+                     // Traverse the non-custom property's declaration value(s), creating edges to
+                     // the custom properties they reference (directly or through a used fallback)
+                     // that might cycle back to this node. Note we traverse unregistered/universal
+                     // references too: while their own font-relative units are textual (resolved
+                     // against the parent, see `find_non_custom_references`), they may chain to a
+                     // registered property that does cycle back.
++                    let property_id = value.substitution_property_id(*longhand_id);
+                     let value = &value.variable_value;
+                     visit_value_references(
+                         &var,
+                         &value.references,
+                         &value.url_data,
++                        Some(property_id),
+                         index,
+                         references_from_non_custom_properties,
+                         context,
+diff --git a/servo/components/style/properties/mod.rs b/servo/components/style/properties/mod.rs
+--- a/servo/components/style/properties/mod.rs
++++ b/servo/components/style/properties/mod.rs
+@@ -1585,6 +1585,15 @@
+     from_shorthand: Option<ShorthandId>,
+ }
+ 
++impl UnparsedValue {
++    pub(crate) fn substitution_property_id(&self, longhand_id: LonghandId) -> PropertyIdRef<'static> {
++        PropertyIdRef::from(match self.from_shorthand {
++            Some(shorthand_id) => NonCustomPropertyId::from(shorthand_id),
++            None => NonCustomPropertyId::from(longhand_id),
++        })
++    }
++}
++
+ impl ToCss for UnparsedValue {
+     fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result
+     where
+@@ -1658,10 +1667,7 @@
+             }
+         }
+ 
+-        let property_id = PropertyIdRef::from(match unparsed.from_shorthand {
+-            Some(shorthand_id) => NonCustomPropertyId::from(shorthand_id),
+-            None => NonCustomPropertyId::from(longhand_id),
+-        });
++        let property_id = unparsed.substitution_property_id(longhand_id);
+ 
+         let SubstitutionResult { css, attr_taint } = match custom_properties::substitute(
+             &unparsed.variable_value,
+diff --git a/testing/web-platform/tests/css/css-values/attr-typed-fallback-eligibility.html b/testing/web-platform/tests/css/css-values/attr-typed-fallback-eligibility.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-values/attr-typed-fallback-eligibility.html
+@@ -0,0 +1,167 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Typed attribute fallback selection is specific to each occurrence</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#substitute-arbitrary-substitution-function">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++const cases = [
++  {
++    "name": "An invalid typed primary in a custom property resolves its attribute fallback",
++    "declarations": "--result: attr(bad type(<length>), attr(x type(<length>), 5px)); width: var(--result)",
++    "attributes": {
++      "bad": "not-a-length",
++      "x": "13px"
++    },
++    "expected": {
++      "--result": "13px",
++      "width": "13px"
++    }
++  },
++  {
++    "name": "A used typed fallback resolves a preloaded attribute containing var()",
++    "declarations": "--v: 13px; --result: attr(bad type(<length>), attr(chain type(<length>), 5px)); width: var(--result); height: attr(chain type(<length>), 7px)",
++    "attributes": {
++      "bad": "not-a-length",
++      "chain": "var(--v)"
++    },
++    "expected": {
++      "--result": "13px",
++      "width": "13px",
++      "height": "13px"
++    }
++  },
++  {
++    "name": "A used typed fallback resolves an attribute without an independent preload",
++    "declarations": "--v: 13px; --result: attr(bad type(<length>), attr(chain type(<length>), 5px)); width: var(--result)",
++    "attributes": {
++      "bad": "not-a-length",
++      "chain": "var(--v)"
++    },
++    "expected": {
++      "--result": "13px",
++      "width": "13px"
++    }
++  },
++  {
++    "name": "The same attribute can succeed as universal syntax and fail as length syntax",
++    "declarations": "--v: 13px; --result: attr(x type(*), var(--result)) attr(x type(<length>), attr(chain type(<length>), 5px))",
++    "attributes": {
++      "x": "not-a-length",
++      "chain": "var(--v)"
++    },
++    "expected": {
++      "--result": "not-a-length 13px"
++    }
++  },
++  {
++    "name": "A failed length occurrence does not invalidate a later universal occurrence",
++    "declarations": "--v: 13px; --result: attr(x type(<length>), attr(chain type(<length>), 5px)) attr(x type(*), var(--result))",
++    "attributes": {
++      "x": "not-a-length",
++      "chain": "var(--v)"
++    },
++    "expected": {
++      "--result": "13px not-a-length"
++    }
++  },
++  {
++    "name": "A successful length primary ignores a self-referencing fallback",
++    "declarations": "--result: attr(good type(<length>), var(--result)); width: var(--result)",
++    "attributes": {
++      "good": "13px"
++    },
++    "expected": {
++      "--result": "13px",
++      "width": "13px"
++    }
++  },
++  {
++    "name": "A successful universal primary ignores a self-referencing fallback",
++    "declarations": "--result: attr(good type(*), var(--result))",
++    "attributes": {
++      "good": "not-a-length"
++    },
++    "expected": {
++      "--result": "not-a-length"
++    }
++  },
++  {
++    "name": "A failed typed primary follows a cyclic fallback and invalidates the custom property",
++    "declarations": "--result: attr(bad type(<length>), var(--result)); width: var(--result, 37px)",
++    "attributes": {
++      "bad": "not-a-length"
++    },
++    "expected": {
++      "--result": "",
++      "width": "37px"
++    }
++  },
++  {
++    "name": "A used typed fallback can read a preloaded literal attribute",
++    "declarations": "--result: attr(bad type(<length>), attr(chain type(<length>), 5px)); width: var(--result); height: attr(chain type(<length>), 7px)",
++    "attributes": {
++      "bad": "not-a-length",
++      "chain": "13px"
++    },
++    "expected": {
++      "--result": "13px",
++      "width": "13px",
++      "height": "13px"
++    }
++  },
++  {
++    "name": "A missing primary follows the attribute fallback dependency",
++    "declarations": "--v: 13px; --result: attr(missing type(<length>), attr(chain type(<length>), 5px)); width: var(--result)",
++    "attributes": {
++      "chain": "var(--v)"
++    },
++    "expected": {
++      "--result": "13px",
++      "width": "13px"
++    }
++  },
++  {
++    "name": "A line-height declaration retains its context when traversing font dependencies",
++    "declarations": "--v: 13px; --zero: 0px; line-height: calc(var(--zero) + attr(bad type(<length>), attr(chain type(<length>), 5px)))",
++    "attributes": {
++      "bad": "not-a-length",
++      "chain": "var(--v)"
++    },
++    "expected": {
++      "line-height": "13px"
++    }
++  },
++  {
++    "name": "A font shorthand retains its context during typed fallback substitution",
++    "declarations": "--v: 13px; --lh: 17px; font: attr(bad type(<length>), attr(chain type(<length>), 5px))/var(--lh) serif",
++    "attributes": {
++      "bad": "not-a-length",
++      "chain": "var(--v)"
++    },
++    "expected": {
++      "font-size": "13px",
++      "line-height": "17px"
++    }
++  }
++];
++
++for (const item of cases) {
++  test(t => {
++    const target = document.createElement("div");
++    t.add_cleanup(() => target.remove());
++    target.style.cssText = "width: 10px; font-size: 20px; " + item.declarations;
++    for (const [name, value] of Object.entries(item.attributes)) {
++      target.setAttribute(name, value);
++    }
++    document.body.append(target);
++    const computed = getComputedStyle(target);
++    for (const [property, expected] of Object.entries(item.expected)) {
++      assert_equals(computed.getPropertyValue(property).trim().replace(/\s+/g, " "),
++                    expected, property);
++    }
++  }, item.name);
++}
++</script>

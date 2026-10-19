@@ -1,0 +1,167 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typed attribute fallback selection is specific to each occurrence</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#substitute-arbitrary-substitution-function">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const cases = [
+  {
+    "name": "An invalid typed primary in a custom property resolves its attribute fallback",
+    "declarations": "--result: attr(bad type(<length>), attr(x type(<length>), 5px)); width: var(--result)",
+    "attributes": {
+      "bad": "not-a-length",
+      "x": "13px"
+    },
+    "expected": {
+      "--result": "13px",
+      "width": "13px"
+    }
+  },
+  {
+    "name": "A used typed fallback resolves a preloaded attribute containing var()",
+    "declarations": "--v: 13px; --result: attr(bad type(<length>), attr(chain type(<length>), 5px)); width: var(--result); height: attr(chain type(<length>), 7px)",
+    "attributes": {
+      "bad": "not-a-length",
+      "chain": "var(--v)"
+    },
+    "expected": {
+      "--result": "13px",
+      "width": "13px",
+      "height": "13px"
+    }
+  },
+  {
+    "name": "A used typed fallback resolves an attribute without an independent preload",
+    "declarations": "--v: 13px; --result: attr(bad type(<length>), attr(chain type(<length>), 5px)); width: var(--result)",
+    "attributes": {
+      "bad": "not-a-length",
+      "chain": "var(--v)"
+    },
+    "expected": {
+      "--result": "13px",
+      "width": "13px"
+    }
+  },
+  {
+    "name": "The same attribute can succeed as universal syntax and fail as length syntax",
+    "declarations": "--v: 13px; --result: attr(x type(*), var(--result)) attr(x type(<length>), attr(chain type(<length>), 5px))",
+    "attributes": {
+      "x": "not-a-length",
+      "chain": "var(--v)"
+    },
+    "expected": {
+      "--result": "not-a-length 13px"
+    }
+  },
+  {
+    "name": "A failed length occurrence does not invalidate a later universal occurrence",
+    "declarations": "--v: 13px; --result: attr(x type(<length>), attr(chain type(<length>), 5px)) attr(x type(*), var(--result))",
+    "attributes": {
+      "x": "not-a-length",
+      "chain": "var(--v)"
+    },
+    "expected": {
+      "--result": "13px not-a-length"
+    }
+  },
+  {
+    "name": "A successful length primary ignores a self-referencing fallback",
+    "declarations": "--result: attr(good type(<length>), var(--result)); width: var(--result)",
+    "attributes": {
+      "good": "13px"
+    },
+    "expected": {
+      "--result": "13px",
+      "width": "13px"
+    }
+  },
+  {
+    "name": "A successful universal primary ignores a self-referencing fallback",
+    "declarations": "--result: attr(good type(*), var(--result))",
+    "attributes": {
+      "good": "not-a-length"
+    },
+    "expected": {
+      "--result": "not-a-length"
+    }
+  },
+  {
+    "name": "A failed typed primary follows a cyclic fallback and invalidates the custom property",
+    "declarations": "--result: attr(bad type(<length>), var(--result)); width: var(--result, 37px)",
+    "attributes": {
+      "bad": "not-a-length"
+    },
+    "expected": {
+      "--result": "",
+      "width": "37px"
+    }
+  },
+  {
+    "name": "A used typed fallback can read a preloaded literal attribute",
+    "declarations": "--result: attr(bad type(<length>), attr(chain type(<length>), 5px)); width: var(--result); height: attr(chain type(<length>), 7px)",
+    "attributes": {
+      "bad": "not-a-length",
+      "chain": "13px"
+    },
+    "expected": {
+      "--result": "13px",
+      "width": "13px",
+      "height": "13px"
+    }
+  },
+  {
+    "name": "A missing primary follows the attribute fallback dependency",
+    "declarations": "--v: 13px; --result: attr(missing type(<length>), attr(chain type(<length>), 5px)); width: var(--result)",
+    "attributes": {
+      "chain": "var(--v)"
+    },
+    "expected": {
+      "--result": "13px",
+      "width": "13px"
+    }
+  },
+  {
+    "name": "A line-height declaration retains its context when traversing font dependencies",
+    "declarations": "--v: 13px; --zero: 0px; line-height: calc(var(--zero) + attr(bad type(<length>), attr(chain type(<length>), 5px)))",
+    "attributes": {
+      "bad": "not-a-length",
+      "chain": "var(--v)"
+    },
+    "expected": {
+      "line-height": "13px"
+    }
+  },
+  {
+    "name": "A font shorthand retains its context during typed fallback substitution",
+    "declarations": "--v: 13px; --lh: 17px; font: attr(bad type(<length>), attr(chain type(<length>), 5px))/var(--lh) serif",
+    "attributes": {
+      "bad": "not-a-length",
+      "chain": "var(--v)"
+    },
+    "expected": {
+      "font-size": "13px",
+      "line-height": "17px"
+    }
+  }
+];
+
+for (const item of cases) {
+  test(t => {
+    const target = document.createElement("div");
+    t.add_cleanup(() => target.remove());
+    target.style.cssText = "width: 10px; font-size: 20px; " + item.declarations;
+    for (const [name, value] of Object.entries(item.attributes)) {
+      target.setAttribute(name, value);
+    }
+    document.body.append(target);
+    const computed = getComputedStyle(target);
+    for (const [property, expected] of Object.entries(item.expected)) {
+      assert_equals(computed.getPropertyValue(property).trim().replace(/\s+/g, " "),
+                    expected, property);
+    }
+  }, item.name);
+}
+</script>

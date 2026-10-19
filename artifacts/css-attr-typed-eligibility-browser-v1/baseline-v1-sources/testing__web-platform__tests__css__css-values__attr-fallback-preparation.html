@@ -1,0 +1,49 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typed attributes in substitution fallbacks are prepared before use</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style id="sheet">
+@namespace a "urn:fallback-preload:a";
+#fixture { font-size: 16px; width: 100px; }
+</style>
+<div id="fixture"></div>
+<script>
+const cases = [
+  ["Direct typed attribute control", "width: attr(x type(<length>), 5px)", {"x": "13px"}, "width", "13px"],
+  ["Typed attribute in a missing attribute fallback", "width: attr(missing type(<length>), attr(x type(<length>), 5px))", {"x": "13px"}, "width", "13px"],
+  ["Typed attribute in a missing namespaced attribute fallback", "width: attr(a|missing type(<length>), attr(x type(<length>), 5px))", {"x": "13px"}, "width", "13px"],
+  ["Typed attribute in an unknown namespace fallback", "width: attr(unknown|missing type(<length>), attr(x type(<length>), 5px))", {"x": "13px"}, "width", "13px"],
+  ["Typed attribute in a type-invalid attribute fallback", "width: attr(bad type(<length>), attr(x type(<length>), 5px))", {"x": "13px", "bad": "not-a-length"}, "width", "13px"],
+  ["Typed attribute in two nested fallbacks", "width: attr(missing type(<length>), attr(other type(<length>), attr(x type(<length>), 5px)))", {"x": "13px"}, "width", "13px"],
+  ["Typed attribute in a variable fallback", "width: var(--absent, attr(x type(<length>), 5px))", {"x": "13px"}, "width", "13px"],
+  ["Typed attribute in an environment fallback", "width: env(preload-probe-absent-environment-variable, attr(x type(<length>), 5px))", {"x": "13px"}, "width", "13px"],
+  ["Typed attribute fallback used by font-size", "font-size: attr(missing type(<length>), attr(x type(<length>), 5px))", {"x": "13px"}, "font-size", "13px"],
+  ["Typed attribute in an untyped attribute fallback", "width: attr(missing, attr(x type(<length>), 5px))", {"x": "13px"}, "width", "13px"],
+  ["Custom property graph follows a missing primary fallback", "--result: attr(missing type(<length>), attr(x type(<length>), 5px)); width: var(--result)", {"x": "13px"}, "width", "13px"],
+  ["Numeric unit fallback does not require typed preparation", "width: attr(missing type(<length>), attr(n px, 5px))", {"n": "13"}, "width", "13px"],
+  ["Unused cyclic attribute fallback leaves the primary valid", "width: attr(x type(<length>), attr(cycle type(<length>), 7px))", {"x": "13px", "cycle": "attr(cycle type(<length>))"}, "width", "13px"],
+  ["Unused custom property cycle leaves the primary valid", "--result: attr(x type(<length>), var(--result)); width: var(--result, 5px)", {"x": "13px"}, "width", "13px"],
+  ["Used custom property cycle selects the consumer fallback", "--result: attr(missing type(<length>), var(--result)); width: var(--result, 5px)", {}, "width", "5px"],
+  ["Typed fallback attribute resolves its variable before ordinary-property substitution", "--v: 13px; width: attr(bad type(<length>), attr(chain type(<length>), 5px))", {"bad": "not-a-length", "chain": "var(--v)"}, "width", "13px"]
+];
+for (const [index, [name, declarations, attributes, property, expected]] of cases.entries()) {
+  test(t => {
+    const target = document.createElement("div");
+    target.id = `target-${index}`;
+    for (const [name, value] of Object.entries(attributes)) {
+      target.setAttribute(name, value);
+    }
+    const sheet = document.getElementById("sheet").sheet;
+    const ruleIndex = sheet.insertRule(`#${target.id} { ${declarations} }`, sheet.cssRules.length);
+    document.getElementById("fixture").append(target);
+    t.add_cleanup(() => {
+      target.remove();
+      sheet.deleteRule(ruleIndex);
+    });
+    assert_not_equals(sheet.cssRules[ruleIndex].style.getPropertyValue(property), "", "Declaration parsed");
+    assert_equals(getComputedStyle(target).getPropertyValue(property), expected);
+  }, name);
+}
+</script>

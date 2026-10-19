@@ -1,0 +1,104 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typed attr fallbacks resolve their attribute dependencies</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style id="sheet">
+#fixture { font-size: 16px; width: 100px; }
+#fixture > div { display: block; padding: 0; border: 0; box-sizing: content-box; }
+</style>
+<div id="fixture"></div>
+<script>
+const cases = [
+  [
+    "Direct typed fallback resolves an attribute containing var()",
+    "--v: 13px; width: attr(bad type(<length>), attr(chain type(<length>), 5px))",
+    {
+      "bad": "not-a-length",
+      "chain": "var(--v)"
+    },
+    {
+      "width": "13px"
+    }
+  ],
+  [
+    "Custom typed fallback uses a preloaded but unresolved attribute",
+    "--v: 13px; --result: attr(bad type(<length>), attr(chain type(<length>), 5px)); width: var(--result); height: attr(chain type(<length>), 7px)",
+    {
+      "bad": "not-a-length",
+      "chain": "var(--v)"
+    },
+    {
+      "width": "13px",
+      "height": "13px"
+    }
+  ],
+  [
+    "Literal preloaded attribute control",
+    "--v: 13px; --result: attr(bad type(<length>), attr(chain type(<length>), 5px)); width: var(--result); height: attr(chain type(<length>), 7px)",
+    {
+      "bad": "not-a-length",
+      "chain": "13px"
+    },
+    {
+      "width": "13px",
+      "height": "13px"
+    }
+  ],
+  [
+    "Missing primary traverses the fallback dependency",
+    "--v: 13px; --result: attr(missing type(<length>), attr(chain type(<length>), 5px)); width: var(--result); height: attr(chain type(<length>), 7px)",
+    {
+      "chain": "var(--v)"
+    },
+    {
+      "width": "13px",
+      "height": "13px"
+    }
+  ],
+  [
+    "Custom typed fallback without an independent preload",
+    "--v: 13px; --result: attr(bad type(<length>), attr(chain type(<length>), 5px)); width: var(--result)",
+    {
+      "bad": "not-a-length",
+      "chain": "var(--v)"
+    },
+    {
+      "width": "13px"
+    }
+  ],
+  [
+    "Unused fallback does not connect the width to a separate cycle",
+    "--loop: attr(chain type(<length>)); width: attr(good type(<length>), attr(chain type(<length>), 7px))",
+    {
+      "good": "13px",
+      "chain": "var(--loop)"
+    },
+    {
+      "width": "13px"
+    }
+  ]
+];
+for (const [index, [name, declarations, attributes, expected]] of cases.entries()) {
+  test(t => {
+    const target = document.createElement("div");
+    target.id = `target-${index}`;
+    for (const [name, value] of Object.entries(attributes)) {
+      target.setAttribute(name, value);
+      assert_equals(target.getAttribute(name), value, "attribute readback");
+    }
+    const sheet = document.getElementById("sheet").sheet;
+    const ruleIndex = sheet.insertRule(`#${target.id} { ${declarations} }`, sheet.cssRules.length);
+    for (const property of Object.keys(expected)) {
+      assert_not_equals(sheet.cssRules[ruleIndex].style.getPropertyValue(property), "", `${property} parsed`);
+    }
+    document.getElementById("fixture").append(target);
+    t.add_cleanup(() => target.remove());
+    const style = getComputedStyle(target);
+    const properties = Object.keys(expected);
+    assert_array_equals(properties.map(property => style.getPropertyValue(property)),
+                        Object.values(expected), properties.join(", "));
+  }, name);
+}
+</script>
