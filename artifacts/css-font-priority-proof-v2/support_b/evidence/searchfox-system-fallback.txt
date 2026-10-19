@@ -1,0 +1,110 @@
+>>> 1230: already_AddRefed<gfxFont> gfxPlatformFontList::SystemFindFontForChar(
+    1231:     FontVisibilityProvider* aFontVisibilityProvider, uint32_t aCh,
+    1232:     uint32_t aNextCh, Script aRunScript, FontPresentation aPresentation,
+    1233:     const gfxFontStyle* aStyle, FontVisibility* aVisibility) {
+    1234:   AutoLock lock(mLock);
+    1235:   FontVisibility level = aFontVisibilityProvider
+    1236:                              ? aFontVisibilityProvider->GetFontVisibility()
+    1237:                              : FontVisibility::User;
+    1238:   MOZ_ASSERT(!mCodepointsWithNoFonts[level].test(aCh),
+    1239:              "don't call for codepoints already known to be unsupported");
+    1240: 
+    1241:   // Try to short-circuit font fallback for U+FFFD, used to represent
+    1242:   // encoding errors: just use cached family from last time U+FFFD was seen.
+    1243:   // This helps speed up pages with lots of encoding errors, binary-as-text,
+    1244:   // etc.
+    1245:   if (aCh == 0xFFFD) {
+    1246:     gfxFontEntry* fontEntry = nullptr;
+    1247:     auto& fallbackFamily = mReplacementCharFallbackFamily[level];
+    1248:     if (fallbackFamily.mShared) {
+    1249:       fontlist::Face* face =
+    1250:           fallbackFamily.mShared->FindFaceForStyle(SharedFontList(), *aStyle);
+    1251:       if (face) {
+    1252:         fontEntry = GetOrCreateFontEntryLocked(face, fallbackFamily.mShared);
+    1253:         *aVisibility = fallbackFamily.mShared->Visibility();
+    1254:       }
+    1255:     } else if (fallbackFamily.mUnshared) {
+    1256:       fontEntry = fallbackFamily.mUnshared->FindFontForStyle(*aStyle);
+    1257:       *aVisibility = fallbackFamily.mUnshared->Visibility();
+    1258:     }
+    1259: 
+    1260:     // this should never fail, as we must have found U+FFFD in order to set
+    1261:     // mReplacementCharFallbackFamily[...] at all, but better play it safe
+    1262:     if (fontEntry && fontEntry->HasCharacter(aCh)) {
+    1263:       return fontEntry->FindOrMakeFont(aStyle);
+    1264:     }
+    1265:   }
+    1266: 
+    1267:   TimeStamp start = TimeStamp::Now();
+    1268: 
+    1269:   // search commonly available fonts
+    1270:   bool common = true;
+    1271:   FontFamily fallbackFamily;
+    1272:   RefPtr<gfxFont> candidate =
+    1273:       CommonFontFallback(aFontVisibilityProvider, aCh, aNextCh, aRunScript,
+    1274:                          aPresentation, aStyle, fallbackFamily);
+    1275:   RefPtr<gfxFont> font;
+    1276:   if (candidate) {
+    1277:     if (aPresentation == FontPresentation::Any) {
+    1278:       font = std::move(candidate);
+    1279:     } else {
+    1280:       bool hasColorGlyph = candidate->HasColorGlyphFor(aCh, aNextCh);
+    1281:       if (hasColorGlyph == PrefersColor(aPresentation)) {
+    1282:         font = std::move(candidate);
+    1283:       }
+    1284:     }
+    1285:   }
+    1286: 
+    1287:   // If we didn't find a common font, or it was not the preferred type (color
+    1288:   // or monochrome), do system-wide fallback (except for specials).
+    1289:   uint32_t cmapCount = 0;
+    1290:   if (!font) {
+    1291:     common = false;
+    1292:     font = GlobalFontFallback(aFontVisibilityProvider, aCh, aNextCh, aRunScript,
+    1293:                               aPresentation, aStyle, cmapCount, fallbackFamily);
+    1294:     // If the font we found doesn't match the requested type, and we also found
+    1295:     // a candidate above, prefer that one.
+    1296:     if (font && aPresentation != FontPresentation::Any && candidate) {
+    1297:       bool hasColorGlyph = font->HasColorGlyphFor(aCh, aNextCh);
+    1298:       if (hasColorGlyph != PrefersColor(aPresentation)) {
+    1299:         font = std::move(candidate);
+    1300:       }
+    1301:     }
+    1302:   }
+    1303:   TimeDuration elapsed = TimeStamp::Now() - start;
+    1304: 
+    1305:   LogModule* log = gfxPlatform::GetLog(eGfxLog_textrun);
+    1306: 
+    1307:   if (MOZ_UNLIKELY(MOZ_LOG_TEST(log, LogLevel::Warning))) {
+    1308:     Script script = intl::UnicodeProperties::GetScriptCode(aCh);
+    1309:     MOZ_LOG(log, LogLevel::Warning,
+    1310:             ("(textrun-systemfallback-%s) char: u+%6.6x "
+    1311:              "script: %d match: [%s]"
+    1312:              " time: %dus cmaps: %d\n",
+    1313:              (common ? "common" : "global"), aCh, static_cast<int>(script),
+    1314:              (font ? font->GetFontEntry()->Name().get() : "<none>"),
+    1315:              int32_t(elapsed.ToMicroseconds()), cmapCount));
+    1316:   }
+    1317: 
+    1318:   // no match? add to set of non-matching codepoints
+    1319:   if (!font) {
+    1320:     mCodepointsWithNoFonts[level].set(aCh);
+    1321:   } else {
+    1322:     *aVisibility = fallbackFamily.mShared
+    1323:                        ? fallbackFamily.mShared->Visibility()
+    1324:                        : fallbackFamily.mUnshared->Visibility();
+    1325:     if (aCh == 0xFFFD) {
+    1326:       mReplacementCharFallbackFamily[level] = fallbackFamily;
+    1327:     }
+    1328:   }
+    1329: 
+    1330:   // track system fallback time
+    1331:   static bool first = true;
+    1332:   if (first)
+    1333:     glean::fontlist::system_font_fallback_first.AccumulateRawDuration(elapsed);
+    1334:   else
+    1335:     glean::fontlist::system_font_fallback.AccumulateRawDuration(elapsed);
+    1336:   first = false;
+    1337: 
+    1338:   return font.forget();
+    1339: }

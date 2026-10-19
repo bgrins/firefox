@@ -1,0 +1,221 @@
+--- a/gfx/thebes/gfxFontUtils.h
++++ b/gfx/thebes/gfxFontUtils.h
+@@ -4,6 +4,8 @@
+ 
+ #ifndef GFX_FONT_UTILS_H
+ #define GFX_FONT_UTILS_H
++
++#include <tuple>
+ 
+ #include "gfxPlatform.h"
+ #include "harfbuzz/hb.h"
+@@ -719,15 +721,31 @@
+   static const mozilla::Encoding* gMSFontNameCharsets[];
+ };
+ 
+-// Factors used to weight the distances between the available and target font
+-// properties during font-matching. These ensure that we respect the CSS-fonts
+-// requirement that font-width >> font-style >> font-weight; and in addition,
+-// a mismatch between the desired and actual glyph presentation (emoji vs text)
+-// will take precedence over any of the style attributes.
+-constexpr double kPresentationMismatch = 1.0e12;
+-constexpr double kWidthFactor = 1.0e8;
+-constexpr double kStyleFactor = 1.0e4;
+-constexpr double kWeightFactor = 1.0e0;
++class FontMatchDistance {
++ public:
++  FontMatchDistance() = default;
++  FontMatchDistance(double aWidth, double aStyle, double aWeight)
++      : mKey(0, aWidth, aStyle, aWeight) {}
++
++  bool operator<(const FontMatchDistance& aOther) const {
++    return mKey < aOther.mKey;
++  }
++  bool operator==(const FontMatchDistance& aOther) const {
++    return mKey == aOther.mKey;
++  }
++  bool operator>=(const FontMatchDistance& aOther) const {
++    return !(*this < aOther);
++  }
++  void NotePresentationMismatch() {
++    MOZ_ASSERT(std::get<0>(mKey) == 0);
++    std::get<0>(mKey) = 1;
++  }
++  bool IsZero() const { return mKey == std::make_tuple(0, 0.0, 0.0, 0.0); }
++
++ private:
++  // Presentation ranks: matched or unrestricted, mismatched, no candidate.
++  std::tuple<int, double, double, double> mKey{2, 0.0, 0.0, 0.0};
++};
+ 
+ // If the output range of this function is extended, check assertions &
+ // usage at the callsites!
+--- a/gfx/thebes/gfxFontEntry.h
++++ b/gfx/thebes/gfxFontEntry.h
+@@ -997,7 +997,7 @@
+   FontPresentation mPresentation;
+   uint32_t mCount = 0;               // number of fonts matched
+   uint32_t mCmapsTested = 0;         // number of cmaps tested
+-  double mMatchDistance = INFINITY;  // metric indicating closest match
++  FontMatchDistance mMatchDistance;  // metric indicating closest match
+ };
+ 
+ class gfxFontFamily {
+--- a/gfx/thebes/gfxFontEntry.cpp
++++ b/gfx/thebes/gfxFontEntry.cpp
+@@ -1505,7 +1505,7 @@
+   return nullptr;
+ }
+ 
+-static inline double WeightStyleWidthDistance(
++static inline FontMatchDistance WeightStyleWidthDistance(
+     gfxFontEntry* aFontEntry, const gfxFontStyle& aTargetStyle) {
+   double widthDist = WidthDistance(aFontEntry->Width(), aTargetStyle.width);
+   double styleDist = StyleDistance(
+@@ -1519,11 +1519,7 @@
+   MOZ_ASSERT(styleDist >= 0.0 && styleDist <= 900.0);
+   MOZ_ASSERT(weightDist >= 0.0 && weightDist <= 1600.0);
+ 
+-  // weight/style/width priority: width >> style >> weight
+-  // so we multiply the width and style values to make them dominate
+-  // the result
+-  return widthDist * kWidthFactor + styleDist * kStyleFactor +
+-         weightDist * kWeightFactor;
++  return {widthDist, styleDist, weightDist};
+ }
+ 
+ void gfxFontFamily::FindAllFontsForStyle(
+@@ -1611,7 +1607,7 @@
+   // weight/style/width combination, only the last matched font entry will
+   // be added.
+ 
+-  double minDistance = INFINITY;
++  FontMatchDistance minDistance;
+   gfxFontEntry* matched = nullptr;
+   // Iterate in reverse order so that faces like 'Bold' are matched before
+   // matching style-distance faces such as 'Bold Outline' (see bug 1185812;
+@@ -1619,7 +1615,7 @@
+   for (uint32_t i = count; i > 0;) {
+     fe = mAvailableFonts[--i];
+     // weight/style/width priority: width >> style >> weight
+-    double distance = WeightStyleWidthDistance(fe, aFontStyle);
++    auto distance = WeightStyleWidthDistance(fe, aFontStyle);
+     if (distance < minDistance) {
+       matched = fe;
+       if (!aFontEntryList.IsEmpty()) {
+@@ -1750,7 +1746,7 @@
+   }
+ 
+   gfxFontEntry* fe = nullptr;
+-  float distance = INFINITY;
++  FontMatchDistance distance;
+ 
+   for (auto* e : entries) {
+     if (e->SkipDuringSystemFallback()) {
+@@ -1782,7 +1778,7 @@
+         bool hasColorGlyph =
+             font->HasColorGlyphFor(aMatchData->mCh, aMatchData->mNextCh);
+         if (hasColorGlyph != PrefersColor(aMatchData->mPresentation)) {
+-          distance += kPresentationMismatch;
++          distance.NotePresentationMismatch();
+         }
+       }
+       break;
+@@ -1828,7 +1824,7 @@
+   for (uint32_t i = numFonts; i > 0;) {
+     gfxFontEntry* fe = mAvailableFonts[--i];
+     if (fe && fe->HasCharacter(aMatchData->mCh)) {
+-      float distance = WeightStyleWidthDistance(fe, aMatchData->mStyle);
++      auto distance = WeightStyleWidthDistance(fe, aMatchData->mStyle);
+       if (aMatchData->mPresentation != FontPresentation::Any) {
+         RefPtr<gfxFont> font = fe->FindOrMakeFont(&aMatchData->mStyle);
+         if (!font) {
+@@ -1837,7 +1833,7 @@
+         bool hasColorGlyph =
+             font->HasColorGlyphFor(aMatchData->mCh, aMatchData->mNextCh);
+         if (hasColorGlyph != PrefersColor(aMatchData->mPresentation)) {
+-          distance += kPresentationMismatch;
++          distance.NotePresentationMismatch();
+         }
+       }
+       if (distance < aMatchData->mMatchDistance ||
+--- a/gfx/thebes/SharedFontList.cpp
++++ b/gfx/thebes/SharedFontList.cpp
+@@ -20,7 +20,7 @@
+ namespace mozilla {
+ namespace fontlist {
+ 
+-static double WSSDistance(const Face* aFace, const gfxFontStyle& aStyle) {
++static FontMatchDistance WSSDistance(const Face* aFace, const gfxFontStyle& aStyle) {
+   double widthDist = WidthDistance(aFace->mWidth, aStyle.width);
+   double styleDist = StyleDistance(
+       aFace->mStyle, aStyle.style,
+@@ -33,11 +33,7 @@
+   MOZ_ASSERT(styleDist >= 0.0 && styleDist <= 900.0);
+   MOZ_ASSERT(weightDist >= 0.0 && weightDist <= 1600.0);
+ 
+-  // weight/style/width priority: width >> style >> weight
+-  // so we multiply the width and style values to make them dominate
+-  // the result
+-  return widthDist * kWidthFactor + styleDist * kStyleFactor +
+-         weightDist * kWeightFactor;
++  return {widthDist, styleDist, weightDist};
+ }
+ 
+ void* Pointer::ToPtr(FontList* aFontList,
+@@ -394,7 +390,7 @@
+   // normal platform fonts with a single font entry for each
+   // weight/style/width combination, only the last matched font entry will
+   // be added.
+-  double minDistance = INFINITY;
++  FontMatchDistance minDistance;
+   Face* matched = nullptr;
+   // Keep track of whether we've included any non-scalable font resources in
+   // the selected set.
+@@ -403,7 +399,7 @@
+     auto* face = facePtrs[i].ToPtr<Face>(aList);
+     if (face) {
+       // weight/style/width priority: width >> style >> weight
+-      double distance = WSSDistance(face, aStyle);
++      auto distance = WSSDistance(face, aStyle);
+       if (distance < minDistance) {
+         matched = face;
+         if (!aFaceList.IsEmpty()) {
+@@ -540,7 +536,7 @@
+     // (so that we don't trigger cmap-loading for faces that would be a worse
+     // match than what we've already found).
+     if (!charmap || charmap->test(aMatchData->mCh)) {
+-      double distance = WSSDistance(face, aMatchData->mStyle);
++      auto distance = WSSDistance(face, aMatchData->mStyle);
+       if (distance < aMatchData->mMatchDistance) {
+         // It's a better style match: get a fontEntry, and if we haven't
+         // already checked character coverage, do it now (note that
+@@ -563,7 +559,7 @@
+           bool hasColorGlyph =
+               font->HasColorGlyphFor(aMatchData->mCh, aMatchData->mNextCh);
+           if (hasColorGlyph != PrefersColor(aMatchData->mPresentation)) {
+-            distance += kPresentationMismatch;
++            distance.NotePresentationMismatch();
+             if (distance >= aMatchData->mMatchDistance) {
+               continue;
+             }
+--- a/gfx/thebes/gfxPlatformFontList.cpp
++++ b/gfx/thebes/gfxPlatformFontList.cpp
+@@ -1482,7 +1482,7 @@
+           StartCmapLoadingFromFamily(i);
+         } else {
+           family.SearchAllFontsForChar(SharedFontList(), &data);
+-          if (data.mMatchDistance == 0.0) {
++          if (data.mMatchDistance.IsZero()) {
+             // no better style match is possible, so stop searching
+             break;
+           }
+@@ -1502,7 +1502,7 @@
+       }
+       // evaluate all fonts in this family for a match
+       family->FindFontForChar(&data);
+-      if (data.mMatchDistance == 0.0) {
++      if (data.mMatchDistance.IsZero()) {
+         // no better style match is possible, so stop searching
+         break;
+       }
