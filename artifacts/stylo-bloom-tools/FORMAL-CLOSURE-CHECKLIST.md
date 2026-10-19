@@ -162,3 +162,14 @@ The full presence flag remains history-dependent; its allowed zero-spacing
 witness is retained. This does not close ownership item 5: actual measurement
 and nested ligature request chronology, source/preparation stability, property
 lifetime and consumer-specific presence projection remain open.
+
+## Stateful spacing consumer checkpoint
+
+Root replay of `measurement-query-v1` passed: 37 modules, 352 exact theorem
+audits (36 new), and 30 complete source bindings. The request trace erases to
+the existing pure measurement model; nested requests execute through one
+persistent session. Source-derived mutable answers, display-cache coverage
+and lifetime, and final font observations remain open. The uncovered display
+cache witness `[8,8]` versus `[8,7]` is retained for caller investigation;
+browser reachability is unproved. This does not close the ownership milestone.
+Evidence: `../css-hyphenation-measurement-offset-probe-v1/ROOT-MEASUREMENT-QUERY-v1.json`.

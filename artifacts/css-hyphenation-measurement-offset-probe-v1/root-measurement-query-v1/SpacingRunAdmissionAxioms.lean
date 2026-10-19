@@ -1,0 +1,8 @@
+import SpacingRunAdmission
+#print axioms HyphenSpacingRunAdmission.traversal_run_admission
+#print axioms HyphenSpacingRunAdmission.kept_inner_coordinate
+#print axioms HyphenSpacingRunAdmission.cluster_forward_bounds
+#print axioms HyphenSpacingRunAdmission.cluster_end_bounds
+#print axioms HyphenSpacingRunAdmission.word_spacing_target
+#print axioms HyphenSpacingRunAdmission.query_write_target
+#print axioms HyphenSpacingRunAdmission.justification_indexes

@@ -1,0 +1,12 @@
+import MeasurementQueryTrace
+#print axioms MeasurementQueryTrace.trace_erases
+#print axioms MeasurementQueryTrace.run_erases
+#print axioms MeasurementQueryTrace.final_metric_call
+#print axioms MeasurementQueryTrace.empty_adjusted
+#print axioms MeasurementQueryTrace.no_nested_call_after_abort
+#print axioms MeasurementQueryTrace.no_nested_call_during_rescan
+#print axioms MeasurementQueryTrace.initial_events_bounded
+#print axioms MeasurementQueryTrace.fetch_events_bounded
+#print axioms MeasurementQueryTrace.consider_events_bounded
+#print axioms MeasurementQueryTrace.traced_events_bounded
+#print axioms MeasurementQueryTrace.complete_events_bounded

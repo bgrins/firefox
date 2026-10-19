@@ -1,0 +1,17 @@
+import MeasurementMachine
+#print axioms HyphenMeasurementMachine.considered_cursor
+#print axioms HyphenMeasurementMachine.advance_budget_nonstrict
+#print axioms HyphenMeasurementMachine.initial_cursor
+#print axioms HyphenMeasurementMachine.initial_selection
+#print axioms HyphenMeasurementMachine.fetch_selection
+#print axioms HyphenMeasurementMachine.consider_selection
+#print axioms HyphenMeasurementMachine.whole_machine_metric_request
+#print axioms HyphenMeasurementMachine.initial_boundary_bounds
+#print axioms HyphenMeasurementMachine.fetch_boundary_bounds
+#print axioms HyphenMeasurementMachine.initial_loop_ready
+#print axioms HyphenMeasurementMachine.refreshed_loop_ready
+#print axioms HyphenMeasurementMachine.considered_loop_ready
+#print axioms HyphenMeasurementMachine.advanced_loop_ready
+#print axioms HyphenMeasurementMachine.refreshed_active
+#print axioms HyphenMeasurementMachine.loop_ready
+#print axioms HyphenMeasurementMachine.whole_machine_fit_bound

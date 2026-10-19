@@ -1,0 +1,8 @@
+import CacheQueryStability
+#print axioms CacheQueryStability.drop_cut
+#print axioms CacheQueryStability.selected_linear
+#print axioms CacheQueryStability.entries_after_empty
+#print axioms CacheQueryStability.entries_append_after
+#print axioms CacheQueryStability.select_append_after
+#print axioms CacheQueryStability.applied_prefix_stable
+#print axioms CacheQueryStability.native_applied_prefix_stable

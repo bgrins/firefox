@@ -1,0 +1,7 @@
+import SkipRunIndexed
+#print axioms HyphenSkipRunIndexed.indexed_walk
+#print axioms HyphenSkipRunIndexed.walk_all_before
+#print axioms HyphenSkipRunIndexed.walk_append_after
+#print axioms HyphenSkipRunIndexed.walk_observe
+#print axioms HyphenSkipRunIndexed.complete_indexed_observation
+#print axioms HyphenSkipRunIndexed.native_observation_positive

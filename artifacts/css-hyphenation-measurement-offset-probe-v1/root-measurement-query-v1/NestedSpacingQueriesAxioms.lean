@@ -1,0 +1,10 @@
+import NestedSpacingQueries
+#print axioms NestedSpacingQueries.empty_adjusted
+#print axioms NestedSpacingQueries.empty_ligature
+#print axioms NestedSpacingQueries.failed_array_has_no_query
+#print axioms NestedSpacingQueries.ligature_query_count
+#print axioms NestedSpacingQueries.singleton_ligature_keeps_duplicate
+#print axioms NestedSpacingQueries.metric_runs_in_source_order
+#print axioms NestedSpacingQueries.expansion_in_source_order
+#print axioms NestedSpacingQueries.complete_history_associated
+#print axioms NestedSpacingQueries.exact_answer_multiplicity

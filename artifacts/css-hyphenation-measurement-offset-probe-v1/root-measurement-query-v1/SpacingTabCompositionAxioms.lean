@@ -1,0 +1,9 @@
+import SpacingTabComposition
+#print axioms HyphenSpacingTabComposition.ignore_tabs_has_no_tab_writes
+#print axioms HyphenSpacingTabComposition.ignore_tabs_cache_independent
+#print axioms HyphenSpacingTabComposition.ignore_tabs_retains_justification
+#print axioms HyphenSpacingTabComposition.joined_before_and_after
+#print axioms HyphenSpacingTabComposition.recursive_queries_ignore_tabs
+#print axioms HyphenSpacingTabComposition.joined_query_chronology
+#print axioms HyphenSpacingTabComposition.no_recursive_tab_calculation
+#print axioms HyphenSpacingTabComposition.complete_joined_values

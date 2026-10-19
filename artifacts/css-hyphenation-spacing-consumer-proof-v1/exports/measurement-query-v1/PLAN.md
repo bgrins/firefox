@@ -1,0 +1,3 @@
+# Scope of this checkpoint
+
+Continue the full consumer scope without changing the earlier sealed v2. Authenticate and copy its exact source and Lean inputs; authenticate the complete measurement-machine component. Add a request-trace erasure/bounds theorem, source-shaped nested spacing schedule, persistent-session composition, consumer-specific presence projection, and prepared display-cache contracts. Retain explicit native observations and failed admission witnesses. Compile/audit all source modules in a clean relocated closure; reject source tampering before imports. Native/browser/source mutation remains root-owned.

@@ -1,0 +1,9 @@
+import SpacingPhases
+#print axioms HyphenSpacingPhases.complete_pointwise
+#print axioms HyphenSpacingPhases.output_length
+#print axioms HyphenSpacingPhases.tab_bounds
+#print axioms HyphenSpacingPhases.justification_bounds
+#print axioms HyphenSpacingPhases.selected_justification_exists
+#print axioms HyphenSpacingPhases.full_trace_bounds
+#print axioms HyphenSpacingPhases.combined_zero
+#print axioms HyphenSpacingPhases.addition_order_retained

@@ -1,0 +1,10 @@
+import Sink
+#print axioms LanguageBreak.zero_preserves
+#print axioms LanguageBreak.cluster_filter_preserves
+#print axioms LanguageBreak.nonzero_replaces
+#print axioms LanguageBreak.availability_preserved
+#print axioms LanguageBreak.finite_availability_preserved
+#print axioms LanguageBreak.different_owner_preserved
+#print axioms LanguageBreak.different_offset_preserved
+#print axioms LanguageBreak.coordinates_in_range
+#print axioms LanguageBreak.coordinates_no_duplicates

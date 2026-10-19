@@ -1,0 +1,13 @@
+import MeasurementSelection
+#print axioms HyphenMeasurementSelection.initial_bounded
+#print axioms HyphenMeasurementSelection.at_break_bounded
+#print axioms HyphenMeasurementSelection.accumulate_bounded
+#print axioms HyphenMeasurementSelection.iteration_bounded
+#print axioms HyphenMeasurementSelection.selected_bounded
+#print axioms HyphenMeasurementSelection.final_fit_bounded
+#print axioms HyphenMeasurementSelection.final_metric_range
+#print axioms HyphenMeasurementSelection.rescan_skips_accumulation
+#print axioms HyphenMeasurementSelection.suppressed_iteration
+#print axioms HyphenMeasurementSelection.suppressed_opportunity
+#print axioms HyphenMeasurementSelection.natural_excludes_hyphenation
+#print axioms HyphenMeasurementSelection.fallback_and_last_output_witness

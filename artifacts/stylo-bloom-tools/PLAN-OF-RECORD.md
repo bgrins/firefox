@@ -2910,3 +2910,14 @@ patch that applies/reverses against committed HEAD. Expanded baseline: 13 new
 failures, eight passing controls, and 39 existing regression checks passing.
 The candidate build is in progress; no namespace fix is accepted or counted yet.
 A separate nested-fallback preload lead is under static investigation.
+
+## Stateful spacing consumer checkpoint
+
+Root replay of `measurement-query-v1` passed: 37 modules, 352 exact theorem
+audits (36 new), and 30 complete source bindings. The request trace erases to
+the existing pure measurement model; nested requests execute through one
+persistent session. Source-derived mutable answers, display-cache coverage
+and lifetime, and final font observations remain open. The uncovered display
+cache witness `[8,8]` versus `[8,7]` is retained for caller investigation;
+browser reachability is unproved. This does not close the ownership milestone.
+Evidence: `../css-hyphenation-measurement-offset-probe-v1/ROOT-MEASUREMENT-QUERY-v1.json`.

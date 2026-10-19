@@ -1,0 +1,6 @@
+import HyphenationProviderWrites
+#print axioms HyphenationProviderWrites.soft_write_coordinates
+#print axioms HyphenationProviderWrites.full_soft_initialization
+#print axioms HyphenationProviderWrites.full_soft_length
+#print axioms HyphenationProviderWrites.auto_length
+#print axioms HyphenationProviderWrites.full_provider_length

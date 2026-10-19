@@ -1,0 +1,10 @@
+import MeasurementCoordinates
+#print axioms MeasurementCoordinates.offset_invariance
+#print axioms MeasurementCoordinates.relative_buffer_equivalence
+#print axioms MeasurementCoordinates.zero_start_unchanged
+#print axioms MeasurementCoordinates.changed_boundary_witness
+#print axioms MeasurementCoordinates.initial_cover
+#print axioms MeasurementCoordinates.refill_cover
+#print axioms MeasurementCoordinates.finite_refill_cover
+#print axioms MeasurementCoordinates.refill_guard_coordinate_binding
+#print axioms MeasurementCoordinates.guarded_rescan_in_fetched_range

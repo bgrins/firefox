@@ -1,0 +1,6 @@
+import TabSpacingAdmission
+#print axioms HyphenTabSpacingAdmission.binary_search_cut
+#print axioms HyphenTabSpacingAdmission.sorted_lower_cut
+#print axioms HyphenTabSpacingAdmission.tab_writes_bounded
+#print axioms HyphenTabSpacingAdmission.drop_cut_lower
+#print axioms HyphenTabSpacingAdmission.native_tab_write_bounds

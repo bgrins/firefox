@@ -1,0 +1,8 @@
+import ConsumerPresence
+#print axioms ConsumerPresence.before_projection
+#print axioms ConsumerPresence.after_projection
+#print axioms ConsumerPresence.ligature_observation
+#print axioms ConsumerPresence.same_values_same_ligature_observation
+#print axioms ConsumerPresence.direct_ignores_flag
+#print axioms ConsumerPresence.array_preserves_presence_distinction
+#print axioms ConsumerPresence.arbitrary_arithmetic_cannot_erase_presence

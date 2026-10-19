@@ -1,0 +1,11 @@
+import SkipProviderClip
+#print axioms HyphenSkipProviderClip.kept_prefix_monotone
+#print axioms HyphenSkipProviderClip.original_monotone
+#print axioms HyphenSkipProviderClip.strict_inverse_bound
+#print axioms HyphenSkipProviderClip.inverse_is_kept
+#print axioms HyphenSkipProviderClip.inverse_query_inside_source_slice
+#print axioms HyphenSkipProviderClip.capped_run_inside_slice
+#print axioms HyphenSkipProviderClip.traversal_inside_slice
+#print axioms HyphenSkipProviderClip.rebased_query_read
+#print axioms HyphenSkipProviderClip.rebased_traversal_read
+#print axioms HyphenSkipProviderClip.initial_predecessor_guard

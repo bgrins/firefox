@@ -1,0 +1,10 @@
+import PreparedDisplaySession
+#print axioms PreparedDisplaySession.covered_cache_unchanged
+#print axioms PreparedDisplaySession.borrowed_query_unchanged
+#print axioms PreparedDisplaySession.borrowed_history_unchanged
+#print axioms PreparedDisplaySession.first_load_before_preparation_queries
+#print axioms PreparedDisplaySession.prepare_then_measure_keeps_borrow
+#print axioms PreparedDisplaySession.tab_free_step_cache
+#print axioms PreparedDisplaySession.tab_free_extension_cache
+#print axioms PreparedDisplaySession.loaded_query_preserves_entries_if_new_units_not_tabs
+#print axioms PreparedDisplaySession.uncovered_display_needs_caller_admission
