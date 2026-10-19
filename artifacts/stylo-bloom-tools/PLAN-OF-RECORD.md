@@ -15,15 +15,14 @@ Immediate next steps:
    The follow-up attr-only collection repair is signed as `3892ab844694fedd987f5ce1dd2165f53fc2dbed`.
    Its ten new cases and 183 prior checks pass. Preserve native parser/context
    and full graph-composition obligations.
-3. Repair resolved relative-unit summaries at the attribute and universal-value
-   persistence sinks. Three browser failures are retained: attribute cycle,
-   universal-chain cycle and acyclic 1em ordering (23px instead of 17px).
-   Use successful output tokens, preserve bytes/taint and avoid unused-fallback
-   contamination. Selected-output Lean composition is signed as `5e683f6f79b008037878453525df4cce3707efba`:
-   root replay passes three modules, 25 audits and four semantic mutation gates.
-   Tokenizer/serialization admission and actual native scanner gates remain open.
-   The source-reviewed suffix scan avoids recursion/depth cutoffs; unresolved env
-   payloads explicitly retain old behavior outside complete-summary correspondence. The unused-relative-fallback oracle is ambiguous.
+3. Resolved relative-unit summaries are signed as `58200fa81a6f92f92a1898ba2866a2fbcbac0daa`. All 21 new,
+   13 diagnostic and 193 prior checks pass; 13 baseline failures are repaired.
+   Selected-output Lean composition remains conditional on actual tokenizer and
+   provider correspondence. Incomplete env payloads retain old behavior. Next,
+   browser-confirm the independently audited original-parser token-classification
+   candidate: identifiers and URLs that spell unit names may create false font
+   cycles. The fourteen-case probe predicts seven failures; it is not yet run.
+   Preserve the separate ambiguous unused-relative-fallback oracle.
 4. Continue cascade source/observer and hyphenation stateful consumer admissions,
    including actual reflow-to-display tab-cache coverage and lifetime. Preserve
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
@@ -43,7 +42,7 @@ close these obligations.
 
 ## Latest commit and proof checkpoint
 
-There are 57 signed standalone native/WPT fixes. Worker font removal is now
+There are 58 signed standalone native/WPT fixes. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
@@ -2992,3 +2991,18 @@ contains independently reviewed source readiness and 68 proposed browser cases.
 Root replay authenticates the source closure and test registration, not browser
 behavior. No FontFace native patch or build is accepted; local font admission,
 loading-race scheduling and platform compilation remain open.
+
+## Resolved-summary acceptance checkpoint
+
+Native/WPT commit `58200fa81a6f92f92a1898ba2866a2fbcbac0daa` follows evidence `03bad7f708329254a9af2073f0b4106ba557e914` and proposal
+`78c5d139a6d06c44eab94dfb92bdf52398928f3c`. Root replay authenticates all 160 scanner
+inputs and passes 49 fixed cases plus 300,000 nested levels on a 64 KiB stack. Final
+formatted Gecko build and exact paired WPT pass; source/resource/binary pins
+remain stable within each run. Lint reports only the ignored-WPT ESLint warning.
+This is shared-tree validation, not an isolated-base build. Full native tokenizer,
+serialization, graph/SCC and provider admissions remain open.
+
+The next original-parser token-category audit is frozen in
+`../css-unit-token-classification-audit-v1/REPORT.md`; browser confirmation and
+repair acceptance remain pending. FontFace integration remains queued after the
+attribute/parser work, with its fresh baseline and platform build gates open.

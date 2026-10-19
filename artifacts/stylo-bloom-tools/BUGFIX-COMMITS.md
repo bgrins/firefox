@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **57 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **58 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -56,6 +56,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | mathml-token-range-origin | `f843fd7568f30e14e664c37c36544d8d88e8c1bb` | `6eb5a90e3fa3b6128ddd6397d9dae9f1ab34b88d` |
 | attr-typed-fallback-eligibility | `e3ba54f6f826fe265eb5bc4731f66f64465dd47c` | `30c8dfeb4b746104b53ad5bc6440c1d53734f570` |
 | attr-noncustom-dependency-collection | `3892ab844694fedd987f5ce1dd2165f53fc2dbed` | `0db19774e6f2bf6692790459f8e6e54ca426e366` |
+| resolved-unit-dependency-summary | `58200fa81a6f92f92a1898ba2866a2fbcbac0daa` | `03bad7f708329254a9af2073f0b4106ba557e914` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1400,3 +1401,13 @@ Independent syntax and source/oracle review pass. No new native graph theorem
 is claimed; discovery came from manual analysis of formal admission gaps.
 See [acceptance](../css-attr-noncustom-browser-v1/ROOT-SCOPED-ACCEPTANCE-v1.json)
 and [commit check](../css-attr-noncustom-browser-v1/ROOT-COMMIT-CHECK-v1.json).
+
+## Resolved relative-unit summaries committed
+
+`58200fa81a6f92f92a1898ba2866a2fbcbac0daa` contains one Rust file and the 21-case WPT. It restores relative-unit
+dependency metadata when storing resolved attribute and universal values. The
+final formatted build passes all 227 checks; 13 baseline failures are repaired.
+Evidence and independent reviews precede it in `03bad7f708329254a9af2073f0b4106ba557e914`. Lean selected-output
+composition is conditional on token/provider correspondence; full tokenizer and
+graph proofs remain open. Incomplete env payload scans retain their previous
+behavior, and added scan cost is unmeasured.
