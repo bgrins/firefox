@@ -93,7 +93,8 @@ nscoord FixedTableLayoutStrategy::GetMinISize(gfxContext* aRenderingContext) {
             // the space evenly.  (XXX This isn't quite right if some of
             // the columns it's in have specified inline sizes.  Should
             // we care?)
-            cellISize = ((cellISize + spacing) / colSpan) - spacing;
+            cellISize =
+                std::max(0, ((cellISize + spacing) / colSpan) - spacing);
           }
           result += cellISize;
         } else if (styleISize->ConvertsToPercentage()) {
