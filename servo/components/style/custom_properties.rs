@@ -1924,8 +1924,11 @@ fn substitute_one_reference<'a>(
                             AttributeType::Unit(unit) => {
                                 let css = {
                                     // Verify that attribute data is a <number-token>.
+                                    parser.skip_whitespace();
+                                    let start = parser.position();
                                     parser.expect_number().ok()?;
-                                    let mut s = attr.clone();
+                                    let mut s = String::from(parser.slice_from(start));
+                                    parser.expect_exhausted().ok()?;
                                     s.push_str(unit.as_ref());
                                     s
                                 };
