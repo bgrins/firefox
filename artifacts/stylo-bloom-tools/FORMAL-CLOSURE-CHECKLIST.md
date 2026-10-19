@@ -22,8 +22,9 @@ an interior post-LF CJK difference. The latter reproduces in eight browser cases
 the narrow ICU backport passes all 313 checks with 46 existing checks unchanged.
 Upstream PR8144 already structurally repairs this mechanism. Conditional
 first-position-only LF lemmas cannot discharge the refuted all-input claim.
-Candidate encoding/provider proofs and independent replay remain a separate
-scoped repair gate.
+The narrow candidate encoding/provider gate now passes, including root’s fresh
+complete native/provider/kernel replay. Its three-file backport is signed; this
+scoped acceptance does not close the original language/LF obligations.
 
 The ownership full-scope dossier is ready for independent review. It explicitly
 retains native heap/FFI, temporal DOM/style, dictionary/source association,

@@ -8,9 +8,11 @@ Immediate next steps:
 
 1. Close cascade source-identity and observer admissions against the corrected
    two-patch stack; preserve cycle/animation and scope-ownership counterexamples.
-2. Adjudicate the nine-case loaded FontFace.sizeAdjust probe in
-   `css-fontface-provider-update-scout-v1`; it is unexecuted and within the known
-   bug 1072149 family. The scrollbar scouts map to known bugs, not new findings.
+2. Repair the confirmed loaded FontFace.sizeAdjust provider defect within the
+   known bug 1072149 family. Local WPT has eight failures and four controls for
+   URL/buffer sources. Preserve shared wrappers/providers, loaded promises, all
+   set memberships and worker publication. Resource-preserving local-font cloning
+   and transactional descriptor updates remain design obligations.
 3. Resume the remaining formal/native acceptance work after the signed commit
    checkpoint. The previously accepted queue is recorded in
    [CURRENT-COMMITS.json](CURRENT-COMMITS.json), with each proof/tooling companion
@@ -23,6 +25,24 @@ active proof tracks. Existing finite corpora are held fixed absent a concrete
 remaining risk. Component theorem counts and bounded replay success do not
 close these obligations.
 
+## Loaded FontFace provider follow-up
+
+The static audit's loaded `sizeAdjust` lead is confirmed. The local WPT has four
+passing fresh-face controls and eight failures across URL/buffer sources and
+mutation before addition, existing/new elements, and deletion/readdition. The
+MCP system Firefox also reproduces it, but is not bound to the checkout binary.
+The first local run had a cleanup harness error; only v2 supports the bug claim.
+This belongs to the known bug 1072149 family and was not Lean-discovered.
+
+Evidence and the conceptual provider design are signed in
+`e53da01d68813ff520572b4b8e1e888544a239a0`. Root freshly replayed its 13 abstract
+identity/publication theorems; they do not prove native refinement. No repair is
+accepted. Keep the actual WPT with the eventual native fix. Current design work
+covers immutable shared wrappers/providers, resource-preserving local clones,
+transactional setters, worker publication, and affected-set rebuilding.
+See `css-fontface-provider-probe-v1/README.md` and
+`css-fontface-provider-proof-v1/REPORT.md`.
+
 ## Further counterexamples and repairs in progress
 
 The full line-break provider proof found a supplementary Ahom/Thai UTF-16
@@ -34,8 +54,11 @@ after the narrow encoding/seek-width backport. Eight existing files retain all
 structurally fixes this mechanism upstream; this is an old-version backport,
 not a novel upstream defect. The three-file native/checksum/WPT patch applies
 and reverses at historical HEAD/base. Lint and rustfmt pass. Independent exact
-provider/full-breaker replay is being finalized; full formal acceptance and
-signing remain pending. Evidence: `css-ahom-lf-partition-probe-v1/ROOT-NATIVE-WPT-v1.json`.
+provider/full-breaker replay now passes from a fresh source-only copy. The
+narrow backport is accepted and signed as `39ce7571a61097a80d5bf07adbc3ae48a2f0262e`,
+following companion `28d9e8cc1065d7b00e3d891b42049c82d5e7058c`. Original language/LF
+proof obligations remain open or refuted. Evidence:
+`css-ahom-lf-partition-probe-v1/ROOT-SCOPED-ACCEPTANCE-v1.json`.
 
 The expanded proof found a regression in important-inline candidate A: a
 following outer `revert-layer` replaces its exclusion and revives a normal inline

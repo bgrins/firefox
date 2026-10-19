@@ -5,13 +5,13 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **48 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **49 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
 ## Signed commit queue
 
-Full hashes below are the current management identifiers. Earlier evidence records retain their historical hashes and signing status. Each native fix includes its WPT; proof/tooling commits precede it. See the [machine-readable ledger](CURRENT-COMMITS.json) and [commit-content check](../css-signing-resume-20261019/ROOT-COMMIT-CHECK.json).
+Full hashes below are the current management identifiers. Earlier evidence records retain their historical hashes and signing status. Each native fix includes its WPT; proof/tooling commits precede it. See the [machine-readable ledger](CURRENT-COMMITS.json) and [original queue check](../css-signing-resume-20261019/ROOT-COMMIT-CHECK.json) and [Ahom commit check](../css-ahom-lf-partition-probe-v1/ROOT-COMMIT-CHECK-v1.json).
 
 | Repair | Native + WPT commit | Proof/tooling commit |
 | --- | --- | --- |
@@ -47,6 +47,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | animation-composite | `6b8dc654e8d017562533308571af23c3099fd5cc` | `7ee385b8404b0e332950ae4e4edaf4a1bb3e20a2` |
 | text-emphasis-pua | `bbf5a4095f85fb250ea442695a311f2547ffdc19` | `75401fe2983110104c3f0a3bef1686d807701033` |
 | negative-ligature | `8ee543a6ff23cc097f54f1c3e984f7d5f7e56fea` | `3f61a60e15b32e88afdf5975fd65b49fd760d568` |
+| complex-utf16-ahom | `39ce7571a61097a80d5bf07adbc3ae48a2f0262e` | `28d9e8cc1065d7b00e3d891b42049c82d5e7058c` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -60,7 +61,6 @@ companions remain separate.
 | --- | --- | --- |
 | Cumulative rollback exclusions (A+B+D) | [fix-a-b-d-v1.patch](../css-layer-cutoff-composition-probe-v1/fix-a-b-d-v1.patch) | Coherent repair supersedes original A/B patches; 80 assigned cases pass without C |
 | Logical/physical rule exclusion (C) | [fix-c-after-a-b-d-v1.patch](../css-layer-cutoff-composition-probe-v1/fix-c-after-a-b-d-v1.patch) | Follows A+B+D; final browser gate passes; local performance pair recorded; full source quotient remains open |
-| Supplementary complex-script UTF-16 line breaking | [fix-utf16-complex-v1.patch](../css-ahom-lf-partition-probe-v1/fix-utf16-complex-v1.patch) | Separate three-file backport; upstream mechanism fixed in ICU4X PR8144 |
 | Hyphenation measurement coordinates | [fix-coordinate-v1.patch](../css-hyphenation-measurement-offset-probe-v1/fix-coordinate-v1.patch) | Separate from ownership and signed-ligature repairs |
 
 ## Further counterexamples and repairs in progress
@@ -74,8 +74,11 @@ after the narrow encoding/seek-width backport. Eight existing files retain all
 structurally fixes this mechanism upstream; this is an old-version backport,
 not a novel upstream defect. The three-file native/checksum/WPT patch applies
 and reverses at historical HEAD/base. Lint and rustfmt pass. Independent exact
-provider/full-breaker replay is being finalized; full formal acceptance and
-signing remain pending. Evidence: `css-ahom-lf-partition-probe-v1/ROOT-NATIVE-WPT-v1.json`.
+provider/full-breaker replay now passes from a fresh source-only copy. The
+narrow backport is accepted and signed as `39ce7571a61097a80d5bf07adbc3ae48a2f0262e`,
+following companion `28d9e8cc1065d7b00e3d891b42049c82d5e7058c`. Original language/LF
+proof obligations remain open or refuted. Evidence:
+`css-ahom-lf-partition-probe-v1/ROOT-SCOPED-ACCEPTANCE-v1.json`.
 
 The expanded proof found a regression in important-inline candidate A: a
 following outer `revert-layer` replaces its exclusion and revives a normal inline
