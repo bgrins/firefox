@@ -1428,6 +1428,8 @@ counterexample. Full tokenizer and graph proofs remain open.
 
 ## Identifier-start escaped-newline repair
 
+Prior upstream report: [cssparser issue440](https://github.com/servo/rust-cssparser/issues/440). The local work adds browser regression coverage and scoped formal evidence for the same defect.
+
 Standalone native + WPT commit: `2ad505512c621776d62be9f1eb0bd7c137b93ee8` on local branch
 `stylo-css-identifier-start-fix`, after proof/evidence companion
 `bebbe8380a6982e94f8fcd61cfc4375ee6485d7e`. This is the independently applicable version
