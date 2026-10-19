@@ -1012,6 +1012,7 @@ where
          ",
     );
     if parser.current_block_depth >= parser.nested_block_limit && parser.nested_block_limit != 0 {
+        parser.consume_until_end_of_block(block_type);
         return Err(ParseError::from_basic_kind(
             BasicParseErrorKind::TooManyNestedBlocks,
         ));
