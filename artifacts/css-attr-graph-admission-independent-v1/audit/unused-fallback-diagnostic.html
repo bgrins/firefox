@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Unused relative-unit fallback: unresolved specification interpretation</title>
+<body>
+<pre id="output"></pre>
+<script>
+CSS.registerProperty({name:"--unused-length",syntax:"<length>",inherits:false,initialValue:"11px"});
+const rows = [];
+for (const fallback of ["1em", "7px"]) {
+  const parent = document.createElement("div");
+  parent.style.fontSize = "23px";
+  const target = document.createElement("div");
+  target.setAttribute("a", "13px");
+  target.style.cssText = `--unused-length: attr(a type(<length>), ${fallback}); font-size: var(--unused-length); width: var(--unused-length)`;
+  parent.append(target);
+  document.body.append(parent);
+  const style = getComputedStyle(target);
+  rows.push({fallback, registered:style.getPropertyValue("--unused-length"), font:style.fontSize, width:style.width});
+  parent.remove();
+}
+output.textContent = JSON.stringify({status:"diagnostic only; no normative assertion", rows}, null, 2);
+</script>

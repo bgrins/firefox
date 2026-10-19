@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typed attr() preserves attribute namespace identity</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style id="sheet">
+@namespace a url(urn:attr-test:a);
+@namespace b url(urn:attr-test:b);
+@namespace alias url(urn:attr-test:a);
+.target { display: block; box-sizing: content-box; padding: 0; border: 0; }
+</style>
+<div id="fixture"></div>
+<script>
+const namespaces = {a: "urn:attr-test:a", b: "urn:attr-test:b", "": null};
+let nextId = 0;
+
+function makeTarget(t, declarations, attributes) {
+  const target = document.createElement("div");
+  target.id = `target-${nextId++}`;
+  target.className = "target";
+  for (const [prefix, name, value] of attributes) {
+    target.setAttributeNS(namespaces[prefix], prefix ? `${prefix}:${name}` : name, value);
+  }
+  const sheet = document.getElementById("sheet").sheet;
+  const index = sheet.insertRule(`#${target.id} { ${declarations} }`, sheet.cssRules.length);
+  assert_not_equals(sheet.cssRules[index].style.width, "", "width declaration parsed");
+  assert_not_equals(sheet.cssRules[index].style.height, "", "height declaration parsed");
+  document.getElementById("fixture").append(target);
+  t.add_cleanup(() => target.remove());
+  return target;
+}
+
+function assertSize(target, width, height) {
+  const style = getComputedStyle(target);
+  assert_equals(style.width, width, "width");
+  assert_equals(style.height, height, "height");
+}
+
+const a = "attr(a|x type(<length>), 5px)";
+const b = "attr(b|x type(<length>), 7px)";
+const literals = [["a", "x", "13px"], ["b", "x", "37px"]];
+const cases = [
+  ["Different namespaces, width first", `width: ${a}; height: ${b}`, literals, "13px", "37px"],
+  ["Different namespaces, height first", `height: ${b}; width: ${a}`, literals, "13px", "37px"],
+  ["First namespace alone", `width: ${a}; height: 7px`, literals, "13px", "7px"],
+  ["Second namespace alone", `width: 5px; height: ${b}`, literals, "5px", "37px"],
+  ["Different local names", `width: ${a}; height: attr(b|y type(<length>), 7px)`,
+    [["a", "x", "13px"], ["b", "y", "37px"]], "13px", "37px"],
+  ["Same qualified name", `width: ${a}; height: ${a}`, literals, "13px", "13px"],
+  ["Prefixes for the same namespace", `width: ${a}; height: attr(alias|x type(<length>), 7px)`,
+    literals, "13px", "13px"],
+  ["Numeric units", "width: attr(a|x px, 5px); height: attr(b|x px, 7px)",
+    [["a", "x", "13"], ["b", "x", "37"]], "13px", "37px"],
+  ["Null and named namespaces, width first", `width: attr(x type(<length>), 5px); height: ${b}`,
+    [["", "x", "13px"], ["b", "x", "37px"]], "13px", "37px"],
+  ["Null and named namespaces, height first", `height: ${b}; width: attr(x type(<length>), 5px)`,
+    [["", "x", "13px"], ["b", "x", "37px"]], "13px", "37px"],
+  ["Explicit null namespace", `width: attr(|x type(<length>), 5px); height: ${b}`,
+    [["", "x", "13px"], ["b", "x", "37px"]], "13px", "37px"],
+  ["Unknown namespace uses fallback", `--good: 11px; width: attr(unknown|x type(<length>), var(--good)); height: ${b}`,
+    literals, "11px", "37px"],
+  ["Attribute values reference custom properties", `--av: 13px; --bv: 37px; width: ${a}; height: ${b}`,
+    [["a", "x", "var(--av)"], ["b", "x", "var(--bv)"]], "13px", "37px"],
+  ["Attribute values reference custom properties, height first", `--av: 13px; --bv: 37px; height: ${b}; width: ${a}`,
+    [["a", "x", "var(--av)"], ["b", "x", "var(--bv)"]], "13px", "37px"],
+  ["Chain to the same local name in the null namespace", `width: ${a}; height: ${b}`,
+    [["a", "x", "attr(x type(<length>))"], ["", "x", "13px"], ["b", "x", "37px"]], "13px", "37px"],
+  ["Cycle does not invalidate another namespace", `--loop: ${a}; width: ${a}; height: ${b}`,
+    [["a", "x", "var(--loop)"], ["b", "x", "37px"]], "5px", "37px"],
+  ["Cycle does not invalidate another namespace, height first", `--loop: ${a}; height: ${b}; width: ${a}`,
+    [["a", "x", "var(--loop)"], ["b", "x", "37px"]], "5px", "37px"],
+  ["Invalid substitution does not invalidate another namespace", `width: ${a}; height: ${b}`,
+    [["a", "x", "var(--missing)"], ["b", "x", "37px"]], "5px", "37px"],
+  ["Invalid type does not invalidate another namespace", `width: ${a}; height: ${b}`,
+    [["a", "x", "not-a-length"], ["b", "x", "37px"]], "5px", "37px"],
+  ["Missing attribute uses fallback", `width: ${a}; height: ${b}`,
+    [["b", "x", "37px"]], "5px", "37px"],
+];
+for (const [name, declarations, attributes, width, height] of cases) {
+  test(t => assertSize(makeTarget(t, declarations, attributes), width, height), name);
+}
+
+test(t => {
+  const target = makeTarget(t, `width: ${a}; height: ${b}`, literals);
+  assertSize(target, "13px", "37px");
+  target.setAttributeNS(namespaces.b, "b:x", "53px");
+  assertSize(target, "13px", "53px");
+  target.removeAttributeNS(namespaces.a, "x");
+  assertSize(target, "5px", "53px");
+  target.setAttributeNS(namespaces.a, "a:x", "19px");
+  assertSize(target, "19px", "53px");
+}, "Changes and removal affect only the matching namespace");
+</script>

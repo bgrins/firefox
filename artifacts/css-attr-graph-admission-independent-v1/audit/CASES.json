@@ -1,0 +1,172 @@
+[
+  {
+    "name": "A resolved literal attribute has no relative-unit cycle",
+    "declarations": "--graph-length: attr(a type(<length>)); font-size: var(--graph-length)",
+    "attributes": {
+      "a": "13px"
+    },
+    "expected": {
+      "--graph-length": "13px",
+      "font-size": "13px",
+      "width": "13px"
+    },
+    "classification": "control",
+    "predicted_native_width": "13px"
+  },
+  {
+    "name": "A relative unit from a resolved attribute participates in the font cycle",
+    "declarations": "--graph-length: attr(a type(<length>)); font-size: var(--graph-length)",
+    "attributes": {
+      "a": "1em"
+    },
+    "expected": {
+      "--graph-length": "11px",
+      "font-size": "23px",
+      "width": "11px"
+    },
+    "classification": "lost-attribute-unit-flags",
+    "predicted_native_width": "23px"
+  },
+  {
+    "name": "A literal registered relative unit participates in the font cycle",
+    "declarations": "--graph-length: 1em; font-size: var(--graph-length)",
+    "attributes": {},
+    "expected": {
+      "--graph-length": "11px",
+      "font-size": "23px",
+      "width": "11px"
+    },
+    "classification": "control",
+    "predicted_native_width": "11px"
+  },
+  {
+    "name": "A literal universal custom property preserves the relative-unit cycle",
+    "declarations": "--raw: 1em; --graph-length: var(--raw); font-size: var(--graph-length)",
+    "attributes": {},
+    "expected": {
+      "--graph-length": "11px",
+      "font-size": "23px",
+      "width": "11px"
+    },
+    "classification": "control",
+    "predicted_native_width": "11px"
+  },
+  {
+    "name": "A substituted universal custom property preserves the relative-unit cycle",
+    "declarations": "--unit: 1em; --raw: var(--unit); --graph-length: var(--raw); font-size: var(--graph-length)",
+    "attributes": {},
+    "expected": {
+      "--graph-length": "11px",
+      "font-size": "23px",
+      "width": "11px"
+    },
+    "classification": "lost-universal-unit-flags",
+    "predicted_native_width": "23px"
+  },
+  {
+    "name": "A relative attribute without a font back edge computes normally",
+    "declarations": "--graph-length: attr(a type(<length>)); font-size: 17px",
+    "attributes": {
+      "a": "1em"
+    },
+    "expected": {
+      "--graph-length": "17px",
+      "font-size": "17px",
+      "width": "17px"
+    },
+    "classification": "lost-attribute-unit-flags-ordering",
+    "predicted_native_width": "23px"
+  },
+  {
+    "name": "An attribute in font-size exposes its chained custom-property dependency",
+    "declarations": "--graph-length: 1em; font-size: attr(a type(<length>), 5px)",
+    "attributes": {
+      "a": "var(--graph-length)"
+    },
+    "expected": {
+      "--graph-length": "11px",
+      "font-size": "23px",
+      "width": "11px"
+    },
+    "classification": "missing-noncustom-attribute-edge",
+    "predicted_native_width": "5px"
+  },
+  {
+    "name": "A lexical var reference does not change the chained attribute cycle",
+    "declarations": "--zero: 0px; --graph-length: 1em; font-size: calc(var(--zero) + attr(a type(<length>), 5px))",
+    "attributes": {
+      "a": "var(--graph-length)"
+    },
+    "expected": {
+      "--graph-length": "11px",
+      "font-size": "23px",
+      "width": "11px"
+    },
+    "classification": "control",
+    "predicted_native_width": "11px"
+  },
+  {
+    "name": "A chained attribute without a relative-unit back edge computes normally",
+    "declarations": "--graph-length: 13px; font-size: attr(a type(<length>), 5px)",
+    "attributes": {
+      "a": "var(--graph-length)"
+    },
+    "expected": {
+      "--graph-length": "13px",
+      "font-size": "13px",
+      "width": "13px"
+    },
+    "classification": "control",
+    "predicted_native_width": "13px"
+  },
+  {
+    "name": "A successful typed primary ignores a cyclic custom-property fallback",
+    "declarations": "--graph-length: attr(a type(<length>), var(--graph-length)); font-size: var(--graph-length)",
+    "attributes": {
+      "a": "13px"
+    },
+    "expected": {
+      "--graph-length": "13px",
+      "font-size": "13px",
+      "width": "13px"
+    },
+    "classification": "control",
+    "predicted_native_width": "13px"
+  },
+  {
+    "name": "A missing typed primary follows a cyclic custom-property fallback",
+    "declarations": "--graph-length: attr(missing type(<length>), var(--graph-length)); font-size: var(--graph-length)",
+    "attributes": {},
+    "expected": {
+      "--graph-length": "11px",
+      "font-size": "11px",
+      "width": "11px"
+    },
+    "classification": "control",
+    "predicted_native_width": "11px"
+  },
+  {
+    "name": "A used relative-unit fallback participates in the font cycle",
+    "declarations": "--graph-length: attr(missing type(<length>), 1em); font-size: var(--graph-length)",
+    "attributes": {},
+    "expected": {
+      "--graph-length": "11px",
+      "font-size": "23px",
+      "width": "11px"
+    },
+    "classification": "control",
+    "predicted_native_width": "11px"
+  },
+  {
+    "name": "A literal registered relative unit ensures the explicit font size first",
+    "declarations": "--graph-length: 1em; font-size: 17px",
+    "attributes": {},
+    "expected": {
+      "--graph-length": "17px",
+      "font-size": "17px",
+      "width": "17px"
+    },
+    "classification": "control",
+    "predicted_native_width": "17px"
+  }
+]
