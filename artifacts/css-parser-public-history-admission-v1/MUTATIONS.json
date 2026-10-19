@@ -1,0 +1,26 @@
+[
+  {
+    "id": "drop-fresh-function-effect",
+    "source": "tokenizer",
+    "old": "*self = SeenStatus::SeenAtLeastOne;",
+    "new": "*self = SeenStatus::DontCare;"
+  },
+  {
+    "id": "replay-function-effect",
+    "source": "parser",
+    "old": "self.state = self.cached_token.end_state.clone();",
+    "new": "self.state = self.cached_token.end_state.clone();\n            if let Token::Function(ref name) = self.cached_token.token { self.arbitrary_substitution_functions.see_function(name); }"
+  },
+  {
+    "id": "reset-disables-tracking",
+    "source": "parser",
+    "old": "self.state = state.clone();",
+    "new": "self.state = state.clone();\n        self.arbitrary_substitution_functions = SeenStatus::DontCare;"
+  },
+  {
+    "id": "wrong-cache-key",
+    "source": "parser",
+    "old": "self.cached_token.start_position == token_start_position",
+    "new": "self.cached_token.start_position != token_start_position"
+  }
+]

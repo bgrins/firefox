@@ -1,0 +1,23 @@
+[
+  {
+    "id": "drop-fresh-observer",
+    "module": "PublicCache",
+    "old": "mode := track value.token s.mode, urls := annotate value.token s.urls",
+    "new": "mode := s.mode, urls := annotate value.token s.urls",
+    "witness": "theorem counterexample : seen (fresh (fun _ => \u27e8.function [118],\u27e81,none\u27e9\u27e9) true {constructor \u27e8none,none\u27e9 with mode:=.looking [[118]]}).mode=false := rfl"
+  },
+  {
+    "id": "replay-observer",
+    "module": "PublicCache",
+    "old": "def hit (c : Cache) (s : State) : State := { s with cursor := c.value.cursor }",
+    "new": "def hit (c : Cache) (s : State) : State := { s with cursor := c.value.cursor, mode:=track c.value.token s.mode }",
+    "witness": "theorem counterexample : seen (hit \u27e80,\u27e8.function [118],\u27e81,none\u27e9\u27e9\u27e9 {constructor \u27e8none,none\u27e9 with mode:=.looking [[118]]}).mode=true := by decide"
+  },
+  {
+    "id": "wrong-cache-key",
+    "module": "PublicCache",
+    "old": "some \u27e8s.cursor.position,value\u27e9",
+    "new": "some \u27e8s.cursor.position+1,value\u27e9",
+    "witness": "theorem counterexample : (fresh (fun _ => \u27e8.colon,\u27e81,none\u27e9\u27e9) true (constructor \u27e8none,none\u27e9)).cache.map Cache.key=some 1 := rfl"
+  }
+]
