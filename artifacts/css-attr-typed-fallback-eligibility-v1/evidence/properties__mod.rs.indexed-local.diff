@@ -1,0 +1,163 @@
+--- indexed/servo/components/style/properties/mod.rs
++++ local/servo/components/style/properties/mod.rs
+@@ -30,7 +30,8 @@
+ use crate::gecko_bindings::structs::{CSSPropertyId, NonCustomCSSPropertyId, RefPtr};
+ use crate::logical_geometry::WritingMode;
+ use crate::parser::ParserContext;
+-use crate::stylesheets::{CssRuleType, CssRuleTypes, Origin};
++use crate::stylesheets::CssRuleType;
++use crate::stylesheets::Origin;
+ use crate::stylist::Stylist;
+ use crate::typed_om::{ToTyped, TypedValue};
+ use crate::values::{computed, serialize_atom_name};
+@@ -528,17 +529,18 @@
+         }
+     }
+ 
+-    /// Returns this property id is allowed in this set of rules.
+-    pub fn allowed_in_rule(&self, rule_types: CssRuleTypes) -> bool {
+-        match self.non_custom_id() {
++    fn allowed_in(&self, context: &ParserContext) -> bool {
++        let id = match self.non_custom_id() {
+             // Custom properties are allowed everywhere, except `position-try`.
+-            None => !rule_types.contains(CssRuleType::PositionTry),
+-            Some(id) => id.allowed_in_rule(rule_types),
+-        }
+-    }
+-
+-    fn allowed_in(&self, context: &ParserContext) -> bool {
+-        self.allowed_in_rule(context.rule_types()) && self.allowed_in_ignoring_rule_type(context)
++            None => {
++                return !context
++                    .nesting_context
++                    .rule_types
++                    .contains(CssRuleType::PositionTry);
++            },
++            Some(id) => id,
++        };
++        id.allowed_in(context)
+     }
+ 
+     #[inline]
+@@ -945,11 +947,7 @@
+         input: &mut Parser,
+     ) -> Result<(), ParseError> {
+         assert!(declarations.is_empty());
+-        debug_assert!(
+-            id.allowed_in(context),
+-            "{id:?} is not allowed in this context {:?}",
+-            context.rule_types()
+-        );
++        debug_assert!(id.allowed_in(context), "{:?}", id);
+         input.skip_whitespace();
+ 
+         let start = input.state();
+@@ -1613,22 +1611,22 @@
+ /// A simple cache for properties that come from a shorthand and have variable
+ /// references.
+ ///
+-/// This cache works because of the fact that you can't have competing values
+-/// for a given longhand coming from the same shorthand (but note that this is
+-/// why the shorthand needs to be part of the cache key).
++/// Entries retain their source because rollback can select different declarations
++/// of the same shorthand for different longhands.
+ pub type ShorthandsWithPropertyReferencesCache =
+-    FxHashMap<(ShorthandId, LonghandId), PropertyDeclaration>;
+-
+-impl UnparsedValue {
++    FxHashMap<(ShorthandId, LonghandId), (Arc<UnparsedValue>, PropertyDeclaration)>;
++
++impl VariableDeclaration {
+     fn substitute_variables<'cache>(
+         &self,
+-        longhand_id: LonghandId,
+         substitution_functions: &ComputedSubstitutionFunctions,
+         stylist: &Stylist,
+         computed_context: &computed::Context,
+         shorthand_cache: &'cache mut ShorthandsWithPropertyReferencesCache,
+         attribute_tracker: &mut AttributeTracker,
+     ) -> Cow<'cache, PropertyDeclaration> {
++        let longhand_id = self.id;
++        let unparsed = &self.value;
+         let invalid_at_computed_value_time = || {
+             let keyword = if longhand_id.inherited() {
+                 CSSWideKeyword::Inherit
+@@ -1646,24 +1644,27 @@
+             return invalid_at_computed_value_time();
+         }
+ 
+-        if let Some(shorthand_id) = self.from_shorthand {
++        if let Some(shorthand_id) = unparsed.from_shorthand {
+             let key = (shorthand_id, longhand_id);
+-            if shorthand_cache.contains_key(&key) {
++            if shorthand_cache
++                .get(&key)
++                .is_some_and(|(source, _)| Arc::ptr_eq(source, unparsed))
++            {
+                 // FIXME: This double lookup should be avoidable, but rustc
+                 // doesn't like that, see:
+                 //
+                 // https://github.com/rust-lang/rust/issues/82146
+-                return Cow::Borrowed(&shorthand_cache[&key]);
++                return Cow::Borrowed(&shorthand_cache[&key].1);
+             }
+         }
+ 
+-        let property_id = PropertyIdRef::from(match self.from_shorthand {
++        let property_id = PropertyIdRef::from(match unparsed.from_shorthand {
+             Some(shorthand_id) => NonCustomPropertyId::from(shorthand_id),
+             None => NonCustomPropertyId::from(longhand_id),
+         });
+ 
+         let SubstitutionResult { css, attr_taint } = match custom_properties::substitute(
+-            &self.variable_value,
++            &unparsed.variable_value,
+             Some(property_id),
+             substitution_functions,
+             stylist,
+@@ -1686,7 +1687,7 @@
+         // FIXME(emilio): ParsingMode is slightly fishy...
+         let mut context = ParserContext::new(
+             Origin::Author,
+-            &self.variable_value.url_data,
++            &unparsed.variable_value.url_data,
+             None,
+             ParsingMode::DEFAULT,
+             computed_context.quirks_mode,
+@@ -1703,7 +1704,7 @@
+             return Cow::Owned(PropertyDeclaration::css_wide_keyword(longhand_id, keyword));
+         }
+ 
+-        let shorthand = match self.from_shorthand {
++        let shorthand = match unparsed.from_shorthand {
+             None => {
+                 return match context.with_property_declaration(property_id, |context| {
+                     input.parse_entirely(|input| longhand_id.parse_value(context, input))
+@@ -1732,15 +1733,15 @@
+                 let writing_mode = computed_context.builder.writing_mode;
+                 shorthand_cache.insert(
+                     (shorthand, longhand.to_physical(writing_mode)),
+-                    declaration.clone(),
++                    (unparsed.clone(), declaration.clone()),
+                 );
+             }
+-            shorthand_cache.insert((shorthand, longhand), declaration);
++            shorthand_cache.insert((shorthand, longhand), (unparsed.clone(), declaration));
+         }
+ 
+         let key = (shorthand, longhand_id);
+         match shorthand_cache.get(&key) {
+-            Some(decl) => Cow::Borrowed(decl),
++            Some((source, decl)) if Arc::ptr_eq(source, unparsed) => Cow::Borrowed(decl),
+             // NOTE: Under normal circumstances we should always have a value, but when prefs
+             // change we might hit this case. Consider something like `animation-timeline`, which
+             // is a conditionally-enabled longhand of `animation`:
+@@ -1752,7 +1753,7 @@
+             // `animation-timeline`, parse_into won't generate any declaration for it anymore, so
+             // we haven't inserted in the cache. Computing to invalid / initial seems like the most
+             // sensible thing to do here.
+-            None => invalid_at_computed_value_time(),
++            _ => invalid_at_computed_value_time(),
+         }
+     }
+ }
