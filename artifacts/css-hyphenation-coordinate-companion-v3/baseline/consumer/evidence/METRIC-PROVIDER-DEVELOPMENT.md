@@ -1,0 +1,11 @@
+# Native metric provider extension
+
+Development only. Candidate4 source identity remains unchanged; the separate coordinate and signed-ligature repairs are not substituted. The earlier consumer-v1 snapshot remains immutable.
+
+`native/build-metric-providers.py` freshly extracts the original consumer bodies and replaces two adapters with complete native GetAdvanceForGlyph, GetAdvanceForGlyphs, ComputeLigatureData and ComputePartialLigatureWidth. It also extracts the actual DetailedGlyph and LigatureData structures and exact simple-advance, detailed-count and detailed-letter-spacing getters. Valid detailed-glyph storage is supplied explicitly by the fixture. Each existing fixture's declared unit advance is stored as one native detailed glyph; this is an input representation, not a font-shaping oracle. Enum-mask truth conversion and inactive point fields remain small C++ facade boundaries.
+
+`native/check-metric-providers.py` replays the unchanged 40,608 consumer inputs and 5 existing coordinate witness inputs. Both outputs are byte-identical to their prior baselines under UBSan. These retained inputs do not cover arbitrary ligature shaping, arbitrary glyph count/advances or native allocation failures. The ordinary coordinate defect remains observable exactly as before. This gate adds no fixtures and does not turn old classification coverage into a font/shaping claim.
+
+The authenticated GlyphBreakBits component proves all 32-bit native compressed-glyph setter/getter identities and mathematical simple/detailed advance invariance under break-bit updates, under shared valid detailed storage and defined native arithmetic. Its rejected bv_decide predecessor is retained; the accepted proof uses ordinary kernel-checked reasoning. The native provider bridge now executes the exact GetAdvanceForGlyph body corresponding to that model.
+
+Still open: actual full MeasureText/glyph-run/spacing call composition, actual PropertyProvider spacing/tab/autospace/justification and hyphen-width providers, font allocation/shaping and transformed-run rebuilding. Full glyph metrics sources beyond the current frozen closure are being pinned separately with root; no live native files are edited. This extension is not yet source-frozen or independently reviewed.
