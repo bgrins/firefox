@@ -5,8 +5,6 @@
 #ifndef GFX_FONTENTRY_H
 #define GFX_FONTENTRY_H
 
-#include <math.h>
-
 #include <limits>
 #include <utility>
 
@@ -997,7 +995,7 @@ struct GlobalFontMatch {
   FontPresentation mPresentation;
   uint32_t mCount = 0;               // number of fonts matched
   uint32_t mCmapsTested = 0;         // number of cmaps tested
-  double mMatchDistance = INFINITY;  // metric indicating closest match
+  FontMatchDistance mMatchDistance;  // metric indicating closest match
 };
 
 class gfxFontFamily {

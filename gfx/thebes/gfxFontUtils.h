@@ -5,6 +5,8 @@
 #ifndef GFX_FONT_UTILS_H
 #define GFX_FONT_UTILS_H
 
+#include <tuple>
+
 #include "gfxPlatform.h"
 #include "harfbuzz/hb.h"
 #include "mozilla/Attributes.h"
@@ -719,15 +721,31 @@ class gfxFontUtils {
   static const mozilla::Encoding* gMSFontNameCharsets[];
 };
 
-// Factors used to weight the distances between the available and target font
-// properties during font-matching. These ensure that we respect the CSS-fonts
-// requirement that font-width >> font-style >> font-weight; and in addition,
-// a mismatch between the desired and actual glyph presentation (emoji vs text)
-// will take precedence over any of the style attributes.
-constexpr double kPresentationMismatch = 1.0e12;
-constexpr double kWidthFactor = 1.0e8;
-constexpr double kStyleFactor = 1.0e4;
-constexpr double kWeightFactor = 1.0e0;
+class FontMatchDistance {
+ public:
+  FontMatchDistance() = default;
+  FontMatchDistance(double aWidth, double aStyle, double aWeight)
+      : mKey(0, aWidth, aStyle, aWeight) {}
+
+  bool operator<(const FontMatchDistance& aOther) const {
+    return mKey < aOther.mKey;
+  }
+  bool operator==(const FontMatchDistance& aOther) const {
+    return mKey == aOther.mKey;
+  }
+  bool operator>=(const FontMatchDistance& aOther) const {
+    return !(*this < aOther);
+  }
+  void NotePresentationMismatch() {
+    MOZ_ASSERT(std::get<0>(mKey) == 0);
+    std::get<0>(mKey) = 1;
+  }
+  bool IsZero() const { return mKey == std::make_tuple(0, 0.0, 0.0, 0.0); }
+
+ private:
+  // Presentation ranks: matched or unrestricted, mismatched, no candidate.
+  std::tuple<int, double, double, double> mKey{2, 0.0, 0.0, 0.0};
+};
 
 // If the output range of this function is extended, check assertions &
 // usage at the callsites!

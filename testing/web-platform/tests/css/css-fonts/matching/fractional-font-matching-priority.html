@@ -1,0 +1,144 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Font matching preserves width, style, and weight priorities</title>
+<link rel="help" href="https://drafts.csswg.org/css-fonts-4/#font-style-matching">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.sample { display: inline-block; white-space: pre; font-size: 20px;
+  font-synthesis: none; font-kerning: none; font-size-adjust: none;
+  font-optical-sizing: none; letter-spacing: normal; word-spacing: normal; }
+</style>
+<body>
+<script>
+const cases = [
+  {
+    name: "style-priority-single",
+    request: ["100%", "oblique 20deg", "400"],
+    faces: [["100%", "oblique 20deg", "1000"], ["100%", "oblique 20.00390625deg", "400"]],
+    expectedFace: 0,
+  },
+  {
+    name: "style-priority-range",
+    request: ["100%", "oblique 20deg", "400"],
+    faces: [["100%", "oblique 19deg 20deg", "900 1000"], ["100%", "oblique 20.00390625deg 30deg", "400 500"]],
+    expectedFace: 0,
+  },
+  {
+    name: "width-priority-single",
+    request: ["100%", "normal", "400"],
+    faces: [["100%", "italic", "400"], ["99.984375%", "normal", "400"]],
+    expectedFace: 0,
+  },
+  {
+    name: "width-priority-range",
+    request: ["100%", "normal", "400"],
+    faces: [["100% 110%", "italic", "400"], ["90% 99.984375%", "normal", "400"]],
+    expectedFace: 0,
+  },
+  {
+    name: "coarse-style-gap",
+    request: ["100%", "oblique 20deg", "400"],
+    faces: [["100%", "oblique 20deg", "1000"], ["100%", "oblique 21deg", "400"]],
+    expectedFace: 0,
+  },
+  {
+    name: "equal-style-weight",
+    request: ["100%", "oblique 20deg", "400"],
+    faces: [["100%", "oblique 20deg", "1000"], ["100%", "oblique 20deg", "400"]],
+    expectedFace: 1,
+  },
+  {
+    name: "coarse-width-gap",
+    request: ["100%", "normal", "400"],
+    faces: [["100%", "italic", "400"], ["99%", "normal", "400"]],
+    expectedFace: 0,
+  },
+  {
+    name: "equal-width-style",
+    request: ["100%", "normal", "400"],
+    faces: [["100%", "italic", "400"], ["100%", "normal", "400"]],
+    expectedFace: 1,
+  },
+  {
+    name: "negative-fine-style",
+    request: ["100%", "oblique -20deg", "400"],
+    faces: [["100%", "oblique -20deg", "1000"], ["100%", "oblique -20.00390625deg", "400"]],
+    expectedFace: 0,
+  },
+  {
+    name: "fractional-weight-tie-break",
+    request: ["100%", "oblique 20deg", "400"],
+    faces: [["100%", "oblique 20deg", "400.015625"], ["100%", "oblique 20deg", "400"]],
+    expectedFace: 1,
+  },
+  {
+    name: "equal-distance-declaration-order",
+    request: ["100%", "oblique 20deg", "400"],
+    faces: [["100%", "oblique 20deg", "400"], ["100%", "oblique 20deg", "400"]],
+    expectedFace: "last",
+  },
+  {
+    name: "both-ranges-contain-style",
+    request: ["100%", "oblique 20deg", "400"],
+    faces: [["100%", "oblique 19deg 21deg", "900 1000"], ["100%", "oblique 18deg 22deg", "400 500"]],
+    expectedFace: 1,
+  },
+  {
+    name: "expanded-fine-width",
+    request: ["125%", "normal", "400"],
+    faces: [["125%", "italic", "400"], ["125.015625%", "normal", "400"]],
+    expectedFace: 0,
+  },
+];
+function descriptors([width, style, weight]) {
+  return `font-style:${style};font-weight:${weight};font-stretch:${width};`;
+}
+for (const [index, entry] of cases.entries()) {
+  for (const reverse of [false, true]) {
+    promise_test(async t => {
+      const family = `font-match-${index}-${reverse}`;
+      const order = reverse ? [1, 0] : [0, 1];
+      const style = document.createElement("style");
+      t.add_cleanup(() => style.remove());
+      function rule(name, i) {
+        return `@font-face { font-family:"${name}";
+          src:url("/fonts/Ahem.ttf");
+          ${descriptors(entry.faces[i])} size-adjust:${i ? 50 : 100}%; }`;
+      }
+      style.textContent = order.map(i => rule(family, i)).join("") +
+        [0, 1].map(i => rule(`${family}-cal-${i}`, i)).join("");
+      document.head.append(style);
+      assert_equals(style.sheet.cssRules.length, 4, "All face rules parsed");
+      for (const rule of style.sheet.cssRules) {
+        for (const property of ["font-style", "font-weight", "size-adjust"]) {
+          assert_not_equals(rule.style.getPropertyValue(property), "", `${property} descriptor parsed`);
+        }
+        assert_not_equals(rule.style.getPropertyValue("font-width") ||
+                          rule.style.getPropertyValue("font-stretch"), "", "Font width descriptor parsed");
+      }
+      const faces = [...document.fonts].filter(face => face.family.replaceAll('"', '').startsWith(family));
+      assert_equals(faces.length, 4, "Four faces registered");
+      await Promise.all(faces.map(face => face.load()));
+      await document.fonts.ready;
+      for (const face of faces) assert_equals(face.status, "loaded");
+      const widths = [family, `${family}-cal-0`, `${family}-cal-1`].map(name => {
+        const sample = document.createElement("span");
+        sample.className = "sample";
+        sample.style.cssText = `font-family:"${name}";${descriptors(entry.request)}`;
+        for (const property of ["font-style", "font-weight", "font-stretch"]) {
+          assert_not_equals(sample.style.getPropertyValue(property), "", `${property} request parsed`);
+        }
+        sample.textContent = "XXXX";
+        document.body.append(sample);
+        t.add_cleanup(() => sample.remove());
+        return sample.getBoundingClientRect().width;
+      });
+      assert_equals(widths[1], 80, "Face A calibration");
+      assert_equals(widths[2], 40, "Face B calibration");
+      const winner = entry.expectedFace === "last" ? order[1] : entry.expectedFace;
+      assert_equals(widths[0], widths[winner + 1], "Selected calibrated face");
+    }, `${entry.name}: ${reverse ? "reverse" : "forward"} declaration order`);
+  }
+}
+</script>

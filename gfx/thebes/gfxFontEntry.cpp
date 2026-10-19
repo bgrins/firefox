@@ -1505,7 +1505,7 @@ gfxFontEntry* gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle,
   return nullptr;
 }
 
-static inline double WeightStyleWidthDistance(
+static inline FontMatchDistance WeightStyleWidthDistance(
     gfxFontEntry* aFontEntry, const gfxFontStyle& aTargetStyle) {
   double widthDist = WidthDistance(aFontEntry->Width(), aTargetStyle.width);
   double styleDist = StyleDistance(
@@ -1519,11 +1519,7 @@ static inline double WeightStyleWidthDistance(
   MOZ_ASSERT(styleDist >= 0.0 && styleDist <= 900.0);
   MOZ_ASSERT(weightDist >= 0.0 && weightDist <= 1600.0);
 
-  // weight/style/width priority: width >> style >> weight
-  // so we multiply the width and style values to make them dominate
-  // the result
-  return widthDist * kWidthFactor + styleDist * kStyleFactor +
-         weightDist * kWeightFactor;
+  return {widthDist, styleDist, weightDist};
 }
 
 void gfxFontFamily::FindAllFontsForStyle(
@@ -1611,7 +1607,7 @@ void gfxFontFamily::FindAllFontsForStyle(
   // weight/style/width combination, only the last matched font entry will
   // be added.
 
-  double minDistance = INFINITY;
+  FontMatchDistance minDistance;
   gfxFontEntry* matched = nullptr;
   // Iterate in reverse order so that faces like 'Bold' are matched before
   // matching style-distance faces such as 'Bold Outline' (see bug 1185812;
@@ -1619,7 +1615,7 @@ void gfxFontFamily::FindAllFontsForStyle(
   for (uint32_t i = count; i > 0;) {
     fe = mAvailableFonts[--i];
     // weight/style/width priority: width >> style >> weight
-    double distance = WeightStyleWidthDistance(fe, aFontStyle);
+    auto distance = WeightStyleWidthDistance(fe, aFontStyle);
     if (distance < minDistance) {
       matched = fe;
       if (!aFontEntryList.IsEmpty()) {
@@ -1750,7 +1746,7 @@ void gfxFontFamily::FindFontForChar(GlobalFontMatch* aMatchData) {
   }
 
   gfxFontEntry* fe = nullptr;
-  float distance = INFINITY;
+  FontMatchDistance distance;
 
   for (auto* e : entries) {
     if (e->SkipDuringSystemFallback()) {
@@ -1782,7 +1778,7 @@ void gfxFontFamily::FindFontForChar(GlobalFontMatch* aMatchData) {
         bool hasColorGlyph =
             font->HasColorGlyphFor(aMatchData->mCh, aMatchData->mNextCh);
         if (hasColorGlyph != PrefersColor(aMatchData->mPresentation)) {
-          distance += kPresentationMismatch;
+          distance.NotePresentationMismatch();
         }
       }
       break;
@@ -1828,7 +1824,7 @@ void gfxFontFamily::SearchAllFontsForChar(GlobalFontMatch* aMatchData) {
   for (uint32_t i = numFonts; i > 0;) {
     gfxFontEntry* fe = mAvailableFonts[--i];
     if (fe && fe->HasCharacter(aMatchData->mCh)) {
-      float distance = WeightStyleWidthDistance(fe, aMatchData->mStyle);
+      auto distance = WeightStyleWidthDistance(fe, aMatchData->mStyle);
       if (aMatchData->mPresentation != FontPresentation::Any) {
         RefPtr<gfxFont> font = fe->FindOrMakeFont(&aMatchData->mStyle);
         if (!font) {
@@ -1837,7 +1833,7 @@ void gfxFontFamily::SearchAllFontsForChar(GlobalFontMatch* aMatchData) {
         bool hasColorGlyph =
             font->HasColorGlyphFor(aMatchData->mCh, aMatchData->mNextCh);
         if (hasColorGlyph != PrefersColor(aMatchData->mPresentation)) {
-          distance += kPresentationMismatch;
+          distance.NotePresentationMismatch();
         }
       }
       if (distance < aMatchData->mMatchDistance ||

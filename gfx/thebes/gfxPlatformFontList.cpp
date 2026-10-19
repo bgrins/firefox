@@ -1482,7 +1482,7 @@ already_AddRefed<gfxFont> gfxPlatformFontList::GlobalFontFallback(
           StartCmapLoadingFromFamily(i);
         } else {
           family.SearchAllFontsForChar(SharedFontList(), &data);
-          if (data.mMatchDistance == 0.0) {
+          if (data.mMatchDistance.IsZero()) {
             // no better style match is possible, so stop searching
             break;
           }
@@ -1502,7 +1502,7 @@ already_AddRefed<gfxFont> gfxPlatformFontList::GlobalFontFallback(
       }
       // evaluate all fonts in this family for a match
       family->FindFontForChar(&data);
-      if (data.mMatchDistance == 0.0) {
+      if (data.mMatchDistance.IsZero()) {
         // no better style match is possible, so stop searching
         break;
       }

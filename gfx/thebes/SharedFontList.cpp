@@ -20,7 +20,8 @@
 namespace mozilla {
 namespace fontlist {
 
-static double WSSDistance(const Face* aFace, const gfxFontStyle& aStyle) {
+static FontMatchDistance WSSDistance(const Face* aFace,
+                                     const gfxFontStyle& aStyle) {
   double widthDist = WidthDistance(aFace->mWidth, aStyle.width);
   double styleDist = StyleDistance(
       aFace->mStyle, aStyle.style,
@@ -33,11 +34,7 @@ static double WSSDistance(const Face* aFace, const gfxFontStyle& aStyle) {
   MOZ_ASSERT(styleDist >= 0.0 && styleDist <= 900.0);
   MOZ_ASSERT(weightDist >= 0.0 && weightDist <= 1600.0);
 
-  // weight/style/width priority: width >> style >> weight
-  // so we multiply the width and style values to make them dominate
-  // the result
-  return widthDist * kWidthFactor + styleDist * kStyleFactor +
-         weightDist * kWeightFactor;
+  return {widthDist, styleDist, weightDist};
 }
 
 void* Pointer::ToPtr(FontList* aFontList,
@@ -394,7 +391,7 @@ bool Family::FindAllFacesForStyleInternal(FontList* aList,
   // normal platform fonts with a single font entry for each
   // weight/style/width combination, only the last matched font entry will
   // be added.
-  double minDistance = INFINITY;
+  FontMatchDistance minDistance;
   Face* matched = nullptr;
   // Keep track of whether we've included any non-scalable font resources in
   // the selected set.
@@ -403,7 +400,7 @@ bool Family::FindAllFacesForStyleInternal(FontList* aList,
     auto* face = facePtrs[i].ToPtr<Face>(aList);
     if (face) {
       // weight/style/width priority: width >> style >> weight
-      double distance = WSSDistance(face, aStyle);
+      auto distance = WSSDistance(face, aStyle);
       if (distance < minDistance) {
         matched = face;
         if (!aFaceList.IsEmpty()) {
@@ -540,7 +537,7 @@ void Family::SearchAllFontsForChar(FontList* aList,
     // (so that we don't trigger cmap-loading for faces that would be a worse
     // match than what we've already found).
     if (!charmap || charmap->test(aMatchData->mCh)) {
-      double distance = WSSDistance(face, aMatchData->mStyle);
+      auto distance = WSSDistance(face, aMatchData->mStyle);
       if (distance < aMatchData->mMatchDistance) {
         // It's a better style match: get a fontEntry, and if we haven't
         // already checked character coverage, do it now (note that
@@ -563,7 +560,7 @@ void Family::SearchAllFontsForChar(FontList* aList,
           bool hasColorGlyph =
               font->HasColorGlyphFor(aMatchData->mCh, aMatchData->mNextCh);
           if (hasColorGlyph != PrefersColor(aMatchData->mPresentation)) {
-            distance += kPresentationMismatch;
+            distance.NotePresentationMismatch();
             if (distance >= aMatchData->mMatchDistance) {
               continue;
             }
