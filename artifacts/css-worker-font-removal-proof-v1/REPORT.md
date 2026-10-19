@@ -1,0 +1,47 @@
+# Worker font-family reconstruction review
+
+## Verdict
+
+The four-line detach loop is an appropriate narrowly scoped repair for the observed worker removal failure. It reconstructs family entries from current membership rather than accumulating old family history. No blocking issue was found in the inspected lifetime and locking paths. This is independent source/WPT review plus a kernel-checked list model, not universal C++ memory, concurrency, provider, or CSS font matching verification. The reviewer did not author the native repair or run the browser gates.
+
+Root's isolated native pair changes only FontFaceSetWorkerImpl.cpp and two binaries: window 8 PASS and worker 4 PASS/4 FAIL become 8 PASS each. The unchanged nine-file regression pair remains 10 PASS/1 expected FAIL/3 OK. Copied receipts and build result identify the exact runs. Final patch v2 changes WPT comments only after that pair; removing its two `META: spec` lines produces the exact tested WPT hash. No native clone/descriptor repair is included.
+
+## Independent specification and WPT oracle
+
+CSS Font Loading3 delete removes the requested non-CSS-connected face from set membership; clear removes non-CSS-connected members. FontFaceSource makes its current set supply available faces, including worker rendering. Therefore a deleted sole family member must cease supplying canvas text, even if its FontFace object stays alive and loaded. The Ahem fallback is calibrated separately, avoiding assumptions about installed fallback fonts. Both existing and fresh OffscreenCanvas contexts are measured. URL and buffer resources are covered. The later-face case independently checks last-match family precedence; it passed before the repair and is a control, not a claimed fixed failure.
+
+The primary HTML capture is from 2026-10-19 and includes original URL/headers/hash. The primary draft was independently opened again during review. A new raw HTTP capture failed sandbox DNS; no successful fetch is claimed for that attempt. The retained HTML parser verifies `fontfaceset`, `dom-fontfaceset-delete`, `dom-fontfaceset-clear`, and `fontfacesource-workers`. It rejects the originally proposed help-link anchors `fontfaceset-interface` and `worker-fontfacesource`. Root corrected the final WPT to the verified IDs.
+
+The WPT's same-family faces have different sizeAdjust descriptors and need not share wrappers. A same-family/same-source/same-descriptor survivor control would directly exercise shared wrapper ownership at runtime; the abstract model below already admits arbitrary identical entry IDs. No runtime result for that extra control is claimed here. Existing metadata is not execution evidence. This removal issue was found by static audit and browser isolation, not by Lean; the separate descriptor issue's known bug association does not prove novelty or prior-art identity for this removal defect.
+
+## Complete source correspondence
+
+Complete files are retained in `source/`, with the candidate worker file separately retained. The checker derives the candidate from the original by the exact loop insertion, rejects any other byte difference, and checks root's original/candidate receipt hashes.
+
+* FontFaceSetImpl::Delete/Clear remove membership records, call RemoveFontFaceSet, set dirty state and update loading notifications under mMutex.
+* FontFaceSetWorkerImpl::FlushUserFontSet holds the recursive set mutex, detaches all existing family lists, reinserts mNonRuleFaces in order, removes empty families, and preserves the existing conditional generation/loading notification sequence. The detach pass does not mutate the family hashtable during iteration. Empty surviving families are pruned; the first addition to a nonempty rebuilt family resets its character map.
+* InsertNonRuleFontFace skips failed attribute/family/entry admission and retains existing entries where present. The proof's `Admission` represents each insertion's resolved family and wrapper identity; provider creation success and those identities are explicit native premises, not an oracle that assumes membership output.
+* gfxUserFontSet::AddUserFontEntry selects the family; gfxUserFontFamily::AddFontEntry suppresses only an immediately repeated last entry. Earlier duplicates remain intentionally. `add` models this exact pointer-identity rule. `projected` independently enumerates admitted membership for one family; `project_fold` connects the whole map update fold to that enumeration.
+* `mem_add`, `mem_accumulate`, `exact_rebuild`, and `rebuild_membership` derive exact retained-entry membership for arbitrary lists. `removed_unshared_absent` requires that no remaining face admits the removed entry; `shared_entry_preserved` handles the opposite case. Removing one face does not imply destroying its shared provider.
+* `lastMatch_accumulate` and `last_matching_preserved` compare native-shaped adjacent suppression to an independent left-to-right last-matching selector for any stable predicate. They establish order-sensitive matching equivalence under a supplied predicate, not the entire style/Unicode-range font matching algorithm.
+* Old history irrelevance, clear, repeat rebuild, adjacent/nonadjacent duplicates, shared-face survival, and original clear/delete counterexamples are kernel checked. The original delete witness retains a removed entry even when the appended survivor hides it for some queries; therefore last-winner tests alone do not prove membership correctness.
+
+Stable admission is required for the repeat-rebuild theorem. Stateful entry creation, asynchronous load completion and allocation failure are not erased by that theorem. Integer IDs stand for admitted identities, not C++ pointers or reference counts.
+
+## Worker final-reference release audit
+
+The family array stores strong references. Remaining FontFaceImpl membership records hold faces whose mUserFontEntry is a RefPtr. Active nsFontFaceLoader instances also hold a RefPtr to their entry. Detaching family references therefore cannot itself destroy those retained/loader-owned wrappers. A removed wrapper can lose its final family-held reference under the family's write lock.
+
+That wrapper uses gfxFontEntry's thread-safe reference count. FontFaceImpl::Entry has no destructor callback into its family; its owner/font-set pointers are non-owning. gfxUserFontEntry::~gfxUserFontEntry explicitly transfers its platform reference to NS_ReleaseOnMainThread. On a worker, this dispatches release to the main thread; failure to obtain/dispatch the target deliberately leaks rather than releasing on the wrong thread. Thus platform entry teardown and UserFontCache::ForgetFont do not run synchronously under the worker family lock. The wrapper itself has mIsUserFontContainer true and does not set mIsDataUserFont, so its base destructor does not execute that downloaded-platform cache deletion path.
+
+Source members use thread-safe gfxFontSrcURI/gfxFontSrcPrincipal/gfxFontFaceBufferSource wrappers. URI/principal wrappers have default destructors; principal's header explicitly documents its thread-safe underlying contract. ReferrerInfo declares thread-safe XPCOM refcounting and has a default destructor. FontFaceBufferSource only frees a retained malloc buffer; it does not call back into a face/family. The concrete URI implementation's thread-safe destruction contract remains a platform/interface premise, not established by these wrappers' atomic counts alone.
+
+Unicode-range maps ARE shared: ComputeCharacterMap calls FindCharMap. Their last external release may call NotifyMaybeReleased→MaybeRemoveCmap and acquire the platform font-list recursive mutex while the family write lock is held. MaybeRemoveCmap operates on cmap table/storage and does not call family methods. The relevant reverse font-set notification path RebuildLocalFonts explicitly drops the platform lock before ForgetLocalFaces/RebuildLocalRules. No same-family lock reentry or inverse acquisition was found in this inspected closure. This is not an exhaustive proof over all platform font-list callers or shutdown races. Existing cmap code in these complete snapshots includes earlier unrelated changes; it is evidence, not part of this repair.
+
+Loading state and promise settlement are unchanged by the inserted detach loop. Subsequent reinsertion reuses each surviving face's existing wrapper; it does not call load/reset. Existing modified/generation/CheckLoadingStarted/CheckLoadingFinished behavior remains byte-identical. The normal refcount, dispatch, frame ownership and worker shutdown disciplines are explicit assumptions. Browser crash regressions support this review but do not prove those disciplines universally.
+
+## Replay and boundaries
+
+Run `python3 check.py --manifest-sha <MANIFEST SHA> --lean /absolute/path/to/lean` from any directory. The checker authenticates all capsule inputs and the external Lean distribution before invoking the compiler. It audits every theorem for standard axioms, checks primary anchors, exact native delta, and WPT metadata equivalence. The capsule contains source/evidence only; no prebuilt proof outputs are required. The external Lean distribution is a pinned toolchain, not a copied Firefox provider.
+
+No native build, browser execution, Git mutation, production edit, or backend clone application was performed by this reviewer. Final native acceptance belongs to root. This small reconstruction model does not close the earlier full hyphenation ownership dossier's open or refuted obligations.
