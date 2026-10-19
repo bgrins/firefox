@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Custom property enumeration after restoring an ancestor tombstone</title>
+<link rel="help" href="https://drafts.csswg.org/cssom/#dom-window-getcomputedstyle">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const removed of [true, false]) {
+  test(t => {
+    const outer = document.createElement("div");
+    const middle = document.createElement("div");
+    const leaf = document.createElement("div");
+    const reference = document.createElement("div");
+    const target = "--restored-target";
+    const names = [target];
+    outer.style.setProperty(target, "10px");
+    for (let i = 0; i < 8; ++i) {
+      const name = `--restored-outer-${i}`;
+      names.push(name);
+      outer.style.setProperty(name, "outer");
+    }
+    middle.style.setProperty(target, removed ? "initial" : "15px");
+    for (let i = 0; i < 8; ++i) {
+      const name = `--restored-middle-${i}`;
+      names.push(name);
+      middle.style.setProperty(name, "middle");
+    }
+    leaf.style.setProperty(target, "20px");
+    middle.append(leaf);
+    outer.append(middle);
+    document.body.append(outer, reference);
+    t.add_cleanup(() => { outer.remove(); reference.remove(); });
+    assert_equals(getComputedStyle(outer).getPropertyValue(target), "10px", "Grandparent prerequisite");
+    assert_equals(getComputedStyle(middle).getPropertyValue(target), removed ? "" : "15px", "Parent prerequisite");
+    assert_array_equals(Array.from(getComputedStyle(reference)).filter(name => name.startsWith("--")), [], "No ambient custom properties");
+    const style = getComputedStyle(leaf);
+    assert_equals(style.getPropertyValue(target), "20px", "Leaf restores the value");
+    for (const name of names.slice(1)) {
+      assert_equals(style.getPropertyValue(name), name.includes("outer") ? "outer" : "middle", `Other value ${name}`);
+    }
+    const actual = Array.from(style).filter(name => name.startsWith("--")).sort();
+    assert_array_equals([JSON.stringify(actual), style.length - getComputedStyle(reference).length],
+                        [JSON.stringify(names.sort()), names.length], "Indexed names and exact count");
+  }, removed ? "Restore a removed name over a parent with nine own entries" : "Replace a present name over a parent with nine own entries");
+}
+</script>

