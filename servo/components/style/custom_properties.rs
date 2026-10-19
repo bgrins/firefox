@@ -7,6 +7,7 @@
 //! [custom]: https://drafts.csswg.org/css-variables/
 
 use crate::FxHashMap;
+use crate::computed_value_flags::ComputedValueFlags;
 use crate::custom_properties_map::{CustomPropertiesMap, OwnMap};
 use crate::device::Device;
 use crate::dom::AttributeTracker;
@@ -1656,6 +1657,11 @@ pub fn substitute_references_if_needed_and_apply(
                 | (CSSWideKeyword::RevertRule, true, false)
                 | (CSSWideKeyword::Inherit, _, false)
                 | (CSSWideKeyword::Unset, true, false) => {
+                    if !registration.inherits() {
+                        context
+                            .style()
+                            .add_flags(ComputedValueFlags::INHERITS_RESET_STYLE);
+                    }
                     match inherited.get(registration, name) {
                         Some(value) => {
                             context.builder.substitution_functions.insert_var(
