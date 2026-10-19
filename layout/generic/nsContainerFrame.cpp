@@ -2058,7 +2058,8 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
         auto inlineAxisAlignment = stylePos->UsedSelfAlignment(
             aWM, LogicalAxis::Inline, parentFrame->GetWritingMode(),
             parentFrame->Style());
-        if (inlineAxisAlignment == StyleAlignFlags::STRETCH) {
+        if (inlineAxisAlignment == StyleAlignFlags::STRETCH &&
+            styleISize->IsAuto()) {
           inlineFillCB = FillCB::Stretch;
         }
       }
