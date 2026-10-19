@@ -1,0 +1,42 @@
+>>>  712: void gfxTextRun::DrawEmphasisMarks(
+     713:     gfxContext* aContext, gfxTextRun* aMark, gfxFloat aMarkAdvance,
+     714:     gfx::Point aPt, Range aRange, const PropertyProvider* aProvider,
+     715:     mozilla::gfx::PaletteCache& aPaletteCache,
+     716:     mozilla::image::imgDrawingParams& aImgParams) const {
+     717:   MOZ_ASSERT(aRange.end <= GetLength());
+     718: 
+     719:   EmphasisMarkDrawParams params(aContext, aPaletteCache);
+     720:   params.mark = aMark;
+     721:   params.advance = aMarkAdvance;
+     722:   params.direction = GetDirection();
+     723:   params.isVertical = IsVertical();
+     724: 
+     725:   float& inlineCoord = params.isVertical ? aPt.y.value : aPt.x.value;
+     726:   float direction = params.direction;
+     727: 
+     728:   for (GlyphRunIterator iter(this, aRange); !iter.AtEnd(); iter.NextRun()) {
+     729:     gfxFont* font = iter.GlyphRun()->mFont;
+     730:     uint32_t start = iter.StringStart();
+     731:     uint32_t end = iter.StringEnd();
+     732:     Range ligatureRange(start, end);
+     733:     bool adjusted = ShrinkToLigatureBoundaries(&ligatureRange);
+     734: 
+     735:     if (adjusted) {
+     736:       inlineCoord +=
+     737:           direction * ComputePartialLigatureWidth(
+     738:                           Range(start, ligatureRange.start), aProvider);
+     739:     }
+     740: 
+     741:     AutoTArray<PropertyProvider::Spacing, 200> spacingBuffer;
+     742:     bool haveSpacing = GetAdjustedSpacingArray(ligatureRange, aProvider,
+     743:                                                ligatureRange, &spacingBuffer);
+     744:     params.spacing = haveSpacing ? spacingBuffer.Elements() : nullptr;
+     745:     font->DrawEmphasisMarks(this, &aPt, ligatureRange.start,
+     746:                             ligatureRange.Length(), params, aImgParams);
+     747: 
+     748:     if (adjusted) {
+     749:       inlineCoord += direction * ComputePartialLigatureWidth(
+     750:                                      Range(ligatureRange.end, end), aProvider);
+     751:     }
+     752:   }
+     753: }
