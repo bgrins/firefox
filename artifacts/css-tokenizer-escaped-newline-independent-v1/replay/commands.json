@@ -1,0 +1,87 @@
+[
+  {
+    "cmd": [
+      "patch",
+      "-p1",
+      "--batch",
+      "-i",
+      "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/capsule/native.patch"
+    ],
+    "cwd": "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/replay/patch-tree",
+    "exit": 0,
+    "stdout": "patching file 'third_party/rust/cssparser/src/tokenizer.rs'\npatching file 'third_party/rust/cssparser/.cargo-checksum.json'\n",
+    "stderr": ""
+  },
+  {
+    "cmd": [
+      "patch",
+      "-p1",
+      "--batch",
+      "-R",
+      "-i",
+      "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/capsule/native.patch"
+    ],
+    "cwd": "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/replay/patch-tree",
+    "exit": 0,
+    "stdout": "patching file 'third_party/rust/cssparser/src/tokenizer.rs'\npatching file 'third_party/rust/cssparser/.cargo-checksum.json'\n",
+    "stderr": ""
+  },
+  {
+    "cmd": [
+      "/Users/bgrins/miniconda3/bin/python3",
+      "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/capsule/dispatch-v2/check.py",
+      "--lean",
+      "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
+      "--output",
+      "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/replay/dispatch-baseline"
+    ],
+    "cwd": "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/replay",
+    "exit": 0,
+    "stdout": "{\"authenticated\": 48, \"universal_theorem_audits\": 8, \"current_source_invocations\": 22, \"tokenizer_invocations\": 19, \"serializer_invocations\": 3, \"source_byte_decisions\": 5632, \"semantic_mutants_rejected\": [\"overwrite-existing\", \"exclusive-endpoint\"], \"unsupported_exclusive_pattern_rejected\": true, \"second_named_binding_rejected\": true, \"UTF8_source_offsets_checked\": true, \"native_build\": \"NOT RUN\", \"whole_tokenizer_admission\": \"OPEN\", \"Rust_macro_compiler_refinement\": \"EXTERNAL\"}\n",
+    "stderr": ""
+  },
+  {
+    "cmd": [
+      "/Users/bgrins/miniconda3/bin/python3",
+      "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/replay/candidate-dispatch/extract.py",
+      "--output",
+      "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/replay/candidate-tables"
+    ],
+    "cwd": "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/replay",
+    "exit": 0,
+    "stdout": "{\"invocations\": 22, \"bytes_per_invocation\": 256, \"table_entries\": 5632}\n",
+    "stderr": ""
+  },
+  {
+    "cmd": [
+      "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
+      "-o",
+      "IdentifierStart.olean",
+      "IdentifierStart.lean"
+    ],
+    "cwd": "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/replay",
+    "exit": 0,
+    "stdout": "'IdentifierStart.ascii_classification' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.bad_admission_lf' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.bad_admission_cr' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.bad_admission_ff' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.corrected_reference' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.exact_change' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.unchanged_outside' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.fixed_rejects' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": ""
+  },
+  {
+    "cmd": [
+      "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
+      "restore-wrong-offset.lean"
+    ],
+    "cwd": "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/replay",
+    "exit": 1,
+    "stdout": "restore-wrong-offset.lean:79:45: error: Tactic `decide` proved that the proposition\n  corrected [45, 92, 10] = false\nis false\nrestore-wrong-offset.lean:80:45: error: Tactic `decide` proved that the proposition\n  corrected [45, 92, 13] = false\nis false\nrestore-wrong-offset.lean:81:45: error: Tactic `decide` proved that the proposition\n  corrected [45, 92, 12] = false\nis false\nrestore-wrong-offset.lean:110:51: error: omega could not prove the goal:\nNo usable constraints found. You may need to unfold definitions so `omega` can see linear arithmetic facts about `Nat` and `Int`, which may also involve multiplication, division, and modular remainder by constants.\nrestore-wrong-offset.lean:134:8: error: unsolved goals\ncase pos.cons\nhead\u271d : Nat\ntail\u271d : List Nat\n\u22a2 (\u00achead\u271d = 10 \u2227 \u00achead\u271d = 12) \u2227 \u00achead\u271d = 13\nrestore-wrong-offset.lean:145:49: error: unsolved goals\ntail : List Nat\nc : Nat\nh : newline c = true\n\u22a2 newline 92 = true\nrestore-wrong-offset.lean:146:43: warning: This simp argument is unused:\n  h\n\nHint: Omit it from the simp argument list.\n  [apply] simp [corrected, nativeAscii, newlineAt]\n\nNote: This linter can be disabled with `set_option linter.unusedSimpArgs false`\n'IdentifierStart.ascii_classification' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.bad_admission_lf' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.bad_admission_cr' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.bad_admission_ff' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.corrected_reference' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n'IdentifierStart.exact_change' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n'IdentifierStart.unchanged_outside' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n'IdentifierStart.fixed_rejects' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n",
+    "stderr": ""
+  },
+  {
+    "cmd": [
+      "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
+      "change-outer-offset.lean"
+    ],
+    "cwd": "/Users/bgrins/code/firefox/artifacts/css-tokenizer-escaped-newline-independent-v1/replay",
+    "exit": 1,
+    "stdout": "change-outer-offset.lean:111:4: error: unsolved goals\ncase pos\ntail : List Nat\nhb45 : \u00ac92 = 45\n\u22a2 (match tail[1]? with\n    | none => false\n    | some b => newline b) =\n    match tail[0]? with\n    | none => false\n    | some b => newline b\nchange-outer-offset.lean:137:4: error: unsolved goals\ncase neg\nb : Nat\ntail : List Nat\nhb : \u00acb = 45\n\u22a2 (nativeAscii b || if b = 92 then !newlineAt (b :: tail) 1 else !decide (b < 128)) =\n    (nativeAscii b || if b = 92 then !newlineAt (b :: tail) 2 else !decide (b < 128))\n'IdentifierStart.ascii_classification' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.bad_admission_lf' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.bad_admission_cr' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.bad_admission_ff' depends on axioms: [propext, Classical.choice, Quot.sound]\n'IdentifierStart.corrected_reference' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n'IdentifierStart.exact_change' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n'IdentifierStart.unchanged_outside' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n'IdentifierStart.fixed_rejects' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": ""
+  }
+]
