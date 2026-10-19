@@ -57,3 +57,14 @@ all-specific repair uses sequential updates because its expansion mixes kinds.
 The live native input is pinned by `RESULT.json`; its exact snapshot is already
 committed in `../css-all-logical-order-root-v1/declaration_block.candidate.rs`.
 Replay locally with `python3 -I -S artifacts/css-declaration-batch-admission-root-v1/explore.py`.
+
+## Initial index lemmas
+
+`BatchIndices.lean` kernel-checks three general helpers: removing only higher
+indices preserves a lower optional lookup; the number of distinct removals below
+an index cannot exceed it; subtracting that count cannot underflow. The fresh
+compilation and exact three axiom reports are in `INDICES-CHECK.json`.
+
+These helpers do not yet prove complete descending-removal validity, survivor
+rank correspondence, batched setter refinement or concrete storage composition.
+The full component is being developed in `../css-declaration-batch-proof-v1/`.
