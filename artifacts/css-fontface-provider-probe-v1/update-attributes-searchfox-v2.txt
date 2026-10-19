@@ -1,0 +1,21 @@
+>>>   75: void gfxUserFontEntry::UpdateAttributes(gfxUserFontAttributes&& aAttr) {
+      76:   MOZ_ASSERT(NS_IsMainThread());
+      77: 
+      78:   // Remove the entry from the user font cache, if present there, as the cache
+      79:   // key may no longer be correct with the new attributes.
+      80:   gfxUserFontSet::UserFontCache::ForgetFont(this);
+      81: 
+      82:   mFontDisplay = aAttr.mFontDisplay;
+      83:   mWeightRange = aAttr.mWeight;
+      84:   mWidthRange = aAttr.mWidth;
+      85:   mStyleRange = aAttr.mStyle;
+      86:   mFeatureSettings = std::move(aAttr.mFeatureSettings);
+      87:   mVariationSettings = std::move(aAttr.mVariationSettings);
+      88:   mLanguageOverride = aAttr.mLanguageOverride;
+      89:   SetUnicodeRangeMap(std::move(aAttr.mUnicodeRanges));
+      90:   mRangeFlags = aAttr.mRangeFlags;
+      91:   mAscentOverride = aAttr.mAscentOverride;
+      92:   mDescentOverride = aAttr.mDescentOverride;
+      93:   mLineGapOverride = aAttr.mLineGapOverride;
+      94:   mSizeAdjust = aAttr.mSizeAdjust;
+      95: }

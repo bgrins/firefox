@@ -1,0 +1,3683 @@
+CSS Font Loading Module Level 3
+CSS Font Loading Module Level 3
+Editor’s Draft
+,
+20 July 2026
+More details about this document
+This version:
+https://drafts.csswg.org/css-font-loading/
+Latest published version:
+https://www.w3.org/TR/css-font-loading/
+Previous Versions:
+https://www.w3.org/TR/2014/WD-css-font-loading-3-20140522/
+Feedback:
+CSSWG Issues Repository
+Inline In Spec
+Editor:
+Tab Atkins Jr.
+(
+Google
+)
+Former Editor:
+John Daggett
+(
+Mozilla
+)
+Suggest an Edit for this Spec:
+GitHub Editor
+Test Suite:
+https://wpt.fyi/results/css/css-font-loading/
+Copyright
+© 2026
+World Wide Web Consortium
+.
+W3C
+®
+liability
+,
+trademark
+and
+permissive document license
+rules apply.
+Abstract
+This CSS module describes events and interfaces used for dynamically loading font resources.
+CSS
+is a language for describing the rendering of structured documents
+(such as HTML and XML)
+on screen, on paper, etc.
+Status of this document
+This is a public copy of the editors’ draft.
+	It is provided for discussion only and may change at any moment.
+	Its publication here does not imply endorsement of its contents by W3C.
+	Don’t cite this document other than as work in progress.
+Please send feedback
+	by
+filing issues in GitHub
+(preferred),
+	including the spec code “css-font-loading” in the title, like this:
+	“[css-font-loading]
+…summary of comment…
+”.
+	All issues and comments are
+archived
+.
+	Alternately, feedback can be sent to the (
+archived
+) public mailing list
+www-style@w3.org
+.
+This document is governed by the
+18 August 2025 W3C Process Document
+.
+Table of Contents
+1
+Introduction
+1.1
+Values
+1.2
+Task Sources
+2
+The
+FontFace
+Interface
+2.1
+The Constructor
+2.2
+The
+load()
+method
+2.3
+Interaction with CSS’s
+@font-face
+Rule
+2.4
+Discovery of information about a font
+3
+The
+FontFaceSet
+Interface
+3.1
+Events
+3.2
+The
+load()
+method
+3.3
+The
+check()
+method
+3.4
+The
+ready
+attribute
+3.5
+Interaction with CSS Font Loading and Matching
+4
+The
+FontFaceSource
+Mixin
+4.1
+Worker FontFaceSources
+4.2
+Interaction with CSS’s
+@font-face
+Rule
+5
+API Examples
+Changes
+Acknowledgments
+Privacy Considerations
+Security Considerations
+Conformance
+Document conventions
+Conformance classes
+Partial implementations
+Implementations of Unstable and Proprietary Features
+Non-experimental implementations
+Index
+Terms defined by this specification
+Terms defined by reference
+References
+Normative References
+IDL Index
+Issues Index
+1.
+Introduction
+CSS allows authors to load custom fonts from the web via the
+@font-face
+rule.
+	While this is easy to use when authoring a stylesheet,
+	it’s much more difficult to use dynamically via scripting.
+Further, CSS allows the user agent to choose when to actually load a font;
+	if a font face isn’t
+currently
+used by anything on a page,
+	most user agents will not download its associated file.
+	This means that later use of the font face will incur a delay
+	as the user agent finally notices a usage and begins downloading and parsing the font file.
+This specification defines a scripting interface to font faces in CSS,
+	allowing font faces to be easily created (via the
+FontFace
+interface)
+	and loaded from script (via
+document.fonts
+).
+	It also provides methods to track the loading status of an individual font,
+	or of all the fonts on an entire page.
+Several things in this spec use normal ES objects to define behavior,
+	such as various things using Promises internally,
+	and FontFaceSet using a Set internally.
+	I believe the intention here is that these objects
+	(and their prototype chains) are pristine,
+	unaffected by anything the author has done.
+	Is this a good intention?
+	If so, how should I indicate this in the spec?
+1.1.
+Values
+This specification uses
+Promise
+s,
+	which are defined in
+ECMAScript 6
+.
+	MDN has some
+good tutorial material introducing Promises
+.
+1.2.
+Task Sources
+Whenever this specification queues a task,
+	it queues it onto the "font loading"
+task source
+.
+2.
+The
+FontFace
+Interface
+The
+FontFace
+interface represents a single usable font face.
+	CSS
+@font-face
+rules implicitly define FontFace objects,
+	or they can be constructed manually from a url or a buffer source.
+dictionary
+FontFaceDescriptors
+{
+CSSOMString
+style
+= "normal";
+CSSOMString
+weight
+= "normal";
+CSSOMString
+width
+;
+CSSOMString
+stretch
+= "normal"; // alias for width, sets the same attribute
+CSSOMString
+unicodeRange
+= "U+0-10FFFF";
+CSSOMString
+featureSettings
+= "normal";
+CSSOMString
+variationSettings
+= "normal";
+CSSOMString
+display
+= "auto";
+CSSOMString
+ascentOverride
+= "normal";
+CSSOMString
+descentOverride
+= "normal";
+CSSOMString
+lineGapOverride
+= "normal";
+};
+enum
+FontFaceLoadStatus
+{
+"unloaded"
+,
+"loading"
+,
+"loaded"
+,
+"error"
+};
+
+[
+Exposed
+=(
+Window
+,
+Worker
+)]
+interface
+FontFace
+{
+  [
+Throws
+]
+constructor
+(
+CSSOMString
+family
+,
+              (
+CSSOMString
+or
+BufferSource
+)
+source
+,
+optional
+FontFaceDescriptors
+descriptors
+= {});
+
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+family
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+style
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+weight
+;
+  [
+SetterThrows
+,
+BindingAlias
+="stretch"]
+attribute
+CSSOMString
+width
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+unicodeRange
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+variant
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+featureSettings
+;
+  [
+SetterThrows
+,
+Pref
+="layout.css.font-variations.enabled"]
+attribute
+CSSOMString
+variationSettings
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+display
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+ascentOverride
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+descentOverride
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+lineGapOverride
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+sizeAdjust
+;
+readonly
+attribute
+FontFaceLoadStatus
+status
+;
+Tests
+fontface-descriptor-updates.html
+(live test)
+(source)
+fontface-override-descriptor-getter-setter.sub.html
+(live test)
+(source)
+fontface-override-descriptors.html
+(live test)
+(source)
+fontface-size-adjust-descriptor.html
+(live test)
+(source)
+Clarify all mentions of "the document" to be clear about which document is being referenced,
+	since objects can move between documents.
+family
+,
+of type
+CSSOMString
+style
+,
+of type
+CSSOMString
+weight
+,
+of type
+CSSOMString
+width
+,
+of type
+CSSOMString
+stretch
+,
+unicodeRange
+,
+of type
+CSSOMString
+These attributes all represent the corresponding aspects of a font face,
+as defined by the descriptors defined in the CSS
+@font-face
+rule.
+They are parsed the same as the corresponding
+@font-face
+descriptors.
+They are used by the font matching algorithm,
+but otherwise have no effect.
+For example, a
+FontFace
+with a
+style
+of
+"italic"
+represents
+an italic font face;
+it does not
+make
+the font face italic.
+On getting, return the string associated with this attribute.
+On setting,
+parse
+the string according to the grammar for the corresponding
+@font-face
+descriptor.
+If it does not match the grammar,
+throw a
+SyntaxError
+;
+otherwise, set the attribute to the serialization of the parsed value.
+Note that
+stretch
+is a legacy name alias of
+width
+and therefore they set the same attribute.
+featureSettings
+,
+of type
+CSSOMString
+variationSettings
+,
+of type
+CSSOMString
+display
+,
+of type
+CSSOMString
+ascentOverride
+,
+of type
+CSSOMString
+descentOverride
+,
+of type
+CSSOMString
+lineGapOverride
+,
+of type
+CSSOMString
+These attributes have the same meaning,
+and are parsed the same as,
+the corresponding descriptors in the CSS
+@font-face
+rules.
+They turn on or off specific features in fonts that support them.
+Unlike the previous attributes,
+these attributes actually affect the font face.
+On getting, return the string associated with this attribute.
+On setting,
+parse
+the string according to the grammar for the corresponding
+@font-face
+descriptor.
+If it does not match the grammar,
+throw a
+SyntaxError
+;
+otherwise, set the attribute to the serialization of the parsed value.
+status
+,
+of type
+FontFaceLoadStatus
+, readonly
+This attribute reflects the current status of the font face.
+It must be "unloaded" for a newly-created
+FontFace
+.
+It can change due to an author explicitly requesting a font face to load,
+such as through the
+load()
+method on
+FontFace
+,
+or implicitly by the user agent,
+due to it detecting that the font face is needed to draw some text on the screen.
+loaded
+,
+This attribute reflects the
+[[FontStatusPromise]]
+of the font face.
+All
+FontFace
+objects contain an internal
+[[FontStatusPromise]]
+slot,
+	which tracks the status of the font.
+	It starts out pending,
+	and fulfills or rejects when the font is successfully loaded and parsed, or hits an error.
+All
+FontFace
+objects also contain
+	internal
+[[Urls]]
+and
+[[Data]]
+slots,
+	of which one is
+null
+and the other is not
+null
+(the non-null one is set by the constructor,
+		based on which data is passed in).
+2.1.
+The Constructor
+A
+FontFace
+can be constructed either
+	from a URL pointing to a font face file,
+	or from a
+BufferSource
+containing the binary representation of a font face.
+When the
+FontFace(family, source, descriptors)
+method is called,
+	execute these steps:
+Let
+font face
+be a fresh
+FontFace
+object.
+Set
+font face’s
+status
+attribute to
+"unloaded"
+,
+Set its internal
+[[FontStatusPromise]]
+slot to a fresh pending
+Promise
+object.
+Parse
+the
+family
+argument,
+and the members of the
+descriptors
+argument,
+according to the grammars of the corresponding descriptors of the CSS
+@font-face
+rule.
+If the
+source
+argument is a
+CSSOMString
+,
+parse it according to the grammar of the CSS
+src
+descriptor of the
+@font-face
+rule.
+If any of them fail to parse correctly,
+reject
+font face’s
+[[FontStatusPromise]]
+with a DOMException named "SyntaxError",
+set
+font face’s
+corresponding attributes to the empty string,
+and set
+font face’s
+status
+attribute to "error".
+Otherwise, set
+font face’s
+corresponding attributes to the serialization of the parsed values.
+Note:
+Note that this means that passing a naked url as the source argument,
+like
+"http://example.com/myFont.woff"
+,
+won’t work - it needs to be at least wrapped in a
+url()
+function,
+like
+"url(http://example.com/myFont.woff)"
+.
+In return for this inconvenience,
+you get to specify multiple fallbacks,
+specify the type of font each fallback is,
+and refer to local fonts easily.
+Need to define the base url,
+so relative urls can resolve.
+Should it be the url of the document?
+Is that correct for workers too,
+or should they use their worker url?
+Is that always defined?
+Return
+font face
+.
+If
+font face’s
+status
+is "error",
+terminate this algorithm;
+otherwise,
+complete the rest of these steps asynchronously.
+If the
+source
+argument was a
+CSSOMString
+,
+set
+font face’s
+internal
+[[Urls]]
+slot to the string.
+If the
+source
+argument was a
+BufferSource
+,
+set
+font face’s
+internal
+[[Data]]
+slot to the passed argument.
+If
+font face’s
+[[Data]]
+slot is not
+null
+,
+queue a task to run the following steps synchronously:
+Set
+font face’s
+status
+attribute to "loading".
+For each
+FontFaceSet
+font face
+is in:
+If the
+FontFaceSet
+’s
+[[LoadingFonts]]
+list is empty,
+switch the FontFaceSet to loading
+.
+Append
+font face
+to the
+FontFaceSet
+’s
+[[LoadingFonts]]
+list.
+Asynchronously, attempt to parse the data in it as a font.
+When this is completed,
+successfully or not,
+queue a task to run the following steps synchronously:
+If the load was successful,
+font face
+now represents the parsed font;
+fulfill
+font face’s
+[[FontStatusPromise]]
+with
+font face
+,
+and set its
+status
+attribute to "loaded".
+For each
+FontFaceSet
+font face
+is in:
+Add
+font face
+to the
+FontFaceSet
+’s
+[[LoadedFonts]]
+list.
+Remove
+font face
+from the
+FontFaceSet
+’s
+[[LoadingFonts]]
+list.
+If
+font
+was the last item in that list
+(and so the list is now empty),
+switch the FontFaceSet to loaded
+.
+Otherwise,
+reject
+font face’s
+[[FontStatusPromise]]
+with a DOMException named "SyntaxError"
+and set
+font face’s
+status
+attribute to "error".
+For each
+FontFaceSet
+font face
+is in:
+Add
+font face
+to the
+FontFaceSet
+’s
+[[FailedFonts]]
+list.
+Remove
+font face
+from the
+FontFaceSet
+’s
+[[LoadingFonts]]
+list.
+If
+font
+was the last item in that list
+(and so the list is now empty),
+switch the FontFaceSet to loaded
+.
+Note:
+Newly constructed FontFace objects are not automatically added
+	to the FontFaceSet associated with a document
+	or a context for a worker thread.
+	This means that while newly constructed fonts can be preloaded,
+	they cannot actually be used until they are explicitly added to a FontFaceSet.
+	See the following section for a more complete description of FontFaceSet.
+2.2.
+The
+load()
+method
+The
+load()
+method of
+FontFace
+forces a url-based font face to request its font data and load.
+	For fonts constructed from a buffer source,
+	or fonts that are already loading or loaded,
+	it does nothing.
+When the
+load()
+method is called,
+	execute these steps:
+Let
+font face
+be the
+FontFace
+object on which this method was called.
+If
+font face’s
+[[Urls]]
+slot is
+null
+,
+			or its
+status
+attribute is anything other than
+"unloaded"
+,
+			return
+font face’s
+[[FontStatusPromise]]
+and abort these steps.
+Otherwise,
+			set
+font face’s
+status
+attribute to "loading",
+			return
+font face’s
+[[FontStatusPromise]]
+,
+			and continue executing the rest of this algorithm asynchronously.
+Using the value of
+font face’s
+[[Urls]]
+slot,
+			attempt to load a font as defined in
+[CSS-FONTS-3]
+,
+			as if it was the value of a
+@font-face
+rule’s
+src
+descriptor.
+When the load operation completes,
+			successfully or not,
+			queue a task to run the following steps synchronously:
+If the attempt to load fails,
+					reject
+font face’s
+[[FontStatusPromise]]
+with
+					a DOMException whose name is "NetworkError"
+					and set
+font face’s
+status
+attribute to "error".
+For each
+FontFaceSet
+font face
+is in:
+Add
+font face
+to the
+FontFaceSet
+’s
+[[FailedFonts]]
+list.
+Remove
+font face
+from the
+FontFaceSet
+’s
+[[LoadingFonts]]
+list.
+If
+font
+was the last item in that list
+(and so the list is now empty),
+switch the FontFaceSet to loaded
+.
+Otherwise,
+font face
+now represents the loaded font;
+					fulfill
+font face’s
+[[FontStatusPromise]]
+with
+font face
+and set
+font face’s
+status
+attribute to "loaded".
+For each
+FontFaceSet
+font face
+is in:
+Add
+font face
+to the
+FontFaceSet
+’s
+[[LoadedFonts]]
+list.
+Remove
+font face
+from the
+FontFaceSet
+’s
+[[LoadingFonts]]
+list.
+If
+font
+was the last item in that list
+(and so the list is now empty),
+switch the FontFaceSet to loaded
+.
+User agents can initiate font loads on their own,
+	whenever they determine that a given font face is necessary to render something on the page.
+	When this happens,
+	they must act as if they had called the corresponding
+FontFace
+’s
+load()
+method described here.
+Note:
+Some UAs utilize a "font cache"
+	which avoids having to download the same font multiple times
+	on a page or on multiple pages within the same origin.
+	Multiple
+FontFace
+objects can be mapped to the same entry in the font cache,
+	which means that a
+FontFace
+object might start loading unexpectedly,
+	even if it’s not in a
+FontFaceSet
+,
+	because some other
+FontFace
+object pointing to the same font data
+	(perhaps on a different page entirely!)
+	has been loaded.
+Tests
+empty-family-load.html
+(live test)
+(source)
+font-face-reject.html
+(live test)
+(source)
+fontface-load-in-modal-dialog.html
+(live test)
+(source)
+2.3.
+Interaction with CSS’s
+@font-face
+Rule
+A CSS
+@font-face
+rule automatically defines a corresponding
+FontFace
+object,
+	which is automatically placed in the document’s
+font source
+when the rule is parsed.
+	This
+FontFace
+object is
+CSS-connected
+.
+The
+FontFace
+object corresponding to a
+@font-face
+rule
+	has its
+family
+,
+style
+,
+weight
+,
+width
+,
+unicodeRange
+,
+variant
+, and
+featureSettings
+attributes
+	set to the same value as the corresponding descriptors in the
+@font-face
+rule.
+	There is a two-way connection between the two:
+	any change made to a
+@font-face
+descriptor is immediately reflected in the corresponding
+FontFace
+attribute,
+	and vice versa.
+When a FontFace is transferred between documents, it’s no longer CSS-connected.
+The internal
+[[Urls]]
+slot of the
+FontFace
+object is set to the value of the
+@font-face
+rule’s
+src
+descriptor,
+	and reflects any changes made to the
+src
+descriptor.
+Otherwise, a
+FontFace
+object created by a CSS
+@font-face
+rule is identical to one created manually.
+If a
+@font-face
+rule is removed from the document, its corresponding
+FontFace
+object is no longer
+CSS-connected
+.
+	The connection is not restorable by any means
+	(but adding the
+@font-face
+back to the stylesheet will create a brand new
+FontFace
+object which
+is
+CSS-connected
+).
+If a
+@font-face
+rule has its
+src
+descriptor changed to a new value,
+	the original connected
+FontFace
+object must stop being
+CSS-connected
+.
+	A new
+FontFace
+reflecting its new
+src
+must be created
+	and
+CSS-connected
+to the
+@font-face
+.
+	(This will also remove the old and add the new
+FontFace
+objects from any
+font sources
+they appear in.)
+Tests
+nonexistent-file-url.html
+(live test)
+(source)
+2.4.
+Discovery of information about a font
+A
+FontFace
+object includes a variety of read-only information about the contents of the font file.
+[
+Exposed
+=(
+Window
+,
+Worker
+)]
+interface
+FontFaceFeatures
+{
+  /* The CSSWG is still discussing what goes in here */
+};
+
+[
+Exposed
+=(
+Window
+,
+Worker
+)]
+interface
+FontFaceVariationAxis
+{
+readonly
+attribute
+DOMString
+name
+;
+readonly
+attribute
+DOMString
+axisTag
+;
+readonly
+attribute
+double
+minimumValue
+;
+readonly
+attribute
+double
+maximumValue
+;
+readonly
+attribute
+double
+defaultValue
+;
+};
+
+[
+Exposed
+=(
+Window
+,
+Worker
+)]
+interface
+FontFaceVariations
+{
+readonly
+setlike
+<
+FontFaceVariationAxis
+>;
+};
+
+[
+Exposed
+=(
+Window
+,
+Worker
+)]
+interface
+FontFacePalette
+{
+iterable
+<
+DOMString
+>;
+readonly
+attribute
+unsigned
+long
+length
+;
+getter
+DOMString
+(
+unsigned
+long
+index
+);
+readonly
+attribute
+boolean
+usableWithLightBackground
+;
+readonly
+attribute
+boolean
+usableWithDarkBackground
+;
+};
+
+[
+Exposed
+=(
+Window
+,
+Worker
+)]
+interface
+FontFacePalettes
+{
+iterable
+<
+FontFacePalette
+>;
+readonly
+attribute
+unsigned
+long
+length
+;
+getter
+FontFacePalette
+(
+unsigned
+long
+index
+);
+};
+partial
+interface
+FontFace
+{
+readonly
+attribute
+FontFaceFeatures
+features
+;
+readonly
+attribute
+FontFaceVariations
+variations
+;
+readonly
+attribute
+FontFacePalettes
+palettes
+;
+};
+Note:
+This read-only data is intended to help authors know which values are accepted by
+font-feature-settings
+,
+font-variation-settings
+,
+	and
+@font-palette-values
+.
+3.
+The
+FontFaceSet
+Interface
+dictionary
+FontFaceSetLoadEventInit
+:
+EventInit
+{
+sequence
+<
+FontFace
+>
+fontfaces
+= [];
+};
+
+[
+Exposed
+=(
+Window
+,
+Worker
+)]
+interface
+FontFaceSetLoadEvent
+:
+Event
+{
+constructor
+(
+CSSOMString
+type
+,
+optional
+FontFaceSetLoadEventInit
+eventInitDict
+= {});
+  [
+SameObject
+]
+readonly
+attribute
+FrozenArray
+<
+FontFace
+>
+fontfaces
+;
+};
+enum
+FontFaceSetLoadStatus
+{
+"loading"
+,
+"loaded"
+};
+
+[
+Exposed
+=(
+Window
+,
+Worker
+)]
+interface
+FontFaceSet
+:
+EventTarget
+{
+setlike
+<
+FontFace
+>;
+FontFaceSet
+add
+(
+FontFace
+font
+);
+boolean
+delete
+(
+FontFace
+font
+);
+undefined
+clear
+();
+
+  // events for when loading state changes
+attribute
+EventHandler
+onloading
+;
+attribute
+EventHandler
+onloadingdone
+;
+attribute
+EventHandler
+onloadingerror
+;
+
+  // check and start loads if appropriate
+  // and fulfill promise when all loads complete
+Promise
+<
+sequence
+<
+FontFace
+>>
+load
+(
+CSSOMString
+font
+,
+optional
+CSSOMString
+text
+= " ");
+
+  // return whether all fonts in the fontlist are loaded
+  // (does not initiate load if not available)
+boolean
+check
+(
+CSSOMString
+font
+,
+optional
+CSSOMString
+text
+= " ");
+
+  // async notification that font loading and layout operations are done
+readonly
+attribute
+Promise
+<
+FontFaceSet
+>
+ready
+;
+
+  // loading state, "loading" while one or more fonts loading, "loaded" otherwise
+readonly
+attribute
+FontFaceSetLoadStatus
+status
+;
+};
+Tests
+fontfaceset-has.html
+(live test)
+(source)
+fontfacesetloadevent-constructor.html
+(live test)
+(source)
+idlharness.https.html
+(live test)
+(source)
+ready
+,
+of type Promise<
+FontFaceSet
+>, readonly
+This attribute reflects the
+FontFaceSet
+’s
+[[ReadyPromise]]
+slot.
+See
+§ 3.4 The ready attribute
+for more details on this
+Promise
+and its use.
+iteration order
+When iterated over,
+all
+CSS-connected
+FontFace
+objects must come first,
+in document order of their connected
+@font-face
+rules,
+followed by the non-
+CSS-connected
+FontFace
+objects,
+in insertion order.
+set entries
+If a
+FontFaceSet
+is a
+font source
+,
+its
+set entries
+are initialized as specified in
+§ 4.2 Interaction with CSS’s @font-face Rule
+.
+Otherwise, its
+set entries
+are initially empty.
+add(font)
+When the
+add()
+method is called,
+execute the following steps:
+If
+font
+is already in the
+FontFaceSet
+’s
+set entries
+,
+skip to the last step of this algorithm immediately.
+If
+font
+is
+CSS-connected
+,
+throw an
+InvalidModificationError
+exception
+and exit this algorithm immediately.
+Add the
+font
+argument to the
+FontFaceSet
+’s
+set entries
+.
+If
+font
+’s
+status
+attribute is "loading":
+If the
+FontFaceSet
+’s
+[[LoadingFonts]]
+list is empty,
+switch the FontFaceSet to loading
+.
+Append
+font
+to the
+FontFaceSet
+’s
+[[LoadingFonts]]
+list.
+Return the
+FontFaceSet
+.
+Tests
+delete(font)
+When the
+delete()
+method is called,
+execute the following steps:
+If
+font
+is
+CSS-connected
+,
+return
+false
+and exit this algorithm immediately.
+Let
+deleted
+be the result of removing
+font
+from the
+FontFaceSet
+’s
+set entries
+.
+If
+font
+is present in the
+FontFaceSet
+’s
+[[LoadedFonts]]
+, or
+[[FailedFonts]]
+lists,
+remove it.
+If
+font
+is present in the
+FontFaceSet
+’s
+[[LoadingFonts]]
+list,
+remove it.
+If
+font
+was the last item in that list
+(and so the list is now empty),
+switch the FontFaceSet to loaded
+.
+Return
+deleted
+.
+Tests
+fontfaceset-delete-css-connected-2.html
+(live test)
+(source)
+fontfaceset-delete-css-connected.html
+(live test)
+(source)
+clear()
+When the
+clear()
+method is called,
+execute the following steps:
+Remove all non-
+CSS-connected
+items from the
+FontFaceSet
+’s
+set entries
+,
+its
+[[LoadedFonts]]
+list,
+and its
+[[FailedFonts]]
+list.
+If the
+FontFaceSet
+’s
+[[LoadingFonts]]
+list is non-empty,
+remove all items from it,
+then
+switch the FontFaceSet to loaded
+.
+Tests
+fontfaceset-clear-css-connected-2.html
+(live test)
+(source)
+fontfaceset-clear-css-connected.html
+(live test)
+(source)
+FontFaceSet
+objects also have internal
+[[LoadingFonts]]
+,
+[[LoadedFonts]]
+,
+	and
+[[FailedFonts]]
+slots,
+	all of which are initialized to empty lists,
+	and a
+[[ReadyPromise]]
+slot,
+	which is initialized to a fresh pending
+Promise
+.
+Because font families are loaded only when they are used,
+	content sometimes needs to understand when the loading of fonts occurs.
+	Authors can use the events and methods defined here to allow greater control over actions
+	that are dependent upon the availability of specific fonts.
+A
+FontFaceSet
+is
+pending on the environment
+if any of the following are true:
+the document is still loading
+the document has pending stylesheet requests
+the document has pending layout operations which might cause the user agent to request a font,
+or which depend on recently-loaded fonts
+Note:
+The idea is that once a
+FontFaceSet
+stops being
+pending on the environment
+,
+	as long as nothing further changes the document,
+	an author can depend on sizes/positions of things being "correct" when measured.
+	If the above conditions do not fully capture this guarantee,
+	they need to be amended to do so.
+3.1.
+Events
+Font load events make it easy to respond to the font-loading behavior of the entire document,
+	rather than having to listen to each font specifically.
+	The
+loading
+event
+	fires when the document begins loading fonts,
+	while the
+loadingdone
+and
+loadingerror
+events
+	fire when the document is done loading fonts,
+	containing the fonts that successfully loaded
+	or failed to load,
+	respectively.
+The following are the event handlers (and their corresponding event handler event types)
+	that must be supported by
+FontFaceSet
+objects as IDL attributes:
+Event handler
+Event handler event type
+onloading
+loading
+onloadingdone
+loadingdone
+onloadingerror
+loadingerror
+To
+fire a font load event
+named
+e
+at a
+FontFaceSet
+target
+with optional
+font faces
+means to
+fire a simple event
+named
+e
+using the
+FontFaceSetLoadEvent
+interface that also meets these conditions:
+The
+fontfaces
+attribute is initialized to
+			the result of filtering
+font faces
+to only contain
+FontFace
+objects contained in
+target
+.
+When asked to
+switch the FontFaceSet to loading
+for a given
+FontFaceSet
+,
+	the user agent must run the following steps:
+Let
+font face set
+be the given
+FontFaceSet
+.
+Set the
+status
+attribute of
+font face set
+to "loading".
+If
+font face set’s
+[[ReadyPromise]]
+slot currently holds a fulfilled promise,
+			replace it with a fresh pending promise.
+Queue a task to
+fire a font load event
+named
+loading
+at
+font face set
+.
+When asked to
+switch the FontFaceSet to loaded
+for a given
+FontFaceSet
+,
+	the user agent must run the following steps:
+Let
+font face set
+be the given
+FontFaceSet
+.
+If
+font face set
+is
+pending on the environment
+,
+mark it as
+stuck on the environment
+,
+and exit this algorithm.
+Set
+font face set’s
+status
+attribute to "loaded".
+Fulfill
+font face set’s
+[[ReadyPromise]]
+attribute’s value with
+font face set
+.
+Queue a task to perform the following steps synchronously:
+Let
+loaded fonts
+be the (possibly empty) contents of
+font face set’s
+[[LoadedFonts]]
+slot.
+Let
+failed fonts
+be the (possibly empty) contents of
+font face set’s
+[[FailedFonts]]
+slot.
+Reset the
+[[LoadedFonts]]
+and
+[[FailedFonts]]
+slots to empty lists.
+Fire a font load event
+named
+loadingdone
+at
+font face set
+with
+loaded fonts
+.
+If
+font face set’s
+failed fonts
+is non-empty,
+fire a font load event
+named
+loadingerror
+at
+font face set
+with
+failed fonts
+.
+Whenever a
+FontFaceSet
+goes from
+pending on the environment
+to not
+pending on the environment
+,
+	the user agent must run the following steps:
+If the
+FontFaceSet
+is
+stuck on the environment
+and its
+[[LoadingFonts]]
+list is empty,
+switch the FontFaceSet to loaded
+.
+If the
+FontFaceSet
+is
+stuck on the environment
+,
+unmark it as such.
+If asked to
+find the matching font faces
+from a FontFaceSet
+source
+,
+	for a given font string
+font
+optionally some sample text
+text
+,
+	and optionally an
+allow system fonts
+flag,
+	run the following steps:
+Parse
+font
+using the CSS value syntax of the
+font
+property.
+			If a syntax error occurs,
+			return a syntax error.
+If the parsed value is a
+CSS-wide keyword
+,
+			return a syntax error.
+Absolutize all relative lengths against the initial values of the corresponding properties.
+			(For example, a relative font weight like
+bolder
+is evaluated against the initial value
+normal
+.)
+If
+text
+was not explicitly provided,
+			let it be a string containing a single space character (U+0020 SPACE).
+Let
+font family list
+be the list of font families parsed from
+font
+,
+			and
+font style
+be the other font style attributes parsed from
+font
+.
+Let
+available font faces
+be the
+available font faces
+within
+source
+.
+			If the
+allow system fonts
+flag is specified,
+			add all system fonts to
+available font faces
+.
+Let
+matched font faces
+initially be an empty list.
+For each family in
+font family list
+,
+			use the font matching rules to select the font faces from
+available font faces
+that match the
+font style
+,
+			and add them to
+matched font faces
+.
+			The use of the
+unicodeRange
+attribute means that this may be more than just a single font face.
+If
+matched font faces
+is empty,
+			set the
+found faces
+flag to false.
+			Otherwise, set it to true.
+For each font face in
+matched font faces
+,
+			if its defined
+unicode-range
+does not include the codepoint of at least one character in
+text
+,
+			remove it from the list.
+Note:
+Therefore, if
+text
+is the empty string, every font will be removed.
+Return
+matched font faces
+and the
+found faces
+flag.
+Tests
+fontface-loadingevent.html
+(live test)
+(source)
+3.2.
+The
+load()
+method
+The
+load()
+method of
+FontFaceSet
+will determine whether all fonts in the given font list
+	have been loaded and are available.
+	If any fonts are downloadable fonts and have not already been loaded,
+	the user agent will initiate the load of each of these fonts.
+	It returns a Promise,
+	which is fulfilled when all of the fonts are loaded and ready to be used,
+	or rejected if any font failed to load properly.
+When the
+load
+(
+font
+,
+text
+) method is called,
+	execute these steps:
+Let
+font face set
+be the
+FontFaceSet
+object this method was called on.
+			Let
+promise
+be a newly-created promise object.
+Return
+promise
+.
+			Complete the rest of these steps asynchronously.
+Find the matching font faces
+from
+font face set
+using the
+font
+and
+text
+arguments passed to the function,
+			and let
+font face list
+be the return value
+			(ignoring the
+found faces
+flag).
+			If a syntax error was returned,
+			reject
+promise
+with a SyntaxError exception
+			and terminate these steps.
+Queue a task to run the following steps synchronously:
+For all of the font faces in the
+font face list
+,
+					call their
+load()
+method.
+Resolve
+promise
+with the result of
+					waiting for all of the
+[[FontStatusPromise]]
+s of each font face in the
+font face list
+, in order.
+Tests
+fontfaceset-load-css-wide-keywords.html
+(live test)
+(source)
+fontfaceset-load-var.html
+(live test)
+(source)
+fontfaceset-no-root-element.html (visual test)
+(source)
+3.3.
+The
+check()
+method
+The
+check()
+method of
+FontFaceSet
+will determine whether you can "safely"
+	render some provided text with a particular font list,
+	such that it won’t cause a "font swap" later.
+	If the given text/font combo will render without attempting to use any unloaded or currently-loading fonts,
+	this method will return true;
+	otherwise, it returns false.
+Two special cases in this method’s behavior should be noted,
+		as they are non-obvious:
+If the specified fonts exist,
+but all possible faces are ruled out due to their
+unicode-range
+not covering the provided text,
+the method returns
+true
+,
+as the text will be rendered in the UA’s fallback font instead,
+and won’t trigger any font loads.
+Likewise, if none of the specified fonts exist (for example, names are mis-spelled),
+the method also returns
+true
+,
+because using this font list will not trigger any loads;
+instead, fallback will occur.
+When the
+check
+(
+font
+,
+text
+)
+method is called,
+	execute these steps:
+Let
+font face set
+be the
+FontFaceSet
+object this method was called on.
+Find the matching font faces
+from
+font face set
+using the
+font
+and
+text
+arguments passed to the function,
+			and including system fonts,
+			and let
+font face list
+be the returned list of font faces,
+			and
+found faces
+be the returned
+found faces
+flag.
+			If a syntax error was returned,
+			throw a SyntaxError exception
+			and terminate these steps.
+If
+font face list
+is empty,
+			or all fonts in the
+font face list
+either have a
+status
+attribute of "loaded" or are system fonts,
+			return
+true
+.
+			Otherwise, return
+false
+.
+3.4.
+The
+ready
+attribute
+Because the number of fonts loaded depends on the how many fonts are used for a given piece of text,
+	in some cases whether fonts need to be loaded or not may not be known.
+	The
+ready
+attribute contains a
+Promise
+which is resolved when the document is done loading fonts,
+	which provides a way for authors to avoid having to keep track of which fonts have or haven’t been loaded
+	before examining content which may be affected by loading fonts.
+Note:
+Authors should note that a given
+ready promise
+is only fulfilled once,
+	but further fonts may be loaded after it fulfills.
+	This is similar to listening for a
+loadingdone
+event to fire,
+	but the callbacks passed to the
+ready
+promise will
+always
+get called,
+	even when no font loads occur because the fonts in question are already loaded.
+	It’s a simple, easy way to synchronize code to font loads
+	without the need to keep track of what fonts are needed and precisely when they load.
+Note:
+Note that the user agent may need to iterate over multiple font loads before the
+ready promise
+is fulfilled.
+	This can occur with font fallback situations,
+	where one font in the fontlist is loaded
+	but doesn’t contain a particular glyph
+	and other fonts in the fontlist need to be loaded.
+	The
+ready promise
+is only fulfilled after layout operations complete
+	and no additional font loads are necessary.
+Note:
+Note that the Promise returned by this
+ready
+attribute is only ever fulfilled,
+	never rejected,
+	unlike the Promise returned by the
+FontFace
+load()
+method.
+Tests
+fontface-fonts-loading.html
+(live test)
+(source)
+3.5.
+Interaction with CSS Font Loading and Matching
+When the font matching algorithm in
+[CSS-FONTS-3]
+is run automatically by the user-agent,
+	the set of font faces it matches over must be precisely the set of fonts in the
+font source
+for the document,
+	plus any local font faces.
+When a user-agent needs to load a font face,
+	it must do so by calling the
+load()
+method
+	of the corresponding
+FontFace
+object.
+(This means it must run the same algorithm,
+	not literally call the value currently stored in the
+load
+property of the object.)
+Fonts are available when they are added to a
+FontFaceSet
+.
+		Adding a new
+@font-face
+rule to a stylesheet
+		also adds a new
+FontFace
+to the
+FontFaceSet
+of the
+Document
+object.
+Adding a new
+@font-face
+rule:
+document
+.
+styleSheets
+[
+0
+].
+insertRule
+(
+"@font-face { font-family: newfont; src: url(newfont.woff); }"
+,
+0
+);
+document
+.
+body
+.
+style
+.
+fontFamily
+=
+"newfont, serif"
+;
+Constructing a new
+FontFace
+object and adding it to
+document
+.
+fonts
+:
+var
+f
+=
+new
+FontFace
+(
+"newfont"
+,
+"url(newfont.woff)"
+);
+document
+.
+fonts
+.
+add
+(
+f
+);
+document
+.
+body
+.
+style
+.
+fontFamily
+=
+"newfont, serif"
+;
+In both cases, the loading of the font resource “newfont.woff” will be initiated by the layout engine,
+		just as other
+@font-face
+rule fonts are loaded.
+Omitting the addition to
+document
+.
+fonts
+means the font would never be loaded
+		and text would be displayed in the default serif font:
+var
+f
+=
+new
+FontFace
+(
+"newfont"
+,
+"url(newtest.woff)"
+,
+{});
+/* new {{FontFace}} not added to {{FontFaceSet}},
+so the 'font-family' property can't see it,
+and serif will be used instead */
+document
+.
+body
+.
+style
+.
+fontFamily
+=
+"newfont, serif"
+;
+To explicitly preload a font before using it,
+		authors can defer the addition of a new
+FontFace
+to a
+FontFaceSet
+until the load has completed:
+var
+f
+=
+new
+FontFace
+(
+"newfont"
+,
+"url(newfont.woff)"
+,
+{});
+f
+.
+load
+().
+then
+(
+function
+(
+loadedFace
+)
+{
+document
+.
+fonts
+.
+add
+(
+loadedFace
+);
+document
+.
+body
+.
+style
+.
+fontFamily
+=
+"newfont, serif"
+;
+});
+In this case, the font resource “newfont.woff” is first downloaded.
+		Once the download completes,
+		the font is added to the document’s
+FontFaceSet
+,
+		the body font is changed,
+		and the layout engine uses the new font resource.
+4.
+The
+FontFaceSource
+Mixin
+interface
+mixin
+FontFaceSource
+{
+readonly
+attribute
+FontFaceSet
+fonts
+;
+};
+Document
+includes
+FontFaceSource
+;
+WorkerGlobalScope
+includes
+FontFaceSource
+;
+Any document, workers, or other context which can use fonts in some manner must include the
+FontFaceSource
+mixin.
+	The value of the context’s
+fonts
+attribute is its
+font source
+,
+	which provides all of the fonts used in font-related operations,
+	unless defined otherwise.
+	Operations referring to “the font source” must be interpreted as referring to the
+font source
+of the relevant context in which the operation is taking place.
+For any font-related operation that takes place within one of these contexts,
+	the
+FontFace
+objects within the
+font source
+are its
+available font faces
+.
+4.1.
+Worker FontFaceSources
+Within a Worker document, the
+font source
+is initially empty.
+Note:
+FontFace
+objects can be constructed and added to it as normal,
+	which affects CSS font-matching within the worker
+	(such as, for example, drawing text into a
+OffscreenCanvas
+).
+Tests
+fontfaceset-loading-worker-crash.html
+(live test)
+(source)
+fontfaceset-worker-fontface-crash.html
+(live test)
+(source)
+4.2.
+Interaction with CSS’s
+@font-face
+Rule
+The
+set entries
+for a document’s
+font source
+must be initially populated with all the
+CSS-connected
+FontFace
+objects
+	from all of the CSS
+@font-face
+rules in the
+document or shadow root CSS style sheets
+,
+	in document order.
+	As
+@font-face
+rules are added or removed from a stylesheet,
+	or stylesheets containing
+@font-face
+rules are added or removed,
+	the corresponding
+CSS-connected
+FontFace
+objects
+	must be added or removed from the document’s
+font source
+,
+	and maintain this ordering.
+Any manually-added
+FontFace
+objects must be ordered
+after
+the
+CSS-connected
+ones.
+When a
+FontFaceSet
+object’s
+add()
+method is called with a
+CSS-connected
+FontFace
+object,
+	if the object is already in the set,
+	the operation must be a no-op;
+	otherwise, the operation must do nothing,
+	and throw an
+InvalidModificationError
+.
+When a
+FontFaceSet
+object’s
+delete()
+method is called with a
+CSS-connected
+FontFace
+object,
+	the operation must be a no-op,
+	and return
+false
+.
+Note:
+Authors can still maintain references to a removed
+FontFace
+,
+	even if it’s been automatically removed from a
+font source
+.
+	As specified in
+§ 2.3 Interaction with CSS’s @font-face Rule
+, though,
+	the
+FontFace
+is no longer
+CSS-connected
+at that point.
+Note:
+It is expected that a future version of this specification
+	will define ways of interacting with and querying local fonts as well.
+Tests
+fontfaceset-load-css-connected.html
+(live test)
+(source)
+fontfaceset-update-after-stylesheet-change.html
+(live test)
+(source)
+5.
+API Examples
+To show content only after all font loads complete:
+document
+.
+fonts
+.
+ready
+.
+then
+(
+function
+()
+{
+var
+content
+=
+document
+.
+getElementById
+(
+"content"
+);
+content
+.
+style
+.
+visibility
+=
+"visible"
+;
+});
+Drawing text in a canvas with a downloadable font, explicitly
+		initiating the font download and drawing upon completion:
+function
+drawStuff
+()
+{
+var
+ctx
+=
+document
+.
+getElementById
+(
+"c"
+).
+getContext
+(
+"2d"
+);
+ctx
+.
+fillStyle
+=
+"red"
+;
+ctx
+.
+font
+=
+"50px MyDownloadableFont"
+;
+ctx
+.
+fillText
+(
+"Hello!"
+,
+100
+,
+100
+);
+}
+document
+.
+fonts
+.
+load
+(
+"50px MyDownloadableFont"
+)
+.
+then
+(
+drawStuff
+,
+handleError
+);
+A rich text editing application may need to measure text elements
+		after editing operations have taken place.  Since style changes may
+		or may not require additional fonts to be downloaded, or the fonts
+		may already have been downloaded, the measurement procedures need to
+		occur after those font loads complete:
+function
+measureTextElements
+()
+{
+// contents can now be measured using the metrics of
+// the downloadable font(s)
+}
+function
+doEditing
+()
+{
+// content/layout operations that may cause additional font loads
+document
+.
+fonts
+.
+ready
+.
+then
+(
+measureTextElements
+);
+}
+The
+loadingdone
+event only fires after all font related loads have completed
+and
+text has been laid out without causing additional font loads:
+<
+style
+>
+@
+font-face
+{
+font-family
+:
+latin-serif
+;
+src
+:
+url
+(
+latinserif
+.
+woff
+)
+format
+(
+"woff"
+);
+/* contains no kanji/kana */
+}
+@
+font-face
+{
+font-family
+:
+jpn-mincho
+;
+src
+:
+url
+(
+mincho
+.
+woff
+)
+format
+(
+"woff"
+);
+}
+@
+font-face
+{
+font-family
+:
+unused
+;
+src
+:
+url
+(
+unused
+.
+woff
+);
+}
+body
+{
+font-family
+:
+latin-serif
+,
+jpn-mincho
+;
+}
+</
+style
+>
+<
+p
+>
+納豆はいかがでしょうか
+In this situation, the user agent first downloads “latinserif.woff”
+		and then tries to use this to draw the Japanese text.
+		But because no Japanese glyphs are present in that font,
+		fallback occurs and the font “mincho.woff” is downloaded.
+		Only after the second font is downloaded and the Japanese text laid out does the
+loadingdone
+event fire.
+The "unused" font isn’t loaded,
+		but no text is using it,
+		so the UA isn’t even
+trying
+to load it.
+		It doesn’t interfere with the
+loadingdone
+event.
+Changes
+Changes from the
+6 April 2023 Working Draft
+:
+Removed variant attribute, to align with removal of the font-variant descriptor in @font-face.
+Changes from the
+May 2014 CSS Font Loading Last Call Working Draft
+:
+Added IDL for discovery of font information.
+Clarified that FontFaceSet.clear() does not clear CSS-connected items.
+Mentioned document.fonts in the introduction.
+Font loading applies to shadow roots as well as documents.
+No longer throw an error if none of the specified fonts exist, because this will not trigger any font loading.
+Better alignment with WebIDL.
+Switched to constructor() method syntax.
+Clarified behavior of the matching font faces algorithm if the string to match is empty.
+Converted FontFaceSource to a mixin.
+Legacy term CanvasProxy changed to OffscreenCanvas.
+Harmonized FontFace with @font-face, adding variationSettings and fontDisplay.
+Consistently use [Exposed] in the IDL.
+Prefer CSSOMString to DOMString
+Better introductory text for check()
+Clarified that layout operations which depend on recently-loaded fonts must be allowed to complete.
+Cover more edge cases when firing load events.
+Prefer async event queueing tasks over synchronous calls
+fonts.ready is a property, not a function.
+Differentiated between non-existing fonts, and fonts which exist but lack the required glyphs.
+Precisely listed order of steps for several methods
+Clarified handling of global keywords and relative values in the load() and check() functions.
+Parsing a src argument is the same as parsing a CSS @font-face src descriptor.
+Clarified that attempting to delete a CSS connected font has no effect, and returns false.
+Clarified that adding duplicate fonts has no effect.
+Clarified ordering of manually added FontFace object.
+Clarified that load events only include faces still present in the set.
+Added
+variationSettings
+and
+display
+, to sync with
+@font-face
+.
+Switched
+fontfaces
+to be a FrozenArray,
+			to match with proper IDL practice.
+Fire loading events and handle promises when a loading font is added to a FontFaceSet.
+Corrected the async algorithms to use "queue a task" language,
+			to ensure that side-effect timing is well-defined.
+Updated several references to latest versions.
+Corrections to the IDL.
+Assorted typos and grammatical errors corrected.
+Acknowledgments
+Several members of the Google Fonts team provided helpful feedback on font load events,
+	as did Boris Zbarsky, Jonas Sicking and ms2ger.
+Privacy Considerations
+The
+FontFaceSet
+object leaks information about the user’s installed fonts,
+	but in the exact same way as the existing
+@font-face
+rule;
+	no new information is leaked,
+	or in any appreciably easier manner.
+Security Considerations
+No security considerations have been raised against this specification.
+Conformance
+Document conventions
+Conformance requirements are expressed with a combination of
+    descriptive assertions and RFC 2119 terminology. The key words “MUST”,
+    “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD NOT”,
+    “RECOMMENDED”, “MAY”, and “OPTIONAL” in the normative parts of this
+    document are to be interpreted as described in RFC 2119.
+    However, for readability, these words do not appear in all uppercase
+    letters in this specification.
+All of the text of this specification is normative except sections
+    explicitly marked as non-normative, examples, and notes.
+[RFC2119]
+Examples in this specification are introduced with the words “for example”
+    or are set apart from the normative text with
+class="example"
+,
+    like this:
+This is an example of an informative example.
+Informative notes begin with the word “Note” and are set apart from the
+    normative text with
+class="note"
+, like this:
+Note, this is an informative note.
+Advisements are normative sections styled to evoke special attention and are
+    set apart from other normative text with
+<strong class="advisement">
+, like
+    this:
+UAs MUST provide an accessible alternative.
+Tests
+Tests relating to the content of this specification
+                     may be documented in “Tests” blocks like this one.
+                     Any such block is non-normative.
+Conformance classes
+Conformance to this specification
+    is defined for three conformance classes:
+style sheet
+A
+CSS
+            style sheet
+.
+renderer
+A
+UA
+that interprets the semantics of a style sheet and renders
+            documents that use them.
+authoring tool
+A
+UA
+that writes a style sheet.
+A style sheet is conformant to this specification
+    if all of its statements that use syntax defined in this module are valid
+    according to the generic CSS grammar and the individual grammars of each
+    feature defined in this module.
+A renderer is conformant to this specification
+    if, in addition to interpreting the style sheet as defined by the
+    appropriate specifications, it supports all the features defined
+    by this specification by parsing them correctly
+    and rendering the document accordingly. However, the inability of a
+    UA to correctly render a document due to limitations of the device
+    does not make the UA non-conformant. (For example, a UA is not
+    required to render color on a monochrome monitor.)
+An authoring tool is conformant to this specification
+    if it writes style sheets that are syntactically correct according to the
+    generic CSS grammar and the individual grammars of each feature in
+    this module, and meet all other conformance requirements of style sheets
+    as described in this module.
+Partial implementations
+So that authors can exploit the forward-compatible parsing rules to
+    assign fallback values, CSS renderers
+must
+treat as invalid (and
+ignore
+    as appropriate
+) any at-rules, properties, property values, keywords,
+    and other syntactic constructs for which they have no usable level of
+    support. In particular, user agents
+must not
+selectively
+    ignore unsupported component values and honor supported values in a single
+    multi-value property declaration: if any value is considered invalid
+    (as unsupported values must be), CSS requires that the entire declaration
+    be ignored.
+Implementations of Unstable and Proprietary Features
+To avoid clashes with future stable CSS features,
+        the CSSWG recommends
+following best practices
+for the implementation of
+unstable
+features and
+proprietary extensions
+to CSS.
+Non-experimental implementations
+Once a specification reaches the Candidate Recommendation stage,
+    non-experimental implementations are possible, and implementors should
+    release an unprefixed implementation of any CR-level feature they
+    can demonstrate to be correctly implemented according to spec.
+To establish and maintain the interoperability of CSS across
+    implementations, the CSS Working Group requests that non-experimental
+    CSS renderers submit an implementation report (and, if necessary, the
+    testcases used for that implementation report) to the W3C before
+    releasing an unprefixed implementation of any CSS features. Testcases
+    submitted to W3C are subject to review and correction by the CSS
+    Working Group.
+Further information on submitting testcases and implementation reports
+    can be found from on the CSS Working Group’s website at
+http://www.w3.org/Style/CSS/Test/
+.
+    Questions should be directed to the
+public-css-testsuite@w3.org
+mailing list.
+Index
+Terms defined by this specification
+add(font)
+, in § 3
+ascentOverride
+attribute for FontFace
+, in § 2
+dict-member for FontFaceDescriptors
+, in § 2
+available font faces
+, in § 4
+axisTag
+, in § 2.4
+check(font)
+, in § 3.3
+check(font, text)
+, in § 3.3
+clear()
+, in § 3
+constructor(family, source)
+, in § 2.1
+constructor(family, source, descriptors)
+, in § 2.1
+constructor(type)
+, in § 3
+constructor(type, eventInitDict)
+, in § 3
+CSS-connected
+, in § 2.3
+[[Data]]
+, in § 2
+defaultValue
+, in § 2.4
+delete(font)
+, in § 3
+descentOverride
+attribute for FontFace
+, in § 2
+dict-member for FontFaceDescriptors
+, in § 2
+display
+attribute for FontFace
+, in § 2
+dict-member for FontFaceDescriptors
+, in § 2
+"error"
+, in § 2
+[[FailedFonts]]
+, in § 3
+family
+, in § 2
+features
+, in § 2.4
+featureSettings
+attribute for FontFace
+, in § 2
+dict-member for FontFaceDescriptors
+, in § 2
+find the matching font faces
+, in § 3.1
+fire a font load event
+, in § 3.1
+FontFace
+, in § 2
+FontFaceDescriptors
+, in § 2
+FontFace(family, source)
+, in § 2.1
+FontFace(family, source, descriptors)
+, in § 2.1
+FontFaceFeatures
+, in § 2.4
+FontFaceLoadStatus
+, in § 2
+FontFacePalette
+, in § 2.4
+FontFacePalettes
+, in § 2.4
+fontfaces
+attribute for FontFaceSetLoadEvent
+, in § 3
+dict-member for FontFaceSetLoadEventInit
+, in § 3
+FontFaceSet
+, in § 3
+FontFaceSetLoadEvent
+, in § 3
+FontFaceSetLoadEventInit
+, in § 3
+FontFaceSetLoadEvent(type)
+, in § 3
+FontFaceSetLoadEvent(type, eventInitDict)
+, in § 3
+FontFaceSetLoadStatus
+, in § 3
+FontFaceSource
+, in § 4
+FontFaceVariationAxis
+, in § 2.4
+FontFaceVariations
+, in § 2.4
+fonts
+, in § 4
+font source
+, in § 4
+[[FontStatusPromise]]
+, in § 2
+iteration order
+, in § 3
+length
+attribute for FontFacePalette
+, in § 2.4
+attribute for FontFacePalettes
+, in § 2.4
+lineGapOverride
+attribute for FontFace
+, in § 2
+dict-member for FontFaceDescriptors
+, in § 2
+load()
+, in § 2.2
+"loaded"
+enum-value for FontFaceLoadStatus
+, in § 2
+enum-value for FontFaceSetLoadStatus
+, in § 3
+loaded
+, in § 2
+[[LoadedFonts]]
+, in § 3
+load(font)
+, in § 3.2
+load(font, text)
+, in § 3.2
+"loading"
+enum-value for FontFaceLoadStatus
+, in § 2
+enum-value for FontFaceSetLoadStatus
+, in § 3
+loading
+, in § 3.1
+loadingdone
+, in § 3.1
+loadingerror
+, in § 3.1
+[[LoadingFonts]]
+, in § 3
+maximumValue
+, in § 2.4
+minimumValue
+, in § 2.4
+name
+, in § 2.4
+onloading
+, in § 3
+onloadingdone
+, in § 3
+onloadingerror
+, in § 3
+palettes
+, in § 2.4
+pending on the environment
+, in § 3
+ready
+, in § 3
+[[ReadyPromise]]
+, in § 3
+set entries
+, in § 3
+sizeAdjust
+, in § 2
+status
+attribute for FontFace
+, in § 2
+attribute for FontFaceSet
+, in § 3
+stretch
+attribute for FontFace
+, in § 2
+dict-member for FontFaceDescriptors
+, in § 2
+stuck on the environment
+, in § 3.1
+style
+attribute for FontFace
+, in § 2
+dict-member for FontFaceDescriptors
+, in § 2
+switch the FontFaceSet to loaded
+, in § 3.1
+switch the FontFaceSet to loading
+, in § 3.1
+unicodeRange
+attribute for FontFace
+, in § 2
+dict-member for FontFaceDescriptors
+, in § 2
+"unloaded"
+, in § 2
+[[Urls]]
+, in § 2
+usableWithDarkBackground
+, in § 2.4
+usableWithLightBackground
+, in § 2.4
+variant
+, in § 2
+variations
+, in § 2.4
+variationSettings
+attribute for FontFace
+, in § 2
+dict-member for FontFaceDescriptors
+, in § 2
+weight
+attribute for FontFace
+, in § 2
+dict-member for FontFaceDescriptors
+, in § 2
+width
+attribute for FontFace
+, in § 2
+dict-member for FontFaceDescriptors
+, in § 2
+Terms defined by reference
+[CSS-ALIGN-3]
+defines the following terms:
+stretch
+[CSS-ANCHOR-POSITION-1]
+defines the following terms:
+width
+[CSS-FONTS-4]
+defines the following terms:
+@font-palette-values
+bolder
+font
+font-feature-settings
+font-variation-settings
+normal
+src
+unicode-range
+[CSS-FONTS-5]
+defines the following terms:
+@font-face
+[CSS-SYNTAX-3]
+defines the following terms:
+parse
+[CSS-VALUES-4]
+defines the following terms:
+CSS-wide keywords
+url()
+[CSSOM-1]
+defines the following terms:
+CSSOMString
+document or shadow root CSS style sheets
+[DOM]
+defines the following terms:
+Document
+Event
+EventInit
+EventTarget
+[HTML]
+defines the following terms:
+EventHandler
+OffscreenCanvas
+WorkerGlobalScope
+task source
+[WEBIDL]
+defines the following terms:
+BufferSource
+DOMString
+Exposed
+FrozenArray
+InvalidModificationError
+Promise
+SameObject
+SyntaxError
+boolean
+double
+iterable
+sequence
+set entries
+setlike
+undefined
+unsigned long
+References
+Normative References
+[CSS-ALIGN-3]
+Elika Etemad; Tab Atkins Jr..
+CSS Box Alignment Module Level 3
+. URL:
+https://drafts.csswg.org/css-align/
+[CSS-ANCHOR-POSITION-1]
+Tab Atkins Jr.; Elika Etemad; Ian Kilpatrick.
+CSS Anchor Positioning Module Level 1
+. URL:
+https://drafts.csswg.org/css-anchor-position-1/
+[CSS-FONTS-3]
+John Daggett; Myles Maxfield; Chris Lilley.
+CSS Fonts Module Level 3
+. URL:
+https://drafts.csswg.org/css-fonts-3/
+[CSS-FONTS-4]
+Chris Lilley.
+CSS Fonts Module Level 4
+. URL:
+https://drafts.csswg.org/css-fonts-4/
+[CSS-FONTS-5]
+Chris Lilley.
+CSS Fonts Module Level 5
+. URL:
+https://drafts.csswg.org/css-fonts-5/
+[CSS-SYNTAX-3]
+Tab Atkins Jr.; Simon Sapin.
+CSS Syntax Module Level 3
+. URL:
+https://drafts.csswg.org/css-syntax/
+[CSS-VALUES-4]
+Tab Atkins Jr.; Elika Etemad.
+CSS Values and Units Module Level 4
+. URL:
+https://drafts.csswg.org/css-values-4/
+[CSSOM-1]
+Daniel Glazman; Emilio Cobos Álvarez.
+CSS Object Model (CSSOM)
+. URL:
+https://drafts.csswg.org/cssom/
+[DOM]
+Anne van Kesteren.
+DOM Standard
+. Living Standard. URL:
+https://dom.spec.whatwg.org/
+[HTML]
+Anne van Kesteren; et al.
+HTML Standard
+. Living Standard. URL:
+https://html.spec.whatwg.org/multipage/
+[RFC2119]
+S. Bradner.
+Key words for use in RFCs to Indicate Requirement Levels
+. March 1997. Best Current Practice. URL:
+https://datatracker.ietf.org/doc/html/rfc2119
+[WEBIDL]
+Edgar Chen; Timothy Gu.
+Web IDL Standard
+. Living Standard. URL:
+https://webidl.spec.whatwg.org/
+IDL Index
+dictionary
+FontFaceDescriptors
+{
+CSSOMString
+style
+= "normal";
+CSSOMString
+weight
+= "normal";
+CSSOMString
+width
+;
+CSSOMString
+stretch
+= "normal"; // alias for width, sets the same attribute
+CSSOMString
+unicodeRange
+= "U+0-10FFFF";
+CSSOMString
+featureSettings
+= "normal";
+CSSOMString
+variationSettings
+= "normal";
+CSSOMString
+display
+= "auto";
+CSSOMString
+ascentOverride
+= "normal";
+CSSOMString
+descentOverride
+= "normal";
+CSSOMString
+lineGapOverride
+= "normal";
+};
+enum
+FontFaceLoadStatus
+{
+"unloaded"
+,
+"loading"
+,
+"loaded"
+,
+"error"
+};
+
+[
+Exposed
+=(
+Window
+,
+Worker
+)]
+interface
+FontFace
+{
+  [
+Throws
+]
+constructor
+(
+CSSOMString
+family
+,
+              (
+CSSOMString
+or
+BufferSource
+)
+source
+,
+optional
+FontFaceDescriptors
+descriptors
+= {});
+
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+family
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+style
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+weight
+;
+  [
+SetterThrows
+,
+BindingAlias
+="stretch"]
+attribute
+CSSOMString
+width
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+unicodeRange
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+variant
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+featureSettings
+;
+  [
+SetterThrows
+,
+Pref
+="layout.css.font-variations.enabled"]
+attribute
+CSSOMString
+variationSettings
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+display
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+ascentOverride
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+descentOverride
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+lineGapOverride
+;
+  [
+SetterThrows
+]
+attribute
+CSSOMString
+sizeAdjust
+;
+readonly
+attribute
+FontFaceLoadStatus
+status
+;
+
+[
+Exposed
+=(Window,Worker)]
+interface
+FontFaceFeatures
+{
+  /* The CSSWG is still discussing what goes in here */
+};
+
+[
+Exposed
+=(Window,Worker)]
+interface
+FontFaceVariationAxis
+{
+  readonly attribute
+DOMString
+name
+;
+  readonly attribute
+DOMString
+axisTag
+;
+  readonly attribute
+double
+minimumValue
+;
+  readonly attribute
+double
+maximumValue
+;
+  readonly attribute
+double
+defaultValue
+;
+};
+
+[
+Exposed
+=(Window,Worker)]
+interface
+FontFaceVariations
+{
+  readonly
+setlike
+<
+FontFaceVariationAxis
+>;
+};
+
+[
+Exposed
+=(Window,Worker)]
+interface
+FontFacePalette
+{
+iterable
+<
+DOMString
+>;
+  readonly attribute
+unsigned long
+length
+;
+  getter
+DOMString
+(
+unsigned long
+index
+);
+  readonly attribute
+boolean
+usableWithLightBackground
+;
+  readonly attribute
+boolean
+usableWithDarkBackground
+;
+};
+
+[
+Exposed
+=(Window,Worker)]
+interface
+FontFacePalettes
+{
+iterable
+<
+FontFacePalette
+>;
+  readonly attribute
+unsigned long
+length
+;
+  getter
+FontFacePalette
+(
+unsigned long
+index
+);
+};
+
+partial interface
+FontFace
+{
+  readonly attribute
+FontFaceFeatures
+features
+;
+  readonly attribute
+FontFaceVariations
+variations
+;
+  readonly attribute
+FontFacePalettes
+palettes
+;
+};
+
+dictionary
+FontFaceSetLoadEventInit
+:
+EventInit
+{
+sequence
+<
+FontFace
+>
+fontfaces
+= [];
+};
+
+[
+Exposed
+=(Window,Worker)]
+interface
+FontFaceSetLoadEvent
+:
+Event
+{
+constructor
+(
+CSSOMString
+type
+, optional
+FontFaceSetLoadEventInit
+eventInitDict
+= {});
+  [
+SameObject
+] readonly attribute
+FrozenArray
+<
+FontFace
+>
+fontfaces
+;
+};
+
+enum
+FontFaceSetLoadStatus
+{
+"loading"
+,
+"loaded"
+};
+
+[
+Exposed
+=(Window,Worker)]
+interface
+FontFaceSet
+:
+EventTarget
+{
+setlike
+<
+FontFace
+>;
+FontFaceSet
+add
+(
+FontFace
+font
+);
+boolean
+delete
+(
+FontFace
+font
+);
+undefined
+clear
+();
+
+  // events for when loading state changes
+  attribute
+EventHandler
+onloading
+;
+  attribute
+EventHandler
+onloadingdone
+;
+  attribute
+EventHandler
+onloadingerror
+;
+
+  // check and start loads if appropriate
+  // and fulfill promise when all loads complete
+Promise
+<
+sequence
+<
+FontFace
+>>
+load
+(
+CSSOMString
+font
+, optional
+CSSOMString
+text
+= " ");
+
+  // return whether all fonts in the fontlist are loaded
+  // (does not initiate load if not available)
+boolean
+check
+(
+CSSOMString
+font
+, optional
+CSSOMString
+text
+= " ");
+
+  // async notification that font loading and layout operations are done
+  readonly attribute
+Promise
+<
+FontFaceSet
+>
+ready
+;
+
+  // loading state, "loading" while one or more fonts loading, "loaded" otherwise
+  readonly attribute
+FontFaceSetLoadStatus
+status
+;
+};
+
+interface mixin
+FontFaceSource
+{
+  readonly attribute
+FontFaceSet
+fonts
+;
+};
+Document
+includes
+FontFaceSource
+;
+WorkerGlobalScope
+includes
+FontFaceSource
+;
+Issues Index
+Several things in this spec use normal ES objects to define behavior,
+	such as various things using Promises internally,
+	and FontFaceSet using a Set internally.
+	I believe the intention here is that these objects
+	(and their prototype chains) are pristine,
+	unaffected by anything the author has done.
+	Is this a good intention?
+	If so, how should I indicate this in the spec?
+↵
+Clarify all mentions of "the document" to be clear about which document is being referenced,
+	since objects can move between documents.
+↵
+Need to define the base url,
+so relative urls can resolve.
+Should it be the url of the document?
+Is that correct for workers too,
+or should they use their worker url?
+Is that always defined?
+↵
+When a FontFace is transferred between documents, it’s no longer CSS-connected.
+↵
+✔
+MDN
+✔
+MDN
+MDN
+MDN
+✔
+MDN
+✔
+MDN
+✔
+MDN
+MDN
+✔
+MDN
+✔
+MDN
+✔
+MDN
+✔
+MDN
+✔
+MDN
+✔
+MDN
+MDN
+⚠
+MDN
+✔
+MDN
+✔
+MDN
+✔
+MDN
+MDN
+✔
+MDN
+✔
+MDN
+✔
+MDN
+✔
+MDN
+✔
+MDN
+✔
+MDN
+✔
+MDN
+✔
+MDN
+MDN
+MDN
+MDN
+✔
+MDN

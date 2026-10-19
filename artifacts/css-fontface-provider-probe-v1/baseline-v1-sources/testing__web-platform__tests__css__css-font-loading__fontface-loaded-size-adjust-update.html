@@ -1,0 +1,95 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Updating sizeAdjust on a loaded FontFace updates its rendered metrics</title>
+<link rel="help" href="https://drafts.csswg.org/css-font-loading-3/#fontface-interface">
+<link rel="help" href="https://drafts.csswg.org/css-fonts-5/#size-adjust-desc">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .sample {
+    display: inline-block;
+    font-size: 20px;
+    line-height: 20px;
+    font-synthesis: none;
+    font-optical-sizing: none;
+    font-size-adjust: none;
+    letter-spacing: 0;
+    word-spacing: 0;
+  }
+</style>
+<body>
+<script>
+let fontData;
+let nextFamily = 0;
+
+promise_setup(async () => {
+  const response = await fetch("/fonts/Ahem.ttf");
+  assert_true(response.ok, "Ahem resource loads");
+  fontData = await response.arrayBuffer();
+});
+
+async function loadedFace(t, sourceKind, sizeAdjust) {
+  const source = sourceKind === "buffer" ? fontData.slice(0) : 'url("/fonts/Ahem.ttf")';
+  const face = new FontFace(`LoadedSizeAdjust${nextFamily++}`, source, {sizeAdjust});
+  t.add_cleanup(() => document.fonts.delete(face));
+  const promise = face.loaded;
+  assert_equals(await face.load(), face, "load() resolves to the face");
+  assert_equals(face.status, "loaded");
+  assert_equals(face.loaded, promise, "Loading preserves the loaded promise");
+  return face;
+}
+
+function sample(t, face) {
+  const element = document.createElement("span");
+  element.className = "sample";
+  element.style.fontFamily = `"${face.family}"`;
+  element.textContent = "XXXX";
+  document.body.append(element);
+  t.add_cleanup(() => element.remove());
+  return element;
+}
+
+function assertWidth(element, expected, message) {
+  assert_equals(getComputedStyle(element).fontSize, "20px", "Computed font size stays fixed");
+  assert_approx_equals(element.getBoundingClientRect().width, expected, 0.01, message);
+}
+
+for (const sourceKind of ["buffer", "url"]) {
+  for (const [sizeAdjust, width] of [["100%", 80], ["50%", 40]]) {
+    promise_test(async t => {
+      const face = await loadedFace(t, sourceKind, sizeAdjust);
+      document.fonts.add(face);
+      assertWidth(sample(t, face), width, "Fresh face uses its constructor descriptor");
+    }, `${sourceKind}: fresh sizeAdjust ${sizeAdjust}`);
+  }
+
+  for (const phase of ["before addition", "existing element", "new element", "delete and re-add"]) {
+    promise_test(async t => {
+      const face = await loadedFace(t, sourceKind, "100%");
+      const promise = face.loaded;
+      let element;
+      if (phase !== "before addition") {
+        document.fonts.add(face);
+        element = sample(t, face);
+        assertWidth(element, 80, "Initial metrics");
+      }
+      face.sizeAdjust = "50%";
+      assert_equals(face.sizeAdjust, "50%", "Descriptor updated");
+      assert_equals(face.status, "loaded", "Mutation preserves loaded state");
+      assert_equals(face.loaded, promise, "Mutation preserves the loaded promise");
+      if (phase === "before addition") {
+        document.fonts.add(face);
+        element = sample(t, face);
+      } else if (phase === "new element") {
+        element = sample(t, face);
+      } else if (phase === "delete and re-add") {
+        document.fonts.delete(face);
+        document.fonts.add(face);
+      }
+      await document.fonts.ready;
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      assertWidth(element, 40, "Rendered metrics use the updated descriptor");
+    }, `${sourceKind}: loaded sizeAdjust mutation, ${phase}`);
+  }
+}
+</script>

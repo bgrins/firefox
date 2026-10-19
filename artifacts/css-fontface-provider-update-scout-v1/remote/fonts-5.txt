@@ -1,0 +1,3047 @@
+CSS Fonts Module Level 5
+CSS Fonts Module Level 5
+Editor’s Draft
+,
+13 September 2026
+More details about this document
+This version:
+https://drafts.csswg.org/css-fonts-5/
+Latest published version:
+https://www.w3.org/TR/css-fonts-5/
+Previous Versions:
+https://www.w3.org/TR/2021/WD-css-fonts-5-20211221/
+Feedback:
+CSSWG Issues Repository
+Inline In Spec
+Editor:
+Chris Lilley
+(
+W3C
+)
+Former Editor:
+Myles C. Maxfield
+(
+Formerly of Apple Inc.
+)
+Suggest an Edit for this Spec:
+GitHub Editor
+Delta Spec:
+yes
+Test Suite:
+https://wpt.fyi/results/css/css-fonts/
+Copyright
+© 2026
+World Wide Web Consortium
+.
+W3C
+®
+liability
+,
+trademark
+and
+permissive document license
+rules apply.
+Abstract
+This specification defines modifications to the existing
+CSS Fonts 4
+specification along with additional features.
+CSS
+is a language for describing the rendering of structured documents
+(such as HTML and XML)
+on screen, on paper, etc.
+Status of this document
+This is a public copy of the editors’ draft.
+	It is provided for discussion only and may change at any moment.
+	Its publication here does not imply endorsement of its contents by W3C.
+	Don’t cite this document other than as work in progress.
+Please send feedback
+	by
+filing issues in GitHub
+(preferred),
+	including the spec code “css-fonts” in the title, like this:
+	“[css-fonts]
+…summary of comment…
+”.
+	All issues and comments are
+archived
+.
+	Alternately, feedback can be sent to the (
+archived
+) public mailing list
+www-style@w3.org
+.
+This document is governed by the
+18 August 2025 W3C Process Document
+.
+Table of Contents
+1
+Introduction
+1.1
+Value Definitions
+2
+Text-Scale
+meta
+element
+2.1
+Keywords
+2.2
+The
+legacy
+keyword
+2.3
+The
+scale
+keyword
+3
+Basic Font Properties
+3.1
+Font family: the
+font-family
+property
+3.1.1
+Generic font families
+3.2
+Font weight: the
+font-weight
+property
+3.3
+Font style: the
+font-style
+property
+3.4
+Relative sizing: the
+font-size-adjust
+property
+4
+Font Resources
+4.1
+The
+@font-face
+rule
+4.2
+Font reference: the
+src
+descriptor
+4.2.1
+Parsing the
+src
+descriptor
+4.3
+Font property descriptors: the
+font-size
+4.4
+Glyph Size Multiplier:
+the
+size-adjust
+descriptor
+4.5
+Line Height Font Metrics Overrides:
+the
+ascent-override
+,
+descent-override
+, and
+line-gap-override
+descriptors
+4.6
+Superscript and subscript metrics overrides:
+the
+superscript-position-override
+,
+subscript-position-override
+,
+superscript-size-override
+and
+subscript-size-override
+descriptors
+5
+Font Feature Properties
+5.1
+Font language override: the
+font-language-override
+property
+6
+Font Feature and Variation Resolution
+7
+Font Variation Properties
+7.1
+Optical sizing control: the
+font-optical-sizing
+property
+8
+Font Technologies and Formats
+8.1
+Font tech
+9
+Object Model
+9.1
+The
+CSSFontFaceRule
+interface
+10
+Security Considerations
+11
+Privacy Considerations
+12
+Acknowledgments
+13
+Changes
+13.1
+Changes since the
+WD of 6 February 2024
+13.2
+Changes since the
+WD of 21 December 2021
+13.3
+Changes since the
+WD of 2021-07-29
+13.4
+Changes since the
+FPWD of 2021-06-29
+Conformance
+Document conventions
+Conformance classes
+Partial implementations
+Implementations of Unstable and Proprietary Features
+Non-experimental implementations
+Index
+Terms defined by this specification
+Terms defined by reference
+References
+Normative References
+Non-Normative References
+Property Index
+@font-face
+Descriptors
+IDL Index
+Issues Index
+1.
+Introduction
+The CSS Fonts Level 4 specification (
+[CSS-FONTS-4]
+) describes the
+controls CSS provides for selecting and using fonts within documents,
+including support for variable fonts and color fonts.
+The ideas here are additions or modifications to the properties and
+rules defined in CSS Fonts Level 4.
+This specification is currently a delta to the CSS Fonts Level 4 specification.
+Do not assume that if something is not here, it has been dropped.
+1.1.
+Value Definitions
+This specification follows the
+CSS property definition conventions
+from
+[CSS2]
+using the
+value definition syntax
+from
+[CSS-VALUES-3]
+.
+Value types not defined in this specification are defined in CSS Values & Units
+[CSS-VALUES-3]
+.
+Combination with other CSS modules may expand the definitions of these value types.
+In addition to the property-specific values listed in their definitions,
+all properties defined in this specification
+also accept the
+CSS-wide keywords
+as their property value.
+For readability they have not been repeated explicitly.
+2.
+Text-Scale
+meta
+element
+User agents must calculate the computed value of
+medium
+by multiplying 16px by
+the
+text scale factor
+.
+User agents must also apply this factor when determining the computed sizes of the other
+<absolute-size>
+keywords.
+However, user agents should scale these other keywords non-linearly
+to preserve readability.
+Note:
+Applying a linear scale to all keywords would render large fonts excessively large. See the
+WCAG discussion on minimum and maximum critical font sizes
+.
+A document with a
+meta
+tag
+whose
+name
+attribute
+is an
+ASCII case-insensitive
+match for
+"text-scale"
+is recognized as controlling the
+text scale factor
+.
+The value of the
+content
+attribute must be an
+ASCII case-insensitive
+match for one of the
+recognized keywords. Otherwise the tag is ignored.
+Documents without this
+meta
+tag will have an assumed default
+value of
+legacy
+.
+<
+meta
+name
+=
+"text-scale"
+content
+=
+"scale"
+/>
+There must not be more than one
+meta
+element with its
+name
+attribute value set to an
+ASCII case-insensitive
+match for
+text-scale
+per document.
+2.1.
+Keywords
+The recognized keywords in the
+text-scale
+meta
+element are:
+legacy
+The
+preferred-text-scale
+environment variable returns the user’s OS-level font factor on mobile devices,
+		but 1 on desktop devices.
+text scale factor
+incorporates UA-level font preferences but
+		OS-level font preferences are ignored.
+Note:
+Equivalent to omitting a
+text-scale
+meta
+tag or
+		including an unrecognized content attribute keyword.
+scale
+The
+preferred-text-scale
+environment variable returns the user’s OS-level font preferences.
+text scale factor
+incorporates both UA-level and OS-level font preferences.
+2.2.
+The
+legacy
+keyword
+When the value of the
+text-scale
+content attribute is
+legacy
+,
+the
+text scale factor
+is the font scale factor
+the user has chosen from any settings provided
+only
+by the user agent.
+The
+preferred-text-scale
+environment variable value must be 1 on desktop platforms.
+On mobile platforms:
+If the operating system provides a text scale setting AND
+		the UA hasn’t already applied that factor to the
+medium
+font size,
+		the
+preferred-text-scale
+environment variable returns the multiplier
+		that the user has chosen in the operating system’s text scale setting.
+Note:
+At the time of publishing, all combinations of Android, iOS, Firefox, Safari, and Chrome satisfy this first condition.
+Otherwise the
+preferred-text-scale
+environment variable returns 1.
+2.3.
+The
+scale
+keyword
+When the value of the
+text-scale
+content attribute is
+scale
+,
+the
+text scale factor
+matches the user’s preferred paragraph text size
+(as determined from a combination of OS and UA preferences)
+divided by 16px.
+The
+preferred-text-scale
+environment variable must return the
+text scale factor
+.
+Further, when the value of the
+text-scale
+content attribute is
+scale
+, the user agent should skip all font-sizing interventions it would otherwise perform in an attempt to automatically honor the user’s preferences. E.g. text autosizing on mobile (See
+CSS Size Adjustment 1
+§ 1 Introduction
+) and full-application zoom (
+popular browsers do this on Windows)
+.
+Note:
+Authors are expected to use
+<meta name=
+"text-scale"
+content=
+"scale"
+>
+in stylesheets so that the
+medium
+font size will reflect the user’s font preferences, whether those are specified at the OS level or the UA level.
+The author will then be able to use
+rem
+and
+em
+throughout the page to honor the user’s font preferences.
+Authors must only use this if they have tested their website with scaled text.
+This requires care to do correctly, given the very large font sizes some low-vision users need.
+Consider the extreme case of an iPhone Mini set to iOS’s largest font size of 53px.
+Only ~12-15 characters fit on a line.
+Assuming a page hasn’t altered the
+:root
+font size with an absolute length unit like
+px
+, content sized with
+rem
+units will be relative to the preferred text scale
+<!DOCTYPE html>
+<
+html
+>
+<!-- leave this element's font-size as the default -->
+<
+head
+>
+<
+meta
+name
+=
+"text-scale"
+content
+=
+"scale"
+/>
+</
+head
+>
+<
+body
+>
+<
+div
+style
+=
+"font-size: 1rem;"
+>
+This font size obeys the user's font preferences, **whether
+      those preferences are specified at the operating system level
+      or the user agent level**
+</
+div
+>
+<
+div
+style
+=
+"font-size: 20px;"
+>
+This font size does NOT respect the user's font preferences.
+<
+div
+style
+=
+"font-size: 1rem;"
+>
+But this font size does!
+</
+div
+>
+</
+div
+>
+</
+body
+>
+</
+html
+>
+If an element such as a heading already has large text, it is likely already large enough for a user who needs a high text scale to read. If the large text scales at the same rate as the body text, it could become too large to comfortably fit in the user’s viewport.
+Therefore, authors should consider using a dampening formula to reduce the rate that large text scales.
+	There are various mathematical approaches to achieve this; one possible formula is demonstrated below.
+<
+meta
+name
+=
+"viewport"
+content
+=
+"width=device-width"
+>
+<
+meta
+name
+=
+"text-scale"
+content
+=
+"scale"
+>
+<
+style
+>
+h1
+{
+/*
+Multiply the 2em baseline by a dampening factor to ensure headers
+scale up slower than the body text, preventing them from becoming
+too large.
+The two values in the calc() (0.5 and 0.5) must sum to 1.0, so the
+multiplier evaluates to exactly 1 at a 1x text scale. As the user
+increases their text scale, the multiplier shrinks towards the first
+number (0.5). Because the shrinking multiplier is applied to a
+growing font size, the header continues to grow, but its growth
+rate is dampened.
+Here are the resulting font sizes at various text scale factors:
+h1      body
+----    ----
+1x    32px    16px
+1.5x  40px    24px
+2x    48px    32px
+3x    64px    48px
+3.5x  72px    56px
+*/
+--dampen-factor
+:
+calc
+(
+0.5
++
+(
+0.5
+/
+env
+(
+preferred
+-text-scale
+)));
+font-size
+:
+calc
+(
+2
+rem
+*
+var
+(
+--dampen-factor
+));
+}
+</
+style
+>
+<
+h1
+>
+Header
+</
+h1
+>
+This is some body text. The header grows slower than the body text.
+An extreme version of the above, some text content that starts larger than body text can and should become smaller than body text as the user’s font size increases.
+	In this floating button example, the button text is larger than the body text at 1x but gets smaller at ~2.5x font scale.
+<
+meta
+name
+=
+"text-scale"
+content
+=
+"scale"
+/>
+<
+style
+>
+.
+floating-action-button
+{
+position
+:
+fixed
+;
+top
+:
+30
+px
+;
+right
+:
+30
+px
+;
+/*
+Grow slower than the h1 example. The two numbers must still add up
+to 1.0, but using a smaller first number (0.4 instead of 0.5)
+makes the text scale up at a slower rate.
+*/
+--dampen-factor
+:
+calc
+(
+0.4
++
+(
+0.6
+/
+env
+(
+preferred
+-text-scale
+)));
+font-size
+:
+calc
+(
+1.5
+rem
+*
+var
+(
+--dampen-factor
+));
+/* Resulting font sizes at various text scale factors:
+button    body
+------    ----
+1x    24px      16px
+1.5x  28.8px    24px
+2x    33.6px    32px
+3x    43.2px    48px    <-- body passes button: inversion! */
+}
+</
+style
+>
+<
+button
+class
+=
+"floating-action-button"
+>
+➕Add
+</
+button
+>
+3.
+Basic Font Properties
+w3c/csswg-drafts/126
+[css-fonts] Specifying changes to parameters for fallback fonts
+3.1.
+Font family: the
+font-family
+property
+3.1.1.
+Generic font families
+In addition to the
+CSS Fonts 4
+§ 2.1.5 Generic font families
+in CSS Fonts Level 4, the following new generic font families are also defined.
+w3c/csswg-drafts/4910
+[meta] [css-fonts] Criteria for generic font families
+xxx
+Placeholder text for the xxx generic font family.
+w3c/csswg-drafts/4566
+[css-fonts] Should we start a registry for additional generic fonts?
+3.2.
+Font weight: the
+font-weight
+property
+w3c/csswg-drafts/2690
+[css-fonts-4] Percentages in font-weight for relative weights
+3.3.
+Font style: the
+font-style
+property
+w3c/csswg-drafts/4044
+[css-fonts] Vertical text doesn't play nicely with font-style and font-stretch
+3.4.
+Relative sizing: the
+font-size-adjust
+property
+Name:
+font-size-adjust
+Value:
+none
+|
+[ ex-height
+|
+cap-height
+|
+ch-width
+|
+ic-width
+|
+ic-height ]
+?
+[ from-font
+|
+<number [0,∞]>
+]
+Initial:
+none
+Applies to:
+all elements and text
+Inherited:
+yes
+Percentages:
+N/A
+Computed value:
+the keyword
+none
+, or a pair of a metric keyword and a
+<number>
+Canonical order:
+per grammar
+Animation type:
+discrete if the keywords differ, otherwise by computed value type
+For any given font size, the apparent size and effective legibility of text
+	varies across fonts as a function of their design.
+	For example,
+	for bicameral scripts such as Latin or Cyrillic that
+	distinguish between upper and lowercase letters,
+	the relative height of lowercase letters
+	compared to their uppercase counterparts
+	is a determining factor of legibility.
+	In situations where font fallback occurs,
+	fallback fonts might not share
+	the same ratios as the desired font family
+	for key typographic metrics,
+	and will thus appear to be a different size
+	and possibly be less readable.
+Tests
+font-size-adjust-ic-height.html
+(live test)
+(source)
+w3c/csswg-drafts/8792
+[css-fonts-5] font-size-adjust: ic-height
+The
+font-size-adjust
+property provides a way
+	to preserve the readability and apparent size of text
+	when font fallback occurs.
+	It does this by adjusting the used font size
+	so that the specified metric is the same
+	regardless of the font used.
+Values have the following meanings:
+none
+No special
+font-size
+adjustment is applied.
+ex-height | cap-height | ch-width | ic-width | ic-height
+Specifies the font metric to normalize,
+			defaulting to
+ex-height
+:
+ex-height
+Normalize the
+aspect value
+of the fonts,
+					using the x-height divided by the font size.
+cap-height
+Normalize the cap-height of the fonts,
+					using the cap-height by the font size.
+ch-width
+Normalize the horizontal narrow pitch of the fonts,
+					using the advance width of “0” (ZERO, U+0030)
+					divided by the font size.
+ic-width
+Normalize the horizontal wide pitch of the font,
+					using the advance width of “水” (CJK water ideograph, U+6C34)
+					divided by the font size.
+ic-height
+Normalize the vertical wide pitch of the font,
+					using the advance height of “水” (CJK water ideograph, U+6C34)
+					divided by the font size.
+w3c/csswg-drafts/6384
+[css-fonts-5] font-size-adjust with missing metrics
+<number [0,∞]>
+Each font’s
+used
+size is normalized
+			to match the chosen font metric to
+			this specified proportion of the
+computed
+font-size
+.
+			In other words,
+			for each glyph,
+			the adjusted font size to use
+u
+is calculated as:
+u
+=
+(
+m
+/
+m′
+)
+s
+where:
+s
+=  computed
+'font-size!!property'
+value
+m
+=  metric as specified by the
+'font-size-adjust'
+property
+m′
+=  metric as specified in the actual font
+u
+=  adjusted font-size to use
+Negative values are invalid.
+from-font
+Computes to the
+<number>
+corresponding to
+			the specified metric of the
+first available font
+,
+			if it exists. 
+			Otherwise, the same as
+none
+.
+Tests
+font-size-adjust-composition.html
+(live test)
+(source)
+font-size-adjust-interpolation.html
+(live test)
+(source)
+font-size-adjust-013.html
+(live test)
+(source)
+font-size-adjust-014.html
+(live test)
+(source)
+font-size-adjust-metrics-override.html
+(live test)
+(source)
+font-size-adjust-text-orientation.html
+(live test)
+(source)
+font-size-adjust-units-001.html
+(live test)
+(source)
+font-size-adjust-computed.html
+(live test)
+(source)
+font-size-adjust-invalid.html
+(live test)
+(source)
+font-size-adjust-valid.html
+(live test)
+(source)
+The style defined below defines Verdana as the desired font family,
+		but if Verdana is not available Futura or Times will be used.
+		One paragraph also has font-size-adjust specified.
+p
+{
+font-family
+:
+Verdana
+,
+Futura
+,
+Times
+;
+}
+p.adj
+{
+font-size-adjust
+:
+0.545
+;
+}
+<p>Lorem ipsum dolor sit amet
+,
+...</p>
+<p class=
+"adj"
+>Lorem ipsum dolor sit amet
+,
+...</p>
+Verdana has a relatively high aspect value of 0.545,
+		meaning lowercase letters are relatively tall
+		compared to uppercase letters,
+		so at small sizes text appears legible.
+		Times has a lower aspect value of 0.447,
+		and so if fallback occurs,
+		the text will be less legible at small sizes than Verdana
+		unless font-size-adjust is also specified.
+Note:
+For text which uses diacritics,
+		too large an x-height will actually decrease legibility
+		as the diacritics become cramped.
+How text rendered in each of these fonts compares is shown below,
+		the columns show text rendered in Verdana, Futura and Times.
+		The same font-size value is used across cells
+		within each row and red lines are included to show the differences in x-height.
+		In the upper half, each row is rendered in the same font-size value.
+		The same is true for the lower half,
+		but in this half the
+font-size-adjust
+property is also set
+		to 0.545,
+		so that the actual font size is adjusted
+		to preserve the x-height of Verdana across each row.
+		Note how small text remains relatively legible across each row in the lower half.
+Text with and without the use of
+font-size-adjust
+The value of
+font-size-adjust
+affects the
+used
+value of
+font-size
+but does not affect the
+computed
+value.
+	Therefore it can affect the size of relative units
+	that are based on font metrics
+	such as
+ex
+and
+ch
+but does not affect the size of
+em
+units.
+	Since numeric values of
+line-height
+refer to the
+computed
+size of
+font-size
+,
+font-size-adjust
+also does not affect the
+used
+value of
+line-height
+.
+Note:
+Since
+font-size-adjust
+does not factor into the
+line-height
+,
+	specifying a line height too tightly can result in overlapping lines of text.
+	For example, when a fallback font with a low
+aspect value
+is normalized to match one with a high
+aspect value
+,
+	its ascenders and descenders are likely to extend outside the line box
+	with
+line-height: 1
+.
+The
+font-size-adjust
+adjustment applies to any font that is selected
+	but in typical usage it would be based
+	on the corresponding metric value
+	of the first (most desired) font in the
+font-family
+list.
+	If this is specified accurately,
+	the
+(
+m
+/
+m′
+)
+term in the adjustment formula
+	will resolve to
+1
+for the first font
+	and no adjustment occurs for that font;
+	and the rest of the fonts will resolve to match.
+	If the value is specified inaccurately,
+	text rendered using the first font in the family list
+	will display differently in older user agents
+	that don’t support
+font-size-adjust
+.
+Authors can calculate the
+aspect value
+for a given font
+		by comparing spans with the same content
+		but different
+font-size-adjust
+properties.
+		If the same font-size is used, the spans will match
+		when the
+font-size-adjust
+value is accurate for the given font.
+Two spans with borders are used to determine the
+aspect value
+of a font.
+		The
+font-size
+is the same for both spans
+		but the
+font-size-adjust
+property is specified only for the right span.
+		Starting with a value of 0.5,
+		the aspect value can be adjusted
+		until the borders around the two letters line up.
+p
+{
+font-family
+:
+Futura
+;
+font-size
+:
+500
+px
+;
+}
+span
+{
+border
+:
+solid
+1
+px
+red
+;
+}
+.adjust
+{
+font-size-adjust
+:
+0.5
+;
+}
+<p><span>b</span><span class=
+"adjust"
+>b</span></p>
+Futura with an
+aspect value
+of 0.5
+The box on the right is a bit bigger than the one on the left, so the
+aspect value
+of this font is something less than 0.5.
+		Adjust the value until the boxes align.
+Note:
+If the specified metric has been overridden in
+@font-face
+,
+	e.g. by
+size-adjust
+,
+	then the overridden metric will be used in the
+font-size-adjust
+calculation.
+	Consequently, applying
+font-size-adjust
+and
+size-adjust
+together
+	means that
+size-adjust
+appears to have no effect.
+4.
+Font Resources
+4.1.
+The
+@font-face
+rule
+Note:
+Descriptors are applied per-font rather than per-element.
+	Multiple fonts can be used within an individual element
+	e.g. for characters not supported by the
+first available font
+.
+4.2.
+Font reference: the
+src
+descriptor
+4.2.1.
+Parsing the
+src
+descriptor
+The
+src
+descriptor value must be parsed
+according to section
+CSS Syntax 3
+§ 5.4.10 Parse a comma-separated list of component values
+.
+Then each component value is parsed according to this grammar:
+<url>
+[
+format
+(
+<font-format>
+)]
+?
+[
+tech
+(
+<font-tech>
+#
+)]
+? |
+local
+(
+<font-family-name>
+)
+<font-format>
+=
+[
+<string>
+|
+collection
+|
+embedded-opentype
+|
+opentype
+|
+svg
+|
+truetype
+|
+woff
+|
+woff2
+]
+<font-tech>
+=
+[
+<font-features-tech>
+|
+<color-font-tech>
+|
+variations
+|
+palettes
+|
+incremental
+]
+<font-features-tech>
+=
+[
+features-opentype
+|
+features-aat
+|
+features-graphite
+]
+<color-font-tech>
+=
+[
+color-COLRv0
+|
+color-COLRv1
+|
+color-SVG
+|
+color-sbix
+|
+color-CBDT
+]
+If a component value is parsed correctly
+and is a supported
+CSS Fonts 4
+§ 11.2 Font formats
+or
+CSS Fonts 4
+§ 11.1 Font tech
+,
+add it to the list of supported sources.
+If parsing a component value results in a parsing error
+or its format or tech are unsupported,
+do not add it to the list of supported sources.
+If there are no supported entries at the end of this process,
+the value for the
+src
+descriptor is a parse error.
+These parsing rules allow for graceful fallback of fonts
+for user agents which don’t support a particular font tech
+or font format.
+For example,
+	when incremental transfer is not supported,
+	a woff2 compressed version of the font
+	is supplied,
+	for optimal performance.
+	Then, for
+incremental transfer
+,
+	the raw uncompressed OpenType font is provided,
+	portions of which will be loaded on demand.
+@font-face
+{
+font-family
+:
+"MyIncrementallyLoadedWebFont"
+;
+src
+:
+url
+(
+"FallbackURLForBrowsersWhichDontSupportIncrementalLoading.woff2"
+)
+format
+(
+"woff2"
+);
+src
+:
+url
+(
+"MyIncrementallyLoadedWebFont.otf"
+)
+format
+(
+opentype
+)
+tech
+(
+incremental
+);
+}
+4.3.
+Font property descriptors: the
+font-size
+w3c/csswg-drafts/806
+[css-fonts-5] Add font-size descriptor to @font-face which allows ranges (for optical sizing)
+w3c/csswg-drafts/731
+[css-fonts] font-size Descriptor for ex Unit
+Name:
+font-size
+For:
+@font-face
+Value:
+auto
+|
+[
+<number>
+]
+{1,2}
+Initial:
+auto
+auto
+The font matches any font size
+<number>
+If a single
+<number>
+is given
+		the font matches that specific font size, only.
+		If two
+<number>
+s are given,
+		they specify a range of font sizes which will match.
+4.4.
+Glyph Size Multiplier:
+the
+size-adjust
+descriptor
+Name:
+size-adjust
+For:
+@font-face
+Value:
+<percentage [0,∞]>
+Initial:
+100%
+The
+size-adjust
+descriptor defines a multiplier
+	for glyph outlines and metrics associated with this font,
+	to allow the author to harmonize the designs of various fonts
+	when rendered at the same
+font-size
+.
+All metrics associated with this font—​including glyph advances, baseline tables, and overrides provided by
+@font-face
+descriptors—​are scaled by the given percentage,
+	as are the rendered glyph images.
+	Consequently,
+	any values derived from font metrics
+	(such as
+ex
+and
+ch
+units,
+	or the
+from-font
+value of
+text-decoration-thickness
+)
+	are also affected when sourced from this font.
+	However, the
+computed
+font-size
+(and thus any values that derive from it,
+	such as
+em
+units, percentages in
+text-underline-offset
+, etc.)
+	remains unaffected.
+Note:
+The
+size-adjust
+descriptor functions similarly to
+	the
+font-size-adjust
+property,
+	which essentially calculates an adjustment per font by matching ex heights,
+	but likewise does not affect the
+computed
+font-size
+.
+Tests
+font-size-adjust-metrics-override.html
+(live test)
+(source)
+size-adjust-01.html
+(live test)
+(source)
+size-adjust-02.html
+(live test)
+(source)
+size-adjust-03.html
+(live test)
+(source)
+4.5.
+Line Height Font Metrics Overrides:
+the
+ascent-override
+,
+descent-override
+, and
+line-gap-override
+descriptors
+Name:
+ascent-override
+For:
+@font-face
+Value:
+[ normal
+|
+<percentage [0,∞]>
+]
+{1,2}
+Initial:
+normal
+Name:
+descent-override
+For:
+@font-face
+Value:
+[ normal
+|
+<percentage [0,∞]>
+]
+{1,2}
+Initial:
+normal
+Name:
+line-gap-override
+For:
+@font-face
+Value:
+[ normal
+|
+<percentage [0,∞]>
+]
+{1,2}
+Initial:
+normal
+The
+ascent-override
+,
+descent-override
+, and
+line-gap-override
+descriptors specify the
+ascent metric
+,
+descent metric
+, and
+line gap metric
+of the font, respectively.
+	The first value provides the value for the x axis,
+	and the second value provides the value for the y axis
+	(defaulting to
+normal
+if omitted).
+normal
+The corresponding metric value is obtained from the font as usual,
+			as if this descriptor were absent from the
+@font-face
+block.
+Note:
+Since there are multiple sources of such metrics in some font formats,
+			this can result in text layout that varies across UAs/platforms.
+<percentage>
+The corresponding metric is replaced by
+			the given percentage multiplied by the effective font size after adjustment.
+Tests
+ascent-descent-override.html
+(live test)
+(source)
+font-size-adjust-metrics-override.html
+(live test)
+(source)
+line-gap-override.html
+(live test)
+(source)
+metrics-override-normal-keyword.html
+(live test)
+(source)
+font-face-metric-overrides.html
+(live test)
+(source)
+The
+font-size-adjust
+property is applied after the
+size-adjust
+descriptor.
+Note:
+The consequence of applying
+font-size-adjust
+after
+size-adjust
+is that
+size-adjust
+appears to have no effect.
+Note:
+None of these descriptors affect the
+computation
+of
+font-size
+,
+line-height
+, or
+font-relative lengths
+.
+	They can, however, affect the behavior of
+line-height: normal
+and more generally the baseline alignment of
+inline-level
+content.
+Note:
+Since these metrics are only applicable in the
+block axis
+,
+	the y-axis value will only be used
+	when
+typesetting upright
+in vertical
+typographic modes
+.
+The percentage is resolved against different font sizes for different elements.
+@font-face
+{
+font-family
+:
+overridden-font
+;
+ascent-override
+:
+50
+%
+;
+...
+}
+<span style=
+"font-family: overridden-font; font-size: 20px;"
+>
+  Outer span content
+  <span style=
+"font-size: 150%;"
+>Inner span content</span>
+</span>
+The outer span uses an
+ascent
+value of
+	10px, whereas the inner span uses 15px.
+We may override the metrics of a local fallback font to match the primary font, which
+	is a web font. This reduces layout shifting when switching from fallback to the
+	primary font.
+@font-face
+{
+font-family
+:
+cool-web-font
+;
+src
+:
+url
+(
+"https://example.com/font.woff"
+);
+}
+@font-face
+{
+font-family
+:
+fallback-to-local
+;
+src
+:
+local
+(
+Some Local Font
+);
+/* Override metric values to match cool-web-font */
+ascent-override:
+125
+%
+;
+descent-override
+:
+25
+%
+;
+line-gap-override
+:
+0
+%
+;
+size-adjust
+:
+96
+%
+;
+}
+<div style=
+"font-family: cool-web-font, fallback-to-local"
+>Title goes here</div>
+<img src=
+"https://example.com/largeimage"
+alt=
+"A large image that you don't want to shift"
+>
+The image will not be shifted as much when the user agent finishes loading and
+	switches to use the web font (assuming the override values are similar to the web font’s
+	natural metrics).
+4.6.
+Superscript and subscript metrics overrides:
+the
+superscript-position-override
+,
+subscript-position-override
+,
+superscript-size-override
+and
+subscript-size-override
+descriptors
+Name:
+superscript-position-override
+For:
+@font-face
+Value:
+[ normal
+|
+from-font
+|
+<percentage>
+]
+{1,2}
+Initial:
+normal
+Name:
+subscript-position-override
+For:
+@font-face
+Value:
+[ normal
+|
+from-font
+|
+<percentage>
+]
+{1,2}
+Initial:
+normal
+Name:
+superscript-size-override
+For:
+@font-face
+Value:
+[ normal
+|
+from-font
+|
+<percentage [0,∞]>
+]
+{1,2}
+Initial:
+normal
+Name:
+subscript-size-override
+For:
+@font-face
+Value:
+[ normal
+|
+from-font
+|
+<percentage [0,∞]>
+]
+{1,2}
+Initial:
+normal
+The
+superscript-position-override
+,
+subscript-position-override
+,
+superscript-size-override
+, and
+subscript-size-override
+descriptors
+	specify the superscript offset, subscript offset, superscript size, and subscript size
+	metrics of the font, respectively,
+	which are used to synthesize glyphs when required by
+font-variant-position
+.
+	The first value provides the value for the x axis,
+	and the second value provides the value for the y axis
+	(defaulting to the first value if omitted).
+normal
+The UA determines what metrics value to use,
+			whether derived from the font or from some heuristic.
+from-font
+The corresponding metric in the font data is used, if any.
+			(If the metric is missing, same as
+normal
+.)
+<percentage>
+The corresponding metric is replaced by
+			the given percentage multiplied by the used font size.
+Note:
+Since these metrics are only applicable in the
+block axis
+,
+	the y-axis value will only be used
+	when
+typesetting upright
+in
+vertical typographic modes
+.
+5.
+Font Feature Properties
+5.1.
+Font language override: the
+font-language-override
+property
+w3c/csswg-drafts/5484
+[css-fonts-5] Removing font-language-override
+6.
+Font Feature and Variation Resolution
+w3c/csswg-drafts/5635
+[CSS-Fonts] Need method to interpolate variable font settings
+7.
+Font Variation Properties
+7.1.
+Optical sizing control: the
+font-optical-sizing
+property
+w3c/csswg-drafts/5466
+[css-text][css-fonts] Optical bounds of a line
+8.
+Font Technologies and Formats
+8.1.
+Font tech
+This section expands upon
+CSS Fonts 4
+§ 11.1 Font tech
+.
+The
+avar2
+tech refers to support for version 2 of OpenType axis variations
+[avar2]
+,
+for flexible variation axis remapping.
+For example, a font using variation axis remapping is loaded only if supported:
+@font-face
+{
+font-family
+:
+'Roboto Flex'
+;
+src
+:
+url
+(
+'RobotoFlex-VF-avar2.woff2'
+)
+format
+(
+woff2
+)
+tech
+(
+variations
+,
+avar2
+);
+src
+:
+url
+(
+'RobotoFlex-VF.woff2'
+)
+format
+(
+woff2
+)
+tech
+(
+variations
+);
+font-weight
+:
+100
+1000
+;
+font-stretch
+:
+25
+%
+151
+%
+;
+}
+9.
+Object Model
+This section expands upon
+CSS Fonts 4
+§  12. Object Model
+.
+The contents of
+@font-face
+and
+@font-feature-values
+rules
+	can be accessed via the following extensions to the CSS Object Model.
+Tests
+idlharness.html
+(live test)
+(source)
+9.1.
+The
+CSSFontFaceRule
+interface
+The
+CSSFontFaceRule
+interface represents a
+<@font-face>
+rule.
+[
+Exposed
+=
+Window
+]
+interface
+CSSFontFaceDescriptors
+:
+CSSStyleDeclaration
+{
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+src
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontFamily
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-family
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontStyle
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-style
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontWeight
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-weight
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontStretch
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-stretch
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontWidth
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-width
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontSize
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-size
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+sizeAdjust
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+size-adjust
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+unicodeRange
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+unicode-range
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontFeatureSettings
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-feature-settings
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontVariationSettings
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-variation-settings
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontNamedInstance
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-named-instance
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontDisplay
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-display
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontLanguageOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-language-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+ascentOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+ascent-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+descentOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+descent-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+lineGapOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+line-gap-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+superscriptPositionOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+superscript-position-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+subscriptPositionOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+subscript-position-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+superscriptSizeOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+superscript-size-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+subscriptSizeOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+subscript-size-override
+;
+};
+
+[
+Exposed
+=
+Window
+]
+interface
+CSSFontFaceRule
+:
+CSSRule
+{
+  [
+SameObject
+,
+PutForwards
+=
+cssText
+]
+readonly
+attribute
+CSSFontFaceDescriptors
+style
+;
+};
+10.
+Security Considerations
+No new security considerations have been reported on this specification.
+11.
+Privacy Considerations
+No new privacy considerations have been reported on this specification.
+12.
+Acknowledgments
+Firstly, the editors would like to thank all of the
+contributors to the previous level of this module
+.
+Secondly, we would like to acknowledge
+	Dave Crossland from Google,
+	Bernhard Fey from RealObjects,
+	Xiaocheng Hu from Google,
+	Jonathan Kew from Mozilla,
+	and
+	Laurence Penney
+	for their contributions to the improvements in this Level 5.
+13.
+Changes
+13.1.
+Changes since the
+WD of 6 February 2024
+Added text-scale meta tag and preferred-text-scale environment variable support, 
+		with example
+	(
+Issue 12380
+),
+	(
+Issue 12475
+)
+Added missing CSSOM superscript-position-override, subscript-position-override,
+		superscript-size-override and subscript-size-override descriptors
+Added missing CSSOM size-adjust and font-size descriptors
+Added the avar2 font tech 
+		(
+Issue 10599
+)
+Updated incremental example to latest IFT spec 
+		(
+Issue 6063
+)
+Explicitly stated that font-size-adjust precedes font metrics overrides 
+		(
+Issue 8967
+)
+13.2.
+Changes since the
+WD of 21 December 2021
+Corrected the initial value for the font-size descriptor
+Set a range for the grammar of font-size-adjust number
+Changed grammar of local() to use family-name instead for font-face-name
+Updated to current incremental font download keywords
+Made feature-* plural for consistency with CSS Conditional 5, and 11.1 Font tech
+Normalized infinity to ∞ in range notation
+Fixed a typo in the tech() function
+13.3.
+Changes since the
+WD of 2021-07-29
+Renamed technology to tech
+Security and Privacy are now separate sections
+Fixed font-technology grammar
+Copied section on parsing src descriptor from CSS Fonts 4
+13.4.
+Changes since the
+FPWD of 2021-06-29
+Removed scary warning notice
+Added incremental font technology to supports
+Conformance
+Document conventions
+Conformance requirements are expressed with a combination of
+    descriptive assertions and RFC 2119 terminology. The key words “MUST”,
+    “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD NOT”,
+    “RECOMMENDED”, “MAY”, and “OPTIONAL” in the normative parts of this
+    document are to be interpreted as described in RFC 2119.
+    However, for readability, these words do not appear in all uppercase
+    letters in this specification.
+All of the text of this specification is normative except sections
+    explicitly marked as non-normative, examples, and notes.
+[RFC2119]
+Examples in this specification are introduced with the words “for example”
+    or are set apart from the normative text with
+class=
+"example"
+,
+    like this:
+This is an example of an informative example.
+Informative notes begin with the word “Note” and are set apart from the
+    normative text with
+class=
+"note"
+, like this:
+Note, this is an informative note.
+Advisements are normative sections styled to evoke special attention and are
+    set apart from other normative text with
+<strong class=
+"advisement"
+>
+, like
+    this:
+UAs MUST provide an accessible alternative.
+Tests
+Tests relating to the content of this specification
+                     may be documented in “Tests” blocks like this one.
+                     Any such block is non-normative.
+Conformance classes
+Conformance to this specification
+    is defined for three conformance classes:
+style sheet
+A
+CSS
+            style sheet
+.
+renderer
+A
+UA
+that interprets the semantics of a style sheet and renders
+            documents that use them.
+authoring tool
+A
+UA
+that writes a style sheet.
+A style sheet is conformant to this specification
+    if all of its statements that use syntax defined in this module are valid
+    according to the generic CSS grammar and the individual grammars of each
+    feature defined in this module.
+A renderer is conformant to this specification
+    if, in addition to interpreting the style sheet as defined by the
+    appropriate specifications, it supports all the features defined
+    by this specification by parsing them correctly
+    and rendering the document accordingly. However, the inability of a
+    UA to correctly render a document due to limitations of the device
+    does not make the UA non-conformant. (For example, a UA is not
+    required to render color on a monochrome monitor.)
+An authoring tool is conformant to this specification
+    if it writes style sheets that are syntactically correct according to the
+    generic CSS grammar and the individual grammars of each feature in
+    this module, and meet all other conformance requirements of style sheets
+    as described in this module.
+Partial implementations
+So that authors can exploit the forward-compatible parsing rules to
+    assign fallback values, CSS renderers
+must
+treat as invalid (and
+ignore
+    as appropriate
+) any at-rules, properties, property values, keywords,
+    and other syntactic constructs for which they have no usable level of
+    support. In particular, user agents
+must not
+selectively
+    ignore unsupported component values and honor supported values in a single
+    multi-value property declaration: if any value is considered invalid
+    (as unsupported values must be), CSS requires that the entire declaration
+    be ignored.
+Implementations of Unstable and Proprietary Features
+To avoid clashes with future stable CSS features,
+        the CSSWG recommends
+following best practices
+for the implementation of
+unstable
+features and
+proprietary extensions
+to CSS.
+Non-experimental implementations
+Once a specification reaches the Candidate Recommendation stage,
+    non-experimental implementations are possible, and implementors should
+    release an unprefixed implementation of any CR-level feature they
+    can demonstrate to be correctly implemented according to spec.
+To establish and maintain the interoperability of CSS across
+    implementations, the CSS Working Group requests that non-experimental
+    CSS renderers submit an implementation report (and, if necessary, the
+    testcases used for that implementation report) to the W3C before
+    releasing an unprefixed implementation of any CSS features. Testcases
+    submitted to W3C are subject to review and correction by the CSS
+    Working Group.
+Further information on submitting testcases and implementation reports
+    can be found from on the CSS Working Group’s website at
+http://www.w3.org/Style/CSS/Test/
+.
+    Questions should be directed to the
+public-css-testsuite@w3.org
+mailing list.
+Index
+Terms defined by this specification
+ascent-override
+attribute for CSSFontFaceDescriptors
+, in § 9.1
+descriptor for @font-face
+, in § 4.5
+ascentOverride
+, in § 9.1
+aspect value
+, in § 3.4
+auto
+, in § 4.3
+avar2
+, in § 8.1
+cap-height
+, in § 3.4
+ch-width
+, in § 3.4
+<color-font-tech>
+, in § 4.2.1
+CSSFontFaceDescriptors
+, in § 9.1
+CSSFontFaceRule
+(interface)
+, in § 9.1
+definition of
+, in § 9.1
+descent-override
+attribute for CSSFontFaceDescriptors
+, in § 9.1
+descriptor for @font-face
+, in § 4.5
+descentOverride
+, in § 9.1
+ex-height
+, in § 3.4
+ex-height | cap-height | ch-width | ic-width | ic-height
+, in § 3.4
+font-display
+, in § 9.1
+fontDisplay
+, in § 9.1
+@font-face
+, in § 4.1
+font-family
+, in § 9.1
+fontFamily
+, in § 9.1
+font-feature-settings
+, in § 9.1
+fontFeatureSettings
+, in § 9.1
+<font-features-tech>
+, in § 4.2.1
+<font-format>
+, in § 4.2.1
+font-language-override
+, in § 9.1
+fontLanguageOverride
+, in § 9.1
+font-named-instance
+, in § 9.1
+fontNamedInstance
+, in § 9.1
+font-size
+attribute for CSSFontFaceDescriptors
+, in § 9.1
+descriptor for @font-face
+, in § 4.3
+fontSize
+, in § 9.1
+font-size-adjust
+, in § 3.4
+font-stretch
+, in § 9.1
+fontStretch
+, in § 9.1
+font-style
+, in § 9.1
+fontStyle
+, in § 9.1
+<font-tech>
+, in § 4.2.1
+font-variation-settings
+, in § 9.1
+fontVariationSettings
+, in § 9.1
+font-weight
+, in § 9.1
+fontWeight
+, in § 9.1
+font-width
+, in § 9.1
+fontWidth
+, in § 9.1
+from-font
+value for font-size-adjust
+, in § 3.4
+value for superscript-position-override!!descriptor, subscript-position-override!!descriptor, superscript-size-override!!descriptor, subscript-size-override!!descriptor
+, in § 4.6
+ic-height
+, in § 3.4
+ic-width
+, in § 3.4
+legacy
+, in § 2.1
+line-gap-override
+attribute for CSSFontFaceDescriptors
+, in § 9.1
+descriptor for @font-face
+, in § 4.5
+lineGapOverride
+, in § 9.1
+none
+, in § 3.4
+normal
+value for ascent-override!!descriptor, descent-override!!descriptor, line-gap-override!!descriptor
+, in § 4.5
+value for superscript-position-override!!descriptor, subscript-position-override!!descriptor, superscript-size-override!!descriptor, subscript-size-override!!descriptor
+, in § 4.6
+<number>
+, in § 4.3
+<number [0,∞]>
+, in § 3.4
+<percentage>
+value for ascent-override!!descriptor, descent-override!!descriptor, line-gap-override!!descriptor
+, in § 4.5
+value for superscript-position-override!!descriptor, subscript-position-override!!descriptor, superscript-size-override!!descriptor, subscript-size-override!!descriptor
+, in § 4.6
+scale
+, in § 2.1
+size-adjust
+attribute for CSSFontFaceDescriptors
+, in § 9.1
+descriptor for @font-face
+, in § 4.4
+sizeAdjust
+, in § 9.1
+src
+, in § 9.1
+style
+, in § 9.1
+subscript-position-override
+attribute for CSSFontFaceDescriptors
+, in § 9.1
+descriptor for @font-face
+, in § 4.6
+subscriptPositionOverride
+, in § 9.1
+subscript-size-override
+attribute for CSSFontFaceDescriptors
+, in § 9.1
+descriptor for @font-face
+, in § 4.6
+subscriptSizeOverride
+, in § 9.1
+superscript-position-override
+attribute for CSSFontFaceDescriptors
+, in § 9.1
+descriptor for @font-face
+, in § 4.6
+superscriptPositionOverride
+, in § 9.1
+superscript-size-override
+attribute for CSSFontFaceDescriptors
+, in § 9.1
+descriptor for @font-face
+, in § 4.6
+superscriptSizeOverride
+, in § 9.1
+text-scale
+, in § 2
+text scale factor
+, in § 2
+unicode-range
+, in § 9.1
+unicodeRange
+, in § 9.1
+xxx
+, in § 3.1.1
+Terms defined by reference
+[CSS-CASCADE-5]
+defines the following terms:
+computed value
+used value
+[CSS-DISPLAY-4]
+defines the following terms:
+inline-level
+[CSS-ENV-1]
+defines the following terms:
+preferred-text-scale
+[CSS-FONTS-4]
+defines the following terms:
+<absolute-size>
+<font-family-name>
+@font-feature-values
+first available font
+font-family
+font-language-override
+font-optical-sizing
+font-size
+font-style
+font-variant-position
+font-weight
+src
+[CSS-INLINE-3]
+defines the following terms:
+ascent metric
+descent metric
+line gap metric
+[CSS-TEXT-DECOR-4]
+defines the following terms:
+from-font
+text-decoration-thickness
+text-underline-offset
+[CSS-TRANSFORMS-2]
+defines the following terms:
+scale
+[CSS-VALUES-4]
+defines the following terms:
+<number>
+<percentage>
+<string>
+<url>
+?
+ch
+CSS-wide keywords
+em
+ex
+font-relative lengths
+px
+rem
+{A,B}
+|
+[CSS-WRITING-MODES-4]
+defines the following terms:
+block axis
+typesetting upright
+typographic mode
+vertical typographic mode
+[CSS2]
+defines the following terms:
+line-height
+medium
+[CSSOM-1]
+defines the following terms:
+CSSOMString
+CSSRule
+CSSStyleDeclaration
+[HTML]
+defines the following terms:
+content
+meta
+name
+[INFRA]
+defines the following terms:
+ASCII case-insensitive
+[SELECTORS-4]
+defines the following terms:
+:root
+[WEBIDL]
+defines the following terms:
+Exposed
+LegacyNullToEmptyString
+PutForwards
+SameObject
+References
+Normative References
+[AVAR2]
+avar — Axis Variations Table Version 2
+. 2022. URL:
+https://github.com/harfbuzz/boring-expansion-spec/blob/main/avar2.md
+[CSS-CASCADE-5]
+Elika Etemad; Miriam Suzanne; Tab Atkins Jr..
+CSS Cascading and Inheritance Level 5
+. URL:
+https://drafts.csswg.org/css-cascade-5/
+[CSS-ENV-1]
+CSS Environment Variables Module Level 1
+. URL:
+https://drafts.csswg.org/css-env-1/
+[CSS-FONTS-4]
+Chris Lilley.
+CSS Fonts Module Level 4
+. URL:
+https://drafts.csswg.org/css-fonts-4/
+[CSS-INLINE-3]
+Elika Etemad.
+CSS Inline Layout Module Level 3
+. URL:
+https://drafts.csswg.org/css-inline-3/
+[CSS-SIZE-ADJUST-1]
+CSS Mobile Text Size Adjustment Module Level 1
+. Editor's Draft. URL:
+https://drafts.csswg.org/css-size-adjust-1/
+[CSS-SYNTAX-3]
+Tab Atkins Jr.; Simon Sapin.
+CSS Syntax Module Level 3
+. URL:
+https://drafts.csswg.org/css-syntax/
+[CSS-TEXT-DECOR-4]
+Elika Etemad; Koji Ishii.
+CSS Text Decoration Module Level 4
+. URL:
+https://drafts.csswg.org/css-text-decor-4/
+[CSS-TRANSFORMS-2]
+Tab Atkins Jr.; et al.
+CSS Transforms Module Level 2
+. URL:
+https://drafts.csswg.org/css-transforms-2/
+[CSS-VALUES-3]
+Tab Atkins Jr.; Elika Etemad.
+CSS Values and Units Module Level 3
+. URL:
+https://drafts.csswg.org/css-values-3/
+[CSS-VALUES-4]
+Tab Atkins Jr.; Elika Etemad.
+CSS Values and Units Module Level 4
+. URL:
+https://drafts.csswg.org/css-values-4/
+[CSS2]
+Bert Bos; et al.
+Cascading Style Sheets Level 2 Revision 1 (CSS 2.1) Specification
+. URL:
+https://drafts.csswg.org/css2/
+[CSSOM-1]
+Daniel Glazman; Emilio Cobos Álvarez.
+CSS Object Model (CSSOM)
+. URL:
+https://drafts.csswg.org/cssom/
+[HTML]
+Anne van Kesteren; et al.
+HTML Standard
+. Living Standard. URL:
+https://html.spec.whatwg.org/multipage/
+[INFRA]
+Anne van Kesteren; Domenic Denicola.
+Infra Standard
+. Living Standard. URL:
+https://infra.spec.whatwg.org/
+[RFC2119]
+S. Bradner.
+Key words for use in RFCs to Indicate Requirement Levels
+. March 1997. Best Current Practice. URL:
+https://datatracker.ietf.org/doc/html/rfc2119
+[WEBIDL]
+Edgar Chen; Timothy Gu.
+Web IDL Standard
+. Living Standard. URL:
+https://webidl.spec.whatwg.org/
+Non-Normative References
+[CSS-DISPLAY-4]
+Elika Etemad; Tab Atkins Jr..
+CSS Display Module Level 4
+. URL:
+https://drafts.csswg.org/css-display-4/
+[CSS-WRITING-MODES-4]
+Elika Etemad; Koji Ishii.
+CSS Writing Modes Level 4
+. URL:
+https://drafts.csswg.org/css-writing-modes-4/
+[SELECTORS-4]
+Elika Etemad; Tab Atkins Jr..
+Selectors Level 4
+. URL:
+https://drafts.csswg.org/selectors/
+Property Index
+Name
+Value
+Initial
+Applies to
+Inh.
+%ages
+Anim­ation type
+Canonical order
+Com­puted value
+font-size-adjust
+none | [ ex-height | cap-height | ch-width | ic-width | ic-height ]? [ from-font | <number [0,∞]> ]
+none
+all elements and text
+yes
+N/A
+discrete if the keywords differ, otherwise by computed value type
+per grammar
+the keyword none, or a pair of a metric keyword and a <number>
+@font-face
+Descriptors
+Name
+Value
+Initial
+ascent-override
+[ normal | <percentage [0,∞]> ]{1,2}
+normal
+descent-override
+[ normal | <percentage [0,∞]> ]{1,2}
+normal
+font-size
+auto | [<number>]{1,2}
+auto
+line-gap-override
+[ normal | <percentage [0,∞]> ]{1,2}
+normal
+size-adjust
+<percentage [0,∞]>
+100%
+subscript-position-override
+[ normal | from-font | <percentage> ]{1,2}
+normal
+subscript-size-override
+[ normal | from-font | <percentage [0,∞]> ]{1,2}
+normal
+superscript-position-override
+[ normal | from-font | <percentage> ]{1,2}
+normal
+superscript-size-override
+[ normal | from-font | <percentage [0,∞]> ]{1,2}
+normal
+IDL Index
+[
+Exposed
+=
+Window
+]
+interface
+CSSFontFaceDescriptors
+:
+CSSStyleDeclaration
+{
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+src
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontFamily
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-family
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontStyle
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-style
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontWeight
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-weight
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontStretch
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-stretch
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontWidth
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-width
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontSize
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-size
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+sizeAdjust
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+size-adjust
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+unicodeRange
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+unicode-range
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontFeatureSettings
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-feature-settings
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontVariationSettings
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-variation-settings
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontNamedInstance
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-named-instance
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontDisplay
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-display
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+fontLanguageOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+font-language-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+ascentOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+ascent-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+descentOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+descent-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+lineGapOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+line-gap-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+superscriptPositionOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+superscript-position-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+subscriptPositionOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+subscript-position-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+superscriptSizeOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+superscript-size-override
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+subscriptSizeOverride
+;
+attribute
+[
+LegacyNullToEmptyString
+]
+CSSOMString
+subscript-size-override
+;
+};
+
+[
+Exposed
+=
+Window
+]
+interface
+CSSFontFaceRule
+:
+CSSRule
+{
+  [
+SameObject
+,
+PutForwards
+=
+cssText
+]
+readonly
+attribute
+CSSFontFaceDescriptors
+style
+;
+};
+Issues Index
+w3c/csswg-drafts/126
+[css-fonts] Specifying changes to parameters for fallback fonts
+↵
+w3c/csswg-drafts/4910
+[meta] [css-fonts] Criteria for generic font families
+↵
+w3c/csswg-drafts/4566
+[css-fonts] Should we start a registry for additional generic fonts?
+↵
+w3c/csswg-drafts/2690
+[css-fonts-4] Percentages in font-weight for relative weights
+↵
+w3c/csswg-drafts/4044
+[css-fonts] Vertical text doesn't play nicely with font-style and font-stretch
+↵
+w3c/csswg-drafts/8792
+[css-fonts-5] font-size-adjust: ic-height
+↵
+w3c/csswg-drafts/6384
+[css-fonts-5] font-size-adjust with missing metrics
+↵
+w3c/csswg-drafts/806
+[css-fonts-5] Add font-size descriptor to @font-face which allows ranges (for optical sizing)
+↵
+w3c/csswg-drafts/731
+[css-fonts] font-size Descriptor for ex Unit
+↵
+w3c/csswg-drafts/5484
+[css-fonts-5] Removing font-language-override
+↵
+w3c/csswg-drafts/5635
+[CSS-Fonts] Need method to interpolate variable font settings
+↵
+w3c/csswg-drafts/5466
+[css-text][css-fonts] Optical bounds of a line
+↵
+MDN
+MDN

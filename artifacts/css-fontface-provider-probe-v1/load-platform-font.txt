@@ -1,0 +1,154 @@
+>>>  727: bool gfxUserFontEntry::LoadPlatformFont(uint32_t aSrcIndex,
+     728:                                         const uint8_t*&& aOriginalFontData,
+     729:                                         uint32_t aOriginalLength,
+     730:                                         gfxUserFontType aFontType,
+     731:                                         const uint8_t*&& aSanitizedFontData,
+     732:                                         uint32_t aSanitizedLength,
+     733:                                         nsTArray<OTSMessage>&& aMessages) {
+     734:   // Only URL and buffer sources are loaded here (local sources are resolved
+     735:   // directly in DoLoadNextSrc).
+     736:   MOZ_ASSERT(
+     737:       mSrcList[aSrcIndex].mSourceType == gfxFontFaceSrc::eSourceType_URL ||
+     738:           mSrcList[aSrcIndex].mSourceType == gfxFontFaceSrc::eSourceType_Buffer,
+     739:       "unexpected source type reaching LoadPlatformFont");
+     740: 
+     741:   // This function consumes aOriginalFontData.
+     742:   auto atExit = MakeScopeExit([=]() { free((void*)aOriginalFontData); });
+     743: 
+     744:   // Wrap the sanitized data in a refcounted struct. This takes ownership of
+     745:   // the aSanitizedFontData buffer.
+     746:   RefPtr fontData =
+     747:       MakeRefPtr<FontData>(std::move(aSanitizedFontData), aSanitizedLength);
+     748: 
+     749:   RefPtr<gfxUserFontSet> fontSet = GetUserFontSet();
+     750:   if (NS_WARN_IF(!fontSet)) {
+     751:     return false;
+     752:   }
+     753: 
+     754:   for (const auto& msg : aMessages) {
+     755:     fontSet->LogMessage(this, aSrcIndex, msg.mMessage.get(),
+     756:                         msg.mLevel > 0 ? nsIScriptError::warningFlag
+     757:                                        : nsIScriptError::errorFlag);
+     758:   }
+     759: 
+     760:   if (!fontData->Data() || !fontData->Length()) {
+     761:     fontSet->LogMessage(this, aSrcIndex, "rejected by sanitizer");
+     762:     return false;
+     763:   }
+     764: 
+     765:   // Check whether fontData is a known OpenType format; it might be
+     766:   // a TrueType Collection, which OTS would accept but we don't yet
+     767:   // know how to handle. If so, discard.
+     768:   if (gfxFontUtils::DetermineFontDataType(
+     769:           fontData->Data(), fontData->Length()) != GFX_USERFONT_OPENTYPE) {
+     770:     fontSet->LogMessage(this, aSrcIndex, "not a supported OpenType format");
+     771:     return false;
+     772:   }
+     773: 
+     774:   uint32_t fontCompressionRatio =
+     775:       uint32_t(100.0 * aOriginalLength / aSanitizedLength + 0.5);
+     776:   if (aFontType == GFX_USERFONT_WOFF) {
+     777:     glean::webfont::compression_woff.AccumulateSingleSample(
+     778:         fontCompressionRatio);
+     779:   } else if (aFontType == GFX_USERFONT_WOFF2) {
+     780:     glean::webfont::compression_woff2.AccumulateSingleSample(
+     781:         fontCompressionRatio);
+     782:   }
+     783: 
+     784:   // Because platform font activation code may replace the name table
+     785:   // in the font with a synthetic one, we save the original name so that
+     786:   // it can be reported via the InspectorUtils API.
+     787:   nsAutoCString originalFullName;
+     788: 
+     789:   // The sanitizer ensures that we have a valid sfnt and a usable
+     790:   // name table, so this should never fail unless we're out of
+     791:   // memory, and GetFullNameFromSFNT is not directly exposed to
+     792:   // arbitrary/malicious data from the web.
+     793:   gfxFontUtils::GetFullNameFromSFNT(fontData->Data(), fontData->Length(),
+     794:                                     originalFullName);
+     795: 
+     796:   // Instantiate a platform font entry based on fontData.
+     797:   RefPtr<gfxFontEntry> fe = gfxPlatform::GetPlatform()->MakePlatformFont(
+     798:       mName, Weight(), Width(), SlantStyle(), fontData);
+     799:   if (!fe) {
+     800:     fontSet->LogMessage(this, aSrcIndex, "not usable by platform");
+     801:     LOG(
+     802:         ("userfonts (%p) [src %d] failed uri: (%s) for (%s)"
+     803:          " error making platform font\n",
+     804:          fontSet.get(), aSrcIndex,
+     805:          // Local fonts don't reach this function, so null mURI => buffer-type.
+     806:          mSrcList[aSrcIndex].mURI
+     807:              ? mSrcList[aSrcIndex].mURI->GetSpecOrDefault().get()
+     808:              : "(buffer)",
+     809:          FamilyName().get()));
+     810:     return false;
+     811:   }
+     812: 
+     813:   // Save a copy of the metadata block (if present) for InspectorUtils
+     814:   // to use if required. Ownership of the metadata block will be passed
+     815:   // to the gfxUserFontData record below.
+     816:   FallibleTArray<uint8_t> metadata;
+     817:   uint32_t metaOrigLen = 0;
+     818:   uint8_t compression = gfxUserFontData::kUnknownCompression;
+     819:   if (aFontType == GFX_USERFONT_WOFF) {
+     820:     CopyWOFFMetadata<WOFFHeader>(aOriginalFontData, aOriginalLength, &metadata,
+     821:                                  &metaOrigLen);
+     822:     compression = gfxUserFontData::kZlibCompression;
+     823:   } else if (aFontType == GFX_USERFONT_WOFF2) {
+     824:     CopyWOFFMetadata<WOFF2Header>(aOriginalFontData, aOriginalLength, &metadata,
+     825:                                   &metaOrigLen);
+     826:     compression = gfxUserFontData::kBrotliCompression;
+     827:   }
+     828: 
+     829: #if MOZ_FONTATIONS
+     830:   // Give the new gfxFontEntry a Skrifa reference backed by our downloaded and
+     831:   // sanitized font data.
+     832:   if (StaticPrefs::gfx_font_rendering_fontations_enabled_AtStartup()) {
+     833:     SkrifaFontRef* skf = skrifa_font_new(fontData->Data(), fontData->Length());
+     834:     if (skf) {
+     835:       fe->SetSkrifaFont(skf);
+     836: #  if NIGHTLY_BUILD
+     837:       // also append (skrifa) to the name for devtools visibility
+     838:       originalFullName.AppendLiteral(" (skrifa)");
+     839: #  endif
+     840:     }
+     841:   }
+     842: #endif
+     843: 
+     844:   // copy OpenType feature/language settings from the userfont entry to the
+     845:   // newly-created font entry
+     846:   fe->mFeatureSettings.AppendElements(mFeatureSettings);
+     847:   fe->mVariationSettings.AppendElements(mVariationSettings);
+     848:   fe->mLanguageOverride = mLanguageOverride;
+     849:   fe->SetFamilyName(FamilyName());
+     850:   fe->mRangeFlags = mRangeFlags;
+     851:   fe->mAscentOverride = mAscentOverride;
+     852:   fe->mDescentOverride = mDescentOverride;
+     853:   fe->mLineGapOverride = mLineGapOverride;
+     854:   fe->mSizeAdjust = mSizeAdjust;
+     855:   // Pass ownership of fontData buffer to the entry's userFontData.
+     856:   StoreUserFontData(fe, aSrcIndex, fontSet->GetPrivateBrowsing(),
+     857:                     originalFullName, &metadata, metaOrigLen, compression,
+     858:                     std::move(fontData));
+     859:   LOG(
+     860:       ("userfonts (%p) [src %d] loaded uri: (%s) for (%s) "
+     861:        "(%p) gen: %8.8x compress: %d%%\n",
+     862:        fontSet.get(), aSrcIndex,
+     863:        // Local fonts don't reach this function, so null mURI => buffer-type.
+     864:        mSrcList[aSrcIndex].mURI
+     865:            ? mSrcList[aSrcIndex].mURI->GetSpecOrDefault().get()
+     866:            : "(buffer)",
+     867:        FamilyName().get(), this, uint32_t(fontSet->GetGeneration()),
+     868:        fontCompressionRatio));
+     869: 
+     870:   if (NS_IsMainThread()) {
+     871:     // UserFontCache::CacheFont is not currently safe to call off-main-thread,
+     872:     // so we only cache the font if this is a main-thread load.
+     873:     gfxUserFontSet::UserFontCache::CacheFont(fe);
+     874:   }
+     875: 
+     876:   mPlatformFontEntry = std::move(fe);
+     877:   SetLoadState(STATUS_LOADED);
+     878: 
+     879:   return true;
+     880: }

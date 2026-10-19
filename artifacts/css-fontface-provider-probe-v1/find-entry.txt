@@ -1,0 +1,165 @@
+>>>  411: FontFaceSetImpl::FindOrCreateUserFontEntryFromFontFace(
+     412:     FontFaceImpl* aFontFace, gfxUserFontAttributes&& aAttr,
+     413:     StyleOrigin aOrigin) {
+     414:   FontFaceSetImpl* set = aFontFace->GetPrimaryFontFaceSet();
+     415: 
+     416:   RefPtr<gfxUserFontEntry> existingEntry = aFontFace->GetUserFontEntry();
+     417:   if (existingEntry) {
+     418:     if (NS_IsMainThread()) {
+     419:       set->UpdateUserFontEntry(existingEntry, std::move(aAttr));
+     420:     } else {
+     421:       auto task =
+     422:           MakeRefPtr<UpdateUserFontEntryRunnable>(set, existingEntry, aAttr);
+     423:       IgnoredErrorResult ignoredRv;
+     424:       task->Dispatch(GetCurrentThreadWorkerPrivate(), Canceling, ignoredRv);
+     425:     }
+     426:     return existingEntry.forget();
+     427:   }
+     428: 
+     429:   // set up src array
+     430:   nsTArray<gfxFontFaceSrc> srcArray;
+     431: 
+     432:   if (aFontFace->HasFontData()) {
+     433:     gfxFontFaceSrc* face = srcArray.AppendElement();
+     434:     if (!face) {
+     435:       return nullptr;
+     436:     }
+     437: 
+     438:     face->mSourceType = gfxFontFaceSrc::eSourceType_Buffer;
+     439:     face->mBuffer = aFontFace->TakeBufferSource();
+     440:   } else {
+     441:     size_t len = aAttr.mSources.Length();
+     442:     for (size_t i = 0; i < len; ++i) {
+     443:       gfxFontFaceSrc* face = srcArray.AppendElement();
+     444:       const auto& component = aAttr.mSources[i];
+     445:       switch (component.tag) {
+     446:         case StyleFontFaceSourceListComponent::Tag::Local: {
+     447:           nsAtom* atom = component.AsLocal();
+     448:           face->mLocalName.Append(nsAtomCString(atom));
+     449:           face->mSourceType = gfxFontFaceSrc::eSourceType_Local;
+     450:           face->mURI = nullptr;
+     451:           face->mFormatHint = StyleFontFaceSourceFormatKeyword::None;
+     452:           break;
+     453:         }
+     454: 
+     455:         case StyleFontFaceSourceListComponent::Tag::Url: {
+     456:           face->mSourceType = gfxFontFaceSrc::eSourceType_URL;
+     457:           const StyleCssUrl* url = component.AsUrl();
+     458:           nsIURI* uri = url->GetURI();
+     459:           face->mURI = uri ? MakeRefPtr<gfxFontSrcURI>(uri) : nullptr;
+     460:           const URLExtraData& extraData = url->ExtraData();
+     461:           face->mReferrerInfo = extraData.ReferrerInfo();
+     462: 
+     463:           // agent and user stylesheets are treated slightly differently,
+     464:           // the same-site origin check and access control headers are
+     465:           // enforced against the sheet principal rather than the document
+     466:           // principal to allow user stylesheets to include @font-face rules
+     467:           if (aOrigin == StyleOrigin::User ||
+     468:               aOrigin == StyleOrigin::UserAgent) {
+     469:             face->mUseOriginPrincipal = true;
+     470:             face->mOriginPrincipal = MakeRefPtr<gfxFontSrcPrincipal>(
+     471:                 extraData.Principal(), extraData.Principal());
+     472:           }
+     473: 
+     474:           face->mLocalName.Truncate();
+     475:           face->mFormatHint = StyleFontFaceSourceFormatKeyword::None;
+     476:           face->mTechFlags = StyleFontFaceSourceTechFlags::Empty();
+     477: 
+     478:           if (i + 1 < len) {
+     479:             // Check for a format hint.
+     480:             const auto& next = aAttr.mSources[i + 1];
+     481:             switch (next.tag) {
+     482:               case StyleFontFaceSourceListComponent::Tag::FormatHintKeyword:
+     483:                 face->mFormatHint = next.format_hint_keyword._0;
+     484:                 i++;
+     485:                 break;
+     486:               case StyleFontFaceSourceListComponent::Tag::FormatHintString: {
+     487:                 nsDependentCSubstring valueString(
+     488:                     reinterpret_cast<const char*>(
+     489:                         next.format_hint_string.utf8_bytes),
+     490:                     next.format_hint_string.length);
+     491: 
+     492:                 if (valueString.LowerCaseEqualsASCII("woff")) {
+     493:                   face->mFormatHint = StyleFontFaceSourceFormatKeyword::Woff;
+     494:                 } else if (valueString.LowerCaseEqualsASCII("woff2")) {
+     495:                   face->mFormatHint = StyleFontFaceSourceFormatKeyword::Woff2;
+     496:                 } else if (valueString.LowerCaseEqualsASCII("opentype")) {
+     497:                   face->mFormatHint =
+     498:                       StyleFontFaceSourceFormatKeyword::Opentype;
+     499:                 } else if (valueString.LowerCaseEqualsASCII("truetype")) {
+     500:                   face->mFormatHint =
+     501:                       StyleFontFaceSourceFormatKeyword::Truetype;
+     502:                 } else if (valueString.LowerCaseEqualsASCII("truetype-aat")) {
+     503:                   face->mFormatHint =
+     504:                       StyleFontFaceSourceFormatKeyword::Truetype;
+     505:                 } else if (valueString.LowerCaseEqualsASCII(
+     506:                                "embedded-opentype")) {
+     507:                   face->mFormatHint =
+     508:                       StyleFontFaceSourceFormatKeyword::EmbeddedOpentype;
+     509:                 } else if (valueString.LowerCaseEqualsASCII("svg")) {
+     510:                   face->mFormatHint = StyleFontFaceSourceFormatKeyword::Svg;
+     511:                 }
+     512:                 // Non-standard values that Firefox accepted, for back-compat;
+     513:                 // these are superseded by the tech() function.
+     514:                 else if (valueString.LowerCaseEqualsASCII("woff-variations")) {
+     515:                   face->mFormatHint = StyleFontFaceSourceFormatKeyword::Woff;
+     516:                 } else if (valueString.LowerCaseEqualsASCII(
+     517:                                "woff2-variations")) {
+     518:                   face->mFormatHint = StyleFontFaceSourceFormatKeyword::Woff2;
+     519:                 } else if (valueString.LowerCaseEqualsASCII(
+     520:                                "opentype-variations")) {
+     521:                   face->mFormatHint =
+     522:                       StyleFontFaceSourceFormatKeyword::Opentype;
+     523:                 } else if (valueString.LowerCaseEqualsASCII(
+     524:                                "truetype-variations")) {
+     525:                   face->mFormatHint =
+     526:                       StyleFontFaceSourceFormatKeyword::Truetype;
+     527:                 } else {
+     528:                   // unknown format specified, mark to distinguish from the
+     529:                   // case where no format hints are specified
+     530:                   face->mFormatHint = StyleFontFaceSourceFormatKeyword::Unknown;
+     531:                 }
+     532:                 i++;
+     533:                 break;
+     534:               }
+     535:               case StyleFontFaceSourceListComponent::Tag::TechFlags:
+     536:               case StyleFontFaceSourceListComponent::Tag::Local:
+     537:               case StyleFontFaceSourceListComponent::Tag::Url:
+     538:                 break;
+     539:             }
+     540:           }
+     541: 
+     542:           if (i + 1 < len) {
+     543:             // Check for a set of font-technologies flags.
+     544:             const auto& next = aAttr.mSources[i + 1];
+     545:             if (next.IsTechFlags()) {
+     546:               face->mTechFlags = next.AsTechFlags();
+     547:               i++;
+     548:             }
+     549:           }
+     550: 
+     551:           if (!face->mURI) {
+     552:             // if URI not valid, omit from src array
+     553:             srcArray.RemoveLastElement();
+     554:             NS_WARNING("null url in @font-face rule");
+     555:             continue;
+     556:           }
+     557:           break;
+     558:         }
+     559: 
+     560:         case StyleFontFaceSourceListComponent::Tag::FormatHintKeyword:
+     561:         case StyleFontFaceSourceListComponent::Tag::FormatHintString:
+     562:         case StyleFontFaceSourceListComponent::Tag::TechFlags:
+     563:           MOZ_ASSERT_UNREACHABLE(
+     564:               "Should always come after a URL source, and be consumed already");
+     565:           break;
+     566:       }
+     567:     }
+     568:   }
+     569: 
+     570:   if (srcArray.IsEmpty()) {
+     571:     return nullptr;
+     572:   }
+     573: 
+     574:   return set->FindOrCreateUserFontEntry(std::move(srcArray), std::move(aAttr));
+     575: }

@@ -1,0 +1,25 @@
+>>>  283: void FontFaceImpl::DescriptorUpdated() {
+     284:   // If we haven't yet initialized mUserFontEntry, no need to do anything here;
+     285:   // we'll respect the updated descriptor when the time comes to create it.
+     286:   if (!mUserFontEntry) {
+     287:     return;
+     288:   }
+     289: 
+     290:   gfxUserFontAttributes attr;
+     291:   RefPtr<gfxUserFontEntry> newEntry;
+     292:   if (GetAttributes(attr)) {
+     293:     newEntry = mFontFaceSet->FindOrCreateUserFontEntryFromFontFace(
+     294:         this, std::move(attr), StyleOrigin::Author);
+     295:   }
+     296:   SetUserFontEntry(newEntry);
+     297: 
+     298:   // Behind the scenes, this will actually update the existing entry and return
+     299:   // it, rather than create a new one.
+     300: 
+     301:   if (mInFontFaceSet) {
+     302:     mFontFaceSet->MarkUserFontSetDirty();
+     303:   }
+     304:   for (auto& set : mOtherFontFaceSets) {
+     305:     set->MarkUserFontSetDirty();
+     306:   }
+     307: }

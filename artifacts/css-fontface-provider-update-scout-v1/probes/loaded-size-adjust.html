@@ -1,0 +1,73 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Loaded FontFace size adjustment</title>
+<style>
+.sample { display: inline-block; font-size: 20px; line-height: 20px;
+  font-synthesis: none; font-optical-sizing: none; font-size-adjust: none;
+  letter-spacing: 0; word-spacing: 0; }
+</style>
+<h1>Loaded FontFace size adjustment</h1>
+<pre id="output">Running</pre>
+<div id="samples"></div>
+<script>
+window.ready = (async () => {
+  const response = await fetch("Ahem.ttf");
+  if (!response.ok) throw new Error(`Font fetch: ${response.status}`);
+  const data = await response.arrayBuffer();
+  const rows = [];
+  let serial = 0;
+  async function face(adjust) {
+    const result = new FontFace(`SizeAdjustProbe${serial++}`, data.slice(0), {sizeAdjust: adjust});
+    await result.loaded;
+    if (result.status !== "loaded") throw new Error("Font did not load");
+    return result;
+  }
+  function sample(font) {
+    const el = document.createElement("span");
+    el.className = "sample";
+    el.style.fontFamily = `"${font.family}"`;
+    el.textContent = "XXXX";
+    document.getElementById("samples").append(el, document.createElement("br"));
+    return el;
+  }
+  function capture(label, font, el, expected) {
+    const style = getComputedStyle(el);
+    const actual = el.getBoundingClientRect().width;
+    rows.push({label, status: font.status, descriptor: font.sizeAdjust,
+      family: font.family, computedFamily: style.fontFamily, fontSize: style.fontSize,
+      actual, expected, pass: Math.abs(actual - expected) < 0.01});
+  }
+  for (const [adjust, expected] of [["100%", 80], ["50%", 40]]) {
+    const font = await face(adjust);
+    document.fonts.add(font);
+    capture(`fresh ${adjust}`, font, sample(font), expected);
+  }
+  const detached = await face("100%");
+  detached.sizeAdjust = "50%";
+  document.fonts.add(detached);
+  capture("loaded then mutated before addition", detached, sample(detached), 40);
+  const active = await face("100%");
+  document.fonts.add(active);
+  const el = sample(active);
+  capture("before mutation", active, el, 80);
+  active.sizeAdjust = "50%";
+  capture("existing element after mutation", active, el, 40);
+  capture("fresh element using mutated face", active, sample(active), 40);
+  document.fonts.delete(active);
+  document.fonts.add(active);
+  capture("after deletion and re-addition", active, el, 40);
+  await document.fonts.ready;
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  capture("after ready and two frames", active, el, 40);
+  active.sizeAdjust = "100%";
+  capture("restored descriptor", active, el, 80);
+  const calibrated = rows.slice(0, 2).every(row => row.pass);
+  window.results = {status: calibrated ? "CALIBRATED" : "CALIBRATION FAILED", rows};
+  document.getElementById("output").textContent = JSON.stringify(window.results, null, 2);
+  return window.results;
+})().catch(error => {
+  window.results = {status: "ERROR", error: String(error)};
+  document.getElementById("output").textContent = JSON.stringify(window.results);
+  throw error;
+});
+</script>
