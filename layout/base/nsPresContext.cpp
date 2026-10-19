@@ -1088,8 +1088,9 @@ void nsPresContext::UpdateContainerQueryStylesAndAnchorPosLayout() {
     MOZ_ASSERT(type != StyleContainerType::NORMAL,
                "Non-container frames shouldn't be in this set");
 
-    const QueryContainerState newState{frame->GetSize(),
-                                       frame->GetWritingMode(), type};
+    const QueryContainerState newState{
+        frame->GetContentRectRelativeToSelf().Size(), frame->GetWritingMode(),
+        type};
     QueryContainerState* oldState = frame->GetProperty(ContainerState());
 
     const bool changed = !oldState || oldState->Changed(newState);
