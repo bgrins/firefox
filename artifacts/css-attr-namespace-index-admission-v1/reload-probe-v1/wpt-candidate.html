@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Repeated typed attribute after cycle invalidation</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#substitute-arbitrary-substitution-function">
+<link id="probe-sheet" rel="stylesheet" href="probe.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<div id="fixture"></div>
+<script src="probe.js"></script>
+<script>
+setup({explicit_done: true});
+window.addEventListener("load", () => {
+  const result = runAttributeReloadProbe();
+  test(() => {
+    assert_true(result.support);
+    assert_equals(result.fixtureWidth, "100px");
+  }, "Syntax support and containing block calibration");
+  for (const row of result.rows) {
+    test(() => {
+      assert_not_equals(row.specified, "");
+      assert_equals(row.width, "10px");
+      assert_equals(row.missingCustom, "");
+      assert_equals(row.actual.custom, row.expected.custom, "custom property tokens");
+      assert_equals(row.actual.second, row.expected.second, "second custom property");
+      assert_equals(row.actual.top, row.expected.top, "margin-top");
+      assert_equals(row.actual.right, row.expected.right, "margin-right");
+    }, row.id);
+  }
+  done();
+});
+</script>
