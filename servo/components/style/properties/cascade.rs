@@ -4,7 +4,7 @@
 
 //! The main cascading algorithm of the style system.
 
-use crate::FxHashMap;
+use crate::{FxHashMap, Namespace};
 use crate::applicable_declarations::{CascadePriority, RevertKind};
 use crate::color::AbsoluteColor;
 use crate::computed_value_flags::ComputedValueFlags;
@@ -707,7 +707,7 @@ struct SeenSubstitutionFunctions<'a> {
     /// The boolean means whether the value may have references. If false, we don't need to bother
     /// performing lookups for cycle detection.
     var: PrecomputedHashMap<&'a Name, bool>,
-    attr: PrecomputedHashSet<&'a Name>,
+    attr: PrecomputedHashMap<&'a Namespace, PrecomputedHashSet<&'a Name>>,
 }
 
 #[derive(Default)]
@@ -1802,7 +1802,7 @@ impl<'a> Cascade<'a> {
                     // afterwards.
                     substitute_references_if_needed_and_apply(
                         name,
-                        SubstitutionFunctionKind::Var,
+                        None,
                         unparsed_value,
                         self.stylist,
                         context,
@@ -2057,9 +2057,22 @@ impl<'a> Cascade<'a> {
         self.may_have_custom_property_cycles = true;
 
         for next in &refs.refs {
-            if !next.is_attr_with_type() || !self.seen.custom.attr.insert(&next.name) {
+            if !next.is_attr_with_type() {
                 // Only type() can have nested references, so we don't need to eagerly look at
                 // others.
+                continue;
+            }
+            let Some(namespace) = next.attribute_data.namespace() else {
+                continue;
+            };
+            if !self
+                .seen
+                .custom
+                .attr
+                .entry(namespace)
+                .or_default()
+                .insert(&next.name)
+            {
                 continue;
             }
             if let Ok(v) = get_attr_value_for_cycle_resolution(
@@ -2071,7 +2084,7 @@ impl<'a> Cascade<'a> {
                 context
                     .builder
                     .substitution_functions
-                    .insert_attr(&next.name, v);
+                    .insert_attr(&next.name, namespace, v);
             }
         }
     }
@@ -2139,9 +2152,18 @@ fn substitute_all(
 
     #[derive(Clone, Eq, PartialEq, Debug)]
     enum VarType {
-        Attr(Name),
+        Attr(Name, Namespace),
         Custom(Name),
         NonCustom(SingleNonCustomReference),
+    }
+
+    impl VarType {
+        fn namespace(&self) -> Option<&Namespace> {
+            match self {
+                Self::Attr(_, namespace) => Some(namespace),
+                _ => None,
+            }
+        }
     }
 
     /// Struct recording necessary information for each variable.
@@ -2162,7 +2184,7 @@ fn substitute_all(
         /// The map from the custom property name to its order index.
         var: PrecomputedHashMap<Name, usize>,
         /// The map from the attribute name to its order index.
-        attr: PrecomputedHashMap<Name, usize>,
+        attr: PrecomputedHashMap<Namespace, PrecomputedHashMap<Name, usize>>,
     }
 
     impl OrderIndexMap {
@@ -2223,11 +2245,11 @@ fn substitute_all(
         /// Marks a given `name` as being in a loop.
         fn handle_loop(&mut self, name: &VarType) {
             match name {
-                VarType::Attr(name) => {
+                VarType::Attr(name, namespace) => {
                     self.computed_context
                         .builder
                         .substitution_functions
-                        .remove_attr(name);
+                        .remove_attr(name, namespace);
                 },
                 VarType::Custom(name) => {
                     // This variable is in a loop. Resolve to invalid.
@@ -2316,7 +2338,13 @@ fn substitute_all(
                     if !can_chain {
                         continue;
                     }
-                    if context.map().get_attr(&next.name).is_none()
+                    let Some(namespace) = next.attribute_data.namespace() else {
+                        if let Some(ref fallback) = next.fallback {
+                            refs_stack.push(&fallback.references);
+                        }
+                        continue;
+                    };
+                    if context.map().get_attr(&next.name, namespace).is_none()
                         && let Ok(val) = get_attr_value_for_cycle_resolution(
                             &next.name,
                             &next.attribute_data,
@@ -2324,9 +2352,9 @@ fn substitute_all(
                             attribute_tracker,
                         )
                     {
-                        context.map_mut().insert_attr(&next.name, val);
+                        context.map_mut().insert_attr(&next.name, namespace, val);
                     }
-                    VarType::Attr(next.name.clone())
+                    VarType::Attr(next.name.clone(), namespace.clone())
                 } else {
                     VarType::Custom(next.name.clone())
                 };
@@ -2350,7 +2378,10 @@ fn substitute_all(
                             context.stylist.get_custom_property_registration(&next.name);
                         context.map().get_var(registration, &next.name)
                     },
-                    SubstitutionFunctionKind::Attr => context.map().get_attr(&next.name),
+                    SubstitutionFunctionKind::Attr => next
+                        .attribute_data
+                        .namespace()
+                        .and_then(|namespace| context.map().get_attr(&next.name, namespace)),
                     SubstitutionFunctionKind::Env => unreachable!("Handled above"),
                 };
                 // The primary is guaranteed-invalid if it's absent from the map, or still
@@ -2435,7 +2466,7 @@ fn substitute_all(
         let mut value_non_custom_refs = ReferenceFlags::empty();
         let mut registered = false;
         let value = match var {
-            VarType::Custom(ref name) | VarType::Attr(ref name) => {
+            VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
                 let map = &context.computed_context.builder.substitution_functions;
                 let (registration, value, kind) = if matches!(var, VarType::Custom(..)) {
                     let registration = context.stylist.get_custom_property_registration(name);
@@ -2448,7 +2479,8 @@ fn substitute_all(
                     // `attr()` is always treated as unregistered.
                     (
                         PropertyDescriptors::unregistered(),
-                        map.get_attr(name)?.as_universal()?,
+                        map.get_attr(name, var.namespace().unwrap())?
+                            .as_universal()?,
                         SubstitutionFunctionKind::Attr,
                     )
                 };
@@ -2474,7 +2506,7 @@ fn substitute_all(
                         let value = value.clone();
                         substitute_references_if_needed_and_apply(
                             name,
-                            kind,
+                            var.namespace(),
                             &value,
                             context.stylist,
                             context.computed_context,
@@ -2488,7 +2520,11 @@ fn substitute_all(
                 let index_map = if kind == SubstitutionFunctionKind::Var {
                     &mut context.index_map.var
                 } else {
-                    &mut context.index_map.attr
+                    context
+                        .index_map
+                        .attr
+                        .entry(var.namespace().unwrap().clone())
+                        .or_default()
                 };
                 match index_map.entry_ref(name) {
                     EntryRef::Occupied(entry) => {
@@ -2526,7 +2562,7 @@ fn substitute_all(
         let mut lowlink = index;
         if let Some(v) = value.as_ref() {
             debug_assert!(
-                matches!(var, VarType::Custom(_) | VarType::Attr(_)),
+                matches!(var, VarType::Custom(_) | VarType::Attr(..)),
                 "Non-custom property has references?"
             );
 
@@ -2650,18 +2686,13 @@ fn substitute_all(
 
         // Not in a loop, apply the value.
         match var {
-            VarType::Custom(ref name) | VarType::Attr(ref name) => {
+            VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
                 if let Some(ref v) = value {
-                    let kind = if matches!(var, VarType::Custom(..)) {
-                        SubstitutionFunctionKind::Var
-                    } else {
-                        SubstitutionFunctionKind::Attr
-                    };
                     // We know we're not in a loop now, perform substitution.
                     // TODO(emilio): Merge with the cycle detection loop instead?
                     substitute_references_if_needed_and_apply(
                         name,
-                        kind,
+                        var.namespace(),
                         v,
                         context.stylist,
                         context.computed_context,
@@ -2713,7 +2744,9 @@ fn substitute_all(
     }
     // Traverse potentially untraversed chained references from `attr(type())` in non-custom
     // properties.
-    for attr in &seen.attr {
-        run_one(VarType::Attr((*attr).clone()));
+    for (namespace, attributes) in &seen.attr {
+        for attr in attributes {
+            run_one(VarType::Attr((*attr).clone(), (*namespace).clone()));
+        }
     }
 }

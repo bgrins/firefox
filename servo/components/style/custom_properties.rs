@@ -19,6 +19,7 @@ use crate::properties_and_values::{
         SpecifiedValue as SpecifiedRegisteredValue,
     },
 };
+use crate::selector_map::PrecomputedHashMap;
 use crate::stylesheets::UrlExtraData;
 use crate::stylesheets::container_rule::AttrReferenceSet;
 use crate::stylist::Stylist;
@@ -676,7 +677,7 @@ pub struct ComputedSubstitutionFunctions {
     /// The applicable custom properties (includes inherited and non-inherited).
     pub custom_properties: ComputedCustomProperties,
     /// The applicable DOM attributes.
-    pub attributes: OwnMap,
+    pub attributes: PrecomputedHashMap<Namespace, OwnMap>,
 }
 
 impl ComputedSubstitutionFunctions {
@@ -685,7 +686,7 @@ impl ComputedSubstitutionFunctions {
     #[inline(always)]
     pub fn new(
         custom_properties: Option<ComputedCustomProperties>,
-        attributes: Option<OwnMap>,
+        attributes: Option<PrecomputedHashMap<Namespace, OwnMap>>,
     ) -> Self {
         Self {
             custom_properties: custom_properties.unwrap_or_default(),
@@ -703,9 +704,18 @@ impl ComputedSubstitutionFunctions {
         self.custom_properties.insert(registration, name, value);
     }
 
+    /// Store a computed attribute value by its expanded name.
     #[inline(always)]
-    pub(crate) fn insert_attr(&mut self, name: &Name, value: ComputedRegisteredValue) {
-        self.attributes.insert(name.clone(), Some(value));
+    pub fn insert_attr(
+        &mut self,
+        name: &Name,
+        namespace: &Namespace,
+        value: ComputedRegisteredValue,
+    ) {
+        self.attributes
+            .entry(namespace.clone())
+            .or_default()
+            .insert(name.clone(), Some(value));
     }
 
     #[inline(always)]
@@ -714,8 +724,11 @@ impl ComputedSubstitutionFunctions {
     }
 
     #[inline(always)]
-    pub(crate) fn remove_attr(&mut self, name: &Name) {
-        self.attributes.insert(name.clone(), None);
+    pub(crate) fn remove_attr(&mut self, name: &Name, namespace: &Namespace) {
+        self.attributes
+            .entry(namespace.clone())
+            .or_default()
+            .insert(name.clone(), None);
     }
 
     #[inline(always)]
@@ -728,8 +741,15 @@ impl ComputedSubstitutionFunctions {
     }
 
     #[inline(always)]
-    pub(crate) fn get_attr(&self, name: &Name) -> Option<&ComputedRegisteredValue> {
-        self.attributes.get(name).and_then(|p| p.as_ref())
+    pub(crate) fn get_attr(
+        &self,
+        name: &Name,
+        namespace: &Namespace,
+    ) -> Option<&ComputedRegisteredValue> {
+        self.attributes
+            .get(namespace)?
+            .get(name)
+            .and_then(|p| p.as_ref())
     }
 }
 
@@ -747,6 +767,16 @@ enum AttributeType {
 pub struct AttributeData {
     kind: AttributeType,
     namespace: ParsedNamespace,
+}
+
+impl AttributeData {
+    /// The resolved namespace, including the null namespace.
+    pub fn namespace(&self) -> Option<&Namespace> {
+        match &self.namespace {
+            ParsedNamespace::Known(namespace) => Some(namespace),
+            ParsedNamespace::Unknown => None,
+        }
+    }
 }
 
 /// For a CSS string, the range, counted in bytes, that is attr()-tainted.
@@ -1460,14 +1490,13 @@ pub fn handle_invalid_at_computed_value_time(
 /// Replace `var()`, `env()`, and `attr()` functions in a pre-existing variable value.
 pub fn substitute_references_if_needed_and_apply(
     name: &Name,
-    kind: SubstitutionFunctionKind,
+    namespace: Option<&Namespace>,
     value: &Arc<VariableValue>,
     stylist: &Stylist,
     context: &mut computed::Context,
     attribute_tracker: &mut AttributeTracker,
 ) {
-    debug_assert_ne!(kind, SubstitutionFunctionKind::Env);
-    let is_var = matches!(kind, SubstitutionFunctionKind::Var);
+    let is_var = namespace.is_none();
     let registration = stylist.get_custom_property_registration(name);
     if is_var && !value.has_references() && registration.is_universal() {
         // Trivial path: no references and no need to compute the value, just apply it directly.
@@ -1494,8 +1523,11 @@ pub fn substitute_references_if_needed_and_apply(
     let Ok(substitution) = substitution else {
         if is_var {
             handle_invalid_at_computed_value_time(name, registration, context);
-        } else {
-            context.builder.substitution_functions.remove_attr(name);
+        } else if let Some(namespace) = namespace {
+            context
+                .builder
+                .substitution_functions
+                .remove_attr(name, namespace);
         }
         return;
     };
@@ -1556,8 +1588,8 @@ pub fn substitute_references_if_needed_and_apply(
         }
     }
 
-    match kind {
-        SubstitutionFunctionKind::Var => {
+    match namespace {
+        None => {
             let value = match substitution.into_value(
                 url_data,
                 registration,
@@ -1575,7 +1607,7 @@ pub fn substitute_references_if_needed_and_apply(
                 .substitution_functions
                 .insert_var(registration, name, value);
         },
-        SubstitutionFunctionKind::Attr => {
+        Some(namespace) => {
             let mut value = ComputedRegisteredValue::universal(Arc::new(VariableValue::new(
                 substitution.css.into_owned(),
                 url_data,
@@ -1586,9 +1618,8 @@ pub fn substitute_references_if_needed_and_apply(
             context
                 .builder
                 .substitution_functions
-                .insert_attr(name, value);
+                .insert_attr(name, namespace, value);
         },
-        SubstitutionFunctionKind::Env => unreachable!("Kind cannot be env."),
     }
 }
 
@@ -1912,7 +1943,7 @@ fn substitute_one_reference<'a>(
                                 attr
                             } else {
                                 substitution_functions
-                                    .get_attr(&reference.name)
+                                    .get_attr(&reference.name, namespace?)
                                     .map(|v| v.to_variable_value())?
                                     .css
                             }
