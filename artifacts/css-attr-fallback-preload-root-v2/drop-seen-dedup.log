@@ -1,0 +1,56 @@
+PreparationExecution.lean:79:99: error: unsolved goals
+Value : Type
+provider : Provider Value
+info : Info
+fallback : List Ref
+stack : List (List Ref)
+state : PrepState Value
+key : Key
+key_eq : infoKey info = some key
+seen : key ∈ state.cache.seen
+⊢ { cache := preload state.cache key (provider state.cache info), attempts := key :: state.attempts } = state
+PreparationExecution.lean:80:77: warning: This simp argument is unused:
+  seen
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [scanAndPrepare, enqueue, Ref.fallback, prepareOne, Ref.info, key_eq]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+PreparationExecution.lean:103:30: warning: This simp argument is unused:
+  seen
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [prepareOne, key_eq]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+PreparationExecution.lean:123:4: error: unsolved goals
+case pos
+Value : Type
+provider : Provider Value
+state : PrepState Value
+ref : Ref
+other : Key
+key_eq : infoKey ref.info = some other
+seen : other ∈ state.cache.seen
+⊢ (preload state.cache other (provider state.cache ref.info)).values other = state.cache.values other
+PreparationExecution.lean:124:32: warning: This simp argument is unused:
+  seen
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [prepareOne, key_eq]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+PreparationExecution.lean:183:6: error: Type mismatch: After simplification, term
+  valid
+ has type
+  AttemptsInvariant state
+but is expected to have type
+  AttemptsInvariant
+    { cache := preload state.cache key (provider state.cache ref.info), attempts := key :: state.attempts }
+PreparationExecution.lean:185:37: warning: This simp argument is unused:
+  seen
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [prepareOne, key_eq, ↓reduceIte, AttemptsInvariant]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

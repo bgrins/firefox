@@ -1,0 +1,57 @@
+FallbackSchedule.lean:49:38: error: unsolved goals
+case cons.mk.some
+rest : List Ref
+ih : ∀ (stack : List (List Ref)), scan rest stack = (children rest).reverse ++ stack
+stack : List (List Ref)
+info : Info
+val✝ : List Ref
+⊢ ¬(Ref.mk info (some val✝)).info.kind = Kind.var
+FallbackSchedule.lean:54:36: error: unsolved goals
+case mk.some
+stack : List (List Ref)
+info : Info
+val✝ : List Ref
+⊢ stackCost (if (Ref.mk info (some val✝)).info.kind = Kind.var then stack else val✝ :: stack) =
+    1 + refsCost val✝ + stackCost stack
+FallbackSchedule.lean:55:52: warning: This simp argument is unused:
+  stackCost
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [enqueue, Ref.fallback, refCost]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+FallbackSchedule.lean:116:36: error: unsolved goals
+case mk.some
+weight : Ref → Nat
+stack : List (List Ref)
+info : Info
+val✝ : List Ref
+⊢ stackMass weight (if (Ref.mk info (some val✝)).info.kind = Kind.var then stack else val✝ :: stack) =
+    refsMass weight val✝ + stackMass weight stack
+FallbackSchedule.lean:117:52: warning: This simp argument is unused:
+  stackMass
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [enqueue, Ref.fallback, refMass, Nat.add_assoc]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+FallbackSchedule.lean:153:0: error: Not a definitional equality: the left-hand side
+  enqueue (Ref.mk info (some [])) stack
+is not definitionally equal to the right-hand side
+  [] :: stack
+FallbackSchedule.lean:154:56: error: Type mismatch
+  rfl
+has type
+  ?m.7 = ?m.7
+but is expected to have type
+  enqueue (Ref.mk info (some [])) stack = [] :: stack
+FallbackSchedule.lean:156:0: error: Not a definitional equality: the left-hand side
+  enqueue (Ref.mk a fallback) stack
+is not definitionally equal to the right-hand side
+  enqueue (Ref.mk b fallback) stack
+FallbackSchedule.lean:158:71: error: Type mismatch
+  rfl
+has type
+  ?m.3 = ?m.3
+but is expected to have type
+  enqueue (Ref.mk a fallback) stack = enqueue (Ref.mk b fallback) stack
