@@ -218,3 +218,22 @@ parser library; its four unchanged browser failures are retained and excluded
 from repair acceptance. A targeted crate rebuild and final browser pairing pass: four failures repaired,
 eleven new subtests pass and nine existing checks are unchanged. Standalone source review preserves the upstream URL branch and
 recalculates the vendor checksum without importing the earlier URL repair.
+
+## Name/escape and repaired-guard component checkpoint
+
+Root freshly compiled all nine original modules (48 audits) and the integrated
+ten-module closure (57 reports: four reused predicate audits and five new
+transfer results). Independent source/proof reviews agree. The modeled consumer
+now has semantic bytes/count/suffix equality, actual fast-prefix fusion, bounded
+consumption, return markers and corrected-guard progress. Twenty-one complete
+current tokenizer definitions and the metadata provider are bound.
+
+This advances resolved-tokenizer item1 without closing its native admissions.
+Shared UTF-8 encode/width/decoder behavior and output UTF-8 safety remain assumed;
+an intentional shared-encoder mutation still satisfies the relational theorem.
+Ownership mode is a native projection, omitted by independent semantic equality.
+Packed line-number updates also require normal completion/headroom even though
+metadata outputs are outside the projection. Full input-bound, heap/compiler,
+other-provider and whole-tokenizer obligations remain unchanged.
+
+Evidence: `../css-tokenizer-name-escape-integration-root-v1/ROOT-ACCEPTANCE.json`.

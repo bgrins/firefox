@@ -3113,3 +3113,27 @@ FontFace isolated upstream build continues without the four-line worker support,
 which is intentionally omitted for the dependency witness. Next run the eight
 retirement cases, add support, rebuild and run the final76-case matrix plus
 regressions. FontFace is not yet accepted. Current count60, accepted pending0.
+
+## Name/escape model checkpoint and numeric browser witness
+
+Root and independent review accept the conditional original name/escape model
+and the separate repaired-guard transfer. Fresh integrated replay has57 reports,
+including5 new transfer results; source binding covers21 tokenizer bodies and
+metadata update. Codec/output validity, usize and metadata headroom, ownership,
+heap/compiler and all-tokenizer composition remain open. Original frozen
+capsules and the original invalid-admission counterexample are preserved.
+
+The numeric-provider source witness now reproduces in the local browser:
+three complete literals mathematically equal0.5 compute opacity1,0,0; four
+controls pass. The7-case diagnostic completes with3FAIL/4PASS and oneOK ending.
+No numeric repair is accepted. Next evaluate a source-only repair that handles
+both nonfinite intermediates and finite underflow before a compensating
+exponent, then independent review and exact paired browser validation.
+
+FontFace's isolated upstream build remains live. Its dependency experiment
+will compare the76 final new cases plus six upstream regression harnesses before
+and after the four-line worker-family support. No extra native acceptance yet;
+the signed count remains60.
+
+Signed name/escape component checkpoint: `71fd35e1276edfef665ff1a4fada28217174a1d5`. Numeric lexical and
+decoded-unit formal production proceeds separately from the numerical repair.
