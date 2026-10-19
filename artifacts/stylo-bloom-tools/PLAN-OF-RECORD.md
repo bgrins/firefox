@@ -14,7 +14,7 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 3. Escaped terminal quotes are committed as `ed9505d25ee4333c1764acc173f95f9517ca9b07`. Four failures become 18 passes; the combined diagnostic now passes
    all 22 checks. Build, lint, root replay and final independent review pass.
 
-There are 67 committed native/WPT fixes.
+There are 68 committed native/WPT fixes.
 The conditional comment/observer component is accepted after fresh root and
 independent review; its twelve remaining obligation statuses are recorded in
 css-tokenizer-comment-provider-root-v1/ROOT-ACCEPTANCE.json (signed checkpoint
@@ -51,8 +51,27 @@ native/formal reviews pass the conditional component
 invariant: 27 exact audits, four native semantic mutants and five tamper gates.
 Raw byte and pending parser state mappings, and property providers, remain open. The native
 repair is committed as `095c5be548a2bddf5f3ff01e01da66c6098a8ee5`, after companion
-`320a3d100d7669c4508ab89570b9833390baed2d`. The committed native/WPT fix count is 67.
+`320a3d100d7669c4508ab89570b9833390baed2d`. The committed native/WPT fix count at that checkpoint was 67.
 Evidence: css-declaration-curly-root-v1/ROOT-SCOPED-ACCEPTANCE.json.
+
+### Declaration publication repair
+
+The real successful property provider admission exposed duplicate CSSOM storage
+for link-parameters containing var/env/attr. The one-line scratch-clear repair is
+committed as `780495d90a85052cff69713f1086180253cb9730`, after proof/tooling companion
+`53e30d418ef77e3b9626aa3c1cd99e7fb9a87cbf`. All 49 new checks pass: twelve failures become
+passes, while 135 other outcomes remain unchanged, including one expected failure.
+The WPT enables link-parameters; release-default exposure is not claimed.
+
+Root and independent source-only replays accept 29 conditional publication lemmas,
+21 extracted definitions, five compiled variants and four semantic witnesses. The
+proof establishes exclusive selected-branch output; callback canonicality is an
+explicit premise. Sequence lemmas retain independent transaction outputs and do
+not prove CSSOM destination updates. Next derive vector/membership consistency and
+uniqueness from the actual prepare/update/remove algorithms, including importance
+and logical ordering. URL provider proofs are in independent review; their quoted
+Function cursor exception must be tied to the exact whitespace/quote relation.
+Evidence: css-declaration-publication-root-v1/ROOT-SCOPED-ACCEPTANCE.json.
 
 ## Next proof work
 
@@ -105,7 +124,7 @@ close these obligations.
 
 ## Earlier proof checkpoints
 
-There are 67 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
+There are 68 committed native/WPT fixes; standalone alternatives are recorded where the stack shares prerequisites. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results

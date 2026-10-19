@@ -383,3 +383,27 @@ The accepted cache-epoch component supplies relevant prior reasoning; its old
 whole-file source binding is not silently treated as the new file's proof.
 
 Evidence: `../css-declaration-curly-root-v1/ROOT-SCOPED-ACCEPTANCE.json`.
+
+## Exclusive declaration publication checkpoint
+
+Root and independent fresh replay accept 29 conditional branch/publication lemmas.
+The repaired model clears ordinary declarations and separate all storage when an
+observed successful parse is abandoned; accepted output equals the selected callback
+expansion. Failure is unpublished. Exact order/all payloads are preserved, and
+canonical identities transfer from the explicit selected-expansion premise.
+
+Twenty-one complete native definitions are extracted into a bounded witness. Five
+compiled variants exercise sixteen rows each, including real LinkParameters and
+VariableValue providers, synthetic all/failure controls, and consumed/dropped drain.
+Four semantic mutations have successful native and kernel counterexamples. Five
+independent integrity controls reject before replay output. Browser pairing repairs
+twelve failures; all 49 new checks pass and 135 other outcomes are unchanged.
+
+The source bridge still admits empty entry, callback atomicity/canonicality, generated
+grammars, storage/ownership/compiler semantics and actual CSSOM updates. The sequence
+proofs concern independent transactions/latest accepted output, not mutable parser
+histories or declaration-block merging. Next compose the actual update planner,
+vector/membership set, removal, importance and logical order. All wider parser and
+CSS conformance obligations remain open.
+
+Evidence: `../css-declaration-publication-root-v1/ROOT-SCOPED-ACCEPTANCE.json`.

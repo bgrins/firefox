@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **67 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **68 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -66,6 +66,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | quoted-eof-escaped-terminal-quote | `ed9505d25ee4333c1764acc173f95f9517ca9b07` | `1b9022a98dc38e54dc9415d5eab6a51980003d13` |
 | parser-depth-limit-declaration-recovery | `55d251b7a90003546994f6576e5ee78e8fa07cb2` | `19ca0c3c68c2fb7320290be7562c02dedf02d7da` |
 | declaration-fallback-top-level-curly | `095c5be548a2bddf5f3ff01e01da66c6098a8ee5` | `320a3d100d7669c4508ab89570b9833390baed2d` |
+| declaration-substitution-publication | `780495d90a85052cff69713f1086180253cb9730` | `53e30d418ef77e3b9626aa3c1cd99e7fb9a87cbf` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1574,3 +1575,22 @@ component theorems, four compiled native mutations and five integrity gates.
 Raw byte/pending-state mapping, generated property grammars and complete
 VariableValue semantics remain admitted. Source inspection found the bug before
 the Lean component. Evidence: [acceptance](../css-declaration-curly-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
+
+## Declaration substitution publication repair
+
+Stack commit: `780495d90a85052cff69713f1086180253cb9730`; preceding proof/tooling: `53e30d418ef77e3b9626aa3c1cd99e7fb9a87cbf`.
+The native commit contains only the scratch-clear line and its 49-case WPT.
+With link-parameters enabled, successful ordinary parsing containing var/env/attr
+previously published both ordinary and deferred declarations. Fresh CSSOM setting
+duplicated names; removal left a stale length/item/cssText entry with empty getters.
+Twelve failing checks now pass and 135 other outcomes are unchanged, including one
+existing metadata-expected ident() failure. All 49 new checks pass with normal and
+important priorities. The same patch applies/reverses on the retained upstream base;
+isolated upstream runtime was not run. No release-default exposure claim.
+
+Root and independent fresh replay accept 29 conditional scratch-publication lemmas,
+five native variants and four semantic witnesses. Callback canonicality, native
+representation and full CSSOM destination lifecycle remain separate obligations.
+Discovery was source inspection and browser reproduction before the Lean companion.
+See [acceptance](../css-declaration-publication-root-v1/ROOT-SCOPED-ACCEPTANCE.json)
+and [commit check](../css-declaration-publication-root-v1/ROOT-COMMIT-CHECK.json).
