@@ -934,9 +934,11 @@ impl QueryCondition {
 
     /// Collect the attribute references in this query condition, if any.
     pub fn collect_attribute_references(&self, references: &mut AttrReferenceSet) {
-        if let QueryCondition::Style(c) = self {
-            c.collect_attribute_references(references)
-        }
+        self.visit(&mut |condition| {
+            if let Self::Style(c) = condition {
+                c.collect_attribute_references(references)
+            }
+        });
     }
 }
 
