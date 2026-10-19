@@ -830,6 +830,7 @@ fn parse_non_custom_property_declaration_value_into(
             if !saw_arbitrary_substitution_functions {
                 return Ok(());
             }
+            declarations.clear();
             ParseError::custom(style_traits::StyleParseErrorKind::UnspecifiedError)
         },
         Err(e) => e,
