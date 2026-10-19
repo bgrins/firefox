@@ -1,0 +1,86 @@
+theorem ParseWinners.arbitrary_initial_prefix : ∀ {ι ν : Type} [inst : DecidableEq.{1} ι]
+  (initial actions : List.{0} (AllOrder.Entry ι ν)),
+  AllOrder.unique initial →
+    Eq.{1} (PublicStorage.parseExtend initial actions)
+      (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} initial actions)) :=
+fun {ι ν} [DecidableEq.{1} ι] initial actions hu =>
+  Eq.mpr.{0}
+    (id.{0}
+      (congrArg.{1, 1}
+        (fun _a =>
+          Eq.{1} (PublicStorage.parseExtend _a actions) (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} _a actions)))
+        (Eq.symm.{1} (ParseWinners.winners_unique_input initial hu))))
+    (Eq.mpr.{0}
+      (id.{0}
+        (congrArg.{1, 1}
+          (fun _a =>
+            Eq.{1} _a (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} (ParseWinners.winners initial) actions)))
+          (ParseWinners.extend_winners initial actions)))
+      (Eq.mpr.{0}
+        (id.{0}
+          (congrArg.{1, 1}
+            (fun _a =>
+              Eq.{1} (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} initial actions))
+                (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} _a actions)))
+            (ParseWinners.winners_unique_input initial hu)))
+        (Eq.refl.{1} (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} initial actions)))))
+theorem ParseWinners.raw_winner_refinement : ∀ {ι ν : Type} [inst : DecidableEq.{1} ι] (raw : AllOrder.Storage ι ν)
+  (initial actions : List.{0} (AllOrder.Entry ι ν)),
+  AllOrder.unique initial →
+    AllOrder.Represents raw initial →
+      AllOrder.Represents (PublicStorage.rawExtend raw actions)
+        (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} initial actions)) :=
+fun {ι ν} [DecidableEq.{1} ι] raw initial actions hu hr =>
+  Eq.mpr.{0}
+    (id.{0}
+      (congrArg.{1, 1} (fun _a => AllOrder.Represents (PublicStorage.rawExtend raw actions) _a)
+        (Eq.symm.{1} (ParseWinners.arbitrary_initial_prefix initial actions hu))))
+    (PublicStorage.raw_extend_refinement raw initial actions hu hr)
+theorem ParseWinners.tagged_winners_exact : ∀ {ι ν : Type} [inst : DecidableEq.{1} ι]
+  (history : List.{0} (AllOrder.Entry ι ν)),
+  Eq.{1} (List.map.{0, 0} (ParseWinners.mapValue Prod.snd.{0, 0}) (ParseWinners.winners (ParseWinners.tagged history)))
+    (ParseWinners.winners history) :=
+fun {ι ν} [DecidableEq.{1} ι] history =>
+  Eq.mpr.{0}
+    (id.{0}
+      (congrArg.{1, 1} (fun _a => Eq.{1} _a (ParseWinners.winners history))
+        (Eq.symm.{1} (ParseWinners.winners_map Prod.snd.{0, 0} (ParseWinners.tagged history)))))
+    (Eq.mpr.{0}
+      (id.{0}
+        (congrArg.{1, 1} (fun _a => Eq.{1} (ParseWinners.winners _a) (ParseWinners.winners history))
+          (ParseWinners.tagged_values history)))
+      (Eq.refl.{1} (ParseWinners.winners history)))
+theorem ParseFlags.full_winner_and_flag : ∀ {ι ν : Type} [inst : DecidableEq.{1} ι]
+  (initial actions : List.{0} (AllOrder.Entry ι ν)),
+  AllOrder.unique initial →
+    Eq.{1} (ParseFlags.extendResult initial actions)
+      (Prod.mk.{0, 0} (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} initial actions))
+        (List.any.{0} actions fun new => new.important || !ParseWinners.hasImportant initial new.id)) :=
+fun {ι ν} [DecidableEq.{1} ι] initial actions hu =>
+  Eq.mpr.{0}
+    (id.{0}
+      (congrArg.{1, 1}
+        (fun _a =>
+          Eq.{1} _a
+            (Prod.mk.{0, 0} (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} initial actions))
+              (List.any.{0} actions fun new => new.important || !ParseWinners.hasImportant initial new.id)))
+        (ParseFlags.returned_flag_and_state initial actions)))
+    (Eq.mpr.{0}
+      (id.{0}
+        (congrArg.{1, 1}
+          (fun _a =>
+            Eq.{1} (Prod.mk.{0, 0} _a (ParseFlags.changed initial actions))
+              (Prod.mk.{0, 0} (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} initial actions))
+                (List.any.{0} actions fun new => new.important || !ParseWinners.hasImportant initial new.id)))
+          (ParseWinners.arbitrary_initial_prefix initial actions hu)))
+      (Eq.mpr.{0}
+        (id.{0}
+          (congrArg.{1, 1}
+            (fun _a =>
+              Eq.{1} (Prod.mk.{0, 0} (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} initial actions)) _a)
+                (Prod.mk.{0, 0} (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} initial actions))
+                  (List.any.{0} actions fun new => new.important || !ParseWinners.hasImportant initial new.id)))
+            (ParseFlags.exact_change_bit initial actions hu)))
+        (Eq.refl.{1}
+          (Prod.mk.{0, 0} (ParseWinners.winners (HAppend.hAppend.{0, 0, 0} initial actions))
+            (List.any.{0} actions fun new => new.important || !ParseWinners.hasImportant initial new.id)))))

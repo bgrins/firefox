@@ -492,3 +492,31 @@ behavior, concrete value/comparator interpretation, DOM serialization/observers
 and mixed public operation histories remain open. No new bug is counted.
 
 Evidence: ../css-declaration-batch-root-v1/ROOT-SCOPED-ACCEPTANCE.json.
+
+## Parser-priority winner checkpoint
+
+The accepted mathematical component connects arbitrary duplicate incoming
+declarations and a unique initial block to an independent whole-history
+selection: last important occurrence when present, otherwise last occurrence,
+retained in source order. Occurrence tags connect positional retention to the
+untagged result; arbitrary payloads require no equality. The raw storage
+corollary composes the existing representation model.
+
+The exact push/extend flag records whether any push was accepted. A true flag
+does not imply a changed final state or serialization, and later pushes still
+execute after the flag becomes true. One native extend call applies one
+importance to its expansion; arbitrary mixed priorities represent multiple calls.
+
+Independent manifest-only relocated replay and full proof/source review passed
+136 audits: 81 inherited, 46 new universal and nine kernel examples. Nine
+integrity controls passed. Root authenticated both capsules, read the new proofs,
+verified inherited Git blobs and live native source, and reran the closed
+checkers. Root used the independent fresh replay rather than duplicating it.
+
+No native execution or new bug belongs to this checkpoint. Actual parser/iterator
+providers, unique aligned native entry, source interpretation, allocation,
+machine/compiler behavior, CSSOM setting, callbacks and full cascade/serialization
+remain open. Animation-map constructor identity and the changing-vector removal
+loop are active follow-up components, not silently discharged prerequisites.
+
+Evidence: ../css-declaration-parse-winner-root-v1/ROOT-SCOPED-ACCEPTANCE.json.

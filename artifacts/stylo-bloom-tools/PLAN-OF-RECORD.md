@@ -11,9 +11,9 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
   `074086719e445ca72d3056f7fbf793af5e69d6f6`, with preceding formal companion
   `bad8f7998dbbb3ad1fa88c0ca6892488f912e898`. Its two-file commit contains only
   the native patch and WPT.
-- URL native state/capture and ordinary batching are accepted within scope.
-  Public storage composition, parser-priority winners and parser-history admission
-  are active.
+- URL native state/capture, ordinary batching and parser-priority winners are
+  accepted within scope. Public storage composition, animation identity and
+  parser-history admission are active.
 - Signing works. Nothing has been pushed or submitted externally.
 
 [Historical checkpoints](PLAN-HISTORY-20261019.md) preserve the previous plan
@@ -41,12 +41,13 @@ serialization. No additional browser bug was found.
 
 [Scoped acceptance](../css-declaration-batch-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
 Next join this accepted component to legal mixed public operation histories and
-actual caller readiness. A separate declarative parser-winner proof is active in
+actual caller readiness. A separate declarative parser-winner proof is accepted in
 `../css-declaration-parse-winner-proof-v1/`: last important occurrence, otherwise
 last occurrence, retained in original source order. Its producer is frozen with
-46 new universal lemmas and nine kernel examples; independent review is in
-progress. It also characterizes push/extend return flags without equating a true
+46 new universal lemmas and nine kernel examples; independent fresh relocated
+replay and complete proof review passed. It also characterizes push/extend return flags without equating a true
 flag to a different final serialization. No new native execution is claimed.
+[Scoped acceptance](../css-declaration-parse-winner-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
 
 ### 2. URL state accepted; continue public parser histories
 
@@ -93,6 +94,8 @@ key, and transition replacement checks the owning property before assignment.
 Segment grouping, option readiness, composition histories and generated layout
 remain proof obligations. Non-NaN offset validity is required by the grouping
 control flow. [Source audit](../css-declaration-animation-identity-static-v1/REPORT.md).
+Source-shaped endpoint/composition and map-constructor proofs are now active in
+`../css-animation-identity-proof-v1/`.
 
 ## Next, in priority order
 
@@ -116,6 +119,11 @@ control flow. [Source audit](../css-declaration-animation-identity-static-v1/REP
 
 ## Accepted checkpoints
 
+- **Parser-priority winners:** 46 new universal lemmas connect arbitrary source
+  histories to independent last-important/otherwise-last selection, source order,
+  raw representation and exact return flags. Native interpretation and parser,
+  provider, container and compiler premises remain open.
+  [Acceptance](../css-declaration-parse-winner-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
 - **Ordinary declaration batching:** `bb029748eaa6f3aab43b3afa58a1ab0c594ddc2d`
   accepts indexed/scheduled batch refinement
   and optional-publication transfer under explicit native/source admissions.

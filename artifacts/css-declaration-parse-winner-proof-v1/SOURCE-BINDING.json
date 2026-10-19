@@ -1,0 +1,20 @@
+{
+  "source_sha256": "8474218db02f8787c212f47a08be33a468553b4ab809e774f2d26d4ae098812a",
+  "complete_functions": [
+    {
+      "function": "extend",
+      "source": "evidence/public-operations/source/servo/components/style/properties/declaration_block.rs",
+      "start": 21915,
+      "body": "    pub fn extend(\n        &mut self,\n        mut drain: SourcePropertyDeclarationDrain,\n        importance: Importance,\n    ) -> bool {\n        let all_shorthand_len = match drain.all_shorthand {\n            AllShorthand::NotSet => 0,\n            AllShorthand::CSSWideKeyword(_) | AllShorthand::WithVariables(_) => {\n                property_counts::ALL_SHORTHAND_EXPANDED\n            },\n        };\n        let push_calls_count = drain.declarations.len() + all_shorthand_len;\n\n        // With deduplication the actual length increase may be less than this.\n        self.declarations.reserve(push_calls_count);\n\n        let mut changed = false;\n        for decl in &mut drain.declarations {\n            changed |= self.push(decl, importance);\n        }\n        drain\n            .all_shorthand\n            .declarations()\n            .fold(changed, |changed, decl| {\n                changed | self.push(decl, importance)\n            })\n    }",
+      "sha256": "98b97789583c4e970728eb139e2ff66c6d1b91d9871e4bcba2e302df5b513784"
+    },
+    {
+      "function": "push",
+      "source": "evidence/public-operations/source/servo/components/style/properties/declaration_block.rs",
+      "start": 23061,
+      "body": "    pub fn push(&mut self, declaration: PropertyDeclaration, importance: Importance) -> bool {\n        let id = declaration.id();\n        if !self.property_ids.insert(id) {\n            let mut index_to_remove = None;\n            for (i, slot) in self.declarations.iter_mut().enumerate() {\n                if slot.id() != id {\n                    continue;\n                }\n\n                let important = self.declarations_importance[i];\n\n                // For declarations from parsing, non-important declarations\n                // shouldn't override existing important one.\n                if important && !importance.important() {\n                    return false;\n                }\n\n                index_to_remove = Some(i);\n                break;\n            }\n\n            if let Some(index) = index_to_remove {\n                self.declarations.remove(index);\n                self.declarations_importance.remove(index);\n                self.declarations.push(declaration);\n                self.declarations_importance.push(importance.important());\n                return true;\n            }\n        }\n\n        self.declarations.push(declaration);\n        self.declarations_importance.push(importance.important());\n        true\n    }",
+      "sha256": "ffee5e39c7a13484d5ba65e5560bac8928d5791e6ca4386cdadb5463d5ad9ecc"
+    }
+  ],
+  "scope": "Retained native source/control-flow correspondence audit, not native compilation or a Rust semantics theorem."
+}
