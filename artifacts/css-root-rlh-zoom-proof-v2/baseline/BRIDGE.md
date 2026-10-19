@@ -1,0 +1,42 @@
+# Root rlh native/model bridge
+
+This companion concerns H2, the extra zoom in the root/direct `rlh` branch. `SCOPE.md` is the unchanged approved proposal; `APPROVAL.json` and `DESIGN-INPUTS.json` record acceptance and the final v2 binding. H1, inherited line-height normalization during style scheduling, remains separate.
+
+## Executed source
+
+`extract.py` retains complete bodies of 38 units. Each generated `extraction.json` stores the source file digest, exact body text/digest and adaptations. `style.raw.inc` is the uninstrumented extraction; `instrumentation.json` lists trace insertions. The complete original and final candidate source files are retained. Only the candidate `rlh` root guard differs; `source_audit.py` requires that exact delta.
+
+The complete selector includes all branches, nested metric helpers, base-size resolution, dependency flags and coefficient consumer. The C++ provider retains `Gecko_CalcLineHeight`, `ReflowInput::CalcLineHeight`, `ComputeLineHeight`, `GetNormalLineHeight`, C++ pixel/app-unit helpers and CSSOM unzoom. Rust retains the builder/device/cache operations, `FontSize` computed/used-size zoom, `Zoom`, finite normalization, Au conversions, resolved value and the root publication block.
+
+The complete enclosing `finish_restyle`, its change predicate, and complete specified FontSize/LineHeight/NoCalcLength caller bodies are retained in source and in `caller-boundaries.json`. They are **not compiled in this capsule**. The ordinary length caller's current/current base pair and font-size caller's inherited/inherited pair reach the extracted selector directly. Mixed current-font/inherited-line-height fixtures execute the actual `resolve_line_height_length` helper. Percentage input preparation also executes that helper with the source caller's equivalent Em coefficient, producing computed Length, never native Number. Its complete preparation traces are checked separately. Full parser/calc/cascade dispatch remains external.
+
+## Adapters and admission
+
+| Boundary | Contract and evidence |
+|---|---|
+| Font/style objects | Facades expose the fields accessed by the complete units. Input font size is scaled by the owner's effective zoom. Computed and used font sizes are equal in this profile: font-size minimum enforcement, keyword selection, and text zoom are external. Actual computed/used accessor and zoom bodies execute. |
+| Rust/C++ FFI | `repr(C,u32)` line-height tags and explicit C-compatible font structs have checked sizes, alignment and offsets in both languages. These are capsule facades, **not Gecko's generated ABI**. The extracted Rust call reaches the extracted C++ body through a single tracing wrapper; the wrapper logs the actual returned app units. |
+| Context/metrics | Null or supplied pres context, horizontal writing mode, no element, inflation 1. Normal metrics carry input owner and context/orientation identity; deterministic em/internal/external values are supplied. Real fonts, language lookup, font downloads, text inflation, input minima and writing-mode accuracy remain external. All native normal/fallback branches compile; normal cases are bounded diagnostics. Lean's normal form carries `MetricEnvironment` and an externally supplied metric, without proving metric production. |
+| Other font units | Metric lookup and root-metric caches supply declared deterministic values. Complete selector branches and flag operations execute and have preservation checks. There is no ex/ch/cap/ic conformance claim. |
+| Publication | The complete root publication block runs on PUBLISH. Root admission and `line_height_likely_changed` are schedule inputs. This does not establish the correctness of matching/traversal invalidation. |
+| Cache | Actual atomic f32-bit getter/setter bodies execute. Epoch/document/root ownership are ghost provenance tracked by the input protocol and Lean types; Gecko's cache does not store those tags. Single-thread access and a no-op FFI lock are explicit boundaries. |
+| Exposure | Actual Rust resolved-value and C++ `SetValueToPixels`/Unzoom execute. DOM style flushing, layout boxes and serialization are external and covered separately by the parent's WPT gate. |
+| Unused conversion branches | Au from-f32/from-f64 helpers compile; the selected Gecko path exercises C++ pixel→app-unit conversion followed by Rust app-unit→f32. Container, viewport and character-width adapter methods deliberately reject inputs and are outside admission. |
+
+## Independent interpretations
+
+The Lean reference selects semantic providers by role/base. Its implementation selects stored scaled providers and performs inherited transport or cache zoom. `candidate_refines_reference` is universal over explicit valid worlds. `Trace.lean` derives cache agreement by publication and proves arbitrary finite admitted sequence refinement by induction. Scheduling freshness requires publication after the authoritative commit; it does not presume an implementation cache value. Updates can change root owner/version/provider; each read may independently change descendant style/zoom/base/coefficient. Foreign-document updates preserve this document's state.
+
+`Grid.lean` proves rational app-unit quantization/round-trip and provider validity on its exact grid. Binary32 witnesses describe finite representable values and exact intermediate operations. `domain.py` independently checks the ordinary generated inputs, including primitive operands/products, app-unit `+1/2`, inverse transport and exposure; it rejects non-grid, saturated, zero/negative zoom and non-dyadic examples. This is an exact-domain interpretation plus bounded native agreement, **not a verified IEEE754 implementation or a compiler-correctness theorem**. Non-grid cases use a separate binary32 operation-order oracle and do not enter the Lean/native exact bridge.
+
+`oracle.py` consumes authored inputs only. Its semantic oracle uses rational font/line-height values. Its machine oracle independently derives every raw output field and selected-provider/operation trace, including normal/fallback results, cache persistence and synthetic root+media precedence. It never reads producer expected answers or native traces. `check.py` compares the actual traces to that oracle, then compares each admitted Lean result, source identity, cache and usage to actual native output. Model construction of valid stored values is justified by the exact-provider theorem and bounded native bridge; this is not an end-to-end proof of Rust/C++ semantics.
+
+## Mutations
+
+All ten variants compile and execute in native and Lean. Extra root zoom, omitted cache zoom, scaled publication, default-root provider, wrong inherited base, dropped coefficient, duplicated coefficient and omitted inherited transport change extracted operations. Wrong document uses an explicitly different device adapter; stale refresh omits the store while preserving the admitted publication schedule. These last two are labeled provider/bridge mutations. Coefficient mutations are disabled during input percentage preparation so every variant receives identical admitted providers. The independent reference and case admission are unchanged.
+
+`Nonvacuity.lean` proves a concrete root-before-publication → publish → descendant read → foreign update → root-version change → publish → descendant/media read trace admissible and refined. Generic sample validity covers both bases and all four provider constructors. `Admission.lean` executes 24 role/base/form witnesses and rejects stale providers, wrong cache/owner/role, missing publication and wrong version. Invalid-provider examples include an H1-shaped unnormalized stored value; the theorem excludes it rather than purporting to repair H1.
+
+## Toolchain and trust
+
+`verify.py` authenticates the complete local computational closure before importing a helper. `toolchain.py` then authenticates the Lean executable and all 10,183 retained toolchain dependency pins before invoking Lean, and pins compiler entry executables/version strings, Python version and architecture. The OS, Python runtime/stdlib, system C++ SDK and compiler installations are external trusted toolchains. Rustup's selected compiler and system libraries are constrained by version, not independently formally verified. The capsule has no Gecko build, browser, network or repository dependency during source-only replay. Kernel theorem axioms are printed; no `sorry`, extra axioms or `native_decide` are permitted in authored proof sources. Lean executable checks supplement kernel theorems.
