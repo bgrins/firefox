@@ -1,0 +1,259 @@
+diff --git a/servo/components/style/properties/declaration_block.rs b/servo/components/style/properties/declaration_block.rs
+index 58c67144de3a..d006381c70da 100644
+--- a/servo/components/style/properties/declaration_block.rs
++++ b/servo/components/style/properties/declaration_block.rs
+@@ -717,6 +717,57 @@ impl PropertyDeclarationBlock {
+         true
+     }
+ 
++    fn declaration_update(
++        &self,
++        declaration: &PropertyDeclaration,
++        importance: Importance,
++    ) -> DeclarationUpdate {
++        if !self.contains(declaration.id()) {
++            return DeclarationUpdate::Append;
++        }
++        let longhand_id = declaration.id().as_longhand();
++        if let Some(longhand_id) = longhand_id
++            && let Some(logical_group) = longhand_id.logical_group()
++        {
++            let mut needs_append = false;
++            for (pos, decl) in self.declarations.iter().enumerate().rev() {
++                let id = match decl.id().as_longhand() {
++                    Some(id) => id,
++                    None => continue,
++                };
++                if id == longhand_id {
++                    if needs_append {
++                        return DeclarationUpdate::AppendAndRemove { pos };
++                    }
++                    let important = self.declarations_importance[pos];
++                    if decl == declaration && important == importance.important() {
++                        return DeclarationUpdate::None;
++                    }
++                    return DeclarationUpdate::UpdateInPlace { pos };
++                }
++                if !needs_append
++                    && id.logical_group() == Some(logical_group)
++                    && id.is_logical() != longhand_id.is_logical()
++                {
++                    needs_append = true;
++                }
++            }
++            unreachable!("Longhand should be found in loop above");
++        }
++        self.declarations
++            .iter()
++            .enumerate()
++            .find(|&(_, decl)| decl.id() == declaration.id())
++            .map_or(DeclarationUpdate::Append, |(pos, decl)| {
++                let important = self.declarations_importance[pos];
++                if decl == declaration && important == importance.important() {
++                    DeclarationUpdate::None
++                } else {
++                    DeclarationUpdate::UpdateInPlace { pos }
++                }
++            })
++    }
++
+     /// Prepares updating this declaration block with the given
+     /// `SourcePropertyDeclaration` and importance, and returns whether
+     /// there is something to update.
+@@ -733,18 +784,7 @@ impl PropertyDeclarationBlock {
+             return source_declarations
+                 .all_shorthand
+                 .declarations()
+-                .any(|decl| {
+-                    !self.contains(decl.id())
+-                        || self
+-                            .declarations
+-                            .iter()
+-                            .enumerate()
+-                            .find(|&(_, d)| d.id() == decl.id())
+-                            .is_none_or(|(i, d)| {
+-                                let important = self.declarations_importance[i];
+-                                *d != decl || important != importance.important()
+-                            })
+-                });
++                .any(|decl| self.declaration_update(&decl, importance) != DeclarationUpdate::None);
+         }
+         // Fill `updates` with update information.
+         let mut any_update = false;
+@@ -755,52 +795,7 @@ impl PropertyDeclarationBlock {
+             source_declarations
+                 .declarations
+                 .iter()
+-                .map(|declaration| {
+-                    if !self.contains(declaration.id()) {
+-                        return DeclarationUpdate::Append;
+-                    }
+-                    let longhand_id = declaration.id().as_longhand();
+-                    if let Some(longhand_id) = longhand_id
+-                        && let Some(logical_group) = longhand_id.logical_group()
+-                    {
+-                        let mut needs_append = false;
+-                        for (pos, decl) in self.declarations.iter().enumerate().rev() {
+-                            let id = match decl.id().as_longhand() {
+-                                Some(id) => id,
+-                                None => continue,
+-                            };
+-                            if id == longhand_id {
+-                                if needs_append {
+-                                    return DeclarationUpdate::AppendAndRemove { pos };
+-                                }
+-                                let important = self.declarations_importance[pos];
+-                                if decl == declaration && important == importance.important() {
+-                                    return DeclarationUpdate::None;
+-                                }
+-                                return DeclarationUpdate::UpdateInPlace { pos };
+-                            }
+-                            if !needs_append
+-                                && id.logical_group() == Some(logical_group)
+-                                && id.is_logical() != longhand_id.is_logical()
+-                            {
+-                                needs_append = true;
+-                            }
+-                        }
+-                        unreachable!("Longhand should be found in loop above");
+-                    }
+-                    self.declarations
+-                        .iter()
+-                        .enumerate()
+-                        .find(|&(_, decl)| decl.id() == declaration.id())
+-                        .map_or(DeclarationUpdate::Append, |(pos, decl)| {
+-                            let important = self.declarations_importance[pos];
+-                            if decl == declaration && important == importance.important() {
+-                                DeclarationUpdate::None
+-                            } else {
+-                                DeclarationUpdate::UpdateInPlace { pos }
+-                            }
+-                        })
+-                })
++                .map(|declaration| self.declaration_update(declaration, importance))
+                 .inspect(|update| {
+                     if matches!(update, DeclarationUpdate::None) {
+                         return;
+@@ -831,20 +826,22 @@ impl PropertyDeclarationBlock {
+         if !matches!(drain.all_shorthand, AllShorthand::NotSet) {
+             debug_assert!(updates.updates.is_empty());
+             for decl in drain.all_shorthand.declarations() {
+-                let id = decl.id();
+-                if self.property_ids.insert(id) {
+-                    self.declarations.push(decl);
+-                    self.declarations_importance.push(important);
+-                } else {
+-                    let (idx, slot) = self
+-                        .declarations
+-                        .iter_mut()
+-                        .enumerate()
+-                        .find(|(_, d)| d.id() == decl.id())
+-                        .unwrap();
+-                    *slot = decl;
+-                    self.declarations_importance.set(idx, important);
++                match self.declaration_update(&decl, importance) {
++                    DeclarationUpdate::None => continue,
++                    DeclarationUpdate::UpdateInPlace { pos } => {
++                        self.declarations[pos] = decl;
++                        self.declarations_importance.set(pos, important);
++                        continue;
++                    },
++                    DeclarationUpdate::AppendAndRemove { pos } => {
++                        self.declarations.remove(pos);
++                        self.declarations_importance.remove(pos);
++                    },
++                    DeclarationUpdate::Append => {},
+                 }
++                self.property_ids.insert(decl.id());
++                self.declarations.push(decl);
++                self.declarations_importance.push(important);
+             }
+             return;
+         }
+diff --git a/testing/web-platform/tests/css/cssom/setproperty-all-logical-order.html b/testing/web-platform/tests/css/cssom/setproperty-all-logical-order.html
+new file mode 100644
+index 000000000000..61f1477f6f9f
+--- /dev/null
++++ b/testing/web-platform/tests/css/cssom/setproperty-all-logical-order.html
+@@ -0,0 +1,81 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>CSSOM all shorthand logical property ordering</title>
++<link rel="help" href="https://drafts.csswg.org/cssom/#dom-cssstyledeclaration-setproperty">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<script>
++const pair = ["padding-top", "padding-block-start"];
++const order = style => Array.from(style).filter(name => pair.includes(name));
++const make = names => {
++  const style = document.createElement("div").style;
++  for (const name of names) {
++    style.setProperty(name, "1px");
++  }
++  return style;
++};
++for (const value of ["initial", "inherit", "revert", "var(--all)"]) {
++  for (const priority of ["", "important"]) {
++    const label = `${value}, priority ${JSON.stringify(priority)}`;
++    test(() => {
++      const fresh = make([]);
++      fresh.setProperty("all", value, priority);
++      const expected = order(fresh);
++      assert_equals(expected.length, 2);
++      for (const names of [pair, pair.slice().reverse()]) {
++        const style = make(names);
++        style.setProperty("all", value, priority);
++        assert_array_equals(order(style), expected, `seed ${names}`);
++      }
++    }, `all expansion order: ${label}`);
++    test(() => {
++      const style = make([]);
++      style.setProperty("all", value, priority);
++      const expected = order(style);
++      style.setProperty(expected[0], value, priority);
++      assert_array_equals(order(style), expected.slice().reverse());
++      style.setProperty("all", value, priority);
++      assert_array_equals(order(style), expected);
++    }, `equal-value all reordering: ${label}`);
++    test(() => {
++      const style = make(pair);
++      const oldPriority = priority ? "" : "important";
++      for (const name of pair) {
++        style.setProperty(name, "2px", oldPriority);
++      }
++      style.setProperty("direction", "rtl", "important");
++      style.setProperty("unicode-bidi", "isolate", "important");
++      style.setProperty("--keep", "kept", "important");
++      style.setProperty("all", value, priority);
++      for (const name of pair) {
++        assert_equals(style.getPropertyPriority(name), priority, name);
++      }
++      for (const [name, expected] of [
++        ["direction", "rtl"],
++        ["unicode-bidi", "isolate"],
++        ["--keep", "kept"],
++      ]) {
++        assert_equals(style.getPropertyValue(name), expected, name);
++        assert_equals(style.getPropertyPriority(name), "important", name);
++      }
++      assert_equals(new Set(style).size, style.length);
++    }, `all priority and excluded-property control: ${label}`);
++    test(() => {
++      const expected = ["padding-block-start", "padding-top"];
++      for (const names of [pair, pair.slice().reverse()]) {
++        const style = make(names);
++        style.setProperty("padding-top", value, priority);
++        assert_array_equals(order(style), expected, `seed ${names}`);
++      }
++    }, `longhand reordering control: ${label}`);
++    test(() => {
++      const styles = [make(pair), make(pair.slice().reverse())];
++      for (const style of styles) {
++        const suffix = priority ? " !important" : "";
++        style.cssText += `all: ${value}${suffix};`;
++      }
++      assert_array_equals(order(styles[0]), order(styles[1]));
++    }, `declaration-list control: ${label}`);
++  }
++}
++</script>
