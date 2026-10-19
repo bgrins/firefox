@@ -1,0 +1,63 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered defaulting follows current registration and root inheritance</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#determining-registration">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#inherit">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+test(t => {
+  const name = "--follow-root-inherit";
+  CSS.registerProperty({name, syntax: "*", inherits: false, initialValue: "root-initial"});
+  document.documentElement.style.setProperty(name, "inherit");
+  t.add_cleanup(() => document.documentElement.style.removeProperty(name));
+  assert_equals(getComputedStyle(document.documentElement).getPropertyValue(name), "root-initial");
+}, "Root explicit inherit uses the registered initial value");
+
+test(t => {
+  const name = "--follow-sheet-switch";
+  const sheet = document.createElement("style");
+  const parent = document.createElement("div");
+  const child = document.createElement("div");
+  const rule = inherits => `@property ${name} { syntax: "<length>"; inherits: ${inherits}; initial-value: 1in; }`;
+  sheet.textContent = rule(true);
+  document.head.append(sheet);
+  parent.style.setProperty(name, "2in");
+  child.style.setProperty(name, "var(--missing, unset)");
+  parent.append(child);
+  document.body.append(parent);
+  t.add_cleanup(() => { parent.remove(); sheet.remove(); });
+  assert_equals(getComputedStyle(child).getPropertyValue(name), "192px");
+  sheet.textContent = rule(false);
+  assert_equals(getComputedStyle(child).getPropertyValue(name), "96px");
+  assert_equals(sheet.sheet.cssRules[0].initialValue, "1in");
+  sheet.remove();
+  assert_equals(getComputedStyle(child).getPropertyValue(name), "2in");
+  document.head.append(sheet);
+  assert_equals(getComputedStyle(child).getPropertyValue(name), "96px");
+}, "Substituted unset follows stylesheet registration bucket changes and removal");
+
+test(t => {
+  const name = "--follow-script-priority";
+  const sheet = document.createElement("style");
+  const parent = document.createElement("div");
+  const initial = document.createElement("div");
+  const unset = document.createElement("div");
+  sheet.textContent = `@property ${name} { syntax: "<length>"; inherits: false; initial-value: 1in; }`;
+  document.head.append(sheet);
+  parent.style.setProperty(name, "3in");
+  initial.style.setProperty(name, "var(--missing, initial)");
+  unset.style.setProperty(name, "var(--missing, unset)");
+  parent.append(initial, unset);
+  document.body.append(parent);
+  t.add_cleanup(() => { parent.remove(); sheet.remove(); });
+  const values = () => [initial, unset].map(element => getComputedStyle(element).getPropertyValue(name));
+  assert_array_equals(values(), ["96px", "96px"]);
+  CSS.registerProperty({name, syntax: "<length>", inherits: true, initialValue: "2in"});
+  assert_array_equals(values(), ["192px", "288px"]);
+  sheet.textContent = `@property ${name} { syntax: "<length>"; inherits: false; initial-value: 4in; }`;
+  assert_array_equals(values(), ["192px", "288px"]);
+  assert_equals(sheet.sheet.cssRules[0].initialValue, "4in");
+}, "Script registration takes precedence and updates initial and inheritance caches");
+</script>

@@ -1,0 +1,85 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Explicit inheritance preserves guaranteed-invalid registered values</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#inherit">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#invalid-at-computed-value-time">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@property --follow-reset-universal {
+  syntax: "*";
+  inherits: false;
+  initial-value: initial-token;
+}
+@property --follow-inherited-universal {
+  syntax: "*";
+  inherits: true;
+  initial-value: initial-token;
+}
+@property --follow-reset-length {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 7px;
+}
+@property --follow-inherited-length {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 7px;
+}
+</style>
+<body>
+<script>
+const cases = [
+  ["reset-universal", "var(--missing)", "inherit", "", "", "missing parent, direct inherit"],
+  ["reset-universal", "var(--follow-reset-universal)", "inherit", "", "", "cyclic parent, direct inherit"],
+  ["reset-universal", "var(--missing)", "var(--missing, inherit)", "", "", "missing parent, substituted inherit"],
+  ["reset-universal", "var(--missing)", "unset", "", "initial-token", "missing parent, direct unset"],
+  ["reset-universal", "var(--missing)", "var(--missing, unset)", "", "initial-token", "missing parent, substituted unset"],
+  ["inherited-universal", "var(--missing)", "inherit", "", "", "inherited property, direct inherit"],
+  ["inherited-universal", "var(--missing)", "var(--missing, unset)", "", "", "inherited property, substituted unset"],
+  ["reset-universal", "parent-token", "inherit", "parent-token", "parent-token", "present parent, direct inherit"],
+  ["reset-length", "21px", "var(--missing)", "21px", "7px", "typed reset invalid value"],
+  ["inherited-length", "21px", "var(--missing)", "21px", "21px", "typed inherited invalid value"],
+];
+for (const [suffix, parentValue, childValue, parentExpected, childExpected, label] of cases) {
+  test(t => {
+    const name = `--follow-${suffix}`;
+    const parent = document.createElement("div");
+    const child = document.createElement("div");
+    parent.style.setProperty(name, parentValue);
+    child.style.setProperty(name, childValue);
+    child.style.setProperty("--follow-observed", `var(${name}, fallback-token)`);
+    parent.append(child);
+    document.body.append(parent);
+    t.add_cleanup(() => parent.remove());
+    assert_equals(getComputedStyle(parent).getPropertyValue(name), parentExpected, "parent value prerequisite");
+    const style = getComputedStyle(child);
+    assert_array_equals(
+      [style.getPropertyValue(name), style.getPropertyValue("--follow-observed")],
+      [childExpected, childExpected || "fallback-token"]
+    );
+  }, label);
+}
+test(t => {
+  const name = "--follow-root-inherit";
+  CSS.registerProperty({name, syntax: "*", inherits: false, initialValue: "root-initial"});
+  document.documentElement.style.setProperty(name, "inherit");
+  t.add_cleanup(() => document.documentElement.style.removeProperty(name));
+  assert_equals(getComputedStyle(document.documentElement).getPropertyValue(name), "root-initial");
+}, "Root explicit inherit uses the registered initial value");
+test(t => {
+  const name = "--follow-reset-universal";
+  const parent = document.createElement("div");
+  const child = document.createElement("div");
+  parent.style.setProperty(name, "var(--missing)");
+  child.style.setProperty(name, "inherit");
+  parent.append(child);
+  document.body.append(parent);
+  t.add_cleanup(() => parent.remove());
+  assert_equals(getComputedStyle(child).getPropertyValue(name), "");
+  parent.style.setProperty(name, "parent-token");
+  assert_equals(getComputedStyle(child).getPropertyValue(name), "parent-token");
+  parent.style.setProperty(name, "var(--missing)");
+  assert_equals(getComputedStyle(child).getPropertyValue(name), "");
+}, "Explicit inheritance follows parent changes to and from invalid values");
+</script>

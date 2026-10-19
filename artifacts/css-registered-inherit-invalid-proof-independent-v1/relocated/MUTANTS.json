@@ -1,0 +1,26 @@
+[
+  {
+    "name": "old-absent-parent-gate",
+    "old": "if fixed then !c.root else (c.parent false c.name).isSome",
+    "new": "if fixed then (c.parent false c.name).isSome else (c.parent false c.name).isSome",
+    "goal": "selected (witness false) (run true true (witness false) start) = none"
+  },
+  {
+    "name": "omit-none-removal",
+    "old": "if fixed then put c s none else s",
+    "new": "if fixed then s else s",
+    "goal": "selected (witness false) (run true true (witness false) start) = none"
+  },
+  {
+    "name": "omit-root-skip",
+    "old": "if fixed then !c.root else (c.parent false c.name).isSome",
+    "new": "if fixed then true else (c.parent false c.name).isSome",
+    "goal": "selected (witness true) (run true true (witness true) start) = some 7"
+  },
+  {
+    "name": "omit-reset-dependency-bit",
+    "old": "let s := { s with inheritsResetStyle := true }",
+    "new": "let s := { s with inheritsResetStyle := s.inheritsResetStyle }",
+    "goal": "(run true true (witness false) start).inheritsResetStyle = true"
+  }
+]

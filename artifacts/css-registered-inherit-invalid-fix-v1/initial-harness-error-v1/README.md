@@ -1,0 +1,1 @@
+Initial pair has harness errors: root-control cleanup callbacks returned removeProperty strings. Subsequent cases did not run. It is not an accepted browser validation gate. Native snapshots are unchanged and retained in the parent source directory; source hashes in FINAL-PAIR.json identify both phases. Final tests use block callbacks returning undefined.

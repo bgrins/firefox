@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered initial values are computed after defaulting</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#computed-value-time-behavior">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#substitution-in-properties">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@property --initial-reset-length {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 1in;
+}
+@property --initial-inherited-length {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 1in;
+}
+@property --initial-universal-reset {
+  syntax: "*";
+  inherits: false;
+  initial-value: 1in;
+}
+@property --initial-universal-inherited {
+  syntax: "*";
+  inherits: true;
+  initial-value: 1in;
+}
+@property --initial-empty {
+  syntax: "*";
+  inherits: true;
+}
+</style>
+<body>
+<script>
+for (const property of ["--initial-reset-length", "--initial-inherited-length"]) {
+  for (const value of ["initial", "var(--missing, initial)", "var(--missing, 1in)"]) {
+    test(t => {
+      const parent = document.createElement("div");
+      const child = document.createElement("div");
+      parent.style.setProperty(property, "192px");
+      child.style.setProperty(property, value);
+      parent.append(child);
+      document.body.append(parent);
+      t.add_cleanup(() => parent.remove());
+      assert_equals(getComputedStyle(child).getPropertyValue(property), "96px");
+    }, `${property}: ${value} computes the registered initial length`);
+  }
+}
+for (const [property, expected] of [
+  ["--initial-universal-reset", "1in"],
+  ["--initial-universal-inherited", "1in"],
+  ["--initial-empty", ""],
+]) {
+  for (const value of ["initial", "var(--missing, initial)"]) {
+    test(t => {
+      const parent = document.createElement("div");
+      const child = document.createElement("div");
+      parent.style.setProperty(property, "192px");
+      child.style.setProperty(property, value);
+      parent.append(child);
+      document.body.append(parent);
+      t.add_cleanup(() => parent.remove());
+      assert_equals(getComputedStyle(child).getPropertyValue(property), expected);
+    }, `${property}: ${value} preserves the universal initial value`);
+  }
+}
+</script>
