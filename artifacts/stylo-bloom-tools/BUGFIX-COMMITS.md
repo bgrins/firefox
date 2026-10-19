@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **52 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **53 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -51,6 +51,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | worker-font-removal | `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a` | `07dc1d27343268a8add266605c33fc5f966ef155` |
 | hyphenation-coordinate | `18871240dc7d077bf223822013e7a50cf581e2d1` | `a1eed2e249aed69af41142c5a55e49a5d88fbb2e` |
 | attr-namespace-cache | `3aa7d25635ff9dc3bc105269dd9b7b13b5f80cb0` | `adde61d9742f3f9939514bdfe10fde08a794aeff` |
+| attr-invalid-entry | `fd9c07e1130bcb68684c25e7527f5b0ff3c3bd73` | `76bda27b8dfdb88ebdcb7e4706508688d0a3f064` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 

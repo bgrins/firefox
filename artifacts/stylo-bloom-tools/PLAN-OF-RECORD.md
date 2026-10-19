@@ -6,12 +6,13 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 Immediate next steps:
 
-1. Repair the browser-confirmed repeated-invalid-attribute reload defect. Keep
-   invalid cache entries distinct from never-loaded entries; preserve retry and
-   namespace semantics. Require its own native/WPT commit and preceding evidence.
-2. Repair fallback attribute preparation and separately resolve occurrence-specific
-   typed-fallback graph readiness. The frozen browser probes currently reproduce
-   nine fallback failures and four repeated-reference failures; neither is counted.
+1. Repair recursive fallback attribute preparation: the frozen 19-case browser
+   probe still has nine failures and ten controls after both attr cache repairs.
+   Keep preparation separate from used dependency edges.
+2. Resolve occurrence-specific typed-fallback graph readiness. The six-case probe
+   has three failures and three controls. Exact requested-syntax parsing needs
+   declaration context; traversal-node identity alone loses originating longhand
+   context. Preserve this source-admission gap rather than assume equivalence.
 3. Continue cascade source/observer and hyphenation stateful consumer admissions,
    including actual reflow-to-display tab-cache coverage and lifetime. Preserve
    cycle/animation, scope-ownership and uncovered-cache counterexamples.
@@ -31,7 +32,7 @@ close these obligations.
 
 ## Latest commit and proof checkpoint
 
-There are 52 signed standalone native/WPT fixes. Worker font removal is now
+There are 53 signed standalone native/WPT fixes. Worker font removal is now
 `32ba35ffb9a17f5e91df5c56f01a06a452dfdc8a`, following proof/evidence companion
 `07dc1d27343268a8add266605c33fc5f966ef155`. It repairs stale family membership after
 worker FontFaceSet delete/clear. All 16 new checks pass and regression results
@@ -2916,8 +2917,9 @@ The namespace-key candidate now has independent static approval and an isolated
 patch that applies/reverses against committed HEAD. Expanded baseline: 13 new
 failures, eight passing controls, and 39 existing regression checks passing.
 The accepted namespace fix is now committed and counted above. Subsequent
-browser probes reproduce nine nested-fallback/preparation failures and four
-repeated-invalid-entry failures; both remain separate unaccepted repair tracks.
+browser probes reproduced nine nested-fallback/preparation failures and four
+repeated-invalid-entry failures. The latter repair is now signed below; fallback
+preparation and typed-fallback readiness remain separate unaccepted tracks.
 
 ## Stateful spacing consumer checkpoint
 
@@ -2929,3 +2931,14 @@ and lifetime, and final font observations remain open. The uncovered display
 cache witness `[8,8]` versus `[8,7]` is retained for caller investigation;
 browser reachability is unproved. This does not close the ownership milestone.
 Evidence: `../css-hyphenation-measurement-offset-probe-v1/ROOT-MEASUREMENT-QUERY-v1.json`.
+
+## Invalid attribute entry repair committed
+
+`fd9c07e1130bcb68684c25e7527f5b0ff3c3bd73` contains only the entry-presence helper, lazy-load
+guard and ten-case WPT, following validation companion `76bda27b8dfdb88ebdcb7e4706508688d0a3f064`.
+The pair repairs four failures; ten new and sixty existing checks pass. Native
+build, lint and independent review pass. Index/reload component checkpoint
+`2fab9becac570c937e14d1a45984414759eb4b85` has sixty audits (32 new); full
+traversal/evaluator admission remains open. The exact stack patch uses namespace
+APIs; `../css-attr-tombstone-base-port-v1/fix.patch` is an uncompiled alternate
+for the older name-only map, requiring its own build/browser gate.

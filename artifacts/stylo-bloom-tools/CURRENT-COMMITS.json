@@ -1,6 +1,6 @@
 {
   "branch": "stylo-bloom-verification-2",
-  "committed_native_fixes": 52,
+  "committed_native_fixes": 53,
   "accepted_pending_native_fixes": 0,
   "previous_committed_fixes": 16,
   "new_queue": [
@@ -668,6 +668,31 @@
         "servo/ports/geckolib/glue.rs",
         "testing/web-platform/tests/css/css-values/attr-namespace-cache.html"
       ]
+    },
+    {
+      "repair": "attr-invalid-entry",
+      "native_commit": "fd9c07e1130bcb68684c25e7527f5b0ff3c3bd73",
+      "companion_commit": "76bda27b8dfdb88ebdcb7e4706508688d0a3f064",
+      "patch": {
+        "path": "artifacts/css-attr-tombstone-repair-v1/fix.patch",
+        "sha256": "4303d96a8a9e5754b544b58e0b685d7724e6453cd74a120bae957a271f239a0e"
+      },
+      "acceptance": {
+        "path": "artifacts/css-attr-reload-browser-v1/ROOT-SCOPED-ACCEPTANCE-v1.json",
+        "sha256": "1809167c4333b8fc9fbb9b12bb9282339291ac26de07a7d9949d7fe33dd554f3"
+      },
+      "acceptance_scope": "Preserve explicitly invalid qualified cache entries during lazy loading; four reproduced failures fixed, missing-entry retries preserved.",
+      "native_paths": [
+        "servo/components/style/custom_properties.rs",
+        "servo/components/style/properties/cascade.rs",
+        "testing/web-platform/tests/css/css-values/attr-repeated-invalid-value.html"
+      ],
+      "stack_context": "Namespace cache repair precedes this exact patch.",
+      "alternate_name_only_port": {
+        "path": "artifacts/css-attr-tombstone-base-port-v1/fix.patch",
+        "sha256": "314112052f2e5d25c8f5042ef9a0386afc21c2e953e949a3eac0a193db285ad6",
+        "compiled_or_browser_tested": false
+      }
     }
   ],
   "verification": "Each committed native delta is the accepted patch, checked against its actual parent. Companions preserve the recorded scope and replay prerequisites. No new browser or full-build claims are made by committing."
