@@ -1,0 +1,33 @@
+void ResizeObserverEntry::SetContentRectAndSize(
+    const nsTArray<LogicalPixelSize>& aSize) {
+  nsIFrame* frame = mTarget->GetPrimaryFrame();
+
+  // 1. Update mContentRect.
+  mContentRect = [&] {
+    nsMargin padding = frame ? frame->GetUsedPadding() : nsMargin();
+    const auto zoom = frame ? frame->Style()->EffectiveZoom() : StyleZoom::ONE;
+    // Per the spec, we need to use the top-left padding offset as the origin of
+    // our contentRect.
+    // NOTE(emilio): aSize already has been unzoomed if needed.
+    const nsPoint origin = zoom.Unzoom(nsPoint(padding.left, padding.top));
+
+    gfx::Size sizeForRect;
+    MOZ_DIAGNOSTIC_ASSERT(!aSize.IsEmpty());
+    if (!aSize.IsEmpty()) {
+      const WritingMode wm = frame ? frame->GetWritingMode() : WritingMode();
+      sizeForRect = aSize[0].PhysicalSize(wm);
+    }
+    nsRect rect(origin,
+                CSSPixel::ToAppUnits(CSSSize::FromUnknownSize(sizeForRect)));
+    RefPtr<DOMRect> contentRect = new DOMRect(mOwner);
+    contentRect->SetLayoutRect(rect);
+    return contentRect.forget();
+  }();
+
+  // 2. Update mContentBoxSize.
+  mContentBoxSize.Clear();
+  mContentBoxSize.SetCapacity(aSize.Length());
+  for (const LogicalPixelSize& size : aSize) {
+    mContentBoxSize.AppendElement(new ResizeObserverSize(mOwner, size));
+  }
+}
