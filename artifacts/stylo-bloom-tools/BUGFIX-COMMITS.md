@@ -5,8 +5,47 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **87 committed fixes; no accepted repairs await signing.**
+Current checkpoint: **87 committed fixes; 14 accepted repairs await signed commits.**
+
+Pending: view-transition invalidation, explicit sticky-inset encoding, auto-inset normalization, containing-block writing-mode selection, negative-inset arithmetic, baseline cross-size sums, geometric sticky sentinels, wrapped line cross-size sums, relative-position baseline export, scroll-container baseline conversion, percentage-padding measurement keys, flex overflow-container final positioning, relative overflow positioning and captioned-table percentage-height measurement.
 Repairs with incomplete review are excluded from this count.
+
+## Current flex verification checkpoint
+
+- **Scroll-container baseline provider repair accepted:** ordinary asymmetric
+  borders expose a preexisting last-baseline coordinate error in release Firefox.
+  The standalone two-file patch repairs 72 failures in 384 WPT cases;
+  312 controls and all 38 focused regression files pass. Root accepts the
+  conditional full-method companion after 48 fresh audits, 1,536 candidate
+  cases, twelve independent reviewer audits and five root projection joins.
+  Child baseline truth, geometry and lifecycle remain provider premises.
+  [Acceptance](../css-scroll-baseline-provider-proof-root-v2/ACCEPTANCE.json).
+- **Natural donor acceptance withdrawn:** a new calibrated 64-case probe
+  finds six asymmetric scroll-border last-baseline failures in the candidate;
+  installed release passes all 64. The conditional proof remains valid, but
+  its native-provider premise is not established for these ordinary cases.
+  The accepted provider repair removes those six failures, but the donor patch
+  still depends on it semantically. Resolve independent landability before
+  restoring donor acceptance; source commutation is insufficient.
+  [Probe](../css-flex-scroll-baseline-border-probe-v1/probe.html).
+- **Relative-position baseline repair accepted:** the separate two-file patch
+  repairs 192 failures in 288 WPT cases and preserves 96 controls. Fresh root
+  replay passes 29 kernel audits and 1,080 source/model cases per variant;
+  eight independent checks and three rejected false claims pass. Property
+  lifetime and full downstream/provider histories remain open. Its evidence,
+  review and formal companions precede the native/WPT commit in the queue.
+  [Acceptance](../css-flex-relative-baseline-proof-root-v1/ACCEPTANCE.json).
+- **Packing v1 rejected:** the reviewer’s fragment-cancellation witness
+  reproduces in the browser. Two large, calibrated multicolumn cases pass
+  in release and fail in the candidate; two smaller controls pass in both.
+  The earlier 432-case WPT and unfragmented controls remain useful evidence,
+  but narrowing before consumed-fragment subtraction changes valid placement.
+  V2 must preserve wide coordinates through fragment adjustments, line metrics
+  and cumulative-size storage. The shared build still contains rejected v1.
+  [Counterexample](../css-flex-packing-fragment-probe-v1/REPORT.md).
+- Counts: **87 committed fixes and ten accepted repairs awaiting signing**.
+  Latest user-requested signing retry failed; HEAD and the verified 297-file
+  staged snapshot are unchanged. No pushes or external submissions.
 
 [Relative triage priority](../css-bugfix-triage-20261019/README.md) groups the first 80
 native commits by demonstrated crashes, security-boundary review,
@@ -71,6 +110,20 @@ style invalidation remain outside the proved contract. The exact two-file patch
 applies independently to the retained upstream base; no isolated build is claimed.
 [Acceptance](../css-view-transition-types-root-v1/ACCEPTANCE.json) and
 [commit verification](../css-view-transition-types-commit-v1/ROOT-COMMIT-CHECK.json).
+
+### Pending commit: view-transition type invalidation
+
+The separate four-file Gecko/WPT repair fixes six stale-style failures, including
+ordinary and generated pseudo-elements. All 42 matrix cases pass. Native and
+formal reviews pass, including the corrected closed-input independent review v2.
+The latest signed-commit retry still failed in 1Password; no native commit is
+counted yet. [Acceptance](../css-view-transition-type-invalidation-proof-root-v1/ACCEPTANCE.json).
+
+The geometric sticky, explicit-inset encoding, and collapsed-flex baseline
+candidates remain outside the accepted count while their required review gates
+are open. The baseline candidate now passes 60 paired WPT cases against 22 failures;
+see [its report](../css-flex-collapsed-baseline-fix-v1/REPORT.md).
+A separate [negative-inset overflow lead](../css-sticky-negative-inset-overflow-probe-v1/REPORT.md) now reproduces in release and the local build; its candidate remains outside the count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
 ## Signed commit queue
@@ -2014,3 +2067,476 @@ failures become passes and all 20 new cases pass. The shared bounded proof has
 It does not prove general serialization; the backslash/newline counterexample
 led to the next candidate. The final 435-check run preserves all 415 prior
 outcomes, including two expected failures.
+
+## View-transition invalidation review correction accepted
+
+Independent review v2 removes the generated cache from its copied producer capsule, independently checks the nested closed roster, and passes a fresh full replay and 19 negative controls. Root authenticated the seals, reran the review checker, and verified unchanged challenge sources against its previous successful compilation. The 39 audits, 15,234 cases, and 51,702 snapshots retain their conditional scope. Native evidence remains six failures to 42 passes. The repair is accepted pending its separate signed native/WPT commit. See `artifacts/css-view-transition-type-invalidation-proof-root-v1/ACCEPTANCE.json`.
+
+## Explicit sticky inset encoding accepted
+
+The independent native/WPT review and corrected formal companion are accepted. Root replay confirms 31 audited results, 236 cases, six native configurations, five paired semantic mutations, 11 provider negatives, 33 integrity controls and two axiom controls. The proof retains explicit numeric/anchor/provider and C++ interpretation assumptions. The two-file patch and 80-case WPT remain separate from the preceding evidence/tooling; no commit ID exists yet. See [root acceptance](../css-sticky-offset-alias-proof-root-v3/ACCEPTANCE.json).
+
+The latest requested signing retry failed with the 1Password buffer error. HEAD and all 297 staged evidence files were reauthenticated unchanged. Signing remains enabled.
+
+## Sticky auto-inset and logical-end repairs accepted
+
+H1 and H2 now have root acceptance of the full scoped formal companion, following their existing independent native/WPT reviews. The new proof checks both coordinates executed by the range/displacement callers. Root replay passes 191 audits and all35 integrity/comparator controls; nine independent kernel checks and twelve extracted-native continuation cases pass their expected outcomes. The original domain witnesses remain excluded explicitly. See [root acceptance](../css-sticky-insets-proof-root-v3/ACCEPTANCE.json). Each repair retains its own two-file Gecko/WPT patch; signed commit IDs remain pending.
+
+The negative-inset arithmetic candidate has independent native/WPT acceptance but remains outside the accepted-fix count until its complete formal companion is reviewed. Root removed23.2MB of completed H1/H2 compiler products, preserving sources and receipts.
+
+## Review pending: flex baseline cross-size sum
+
+The separate two-file [candidate patch](../css-flex-cross-baseline-overflow-fix-v1/fix-candidate-v2.patch) repairs a signed arithmetic overflow that makes a 100px-max-height flex container collapse to zero. The 54-case WPT changes 12 failures to passes; 42 controls remain unchanged. All 29 regression files pass. Installed Firefox 158 reproduces the defect. Primitive Lean results and extracted-native UBSan evidence accompany the patch; independent review is pending. No commit ID or accepted-fix count is assigned yet.
+
+## Safe-scroll candidate and retained collapsed-frame overflow
+
+Counts remain **87 committed fixes and 4 accepted pending**. Signing retry still fails in 1Password; HEAD and the authenticated297-file staged checkpoint are unchanged.
+
+The own-scroller safe-flex repair is now a sealed native/WPT candidate:484 failures become passes across640cases, with156unchanged controls. A paired72-case ownership probe changes only four body-owned safe cases;14regression files pass798subtests and10reftests. The exact two-file patch is independent of other pending flex changes. Ten preliminary reachability lemmas pass, but complete formal/source joins and independent review remain open. See [candidate](../css-flex-safe-scroll-origin-fix-v1/REPORT.md).
+
+Full F11 review found another observable retained-frame defect: a collapsed240px child with border/margin/descendants can enlarge a100px flex scrollport. Release and repaired builds have24identical observations, including12collapsed overflow cases. The plainzero-width control passes. Earlier420controls used shorter items and did not refute this case; their broad no-overflow conclusion is superseded. A kernel/source-extraction counterexample now preserves the full domain; a separate145-case WPT baseline is running. See [discovery](../css-flex-collapsed-tall-strut-root-v1/REPORT.md).
+
+The negative-inset v2 complete conditional companion passed a fresh root replay:219audits,544Lean rows,2164genuine native observations,9semantic mutants and the retained clamp-UB exclusion. Independent review is active. Geometric-sentinel v3 is also sealed, with167audits and the formerly missing indexed/machine joins; independent review remains pending. No acceptance is inferred from successful replay alone.
+
+Next: finish the collapsed-overflow repair and paired WPT; address the baseline-sum WPT numeric-range portability review; complete independent sticky reviews; build the safe-scroll source/consumer companion without narrowing its contract.
+
+## Current accepted queue: six repairs pending signing
+
+Counts: **87 committed fixes, 6 accepted pending**. The opposing-negative-inset repair now has accepted full conditional source/caller proof and native/WPT review. Root's219-audit replay,2,164genuine native observations and12fresh independent kernel checks are sealed in [root acceptance](../css-sticky-negative-inset-overflow-proof-root-v2/REPORT.md). Its original preexisting clamp-UB exclusion remains explicit.
+
+The baseline cross-size sum repair also passes final review after a portability correction: the WPT explicitly marks unsupported extreme numeric ranges optional while retaining its unconditional100px oracle on admitted inputs. All54Gecko inputs are admitted;12failures become passes and42controls are unchanged. The native body/patch is identical to the accepted v1 arithmetic change. See [corrected package](../css-flex-cross-baseline-overflow-fix-v2/REPORT.md).
+
+The new collapsed-frame overflow repair passes145paired cases (93improvements) and34regression files (29reftests,757subtests), plus build and lint. It retains a separate two-file patch; independent native review and full F11/F12 composition remain open. See [candidate](../css-flex-collapsed-scroll-overflow-fix-v1/REPORT.md). The safe-scroll candidate is undergoing independent native review and full formal-scope planning.
+
+Geometric-sentinel v3 passed a fresh root replay with all30raw streams identical to canonical/relocated evidence. Root inspected indexed and machine joins; final sequential update/source review and independent challenges remain open. No acceptance promotion yet. Completed root proof/native products were cleaned:20.3MB for negative insets and2.47MB for the sentinel replay; the main Firefox build remains available with every repair restored.
+
+Next priorities: finish collapsed-overflow and safe-scroll reviews; complete the original retained-frame/machine contracts; finish sentinel v3 review; prepare preceding evidence/formal commits for the two newly accepted fixes. Signed commits remain blocked by1Password; no new retry until user readiness.
+
+## Prepared queues and native review decisions
+
+Counts remain **87 committed fixes and 6 accepted pending**. The latest requested signing attempt failed with the same 1Password buffer error; HEAD and all 297 staged evidence files remain unchanged.
+
+The [negative-inset queue](../css-sticky-negative-inset-overflow-commit-v1/QUEUE.json) and [baseline-sum queue](../css-flex-cross-baseline-overflow-commit-v1/QUEUE.json) are prepared. Each has preceding evidence/formal commits and a separate Gecko/WPT commit. Temporary-index checks verify both retained bases, the complete queued native order, exact three-file/two-file deltas, and inverse application. The negative-inset integration preserves earlier normalized-inset and logical-end fixes; its original standalone patch remains available. No production source, browser build, or real index was changed by packaging.
+
+Independent native/WPT reviews now accept both [safe-scroll](../css-flex-safe-scroll-origin-review-v1/REPORT.md) and [collapsed-item overflow](../css-flex-collapsed-scroll-overflow-review-v1/REPORT.md). Root authenticated the sealed reviews and adopted their native decisions. Their full formal companions remain open, so neither increments the accepted-pending count yet.
+
+Active work: implement the complete twelve-obligation safe-scroll source/consumer proof; finish collapsed allocation's F11/F12 joins with the separately accepted baseline-sum prerequisite; independently review sentinel v3's indexed lifecycle, machine arithmetic and sequential update joins. Producer self-review is not counted as independent review. The shared browser build remains restored with all repairs.
+
+## Latest checkpoint: seven accepted repairs awaiting signed commits
+
+Counts: **87 committed native/WPT fixes; 7 accepted pending**. The geometric
+sticky-sentinel repair now has [root acceptance](../css-sticky-sentinel-proof-root-v3/ACCEPTANCE.json)
+after independent v3 review: 167 producer audits, 10 independent kernel checks
+and identical canonical, relocated and root replay streams. The original
+conditional positional-consumer contract includes indexed sequential updates
+and both-coordinate machine operations. Geometry/provider freshness, upstream
+limit construction, compiler correspondence and actual overflow delivery remain
+explicit premises; range/timeline consumers are separate.
+
+The multiline flex cross-size sum candidate passes all 144 paired WPT cases
+against 96 failures and 48 passes. Its regression run has 914 passing subtests,
+20 passing reftests, six OK harnesses and one known-intermittent failure in
+`content-height-with-scrollbars.html`; that file has no paired baseline result.
+Build, scoped formatting and WPT lint pass. Independent review remains open,
+so this candidate is excluded from the accepted count. Earlier per-item sums
+and downstream packing arithmetic remain separate obligations.
+[Candidate report](../css-flex-line-cross-sum-fix-v1/REPORT.md).
+
+Collapsed-allocation v2 is a sealed producer checkpoint with 419 audits and 91
+native cases; root adoption is pending. Full F11/F12 still have provider and
+row-strut edge-policy gaps. Work continues in v3 without narrowing those targets.
+The full twelve-obligation safe-scroll companion remains in progress.
+
+The latest user-requested signing retry failed with `1Password: failed to fill whole buffer` (exit 128). HEAD remains `92a6fddf18e5828b17d7491a34663a0d5a9c12ad`; all 297 staged paths and content hashes still match the prepared recipe. Signing remains enabled.
+
+## Latest checkpoint: eight accepted repairs; two new reproduced leads
+
+Counts: **87 committed native/WPT fixes; 8 accepted pending signing**. The wrapped
+line-size sum repair now has [root acceptance](../css-flex-line-cross-sum-root-v1/ACCEPTANCE.json):
+21 freshly checked kernel results and three negative/axiom controls, plus root
+recounting of all 144 paired WPT results and both standalone patch round trips.
+The one metadata-known intermittent regression remains explicit. Both this fix
+and the geometric sticky fix now have complete preceding evidence/formal and
+separate two-file native commit recipes. The staged signing snapshot is intact.
+
+Two distinct leads now reproduce identically in release and the shared build:
+
+- [Cross-axis packing arithmetic](../css-flex-cross-packing-boundary-probe-v1/REPORT.md):
+  ten failures among 48 calibrated rows. Safe alignment moves the first item far
+  from its expected start when large lines or gaps overflow the packing budget.
+  A 64-row follow-up preserves reverse-wrap controls; simple early lower clamping
+  would break already-defined cancellation. The complete wide-coordinate path
+  is under design review; no native repair has been applied.
+- [Natural-baseline donor selection](../css-flex-natural-baseline-donor-probe-v1/REPORT.md):
+  eight failures among 24 rows, all removal/restoration and geometry controls
+  passing. An ordinary 160x80px flex box shifts 34px when an empty 5px item masks
+  a natural text baseline. This is separate from collapsed-item donor exclusion
+  and the unresolved strut-only edge-line specification question.
+
+Collapsed-allocation v2's 147 source inputs and 234 receipt files are authenticated
+as a producer checkpoint. Full F11/F12 remain open; v3 continues the original
+sixteen obligations. The safe-scroll proof retains all twelve obligations and
+keeps the newly reproduced packing failure separate from its policy repair.
+Next: implement and verify natural donor selection, finish the complete packing
+arithmetic design, and continue the full consumer/provider proofs. The signer
+remains unavailable; no further retry was attempted without new readiness.
+
+## Checkpoint: relative baseline formal acceptance
+
+Counts: **87 committed native/WPT fixes; nine accepted pending signing**.
+The relative-position baseline companion is accepted under its explicit provider,
+property-lifetime and numeric premises. [Its commit queue](../css-flex-relative-baseline-commit-v1/QUEUE.json)
+contains separate evidence, review and formal companions followed by the two-file
+Gecko/WPT patch. Completed root compiler products (3,787,976 bytes) were removed.
+
+Next: finish the scroll-provider source/theorem review and natural-donor prerequisite
+resolution; complete packing v2 arithmetic across fragment coordinates, metrics
+and cumulative storage. Full safe-scroll twelve-obligation and collapsed-allocation
+sixteen-obligation work continues. The latest requested signing retry failed;
+HEAD and the 297 staged evidence files remain unchanged.
+
+## Checkpoint: scroll-provider formal acceptance
+
+Counts: **87 committed native/WPT fixes; ten accepted pending signing**.
+[Root acceptance](../css-scroll-baseline-provider-proof-root-v2/ACCEPTANCE.json)
+covers the complete conditional scroll-provider method, including early legacy
+synthesis, containment, absence, coordinate conversion, clamp and numeric bounds.
+Its [commit queue](../css-scroll-baseline-provider-commit-v1/QUEUE.json) preserves
+separate evidence/review/formal companions and one two-file native/WPT fix.
+Completed root compiler outputs (5,015,200 bytes) were removed.
+
+Next: finish packing v2 correlated fragment bounds and storage design, then
+implement and replay the full regression/verification gates. The native consumed-size
+provider uses unchecked signed32 accumulation; its actual range is an explicit
+caller obligation, not an assumed saturating helper. The natural-donor patch
+remains withdrawn until its semantic prerequisite and independent-landability
+requirement are resolved. Full safe-scroll and allocation milestones continue.
+Signing remains blocked, with the original297 staged snapshot intact.
+
+### Open lead: oversized final fragment after forced flex breaks
+
+No commit or accepted-fix count yet. The [reduction and source evidence](../css-fragment-forced-break-probe-v2/REPORT.md)
+show eight failures among24 release/shared cases:80px flex items are placed
+correctly, but an oversized final container fragment pushes a following sibling
+into an extra column. The WPT reproduces16PASS/8FAIL. This requires extreme
+fragment heights; no security impact is established. Consumed-size and flex
+cumulative arithmetic need a joined source repair. It may overlap the existing
+packingv2 candidate and must not be double-counted before that boundary is known.
+
+The forced-break lead now has an [actual reflow trace](../css-flex-fragment-consumed-trace-v2/REPORT.md)
+confirming the negative-counter/zero-growth/oversized-output route. The source
+and build were restored after diagnosis. Its fix boundary and complete proof
+remain open; accepted and committed counts are unchanged.
+
+### Publication proof review checkpoint
+
+[Independent replay and source review](../css-flex-publication-root-review-v1/REPORT.md)
+passed60-module compilation and74 combined publication/root theorem audits. It
+identified a missing equality between requested cache fields and actual child
+reflow-input fields; lifecycle work now treats them separately. This adds no
+accepted bug or native commit. Counts remain87 committed fixes and ten accepted
+pending signing. Completed root compiler outputs (31,422,768bytes) were removed.
+
+### Forced-break regression coverage and repair scope
+
+The [expanded144-case WPT](../css-flex-fragment-writing-mode-probe-v1/REPORT.md)
+reproduces48 failures in both release and the project build across writing modes
+and directions, preserving96 controls. A [runtime provider trace](../css-flex-consumed-caller-trace-v1/REPORT.md)
+confirms overflow in the block ancestor as well as the flex container. The fix
+therefore needs shared-provider handling in addition to exact flex cancellation.
+A source prototype is in progress; no additional accepted bug or commit is counted.
+All diagnostic source/build changes were restored.
+
+## Checkpoint: percentage-padding measurement cache
+
+The F11 freshness audit yielded a new ordinary-size browser failure: changing
+a flex item’s percentage padding leaves its baseline alignment one update behind.
+Release and project builds agree on four discrepancies among eighteen cases;
+the new WPT reproduces fourteen passes and four failures. A focused cache-key
+repair built successfully; candidate tests and a separate Lean companion are
+in progress. See [repair evidence](../css-flex-padding-measurement-cache-fix-v1/REPORT.md).
+Counts remain87 committed and ten accepted pending signing; seven unaccepted
+candidates/leads are now tracked. Full twelve/sixteen-obligation work continues.
+
+The latest user-requested signing retry failed with the same 1Password error;
+HEAD and all297 staged file hashes remain unchanged. All36 queued recipes
+passed preflight checks of15,335 file pins. No unsigned commit was attempted.
+
+## Checkpoint: percentage-padding cache repair accepted
+
+Counts: **87 committed native/WPT fixes; 11 accepted pending signing; six
+unaccepted candidates/leads**. The new ordinary-size baseline repair adds actual
+logical border/padding to the measuring cache key. Paired WPT results change
+from 14 PASS / 4 FAIL to 18 PASS; the final formatted build passes 20 subtests
+and seven reftests. The two-file patch applies independently to HEAD and the
+retained upstream base. No isolated upstream runtime is claimed.
+
+[Root acceptance](../css-flex-padding-key-root-review-v1/ACCEPTANCE.json) follows
+independent native/WPT review and a fresh scoped Lean/native replay. The
+[commit queue](../css-flex-padding-key-commit-v1/QUEUE.json) places evidence and
+formal companions before the separate Gecko/WPT commit. Root removed 1,000,832
+bytes of completed compiler products; the shared browser build remains.
+
+The broader safe-scroll review found missing joins from actual child reflow
+output sizes and from mixed-axis/definite-single construction. Its twelve
+obligations remain open, with corrections proceeding in a new version. The
+allocation sixteen-obligation effort also remains open; this cache-key fix
+does not establish universal provider freshness. Next: build the sealed exact
+fragment prototype, preserve all packing/fragmentation gates, and continue
+those source/provider joins. Signing is still blocked; the staged snapshot
+remains intact.
+
+The expanded queue passes all 39 recipe checks and all 11 native patch
+apply/reverse steps in a disposable index. HEAD and every hash in the real
+297-file staged snapshot are unchanged.
+
+## Checkpoint: exact fragment prototype clears observed regression
+
+The first exact-fragment integration fixed final-size failures but introduced
+24 vertical-rl item-position failures. A [revised local experiment](../css-flex-fragment-exact-build-v2/REPORT.md)
+lower-bounds the temporary border-box block size at zero while preserving exact
+cumulative arithmetic. All 634 core observations now pass, including all 144
+forced-break cases. Across 48 files, the run passes 2,404 subtests and 27 reftests,
+with 21 OK harnesses. Candidate and restoration builds succeed with zero compiler
+warnings; the known mach monitor exception remains recorded. Original source,
+shared browser build, HEAD and staged index are restored.
+
+This is not native acceptance. Root freshly replayed the [physical review](../css-flex-fragment-physical-composition-review-v1/REPORT.md),
+which keeps actual callback geometry, both-coordinate intermediate bounds,
+relative/sticky offsets, finite sentinel handling, overflow containers and
+placeholder/abspos observers open. Dedicated shifted-item and fragmentation
+controls are next, alongside the full original packing/provider/cache obligations.
+The existing abspos controls do not establish fragmented placeholder correctness.
+
+The [independent safe-scroll review](../css-flex-safe-scroll-origin-proof-independent-v2/REPORT.md)
+replays 49 modules and 386 exact axiom audits but holds full F1–F12 composition:
+actual returned/current frame sizes must reach the observer, constructor and
+mixed-axis branches need coverage, and the machine suffix must use the same
+producer path. Corrective v3 work continues. Allocation's original sixteen
+obligations remain open, including callback/dirty/cache coherence; protocol
+counterexamples are not counted as browser bugs.
+
+Counts remain **87 committed fixes; 11 accepted pending signing; six unaccepted
+candidates/leads**. The latest explicitly requested signed retry again failed in
+1Password; all 297 staged paths and hashes remain unchanged. No retry was made
+during the fragment experiment. No unsigned commits or pushes occurred.
+
+### Relative-position preservation and branch-calibration follow-up
+
+The [paired relative-offset experiment](../css-flex-fragment-exact-build-v3/REPORT.md)
+passes all 1,296 candidate observations: 144 baseline flow failures become passes,
+and all 432 item-position plus 432 restoration controls remain passing. The full
+candidate run covers 49 files with 3,700 passing subtests, 27 passing reftests and
+22 OK harnesses. Both builds succeed; original source/build and staged snapshot
+are restored. This adds relative-offset evidence without closing universal
+physical arithmetic or the full fragmentation scope.
+
+Two separate branch probes exposed an invalid test assumption: nested tiny
+children did not each enter a new column, for either `always` or `column` break
+values, including small controls. All release/project raw results match. The
+[abspos](../css-abspos-fragment-cumulative-probe-v2/REPORT.md) and
+[overflow-container](../css-flex-overflow-container-probe-v2/REPORT.md) capsules
+retain those negative calibrations. They establish neither a new bug nor execution
+of the intended overflow path. Next: trace the native fragmentation-state guards
+and use a calibrated construction or tall unforced content. A separate abspos
+cumulative signed32 source lead remains unconfirmed at runtime.
+
+Allocation now has a 73-module producer checkpoint with clean-cache coherence
+and whole-memory callback publication, while actual callback trace/getter/lifetime
+and full F11/F12 obligations remain open. The agent removed 71,197,664 bytes of
+superseded compiler products, retaining active dependencies. Counts are unchanged:
+87 committed fixes, 11 accepted pending signing, six unaccepted candidates/leads.
+
+### New ordinary-size overflow-container lead
+
+Tall-content probes now reach a useful fragmentation shape. The
+[16-row overflow-container probe](../css-flex-overflow-container-probe-v3/REPORT.md)
+returns identical release/project observations: all eight horizontal controls
+pass, while eight vertical-rl cases differ, including four with ordinary 160px
+columns. Descendants are displaced by 160–560px in the small cases. Reference
+geometry and restoration pass. The source's tentative versus final width accounts
+for the small-case displacement; independent source/spec review and a standalone
+repair/WPT are in progress. No fix is accepted yet.
+
+The [48-row abspos probe](../css-abspos-fragment-cumulative-probe-v3/REPORT.md)
+preserves all child rectangles but produces one extra fragment in twelve large
+spanning cases. Attribution between shared consumed-size and distinct abspos
+cumulative arithmetic remains open, so this is not yet counted separately from
+the fragmentation lead. Earlier failed forced-break calibrations remain retained.
+
+The [32-row actual-provider probe](../css-flex-actual-provider-probe-v1/REPORT.md)
+disconfirms the predicted table residual-placement error in the repaired build.
+The source audit must explain why the table's used size is already accounted for;
+it must not assume flex basis equals actual output. Release's eight reverse-safe
+failures match the previously known safe-origin issue, with 24 unchanged controls.
+
+Counts: **87 committed fixes; 11 accepted pending signing; seven unaccepted
+candidates/leads**. Source/build remain restored and all browser profiles are
+removed. No new signer attempt, commit or push occurred.
+
+### Standalone overflow candidate and exact-size provider counterexample
+
+The [standalone overflow-container candidate](../css-flex-overflow-container-fix-v1/REPORT.md)
+passes all 336 paired WPT observations: 112 failures become passes and all 224
+previous passes remain passing. Its two-file Gecko/WPT proposal applies and
+reverses on retained HEAD independently of the wide cumulative arithmetic patch.
+The [lifecycle diagnostic](../css-flex-overflow-lifecycle-runtime-v1/REPORT.md)
+passes all eight candidate stages, correcting seven baseline failures through
+normal/overflow transitions and continuation deletion/regrowth. No repair is
+accepted on these results alone.
+
+The [first branch trace](../css-flex-overflow-container-skip-trace-v1/REPORT.md)
+contains 12 reflow visits and no skips. The [external resize trace](../css-flex-overflow-external-resize-trace-v1/REPORT.md)
+then changes only an outer sibling's width. All eight candidate stages pass,
+but all 24 eligible helper visits still reflow: exact frame identity joins show
+column MarkSubtreeDirty reaching the flex parent, including 18 column children
+that were clean before marking. This rules out that proposed clean-skip route;
+it does not prove universal skip safety. Next are the remaining fragmentation
+entry paths, source/formal ordering review, and focused regression gates.
+
+The [24-row float round-trip probe](../css-flex-provider-roundtrip-runtime-v1/REPORT.md)
+confirms a separate provider limitation. Fractional large reversed flex items
+retain approximately 1 or 2 app units of origin residual even with the safe-origin
+repair; explicit reversed flex-start controls show the same residual in release
+and project builds. Integer controls are exact. This refutes the exact provider
+join for those inputs and remains attached to the full safe-scroll F1–F12 work.
+It is not yet an additional accepted spec bug. The goal remains exact containment;
+a tolerance theorem does not close it. Next is preserving resolved app units
+through sizing without changing aspect-ratio, table, fragment or min/max semantics.
+
+Allocation's agent has sealed a 74-module ordinary callback checkpoint, with
+actual source guards and native calibration; full F11/F12 remains open, especially
+table ancestry, later special reflow, and cache freshness. Root review of this
+new checkpoint remains pending. The agent removed 133,403,112 bytes of completed
+compiler products while retaining active dependencies.
+
+Counts remain **87 committed fixes; 11 accepted pending signing; seven unaccepted
+candidates/leads**. The user-authorized signer retry v11 failed with the same
+1Password error. All 39 prepared recipe inputs still match their pins; the exact
+297-file staged snapshot and HEAD are unchanged. Both new native experiments
+restored source and browser build; all temporary browser profiles are removed.
+No unsigned commit, push, or new acceptance occurred.
+
+## Overflow positioning acceptance and next validation (20 October)
+
+**87 committed fixes; 12 accepted pending signing; seven unaccepted candidates/leads.**
+The new accepted repair positions flex overflow-container children with the final
+fragment size. Its 336-case WPT fixes 112 failures and preserves 224 passes;
+34 existing regression file outcomes are unchanged (24 PASS, 10 expected FAIL).
+Root replay, ordering review, actual-path formatting, WPT lint and final build
+passed. The two-file native patch has separate preceding evidence and formal
+recipes in [the queue](../css-flex-overflow-final-position-commit-v1/QUEUE.json).
+The fix is installed in the local source and build.
+
+[Root acceptance](../css-flex-overflow-root-review-v1/ACCEPTANCE.json) is bounded:
+normalized list/continuation invariants remain source premises; universal clean
+skip correctness, callback/geometry providers, wide arithmetic and full fragment
+composition remain open. It does not accept the earlier wide packing prototype.
+
+A separate initial relative-positioning defect is under paired native/WPT
+validation. Fresh layout and a position-only update disagree at identical final
+styles; independent ordinary horizontal controls reproduce it. The candidate
+uses predecessor normal inline position and applies each continuation's own
+relative offsets. Its 140-case WPT also tests nonzero-to-double and return-to-zero
+updates. This candidate is not counted among accepted repairs yet.
+
+The ordinary allocation component passed a fresh root 74-module replay, ten
+audits, two semantic false claims, native cases and mutations. This closes a
+conditional component only; full allocation F11/F12 remains open. The table
+warm/fresh diagnostic passed all 24 cases in both browsers. Source inspection
+explains why that probe changes its computed-size cache key; a caption variant
+is ready to test a different path. The new table source checkpoint awaits root
+review. See [ordinary root review](../css-flex-allocation-ordinary-root-v1/REPORT.md).
+Completed root replay outputs were removed (36,110,328 bytes), with source,
+commands, receipts and active build dependencies retained.
+
+The latest requested signing retry (v12) failed with the same 1Password error.
+HEAD and all 297 staged files remain pinned; no unsigned commit or push occurred.
+Next: finish the relative-positioning browser pair and source/provider proof,
+then review exact resolved-length transport and the table-caption cache probe.
+Keep the original full verification requirements intact.
+
+### New caption lead and relative-position candidate result
+
+The separate relative-position candidate corrected **30 failures among 140 WPT subtests**
+while preserving 110 passes. Thirty-five retained regression files were unchanged
+(including all 336 final-size WPT subtests); both builds passed and source/build
+were restored. RTL and non-flex caller regressions plus independent review are
+running before acceptance. See [paired evidence](../css-overflow-relative-position-runtime-v1/REPORT.md).
+
+The table-caption followup found **four discrepancies in 16 cases**, identical
+in release and project browsers. Auto-height caption plus percentage table height
+retains the old size after a containing flex height change; fixed-height caption
+and literal table height controls pass. All initial, restoration and repeat
+controls pass. This is a new unaccepted lead, with source/cache attribution and
+repair pending: [evidence](../css-flex-table-caption-runtime-v1/REPORT.md).
+
+Current counts: **87 committed; 12 accepted pending signing; eight unaccepted
+candidates/leads.** All 42 prepared recipes were hash-checked, and all 12 accepted
+native patches apply and reverse in order in a disposable index. The real staged
+snapshot remains unchanged. The natural-donor queue remains blocked on its
+semantic provider dependency; it is not part of the accepted stack.
+
+## Accepted relative-position and table-caption repairs (20 October)
+
+Current counts: **87 committed native/WPT fixes; 14 accepted pending signing;
+six unaccepted candidates.** Each new repair has a separate two-file native/WPT
+recipe preceded by evidence and formal commits:
+
+- [Relative overflow positioning](../css-overflow-relative-position-commit-v1/QUEUE.json):
+  30 failures corrected in the140-case standalone WPT; supplementary RTL suite
+  corrects60 of280 cases, preserving prior passes. Existing35/61 file outcomes
+  stay unchanged, with expected failures retained. Root fresh replay passes33
+  kernel audits and source/native/mutant checks. The formatted patch changes only
+  one tested argument-list line break. Full seven-part lifecycle scope stays open.
+- [Captioned flex-table percentage height](../css-flex-table-caption-commit-v1/QUEUE.json):
+  four failures corrected in16 WPT cases;354 other subtests pass, and sevenPASS/
+  oneexpectedFAIL table reftest outcomes are unchanged. Root fresh replay passes19
+  audits, four semantic falseclaims and384 native cases in15 runs. Actual
+  containing-block size joins the measuring key. The two-stage stale-plan witness
+  keeps fresh-provider assumptions explicit. Standalone upstream patch has no
+  padding-key dependency; the queued stack patch has the same two additions and
+  WPT with context reflecting the earlier padding-key repair.
+
+Both passed independent native review, actual-path formatting and WPT lint.
+The combined local install/build/four-WPT run is tracked in
+[installed state](../css-overflow-caption-installed-v1/STATE.json); it restores
+prior source/build on failure. No signed commit or push has occurred. The latest
+signer retry remains v12, with HEAD and the297-file staged snapshot pinned.
+
+The table observer component now has a fresh root manifest-only replay:23audits,
+four semantic negatives,14bindings and646 native cases in3modes. It proves the
+stated ancestry/scheduling/propagation component only. New root replay cleanup
+removed1,401,112 bytes there and1,229,192 bytes for the caption key; source,
+commands, raw output and active dependencies were retained. Producer caption
+replays separately removed3,687,576 bytes of their owned terminal products.
+
+Next: independently review exact app-unit override transport before full native
+integration, then continue the actual cache-pointer/dirty-recovery lifetime join.
+The exact-size prototype has seven files,30 kernel results and52 extracted checks;
+its38-case WPT remains unexecuted. It preserves the existing coordinate cap and
+costs16 additional bytes in the measured arm64 override bundle; full virtual-output,
+fragment and ratio/min/max semantics remain review gates. No tolerance theorem
+replaces the original exact safe-origin F1–F12 requirement. Full allocation
+F1–F16/F11/F12 and full fragment observer composition remain open.
+
+### Installed build checkpoint
+
+The combined build completed successfully and all **510 subtests in four WPT
+files passed**. Relative overflow positioning and captioned-table percentage
+height are now installed alongside the earlier final-size and padding-key
+repairs. [Integration evidence](../css-overflow-caption-installed-v1/REPORT.md)
+pins the exact source/tests and binary. All14 accepted native patches applied
+and reversed in order in a disposable index;48 recipes were checked. Signing
+remains enabled, HEAD is unchanged, and the297 staged files still match their
+original snapshot. Counts remain87 committed/14 accepted pending/six unaccepted.
+
+## Latest local checkpoint
+
+Counts remain **87 committed / 14 accepted pending signing / six unaccepted**.
+Signing retryv13 failed; HEAD and the297-file staged snapshot remain unchanged.
+The [exact-size transport experiment](../css-exact-size-transport-runtime-v1/REPORT.md)
+corrected12 draft cases with retained regressions unchanged, but is not an
+additional accepted bug or installed repair. Its source/build were restored.
+The [recovery proof checkpoint](../css-flex-cache-recovery-root-v1/REPORT.md)
+is a bounded component result; full cache lifetime remains open.

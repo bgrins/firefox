@@ -1,0 +1,10 @@
+void nsLayoutUtils::PostRestyleEvent(Element* aElement,
+                                     RestyleHint aRestyleHint,
+                                     nsChangeHint aMinChangeHint) {
+  if (Document* doc = aElement->GetComposedDoc()) {
+    if (nsPresContext* presContext = doc->GetPresContext()) {
+      presContext->RestyleManager()->PostRestyleEvent(aElement, aRestyleHint,
+                                                      aMinChangeHint);
+    }
+  }
+}

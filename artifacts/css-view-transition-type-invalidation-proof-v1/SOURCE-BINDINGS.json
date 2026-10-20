@@ -1,0 +1,101 @@
+[
+  {
+    "source": "source/candidate-dom__view-transitions__ViewTransitionTypeSet.cpp",
+    "marker": "ViewTransitionTypeSet* ViewTransitionTypeSet::Add(",
+    "offset": 1110,
+    "bytes": 527,
+    "sha256": "a134b609d03a9e61065fa89eab3a2a5624a1edfa974aa0e07af8cdfe74486d5c",
+    "complete_text": "ViewTransitionTypeSet* ViewTransitionTypeSet::Add(const nsAString& aValue,\n                                                  ErrorResult& aRv) {\n  if (SetlikeHelpers::Has(this, aValue, aRv) || aRv.Failed()) {\n    return this;\n  }\n  SetlikeHelpers::Add(this, aValue, aRv);\n  if (aRv.Failed()) {\n    return this;\n  }\n  RefPtr atom = NS_AtomizeMainThread(aValue);\n  MOZ_ASSERT(!mTransition->GetTypeList().Contains(atom));\n  mTransition->GetTypeList().AppendElement(std::move(atom));\n  mTransition->TypesChanged();\n  return this;\n}",
+    "name": "add"
+  },
+  {
+    "source": "source/candidate-dom__view-transitions__ViewTransitionTypeSet.cpp",
+    "marker": "void ViewTransitionTypeSet::Clear(",
+    "offset": 1638,
+    "bytes": 238,
+    "sha256": "f8a85f04771bfaad12890e36af7940366eb9fdc201b0f909ec0856f6657493b1",
+    "complete_text": "void ViewTransitionTypeSet::Clear(ErrorResult& aRv) {\n  SetlikeHelpers::Clear(this, aRv);\n  if (aRv.Failed() || mTransition->GetTypeList().IsEmpty()) {\n    return;\n  }\n  mTransition->GetTypeList().Clear();\n  mTransition->TypesChanged();\n}",
+    "name": "clear"
+  },
+  {
+    "source": "source/candidate-dom__view-transitions__ViewTransitionTypeSet.cpp",
+    "marker": "bool ViewTransitionTypeSet::Delete(",
+    "offset": 1877,
+    "bytes": 370,
+    "sha256": "95045e42d05e6149afa678ba7ab499bc4d8fe4f51a3270e1832f9a641f6beda4",
+    "complete_text": "bool ViewTransitionTypeSet::Delete(const nsAString& aValue, ErrorResult& aRv) {\n  if (!SetlikeHelpers::Delete(this, aValue, aRv) || aRv.Failed()) {\n    return false;\n  }\n  RefPtr atom = NS_AtomizeMainThread(aValue);\n  MOZ_ASSERT(mTransition->GetTypeList().Contains(atom));\n  mTransition->GetTypeList().RemoveElement(atom);\n  mTransition->TypesChanged();\n  return true;\n}",
+    "name": "delete"
+  },
+  {
+    "source": "source/candidate-dom__view-transitions__ViewTransition.cpp",
+    "marker": "void ViewTransition::TypesChanged()",
+    "offset": 83404,
+    "bytes": 293,
+    "sha256": "06c5441e8623d51b81d7ebeb44f5b574bba75cdd0c59b7efdc697ec0cf8dc6cd",
+    "complete_text": "void ViewTransition::TypesChanged() {\n  if (mDocument->GetActiveViewTransition() != this) {\n    return;\n  }\n  if (Element* root = mDocument->GetRootElement()) {\n    nsLayoutUtils::PostRestyleEvent(root, RestyleHint::RestyleSubtree(),\n                                    nsChangeHint(0));\n  }\n}",
+    "name": "changed"
+  },
+  {
+    "source": "source/PostRestyleEvent.cpp.txt",
+    "marker": "void nsLayoutUtils::PostRestyleEvent(",
+    "offset": 0,
+    "bytes": 461,
+    "sha256": "874ecfea030b081c392c33c5ca4e735e309cbca2ed9d1538a9338217dbd5e08a",
+    "complete_text": "void nsLayoutUtils::PostRestyleEvent(Element* aElement,\n                                     RestyleHint aRestyleHint,\n                                     nsChangeHint aMinChangeHint) {\n  if (Document* doc = aElement->GetComposedDoc()) {\n    if (nsPresContext* presContext = doc->GetPresContext()) {\n      presContext->RestyleManager()->PostRestyleEvent(aElement, aRestyleHint,\n                                                      aMinChangeHint);\n    }\n  }\n}",
+    "name": "post"
+  },
+  {
+    "source": "source/original-dom__view-transitions__ViewTransitionTypeSet.cpp",
+    "marker": "ViewTransitionTypeSet* ViewTransitionTypeSet::Add(",
+    "offset": 1110,
+    "bytes": 496,
+    "sha256": "9616e139ac774c2e686d283814bcfa89d9198687cf5cc115e45c8f283f28462c",
+    "complete_text": "ViewTransitionTypeSet* ViewTransitionTypeSet::Add(const nsAString& aValue,\n                                                  ErrorResult& aRv) {\n  if (SetlikeHelpers::Has(this, aValue, aRv) || aRv.Failed()) {\n    return this;\n  }\n  SetlikeHelpers::Add(this, aValue, aRv);\n  if (aRv.Failed()) {\n    return this;\n  }\n  RefPtr atom = NS_AtomizeMainThread(aValue);\n  MOZ_ASSERT(!mTransition->GetTypeList().Contains(atom));\n  mTransition->GetTypeList().AppendElement(std::move(atom));\n  return this;\n}",
+    "name": "original_add"
+  },
+  {
+    "source": "source/original-dom__view-transitions__ViewTransitionTypeSet.cpp",
+    "marker": "void ViewTransitionTypeSet::Clear(",
+    "offset": 1607,
+    "bytes": 167,
+    "sha256": "689bb819ea3ef7128fae9e5bf1bd44621f250707f3ac1d64cefa362f53360967",
+    "complete_text": "void ViewTransitionTypeSet::Clear(ErrorResult& aRv) {\n  SetlikeHelpers::Clear(this, aRv);\n  if (aRv.Failed()) {\n    return;\n  }\n  mTransition->GetTypeList().Clear();\n}",
+    "name": "original_clear"
+  },
+  {
+    "source": "source/original-dom__view-transitions__ViewTransitionTypeSet.cpp",
+    "marker": "bool ViewTransitionTypeSet::Delete(",
+    "offset": 1775,
+    "bytes": 339,
+    "sha256": "8e0928ad2bd4ec685f177002034a97763d0aa06832cbe31ffa1d77273fc7c6c5",
+    "complete_text": "bool ViewTransitionTypeSet::Delete(const nsAString& aValue, ErrorResult& aRv) {\n  if (!SetlikeHelpers::Delete(this, aValue, aRv) || aRv.Failed()) {\n    return false;\n  }\n  RefPtr atom = NS_AtomizeMainThread(aValue);\n  MOZ_ASSERT(mTransition->GetTypeList().Contains(atom));\n  mTransition->GetTypeList().RemoveElement(atom);\n  return true;\n}",
+    "name": "original_delete"
+  },
+  {
+    "source": "source/original-layout__style__RestyleManager.cpp",
+    "marker": "void RestyleManager::PostRestyleEvent(",
+    "offset": 101768,
+    "bytes": 1591,
+    "sha256": "5e62df8fd4a3853019fc0f598a142afa0a69d476d13a800d60986c7e62e17bf8",
+    "complete_text": "void RestyleManager::PostRestyleEvent(Element* aElement,\n                                      RestyleHint aRestyleHint,\n                                      nsChangeHint aMinChangeHint) {\n  MOZ_ASSERT(!(aMinChangeHint & nsChangeHint_NeutralChange),\n             \"Didn't expect explicit change hints to be neutral!\");\n  if (MOZ_UNLIKELY(IsDisconnected()) ||\n      MOZ_UNLIKELY(PresContext()->PresShell()->IsDestroying())) {\n    return;\n  }\n\n  // We allow posting restyles from within change hint handling, but not from\n  // within the restyle algorithm itself.\n  MOZ_ASSERT(!ServoStyleSet::IsInServoTraversal());\n\n  if (!aRestyleHint && !aMinChangeHint) {\n    // FIXME(emilio): we should assert against this instead.\n    return;  // Nothing to do.\n  }\n\n  // Assuming the restyle hints will invalidate cached style for\n  // getComputedStyle, since we don't know if any of the restyling that we do\n  // would affect undisplayed elements.\n  if (aRestyleHint) {\n    if (!(aRestyleHint & RestyleHint::ForAnimations())) {\n      mHaveNonAnimationRestyles = true;\n    }\n\n    IncrementUndisplayedRestyleGeneration();\n  }\n\n  // Processing change hints sometimes causes new change hints to be generated,\n  // and very occasionally, additional restyle hints. We collect the change\n  // hints manually to avoid re-traversing the DOM to find them.\n  if (mReentrantChanges && !aRestyleHint) {\n    mReentrantChanges->AppendElement(ReentrantChange{aElement, aMinChangeHint});\n    return;\n  }\n\n  if (aRestyleHint || aMinChangeHint) {\n    Servo_NoteExplicitHints(aElement, aRestyleHint, aMinChangeHint);\n  }\n}",
+    "name": "restyle_dispatch"
+  },
+  {
+    "source": "source/original-layout__style__RestyleManager.cpp",
+    "marker": "void RestyleManager::ElementStateChanged(",
+    "offset": 140978,
+    "bytes": 2681,
+    "sha256": "89a2c89463774506e70ca04652a56160b726cd7e5a2bcb4a03d4981172d2a42b",
+    "complete_text": "void RestyleManager::ElementStateChanged(Element* aElement,\n                                         ElementState aChangedBits) {\n  AUTO_PROFILER_LABEL_RELEVANT_FOR_JS(\"ElementStateChanged\",\n                                      LAYOUT_StyleComputation);\n#ifdef NIGHTLY_BUILD\n  if (MOZ_UNLIKELY(mInStyleRefresh)) {\n    MOZ_CRASH_UNSAFE_PRINTF(\n        \"Element state change during style refresh (%\" PRIu64 \")\",\n        aChangedBits.GetInternalValue());\n  }\n#endif  // NIGHTLY_BUILD\n\n  const ElementState kVisitedAndUnvisited =\n      ElementState::VISITED | ElementState::UNVISITED;\n\n  // We'll restyle when the relevant visited query finishes, regardless of the\n  // style (see Link::VisitedQueryFinished). So there's no need to do anything\n  // as a result of this state change just yet.\n  //\n  // Note that this check checks for _both_ bits: This is only true when visited\n  // changes to unvisited or vice-versa, but not when we start or stop being a\n  // link itself.\n  if (aChangedBits.HasAllStates(kVisitedAndUnvisited)) {\n    aChangedBits &= ~kVisitedAndUnvisited;\n    if (aChangedBits.IsEmpty()) {\n      return;\n    }\n  }\n\n  if (auto changeHint = ChangeForContentStateChange(*aElement, aChangedBits)) {\n    Servo_NoteExplicitHints(aElement, RestyleHint{0}, changeHint);\n  }\n\n  // Don't bother taking a snapshot if no rules depend on these state bits.\n  //\n  // We always take a snapshot for the LTR/RTL event states, since Servo doesn't\n  // track those bits in the same way, and we know that :dir() rules are always\n  // present in UA style sheets.\n  if (!aChangedBits.HasAtLeastOneOfStates(ElementState::DIR_STATES) &&\n      !StyleSet()->HasStateDependency(*aElement, aChangedBits)) {\n    return;\n  }\n\n  // Assuming we need to invalidate cached style in getComputedStyle for\n  // undisplayed elements, since we don't know if it is needed.\n  IncrementUndisplayedRestyleGeneration();\n\n  const bool hasData = aElement->HasServoData();\n  if (!hasData &&\n      !(aElement->GetSelectorFlags() &\n        NodeSelectorFlags::RelativeSelectorSearchDirectionAncestorSibling)) {\n    return;\n  }\n\n  ServoElementSnapshot& snapshot = SnapshotFor(*aElement);\n  ElementState previousState = aElement->StyleState() ^ aChangedBits;\n  snapshot.AddState(previousState);\n\n  ServoStyleSet& styleSet = *StyleSet();\n  if (hasData) {\n    // If the element has no style data, the siblings don't need to be\n    // invalidated, we're inside a display: none subtree anyways. We still need\n    // to invalidate for :has() tho, because that might go upwards.\n    MaybeRestyleForNthOfState(styleSet, aElement, aChangedBits);\n  }\n  MaybeRestyleForRelativeSelectorState(styleSet, aElement, aChangedBits);\n}",
+    "name": "state_snapshot"
+  },
+  {
+    "source": "source/generated-ViewTransitionBinding.cpp",
+    "marker": "namespace SetlikeHelpers {",
+    "offset": 20331,
+    "bytes": 6335,
+    "sha256": "9c5ed9775c8ca5c6cfd8c7887ddbebccdd6d2f9f9136dda8e49844f94a3990f9",
+    "complete_text": "namespace SetlikeHelpers {\nvoid\nClear(mozilla::dom::ViewTransitionTypeSet* self, ErrorResult& aRv)\n{\n  MOZ_ASSERT(self);\n  AutoJSAPI jsapi;\n  jsapi.Init();\n  JSContext* cx = jsapi.cx();\n  // It's safe to use UnprivilegedJunkScopeOrWorkerGlobal here because\n  // all we want is to wrap into _some_ scope and then unwrap to find\n  // the reflector, and wrapping has no side-effects.\n  JSObject* scope = UnprivilegedJunkScopeOrWorkerGlobal(fallible);\n  if (!scope) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  JSAutoRealm tempRealm(cx, scope);\n  JS::Rooted<JS::Value> v(cx);\n  if(!ToJSValue(cx, self, &v)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  // This is a reflector, but due to trying to name things\n  // similarly across method generators, it's called obj here.\n  JS::Rooted<JSObject*> obj(cx);\n  obj = js::UncheckedUnwrap(&v.toObject(), /* stopAtWindowProxy = */ false);\n  JSAutoRealm reflectorRealm(cx, obj);\n\n  JS::Rooted<JSObject*> backingObj(cx);\n  bool created = false;\n  if (!GetSetlikeBackingObject(cx, obj, (DOM_INSTANCE_RESERVED_SLOTS + 0), &backingObj, &created)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  if (created) {\n    PreserveWrapper<mozilla::dom::ViewTransitionTypeSet>(self);\n  }\n  if (!JS::SetClear(cx, backingObj)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n}\nbool\nDelete(mozilla::dom::ViewTransitionTypeSet* self, const nsAString& aKey, ErrorResult& aRv)\n{\n  MOZ_ASSERT(self);\n  AutoJSAPI jsapi;\n  jsapi.Init();\n  JSContext* cx = jsapi.cx();\n  // It's safe to use UnprivilegedJunkScopeOrWorkerGlobal here because\n  // all we want is to wrap into _some_ scope and then unwrap to find\n  // the reflector, and wrapping has no side-effects.\n  JSObject* scope = UnprivilegedJunkScopeOrWorkerGlobal(fallible);\n  if (!scope) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  JSAutoRealm tempRealm(cx, scope);\n  JS::Rooted<JS::Value> v(cx);\n  if(!ToJSValue(cx, self, &v)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  // This is a reflector, but due to trying to name things\n  // similarly across method generators, it's called obj here.\n  JS::Rooted<JSObject*> obj(cx);\n  obj = js::UncheckedUnwrap(&v.toObject(), /* stopAtWindowProxy = */ false);\n  JSAutoRealm reflectorRealm(cx, obj);\n  JS::RootedVector<JS::Value> argv(cx);\n  if (!argv.resize(1)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  do {\n    if (!xpc::NonVoidStringToJsval(cx, aKey, argv[0])) {\n      aRv.Throw(NS_ERROR_UNEXPECTED);\n      return bool(0);\n    }\n    break;\n  } while (false);\n\n  JS::Rooted<JSObject*> backingObj(cx);\n  bool created = false;\n  if (!GetSetlikeBackingObject(cx, obj, (DOM_INSTANCE_RESERVED_SLOTS + 0), &backingObj, &created)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  if (created) {\n    PreserveWrapper<mozilla::dom::ViewTransitionTypeSet>(self);\n  }\n  bool retVal;\n  if (!JS::SetDelete(cx, backingObj, argv[0], &retVal)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  return retVal;\n}\nbool\nHas(mozilla::dom::ViewTransitionTypeSet* self, const nsAString& aKey, ErrorResult& aRv)\n{\n  MOZ_ASSERT(self);\n  AutoJSAPI jsapi;\n  jsapi.Init();\n  JSContext* cx = jsapi.cx();\n  // It's safe to use UnprivilegedJunkScopeOrWorkerGlobal here because\n  // all we want is to wrap into _some_ scope and then unwrap to find\n  // the reflector, and wrapping has no side-effects.\n  JSObject* scope = UnprivilegedJunkScopeOrWorkerGlobal(fallible);\n  if (!scope) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  JSAutoRealm tempRealm(cx, scope);\n  JS::Rooted<JS::Value> v(cx);\n  if(!ToJSValue(cx, self, &v)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  // This is a reflector, but due to trying to name things\n  // similarly across method generators, it's called obj here.\n  JS::Rooted<JSObject*> obj(cx);\n  obj = js::UncheckedUnwrap(&v.toObject(), /* stopAtWindowProxy = */ false);\n  JSAutoRealm reflectorRealm(cx, obj);\n  JS::RootedVector<JS::Value> argv(cx);\n  if (!argv.resize(1)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  do {\n    if (!xpc::NonVoidStringToJsval(cx, aKey, argv[0])) {\n      aRv.Throw(NS_ERROR_UNEXPECTED);\n      return bool(0);\n    }\n    break;\n  } while (false);\n\n  JS::Rooted<JSObject*> backingObj(cx);\n  bool created = false;\n  if (!GetSetlikeBackingObject(cx, obj, (DOM_INSTANCE_RESERVED_SLOTS + 0), &backingObj, &created)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  if (created) {\n    PreserveWrapper<mozilla::dom::ViewTransitionTypeSet>(self);\n  }\n  bool retVal;\n  if (!JS::SetHas(cx, backingObj, argv[0], &retVal)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  return retVal;\n}\nvoid\nAdd(mozilla::dom::ViewTransitionTypeSet* self, const nsAString& aKey, ErrorResult& aRv)\n{\n  MOZ_ASSERT(self);\n  AutoJSAPI jsapi;\n  jsapi.Init();\n  JSContext* cx = jsapi.cx();\n  // It's safe to use UnprivilegedJunkScopeOrWorkerGlobal here because\n  // all we want is to wrap into _some_ scope and then unwrap to find\n  // the reflector, and wrapping has no side-effects.\n  JSObject* scope = UnprivilegedJunkScopeOrWorkerGlobal(fallible);\n  if (!scope) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  JSAutoRealm tempRealm(cx, scope);\n  JS::Rooted<JS::Value> v(cx);\n  if(!ToJSValue(cx, self, &v)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  // This is a reflector, but due to trying to name things\n  // similarly across method generators, it's called obj here.\n  JS::Rooted<JSObject*> obj(cx);\n  obj = js::UncheckedUnwrap(&v.toObject(), /* stopAtWindowProxy = */ false);\n  JSAutoRealm reflectorRealm(cx, obj);\n  JS::RootedVector<JS::Value> argv(cx);\n  if (!argv.resize(1)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  do {\n    if (!xpc::NonVoidStringToJsval(cx, aKey, argv[0])) {\n      aRv.Throw(NS_ERROR_UNEXPECTED);\n      return;\n    }\n    break;\n  } while (false);\n\n  JS::Rooted<JSObject*> backingObj(cx);\n  bool created = false;\n  if (!GetSetlikeBackingObject(cx, obj, (DOM_INSTANCE_RESERVED_SLOTS + 0), &backingObj, &created)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  if (created) {\n    PreserveWrapper<mozilla::dom::ViewTransitionTypeSet>(self);\n  }\n  if (!JS::SetAdd(cx, backingObj, argv[0])) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n}\n}",
+    "name": "generated_helpers"
+  }
+]

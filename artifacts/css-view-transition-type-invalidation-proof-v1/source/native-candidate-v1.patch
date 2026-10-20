@@ -1,0 +1,57 @@
+--- a/dom/view-transitions/ViewTransition.h
++++ b/dom/view-transitions/ViewTransition.h
+@@ -111,6 +111,7 @@
+   Promise* GetReady(ErrorResult&);
+   Promise* GetFinished(ErrorResult&);
+   ViewTransitionTypeSet* Types();
++  void TypesChanged();
+   const TypeList& GetTypeList() const { return mTypeList; }
+   TypeList& GetTypeList() { return mTypeList; }
+ 
+--- a/dom/view-transitions/ViewTransition.cpp
++++ b/dom/view-transitions/ViewTransition.cpp
+@@ -2105,6 +2105,16 @@
+   return el->mNewActiveRect;
+ }
+ 
++void ViewTransition::TypesChanged() {
++  if (mDocument->GetActiveViewTransition() != this) {
++    return;
++  }
++  if (Element* root = mDocument->GetRootElement()) {
++    nsLayoutUtils::PostRestyleEvent(root, RestyleHint::RestyleSubtree(),
++                                   nsChangeHint(0));
++  }
++}
++
+ ViewTransitionTypeSet* ViewTransition::Types() {
+   if (!mTypes) {
+     mTypes = new ViewTransitionTypeSet(*this);
+--- a/dom/view-transitions/ViewTransitionTypeSet.cpp
++++ b/dom/view-transitions/ViewTransitionTypeSet.cpp
+@@ -43,14 +43,16 @@
+   RefPtr atom = NS_AtomizeMainThread(aValue);
+   MOZ_ASSERT(!mTransition->GetTypeList().Contains(atom));
+   mTransition->GetTypeList().AppendElement(std::move(atom));
++  mTransition->TypesChanged();
+   return this;
+ }
+ void ViewTransitionTypeSet::Clear(ErrorResult& aRv) {
+   SetlikeHelpers::Clear(this, aRv);
+-  if (aRv.Failed()) {
++  if (aRv.Failed() || mTransition->GetTypeList().IsEmpty()) {
+     return;
+   }
+   mTransition->GetTypeList().Clear();
++  mTransition->TypesChanged();
+ }
+ bool ViewTransitionTypeSet::Delete(const nsAString& aValue, ErrorResult& aRv) {
+   if (!SetlikeHelpers::Delete(this, aValue, aRv) || aRv.Failed()) {
+@@ -59,6 +61,7 @@
+   RefPtr atom = NS_AtomizeMainThread(aValue);
+   MOZ_ASSERT(mTransition->GetTypeList().Contains(atom));
+   mTransition->GetTypeList().RemoveElement(atom);
++  mTransition->TypesChanged();
+   return true;
+ }
+ 
