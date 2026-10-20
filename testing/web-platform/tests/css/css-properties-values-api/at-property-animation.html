@@ -366,13 +366,17 @@ test_with_at_property({
     @property --registered {
         syntax: "<length>";
         inherits: false;
-        initialValue: 0px;
+        initial-value: 0px;
     }
     #div {
-        animation: test 100s -50s linear;
+        animation: test 100s -50s linear paused;
         --registered: var(${name});
     }
   `, () => {
+    assert_equals(getComputedStyle(outer).getPropertyValue('--registered'), '0px',
+                  'The consumer property is registered with its initial value');
+    assert_equals(getComputedStyle(div).getPropertyValue(name), '150px',
+                  'The animated producer is sampled at the midpoint');
     assert_equals(getComputedStyle(div).getPropertyValue('--registered'), '150px');
   });
 }, 'Registered properties referencing animated properties update correctly.');
