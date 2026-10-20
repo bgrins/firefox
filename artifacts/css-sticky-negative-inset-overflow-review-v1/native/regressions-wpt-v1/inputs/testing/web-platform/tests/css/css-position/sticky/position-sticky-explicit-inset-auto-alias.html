@@ -1,0 +1,84 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Large explicit sticky insets remain active</title>
+<link rel="help" href="https://drafts.csswg.org/css-position-3/#stickypos-insets">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.scroller { width: 100px; height: 100px; overflow: auto; scrollbar-width: none; }
+.cb { position: relative; }
+.vertical .cb { width: 100px; height: 1000px; }
+.horizontal .cb { display: flex; width: 1000px; height: 100px; }
+.target { position: sticky; width: 10px; height: 10px; flex: none; }
+.spacer { flex: none; }
+.vertical .spacer { width: 1px; height: 900px; }
+.horizontal .spacer { width: 900px; height: 1px; }
+.top .target { top: var(--inset); bottom: 0; }
+.right .target { right: var(--inset); left: 0; }
+.bottom .target { bottom: var(--inset); top: 0; }
+.left .target { left: var(--inset); right: 0; }
+</style>
+<body>
+<script>
+const values = [
+  ["0px", 0],
+  ["50px", 50],
+  ["1000px", 1000],
+  ["10000000px", 10000000],
+  ["17895696px", 17895696],
+  ["17895697px", 17895697],
+  ["17895698px", 17895698],
+  ["1000000000px", 1000000000],
+  ["calc(10000000px + 10000000px)", 20000000],
+  ["2000000000%", 2000000000],
+];
+const sheet = document.createElement("style");
+sheet.textContent = values.map(([value], i) => `.value${i} { --inset: ${value}; }`).join("\n");
+document.head.append(sheet);
+
+for (const side of ["top", "right", "bottom", "left"]) {
+  for (const [i, [value, inset]] of values.entries()) {
+    for (const requestedScroll of [0, 100]) {
+      test(t => {
+        const vertical = side === "top" || side === "bottom";
+        const near = side === "top" || side === "left";
+        const scroller = document.createElement("div");
+        scroller.className = `scroller ${vertical ? "vertical" : "horizontal"} ${side} value${i}`;
+        const cb = document.createElement("div");
+        cb.className = "cb";
+        if (!near) {
+          const spacer = document.createElement("div");
+          spacer.className = "spacer";
+          cb.append(spacer);
+        }
+        const target = document.createElement("div");
+        target.className = "target";
+        cb.append(target);
+        scroller.append(cb);
+        document.body.append(scroller);
+        t.add_cleanup(() => scroller.remove());
+        if (vertical) scroller.scrollTop = requestedScroll;
+        else scroller.scrollLeft = requestedScroll;
+        const outer = scroller.getBoundingClientRect();
+        const inner = target.getBoundingClientRect();
+        const containing = cb.getBoundingClientRect();
+        assert_equals(vertical ? scroller.scrollTop : scroller.scrollLeft, requestedScroll, "Scroll offset");
+        assert_equals(vertical ? scroller.clientHeight : scroller.clientWidth, 100, "Scrollport size");
+        assert_equals(vertical ? containing.height : containing.width, 1000, "Containing block size");
+        assert_equals(vertical ? inner.height : inner.width, 10, "Target size");
+        const computed = getComputedStyle(target);
+        assert_equals(computed.position, "sticky");
+        assert_not_equals(computed[side], "auto", "Explicit inset");
+        const opposite = {top: "bottom", right: "left", bottom: "top", left: "right"}[side];
+        assert_equals(computed[opposite], "0px", "Opposite inset");
+        const position = vertical ? inner.top - outer.top : inner.left - outer.left;
+        const expected = near ?
+          Math.max(0, Math.min(requestedScroll + inset, 990)) - requestedScroll :
+          Math.max(0, Math.min(900, requestedScroll + 90 - Math.min(inset, 90))) - requestedScroll;
+        assert_approx_equals(position, expected, 0.1, "Explicit inset constrains the sticky position");
+      }, `${side}: ${value}, scroll ${requestedScroll}`);
+    }
+  }
+}
+</script>

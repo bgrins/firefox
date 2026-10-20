@@ -1,0 +1,89 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Large negative sticky insets preserve the normal position</title>
+<link rel="help" href="https://drafts.csswg.org/css-position-3/#stickypos-insets">
+<meta name="assert" content="Negative insets that expand the sticky view rectangle beyond a box do not move it from its normal position.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.scroller { width: 100px; height: 100px; overflow: auto; scrollbar-width: none; }
+.cb { position: relative; }
+.vertical .cb { width: 100px; height: 1000px; }
+.horizontal .cb { width: 1000px; height: 100px; display: flex; }
+.vertical .spacer { height: 200px; }
+.horizontal .spacer { flex: 0 0 200px; }
+.target { position: sticky; width: 10px; height: 10px; flex: 0 0 10px; }
+.vertical .target { top: var(--near); bottom: var(--far); }
+.horizontal .target { left: var(--near); right: var(--far); }
+.control .target { position: static; }
+</style>
+<body>
+<script>
+const pairs = [
+  [-1000, -1000], [-1000000, -1000000],
+  [-10000000, -10000000], [-17895600, -17895600],
+  [-17895696, -17895696], [-17895697, -17895697],
+  [-17895698, -17895698], [-1000000000, -1000000000],
+  [-1000000000, -1000], [-1000, -1000000000],
+];
+const sheet = document.createElement("style");
+sheet.textContent = pairs.map(([near, far], i) =>
+  `.value${i} { --near: ${near}px; --far: ${far}px; }`).join("\n");
+document.head.append(sheet);
+function measure(axis, index, requestedScroll, control) {
+  const scroller = document.createElement("div");
+  scroller.className = `scroller ${axis} value${index} ${control ? "control" : ""}`;
+  const cb = document.createElement("div");
+  cb.className = "cb";
+  const spacer = document.createElement("div");
+  spacer.className = "spacer";
+  const target = document.createElement("div");
+  target.className = "target";
+  cb.append(spacer, target);
+  scroller.append(cb);
+  document.body.append(scroller);
+  const vertical = axis === "vertical";
+  if (vertical) scroller.scrollTop = requestedScroll;
+  else scroller.scrollLeft = requestedScroll;
+  const outer = scroller.getBoundingClientRect();
+  const inner = target.getBoundingClientRect();
+  const containing = cb.getBoundingClientRect();
+  const computed = getComputedStyle(target);
+  const result = {
+    position: vertical ? inner.top - outer.top : inner.left - outer.left,
+    actualScroll: vertical ? scroller.scrollTop : scroller.scrollLeft,
+    client: vertical ? scroller.clientHeight : scroller.clientWidth,
+    cbSize: vertical ? containing.height : containing.width,
+    targetSize: vertical ? inner.height : inner.width,
+    computedPosition: computed.position,
+    near: vertical ? computed.top : computed.left,
+    far: vertical ? computed.bottom : computed.right,
+  };
+  scroller.remove();
+  return result;
+}
+for (const axis of ["vertical", "horizontal"]) {
+  for (const [i, insets] of pairs.entries()) {
+    for (const requestedScroll of [0, 100, 400]) {
+      test(() => {
+        const sticky = measure(axis, i, requestedScroll, false);
+        const control = measure(axis, i, requestedScroll, true);
+        for (const observed of [sticky, control]) {
+          assert_equals(observed.actualScroll, requestedScroll, "Actual scroll");
+          assert_equals(observed.client, 100, "Scrollport size");
+          assert_equals(observed.cbSize, 1000, "Containing block size");
+          assert_equals(observed.targetSize, 10, "Target size");
+        }
+        assert_equals(sticky.computedPosition, "sticky");
+        assert_not_equals(sticky.near, "auto");
+        assert_not_equals(sticky.far, "auto");
+        assert_approx_equals(control.position, 200 - requestedScroll, .1,
+          "Static control position");
+        assert_approx_equals(sticky.position, control.position, .1,
+          "Sticky target keeps its normal position");
+      }, `${axis}: insets ${insets.join("/")}px, scroll ${requestedScroll}px`);
+    }
+  }
+}
+</script>

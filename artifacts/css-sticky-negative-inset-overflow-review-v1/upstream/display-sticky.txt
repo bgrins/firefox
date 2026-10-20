@@ -1,0 +1,25 @@
+>>> 6015: WebRenderCommandsResult nsDisplayStickyPosition::CreateWebRenderCommands(
+    6016:     wr::DisplayListBuilder& aBuilder, wr::IpcResourceUpdateQueue& aResources,
+    6017:     const StackingContextHelper& aSc, RenderRootStateManager* aManager,
+    6018:     nsDisplayListBuilder* aDisplayListBuilder) {
+    6019:   StickyScrollContainer* stickyScrollContainer = GetStickyScrollContainer();
+    6020: 
+    6021:   Maybe<wr::SpaceAndClipChainHelper> saccHelper;
+    6022: 
+    6023:   if (stickyScrollContainer && !stickyScrollContainer->ShouldFlattenAway()) {
+    6024:     const ActiveScrolledRoot* stickyAsr =
+    6025:         ActiveScrolledRoot::GetStickyASRFromFrame(mFrame);
+    6026:     MOZ_ASSERT(stickyAsr);
+    6027:     auto spatialId = aBuilder.GetSpatialIdForDefinedLayer(stickyAsr);
+    6028:     MOZ_ASSERT(spatialId.isSome());
+    6029:     saccHelper.emplace(aBuilder, *spatialId);
+    6030:   }
+    6031: 
+    6032:   wr::StackingContextParams params;
+    6033:   params.clip =
+    6034:       wr::WrStackingContextClip::ClipChain(aBuilder.CurrentClipChainId());
+    6035:   StackingContextHelper sc(aSc, GetActiveScrolledRoot(), mFrame, this, aBuilder,
+    6036:                            params);
+    6037:   return nsDisplayOwnLayer::CreateWebRenderCommands(
+    6038:       aBuilder, aResources, sc, aManager, aDisplayListBuilder);
+    6039: }
