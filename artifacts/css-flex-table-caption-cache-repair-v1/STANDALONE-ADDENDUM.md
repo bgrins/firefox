@@ -1,0 +1,11 @@
+# Subsequent source-only packaging and runtime handoff
+
+The original REPORT.md and PROPOSAL-PINS.json remain byte-identical to the proposal delivered before native testing. This addendum updates their pending packaging/runtime status without rewriting that historical scope.
+
+standalone/ROUNDTRIP.json records read-only Git retrieval at HEAD92a6fddf18e5828b17d7491a34663a0d5a9c12ad and upstream976279105b2e78b8666a959eb3f25c9176cefaf8. Both have identical original nsFlexContainerFrame.cpp3a7fe90d495e15b1b92a0cb59cb3a993996891b9faddebbe99ed4c8baa4e88b6. Applying/reversing each exact two-file patch through /usr/bin/patch in owned scratch trees reproduced exact candidate source and WPT bytes, then exact original source and absent WPT. Scratch trees were removed. No Git/index/worktree mutation or isolated upstream runtime was performed.
+
+Both variants add only the actual containing-block member/initializer and the WPT. Their patch SHA256 is54257cd9daf8add582ee4594e6671272b3bf649eaec6ed3ca65e245413641f98. Neither adds the separate padding-key repair. The project-native proposal retains all existing padding and other pending source changes in its before/candidate snapshots, while native.patch itself adds only the two CB lines.
+
+Root subsequently reports candidate16WPT PASS from original12PASS/4FAIL,354other subtests unchanged,7existing reftests PASS/1expectedFAIL unchanged. That runtime is separate evidence at css-flex-table-caption-fix-runtime-v1, external FILES0b54e66e6302d3ee7ef3aaeb0f793add0a86942b580ef25a5d80857a3e05530e; root supplied this pin and owns its acceptance. It is not silently included or independently replayed by this proposal seal. Root also supplied format evidence FILES7c0f3b3d1c12a4c9f504c6e44c7fa46ddb5321bf3239362e1c34502b2ca4341f. Root reports restoration complete with no persistent native change from the experiment.
+
+The separate formal source component css-flex-table-caption-cache-proof-v1 has FILESb26c6dc88281b9e7a571967a4edc308cda864446780886f3d5d3fb2d415734d0 and FREEZE09e8eb00a86735a78273561f331d422e1b90f3382a19fc21bbdfa4c669b605dc. Its19 scoped results, source-only calibration and retained admissions do not imply whole-cache/native correctness or full F11/F12 closure. Independent/root acceptance remains separately recorded.

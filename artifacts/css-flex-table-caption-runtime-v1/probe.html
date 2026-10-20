@@ -1,0 +1,86 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Table caption automatic height: warm and fresh flex layout</title>
+<style>
+body { margin: 0; font: 20px/20px monospace; }
+.host { display: flex; width: 240px; column-gap: 20px; margin: 0; padding: 0; border: 0; }
+.h200 { height: 200px; }
+.h300 { height: 300px; }
+.start { align-items: flex-start; }
+.center { align-items: center; }
+.last { align-items: last baseline; }
+table { flex: 0 0 100px; width: 100px; border-collapse: separate; border-spacing: 0; border: 0; padding: 0; }
+caption { padding: 0; border: 0; line-height: 20px; }
+.fixed-caption caption { height: 20px; }
+td { padding: 0; border: 0; vertical-align: bottom; }
+.percent table { height: 50%; }
+.literal table { height: 100px; }
+.peer { flex: 0 0 40px; height: 40px; }
+.marker { display: inline-block; width: 0; height: 0; padding: 0; border: 0; }
+</style>
+<body>
+<script>
+function create(alignment, kind, height, caption) {
+  const host = document.createElement("div");
+  host.className = `host ${alignment} ${kind} h${height} ${caption}`;
+  host.innerHTML = '<table><caption>C</caption><tbody><tr><td>T<span class="marker"></span></td></tr></tbody></table><div class="peer">P<span class="marker"></span></div>';
+  document.body.append(host);
+  return host;
+}
+function setHeight(host, height) {
+  host.classList.remove("h200", "h300");
+  host.classList.add(`h${height}`);
+}
+function measure(host) {
+  const origin = host.getBoundingClientRect();
+  const table = host.querySelector("table");
+  const peer = host.querySelector(".peer");
+  const tr = table.getBoundingClientRect();
+  const pr = peer.getBoundingClientRect();
+  const markers = [...host.querySelectorAll(".marker")].map(node => node.getBoundingClientRect().top - origin.top);
+  const style = getComputedStyle(table);
+  const caption = host.querySelector("caption").getBoundingClientRect();
+  return {hostHeight: origin.height, hostWidth: origin.width,
+    captionHeight: caption.height, captionTop: caption.top - origin.top,
+    tableHeight: tr.height, tableWidth: tr.width, tableTop: tr.top - origin.top,
+    peerTop: pr.top - origin.top, markers, computedHeight: style.height,
+    padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]};
+}
+function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+function fresh(alignment, kind, height, caption) {
+  const host = create(alignment, kind, height, caption);
+  const result = measure(host);
+  host.remove();
+  return result;
+}
+const rows = [];
+for (const alignment of ["center", "last"]) {
+  for (const caption of ["auto-caption", "fixed-caption"]) {
+  for (const kind of ["percent", "literal"]) {
+    for (const [from, to] of [[200, 300], [300, 200]]) {
+      const host = create(alignment, kind, from, caption);
+      const before = measure(host);
+      const beforeReference = fresh(alignment, kind, from, caption);
+      setHeight(host, to);
+      const warm = measure(host);
+      const reference = fresh(alignment, kind, to, caption);
+      setHeight(host, from);
+      const restored = measure(host);
+      setHeight(host, to);
+      const repeated = measure(host);
+      rows.push({alignment, kind, caption, from, to, before, beforeReference, warm, reference,
+        restored, repeated, beforeCalibrated: same(before, beforeReference),
+        restoreStable: same(before, restored), repeatStable: same(warm, repeated),
+        warmMatchesFresh: same(warm, reference)});
+      host.remove();
+    }
+  }
+}
+}
+window.RESULT = {rows, count: rows.length, lastBaselineSupported: CSS.supports("align-items", "last baseline"),
+  discrepancies: rows.filter(row => !row.warmMatchesFresh).length};
+document.body.append(Object.assign(document.createElement("pre"), {textContent: JSON.stringify(window.RESULT, null, 2)}));
+window.dispatchEvent(new Event("probe-complete"));
+</script>
+
+<script>fetch("/result", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(window.RESULT)});</script>

@@ -1,0 +1,112 @@
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -1900,12 +1900,14 @@
+ class nsFlexContainerFrame::CachedBAxisMeasurement {
+   struct Key {
+     const LogicalSize mComputedSize;
++    const LogicalSize mContainingBlockSize;
+     const nscoord mComputedMinBSize;
+     const nscoord mComputedMaxBSize;
+     const nscoord mAvailableBSize;
+ 
+     explicit Key(const ReflowInput& aRI)
+         : mComputedSize(aRI.ComputedSize()),
++          mContainingBlockSize(aRI.mContainingBlockSize),
+           mComputedMinBSize(aRI.ComputedMinBSize()),
+           mComputedMaxBSize(aRI.ComputedMaxBSize()),
+           mAvailableBSize(aRI.AvailableBSize()) {}
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-flexbox/table-caption-percentage-height-resize.html
+@@ -0,0 +1,92 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>A flex table with a caption updates its percentage height after resizing</title>
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#flex-items">
++<link rel="help" href="https://drafts.csswg.org/css-sizing-3/#percentage-sizing">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++body { margin: 0; font: 20px/20px monospace; }
++.host { display: flex; width: 240px; column-gap: 20px; margin: 0; padding: 0; border: 0; }
++.h200 { height: 200px; }
++.h300 { height: 300px; }
++.start { align-items: flex-start; }
++.center { align-items: center; }
++.last { align-items: last baseline; }
++table { flex: 0 0 100px; width: 100px; border-collapse: separate; border-spacing: 0; border: 0; padding: 0; }
++caption { padding: 0; border: 0; line-height: 20px; }
++.fixed-caption caption { height: 20px; }
++td { padding: 0; border: 0; vertical-align: bottom; }
++.percent table { height: 50%; }
++.literal table { height: 100px; }
++.peer { flex: 0 0 40px; height: 40px; }
++.marker { display: inline-block; width: 0; height: 0; padding: 0; border: 0; }
++</style>
++<body>
++<script>
++function create(t, alignment, kind, height, caption) {
++  const host = document.createElement("div");
++  host.className = `host ${alignment} ${kind} h${height} ${caption}`;
++  host.innerHTML = '<table><caption>C</caption><tbody><tr><td>T<span class="marker"></span></td></tr></tbody></table><div class="peer">P<span class="marker"></span></div>';
++  document.body.append(host);
++  t.add_cleanup(() => { host.remove(); });
++  return host;
++}
++function setHeight(host, height) {
++  host.classList.remove("h200", "h300");
++  host.classList.add(`h${height}`);
++}
++function measure(host) {
++  const origin = host.getBoundingClientRect();
++  const table = host.querySelector("table");
++  const caption = host.querySelector("caption").getBoundingClientRect();
++  const rect = table.getBoundingClientRect();
++  return {
++    hostHeight: origin.height,
++    captionHeight: caption.height,
++    tableHeight: rect.height,
++    tableTop: rect.top - origin.top,
++    resolvedHeight: getComputedStyle(table).height,
++    markers: [...host.querySelectorAll(".marker")].map(
++      node => node.getBoundingClientRect().top - origin.top)
++  };
++}
++function assertSize(actual, kind, height, label) {
++  const innerHeight = kind === "percent" ? height / 2 : 100;
++  assert_equals(actual.hostHeight, height, `${label}: container height`);
++  assert_equals(actual.captionHeight, 20, `${label}: caption height`);
++  assert_equals(actual.resolvedHeight, `${innerHeight}px`, `${label}: table resolved height`);
++  assert_equals(actual.tableHeight, innerHeight + 20, `${label}: table and caption height`);
++}
++function assertSame(actual, expected, label) {
++  assert_equals(actual.tableTop, expected.tableTop, `${label}: table position`);
++  assert_array_equals(actual.markers, expected.markers, `${label}: baseline markers`);
++}
++for (const alignment of ["center", "last"]) {
++  for (const caption of ["auto-caption", "fixed-caption"]) {
++    for (const kind of ["percent", "literal"]) {
++      for (const [from, to] of [[200, 300], [300, 200]]) {
++        test(t => {
++          const warm = create(t, alignment, kind, from, caption);
++          const initial = measure(warm);
++          assertSize(initial, kind, from, "initial");
++          setHeight(warm, to);
++          const resized = measure(warm);
++          const fresh = measure(create(t, alignment, kind, to, caption));
++          assertSize(fresh, kind, to, "fresh reference");
++          assertSize(resized, kind, to, "resized");
++          assertSame(resized, fresh, "resized matches fresh");
++          setHeight(warm, from);
++          const restored = measure(warm);
++          assertSize(restored, kind, from, "restored");
++          assertSame(restored, initial, "restored matches initial");
++          setHeight(warm, to);
++          const repeated = measure(warm);
++          assertSize(repeated, kind, to, "repeated");
++          assertSame(repeated, fresh, "repeated matches fresh");
++        }, `${alignment} alignment, ${caption}, ${kind} height: ${from}px to ${to}px`);
++      }
++    }
++  }
++}
++</script>
