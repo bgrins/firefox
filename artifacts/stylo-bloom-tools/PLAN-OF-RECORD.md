@@ -34,15 +34,23 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
   holding this version. Source/build restoration completed; no integer candidate
   remains installed. [Actual experiment](../css-cssom-exact-traversal-runtime-v2/REPORT.md),
   [independent review](../css-cssom-exact-traversal-runtime-review-v2/REPORT.md).
-- **Next traversal optimization is artifact-only.** Select traversal mode once,
-  simplify checked accumulator state with public SafeAdd and combine redundant
-  guards. Preserve ancestor-context checks, v1 inclusion, v2's expanded exact
-  domain and old-defined matrix behavior. A fresh review/build/browser/timing
-  cycle is required; v2 results are not transferred to the untested v3 draft.
-- **Allocation footprint proof is in development.** Model actual selected
-  detach/delete order in one heap, including allocated empty arrays and raw
-  dangling/repeated frame references. Root review required explicit allocation
-  role checks; cache-type decoding and full callbacks/lifetime remain open.
+- **Traversal v3 source and extraction review passed:** signed research
+  `352634890bf2`. The complete v2 exact domain and old-defined matrix behavior
+  are retained by the reviewed source argument. Extracted replay checks 168 matrix
+  cases and 2,048 finite chains per optimization; seven mutants are rejected.
+  Independent dispatch, SVG-mask, geometry and arithmetic boundary checks pass.
+  No native candidate is installed. Next run the reversible full build and the
+  established 23-file/74-subtest comparison, then six fresh timing processes with
+  longer batches (10 ns/call per 1 ms tick). Browser correctness and performance
+  remain unmeasured for v3. [Review](../css-cssom-exact-traversal-review-v3/REPORT.md).
+- **Selected allocation footprint component accepted by root:** signed research
+  `505bbb00e328`. Fresh Lean replay passes 51 audits and four semantic rejection
+  checks. Selected role-correct deletion preserves primary coherence while a
+  captured cache is freed. This is not an established browser use-after-free.
+  Actual payload decoding, nonempty-array storage, global ownership, intervening
+  callbacks and generation identity remain open. Independent review is in progress;
+  the next source audit traces actual cache capture across reflow callbacks.
+  [Root review](../css-primary-destruction-callback-proof-root-v1/REPORT.md).
 - **DOMRect precision committed:** `c0e8c7fd1deb` preserves already calculated
   double coordinates. Its four-case WPT passes independently; selected existing
   regressions retain their outcomes. The bounded 26-audit numeric component has
@@ -124,7 +132,7 @@ verbatim. Their counts, signing blockers, agent states and “next” sections a
 historical observations. The current schedule is below; historical open proof
 obligations remain open unless a later acceptance record explicitly closes them.
 
-## Current flex verification checkpoint
+## Earlier flex verification checkpoint (historical)
 
 - **Scroll-container baseline provider repair accepted:** ordinary asymmetric
   borders expose a preexisting last-baseline coordinate error in release Firefox.
