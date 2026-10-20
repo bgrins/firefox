@@ -1,0 +1,1 @@
+Externally authenticate FREEZE.json, MANIFEST.json and check.py, then run `python3 -I -S check.py`. The checker authenticates only; no code generation, browser or compiler runs. probe.html is an unexecuted eight-case WPT proposal. Node syntax check receipt is retained. All source and native speculation limits are in REPORT.md.
