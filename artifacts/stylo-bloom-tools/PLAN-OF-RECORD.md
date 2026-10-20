@@ -347,3 +347,20 @@ and prove that the chosen cut materializes permitted fragments. Forced events,
 common decorations at all candidates and zero-size after-overflow handling must
 remain visible. Do not import an uninstantiated SufficiencyCorrespondence as a
 closed CSS premise. [Root acceptance](../css-fragmentation-unforced-root-v1/REVIEW.md).
+
+## Whole-CSS next implementation decisions
+
+The new three-agent [assessment](../css-whole-spec-next-assessment-v1/README.md)
+uses the accepted fragmentation pilot as a composition test. Priority: reconcile
+its interpreted requirement ledger and normative sufficiency/region frontier,
+then derive a real opportunity/geometry/continuation provider and selected-cut
+materialization bridge. Next add two independent fragment consumers and
+persistent resource/sampling histories. The catalog/CSS2-residual/host universe
+remains an explicit parallel accounting task; 127 historical library feature
+records cannot serve as a coverage denominator.
+
+The cloned-decoration correction exercise passes ten structural/arithmetic
+checks, including stale binding and missing observer/assumption rejection.
+Those inputs are supplied; this is not automated CSS interpretation. Standalone
+specification, executable reference and Gecko-adapter claims remain separate.
+No completion percentage or timeline is inferred from proof counts.
