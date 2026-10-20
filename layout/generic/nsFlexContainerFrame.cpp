@@ -1900,12 +1900,15 @@ void nsFlexContainerFrame::ResolveAutoFlexBasisAndMinSize(
 class nsFlexContainerFrame::CachedBAxisMeasurement {
   struct Key {
     const LogicalSize mComputedSize;
+    const LogicalMargin mBorderPadding;
     const nscoord mComputedMinBSize;
     const nscoord mComputedMaxBSize;
     const nscoord mAvailableBSize;
 
     explicit Key(const ReflowInput& aRI)
         : mComputedSize(aRI.ComputedSize()),
+          mBorderPadding(
+              aRI.ComputedLogicalBorderPadding(aRI.GetWritingMode())),
           mComputedMinBSize(aRI.ComputedMinBSize()),
           mComputedMaxBSize(aRI.ComputedMaxBSize()),
           mAvailableBSize(aRI.AvailableBSize()) {}
