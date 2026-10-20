@@ -329,6 +329,21 @@ operation. Its 24-case WPT and one-line native patch are independent of earlier
 repairs. Root and independent formal replay accept 15 results with 45 native
 observations per variant. Numeric providers, admitted fixture observers and
 native histories remain open. The whole-CSS coverage, architecture and evolution
-agents are assessing the next integration milestone; fragmentation pilot root
-acceptance remains pending separately.
+agents have delivered the next integration assessment. Root accepts the
+fragmentation rule/grid pilot within its stated conditional domain.
 [Acceptance](../css-animation-interpolation-taint-final-root-v1/ACCEPTANCE.json).
+
+## Fragmentation rule/grid pilot — accepted conditional component
+
+Root and independent replays pass 34 audited results and nine compiled semantic
+mutants. The independent reviewer adds seven kernel challenges and four integrity
+controls. Rules, finite grid search, stage selection and conditional positive
+slice progress are accepted. Natural-number extents and supplied layout inputs
+remain the domain. No native fix or whole-fragmentation claim is added.
+
+The next gate is normative admission: clarify sufficient break opportunities and
+the emergency region, then construct actual flow/opportunity/continuation inputs
+and prove that the chosen cut materializes permitted fragments. Forced events,
+common decorations at all candidates and zero-size after-overflow handling must
+remain visible. Do not import an uninstantiated SufficiencyCorrespondence as a
+closed CSS premise. [Root acceptance](../css-fragmentation-unforced-root-v1/REVIEW.md).

@@ -1,0 +1,74 @@
+[
+  {
+    "name": "ancestor-guard",
+    "module": "Rules",
+    "old": "(!(p.controls.all (\u00b7 == .auto)) || noAvoidAncestors p.commonAncestors)",
+    "new": "noAvoidAncestors p.commonAncestors",
+    "witness": "common_ancestor_witness",
+    "gate": "mutants/ancestor-guard/Gate.lean"
+  },
+  {
+    "name": "typed-avoid",
+    "module": "Rules",
+    "old": "| .avoidColumn => t.column",
+    "new": "| .avoidColumn => true",
+    "witness": "typed_avoidance_witness",
+    "gate": "mutants/typed-avoid/Gate.lean"
+  },
+  {
+    "name": "widows-boundary",
+    "module": "Rules",
+    "old": "decide (p.widows \u2264 lineCount b (xs.drop p.cut))",
+    "new": "decide (p.widows < lineCount b (xs.drop p.cut))",
+    "witness": "line_counts_witness",
+    "gate": "mutants/widows-boundary/Gate.lean"
+  },
+  {
+    "name": "premature-avoid",
+    "module": "Rules",
+    "old": "| .strict | .lines => match p.kind with",
+    "new": "| .lines => true\n  | .strict => match p.kind with",
+    "witness": "avoidance_not_dropped_with_lines",
+    "gate": "mutants/premature-avoid/Gate.lean"
+  },
+  {
+    "name": "premature-start-truncation",
+    "module": "Placement",
+    "old": "| .endClone => d.startExtent",
+    "new": "| .endClone => 0",
+    "witness": "both_clone_inhabited",
+    "gate": "mutants/premature-start-truncation/Gate.lean"
+  },
+  {
+    "name": "allowed-instead-of-fitting",
+    "module": "Placement",
+    "old": "i.opportunities.find? (candidate s i)",
+    "new": "i.opportunities.find? (ordinary s i.types i.content)",
+    "witness": "allowed_but_not_fitting",
+    "gate": "mutants/allowed-instead-of-fitting/Gate.lean"
+  },
+  {
+    "name": "zero-progress",
+    "module": "Emergency",
+    "old": "then some (min remaining (available i))",
+    "new": "then some 0",
+    "witness": "emergency_inhabited",
+    "gate": "mutants/zero-progress/Gate.lean"
+  },
+  {
+    "name": "zero-earlier-side",
+    "module": "Placement",
+    "old": "!nextZeroBox i p.cut",
+    "new": "true",
+    "witness": "zero_box_earlier_side",
+    "gate": "mutants/zero-earlier-side/Gate.lean"
+  },
+  {
+    "name": "drop-region-guard",
+    "module": "Emergency",
+    "old": "noBelowTop i region && !finishFits .bothClone i",
+    "new": "true && !finishFits .bothClone i",
+    "witness": "emergency_region_competition",
+    "gate": "mutants/drop-region-guard/Gate.lean"
+  }
+]

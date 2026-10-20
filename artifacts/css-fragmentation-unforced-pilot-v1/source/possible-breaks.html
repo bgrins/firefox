@@ -1,0 +1,88 @@
+<h3 class="heading settled" data-level="4.1" id="possible-breaks"><span class="secno">4.1. </span><span class="content">
+Possible Break Points</span><a class="self-link" href="#possible-breaks"></a></h3>
+   <p>
+    Fragmentation splits boxes in the block flow dimension.
+    In block-and-inline flow, breaks may occur at the following places:
+  </p>
+   <dl>
+    <dt id="btw-blocks"><a class="self-link" href="#btw-blocks"></a>Class A
+    <dd>
+     
+      Between sibling boxes of the following types:
+      
+     <dl>
+      <dt>Block-parallel Fragmentation
+      <dd>
+          When the block flow direction of the siblings' containing block
+          is parallel to that of the fragmentation context:
+          <a href="https://www.w3.org/TR/2011/REC-CSS2-20110607/visuren.html#positioning-scheme">in-flow</a> block-level boxes,
+          a float and an immediately-adjacent in-flow or floated box,
+          table row group boxes,
+          table row boxes,
+          multi-column column row boxes.
+        
+      <dt>Block-perpendicular Fragmentation
+      <dd>
+          When the block flow direction of the siblings' containing block
+          is perpendicular to that of the fragmentation context:
+          table column group boxes,
+          table column boxes,
+          multi-column column boxes.
+        
+     </dl>
+    <dt id="btw-lines"><a class="self-link" href="#btw-lines"></a>Class B
+    <dd>
+      Between line boxes inside a block container box.
+    
+    <dt id="end-block"><a class="self-link" href="#end-block"></a>Class C
+    <dd>
+      Between the content edge of a block container box and the outer edges of its
+      child content (margin edges of block-level children or line box
+      edges for inline-level children) <em>if</em> there is a (non-zero)
+      gap between them.
+    
+   </dl>
+   <p class="note" role="note">
+    There is no inherent prioritization among these classes of break points.
+    However, individual break points may be prioritized or de-prioritized
+    by using the <a href="#breaking-controls">breaking controls</a>.
+
+  </p>
+   <p class="note" role="note">
+    Other layout models may add breakpoints to the above classes.
+    For example, <a data-link-type="biblio" href="#biblio-css-flexbox-1" title="CSS Flexible Box Layout Module Level 1">[CSS-FLEXBOX-1]</a> adds certain points within a flex formatting context
+    to classes A and C.
+  </p>
+   <p>
+    Some content is not fragmentable, for example many types of
+    <a href="https://www.w3.org/TR/CSS21/conform.html#replaced-element">replaced elements</a> <a data-link-type="biblio" href="#biblio-css2" title="Cascading Style Sheets Level 2 Revision 1 (CSS 2.1) Specification">[CSS2]</a> (such as images or video),
+    scrollable elements, or a single line of text content.
+    Such content is considered <dfn class="dfn-paneled" data-dfn-type="dfn" data-noexport id="monolithic">monolithic</dfn>:
+    it contains no possible break points.
+    Any forced breaks within such boxes
+    therefore cannot split the box,
+    and must therefore also be ignored by the box’s own fragmentation context.
+
+  </p>
+   <p>
+    In addition to any content which is not generally fragmentable,
+    UAs may consider as <a data-link-type="dfn" href="#monolithic" id="ref-for-monolithic">monolithic</a> any elements with
+    <a class="css property" data-link-type="property" href="https://drafts.csswg.org/css-overflow-3/#propdef-overflow" id="ref-for-propdef-overflow">overflow</a> set to <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-overflow-3/#valdef-overflow-auto" id="ref-for-valdef-overflow-auto">auto</a> or <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-overflow-3/#valdef-overflow-scroll" id="ref-for-valdef-overflow-scroll">scroll</a> and
+    any elements with <span class="css" id="ref-for-propdef-overflow①">overflow: hidden</span> and a non-<a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-sizing-3/#valdef-width-auto" id="ref-for-valdef-width-auto">auto</a>
+    <a href="https://www.w3.org/TR/css3-writing-modes/#block-size">logical height</a>
+    (and no specified maximum logical height).
+
+  </p>
+   <p>
+    Since line boxes contain no possible break points,
+    <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-display-4/#valdef-display-inline-block" id="ref-for-valdef-display-inline-block">inline-block</a> and <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-display-4/#valdef-display-inline-table" id="ref-for-valdef-display-inline-table">inline-table</a> boxes
+    (and other inline-level <a data-link-type="dfn" href="https://drafts.csswg.org/css-display-4/#display-type" id="ref-for-display-type①">display types</a> that establish an <a data-link-type="dfn" href="https://drafts.csswg.org/css-display-4/#independent-formatting-context" id="ref-for-independent-formatting-context">independent formatting context</a>)
+    may also be considered <a data-link-type="dfn" href="#monolithic" id="ref-for-monolithic①">monolithic</a>:
+    that is,
+    in the cases where a single line box is too large
+    to fit within its fragmentainer even by itself
+    and the UA chooses to split the line box,
+    it may fragment such boxes or it may treat them as monolithic.
+
+</p>
+   

@@ -1,0 +1,69 @@
+<h3 class="heading settled" data-level="4.5" id="best-breaks"><span class="secno">4.5. </span><span class="content">
+Optimizing Unforced Breaks</span><a class="self-link" href="#best-breaks"></a></h3>
+   <p>While CSS3 requires that a <a data-link-type="dfn" href="#fragmented-flow" id="ref-for-fragmented-flow⑥">fragmented flow</a> must break at allowed
+    break points in order to avoid overflowing the fragmentainers in its
+    fragmentation context, it does not define whether content breaks
+    at a particular <a href="#unforced-breaks">allowed break</a>.
+    However, it is recommended that user agents observe the following
+    guidelines (while recognizing that they are sometimes contradictory):
+  </p>
+   <ul>
+    <li>Break as few times as possible.
+    <li>Make all fragmentainers that don’t end with a forced break appear
+      to be equally filled with content.
+    <li>Avoid breaking inside a replaced element.
+   </ul>
+   <div class="example" id="widows-orphans-example">
+    <a class="self-link" href="#widows-orphans-example"></a>
+    
+    <p>
+      Suppose, for example, that the style sheet contains <span class="css">orphans : 4</span>,
+      <span class="css">widows : 2</span>, and there is space for 20 lines (line boxes) available
+      at the bottom of the current page, and the next block in normal flow
+      is considered for placement:
+    </p>
+    <ul>
+     <li>
+        If the block contains 20 line boxes or fewer, it should be placed
+        on the current page.
+      
+     <li>
+        If the block contains 21 or 22 line boxes, the second fragment of
+        the paragraph must not violate the <a class="css property" data-link-type="property" href="#propdef-widows" id="ref-for-propdef-widows⑥">widows</a> constraint, and so
+        the second fragment must contain at least two line boxes;
+        likewise the first fragment must contain at least four line boxes.
+      
+     <li>
+        If the block contains 23 line boxes or more, the first fragment should
+        contain 20 lines and the second fragment the remaining lines. But if
+        any fragment of the block is placed on the current page, that fragment
+        must contain at least four line boxes and the second fragment at least
+        two line boxes.
+      
+    </ul>
+    <p>
+      Now suppose that <a class="css property" data-link-type="property" href="#propdef-orphans" id="ref-for-propdef-orphans⑥">orphans</a> is <span class="css">10</span>, <a class="css property" data-link-type="property" href="#propdef-widows" id="ref-for-propdef-widows⑦">widows</a> is <span class="css">20</span>, and there
+      are 8 lines available at the bottom of the current page:
+    </p>
+    <ul>
+     <li>
+        If the block contains 8 lines or fewer, it should be placed
+        on the current page.
+      
+     <li>
+        If the block contains 9 lines or more, it must NOT be split
+        (that would violate the <a class="css property" data-link-type="property" href="#propdef-orphans" id="ref-for-propdef-orphans⑦">orphans</a> constraint), so it must
+        move as a block to the next page.
+      
+    </ul>
+   </div>
+   <p>Additionally, CSS imposes one requirement:
+  a zero-sized <a data-link-type="dfn" href="#box-fragment" id="ref-for-box-fragment①">box fragment</a>,
+  since it does not take up space,
+  must appear on the earlier side of a <a data-link-type="dfn" href="#fragmentation-break" id="ref-for-fragmentation-break①">fragmentation break</a>
+  if it is able to fit within the <a data-link-type="dfn" href="#fragmentainer" id="ref-for-fragmentainer①⑨">fragmentainer</a>.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> A zero-sized <a data-link-type="dfn" href="#box-fragment" id="ref-for-box-fragment②">box fragment</a> will be pushed
+  to the next <a data-link-type="dfn" href="#fragmentainer" id="ref-for-fragmentainer②⓪">fragmentainer</a>
+  if it is placed immediately after content
+  that itself overflows the <span id="ref-for-fragmentainer②①">fragmentainer</span>.</p>
+   

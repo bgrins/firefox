@@ -703,3 +703,21 @@ scheduler histories remain open. The fixture's bundle/direct observer definition
 are admitted contracts, not derived parsing or URL eligibility semantics.
 Zero-weight/extrapolation policy and URL-data equivalence remain outside scope.
 [Formal acceptance](../css-animation-interpolation-taint-final-root-v1/FORMAL-ACCEPTANCE.json).
+
+## Fragmentation rule/grid component — 19 October 2026
+
+Root accepts 34 model audits, 12 source bindings and nine compiled semantic
+mutants after fresh replay. Independent review contributes seven kernel
+challenges/four integrity controls. Boolean rule checks match quantified
+relations; finite candidate search matches grid feasibility; stage selection
+certifies earlier grid failures; successful single-graphic slicing makes
+bounded positive natural-number progress. A supplied completed slice history
+conserves content. This does not prove existence of every required history.
+
+Open: actual styles/boxes/opportunity/geometry construction, positive line
+thresholds and continuation identity, candidate-independent decoration
+admission, global forced dispatch, CSS sufficiency, exact emergency region,
+zero-box after-overflow behavior, real-valued geometry and observers. The
+visible B/C Rule4 interpretation retains its conflicting hyperlink. No browser
+conformance or bug-count increment follows.
+[Acceptance](../css-fragmentation-unforced-root-v1/ACCEPTANCE.json).
