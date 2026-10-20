@@ -1255,6 +1255,7 @@ fn parse_declaration_value_block(
     let mut last_token_type = TokenSerializationType::Nothing;
     let mut last_non_whitespace_token_type = TokenSerializationType::Nothing;
     let mut trailing_whitespace_len = 0;
+    let mut last_token_was_backslash = false;
     let mut prev_reference_index: Option<usize> = None;
     loop {
         let token_start = input.position();
@@ -1266,9 +1267,11 @@ fn parse_declaration_value_block(
         let serialization_type = token.serialization_type();
         last_token_type = serialization_type;
         trailing_whitespace_len = match token {
-            Token::WhiteSpace(value) => value.len(),
+            // A backslash delimiter needs its following newline when reserialized.
+            Token::WhiteSpace(value) if !last_token_was_backslash => value.len(),
             _ => 0,
         };
+        last_token_was_backslash = matches!(token, Token::Delim('\\'));
         if !matches!(token, Token::WhiteSpace(_)) {
             last_non_whitespace_token_type = serialization_type;
         }
