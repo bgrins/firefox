@@ -664,6 +664,7 @@ impl CustomAnimatedValue {
         context: &mut computed::Context,
     ) -> Option<Self> {
         let computed_value = match declaration.value {
+            properties::CustomDeclarationValue::GuaranteedInvalid => None,
             properties::CustomDeclarationValue::Unparsed(ref value) => Some({
                 debug_assert!(
                     context.builder.stylist.is_some(),
@@ -748,7 +749,7 @@ impl CustomAnimatedValue {
             name: self.name.clone(),
             value: match &self.value {
                 Some(value) => value.to_declared_value(),
-                None => CustomDeclarationValue::CSSWideKeyword(CSSWideKeyword::Initial),
+                None => CustomDeclarationValue::GuaranteedInvalid,
             },
         })
     }

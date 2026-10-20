@@ -183,10 +183,12 @@ pub struct VariableDeclaration {
     pub value: Arc<UnparsedValue>,
 }
 
-/// A custom property declaration value is either an unparsed value or a CSS
-/// wide-keyword.
+/// A custom property declaration value.
 #[derive(Clone, PartialEq, ToCss, ToShmem, ToTyped)]
 pub enum CustomDeclarationValue {
+    /// An invalid computed value carried back through the cascade.
+    #[css(skip)]
+    GuaranteedInvalid,
     /// An unparsed value.
     Unparsed(Arc<custom_properties::SpecifiedValue>),
     /// An already-parsed value.

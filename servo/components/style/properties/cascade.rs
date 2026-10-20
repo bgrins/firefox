@@ -1770,6 +1770,7 @@ impl<'a> Cascade<'a> {
         }
 
         let has_references = match value {
+            CustomDeclarationValue::GuaranteedInvalid => false,
             CustomDeclarationValue::Unparsed(unparsed_value) => {
                 // Non-custom dependency is really relevant for registered custom properties
                 // that require computed value of such dependencies.
@@ -1797,6 +1798,12 @@ impl<'a> Cascade<'a> {
         entry.insert(has_references);
 
         match value {
+            CustomDeclarationValue::GuaranteedInvalid => {
+                context
+                    .builder
+                    .substitution_functions
+                    .remove_var(registration, name);
+            },
             CustomDeclarationValue::Unparsed(unparsed_value) => {
                 if !has_references {
                     // If the variable value has no references to other properties, perform
@@ -2000,6 +2007,7 @@ impl<'a> Cascade<'a> {
             return true;
         };
         match value {
+            CustomDeclarationValue::GuaranteedInvalid => {},
             CustomDeclarationValue::Unparsed(value) => {
                 // Don't bother overwriting an existing value with the same
                 // specified value.
