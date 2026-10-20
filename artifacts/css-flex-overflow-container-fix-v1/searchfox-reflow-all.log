@@ -1,0 +1,12 @@
+>>>  433: bool ReflowInput::ShouldReflowAllKids() const {
+     434:   // Note that we could make a stronger optimization for IsBResize if
+     435:   // we use it in a ShouldReflowChild test that replaces the current
+     436:   // checks of NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN, if it
+     437:   // were tested there along with NS_FRAME_CONTAINS_RELATIVE_BSIZE.
+     438:   // This would need to be combined with a slight change in which
+     439:   // frames NS_FRAME_CONTAINS_RELATIVE_BSIZE is marked on.
+     440:   return mFrame->HasAnyStateBits(NS_FRAME_IS_DIRTY) || IsIResize() ||
+     441:          (IsBResize() &&
+     442:           mFrame->HasAnyStateBits(NS_FRAME_CONTAINS_RELATIVE_BSIZE)) ||
+     443:          mFlags.mIsInLastColumnBalancingReflow;
+     444: }

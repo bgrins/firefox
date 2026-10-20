@@ -1,0 +1,95 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Overflow continuation reflow diagnostic</title>
+<style>
+body { margin: 0; }
+.columns {
+  position: relative;
+  inline-size: 200px;
+  block-size: var(--height);
+  columns: 100px;
+  column-gap: 0;
+  column-fill: auto;
+}
+.flex { display: flex; inline-size: 100px; align-items: flex-start; }
+.row { flex-flow: row wrap; align-content: flex-start; }
+.column { flex-direction: column; }
+.item { flex: none; inline-size: 100px; block-size: 80px; overflow: visible; }
+.item + .item { break-before: always; }
+.descendant { inline-size: 100px; block-size: var(--height); break-inside: avoid; }
+.reference { columns: auto; }
+.reference > div {
+  position: absolute;
+  inset-inline-start: var(--inline);
+  inset-block-start: 0;
+  inline-size: 100px;
+  block-size: var(--height);
+}
+</style>
+<body>
+<script>
+window.runOverflowTransitionDiagnostic = () => {
+  const columns = document.createElement("div");
+  columns.className = "columns";
+  columns.style.cssText = "writing-mode:vertical-rl;direction:ltr;--height:160px";
+  const flex = document.createElement("div");
+  flex.className = "flex row";
+  const items = Array.from({length: 4}, () => {
+    const item = document.createElement("div");
+    item.className = "item";
+    flex.append(item);
+    return item;
+  });
+  const descendants = Array.from({length: 4}, () => {
+    const item = document.createElement("div");
+    item.className = "descendant";
+    items[0].append(item);
+    return item;
+  });
+  columns.append(flex);
+  document.body.append(columns);
+  const rows = [];
+  const record = stage => {
+    const origin = columns.getBoundingClientRect();
+    const reference = columns.cloneNode();
+    reference.classList.add("reference");
+    const references = descendants.filter(item => item.isConnected).map((_, i) => {
+      const box = document.createElement("div");
+      box.style.setProperty("--inline", `${i * 100}px`);
+      reference.append(box);
+      return box;
+    });
+    document.body.append(reference);
+    const referenceOrigin = reference.getBoundingClientRect();
+    const expected = references.map(box => {
+      const r = box.getBoundingClientRect();
+      return [r.top - referenceOrigin.top, referenceOrigin.right - r.right, r.height, r.width];
+    });
+    reference.remove();
+    rows.push({stage, expected, descendants: descendants.filter(item => item.isConnected).map(item => {
+      const r = item.getBoundingClientRect();
+      return [r.top - origin.top, origin.right - r.right, r.height, r.width];
+    }), fragments: Array.from(flex.getClientRects(), r => [r.x, r.y, r.width, r.height])});
+  };
+  record("initial");
+  items[3].style.blockSize = "81px";
+  record("changed-item");
+  items[3].style.blockSize = "80px";
+  record("restored-item");
+  items[3].style.minInlineSize = "99px";
+  record("same-size");
+  items[0].style.blockSize = "320px";
+  record("overflow-to-normal");
+  items[0].style.blockSize = "80px";
+  record("normal-to-overflow");
+  descendants[3].remove();
+  descendants[2].remove();
+  record("shorten-overflow-chain");
+  items[0].append(descendants[2], descendants[3]);
+  record("regrow-overflow-chain");
+  columns.remove();
+  return rows;
+};
+
+fetch("/", {method:"POST",body:JSON.stringify({rows:runOverflowTransitionDiagnostic()})});
+</script>

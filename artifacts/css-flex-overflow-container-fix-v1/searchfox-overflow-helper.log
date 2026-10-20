@@ -1,0 +1,140 @@
+>>>  867: void nsContainerFrame::ReflowOverflowContainerChildren(
+     868:     nsPresContext* aPresContext, const ReflowInput& aReflowInput,
+     869:     OverflowAreas& aOverflowRects, ReflowChildFlags aFlags,
+     870:     nsReflowStatus& aStatus, ChildFrameMerger aMergeFunc,
+     871:     Maybe<nsSize> aContainerSize) {
+     872:   MOZ_ASSERT(aPresContext, "null pointer");
+     873: 
+     874:   nsFrameList* overflowContainers =
+     875:       DrainExcessOverflowContainersList(aMergeFunc);
+     876:   if (!overflowContainers) {
+     877:     return;  // nothing to reflow
+     878:   }
+     879: 
+     880:   nsOverflowContinuationTracker tracker(this, false, false);
+     881:   bool shouldReflowAllKids = aReflowInput.ShouldReflowAllKids();
+     882: 
+     883:   for (nsIFrame* frame : *overflowContainers) {
+     884:     if (frame->GetPrevInFlow()->GetParent() != GetPrevInFlow()) {
+     885:       // frame's prevInFlow has moved, skip reflowing this frame;
+     886:       // it will get reflowed once it's been placed
+     887:       if (GetNextInFlow()) {
+     888:         // We report OverflowIncomplete status in this case to avoid our parent
+     889:         // deleting our next-in-flows which might destroy non-empty frames.
+     890:         nsReflowStatus status;
+     891:         status.SetOverflowIncomplete();
+     892:         aStatus.MergeCompletionStatusFrom(status);
+     893:       }
+     894:       continue;
+     895:     }
+     896: 
+     897:     auto ScrollableOverflowExceedsAvailableBSize =
+     898:         [this, &aReflowInput](nsIFrame* aFrame) {
+     899:           if (aReflowInput.AvailableBSize() == NS_UNCONSTRAINEDSIZE) {
+     900:             return false;
+     901:           }
+     902:           const auto parentWM = GetWritingMode();
+     903:           const nscoord scrollableOverflowRectBEnd =
+     904:               LogicalRect(parentWM,
+     905:                           aFrame->ScrollableOverflowRectRelativeToParent(),
+     906:                           GetSize())
+     907:                   .BEnd(parentWM);
+     908:           return scrollableOverflowRectBEnd > aReflowInput.AvailableBSize();
+     909:         };
+     910: 
+     911:     // If the available block-size has changed, or the existing scrollable
+     912:     // overflow's block-end exceeds it, we need to reflow even if the frame
+     913:     // isn't dirty.
+     914:     if (shouldReflowAllKids || frame->IsSubtreeDirty() ||
+     915:         ScrollableOverflowExceedsAvailableBSize(frame)) {
+     916:       nsIFrame* prevInFlow = frame->GetPrevInFlow();
+     917:       NS_ASSERTION(prevInFlow,
+     918:                    "overflow container frame must have a prev-in-flow");
+     919:       NS_ASSERTION(
+     920:           frame->HasAnyStateBits(NS_FRAME_IS_OVERFLOW_CONTAINER),
+     921:           "overflow container frame must have overflow container bit set");
+     922:       WritingMode wm = frame->GetWritingMode();
+     923:       // Note: aReflowInput's available inline-size is technically wrong for us
+     924:       // to hand off to children here, because it doesn't account for the space
+     925:       // that's been used for the container's margin/border/padding (and some
+     926:       // other space that a concrete container type, e.g. fieldset and grid [1],
+     927:       // might reserve before setting up the available space for their
+     928:       // children). Since we don't have a way to query the specific available
+     929:       // inline-size each container type used, nor do we know how the container
+     930:       // computes its non-overflow-container children's inline-size, we just
+     931:       // unconditionally override the frame's inline-size, so that the available
+     932:       // inline-size for the children doesn't really matter anyway.
+     933:       //
+     934:       // [1] For example, fieldset uses its computed inline-size with padding as
+     935:       // the available inline-size to reflow its inner child frame.
+     936:       // https://searchfox.org/mozilla-central/rev/04f7743d94691fa24212fb43099f9d84c3bfc890/layout/forms/nsFieldSetFrame.cpp#535-536
+     937:       const LogicalSize availSpace = aReflowInput.AvailableSize(wm);
+     938: 
+     939:       StyleSizeOverrides sizeOverride;
+     940:       // We override current continuation's inline-size by using the
+     941:       // prev-in-flow's inline-size since both should be the same.
+     942:       sizeOverride.mStyleISize.emplace(StyleSize::FromAppUnits(
+     943:           frame->StylePosition()->mBoxSizing == StyleBoxSizing::BorderBox
+     944:               ? prevInFlow->ISize(wm)
+     945:               : prevInFlow->ContentISize(wm)));
+     946: 
+     947:       if (frame->IsFlexItem()) {
+     948:         // An overflow container's block-size must be 0.
+     949:         sizeOverride.mStyleBSize.emplace(StyleSize::FromAppUnits(0));
+     950:       }
+     951:       ReflowOutput desiredSize(wm);
+     952:       ReflowInput reflowInput(aPresContext, aReflowInput, frame, availSpace,
+     953:                               Nothing(), {}, sizeOverride);
+     954:       const nsSize containerSize =
+     955:           aContainerSize ? *aContainerSize
+     956:                          : aReflowInput.AvailableSize(wm).GetPhysicalSize(wm);
+     957:       const LogicalPoint pos(wm, prevInFlow->IStart(wm, containerSize), 0);
+     958:       nsReflowStatus frameStatus;
+     959: 
+     960:       ReflowChild(frame, aPresContext, desiredSize, reflowInput, wm, pos,
+     961:                   containerSize, aFlags, frameStatus, &tracker);
+     962:       FinishReflowChild(frame, aPresContext, desiredSize, &reflowInput, wm, pos,
+     963:                         containerSize, aFlags);
+     964: 
+     965:       // Handle continuations
+     966:       if (!frameStatus.IsFullyComplete()) {
+     967:         if (frame->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW)) {
+     968:           // Abspos frames can't cause their parent to be incomplete,
+     969:           // only overflow incomplete.
+     970:           frameStatus.SetOverflowIncomplete();
+     971:         } else {
+     972:           NS_ASSERTION(frameStatus.IsComplete(),
+     973:                        "overflow container frames can't be incomplete, only "
+     974:                        "overflow-incomplete");
+     975:         }
+     976: 
+     977:         // Acquire a next-in-flow, creating it if necessary
+     978:         nsIFrame* nif = frame->GetNextInFlow();
+     979:         if (!nif) {
+     980:           NS_ASSERTION(frameStatus.NextInFlowNeedsReflow(),
+     981:                        "Someone forgot a NextInFlowNeedsReflow flag");
+     982:           nif = PresShell()->FrameConstructor()->CreateContinuingFrame(frame,
+     983:                                                                        this);
+     984:         } else if (!nif->HasAnyStateBits(NS_FRAME_IS_OVERFLOW_CONTAINER)) {
+     985:           // used to be a normal next-in-flow; steal it from the child list
+     986:           nif->GetParent()->StealFrame(nif);
+     987:         }
+     988: 
+     989:         tracker.Insert(nif, frameStatus);
+     990:       }
+     991:       aStatus.MergeCompletionStatusFrom(frameStatus);
+     992:       // At this point it would be nice to assert
+     993:       // !frame->GetOverflowRect().IsEmpty(), but we have some unsplittable
+     994:       // frames that, when taller than availableHeight will push zero-height
+     995:       // content into a next-in-flow.
+     996:     } else {
+     997:       tracker.Skip(frame, aStatus);
+     998:       if (aReflowInput.mFloatManager) {
+     999:         nsBlockFrame::RecoverFloatsFor(frame, *aReflowInput.mFloatManager,
+    1000:                                        aReflowInput.GetWritingMode(),
+    1001:                                        aReflowInput.ComputedPhysicalSize());
+    1002:       }
+    1003:     }
+    1004:     ConsiderChildOverflow(aOverflowRects, frame, OverflowAreaUnionFlags::None);
+    1005:   }
+    1006: }
