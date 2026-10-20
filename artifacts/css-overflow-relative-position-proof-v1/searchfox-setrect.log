@@ -1,0 +1,16 @@
+>>> 1217:   void SetRect(const nsRect& aRect, bool aRebuildDisplayItems = true) {
+    1218:     if (aRect == mRect) {
+    1219:       return;
+    1220:     }
+    1221:     if (mOverflow.mType != OverflowStorageType::Large &&
+    1222:         mOverflow.mType != OverflowStorageType::None) {
+    1223:       mozilla::OverflowAreas overflow = GetOverflowAreas();
+    1224:       mRect = aRect;
+    1225:       SetOverflowAreas(overflow);
+    1226:     } else {
+    1227:       mRect = aRect;
+    1228:     }
+    1229:     if (aRebuildDisplayItems) {
+    1230:       MarkNeedsDisplayItemRebuild();
+    1231:     }
+    1232:   }

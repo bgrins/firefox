@@ -1,0 +1,62 @@
+artifacts/css-overflow-relative-position-proof-v1/SourceGeometry.lean:80:36: error: unexpected identifier; expected '}'
+artifacts/css-overflow-relative-position-proof-v1/SourceGeometry.lean:87:65: error: unsolved goals
+w : WM
+container actualSize offset : P
+previous current : Frame
+⊢ plus (toPhysical w (minus container actualSize) (normalInput w container previous)) offset = current.position ∧
+    some (toPhysical w (minus container actualSize) (normalInput w container previous)) = current.normalProperty
+artifacts/css-overflow-relative-position-proof-v1/SourceGeometry.lean:88:46: warning: This simp argument is unused:
+  normalTarget
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [sourceHelper, sourceFinish, intended, physical_roundtrip]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+artifacts/css-overflow-relative-position-proof-v1/SourceGeometry.lean:109:67: error: unsolved goals
+w : WM
+container actualSize initial next : P
+previous current : Frame
+⊢ (match current.normalProperty with
+        | some val => { size := actualSize, position := current.position, normalProperty := current.normalProperty }
+        | none =>
+          { size := actualSize, position := current.position,
+            normalProperty := some (current.normalProperty.getD current.position) }).size =
+      actualSize ∧
+    plus (current.normalProperty.getD current.position) next = current.position ∧
+      (match current.normalProperty with
+          | some val => { size := actualSize, position := current.position, normalProperty := current.normalProperty }
+          | none =>
+            { size := actualSize, position := current.position,
+              normalProperty := some (current.normalProperty.getD current.position) }).normalProperty =
+        current.normalProperty
+artifacts/css-overflow-relative-position-proof-v1/SourceGeometry.lean:124:2: error: Tactic `rfl` failed: The left-hand side
+  intended w container actualSize offset previous current
+is not definitionally equal to the right-hand side
+  intended w container actualSize offset previous other
+
+w : WM
+container actualSize offset : P
+previous current other : Frame
+⊢ intended w container actualSize offset previous current = intended w container actualSize offset previous other
+artifacts/css-overflow-relative-position-proof-v1/SourceGeometry.lean:186:2: error: Type mismatch
+  h.addition
+has type
+  fits (plus (normalTarget w container actualSize previous) offset)
+but is expected to have type
+  fits (intended w container actualSize offset previous current).position
+'SourceGeometry.physical_roundtrip' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SourceGeometry.logical_roundtrip' depends on axioms: [propext, Classical.choice, Quot.sound]
+'SourceGeometry.helper_commits_actual_size_and_offset' depends on axioms: [propext,
+ sorryAx,
+ Classical.choice,
+ Quot.sound]
+'SourceGeometry.stored_normal_is_unshifted' does not depend on any axioms
+'SourceGeometry.arbitrary_callback_size_used' does not depend on any axioms
+'SourceGeometry.update_uses_committed_normal' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+'SourceGeometry.repeated_update_idempotent' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+'SourceGeometry.callback_old_frame_irrelevant' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+'SourceGeometry.predecessor_used_irrelevant_when_property_exists' depends on axioms: [propext]
+'SourceGeometry.absent_property_falls_back' depends on axioms: [propext]
+'SourceGeometry.toSafe_result' depends on axioms: [propext]
+'SourceGeometry.fromSafe_result' depends on axioms: [propext]
+'SourceGeometry.domain_committed_position_fits' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]

@@ -1,0 +1,17 @@
+>>> 1970:   nsRect GetPhysicalRect(WritingMode aWritingMode,
+    1971:                          const nsSize& aContainerSize) const {
+    1972:     CHECK_WRITING_MODE(aWritingMode);
+    1973:     if (aWritingMode.IsVertical()) {
+    1974:       return nsRect(aWritingMode.IsVerticalLR() ? BStart()
+    1975:                                                 : aContainerSize.width - BEnd(),
+    1976:                     aWritingMode.IsInlineReversed()
+    1977:                         ? aContainerSize.height - IEnd()
+    1978:                         : IStart(),
+    1979:                     BSize(), ISize());
+    1980:     } else {
+    1981:       return nsRect(aWritingMode.IsInlineReversed()
+    1982:                         ? aContainerSize.width - IEnd()
+    1983:                         : IStart(),
+    1984:                     BStart(), ISize(), BSize());
+    1985:     }
+    1986:   }
