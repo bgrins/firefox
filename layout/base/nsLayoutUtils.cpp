@@ -2051,7 +2051,10 @@ bool nsLayoutUtils::ShouldSnapToGrid(const nsIFrame* aFrame,
 
 Matrix4x4Flagged nsLayoutUtils::GetTransformToAncestor(
     RelativeTo aFrame, RelativeTo aAncestor, TransformMatrixFlags aFlags,
-    nsIFrame** aOutAncestor) {
+    nsIFrame** aOutAncestor, Maybe<AppUnitTranslation>* aAppUnitTranslation) {
+  if (aAppUnitTranslation) {
+    aAppUnitTranslation->reset();
+  }
   nsIFrame* parent;
   Matrix4x4Flagged ctm;
   // Make sure we don't get an invalid combination of source and destination
@@ -2062,7 +2065,10 @@ Matrix4x4Flagged nsLayoutUtils::GetTransformToAncestor(
     return ctm;
   }
   ctm = aFrame.mFrame->GetTransformMatrix(aFrame.mViewportType, aAncestor,
-                                          &parent, aFlags);
+                                          &parent, aFlags, aAppUnitTranslation);
+  if (aAppUnitTranslation && parent != aAncestor.mFrame) {
+    aAppUnitTranslation->reset();
+  }
   if (!aFrame.mFrame->Combines3DTransformWithAncestors()) {
     ctm.ProjectTo2D();
   }
@@ -3525,6 +3531,39 @@ nsIFrame* nsLayoutUtils::GetFirstNonAnonymousFrame(nsIFrame* aFrame) {
   return nullptr;
 }
 
+static nsRect TransformClientRectToAncestor(const nsIFrame* aFrame,
+                                            const nsRect& aRect,
+                                            const nsIFrame* aAncestor) {
+  if (!aAncestor || aFrame->PresContext() != aAncestor->PresContext() ||
+      aFrame->IsInSVGTextSubtree() ||
+      aFrame->HasAnyStateBits(NS_FRAME_SVG_LAYOUT) || aRect.width < 0 ||
+      aRect.height < 0 || aRect.width > nscoord_MAX ||
+      aRect.height > nscoord_MAX) {
+    return nsLayoutUtils::TransformFrameRectToAncestor(aFrame, aRect,
+                                                       aAncestor);
+  }
+  Maybe<AppUnitTranslation> translation;
+  Maybe<Matrix4x4Flagged> matrix = Some(nsLayoutUtils::GetTransformToAncestor(
+      RelativeTo{aFrame}, RelativeTo{aAncestor}, {}, nullptr, &translation));
+  if (aFrame == aAncestor) {
+    translation = Some(AppUnitTranslation{0, 0});
+  }
+  if (translation) {
+    const auto x = CheckedInt<int64_t>(aRect.x) + translation->x;
+    const auto y = CheckedInt<int64_t>(aRect.y) + translation->y;
+    const auto right = x + aRect.width;
+    const auto bottom = y + aRect.height;
+    if (x.isValid() && y.isValid() && right.isValid() && bottom.isValid() &&
+        x.value() >= nscoord_MIN && y.value() >= nscoord_MIN &&
+        right.value() <= nscoord_MAX && bottom.value() <= nscoord_MAX) {
+      return nsRect(nscoord(x.value()), nscoord(y.value()), aRect.width,
+                    aRect.height);
+    }
+  }
+  return nsLayoutUtils::TransformFrameRectToAncestor(aFrame, aRect, aAncestor,
+                                                     nullptr, &matrix);
+}
+
 struct BoxToRect : public nsLayoutUtils::BoxCallback {
   const nsIFrame* mRelativeTo;
   RectCallback* mCallback;
@@ -3597,7 +3636,9 @@ struct BoxToRect : public nsLayoutUtils::BoxCallback {
           }
           return false;
         }();
-        if (isAncestorKnown) {
+        if (mRelativeToIsRoot && !usingSVGOuterFrame) {
+          r = TransformClientRectToAncestor(outer, r, mRelativeTo);
+        } else if (isAncestorKnown) {
           r = nsLayoutUtils::TransformFrameRectToAncestor(outer, r,
                                                           mRelativeTo);
         } else {

@@ -129,6 +129,11 @@ struct CharacterDataChangeInfo;
 
 namespace mozilla {
 
+struct AppUnitTranslation {
+  int64_t x;
+  int64_t y;
+};
+
 enum class CaretAssociationHint;
 enum class IsFocusableFlags : uint8_t;
 enum class PeekOffsetOption : uint16_t;
@@ -3736,13 +3741,17 @@ class nsIFrame : public nsQueryFrame {
    * @param aOutAncestor [out] The ancestor frame the frame has chosen. If this
    *   frame has no ancestor, *aOutAncestor will be set to null. If this frame
    *   IsTransformed(), then *aOutAncestor will be the parent frame.
+   * @param aAppUnitTranslation Optional exact translation for a checked,
+   *   same-context layout path that reaches aStopAtAncestor without transforms.
    * @return A Matrix4x4 that converts points in the coordinate space
    *   RelativeTo{this, aViewportType} into points in aOutAncestor's
    *   coordinate space.
    */
   Matrix4x4Flagged GetTransformMatrix(
       mozilla::ViewportType aViewportType, mozilla::RelativeTo aStopAtAncestor,
-      nsIFrame** aOutAncestor, mozilla::TransformMatrixFlags aFlags = {}) const;
+      nsIFrame** aOutAncestor, mozilla::TransformMatrixFlags aFlags = {},
+      mozilla::Maybe<mozilla::AppUnitTranslation>* aAppUnitTranslation =
+          nullptr) const;
 
   /**
    * Return true if this frame's preferred size property or max size property

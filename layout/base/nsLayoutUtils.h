@@ -62,6 +62,7 @@ class imgIRequest;
 struct nsStyleFont;
 
 namespace mozilla {
+struct AppUnitTranslation;
 class nsDisplayItem;
 class nsDisplayList;
 class nsDisplayListBuilder;
@@ -932,6 +933,8 @@ class nsLayoutUtils {
    * TransformMatrixFlag::InCSSUnits in aFlags will return CSS pixels,
    * by default it returns device pixels.
    * More info can be found in nsIFrame::GetTransformMatrix.
+   * aAppUnitTranslation is populated only for a single checked ordinary segment
+   * reaching aAncestor; all other paths leave it empty.
    *
    * Some notes on the possible combinations of |aFrame.mViewportType| and
    * |aAncestor.mViewportType|:
@@ -968,7 +971,9 @@ class nsLayoutUtils {
   static Matrix4x4Flagged GetTransformToAncestor(
       RelativeTo aFrame, RelativeTo aAncestor,
       mozilla::TransformMatrixFlags aFlags = {},
-      nsIFrame** aOutAncestor = nullptr);
+      nsIFrame** aOutAncestor = nullptr,
+      mozilla::Maybe<mozilla::AppUnitTranslation>* aAppUnitTranslation =
+          nullptr);
 
   /**
    * Gets the scale factors of the transform for aFrame relative to the root

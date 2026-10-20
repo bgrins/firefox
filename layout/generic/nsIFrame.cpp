@@ -21,6 +21,8 @@
 #include "mozilla/AbsoluteContainingBlock.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/CaretAssociationHint.h"
+#include "mozilla/CheckedArithmetic.h"
+#include "mozilla/CheckedInt.h"
 #include "mozilla/ComputedStyle.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/DisplayPortUtils.h"
@@ -8329,8 +8331,12 @@ nsIWidget* nsIFrame::GetNearestWidget(nsPoint& aOffset) const {
 
 Matrix4x4Flagged nsIFrame::GetTransformMatrix(
     ViewportType aViewportType, RelativeTo aStopAtAncestor,
-    nsIFrame** aOutAncestor, TransformMatrixFlags aFlags) const {
+    nsIFrame** aOutAncestor, TransformMatrixFlags aFlags,
+    Maybe<AppUnitTranslation>* aAppUnitTranslation) const {
   MOZ_ASSERT(aOutAncestor, "Need a place to put the ancestor!");
+  if (aAppUnitTranslation) {
+    aAppUnitTranslation->reset();
+  }
 
   auto GetPositionMaybeIgnoringScrolling = [aFlags](const nsIFrame* aFrame) {
     return aFlags.contains(TransformMatrixFlag::IgnoreScrolling)
@@ -8397,89 +8403,195 @@ Matrix4x4Flagged nsIFrame::GetTransformMatrix(
     return result;
   }
 
-  // We are not transformed, so the returned transform is just going to be a
-  // translation up to whatever ancestor we decide to stop at.
-
-  nsPoint crossdocOffset;
-  *aOutAncestor =
-      nsLayoutUtils::GetCrossDocParentFrameInProcess(this, &crossdocOffset);
-
-  /* Otherwise, we're not transformed.  In that case, we'll walk up the frame
-   * tree until we either hit the root frame or something that may be
-   * transformed.  We'll then change coordinates into that frame, since we're
-   * guaranteed that nothing in-between can be transformed.  First, however,
-   * we have to check to see if we have a parent.  If not, we'll set the
-   * outparam to null (indicating that there's nothing left) and will hand back
-   * the identity matrix.
-   */
-  if (!*aOutAncestor) {
-    return Matrix4x4Flagged();
-  }
-
-  /* Keep iterating while the frame can't possibly be transformed. */
-  const nsIFrame* current = this;
-  auto shouldStopAt = [](const nsIFrame* aCurrent, RelativeTo& aStopAtAncestor,
-                         nsIFrame* aOutAncestor, TransformMatrixFlags aFlags) {
-    return aOutAncestor->IsTransformed() ||
-           ((aStopAtAncestor.mViewportType == ViewportType::Visual) &&
-            ViewportUtils::IsZoomedContentRoot(aOutAncestor)) ||
-           (aFlags.contains(
-                TransformMatrixFlag::StopAtStackingContextAndDisplayPort) &&
-            (aOutAncestor->IsStackingContext() ||
-             DisplayPortUtils::FrameHasDisplayPort(aOutAncestor, aCurrent)));
-  };
-
-  // We run the GetOffsetToCrossDoc code here as an optimization, instead of
-  // walking the parent chain here and then asking GetOffsetToCrossDoc to walk
-  // the same parent chain and compute the offset.
-  const int32_t finalAPD = PresContext()->AppUnitsPerDevPixel();
-  // offset accumulates the offset at finalAPD.
-  nsPoint offset = GetPositionMaybeIgnoringScrolling(this);
-
-  int32_t currAPD = (*aOutAncestor)->PresContext()->AppUnitsPerDevPixel();
-  // docOffset accumulates the current offset at currAPD, and then flushes to
-  // offset at finalAPD when the APD changes or we finish.
-  nsPoint docOffset = crossdocOffset;
-  MOZ_ASSERT(crossdocOffset == nsPoint(0, 0) || !GetParent());
-
-  while (*aOutAncestor != aStopAtAncestor.mFrame &&
-         !shouldStopAt(current, aStopAtAncestor, *aOutAncestor, aFlags)) {
-    docOffset += GetPositionMaybeIgnoringScrolling(*aOutAncestor);
-
-    nsIFrame* parent = (*aOutAncestor)->GetParent();
-    if (!parent) {
-      crossdocOffset.x = crossdocOffset.y = 0;
-      parent = nsLayoutUtils::GetCrossDocParentFrameInProcess(*aOutAncestor,
-                                                              &crossdocOffset);
-
-      int32_t newAPD =
-          parent ? parent->PresContext()->AppUnitsPerDevPixel() : currAPD;
-      if (!parent || newAPD != currAPD) {
-        // Convert docOffset to finalAPD and add it to offset.
-        offset += docOffset.ScaleToOtherAppUnits(currAPD, finalAPD);
-        docOffset.x = docOffset.y = 0;
+  auto traverse = [&]<bool TrackWide, bool CommonLayout>() {
+    auto getPosition = [&](const nsIFrame* aFrame) {
+      if constexpr (CommonLayout) {
+        return aFrame->GetPosition();
+      } else {
+        return GetPositionMaybeIgnoringScrolling(aFrame);
       }
-      currAPD = newAPD;
-      docOffset += crossdocOffset;
+    };
+    const auto* sourceContext = PresContext();
+    bool canUseAppUnits =
+        TrackWide && aFlags.isEmpty() &&
+        aViewportType == ViewportType::Layout &&
+        aStopAtAncestor.mViewportType == ViewportType::Layout &&
+        aStopAtAncestor.mFrame &&
+        sourceContext == aStopAtAncestor.mFrame->PresContext() && GetParent() &&
+        !HasAnyStateBits(NS_FRAME_IS_SVG_TEXT | NS_FRAME_SVG_LAYOUT);
 
-      if (!parent) {
-        break;
-      }
+    // We are not transformed, so the returned transform is just going to be a
+    // translation up to whatever ancestor we decide to stop at.
+
+    nsPoint crossdocOffset;
+    *aOutAncestor =
+        nsLayoutUtils::GetCrossDocParentFrameInProcess(this, &crossdocOffset);
+
+    /* Otherwise, we're not transformed.  In that case, we'll walk up the frame
+     * tree until we either hit the root frame or something that may be
+     * transformed.  We'll then change coordinates into that frame, since we're
+     * guaranteed that nothing in-between can be transformed.  First, however,
+     * we have to check to see if we have a parent.  If not, we'll set the
+     * outparam to null (indicating that there's nothing left) and will hand
+     * back the identity matrix.
+     */
+    if (!*aOutAncestor) {
+      return Matrix4x4Flagged();
     }
 
-    current = *aOutAncestor;
-    *aOutAncestor = parent;
+    /* Keep iterating while the frame can't possibly be transformed. */
+    const nsIFrame* current = this;
+    auto shouldStopAt = [](const nsIFrame* aCurrent,
+                           RelativeTo& aStopAtAncestor, nsIFrame* aOutAncestor,
+                           TransformMatrixFlags aFlags) {
+      if constexpr (CommonLayout) {
+        return aOutAncestor->IsTransformed();
+      } else {
+        return aOutAncestor->IsTransformed() ||
+               ((aStopAtAncestor.mViewportType == ViewportType::Visual) &&
+                ViewportUtils::IsZoomedContentRoot(aOutAncestor)) ||
+               (aFlags.contains(
+                    TransformMatrixFlag::StopAtStackingContextAndDisplayPort) &&
+                (aOutAncestor->IsStackingContext() ||
+                 DisplayPortUtils::FrameHasDisplayPort(aOutAncestor,
+                                                       aCurrent)));
+      }
+    };
+
+    // We run the GetOffsetToCrossDoc code here as an optimization, instead of
+    // walking the parent chain here and then asking GetOffsetToCrossDoc to walk
+    // the same parent chain and compute the offset.
+    const int32_t finalAPD = PresContext()->AppUnitsPerDevPixel();
+    // offset accumulates the offset at finalAPD.
+    nsPoint offset = getPosition(this);
+
+    int32_t currAPD = (*aOutAncestor)->PresContext()->AppUnitsPerDevPixel();
+    // docOffset accumulates the current offset at currAPD, and then flushes to
+    // offset at finalAPD when the APD changes or we finish.
+    nsPoint docOffset = crossdocOffset;
+    MOZ_ASSERT(crossdocOffset == nsPoint(0, 0) || !GetParent());
+    int64_t wideOffsetX = offset.x, wideOffsetY = offset.y;
+    int64_t wideDocX = docOffset.x, wideDocY = docOffset.y;
+    auto addDocOffset = [&] {
+      if constexpr (!TrackWide) {
+        offset += docOffset.ScaleToOtherAppUnits(currAPD, finalAPD);
+        return true;
+      } else {
+        int64_t x = wideDocX, y = wideDocY;
+        if (currAPD != finalAPD) {
+          if (!CheckedInt<nscoord>(x).isValid() ||
+              !CheckedInt<nscoord>(y).isValid()) {
+            return false;
+          }
+          const nsPoint scaled = nsPoint(nscoord(x), nscoord(y))
+                                     .ScaleToOtherAppUnits(currAPD, finalAPD);
+          x = scaled.x;
+          y = scaled.y;
+        }
+        int64_t nextX, nextY;
+        if (!SafeAdd(wideOffsetX, x, &nextX) ||
+            !SafeAdd(wideOffsetY, y, &nextY)) {
+          return false;
+        }
+        wideOffsetX = nextX;
+        wideOffsetY = nextY;
+        return true;
+      }
+    };
+
+    while (*aOutAncestor != aStopAtAncestor.mFrame &&
+           !shouldStopAt(current, aStopAtAncestor, *aOutAncestor, aFlags)) {
+      const nsPoint position = getPosition(*aOutAncestor);
+      if constexpr (TrackWide) {
+        int64_t nextX, nextY;
+        if (!SafeAdd(wideDocX, int64_t(position.x), &nextX) ||
+            !SafeAdd(wideDocY, int64_t(position.y), &nextY)) {
+          return GetTransformMatrix(aViewportType, aStopAtAncestor,
+                                    aOutAncestor, aFlags);
+        }
+        wideDocX = nextX;
+        wideDocY = nextY;
+        canUseAppUnits =
+            canUseAppUnits && (*aOutAncestor)->PresContext() == sourceContext &&
+            !(*aOutAncestor)
+                 ->HasAnyStateBits(NS_FRAME_IS_SVG_TEXT | NS_FRAME_SVG_LAYOUT);
+      } else {
+        docOffset += position;
+      }
+
+      nsIFrame* parent = (*aOutAncestor)->GetParent();
+      if (!parent) {
+        canUseAppUnits = false;
+        crossdocOffset.x = crossdocOffset.y = 0;
+        parent = nsLayoutUtils::GetCrossDocParentFrameInProcess(
+            *aOutAncestor, &crossdocOffset);
+
+        int32_t newAPD =
+            parent ? parent->PresContext()->AppUnitsPerDevPixel() : currAPD;
+        if (!parent || newAPD != currAPD) {
+          // Convert docOffset to finalAPD and add it to offset.
+          if (!addDocOffset()) {
+            return GetTransformMatrix(aViewportType, aStopAtAncestor,
+                                      aOutAncestor, aFlags);
+          }
+          docOffset.x = docOffset.y = 0;
+          wideDocX = wideDocY = 0;
+        }
+        currAPD = newAPD;
+        if constexpr (TrackWide) {
+          int64_t nextX, nextY;
+          if (!SafeAdd(wideDocX, int64_t(crossdocOffset.x), &nextX) ||
+              !SafeAdd(wideDocY, int64_t(crossdocOffset.y), &nextY)) {
+            return GetTransformMatrix(aViewportType, aStopAtAncestor,
+                                      aOutAncestor, aFlags);
+          }
+          wideDocX = nextX;
+          wideDocY = nextY;
+        } else {
+          docOffset += crossdocOffset;
+        }
+
+        if (!parent) {
+          break;
+        }
+      }
+
+      current = *aOutAncestor;
+      *aOutAncestor = parent;
+    }
+    if (!addDocOffset()) {
+      return GetTransformMatrix(aViewportType, aStopAtAncestor, aOutAncestor,
+                                aFlags);
+    }
+    if (canUseAppUnits && *aOutAncestor == aStopAtAncestor.mFrame &&
+        currAPD == finalAPD) {
+      *aAppUnitTranslation = Some(AppUnitTranslation{wideOffsetX, wideOffsetY});
+    }
+
+    NS_ASSERTION(*aOutAncestor, "Somehow ended up with a null ancestor...?");
+
+    int32_t scaleFactor = aFlags.contains(TransformMatrixFlag::InCSSUnits)
+                              ? AppUnitsPerCSSPixel()
+                              : PresContext()->AppUnitsPerDevPixel();
+    if constexpr (TrackWide) {
+      return Matrix4x4Flagged::Translation2d(float(wideOffsetX) / scaleFactor,
+                                             float(wideOffsetY) / scaleFactor);
+    }
+    return Matrix4x4Flagged::Translation2d(
+        NSAppUnitsToFloatPixels(offset.x, scaleFactor),
+        NSAppUnitsToFloatPixels(offset.y, scaleFactor));
+  };
+  if (aFlags.isEmpty() && aViewportType == ViewportType::Layout &&
+      aStopAtAncestor.mViewportType == ViewportType::Layout) {
+    if (!aAppUnitTranslation) {
+      return traverse.operator()<false, true>();
+    }
+    return traverse.operator()<true, true>();
   }
-  offset += docOffset.ScaleToOtherAppUnits(currAPD, finalAPD);
-
-  NS_ASSERTION(*aOutAncestor, "Somehow ended up with a null ancestor...?");
-
-  int32_t scaleFactor = aFlags.contains(TransformMatrixFlag::InCSSUnits)
-                            ? AppUnitsPerCSSPixel()
-                            : PresContext()->AppUnitsPerDevPixel();
-  return Matrix4x4Flagged::Translation2d(
-      NSAppUnitsToFloatPixels(offset.x, scaleFactor),
-      NSAppUnitsToFloatPixels(offset.y, scaleFactor));
+  if (!aAppUnitTranslation) {
+    return traverse.operator()<false, false>();
+  }
+  return traverse.operator()<true, false>();
 }
 
 static void InvalidateRenderingObservers(nsIFrame* aDisplayRoot,
