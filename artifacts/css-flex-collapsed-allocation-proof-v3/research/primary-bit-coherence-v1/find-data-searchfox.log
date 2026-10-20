@@ -1,0 +1,20 @@
+>>> 3317: nsCSSFrameConstructor::FindDataByTag(const Element& aElement,
+    3318:                                      ComputedStyle& aStyle,
+    3319:                                      const FrameConstructionDataByTag* aDataPtr,
+    3320:                                      uint32_t aDataLength) {
+    3321:   const nsAtom* tag = aElement.NodeInfo()->NameAtom();
+    3322:   for (const FrameConstructionDataByTag *curData = aDataPtr,
+    3323:                                         *endData = aDataPtr + aDataLength;
+    3324:        curData != endData; ++curData) {
+    3325:     if (curData->mTag == tag) {
+    3326:       const FrameConstructionData* data = &curData->mData;
+    3327:       if (data->mBits & FCDATA_FUNC_IS_DATA_GETTER) {
+    3328:         return data->mFunc.mDataGetter(aElement, aStyle);
+    3329:       }
+    3330: 
+    3331:       return data;
+    3332:     }
+    3333:   }
+    3334: 
+    3335:   return nullptr;
+    3336: }

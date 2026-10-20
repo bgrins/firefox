@@ -1,0 +1,43 @@
+import InitialDispatch
+import MutationWitnesses
+
+#print axioms PrimaryBit.empty_coherent
+#print axioms PrimaryBit.own_set_preserves
+#print axioms PrimaryBit.area_alias_preserves
+#print axioms PrimaryBit.clear_preserves
+#print axioms PrimaryBit.empty_routed
+#print axioms PrimaryBit.publish_routed
+#print axioms PrimaryBit.set_routed
+#print axioms PrimaryBit.step_preserves
+#print axioms PrimaryBit.history_preserves
+#print axioms PrimaryBit.destroy_read_agrees
+#print axioms PrimaryBit.history_destroy_read_agrees
+#print axioms PrimaryBit.ordinary_init_projection
+#print axioms PrimaryBit.ordinary_init_side_effects
+#print axioms PrimaryBit.own_protocol_is_setter
+#print axioms PrimaryBit.own_protocol_stable
+#print axioms PrimaryBit.own_same_skips_init
+#print axioms PrimaryBit.publication_gap
+#print axioms PrimaryBit.callback_then_publish
+#print axioms PrimaryBit.read_after_preserving_callback
+#print axioms PrimaryBit.stale_image_removal_noop
+#print axioms PrimaryBit.alias_does_not_mark_target
+#print axioms PrimaryBit.accepted_effect_preserves
+#print axioms PrimaryBit.successful_effects_preserve
+#print axioms PrimaryBit.plain_dispatch
+#print axioms PrimaryBit.plain_execution
+#print axioms PrimaryBit.unsupported_query_fails_closed
+#print axioms PrimaryBit.Witnesses.inhabited
+#print axioms PrimaryBit.Witnesses.foreign_area_alias_is_not_own_primary
+#print axioms PrimaryBit.Witnesses.alias_clear_retains_image_primary
+#print axioms PrimaryBit.Witnesses.changed_image_alias_survives_old_removal
+#print axioms PrimaryBit.Witnesses.own_replacement_without_clear_breaks_coherence
+#print axioms PrimaryBit.Witnesses.bad_replacement_old_destroy_clears_new_pointer
+#print axioms PrimaryBit.Witnesses.clear_then_replace_is_coherent
+#print axioms PrimaryBit.Witnesses.transient_guard_disagreement
+#print axioms PrimaryBit.Witnesses.callback_replacement_breaks_completion
+#print axioms PrimaryBit.Witnesses.completed_selected_init_is_stable
+#print axioms PrimaryBit.Witnesses.nonarea_foreign_pointer_is_not_coherent
+#print axioms PrimaryBit.MutationWitnesses.omitted_clear_differs
+#print axioms PrimaryBit.MutationWitnesses.missing_area_guard_differs
+#print axioms PrimaryBit.MutationWitnesses.omitted_publish_differs
