@@ -1,0 +1,182 @@
+--- initial/experiment.py
++++ corrected/experiment.py
+@@ -5,6 +5,7 @@
+ 
+ import hashlib
+ import json
++import math
+ import os
+ from pathlib import Path
+ import subprocess
+@@ -29,25 +30,79 @@
+ def save(name, value):
+     (HERE / name).write_text(json.dumps(value, indent=2) + "\n")
+ 
+-def command(label, args):
+-    with (HERE / (label + ".log")).open("w") as log:
+-        code = subprocess.run(args, cwd=ROOT, env=ENV, stdout=log, stderr=subprocess.STDOUT).returncode
+-    return code
++def command(label, args, recovery=False):
++    try:
++        log = (HERE / (label + ".log")).open("w")
++    except OSError as error:
++        if not recovery:
++            raise
++        recovery_errors.append({"operation": "open " + label + " log", "error": repr(error)})
++        return subprocess.run(args, cwd=ROOT, env=ENV, stderr=subprocess.STDOUT).returncode
++    with log:
++        return subprocess.run(args, cwd=ROOT, env=ENV, stdout=log, stderr=subprocess.STDOUT).returncode
++
++
++def validate_rows(observation):
++    assert set(observation) == {"rows", "userAgent"}
++    assert isinstance(observation["userAgent"], str)
++    rows = observation["rows"]
++    assert isinstance(rows, list) and len(rows) == 32
++    expected = {(columns, flex, hidden, api)
++                for columns in (False, True) for flex in (False, True)
++                for hidden in (False, True)
++                for api in ("bounding", "rects", "offset", "scroll")}
++    seen = set()
++    phases = ["initial", "hide", "append", "append-again", "show"]
++    def vector(value, size):
++        return (isinstance(value, list) and len(value) == size and
++                all(type(n) in (int, float) and math.isfinite(n) for n in value))
++    for row in rows:
++        assert set(row) == {"columns", "flex", "initiallyHidden", "api", "stages"}
++        assert all(type(row[k]) is bool for k in ("columns", "flex", "initiallyHidden"))
++        key = (row["columns"], row["flex"], row["initiallyHidden"], row["api"])
++        assert key in expected and key not in seen
++        seen.add(key)
++        stages = row["stages"]
++        assert isinstance(stages, list) and len(stages) == 5
++        assert [s["phase"] for s in stages] == phases
++        for stage in stages:
++            assert set(stage) == {"phase", "outer", "first", "second", "third"}
++            assert vector(stage["outer"], 3)
++            for read in ("first", "second", "third"):
++                value = stage[read]
++                if row["api"] == "rects":
++                    assert isinstance(value, list) and all(vector(r, 2) for r in value)
++                else:
++                    assert vector(value, 2)
++    assert seen == expected
++    return rows
++
++
++def recovery_save(name, value):
++    try:
++        save(name, value)
++    except BaseException as error:
++        recovery_errors.append({"operation": "save " + name, "error": repr(error)})
+ 
+ assert not (HERE / "BEFORE.json").exists()
++assert not (HERE / "case/project").exists()
+ for name, expected in INPUTS["pins"].items():
+     assert sha((HERE / name).read_bytes()) == expected, name
+ before = state_snapshot()
+ for key in ["head", "index_diff_sha256", "index_entries_sha256"]:
+     assert before[key] == INPUTS[key], key
+-assert len(git("diff", "--cached", "--name-only").decode().splitlines()) == INPUTS["staged_paths"] == 229
++assert type(INPUTS["expected_staged_paths"]) is int and INPUTS["expected_staged_paths"] == 0
++assert len(git("diff", "--cached", "--name-only").decode().splitlines()) == INPUTS["expected_staged_paths"]
++original_bytes = {}
+ for name in INPUTS["paths"]:
+-    assert (ROOT / name).read_bytes() == (HERE / "original" / name).read_bytes(), name
++    original_bytes[name] = (HERE / "original" / name).read_bytes()
++    assert (ROOT / name).read_bytes() == original_bytes[name], name
+     assert git("show", "HEAD:" + name) == (HERE / "head" / name).read_bytes(), name
+ save("BEFORE.json", before)
+ state = {"status": "starting", "accepted_native_bug": False}
+ save("STATE.json", state)
+ changed = False
++recovery_errors = []
+ try:
+     for name in INPUTS["paths"]:
+         changed = True
+@@ -64,30 +119,38 @@
+     state["probe_exit"] = command("head-probe", [sys.executable, "-I", "-S", "-B", str(HERE / "case/run_browser.py"), "project"])
+     assert state["probe_exit"] == 0
+     result = json.loads((HERE / "case/project/RESULT.json").read_text())
+-    assert result["stable"] and len(result["observations"]) == 1
+-    rows = result["observations"][0]["rows"]
+-    assert len(rows) == 32 and "error" not in result["observations"][0]
++    assert result["stable"] is True and len(result["observations"]) == 1
++    rows = validate_rows(result["observations"][0])
+     bad = [{**{k: v for k, v in r.items() if k != "stages"}, **s}
+            for r in rows for s in r["stages"] if s["first"] not in ([24, 32], [[24, 32]])]
+     save("OBSERVATIONS.json", {"rows": len(rows), "stages": sum(len(r["stages"]) for r in rows), "bad_stages": bad})
+     state["bad_stages"] = len(bad)
+ except BaseException as error:
+     state["failure"] = {"type": type(error).__name__, "message": str(error)}
+-    raise
+ finally:
+     state["status"] = "restoring prototypes"
+-    save("STATE.json", state)
+-    for name in INPUTS["paths"]:
+-        original = (HERE / "original" / name).read_bytes()
+-        if (ROOT / name).read_bytes() != original:
++    state["recovery_errors"] = recovery_errors
++    recovery_save("STATE.json", state)
++    for name, original in original_bytes.items():
++        try:
+             (ROOT / name).write_bytes(original)
++        except BaseException as error:
++            recovery_errors.append({"operation": "restore " + name, "error": repr(error)})
+     if changed:
+-        state["restore_build_exit"] = command("restore-build", ["./mach", "build", "binaries"])
+-    final = state_snapshot()
+-    save("FINAL.json", final)
+-    state["restored"] = final == before
+-    save("STATE.json", state)
+-    assert state["restored"] and (not changed or state["restore_build_exit"] == 0)
+-state["status"] = "terminal"
+-save("STATE.json", state)
++        try:
++            state["restore_build_exit"] = command("restore-build", ["./mach", "build", "binaries"], recovery=True)
++        except BaseException as error:
++            recovery_errors.append({"operation": "restore build", "error": repr(error)})
++    state["restored"] = False
++    try:
++        final = state_snapshot()
++        state["restored"] = final == before
++        recovery_save("FINAL.json", final)
++    except BaseException as error:
++        recovery_errors.append({"operation": "final state", "error": repr(error)})
++    state["status"] = "terminal"
++    recovery_save("STATE.json", state)
+ print(json.dumps(state, indent=2))
++if ("failure" in state or recovery_errors or not state["restored"] or
++        (changed and state.get("restore_build_exit") != 0)):
++    raise SystemExit(1)
+--- initial/INPUTS.json
++++ corrected/INPUTS.json
+@@ -67,7 +67,8 @@
+     "original/servo/ports/geckolib/cbindgen.toml": "b0cafdc1f46ac65c812bd7808a0f878674a798a4136fc773ff9ae7d1bb56768f",
+     "head/servo/ports/geckolib/cbindgen.toml": "2e62b5a0a5cef973f4fd7e0d0473086c05f0547a110b28c9aa8a3371e2b33171",
+     "case/probe.html": "e2008ccad8bd7ad03c8511baada82d851b0e652e49863a6b90cdefb32a8f8416",
+-    "case/run_browser.py": "3c38645bb08b0cbbe41f61c870e51a779cdafb390091308975825ffe0d1d6571",
++    "case/run_browser.py": "55b839781b964bb28134b6251e77ef539b8a02617dd91f36871348920d087ef9",
+     "case/probe.js": "0204af53d307dc6e5ef12f8c8b53c431755c5e2cf67b1165bc8005805e0f8b82"
+-  }
++  },
++  "expected_staged_paths": 0
+ }
+--- initial/case/run_browser.py
++++ corrected/case/run_browser.py
+@@ -20,9 +20,13 @@
+ out.mkdir()
+ binary = (Path("/Applications/Firefox.app/Contents/MacOS/firefox") if kind == "release"
+           else REPO / "objdir-full.noindex/dist/Nightly.app/Contents/MacOS/firefox")
+-native = json.loads((REPO / "artifacts/css-cssom-exact-traversal-standalone-v4/FINAL.json").read_text())
++inputs = json.loads((HERE.parent / "INPUTS.json").read_text())
+ paths = [binary, binary.parent / "XUL", HERE / "probe.html", HERE / "probe.js", Path(__file__).resolve()]
+-paths += [REPO / name for name in {**native["sources"], **native["fixed_native_pins"]}]
++paths += [HERE.parent / "INPUTS.json"]
++paths += [REPO / name for name in sorted(set(inputs["paths"]) | {
++    "dom/base/DOMRect.cpp", "layout/base/nsLayoutUtils.cpp", "layout/base/nsLayoutUtils.h",
++    "layout/generic/nsIFrame.cpp", "layout/generic/nsIFrame.h",
++})]
+ 
+ def digest(path):
+     h = hashlib.sha256()

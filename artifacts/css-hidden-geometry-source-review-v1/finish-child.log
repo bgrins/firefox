@@ -1,0 +1,39 @@
+>>>  767: void nsContainerFrame::FinishReflowChild(
+     768:     nsIFrame* aKidFrame, nsPresContext* aPresContext,
+     769:     const ReflowOutput& aDesiredSize, const ReflowInput* aReflowInput,
+     770:     const WritingMode& aWM, const LogicalPoint& aPos,
+     771:     const nsSize& aContainerSize, nsIFrame::ReflowChildFlags aFlags) {
+     772:   MOZ_ASSERT(!aReflowInput || aReflowInput->mFrame == aKidFrame);
+     773:   MOZ_ASSERT(aReflowInput || aKidFrame->IsMathMLFrame() ||
+     774:                  aKidFrame->IsTableCellFrame(),
+     775:              "aReflowInput should be passed in almost all cases");
+     776: 
+     777:   if (aWM.IsPhysicalRTL()) {
+     778:     NS_ASSERTION(aContainerSize.width != NS_UNCONSTRAINEDSIZE,
+     779:                  "FinishReflowChild with unconstrained container width!");
+     780:   }
+     781: 
+     782:   const LogicalSize convertedSize = aDesiredSize.Size(aWM);
+     783:   LogicalPoint pos(aPos);
+     784: 
+     785:   if (aFlags & ReflowChildFlags::ApplyRelativePositioning) {
+     786:     MOZ_ASSERT(aReflowInput, "caller must have passed reflow input");
+     787:     // ApplyRelativePositioning in right-to-left writing modes needs to know
+     788:     // the updated frame width to set the normal position correctly.
+     789:     aKidFrame->SetSize(aWM, convertedSize);
+     790: 
+     791:     const LogicalMargin offsets = aReflowInput->ComputedLogicalOffsets(aWM);
+     792:     ReflowInput::ApplyRelativePositioning(aKidFrame, aWM, offsets, &pos,
+     793:                                           aContainerSize);
+     794:   }
+     795: 
+     796:   if (ReflowChildFlags::NoMoveFrame !=
+     797:       (aFlags & ReflowChildFlags::NoMoveFrame)) {
+     798:     aKidFrame->SetRect(aWM, LogicalRect(aWM, pos, convertedSize),
+     799:                        aContainerSize);
+     800:   } else {
+     801:     aKidFrame->SetSize(aWM, convertedSize);
+     802:   }
+     803: 
+     804:   aKidFrame->DidReflow(aPresContext, aReflowInput);
+     805: }

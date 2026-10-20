@@ -1,0 +1,28 @@
+commit 6cf27eadddf9e63d9bfbcc87ff2bf354e091ae7c
+Author:     Brian Grinstead <briangrinstead@gmail.com>
+AuthorDate: Tue Oct 20 06:48:39 2026 -0700
+Commit:     Brian Grinstead <briangrinstead@gmail.com>
+CommitDate: Tue Oct 20 06:48:39 2026 -0700
+
+    No bug - Include containing-block size in flex measurement cache keys r?#layout-reviewers
+
+diff --git a/layout/generic/nsFlexContainerFrame.cpp b/layout/generic/nsFlexContainerFrame.cpp
+index d720f45365fe..a684971e1dcd 100644
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -1900,6 +1900,7 @@ void nsFlexContainerFrame::ResolveAutoFlexBasisAndMinSize(
+ class nsFlexContainerFrame::CachedBAxisMeasurement {
+   struct Key {
+     const LogicalSize mComputedSize;
++    const LogicalSize mContainingBlockSize;
+     const LogicalMargin mBorderPadding;
+     const nscoord mComputedMinBSize;
+     const nscoord mComputedMaxBSize;
+@@ -1907,6 +1908,7 @@ class nsFlexContainerFrame::CachedBAxisMeasurement {
+ 
+     explicit Key(const ReflowInput& aRI)
+         : mComputedSize(aRI.ComputedSize()),
++          mContainingBlockSize(aRI.mContainingBlockSize),
+           mBorderPadding(
+               aRI.ComputedLogicalBorderPadding(aRI.GetWritingMode())),
+           mComputedMinBSize(aRI.ComputedMinBSize()),

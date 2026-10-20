@@ -1,0 +1,142 @@
+bool FlexItem::NeedsFinalReflow(const ReflowInput& aParentReflowInput) const {
+  if (!StaticPrefs::layout_flexbox_item_final_reflow_optimization_enabled()) {
+    FLEX_ITEM_LOG(mFrame,
+                  "[perf] Item needed a final reflow due to optimization being "
+                  "disabled via the preference");
+    return true;
+  }
+
+  // NOTE: We can have continuations from an earlier constrained reflow.
+  if (mFrame->GetPrevInFlow() || mFrame->GetNextInFlow()) {
+    // This is an item has continuation(s). Reflow it.
+    FLEX_ITEM_LOG(mFrame,
+                  "[frag] Item needed a final reflow due to continuation(s)");
+    return true;
+  }
+
+  // A flex item can grow its block-size in a fragmented context if there's any
+  // force break within it (bug 1663079), or if it has a repeated table header
+  // or footer (bug 1744363). We currently always reflow it.
+  //
+  // Bug 1815294: investigate if we can design a more specific condition to
+  // prevent triggering O(n^2) behavior when printing a deeply-nested flex
+  // container.
+  if (aParentReflowInput.IsInFragmentedContext()) {
+    FLEX_ITEM_LOG(mFrame,
+                  "[frag] Item needed both a measuring reflow and a final "
+                  "reflow due to being in a fragmented context");
+    return true;
+  }
+
+  // Flex item's final content-box size (in terms of its own writing-mode):
+  const LogicalSize finalSize = mIsInlineAxisMainAxis
+                                    ? LogicalSize(mWM, mMainSize, mCrossSize)
+                                    : LogicalSize(mWM, mCrossSize, mMainSize);
+
+  if (HadMeasuringReflow()) {
+    // We've already reflowed this flex item once, to measure it. In that
+    // reflow, did its frame happen to end up with the correct final size
+    // that the flex container would like it to have?
+    if (finalSize != mFrame->ContentSize(mWM)) {
+      // The measuring reflow left the item with a different size than its
+      // final flexed size. So, we need to reflow to give it the correct size.
+      FLEX_ITEM_LOG(mFrame,
+                    "[perf] Item needed both a measuring reflow and a final "
+                    "reflow due to measured size disagreeing with final size");
+      return true;
+    }
+
+    if (FrameHasRelativeBSizeDependency(mFrame)) {
+      // This item has descendants with relative BSizes who may care that its
+      // size may now be considered "definite" in the final reflow (whereas it
+      // was indefinite during the measuring reflow).
+      FLEX_ITEM_LOG(mFrame,
+                    "[perf] Item needed both a measuring reflow and a final "
+                    "reflow due to BSize potentially becoming definite");
+      return true;
+    }
+
+    // If we get here, then this flex item had a measuring reflow, it left us
+    // with the correct size, none of its descendants care that its BSize may
+    // now be considered definite, and it can fit into the available block-size.
+    // So it doesn't need a final reflow.
+    //
+    // We now cache this size as if we had done a final reflow (because we've
+    // determined that the measuring reflow was effectively equivalent).  This
+    // way, in our next time through flex layout, we may be able to skip both
+    // the measuring reflow *and* the final reflow (if conditions are the same
+    // as they are now).
+    if (auto* cache = mFrame->GetProperty(CachedFlexItemData::Prop())) {
+      cache->Update(*this, finalSize);
+    }
+
+    return false;
+  }
+
+  // This item didn't receive a measuring reflow (at least, not during this
+  // reflow of our flex container).  We may still be able to skip reflowing it
+  // (i.e. return false from this function), if its subtree is clean & its most
+  // recent "final reflow" had it at the correct content-box size &
+  // definiteness.
+  // Let's check for each condition that would still require us to reflow:
+  if (mFrame->IsSubtreeDirty()) {
+    FLEX_ITEM_LOG(
+        mFrame,
+        "[perf] Item needed a final reflow due to its subtree being dirty");
+    return true;
+  }
+
+  // Cool; this item & its subtree haven't experienced any style/content
+  // changes that would automatically require a reflow.
+
+  // Did we cache the metrics from its most recent "final reflow"?
+  auto* cache = mFrame->GetProperty(CachedFlexItemData::Prop());
+  if (!cache || !cache->mFinalReflowMetrics) {
+    FLEX_ITEM_LOG(mFrame,
+                  "[perf] Item needed a final reflow due to lacking a cached "
+                  "mFinalReflowMetrics (maybe cache was cleared)");
+    return true;
+  }
+
+  // Does the cached size match our current size?
+  if (cache->mFinalReflowMetrics->Size() != finalSize) {
+    FLEX_ITEM_LOG(mFrame,
+                  "[perf] Item needed a final reflow due to having a different "
+                  "content box size vs. its most recent final reflow");
+    return true;
+  }
+
+  // Does the cached border and padding match our current ones?
+  //
+  // Note: this is just to detect cases where we have a percent padding whose
+  // basis has changed. Any other sort of change to BorderPadding() (e.g. a new
+  // specified value) should result in the frame being marked dirty via proper
+  // change hint (see nsStylePadding::CalcDifference()), which will force it to
+  // reflow.
+  if (cache->mFinalReflowMetrics->BorderPadding() !=
+      BorderPadding().ConvertTo(mWM, mCBWM)) {
+    FLEX_ITEM_LOG(mFrame,
+                  "[perf] Item needed a final reflow due to having a different "
+                  "border and padding vs. its most recent final reflow");
+    return true;
+  }
+
+  // The flex container is giving this flex item the same size that the item
+  // had on its most recent "final reflow". But if its definiteness changed and
+  // one of the descendants cares, then it would still need a reflow.
+  if (cache->mFinalReflowMetrics->TreatBSizeAsIndefinite() !=
+          mTreatBSizeAsIndefinite &&
+      FrameHasRelativeBSizeDependency(mFrame)) {
+    FLEX_ITEM_LOG(mFrame,
+                  "[perf] Item needed a final reflow due to having its BSize "
+                  "change definiteness & having a rel-BSize child");
+    return true;
+  }
+
+  // If we get here, we can skip the final reflow! (The item's subtree isn't
+  // dirty, and our current conditions are sufficiently similar to the most
+  // recent "final reflow" that it should have left our subtree in the correct
+  // state.)
+  FLEX_ITEM_LOG(mFrame, "[perf] Item didn't need a final reflow");
+  return false;
+}

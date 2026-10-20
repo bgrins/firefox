@@ -1,0 +1,39 @@
+>>>  691: void nsContainerFrame::ReflowChild(
+     692:     nsIFrame* aKidFrame, nsPresContext* aPresContext,
+     693:     ReflowOutput& aDesiredSize, const ReflowInput& aReflowInput,
+     694:     const WritingMode& aWM, const LogicalPoint& aPos,
+     695:     const nsSize& aContainerSize, ReflowChildFlags aFlags,
+     696:     nsReflowStatus& aStatus, nsOverflowContinuationTracker* aTracker) {
+     697:   MOZ_ASSERT(aReflowInput.mFrame == aKidFrame, "bad reflow input");
+     698:   if (aWM.IsPhysicalRTL()) {
+     699:     NS_ASSERTION(aContainerSize.width != NS_UNCONSTRAINEDSIZE,
+     700:                  "ReflowChild with unconstrained container width!");
+     701:   }
+     702:   MOZ_ASSERT(aDesiredSize.InkOverflow() == nsRect(0, 0, 0, 0) &&
+     703:                  aDesiredSize.ScrollableOverflow() == nsRect(0, 0, 0, 0),
+     704:              "please reset the overflow areas before calling ReflowChild");
+     705: 
+     706:   // Position the child frame and its view if requested.
+     707:   if (ReflowChildFlags::NoMoveFrame !=
+     708:       (aFlags & ReflowChildFlags::NoMoveFrame)) {
+     709:     aKidFrame->SetPosition(aWM, aPos, aContainerSize);
+     710:   }
+     711: 
+     712:   // Reflow the child frame
+     713:   aKidFrame->Reflow(aPresContext, aDesiredSize, aReflowInput, aStatus);
+     714: 
+     715:   // If the child frame is complete, delete any next-in-flows,
+     716:   // but only if the NoDeleteNextInFlowChild flag isn't set.
+     717:   if (!aStatus.IsInlineBreakBefore() && aStatus.IsFullyComplete() &&
+     718:       !(aFlags & ReflowChildFlags::NoDeleteNextInFlowChild)) {
+     719:     if (nsIFrame* kidNextInFlow = aKidFrame->GetNextInFlow()) {
+     720:       // Remove all of the childs next-in-flows. Make sure that we ask
+     721:       // the right parent to do the removal (it's possible that the
+     722:       // parent is not this because we are executing pullup code)
+     723:       nsOverflowContinuationTracker::AutoFinish fini(aTracker, aKidFrame);
+     724:       DestroyContext context(PresShell());
+     725:       kidNextInFlow->GetParent()->DeleteNextInFlowChild(context, kidNextInFlow,
+     726:                                                         true);
+     727:     }
+     728:   }
+     729: }

@@ -1,0 +1,202 @@
+>>> 5237:  * XRE_mainStartup - Initializes the profile and various other services.
+    5238:  * Main() will exit early if either return value != 0 or if aExitFlag is
+    5239:  * true.
+    5240:  */
+    5241: int XREMain::XRE_mainStartup(bool* aExitFlag) {
+    5242:   nsresult rv;
+    5243: 
+    5244:   if (!aExitFlag) return 1;
+    5245:   *aExitFlag = false;
+    5246: 
+    5247: #ifdef XP_MACOSX
+    5248:   mozilla::MacAutoreleasePool pool;
+    5249: #endif
+    5250: 
+    5251:   // Enable Telemetry IO Reporting on DEBUG, nightly and local builds,
+    5252:   // but disable it on FUZZING builds and for ANDROID.
+    5253: #ifndef FUZZING
+    5254: #  ifndef ANDROID
+    5255: #    ifdef DEBUG
+    5256:   mozilla::Telemetry::InitIOReporting(gAppData->xreDirectory);
+    5257: #    else
+    5258:   {
+    5259:     const char* releaseChannel = MOZ_STRINGIFY(MOZ_UPDATE_CHANNEL);
+    5260:     if (strcmp(releaseChannel, "nightly") == 0 ||
+    5261:         strcmp(releaseChannel, "default") == 0) {
+    5262:       mozilla::Telemetry::InitIOReporting(gAppData->xreDirectory);
+    5263:     }
+    5264:   }
+    5265: #    endif /* DEBUG */
+    5266: #  endif   /* ANDROID */
+    5267: #endif     /* FUZZING */
+    5268: 
+    5269: #if defined(XP_WIN)
+    5270:   // Enable the HeapEnableTerminationOnCorruption exploit mitigation. We ignore
+    5271:   // the return code because it always returns success, although it has no
+    5272:   // effect on Windows older than XP SP3.
+    5273:   HeapSetInformation(NULL, HeapEnableTerminationOnCorruption, NULL, 0);
+    5274: #endif /* XP_WIN */
+    5275: 
+    5276: #ifdef MOZ_WIDGET_GTK
+    5277:   // Stash startup token in owned memory because gtk_init will clear
+    5278:   // DESKTOP_STARTUP_ID it.
+    5279:   if (const char* v = PR_GetEnv("DESKTOP_STARTUP_ID")) {
+    5280:     mDesktopStartupID.Assign(v);
+    5281:   }
+    5282:   if (const char* v = PR_GetEnv("XDG_ACTIVATION_TOKEN")) {
+    5283:     mXDGActivationToken.Assign(v);
+    5284:   }
+    5285: #endif
+    5286: 
+    5287: #if defined(XP_WIN)
+    5288:   {
+    5289:     // Save the shortcut path before lpTitle is replaced by an AUMID,
+    5290:     // such as by WinTaskbar
+    5291:     STARTUPINFOW si;
+    5292:     GetStartupInfoW(&si);
+    5293:     if (si.dwFlags & STARTF_TITLEISAPPID) {
+    5294:       NS_WARNING("AUMID was already set, shortcut may have been lost.");
+    5295:     } else if ((si.dwFlags & STARTF_TITLEISLINKNAME) && si.lpTitle) {
+    5296:       gProcessStartupShortcut.Assign(si.lpTitle);
+    5297:     }
+    5298:   }
+    5299: #endif /* XP_WIN */
+    5300: 
+    5301: #if defined(MOZ_WIDGET_GTK)
+    5302:   // setup for private colormap.  Ideally we'd like to do this
+    5303:   // in nsAppShell::Create, but we need to get in before gtk
+    5304:   // has been initialized to make sure everything is running
+    5305:   // consistently.
+    5306: 
+    5307:   // Set program name to the one defined in application.ini.
+    5308:   g_set_prgname(gAppData->remotingName);
+    5309: 
+    5310:   // Initialize GTK here for splash.
+    5311: 
+    5312: #  if defined(MOZ_X11)
+    5313:   // Disable XInput2 multidevice support due to focus bugginess.
+    5314:   // See bugs 1182700, 1170342.
+    5315:   // gdk_disable_multidevice() affects Gdk X11 backend only,
+    5316:   // the multidevice support is always enabled on Wayland backend.
+    5317:   int32_t useXI2 = 0;
+    5318:   if (const char* useXI2Env = PR_GetEnv("MOZ_USE_XINPUT2")) {
+    5319:     useXI2 = (*useXI2Env != '0');
+    5320:   } else {
+    5321:     // Steam Deck needs multidevice support for touchscreen
+    5322:     if (const char* currentDesktop = PR_GetEnv("XDG_CURRENT_DESKTOP")) {
+    5323:       useXI2 |= (nsDependentCString(currentDesktop) == "gamescope"_ns);
+    5324:     }
+    5325: #    ifdef EARLY_BETA_OR_EARLIER
+    5326:     // We tried 3.24.0+ but had problems, let's retry with newer versions. See
+    5327:     // bug 1660212.
+    5328:     useXI2 |= !gtk_check_version(3, 24, 49);
+    5329: #    endif
+    5330:   }
+    5331:   if (!useXI2) {
+    5332:     gdk_disable_multidevice();
+    5333:   }
+    5334: #  endif /* MOZ_X11 */
+    5335: 
+    5336:   // Open the display ourselves instead of using gtk_init, so that we can
+    5337:   // close it without fear that one day gtk might clean up the display it
+    5338:   // opens.
+    5339:   if (!gtk_parse_args(&gArgc, &gArgv)) return 1;
+    5340: #endif /* MOZ_WIDGET_GTK */
+    5341: 
+    5342: #ifdef FUZZING
+    5343:   if (PR_GetEnv("FUZZER")) {
+    5344:     *aExitFlag = true;
+    5345:     return mozilla::fuzzerRunner->Run(&gArgc, &gArgv);
+    5346:   }
+    5347: #endif
+    5348: 
+    5349:   if (PR_GetEnv("MOZ_RUN_GTEST")) {
+    5350:     int result;
+    5351: #ifdef XP_WIN
+    5352:     UseParentConsole();
+    5353: #endif
+    5354:     // RunGTest will only be set if we're in xul-unit
+    5355:     if (mozilla::RunGTest) {
+    5356:       gIsGtest = true;
+    5357:       result = mozilla::RunGTest(&gArgc, gArgv);
+    5358:       gIsGtest = false;
+    5359:     } else {
+    5360:       result = 1;
+    5361:       printf("TEST-UNEXPECTED-FAIL | gtest | Not compiled with enable-tests\n");
+    5362:     }
+    5363:     *aExitFlag = true;
+    5364:     return result;
+    5365:   }
+    5366: 
+    5367:   bool isBackgroundTaskMode = false;
+    5368: #ifdef MOZ_BACKGROUNDTASKS
+    5369:   isBackgroundTaskMode = BackgroundTasks::IsBackgroundTaskMode();
+    5370: #endif
+    5371: 
+    5372: #ifdef MOZ_HAS_REMOTE
+    5373:   if (gfxPlatform::IsHeadless()) {
+    5374:     mDisableRemoteClient = true;
+    5375:   }
+    5376: #endif
+    5377: 
+    5378: #ifdef MOZ_X11
+    5379:   // Init X11 in thread-safe mode. Must be called prior to the first call to
+    5380:   // XOpenDisplay (called inside gdk_display_open). This is a requirement for
+    5381:   // off main tread compositing.
+    5382:   if (!isBackgroundTaskMode && !gfxPlatform::IsHeadless()) {
+    5383:     XInitThreads();
+    5384:   }
+    5385: #endif
+    5386: #if defined(MOZ_WIDGET_GTK)
+    5387:   if (!isBackgroundTaskMode && !gfxPlatform::IsHeadless()) {
+    5388:     const char* display_name = nullptr;
+    5389:     bool saveDisplayArg = false;
+    5390: 
+    5391:     // display_name is owned by gdk.
+    5392:     display_name = gdk_get_display_arg_name();
+    5393:     bool waylandEnabled = IsWaylandEnabled();
+    5394: #  ifdef MOZ_WAYLAND
+    5395:     if (!display_name) {
+    5396:       auto* proxyEnv = getenv("MOZ_DISABLE_WAYLAND_PROXY");
+    5397:       bool disableWaylandProxy = proxyEnv && *proxyEnv;
+    5398:       if (!disableWaylandProxy && XRE_IsParentProcess() && waylandEnabled) {
+    5399:         auto* proxyLog = getenv("WAYLAND_PROXY_LOG");
+    5400:         WaylandProxy::SetVerbose(proxyLog && *proxyLog);
+    5401: 
+    5402: #    ifdef NIGHTLY_BUILD
+    5403:         bool captureProtocolErrors = true;
+    5404: #    else
+    5405:         bool captureProtocolErrors = false;
+    5406: #    endif
+    5407:         // MOZ_WAYLAND_PROTOCOL_ERROR_DETAILS=0 turns capture off on Nightly;
+    5408:         // any other non-empty value turns it on elsewhere.
+    5409:         if (auto* errorDetails = getenv("MOZ_WAYLAND_PROTOCOL_ERROR_DETAILS")) {
+    5410:           captureProtocolErrors = *errorDetails && *errorDetails != '0';
+    5411:         }
+    5412:         WaylandProxy::SetCaptureProtocolErrors(captureProtocolErrors);
+    5413: 
+    5414:         WaylandProxy::SetThreadStartCallback(
+    5415:             [] { PROFILER_REGISTER_THREAD("WaylandProxy"); });
+    5416:         WaylandProxy::SetThreadStopCallback(
+    5417:             [] { PROFILER_UNREGISTER_THREAD(); });
+    5418:         WaylandProxy::SetCompositorUnavailableHandler(
+    5419:             WlCompositorUnavailableHandler);
+    5420:         WaylandProxy::SetCompositorSilentDisconnectHandler(
+    5421:             WlCompositorSilentDisconnectHandler);
+    5422:         WaylandProxy::AddState(WAYLAND_PROXY_ENABLED);
+    5423:         gWaylandProxy = WaylandProxy::Create();
+    5424:         if (gWaylandProxy) {
+    5425:           if (!gWaylandProxy->RunThread()) {
+    5426:             Output(true, "Failed to run Wayland proxy\n");
+    5427:           }
+    5428:         }
+    5429:       } else {
+    5430:         WaylandProxy::AddState(WAYLAND_PROXY_DISABLED);
+    5431:       }
+    5432:     }
+    5433: #  endif
+    5434: 
+    5435:     // if --display argument is given make sure it's
+    5436:     // also passed to ContentChild::Init() by MOZ_GDK_DISPLAY.
+    5437:     if (display_name) {
+   ...  : (method too long, truncated)

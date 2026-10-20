@@ -1,0 +1,186 @@
+nsFlexContainerFrame::ReflowFlexItem(
+    const FlexboxAxisTracker& aAxisTracker, const ReflowInput& aReflowInput,
+    const FlexItem& aItem, const LogicalPoint& aFramePos,
+    const bool aIsAdjacentWithBStart, const LogicalSize& aAvailableSize,
+    const nsSize& aContainerSize) {
+  FLEX_ITEM_LOG(aItem.Frame(), "Doing final reflow");
+
+  // Returns true if we should use 'auto' in block axis's StyleSizeOverrides to
+  // allow fragmentation-imposed block-size growth.
+  auto ComputeBSizeOverrideWithAuto = [&]() {
+    if (!aReflowInput.IsInFragmentedContext()) {
+      return false;
+    }
+    if (aItem.Frame()->IsReplaced()) {
+      // Disallow fragmentation-imposed block-size growth for replaced elements
+      // since they are monolithic, and cannot be fragmented.
+      return false;
+    }
+    if (aItem.HasAspectRatio()) {
+      // Aspect-ratio's automatic content-based minimum size doesn't work
+      // properly in a fragmented context (Bug 1868284) when we use 'auto'
+      // block-size to apply the fragmentation-imposed block-size growth.
+      // Disable it for now so that items with aspect-ratios can still use their
+      // known block-sizes (from flex layout algorithm) in final reflow.
+      return false;
+    }
+    if (aItem.IsBlockAxisMainAxis()) {
+      if (aItem.IsFlexBaseSizeContentBSize()) {
+        // The flex item resolved its indefinite flex-basis to the content
+        // block-size.
+        if (aItem.IsMainMinSizeContentBSize()) {
+          // The item's flex base size and main min-size are both content
+          // block-size. We interpret this content-based block-size as
+          // permission to apply fragmentation-imposed block-size growth.
+          return true;
+        }
+        if (aReflowInput.ComputedBSize() == NS_UNCONSTRAINEDSIZE) {
+          // The flex container has an indefinite block-size. We allow the
+          // item's to apply fragmentation-imposed block-size growth.
+          return true;
+        }
+      }
+      return false;
+    }
+
+    MOZ_ASSERT(aItem.IsBlockAxisCrossAxis());
+    MOZ_ASSERT(aItem.IsStretched(),
+               "No need to override block-size with 'auto' if the item is not "
+               "stretched in the cross axis!");
+
+    Maybe<nscoord> measuredBSize = aItem.MeasuredBSize();
+    if (measuredBSize && aItem.CrossSize() == *measuredBSize) {
+      // The item has a measured content-based block-size due to having an
+      // indefinite cross-size. If its cross-size is equal to the content-based
+      // block-size, then it is the tallest item that established the cross-size
+      // of the flex line. We allow it apply fragmentation-imposed block-size
+      // growth.
+      //
+      // Note: We only allow the tallest item to grow because it is likely to
+      // have the most impact on the overall flex container block-size growth.
+      // This is not a perfect solution since other shorter items in the same
+      // line might also have fragmentation-imposed block-size growth, but
+      // currently there is no reliable way to detect whether they will outgrow
+      // the tallest item.
+      return true;
+    }
+    return false;
+  };
+
+  StyleSizeOverrides sizeOverrides;
+  bool overrideBSizeWithAuto = false;
+
+  // Override flex item's main size.
+  if (aItem.IsInlineAxisMainAxis()) {
+    sizeOverrides.mStyleISize.emplace(aItem.StyleMainSize());
+    FLEX_LOGV("Main size (inline-size) override: %d", aItem.MainSize());
+  } else {
+    overrideBSizeWithAuto = ComputeBSizeOverrideWithAuto();
+    if (overrideBSizeWithAuto) {
+      sizeOverrides.mStyleBSize.emplace(StyleSize::Auto());
+      FLEX_LOGV("Main size (block-size) override: Auto");
+    } else {
+      sizeOverrides.mStyleBSize.emplace(aItem.StyleMainSize());
+      FLEX_LOGV("Main size (block-size) override: %d", aItem.MainSize());
+    }
+  }
+
+  // Override flex item's cross size if it was stretched in the cross axis (in
+  // which case we're imposing a cross size).
+  if (aItem.IsStretched()) {
+    if (aItem.IsInlineAxisCrossAxis()) {
+      sizeOverrides.mStyleISize.emplace(aItem.StyleCrossSize());
+      FLEX_LOGV("Cross size (inline-size) override: %d", aItem.CrossSize());
+    } else {
+      overrideBSizeWithAuto = ComputeBSizeOverrideWithAuto();
+      if (overrideBSizeWithAuto) {
+        sizeOverrides.mStyleBSize.emplace(StyleSize::Auto());
+        FLEX_LOGV("Cross size (block-size) override: Auto");
+      } else {
+        sizeOverrides.mStyleBSize.emplace(aItem.StyleCrossSize());
+        FLEX_LOGV("Cross size (block-size) override: %d", aItem.CrossSize());
+      }
+    }
+  }
+  if (sizeOverrides.mStyleBSize) {
+    // We are overriding the block-size. For robustness, we always assume that
+    // this represents a block-axis resize for the frame. This may be
+    // conservative, but we do capture all the conditions in the block-axis
+    // (checked in NeedsFinalReflow()) that make this item require a final
+    // reflow. This sets relevant flags in ReflowInput::InitResizeFlags().
+    aItem.Frame()->SetHasBSizeChange(true);
+  }
+
+  ReflowInput childReflowInput(PresContext(), aReflowInput, aItem.Frame(),
+                               aAvailableSize, Nothing(), {}, sizeOverrides,
+                               {ComputeSizeFlag::ShrinkWrap});
+  if (overrideBSizeWithAuto) {
+    // If we use 'auto' to override the item's block-size, set the item's
+    // original block-size to min-size as a lower bound.
+    childReflowInput.SetComputedMinBSize(aItem.BSize());
+
+    // Set the item's block-size as the percentage basis so that its children
+    // can resolve percentage sizes correctly.
+    childReflowInput.SetPercentageBasisInBlockAxis(aItem.BSize());
+  }
+
+  if (aItem.TreatBSizeAsIndefinite() && aItem.IsBlockAxisMainAxis()) {
+    childReflowInput.mFlags.mTreatBSizeAsIndefinite = true;
+  }
+
+  if (aItem.IsStretched() && aItem.IsBlockAxisCrossAxis()) {
+    // This item is stretched (in the cross axis), and that axis is its block
+    // axis.  That stretching effectively gives it a relative BSize.
+    // XXXdholbert This flag only makes a difference if we use the flex items'
+    // frame-state when deciding whether to reflow them -- and we don't, as of
+    // the changes in bug 851607. So this has no effect right now, but it might
+    // make a difference if we optimize to use dirty bits in the
+    // future. (Reftests flexbox-resizeviewport-1.xhtml and -2.xhtml are
+    // intended to catch any regressions here, if we end up relying on this bit
+    // & neglecting to set it.)
+    aItem.Frame()->AddStateBits(NS_FRAME_CONTAINS_RELATIVE_BSIZE);
+  }
+
+  if (!aIsAdjacentWithBStart) {
+    // mIsTopOfPage bit in childReflowInput is carried over from aReflowInput.
+    // However, if this item's position is not adjacent with the flex
+    // container's content-box block-start edge, we should clear it.
+    childReflowInput.mFlags.mIsTopOfPage = false;
+  }
+
+  // NOTE: Be very careful about doing anything else with childReflowInput
+  // after this point, because some of its methods (e.g. SetComputedWidth)
+  // internally call InitResizeFlags and stomp on mVResize & mHResize.
+
+  FLEX_ITEM_LOG(aItem.Frame(), "Reflowing item at its desired position %s",
+                ToString(aFramePos).c_str());
+
+  // CachedFlexItemData is stored in item's writing mode, so we pass
+  // aChildReflowInput into ReflowOutput's constructor.
+  ReflowOutput childReflowOutput(childReflowInput);
+  nsReflowStatus childStatus;
+  WritingMode outerWM = aReflowInput.GetWritingMode();
+  ReflowChild(aItem.Frame(), PresContext(), childReflowOutput, childReflowInput,
+              outerWM, aFramePos, aContainerSize, ReflowChildFlags::Default,
+              childStatus);
+
+  // XXXdholbert Perhaps we should call CheckForInterrupt here; see bug 1495532.
+
+  FinishReflowChild(aItem.Frame(), PresContext(), childReflowOutput,
+                    &childReflowInput, outerWM, aFramePos, aContainerSize,
+                    ReflowChildFlags::ApplyRelativePositioning);
+
+  aItem.SetAscent(childReflowOutput.BlockStartAscent());
+
+  // Update our cached flex item info:
+  if (auto* cached = aItem.Frame()->GetProperty(CachedFlexItemData::Prop())) {
+    cached->Update(childReflowInput, childReflowOutput,
+                   FlexItemReflowType::Final);
+  } else {
+    cached = new CachedFlexItemData(childReflowInput, childReflowOutput,
+                                    FlexItemReflowType::Final);
+    aItem.Frame()->SetProperty(CachedFlexItemData::Prop(), cached);
+  }
+
+  return childStatus;
+}

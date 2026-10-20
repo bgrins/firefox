@@ -1,0 +1,47 @@
+class nsFlexContainerFrame::CachedBAxisMeasurement {
+  struct Key {
+    const LogicalSize mComputedSize;
+    const nscoord mComputedMinBSize;
+    const nscoord mComputedMaxBSize;
+    const nscoord mAvailableBSize;
+
+    explicit Key(const ReflowInput& aRI)
+        : mComputedSize(aRI.ComputedSize()),
+          mComputedMinBSize(aRI.ComputedMinBSize()),
+          mComputedMaxBSize(aRI.ComputedMaxBSize()),
+          mAvailableBSize(aRI.AvailableBSize()) {}
+
+    bool operator==(const Key& aOther) const = default;
+  };
+
+  const Key mKey;
+
+  // This could/should be const, but it's non-const for now just because it's
+  // assigned via a series of steps in the constructor body:
+  nscoord mBSize;
+
+ public:
+  CachedBAxisMeasurement(const ReflowInput& aReflowInput,
+                         const ReflowOutput& aReflowOutput)
+      : mKey(aReflowInput) {
+    // To get content-box bsize, we have to subtract off border & padding
+    // (and floor at 0 in case the border/padding are too large):
+    WritingMode itemWM = aReflowInput.GetWritingMode();
+    nscoord borderBoxBSize = aReflowOutput.BSize(itemWM);
+    mBSize =
+        borderBoxBSize -
+        aReflowInput.ComputedLogicalBorderPadding(itemWM).BStartEnd(itemWM);
+    mBSize = std::max(0, mBSize);
+  }
+
+  /**
+   * Returns true if this cached flex item measurement is valid for (i.e. can
+   * be expected to match the output of) a measuring reflow whose input
+   * parameters are given via aReflowInput.
+   */
+  bool IsValidFor(const ReflowInput& aReflowInput) const {
+    return mKey == Key(aReflowInput);
+  }
+
+  nscoord BSize() const { return mBSize; }
+};

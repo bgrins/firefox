@@ -1,0 +1,22 @@
+    6305:       }
+    6306:     }
+    6307:   }
+    6308: 
+    6309:   // If we haven't established a baseline for the container yet, i.e. if we
+    6310:   // don't have any flex item in the startmost flex line that participates in
+    6311:   // baseline alignment, derive it from the startmost non-collapsed flex item.
+    6312:   const FlexItem* firstBaselineItem =
+    6313:       FindBaselineItem(aFlr.mLines, aAxisTracker, BaselineSharingGroup::First);
+    6314:   if (aFlr.mAscent == nscoord_MIN && firstBaselineItem) {
+>>> 6315:     aFlr.mAscent = firstBaselineItem->Frame()
+    6316:                        ->GetLogicalNormalPosition(
+    6317:                            flexWM, desiredSizeInFlexWM.GetPhysicalSize(flexWM))
+    6318:                        .B(flexWM) +
+    6319:                    firstBaselineItem->ResolvedAscent(true);
+    6320:   }
+    6321: 
+    6322:   // Likewise, if we don't have any flex item in the endmost flex line that
+    6323:   // participates in last baseline alignment, derive it from the endmost
+    6324:   // non-collapsed flex item.
+    6325:   const FlexItem* lastBaselineItem =
+

@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Geometry of hidden descendants after sibling insertion</title>
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#skips-its-contents">
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#cv-examples">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getclientrects">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .host { position: absolute; width: 320px; height: 64px; }
+  .flex { display: flex; align-items: flex-start; }
+  .grid { display: grid; align-items: start; }
+  .hidden { content-visibility: hidden; }
+  .item { width: 24px; height: 32px; flex: none; }
+</style>
+<body>
+<script>
+const queries = {
+  bounding: node => {
+    const rect = node.getBoundingClientRect();
+    return [rect.width, rect.height];
+  },
+  rects: node => Array.from(node.getClientRects(), rect =>
+    [rect.width, rect.height]).flat(),
+  offset: node => [node.offsetWidth, node.offsetHeight],
+  scroll: node => [node.scrollWidth, node.scrollHeight],
+};
+
+for (const display of ["block", "flex", "grid"]) {
+  for (const initiallyHidden of [false, true]) {
+    for (const [api, query] of Object.entries(queries)) {
+      test(t => {
+        const host = document.createElement("div");
+        host.className = "host";
+        const subject = document.createElement("div");
+        subject.className = display;
+        subject.classList.toggle("hidden", initiallyHidden);
+        const target = document.createElement("div");
+        target.className = "item";
+        subject.append(target);
+        host.append(subject);
+        document.body.append(host);
+        t.add_cleanup(() => host.remove());
+
+        const samples = [];
+        for (const phase of ["initial", "hide", "append", "append-again", "show"]) {
+          if (phase === "hide") {
+            subject.classList.add("hidden");
+          } else if (phase.startsWith("append")) {
+            const sibling = document.createElement("div");
+            sibling.className = "item";
+            subject.append(sibling);
+          } else if (phase === "show") {
+            subject.classList.remove("hidden");
+          }
+          subject.getClientRects();
+          void subject.scrollWidth;
+          void subject.scrollHeight;
+          for (let repeat = 0; repeat < 3; ++repeat) {
+            samples.push({phase, repeat, size: query(target)});
+          }
+        }
+        for (const {phase, repeat, size} of samples) {
+          assert_array_equals(size, [24, 32], `${phase}, read ${repeat + 1}`);
+        }
+      }, `${display}, initially ${initiallyHidden ? "hidden" : "visible"}, ${api}`);
+    }
+  }
+}
+</script>

@@ -1,0 +1,90 @@
+# CSS-CONTAIN-2#cv-examples
+
+**Examples** (heading)
+
+**SHA**: hash:bb38ada349137a54b242110e34dc4f7deb644aa41141b7e61921a17a917e478c
+
+## Content
+
+> **Example:** ```
+> <style>
+> .sv {
+>   content-visibility: auto;
+>   min-height: 50px;
+> }
+> </style>
+>
+> <div class=sv>
+>   ... some content goes here ...
+> </div>
+> ```
+>
+> The .sv element’s [content-visibility: auto](CSS-CONTAIN-2#propdef-content-visibility) value lets the user-agent manage whether the element is [skipped](CSS-CONTAIN-2#skips-its-contents). Specifically when this element is near the viewport, the user-agent will begin painting the element. When the element moves away from the viewport, it will stop being painted. In addition, the user-agent should skip as much of the rendering work as possible when the element is skipped.
+
+> **Example:** ```
+> <style>
+> .sv {
+>   content-visibility: hidden;
+> }
+> </style>
+>
+> <div class=sv>
+>   ... some content goes here ...
+> </div>
+> ```
+>
+> In this case, the element is [skipped](CSS-CONTAIN-2#skips-its-contents) regardless of viewport intersection. This means that the only way to have the [contents](CSS2#content) painted is via script updating the value to remove [content-visibility](CSS-CONTAIN-2#propdef-content-visibility) or change its value. As before, the user-agent should skip as much of the rendering in the contents as possible.
+>
+> An additional effect of skipping rendering is that the layout state of the [contents](CSS2#content) can be preserved by the user-agent, so that removing the [content-visibility](CSS-CONTAIN-2#propdef-content-visibility) property in the future will cause the contents to be rendered quicker than if they were hidden with [display: none](CSS-DISPLAY-3#propdef-display) or similar.
+
+> **Example:** ```
+> <style>
+> body {
+>   margin: 0;
+> }
+> .sv {
+>   content-visibility: hidden;
+>   position: relative;
+>   left: 10px;
+>   top: 20px;
+> }
+> #child {
+>   position: relative;
+>   left: 1px;
+>   top: 2px;
+>   width: 100px;
+>   height: 200px;
+> }
+> </style>
+>
+> <div id=target class=sv>
+>   <div id=child></div>
+>   ... some other content goes here ...
+> </div>
+> <script>
+>   ...
+>   // This will force rendering work, including layout,
+>   // if the UA previously avoided it.
+>   target.firstElementChild.getBoundingClientRect();
+>   ...
+> </script>
+> ```
+>
+> Similarly to the last example, the element is [skipped](CSS-CONTAIN-2#skips-its-contents). The user-agent should avoid as much rendering work as possible. However, in this example, at some point script accesses a layout value in the element’s [contents](CSS2#content). In this situation, the user-agent cannot avoid rendering work and has to process any previously skipped rendering work in order to return a correct value to the caller. In this example, the result of [`getBoundingClientRect()`](CSSOM-VIEW-1#dom-element-getboundingclientrect) is a rect positioned at (11, 22) with a size 100x200.
+>
+> Note that repeated calls to the same layout value should not cause any additional rendering work, since the user-agent should retain the last updated rendering state.
+>
+> Also note that this situation in which rendering work is required is not unique. There may be other situations in which the user-agent cannot avoid rendering work.
+
+## Navigation
+
+- Parent: `content-visibility` — Suppressing An Element’s Contents Entirely: the content-visibility property
+- Prev: `cv-a11y` — Accessibility Implications
+
+## Outgoing refs (5)
+
+`webspec-index refs CSS-CONTAIN-2#cv-examples -d outgoing -l 5`
+
+## Incoming refs (1)
+
+- CSS-CONTAIN-2#contents

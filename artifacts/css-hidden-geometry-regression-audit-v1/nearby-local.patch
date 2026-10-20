@@ -1,0 +1,55 @@
+diff --git a/layout/generic/BlockReflowState.cpp b/layout/generic/BlockReflowState.cpp
+index 4f7e46b6b9ab..e45d3021efcd 100644
+--- a/layout/generic/BlockReflowState.cpp
++++ b/layout/generic/BlockReflowState.cpp
+@@ -496,7 +496,7 @@ void BlockReflowState::RecoverFloats(nsLineList::iterator aLine,
+       FloatManager()->AddFloat(
+           floatFrame,
+           nsFloatManager::GetRegionFor(wm, floatFrame, ContainerSize()), wm,
+-          ContainerSize());
++          ContainerSize(), ContentISize());
+     }
+   } else if (aLine->IsBlock()) {
+     nsBlockFrame::RecoverFloatsFor(aLine->mFirstChild, *FloatManager(), wm,
+@@ -943,7 +943,7 @@ BlockReflowState::PlaceFloatResult BlockReflowState::FlowAndPlaceFloat(
+     region.BSize(wm) =
+         std::max(region.BSize(wm), ContentBSize() - floatPos.B(wm));
+   }
+-  FloatManager()->AddFloat(aFloat, region, wm, ContainerSize());
++  FloatManager()->AddFloat(aFloat, region, wm, ContainerSize(), ContentISize());
+ 
+   // store region
+   nsFloatManager::StoreRegionFor(wm, aFloat, region, ContainerSize());
+diff --git a/layout/generic/nsBlockFrame.cpp b/layout/generic/nsBlockFrame.cpp
+index 5da4816d2b02..5b1d5bf1595d 100644
+--- a/layout/generic/nsBlockFrame.cpp
++++ b/layout/generic/nsBlockFrame.cpp
+@@ -8252,10 +8252,14 @@ void nsBlockFrame::RecoverFloats(nsFloatManager& aFloatManager, WritingMode aWM,
+   nsIFrame* stop = nullptr;  // Stop before we reach pushed floats that
+                              // belong to our next-in-flow
+   const nsFrameList* floats = GetFloats();
++  const WritingMode wm = GetWritingMode();
++  const nscoord contentISize =
++      floats ? LogicalSize(wm, GetContentRectRelativeToSelf().Size()).ISize(wm)
++             : 0;
+   for (nsIFrame* f = floats ? floats->FirstChild() : nullptr; f && f != stop;
+        f = f->GetNextSibling()) {
+     LogicalRect region = nsFloatManager::GetRegionFor(aWM, f, aContainerSize);
+-    aFloatManager.AddFloat(f, region, aWM, aContainerSize);
++    aFloatManager.AddFloat(f, region, aWM, aContainerSize, contentISize);
+     if (!stop && f->GetNextInFlow()) {
+       stop = f->GetNextInFlow();
+     }
+diff --git a/layout/generic/nsFlexContainerFrame.h b/layout/generic/nsFlexContainerFrame.h
+index 60572d29c7b5..c7971fc0b0f0 100644
+--- a/layout/generic/nsFlexContainerFrame.h
++++ b/layout/generic/nsFlexContainerFrame.h
+@@ -53,7 +53,7 @@ struct ComputedFlexItemInfo {
+ 
+ struct ComputedFlexLineInfo {
+   nsTArray<ComputedFlexItemInfo> mItems;
+-  nscoord mCrossStart;
++  int64_t mCrossStart;
+   nscoord mCrossSize;
+   nscoord mFirstBaselineOffset;
+   nscoord mLastBaselineOffset;

@@ -1,0 +1,38 @@
+toolkit/xre/MacLaunchHelper.mm:5: #include "MacLaunchHelper.h"
+toolkit/xre/MacLaunchHelper.mm:16: using namespace mozilla::MacLaunchHelper;
+toolkit/xre/MacLaunchHelper.mm:18: static void RegisterAppWithLaunchServices(NSString* aBundlePath) {
+toolkit/xre/MacLaunchHelper.mm:25:       NSLog(@"We failed to register the app in the Launch Services database, "
+toolkit/xre/MacLaunchHelper.mm:26:             @"which may lead to a failure to launch the app. Launch path: %@",
+toolkit/xre/MacLaunchHelper.mm:35:  * Helper to launch macOS tasks via NSTask and wait for the launched task to
+toolkit/xre/MacLaunchHelper.mm:38: void LaunchTask(NSString* aPath, NSArray* aArguments) {
+toolkit/xre/MacLaunchHelper.mm:47:     [task launchAndReturnError:nil];
+toolkit/xre/MacLaunchHelper.mm:59:   LaunchTask(@"/usr/bin/xattr", arguments);
+toolkit/xre/MacLaunchHelper.mm:62: namespace mozilla::MacLaunchHelper {
+toolkit/xre/MacLaunchHelper.mm:64: void LaunchMacAppWithBundle(NSString* aBundlePath, NSArray* aArguments) {
+toolkit/xre/MacLaunchHelper.mm:68:     NSString* launchPath = aBundlePath;
+toolkit/xre/MacLaunchHelper.mm:69:     if (![launchPath hasSuffix:@".app"]) {
+toolkit/xre/MacLaunchHelper.mm:70:       // We only support launching applications inside .app bundles.
+toolkit/xre/MacLaunchHelper.mm:71:       NSLog(@"An attempt was made to launch an app that was not in a .app "
+toolkit/xre/MacLaunchHelper.mm:72:             @"bundle. Please verify launch path: %@",
+toolkit/xre/MacLaunchHelper.mm:73:             launchPath);
+toolkit/xre/MacLaunchHelper.mm:77:     StripQuarantineBit(launchPath);
+toolkit/xre/MacLaunchHelper.mm:78:     RegisterAppWithLaunchServices(launchPath);
+toolkit/xre/MacLaunchHelper.mm:81:     // `TALAppsToRelaunchAtLogin` list and allow for macOS session resume.
+toolkit/xre/MacLaunchHelper.mm:91:         openApplicationAtURL:[NSURL fileURLWithPath:launchPath]
+toolkit/xre/MacLaunchHelper.mm:95:                NSLog(@"LaunchMacApp: Failed to run application. Error: %@",
+toolkit/xre/MacLaunchHelper.mm:101:     // We use a semaphore to wait for the application to launch.
+toolkit/xre/MacLaunchHelper.mm:108: }  // namespace mozilla::MacLaunchHelper
+toolkit/xre/MacLaunchHelper.mm:110: void LaunchChildMac(int aArgc, char** aArgv, pid_t* aPid) {
+toolkit/xre/MacLaunchHelper.mm:114:     NSString* launchPath = [NSString stringWithUTF8String:aArgv[0]];
+toolkit/xre/MacLaunchHelper.mm:120:     [task setExecutableURL:[NSURL fileURLWithPath:launchPath]];
+toolkit/xre/MacLaunchHelper.mm:123:     [task launchAndReturnError:&error];
+toolkit/xre/MacLaunchHelper.mm:134: void LaunchMacApp(int aArgc, char** aArgv) {
+toolkit/xre/MacLaunchHelper.mm:137:   NSString* launchPath = [NSString stringWithUTF8String:aArgv[0]];
+toolkit/xre/MacLaunchHelper.mm:138:   if (![launchPath hasSuffix:@".app"]) {
+toolkit/xre/MacLaunchHelper.mm:139:     LaunchChildMac(aArgc, aArgv, nullptr);
+toolkit/xre/MacLaunchHelper.mm:146:   LaunchMacAppWithBundle(launchPath, arguments);
+toolkit/xre/MacLaunchHelper.mm:184:     // launchd.plist is extracted and placed in /Library/LaunchDaemons and
+toolkit/xre/MacLaunchHelper.mm:187:     result = (BOOL)SMJobBless(kSMDomainSystemLaunchd,
+toolkit/xre/MacLaunchHelper.mm:235: bool LaunchElevatedUpdate(int aArgc, char** aArgv, pid_t* aPid) {
+toolkit/xre/MacLaunchHelper.mm:236:   LaunchChildMac(aArgc, aArgv, aPid);
+Total matches: 37

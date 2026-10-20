@@ -1,0 +1,16 @@
+>>> 2084:   // reflow" or a "final reflow" for a given flex item.
+    2085:   void Update(const ReflowInput& aReflowInput,
+    2086:               const ReflowOutput& aReflowOutput, FlexItemReflowType aType) {
+    2087:     if (aType == FlexItemReflowType::Measuring) {
+    2088:       mBAxisMeasurement.reset();
+    2089:       mBAxisMeasurement.emplace(aReflowInput, aReflowOutput);
+    2090:       // Clear any cached "last final reflow metrics", too, because now the most
+    2091:       // recent reflow was *not* a "final reflow".
+    2092:       mFinalReflowMetrics.reset();
+    2093:       return;
+    2094:     }
+    2095: 
+    2096:     MOZ_ASSERT(aType == FlexItemReflowType::Final);
+    2097:     mFinalReflowMetrics.reset();
+    2098:     mFinalReflowMetrics.emplace(aReflowInput, aReflowOutput);
+    2099:   }

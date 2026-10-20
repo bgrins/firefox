@@ -1,0 +1,29 @@
+>>>  656: Maybe<nscoord> nsBlockFrame::GetNaturalBaselineBOffset(
+     657:     WritingMode aWM, BaselineSharingGroup aBaselineGroup,
+     658:     BaselineExportContext aExportContext) const {
+     659:   if (StyleDisplay()->IsContainLayout()) {
+     660:     return Nothing{};
+     661:   }
+     662: 
+     663:   Maybe<nscoord> offset =
+     664:       aBaselineGroup == BaselineSharingGroup::First
+     665:           ? GetBaselineBOffset(LinesBegin(), LinesEnd(), aWM, aBaselineGroup,
+     666:                                aExportContext)
+     667:           : GetBaselineBOffset(LinesRBegin(), LinesREnd(), aWM, aBaselineGroup,
+     668:                                aExportContext);
+     669:   if (!offset && IsButtonOrTextInput()) {
+     670:     for (const auto& line : Reversed(Lines())) {
+     671:       if (line.IsEmpty()) {
+     672:         continue;
+     673:       }
+     674:       // Buttons use the end of the content as a baseline if we haven't found
+     675:       // one yet.
+     676:       nscoord bEnd = line.BEnd();
+     677:       offset.emplace(aBaselineGroup == BaselineSharingGroup::Last
+     678:                          ? BSize(aWM) - bEnd
+     679:                          : bEnd);
+     680:       break;
+     681:     }
+     682:   }
+     683:   return offset;
+     684: }

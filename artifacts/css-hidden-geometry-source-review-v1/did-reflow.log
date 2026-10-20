@@ -1,0 +1,34 @@
+>>> 7818: void nsIFrame::DidReflow(nsPresContext* aPresContext,
+    7819:                          const ReflowInput* aReflowInput) {
+    7820:   NS_FRAME_TRACE(NS_FRAME_TRACE_CALLS, ("nsIFrame::DidReflow"));
+    7821: 
+    7822:   if (IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
+    7823:     RemoveStateBits(NS_FRAME_IN_REFLOW);
+    7824:     return;
+    7825:   }
+    7826: 
+    7827:   SVGObserverUtils::InvalidateDirectRenderingObservers(this);
+    7828: 
+    7829:   RemoveStateBits(NS_FRAME_IN_REFLOW | NS_FRAME_FIRST_REFLOW |
+    7830:                   NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN);
+    7831: 
+    7832:   // Clear bits that were used in ReflowInput::InitResizeFlags (see
+    7833:   // comment there for why we can't clear it there).
+    7834:   SetHasBSizeChange(false);
+    7835:   SetHasPaddingChange(false);
+    7836: 
+    7837:   // Notify the percent bsize observer if there is a percent bsize.
+    7838:   // The observer may be able to initiate another reflow with a computed
+    7839:   // bsize. This happens in the case where a table cell has no computed
+    7840:   // bsize but can fabricate one when the cell bsize is known.
+    7841:   if (aReflowInput && aReflowInput->mPercentBSizeObserver && !GetPrevInFlow()) {
+    7842:     const auto bsize = aReflowInput->mStylePosition->BSize(
+    7843:         aReflowInput->GetWritingMode(),
+    7844:         AnchorPosResolutionParams::From(aReflowInput));
+    7845:     if (bsize->HasPercent()) {
+    7846:       aReflowInput->mPercentBSizeObserver->NotifyPercentBSize(*aReflowInput);
+    7847:     }
+    7848:   }
+    7849: 
+    7850:   aPresContext->ReflowedFrame();
+    7851: }
