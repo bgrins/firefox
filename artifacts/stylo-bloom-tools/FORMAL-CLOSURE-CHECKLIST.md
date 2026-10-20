@@ -862,3 +862,19 @@ flags or claiming full standalone-output equivalence.
 
 [Origin acceptance](../css-variable-origin-proof-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
 [Terminal-span acceptance](../css-variable-terminal-span-proof-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
+
+## Nested parser recovery and control — accepted bounded component
+
+V3 has root and independent fresh replay: 39 audited declarations across a
+59-module closure, 18 cases/91 snapshots in native debug and release, three
+compiled native mutants and three rejected Lean proof mutations. Five root
+kernel witnesses show that finite fuel/pending-none do not replace lexical
+progress and that arbitrary callbacks can retain a changed nesting limit.
+
+Raw recovery covers cache retention, raw annotation writes and pending cleanup.
+Nested and until-before refinement cover represented callbacks and an independent
+source-only history under shared lexical providers. Full nested annotation
+alignment, arbitrary callbacks, native termination, lines/errors/allocations,
+parse_until_after and universal LinkParameters grammar remain open. Six concrete
+Link paths are kernel-checked; the native caller is an empty-value facade.
+[Acceptance](../css-parser-nested-control-root-v1/ACCEPTANCE.json).

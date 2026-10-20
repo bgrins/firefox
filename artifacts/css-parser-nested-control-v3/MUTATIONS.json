@@ -1,0 +1,20 @@
+[
+  {
+    "id": "nested-union-outer-stop",
+    "source": "parser",
+    "old": "parser.stop_before = match block_type {",
+    "new": "parser.stop_before = old_stop_before | match block_type {"
+  },
+  {
+    "id": "nested-omit-final-consume",
+    "source": "parser",
+    "old": "parser.skip_block_at_start();\n    parser.consume_until_end_of_block(block_type);\n    parser.stop_before = old_stop_before;",
+    "new": "parser.skip_block_at_start();\n    parser.stop_before = old_stop_before;"
+  },
+  {
+    "id": "until-ignore-stop-error",
+    "source": "parser",
+    "old": "if error_behavior == ParseUntilErrorBehavior::Stop && result.is_err() {\n        return result;\n    }\n    parser.skip_block_at_start();",
+    "new": "if false && error_behavior == ParseUntilErrorBehavior::Stop && result.is_err() {\n        return result;\n    }\n    parser.skip_block_at_start();"
+  }
+]

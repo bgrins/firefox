@@ -49,9 +49,10 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
   states. Actual reflow-input/frame ancestry, numeric providers and dynamic
   reconstruction remain open. Completed root compiler outputs were removed.
 - **Parser controls:** the earlier seven wrapper results remain accepted.
-  Nested-control v3 now has independent scoped acceptance: 39 audits, 59 modules,
-  18 cases and 91 native/model snapshots in debug and release. Three native
-  mutants differ in 10, 25 and five rows. Root integration review is pending.
+  Nested-control v3 now has root and independent scoped acceptance: 39 audits,
+  59 modules, 18 cases and 91 native/model snapshots in debug and release. Three
+  native mutants differ in 10, 25 and five rows; five additional root kernel
+  challenges demonstrate progress and callback-control limits.
   The revised capsule rejects pre-import shadowing and nonclosed file rosters.
   Universal callback grammar, native termination, full LinkParameters and
   whole-program annotation correspondence remain open.
@@ -540,3 +541,17 @@ The formal target remains metadata-preserving optimization and the specified
 URL boundary. Global network noninterference is stronger than that contract.
 [Report](../css-attr-taint-security-review-v1/REPORT.md).
 [Root review](../css-attr-taint-security-root-v1/REVIEW.json).
+
+## Nested parser control accepted
+
+Root and independent v3 replays match all 91 snapshots and the three compiled
+native mutation deltas. The source-bound model derives raw cache retention,
+pending-none recovery, raw comment annotation writes and nested/until-before
+control correspondence for represented callbacks. The six Link paths are finite
+kernel facts, not a universal grammar proof. Root adds five premise challenges.
+The independent package's 20 negative guards and intact positive passed.
+
+Next: inspect and model parse_until_after's direct delimiter advance and curly
+recovery; extend the represented callback grammar where it exposes real callers.
+Lexical progress, native byte bounds, full annotations and Link value parsing
+remain open. [Acceptance](../css-parser-nested-control-root-v1/ACCEPTANCE.json).
