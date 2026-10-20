@@ -1,0 +1,52 @@
+--- v3-review/review_runtime.py
++++ v4-review/review_runtime.py
+@@ -9,8 +9,8 @@
+ import statistics
+ 
+ HERE = Path(__file__).resolve().parent
+-RUNTIME = HERE.parent / "css-cssom-exact-traversal-runtime-v3"
+-PROPOSAL = HERE.parent / "css-cssom-exact-traversal-proposal-v3"
++RUNTIME = HERE.parent / "css-cssom-exact-traversal-runtime-v4"
++PROPOSAL = HERE.parent / "css-cssom-exact-traversal-proposal-v4" / "capsule"
+ RUNS = [f"{phase}-{n}" for phase in ["baseline-before", "candidate", "baseline-after"] for n in [1, 2]]
+ SOURCES = ["layout/generic/nsIFrame.cpp", "layout/generic/nsIFrame.h", "layout/base/nsLayoutUtils.cpp", "layout/base/nsLayoutUtils.h"]
+ NAMES = [f"{mode}-{depth}" for depth in [8, 128] for mode in ["ordinary", "transform-near-leaf", "transform-near-root"]]
+@@ -44,7 +44,18 @@
+         assert load(RUNTIME / (name + ".json"))["exit"] == 0
+     for name in ["source_restored", "other_native_unchanged", "head_unchanged", "index_unchanged"]:
+         assert state[name] is True
++    inputs = load(RUNTIME / "INPUTS.json")
++    assert len(inputs["pins"]) == 378
++    for name, expected in inputs["pins"].items():
++        retained = HERE.parents[1] / name if name.startswith("artifacts/") else RUNTIME / "baseline/inputs" / name
++        assert sha(retained) == expected, name
++    final = load(RUNTIME / "FINAL.json")
+     original = load(RUNTIME / "BEFORE.json")
++    for key in ['head','index_diff_sha256','index_entries_sha256']:
++        assert inputs[key] == original[key] == final[key], key
++    assert original['sources'] == final['sources']
++    assert original['fixed_native_pins'] == final['fixed_native_pins']
++    assert final['temporary_tests_absent'] is True
+     restored = load(RUNTIME / "RESTORED.json")
+     assert all(restored[k] == v for k, v in {**original["sources"], **original["fixed_native_pins"]}.items())
+     tests = load(RUNTIME / "TESTS.json")
+@@ -52,6 +63,10 @@
+     wpt, maps = {}, {}
+     for phase in ["baseline", "candidate"]:
+         r = load(RUNTIME / phase / "RUN.json")
++        for name, expected in r['before'].items():
++            if expected is None or name.startswith('objdir-full.noindex/'):
++                continue
++            assert sha(RUNTIME / phase / 'inputs' / name) == expected, name
+         events = [json.loads(s) for s in (RUNTIME / phase / "raw.json").read_text().splitlines()]
+         rows = [e for e in events if e.get("action") == "test_status"]
+         ends = [e for e in events if e.get("action") == "test_end"]
+@@ -121,7 +136,7 @@
+         medians = {phase: [runs[phase + "-" + str(n)]["median"] for n in [1, 2]] for phase in ["baseline-before", "candidate", "baseline-after"]}
+         center = {k: statistics.median(v) for k, v in medians.items()}
+         comparisons[name] = {"run_medians_ns": medians, "candidate_vs_before_percent": 100 * (center["candidate"] / center["baseline-before"] - 1), "candidate_vs_restored_percent": 100 * (center["candidate"] / center["baseline-after"] - 1), "restored_vs_before_percent": 100 * (center["baseline-after"] / center["baseline-before"] - 1)}
+-    return {"correctness": {"changed": changed, "unchanged_subtests": 72, "retained_expected_failures": expected_fails, "file_outcomes": end_map("candidate"), "baseline_matches_historical_dom_only": True}, "timings": rows, "comparisons": comparisons, "environment": environment[0], "binaries": binaries, "limits": "Six fresh-profile headless processes; fixed phase order; eleven quantized repeated batches per case, not independent user samples. Historical binaries identified by contemporaneous hashes, not archived/rebuilt here. No statistical significance or broad performance conclusion."}
++    return {"input_join": {"pins":378,"head":inputs["head"],"index_diff_sha256":inputs["index_diff_sha256"],"index_entries_sha256":inputs["index_entries_sha256"],"final_matches":True}, "correctness": {"changed": changed, "unchanged_subtests": 72, "retained_expected_failures": expected_fails, "file_outcomes": end_map("candidate"), "baseline_matches_historical_dom_only": True}, "timings": rows, "comparisons": comparisons, "environment": environment[0], "binaries": binaries, "limits": "Six fresh-profile headless processes; fixed phase order; eleven quantized repeated batches per case, not independent user samples. Historical binaries identified by contemporaneous hashes, not archived/rebuilt here. No statistical significance or broad performance conclusion."}
+ 
+ if __name__ == "__main__":
+     result = review()

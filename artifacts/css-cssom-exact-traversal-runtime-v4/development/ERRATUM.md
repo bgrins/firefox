@@ -1,0 +1,1 @@
+The first offline WPT summary assumed every expected failure carried an explicit expected field. WPT omits that field when status matches expectation. The corrected summary uses the same expected-or-status normalization as the experiment and existing analyzer. The failure occurred before writing WPT-COMPARISON.json; browser results and runtime driver are unchanged.
