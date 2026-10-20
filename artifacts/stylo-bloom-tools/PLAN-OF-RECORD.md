@@ -4,12 +4,26 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **101 committed native/WPT fixes; no accepted repairs await signing.** The
+- **DOMRect precision committed:** `c0e8c7fd1deb` preserves already calculated
+  double coordinates. Its four-case WPT passes independently; selected existing
+  regressions retain their outcomes. The bounded 26-audit numeric component has
+  root and independent review, 53 native/reference cases per optimization mode,
+  and 11 complete source bindings. Universal IEEE and full CSSOM claims remain open.
+- **Integer-translation repair held:** correctness witnesses pass, but a deep
+  transform-near-root microbenchmark repeatedly rises from 400 to 550 ns per call. The
+  next design should carry exact translation through the existing traversal.
+  Retain SVG/context/viewport/clipping guards and checked numeric bounds.
+  [Performance decision](../css-cssom-rectangle-performance-runtime-v1/REPORT.md).
+- **Full obligations continue:** numeric component acceptance does not close
+  safe-origin F1–F12, allocation F1–F16/F11/F12, provider lifetimes or fragment
+  observers. Signed table subtraction remains a separate investigation with
+  no accepted native repair or established memory-corruption impact.
+- **102 committed native/WPT fixes; no accepted repairs await signing.** The
   14-fix queue is complete, including its 34 preceding evidence/proof commits.
   All 48 signatures and exact native parent deltas were checked. See
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md) and
   [CURRENT-COMMITS.json](CURRENT-COMMITS.json) for management identifiers.
-- **Latest fixes:** leading-whitespace attribute origin (`ad608a212bd8`),
+- **Earlier fixes:** leading-whitespace attribute origin (`ad608a212bd8`),
   trailing-whitespace token metadata (`bccea9c1fffc`) and escaped trailing
   whitespace (`fff2d758ef6b`). Each has a preceding evidence companion and
   a separate two-file native/WPT commit. All three also have signed standalone

@@ -5,9 +5,27 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **101 committed fixes; no accepted repairs await signing.**
+Current checkpoint: **102 committed fixes; no accepted repairs await signing.**
 
-## Latest signed fixes: 88–101
+## Latest signed fix: 102
+
+| Fix | Repair | Native + WPT commit | Preceding companion |
+| --- | --- | --- | --- |
+| 102 | DOMRect layout coordinate double precision | `c0e8c7fd1deb9320b0bae747c043c100ac842f49` | `752c83eb28346d73a28d48748a8cb52adf4057dc` |
+
+Four standalone WPT cases pass with this repair alone; two failed before.
+Existing selected regressions retain their outcomes, including two expected
+failures. The native commit contains only DOMRect.cpp and its WPT; evidence,
+source review, bounded Lean proof and runtime trials precede it.
+[Acceptance](../css-domrect-edge-precision-commit-v1/ACCEPTANCE.json).
+
+The separate integer-translation candidate is held for a repeatable local
+microbenchmark cost: deep transform-near-root calls take 550 ns versus 400 ns in
+four baseline runs. These headless/coarse-timer results are directional, not a
+browser-wide or CI performance claim. It is not installed or counted.
+[Performance hold](../css-cssom-rectangle-performance-runtime-v1/REPORT.md).
+
+## Previous signed fixes: 88–101
 
 | Fix | Repair | Native + WPT commit | Preceding companion |
 | --- | --- | --- | --- |
