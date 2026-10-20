@@ -4,10 +4,11 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **Fourteen accepted repairs await signing:** view-transition invalidation, explicit sticky-inset encoding, auto-inset normalization, containing-block logical-end selection, negative-inset arithmetic, baseline cross-size sums, geometric sticky sentinels, wrapped line cross-size sums, relative-position baseline export, scroll-container baseline conversion, percentage-padding measurement keys, flex overflow-container final positioning, relative overflow positioning and captioned-table percentage-height measurement. The latest user-requested retry failed in 1Password; HEAD and all 297 staged evidence files are unchanged.
-- **87 committed native/WPT fixes.** The management index is
-  [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
-  and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
+- **101 committed native/WPT fixes; no accepted repairs await signing.** The
+  14-fix queue is complete, including its 34 preceding evidence/proof commits.
+  All 48 signatures and exact native parent deltas were checked. See
+  [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md) and
+  [CURRENT-COMMITS.json](CURRENT-COMMITS.json) for management identifiers.
 - **Latest fixes:** leading-whitespace attribute origin (`ad608a212bd8`),
   trailing-whitespace token metadata (`bccea9c1fffc`) and escaped trailing
   whitespace (`fff2d758ef6b`). Each has a preceding evidence companion and
@@ -63,7 +64,7 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
   committed fixes with exposure limits and standalone alternatives. A separate
   registered-animation WPT calibration correction is committed separately;
   it does not increase the native-fix count.
-- Earlier signing succeeded for the committed fixes; the current queue is blocked by the configured 1Password signer. Signing stays enabled. Nothing has been pushed or submitted externally.
+- Signing succeeded for the complete accepted queue. Signing stays enabled. Nothing has been pushed or submitted externally. Later signing-blocker statements describe earlier checkpoints.
 
 [Historical checkpoints](PLAN-HISTORY-20261019.md) preserve the previous plan
 verbatim. Their counts, signing blockers, agent states and “next” sections are
