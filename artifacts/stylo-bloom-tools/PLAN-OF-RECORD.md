@@ -4,6 +4,19 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
+- **Primary ownership component accepted and committed:** producer
+  `885c94769ed3`, review `2c441db9213b`.
+  Root replay passes 40 audits over 26 bound definitions; independent review adds
+  12 kernel challenges and seven integrity controls. This proves admitted stable
+  histories and selected initialization, with actual destructor callbacks and
+  heap representation still open. The live constructor has a retained generated
+  cleanup difference; no broad indexed-source lifecycle transfer is claimed.
+  [Root acceptance](../css-primary-bit-coherence-root-v1/ACCEPTANCE.json).
+- **Traversal successor remains under review:** metadata on the existing walk
+  avoids a speculative second walk, but a cancellation witness exposes overflow
+  in legacy ancestor-offset grouping. Preserve the original exact domain and
+  defined fallback behavior before starting browser validation. No candidate is
+  installed and no new native fix is counted.
 - **DOMRect precision committed:** `c0e8c7fd1deb` preserves already calculated
   double coordinates. Its four-case WPT passes independently; selected existing
   regressions retain their outcomes. The bounded 26-audit numeric component has
