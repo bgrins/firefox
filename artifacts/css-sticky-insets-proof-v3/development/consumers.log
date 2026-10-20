@@ -1,0 +1,44 @@
+artifacts/css-sticky-insets-proof-v1/lean/StickyConsumers.lean:45:48: error: unsolved goals
+case mk
+g : Raw
+endIsFar : Bool
+nonnegative : 0 ≤ g.border.size
+lim : nativeLimits g endIsFar true sentinelLow sentinelHigh = referenceLimits g endIsFar true sentinelLow sentinelHigh
+a : Int
+hn : g.insets.near = some a
+b : Int
+hf : g.insets.far = some b
+near✝ far✝ : Option Int
+ordered :
+  origin g true +
+      (StickyAxis.nativeNormalize { near := some a, far := some b } g.portSize g.border.size endIsFar).near ≤
+    origin g true + g.portSize -
+        (StickyAxis.nativeNormalize { near := some a, far := some b } g.portSize g.border.size endIsFar).far -
+      g.border.size
+⊢ near✝ = some a ∧ far✝ = some b
+artifacts/css-sticky-insets-proof-v1/lean/StickyConsumers.lean:135:4: error: Tactic `rfl` failed: The left-hand side
+  match referenceSelect (List.filter eligible ancestors) with
+  | Selection.one f => pack f (nativeRanges f.firstGeometry f.hasOffsets f.endIsFar)
+  | x => none
+is not definitionally equal to the right-hand side
+  match List.filter eligible ancestors with
+  | [f] => pack f (referenceRanges f.firstGeometry f.hasOffsets f.endIsFar)
+  | x => none
+
+case true
+ancestors : List Ancestor
+valid : ∀ (f : Ancestor), f ∈ ancestors → 0 ≤ f.firstGeometry.border.size
+⊢ (match referenceSelect (List.filter eligible ancestors) with
+    | Selection.one f => pack f (nativeRanges f.firstGeometry f.hasOffsets f.endIsFar)
+    | x => none) =
+    match List.filter eligible ancestors with
+    | [f] => pack f (referenceRanges f.firstGeometry f.hasOffsets f.endIsFar)
+    | x => none
+artifacts/css-sticky-insets-proof-v1/lean/StickyConsumers.lean:136:2: error: No goals to be solved
+artifacts/css-sticky-insets-proof-v1/lean/StickyConsumers.lean:133:68: warning: This simp argument is unused:
+  Bool.true_eq_false
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [Bool.not_false, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

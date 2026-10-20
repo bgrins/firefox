@@ -1,0 +1,10 @@
+import Independent
+#print axioms Independent.selected_position_is_separate_from_canonical
+#print axioms Independent.selected_normal_fallback_preserves_canonical_ranges
+#print axioms Independent.canonical_normal_fallback_changes_ranges
+#print axioms Independent.later_unselected_shift_still_requires_bound
+#print axioms Independent.canonical_missing_offsets_skips_dangerous_later_shift
+#print axioms Independent.canonical_inactive_axis_skips_dangerous_later_shift
+#print axioms Independent.any_unexecuted_frame_data_is_ignored
+#print axioms Independent.both_machine_coordinates_agree
+#print axioms Independent.both_executed_shift_coordinates_agree

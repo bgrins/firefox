@@ -1,0 +1,66 @@
+# Sticky auto-inset and containing-block mode companion
+
+Status: v2 correction implemented; fresh authenticated canonical/manifest-only relocated replay passed. Independent review remains pending. V1 received a full-scope HOLD for missing observer joins; see V2-REVIEW-RESPONSE.md for the exact corrections. This covers H1/H2 only. H3 invalidation and the newly discovered finite-sentinel position defect are separate repairs.
+
+## What is proved
+
+The Lean component has 14 modules and 162 named results, including helpers and concrete counterexamples; this is not 162 independent CSS requirements. Source-shaped inset normalization is related to an independent end-inset minimum, raw rectangle operations to a declarative containment-position interval, and the ordered native clamps to projection when feasible. The containing block's five supported writing modes, direction and vertical upright behavior are mapped through an independent physical-side table. The resulting two-axis theorem composes mode selection, optional computed offsets, geometry and position. Continuation dispatch preserves identities and relative normal positions, including the missing-normal return. A separate filtered-ancestor reference proves the modeled view-timeline selection/early-return path and its per-axis ranges.
+
+The machine bridge constructs the actual core add/subtract/min/max/conditional expression trees, including a near-edge setter's temporary width even when the far setter later overwrites it. Every executed intermediate is required to lie in signed32 range. Under those premises the signed32 evaluator equals the integer geometry model. It does not claim C++ signed overflow wraps: overflowing C++ executions are excluded. `arithmetic_domain_inhabited` supplies all four masks and both end/scroll choices in nonempty valid examples. Range, translation and continuation arithmetic also have explicit bounded-expression joins.
+
+`complete_range_position_agreement` joins the actual optional-axis range helper to the geometry/position computation for all four masks, under normal-position containment and finite-sentinel bounds on that containment interval. This uses `limits_scroll_relation`, rather than incorrectly translating inactive sentinel edges with scroll.
+
+The ordinary `both_auto_normal` and missing-offset identity results require the normal coordinate to lie within the finite sentinel interval. Removing that premise is false in the original/H1/H2/combined snapshots. The kernel counterexample predicted a real, separately reproduced browser defect; see SENTINEL-LEAD.md. These proofs do not claim the separate positional-sentinel repair has already been applied. The actual length resolver also saturates huge explicit lengths to the auto code; RESOLVER-ALIAS.md records that separately reproduced provider counterexample. Neither finding is absorbed into the H1/H2 native snapshots.
+
+## Ten preserved obligations
+
+| Obligation | Implemented result / finite bridge | Remaining admission |
+|---|---|---|
+| Optional insets and numeric domain | `StickyNumeric` encoding round-trip, sentinel constants, executed-intermediate predicate; actual LayoutConstants/nsCoord inputs | A non-auto integer equal to the auto sentinel is excluded. nscoord storage alone does not imply all later arithmetic is safe. |
+| Auto view versus movement masks | `StickyAxis` all masks, absent movement edges, start preservation, fit/threshold/minimality/idempotence | Geometry supplied by the layout providers belongs to one coherent calculation. |
+| Independent normalization | Native deficit branch equals independent minimum, negative/oversized cases included | No property parser or anchor-resolution theorem. |
+| Containing-block mode | Five modes, direction/upright, raw table consistency; actual Rust constructor and C++ table execution; actual containing-block walk/table-row-group branch | Computed style populates the correct live frame mode. Other raw flag encodings are table checks, not additional CSS modes. |
+| Rectangle arithmetic | Actual margin constructors/sums/Side, rectangle deflate/edge setters, saturating union and absolute-rectangle class extracted; core machine-expression bridge | C++ layout/ABI, pointer-based Side indexing, conversion and compiler correctness; all executed integer operations in the admitted range. |
+| Geometry providers | Actual CB/normal/union outer functions and offset-resolution wrapper retained and compiled | Frame enumeration, transforms, collapse, fragmentation and raw computed-value resolution remain explicit providers, not final-position oracles. |
+| Position and continuations | `StickyPipeline.complete_two_axis_refinement`; `complete_position_continuations`; full loop/event and finite actual continuation/update calls | X/Y projections refer to the same frame identities and raw properties; no theorem that layout scheduling supplied fresh values. |
+| Margins and scrollport | Native padding/content/margin branches preserved with empty/oversized examples | Pre/post-collapse margins and nearest per-axis scrollport interpretation remain open source/spec boundaries. |
+| Repair independence | Four original/A/B/AB native variants, all 1296 historical identities at 60 app units/CSS px, 720 mixed mode/mask cases, 72 entry cases 128 deterministic geometry cases and eight cross-axis observer cases | Historical browser results remain combined-worktree observations, not isolated release builds. |
+| Shared ranges/timelines | Full extracted GetScrollRanges, per-axis range helper, ComputeStickyDisplacement and Earliest/Latest; universal range/position algebra and filtered-ancestor model | Timeline sampling, compositor dispatch, layout freshness, multiple-sticky support and CSS range semantics outside the admitted geometry are not proved. |
+
+## Fresh execution evidence
+
+The fresh v2 replay rebuilds all custom Lean modules, extracted native functions, and the Rust mode constructor from source. Each native variant executed 2224 complete harness rows under UBSan. These are harness observations, not a count of nested function calls. The first 1296 rows reproduce the accepted fixture identities and raw geometry in actual app units; projected positions reproduce failure counts 186 / 168 / 18 / 0 for original / A-only / B-only / AB. The old H1 negative-zero fixture errors are preserved separately and are not counted as improvements.
+
+The candidate's 4448 axis observations additionally compare freshly evaluated Lean source/reference geometry against the extracted C++ limits and positions. Thirty actual Rust constructor cases cover 5 modes × 2 directions × 3 orientations; C++ side operations cover all 256 byte encodings, with CSS interpretation assertions for the thirty constructor outputs. These finite checks are separate from the universal Lean results.
+
+The eight retained native mutants compile and run: both-insets-only normalization; treating auto as a movement constraint; child mode instead of CB mode; omitted near clamp; missing-normal movement; collapsed continuation positions; skipped offset refresh; and a strict Earliest boundary. Every one has an observed semantic output difference, not just a trace change. Eight matching kernel witnesses are retained in StickyChallenges. Three changed Lean definitions fail their existing proofs (normalization, sideways mapping, range threshold). V2 adds five native and three Lean definition mutants for the observer gaps. Final fresh counts and first raw witnesses are in receipts/canonical/RESULT.json and MUTATIONS.json. These are case counts, not distinct bugs; predecessor counts are not reused.
+
+Provider traces independently check CB/table substitution, geometry requests, mode ownership, size selection, resolved-side requests, offset installation, continuation movement, overflow callbacks and timeline lookup/early returns. They are traces of explicit facades plus actual extracted caller bodies; they do not establish that real layout/gfx providers implement those facade contracts.
+
+## Exact source and provider boundary
+
+SOURCE-BINDINGS.json records 52 complete extraction items per variant, including a complete class and functions that are retained but not necessarily invoked by every case. Every record includes source path, byte start, full body and SHA256. Four archived sticky implementations are used; live source now contains later independent changes and is not an input. Source selection is regenerated and compared at replay.
+
+The harness compiles actual offset-resolution, limits, position, range, continuation and UpdatePositions bodies, plus containing-block/normal/union outer providers, mode methods, margin methods, saturating rectangle union, and timeline displacement methods. `LengthPercentage::Resolve`, raw computed/anchor values and frame geometry are declared providers. The native finite corpus uses resolved pure lengths; the actual ComputeCBDependentValue wrapper is compiled, but its leaf Resolve facade returns the supplied length. It does not prove percent/calc/anchor evaluation or automatically derive no-overflow premises. Full `GetAllInFlowRects` traversal/transforms, nsPoint storage operations, frame properties and overflow tracker storage use visible adapters. nsRect::Overflows is now actual source with an explicit two-addition CheckedInt adapter. StickyDisplacement fields/defaults are the actual source record. Saturating union is actual source; its mathematical raw output enters the core geometry theorem as a provider value.
+
+The timeline model takes the finite ancestor sequence before the selected scrolled-frame stop. Actual parent traversal, acyclicity, same-document lookup, first-continuation mapping and frame/property identity correspondence are admissions. Missing containers, no eligible ancestor, multiple eligible ancestors and both absent ranges return none. The source guard and modeled range construction are exercised independently. The native debug assertions that explicit edges do not equal sentinel values require a further collision exclusion for an assertion-enabled translation; the underlying integer theorem does not manufacture that exclusion.
+
+`MOZ_ASSERT_UNREACHABLE` is a visible no-op in the harness so historical variants can return their documented empty range after an invalid legacy threshold ordering. Other modeled assertions remain enabled. This is not a proof of full debug-browser execution of the old defect.
+
+## Replay and trust
+
+Run `python3 -I -S check.py --output /absolute/new/external/directory`; optional --lean/--clang/--rustc override paths must have the pinned executable hashes. The checker rejects optimized or nonisolated Python before importing non-builtin modules, authenticates the closed source/directory roster before importing artifact code, rejects symlinks/nonregular entries and duplicate JSON keys, and reauthenticates after execution. Relocation copies only manifest-listed files plus the two seal files.
+
+The external reviewer must authenticate the supplied FILES/FREEZE/checker hashes before running them. The tool executables are pinned; their standard libraries, SDK, kernel and compiler correctness remain trusted environment dependencies. Lean's reported logical axioms are the standard `propext`, `Quot.sound` and `Classical.choice`; no sorry/new custom axiom is admitted. Counts are mechanism inventories, not a CSS coverage percentage or native compilation proof.
+
+The 17 pre-dispatch integrity controls and 10 independent result-corruption controls passed in v2; see receipts/guards. The two-row positive comparator control passes. The complete four new native row streams are retained under receipts/canonical. Predecessor receipts are isolated under predecessor-receipts. All output identities, including regenerated compiler products removed after completion, are retained in OUTPUT-INVENTORY.json. FINALIZATION.json records the documentation/receipt-only transfer after the successful v2 replay. V1-DELTA.json records the exact v1-to-v2 source differences.
+
+No production files, WPT files, Git history or browser build was changed by this companion.
+
+## Full observer closure
+
+The new complete absolute-rectangle and endpoint/caller contracts, executed intermediate premises, counterexamples, source adapters and excluded downstream observers are described in V2-REVIEW-RESPONSE.md. These extend obligations 5 and 10; they do not shrink the original scope to the passing v1 subset.
+
+## Final producer replay
+
+Both fresh runs passed 14 modules / 162 exact axiom audits, 52 complete bindings per variant, four variants with 2,224 rows each, 4,448 axis comparisons, 2,224 full absolute-observer comparisons, 11,898 endpoint comparisons and 38 direct native helper boundary rows. All original historical failure counts remain 186 / 168 / 18 / 0. The 13 compiled native mutants have semantic witnesses; six Lean definition mutants fail existing proofs. Only standard propext / Quot.sound / Classical.choice were reported. Every new native/model comparison and numeric admission passed; these finite rows are not claims of all-input source translation. Full result/mutation/provider receipts are in receipts/canonical and independently regenerated under receipts/relocated.
