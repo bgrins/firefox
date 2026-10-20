@@ -1,0 +1,79 @@
+[
+  {
+    "file": "nsCoord.h",
+    "file_sha256": "3a88c7bd12e238ec8f76711a3121313c779179567500f83f5fee32cb6d361343",
+    "anchor": "inline float NSAppUnitsToFloatPixels(",
+    "body_sha256": "3fc03bf51fef66cbb498fd36461924589adb3d170ee34bc2a5471c9226943b3f",
+    "complete_body": "inline float NSAppUnitsToFloatPixels(nscoord aAppUnits,\n                                     float aAppUnitsPerPixel) {\n  return float(aAppUnits) / aAppUnitsPerPixel;\n}"
+  },
+  {
+    "file": "nsCoord.h",
+    "file_sha256": "3a88c7bd12e238ec8f76711a3121313c779179567500f83f5fee32cb6d361343",
+    "anchor": "inline nscoord NSToCoordRound(double",
+    "body_sha256": "6bc608d99f7f10bd9f2745809e61b88117302dd7101499d1051495caea10772b",
+    "complete_body": "inline nscoord NSToCoordRound(double aValue) {\n  return nscoord(floor(aValue + 0.5f));\n}"
+  },
+  {
+    "file": "nsCoord.h",
+    "file_sha256": "3a88c7bd12e238ec8f76711a3121313c779179567500f83f5fee32cb6d361343",
+    "anchor": "inline nscoord NSToCoordRoundWithClamp(double",
+    "body_sha256": "a0c478930dfc213f41f31c7cfa9e5dc2d84c0e78c1b9e745739f216f24ce1323",
+    "complete_body": "inline nscoord NSToCoordRoundWithClamp(double aValue) {\n  // Bounds-check before converting out of double, to avoid overflow\n  if (aValue >= double(nscoord_MAX)) {\n    return nscoord_MAX;\n  }\n  if (aValue <= double(nscoord_MIN)) {\n    return nscoord_MIN;\n  }\n  return NSToCoordRound(aValue);\n}"
+  },
+  {
+    "file": "nsLayoutUtils.cpp",
+    "file_sha256": "4c8af5a446595014cbd2718436af2da40ac33721a24f987cb3ef0ea16a5fc6e1",
+    "anchor": "static void ConstrainToCoordValues(double& aVal)",
+    "body_sha256": "a36b66a4ea529028c66fbff3ac3a28de509b7b77d4deebc7be69724f68d2ab05",
+    "complete_body": "static void ConstrainToCoordValues(double& aVal) {\n  if (aVal <= nscoord_MIN) {\n    aVal = nscoord_MIN;\n  } else if (aVal >= nscoord_MAX) {\n    aVal = nscoord_MAX;\n  }\n}"
+  },
+  {
+    "file": "nsLayoutUtils.cpp",
+    "file_sha256": "4c8af5a446595014cbd2718436af2da40ac33721a24f987cb3ef0ea16a5fc6e1",
+    "anchor": "/* static */ void nsLayoutUtils::ConstrainToCoordValues(",
+    "body_sha256": "aadf6abc15c2bec2bc0eea9bb7f38bce67ba633f46c9592a381eda683a08aeee",
+    "complete_body": "/* static */ void nsLayoutUtils::ConstrainToCoordValues(double& aStart,\n                                                        double& aSize) {\n  MOZ_ASSERT(std::isnan(aSize) || aSize >= 0);\n\n  double max = aStart + aSize;\n\n  // Clamp the end points to within nscoord range\n  ::ConstrainToCoordValues(aStart);\n  ::ConstrainToCoordValues(max);\n\n  // Here we try to make sure that the resulting nsRect will continue to cover\n  // as much of the area that was covered by the original gfx Rect as possible.\n\n  // We must also clamp aSize to {0,nscoord_MAX} since nsRect::Width/Height()\n  // can't return a value greater than nscoord_MAX. If aSize is greater than\n  // nscoord_MAX then we reduce it to nscoord_MAX while keeping the rect\n  // centered:\n\n  aSize = max - aStart;\n  // If the width if still greater than the max nscoord, then bring both\n  // endpoints in by the same amount until it fits.\n  if (MOZ_UNLIKELY(std::isnan(aSize))) {\n    // Can happen if aStart is -inf and aSize is +inf for example.\n    // If either aStart or aSize is NaN on entry to this function then the\n    // calculations above this will make the other one NaN too, so this check\n    // ensures that we do not return NaN for either value.\n    aStart = 0.0f;\n    aSize = nscoord_MAX;\n  } else if (aSize > nscoord_MAX) {\n    double excess = aSize - nscoord_MAX;\n    excess /= 2;\n\n    aStart += excess;\n    aSize = nscoord_MAX;\n  } else if (aSize < nscoord_MIN) {\n    double excess = aSize - nscoord_MIN;\n    excess /= 2;\n\n    aStart -= excess;\n    aSize = nscoord_MIN;\n  }\n}"
+  },
+  {
+    "file": "nsLayoutUtils.h",
+    "file_sha256": "826ed6b4f2e576b505a35e46f2add1b8b4c6f26a203827978276c2731bfc2bfc",
+    "anchor": "template <typename T>\nnsRect nsLayoutUtils::ScaleThenRoundGfxRectToAppRect(",
+    "body_sha256": "ca649cdc1e086fefd347dab8c698a2d35de3403b90ad775bbcfe1c40176028c5",
+    "complete_body": "template <typename T>\nnsRect nsLayoutUtils::ScaleThenRoundGfxRectToAppRect(const T& aRect,\n                                                     const float aFactor) {\n  // Get a new Rect whose units are app units by scaling by the specified\n  // factor.\n  T scaledRect = aRect;\n  scaledRect.Scale(aFactor);\n\n  nsRect retval;\n\n  double start = double(scaledRect.x);\n  double size = double(scaledRect.width);\n  // We now need to constrain our results to the max and min values for coords.\n  ConstrainToCoordValues(start, size);\n  // ConstrainToCoordValues ensures converting to nscoord is safe.\n  retval.x = NSToCoordRoundWithClamp(start);\n  retval.width = NSToCoordRoundWithClamp(size);\n\n  start = double(scaledRect.y);\n  size = double(scaledRect.height);\n  ConstrainToCoordValues(start, size);\n  retval.y = NSToCoordRoundWithClamp(start);\n  retval.height = NSToCoordRoundWithClamp(size);\n\n  if (!aRect.Width()) {\n    retval.SetWidth(0);\n  }\n\n  if (!aRect.Height()) {\n    retval.SetHeight(0);\n  }\n\n  return retval;\n}"
+  },
+  {
+    "file": "DOMRect.cpp",
+    "file_sha256": "7f3d650772a2053cdac784410c68014a2abb2998e1b1cd4f57430585c7b12cc5",
+    "anchor": "static double RoundFloat(",
+    "body_sha256": "ea4829aecc1beebbf912396ec14d12469ceb6df393675a86081dae6e2849093a",
+    "complete_body": "static double RoundFloat(double aValue) { return floor(aValue + 0.5); }"
+  },
+  {
+    "file": "DOMRect.cpp",
+    "file_sha256": "7f3d650772a2053cdac784410c68014a2abb2998e1b1cd4f57430585c7b12cc5",
+    "anchor": "void DOMRect::SetLayoutRect(",
+    "body_sha256": "4d5ff0b6bf00ef38850ca34b74b588daa3c9ebb21cc6775563caf0b0bf15d95f",
+    "complete_body": "void DOMRect::SetLayoutRect(const nsRect& aLayoutRect) {\n  double scale = 65536.0;\n  // Round to the nearest 1/scale units. We choose scale so it can be\n  // represented exactly by machine floating point.\n  double scaleInv = 1 / scale;\n  double t2pScaled = scale / AppUnitsPerCSSPixel();\n  double x = RoundFloat(aLayoutRect.x * t2pScaled) * scaleInv;\n  double y = RoundFloat(aLayoutRect.y * t2pScaled) * scaleInv;\n  SetRect(x, y, RoundFloat(aLayoutRect.XMost() * t2pScaled) * scaleInv - x,\n          RoundFloat(aLayoutRect.YMost() * t2pScaled) * scaleInv - y);\n}"
+  },
+  {
+    "file": "DOMRect.h",
+    "file_sha256": "2874c65025dac6c0291bd63b98c459d7b7e359d7e8c2a11b20231c43fd4d6cc8",
+    "anchor": "void SetRect(float",
+    "body_sha256": "27b7e1144cea3fc0bf75e8f1b488decdffe4ac6c8b9bd02267e39a3510bb7c65",
+    "complete_body": "void SetRect(float aX, float aY, float aWidth, float aHeight) {\n    mX = aX;\n    mY = aY;\n    mWidth = aWidth;\n    mHeight = aHeight;\n  }"
+  },
+  {
+    "file": "DOMRect.h",
+    "file_sha256": "2874c65025dac6c0291bd63b98c459d7b7e359d7e8c2a11b20231c43fd4d6cc8",
+    "anchor": "double Right() const",
+    "body_sha256": "fb10a170b383d68b5b6e1531f723d44955a19de393b17ea585eadcb8718bd23d",
+    "complete_body": "double Right() const {\n    double x = X(), w = Width();\n    return NaNSafeMax(x, x + w);\n  }"
+  },
+  {
+    "file": "BaseRect.h",
+    "file_sha256": "a6ca8ad4a9a52a4fa3d7e1af35cfc47eeb75a6bf138019247ebbcb4b7be4b086",
+    "anchor": "void Scale(T aXScale, T aYScale)",
+    "body_sha256": "e56c2270c395eb1711ccd3f6b72829bfed5702abc7b457089b9b10be43d6280c",
+    "complete_body": "void Scale(T aXScale, T aYScale) {\n    x = x * aXScale;\n    y = y * aYScale;\n    width = width * aXScale;\n    height = height * aYScale;\n  }"
+  }
+]
