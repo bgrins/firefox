@@ -1,0 +1,24 @@
+>>>  160: bool SMILCSSValueType::IsEqual(const SMILValue& aLeft,
+     161:                                const SMILValue& aRight) const {
+     162:   MOZ_ASSERT(aLeft.mType == aRight.mType, "Incompatible SMIL types");
+     163:   MOZ_ASSERT(aLeft.mType == this, "Unexpected SMIL value");
+     164:   const ValueWrapper* leftWrapper = ExtractValueWrapper(aLeft);
+     165:   const ValueWrapper* rightWrapper = ExtractValueWrapper(aRight);
+     166: 
+     167:   if (leftWrapper) {
+     168:     if (rightWrapper) {
+     169:       // Both non-null
+     170:       NS_WARNING_ASSERTION(leftWrapper != rightWrapper,
+     171:                            "Two SMILValues with matching ValueWrapper ptr");
+     172:       return *leftWrapper == *rightWrapper;
+     173:     }
+     174:     // Left non-null, right null
+     175:     return false;
+     176:   }
+     177:   if (rightWrapper) {
+     178:     // Left null, right non-null
+     179:     return false;
+     180:   }
+     181:   // Both null
+     182:   return true;
+     183: }

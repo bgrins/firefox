@@ -1,0 +1,202 @@
+>>>  257: bool nsTransitionManager::ConsiderInitiatingTransition(
+     258:     const CSSPropertyId& aProperty, const nsStyleUIReset& aStyle,
+     259:     uint32_t aTransitionIndex, float aDelay, float aDuration,
+     260:     mozilla::StyleTransitionBehavior aBehavior, dom::Element* aElement,
+     261:     const PseudoStyleRequest& aPseudoRequest,
+     262:     CSSTransitionCollection*& aElementTransitions,
+     263:     const ComputedStyle& aOldStyle, const ComputedStyle& aNewStyle,
+     264:     AnimatedPropertyIDSet& aPropertiesChecked) {
+     265:   // IsShorthand itself will assert if aProperty is not a property.
+     266:   MOZ_ASSERT(aProperty.IsCustom() || !nsCSSProps::IsShorthand(aProperty.mId),
+     267:              "property out of range");
+     268:   NS_ASSERTION(
+     269:       !aElementTransitions || &aElementTransitions->mElement == aElement,
+     270:       "Element mismatch");
+     271: 
+     272:   CSSPropertyId property = aProperty.ToPhysical(aNewStyle);
+     273: 
+     274:   // A later item in transition-property already specified a transition for
+     275:   // this property, so we ignore this one.
+     276:   //
+     277:   // See http://lists.w3.org/Archives/Public/www-style/2009Aug/0109.html .
+     278:   if (aPropertiesChecked.HasProperty(property)) {
+     279:     return false;
+     280:   }
+     281: 
+     282:   aPropertiesChecked.AddProperty(property);
+     283: 
+     284:   if (aDuration + aDelay <= 0.0f) {
+     285:     return false;
+     286:   }
+     287: 
+     288:   size_t currentIndex = nsTArray<KeyframeEffect>::NoIndex;
+     289:   const auto* oldTransition = [&]() -> const CSSTransition* {
+     290:     if (!aElementTransitions) {
+     291:       return nullptr;
+     292:     }
+     293:     const OwningCSSTransitionPtrArray& animations =
+     294:         aElementTransitions->mAnimations;
+     295:     for (size_t i = 0, i_end = animations.Length(); i < i_end; ++i) {
+     296:       if (animations[i]->TransitionProperty() == property) {
+     297:         currentIndex = i;
+     298:         return animations[i];
+     299:       }
+     300:     }
+     301:     return nullptr;
+     302:   }();
+     303: 
+     304:   // For compositor animations, |aOldStyle| may have out-of-date transition
+     305:   // rules, and it may be equal to the |endValue| of a reversing transition by
+     306:   // accidentally. This causes Servo_ComputedValues_ShouldTransition() to return
+     307:   // an incorrect result. Therefore, we have to recompute the current value if
+     308:   // this transition is running on the compositor, to make sure we create the
+     309:   // transition properly. Here, we pre-compute the progress and collect the
+     310:   // necessary info, so Servo_ComputedValues_ShouldTransition() could compute
+     311:   // the current value if needed.
+     312:   // FIXME: Bug 1634945. We should use the last value from the compositor as the
+     313:   // current value.
+     314:   Maybe<ReplacedTransitionProperties> replacedTransitionProperties;
+     315:   Maybe<double> progress;
+     316:   if (oldTransition) {
+     317:     // If this new transition is replacing an existing transition, we store
+     318:     // select parameters from the replaced transition so that later, once all
+     319:     // scripts have run, we can update the start value of the transition using
+     320:     // TimeStamp::Now(). This allows us to avoid a large jump when starting a
+     321:     // new transition when the main thread lags behind the compositor.
+     322:     //
+     323:     // Note: We compute this before calling
+     324:     // Servo_ComputedValues_ShouldTransition() so we can reuse it for computing
+     325:     // the current value and setting the replaced transition properties later in
+     326:     // this function.
+     327:     const dom::DocumentTimeline* timeline = aElement->OwnerDoc()->Timeline();
+     328:     replacedTransitionProperties =
+     329:         GetReplacedTransitionProperties(*oldTransition, timeline);
+     330:     progress = replacedTransitionProperties.andThen(
+     331:         [&](const ReplacedTransitionProperties& aProperties) {
+     332:           const dom::AnimationTimeline* timeline = oldTransition->GetTimeline();
+     333:           MOZ_ASSERT(timeline);
+     334:           return CSSTransition::ComputeTransformedProgress(*timeline,
+     335:                                                            aProperties);
+     336:         });
+     337:   }
+     338: 
+     339:   AnimationValue startValue, endValue;
+     340:   const StyleShouldTransitionResult result =
+     341:       Servo_ComputedValues_ShouldTransition(
+     342:           &aOldStyle, &aNewStyle, &property, aBehavior,
+     343:           oldTransition ? oldTransition->ToValue().mServo.get() : nullptr,
+     344:           replacedTransitionProperties
+     345:               ? replacedTransitionProperties->mFromValue.mServo.get()
+     346:               : nullptr,
+     347:           // Note: It's possible to replace the keyframes by Web Animations API,
+     348:           // so we have to pass the mToValue from the keyframe segment, to make
+     349:           // sure this value is aligned with mFromValue.
+     350:           replacedTransitionProperties
+     351:               ? replacedTransitionProperties->mToValue.mServo.get()
+     352:               : nullptr,
+     353:           progress.ptrOr(nullptr), &startValue.mServo, &endValue.mServo);
+     354: 
+     355:   // If we got a style change that changed the value to the endpoint
+     356:   // of the currently running transition, we don't want to interrupt
+     357:   // its timing function.
+     358:   // This needs to be before the !shouldAnimate && haveCurrentTransition
+     359:   // case below because we might be close enough to the end of the
+     360:   // transition that the current value rounds to the final value.  In
+     361:   // this case, we'll end up with shouldAnimate as false (because
+     362:   // there's no value change), but we need to return early here rather
+     363:   // than cancel the running transition because shouldAnimate is false!
+     364:   //
+     365:   // Likewise, if we got a style change that changed the value to the
+     366:   // endpoint of our finished transition, we also don't want to start
+     367:   // a new transition for the reasons described in
+     368:   // https://lists.w3.org/Archives/Public/www-style/2015Jan/0444.html .
+     369:   if (result.old_transition_value_matches) {
+     370:     // GetAnimationRule already called RestyleForAnimation.
+     371:     return false;
+     372:   }
+     373: 
+     374:   if (!result.should_animate) {
+     375:     if (oldTransition) {
+     376:       // We're in the middle of a transition, and just got a non-transition
+     377:       // style change to something that we can't animate.  This might happen
+     378:       // because we got a non-transition style change changing to the current
+     379:       // in-progress value (which is particularly easy to cause when we're
+     380:       // currently in the 'transition-delay').  It also might happen because we
+     381:       // just got a style change to a value that can't be interpolated.
+     382:       DoCancelTransition(aElement, aPseudoRequest, aElementTransitions,
+     383:                          currentIndex);
+     384:     }
+     385:     return false;
+     386:   }
+     387: 
+     388:   AnimationValue startForReversingTest = startValue;
+     389:   double reversePortion = 1.0;
+     390: 
+     391:   // If the new transition reverses an existing one, we'll need to
+     392:   // handle the timing differently.
+     393:   if (oldTransition && oldTransition->HasCurrentEffect() &&
+     394:       oldTransition->StartForReversingTest() == endValue) {
+     395:     // Compute the appropriate negative transition-delay such that right
+     396:     // now we'd end up at the current position.
+     397:     double valuePortion =
+     398:         oldTransition->CurrentValuePortion() * oldTransition->ReversePortion() +
+     399:         (1.0 - oldTransition->ReversePortion());
+     400:     // A timing function with negative y1 (or y2!) might make
+     401:     // valuePortion negative.  In this case, we still want to apply our
+     402:     // reversing logic based on relative distances, not make duration
+     403:     // negative.
+     404:     if (valuePortion < 0.0) {
+     405:       valuePortion = -valuePortion;
+     406:     }
+     407:     // A timing function with y2 (or y1!) greater than one might
+     408:     // advance past its terminal value.  It's probably a good idea to
+     409:     // clamp valuePortion to be at most one to preserve the invariant
+     410:     // that a transition will complete within at most its specified
+     411:     // time.
+     412:     if (valuePortion > 1.0) {
+     413:       valuePortion = 1.0;
+     414:     }
+     415: 
+     416:     // Negative delays are essentially part of the transition
+     417:     // function, so reduce them along with the duration, but don't
+     418:     // reduce positive delays.
+     419:     if (aDelay < 0.0f && std::isfinite(aDelay)) {
+     420:       aDelay *= valuePortion;
+     421:     }
+     422: 
+     423:     if (std::isfinite(aDuration)) {
+     424:       aDuration *= valuePortion;
+     425:     }
+     426: 
+     427:     startForReversingTest = oldTransition->ToValue();
+     428:     reversePortion = valuePortion;
+     429:   }
+     430: 
+     431:   TimingParams timing = TimingParamsFromCSSParams(
+     432:       Some(aDuration), aDelay, 1.0 /* iteration count */,
+     433:       StyleAnimationDirection::Normal, StyleAnimationFillMode::Backwards);
+     434: 
+     435:   const StyleComputedTimingFunction& tf =
+     436:       aStyle.GetTransitionTimingFunction(aTransitionIndex);
+     437:   if (!tf.IsLinearKeyword()) {
+     438:     timing.SetTimingFunction(Some(tf));
+     439:   }
+     440: 
+     441:   RefPtr<CSSTransition> transition = DoCreateTransition(
+     442:       property, aElement, aPseudoRequest, aNewStyle, aElementTransitions,
+     443:       std::move(timing), std::move(startValue), std::move(endValue),
+     444:       std::move(startForReversingTest), reversePortion);
+     445:   if (!transition) {
+     446:     return false;
+     447:   }
+     448: 
+     449:   OwningCSSTransitionPtrArray& transitions = aElementTransitions->mAnimations;
+     450: #ifdef DEBUG
+     451:   for (size_t i = 0, i_end = transitions.Length(); i < i_end; ++i) {
+     452:     MOZ_ASSERT(
+     453:         i == currentIndex || transitions[i]->TransitionProperty() != property,
+     454:         "duplicate transitions for property");
+     455:   }
+     456: #endif
+     457:   if (oldTransition) {
+   ...  : (method too long, truncated)

@@ -119,11 +119,16 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Adjudicate the remaining animation equality leads: transition endpoint
-   retention and interpolation metadata transport. Both need independent spec
-   oracles and discriminating browser controls before any repair claim.
-   [Static checkpoint](../css-animation-equality-frontier-v1/CHECKPOINT.md).
-   Endpoint fix 78 and underlying-base fix 79 are committed and separately scoped.
+1. Repair successful numeric interpolation's lost second-operand attribute
+   provenance. The calibrated 40-case probe has 37 PASS / 3 FAIL / one OK harness;
+   failures are clean-to-tainted bundle observations at .25, .75 and 1. Two
+   boundary diagnostics deliberately do not assert a taint polarity. All numeric,
+   provider, progress and direct-URL controls pass. Native/procedure review and
+   a focused WPT proposal are active; no fix80 is counted yet.
+   [Reproduction](../css-animation-interpolation-taint-root-v1/REVIEW.md).
+   The separate transition-retention lead is INCONCLUSIVE: provenance equality
+   is unresolved in the spec, so no restart or refresh repair is justified.
+   [Oracle](../css-transition-retention-taint-oracle-v1/REPORT.md).
 2. Compose the declaration helper's saved-query/short-circuit paths after the
    accepted skip/next wrapper and production entry component;
    metadata, providers, callbacks and compiler admissions remain explicit.

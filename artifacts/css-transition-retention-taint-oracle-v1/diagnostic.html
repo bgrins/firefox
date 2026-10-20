@@ -1,0 +1,91 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Diagnostic only: retained transition endpoint provenance</title>
+<p>Unresolved equality oracle. Run the diagnostic; recorded transition results are not conformance assertions.</p>
+<button id="run">Run diagnostic</button>
+<pre id="output"></pre>
+<script>
+const image = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+let sequence = 0;
+function requireEqual(actual, expected, label) {
+  if (actual !== expected) throw new Error(`${label}: ${actual} !== ${expected}`);
+}
+async function retentionCase(tainted, different) {
+  const name = `--retention-diagnostic-${++sequence}`;
+  const a = image + "#a", b = image + "#b", c = different ? image + "#c" : b;
+  CSS.registerProperty({name, syntax: "<string>", inherits: false, initialValue: JSON.stringify(a)});
+  const [target, control, reference] = [0, 1, 2].map(() => document.createElement("div"));
+  document.body.append(target, control, reference);
+  for (const e of [target, control, reference]) e.style.backgroundImage = `image-set(var(${name}))`;
+  const observe = e => {
+    const style = getComputedStyle(e);
+    return {payload: style.getPropertyValue(name), image: style.backgroundImage, opacity: style.opacity};
+  };
+  const assign = (e, text, bit) => {
+    e.setAttribute("data-image", text);
+    e.style.setProperty(name, bit ? "attr(data-image)" : JSON.stringify(text));
+  };
+  const expected = (text, bit) => {
+    assign(reference, text, false);
+    const result = observe(reference);
+    if (result.image === "none") throw new Error("Literal image calibration failed");
+    return {payload: result.payload, image: bit ? "none" : result.image};
+  };
+  const check = (actual, wanted, label) => {
+    requireEqual(actual.payload, wanted.payload, label + " payload");
+    requireEqual(actual.image, wanted.image, label + " URL control");
+  };
+  const transitions = () => target.getAnimations().filter(animation => animation instanceof CSSTransition);
+  try {
+    assign(target, a, false);
+    target.style.opacity = "0";
+    check(observe(target), expected(a, false), "Initial literal");
+    target.style.transition = `${name} 10s linear allow-discrete, opacity 10s linear`;
+    assign(target, b, tainted);
+    target.style.opacity = "0.5";
+    observe(target);
+    const original = transitions().find(animation => animation.transitionProperty === name);
+    const ordinary = transitions().find(animation => animation.transitionProperty === "opacity");
+    if (!original || !ordinary) throw new Error("Both transition controls must exist");
+    for (const animation of [original, ordinary]) { animation.pause(); animation.currentTime = 2500; }
+    await Promise.all([original.ready, ordinary.ready]);
+    check(observe(target), expected(a, false), "Stored start");
+    original.currentTime = 7500;
+    check(observe(target), expected(b, tainted), "Stored end before mutation");
+    assign(target, c, !tainted);
+    assign(control, c, !tainted);
+    const immediate = observe(target);
+    check(observe(control), expected(c, !tainted), "Nontransitioned changed declaration");
+    const active = transitions().find(animation => animation.transitionProperty === name);
+    requireEqual(transitions().find(animation => animation.transitionProperty === "opacity"), ordinary,
+                 "Unchanged ordinary transition identity");
+    const result = {initiallyTainted: tainted, differentPayload: different,
+      sameTransition: active === original, originalPlayState: original.playState,
+      immediate, keyframes: active?.effect.getKeyframes().map(frame => frame[name]) ?? []};
+    if (active) {
+      active.pause(); active.currentTime = 7501;
+      await active.ready;
+      result.afterExplicitSeek = observe(target);
+    }
+    target.style.transitionProperty = "none";
+    result.afterTransitionRemoval = observe(target);
+    check(result.afterTransitionRemoval, expected(c, !tainted), "Removed transition exposes new declaration");
+    return result;
+  } finally {
+    for (const animation of target.getAnimations()) animation.cancel();
+    for (const e of [target, control, reference]) e.remove();
+  }
+}
+window.runTransitionRetentionProbe = async () => {
+  const rows = [];
+  for (const tainted of [false, true]) {
+    for (const different of [false, true]) rows.push(await retentionCase(tainted, different));
+  }
+  window.transitionRetentionObservations = rows;
+  document.getElementById("output").textContent = JSON.stringify(rows, null, 2);
+  return rows;
+};
+document.getElementById("run").onclick = () => runTransitionRetentionProbe().catch(error => {
+  document.getElementById("output").textContent = error.stack;
+});
+</script>
