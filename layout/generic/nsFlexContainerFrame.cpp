@@ -4830,14 +4830,6 @@ void nsFlexContainerFrame::Reflow(nsPresContext* aPresContext,
                aReflowInput.AvailableBSize()));
   const nsSize containerSize = tentativeBorderBoxSize.GetPhysicalSize(wm);
 
-  OverflowAreas ocBounds;
-  nsReflowStatus ocStatus;
-  if (prevInFlow) {
-    ReflowOverflowContainerChildren(
-        aPresContext, aReflowInput, ocBounds, ReflowChildFlags::Default,
-        ocStatus, MergeSortedFrameListsFor, Some(containerSize));
-  }
-
   const LogicalSize availableSizeForItems =
       ComputeAvailableSizeForItems(aReflowInput, borderPadding);
   const auto [childrenBEndEdge, childrenStatus] =
@@ -4933,6 +4925,14 @@ void nsFlexContainerFrame::Reflow(nsPresContext* aPresContext,
         }
       }
     }
+  }
+
+  OverflowAreas ocBounds;
+  nsReflowStatus ocStatus;
+  if (prevInFlow) {
+    ReflowOverflowContainerChildren(
+        aPresContext, aReflowInput, ocBounds, ReflowChildFlags::Default,
+        ocStatus, MergeSortedFrameListsFor, Some(aReflowOutput.PhysicalSize()));
   }
 
   // Overflow area = union(my overflow area, children's overflow areas)
