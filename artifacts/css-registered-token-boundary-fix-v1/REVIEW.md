@@ -1,0 +1,1 @@
+Initial candidate failed to compile with E0505: Parser has a destructor that retains its borrow of the serialized CSS string. No candidate WPT ran. Version 2 explicitly drops the parser before moving CSS into ComputedPropertyValue. The failed build can regenerate build IDs and launcher artifacts; version 2 records those pre-build artifacts separately from baseline identities.

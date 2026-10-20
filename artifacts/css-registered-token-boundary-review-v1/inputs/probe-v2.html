@@ -1,0 +1,124 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered length-percentage substitution preserves token boundaries</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#using-variables">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@property --length {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 1px;
+}
+@property --lp {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 1px;
+}
+@property --lp-list {
+  syntax: "<length-percentage>+";
+  inherits: false;
+  initial-value: 1px;
+}
+.parent { font: 100px monospace; }
+</style>
+<body>
+<script>
+const cases = [
+  {name: "literal comment boundary", font: "20px/**/serif", size: "20px"},
+  {name: "literal whitespace boundary", font: "20px serif", size: "20px"},
+  {name: "unregistered length", property: "--raw", value: "20px", computed: "20px", font: "var(--raw)serif", size: "20px"},
+  {name: "registered length", property: "--length", value: "20px", computed: "20px", font: "var(--length)serif", size: "20px"},
+  {name: "registered length-percentage length", property: "--lp", value: "20px", computed: "20px", font: "var(--lp)serif", size: "20px"},
+  {name: "registered length-percentage reduced calc", property: "--lp", value: "calc(5px + 15px)", computed: "20px", font: "var(--lp)serif", size: "20px"},
+  {name: "registered length-percentage percent", property: "--lp", value: "25%", computed: "25%", font: "var(--lp)serif", size: "25px"},
+  {name: "registered length-percentage singleton list", property: "--lp-list", value: "20px", computed: "20px", font: "var(--lp-list)serif", size: "20px"},
+  {name: "registered length-percentage explicit comment", property: "--lp", value: "20px", computed: "20px", font: "var(--lp)/**/serif", size: "20px"},
+  {name: "registered length-percentage explicit space", property: "--lp", value: "20px", computed: "20px", font: "var(--lp) serif", size: "20px"},
+];
+
+for (const route of ["direct", "custom-property-chain"]) {
+  for (const c of cases) {
+    test(t => {
+      const parent = document.createElement("div");
+      parent.className = "parent";
+      const target = parent.appendChild(document.createElement("div"));
+      document.body.appendChild(parent);
+      t.add_cleanup(() => parent.remove());
+      assert_equals(getComputedStyle(parent).fontSize, "100px", "Parent calibration");
+      if (c.property) {
+        target.style.setProperty(c.property, c.value);
+        assert_equals(getComputedStyle(target).getPropertyValue(c.property).trim(), c.computed, "Computed provider");
+      }
+      if (route === "custom-property-chain") {
+        target.style.setProperty("--font", c.font);
+        target.style.font = "var(--font)";
+      } else {
+        target.style.font = c.font;
+      }
+      assert_not_equals(target.style.font, "", "Font declaration admitted");
+      const style = getComputedStyle(target);
+      assert_equals(style.fontSize, c.size, "Font size after token substitution");
+      assert_equals(style.fontFamily, "serif", "Font family remains a separate identifier");
+    }, `${c.name}, ${route}`);
+  }
+}
+
+const marginCases = [
+  {name: "literal list comment boundary", margin: "10% 20px/**/auto", right: "20px"},
+  {name: "unregistered mixed list", property: "--raw-list", value: "10% 20px", computed: "10% 20px", margin: "var(--raw-list)auto", right: "20px"},
+  {name: "registered list ending in length", property: "--lp-list", value: "10% 20px", computed: "10% 20px", margin: "var(--lp-list)auto", right: "20px"},
+  {name: "registered list ending in percent", property: "--lp-list", value: "20px 10%", computed: "20px 10%", margin: "var(--lp-list)auto", right: "20px"},
+  {name: "registered list explicit comment", property: "--lp-list", value: "10% 20px", computed: "10% 20px", margin: "var(--lp-list)/**/auto", right: "20px"},
+  {name: "registered list ending in calc", property: "--lp-list", value: "10% calc(10% + 1px)", computed: "10% calc(10% + 1px)", margin: "var(--lp-list)auto", right: "21px"},
+];
+for (const route of ["direct", "custom-property-chain"]) {
+  for (const c of marginCases) {
+    test(t => {
+      const parent = document.createElement("div");
+      parent.style.width = "200px";
+      const target = parent.appendChild(document.createElement("div"));
+      document.body.appendChild(parent);
+      t.add_cleanup(() => parent.remove());
+      assert_equals(getComputedStyle(parent).width, "200px", "Percentage basis");
+      if (c.property) {
+        target.style.setProperty(c.property, c.value);
+        assert_equals(getComputedStyle(target).getPropertyValue(c.property).trim(), c.computed, "Computed provider");
+      }
+      if (route === "custom-property-chain") {
+        target.style.setProperty("--margin", c.margin);
+        target.style.margin = "var(--margin)";
+      } else {
+        target.style.margin = c.margin;
+      }
+      assert_not_equals(target.style.margin, "", "Margin declaration admitted");
+      assert_equals(getComputedStyle(target).marginRight, c.right, "Right margin after token substitution");
+    }, `${c.name}, ${route}`);
+  }
+}
+
+for (const c of [
+  {name: "unregistered calc", property: "--raw-calc", value: "calc(10% + 1px)", separator: true},
+  {name: "registered calc", property: "--lp", value: "calc(10% + 1px)", separator: true},
+  {name: "registered list starting in calc", property: "--lp-list", value: "calc(10% + 1px) 20px", separator: true},
+  {name: "registered length", property: "--lp", value: "20px", separator: false},
+  {name: "registered percentage", property: "--lp", value: "25%", separator: false},
+]) {
+  test(t => {
+    const target = document.body.appendChild(document.createElement("div"));
+    t.add_cleanup(() => target.remove());
+    target.style.setProperty(c.property, c.value);
+    target.style.setProperty("--prefix", "@");
+    target.style.setProperty("--result", `var(--prefix)var(${c.property})`);
+    const style = getComputedStyle(target);
+    const provider = style.getPropertyValue(c.property).trim();
+    assert_equals(provider, c.value, "Computed provider");
+    const result = style.getPropertyValue("--result").trim();
+    assert_true(result.endsWith(provider), "Provider serialization preserved");
+    const prefix = result.slice(0, result.length - provider.length);
+    assert_regexp_match(prefix, c.separator ? /^@(?:\/\*[\s\S]*?\*\/)+$/ : /^@(?:\/\*[\s\S]*?\*\/)*$/,
+                        "At delimiter remains distinct from following token");
+  }, `${c.name}, leading at delimiter`);
+}
+</script>

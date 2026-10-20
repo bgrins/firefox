@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered length-percentage substitution preserves token boundaries</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#using-variables">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@property --length {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 1px;
+}
+@property --lp {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 1px;
+}
+@property --lp-list {
+  syntax: "<length-percentage>+";
+  inherits: false;
+  initial-value: 1px;
+}
+.parent { font: 100px monospace; }
+</style>
+<body>
+<script>
+const cases = [
+  {name: "literal comment boundary", font: "20px/**/serif", size: "20px"},
+  {name: "literal whitespace boundary", font: "20px serif", size: "20px"},
+  {name: "unregistered length", property: "--raw", value: "20px", computed: "20px", font: "var(--raw)serif", size: "20px"},
+  {name: "registered length", property: "--length", value: "20px", computed: "20px", font: "var(--length)serif", size: "20px"},
+  {name: "registered length-percentage length", property: "--lp", value: "20px", computed: "20px", font: "var(--lp)serif", size: "20px"},
+  {name: "registered length-percentage reduced calc", property: "--lp", value: "calc(5px + 15px)", computed: "20px", font: "var(--lp)serif", size: "20px"},
+  {name: "registered length-percentage percent", property: "--lp", value: "25%", computed: "25%", font: "var(--lp)serif", size: "25px"},
+  {name: "registered length-percentage singleton list", property: "--lp-list", value: "20px", computed: "20px", font: "var(--lp-list)serif", size: "20px"},
+  {name: "registered length-percentage explicit comment", property: "--lp", value: "20px", computed: "20px", font: "var(--lp)/**/serif", size: "20px"},
+  {name: "registered length-percentage explicit space", property: "--lp", value: "20px", computed: "20px", font: "var(--lp) serif", size: "20px"},
+];
+
+for (const route of ["direct", "custom-property-chain"]) {
+  for (const c of cases) {
+    test(t => {
+      const parent = document.createElement("div");
+      parent.className = "parent";
+      const target = parent.appendChild(document.createElement("div"));
+      document.body.appendChild(parent);
+      t.add_cleanup(() => parent.remove());
+      assert_equals(getComputedStyle(parent).fontSize, "100px", "Parent calibration");
+      if (c.property) {
+        target.style.setProperty(c.property, c.value);
+        assert_equals(getComputedStyle(target).getPropertyValue(c.property).trim(), c.computed, "Computed provider");
+      }
+      if (route === "custom-property-chain") {
+        target.style.setProperty("--font", c.font);
+        target.style.font = "var(--font)";
+      } else {
+        target.style.font = c.font;
+      }
+      assert_not_equals(target.style.font, "", "Font declaration admitted");
+      const style = getComputedStyle(target);
+      assert_equals(style.fontSize, c.size, "Font size after token substitution");
+      assert_equals(style.fontFamily, "serif", "Font family remains a separate identifier");
+    }, `${c.name}, ${route}`);
+  }
+}
+</script>

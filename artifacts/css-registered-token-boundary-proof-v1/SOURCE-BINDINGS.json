@@ -1,0 +1,72 @@
+[
+  {
+    "file": "source/value.candidate.rs",
+    "definition": "pub fn to_variable_value",
+    "occurrence": 0,
+    "sha256": "0245bcf75f6431074589d2a78d602a78ed31ce33404bbe218e66c8a51b8da501",
+    "text": "    pub fn to_variable_value(&self) -> ComputedPropertyValue {\n        if let ValueInner::Universal(ref value) = self.v {\n            return (**value).clone();\n        }\n        let css = self.to_css_string();\n        let mut input = CSSParser::new(&css);\n        let mut first = TokenSerializationType::Nothing;\n        let mut last = TokenSerializationType::Nothing;\n        while let Ok(token) = input.next_including_whitespace() {\n            first.set_if_nothing(token.serialization_type());\n            last = match token {\n                // The parser skips nested blocks, including their closing token.\n                Token::Function(_)\n                | Token::ParenthesisBlock\n                | Token::SquareBracketBlock\n                | Token::CurlyBracketBlock => TokenSerializationType::Other,\n                _ => token.serialization_type(),\n            };\n        }\n        drop(input);\n        ComputedPropertyValue::new(css, &self.url_data, first, last)\n    }"
+  },
+  {
+    "file": "source/value.original.rs",
+    "definition": "fn serialization_types",
+    "occurrence": 0,
+    "sha256": "88cf56ad6634a59a4a655ddb2e8bbd399454f9f800b2eb4e78200c0f012206e9",
+    "text": "    fn serialization_types(&self) -> (TokenSerializationType, TokenSerializationType) {\n        let first_token_type = match self {\n            Self::Length(_) | Self::Angle(_) | Self::Time(_) | Self::Resolution(_) => {\n                TokenSerializationType::Dimension\n            },\n            Self::Number(_) | Self::Integer(_) => TokenSerializationType::Number,\n            Self::Percentage(_) | Self::LengthPercentage(_) => TokenSerializationType::Percentage,\n            Self::Color(_)\n            | Self::Image(_)\n            | Self::Url(_)\n            | Self::TransformFunction(_)\n            | Self::TransformList(_) => TokenSerializationType::Function,\n            Self::CustomIdent(_) => TokenSerializationType::Ident,\n            Self::String(_) => TokenSerializationType::Other,\n        };\n        let last_token_type = if first_token_type == TokenSerializationType::Function {\n            TokenSerializationType::Other\n        } else {\n            first_token_type\n        };\n        (first_token_type, last_token_type)\n    }"
+  },
+  {
+    "file": "source/value.original.rs",
+    "definition": "fn serialization_types",
+    "occurrence": 1,
+    "sha256": "889d2a476646e2cfa5d9a8addf1b133ff6857de6a09d2de17a632e573f798269",
+    "text": "    fn serialization_types(&self) -> (TokenSerializationType, TokenSerializationType) {\n        match &self.v {\n            ValueInner::Component(component) => component.serialization_types(),\n            ValueInner::Universal(_) => unreachable!(),\n            ValueInner::List(list) => list\n                .components\n                .first()\n                .map_or(Default::default(), |f| f.serialization_types()),\n        }\n    }"
+  },
+  {
+    "file": "source/value.original.rs",
+    "definition": "pub fn to_variable_value",
+    "occurrence": 0,
+    "sha256": "6698cf7555b8451f088314a631c8439225d5142c6177bb016827077390229fce",
+    "text": "    pub fn to_variable_value(&self) -> ComputedPropertyValue {\n        if let ValueInner::Universal(ref value) = self.v {\n            return (**value).clone();\n        }\n        let serialization_types = self.serialization_types();\n        ComputedPropertyValue::new(\n            self.to_css_string(),\n            &self.url_data,\n            serialization_types.0,\n            serialization_types.1,\n        )\n    }"
+  },
+  {
+    "file": "source/parser.rs",
+    "definition": "pub fn next_including_whitespace(",
+    "occurrence": 0,
+    "sha256": "965c45e9a2ba5d1f15f9e90433b2edb6e2924902f9edbb9ef0cb04f0b46e4ea7",
+    "text": "    pub fn next_including_whitespace(&mut self) -> Result<&Token<'i>, BasicParseError> {\n        while let Token::Comment(..) = self.next_including_whitespace_and_comments()? {\n            // Keep going\n        }\n        Ok(&self.cached_token.token)\n    }"
+  },
+  {
+    "file": "source/parser.rs",
+    "definition": "pub fn next_including_whitespace_and_comments(",
+    "occurrence": 0,
+    "sha256": "635f1df1be62a9e72d7eb9a9913ed048a0d7b1aca27004bd073c2f793918d570",
+    "text": "    pub fn next_including_whitespace_and_comments(\n        &mut self,\n    ) -> Result<&Token<'i>, BasicParseError> {\n        self.skip_block_at_start();\n\n        if self.next_byte_before_delimiter().is_none() {\n            return Err(BasicParseError::new(BasicParseErrorKind::EndOfInput));\n        }\n\n        let token_start_position = self.position();\n        let using_cached_token = self.cached_token.start_position == token_start_position;\n        if using_cached_token {\n            self.state = self.cached_token.end_state.clone();\n        } else {\n            let new_token = self.next_unchecked();\n            self.cached_token = CachedToken {\n                token: new_token,\n                start_position: token_start_position,\n                end_state: self.state.clone(),\n            };\n        }\n\n        Ok(&self.cached_token.token)\n    }"
+  },
+  {
+    "file": "source/parser.rs",
+    "definition": "pub(crate) fn consume_until_end_of_block(",
+    "occurrence": 0,
+    "sha256": "0ab4b0f57cfc209f477509c06f2555d8c5062d4e86f95e8f1cd248373a2b1766",
+    "text": "    pub(crate) fn consume_until_end_of_block(&mut self, block_type: BlockType) {\n        let mut stack = SmallVec::<[BlockType; 16]>::new();\n        stack.push(block_type);\n\n        // FIXME: have a special-purpose tokenizer method for this that does less work.\n        while !self.is_eof() {\n            let token = self.next_unchecked();\n            if let Some(nested_block_type) = self.state.take_at_start_of() {\n                stack.push(nested_block_type);\n                continue;\n            }\n            if let Some(b) = BlockType::closing(&token) {\n                if *stack.last().unwrap() == b {\n                    stack.pop();\n                    if stack.is_empty() {\n                        return;\n                    }\n                }\n            }\n        }\n    }"
+  },
+  {
+    "file": "source/serializer.rs",
+    "definition": "pub fn set_if_nothing(",
+    "occurrence": 0,
+    "sha256": "1311db59f460574b95d88e2948e02f7905475d14f10ac3bd1e8f0df22b782057",
+    "text": "    pub fn set_if_nothing(&mut self, new_value: TokenSerializationType) {\n        if matches!(self, TokenSerializationType::Nothing) {\n            *self = new_value\n        }\n    }"
+  },
+  {
+    "file": "source/serializer.rs",
+    "definition": "pub fn serialization_type(",
+    "occurrence": 0,
+    "sha256": "ad4aa2af4007dcdf7777ff6d309f6def0697dae13fd1f407dbc25db0d839de93",
+    "text": "    pub fn serialization_type(&self) -> TokenSerializationType {\n        use self::TokenSerializationType::*;\n        match self {\n            Token::Ident(_) => Ident,\n            Token::AtKeyword(_) | Token::Hash(_) | Token::IDHash(_) => AtKeywordOrHash,\n            Token::UnquotedUrl(_) | Token::BadUrl(_) => UrlOrBadUrl,\n            Token::Delim('#') => DelimHash,\n            Token::Delim('@') => DelimAt,\n            Token::Delim('.') | Token::Delim('+') => DelimDotOrPlus,\n            Token::Delim('-') => DelimMinus,\n            Token::Delim('?') => DelimQuestion,\n            Token::Delim('$') | Token::Delim('^') | Token::Delim('~') => DelimAssorted,\n            Token::Delim('%') => DelimPercent,\n            Token::Delim('=') => DelimEquals,\n            Token::Delim('|') => DelimBar,\n            Token::Delim('/') => DelimSlash,\n            Token::Delim('*') => DelimAsterisk,\n            Token::Number { .. } => Number,\n            Token::Percentage { .. } => Percentage,\n            Token::Dimension { .. } => Dimension,\n            Token::WhiteSpace(_) => WhiteSpace,\n            Token::Comment(_) => DelimSlash,\n            Token::DashMatch => DashMatch,\n            Token::SubstringMatch => SubstringMatch,\n            Token::CDC => CDC,\n            Token::Function(_) => Function,\n            Token::ParenthesisBlock => OpenParen,\n            Token::SquareBracketBlock\n            | Token::CurlyBracketBlock\n            | Token::CloseParenthesis\n            | Token::CloseSquareBracket\n            | Token::CloseCurlyBracket\n            | Token::QuotedString(_)\n            | Token::BadString(_)\n            | Token::Delim(_)\n            | Token::Colon\n            | Token::Semicolon\n            | Token::Comma\n            | Token::CDO\n            | Token::IncludeMatch\n            | Token::PrefixMatch\n            | Token::SuffixMatch => Other,\n        }\n    }"
+  },
+  {
+    "file": "vendor/cssparser/src/tokenizer.rs",
+    "definition": "pub(crate) fn skip_block_at_start(",
+    "occurrence": 0,
+    "sha256": "c7a4ad1311fefde7773bc15203bb7460af7c00ee18f1fe184720bb4e7ddbda50",
+    "text": "    pub(crate) fn skip_block_at_start(&mut self) {\n        if let Some(block_type) = self.state.take_at_start_of() {\n            self.consume_until_end_of_block(block_type);\n        }\n    }"
+  }
+]

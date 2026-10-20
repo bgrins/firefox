@@ -1,0 +1,13 @@
+# Candidate design review (separate from frozen oracle inventory)
+
+Root subsequently reports20 browser cases:14PASS/6FAIL, failures only LP20px/reducedcalc20px/singletonLP+ in direct and chained font. This note does not independently authenticate that run and does not alter FILES.json or its frozen inputs.
+
+Prefer deriving actual token classes from the already-produced computed CSS string in `to_variable_value`, keeping the universal-value early return. This obtains a common producer invariant for dimensions, percentages, functions, keyword serializers and list endpoints. It adds one linear scan of serialized bytes, with no second serialization. A specialized computed-type classifier can avoid scanning but must match all exact ToCss alternatives and derive distinct list-first/list-last classes; merely changing LP to Dimension is insufficient for mixedcalc starting after a delim@ or lists.
+
+Source-inspected algorithm shape: use a fresh cssparser Parser; scan top-level tokens, preserving whitespace and skipping comments. Record first serialization_type. A Function/ParenthesisBlock/SquareBracketBlock/CurlyBracketBlock ends with a closing delimiter, so record Other as its final class. Parser's next call skips the pending block before returning a later sibling; the terminal call also performs this skip before EOF. Subsequent siblings replace the last class. Empty serialization yields Nothing/Nothing. This relies on the typed serializer producing valid balanced CSS; malformed/unclosed arbitrary text is outside this typed conversion contract.
+
+`next_including_whitespace` preserves boundary whitespace and skips comments. `next_including_whitespace_and_comments` exposes Comment with DelimSlash class and therefore must not be blindly used as a logical first/last summary. Quoted string contents remain one token. Do not recursively parse nested values or collect substitution references solely for boundary extraction.
+
+Additional decisive cases: LP mixedcalc preceded by delim@, whose following function requires a separator; percentage-first/dimension-last LP+ followed by ident; balanced nested functions followed by later top-level values; empty output if representable. These are token-stream diagnostics until independently bound to a consuming property. Distinguish such diagnostics from font rendering assertions. Existing global separator table remains unchanged.
+
+Actual native functions inspected: cssparser `Parser::next`, `next_including_whitespace`, `next_including_whitespace_and_comments`; `Token::serialization_type`; `TokenSerializationType::needs_separator_when_before`. Discovery used Searchfox on the precise cssparser directory. No candidate native code or browser execution was performed here.
