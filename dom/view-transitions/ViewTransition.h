@@ -111,6 +111,7 @@ class ViewTransition final : public nsISupports, public nsWrapperCache {
   Promise* GetReady(ErrorResult&);
   Promise* GetFinished(ErrorResult&);
   ViewTransitionTypeSet* Types();
+  void TypesChanged();
   const TypeList& GetTypeList() const { return mTypeList; }
   TypeList& GetTypeList() { return mTypeList; }
 

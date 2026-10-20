@@ -2105,6 +2105,16 @@ Maybe<nsRect> ViewTransition::GetNewActiveRect(nsAtom* aName) const {
   return el->mNewActiveRect;
 }
 
+void ViewTransition::TypesChanged() {
+  if (mDocument->GetActiveViewTransition() != this) {
+    return;
+  }
+  if (Element* root = mDocument->GetRootElement()) {
+    nsLayoutUtils::PostRestyleEvent(root, RestyleHint::RestyleSubtree(),
+                                    nsChangeHint(0));
+  }
+}
+
 ViewTransitionTypeSet* ViewTransition::Types() {
   if (!mTypes) {
     mTypes = new ViewTransitionTypeSet(*this);
