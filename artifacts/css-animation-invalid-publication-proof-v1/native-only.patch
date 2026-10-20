@@ -1,0 +1,67 @@
+--- a/servo/components/style/properties/mod.rs
++++ b/servo/components/style/properties/mod.rs
+@@ -183,10 +183,12 @@
+     pub value: Arc<UnparsedValue>,
+ }
+ 
+-/// A custom property declaration value is either an unparsed value or a CSS
+-/// wide-keyword.
++/// A custom property declaration value.
+ #[derive(Clone, PartialEq, ToCss, ToShmem, ToTyped)]
+ pub enum CustomDeclarationValue {
++    /// An invalid computed value carried back through the cascade.
++    #[css(skip)]
++    GuaranteedInvalid,
+     /// An unparsed value.
+     Unparsed(Arc<custom_properties::SpecifiedValue>),
+     /// An already-parsed value.
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -1858,6 +1858,7 @@
+         }
+ 
+         let has_references = match value {
++            CustomDeclarationValue::GuaranteedInvalid => false,
+             CustomDeclarationValue::Unparsed(unparsed_value) => {
+                 // Non-custom dependency is really relevant for registered custom properties
+                 // that require computed value of such dependencies.
+@@ -1885,6 +1886,12 @@
+         entry.insert(has_references);
+ 
+         match value {
++            CustomDeclarationValue::GuaranteedInvalid => {
++                context
++                    .builder
++                    .substitution_functions
++                    .remove_var(registration, name);
++            },
+             CustomDeclarationValue::Unparsed(unparsed_value) => {
+                 if !has_references {
+                     // If the variable value has no references to other properties, perform
+@@ -2092,6 +2099,7 @@
+             return true;
+         };
+         match value {
++            CustomDeclarationValue::GuaranteedInvalid => {},
+             CustomDeclarationValue::Unparsed(value) => {
+                 // Don't bother overwriting an existing value with the same
+                 // specified value.
+--- a/servo/components/style/properties_and_values/value.rs
++++ b/servo/components/style/properties_and_values/value.rs
+@@ -664,6 +664,7 @@
+         context: &mut computed::Context,
+     ) -> Option<Self> {
+         let computed_value = match declaration.value {
++            properties::CustomDeclarationValue::GuaranteedInvalid => None,
+             properties::CustomDeclarationValue::Unparsed(ref value) => Some({
+                 debug_assert!(
+                     context.builder.stylist.is_some(),
+@@ -748,7 +749,7 @@
+             name: self.name.clone(),
+             value: match &self.value {
+                 Some(value) => value.to_declared_value(),
+-                None => CustomDeclarationValue::CSSWideKeyword(CSSWideKeyword::Initial),
++                None => CustomDeclarationValue::GuaranteedInvalid,
+             },
+         })
+     }

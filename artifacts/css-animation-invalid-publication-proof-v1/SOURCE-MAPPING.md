@@ -1,0 +1,33 @@
+# Source and model admission
+
+## Precisely repaired branches
+
+`CustomAnimatedValue::to_declaration` retains its name and emits `GuaranteedInvalid` for the **inner** `None`. Its `Some` arm is unchanged. `PublicationModel.convert` follows that branch shape. `publication None = []` describes an absent selected animation result, not the representation of GIV. The actual selection/publication callers remain providers. `fromDeclaration` represents the new invalid branch, the existing Initial provider, the noninvalid conversion provider, and revert-family outer absence. It does not model the complete parser or computed-value conversion.
+
+`cascade_custom_property` checks reverted priority, included flags, then seen name. GIV always passes `value_may_affect_style`, has no references, inserts `false` into seen, and calls `remove_var`. `step` preserves this order, with the seen boolean representing occupied/vacant rather than the stored reference bit. `cycles` represents only `may_have_custom_property_cycles`. No other native context flags, caches, attribute trackers, resource observers, or rule-tree state are claimed equivalent.
+
+The GIV branch does not rely on the initial provider or payload-conversion law. `admitted_invalid_wins` requires passing both priority gates and initially-unseen name. `arbitrary_suffix_stability` allows any finite suffix of modeled actions, including lower valid values, Initial, revert, invalid, and arbitrary provider-returned optional values/reference flags. Same-name actions are suppressed before examining their kind. Other-name actions update only their own key. Native admission of the latter frame rule is explicit: the stored full substitution helper writes the current custom name, but its complete called graph and deferred substitution pass are not proved here. Inherit/unset and parser outcomes can enter through `provided`; that is a value/frame contract, not a translation proof of these branches.
+
+## Initial and other values
+
+`step` normalizes the existing Initial optimization: reset properties retain their seeded initial; inherited properties write the initial. The actual inherited no-change shortcut can avoid a redundant write. `explicit_initial_selected` requires the reset-seeding premise; it does not assume all arbitrary input maps have the initial. `original_structured_failure_iff` proves the original conversion disagrees with invalidity precisely when the initial provider returns Some, under the same fresh-name/reset-seeding conditions. It uses tagged observation, so a fallback whose payload happens to equal the initial does not erase the distinction.
+
+The `.payload` branch always writes the provider-computed value. Native no-change checks are abstracted at the selected-value projection and need their preservation contract; unresolved references, metadata, and typed conversion are not silently admitted. `PayloadPreserved` means the *whole chosen payload abstraction* survives encode/compute. It is not implied by serialized equality or native PartialEq. The extracted Rust adapter deliberately implements this provider synthetically.
+
+## Routed removal and accepted map component
+
+`remove_var → ComputedCustomProperties::remove → map_mut → CustomPropertiesMap::remove → do_insert(None)` selects exactly the registration's inherits partition. `put` is the pointwise reference update. `routed_removal_projection` derives it from the imported COW lookup theorem, and `removal_ready` reuses the count/coverage/unique-key theorem. Removal's comparator is restricted to None/None, whose soundness is proved without any payload equality premise. The complete current helper's Some/Some metadata branch is not needed for removal.
+
+`SOURCE-TRANSFER.json` checks the complete current map against the accepted count source: exactly the equality expression in `do_insert` becomes `can_deduplicate_values`. The accepted COW theorem already takes a comparator parameter. `removalCompare` differs from the real comparator on Some/Some pairs, which cannot occur when the second argument is None. The extracted real comparator checks this used domain; this finite check is not a universal native translation proof. COW heap/Arc/IndexMap representation and machine headroom remain the imported component's admissions. Tombstones mask parents; lookup None does not mean deleting a local key and exposing an ancestor. Count readiness requires its finite roster/uniqueness premises. Partition disjointness and stable registration routing are caller assumptions, not per-map consequences.
+
+## Derives, callers, and extraction
+
+Complete modified enum/methods and complete remove/derive/caller bodies are retained and bound by exact byte slices. `#[css(skip)]` produces no serialized text through ToCss and Err through ToTyped's variant path. The marker is internal: no parseable syntax is added. Thus serialize/reparse is **not** a preserving publication protocol; valid empty tokens and GIV serialize equally but differ in fallback behavior.
+
+`AnimationValue::uncompute`, `from_computed_values`, `Servo_AnimationCompose`, and `Servo_AnimationValue_Uncompute` are retained for the selected-endpoint boundary. No identity, segment, arithmetic, timing, or CSS-wide endpoint-selection theorem is newly claimed. Earlier accepted selected-endpoint contracts may supply that interface only under their own provider conditions; they are not imported as blanket native acceptance.
+
+`source_bindings.py` uses exact signature plus source indentation endpoint for these inspected snapshots. It is a replayable slice locator, not a Rust/Mako parser. All extracted boundaries were reviewed against complete retained files. The native check compiles complete original/candidate `from_computed` and `to_declaration` methods and the complete current removal comparator, with small synthetic types/providers. It checks names, null inner value, valid empty/nonempty tokens and metadata in both optimization modes. It does not compile derive generation, complete cascade, Rust/Gecko dependencies or the real noninvalid provider. Compiler/runtime and codec/heap/machine correspondence remain external.
+
+## Independent observer
+
+`referenceObservation` is an independent tagged invalid-or-value contract; `fallbackResult` chooses the fallback for invalidity without looking at initial. This models the relevant `var()` observation rule supplied by the authenticated discovery's spec trace. It is not a proof of CSSOM serialization, parser acceptance of fallback, URL eligibility, DOM registration, or the measured browser result. Valid-empty counterexamples explicitly avoid inferring validity from serialization.

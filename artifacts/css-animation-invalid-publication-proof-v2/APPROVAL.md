@@ -1,0 +1,1 @@
+Root approved SCOPE-PROPOSAL.md as written before implementation: implement all six obligations; distinguish gate admission from a selected winner, structured invalidity from coincidentally equal fallback output, and retain noninvalid conversion as a named provider. Source landing pins supplied separately.

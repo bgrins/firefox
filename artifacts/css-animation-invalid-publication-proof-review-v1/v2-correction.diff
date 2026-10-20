@@ -1,0 +1,12 @@
+--- v1/check.py
++++ v2/check.py
+@@ -7,7 +7,8 @@
+ import subprocess
+ import sys
+ 
+-assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize, 'use python3 -I -S'
++if not (sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize):
++    raise RuntimeError('use python3 -I -S without optimization')
+ ROOT = Path(__file__).absolute().parent
+ 
+ def sha(p):
