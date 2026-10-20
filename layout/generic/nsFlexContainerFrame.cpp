@@ -3933,11 +3933,15 @@ void FlexLine::ComputeCrossSizeAndBaseline(
   //      all last baseline-aligned items with no cross-axis auto margins...
   // and
   //  (c) largest cross-size of all other children.
-  mLineCrossSize = std::max(
-      std::max(
-          crossStartToFurthestFirstBaseline + crossEndToFurthestFirstBaseline,
-          crossStartToFurthestLastBaseline + crossEndToFurthestLastBaseline),
-      largestOuterCrossSize);
+  const int64_t firstBaselineCrossSize =
+      int64_t(crossStartToFurthestFirstBaseline) +
+      crossEndToFurthestFirstBaseline;
+  const int64_t lastBaselineCrossSize =
+      int64_t(crossStartToFurthestLastBaseline) +
+      crossEndToFurthestLastBaseline;
+  mLineCrossSize = std::min<int64_t>(
+      nscoord_MAX, std::max({firstBaselineCrossSize, lastBaselineCrossSize,
+                             int64_t(largestOuterCrossSize)}));
 }
 
 nscoord FlexLine::ExtractBaselineOffset(
