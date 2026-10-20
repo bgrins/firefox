@@ -1,6 +1,6 @@
 {
   "branch": "stylo-bloom-verification-2",
-  "committed_native_fixes": 102,
+  "committed_native_fixes": 103,
   "accepted_pending_native_fixes": 0,
   "previous_committed_fixes": 16,
   "new_queue": [
@@ -2284,6 +2284,40 @@
       "limits": "Shared project build; not isolated upstream runtime. Shared ResizeObserver.contentRect changes; remaining graphics loss can yield a numerically farther still-failing edge. Full safe-origin/allocation/provider obligations remain open.",
       "commit_verification": "artifacts/css-domrect-edge-precision-commit-v1/COMMIT-CHECK.json",
       "triage": "Geometry API precision/correctness; no security impact established."
+    },
+    {
+      "repair": "cssom-integer-translation-precision",
+      "status": "COMMITTED_NATIVE_WPT",
+      "native_commit": "7309af28e360d5d9544eb04dbbbe7f74a102e164",
+      "acceptance": {
+        "path": "artifacts/css-cssom-exact-traversal-acceptance-v4/ACCEPTANCE.json",
+        "sha256": "75de3bc315e776d609ef2ff6b50004d565309216578919d54e2a9b936e64b8e1"
+      },
+      "native_paths": [
+        "layout/generic/nsIFrame.cpp",
+        "layout/generic/nsIFrame.h",
+        "layout/base/nsLayoutUtils.cpp",
+        "layout/base/nsLayoutUtils.h",
+        "testing/web-platform/tests/css/cssom-view/getBoundingClientRect-untransformed-edge-precision.html"
+      ],
+      "patch": {
+        "path": "artifacts/css-cssom-exact-traversal-source-packaging-v4/candidate-native-wpt.patch",
+        "sha256": "202a8ff8772bbcdae1c9b28f0016c4e1b0929e5ba9b5c9cb6e8ef6060840e6e0"
+      },
+      "runtime": "With fix102: 70PASS4FAIL becomes72PASS2expectedFAIL across23files74subtests. Without fix102: own4PASS, separateDOM2PASS2unexpectedFAIL, existing66=64PASS2expectedFAIL; exact old oracle including exit1. Both standalone builds pass and source/index/build restoration complete.",
+      "limits": "Qualified acceptance. Deep-root transform process-median center385ns vs375ns surrounding baselines, possible10ns (about2.7%) cost retained; no broad no-regression claim. Tested ordinary/leaf cost objections resolved; no further timing gate required. Exact four-native-file plus one-WPT patch applies to local parent and pinned October14 upstream; tested without fix102 on shared tree. No isolated upstream runtime claim.",
+      "security_claim": false,
+      "candidate_installed": true,
+      "next": "Available for user-managed review; full native proof obligations remain open.",
+      "companion_commit": "5c3fe8efdb1dd46a5f4dbccfdb7099bc0a9d523f",
+      "research_commits": [
+        "0bd943e2984b200c225e8f4b2135bbcde5e8cf4c",
+        "33b509b45a06942e92c4365d70cfc7f69c14d4fe",
+        "a7aea267d39f4b0298eefe6f69eac3a5a0b4dd57",
+        "b61474dc1f41c3559d137ffca284b1d167bede0a",
+        "57f47f1a183fbc1b3c2287aaa453a35163af38fb",
+        "5c3fe8efdb1dd46a5f4dbccfdb7099bc0a9d523f"
+      ]
     }
   ],
   "verification": "Each committed native delta is the accepted patch, checked against its actual parent. Companions preserve the recorded scope and replay prerequisites. No new browser or full-build claims are made by committing.",
@@ -2649,15 +2683,6 @@
         "runtime": "48release/project identicalrows;allactualchildgeometry/reference/restorationpass.12large span fixtures produceoneextrafragment;36countcontrols pass.",
         "limits": "Separate abspos cumulative-state source lead is not yet runtime-attributed; shared consumed arithmetic may contribute. Do not double-count asacceptednewbug."
       }
-    },
-    {
-      "repair": "cssom-integer-translation-precision",
-      "status": "HOLD_PERFORMANCE",
-      "native_commit": null,
-      "report": "artifacts/css-cssom-rectangle-performance-runtime-v1/REPORT.md",
-      "runtime": "Own standalone WPT2PASS2FAIL to4PASS; existing selected regressions unchanged.",
-      "limits": "Six local headless runs; coarse timer, directional only; not CI or browser-wide slowdown.",
-      "next": "Investigate exact translation from existing traversal without a speculative second ancestor walk."
     }
   ],
   "pending_native_worktree": {
@@ -2796,13 +2821,15 @@
     "continuation_normalization_research": {
       "report": "artifacts/css-flex-collapsed-allocation-proof-v3/research/normalization-owner-v1/REPORT.md",
       "checkpoint_pins_sha256": "19fe76a9fec10a9b740f22e059309504ea69b2aadbd0876a3649e46f99dc5b3a",
-      "status": "PRODUCER_REPLAY_PASSED_ROOT_REVIEW_PENDING",
+      "status": "ROOT_REPLAY_ACCEPTED_CONDITIONAL_NATIVE_READINESS_OPEN",
       "kernel_audits": 18,
       "native_cases_per_snippet": 14,
       "native_modes": 3,
       "owned_bytes_cleaned": 3136248,
       "limitation": "Phase-conditioned interruption exclusions; pair-list readiness and full native representation/lifecycle remain unproved",
-      "full_allocation_F1_F16_F11_F12": "OPEN"
+      "full_allocation_F1_F16_F11_F12": "OPEN",
+      "root_report": "artifacts/css-normalization-owner-root-v1/REPORT.md",
+      "root_files_sha256": "a19dc84fbb42a97dce29c01d82c0ee2e2b99dafb3c3c54b3d4901ffac1ce7052"
     },
     "table_percentage_observer_source_audit": {
       "report": "artifacts/css-table-percentage-zero-sentinel-audit-v1/REPORT.md",
@@ -2813,7 +2840,7 @@
     "rectangle_observer_isolation": {
       "report": "artifacts/css-exact-size-observer-runtime-v1/REPORT.md",
       "files_sha256": "981df5c49843bbe325371489298ed73a0c0b58d26bf6e981faded2b99f7c2d30",
-      "status": "SPLIT_DOMRECT_REPAIR_COMMITTED_INTEGER_TRAVERSAL_HELD",
+      "status": "BOTH_SPLIT_RECTANGLE_REPAIRS_COMMITTED",
       "rows_per_browser": 56,
       "release_project_equal": true,
       "large_minimal_cases": 4,
@@ -2825,7 +2852,8 @@
       "source_numeric_report": "artifacts/css-exact-size-observer-boundary-review-v1/REPORT.md",
       "source_numeric_files_sha256": "b7cf0d2b1ae912365b64cdf44db96f0e774569b0ca66c7961e4314fd5ee4b5f1",
       "full_safe_origin_F1_F12": "OPEN",
-      "native_commit": "c0e8c7fd1deb9320b0bae747c043c100ac842f49"
+      "native_commit": "c0e8c7fd1deb9320b0bae747c043c100ac842f49",
+      "integer_traversal_commit": "7309af28e360d5d9544eb04dbbbe7f74a102e164"
     },
     "rectangle_numeric_component": {
       "status": "ROOT_ACCEPTED_BOUNDED_COMPONENT",
@@ -2878,7 +2906,7 @@
         "final_total": 800000000,
         "legacy_doc_offset": 2800000000
       },
-      "next": "V3 source/extraction review passed; run fresh full build/browser/performance comparison. V2 remains held on its measured cost.",
+      "next": "Superseded by committed v4 repair 7309af28e360; retain earlier cost results as historical evidence.",
       "browser_verification": {
         "files": 23,
         "subtests": 74,
@@ -2975,7 +3003,7 @@
       "full_safe_origin_F1_F12": "OPEN"
     },
     "rectangle_integer_optimization_v3": {
-      "status": "SOURCE_AND_EXTRACTION_REVIEW_PASS_BROWSER_PERFORMANCE_PENDING",
+      "status": "CORRECTNESS_PASS_NATIVE_ACCEPTANCE_HELD_ON_TRANSFORMED_COST",
       "report": "artifacts/css-cssom-exact-traversal-optimization-v3/REPORT.md",
       "files_sha256": "3779e1922f32ed96f8b70dcaa2d96c0f2d06fc03c0c6fd03292636bc60515108",
       "proposal_directory": "artifacts/css-cssom-exact-traversal-proposal-v3",
@@ -2996,10 +3024,63 @@
         "geometry": 4,
         "arithmetic_pairs": 81
       },
-      "next": "Fresh reversible full build,23-file74-subtest WPT comparison,6fresh timing processes with100000calls x11samples per case; no measured v3 speedup yet."
+      "next": "Superseded by committed v4 repair 7309af28e360; retain earlier cost results as historical evidence.",
+      "runtime_report": "artifacts/css-cssom-exact-traversal-runtime-v3/REPORT.md",
+      "runtime_files_sha256": "a9f256b3c00ad30ec559a3d850f560c3ae5be00cfa123586621d4a2112849aa5",
+      "independent_runtime_report": "artifacts/css-cssom-exact-traversal-runtime-review-v3/REPORT.md",
+      "independent_runtime_files_sha256": "221b731073a0e8819f24c7e98db307b1229aa8e3bb4f3c18a5257953100b0b31",
+      "decision": "artifacts/css-cssom-exact-traversal-decision-v3.json",
+      "source_and_build_restored": true,
+      "native_fix_count_delta": 0,
+      "browser_verification": {
+        "files": 23,
+        "subtests": 74,
+        "baseline": {
+          "PASS": 70,
+          "FAIL": 4
+        },
+        "candidate": {
+          "PASS": 72,
+          "expected_FAIL": 2
+        },
+        "new_test_passes": 4,
+        "other_outcomes_unchanged": true,
+        "DOMRect_fix_102_present": true
+      },
+      "local_performance": {
+        "processes": 6,
+        "batches": 396,
+        "measured_calls": 39600000,
+        "ordinary128_candidate_ns": [
+          320,
+          310
+        ],
+        "ordinary128_baseline_ns": [
+          330,
+          330,
+          310,
+          330
+        ],
+        "root_transform128_candidate_ns": [
+          390,
+          390
+        ],
+        "root_transform128_baseline_ns": [
+          370,
+          390,
+          370,
+          380
+        ],
+        "interpretation": "Earlier ordinary-path cost objection resolved for tested cases; modest transformed-path trend remains unresolved. Coarse timers, fixed phase order, two processes per phase; no general or statistical claim."
+      },
+      "build_exit_codes": {
+        "baseline": 0,
+        "candidate": 0,
+        "restoration": 0
+      }
     },
     "destruction_allocation_footprint": {
-      "status": "ROOT_ACCEPTED_CONDITIONAL_COMPONENT_INDEPENDENT_REVIEW_IN_PROGRESS",
+      "status": "ROOT_AND_INDEPENDENT_ACCEPTED_CONDITIONAL_COMPONENT",
       "directory": "artifacts/css-primary-destruction-callback-proof-v1",
       "producer_files_sha256": "6af2a8ca93ea6129c2c37384e373bd1a9e65aa50ac0f8aa16dfbca4e99dfdfc5",
       "root_report": "artifacts/css-primary-destruction-callback-proof-root-v1/REPORT.md",
@@ -3017,10 +3098,150 @@
         "Selected-footprint uniqueness does not establish global ownership across frames"
       ],
       "full_allocation_F1_F16_F11_F12": "OPEN",
-      "native_fix_count_delta": 0
+      "native_fix_count_delta": 0,
+      "independent_report": "artifacts/css-primary-destruction-callback-proof-review-v1/REPORT.md",
+      "independent_files_sha256": "d3652b04b923c12f257bae3432b6af32315fefb1b68c0fc9ef759368ca29f28f",
+      "independent_kernel_witnesses": 4
+    },
+    "flex_cache_capture_lifetime": {
+      "status": "BOUNDED_SOURCE_AUDIT_NO_REACHABLE_FREE_ESTABLISHED",
+      "report": "artifacts/css-flex-cache-capture-lifetime-audit-v1/REPORT.md",
+      "descriptor_report": "artifacts/css-flex-cache-descriptor-access-audit-v1/REPORT.md",
+      "limits": "Capture crosses reflow callbacks; no actual same-owner replacement/free established. Global ownership, publication coverage and transitive callback lifetimes remain open.",
+      "new_native_bug": false
+    },
+    "frame_property_replacement": {
+      "status": "NO_REACHABLE_REPLACEMENT_SEQUENCE_IDENTIFIED",
+      "report": "artifacts/css-frame-property-replacement-reentrancy-audit-v1/REPORT.md",
+      "files_sha256": "b35ba276352a3e567d2446fd6179692fd3c28f93e139e4f64023f810bda16cda",
+      "root_source_checker_exit": 0,
+      "selected_bindings": 28,
+      "new_native_bug": false,
+      "limits": "Focused static audit, not exhaustive callback safety. Known property-mutating destructors lack an established replacement caller; inspected actual replacements lack the required same-frame mutation."
+    },
+    "rectangle_integer_optimization_v4": {
+      "status": "COMMITTED_NATIVE_WPT",
+      "proposal_files_sha256": "9cb90bc4e1739c482b2b20785389b002cfeb297bc958b42684e58d37fa4e4770",
+      "independent_review_files_sha256": "aa70ae621cedbb5cd0c810b24c0d0f7bf9829299c143112be546842e406055e3",
+      "root_files_sha256": "e771fd6f66d3c0b4591bf88b60a5b73e53bf4dc19bc27acebb1add1b0c3010f1",
+      "driver_review_files_sha256": "534800dbfc9b0a0b39fb69c54d0e6ae4df8fb8751976ed9d95865bdeb926022e",
+      "runtime_directory": "artifacts/css-cssom-exact-traversal-runtime-v4",
+      "runtime_session": 16046,
+      "accepted_native_fix": true,
+      "approach": "Use existing common-layout loop for null metadata requests only under empty flags and layout source/target. Arithmetic/eligibility/domain unchanged.",
+      "source_evidence": "26 extracted role/optimization runs, 168 original-reference rows, 2048 finite admitted chains, nine discriminated mutants; independent dispatch/geometry/SVG/arithmetic checks.",
+      "limits": "Qualified acceptance. Deep-root transform process-median center385ns vs375ns surrounding baselines, possible10ns (about2.7%) cost retained; no broad no-regression claim. Tested ordinary/leaf cost objections resolved; no further timing gate required. Exact four-native-file plus one-WPT patch applies to local parent and pinned October14 upstream; tested without fix102 on shared tree. No isolated upstream runtime claim.",
+      "browser_verification": {
+        "files": 23,
+        "subtests": 74,
+        "baseline": {
+          "PASS": 70,
+          "FAIL": 4
+        },
+        "candidate": {
+          "PASS": 72,
+          "expected_FAIL": 2
+        },
+        "new_test_passes": 4,
+        "other_subtests_unchanged": 70,
+        "DOMRect_fix_102_present": true
+      },
+      "runtime_files_sha256": "7f836b9399f9098e0717e369c3ee51fa2df5002ae261d711f176ab9e6422f021",
+      "runtime_report": "artifacts/css-cssom-exact-traversal-runtime-v4/REPORT.md",
+      "source_and_build_restored": true,
+      "staged_research_preserved": true,
+      "build_exit_codes": {
+        "baseline": 0,
+        "candidate": 0,
+        "restoration": 0
+      },
+      "local_performance": {
+        "processes": 6,
+        "batches": 396,
+        "measured_calls": 39600000,
+        "ordinary128_candidate_ns": [
+          330,
+          310
+        ],
+        "ordinary128_baseline_ns": [
+          310,
+          320,
+          330,
+          320
+        ],
+        "leaf_transform128_candidate_ns": [
+          340,
+          340
+        ],
+        "leaf_transform128_baseline_ns": [
+          370,
+          360,
+          360,
+          350
+        ],
+        "root_transform128_candidate_ns": [
+          380,
+          390
+        ],
+        "root_transform128_baseline_ns": [
+          380,
+          360,
+          380,
+          370
+        ]
+      },
+      "decision": "artifacts/css-cssom-exact-traversal-decision-v4.json",
+      "independent_runtime_report": "artifacts/css-cssom-exact-traversal-runtime-review-v4/REPORT.md",
+      "independent_runtime_files_sha256": "11ab59de7f6fd48870bf7e975a494c96fafa63e1732924646a868f5b3d4e15b9",
+      "acceptance": {
+        "path": "artifacts/css-cssom-exact-traversal-acceptance-v4/ACCEPTANCE.json",
+        "sha256": "75de3bc315e776d609ef2ff6b50004d565309216578919d54e2a9b936e64b8e1"
+      },
+      "standalone_report": "artifacts/css-cssom-exact-traversal-standalone-runtime-review-v4/REPORT.md",
+      "standalone_files_sha256": "c9c6ac68da7628a2aa11129bace43fb699e4bf512333197718585ae47b6ed58c",
+      "native_accepted": true,
+      "candidate_installed": true,
+      "native_commit": "7309af28e360d5d9544eb04dbbbe7f74a102e164",
+      "build_status": "Source installed after signing; current binary predates fix103."
+    },
+    "destruction_ownership_refinement": {
+      "status": "ROOT_AND_INDEPENDENT_ACCEPTED_SCOPED_MATHEMATICAL_REFINEMENT",
+      "directory": "artifacts/css-primary-destruction-ownership-refinement-v1",
+      "independent_early_review": "artifacts/css-primary-destruction-ownership-refinement-review-v1/EARLY-REVIEW.md",
+      "scope": "Array storage shape and global separation in selected-descriptor world; derives untouched-owner allocation preservation. Actual native decoding, installation completeness and generations remain open.",
+      "native_fix_count_delta": 0,
+      "producer_files_sha256": "c9d46c3317fb6756068607237405939930da2f23d2096acec6b5091a30aaace9",
+      "replay_files_sha256": "00ca4ec6f852e9ffe0b1bda3030c760cabe83659fb48bba1f81a8ed983938e2f",
+      "independent_files_sha256": "49b37ec6fbbf825939a38b1d8a3e0f35432427337ab139e7e84c9d93dddca59d",
+      "independent_report": "artifacts/css-primary-destruction-ownership-refinement-review-v1/REPORT.md",
+      "root_acceptance": "artifacts/css-primary-destruction-ownership-refinement-root-v1.json",
+      "audits": 74,
+      "new_general_results": 18,
+      "semantic_rejections": 5,
+      "independent_kernel_challenges": 7,
+      "full_allocation_F1_F16_F11_F12": "OPEN",
+      "research_commit": "57f47f1a183fbc1b3c2287aaa453a35163af38fb"
+    },
+    "hidden_geometry_regression": {
+      "status": "PROJECT_RELEASE_DIFFERENCE_SOURCE_ISOLATION_PENDING",
+      "report": "artifacts/css-hidden-geometry-probe-v1/COMPARISON.json",
+      "project_bad_stages": 32,
+      "release_bad_stages": 0,
+      "stages_per_browser": 160,
+      "native_bug_accepted": false,
+      "next": "Reversible exactHEADnative comparison separates uncommitted prototypes from committedbranch; then identify sourcecause."
     }
   },
   "latest_signing": {
+    "base": "99a9ca84f08370c1797720db8688bcb3747f6985",
+    "head": "7309af28e360d5d9544eb04dbbbe7f74a102e164",
+    "signed_commits": 7,
+    "native_fixes": 1,
+    "exact_native_parent_deltas": true,
+    "index_empty": true,
+    "verification": "artifacts/css-signing-resume-20261020-v3/ROOT-COMMIT-CHECK.json"
+  },
+  "previous_signing": {
     "base": "9c6b4af2a64296b2b24a162879907d4b2c439026",
     "head": "fb5c4a68753962a14fcdb38463e71821754c1027",
     "signed_commits": 6,
@@ -3029,16 +3250,21 @@
     "index_empty": true,
     "verification": "artifacts/css-domrect-edge-precision-commit-v1/COMMIT-CHECK.json"
   },
-  "previous_signing": {
-    "base": "92a6fddf18e5828b17d7491a34663a0d5a9c12ad",
-    "head": "6cf27eadddf9e63d9bfbcc87ff2bf354e091ae7c",
-    "signed_commits": 48,
-    "native_fixes": 14,
-    "exact_native_parent_deltas": true,
-    "index_empty": true,
-    "verification": "artifacts/css-signing-resume-20261020-v1/ROOT-COMMIT-CHECK.json"
-  },
   "latest_research_signing": {
+    "commits": [
+      "0bd943e2984b200c225e8f4b2135bbcde5e8cf4c",
+      "33b509b45a06942e92c4365d70cfc7f69c14d4fe",
+      "a7aea267d39f4b0298eefe6f69eac3a5a0b4dd57",
+      "b61474dc1f41c3559d137ffca284b1d167bede0a",
+      "57f47f1a183fbc1b3c2287aaa453a35163af38fb",
+      "5c3fe8efdb1dd46a5f4dbccfdb7099bc0a9d523f"
+    ],
+    "native_fixes_added": 0,
+    "signature_and_exact_path_checks": [
+      "artifacts/css-signing-resume-20261020-v3/ROOT-COMMIT-CHECK.json"
+    ]
+  },
+  "previous_research_signing": {
     "allocation_footprint": "505bbb00e328e0e0740a4dd850d5b8fbaa13e4f8",
     "traversal_specialization": "352634890bf286f3a361283c95b8a51b789ce600",
     "native_fixes_added": 0,
@@ -3047,10 +3273,21 @@
       "artifacts/css-cssom-exact-traversal-commit-v3/COMMIT-CHECK.json"
     ]
   },
-  "previous_research_signing": {
-    "evidence": "c29fd817ebc316a3929b7042279f77b8ef74e839",
-    "runtime": "3ec270d944dad21c16479a573bf6f8ca5a50511c",
-    "native_fixes_added": 0,
-    "signature_and_exact_path_checks": "artifacts/css-cssom-exact-traversal-commit-v2/COMMIT-CHECK.json"
+  "latest_research_signing_attempt": {
+    "status": "SUCCESS",
+    "head": "7309af28e360d5d9544eb04dbbbe7f74a102e164",
+    "new_commits": 7,
+    "staged_paths": 0,
+    "verification": "artifacts/css-signing-resume-20261020-v3/ROOT-COMMIT-CHECK.json"
+  },
+  "previous_research_signing_attempt": {
+    "status": "FAILED_QUEUE_PRESERVED",
+    "exit": 128,
+    "error": "1Password: failed to fill whole buffer",
+    "head": "99a9ca84f08370c1797720db8688bcb3747f6985",
+    "new_commits": 0,
+    "staged_paths": 229,
+    "prepared_research_commits": 5,
+    "verification": "artifacts/css-signing-resume-20261020-v2/ROOT-COMMIT-CHECK.json"
   }
 }

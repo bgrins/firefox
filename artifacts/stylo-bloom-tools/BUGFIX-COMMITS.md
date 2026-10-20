@@ -5,9 +5,27 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **102 committed fixes; no accepted repairs await signing.**
+Current checkpoint: **103 committed fixes; no accepted repair awaits signing.**
 
-## Latest signed fix: 102
+## Latest signed fix: 103
+
+| Fix | Repair | Native + WPT commit | Preceding companion |
+| --- | --- | --- | --- |
+| 103 | Untransformed client rectangle app-unit precision | `7309af28e360d5d9544eb04dbbbe7f74a102e164` | `5c3fe8efdb1dd46a5f4dbccfdb7099bc0a9d523f` |
+
+The commit contains four native files and its WPT. Six preceding research commits
+retain source review, proofs, browser results, independent checks and acceptance.
+All four own WPT cases pass without fix 102; other keyed outcomes match the
+historical oracle. The possible deep root-transform cost remains disclosed
+(about 10 ns/call in this local sample). The source patch is now installed;
+the existing local binary predates it. Signing adds no new test results.
+[Acceptance](../css-cssom-exact-traversal-acceptance-v4/REPORT.md),
+[commit verification](../css-signing-resume-20261020-v3/ROOT-COMMIT-CHECK.json).
+
+All seven queued commits are signed; the index is empty and all 20 other modified
+native files retain their exact bytes. Nothing was pushed or submitted.
+
+## Previous signed fix: 102
 
 | Fix | Repair | Native + WPT commit | Preceding companion |
 | --- | --- | --- | --- |
@@ -18,12 +36,6 @@ Existing selected regressions retain their outcomes, including two expected
 failures. The native commit contains only DOMRect.cpp and its WPT; evidence,
 source review, bounded Lean proof and runtime trials precede it.
 [Acceptance](../css-domrect-edge-precision-commit-v1/ACCEPTANCE.json).
-
-The separate integer-translation candidate is held for a repeatable local
-microbenchmark cost: deep transform-near-root calls take 550 ns versus 400 ns in
-four baseline runs. These headless/coarse-timer results are directional, not a
-browser-wide or CI performance claim. It is not installed or counted.
-[Performance hold](../css-cssom-rectangle-performance-runtime-v1/REPORT.md).
 
 ## Previous signed fixes: 88–101
 
@@ -52,7 +64,7 @@ are in preceding commits. No new build or test results are claimed by signing.
 The sections below retain earlier research checkpoints. Their pending-signing
 statements are historical; use the current count and table above.
 
-## Current flex verification checkpoint
+## Historical flex verification checkpoint
 
 - **Scroll-container baseline provider repair accepted:** ordinary asymmetric
   borders expose a preexisting last-baseline coordinate error in release Firefox.
@@ -2573,7 +2585,7 @@ and reversed in order in a disposable index;48 recipes were checked. Signing
 remains enabled, HEAD is unchanged, and the297 staged files still match their
 original snapshot. Counts remain87 committed/14 accepted pending/six unaccepted.
 
-## Latest local checkpoint
+## Historical local checkpoint
 
 Counts remain **87 committed / 14 accepted pending signing / six unaccepted**.
 Signing retryv13 failed; HEAD and the297-file staged snapshot remain unchanged.

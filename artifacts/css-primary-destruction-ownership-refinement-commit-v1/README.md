@@ -1,0 +1,9 @@
+# Ownership refinement research commit draft
+
+`draft.json` uses the existing commit-item schema with an intentionally unfilled expected-head placeholder. Root must finalize that field and verify its staged roster immediately before committing. No staging, signing, native edit, compiler or browser run was performed here.
+
+The explicit 355-file roster contains the complete sealed producer (35 payloads), canonical/relocated receipt capsule (202), independent review (109), six root seals, and the three root acceptance/verifier records explicitly requested for this recipe. The root records do not have a separate capsule seal: their exact current hashes are recorded in AUDIT.json and source_pins. Every sealed payload and directory roster was authenticated against delivered external pins.
+
+The independent review records 74 producer audits, five semantic falseclaims and seven independent kernel challenges. Root accepted only the selected mathematical ownership refinement and checked both evidence verifiers; it did not claim another root compiler replay. Native capacity/header decoding, hidden owners, installation/transfer completeness, callback lifetime and allocator generations remain open. In particular, cross-role aliasing already contradicts role-correct allocation in a single heap; that mutation tests the standalone separation relation rather than an inhabited bad World. Same-role sharing remains the meaningful global separation witness.
+
+The source capsule includes unchanged inherited modules and source projections, so no completed compiler outputs are prerequisites. The exact Lean executable and installed toolchain remain external trusted inputs. Optional reentrancy work, all traversal recipes, shared ledger/signing metadata and production native/WPT paths are excluded. This draft itself is not included in its commit roster.

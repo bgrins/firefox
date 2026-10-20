@@ -4,6 +4,30 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
+- **Traversal v4 committed as fix 103:** `7309af28e360`.
+  The paired 23-file/74-subtest run repairs both large untransformed-edge failures.
+  The final check without DOMRect fix 102 passes all four own cases and preserves
+  the historical keyed oracle. Independent review closes that dependency gate.
+  Qualified performance acceptance retains the possible deep root-transform cost
+  of about 10 ns/call; no broad no-regression claim follows. The source patch is
+  installed; the current binary predates it. [Acceptance](../css-cssom-exact-traversal-acceptance-v4/REPORT.md).
+- **Signing resumed successfully.** Six research commits precede the standalone
+  native/WPT fix. Exact paths, evidence blobs, signature headers and native parent
+  delta pass verification. The index is empty; all 20 other modified native files
+  are preserved. Nothing was pushed or submitted.
+- **Next: isolate hidden-flex geometry regression.** The local build returns zero
+  dimensions after sibling insertion in 32 of 160 stages; installed Firefox 158
+  passes all 160. The strengthened containing-block measurement-cache key is a
+  source-derived suspect. Compare exact committed sources before attributing the
+  failure; preserve the required key in any final repair. This is not yet a new
+  accepted bug. [Probe comparison](../css-hidden-geometry-probe-v1/COMPARISON.json).
+- **Ownership refinement accepted within its modeled scope.** Canonical and
+  relocated Lean replay pass 74 audits and five semantic rejection controls;
+  independent review adds seven kernel checks. Ordinary-array shape and owner
+  separation suffice to preserve other modeled owners through selected cleanup.
+  A full nested coherent fixture still frees the selected captured cache.
+  Native decoding, installation coverage, callbacks and generation identity remain
+  open. [Independent review](../css-primary-destruction-ownership-refinement-review-v1/REPORT.md).
 - **Translation carrier proof committed:** `63bf6c30eef0`. Nine Lean
   results and six independent checks bound translations for admitted cumulative
   coordinates without a frame-count limit. Corrected fresh replay passes; the
@@ -34,29 +58,34 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
   holding this version. Source/build restoration completed; no integer candidate
   remains installed. [Actual experiment](../css-cssom-exact-traversal-runtime-v2/REPORT.md),
   [independent review](../css-cssom-exact-traversal-runtime-review-v2/REPORT.md).
-- **Traversal v3 source and extraction review passed:** signed research
-  `352634890bf2`. The complete v2 exact domain and old-defined matrix behavior
-  are retained by the reviewed source argument. Extracted replay checks 168 matrix
-  cases and 2,048 finite chains per optimization; seven mutants are rejected.
-  Independent dispatch, SVG-mask, geometry and arithmetic boundary checks pass.
-  No native candidate is installed. Next run the reversible full build and the
-  established 23-file/74-subtest comparison, then six fresh timing processes with
-  longer batches (10 ns/call per 1 ms tick). Browser correctness and performance
-  remain unmeasured for v3. [Review](../css-cssom-exact-traversal-review-v3/REPORT.md).
-- **Selected allocation footprint component accepted by root:** signed research
-  `505bbb00e328`. Fresh Lean replay passes 51 audits and four semantic rejection
-  checks. Selected role-correct deletion preserves primary coherence while a
-  captured cache is freed. This is not an established browser use-after-free.
-  Actual payload decoding, nonempty-array storage, global ownership, intervening
-  callbacks and generation identity remain open. Independent review is in progress;
-  the next source audit traces actual cache capture across reflow callbacks.
-  [Root review](../css-primary-destruction-callback-proof-root-v1/REPORT.md).
+- **Traversal v3 browser correctness passes; transformed cost remains unresolved.**
+  All three builds pass. The 23-file/74-subtest comparison repairs two failures;
+  all four new cases pass and the other 70 outcomes are unchanged. Six fresh
+  timing processes contain 396 batches and 39.6 million measured calls. Ordinary
+  deep-path medians are 310–320 ns against surrounding 310–330 ns baselines;
+  transformed paths retain a modest unresolved cost trend. Fixed phase order,
+  coarse timers and two processes per phase limit interpretation. Source and
+  build are restored. V3 remains unaccepted; the superseding v4 checkpoint is above.
+  [Runtime](../css-cssom-exact-traversal-runtime-v3/REPORT.md),
+  [independent review](../css-cssom-exact-traversal-runtime-review-v3/REPORT.md).
+- **Selected allocation footprint component has root and independent review.**
+  Producer `505bbb00e328` passes 51 Lean audits and four semantic rejections.
+  Four independent kernel witnesses expose representation and global-ownership
+  boundaries. Selected role-correct deletion preserves primary coherence while
+  a captured cache is freed; this does not establish a browser use-after-free.
+  Capture and descriptor source audits found no actual same-owner free during
+  the selected callback interval. A focused replacement audit likewise found
+  no reachable destructor/table-mutation sequence. Payload decoding, global
+  ownership, transitive callbacks and generation identity remain open.
+  [Proof review](../css-primary-destruction-callback-proof-review-v1/REPORT.md),
+  [capture audit](../css-flex-cache-capture-lifetime-audit-v1/REPORT.md),
+  [replacement audit](../css-frame-property-replacement-reentrancy-audit-v1/REPORT.md).
 - **DOMRect precision committed:** `c0e8c7fd1deb` preserves already calculated
   double coordinates. Its four-case WPT passes independently; selected existing
   regressions retain their outcomes. The bounded 26-audit numeric component has
   root and independent review, 53 native/reference cases per optimization mode,
   and 11 complete source bindings. Universal IEEE and full CSSOM claims remain open.
-- **Integer-translation repair held:** correctness witnesses pass, but a deep
+- **Historical v1 integer-translation hold:** correctness witnesses pass, but a deep
   transform-near-root microbenchmark repeatedly rises from 400 to 550 ns per call. The
   next design should carry exact translation through the existing traversal.
   Retain SVG/context/viewport/clipping guards and checked numeric bounds.
@@ -65,7 +94,7 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
   safe-origin F1–F12, allocation F1–F16/F11/F12, provider lifetimes or fragment
   observers. Signed table subtraction remains a separate investigation with
   no accepted native repair or established memory-corruption impact.
-- **102 committed native/WPT fixes; no accepted repairs await signing.** The
+- **103 committed native/WPT fixes; no accepted repair awaits signing.** The
   14-fix queue is complete, including its 34 preceding evidence/proof commits.
   All 48 signatures and exact native parent deltas were checked. See
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md) and
