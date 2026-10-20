@@ -1044,6 +1044,13 @@ impl VariableValue {
         namespaces: Option<&FxHashMap<Prefix, Namespace>>,
         url_data: &UrlExtraData,
     ) -> Result<Self, ParseError> {
+        let state = input.state();
+        if !matches!(
+            input.next_including_whitespace_and_comments(),
+            Ok(Token::WhiteSpace(_))
+        ) {
+            input.reset(&state);
+        }
         let mut references = References::default();
         let mut missing_closing_characters = String::new();
         let mut removed_backslash = false;
@@ -1056,10 +1063,7 @@ impl VariableValue {
             &mut missing_closing_characters,
             &mut removed_backslash,
         )?;
-        let mut css = input
-            .slice_from(start_position)
-            .trim_ascii_start()
-            .to_owned();
+        let mut css = input.slice_from(start_position).to_owned();
         if !missing_closing_characters.is_empty() {
             // Unescaped backslash at EOF in a quoted string is ignored.
             if removed_backslash {
