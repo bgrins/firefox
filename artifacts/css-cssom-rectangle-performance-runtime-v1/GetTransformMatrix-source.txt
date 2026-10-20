@@ -1,0 +1,154 @@
+nsIFrame::GetTransformMatrix(
+    ViewportType aViewportType, RelativeTo aStopAtAncestor,
+    nsIFrame** aOutAncestor, TransformMatrixFlags aFlags) const {
+  MOZ_ASSERT(aOutAncestor, "Need a place to put the ancestor!");
+
+  auto GetPositionMaybeIgnoringScrolling = [aFlags](const nsIFrame* aFrame) {
+    return aFlags.contains(TransformMatrixFlag::IgnoreScrolling)
+               ? aFrame->GetPositionIgnoringScrollingAndSticky()
+               : aFrame->GetPosition();
+  };
+
+  /* If we're transformed, we want to hand back the combination
+   * transform/translate matrix that will apply our current transform, then
+   * shift us to our parent.
+   */
+  const bool isTransformed = IsTransformed();
+  const nsIFrame* zoomedContentRoot = nullptr;
+  if (aStopAtAncestor.mViewportType == ViewportType::Visual) {
+    zoomedContentRoot = ViewportUtils::IsZoomedContentRoot(this);
+    if (zoomedContentRoot) {
+      MOZ_ASSERT(aViewportType != ViewportType::Visual);
+    }
+  }
+
+  if (isTransformed || zoomedContentRoot) {
+    MOZ_ASSERT(GetParent());
+    Matrix4x4Flagged result;
+    int32_t scaleFactor = aFlags.contains(TransformMatrixFlag::InCSSUnits)
+                              ? AppUnitsPerCSSPixel()
+                              : PresContext()->AppUnitsPerDevPixel();
+
+    /* Compute the delta to the parent, which we need because we are converting
+     * coordinates to our parent.
+     */
+    if (isTransformed) {
+      // Note: this converts from Matrix4x4 to Matrix4x4Flagged.
+      result = nsDisplayTransform::GetResultingTransformMatrix(
+          this, nsPoint(), scaleFactor,
+          nsDisplayTransform::INCLUDE_PERSPECTIVE);
+    }
+
+    // The offset from a zoomed content root to its parent (e.g. from
+    // a canvas frame to a scroll frame) is in layout coordinates, so
+    // apply it before applying any layout-to-visual transform.
+    *aOutAncestor = GetParent();
+    nsPoint delta = GetPositionMaybeIgnoringScrolling(this);
+    /* Combine the raw transform with a translation to our parent. */
+    result.PostTranslate(NSAppUnitsToFloatPixels(delta.x, scaleFactor),
+                         NSAppUnitsToFloatPixels(delta.y, scaleFactor), 0.0f);
+
+    if (zoomedContentRoot) {
+      Matrix4x4Flagged layoutToVisual;
+      if (aFlags.contains(TransformMatrixFlag::InCSSUnits)) {
+        layoutToVisual = ViewportUtils::GetVisualToLayoutTransform(
+                             zoomedContentRoot->GetContent())
+                             .Inverse()
+                             .ToUnknownMatrix();
+      } else {
+        layoutToVisual =
+            ViewportUtils::GetVisualToLayoutTransform<LayoutDevicePixel>(
+                zoomedContentRoot->GetContent())
+                .Inverse()
+                .ToUnknownMatrix();
+      }
+      result = result * layoutToVisual;
+    }
+
+    return result;
+  }
+
+  // We are not transformed, so the returned transform is just going to be a
+  // translation up to whatever ancestor we decide to stop at.
+
+  nsPoint crossdocOffset;
+  *aOutAncestor =
+      nsLayoutUtils::GetCrossDocParentFrameInProcess(this, &crossdocOffset);
+
+  /* Otherwise, we're not transformed.  In that case, we'll walk up the frame
+   * tree until we either hit the root frame or something that may be
+   * transformed.  We'll then change coordinates into that frame, since we're
+   * guaranteed that nothing in-between can be transformed.  First, however,
+   * we have to check to see if we have a parent.  If not, we'll set the
+   * outparam to null (indicating that there's nothing left) and will hand back
+   * the identity matrix.
+   */
+  if (!*aOutAncestor) {
+    return Matrix4x4Flagged();
+  }
+
+  /* Keep iterating while the frame can't possibly be transformed. */
+  const nsIFrame* current = this;
+  auto shouldStopAt = [](const nsIFrame* aCurrent, RelativeTo& aStopAtAncestor,
+                         nsIFrame* aOutAncestor, TransformMatrixFlags aFlags) {
+    return aOutAncestor->IsTransformed() ||
+           ((aStopAtAncestor.mViewportType == ViewportType::Visual) &&
+            ViewportUtils::IsZoomedContentRoot(aOutAncestor)) ||
+           (aFlags.contains(
+                TransformMatrixFlag::StopAtStackingContextAndDisplayPort) &&
+            (aOutAncestor->IsStackingContext() ||
+             DisplayPortUtils::FrameHasDisplayPort(aOutAncestor, aCurrent)));
+  };
+
+  // We run the GetOffsetToCrossDoc code here as an optimization, instead of
+  // walking the parent chain here and then asking GetOffsetToCrossDoc to walk
+  // the same parent chain and compute the offset.
+  const int32_t finalAPD = PresContext()->AppUnitsPerDevPixel();
+  // offset accumulates the offset at finalAPD.
+  nsPoint offset = GetPositionMaybeIgnoringScrolling(this);
+
+  int32_t currAPD = (*aOutAncestor)->PresContext()->AppUnitsPerDevPixel();
+  // docOffset accumulates the current offset at currAPD, and then flushes to
+  // offset at finalAPD when the APD changes or we finish.
+  nsPoint docOffset = crossdocOffset;
+  MOZ_ASSERT(crossdocOffset == nsPoint(0, 0) || !GetParent());
+
+  while (*aOutAncestor != aStopAtAncestor.mFrame &&
+         !shouldStopAt(current, aStopAtAncestor, *aOutAncestor, aFlags)) {
+    docOffset += GetPositionMaybeIgnoringScrolling(*aOutAncestor);
+
+    nsIFrame* parent = (*aOutAncestor)->GetParent();
+    if (!parent) {
+      crossdocOffset.x = crossdocOffset.y = 0;
+      parent = nsLayoutUtils::GetCrossDocParentFrameInProcess(*aOutAncestor,
+                                                              &crossdocOffset);
+
+      int32_t newAPD =
+          parent ? parent->PresContext()->AppUnitsPerDevPixel() : currAPD;
+      if (!parent || newAPD != currAPD) {
+        // Convert docOffset to finalAPD and add it to offset.
+        offset += docOffset.ScaleToOtherAppUnits(currAPD, finalAPD);
+        docOffset.x = docOffset.y = 0;
+      }
+      currAPD = newAPD;
+      docOffset += crossdocOffset;
+
+      if (!parent) {
+        break;
+      }
+    }
+
+    current = *aOutAncestor;
+    *aOutAncestor = parent;
+  }
+  offset += docOffset.ScaleToOtherAppUnits(currAPD, finalAPD);
+
+  NS_ASSERTION(*aOutAncestor, "Somehow ended up with a null ancestor...?");
+
+  int32_t scaleFactor = aFlags.contains(TransformMatrixFlag::InCSSUnits)
+                            ? AppUnitsPerCSSPixel()
+                            : PresContext()->AppUnitsPerDevPixel();
+  return Matrix4x4Flagged::Translation2d(
+      NSAppUnitsToFloatPixels(offset.x, scaleFactor),
+      NSAppUnitsToFloatPixels(offset.y, scaleFactor));
+}
