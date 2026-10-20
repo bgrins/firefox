@@ -1,6 +1,6 @@
 {
   "branch": "stylo-bloom-verification-2",
-  "committed_native_fixes": 82,
+  "committed_native_fixes": 85,
   "accepted_pending_native_fixes": 0,
   "previous_committed_fixes": 16,
   "new_queue": [
@@ -1486,6 +1486,95 @@
         "testing/web-platform/tests/css/css-properties-values-api/animation-invalid-inherit-publication.html"
       ],
       "formal_scope": "81 audits (42 new,39 imported),29 source bindings,5 Lean and3 Rust mutants; root and independent v2 replay plus14 independent boundary theorems. Explicit provider/native/scheduler admissions remain."
+    },
+    {
+      "repair": "attr-leading-whitespace-origin",
+      "status": "COMMITTED",
+      "native_commit": "ad608a212bd8d7f77a2f0b9df62df18d33c12b96",
+      "companion_commit": "1d4940ff2211b3a7256999f8090e0f0d61cb8733",
+      "evidence": "artifacts/css-attr-leading-whitespace-root-v1",
+      "independent_review": "artifacts/css-attr-leading-whitespace-review-v1/REPORT.md",
+      "packaging": "artifacts/css-attr-leading-whitespace-root-v1/PACKAGING.json",
+      "native_paths": [
+        "servo/components/style/custom_properties.rs",
+        "testing/web-platform/tests/css/css-values/attr-substitution-leading-whitespace.html"
+      ],
+      "runtime_scope": "Installed Firefox 158 content-process bounds panic, including script-free input. Candidate 26 new WPT PASS; 349 prior outcomes unchanged, including two expected FAIL. Default-profile candidate computes 37px.",
+      "formal_scope": "Root and independent v2 fresh replay:13modules88audits,49nativecases6variants,4compiledmutants,13integritycontrols. Constructed UTF8 origin,reference/fallback scan and output range safety; explicit tokenizer,EOF,provider,machine and callerprotocol admissions. No URL security theorem.",
+      "discovery": "Range-producer source audit while extending formal verification predicted the crash; browser reproduction preceded the new Lean model.",
+      "limits": "No memory-corruption claim. No complete pre-fix execution of the 26-case crash WPT; no isolated upstream build/runtime.",
+      "patch": {
+        "path": "artifacts/css-attr-leading-whitespace-root-v1/head-native-wpt.patch",
+        "sha256": "a6b4518a613357e2eeda6b74f4178ed018836ba9d3531ce45bc5e0b2b6d1676f"
+      },
+      "standalone_patch": {
+        "base": "976279105b2e78b8666a959eb3f25c9176cefaf8",
+        "candidate_tree": "8443dd4b8db78a69a6a4905e000eaef48cbbab42",
+        "paths": [
+          "servo/components/style/custom_properties.rs",
+          "testing/web-platform/tests/css/css-values/attr-substitution-leading-whitespace.html"
+        ],
+        "patch": "artifacts/css-attr-leading-whitespace-root-v1/standalone-native-wpt.patch",
+        "sha256": "a864fb3ce93c599bdff14f31601f5cdc5dbcaf11498a27f9de659cdf7d7a1ba1",
+        "source_sha256": "bd56660887bf3d8b3a51305d7267d2d116ce9d35424be03c498331fbc4ab9494",
+        "exact_apply_reverse": true
+      },
+      "acceptance": {
+        "path": "artifacts/css-attr-leading-whitespace-root-v1/ACCEPTANCE.json",
+        "sha256": "21c11f5aeea5e8eb896a1f7b931551252d0f3bb7859a8636c54966aa1696c75f"
+      }
+    },
+    {
+      "repair": "variable-trailing-whitespace-token-boundary",
+      "status": "COMMITTED",
+      "native_commit": "bccea9c1fffc59e41a9f9bef16fcaf0056ff1f10",
+      "companion_commit": "35c04a32169744c3c75e2dfef9b8d18b673d8b06",
+      "evidence": "artifacts/css-variable-trailing-token-root-v1",
+      "packaging": "artifacts/css-variable-trailing-token-root-v1/PACKAGING.json",
+      "native_paths": [
+        "servo/components/style/custom_properties.rs",
+        "testing/web-platform/tests/css/css-variables/trailing-whitespace-token-boundary.html"
+      ],
+      "runtime_scope": "New 40-case WPT: baseline 28 FAIL / 12 PASS becomes 40 PASS. Wider 415 subtests, 22 harness OK; all 375 prior status/message pairs unchanged. Release and development standalone probes reproduce merging.",
+      "formal_scope": "Root and independent terminal-span v2 acceptance: 37 audits, 10 complete source bindings, five Lean proof mutants, 23 independent challenges and 12 integrity controls. Metadata accumulator and metadata_last component apply under exact outer-suffix trimming/provider premises. The universal complete stored-observation result is bound to the combined8f166d5c snapshot with the later escaped-whitespace repair, not arbitrary standalone84inputs.",
+      "discovery": "Source audit found stored trailing bytes removed without updating token-boundary metadata.",
+      "limits": "Integration commit follows earlier repairs; separate two-file upstream patch excludes those repairs. Source-only standalone applicability; no isolated upstream build/runtime. General serialization remains outside the proof.",
+      "independent_review": "artifacts/css-variable-trailing-token-review-v1/REPORT.md",
+      "acceptance": {
+        "path": "artifacts/css-variable-trailing-token-root-v1/ACCEPTANCE.json",
+        "sha256": "8c401f1c984a800370100da7876db098a08b50bbf4f42286f3b43dddbf151ad7"
+      },
+      "patch": {
+        "path": "artifacts/css-variable-trailing-token-root-v1/integration-native-wpt.patch",
+        "sha256": "d64a318e6f24251952ce60ca0ee23b0f32a2e23e877838e04c593bcf4780954a"
+      },
+      "integration_packaging": "artifacts/css-variable-trailing-token-root-v1/INTEGRATION-PACKAGING.json"
+    },
+    {
+      "repair": "variable-escaped-trailing-whitespace",
+      "status": "COMMITTED",
+      "native_commit": "fff2d758ef6bb39b4465cb072767bc5db6d5e09f",
+      "companion_commit": "3029d557014c83c6ad6260253243700536499176",
+      "evidence": "artifacts/css-variable-escaped-whitespace-root-v1",
+      "packaging": "artifacts/css-variable-escaped-whitespace-root-v1/PACKAGING.json",
+      "native_paths": [
+        "servo/components/style/custom_properties.rs",
+        "testing/web-platform/tests/css/css-variables/trailing-escaped-whitespace.html"
+      ],
+      "runtime_scope": "20-case WPT baseline16FAIL4PASS becomes20PASS;435 total subtests,23OK harnesses,415prior status/message pairs unchanged. Formatting and scoped lint pass.",
+      "formal_scope": "Root and independent terminal-span v2 acceptance: 37 audits, 10 complete source bindings, five Lean proof mutants, 23 independent challenges and 12 integrity controls. Exact raw terminal-span measurement and retained prefix proven under coalesced positive raw-token providers. Leading-overlap supports standalone use without83; metadataobservations of combinedsnapshot also include84. Neither component proves generalserialization or backslashnewline preservation.",
+      "discovery": "Independent review of the earlier trailing-token repair found byte trimming could remove escaped whitespace inside an identifier; browser reproduction preceded formalization.",
+      "limits": "Integration commit follows earlier repairs; separate two-file upstream patch excludes those repairs. Source-only standalone applicability; no isolated upstream build/runtime. General serialization remains outside the proof.",
+      "independent_review": "artifacts/css-variable-escaped-whitespace-review-v1/REPORT.md",
+      "acceptance": {
+        "path": "artifacts/css-variable-escaped-whitespace-root-v1/ACCEPTANCE.json",
+        "sha256": "4c68d97d180a1e191487096660795bac01b2a1cc101f0879390dc15692cbeb4b"
+      },
+      "patch": {
+        "path": "artifacts/css-variable-escaped-whitespace-root-v1/integration-native-wpt.patch",
+        "sha256": "dc1f117f2f0e9e30c4a115965a0a5f020d5a518b2775ebd6e4cc99a14839c8a1"
+      },
+      "integration_packaging": "artifacts/css-variable-escaped-whitespace-root-v1/INTEGRATION-PACKAGING.json"
     }
   ],
   "verification": "Each committed native delta is the accepted patch, checked against its actual parent. Companions preserve the recorded scope and replay prerequisites. No new browser or full-build claims are made by committing.",
@@ -1523,55 +1612,21 @@
   "pending_test_only_repairs": [],
   "unaccepted_candidates": [
     {
-      "repair": "attr-leading-whitespace-origin",
+      "repair": "variable-backslash-newline",
       "status": "NATIVE_WPT_REVIEWED_FORMAL_IN_PROGRESS",
       "native_commit": null,
       "companion_commit": null,
-      "evidence": "artifacts/css-attr-leading-whitespace-root-v1",
-      "independent_review": "artifacts/css-attr-leading-whitespace-review-v1/REPORT.md",
-      "packaging": "artifacts/css-attr-leading-whitespace-root-v1/PACKAGING.json",
+      "evidence": "artifacts/css-variable-backslash-newline-root-v1",
+      "packaging": "artifacts/css-variable-backslash-newline-root-v1/PACKAGING-v2.json",
       "native_paths": [
         "servo/components/style/custom_properties.rs",
-        "testing/web-platform/tests/css/css-values/attr-substitution-leading-whitespace.html"
+        "testing/web-platform/tests/css/css-variables/trailing-backslash-newline.html"
       ],
-      "runtime_scope": "Installed Firefox 158 content-process bounds panic, including script-free input. Candidate 26 new WPT PASS; 349 prior outcomes unchanged, including two expected FAIL. Default-profile candidate computes 37px.",
-      "formal_scope": "Constructor origin, reference range and substitution composition in progress; not accepted.",
-      "discovery": "Range-producer source audit while extending formal verification predicted the crash; browser reproduction preceded the new Lean model.",
-      "limits": "No memory-corruption claim. No complete pre-fix execution of the 26-case crash WPT; no isolated upstream build/runtime."
-    },
-    {
-      "repair": "variable-trailing-whitespace-token-boundary",
-      "status": "NATIVE_WPT_REVIEWED_FORMAL_IN_PROGRESS",
-      "native_commit": null,
-      "companion_commit": null,
-      "evidence": "artifacts/css-variable-trailing-token-root-v1",
-      "packaging": "artifacts/css-variable-trailing-token-root-v1/PACKAGING.json",
-      "native_paths": [
-        "servo/components/style/custom_properties.rs",
-        "testing/web-platform/tests/css/css-variables/trailing-whitespace-token-boundary.html"
-      ],
-      "runtime_scope": "New 40-case WPT: baseline 28 FAIL / 12 PASS becomes 40 PASS. Wider 415 subtests, 22 harness OK; all 375 prior status/message pairs unchanged. Release and development standalone probes reproduce merging.",
-      "formal_scope": "Independent native/WPT/package review passes; separate terminal-span model in progress.",
-      "discovery": "Source audit found stored trailing bytes removed without updating token-boundary metadata.",
-      "limits": "Separately packaged two-file patches exclude the leading-whitespace repair; source-only standalone applicability, no isolated build/runtime.",
-      "independent_review": "artifacts/css-variable-trailing-token-review-v1/REPORT.md"
-    },
-    {
-      "repair": "variable-escaped-trailing-whitespace",
-      "status": "NATIVE_WPT_REVIEWED_FORMAL_IN_PROGRESS",
-      "native_commit": null,
-      "companion_commit": null,
-      "evidence": "artifacts/css-variable-escaped-whitespace-root-v1",
-      "packaging": "artifacts/css-variable-escaped-whitespace-root-v1/PACKAGING.json",
-      "native_paths": [
-        "servo/components/style/custom_properties.rs",
-        "testing/web-platform/tests/css/css-variables/trailing-escaped-whitespace.html"
-      ],
-      "runtime_scope": "20-case WPT baseline16FAIL4PASS becomes20PASS;435 total subtests,23OK harnesses,415prior status/message pairs unchanged. Formatting and scoped lint pass.",
-      "formal_scope": "Independent native/WPT/runtime/package review and root reconciliation pass; terminal-span component in progress with explicit token provider and serialization limitations.",
-      "discovery": "Independent review of the earlier trailing-token repair found byte trimming could remove escaped whitespace inside an identifier; browser reproduction preceded formalization.",
-      "limits": "Separate two-file HEAD/upstream packages exclude both earlier whitespace repairs. No isolated build/runtime. Backslash-delimiter/newline serialization remains a separate unresolved lead.",
-      "independent_review": "artifacts/css-variable-escaped-whitespace-review-v1/REPORT.md"
+      "runtime_scope": "Final 30-case WPT passes; corresponding unchanged baseline subset has 16 FAIL / 14 PASS. The earlier 32-case candidate matrix had 467 checks and 24 OK harnesses, with all 435 prior status/message pairs unchanged including two expected failures. Two unrelated escaped-whitespace controls were removed for standalone applicability. Final scoped WPT lint passes.",
+      "formal_scope": "New preservation decision needs separate formal extension; existing terminal-span model explicitly exhibits this residual counterexample.",
+      "discovery": "Independent source review raised a serialization lead; terminal-span Lean witness shows newline deletion; root browser reproduction demonstrates invalid animation-name becoming an identifier.",
+      "limits": "No release probe or isolated standalone build. Independent native review checks four extracted source variants across 73 cases each. Integrated and standalone preservation decisions correspond under maximal whitespace token premises; full stored output equality is not claimed. The HEAD package base includes fix83; upstream package excludes fixes83\u201385.",
+      "independent_review": "artifacts/css-variable-backslash-newline-review-v1/REPORT.md"
     }
   ]
 }

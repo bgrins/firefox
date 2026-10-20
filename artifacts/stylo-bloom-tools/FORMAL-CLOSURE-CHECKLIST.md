@@ -836,3 +836,29 @@ Actual payload/float/input providers, native representation, lookup freshness,
 publication/uncompute/recascade, downstream URL observations and scheduling
 remain open. Contributor inclusion is conservative, not exact taint. No new bug
 is counted. [Acceptance](../css-animation-segment-provenance-root-v1/ACCEPTANCE.json).
+
+## Variable constructor origin and terminal span — accepted and committed
+
+Fix83 carries the v2 origin capsule: 13 Lean modules, 88 audits, 49 extracted
+native cases across six variants and 13 integrity controls. Root and independent
+fresh replay pass. Constructed UTF-8 origins, reference/fallback bounds and
+successful output ranges are covered under tokenizer, EOF, provider, machine
+and native caller-protocol premises. Direct-return range correspondence requires
+the outer collector's zero origin or an absent nested collector; no general
+nonzero-origin collector or URL-security theorem follows.
+
+Fixes84–85 share the v2 terminal-span capsule: 37 audits, ten complete source
+bindings, five Lean proof mutations, 23 independent kernel challenges and 12
+integrity controls. An independent right-suffix partition characterizes exact
+raw terminal whitespace and metadata. Fix84 uses the metadata component under
+an exact trim-provider premise; fix85 supplies the exact raw-span measurement.
+The combined stored-observation result includes both changes. Token coalescing,
+outer block ownership, EOF completion and native representation remain admitted.
+
+General serialization remains open. The accepted model deliberately exhibits
+backslash/newline deletion; the next extension adds a lexical backslash role
+and proves the preservation decision without conflating immediate and persistent
+flags or claiming full standalone-output equivalence.
+
+[Origin acceptance](../css-variable-origin-proof-root-v1/ROOT-SCOPED-ACCEPTANCE.json).
+[Terminal-span acceptance](../css-variable-terminal-span-proof-root-v1/ROOT-SCOPED-ACCEPTANCE.json).

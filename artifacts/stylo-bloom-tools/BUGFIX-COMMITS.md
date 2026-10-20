@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **82 committed fixes; no accepted repairs await signing.**
+Current checkpoint: **85 committed fixes; no accepted repairs await signing.**
 Repairs with incomplete review are excluded from this count.
 
 [Relative triage priority](../css-bugfix-triage-20261019/README.md) groups the first 80
@@ -13,23 +13,28 @@ native commits by demonstrated crashes, security-boundary review,
 broader correctness and narrower triggers. It records exposure limitations and
 standalone alternatives; the rankings are recommendations, not assigned severity.
 
-Latest fixes: **registered-token-boundaries** (`34e4e755cb81332819e56457f5fb68b9b305c394`) and
-**animation-invalid-publication** (`d63735091bf8dc469d900ddba56e8a43bcac26d7`).
-Both have preceding evidence commits and separate native/WPT commits. The
-registered-animation calibration is a separate test-only commit
-`5cdd697e02d209bff0368711764523f5d26dba30` and does not increase the native-fix count.
-[Commit verification](../css-signing-resume-20261019-v2/ROOT-COMMIT-CHECK.json).
+Latest committed fixes:
 
-### New candidates, not yet counted
-
-| Repair | Demonstrated effect | Current evidence |
+| Fix | Native + WPT | Evidence companion |
 | --- | --- | --- |
-| Attribute leading-whitespace origin | Script-free content-process crash in installed Firefox 158 | 26 new WPT pass; independent native review passes; origin/range proof in progress. [Two-file patch package](../css-attr-leading-whitespace-root-v1/PACKAGING.json). |
-| Variable trailing-whitespace token boundary | Separate tokens merge into a valid dimension, percentage or identifier | 28 failing cases repaired; all 40 new cases pass and 375 prior outcomes are unchanged; independent review passes; terminal-span proof in progress. [Two-file patch package](../css-variable-trailing-token-root-v1/PACKAGING.json). |
-| Escaped trailing whitespace | Trimming deletes escaped space/tab within an identifier | 16 failing cases repaired; all 20 new cases pass and 415 prior outcomes are unchanged. [Two-file patch package](../css-variable-escaped-whitespace-root-v1/PACKAGING.json). |
+| 83: leading-whitespace attribute crash | `ad608a212bd8d7f77a2f0b9df62df18d33c12b96` | `1d4940ff2211b3a7256999f8090e0f0d61cb8733` |
+| 84: trailing-whitespace token boundaries | `bccea9c1fffc59e41a9f9bef16fcaf0056ff1f10` | `35c04a32169744c3c75e2dfef9b8d18b673d8b06` |
+| 85: escaped trailing whitespace | `fff2d758ef6bb39b4465cb072767bc5db6d5e09f` | `3029d557014c83c6ad6260253243700536499176` |
 
-All three candidates have separate native/WPT packages. None has a commit hash or
-an isolated upstream build. Proofs and research will remain in preceding commits.
+Each native commit contains only the Rust fix and its WPT. Independent upstream
+patches remain in each evidence package; no isolated upstream build is claimed.
+[Commit verification](../css-signing-resume-20261019-v3/ROOT-COMMIT-CHECK.json).
+The registered-animation calibration remains a separate test-only commit,
+`5cdd697e02d209bff0368711764523f5d26dba30`, excluded from the native-fix count.
+
+### New candidate, not yet counted
+
+Backslash/newline serialization: trimming the newline after a backslash delimiter
+changes an invalid animation name into an identifier. The final 30 WPT cases pass;
+the corresponding baseline subset has 16 failures and 14 passes. Independent
+native review accepts the repair; a separate Lean extension is in progress.
+[Evidence](../css-variable-backslash-newline-root-v1/FINAL-WPT.json) and
+[review](../css-variable-backslash-newline-review-v1/REPORT.md).
 
 <!-- CURRENT-SIGNED-QUEUE -->
 ## Signed commit queue
@@ -38,6 +43,9 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 
 | Repair | Native + WPT commit | Proof/tooling commit |
 | --- | --- | --- |
+| attr-leading-whitespace-origin | `ad608a212bd8d7f77a2f0b9df62df18d33c12b96` | `1d4940ff2211b3a7256999f8090e0f0d61cb8733` |
+| variable-trailing-whitespace-token-boundary | `bccea9c1fffc59e41a9f9bef16fcaf0056ff1f10` | `35c04a32169744c3c75e2dfef9b8d18b673d8b06` |
+| variable-escaped-trailing-whitespace | `fff2d758ef6bb39b4465cb072767bc5db6d5e09f` | `3029d557014c83c6ad6260253243700536499176` |
 | color-missing | `82b254686378e57711759c238b975cdf4678a287` | `a75f70c97b155b46b3820be79fe4b41e272f7b8d` |
 | color-zero-prefix | `591b3e12567865c7e047530753e510c54d18b3db` | `519f2b2a756969dbba9c45415d2b40506560d94d` |
 | transform-deferred | `c9274972124198e8f8466ddcd667d1c23cb044ec` | `4c401192c6ae79b5a6c3b4328f939d70e2474be2` |
@@ -1953,3 +1961,20 @@ compiled mutants. Parser-event projection, balanced serialization and downstream
 concatenation remain explicit assumptions. The two-file patch has an independently
 applicable upstream alternative, with no isolated upstream runtime claim.
 [Acceptance](../css-registered-token-boundary-final-v1/ACCEPTANCE.json).
+
+## Fixes 83–85: constructor origin and terminal whitespace
+
+Fix83 normalizes the leading token before recording reference offsets. A minimal
+script-free input crashes a content process in installed Firefox 158; the patched
+build passes all 26 new cases. This establishes a bounds panic, not memory
+corruption. The origin proof has 88 audits and four compiled native mutants with
+explicit tokenizer, provider, machine and caller-protocol assumptions.
+
+Fix84 keeps trailing token metadata aligned with stored bytes: 28 failing cases
+become passes and all 40 new cases pass. Fix85 removes only an outer whitespace
+token's exact raw span, preserving escaped space/tab inside identifiers: 16
+failures become passes and all 20 new cases pass. The shared bounded proof has
+37 audits, 23 independent challenges and explicit token/EOF provider premises.
+It does not prove general serialization; the backslash/newline counterexample
+led to the next candidate. The final 435-check run preserves all 415 prior
+outcomes, including two expected failures.

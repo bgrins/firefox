@@ -4,12 +4,13 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **82 committed native/WPT fixes.** The management index is
+- **85 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest fixes:** registered-value token boundaries (`34e4e755cb81`)
-  and guaranteed-invalid animation publication (`d63735091bf8`).
-  Each has a preceding evidence companion and a separate native/WPT commit.
+- **Latest fixes:** leading-whitespace attribute origin (`ad608a212bd8`),
+  trailing-whitespace token metadata (`bccea9c1fffc`) and escaped trailing
+  whitespace (`fff2d758ef6b`). Each has a preceding evidence companion and
+  a separate two-file native/WPT commit.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.
@@ -25,17 +26,18 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
   Root and independent review accept the v2 bounded Lean companion: 81 audits,
   including 42 new results, plus 14 independent boundary challenges. Separate signed
   evidence/native commits are complete.
-- **Three newly reproduced candidates:** a leading-whitespace typed-attribute
-  bounds panic (also script-free on installed Firefox 158), custom-property
-  trailing-whitespace token merging, and escaped space/tab deletion inside
-  identifiers. Each has an independent two-file native/WPT package. The origin
-  repair passes 26 new tests and independent native review. The token-boundary
-  repair changes 28 of 40 cases from failure to pass and passes independent
-  review. The escaped-whitespace repair changes 16 of 20 cases from failure to
-  pass. Its 435-subtest matrix preserves all 415 prior outcomes, including two
-  expected failures; independent native and final evidence review pass.
-  Constructor-origin and terminal-span proofs are in progress. These candidates
-  are not counted as accepted or committed yet.
+- **Whitespace repairs committed:** the leading-origin bounds panic also
+  reproduces without script in installed Firefox 158. Its 26 new tests pass;
+  the accepted origin proof has 88 audits. Trailing token metadata repairs
+  28 failures in a 40-case WPT. Escaped whitespace repairs 16 failures in a
+  20-case WPT. Their shared terminal-span proof has 37 audits and 23 independent
+  challenges. Tokenizer, EOF, native correspondence and caller premises remain
+  explicit; these are bounded components, not complete serialization proofs.
+- **New serialization candidate:** retain required newline whitespace after an
+  actual backslash delimiter. Native review passes; final WPT has 30 passes,
+  against a baseline subset with 16 failures and 14 passes. All 435 preceding
+  outcomes remain unchanged in the earlier combined matrix. The bounded Lean
+  extension is active; this candidate is excluded from the committed count.
 - **Attribute-taint follow-up:** both bounded reviews are complete. Actual
   prohibited local image requests remain established for fix80; no new unknown
   value disclosure was found. Thirty-six calibrated registration observations
@@ -46,11 +48,13 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
   fresh replay and source review, with six model mutants and 50 passing browser
   states. Actual reflow-input/frame ancestry, numeric providers and dynamic
   reconstruction remain open. Completed root compiler outputs were removed.
-- **Parser controls:** seven new compiled results compose represented callbacks,
-  exhaustion checks, whole-input parsing and failed speculation. Twelve fixtures
-  match 52 native/model snapshots in debug and release; two compiled mutants
-  differ in 15 and four snapshots. Independent review passes; standalone proof packaging remains pending. Callback grammar,
-  nested-entry/recovery and whole-program annotation correspondence remain open.
+- **Parser controls:** the earlier seven wrapper results remain accepted.
+  Nested-control v3 now has independent scoped acceptance: 39 audits, 59 modules,
+  18 cases and 91 native/model snapshots in debug and release. Three native
+  mutants differ in 10, 25 and five rows. Root integration review is pending.
+  The revised capsule rejects pre-import shadowing and nonclosed file rosters.
+  Universal callback grammar, native termination, full LinkParameters and
+  whole-program annotation correspondence remain open.
 - The [triage proposal](../css-bugfix-triage-20261019/README.md) groups the first 80
   committed fixes with exposure limits and standalone alternatives. A separate
   registered-animation WPT calibration correction is committed separately;
