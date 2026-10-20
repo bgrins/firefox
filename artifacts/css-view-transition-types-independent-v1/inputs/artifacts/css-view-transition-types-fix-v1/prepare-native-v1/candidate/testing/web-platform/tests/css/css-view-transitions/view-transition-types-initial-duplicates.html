@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Initial view transition types have set semantics</title>
+<link rel="help" href="https://drafts.csswg.org/css-view-transitions-2/#viewtransition-active-types">
+<link rel="help" href="https://drafts.csswg.org/css-view-transitions-2/#the-active-view-transition-type-pseudo">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+for (const initial of [[], ["a"], ["a", "a"], ["a", "b", "a"],
+                      ["b", "a", "a"], ["a", "b", "b"], ["a", "A", "a"]]) {
+  for (const operation of ["delete a", "delete b", "clear"]) {
+    promise_test(async t => {
+      assert_false(document.hidden, "the test document is visible");
+      const transition = document.startViewTransition({types: initial});
+      transition.ready.catch(() => {});
+      t.add_cleanup(async () => {
+        transition.skipTransition();
+        await transition.finished;
+      });
+      assert_equals(document.activeViewTransition, transition, "transition is active");
+      const expected = new Set(initial);
+      assert_array_equals([...transition.types], [...expected], "initial ordered set");
+      for (const name of ["a", "b", "A", "absent"]) {
+        assert_equals(document.documentElement.matches(`:active-view-transition-type(${name})`),
+          expected.has(name), `initial selector membership for ${name}`);
+      }
+      if (operation === "clear") {
+        transition.types.clear();
+        expected.clear();
+      } else {
+        const name = operation.slice(-1);
+        assert_equals(transition.types.delete(name), expected.delete(name), "delete return value");
+      }
+      assert_array_equals([...transition.types], [...expected], "updated ordered set");
+      for (const name of ["a", "b", "A", "absent"]) {
+        assert_equals(transition.types.has(name), expected.has(name), `public membership for ${name}`);
+        assert_equals(document.documentElement.matches(`:active-view-transition-type(${name})`),
+          expected.has(name), `updated selector membership for ${name}`);
+      }
+    }, `${JSON.stringify(initial)} followed by ${operation}`);
+  }
+}
+</script>

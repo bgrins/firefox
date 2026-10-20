@@ -1,0 +1,227 @@
+[
+  {
+    "source": "source/xpcom__ds__nsTHashMap.h",
+    "marker": "struct nsKeyClass<nsAtom*> {",
+    "offset": 832,
+    "bytes": 64,
+    "sha256": "4380974c7c52d2ba425e5b570886dc8634038465e8bf8c7dba83ae27dcba33d6",
+    "complete_text": "struct nsKeyClass<nsAtom*> {\n  using type = nsWeakAtomHashKey;\n}",
+    "name": "atom_key_specialization"
+  },
+  {
+    "source": "source/xpcom__ds__nsAtomHashKeys.h",
+    "marker": "struct nsWeakAtomHashKey : public nsPtrHashKey<nsAtom> {",
+    "offset": 711,
+    "bytes": 193,
+    "sha256": "7ad5bffe46e1238e471097f036a76918eae68ed9936e9a3d422fb92758529cdc",
+    "complete_text": "struct nsWeakAtomHashKey : public nsPtrHashKey<nsAtom> {\n  using nsPtrHashKey::nsPtrHashKey;\n  static PLDHashNumber HashKey(KeyTypePointer aKey) {\n    return nsAtomHashKey::HashKey(aKey);\n  }\n}",
+    "name": "weak_atom_key"
+  },
+  {
+    "source": "source/Document.original.cpp",
+    "marker": "already_AddRefed<ViewTransition> Document::StartViewTransition(",
+    "offset": 685560,
+    "bytes": 1882,
+    "sha256": "76cfa107a1d98c0191273026ccfff04330a515eafe24ebb775c22590f3ecb338",
+    "complete_text": "already_AddRefed<ViewTransition> Document::StartViewTransition(\n    const ViewTransitionUpdateCallbackOrStartViewTransitionOptions& aOptions) {\n  // Steps 1-3\n\n  nsTArray<RefPtr<nsAtom>> types;\n  ViewTransitionUpdateCallback* cb = nullptr;\n  if (aOptions.IsViewTransitionUpdateCallback()) {\n    cb = &aOptions.GetAsViewTransitionUpdateCallback();\n  } else {\n    MOZ_ASSERT(aOptions.IsStartViewTransitionOptions());\n    const auto& options = aOptions.GetAsStartViewTransitionOptions();\n    cb = options.mUpdate.get();\n    if (!options.mTypes.IsNull()) {\n      const auto& optionsTypes = options.mTypes.Value();\n      types.SetCapacity(optionsTypes.Length());\n      for (const auto& type : optionsTypes) {\n        // TODO(emilio): should probably de-duplicate here.\n        types.AppendElement(NS_AtomizeMainThread(type));\n      }\n    }\n  }\n  RefPtr transition = new ViewTransition(*this, cb, std::move(types));\n  if (Hidden()) {\n    // Step 4:\n    //\n    // If document's visibility state is \"hidden\", then skip transition with an\n    // \"InvalidStateError\" DOMException, and return transition.\n    transition->SkipTransition(SkipTransitionReason::DocumentHidden);\n    return transition.forget();\n  }\n  // Step 5:\n  // If document's active view transition is not null, then skip that view\n  // transition with an \"AbortError\" DOMException in this's relevant Realm.\n  MaybeSkipActiveViewTransition(\n      SkipTransitionReason::ClobberedActiveTransition);\n  // Step 6: Set document's active view transition to transition.\n  mActiveViewTransition = transition;\n\n  // Enable :active-view-transition to allow associated styles to\n  // be applied during the view transition.\n  if (auto* root = this->GetRootElement()) {\n    root->AddStates(ElementState::ACTIVE_VIEW_TRANSITION);\n  }\n\n  EnsureViewTransitionOperationsHappen();\n\n  // Step 7: return transition\n  return transition.forget();\n}",
+    "name": "startup_original"
+  },
+  {
+    "source": "source/dom__base__Document.cpp",
+    "marker": "already_AddRefed<ViewTransition> Document::StartViewTransition(",
+    "offset": 685560,
+    "bytes": 1964,
+    "sha256": "aceb08cbfc1c3a14cb7ba1e5e95ca8fd841ab70fcd108cc7aa46e2904b231d5d",
+    "complete_text": "already_AddRefed<ViewTransition> Document::StartViewTransition(\n    const ViewTransitionUpdateCallbackOrStartViewTransitionOptions& aOptions) {\n  // Steps 1-3\n\n  nsTArray<RefPtr<nsAtom>> types;\n  ViewTransitionUpdateCallback* cb = nullptr;\n  if (aOptions.IsViewTransitionUpdateCallback()) {\n    cb = &aOptions.GetAsViewTransitionUpdateCallback();\n  } else {\n    MOZ_ASSERT(aOptions.IsStartViewTransitionOptions());\n    const auto& options = aOptions.GetAsStartViewTransitionOptions();\n    cb = options.mUpdate.get();\n    if (!options.mTypes.IsNull()) {\n      const auto& optionsTypes = options.mTypes.Value();\n      types.SetCapacity(optionsTypes.Length());\n      nsTHashSet<nsAtom*> seenTypes;\n      for (const auto& type : optionsTypes) {\n        RefPtr<nsAtom> atom = NS_AtomizeMainThread(type);\n        if (seenTypes.EnsureInserted(atom)) {\n          types.AppendElement(std::move(atom));\n        }\n      }\n    }\n  }\n  RefPtr transition = new ViewTransition(*this, cb, std::move(types));\n  if (Hidden()) {\n    // Step 4:\n    //\n    // If document's visibility state is \"hidden\", then skip transition with an\n    // \"InvalidStateError\" DOMException, and return transition.\n    transition->SkipTransition(SkipTransitionReason::DocumentHidden);\n    return transition.forget();\n  }\n  // Step 5:\n  // If document's active view transition is not null, then skip that view\n  // transition with an \"AbortError\" DOMException in this's relevant Realm.\n  MaybeSkipActiveViewTransition(\n      SkipTransitionReason::ClobberedActiveTransition);\n  // Step 6: Set document's active view transition to transition.\n  mActiveViewTransition = transition;\n\n  // Enable :active-view-transition to allow associated styles to\n  // be applied during the view transition.\n  if (auto* root = this->GetRootElement()) {\n    root->AddStates(ElementState::ACTIVE_VIEW_TRANSITION);\n  }\n\n  EnsureViewTransitionOperationsHappen();\n\n  // Step 7: return transition\n  return transition.forget();\n}",
+    "name": "startup"
+  },
+  {
+    "source": "source/dom__view-transitions__ViewTransition.cpp",
+    "marker": "ViewTransition::ViewTransition(Document& aDoc,",
+    "offset": 10252,
+    "bytes": 246,
+    "sha256": "e384baa3b9972d489d6b3a81f6b9a2b65e724e1ae1eb2ae88cf493abc2be0a0a",
+    "complete_text": "ViewTransition::ViewTransition(Document& aDoc,\n                               ViewTransitionUpdateCallback* aCb,\n                               TypeList&& aTypeList)\n    : mDocument(&aDoc), mUpdateCallback(aCb), mTypeList(std::move(aTypeList)) {}",
+    "name": "constructor"
+  },
+  {
+    "source": "source/dom__view-transitions__ViewTransition.cpp",
+    "marker": "ViewTransitionTypeSet* ViewTransition::Types()",
+    "offset": 83404,
+    "bytes": 304,
+    "sha256": "b3c5ebf368295cbae3964a7360f0ddacfb8202af88cfd4ab0b632f75dcec53a6",
+    "complete_text": "ViewTransitionTypeSet* ViewTransition::Types() {\n  if (!mTypes) {\n    mTypes = new ViewTransitionTypeSet(*this);\n    for (const auto& type : mTypeList) {\n      ViewTransitionTypeSet_Binding::SetlikeHelpers::Add(\n          mTypes, nsDependentAtomString(type), IgnoreErrors());\n    }\n  }\n  return mTypes;\n}",
+    "name": "types"
+  },
+  {
+    "source": "source/dom__view-transitions__ViewTransitionTypeSet.cpp",
+    "marker": "ViewTransitionTypeSet* ViewTransitionTypeSet::Add(",
+    "offset": 1110,
+    "bytes": 496,
+    "sha256": "9616e139ac774c2e686d283814bcfa89d9198687cf5cc115e45c8f283f28462c",
+    "complete_text": "ViewTransitionTypeSet* ViewTransitionTypeSet::Add(const nsAString& aValue,\n                                                  ErrorResult& aRv) {\n  if (SetlikeHelpers::Has(this, aValue, aRv) || aRv.Failed()) {\n    return this;\n  }\n  SetlikeHelpers::Add(this, aValue, aRv);\n  if (aRv.Failed()) {\n    return this;\n  }\n  RefPtr atom = NS_AtomizeMainThread(aValue);\n  MOZ_ASSERT(!mTransition->GetTypeList().Contains(atom));\n  mTransition->GetTypeList().AppendElement(std::move(atom));\n  return this;\n}",
+    "name": "add"
+  },
+  {
+    "source": "source/dom__view-transitions__ViewTransitionTypeSet.cpp",
+    "marker": "void ViewTransitionTypeSet::Clear(",
+    "offset": 1607,
+    "bytes": 167,
+    "sha256": "689bb819ea3ef7128fae9e5bf1bd44621f250707f3ac1d64cefa362f53360967",
+    "complete_text": "void ViewTransitionTypeSet::Clear(ErrorResult& aRv) {\n  SetlikeHelpers::Clear(this, aRv);\n  if (aRv.Failed()) {\n    return;\n  }\n  mTransition->GetTypeList().Clear();\n}",
+    "name": "clear"
+  },
+  {
+    "source": "source/dom__view-transitions__ViewTransitionTypeSet.cpp",
+    "marker": "bool ViewTransitionTypeSet::Delete(",
+    "offset": 1775,
+    "bytes": 339,
+    "sha256": "8e0928ad2bd4ec685f177002034a97763d0aa06832cbe31ffa1d77273fc7c6c5",
+    "complete_text": "bool ViewTransitionTypeSet::Delete(const nsAString& aValue, ErrorResult& aRv) {\n  if (!SetlikeHelpers::Delete(this, aValue, aRv) || aRv.Failed()) {\n    return false;\n  }\n  RefPtr atom = NS_AtomizeMainThread(aValue);\n  MOZ_ASSERT(mTransition->GetTypeList().Contains(atom));\n  mTransition->GetTypeList().RemoveElement(atom);\n  return true;\n}",
+    "name": "delete"
+  },
+  {
+    "source": "source/objdir-full.noindex__dom__bindings__ViewTransitionBinding.cpp",
+    "marker": "namespace SetlikeHelpers {",
+    "offset": 20331,
+    "bytes": 6335,
+    "sha256": "9c5ed9775c8ca5c6cfd8c7887ddbebccdd6d2f9f9136dda8e49844f94a3990f9",
+    "complete_text": "namespace SetlikeHelpers {\nvoid\nClear(mozilla::dom::ViewTransitionTypeSet* self, ErrorResult& aRv)\n{\n  MOZ_ASSERT(self);\n  AutoJSAPI jsapi;\n  jsapi.Init();\n  JSContext* cx = jsapi.cx();\n  // It's safe to use UnprivilegedJunkScopeOrWorkerGlobal here because\n  // all we want is to wrap into _some_ scope and then unwrap to find\n  // the reflector, and wrapping has no side-effects.\n  JSObject* scope = UnprivilegedJunkScopeOrWorkerGlobal(fallible);\n  if (!scope) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  JSAutoRealm tempRealm(cx, scope);\n  JS::Rooted<JS::Value> v(cx);\n  if(!ToJSValue(cx, self, &v)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  // This is a reflector, but due to trying to name things\n  // similarly across method generators, it's called obj here.\n  JS::Rooted<JSObject*> obj(cx);\n  obj = js::UncheckedUnwrap(&v.toObject(), /* stopAtWindowProxy = */ false);\n  JSAutoRealm reflectorRealm(cx, obj);\n\n  JS::Rooted<JSObject*> backingObj(cx);\n  bool created = false;\n  if (!GetSetlikeBackingObject(cx, obj, (DOM_INSTANCE_RESERVED_SLOTS + 0), &backingObj, &created)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  if (created) {\n    PreserveWrapper<mozilla::dom::ViewTransitionTypeSet>(self);\n  }\n  if (!JS::SetClear(cx, backingObj)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n}\nbool\nDelete(mozilla::dom::ViewTransitionTypeSet* self, const nsAString& aKey, ErrorResult& aRv)\n{\n  MOZ_ASSERT(self);\n  AutoJSAPI jsapi;\n  jsapi.Init();\n  JSContext* cx = jsapi.cx();\n  // It's safe to use UnprivilegedJunkScopeOrWorkerGlobal here because\n  // all we want is to wrap into _some_ scope and then unwrap to find\n  // the reflector, and wrapping has no side-effects.\n  JSObject* scope = UnprivilegedJunkScopeOrWorkerGlobal(fallible);\n  if (!scope) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  JSAutoRealm tempRealm(cx, scope);\n  JS::Rooted<JS::Value> v(cx);\n  if(!ToJSValue(cx, self, &v)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  // This is a reflector, but due to trying to name things\n  // similarly across method generators, it's called obj here.\n  JS::Rooted<JSObject*> obj(cx);\n  obj = js::UncheckedUnwrap(&v.toObject(), /* stopAtWindowProxy = */ false);\n  JSAutoRealm reflectorRealm(cx, obj);\n  JS::RootedVector<JS::Value> argv(cx);\n  if (!argv.resize(1)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  do {\n    if (!xpc::NonVoidStringToJsval(cx, aKey, argv[0])) {\n      aRv.Throw(NS_ERROR_UNEXPECTED);\n      return bool(0);\n    }\n    break;\n  } while (false);\n\n  JS::Rooted<JSObject*> backingObj(cx);\n  bool created = false;\n  if (!GetSetlikeBackingObject(cx, obj, (DOM_INSTANCE_RESERVED_SLOTS + 0), &backingObj, &created)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  if (created) {\n    PreserveWrapper<mozilla::dom::ViewTransitionTypeSet>(self);\n  }\n  bool retVal;\n  if (!JS::SetDelete(cx, backingObj, argv[0], &retVal)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  return retVal;\n}\nbool\nHas(mozilla::dom::ViewTransitionTypeSet* self, const nsAString& aKey, ErrorResult& aRv)\n{\n  MOZ_ASSERT(self);\n  AutoJSAPI jsapi;\n  jsapi.Init();\n  JSContext* cx = jsapi.cx();\n  // It's safe to use UnprivilegedJunkScopeOrWorkerGlobal here because\n  // all we want is to wrap into _some_ scope and then unwrap to find\n  // the reflector, and wrapping has no side-effects.\n  JSObject* scope = UnprivilegedJunkScopeOrWorkerGlobal(fallible);\n  if (!scope) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  JSAutoRealm tempRealm(cx, scope);\n  JS::Rooted<JS::Value> v(cx);\n  if(!ToJSValue(cx, self, &v)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  // This is a reflector, but due to trying to name things\n  // similarly across method generators, it's called obj here.\n  JS::Rooted<JSObject*> obj(cx);\n  obj = js::UncheckedUnwrap(&v.toObject(), /* stopAtWindowProxy = */ false);\n  JSAutoRealm reflectorRealm(cx, obj);\n  JS::RootedVector<JS::Value> argv(cx);\n  if (!argv.resize(1)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  do {\n    if (!xpc::NonVoidStringToJsval(cx, aKey, argv[0])) {\n      aRv.Throw(NS_ERROR_UNEXPECTED);\n      return bool(0);\n    }\n    break;\n  } while (false);\n\n  JS::Rooted<JSObject*> backingObj(cx);\n  bool created = false;\n  if (!GetSetlikeBackingObject(cx, obj, (DOM_INSTANCE_RESERVED_SLOTS + 0), &backingObj, &created)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  if (created) {\n    PreserveWrapper<mozilla::dom::ViewTransitionTypeSet>(self);\n  }\n  bool retVal;\n  if (!JS::SetHas(cx, backingObj, argv[0], &retVal)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return bool(0);\n  }\n  return retVal;\n}\nvoid\nAdd(mozilla::dom::ViewTransitionTypeSet* self, const nsAString& aKey, ErrorResult& aRv)\n{\n  MOZ_ASSERT(self);\n  AutoJSAPI jsapi;\n  jsapi.Init();\n  JSContext* cx = jsapi.cx();\n  // It's safe to use UnprivilegedJunkScopeOrWorkerGlobal here because\n  // all we want is to wrap into _some_ scope and then unwrap to find\n  // the reflector, and wrapping has no side-effects.\n  JSObject* scope = UnprivilegedJunkScopeOrWorkerGlobal(fallible);\n  if (!scope) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  JSAutoRealm tempRealm(cx, scope);\n  JS::Rooted<JS::Value> v(cx);\n  if(!ToJSValue(cx, self, &v)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  // This is a reflector, but due to trying to name things\n  // similarly across method generators, it's called obj here.\n  JS::Rooted<JSObject*> obj(cx);\n  obj = js::UncheckedUnwrap(&v.toObject(), /* stopAtWindowProxy = */ false);\n  JSAutoRealm reflectorRealm(cx, obj);\n  JS::RootedVector<JS::Value> argv(cx);\n  if (!argv.resize(1)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  do {\n    if (!xpc::NonVoidStringToJsval(cx, aKey, argv[0])) {\n      aRv.Throw(NS_ERROR_UNEXPECTED);\n      return;\n    }\n    break;\n  } while (false);\n\n  JS::Rooted<JSObject*> backingObj(cx);\n  bool created = false;\n  if (!GetSetlikeBackingObject(cx, obj, (DOM_INSTANCE_RESERVED_SLOTS + 0), &backingObj, &created)) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n  if (created) {\n    PreserveWrapper<mozilla::dom::ViewTransitionTypeSet>(self);\n  }\n  if (!JS::SetAdd(cx, backingObj, argv[0])) {\n    aRv.Throw(NS_ERROR_UNEXPECTED);\n    return;\n  }\n}\n}",
+    "name": "generated_helpers"
+  },
+  {
+    "source": "source/layout__style__GeckoBindings.cpp",
+    "marker": "bool Gecko_HasActiveViewTransitionTypes(",
+    "offset": 29327,
+    "bytes": 763,
+    "sha256": "457bac3171c8592a77f6ff32cc906002384349abe667cd7732c925f556d9fcb8",
+    "complete_text": "bool Gecko_HasActiveViewTransitionTypes(\n    const mozilla::dom::Document* aDoc,\n    const nsTArray<StyleCustomIdent>* aNames) {\n  MOZ_ASSERT(aDoc);\n  MOZ_ASSERT(aNames);\n  const ViewTransition* vt = aDoc->GetActiveViewTransition();\n  if (!vt) {\n    return false;\n  }\n  const auto& typeList = vt->GetTypeList();\n  if (typeList.IsEmpty()) {\n    return false;\n  }\n  for (const auto& name : *aNames) {\n    if (typeList.Contains(name.AsAtom())) {\n      // NOTE(emilio): This IsValidViewTransitionType() check is not in the spec\n      // and is rather weird, but matches other browsers for now, see:\n      // https://github.com/w3c/csswg-drafts/issues/13141\n      if (IsValidViewTransitionType(name.AsAtom())) {\n        return true;\n      }\n    }\n  }\n  return false;\n}",
+    "name": "selector_bridge"
+  },
+  {
+    "source": "source/layout__style__GeckoBindings.cpp",
+    "marker": "static bool IsValidViewTransitionType(",
+    "offset": 29075,
+    "bytes": 250,
+    "sha256": "82406fdd199c310fa5734c3d6b3629b6c540805a4681b4166e25e6d30e4ade42",
+    "complete_text": "static bool IsValidViewTransitionType(nsAtom* aName) {\n  nsDependentAtomString str(aName);\n  return !StringBeginsWith(str, u\"-ua-\"_ns,\n                           nsASCIICaseInsensitiveStringComparator) &&\n         !str.LowerCaseEqualsASCII(\"none\");\n}",
+    "name": "selector_validity"
+  },
+  {
+    "source": "source/servo__components__style__gecko__wrapper.rs",
+    "marker": "NonTSPseudoClass::ActiveViewTransitionType(ref types) => {",
+    "offset": 70586,
+    "bytes": 382,
+    "sha256": "5042dbea20c97961561b3c57c2308bbf4fc592c87098e7525273ce0640110eb4",
+    "complete_text": "NonTSPseudoClass::ActiveViewTransitionType(ref types) => {\n                self.state().intersects(pseudo_class.state_flag())\n                    && unsafe {\n                        bindings::Gecko_HasActiveViewTransitionTypes(\n                            self.as_node().owner_doc().0,\n                            types,\n                        )\n                    }\n            }",
+    "name": "selector_branch"
+  },
+  {
+    "source": "source/servo__components__style__gecko__selector_parser.rs",
+    "marker": "    pub fn state_flag(&self) -> ElementState {",
+    "offset": 10196,
+    "bytes": 1004,
+    "sha256": "ecc02510b261cff0fbb7ef78bb8934913e1de3439c68b9d48b4d72b5ac20fbd6",
+    "complete_text": "    pub fn state_flag(&self) -> ElementState {\n        macro_rules! flag {\n            (_) => {\n                ElementState::empty()\n            };\n            ($state:ident) => {\n                ElementState::$state\n            };\n        }\n        macro_rules! pseudo_class_state {\n            ([$(($css:expr, $name:ident, $state:tt, $flags:tt),)*]) => {\n                match *self {\n                    $(NonTSPseudoClass::$name => flag!($state),)*\n                    NonTSPseudoClass::Dir(ref dir) => dir.element_state(),\n                    NonTSPseudoClass::Heading(..) => ElementState::HEADING_LEVEL_BITS,\n                    NonTSPseudoClass::ActiveViewTransitionType(..) => ElementState::ACTIVE_VIEW_TRANSITION,\n                    NonTSPseudoClass::MozLocaleDir(..) |\n                    NonTSPseudoClass::CustomState(..) |\n                    NonTSPseudoClass::Lang(..) => ElementState::empty(),\n                }\n            }\n        }\n        apply_non_ts_list!(pseudo_class_state)\n    }",
+    "name": "selector_state"
+  },
+  {
+    "source": "source/xpcom__ds__nsTHashSet.h",
+    "marker": "  bool EnsureInserted(ValueType aValue) {",
+    "offset": 3592,
+    "bytes": 80,
+    "sha256": "388859715899da85c87431e51d05580ee6114c4ed866a0fc25b66cd4c6736fd3",
+    "complete_text": "  bool EnsureInserted(ValueType aValue) { return Base::EnsureInserted(aValue); }",
+    "name": "hashset_insert"
+  },
+  {
+    "source": "source/xpcom__ds__nsTHashtable.h",
+    "marker": "  [[nodiscard]] bool EnsureInserted(KeyType aKey,",
+    "offset": 11829,
+    "bytes": 268,
+    "sha256": "2542db0fe61333f9f3394bd7bb665497f3a02581124cfcd6f4a3f821cd55cb5c",
+    "complete_text": "  [[nodiscard]] bool EnsureInserted(KeyType aKey,\n                                    EntryType** aEntry = nullptr) {\n    auto oldCount = Count();\n    EntryType* entry = PutEntry(aKey);\n    if (aEntry) {\n      *aEntry = entry;\n    }\n    return oldCount != Count();\n  }",
+    "name": "hash_count_insert"
+  },
+  {
+    "source": "source/xpcom__ds__nsPointerHashKeys.h",
+    "marker": "  bool KeyEquals(KeyTypePointer aKey) const {",
+    "offset": 861,
+    "bytes": 68,
+    "sha256": "9f0d19492d59ddf35e180cc5d2ac7ed3733cb4374d6b4343d7752673d6d862c0",
+    "complete_text": "  bool KeyEquals(KeyTypePointer aKey) const { return aKey == mKey; }",
+    "name": "pointer_equals"
+  },
+  {
+    "source": "source/xpcom__ds__nsAtom.h",
+    "marker": "  bool Equals(char16ptr_t aString, uint32_t aLength) const {",
+    "offset": 2051,
+    "bytes": 176,
+    "sha256": "c761e8c46d35c0cff12c5b17037d1e433ad82e09b6c0d4b63e8bb13a5f1fe268",
+    "complete_text": "  bool Equals(char16ptr_t aString, uint32_t aLength) const {\n    return mLength == aLength &&\n           memcmp(GetUTF16String(), aString, mLength * sizeof(char16_t)) == 0;\n  }",
+    "name": "atom_equals"
+  },
+  {
+    "source": "source/xpcom__ds__nsAtomTable.cpp",
+    "marker": "  bool Equals(const nsAtom* aAtom) const {",
+    "offset": 5611,
+    "bytes": 286,
+    "sha256": "fbf335a8a4cd0bfd6f096f5b565054590ed2de44567da29b405483b7dae662e0",
+    "complete_text": "  bool Equals(const nsAtom* aAtom) const {\n    if (mUTF8String) {\n      return CompareUTF8toUTF16(\n                 nsDependentCSubstring(mUTF8String, mUTF8String + mLength),\n                 nsDependentAtomString(aAtom)) == 0;\n    }\n    return aAtom->Equals(mUTF16String, mLength);\n  }",
+    "name": "atom_key_equals"
+  },
+  {
+    "source": "source/xpcom__ds__nsAtomTable.cpp",
+    "marker": "already_AddRefed<nsAtom> nsAtomTable::GetOrInsert(const nsAString& aUTF16String,",
+    "offset": 26744,
+    "bytes": 615,
+    "sha256": "ffef483f60e4db08113b32c552426737f2ee30244f3e6aeea0799a9aa0b2eee1",
+    "complete_text": "already_AddRefed<nsAtom> nsAtomTable::GetOrInsert(const nsAString& aUTF16String,\n                                                  AtomTableKey& aKey) {\n  nsAtomSubTable& table = SelectSubTable(aKey);\n  {\n    AutoReadLock lock(table.mLock);\n    if (AtomTableEntry* he = table.Search(aKey)) {\n      return do_AddRef(he->mAtom);\n    }\n  }\n\n  AutoWriteLock lock(table.mLock);\n  AtomTableEntry* he = table.Add(aKey);\n  if (he->mAtom) {\n    return do_AddRef(he->mAtom);\n  }\n  RefPtr<nsAtom> newAtom =\n      dont_AddRef(nsDynamicAtom::Create(aUTF16String, aKey.mHash));\n  he->mAtom = newAtom;\n  return newAtom.forget();\n}",
+    "name": "atom_lookup_insert"
+  },
+  {
+    "source": "source/xpcom__ds__nsAtomTable.cpp",
+    "marker": "already_AddRefed<nsAtom> nsAtomTable::AtomizeMainThread(\n    const nsAString& aUTF16String)",
+    "offset": 27361,
+    "bytes": 792,
+    "sha256": "9c570eaa088d8b24d88aef5c4c91d1f31aecec7526174f0c409fa406c0aa02a2",
+    "complete_text": "already_AddRefed<nsAtom> nsAtomTable::AtomizeMainThread(\n    const nsAString& aUTF16String) {\n  MOZ_ASSERT(NS_IsMainThread());\n\n  size_t length = aUTF16String.Length();\n  const char16_t* str = aUTF16String.Data();\n\n  if (auto sig = ShortAtomCache::TryMakeSignature(str, length)) {\n    if (nsAtom* cached = sShortAtomCache.Lookup(sig)) {\n      return do_AddRef(cached);\n    }\n    AtomTableKey key(str, length);\n    RefPtr<nsAtom> retVal = GetOrInsert(aUTF16String, key);\n    sShortAtomCache.Put(sig, retVal);\n    return retVal.forget();\n  }\n\n  AtomTableKey key(str, length);\n  RefPtr<nsAtom> retVal;\n  auto p = sRecentlyUsedMainThreadAtoms.Lookup(key);\n  if (p) {\n    retVal = p.Data();\n  } else {\n    retVal = GetOrInsert(aUTF16String, key);\n    p.Set(retVal);\n  }\n  return retVal.forget();\n}",
+    "name": "atom_main_thread"
+  },
+  {
+    "source": "source/xpcom__ds__nsAtomTable.cpp",
+    "marker": "already_AddRefed<nsAtom> NS_AtomizeMainThread(const nsAString& aUTF16String)",
+    "offset": 28155,
+    "bytes": 160,
+    "sha256": "387eead2eb296539f72a3d4659ba84f70a899c8b5ff10d906d75c1349bfcef29",
+    "complete_text": "already_AddRefed<nsAtom> NS_AtomizeMainThread(const nsAString& aUTF16String) {\n  MOZ_ASSERT(gAtomTable);\n  return gAtomTable->AtomizeMainThread(aUTF16String);\n}",
+    "name": "atom_entry"
+  },
+  {
+    "source": "source/xpcom__ds__nsTArray.h",
+    "marker": "  [[nodiscard]] index_type IndexOf(const Item& aItem, index_type aStart,",
+    "offset": 43028,
+    "bytes": 443,
+    "sha256": "8efedb87846be871f3063d39faec930634254620cf5ec438e2be8c5e2a00be5a",
+    "complete_text": "  [[nodiscard]] index_type IndexOf(const Item& aItem, index_type aStart,\n                                   const Comparator& aComp) const {\n    ::detail::CompareWrapper comp(aComp);\n\n    const value_type* iter = Elements() + aStart;\n    const value_type* iend = Elements() + Length();\n    for (; iter != iend; ++iter) {\n      if (comp.Equals(*iter, aItem)) {\n        return index_type(iter - Elements());\n      }\n    }\n    return NoIndex;\n  }",
+    "name": "array_index"
+  },
+  {
+    "source": "source/xpcom__ds__nsTArray.h",
+    "marker": "  bool RemoveElement(const Item& aItem, const Comparator& aComp) {",
+    "offset": 68892,
+    "bytes": 216,
+    "sha256": "5e61363cf1036a3480715770c195ac5c096393bc4d55934f03f45b70fca8fbb7",
+    "complete_text": "  bool RemoveElement(const Item& aItem, const Comparator& aComp) {\n    index_type i = IndexOf(aItem, 0, aComp);\n    if (i == NoIndex) {\n      return false;\n    }\n    RemoveElementsAtUnsafe(i, 1);\n    return true;\n  }",
+    "name": "array_remove"
+  },
+  {
+    "source": "source/xpcom__ds__nsTArray.h",
+    "marker": "  bool RemoveElement(const Item& aItem) {",
+    "offset": 69256,
+    "bytes": 119,
+    "sha256": "10f06481294f858502a24618c4120c2cc06e456c1f10d803b0f5fc8ed642abaa",
+    "complete_text": "  bool RemoveElement(const Item& aItem) {\n    return RemoveElement(aItem, nsDefaultComparator<value_type, Item>());\n  }",
+    "name": "array_remove_default"
+  }
+]
