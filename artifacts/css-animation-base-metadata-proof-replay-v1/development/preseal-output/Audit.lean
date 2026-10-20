@@ -1,0 +1,24 @@
+import BaseWitnesses
+#print axioms BaseMetadata.entry_decomposition
+#print axioms BaseMetadata.scan_decomposition
+#print axioms BaseMetadata.old_change_preserved
+#print axioms BaseMetadata.exact_added_decision
+#print axioms BaseMetadata.changed_iff_entry
+#print axioms BaseMetadata.unchanged_selected_metadata
+#print axioms BaseMetadata.ordinary_entry_unchanged
+#print axioms BaseMetadata.absent_old_detected
+#print axioms BaseMetadata.null_pair_unchanged
+#print axioms BaseMetadata.depends_only_on_new_keys
+#print axioms BaseMetadata.no_target_no_flag
+#print axioms BaseMetadata.comparison_disabled_no_flag
+#print axioms BaseMetadata.restyle_decision
+#print axioms BaseMetadata.scheduled_sample
+#print axioms BaseMetadata.unnotified_retains_sample
+#print axioms BaseMetadata.base_published_even_without_notification
+#print axioms BaseMetadata.selected_sample_metadata_after_request
+#print axioms BaseMetadata.both_metadata_directions_detected
+#print axioms BaseMetadata.original_retains_stale_sample_but_publishes_base
+#print axioms BaseMetadata.repaired_notifies_and_resamples
+#print axioms BaseMetadata.forced_tick_masks_missing_notification
+#print axioms BaseMetadata.removed_only_old_key_is_not_detected
+#print axioms BaseMetadata.missing_null_and_guaranteed_invalid_are_distinguished

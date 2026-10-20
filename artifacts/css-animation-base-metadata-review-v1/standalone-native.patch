@@ -1,0 +1,50 @@
+--- a/dom/animation/KeyframeEffect.cpp
++++ b/dom/animation/KeyframeEffect.cpp
+@@ -541,8 +541,14 @@
+   if (aBaseStylesChanged != nullptr &&
+       std::any_of(
+           mBaseValues.cbegin(), mBaseValues.cend(), [&](const auto& entry) {
+-            return AnimationValue(entry.GetData()) !=
+-                   AnimationValue(previousBaseStyles.Get(entry.GetKey()));
++            const AnimationValue value(entry.GetData());
++            const AnimationValue previous(
++                previousBaseStyles.Get(entry.GetKey()));
++            return value != previous ||
++                   (entry.GetKey().IsCustom() && value.mServo &&
++                    previous.mServo &&
++                    Servo_AnimationValue_IsAttrTainted(value.mServo) !=
++                        Servo_AnimationValue_IsAttrTainted(previous.mServo));
+           })) {
+     *aBaseStylesChanged = true;
+   }
+--- a/servo/components/style/properties_and_values/value.rs
++++ b/servo/components/style/properties_and_values/value.rs
+@@ -763,6 +763,11 @@
+         })
+     }
+ 
++    /// Whether the computed endpoint is attribute-tainted.
++    pub fn is_attr_tainted(&self) -> bool {
++        self.value.as_ref().is_some_and(|value| value.attr_tainted)
++    }
++
+     pub(crate) fn to_declaration(&self) -> properties::PropertyDeclaration {
+         properties::PropertyDeclaration::Custom(properties::CustomDeclaration {
+             name: self.name.clone(),
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -987,6 +987,14 @@
+ }
+ 
+ #[unsafe(no_mangle)]
++pub extern "C" fn Servo_AnimationValue_IsAttrTainted(value: &AnimationValue) -> bool {
++    match value {
++        AnimationValue::Custom(value) => value.is_attr_tainted(),
++        _ => false,
++    }
++}
++
++#[unsafe(no_mangle)]
+ pub extern "C" fn Servo_AnimationValue_Uncompute(
+     value: &AnimationValue,
+ ) -> Strong<LockedDeclarationBlock> {

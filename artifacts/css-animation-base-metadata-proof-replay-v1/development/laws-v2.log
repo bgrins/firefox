@@ -1,0 +1,81 @@
+artifacts/css-animation-base-metadata-proof-v1/lean/BaseLaws.lean:9:76: error: unsolved goals
+case none.none
+P K : Type
+cmp : P → P → Bool
+custom : K → Bool
+old : Lookup K P
+key : K
+⊢ (match none, old key with
+    | none, none => true
+    | some a, some b => TaintShortcut.payloadSame cmp a b
+    | x, x_1 => false) =
+    true
+
+case none.some
+P K : Type
+cmp : P → P → Bool
+custom : K → Bool
+old : Lookup K P
+key : K
+val✝ : Option (TaintShortcut.Value P)
+⊢ (match none, old key with
+    | none, none => true
+    | some a, some b => TaintShortcut.payloadSame cmp a b
+    | x, x_1 => false) =
+    false
+
+case some.none
+P K : Type
+cmp : P → P → Bool
+custom : K → Bool
+old : Lookup K P
+key : K
+val✝ : Option (TaintShortcut.Value P)
+⊢ (match some val✝, old key with
+      | none, none => true
+      | some a, some b => TaintShortcut.payloadSame cmp a b
+      | x, x_1 => false) =
+      false ∨
+    (custom key = true ∧ Option.isSome (old key) = true) ∧
+      ¬(match some val✝ with
+          | some (some v) => v.attr
+          | x => false) =
+          match old key with
+          | some (some v) => v.attr
+          | x => false
+
+case some.some
+P K : Type
+cmp : P → P → Bool
+custom : K → Bool
+old : Lookup K P
+key : K
+val✝¹ val✝ : Option (TaintShortcut.Value P)
+⊢ ((!match some val✝¹, old key with
+        | none, none => true
+        | some a, some b => TaintShortcut.payloadSame cmp a b
+        | x, x_1 => false) ||
+      custom key && Option.isSome (old key) &&
+        !(match some val✝¹ with
+            | some (some v) => v.attr
+            | x => false) ==
+            match old key with
+            | some (some v) => v.attr
+            | x => false) =
+    (!TaintShortcut.payloadSame cmp val✝¹ val✝ ||
+      custom key &&
+        !(match some val✝¹ with
+            | some (some v) => v.attr
+            | x => false) ==
+            match some val✝ with
+            | some (some v) => v.attr
+            | x => false)
+artifacts/css-animation-base-metadata-proof-v1/lean/BaseLaws.lean:51:2: error: too many variable names provided
+artifacts/css-animation-base-metadata-proof-v1/lean/BaseLaws.lean:52:95: error(lean.unknownIdentifier): Unknown identifier `different`
+artifacts/css-animation-base-metadata-proof-v1/lean/BaseLaws.lean:111:51: warning: This simp argument is unused:
+  decision
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [requestsRestyle, baseFlag, tick]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

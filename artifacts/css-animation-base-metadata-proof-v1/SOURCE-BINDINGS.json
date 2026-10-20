@@ -1,0 +1,128 @@
+[
+  {
+    "file": "source/original/dom/animation/KeyframeEffect.cpp",
+    "signature": "void KeyframeEffect::UpdateProperties(",
+    "scope": "",
+    "start_byte": 15419,
+    "end_byte": 17921,
+    "body": "void KeyframeEffect::UpdateProperties(const ComputedStyle* aStyle,\n                                      const AnimationTimeline* aTimeline) {\n  MOZ_ASSERT(aStyle);\n\n  nsTArray<AnimationProperty> properties = BuildProperties(\n      aStyle, aTimeline ? aTimeline\n                        : (mAnimation ? mAnimation->GetTimeline() : nullptr));\n\n  bool propertiesChanged = mProperties != properties;\n  if (!propertiesChanged) {\n    auto attrTainted = [](const AnimationValue& aValue) {\n      return aValue.mServo && Servo_AnimationValue_IsAttrTainted(aValue.mServo);\n    };\n    for (size_t i = 0; i < properties.Length() && !propertiesChanged; ++i) {\n      if (!properties[i].mProperty.IsCustom()) {\n        continue;\n      }\n      const auto& oldSegments = mProperties[i].mSegments;\n      const auto& newSegments = properties[i].mSegments;\n      for (size_t j = 0; j < newSegments.Length(); ++j) {\n        const auto& oldSegment = oldSegments[j];\n        const auto& newSegment = newSegments[j];\n        if (attrTainted(oldSegment.mFromValue) !=\n                attrTainted(newSegment.mFromValue) ||\n            attrTainted(oldSegment.mToValue) !=\n                attrTainted(newSegment.mToValue)) {\n          propertiesChanged = true;\n          break;\n        }\n      }\n    }\n  }\n\n  // We need to update base styles even if any properties are not changed at all\n  // since base styles might have been changed due to parent style changes, etc.\n  bool baseStylesChanged = false;\n  EnsureBaseStyles(aStyle, properties, aTimeline,\n                   !propertiesChanged ? &baseStylesChanged : nullptr);\n\n  if (!propertiesChanged) {\n    if (baseStylesChanged) {\n      RequestRestyle(EffectCompositor::RestyleType::Layer);\n    }\n    return;\n  }\n\n  // Preserve the state of the mIsRunningOnCompositor flag.\n  nsCSSPropertyIDSet runningOnCompositorProperties;\n\n  for (const AnimationProperty& property : mProperties) {\n    if (property.mIsRunningOnCompositor) {\n      runningOnCompositorProperties.AddProperty(property.mProperty.mId);\n    }\n  }\n\n  mProperties = std::move(properties);\n  UpdateEffectSet();\n\n  mCumulativeChanges = {};\n  for (AnimationProperty& property : mProperties) {\n    property.mIsRunningOnCompositor =\n        runningOnCompositorProperties.HasProperty(property.mProperty);\n    CalculateCumulativeChangesForProperty(property);\n  }\n\n  MarkCascadeNeedsUpdate();\n\n  if (mAnimation) {\n    mAnimation->NotifyEffectPropertiesUpdated();\n  }\n\n  RequestRestyle(EffectCompositor::RestyleType::Layer);\n}",
+    "sha256": "15e0423d6f676541654c7f469e8edafb0b41ad1c4d1375522ce50699151552bd"
+  },
+  {
+    "file": "source/original/dom/animation/KeyframeEffect.cpp",
+    "signature": "void KeyframeEffect::EnsureBaseStyles(",
+    "scope": "",
+    "start_byte": 18169,
+    "end_byte": 20403,
+    "body": "void KeyframeEffect::EnsureBaseStyles(\n    const ComputedStyle* aComputedValues,\n    const nsTArray<AnimationProperty>& aProperties,\n    const AnimationTimeline* aTimeline, bool* aBaseStylesChanged) {\n  if (aBaseStylesChanged != nullptr) {\n    *aBaseStylesChanged = false;\n  }\n\n  if (!mTarget) {\n    return;\n  }\n\n  BaseValuesHashmap previousBaseStyles;\n  if (aBaseStylesChanged != nullptr) {\n    previousBaseStyles = std::move(mBaseValues);\n  }\n\n  mBaseValues.Clear();\n\n  nsPresContext* presContext =\n      nsContentUtils::GetContextForContent(mTarget.mElement);\n  // If |aProperties| is empty we're not going to dereference |presContext| so\n  // we don't care if it is nullptr.\n  //\n  // We could just return early when |aProperties| is empty and save looking up\n  // the pres context, but that won't save any effort normally since we don't\n  // call this function if we have no keyframes to begin with. Furthermore, the\n  // case where |presContext| is nullptr is so rare (we've only ever seen in\n  // fuzzing, and even then we've never been able to reproduce it reliably)\n  // it's not worth the runtime cost of an extra branch.\n  MOZ_ASSERT(presContext || aProperties.IsEmpty(),\n             \"Typically presContext should not be nullptr but if it is\"\n             \" we should have also failed to calculate the computed values\"\n             \" passed-in as aProperties\");\n\n  if (!aTimeline) {\n    // If we pass a valid timeline, we use it (note: this happens when we create\n    // a new animation or replace the old one, for CSS Animations and CSS\n    // Transitions). Otherwise, we check the timeline from |mAnimation|.\n    aTimeline = mAnimation ? mAnimation->GetTimeline() : nullptr;\n  }\n\n  RefPtr<const ComputedStyle> baseComputedStyle;\n  for (const AnimationProperty& property : aProperties) {\n    EnsureBaseStyle(property, presContext, aComputedValues, aTimeline,\n                    baseComputedStyle);\n  }\n\n  if (aBaseStylesChanged != nullptr &&\n      std::any_of(\n          mBaseValues.cbegin(), mBaseValues.cend(), [&](const auto& entry) {\n            return AnimationValue(entry.GetData()) !=\n                   AnimationValue(previousBaseStyles.Get(entry.GetKey()));\n          })) {\n    *aBaseStylesChanged = true;\n  }\n}",
+    "sha256": "aaab603c0d145df99360ddc7dab31fe8599b78e917563437d7dd0b5eaf046e98"
+  },
+  {
+    "file": "source/candidate/dom/animation/KeyframeEffect.cpp",
+    "signature": "void KeyframeEffect::UpdateProperties(",
+    "scope": "",
+    "start_byte": 15419,
+    "end_byte": 17921,
+    "body": "void KeyframeEffect::UpdateProperties(const ComputedStyle* aStyle,\n                                      const AnimationTimeline* aTimeline) {\n  MOZ_ASSERT(aStyle);\n\n  nsTArray<AnimationProperty> properties = BuildProperties(\n      aStyle, aTimeline ? aTimeline\n                        : (mAnimation ? mAnimation->GetTimeline() : nullptr));\n\n  bool propertiesChanged = mProperties != properties;\n  if (!propertiesChanged) {\n    auto attrTainted = [](const AnimationValue& aValue) {\n      return aValue.mServo && Servo_AnimationValue_IsAttrTainted(aValue.mServo);\n    };\n    for (size_t i = 0; i < properties.Length() && !propertiesChanged; ++i) {\n      if (!properties[i].mProperty.IsCustom()) {\n        continue;\n      }\n      const auto& oldSegments = mProperties[i].mSegments;\n      const auto& newSegments = properties[i].mSegments;\n      for (size_t j = 0; j < newSegments.Length(); ++j) {\n        const auto& oldSegment = oldSegments[j];\n        const auto& newSegment = newSegments[j];\n        if (attrTainted(oldSegment.mFromValue) !=\n                attrTainted(newSegment.mFromValue) ||\n            attrTainted(oldSegment.mToValue) !=\n                attrTainted(newSegment.mToValue)) {\n          propertiesChanged = true;\n          break;\n        }\n      }\n    }\n  }\n\n  // We need to update base styles even if any properties are not changed at all\n  // since base styles might have been changed due to parent style changes, etc.\n  bool baseStylesChanged = false;\n  EnsureBaseStyles(aStyle, properties, aTimeline,\n                   !propertiesChanged ? &baseStylesChanged : nullptr);\n\n  if (!propertiesChanged) {\n    if (baseStylesChanged) {\n      RequestRestyle(EffectCompositor::RestyleType::Layer);\n    }\n    return;\n  }\n\n  // Preserve the state of the mIsRunningOnCompositor flag.\n  nsCSSPropertyIDSet runningOnCompositorProperties;\n\n  for (const AnimationProperty& property : mProperties) {\n    if (property.mIsRunningOnCompositor) {\n      runningOnCompositorProperties.AddProperty(property.mProperty.mId);\n    }\n  }\n\n  mProperties = std::move(properties);\n  UpdateEffectSet();\n\n  mCumulativeChanges = {};\n  for (AnimationProperty& property : mProperties) {\n    property.mIsRunningOnCompositor =\n        runningOnCompositorProperties.HasProperty(property.mProperty);\n    CalculateCumulativeChangesForProperty(property);\n  }\n\n  MarkCascadeNeedsUpdate();\n\n  if (mAnimation) {\n    mAnimation->NotifyEffectPropertiesUpdated();\n  }\n\n  RequestRestyle(EffectCompositor::RestyleType::Layer);\n}",
+    "sha256": "15e0423d6f676541654c7f469e8edafb0b41ad1c4d1375522ce50699151552bd"
+  },
+  {
+    "file": "source/candidate/dom/animation/KeyframeEffect.cpp",
+    "signature": "void KeyframeEffect::EnsureBaseStyles(",
+    "scope": "",
+    "start_byte": 18169,
+    "end_byte": 20725,
+    "body": "void KeyframeEffect::EnsureBaseStyles(\n    const ComputedStyle* aComputedValues,\n    const nsTArray<AnimationProperty>& aProperties,\n    const AnimationTimeline* aTimeline, bool* aBaseStylesChanged) {\n  if (aBaseStylesChanged != nullptr) {\n    *aBaseStylesChanged = false;\n  }\n\n  if (!mTarget) {\n    return;\n  }\n\n  BaseValuesHashmap previousBaseStyles;\n  if (aBaseStylesChanged != nullptr) {\n    previousBaseStyles = std::move(mBaseValues);\n  }\n\n  mBaseValues.Clear();\n\n  nsPresContext* presContext =\n      nsContentUtils::GetContextForContent(mTarget.mElement);\n  // If |aProperties| is empty we're not going to dereference |presContext| so\n  // we don't care if it is nullptr.\n  //\n  // We could just return early when |aProperties| is empty and save looking up\n  // the pres context, but that won't save any effort normally since we don't\n  // call this function if we have no keyframes to begin with. Furthermore, the\n  // case where |presContext| is nullptr is so rare (we've only ever seen in\n  // fuzzing, and even then we've never been able to reproduce it reliably)\n  // it's not worth the runtime cost of an extra branch.\n  MOZ_ASSERT(presContext || aProperties.IsEmpty(),\n             \"Typically presContext should not be nullptr but if it is\"\n             \" we should have also failed to calculate the computed values\"\n             \" passed-in as aProperties\");\n\n  if (!aTimeline) {\n    // If we pass a valid timeline, we use it (note: this happens when we create\n    // a new animation or replace the old one, for CSS Animations and CSS\n    // Transitions). Otherwise, we check the timeline from |mAnimation|.\n    aTimeline = mAnimation ? mAnimation->GetTimeline() : nullptr;\n  }\n\n  RefPtr<const ComputedStyle> baseComputedStyle;\n  for (const AnimationProperty& property : aProperties) {\n    EnsureBaseStyle(property, presContext, aComputedValues, aTimeline,\n                    baseComputedStyle);\n  }\n\n  if (aBaseStylesChanged != nullptr &&\n      std::any_of(\n          mBaseValues.cbegin(), mBaseValues.cend(), [&](const auto& entry) {\n            const AnimationValue value(entry.GetData());\n            const AnimationValue previous(\n                previousBaseStyles.Get(entry.GetKey()));\n            return value != previous ||\n                   (entry.GetKey().IsCustom() && value.mServo &&\n                    previous.mServo &&\n                    Servo_AnimationValue_IsAttrTainted(value.mServo) !=\n                        Servo_AnimationValue_IsAttrTainted(previous.mServo));\n          })) {\n    *aBaseStylesChanged = true;\n  }\n}",
+    "sha256": "1859b1c5148e7d272ad3c4f742249f92ecd59d53bef5b493d1709c4620539a48"
+  },
+  {
+    "file": "source/candidate/dom/animation/KeyframeEffect.cpp",
+    "signature": "void KeyframeEffect::EnsureBaseStyle(",
+    "scope": "",
+    "start_byte": 20727,
+    "end_byte": 22938,
+    "body": "void KeyframeEffect::EnsureBaseStyle(\n    const AnimationProperty& aProperty, nsPresContext* aPresContext,\n    const ComputedStyle* aComputedStyle, const AnimationTimeline* aTimeline,\n    RefPtr<const ComputedStyle>& aBaseComputedStyle) {\n  auto needBaseStyleForScrollTimeline =\n      [this](const AnimationProperty& aProperty,\n             const AnimationTimeline* aTimeline) {\n        static constexpr TimeDuration zeroDuration;\n        const TimingParams& timing = NormalizedTiming();\n        // For scroll-timeline with a positive delay, it's possible to scroll\n        // back and forth between delay phase and active phase, so we need to\n        // keep its base style and maybe use it to override the animations in\n        // delay on the compositor.\n        return aTimeline && aTimeline->IsScrollTimeline() &&\n               nsCSSPropertyIDSet::CompositorAnimatables().HasProperty(\n                   aProperty.mProperty) &&\n               (timing.Delay() > zeroDuration ||\n                timing.EndDelay() > zeroDuration);\n      };\n  auto hasAdditiveValues = [](const AnimationProperty& aProperty) {\n    for (const AnimationPropertySegment& segment : aProperty.mSegments) {\n      if (!segment.HasReplaceableValues()) {\n        return true;\n      }\n    }\n    return false;\n  };\n\n  // Note: Check base style for compositor (i.e. for scroll-driven animations)\n  // first because it is much cleaper.\n  const bool needBaseStyle =\n      needBaseStyleForScrollTimeline(aProperty, aTimeline) ||\n      hasAdditiveValues(aProperty);\n  if (!needBaseStyle) {\n    return;\n  }\n\n  if (!aBaseComputedStyle) {\n    MOZ_ASSERT(mTarget, \"Should have a valid target\");\n\n    Element* animatingElement =\n        mTarget.mElement->GetPseudoElement(mTarget.mPseudoRequest);\n    if (!animatingElement) {\n      return;\n    }\n    aBaseComputedStyle = aPresContext->StyleSet()->GetBaseContextForElement(\n        animatingElement, aComputedStyle);\n  }\n  RefPtr<StyleAnimationValue> baseValue =\n      Servo_ComputedValues_ExtractAnimationValue(aBaseComputedStyle,\n                                                 &aProperty.mProperty)\n          .Consume();\n  mBaseValues.InsertOrUpdate(aProperty.mProperty, std::move(baseValue));\n}",
+    "sha256": "f52244de02158293bb0f12427b460e40b07f7d65cb35629810fdd8c5802098ec"
+  },
+  {
+    "file": "source/candidate/dom/animation/KeyframeEffect.cpp",
+    "signature": "void KeyframeEffect::ComposeStyleRule(",
+    "scope": "",
+    "start_byte": 23183,
+    "end_byte": 23818,
+    "body": "void KeyframeEffect::ComposeStyleRule(StyleAnimationValueMap& aAnimationValues,\n                                      const AnimationProperty& aProperty,\n                                      const AnimationPropertySegment& aSegment,\n                                      const ComputedTiming& aComputedTiming) {\n  auto* opaqueTable =\n      reinterpret_cast<RawServoAnimationValueTable*>(&mBaseValues);\n  Servo_AnimationCompose(&aAnimationValues, opaqueTable, &aProperty.mProperty,\n                         &aSegment, &aProperty.mSegments.LastElement(),\n                         &aComputedTiming, mEffectOptions.mIterationComposite);\n}",
+    "sha256": "9d194ba7fe29c690c8b5d6f0ef1bddc734804a3bf6f7f39d80b3f1bb935c4251"
+  },
+  {
+    "file": "source/candidate/dom/animation/KeyframeEffect.cpp",
+    "signature": "void KeyframeEffect::RequestRestyle(",
+    "scope": "",
+    "start_byte": 38131,
+    "end_byte": 38539,
+    "body": "void KeyframeEffect::RequestRestyle(\n    EffectCompositor::RestyleType aRestyleType) {\n  if (!mTarget) {\n    return;\n  }\n  nsPresContext* presContext =\n      nsContentUtils::GetContextForContent(mTarget.mElement);\n  if (presContext && mAnimation) {\n    presContext->EffectCompositor()->RequestRestyle(\n        mTarget.mElement, mTarget.mPseudoRequest, aRestyleType,\n        mAnimation->CascadeLevel());\n  }\n}",
+    "sha256": "83bf040b2d6a521406d1bf091553307b988d0af0e28e6ff5589b75d8e9333d42"
+  },
+  {
+    "file": "source/context/layout/style/StyleAnimationValue.cpp",
+    "signature": "bool AnimationValue::operator==(",
+    "scope": "",
+    "start_byte": 1029,
+    "end_byte": 1275,
+    "body": "bool AnimationValue::operator==(const AnimationValue& aOther) const {\n  if (mServo && aOther.mServo) {\n    return Servo_AnimationValue_DeepEqual(mServo, aOther.mServo);\n  }\n  if (!mServo && !aOther.mServo) {\n    return true;\n  }\n  return false;\n}",
+    "sha256": "7b10153369f3260812fba49d6bbf2993f8d90926156780b8cc672a77b008ff3d"
+  },
+  {
+    "file": "source/context/servo/ports/geckolib/glue.rs",
+    "signature": "pub extern \"C\" fn Servo_AnimationValue_IsAttrTainted(",
+    "scope": "",
+    "start_byte": 35269,
+    "end_byte": 35467,
+    "body": "pub extern \"C\" fn Servo_AnimationValue_IsAttrTainted(value: &AnimationValue) -> bool {\n    match value {\n        AnimationValue::Custom(value) => value.is_attr_tainted(),\n        _ => false,\n    }\n}",
+    "sha256": "855c8e45157dea5e2ea4fcff53bc5cfaffac157dabcb417b264fceaa290c76c2"
+  },
+  {
+    "file": "source/context/servo/ports/geckolib/glue.rs",
+    "signature": "pub extern \"C\" fn Servo_AnimationValue_DeepEqual(",
+    "scope": "",
+    "start_byte": 35110,
+    "end_byte": 35246,
+    "body": "pub extern \"C\" fn Servo_AnimationValue_DeepEqual(\n    this: &AnimationValue,\n    other: &AnimationValue,\n) -> bool {\n    this == other\n}",
+    "sha256": "e631ac6fc8f68ec3f0bab75f7553293fe337fb83f94a2d7190adf621aeccc325"
+  },
+  {
+    "file": "source/context/servo/ports/geckolib/glue.rs",
+    "signature": "pub extern \"C\" fn Servo_AnimationCompose(",
+    "scope": "",
+    "start_byte": 23897,
+    "end_byte": 26919,
+    "body": "pub extern \"C\" fn Servo_AnimationCompose(\n    value_map: &mut AnimationValueMap,\n    base_values: &structs::RawServoAnimationValueTable,\n    css_property: &structs::CSSPropertyId,\n    segment: &structs::AnimationPropertySegment,\n    last_segment: &structs::AnimationPropertySegment,\n    computed_timing: &structs::ComputedTiming,\n    iteration_composite: IterationCompositeOperation,\n) {\n    let property = match OwnedPropertyDeclarationId::from_gecko_css_property_id(css_property) {\n        Some(property) if property.as_borrowed().is_animatable() => property,\n        _ => return,\n    };\n\n    // We will need an underlying value if either of the endpoints is null...\n    let need_underlying_value = segment.mFromValue.mServo.mRawPtr.is_null() ||\n                                segment.mToValue.mServo.mRawPtr.is_null() ||\n                                // ... or if they have a non-replace composite mode ...\n                                segment.mFromComposite != CompositeOperation::Replace ||\n                                segment.mToComposite != CompositeOperation::Replace ||\n                                // ... or if we accumulate onto the last value and it is null.\n                                (iteration_composite == IterationCompositeOperation::Accumulate &&\n                                 computed_timing.mCurrentIterationForAccumulation > 0 &&\n                                 last_segment.mToValue.mServo.mRawPtr.is_null());\n\n    // If either of the segment endpoints are null, get the underlying value to\n    // use from the current value in the values map (set by a lower-priority\n    // effect), or, if there is no current value, look up the cached base value\n    // for this property.\n    let underlying_value = if need_underlying_value {\n        let previous_composed_value = value_map.get(&property).map(|v| &*v);\n        previous_composed_value.or_else(|| unsafe {\n            bindings::Gecko_AnimationGetBaseStyle(base_values, css_property).as_ref()\n        })\n    } else {\n        None\n    };\n\n    if need_underlying_value && underlying_value.is_none() {\n        warn!(\"Underlying value should be valid when we expect to use it\");\n        return;\n    }\n\n    let last_value = unsafe { last_segment.mToValue.mServo.mRawPtr.as_ref() };\n    let progress = unsafe { bindings::Gecko_GetProgressFromComputedTiming(computed_timing) };\n    let position = if segment.mToKey == segment.mFromKey {\n        // Note: compose_animation_segment doesn't use this value\n        // if segment.mFromKey == segment.mToKey, so assigning |progress| directly is fine.\n        progress\n    } else {\n        unsafe {\n            bindings::Gecko_GetPositionInSegment(segment, progress, computed_timing.mBeforeFlag)\n        }\n    };\n\n    let result = compose_animation_segment(\n        segment,\n        underlying_value,\n        last_value,\n        iteration_composite,\n        computed_timing.mCurrentIterationForAccumulation,\n        progress,\n        position,\n    );\n    value_map.insert(property, result);\n}",
+    "sha256": "f00a60eeff4b495cd3c161e414eb30ec1ab3863c810d912a3df0d96da6839d56"
+  },
+  {
+    "file": "source/context/servo/ports/geckolib/glue.rs",
+    "signature": "fn composite_endpoint(",
+    "scope": "",
+    "start_byte": 18925,
+    "end_byte": 19699,
+    "body": "fn composite_endpoint(\n    endpoint_value: Option<&AnimationValue>,\n    composite: CompositeOperation,\n    underlying_value: Option<&AnimationValue>,\n) -> Option<AnimationValue> {\n    match endpoint_value {\n        Some(endpoint_value) => match composite {\n            CompositeOperation::Add => underlying_value\n                .expect(\"We should have an underlying_value\")\n                .animate(endpoint_value, Procedure::Add)\n                .ok(),\n            CompositeOperation::Accumulate => underlying_value\n                .expect(\"We should have an underlying value\")\n                .animate(endpoint_value, Procedure::Accumulate { count: 1 })\n                .ok(),\n            _ => None,\n        },\n        None => underlying_value.map(|v| v.clone()),\n    }\n}",
+    "sha256": "4b26b82aef93c0d3b03939a42d19c008ab7af2d7b3f0f659a38d96fbd74a5182"
+  },
+  {
+    "file": "source/context/servo/components/style/properties_and_values/value.rs",
+    "signature": "pub fn is_attr_tainted(",
+    "scope": "impl CustomAnimatedValue",
+    "start_byte": 27929,
+    "end_byte": 28042,
+    "body": "pub fn is_attr_tainted(&self) -> bool {\n        self.value.as_ref().is_some_and(|value| value.attr_tainted)\n    }",
+    "sha256": "ec3d24f110093a77c0f898f1641480a615ddb4ad4e40099997c30c3edd0df616"
+  },
+  {
+    "file": "source/context/dom/animation/EffectCompositor.cpp",
+    "signature": "void EffectCompositor::RequestRestyle(",
+    "scope": "",
+    "start_byte": 7121,
+    "end_byte": 8639,
+    "body": "void EffectCompositor::RequestRestyle(dom::Element* aElement,\n                                      const PseudoStyleRequest& aPseudoRequest,\n                                      RestyleType aRestyleType,\n                                      CascadeLevel aCascadeLevel) {\n  if (!mPresContext) {\n    // Pres context will be null after the effect compositor is disconnected.\n    return;\n  }\n\n  // Ignore animations on orphaned elements and elements in documents without\n  // a pres shell (e.g. XMLHttpRequest responseXML documents).\n  if (!nsContentUtils::GetPresShellForContent(aElement)) {\n    return;\n  }\n\n  auto& elementsToRestyle = mElementsToRestyle[aCascadeLevel];\n  PseudoElementHashEntry::KeyType key = {aElement, aPseudoRequest};\n\n  bool& restyleEntry = elementsToRestyle.LookupOrInsert(key, false);\n  if (aRestyleType == RestyleType::Throttled) {\n    mPresContext->PresShell()->SetNeedThrottledAnimationFlush();\n  } else {\n    // Update hashtable first in case PostRestyleForAnimation mutates it\n    // and invalidates the restyleEntry reference.\n    // (It shouldn't, but just to be sure.)\n    bool skipRestyle = std::exchange(restyleEntry, true);\n    if (!skipRestyle) {\n      PostRestyleForAnimation(aElement, aPseudoRequest, aCascadeLevel);\n    }\n  }\n\n  if (aRestyleType == RestyleType::Layer) {\n    mPresContext->RestyleManager()->IncrementAnimationGeneration();\n    if (auto* effectSet = EffectSet::Get(aElement, aPseudoRequest)) {\n      effectSet->UpdateAnimationGeneration(mPresContext);\n    }\n  }\n}",
+    "sha256": "3a655dd0c88c967ad68f3e8054043a187c7ac35b8b7ca1880b114842fd23913e"
+  }
+]

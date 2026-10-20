@@ -1,0 +1,78 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Underlying animation values preserve attribute taint after style changes</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#the-effect-value-of-a-keyframe-animation-effect">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-security">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const image = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+let serial = 0;
+function runCase(t, initiallyTainted, samePayload, mode) {
+  const name = `--base-taint-${++serial}`;
+  const initial = image + "#initial";
+  const final = samePayload ? image : image + "#changed";
+  CSS.registerProperty({name, syntax: "<string>", inherits: false,
+                        initialValue: JSON.stringify(initial)});
+  const target = document.createElement("div");
+  const control = document.createElement("div");
+  const reference = document.createElement("div");
+  document.body.append(target, control, reference);
+  t.add_cleanup(() => { target.remove(); control.remove(); reference.remove(); });
+  for (const element of [target, control]) {
+    element.style.backgroundImage = `image-set(var(${name}))`;
+  }
+  function setBase(text, tainted) {
+    for (const element of [target, control]) {
+      element.setAttribute("data-image", text);
+      element.style.setProperty(name, tainted ? "attr(data-image)" : JSON.stringify(text));
+    }
+  }
+  function expected(text, tainted) {
+    reference.style.setProperty(name, JSON.stringify(text));
+    reference.style.backgroundImage = `image-set(var(${name}))`;
+    const style = getComputedStyle(reference);
+    const literal = style.backgroundImage;
+    assert_not_equals(literal, "none", "Literal URL calibration");
+    return {payload: style.getPropertyValue(name), image: tainted ? "none" : literal};
+  }
+  function observe(element) {
+    const style = getComputedStyle(element);
+    return {payload: style.getPropertyValue(name), image: style.backgroundImage};
+  }
+  function check(actual, wanted, label) {
+    assert_equals(actual.payload, wanted.payload, label + " payload");
+    assert_equals(actual.image, wanted.image, label + " URL taint");
+  }
+  setBase(image, initiallyTainted);
+  check(observe(control), expected(image, initiallyTainted), "Original base");
+  const frames = mode === "replace" ? [{[name]: "initial"}, {[name]: "initial"}]
+    : [{[name]: "initial", offset: mode === "neutral-start" ? 1 : 0}];
+  const animation = target.animate(frames, {duration: 1000, fill: "both"});
+  t.add_cleanup(() => animation.cancel());
+  animation.pause();
+  const time = mode === "neutral-end" ? 750 : 250;
+  animation.currentTime = time;
+  check(observe(target), mode === "replace" ? expected(initial, false)
+    : expected(image, initiallyTainted), "Original effect");
+  setBase(final, !initiallyTainted);
+  const immediate = observe(target);
+  check(observe(control), expected(final, !initiallyTainted), "Changed base");
+  const wanted = mode === "replace" ? expected(initial, false)
+    : expected(final, !initiallyTainted);
+  animation.currentTime = time + 1;
+  check(observe(target), wanted, "Explicit resample");
+  check(immediate, wanted, "Immediate effect");
+}
+for (const initiallyTainted of [false, true]) {
+  for (const samePayload of [true, false]) {
+    test(t => runCase(t, initiallyTainted, samePayload, "neutral-start"),
+      `Neutral start ${initiallyTainted ? "tainted to clean" : "clean to tainted"}, ${samePayload ? "same" : "different"} payload`);
+  }
+  test(t => runCase(t, initiallyTainted, true, "neutral-end"),
+    `Neutral end ${initiallyTainted ? "tainted to clean" : "clean to tainted"}, same payload`);
+  test(t => runCase(t, initiallyTainted, true, "replace"),
+    `Explicit replacement ignores base ${initiallyTainted ? "tainted to clean" : "clean to tainted"}`);
+}
+</script>
