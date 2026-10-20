@@ -1,0 +1,99 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>clamp() preserves NaN until the outer calculation</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#funcdef-clamp">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-simplification">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  #target { font-size: 16px; }
+</style>
+<div id="target"></div>
+<script>
+const target = document.getElementById("target");
+
+function testComputed(property, expression, expected) {
+  test(() => {
+    target.style[property] = "";
+    target.style[property] = expression;
+    assert_not_equals(target.style[property], "", "Declaration parses");
+    assert_equals(getComputedStyle(target)[property], expected);
+  }, `${property}: ${expression} computes to ${expected}`);
+}
+
+function testSpecified(property, expression, expected) {
+  test(() => {
+    target.style[property] = "";
+    target.style[property] = expression;
+    assert_not_equals(target.style[property], "", "Declaration parses");
+    assert_equals(target.style[property], expected);
+  }, `${property}: ${expression} serializes to ${expected}`);
+}
+
+for (const nan of ["NaN", "-1 * NaN"]) {
+  for (const pair of [[".25", ".75"], [".75", ".25"], ["-.75", "-.25"]]) {
+    for (let position = 0; position < 3; position++) {
+      const operands = [...pair];
+      operands.splice(position, 0, nan);
+      const expression = `clamp(${operands.join(", ")})`;
+      testComputed("opacity", expression, "0");
+      testComputed("opacity", `calc(.5 + ${expression})`, "0");
+      testSpecified("opacity", expression, "calc(NaN)");
+    }
+  }
+}
+
+const deferredNaN = "calc(1px * sqrt(-1em / 1px))";
+for (const pair of [["25px", "75px"], ["75px", "25px"]]) {
+  for (let position = 0; position < 3; position++) {
+    const operands = [...pair];
+    operands.splice(position, 0, deferredNaN);
+    const expression = `clamp(${operands.join(", ")})`;
+    testComputed("width", expression, "0px");
+    testComputed("width", `calc(50px + ${expression})`, "0px");
+  }
+}
+testComputed("width", deferredNaN, "0px");
+testComputed("width", `calc(50px + ${deferredNaN})`, "0px");
+
+for (const [expression, expected] of [
+  ["clamp(.25, .5, .75)", "0.5"],
+  ["clamp(.25, .75, .5)", "0.5"],
+  ["clamp(.5, .25, .75)", "0.5"],
+  ["clamp(.5, .75, .25)", "0.5"],
+  ["clamp(.75, .25, .5)", "0.75"],
+  ["clamp(.75, .5, .25)", "0.75"],
+  ["calc(-1 / clamp(-1, 0 * -1, 1))", "1"],
+  ["calc(1 / clamp(0, 0 * -1, 1))", "1"],
+  ["calc(-1 / clamp(-1, 0, 0 * -1))", "1"],
+  ["calc(1 / clamp(0, 0 * -1, 0 * -1))", "1"],
+  ["calc(-1 / clamp(0 * -1, 0, 0 * -1))", "1"],
+  ["clamp(25%, 50%, 75%)", "0.5"],
+  ["clamp(75%, 25%, 50%)", "0.75"],
+]) {
+  testComputed("opacity", expression, expected);
+}
+
+for (const [expression, expected] of [
+  ["clamp(1em, 2em, 3em)", "calc(2em)"],
+  ["clamp(3em, 1em, 2em)", "calc(3em)"],
+  ["clamp(1em, 3em, 2em)", "calc(2em)"],
+  ["clamp(-3em, -2em, -1em)", "calc(-2em)"],
+]) {
+  testSpecified("width", expression, expected);
+}
+for (const [expression, expected] of [
+  ["clamp(infinity * 1em, infinity * 2em, infinity * 3em)", "calc(infinity * 1em)"],
+  ["clamp(-infinity * 1em, -infinity * 2em, -infinity * 3em)", "calc(-infinity * 1em)"],
+  ["clamp(NaN * 1em, 2em, infinity * 1em)", "calc(NaN * 1em)"],
+  ["clamp(1em, infinity * 1em, 2em)", "clamp(1em, infinity * 1em, 2em)"],
+  ["clamp(1em, 2em, infinity * 1em)", "clamp(1em, 2em, infinity * 1em)"],
+]) {
+  testSpecified("marginTop", expression, expected);
+}
+testSpecified("opacity", "clamp(25%, 50%, 75%)", "calc(50%)");
+testSpecified("width", "clamp(25%, 50%, 75%)", "clamp(25%, 50%, 75%)");
+testSpecified("marginTop", "clamp(3em, -2px, 1vh)", "calc(3em)");
+testComputed("width", "clamp(75px, 25px, 1em)", "75px");
+</script>

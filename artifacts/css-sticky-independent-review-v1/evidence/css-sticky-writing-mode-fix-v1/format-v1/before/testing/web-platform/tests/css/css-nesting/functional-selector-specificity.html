@@ -1,0 +1,167 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Specificity after replacing nesting selectors in functional selectors</title>
+<link rel="help" href="https://drafts.csswg.org/css-nesting-1/#nest-selector">
+<link rel="help" href="https://drafts.csswg.org/selectors-4/#specificity-rules">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const cases = [
+  {
+    "name": "is-id-borrow",
+    "css": "#t { color:red; :is(&, .never) { color:green } }",
+    "body": "<div id=t></div>",
+    "target": "#t"
+  },
+  {
+    "name": "is-class-borrow",
+    "css": ".target { color:red; :is(&, x-never) { color:green } }",
+    "body": "<div class=target></div>",
+    "target": ".target"
+  },
+  {
+    "name": "not-id-borrow",
+    "css": "#t {color:red} #absent { :not(&, .never) {color:green} }",
+    "body": "<div id=t></div>",
+    "target": "#t"
+  },
+  {
+    "name": "has-id-borrow",
+    "css": "#host {color:red} #kid { .host:has(> &, > .never) {color:green} }",
+    "body": "<div id=host class=host><span id=kid></span></div>",
+    "target": "#host"
+  },
+  {
+    "name": "nth-id-borrow",
+    "css": "#t {color:red; :nth-child(1 of &, .never) {color:green} }",
+    "body": "<div id=t></div>",
+    "target": "#t"
+  },
+  {
+    "name": "is-id-direct-control",
+    "css": "#t {color:red; :is(&) {color:green} }",
+    "body": "<div id=t></div>",
+    "target": "#t"
+  },
+  {
+    "name": "is-id-flat-control",
+    "css": "#t {color:red} :is(#t, .never) {color:green}",
+    "body": "<div id=t></div>",
+    "target": "#t"
+  },
+  {
+    "name": "where-zero-control",
+    "css": "#t {color:green; :where(&, .never) {color:red} }",
+    "body": "<div id=t></div>",
+    "target": "#t"
+  },
+  {
+    "name": "delta-multiple-functions",
+    "css": "#t {color:red; :is(&,.never):is(&,.never) {color:green}}",
+    "body": "<div id=t></div>",
+    "target": "#t"
+  },
+  {
+    "name": "delta-residual-class-before-parent",
+    "css": "#t { .extra:is(&,.never) {color:green}} #t {color:red}",
+    "body": "<div id=t class=extra></div>",
+    "target": "#t"
+  },
+  {
+    "name": "delta-equal-maximum",
+    "css": "#t {color:red; :is(&,#ghost) {color:green}}",
+    "body": "<div id=t></div>",
+    "target": "#t"
+  },
+  {
+    "name": "delta-same-component-increase",
+    "css": "#t#t {color:red; :is(&,#ghost) {color:green}}",
+    "body": "<div id=t></div>",
+    "target": "#t"
+  },
+  {
+    "name": "delta-reversed-order",
+    "css": "#t { :is(&,.never) {color:red}} #t {color:green}",
+    "body": "<div id=t></div>",
+    "target": "#t"
+  },
+  {
+    "name": "delta-deep-maxima",
+    "css": "#t {color:red; :is(&,.never) { :is(&,x-never) {color:green}}}",
+    "body": "<div id=t></div>",
+    "target": "#t"
+  },
+  {
+    "name": "nth-last-id-borrow",
+    "css": "#t {color:red; :nth-last-child(1 of &, .never) {color:green}}",
+    "body": "<div id=t></div>",
+    "target": "#t"
+  },
+  {
+    "name": "host-nested-is-borrow",
+    "css": ":host(#t) {color:red} #t { :host(:is(&,.never)) {color:green}}",
+    "body": "",
+    "target": "host"
+  },
+  {
+    "name": "host-flat-control",
+    "css": ":host(#t) {color:red} :host(:is(#t,.never)) {color:green}",
+    "body": "",
+    "target": "host"
+  },
+  {
+    "name": "slotted-nested-is-borrow",
+    "css": "::slotted(#t) {color:red} #t { ::slotted(:is(&,.never)) {color:green}}",
+    "body": "<slot></slot>",
+    "target": "slotted"
+  },
+  {
+    "name": "slotted-flat-control",
+    "css": "::slotted(#t) {color:red} ::slotted(:is(#t,.never)) {color:green}",
+    "body": "<slot></slot>",
+    "target": "slotted"
+  }
+];
+
+for (const item of cases) {
+  for (const replace of [false, true]) {
+    test(t => {
+      const host = document.createElement("div");
+      const root = host.attachShadow({mode: "open"});
+      root.innerHTML = item.body;
+      let target;
+      if (item.target === "host") {
+        host.id = "t";
+        target = host;
+      } else if (item.target === "slotted") {
+        target = document.createElement("div");
+        target.id = "t";
+        host.append(target);
+      } else {
+        target = root.querySelector(item.target);
+      }
+      document.body.append(host);
+      t.add_cleanup(() => host.remove());
+      assert_not_equals(target, null, "Target exists");
+      const baseline = new CSSStyleSheet();
+      baseline.replaceSync("*, :host, ::slotted(*) { color: blue }");
+      const sheet = new CSSStyleSheet();
+      root.adoptedStyleSheets = [baseline, sheet];
+      assert_equals(getComputedStyle(target).color, "rgb(0, 0, 255)", "Baseline style applies");
+      if (replace) {
+        sheet.replaceSync(item.css);
+        getComputedStyle(target).color;
+        sheet.replaceSync("");
+        assert_equals(getComputedStyle(target).color, "rgb(0, 0, 255)", "Reset removes nested rules");
+      }
+      sheet.replaceSync(item.css);
+      assert_greater_than(sheet.cssRules.length, 0, "Stylesheet parsed");
+      if (item.css.includes("&")) {
+        assert_true(Array.from(sheet.cssRules).some(rule => rule.cssRules?.length > 0), "Nested rule parsed");
+      }
+      assert_equals(getComputedStyle(target).color, "rgb(0, 128, 0)");
+    }, `${item.name}: ${replace ? "after stylesheet replacement" : "fresh stylesheet"}`);
+  }
+}
+</script>

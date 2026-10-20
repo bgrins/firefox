@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hyphenation limit pseudo-element ownership probe</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-4/#hyphenate-char-limits">
+<link rel="stylesheet" href="/fonts/ahem.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.sample { font: 20px/20px Ahem; width:60px; white-space:normal; word-break:normal;
+  overflow-wrap:normal; hyphens:auto; hyphenate-character:"-"; }
+.line::first-line { hyphenate-limit-chars:var(--pseudo); }
+.letter::first-letter { hyphenate-limit-chars:var(--pseudo); }
+</style>
+<div id="log"></div>
+<script>
+const ready = document.fonts.load("20px Ahem", "xxx example-");
+function make(t, kind, limit, pseudo) {
+  const el = document.createElement("div");
+  el.className = "sample " + kind;
+  el.lang = "en-us";
+  el.style.hyphenateLimitChars = limit;
+  el.style.setProperty("--pseudo", pseudo);
+  el.textContent = "xxx example";
+  document.body.append(el);
+  t.add_cleanup(() => el.remove());
+  return el;
+}
+function lines(el) {
+  const result = [];
+  for (let i = 4; i < 11; ++i) {
+    const r = document.createRange();
+    r.setStart(el.firstChild, i); r.setEnd(el.firstChild, i + 1);
+    result.push(r.getBoundingClientRect().top);
+  }
+  return result.map(y => y - result[0]);
+}
+for (const kind of ["line", "letter"]) {
+  for (const limit of ["100", "5 2 2"]) {
+    promise_test(async t => {
+      assert_equals((await ready).length, 1, "Ahem loaded");
+      const opposite = limit === "100" ? "5 2 2" : "100";
+      const control = make(t, "", limit, limit);
+      const el = make(t, kind, limit, opposite);
+      const before = lines(el);
+      el.style.setProperty("--pseudo", limit);
+      const same = lines(el);
+      el.style.setProperty("--pseudo", opposite);
+      const restored = lines(el);
+      const expected = lines(control);
+      const detail = JSON.stringify({before, same, restored, expected});
+      if (limit === "100") {
+        assert_array_equals(expected, [0,0,0,0,0,0,0], "Uniform restricted control");
+        for (const observed of [before, same, restored]) {
+          assert_array_equals(observed, [0,0,0,0,0,0,0], detail);
+        }
+      } else {
+        assert_implements_optional(expected.some(y => y !== 0), "English dictionary calibration");
+        for (const observed of [before, same, restored]) {
+          assert_array_equals(observed, expected, detail);
+        }
+      }
+    }, `${kind}: whole later word limit=${limit}`);
+  }
+}
+</script>

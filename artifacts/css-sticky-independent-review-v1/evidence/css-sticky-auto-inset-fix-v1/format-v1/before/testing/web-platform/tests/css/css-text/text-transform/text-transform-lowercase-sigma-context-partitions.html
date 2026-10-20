@@ -1,0 +1,87 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CSS Text: lowercase sigma context across text fragments</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-3/#text-transform-mapping">
+<link rel="help" href="https://www.unicode.org/versions/Unicode17.0.0/core-spec/chapter-3/">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .fixture {
+    text-transform: lowercase;
+    white-space: pre;
+  }
+</style>
+<body>
+<script>
+const cases = [
+  ["en", "A\u03a3A", "a\u03c3a"],
+  ["en", "A\u03a3'A", "a\u03c3'a"],
+  ["en", "A\u0345\u03a3", "a\u0345\u03c2"],
+  ["en", "A\u03a3\u0345A", "a\u03c3\u0345a"],
+  ["en", "\u0130\u03a3", "i\u0307\u03c2"],
+  ["en", "A\u03a3\u0130", "a\u03c3i\u0307"],
+  ["en", "\ud801\udc00\u03a3", "\ud801\udc28\u03c2"],
+  ["en", "A\u03a3\ud801\udc00", "a\u03c3\ud801\udc28"],
+  ["en", "A\ud834\udd67\u03a3", "a\ud834\udd67\u03c2"],
+  ["en", "A\u03a3\ud834\udd67A", "a\u03c3\ud834\udd67a"],
+  ["en", "A\u03a3\u03a3", "a\u03c3\u03c2"],
+  ["tr", "A\u03a3I", "a\u03c3\u0131"],
+  ["lt", "\u00cc\u03a3", "i\u0307\u0300\u03c2"],
+  ["lt", "A\u03a3\u00cc", "a\u03c3i\u0307\u0300"],
+  ["en", "A\u00ad\u03a3", "a\u00ad\u03c2"],
+  ["en", "A\u03a3\u00adA", "a\u03c3\u00ada"],
+];
+
+const fragmentCases = [
+  ["en", "A\u00ad\u03a3", "a\u00ad\u03c2"],
+  ["en", "A\u03a3\u00adA", "a\u03c3\u00ada"],
+];
+
+function codePoints(text) {
+  return Array.from(text, ch =>
+    "U+" + ch.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")
+  ).join(" ");
+}
+
+function makeFixture(t, language) {
+  const element = document.createElement("div");
+  element.className = "fixture";
+  element.lang = language;
+  document.body.append(element);
+  t.add_cleanup(() => element.remove());
+  return element;
+}
+
+for (const [language, input, expected] of fragmentCases) {
+  test(t => {
+    const element = makeFixture(t, language);
+    element.append(document.createTextNode(input));
+    assert_equals(element.innerText, expected, "Rendered text");
+    assert_equals(element.textContent, input, "Source text");
+  }, `soft hyphen fragment: ${language}, ${codePoints(input)}`);
+}
+
+for (const [language, input, expected] of cases) {
+  const scalars = Array.from(input);
+  for (let split = 1; split < scalars.length; ++split) {
+    const parts = [scalars.slice(0, split).join(""), scalars.slice(split).join("")];
+    for (const kind of ["Text nodes", "inline spans"]) {
+      test(t => {
+        const element = makeFixture(t, language);
+        for (const part of parts) {
+          if (kind === "Text nodes") {
+            element.append(document.createTextNode(part));
+          } else {
+            const span = document.createElement("span");
+            span.textContent = part;
+            element.append(span);
+          }
+        }
+        assert_equals(element.childNodes.length, 2, "Partition retained");
+        assert_equals(element.innerText, expected, "Rendered text");
+        assert_equals(element.textContent, input, "Source text");
+      }, `${kind}: ${language}, ${codePoints(input)}, split after scalar ${split}`);
+    }
+  }
+}
+</script>

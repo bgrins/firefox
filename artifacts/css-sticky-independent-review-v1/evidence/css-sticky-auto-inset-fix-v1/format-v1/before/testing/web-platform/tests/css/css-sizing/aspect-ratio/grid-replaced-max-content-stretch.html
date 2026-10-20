@@ -1,0 +1,116 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Max-content inline size prevents replaced grid items from stretching</title>
+<link rel="help" href="https://drafts.csswg.org/css-align-3/#valdef-justify-self-stretch">
+<link rel="help" href="https://drafts.csswg.org/css-grid-2/#grid-item-sizing">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.grid {
+  display: grid;
+  grid-template: 100px / 200px;
+  inline-size: 200px;
+  block-size: 100px;
+  gap: 0;
+}
+canvas, .replaced {
+  margin: 0;
+  border: 0;
+  padding: 0;
+  min-inline-size: 0;
+  min-block-size: 0;
+  block-size: auto;
+  align-self: start;
+}
+</style>
+<div id="log"></div>
+<script>
+for (const writingMode of ["horizontal-tb", "vertical-lr", "vertical-rl"]) {
+  for (const direction of ["ltr", "rtl"]) {
+    for (const [name, inlineSize, justifySelf, margin, display, expectedInline, expectedBlock] of [
+      ["max-content stretch", "max-content", "stretch", "0px", "inline", 40, 20],
+      ["auto stretch", "auto", "stretch", "0px", "inline", 200, 100],
+      ["max-content start", "max-content", "start", "0px", "inline", 40, 20],
+      ["definite stretch", "40px", "stretch", "0px", "inline", 40, 20],
+      ["max-content auto margin", "max-content", "stretch", "auto", "inline", 40, 20],
+      ["max-content block", "max-content", "stretch", "0px", "block", 40, 20],
+    ]) {
+      test(t => {
+        const vertical = writingMode !== "horizontal-tb";
+        const grid = document.createElement("div");
+        grid.className = "grid";
+        grid.style.writingMode = writingMode;
+        grid.style.direction = direction;
+        const canvas = document.createElement("canvas");
+        canvas.width = vertical ? 20 : 40;
+        canvas.height = vertical ? 40 : 20;
+        canvas.style.aspectRatio = vertical ? "1 / 2" : "2";
+        canvas.style.inlineSize = inlineSize;
+        canvas.style.justifySelf = justifySelf;
+        canvas.style.marginInlineStart = margin;
+        canvas.style.display = display;
+        grid.append(canvas);
+        document.body.append(grid);
+        t.add_cleanup(() => grid.remove());
+        assert_equals(canvas.style.inlineSize, inlineSize, "inline size retained");
+        const gridRect = grid.getBoundingClientRect();
+        assert_equals(vertical ? gridRect.height : gridRect.width, 200, "grid inline size");
+        assert_equals(vertical ? gridRect.width : gridRect.height, 100, "grid block size");
+        const rect = canvas.getBoundingClientRect();
+        assert_equals(vertical ? rect.height : rect.width, expectedInline, "canvas inline size");
+        assert_equals(vertical ? rect.width : rect.height, expectedBlock, "canvas block size");
+      }, `${name}, ${writingMode}, ${direction}`);
+    }
+  }
+}
+async function makeReplaced(t, type, ratio) {
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  const target = document.createElement(type);
+  target.className = "replaced";
+  target.style.aspectRatio = ratio;
+  target.style.justifySelf = "stretch";
+  if (type === "canvas") {
+    target.width = 40;
+    target.height = 20;
+  } else {
+    target.src = "data:image/svg+xml," + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"></svg>');
+  }
+  grid.append(target);
+  document.body.append(grid);
+  t.add_cleanup(() => grid.remove());
+  if (type === "img") {
+    await target.decode();
+  }
+  return target;
+}
+
+for (const type of ["canvas", "img"]) {
+  for (const ratio of ["auto", "2"]) {
+    promise_test(async t => {
+      const target = await makeReplaced(t, type, ratio);
+      for (const [value, width, height] of [["max-content", 40, 20], ["auto", 200, 100], ["max-content", 40, 20]]) {
+        target.style.inlineSize = value;
+        const rect = target.getBoundingClientRect();
+        assert_equals(rect.width, width, `${value} width`);
+        assert_equals(rect.height, height, `${value} height`);
+      }
+    }, `${type}, aspect-ratio:${ratio}, changing inline size`);
+
+    for (const [property, value, width, height] of [
+      ["min-inline-size", "60px", 60, 30],
+      ["max-inline-size", "30px", 30, 15],
+    ]) {
+      promise_test(async t => {
+        const target = await makeReplaced(t, type, ratio);
+        target.style.inlineSize = "max-content";
+        target.style.setProperty(property, value);
+        const rect = target.getBoundingClientRect();
+        assert_equals(rect.width, width, "width");
+        assert_equals(rect.height, height, "height");
+      }, `${type}, aspect-ratio:${ratio}, ${property}:${value}`);
+    }
+  }
+}
+</script>

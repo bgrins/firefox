@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Zero-weight prefixes preserve missing-component information in color-mix()</title>
+<link rel="help" href="https://drafts.csswg.org/css-color-5/#color-mix-result">
+<link rel="help" href="https://drafts.csswg.org/css-color-4/#interpolation-missing">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const cases = [
+  {
+    name: "forward prefix",
+    items: "ORIGIN 0%, color(srgb 0 1 0) 0%, color(srgb none 0 0) 100%",
+    expected: [0.5, 0, 0, 1],
+  },
+  {
+    name: "reversed prefix",
+    items: "color(srgb 0 1 0) 0%, ORIGIN 0%, color(srgb none 0 0) 100%",
+    expected: [0.5, 0, 0, 1],
+  },
+  {
+    name: "total below 100%",
+    items: "ORIGIN 0%, color(srgb 0 1 0) 0%, color(srgb none 0 0) 50%",
+    expected: [0.5, 0, 0, 0.5],
+  },
+  {
+    name: "numeric final component",
+    items: "ORIGIN 0%, color(srgb 0 1 0) 0%, color(srgb 0.25 0 0) 100%",
+    expected: [0.25, 0, 0, 1],
+  },
+  {
+    name: "positive prefix weight",
+    items: "ORIGIN 25%, color(srgb 0 1 0) 25%, color(srgb none 0 0) 50%",
+    expected: [0.5, 0.25, 0, 1],
+  },
+  {
+    name: "three zero-weight prefix items",
+    items: "ORIGIN 0%, color(srgb 0 1 0) 0%, color(srgb 0 0 1) 0%, color(srgb none 0 0) 100%",
+    expected: [0.25, 0, 0, 1],
+  },
+  {
+    name: "missing final alpha",
+    origin: "color(srgb 1 0 0 / 0.25)",
+    items: "ORIGIN 0%, color(srgb 1 0 0 / 0.75) 0%, color(srgb 1 0 0 / none) 100%",
+    expected: [1, 0, 0, 0.5],
+  },
+  {
+    name: "initially missing prefix component",
+    items: "color(srgb none 0 0) 0%, ORIGIN 0%, color(srgb none 0 0) 100%",
+    expected: [1, 0, 0, 1],
+  },
+];
+
+function assert_srgb(actual, expected, description) {
+  const match = /^color\(srgb ([^ ]+) ([^ ]+) ([^ /)]+)(?: \/ ([^)]+))?\)$/.exec(actual);
+  assert_not_equals(match, null, `${description}: ${actual}`);
+  const channels = match.slice(1, 4).map(Number);
+  channels.push(match[4] === undefined ? 1 : Number(match[4]));
+  for (let i = 0; i < channels.length; ++i) {
+    assert_approx_equals(channels[i], expected[i], 0.00001,
+                         `${description}, component ${i}: ${actual}`);
+  }
+}
+
+for (const {name, items, expected, origin = "color(srgb 1 0 0)"} of cases) {
+  for (const deferred of [false, true]) {
+    test(t => {
+      const target = document.createElement("div");
+      document.body.append(target);
+      t.add_cleanup(() => target.remove());
+      const property = deferred ? "background-color" : "color";
+      if (deferred) {
+        target.style.color = origin;
+        assert_srgb(getComputedStyle(target).color,
+                    [1, 0, 0, name === "missing final alpha" ? 0.25 : 1],
+                    "currentcolor origin");
+      }
+      const value = `color-mix(in srgb, ${items.replace("ORIGIN", deferred ? "currentcolor" : origin)})`;
+      target.style.setProperty(property, value);
+      assert_not_equals(target.style.getPropertyValue(property), "",
+                        "color-mix declaration parses");
+      assert_srgb(getComputedStyle(target).getPropertyValue(property), expected,
+                  "computed mix");
+    }, `${name}: ${deferred ? "deferred currentcolor" : "absolute colors"}`);
+  }
+}
+</script>

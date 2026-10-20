@@ -1,0 +1,57 @@
+<!doctype html>
+<html class="reftest-wait initial">
+<meta charset="utf-8">
+<title>Text-overflow marker width is local to each line</title>
+<link rel="help" href="https://drafts.csswg.org/css-overflow-4/#text-overflow">
+<link rel="match" href="text-overflow-marker-width-per-line-ref.html">
+<meta name="assert" content="Clipping a marker on one line must not reduce the marker width reserved on subsequent lines.">
+<link rel="stylesheet" href="/fonts/ahem.css">
+<style>
+  body { margin: 8px; }
+  main { display: grid; grid-template-columns: repeat(3, 100px); gap: 10px 30px; }
+  .case { --atom-width: 80px; height: 60px; font: 20px/1 Ahem; color: red; }
+  .line-block { width: 100px; overflow: hidden; white-space: nowrap; text-overflow: "XX"; }
+  .rtl { direction: rtl; }
+  .start .line-block { text-align: left; text-overflow: "XX" clip; }
+  .green { color: green; }
+  .atom { display: inline-block; width: var(--atom-width); height: 20px; background: green; vertical-align: top; }
+  .small-atom { width: 40px; }
+  .initial .case { --atom-width: 40px; }
+  .start .ordinary { margin-left: -100px; }
+  .start .clipped { margin-left: calc(-100px - var(--atom-width)); }
+  .start .small { margin-left: -140px; }
+</style>
+<main>
+<div class="case ltr" data-case="clipped-ordinary-ltr"><div class="line-block"><span class="atom"></span><span class="green clipped">XXXXXXXXXX</span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case rtl" data-case="clipped-ordinary-rtl"><div class="line-block"><span class="atom"></span><span class="green clipped">XXXXXXXXXX</span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case start" data-case="clipped-ordinary-start"><div class="line-block"><span class="green clipped">XXXXXXXXXX</span><span class="atom"></span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case ltr" data-case="ordinary-clipped-ltr"><div class="line-block"><span class="green ordinary">XXXXXXXXXX</span><br><span class="atom"></span><span class="green clipped">XXXXXXXXXX</span></div></div>
+<div class="case rtl" data-case="ordinary-clipped-rtl"><div class="line-block"><span class="green ordinary">XXXXXXXXXX</span><br><span class="atom"></span><span class="green clipped">XXXXXXXXXX</span></div></div>
+<div class="case start" data-case="ordinary-clipped-start"><div class="line-block"><span class="green ordinary">XXXXXXXXXX</span><br><span class="green clipped">XXXXXXXXXX</span><span class="atom"></span></div></div>
+<div class="case ltr" data-case="clipped-clipped-ordinary-ltr"><div class="line-block"><span class="atom"></span><span class="green clipped">XXXXXXXXXX</span><br><span class="atom"></span><span class="green clipped">XXXXXXXXXX</span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case rtl" data-case="clipped-clipped-ordinary-rtl"><div class="line-block"><span class="atom"></span><span class="green clipped">XXXXXXXXXX</span><br><span class="atom"></span><span class="green clipped">XXXXXXXXXX</span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case start" data-case="clipped-clipped-ordinary-start"><div class="line-block"><span class="green clipped">XXXXXXXXXX</span><span class="atom"></span><br><span class="green clipped">XXXXXXXXXX</span><span class="atom"></span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case ltr" data-case="ordinary-ordinary-ltr"><div class="line-block"><span class="green ordinary">XXXXXXXXXX</span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case rtl" data-case="ordinary-ordinary-rtl"><div class="line-block"><span class="green ordinary">XXXXXXXXXX</span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case start" data-case="ordinary-ordinary-start"><div class="line-block"><span class="green ordinary">XXXXXXXXXX</span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case ltr" data-case="clipped-short-ordinary-ltr"><div class="line-block"><span class="atom"></span><span class="green clipped">XXXXXXXXXX</span><br><span class="green short">X</span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case rtl" data-case="clipped-short-ordinary-rtl"><div class="line-block"><span class="atom"></span><span class="green clipped">XXXXXXXXXX</span><br><span class="green short">X</span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case start" data-case="clipped-short-ordinary-start"><div class="line-block"><span class="green clipped">XXXXXXXXXX</span><span class="atom"></span><br><span class="green short">X</span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case ltr" data-case="small-ordinary-ltr"><div class="line-block"><span class="atom small-atom"></span><span class="green small">XXXXXXXXXX</span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case rtl" data-case="small-ordinary-rtl"><div class="line-block"><span class="atom small-atom"></span><span class="green small">XXXXXXXXXX</span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+<div class="case start" data-case="small-ordinary-start"><div class="line-block"><span class="green small">XXXXXXXXXX</span><span class="atom small-atom"></span><br><span class="green ordinary">XXXXXXXXXX</span></div></div>
+</main>
+<script>
+  document.documentElement.addEventListener("TestRendered", async () => {
+    const loaded = await document.fonts.load("20px Ahem", "X");
+    if (loaded.length !== 1 || loaded[0].status !== "loaded") {
+      throw new Error("Ahem failed to load");
+    }
+    const root = document.documentElement;
+    const frame = () => new Promise(requestAnimationFrame);
+    await frame(); await frame();
+    root.classList.remove("initial");
+    await frame(); await frame();
+    root.classList.remove("reftest-wait");
+  }, { once: true });
+</script>

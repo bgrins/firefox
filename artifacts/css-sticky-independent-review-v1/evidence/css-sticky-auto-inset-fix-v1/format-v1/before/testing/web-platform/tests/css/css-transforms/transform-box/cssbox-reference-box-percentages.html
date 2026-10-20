@@ -1,0 +1,83 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CSS transform reference box aliases with percentage transforms</title>
+<link rel="help" href="https://drafts.csswg.org/css-transforms-1/#transform-box">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.host {
+  position: absolute;
+  left: 200px;
+  top: 200px;
+  width: 300px;
+  height: 300px;
+}
+.target {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100px;
+  height: 40px;
+  padding: 5px 20px 15px 10px;
+  border: 5px solid;
+  transform-origin: 50% 50%;
+}
+.translate { transform: translate(100%, 50%); }
+.individual { translate: 100% 50%; }
+.scale { transform: scale(2); }
+</style>
+<body>
+<script>
+for (const [alias, box] of [
+  ["stroke-box", "border-box"],
+  ["view-box", "border-box"],
+  ["fill-box", "content-box"],
+]) {
+  for (const operation of ["translate", "individual", "scale"]) {
+    for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
+      for (const direction of ["ltr", "rtl"]) {
+        for (const zoom of [1, 2]) {
+          for (const aliasFirst of [false, true]) {
+            test(t => {
+              const host = document.createElement("div");
+              host.className = "host";
+              host.style.zoom = zoom;
+              const target = document.createElement("div");
+              target.className = "target";
+              target.style.writingMode = writingMode;
+              target.style.direction = direction;
+              host.append(target);
+              document.body.append(host);
+              t.add_cleanup(() => host.remove());
+
+              function checkRect(expected, label) {
+                const origin = host.getBoundingClientRect();
+                const rect = target.getBoundingClientRect();
+                const actual = [rect.x - origin.x, rect.y - origin.y,
+                  rect.width, rect.height];
+                actual.forEach((value, i) => {
+                  assert_approx_equals(value, expected[i] * zoom, 0.05,
+                    `${label}: component ${i}`);
+                });
+              }
+
+              checkRect([0, 0, 140, 70], "untransformed box");
+              target.classList.add(operation);
+              const content = box === "content-box";
+              const expected = operation === "scale"
+                ? [content ? -65 : -70, content ? -30 : -35, 280, 140]
+                : [content ? 100 : 140, content ? 20 : 35, 140, 70];
+              const states = aliasFirst ? [alias, box, alias] : [box, alias, box];
+              for (const state of states) {
+                target.style.transformBox = state;
+                assert_equals(getComputedStyle(target).transformBox, state);
+                checkRect(expected, state);
+              }
+            }, `${alias}, ${operation}, ${writingMode}, ${direction}, zoom ${zoom}, alias first ${aliasFirst}`);
+          }
+        }
+      }
+    }
+  }
+}
+</script>

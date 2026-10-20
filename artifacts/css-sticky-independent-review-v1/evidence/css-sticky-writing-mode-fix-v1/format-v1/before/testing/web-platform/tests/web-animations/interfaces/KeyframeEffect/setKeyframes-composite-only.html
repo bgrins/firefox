@@ -1,0 +1,162 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Keyframe composite changes through setKeyframes</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations/#dom-keyframeeffect-setkeyframes">
+<link rel="help" href="https://drafts.csswg.org/web-animations/#dom-keyframeeffect-getkeyframes">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="../../testcommon.js"></script>
+<style>
+  .target { margin-left: 10px; }
+</style>
+<body>
+<script>
+'use strict';
+
+const operations = ['replace', 'add', 'accumulate', 'auto'];
+const inputs = {
+  'array with no properties': composite => [
+    { offset: 0, composite },
+    { offset: 1, composite },
+  ],
+  'object with scalar composite': composite => ({
+    marginLeft: ['20px', '40px'], composite,
+  }),
+  'object with composite list': composite => ({
+    marginLeft: ['20px', '40px'], composite: [composite, composite],
+  }),
+};
+
+for (const [kind, input] of Object.entries(inputs)) {
+  for (const before of operations) {
+    for (const after of operations) {
+      test(() => {
+        const effect = new KeyframeEffect(null, input(before));
+        assert_array_equals(effect.getKeyframes().map(k => k.composite),
+                            [before, before], 'Initial operations');
+        effect.setKeyframes(input(after));
+        assert_array_equals(effect.getKeyframes().map(k => k.composite),
+                            [after, after], 'Updated operations');
+      }, `${kind}: setKeyframes changes ${before} to ${after}`);
+    }
+  }
+}
+
+function frames(first, last = first, end = '40px') {
+  return [
+    { offset: 0, marginLeft: '20px', composite: first },
+    { offset: 1, marginLeft: end, composite: last },
+  ];
+}
+
+function animate(t, keyframes, composite = 'replace') {
+  const target = createDiv(t);
+  target.className = 'target';
+  const animation = target.animate(keyframes, {
+    duration: 1000, fill: 'both', composite,
+  });
+  t.add_cleanup(() => animation.cancel());
+  animation.pause();
+  animation.currentTime = 500;
+  return { target, animation };
+}
+
+function margin(target) {
+  return getComputedStyle(target).marginLeft;
+}
+
+for (const [before, after] of [
+  ['replace', 'add'], ['add', 'replace'],
+  ['replace', 'accumulate'], ['accumulate', 'replace'],
+  ['replace', 'auto'], ['auto', 'replace'],
+]) {
+  for (const composite of ['replace', 'add']) {
+    test(t => {
+      const { target, animation } = animate(t, frames(before), composite);
+      const initial = (before === 'auto' ? composite : before) === 'replace'
+        ? '30px' : '40px';
+      const expected = (after === 'auto' ? composite : after) === 'replace'
+        ? '30px' : '40px';
+      assert_equals(margin(target), initial, 'Initial value');
+      animation.effect.setKeyframes(frames(after));
+      assert_equals(margin(target), expected, 'Updated value');
+    }, `${before} to ${after} updates style with effect composite ${composite}`);
+  }
+}
+
+for (const operation of ['add', 'accumulate']) {
+  for (const endpoint of ['first', 'last']) {
+    test(t => {
+      const { target, animation } = animate(t, frames('replace'));
+      assert_equals(margin(target), '30px', 'Initial value');
+      animation.effect.setKeyframes(frames(
+        endpoint === 'first' ? operation : 'replace',
+        endpoint === 'last' ? operation : 'replace'
+      ));
+      assert_equals(margin(target), '35px', 'Updated mixed-composite value');
+    }, `Changing only the ${endpoint} keyframe to ${operation} updates style`);
+  }
+}
+
+test(t => {
+  const { target, animation } = animate(t, frames('replace'));
+  for (const operation of ['add', 'add', 'replace', 'replace', 'add']) {
+    animation.effect.setKeyframes(frames(operation));
+    assert_equals(margin(target), operation === 'replace' ? '30px' : '40px',
+                  `Value after setting ${operation}`);
+  }
+}, 'Composite changes can be repeated and reversed');
+
+test(t => {
+  const { target, animation } = animate(t, frames('replace'));
+  animation.effect.setKeyframes(frames('add', 'add', '42px'));
+  assert_equals(margin(target), '41px');
+}, 'Changing the value together with the composite updates style');
+
+for (const operation of ['auto', 'add']) {
+  test(t => {
+    const { target, animation } = animate(t, frames(operation), 'add');
+    assert_equals(margin(target), '40px', 'Initial value');
+    animation.effect.composite = 'replace';
+    assert_equals(margin(target), operation === 'auto' ? '30px' : '40px',
+                  'Value after changing the effect composite');
+    assert_array_equals(animation.effect.getKeyframes().map(k => k.composite),
+                        [operation, operation]);
+  }, `Effect composite changes preserve specified ${operation} keyframes`);
+}
+
+test(t => {
+  const { target, animation } = animate(t, frames('replace'));
+  const invalid = frames('add');
+  invalid[1].offset = -1;
+  assert_throws_js(TypeError, () => animation.effect.setKeyframes(invalid));
+  assert_array_equals(animation.effect.getKeyframes().map(k => k.composite),
+                      ['replace', 'replace']);
+  assert_equals(margin(target), '30px');
+}, 'A processing error preserves existing composite operations and style');
+
+test(t => {
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes composite-only-update {
+      from { margin-left: 20px; animation-composition: replace; }
+      to { margin-left: 40px; animation-composition: replace; }
+    }
+    .css-animation {
+      animation: composite-only-update 1000ms linear both paused;
+    }
+  `;
+  document.head.append(style);
+  t.add_cleanup(() => style.remove());
+  const target = createDiv(t);
+  target.className = 'target css-animation';
+  const animation = target.getAnimations()[0];
+  t.add_cleanup(() => animation.cancel());
+  animation.currentTime = 500;
+  assert_equals(margin(target), '30px', 'Initial CSS animation value');
+  for (const rule of style.sheet.cssRules[0].cssRules) {
+    rule.style.animationComposition = 'add';
+  }
+  assert_equals(margin(target), '40px', 'Updated CSS animation value');
+}, 'CSSOM changes to keyframe composition update an existing CSS animation');
+</script>

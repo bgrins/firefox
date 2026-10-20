@@ -1,0 +1,136 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Absolute-position auto margins preserve the signed residual after fixed margins</title>
+<link rel="help" href="https://drafts.csswg.org/css-position-3/#abspos-margins">
+<link rel="help" href="https://www.w3.org/TR/CSS22/visudet.html#abs-non-replaced-width">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .container {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    margin: 200px;
+    padding: 10px;
+    border: 5px solid;
+  }
+  .child {
+    position: absolute;
+    inset: 0;
+    width: 14px;
+    height: 14px;
+    padding: 2px;
+    border: 1px solid;
+    margin: 0;
+  }
+</style>
+<div id="log"></div>
+<script>
+const modes = ["horizontal-tb", "vertical-lr", "vertical-rl"];
+for (const writingMode of modes) {
+  for (const direction of ["ltr", "rtl"]) {
+    for (const axis of ["inline", "block"]) {
+      for (const autoSide of ["start", "end"]) {
+        for (const [startInset, endInset] of [[0, 0], [10, 30], [40, 60], [60, 60]]) {
+          for (const fixedMargin of [0, 150, -50]) {
+            for (const reverse of [false, true]) {
+              test(t => {
+                const container = document.createElement("div");
+                container.className = "container";
+                container.style.writingMode = writingMode;
+                container.style.direction = direction;
+                const child = document.createElement("div");
+                child.className = "child";
+                container.append(child);
+                document.body.append(container);
+                t.add_cleanup(() => container.remove());
+
+                const autoProperty = `margin-${axis}-${autoSide}`;
+                const fixedProperty = `margin-${axis}-${autoSide === "start" ? "end" : "start"}`;
+                child.style.setProperty(autoProperty, "auto");
+                child.style.setProperty(`inset-${axis}-start`, `${startInset}px`);
+                child.style.setProperty(`inset-${axis}-end`, `${endInset}px`);
+
+                let startEdge;
+                if (axis === "inline") {
+                  startEdge = writingMode === "horizontal-tb"
+                    ? (direction === "ltr" ? "left" : "right")
+                    : (direction === "ltr" ? "top" : "bottom");
+                } else {
+                  startEdge = writingMode === "horizontal-tb" ? "top"
+                    : writingMode === "vertical-lr" ? "left" : "right";
+                }
+                const forward = startEdge === "left" || startEdge === "top";
+                const margins = reverse ? [0, fixedMargin, 0] : [fixedMargin, 0, fixedMargin];
+                for (const [state, margin] of margins.entries()) {
+                  child.style.setProperty(fixedProperty, `${margin}px`);
+                  const cb = container.getBoundingClientRect();
+                  const rect = child.getBoundingClientRect();
+                  const computed = getComputedStyle(child);
+                  const residual = Math.max(0, 100 - startInset - endInset) - 20 - margin;
+                  const expectedStart = startInset + (autoSide === "start" ? residual : margin);
+                  const actualStart = forward
+                    ? rect[startEdge] - cb[startEdge] - 5
+                    : cb[startEdge] - 5 - rect[startEdge];
+                  assert_equals(cb.width - 10, 100, `state ${state}: containing block width`);
+                  assert_equals(cb.height - 10, 100, `state ${state}: containing block height`);
+                  assert_equals(rect.width, 20, `state ${state}: border-box width`);
+                  assert_equals(rect.height, 20, `state ${state}: border-box height`);
+                  assert_equals(actualStart, expectedStart, `state ${state}: border-box start`);
+                  assert_equals(parseFloat(computed.getPropertyValue(autoProperty)), residual,
+                    `state ${state}: automatic margin`);
+                  assert_equals(parseFloat(computed.getPropertyValue(fixedProperty)), margin,
+                    `state ${state}: fixed margin`);
+                }
+              }, `${writingMode} ${direction}, ${axis} auto ${autoSide}, insets ${startInset}/${endInset}, fixed margin ${fixedMargin}, reverse ${reverse}`);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+for (const writingMode of modes) {
+  for (const direction of ["ltr", "rtl"]) {
+    for (const axis of ["inline", "block"]) {
+      for (const autoInset of ["start", "end", "both"]) {
+        for (const autoSide of ["start", "end"]) {
+          for (const fixedMargin of [-50, 0, 150]) {
+            test(t => {
+              const container = document.createElement("div");
+              container.className = "container";
+              container.style.writingMode = writingMode;
+              container.style.direction = direction;
+              const child = document.createElement("div");
+              child.className = "child";
+              container.append(child);
+              document.body.append(container);
+              t.add_cleanup(() => container.remove());
+              const autoProperty = `margin-${axis}-${autoSide}`;
+              const fixedProperty = `margin-${axis}-${autoSide === "start" ? "end" : "start"}`;
+              child.style.setProperty(autoProperty, "auto");
+              for (const side of ["start", "end"]) {
+                if (autoInset === side || autoInset === "both") {
+                  child.style.setProperty(`inset-${axis}-${side}`, "auto");
+                }
+              }
+              for (const [state, margin] of [fixedMargin, 0, fixedMargin].entries()) {
+                child.style.setProperty(fixedProperty, `${margin}px`);
+                const rect = child.getBoundingClientRect();
+                const computed = getComputedStyle(child);
+                assert_equals(rect.width, 20, `state ${state}: border-box width`);
+                assert_equals(rect.height, 20, `state ${state}: border-box height`);
+                assert_equals(parseFloat(computed.getPropertyValue(autoProperty)), 0,
+                  `state ${state}: automatic margin with automatic inset`);
+                assert_equals(parseFloat(computed.getPropertyValue(fixedProperty)), margin,
+                  `state ${state}: fixed margin with automatic inset`);
+              }
+            }, `${writingMode} ${direction}, ${axis} auto inset ${autoInset}, auto margin ${autoSide}, fixed margin ${fixedMargin}`);
+          }
+        }
+      }
+    }
+  }
+}
+</script>

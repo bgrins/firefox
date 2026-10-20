@@ -1,0 +1,110 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Composition preserves transforms that depend on reference-box dimensions</title>
+<link rel="help" href="https://drafts.csswg.org/css-transforms-1/#interpolation-of-transforms">
+<link rel="help" href="https://drafts.csswg.org/css-transforms-2/#combining-transform-lists">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#the-effect-value-of-a-keyframe-animation-effect">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.target {
+  width: 200px;
+  height: 80px;
+  padding: 0;
+  border: 0;
+  transform-box: border-box;
+  transform-origin: 0 0;
+}
+.target.resized {
+  width: 400px;
+  height: 160px;
+}
+</style>
+<div id="log"></div>
+<script>
+function createTarget(t, underlying) {
+  const target = document.createElement('div');
+  target.className = 'target';
+  target.style.transform = underlying;
+  document.body.append(target);
+  t.add_cleanup(() => target.remove());
+  return target;
+}
+
+function animate(t, target, keyframes, composite = 'replace') {
+  const animation = target.animate(keyframes, {
+    duration: 1000,
+    fill: 'both',
+    composite,
+  });
+  animation.pause();
+  animation.currentTime = 500;
+  t.add_cleanup(() => animation.cancel());
+}
+
+function assertMatrix(target, expected, label) {
+  const matrix = new DOMMatrix(getComputedStyle(target).transform);
+  assert_true(matrix.is2D, label + ': two-dimensional matrix');
+  assert_array_approx_equals(
+    [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f],
+    expected, 0.00001, label);
+}
+
+const accumulationCases = [
+  ['percentage underlying', 'translateX(50%)', ['scale(1)', 'scale(2)'],
+   [1.5, 0, 0, 1.5, 100, 0], [1.5, 0, 0, 1.5, 200, 0]],
+  ['percentage keyframes', 'scale(1.5)', ['translateX(25%)', 'translateX(75%)'],
+   [1.5, 0, 0, 1.5, 100, 0], [1.5, 0, 0, 1.5, 200, 0]],
+  ['percentage height', 'translateY(50%)', ['scale(1)', 'scale(2)'],
+   [1.5, 0, 0, 1.5, 0, 40], [1.5, 0, 0, 1.5, 0, 80]],
+  ['shorter underlying list', 'translateX(50%)',
+   ['scale(1) translateY(10px)', 'scale(2) translateY(10px)'],
+   [1.5, 0, 0, 1.5, 100, 15], [1.5, 0, 0, 1.5, 200, 15]],
+  ['shorter keyframe lists', 'translateX(50%) translateY(10px)',
+   ['scale(1)', 'scale(2)'],
+   [1.5, 0, 0, 1.5, 100, 10], [1.5, 0, 0, 1.5, 200, 10]],
+  ['matching prefix', 'translateX(10px) translateX(50%)',
+   ['translateX(5px) scale(1)', 'translateX(15px) scale(2)'],
+   [1.5, 0, 0, 1.5, 120, 0], [1.5, 0, 0, 1.5, 220, 0]],
+  ['pixel control', 'translateX(100px)', ['scale(1)', 'scale(2)'],
+   [1.5, 0, 0, 1.5, 100, 0], [1.5, 0, 0, 1.5, 100, 0]],
+  ['matching functions control', 'translateX(50%)',
+   ['translateX(0px)', 'translateX(100px)'],
+   [1, 0, 0, 1, 150, 0], [1, 0, 0, 1, 250, 0]],
+];
+
+for (const [name, underlying, values, expected, resized] of accumulationCases) {
+  test(t => {
+    const target = createTarget(t, underlying);
+    animate(t, target, { transform: values }, 'accumulate');
+    assertMatrix(target, expected, 'initial size');
+    target.classList.add('resized');
+    assertMatrix(target, resized, 'resized');
+  }, 'Interpolate accumulated endpoints: ' + name);
+}
+
+for (const offset of [0, 1]) {
+  for (const percentage of [true, false]) {
+    test(t => {
+      const target = createTarget(t, 'none');
+      animate(t, target, {
+        transform: [percentage ? 'translateX(50%)' : 'translateX(100px)', 'scale(3)'],
+      });
+      animate(t, target, [{ offset, transform: 'scale(4)' }]);
+      assertMatrix(target, [3, 0, 0, 3, 25, 0], 'initial size');
+      target.classList.add('resized');
+      assertMatrix(target, [3, 0, 0, 3, percentage ? 50 : 25, 0], 'resized');
+    }, 'Interpolate an underlying interpolation at implicit offset ' + (1 - offset) +
+       (percentage ? ' with a percentage' : ' with pixels'));
+  }
+}
+
+test(t => {
+  const target = createTarget(t, 'none');
+  animate(t, target, { transform: ['translateX(50%)', 'scale(3)'] });
+  animate(t, target, { transform: ['translateX(10px)', 'translateX(30px)'] }, 'accumulate');
+  assertMatrix(target, [2, 0, 0, 2, 70, 0], 'initial size');
+  target.classList.add('resized');
+  assertMatrix(target, [2, 0, 0, 2, 120, 0], 'resized');
+}, 'Accumulate onto an underlying interpolation');
+</script>

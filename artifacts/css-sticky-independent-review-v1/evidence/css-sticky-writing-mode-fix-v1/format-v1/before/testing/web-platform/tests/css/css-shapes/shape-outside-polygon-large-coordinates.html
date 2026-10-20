@@ -1,0 +1,99 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Clipped polygons preserve float exclusion with large coordinates</title>
+<link rel="help" href="https://drafts.csswg.org/css-shapes-1/#relation-to-box-model-and-float-behavior">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.flow {
+  display: flow-root;
+  width: 400px;
+  font-size: 0;
+}
+.float {
+  width: 200px;
+  height: 200px;
+  shape-margin: 0;
+}
+.marker {
+  display: inline-block;
+  width: 1px;
+  vertical-align: top;
+}
+</style>
+<body>
+<script>
+function polygon(side, extent, reversed) {
+  const points = side === "left"
+    ? [[0, 0], [extent, extent], [0, extent]]
+    : [[200, 0], [200 - extent, extent], [200, extent]];
+  if (reversed) {
+    points.reverse();
+  }
+  return `polygon(${points.map(([x, y]) => `${x}px ${y}px`).join(", ")})`;
+}
+
+function createFlow(t, side, lineHeight) {
+  const flow = document.createElement("div");
+  flow.className = "flow";
+  flow.style.textAlign = side;
+  flow.style.lineHeight = `${lineHeight}px`;
+  const float = document.createElement("div");
+  float.className = "float";
+  float.style.cssFloat = side;
+  flow.append(float);
+  const markers = [];
+  for (let i = 0; i < 240 / lineHeight; ++i) {
+    const marker = document.createElement("span");
+    marker.className = "marker";
+    marker.style.height = `${lineHeight}px`;
+    flow.append(marker, document.createElement("br"));
+    markers.push(marker);
+  }
+  document.body.append(flow);
+  t.add_cleanup(() => flow.remove());
+  return { flow, float, markers };
+}
+
+function positions(fixture) {
+  const box = fixture.flow.getBoundingClientRect();
+  return fixture.markers.map(marker => {
+    const r = marker.getBoundingClientRect();
+    return { x: r.x - box.x, y: r.y - box.y };
+  });
+}
+
+for (const side of ["left", "right"]) {
+  for (const lineHeight of [10, 20]) {
+    for (const reversed of [false, true]) {
+      for (const extent of [1000, 10000]) {
+        for (const largeFirst of [false, true]) {
+          test(t => {
+            const reference = createFlow(t, side, lineHeight);
+            reference.float.style.shapeOutside = polygon(side, 200, reversed);
+            const expected = positions(reference);
+            expected.forEach((r, i) => {
+              const exclusion = i * lineHeight < 200 ? (i + 1) * lineHeight : 0;
+              assert_approx_equals(r.y, i * lineHeight, 0.05, `reference line ${i}`);
+              assert_approx_equals(r.x, side === "left" ? exclusion : 399 - exclusion,
+                0.05, `reference exclusion ${i}`);
+            });
+            const active = createFlow(t, side, lineHeight);
+            const states = largeFirst ? [extent, 200, extent] : [200, extent, 200];
+            for (const current of states) {
+              active.float.style.shapeOutside = polygon(side, current, reversed);
+              const actual = positions(active);
+              actual.forEach((r, i) => {
+                assert_approx_equals(r.y, expected[i].y, 0.05,
+                  `extent ${current}, line ${i}: block position`);
+                assert_approx_equals(r.x, expected[i].x, 0.05,
+                  `extent ${current}, line ${i}: clipped polygon exclusion`);
+              });
+            }
+          }, `${side}, line height ${lineHeight}, reversed ${reversed}, extent ${extent}, large first ${largeFirst}`);
+        }
+      }
+    }
+  }
+}
+</script>
