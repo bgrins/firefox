@@ -294,13 +294,20 @@ claim follows from the prototypes.
 ## Whole-CSS source-ledger pilots — 19 October 2026
 
 The [v4 research and executable prototypes](../css-whole-spec-feasibility-v4/README.md)
-are committed in `bd7952da0a6585c32fb7d26e71b184ea25ae93ee`. Current agents are
-implementing deterministic source accounting for fragmentation, HTML style-block
-updates and font cluster matching, independently interpreting fragmentation,
-and extending architecture/validation/scaling recommendations. Source byte
-coverage does not establish normative interpretation or Lean coverage. Next:
-authenticate and replay the importer, reconcile independent clauses and bind one
-reviewed requirement to actual Lean semantics before widening the inventory.
+are committed in `bd7952da0a6585c32fb7d26e71b184ea25ae93ee`. The source importer
+now passes root manifest-only relocated replay: three documents, 2,029,554 bytes,
+75,626 lexical units and 16 rejected corruption/edit controls. Independent
+fragmentation review matches the final importer and ledger exactly. Its thirteen
+requirements and eight scenarios remain proposed interpretations.
+[Root accounting review](../css-spec-source-ledger-root-v1/REVIEW.md).
+
+The [architecture extension](../css-whole-spec-architecture-v5/REPORT.md) connects
+existing library modules to proposed host-observation, content-continuation and
+consumer-relative equality contracts. All new sketches are uncompiled. Next:
+review a finite fragmentation domain and feasibility/escalation interfaces, then
+implement a source-bound relation and executable selector. Reconcile HTML
+style-block and font-cluster interpretations separately. Source bytes and theorem
+counts are not a whole-CSS semantic coverage measure.
 
 ## Underlying animation base metadata — accepted
 

@@ -1,0 +1,72 @@
+<h3 class="heading settled" data-level="4.4" id="unforced-breaks"><span class="secno">4.4. </span><span class="content">
+Unforced Breaks</span><a class="self-link" href="#unforced-breaks"></a></h3>
+   <p>
+    While <a href="#breaking-controls">breaking controls</a> can force breaks,
+    they can also discourage them.
+    An <dfn class="dfn-paneled" data-dfn-type="dfn" data-export id="unforced-break">unforced break</dfn> is one that is inserted automatically by the UA
+    in order to prevent content from overflowing the <a data-link-type="dfn" href="#fragmentainer" id="ref-for-fragmentainer①⑦">fragmentainer</a>.
+    The following rules control whether unforced breaking
+    at a <a href="#possible-breaks">possible break point</a> is allowed:
+  </p>
+   <dl>
+    <dt>Rule 1
+    <dd>
+      A <a data-link-type="dfn" href="#fragmented-flow" id="ref-for-fragmented-flow⑤">fragmented flow</a> may break at a <a href="#btw-blocks">class A break point</a> only if
+      all the <a class="css property" data-link-type="property" href="#propdef-break-after" id="ref-for-propdef-break-after⑥">break-after</a> and <a class="css property" data-link-type="property" href="#propdef-break-before" id="ref-for-propdef-break-before⑥">break-before</a> values applicable to this
+      break point allow it, which is when at least one of them forces a
+      break or when none of them forbid it
+      (<a class="css" data-link-type="maybe" href="#valdef-break-before-avoid" id="ref-for-valdef-break-before-avoid①">avoid</a> or <a class="css" data-link-type="maybe" href="#valdef-break-before-avoid-page" id="ref-for-valdef-break-before-avoid-page①">avoid-page</a>/<a class="css" data-link-type="maybe" href="#valdef-break-before-avoid-column" id="ref-for-valdef-break-before-avoid-column①">avoid-column</a>/<a class="css" data-link-type="maybe" href="#valdef-break-before-avoid-region" id="ref-for-valdef-break-before-avoid-region②">avoid-region</a>, depending on the <a href="#break-types">break type</a>).
+    
+    <dt>Rule 2
+    <dd>
+      However, if all of them are <a class="css" data-link-type="maybe" href="#valdef-break-before-auto" id="ref-for-valdef-break-before-auto">auto</a> and a common ancestor of all
+      the elements has a <a class="css property" data-link-type="property" href="#propdef-break-inside" id="ref-for-propdef-break-inside④">break-inside</a> value of <a class="css" data-link-type="maybe" href="#valdef-break-inside-avoid" id="ref-for-valdef-break-inside-avoid">avoid</a>, then breaking
+      here is not allowed.
+    
+    <dt>Rule 3
+    <dd>
+      Breaking at a <a href="#btw-lines">class B break point</a> is allowed only if the number
+      of line boxes between the break and the start of the enclosing block
+      box is the value of <a class="css property" data-link-type="property" href="#propdef-orphans" id="ref-for-propdef-orphans⑤">orphans</a> or more, and the number of line boxes
+      between the break and the end of the box is the value of <a class="css property" data-link-type="property" href="#propdef-widows" id="ref-for-propdef-widows⑤">widows</a> or more.
+    
+    <dt>Rule 4
+    <dd>
+      Additionally, breaking at <a href="#btw-blocks">class B</a> or
+      <a href="#end-block">class C</a> break points
+      is allowed only if the <a class="css property" data-link-type="property" href="#propdef-break-inside" id="ref-for-propdef-break-inside⑤">break-inside</a> property of all ancestors is <a class="css" data-link-type="maybe" href="#valdef-break-inside-auto" id="ref-for-valdef-break-inside-auto">auto</a>.
+    
+   </dl>
+   <p>
+    If the above doesn’t provide enough break points to keep content from
+    overflowing the <a data-link-type="dfn" href="#fragmentainer" id="ref-for-fragmentainer①⑧">fragmentainer</a>,
+    then rule 3 is dropped to provide more break points.
+  </p>
+   <p>
+    If that still does not lead to sufficient break points,
+    then rules 1, 2 and 4 are dropped in order to find additional breakpoints.
+    In this case the UA may use the <span class="css">avoid</span>s that are in effect at those
+    points to weigh the appropriateness of the new breakpoints; however,
+    this specification does not suggest a precise algorithm.
+  </p>
+   <p>
+    If even that does not lead to sufficient break points,
+    <a href="#valdef-box-decoration-break-clone" id="ref-for-valdef-box-decoration-break-clone">cloned margins/border/padding</a>
+    at the <a data-link-type="dfn" href="https://drafts.csswg.org/css-writing-modes-4/#block-end" id="ref-for-block-end">block-end</a> side are truncated;
+    and if more room is still needed,
+    <a href="#valdef-box-decoration-break-clone" id="ref-for-valdef-box-decoration-break-clone①">cloned margins/border/padding</a>
+    are truncated at the <a data-link-type="dfn" href="https://drafts.csswg.org/css-writing-modes-4/#block-start" id="ref-for-block-start">block-start</a> side as well.
+  </p>
+   <p>
+    Finally, if there are no possible break points below the top of the fragmentainer,
+    and not all the content fits, the UA may break anywhere
+    in order to avoid losing content off the edge of the fragmentainer.
+    <span id="monolithic-breaking"></span>
+    In such cases, the UA may also fragment the contents of <a data-link-type="dfn" href="#monolithic" id="ref-for-monolithic②">monolithic</a> elements
+    by slicing the element’s graphical representation.
+    However, the UA must not break at the top of the page,
+    i.e. it must place at least some content on each fragmentainer,
+    so that each fragmentainer has a non-zero amount of content,
+    in order to guarantee progress through the content.
+  </p>
+   
