@@ -1,0 +1,32 @@
+import Hidden
+
+#print axioms Hidden.dirty_misses
+#print axioms Hidden.absent_misses
+#print axioms Hidden.changed_key_misses
+#print axioms Hidden.clean_hit
+#print axioms Hidden.valid_reuse_preserves_geometry
+#print axioms Hidden.no_effect_on_hits
+#print axioms Hidden.no_effect_when_not_hidden
+#print axioms Hidden.no_effect_when_already_dirty
+#print axioms Hidden.old_hidden_miss_retains_clean
+#print axioms Hidden.hidden_miss_publishes_zero
+#print axioms Hidden.repaired_hidden_miss_stays_dirty
+#print axioms Hidden.cache_records_observed_output
+#print axioms Hidden.clean_query_is_noop
+#print axioms Hidden.no_hidden_ancestor_no_force
+#print axioms Hidden.dirty_query_uses_actual_provider
+#print axioms Hidden.dirty_query_completes_clean
+#print axioms Hidden.repaired_hidden_miss_recovers
+#print axioms Hidden.repaired_hidden_miss_clears_after_recovery
+#print axioms Hidden.repeated_query_after_recovery
+#print axioms Hidden.old_clean_hidden_miss_stays_zero
+#print axioms Hidden.fixed_block_dimensions
+#print axioms Hidden.containing_block_only_miss
+#print axioms Hidden.old_zero_clean_witness
+#print axioms Hidden.repaired_witness
+#print axioms Hidden.cache_hit_does_not_prove_geometry
+#print axioms Hidden.repair_does_not_immediately_publish_real_geometry
+#print axioms Hidden.clean_descendant_does_not_force_ancestor
+#print axioms Hidden.dirty_parent_clean_descendant_countermodel
+#print axioms Hidden.clean_changed_key_retains_obsolete_geometry
+#print axioms Hidden.observed_sentinel_to_zero_witness

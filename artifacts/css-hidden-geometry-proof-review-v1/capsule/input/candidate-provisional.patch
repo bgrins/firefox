@@ -1,0 +1,13 @@
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -2103,6 +2103,10 @@
+                   cachedData->mBAxisMeasurement->BSize());
+   } else {
+     FLEX_ITEM_LOG(aItem.Frame(), "[perf] No cached measurement");
++  }
++
++  if (aItem.Frame()->IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
++    aItem.Frame()->AddStateBits(NS_FRAME_IS_DIRTY);
+   }
+ 
+   // CachedFlexItemData is stored in item's writing mode, so we pass
