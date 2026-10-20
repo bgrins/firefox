@@ -1,0 +1,290 @@
+[
+  {
+    "name": "ScrollBaselineProvider.orientation_is_involutive",
+    "module": "Provider",
+    "complete_declaration": "theorem orientation_is_involutive (first : Bool) (size distance : Int) :\n    fromStart first size (fromStart first size distance) = distance := by\n  cases first <;> simp [fromStart] <;> omega",
+    "sha256": "ef9cb541b4b466a67fdb7dcb81460e1a4a807aa3ccae97265af80f8763710077"
+  },
+  {
+    "name": "ScrollBaselineProvider.output_preserves_clamped_physical_baseline",
+    "module": "Provider",
+    "complete_declaration": "theorem output_preserves_clamped_physical_baseline\n    (first : Bool) (outer inner border distance : Int) :\n    fromStart first outer (repaired first outer inner border distance) =\n      clamp outer (border + fromStart first inner distance) := by\n  exact orientation_is_involutive first outer _",
+    "sha256": "3cc155af2c3e68cc34c2a4685f5f96add4d1b4ca306a7da1ca814f016fb9403d"
+  },
+  {
+    "name": "ScrollBaselineProvider.clamp_bounds",
+    "module": "Provider",
+    "complete_declaration": "theorem clamp_bounds (outer value : Int) (valid : 0 \u2264 outer) :\n    0 \u2264 clamp outer value \u2227 clamp outer value \u2264 outer := by\n  unfold clamp\n  omega",
+    "sha256": "70d6812af327e956fd48df575147b57ade7045c278f5712d868cda2023791cb1"
+  },
+  {
+    "name": "ScrollBaselineProvider.result_is_within_border_box",
+    "module": "Provider",
+    "complete_declaration": "theorem result_is_within_border_box (first : Bool) (outer inner border distance : Int)\n    (valid : 0 \u2264 outer) :\n    0 \u2264 repaired first outer inner border distance \u2227\n      repaired first outer inner border distance \u2264 outer := by\n  have h := clamp_bounds outer (border + fromStart first inner distance) valid\n  cases first <;> simp only [repaired,fromStart,ite_true,Bool.false_eq_true,ite_false] at * <;> omega",
+    "sha256": "43fb86e928473c512da2cb4d9155fd5e8ead9fe22fc4fb44e3a896bfaf32e02b"
+  },
+  {
+    "name": "ScrollBaselineProvider.first_group_is_preserved",
+    "module": "Provider",
+    "complete_declaration": "theorem first_group_is_preserved (outer inner border distance : Int) :\n    repaired true outer inner border distance = original outer border distance := by\n  rfl",
+    "sha256": "f52d33da8d11a62c1cd5434142dc4d62b03d9c70de940f2ac97ebd3d043d4fef"
+  },
+  {
+    "name": "ScrollBaselineProvider.last_group_interior_conversion",
+    "module": "Provider",
+    "complete_declaration": "theorem last_group_interior_conversion (outer inner border distance : Int)\n    (lower : 0 \u2264 border + inner - distance)\n    (upper : border + inner - distance \u2264 outer) :\n    repaired false outer inner border distance = outer - border - inner + distance := by\n  unfold repaired fromStart clamp\n  simp only [Bool.false_eq_true,ite_false]\n  omega",
+    "sha256": "d063264aece636e60cfc0ad8fa9b307fcc167680ee5be7eb3ec853ed63b11e63"
+  },
+  {
+    "name": "ScrollBaselineProvider.asymmetric_border_error",
+    "module": "Provider",
+    "complete_declaration": "theorem asymmetric_border_error (outer inner start finish distance : Int)\n    (sizes : outer = start + inner + finish)\n    (oldLower : 0 \u2264 start + distance) (oldUpper : start + distance \u2264 outer)\n    (newLower : 0 \u2264 start + inner - distance)\n    (newUpper : start + inner - distance \u2264 outer) :\n    original outer start distance - repaired false outer inner start distance = start - finish := by\n  have h := last_group_interior_conversion outer inner start distance newLower newUpper\n  unfold original clamp\n  omega",
+    "sha256": "218ee6cd0e43297feb0083a8ceb0980b11ba3ce0db6ad7e617204951dba3ac88"
+  },
+  {
+    "name": "ScrollBaselineProvider.symmetric_borders_are_an_interior_control",
+    "module": "Provider",
+    "complete_declaration": "theorem symmetric_borders_are_an_interior_control (outer inner border distance : Int)\n    (sizes : outer = border + inner + border)\n    (oldLower : 0 \u2264 border + distance) (oldUpper : border + distance \u2264 outer)\n    (newLower : 0 \u2264 border + inner - distance)\n    (newUpper : border + inner - distance \u2264 outer) :\n    original outer border distance = repaired false outer inner border distance := by\n  have h := asymmetric_border_error outer inner border border distance sizes\n    oldLower oldUpper newLower newUpper\n  omega",
+    "sha256": "1d41d36f06a01b5e2267ef95534be71ed39ad9e77ef6682558373dcd4db4c473"
+  },
+  {
+    "name": "ScrollBaselineProvider.last_baseline_after_border_clamps_to_end",
+    "module": "Provider",
+    "complete_declaration": "theorem last_baseline_after_border_clamps_to_end (outer inner border distance : Int)\n    (valid : 0 \u2264 outer) (outside : outer \u2264 border + inner - distance) :\n    repaired false outer inner border distance = 0 := by\n  unfold repaired fromStart clamp\n  simp only [Bool.false_eq_true,ite_false]\n  omega",
+    "sha256": "b070cf1a72e0f7b693acb8dc67c0bc942088434e6f346c8c5eb090fdf82dc918"
+  },
+  {
+    "name": "ScrollBaselineProvider.last_baseline_before_border_clamps_to_start",
+    "module": "Provider",
+    "complete_declaration": "theorem last_baseline_before_border_clamps_to_start (outer inner border distance : Int)\n    (outside : border + inner - distance \u2264 0) :\n    repaired false outer inner border distance = outer := by\n  unfold repaired fromStart clamp\n  simp only [Bool.false_eq_true,ite_false]\n  omega",
+    "sha256": "41918fad001686a7a96e9837edfccd879f28218528d1abd7982f3831e02dfe36"
+  },
+  {
+    "name": "ScrollBaselineProvider.replacing_start_border_with_end_is_insufficient",
+    "module": "Provider",
+    "complete_declaration": "theorem replacing_start_border_with_end_is_insufficient :\n    repaired false 60 200 9 10 = 0 \u2227 clamp 60 (1 + 10) = 11 := by decide +kernel",
+    "sha256": "841f5478fd52bdf54317f11d2d4ee51c8399b92eca5e9e098d822b2142d1e3d6"
+  },
+  {
+    "name": "ScrollBaselineProvider.literal_asymmetric_counterexample",
+    "module": "Provider",
+    "complete_declaration": "theorem literal_asymmetric_counterexample :\n    original 59 9 30 = 39 \u2227 repaired false 59 50 9 30 = 30 \u2227\n    original 59 0 30 = 30 \u2227 repaired false 59 50 0 30 = 39 := by decide +kernel",
+    "sha256": "366bd275b409ce1d948a918e4d3dfa39020a401a50b99b3b95f545c6085d5397"
+  },
+  {
+    "name": "ScrollBaselineProvider.widened_native_intermediates_fit",
+    "module": "Provider",
+    "complete_declaration": "theorem widened_native_intermediates_fit (inner border distance : Int)\n    (hi : 0 \u2264 inner \u2227 inner \u2264 2147483647)\n    (hb : 0 \u2264 border \u2227 border \u2264 2147483647)\n    (hd : -2147483648 \u2264 distance \u2227 distance \u2264 2147483647) :\n    -9223372036854775808 \u2264 inner - distance \u2227\n    inner - distance \u2264 9223372036854775807 \u2227\n    -9223372036854775808 \u2264 border + inner - distance \u2227\n    border + inner - distance \u2264 9223372036854775807 \u2227\n    -9223372036854775808 \u2264 border + distance \u2227\n    border + distance \u2264 9223372036854775807 := by omega",
+    "sha256": "06d5a234a640603d4d7afa678e5140b942178a3a0e1e47fb4490eeadb7c2cbe3"
+  },
+  {
+    "name": "ScrollBaselineProvider.narrowing_and_final_subtraction_fit",
+    "module": "Provider",
+    "complete_declaration": "theorem narrowing_and_final_subtraction_fit (first : Bool) (outer inner border distance : Int)\n    (valid : 0 \u2264 outer \u2227 outer \u2264 2147483647) :\n    0 \u2264 clamp outer (border + fromStart first inner distance) \u2227\n    clamp outer (border + fromStart first inner distance) \u2264 2147483647 \u2227\n    0 \u2264 repaired first outer inner border distance \u2227\n    repaired first outer inner border distance \u2264 2147483647 := by\n  have h := clamp_bounds outer (border + fromStart first inner distance) valid.1\n  have h' := result_is_within_border_box first outer inner border distance valid.1\n  omega",
+    "sha256": "bb4a32e1a0b84284ed021268c6dc92de237881e8edd440d85ea0e4f5ebfb31eb"
+  },
+  {
+    "name": "ScrollBaselineDispatch.native_primitive_is_clamp",
+    "module": "Dispatch",
+    "complete_declaration": "theorem native_primitive_is_clamp (size value : Int) : sourceClamp size value = clamp size value := by\n  unfold sourceClamp clamp\n  dsimp\n  split <;> split <;> omega",
+    "sha256": "0d14db68334bd7364b02cb5ab33cf749c68bbd3adf6bba06c2e5beeca0de3b40"
+  },
+  {
+    "name": "ScrollBaselineDispatch.clamp_matches_independent_piecewise",
+    "module": "Dispatch",
+    "complete_declaration": "theorem clamp_matches_independent_piecewise (i : Input) (d : Int)\n    (size : 0 \u2264 i.outer) :\n    clamp i.outer (i.border + fromStart i.first i.inner d) = physicalBaseline i d := by\n  unfold clamp physicalBaseline fromStart\n  dsimp\n  split <;> split <;> (try split) <;> omega",
+    "sha256": "f378d65e146ff0d09cc1be3a420cc3c07d6a84ff36c32cb51617d1886d6dc50c"
+  },
+  {
+    "name": "ScrollBaselineDispatch.continuation_value",
+    "module": "Dispatch",
+    "complete_declaration": "theorem continuation_value (i : Input) (p : List Event) :\n    (continuation i p).value =\n      if i.contain then none else i.child.map (repaired i.first i.outer i.inner i.border) := by\n  cases h : i.contain <;> cases f : i.first <;> cases d : i.child <;>\n    simp [continuation, h, f, d, repaired, fromStart, clamp]",
+    "sha256": "4211202cd5c3a0e36540ab32012fdeb64d1bf804a2b086a2c18bfc6b3f5d887e"
+  },
+  {
+    "name": "ScrollBaselineDispatch.native_value_split",
+    "module": "Dispatch",
+    "complete_declaration": "theorem native_value_split (i : Input) :\n    (native i).value = if legacy i then some i.fallback else\n      if i.contain then none else i.child.map (repaired i.first i.outer i.inner i.border) := by\n  rcases i with \u27e8f,l,b,t,c,o,n,s,v,d\u27e9\n  cases f <;> cases l <;> cases b <;> cases t <;> cases c <;> cases d <;> rfl",
+    "sha256": "aca893e72254ffcac9be8edf3c6a5530d7efc0a243569de1b0739fffffa95c63"
+  },
+  {
+    "name": "ScrollBaselineDispatch.full_value_refinement",
+    "module": "Dispatch",
+    "complete_declaration": "theorem full_value_refinement (i : Input) (size : 0 \u2264 i.outer) :\n    (native i).value = reference i := by\n  rw [native_value_split]\n  unfold reference route\n  split\n  \u00b7 rfl\n  \u00b7 split\n    \u00b7 rfl\n    \u00b7 cases h : i.child with\n      | none => simp\n      | some d =>\n        simp only [Option.isSome_some, \u2193reduceIte, Option.map_some]\n        have same := clamp_matches_independent_piecewise i d size\n        unfold repaired\n        rw [same]\n        rfl",
+    "sha256": "1fbc23e21e341621720ebeb10f41e02ad9a73af8c3a5b3398e29dfa610f20cd4"
+  },
+  {
+    "name": "ScrollBaselineDispatch.exact_ordered_calls",
+    "module": "Dispatch",
+    "complete_declaration": "theorem exact_ordered_calls (i : Input) : (native i).calls = expectedCalls i := by\n  rcases i with \u27e8f,l,b,t,c,o,n,s,v,d\u27e9\n  cases f <;> cases l <;> cases b <;> cases t <;> cases c <;> cases d <;>\n    rfl",
+    "sha256": "7c5a2d885daf405ad519743c7ad923aae24b2c0cf0d5ab067df95a45cdaf1d5a"
+  },
+  {
+    "name": "ScrollBaselineDispatch.synthesis_precedes_containment",
+    "module": "Dispatch",
+    "complete_declaration": "theorem synthesis_precedes_containment (i : Input) (yes : legacy i = true) :\n    native i = \u27e8some i.fallback, [.queryBlock, .queryButton, .fallback]\u27e9 := by\n  have value := native_value_split i\n  have calls := exact_ordered_calls i\n  simp only [yes, \u2193reduceIte] at value\n  simp [expectedCalls, route, yes] at calls\n  cases h : native i\n  simp_all",
+    "sha256": "b65db8a529d02df0a5944fd12a2dee3ab35743377ae2034da3d79b8c367f3f26"
+  },
+  {
+    "name": "ScrollBaselineDispatch.containment_without_legacy",
+    "module": "Dispatch",
+    "complete_declaration": "theorem containment_without_legacy (i : Input) (no : legacy i = false)\n    (yes : i.contain = true) : (native i).value = none := by\n  simp [native_value_split, no, yes]",
+    "sha256": "c73c2aa50d95aeb3985ca6f9134112dd97ee518a9640e6373069ef8dbf0f2c64"
+  },
+  {
+    "name": "ScrollBaselineDispatch.absence_preserved",
+    "module": "Dispatch",
+    "complete_declaration": "theorem absence_preserved (i : Input) (no : legacy i = false)\n    (missing : i.child = none) : (native i).value = none := by\n  simp [native_value_split, no, missing]",
+    "sha256": "501b182bb71c28611f2b9d14d96ede66dc17b0cc5f1d80dd456bc6e370bfc521"
+  },
+  {
+    "name": "ScrollBaselineDispatch.delegated_zero_is_present",
+    "module": "Dispatch",
+    "complete_declaration": "theorem delegated_zero_is_present (i : Input) (no : legacy i = false)\n    (clear : i.contain = false) (child : i.child = some 0) :\n    (native i).value = some (repaired i.first i.outer i.inner i.border 0) := by\n  simp [native_value_split, no, clear, child]",
+    "sha256": "0e3994eaf2f61763cba5823330d2e1183115cf67a8d0b69c77fb749688cbec60"
+  },
+  {
+    "name": "ScrollBaselineDispatch.first_does_not_query_inner",
+    "module": "Dispatch",
+    "complete_declaration": "theorem first_does_not_query_inner (i : Input) (first : i.first = true) :\n    Event.inner \u2209 (native i).calls := by\n  rw [exact_ordered_calls]\n  rcases i with \u27e8f,l,b,t,c,o,n,s,v,d\u27e9\n  cases f <;> cases l <;> cases b <;> cases t <;> cases c <;> cases d <;>\n    simp_all [expectedCalls,route,legacy,prelude]",
+    "sha256": "e8ef05ef22a540ca442b80798d5bccc8eb678039d6376b9360ef978d4015c201"
+  },
+  {
+    "name": "ScrollBaselineDispatch.signed_border_intermediates_fit",
+    "module": "Dispatch",
+    "complete_declaration": "theorem signed_border_intermediates_fit (inner border distance : Int)\n    (hi : 0 \u2264 inner \u2227 inner \u2264 2147483647)\n    (hb : -2147483648 \u2264 border \u2227 border \u2264 2147483647)\n    (hd : -2147483648 \u2264 distance \u2227 distance \u2264 2147483647) :\n    -9223372036854775808 \u2264 inner - distance \u2227\n    inner - distance \u2264 9223372036854775807 \u2227\n    -9223372036854775808 \u2264 border + inner - distance \u2227\n    border + inner - distance \u2264 9223372036854775807 \u2227\n    -9223372036854775808 \u2264 border + distance \u2227\n    border + distance \u2264 9223372036854775807 := by omega",
+    "sha256": "b36106af43b452c7d2736419e20871e9de9514b3bef3d8ba23aa33cb9b6d0582"
+  },
+  {
+    "name": "ScrollBaselineDispatch.all_candidate_operations_fit",
+    "module": "Dispatch",
+    "complete_declaration": "theorem all_candidate_operations_fit (i : Input) (d : Int)\n    (outer : 0 \u2264 i.outer \u2227 i.outer \u2264 2147483647)\n    (inner : 0 \u2264 i.inner \u2227 i.inner \u2264 2147483647)\n    (border : -2147483648 \u2264 i.border \u2227 i.border \u2264 2147483647)\n    (distance : -2147483648 \u2264 d \u2227 d \u2264 2147483647) :\n    -9223372036854775808 \u2264 fromStart i.first i.inner d \u2227\n    fromStart i.first i.inner d \u2264 9223372036854775807 \u2227\n    -9223372036854775808 \u2264 i.border + fromStart i.first i.inner d \u2227\n    i.border + fromStart i.first i.inner d \u2264 9223372036854775807 \u2227\n    0 \u2264 clamp i.outer (i.border + fromStart i.first i.inner d) \u2227\n    clamp i.outer (i.border + fromStart i.first i.inner d) \u2264 2147483647 \u2227\n    0 \u2264 repaired i.first i.outer i.inner i.border d \u2227\n    repaired i.first i.outer i.inner i.border d \u2264 2147483647 := by\n  have wide := signed_border_intermediates_fit i.inner i.border d inner border distance\n  have narrow := narrowing_and_final_subtraction_fit i.first i.outer i.inner i.border d outer\n  cases h : i.first <;> simp_all [fromStart] <;> omega",
+    "sha256": "e7b604e0e103aa67c285bcaee716dfd7a683f9aef8d8e065eb67421d0460dc79"
+  },
+  {
+    "name": "ScrollBaselineDispatch.first_group_complete_output_preserved",
+    "module": "Dispatch",
+    "complete_declaration": "theorem first_group_complete_output_preserved (i : Input) (first : i.first = true) :\n    native i = originalNative i := by\n  rcases i with \u27e8f,l,b,t,c,o,n,s,v,d\u27e9\n  cases f <;> cases l <;> cases b <;> cases t <;> cases c <;> cases d <;>\n    simp_all [native,originalNative,legacy,prelude,continuation,original,clamp]",
+    "sha256": "e982d181cf5cd47ac967a4765cdc674894ce762232490757219e423816aadef2"
+  },
+  {
+    "name": "ScrollBaselineDispatch.no_metadata_queries_when_absent",
+    "module": "Dispatch",
+    "complete_declaration": "theorem no_metadata_queries_when_absent (i : Input) (missing : i.child = none)\n    (no : legacy i = false) :\n    (native i).calls = prelude i ++ (if i.contain then [.containment] else [.containment,.child]) := by\n  rw [exact_ordered_calls]\n  cases h : i.contain <;> simp [expectedCalls,route,no,missing,h]",
+    "sha256": "75374f09ac491485a09757b521f2f22c70b7568743aef8486f80ecd994d4fc5c"
+  },
+  {
+    "name": "ScrollBaselineDispatch.none_iff_no_selected_provider",
+    "module": "Dispatch",
+    "complete_declaration": "theorem none_iff_no_selected_provider (i : Input) :\n    (native i).value = none \u2194 legacy i = false \u2227 (i.contain = true \u2228 i.child = none) := by\n  rw [native_value_split]\n  cases h : legacy i <;> cases c : i.contain <;> cases d : i.child <;> simp",
+    "sha256": "529cbf3c04a493dfcfa84871fd07f6d2b4c243f032ca4e08c1ceb5a11e412fe4"
+  },
+  {
+    "name": "ScrollBaselineDispatch.outputs_agree_outside_delegation",
+    "module": "Dispatch",
+    "complete_declaration": "theorem outputs_agree_outside_delegation (i : Input)\n    (outside : route i \u2260 .delegated) : native i = originalNative i := by\n  rcases i with \u27e8f,l,b,t,c,o,n,s,v,d\u27e9\n  cases f <;> cases l <;> cases b <;> cases t <;> cases c <;> cases d <;>\n    simp_all [route,native,originalNative,legacy,prelude,continuation]",
+    "sha256": "5529d8d44a01af9c4787f3b921a9b3d2d1988fe9590a102096fcfbe421d02905"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.asymmetry",
+    "module": "Witnesses",
+    "complete_declaration": "theorem asymmetry : (native input).value = some 30 \u2227 original 59 9 30 = 39 := by decide +kernel",
+    "sha256": "eb25cb8b960de90ae11fc1d65f43cdc3a947d29325d2bca8be25a56061e0426e"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.containment_legacy_order",
+    "module": "Witnesses",
+    "complete_declaration": "theorem containment_legacy_order :\n    (native { input with lineLayout := true, contain := true }).value = some 77 := by decide +kernel",
+    "sha256": "b92b5334a1dbf4ea111502c15861a1c91eee67b42e5c701e3c9cfa61a02d9711"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.button_containment",
+    "module": "Witnesses",
+    "complete_declaration": "theorem button_containment :\n    (native { input with lineLayout := true, button := true, contain := true }).value = none := by decide +kernel",
+    "sha256": "084131fec05fd1d2fe9f12352d64d1eaa13852019babcf9ee655af52db4cd737"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.absent_has_no_geometry_queries",
+    "module": "Witnesses",
+    "complete_declaration": "theorem absent_has_no_geometry_queries :\n    native { input with child := none } = \u27e8none,[.containment,.child]\u27e9 := by decide +kernel",
+    "sha256": "e0bc936b7fbfb1feeb0725b541b62d8b09ec7eef4ded6aab56d130cdaf8d666e"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.zero_not_absence",
+    "module": "Witnesses",
+    "complete_declaration": "theorem zero_not_absence :\n    (native { input with child := some 0 }).value = some 0 := by decide +kernel",
+    "sha256": "482623085fb3c23c2e87fd95260a47b1181cd9ee4d6fc6a3e4c8941644131d48"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.arbitrary_size_requires_conversion",
+    "module": "Witnesses",
+    "complete_declaration": "theorem arbitrary_size_requires_conversion :\n    (native { input with outer := 60, inner := 200, child := some 10 }).value = some 0 \u2227\n    clamp 60 (1+10) = 11 := by decide +kernel",
+    "sha256": "2f9db7d1fc1b02fc59d45c5eadcc894abe453c5b5a943d40ca3ede46e504d036"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.child_before_start_clamped",
+    "module": "Witnesses",
+    "complete_declaration": "theorem child_before_start_clamped :\n    (native { input with child := some 100 }).value = some 59 := by decide +kernel",
+    "sha256": "3cf1d535fa0294f76b30b4dcda3b76617faccf037814889ba5e37862747108d5"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.widened_before_clamp",
+    "module": "Witnesses",
+    "complete_declaration": "theorem widened_before_clamp :\n    (native { input with first := true, outer := 100, border := 2147483647, child := some 2147483647 }).value = some 100 := by decide +kernel",
+    "sha256": "a96a5781a45d909b1bdb940cd42dea8688320b9dee0b2cd8b54f32d6f5a555f0"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.original_int32_sum_not_safe",
+    "module": "Witnesses",
+    "complete_declaration": "theorem original_int32_sum_not_safe :\n    2147483647 + (2147483647 : Int) > 2147483647 := by decide +kernel",
+    "sha256": "510478c1cfa42de0d366435a501bb4b0a6821b1b7f5b5648a3d9c0e4f95d1bfe"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.first_queries_no_inner",
+    "module": "Witnesses",
+    "complete_declaration": "theorem first_queries_no_inner :\n    (native { input with first := true }).calls = [.containment,.child,.border,.outer] := by decide +kernel",
+    "sha256": "38317d73dbf1360ac15feae3063082a761583d25e5ba9c2c941e3549e11fa10d"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.last_queries_inner_before_border",
+    "module": "Witnesses",
+    "complete_declaration": "theorem last_queries_inner_before_border :\n    (native input).calls = [.containment,.child,.inner,.border,.outer] := by decide +kernel",
+    "sha256": "54d3c44d213e3bbc9a63b08e281a0e57aa9598898ec2633b29047384277c7bd4"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.mutant_0",
+    "module": "Witnesses",
+    "complete_declaration": "theorem mutant_0 : original 59 9 30 \u2260 (30 : Int) := by decide +kernel",
+    "sha256": "adfc3580eb8368ea49accf509031fb501125aeaaeeb7692cf6d3cd3601946660"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.mutant_1",
+    "module": "Witnesses",
+    "complete_declaration": "theorem mutant_1 : clamp 60 (1+10) \u2260 (0 : Int) := by decide +kernel",
+    "sha256": "cf1116f9293e1e98f35834a41fb10a83b7436e229d4334a3eb04efb2ccbca833"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.mutant_2",
+    "module": "Witnesses",
+    "complete_declaration": "theorem mutant_2 : (none : Option Int) \u2260 (native { input with lineLayout := true, contain := true }).value := by decide +kernel",
+    "sha256": "82cd8f2c6e2cec0028e6502771077e27df6f25cee8ad202c8aa245516624946e"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.mutant_3",
+    "module": "Witnesses",
+    "complete_declaration": "theorem mutant_3 : (some 0 : Option Int) \u2260 (native { input with child := none }).value := by decide +kernel",
+    "sha256": "afdcf7f152f64574ffa5804ff766981595c078dcf44db66e88b2790f48861ece"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.mutant_4",
+    "module": "Witnesses",
+    "complete_declaration": "theorem mutant_4 : (60-(9+200-10) : Int) \u2260 (0 : Int) := by decide +kernel",
+    "sha256": "9362e11e4a30e142b9018fa0b1045c41f49d37c61caaa8938ba647b8f1ff9feb"
+  },
+  {
+    "name": "ScrollBaselineWitnesses.mutant_5",
+    "module": "Witnesses",
+    "complete_declaration": "theorem mutant_5 : (some (clamp 59 77) : Option Int) \u2260 (native { input with lineLayout := true }).value := by decide +kernel",
+    "sha256": "66be41cabd726c48f0b2e6eaab8a5ebdebeedb48d74e86ba2929d10b529f56d0"
+  }
+]

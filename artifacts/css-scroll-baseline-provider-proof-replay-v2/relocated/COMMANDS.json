@@ -1,0 +1,67 @@
+[
+  {
+    "command": [
+      "/opt/homebrew/bin/python3",
+      "-I",
+      "-S",
+      "/Users/bgrins/code/firefox/artifacts/css-scroll-baseline-provider-proof-replay-v2/relocated-capsule/source_bindings.py"
+    ],
+    "exit": 0,
+    "stdout": "[\n  {\n    \"name\": \"original-method\",\n    \"source\": \"source/before.cpp\",\n    \"source_sha256\": \"a8ec576179c47b5ae6f368160473de9f9f4a7def741366fed3ffb005c33a942c\",\n    \"anchor\": \"Maybe<nscoord> ScrollContainerFrame::GetNaturalBaselineBOffset(\",\n    \"body\": \"Maybe<nscoord> ScrollContainerFrame::GetNaturalBaselineBOffset(\\n    WritingMode aWM, BaselineSharingGroup aBaselineGroup,\\n    BaselineExportContext aExportContext) const {\\n  // Block containers (except buttons) that are scrollable always have a last\\n  // baseline that are synthesized from block-end margin edge.\\n  // Note(dshin): This behaviour is really only relevant to `inline-block`\\n  // alignment context. In the context of table/flex/grid alignment, first/last\\n  // baselines are calculated through `GetFirstLineBaseline`, which does\\n  // calculations of its own.\\n  // https://drafts.csswg.org/css-align/#baseline-export\\n  if (aExportContext == BaselineExportContext::LineLayout &&\\n      aBaselineGroup == BaselineSharingGroup::Last) {\\n    if (nsBlockFrame* bf = do_QueryFrame(mScrolledFrame);\\n        bf && !bf->IsButtonLike()) {\\n      return Some(SynthesizeFallbackBaseline(aWM, aBaselineGroup));\\n    }\\n  }\\n\\n  if (StyleDisplay()->IsContainLayout()) {\\n    return Nothing{};\\n  }\\n\\n  // OK, here's where we defer to our scrolled frame.\\n  return mScrolledFrame\\n      ->GetNaturalBaselineBOffset(aWM, aBaselineGroup, aExportContext)\\n      .map([this, aWM](nscoord aBaseline) {\\n        // We have to add our border BStart thickness to whatever it returns, to\\n        // produce an offset in our frame-rect's coordinate system. (We don't\\n        // have to add padding, because the scrolled frame handles our padding.)\\n        LogicalMargin border = GetLogicalUsedBorder(aWM);\\n        const auto bSize = GetLogicalSize(aWM).BSize(aWM);\\n        // Clamp the baseline to the border rect. See bug 1791069.\\n        return CSSMinMax(border.BStart(aWM) + aBaseline, 0, bSize);\\n      });\\n}\",\n    \"body_sha256\": \"567e01ee4d4c9e45de2217eb5eadb0e8923d4b178b8ac2add1d7559dd2eee80e\"\n  },\n  {\n    \"name\": \"candidate-method\",\n    \"source\": \"source/candidate.cpp\",\n    \"source_sha256\": \"ba8af1bd11237fcf474a2afee09358ede1f673a81edc50c37b8b1aca49179bdd\",\n    \"anchor\": \"Maybe<nscoord> ScrollContainerFrame::GetNaturalBaselineBOffset(\",\n    \"body\": \"Maybe<nscoord> ScrollContainerFrame::GetNaturalBaselineBOffset(\\n    WritingMode aWM, BaselineSharingGroup aBaselineGroup,\\n    BaselineExportContext aExportContext) const {\\n  // Block containers (except buttons) that are scrollable always have a last\\n  // baseline that are synthesized from block-end margin edge.\\n  // Note(dshin): This behaviour is really only relevant to `inline-block`\\n  // alignment context. In the context of table/flex/grid alignment, first/last\\n  // baselines are calculated through `GetFirstLineBaseline`, which does\\n  // calculations of its own.\\n  // https://drafts.csswg.org/css-align/#baseline-export\\n  if (aExportContext == BaselineExportContext::LineLayout &&\\n      aBaselineGroup == BaselineSharingGroup::Last) {\\n    if (nsBlockFrame* bf = do_QueryFrame(mScrolledFrame);\\n        bf && !bf->IsButtonLike()) {\\n      return Some(SynthesizeFallbackBaseline(aWM, aBaselineGroup));\\n    }\\n  }\\n\\n  if (StyleDisplay()->IsContainLayout()) {\\n    return Nothing{};\\n  }\\n\\n  // OK, here's where we defer to our scrolled frame.\\n  return mScrolledFrame\\n      ->GetNaturalBaselineBOffset(aWM, aBaselineGroup, aExportContext)\\n      .map([this, aWM, aBaselineGroup](nscoord aBaseline) {\\n        const bool first = aBaselineGroup == BaselineSharingGroup::First;\\n        const int64_t fromStart =\\n            first ? int64_t(aBaseline)\\n                  : int64_t(mScrolledFrame->BSize(aWM)) - aBaseline;\\n        // Add our block-start border; the scrolled frame handles our padding.\\n        LogicalMargin border = GetLogicalUsedBorder(aWM);\\n        const auto bSize = GetLogicalSize(aWM).BSize(aWM);\\n        // Clamp the baseline to the border rect. See bug 1791069.\\n        const nscoord baseline = nscoord(CSSMinMax(\\n            border.BStart(aWM) + fromStart, int64_t(0), int64_t(bSize)));\\n        return first ? baseline : bSize - baseline;\\n      });\\n}\",\n    \"body_sha256\": \"1dc11b68cf58f364903077a23fb53f38ac631946e0b24da5047e89a9097c6c1d\"\n  },\n  {\n    \"name\": \"css-min-max\",\n    \"source\": \"source/ReflowInput.h\",\n    \"source_sha256\": \"705fbd19aaf7fc79e2af63c3d93c93e04e13e51fba3a42c266d674c9ec5926d0\",\n    \"anchor\": \"template <class NumericType>\\nNumericType CSSMinMax(\",\n    \"body\": \"template <class NumericType>\\nNumericType CSSMinMax(NumericType aValue, NumericType aMinValue,\\n                      NumericType aMaxValue) {\\n  NumericType result = aValue;\\n  if (aMaxValue < result) {\\n    result = aMaxValue;\\n  }\\n  if (aMinValue > result) {\\n    result = aMinValue;\\n  }\\n  return result;\\n}\",\n    \"body_sha256\": \"c72c6cc75680c46bb53883d70603c4ce869a87b849cfddffc3a2a0001bad3065\"\n  }\n]\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/opt/homebrew/bin/python3",
+      "-I",
+      "-S",
+      "/Users/bgrins/code/firefox/artifacts/css-scroll-baseline-provider-proof-replay-v2/relocated-capsule/compile.py",
+      "--output",
+      "/Users/bgrins/code/firefox/artifacts/css-scroll-baseline-provider-proof-replay-v2/relocated/proof"
+    ],
+    "exit": 0,
+    "stdout": "{\"modules\": 4, \"status\": \"PASS\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/opt/homebrew/bin/python3",
+      "-I",
+      "-S",
+      "/Users/bgrins/code/firefox/artifacts/css-scroll-baseline-provider-proof-replay-v2/relocated-capsule/native/cases.py"
+    ],
+    "exit": 0,
+    "stdout": "{\"cases\": 1536}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/opt/homebrew/bin/python3",
+      "-I",
+      "-S",
+      "/Users/bgrins/code/firefox/artifacts/css-scroll-baseline-provider-proof-replay-v2/relocated-capsule/native/build.py",
+      "--output",
+      "/Users/bgrins/code/firefox/artifacts/css-scroll-baseline-provider-proof-replay-v2/relocated/native",
+      "--olean",
+      "/Users/bgrins/code/firefox/artifacts/css-scroll-baseline-provider-proof-replay-v2/relocated/proof"
+    ],
+    "exit": 0,
+    "stdout": "{\"cases\": 1536, \"original_executed\": 1446, \"candidate_executed\": 1536, \"variants\": [\"original\", \"candidate\"], \"modes\": [\"debug\", \"release\", \"ubsan\", \"Lean evaluator\"], \"native_mutants\": {\"omit-inner-conversion\": 315, \"omit-outer-conversion\": 294, \"outer-for-inner\": 315, \"wrong-clamp\": 156, \"ignore-containment\": 720, \"containment-before-legacy\": 960, \"ignore-button-exception\": 192, \"query-inner-for-first\": 360, \"narrow-before-subtraction\": \"UBSan signed integer overflow in source-expression mutant\"}, \"status\": \"PASS\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/opt/homebrew/bin/python3",
+      "-I",
+      "-S",
+      "/Users/bgrins/code/firefox/artifacts/css-scroll-baseline-provider-proof-replay-v2/relocated-capsule/model_mutants.py",
+      "--output",
+      "/Users/bgrins/code/firefox/artifacts/css-scroll-baseline-provider-proof-replay-v2/relocated/model-mutants",
+      "--olean",
+      "/Users/bgrins/code/firefox/artifacts/css-scroll-baseline-provider-proof-replay-v2/relocated/proof"
+    ],
+    "exit": 0,
+    "stdout": "{\"rejected\": 6}\n",
+    "stderr": ""
+  }
+]
