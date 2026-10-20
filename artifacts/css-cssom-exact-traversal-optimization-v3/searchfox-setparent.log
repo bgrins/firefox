@@ -1,0 +1,47 @@
+>>> 12145: void nsIFrame::SetParent(nsContainerFrame* aParent) {
+    12146:   // If our parent is a wrapper anon box, our new parent should be too.  We
+    12147:   // _can_ change parent if our parent is a wrapper anon box, because some
+    12148:   // wrapper anon boxes can have continuations.
+    12149:   MOZ_ASSERT_IF(ParentIsWrapperAnonBox(),
+    12150:                 aParent->Style()->IsInheritingAnonBox());
+    12151: 
+    12152:   // Note that the current mParent may already be destroyed at this point.
+    12153:   mParent = aParent;
+    12154:   MOZ_ASSERT(!mParent || PresShell() == mParent->PresShell());
+    12155: 
+    12156:   nsFrameState flagsToPropagateSameDoc =
+    12157:       GetStateBits() & (NS_FRAME_CONTAINS_RELATIVE_BSIZE |
+    12158:                         NS_FRAME_DESCENDANT_INTRINSIC_ISIZE_DEPENDS_ON_BSIZE);
+    12159:   if (flagsToPropagateSameDoc) {
+    12160:     for (nsIFrame* f = aParent; f; f = f->GetParent()) {
+    12161:       if (f->HasAllStateBits(flagsToPropagateSameDoc)) {
+    12162:         break;
+    12163:       }
+    12164:       f->AddStateBits(flagsToPropagateSameDoc);
+    12165:     }
+    12166:   }
+    12167: 
+    12168:   if (HasInvalidFrameInSubtree()) {
+    12169:     for (nsIFrame* f = aParent;
+    12170:          f && !f->HasAnyStateBits(NS_FRAME_DESCENDANT_NEEDS_PAINT |
+    12171:                                   NS_FRAME_IS_NONDISPLAY);
+    12172:          f = nsLayoutUtils::GetCrossDocParentFrameInProcess(f)) {
+    12173:       f->AddStateBits(NS_FRAME_DESCENDANT_NEEDS_PAINT);
+    12174:     }
+    12175:   }
+    12176: 
+    12177:   if (aParent->HasAnyStateBits(NS_FRAME_IN_POPUP)) {
+    12178:     AddInPopupStateBitToDescendants(this);
+    12179:   } else {
+    12180:     RemoveInPopupStateBitFromDescendants(this);
+    12181:   }
+    12182: 
+    12183:   // If our new parent only has invalid children, then we just invalidate
+    12184:   // ourselves too. This is probably faster than clearing the flag all
+    12185:   // the way up the frame tree.
+    12186:   if (aParent->HasAnyStateBits(NS_FRAME_ALL_DESCENDANTS_NEED_PAINT)) {
+    12187:     InvalidateFrame();
+    12188:   } else {
+    12189:     SchedulePaint();
+    12190:   }
+    12191: }

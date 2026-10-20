@@ -1,0 +1,13 @@
+# Reversible successor experiment preparation
+
+Not run. Native experiment waits for the producer freeze and independent review.
+
+The baseline includes the signed DOMRect repair. The current old binary must be rebuilt before collecting either WPT results or timing. The 23-file suite is calibrated against the retained DOM-only phase: 74 subtests, including four transformed and four untransformed edge checks, with unchanged existing expected failures and the existing reftest outcome. Candidate acceptance requires all four untransformed checks to pass and every other subtest and file outcome to remain unchanged.
+
+The performance page, benchmark and capture script are exact copies of the earlier six-case comparison: ordinary and transformed near leaf/root at depths8 and128. Each of six fresh-profile runs measures840000 calls. Two baseline runs precede two candidate runs and two source-restored baseline runs. These are coarse-timer local headless observations, not CI significance or browser-wide performance claims. Builds and other agent compilations must not overlap timing.
+
+The driver authenticates input hashes and the current HEAD/index, retains source snapshots and per-test dependencies, and restores all four source files and the temporary WPT in finally. It rebuilds the baseline after any candidate source mutation. Source restoration and unchanged unrelated native inputs are checked before restored timing. A failed gate stops further candidate testing; raw logs remain.
+
+Root source review so far: read the complete original/candidate GetTransformMatrix and GetTransformToAncestor, the new wrapper, BoxToRect integration, TransformFrameRectToAncestor and TransformGfxRectToAncestor. Checked64 arithmetic preserves the original grouping and nsPoint scaling on old-defined paths. Every wideDoc.value read is preceded by valid initialization or a checked successful update; wideOffset reads follow addDocOffset validity. Cached matrix fallback preserves the non-SVG conversion route. The source wrapper rejects SVG text before precomputation. Final endpoint checks plus nonnegative extents justify narrowing. Default callers retain original arithmetic. Getter stability, actual frame graph/lifetime and GFX providers remain native admissions, not a Lean theorem.
+
+The same-frame helper branch preserves the previous helper contract, but BoxToRect currently bypasses conversion for that case. Wider checked exact acceptance is intentional; it includes the previous v1 domain rather than matching all rejected-path outputs. The rare arithmetic restart still enters legacy arithmetic outside the old-defined and v1-admitted domains. No universal fallback safety is claimed.
