@@ -4,23 +4,35 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
+- **Hidden-layout research signed:** reproduction `b04de6f7890c`,
+  scoped model `b990b03e87d3`, experiment `54017a2b4c76`.
+  The count remains 103 committed native fixes, with fix 101 on landing hold.
+  [Commit checks](../css-hidden-geometry-commits-v1/COMMIT-CHECK.json).
 - **Traversal v4 committed as fix 103:** `7309af28e360`.
   The paired 23-file/74-subtest run repairs both large untransformed-edge failures.
   The final check without DOMRect fix 102 passes all four own cases and preserves
   the historical keyed oracle. Independent review closes that dependency gate.
   Qualified performance acceptance retains the possible deep root-transform cost
   of about 10 ns/call; no broad no-regression claim follows. The source patch is
-  installed; the current binary predates it. [Acceptance](../css-cssom-exact-traversal-acceptance-v4/REPORT.md).
+  installed and rebuilt after the hidden-geometry experiments. [Acceptance](../css-cssom-exact-traversal-acceptance-v4/REPORT.md).
 - **Signing resumed successfully.** Six research commits precede the standalone
   native/WPT fix. Exact paths, evidence blobs, signature headers and native parent
   delta pass verification. The index is empty; all 20 other modified native files
   are preserved. Nothing was pushed or submitted.
-- **Next: isolate hidden-flex geometry regression.** The local build returns zero
-  dimensions after sibling insertion in 32 of 160 stages; installed Firefox 158
-  passes all 160. The strengthened containing-block measurement-cache key is a
-  source-derived suspect. Compare exact committed sources before attributing the
-  failure; preserve the required key in any final repair. This is not yet a new
-  accepted bug. [Probe comparison](../css-hidden-geometry-probe-v1/COMPARISON.json).
+- **Hidden-flex geometry bug reproduced in release Firefox 158.** Twelve of 240
+  shrink/descendant stages return zero or stale dimensions. Exact committed-source
+  isolation preserves all 32 failures in the earlier fixed-size probe. Four
+  instrumented variants produce 44, 12, 4 and zero mismatches across 400 stages.
+  The broader skipped-children repair remains unaccepted pending uninstrumented
+  WPT, position/history/continuation coverage and cost/dependency review.
+  **Fix 101 is on landing hold:** its required containing-block key exposes the
+  preexisting protocol bug more widely. Do not drop that key as a final repair.
+  [Experiment](../css-hidden-geometry-measure-trace-v2/REPORT.md).
+- **Hidden measurement model checked:** 30 Lean results, 768 extracted native/model
+  comparisons per replay, six semantic mutants and nine independent kernel checks.
+  Conditional direct-item recovery is proved; clean descendants and changed-key
+  histories remain explicit countermodels. This does not verify the broader repair.
+  [Scope and review](../css-hidden-geometry-proof-review-v1/REVIEW.md).
 - **Ownership refinement accepted within its modeled scope.** Canonical and
   relocated Lean replay pass 74 audits and five semantic rejection controls;
   independent review adds seven kernel checks. Ordinary-array shape and owner

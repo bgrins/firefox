@@ -1,11 +1,20 @@
 # Stylo verification bugfix commits
 
 Local branch: `stylo-bloom-verification-2`. No fixes have been pushed or submitted.
-Each fix is one standalone commit containing its Gecko change, regression WPT,
+Each fix is packaged in one commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
 Current checkpoint: **103 committed fixes; no accepted repair awaits signing.**
+
+## Landing hold: fix 101
+
+**Do not land `6cf27eadddf9e63d9bfbcc87ff2bf354e091ae7c` yet.** Its
+containing-block cache key is required for the caption repair, but newly observed
+hidden-layout failures require a separate protocol fix and dependency review.
+The broader candidate passes 400 instrumented stages; it is not accepted and is
+not counted as fix 104. Release Firefox 158 independently fails 12 of 240 related
+stages. [Evidence and limits](../css-hidden-geometry-measure-trace-v2/REPORT.md).
 
 ## Latest signed fix: 103
 
@@ -18,7 +27,7 @@ retain source review, proofs, browser results, independent checks and acceptance
 All four own WPT cases pass without fix 102; other keyed outcomes match the
 historical oracle. The possible deep root-transform cost remains disclosed
 (about 10 ns/call in this local sample). The source patch is now installed;
-the existing local binary predates it. Signing adds no new test results.
+the local binary has since been rebuilt with it. Signing adds no new test results.
 [Acceptance](../css-cssom-exact-traversal-acceptance-v4/REPORT.md),
 [commit verification](../css-signing-resume-20261020-v3/ROOT-COMMIT-CHECK.json).
 
