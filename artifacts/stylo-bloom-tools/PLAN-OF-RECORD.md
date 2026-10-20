@@ -383,3 +383,14 @@ CSSWG history resolves the zero-after-overflow policy, while actual box/input
 correspondence remains open. A requirements-ledger pilot is starting from the
 existing174-unit window and explicit adjacent dependencies, before validator
 implementation and independent review.
+
+## Full segment composition provider — browser admission checkpoint
+
+The independently derived mixed-number/length probe passes18 checks and one
+harness on the unchanged fix80 candidate. Numeric10 retains underlying taint
+after failed iteration accumulation; clean40px late selection and tainted32.5
+same-type accumulation controls pass. Exact provider/keyframe/timing/grammar and
+URL assertions are mandatory. This supports a reachable provider instance for
+the next full-segment contributor proof; it is not a new bug or arbitrary native
+history theorem. Producer and independent contributor/admission review are active.
+[Runtime review](../css-animation-segment-provider-root-v1/REVIEW.md).
