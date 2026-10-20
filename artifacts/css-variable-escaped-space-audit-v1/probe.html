@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Escaped trailing-space custom-property substitution diagnostic</title>
+<body>
+<script>
+const inputs = [
+  ["escaped-space", "x\\ "],
+  ["escaped-space-outer-whitespace", "x\\  "],
+  ["hex-escape", "x\\20 "],
+  ["comment-shield", "x\\ /**/"],
+  ["quoted-space", '"x "'],
+  ["ordinary", "ordinary"]
+];
+const rows = [];
+for (const [name, raw] of inputs) {
+  const target = document.createElement("div");
+  const direct = document.createElement("div");
+  document.body.append(target, direct);
+  target.style.animationName = "var(--token)";
+  for (const [phase, value] of [["before", "clean"], ["set", raw],
+                                ["restore", "restored"], ["reset", raw]]) {
+    target.style.setProperty("--token", value);
+    direct.style.animationName = value;
+    const actual = getComputedStyle(target).animationName;
+    const expected = getComputedStyle(direct).animationName;
+    const supported = CSS.supports("animation-name", value);
+    rows.push({label: name + ":" + phase, value, actual, expected, supported,
+      specified: target.style.getPropertyValue("--token"),
+      computed: getComputedStyle(target).getPropertyValue("--token"),
+      directSpecified: direct.style.animationName,
+      failures: [...(!supported ? ["literal-unsupported"] : []),
+                 ...(actual !== expected ? ["substitution-differs-from-literal"] : [])]});
+  }
+  target.remove();
+  direct.remove();
+}
+fetch("/result", {method: "POST", body: JSON.stringify({complete: true,
+  compatMode: document.compatMode, rows})});
+</script>

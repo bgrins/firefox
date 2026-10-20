@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Variable substitution preserves escaped trailing spaces</title>
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-escaped-code-point">
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#using-variables">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const [name, value] of [
+  ["escaped space", "x\\ "],
+  ["escaped space followed by whitespace", "x\\  "],
+  ["hexadecimal escape", "x\\20 "],
+  ["escaped space followed by a comment", "x\\ /**/"],
+  ["quoted trailing space", '"x "'],
+  ["ordinary identifier", "ordinary"]
+]) {
+  test(t => {
+    const target = document.createElement("div");
+    const literal = document.createElement("div");
+    document.body.append(target, literal);
+    t.add_cleanup(() => { target.remove(); literal.remove(); });
+    target.style.animationName = "var(--token)";
+    for (const input of ["clean", value, "restored", value]) {
+      literal.style.animationName = input;
+      target.style.setProperty("--token", input);
+      assert_equals(getComputedStyle(target).animationName,
+                    getComputedStyle(literal).animationName,
+                    "Substitution must preserve the literal token value: " + input);
+    }
+  }, "Custom property preserves " + name);
+}
+</script>

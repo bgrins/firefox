@@ -1,0 +1,161 @@
+diff --git a/servo/components/style/custom_properties.rs b/servo/components/style/custom_properties.rs
+index 84ecbf9e1f31d0878d78e87da35c259b879f2aaf..3f089efb25115bd5f53938dd9409c3278c754cdb 100644
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1055,15 +1055,19 @@ impl VariableValue {
+         let mut missing_closing_characters = String::new();
+         let mut removed_backslash = false;
+         let start_position = input.position();
+-        let (first_token_type, mut last_token_type, last_non_whitespace_token_type) =
+-            parse_declaration_value(
+-                input,
+-                start_position,
+-                namespaces,
+-                &mut references,
+-                &mut missing_closing_characters,
+-                &mut removed_backslash,
+-            )?;
++        let (
++            first_token_type,
++            mut last_token_type,
++            last_non_whitespace_token_type,
++            trailing_whitespace_len,
++        ) = parse_declaration_value(
++            input,
++            start_position,
++            namespaces,
++            &mut references,
++            &mut missing_closing_characters,
++            &mut removed_backslash,
++        )?;
+         let mut css = input.slice_from(start_position).to_owned();
+         if !missing_closing_characters.is_empty() {
+             // Unescaped backslash at EOF in a quoted string is ignored.
+@@ -1073,7 +1077,7 @@ impl VariableValue {
+             css.push_str(&missing_closing_characters);
+         }
+ 
+-        let trimmed_len = css.trim_ascii_end().len();
++        let trimmed_len = css.len().saturating_sub(trailing_whitespace_len);
+         if trimmed_len != css.len() {
+             css.truncate(trimmed_len);
+             last_token_type = last_non_whitespace_token_type;
+@@ -1213,6 +1217,7 @@ fn parse_declaration_value(
+         TokenSerializationType,
+         TokenSerializationType,
+         TokenSerializationType,
++        usize,
+     ),
+     ParseError,
+ > {
+@@ -1241,6 +1246,7 @@ fn parse_declaration_value_block(
+         TokenSerializationType,
+         TokenSerializationType,
+         TokenSerializationType,
++        usize,
+     ),
+     ParseError,
+ > {
+@@ -1248,6 +1254,7 @@ fn parse_declaration_value_block(
+     let mut first_token_type = TokenSerializationType::Nothing;
+     let mut last_token_type = TokenSerializationType::Nothing;
+     let mut last_non_whitespace_token_type = TokenSerializationType::Nothing;
++    let mut trailing_whitespace_len = 0;
+     let mut prev_reference_index: Option<usize> = None;
+     loop {
+         let token_start = input.position();
+@@ -1258,6 +1265,10 @@ fn parse_declaration_value_block(
+         let prev_token_type = last_token_type;
+         let serialization_type = token.serialization_type();
+         last_token_type = serialization_type;
++        trailing_whitespace_len = match token {
++            Token::WhiteSpace(value) => value.len(),
++            _ => 0,
++        };
+         if !matches!(token, Token::WhiteSpace(_)) {
+             last_non_whitespace_token_type = serialization_type;
+         }
+@@ -1397,7 +1408,7 @@ fn parse_declaration_value_block(
+                             let mut references = References::default();
+                             // NOTE(emilio): Intentionally using parse_declaration_value rather than
+                             // parse_declaration_value_block, since that's what parse_fallback used to do.
+-                            let (first, last, _) = parse_declaration_value(
++                            let (first, last, _, _) = parse_declaration_value(
+                                 input,
+                                 input_start,
+                                 namespaces,
+@@ -1516,6 +1527,7 @@ fn parse_declaration_value_block(
+         first_token_type,
+         last_token_type,
+         last_non_whitespace_token_type,
++        trailing_whitespace_len,
+     ))
+ }
+ 
+diff --git a/testing/web-platform/tests/css/css-variables/trailing-escaped-whitespace.html b/testing/web-platform/tests/css/css-variables/trailing-escaped-whitespace.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..6db685127abe11d1121acfcb2be85f3ed4143538
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-variables/trailing-escaped-whitespace.html
+@@ -0,0 +1,61 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Custom properties preserve escaped trailing whitespace</title>
++<link rel="help" href="https://drafts.csswg.org/css-variables-1/#using-variables">
++<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-an-escaped-code-point">
++<meta name="assert" content="Trimming custom-property whitespace preserves whitespace that belongs to an escaped identifier.">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++const cases = [];
++for (const [name, raw, decoded] of [
++  ["escaped space", "x\\ ", "x "],
++  ["escaped tab", "x\\\t", "x\t"],
++]) {
++  for (const [suffixName, suffix] of [
++    ["none", ""],
++    ["space", " "],
++    ["tab", "\t"],
++    ["line feed", "\n"],
++    ["carriage return", "\r"],
++    ["form feed", "\f"],
++    ["CRLF", "\r\n"],
++    ["mixed", " \t\r\n\f"],
++  ]) {
++    cases.push([`${name}, trailing whitespace: ${suffixName}`, raw + suffix, decoded]);
++  }
++}
++cases.push(
++  ["Hex escape", "x\\20 ", "x "],
++  ["Quoted space", '"x "', "x "],
++  ["Comment after escaped space", "x\\ /**/", "x "],
++  ["Ordinary identifier", "ordinary", "ordinary"],
++);
++
++for (const [name, raw, decoded] of cases) {
++  test(t => {
++    const target = document.createElement("div");
++    const literal = document.createElement("div");
++    document.body.append(target, literal);
++    t.add_cleanup(() => {
++      target.remove();
++      literal.remove();
++    });
++    const expected = CSS.escape(decoded);
++    assert_true(CSS.supports("animation-name", raw), "Literal syntax is supported");
++    literal.style.animationName = raw;
++    assert_equals(getComputedStyle(literal).animationName, expected, "Literal name");
++    target.style.animationName = "var(--token)";
++    for (const [phase, value, result] of [
++      ["Initial", "clean", "clean"],
++      ["Set", raw, expected],
++      ["Restore", "restored", "restored"],
++      ["Set again", raw, expected],
++    ]) {
++      target.style.setProperty("--token", value);
++      assert_equals(getComputedStyle(target).animationName, result, phase);
++    }
++  }, name);
++}
++</script>

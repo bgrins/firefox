@@ -1,0 +1,15 @@
+# Independent escaped-whitespace review
+
+**Bounded native/WPT/package review: no blocker found.** Exact source analysis is in SOURCE-REVIEW.md (its runtime-pending statement describes that earlier checkpoint). This report closes the subsequent finite runtime and source-only packaging checks.
+
+Authenticated candidate8f166d5cbd25d298a34d820e148c8967d3b0b0fc009a371831d4e4be336548d7; source patch08c03ca45c9ffd412431a3261df9b018afeba7736b7bf291021c59d0d47a4dc2. It removes only the raw byte extent of the terminal coalesced outer WhiteSpace token. CRLF raw length, nested/EOF reset behavior, fallback retention and saturating-subtraction overlap have been inspected. No global serialization or parser proof is claimed; backslash-delimiter/newline behavior remains explicitly outside this repair.
+
+The independently parsed20-case baseline is16FAIL4PASS; candidate20PASS. All415 prior status/message pairs are unchanged, including two expected failures. Overall candidate therefore has433PASS+2expectedFAIL,23OK harnesses, exact command test identity set and one suite_end. Stable source/test/binary pre/post pins; build exit0; lint reports0 errors/warnings. This is a joined baseline from the separate20-case run and previous415-case run, not a fresh simultaneous435-case baseline build experiment. Every original failing row passed literal/initial calibration before failing at Set. Candidate passing tests also execute restoration and re-setting.
+
+Pure text forward/reverse verification reproduces both retained standalone candidates and the exact WPT. HEAD patcha83445707e19ab38066da2bde11f409d7725d6b2b58f78600f61bd0e87347344 and upstream patcha65f809c215f32f8483ef30620ef69ee6066fa7f4cd63002db5cfb1bd7678e68 each contain two files. Both omit earlier leading-origin and last-token-metadata fixes, preserving their base EOF behavior. The WPT requires neither preceding fix. Root supplies Git-base provenance and exact Git apply/reverse receipts; reviewer read package.py but did not execute it. No isolated packaged-variant build/browser was performed.
+
+The prior source/spec diagnosis is separately sealed in css-variable-escaped-space-audit-v1; CSS Syntax's ordinary escaped-code-point branch preserves SP/HT inside an identifier, while declaration trimming removes whitespace tokens. WPT calibrates the decoded literal via CSS.escape and then checks substitution. Primary links: [escaped code point](https://drafts.csswg.org/css-syntax-3/#consume-an-escaped-code-point), [variable substitution](https://drafts.csswg.org/css-variables-1/#using-variables).
+
+FORMAL-ASSESSMENT.md identifies the separately authorized terminal-span companion. The older registered-token-boundary proof is not silently instantiated: its comments/block classes differ. New mathematical work remains separate from this finite native acceptance. No reviewer-generated compiler targets or browser profiles were created by this review.
+
+Replay: python3 -I -S check.py. The checker authenticates this exact closed retained roster, then verifies raw rows/pins and pure patch application. It does not rebuild Firefox, invoke Git, or prove source translation.
