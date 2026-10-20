@@ -1,0 +1,113 @@
+--- source/nsFlexContainerFrame.frozen.cpp:class nsFlexContainerFrame::CachedBAxisMeasurement
++++ source/nsFlexContainerFrame.indexed.cpp:class nsFlexContainerFrame::CachedBAxisMeasurement
+@@ -1,15 +1,12 @@
+ class nsFlexContainerFrame::CachedBAxisMeasurement {
+   struct Key {
+     const LogicalSize mComputedSize;
+-    const LogicalMargin mBorderPadding;
+     const nscoord mComputedMinBSize;
+     const nscoord mComputedMaxBSize;
+     const nscoord mAvailableBSize;
+ 
+     explicit Key(const ReflowInput& aRI)
+         : mComputedSize(aRI.ComputedSize()),
+-          mBorderPadding(
+-              aRI.ComputedLogicalBorderPadding(aRI.GetWritingMode())),
+           mComputedMinBSize(aRI.ComputedMinBSize()),
+           mComputedMaxBSize(aRI.ComputedMaxBSize()),
+           mAvailableBSize(aRI.AvailableBSize()) {}
+
+--- source/nsFlexContainerFrame.frozen.cpp:class nsFlexContainerFrame::FlexLine final
++++ source/nsFlexContainerFrame.indexed.cpp:class nsFlexContainerFrame::FlexLine final
+@@ -33,48 +33,9 @@
+     return aAxisTracker.IsMainAxisReversed() ? FirstItem() : LastItem();
+   }
+ 
+-  Maybe<nscoord> NaturalBaselineBOffset(const FlexboxAxisTracker& aAxisTracker,
+-                                        BaselineSharingGroup aGroup,
+-                                        const nsSize& aContainerSize) const {
+-    const WritingMode wm = aAxisTracker.GetWritingMode();
+-    const bool last = aGroup == BaselineSharingGroup::Last;
+-    for (size_t i = 0; i < mItems.Length(); ++i) {
+-      const FlexItem& item = mItems[last ? mItems.Length() - i - 1 : i];
+-      if (item.IsStrut() || wm.IsOrthogonalTo(item.GetWritingMode())) {
+-        continue;
+-      }
+-      if (auto baseline = item.Frame()->GetNaturalBaselineBOffset(
+-              wm, aGroup, BaselineExportContext::Other)) {
+-        nscoord position =
+-            item.Frame()->GetLogicalNormalPosition(wm, aContainerSize).B(wm);
+-        if (last) {
+-          position = LogicalSize(wm, aContainerSize).BSize(wm) - position -
+-                     item.Frame()->BSize(wm);
+-        }
+-        return Some(position + *baseline);
+-      }
+-    }
+-    return Nothing();
+-  }
+-
+-  const FlexItem* BaselineItem(const FlexboxAxisTracker& aAxisTracker,
+-                               BaselineSharingGroup aGroup) const {
+-    const bool reverse = aAxisTracker.IsMainAxisReversed() !=
+-                         (aGroup == BaselineSharingGroup::Last);
+-    for (size_t i = 0; i < mItems.Length(); ++i) {
+-      const FlexItem& item = mItems[reverse ? mItems.Length() - i - 1 : i];
+-      if (!item.IsStrut()) {
+-        return &item;
+-      }
+-    }
+-    return nullptr;
+-  }
+-
+   bool IsEmpty() const { return mItems.IsEmpty(); }
+ 
+   uint32_t NumItems() const { return mItems.Length(); }
+-
+-  uint32_t NumNonCollapsedItems() const { return mNumNonCollapsedItems; }
+ 
+   nsTArray<FlexItem>& Items() { return mItems; }
+   const nsTArray<FlexItem>& Items() const { return mItems; }
+@@ -162,10 +123,9 @@
+ 
+   void PositionItemsInMainAxis(const StyleContentDistribution& aJustifyContent,
+                                nscoord aContentBoxMainSize,
+-                               const FlexboxAxisTracker& aAxisTracker,
+-                               bool aIsScrollContainer);
++                               const FlexboxAxisTracker& aAxisTracker);
+ 
+-  void PositionItemsInCrossAxis(int64_t aLineStartPosition,
++  void PositionItemsInCrossAxis(nscoord aLineStartPosition,
+                                 const FlexboxAxisTracker& aAxisTracker);
+ 
+  private:
+
+--- source/nsFlexContainerFrame.frozen.cpp:class nsFlexContainerFrame::FlexItem final
++++ source/nsFlexContainerFrame.indexed.cpp:class nsFlexContainerFrame::FlexItem final
+@@ -46,7 +46,7 @@
+ 
+   // Note: These return the cross-axis position and size of our *content box*.
+   nscoord CrossSize() const { return mCrossSize; }
+-  int64_t CrossPosition() const { return mCrossPosn; }
++  nscoord CrossPosition() const { return mCrossPosn; }
+ 
+   // Lazy getter for mAscent or mAscentForLast.
+   nscoord ResolvedAscent(bool aUseFirstBaseline) const {
+@@ -431,7 +431,7 @@
+   // Sets the cross-axis position of our flex item's content-box.
+   // (This is the distance between the cross-start edge of the flex container
+   // and the cross-start edge of the flex item.)
+-  void SetCrossPosition(int64_t aPosn) {
++  void SetCrossPosition(nscoord aPosn) {
+     MOZ_ASSERT(mIsFrozen, "main size should be resolved before this");
+     mCrossPosn = aPosn;
+   }
+@@ -540,7 +540,7 @@
+   nscoord mMainSize = 0;
+   nscoord mMainPosn = 0;
+   nscoord mCrossSize = 0;
+-  int64_t mCrossPosn = 0;
++  nscoord mCrossPosn = 0;
+ 
+   // Mutable b/c it's set & resolved lazily, sometimes via const pointer. See
+   // comment above SetAscent().

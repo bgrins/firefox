@@ -1,0 +1,187 @@
+{
+  "scope": "ordered source phases, not exhaustive transitive callgraph",
+  "rows": [
+    {
+      "phase": "caller",
+      "site": "nsContainerFrame::Destroy",
+      "guard_or_order": "DestroyAbsoluteFrames; principal child DestroyFrames; explicit auxiliary-list child Destroy",
+      "effect": "synchronous child destruction before both reads",
+      "remaining": "Concrete cleanup loop retained; child virtual bodies and callback closure remain open."
+    },
+    {
+      "phase": "caller",
+      "site": "nsSplittableFrame::Destroy / RemoveFromFlow",
+      "guard_or_order": "continuation setters before base destruction",
+      "effect": "continuation cache/list writes before both reads",
+      "remaining": "Concrete setter dispatch and full chain/heap invariant remain open."
+    },
+    {
+      "phase": "before-first",
+      "site": "MaybeScheduleReflowSVGNonDisplayText",
+      "guard_or_order": "SVG text subtree dependent scheduling",
+      "effect": "conditional SVG scheduling",
+      "remaining": "No universal scheduler/observer no-reentry contract established."
+    },
+    {
+      "phase": "before-first",
+      "site": "InvalidateDirectRenderingObservers",
+      "guard_or_order": "element current-primary lookup; detach selected observers; eviction then virtual rendering notification",
+      "effect": "synchronous virtual dispatch",
+      "remaining": "Current primary is not assumed identical to destroyed frame; selected text-path branch can reflow synchronously."
+    },
+    {
+      "phase": "before-first",
+      "site": "StickyScrollContainer::RemoveFrame",
+      "guard_or_order": "sticky-frame branch",
+      "effect": "unexpanded native call",
+      "remaining": "Frame/primary footprint remains open."
+    },
+    {
+      "phase": "before-first",
+      "site": "placeholder SetOutOfFlowFrame(nullptr)",
+      "guard_or_order": "out-of-flow branch",
+      "effect": "placeholder reference write",
+      "remaining": "Access/provider semantics remain explicit."
+    },
+    {
+      "phase": "read-first",
+      "site": "IsPrimaryFrame()",
+      "guard_or_order": "cached bit selects cleanup",
+      "effect": "observation",
+      "remaining": "Requires coherent bit/content pointer and live frame at this point."
+    },
+    {
+      "phase": "between",
+      "site": "UnregisterContainerQueryFrame; content-visibility unregister/count",
+      "guard_or_order": "first-read true branch",
+      "effect": "unexpanded bookkeeping callbacks",
+      "remaining": "Not promoted to no-op effect contract."
+    },
+    {
+      "phase": "between",
+      "site": "ActiveLayerTracker::TransferActivityToContent",
+      "guard_or_order": "first-read true branch, before properties cleared",
+      "effect": "property/content activity transfer",
+      "remaining": "Transitive property/content effects remain open."
+    },
+    {
+      "phase": "between",
+      "site": "ScrollAnchorContainer::InvalidateAnchor",
+      "guard_or_order": "conditional anchor branch",
+      "effect": "unexpanded native call",
+      "remaining": "No general no-primary-write conclusion."
+    },
+    {
+      "phase": "between",
+      "site": "AnimationsWithDestroyedFrame::Put",
+      "guard_or_order": "conditional CSS animations/transitions/EffectSet branch",
+      "effect": "record insertion",
+      "remaining": "Eventual restyle/animation work is separate; table style-frame lookup retained."
+    },
+    {
+      "phase": "between",
+      "site": "RemoveAnchorPosAnchor; RemoveAnchorPosPositioned",
+      "guard_or_order": "conditional anchor flags",
+      "effect": "unexpanded cleanup calls",
+      "remaining": "Referenced data destructors remain open."
+    },
+    {
+      "phase": "between",
+      "site": "DisableVisibilityTracking; RemoveFrameFromApproximatelyVisibleList",
+      "guard_or_order": "before properties cleared",
+      "effect": "unexpanded visibility effects",
+      "remaining": "Not conflated with property deletion."
+    },
+    {
+      "phase": "between",
+      "site": "PresShell::NotifyDestroyingFrame / RemoveDisplayItemDataForDeletion",
+      "guard_or_order": "unconditional display-table removal",
+      "effect": "synchronous refcounted polymorphic destruction",
+      "remaining": "TakeProperty precedes delete; source documents nested property effects."
+    },
+    {
+      "phase": "between",
+      "site": "ImageLoader::DropRequestsForFrame",
+      "guard_or_order": "!ignore and image-request flag",
+      "effect": "request mappings / load unblocking / deregistration",
+      "remaining": "UnblockOnload(false) and request release effects remain open."
+    },
+    {
+      "phase": "between",
+      "site": "nsCSSFrameConstructor::NotifyDestroyingFrame",
+      "guard_or_order": "!ignore branch",
+      "effect": "contain-style scope/quote/counter cleanup then RestyleManager",
+      "remaining": "Selected frozen/indexed body equal; broader construction extra-generated delta not transferred."
+    },
+    {
+      "phase": "between",
+      "site": "PresShell mDirtyRoots.Remove",
+      "guard_or_order": "!ignore, after frame-constructor notification and before property cleanup",
+      "effect": "dirty-root tracking removal",
+      "remaining": "Container and identity semantics remain explicit."
+    },
+    {
+      "phase": "between",
+      "site": "RemoveAllProperties first pass",
+      "guard_or_order": "!ignore branch in NotifyDestroyingFrame",
+      "effect": "move table then synchronous descriptor destructor loop",
+      "remaining": "First pass precedes second bit read; debug empty check is not a release guard."
+    },
+    {
+      "phase": "between",
+      "site": "PresShell current-event/frame-set cleanup",
+      "guard_or_order": "!ignore, after first property cleanup",
+      "effect": "tracking mutations and content-reference assignment",
+      "remaining": "Container/refcount primitives, scroll-frame lookup and target-content lifetime remain open."
+    },
+    {
+      "phase": "between",
+      "site": "ClearFrameRefs / EventStateManager",
+      "guard_or_order": "external-reference branch",
+      "effect": "link observer registration and current-target content assignment",
+      "remaining": "Detached registration immediately calls Cancel; action(true) returns before LeaveLink."
+    },
+    {
+      "phase": "between",
+      "site": "ClearFrameRefs / weak tracking",
+      "guard_or_order": "external-reference branch",
+      "effect": "remove tracking pointers and null fields",
+      "remaining": "Selected wrapper/list/set bodies contain no frame Destroy or content SetPrimaryFrame call; generic storage/lifetime admission remains."
+    },
+    {
+      "phase": "read-second",
+      "site": "IsPrimaryFrame()",
+      "guard_or_order": "cached bit selects pointer clearing",
+      "effect": "observation",
+      "remaining": "Requires coherence and live frame at second point; may differ coherently from first observation."
+    },
+    {
+      "phase": "after-second",
+      "site": "mContent->SetPrimaryFrame(nullptr)",
+      "guard_or_order": "second-read true branch",
+      "effect": "actual primary-bit/pointer clearing protocol",
+      "remaining": "Previously modeled setter must be joined to actual read state."
+    },
+    {
+      "phase": "after-second",
+      "site": "AddAnonymousContent(mContent.forget())",
+      "guard_or_order": "generated root anonymous subtree branch",
+      "effect": "ownership transfer",
+      "remaining": "Later anonymous-content unbinding is not executed here; lifecycle separate."
+    },
+    {
+      "phase": "after-second",
+      "site": "RemoveAllProperties final pass",
+      "guard_or_order": "unconditional",
+      "effect": "descriptor callbacks if any remain",
+      "remaining": "Empty only if first ran and no repopulation/intervening additions; ignore branch can make this first pass."
+    },
+    {
+      "phase": "after-second",
+      "site": "virtual destructor / FreeFrame",
+      "guard_or_order": "end of base Destroy",
+      "effect": "object destruction then recycling",
+      "remaining": "No-republication, actual deletion set, address reuse, cache aliases and liveness remain to join."
+    }
+  ]
+}

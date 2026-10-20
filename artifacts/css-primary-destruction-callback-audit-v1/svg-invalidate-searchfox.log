@@ -1,0 +1,13 @@
+>>> 1915: void SVGObserverUtils::InvalidateDirectRenderingObservers(
+    1916:     Element* aElement, InvalidationFlags aFlags) {
+    1917:   nsIFrame* frame = aElement->GetPrimaryFrame();
+    1918:   if (frame && !aFlags.contains(InvalidationFlag::FrameBeingDestroyed)) {
+    1919:     // If the rendering has changed, the bounds may well have changed too:
+    1920:     frame->RemoveProperty(SVGUtils::ObjectBoundingBoxProperty());
+    1921:   }
+    1922: 
+    1923:   if (SVGRenderingObserverSet* observers = GetObserverSet(aElement)) {
+    1924:     observers->InvalidateAll(frame &&
+    1925:                              frame->HasAnyStateBits(NS_FRAME_IN_REFLOW));
+    1926:   }
+    1927: }

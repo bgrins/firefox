@@ -1,0 +1,22 @@
+      83: WebRenderUserData::WebRenderUserData(RenderRootStateManager* aManager,
+      84:                                      nsDisplayItem* aItem)
+      85:     : mManager(aManager),
+      86:       mFrame(aItem->Frame()),
+      87:       mDisplayItemKey(aItem->GetPerFrameKey()),
+      88:       mTable(aManager->GetWebRenderUserDataTable()),
+      89:       mUsed(false) {}
+      90: 
+      91: WebRenderUserData::~WebRenderUserData() = default;
+      92: 
+>>>   93: void WebRenderUserData::RemoveFromTable() { mTable->Remove(this); }
+      94: 
+      95: WebRenderBridgeChild* WebRenderUserData::WrBridge() const {
+      96:   return mManager->WrBridge();
+      97: }
+      98: 
+      99: WebRenderImageData::WebRenderImageData(RenderRootStateManager* aManager,
+     100:                                        nsDisplayItem* aItem)
+     101:     : WebRenderUserData(aManager, aItem) {}
+     102: 
+     103: WebRenderImageData::WebRenderImageData(RenderRootStateManager* aManager,
+

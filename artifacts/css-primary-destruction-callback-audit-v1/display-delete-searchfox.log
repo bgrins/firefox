@@ -1,0 +1,44 @@
+>>> 1212: void nsIFrame::RemoveDisplayItemDataForDeletion() {
+    1213:   // Destroying a WebRenderUserDataTable can cause destruction of other objects
+    1214:   // which can remove frame properties in their destructor. If we delete a frame
+    1215:   // property it runs the destructor of the stored object in the middle of
+    1216:   // updating the frame property table, so if the destruction of that object
+    1217:   // causes another update to the frame property table it would leave the frame
+    1218:   // property table in an inconsistent state. So we remove it from the table and
+    1219:   // then destroy it. (bug 1530657)
+    1220:   WebRenderUserDataTable* userDataTable =
+    1221:       TakeProperty(WebRenderUserDataProperty::Key());
+    1222:   if (userDataTable) {
+    1223:     for (const auto& data : userDataTable->Values()) {
+    1224:       data->RemoveFromTable();
+    1225:     }
+    1226:     delete userDataTable;
+    1227:   }
+    1228: 
+    1229:   auto* builder = nsLayoutUtils::GetRetainedDisplayListBuilder(this);
+    1230:   if (!builder) {
+    1231:     MOZ_ASSERT(DisplayItems().IsEmpty());
+    1232:     MOZ_ASSERT(!IsFrameModified());
+    1233:     return;
+    1234:   }
+    1235: 
+    1236:   for (nsDisplayItem* i : DisplayItems()) {
+    1237:     if (i->GetDependentFrame() == this && !i->HasDeletedFrame()) {
+    1238:       i->Frame()->MarkNeedsDisplayItemRebuild();
+    1239:     }
+    1240:     i->RemoveFrame(this);
+    1241:   }
+    1242: 
+    1243:   DisplayItems().Clear();
+    1244: 
+    1245:   nsAutoString name;
+    1246: #ifdef DEBUG_FRAME_DUMP
+    1247:   if (DL_LOG_TEST(LogLevel::Debug)) {
+    1248:     GetFrameName(name);
+    1249:   }
+    1250: #endif
+    1251:   DL_LOGV("Removing display item data for frame %p (%s)", this,
+    1252:           NS_ConvertUTF16toUTF8(name).get());
+    1253: 
+    1254:   builder->Data()->Remove(this);
+    1255: }

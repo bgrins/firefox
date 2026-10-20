@@ -1,0 +1,22 @@
+    4697:     bool found;
+    4698:     using DataType = std::remove_pointer_t<FrameProperties::PropertyType<T>>;
+    4699:     DataType* storedValue = GetProperty(aProperty, &found);
+    4700:     if (!found) {
+    4701:       storedValue = new DataType{};
+    4702:       AddProperty(aProperty, storedValue);
+    4703:     }
+    4704:     return storedValue;
+    4705:   }
+    4706: 
+>>> 4707:   void RemoveAllProperties() { mProperties.RemoveAll(this); }
+    4708: 
+    4709:   // nsIFrames themselves are in the nsPresArena, and so are not measured here.
+    4710:   // Instead, this measures heap-allocated things hanging off the nsIFrame, and
+    4711:   // likewise for its descendants.
+    4712:   virtual void AddSizeOfExcludingThisForTree(nsWindowSizes& aWindowSizes) const;
+    4713: 
+    4714:   /**
+    4715:    * Return true if and only if this frame obeys visibility:hidden.
+    4716:    * if it does not, then nsContainerFrame will hide its view even though
+    4717:    * this means children can't be made visible again.
+

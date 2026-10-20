@@ -1,0 +1,20 @@
+>>> 1412: void nsCSSFrameConstructor::NotifyDestroyingFrame(nsIFrame* aFrame) {
+    1413:   if (aFrame->StyleDisplay()->IsContainStyle()) {
+    1414:     mContainStyleScopeManager.DestroyScopesFor(aFrame);
+    1415:   }
+    1416: 
+    1417:   if (aFrame->HasAnyStateBits(NS_FRAME_GENERATED_CONTENT) &&
+    1418:       mContainStyleScopeManager.DestroyQuoteNodesFor(aFrame)) {
+    1419:     QuotesDirty();
+    1420:   }
+    1421: 
+    1422:   if (aFrame->HasAnyStateBits(NS_FRAME_HAS_CSS_COUNTER_STYLE) &&
+    1423:       mContainStyleScopeManager.DestroyCounterNodesFor(aFrame)) {
+    1424:     // Technically we don't need to update anything if we destroyed only
+    1425:     // USE nodes.  However, this is unlikely to happen in the real world
+    1426:     // since USE nodes generally go along with INCREMENT nodes.
+    1427:     CountersDirty();
+    1428:   }
+    1429: 
+    1430:   RestyleManager()->NotifyDestroyingFrame(aFrame);
+    1431: }

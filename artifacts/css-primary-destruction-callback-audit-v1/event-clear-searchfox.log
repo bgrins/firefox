@@ -1,0 +1,30 @@
+>>> 4852: void EventStateManager::ClearFrameRefs(nsIFrame* aFrame) {
+    4853:   if (!aFrame) {
+    4854:     return;
+    4855:   }
+    4856: 
+    4857:   if (aFrame == mCurrentTarget) {
+    4858:     mCurrentTargetContent = aFrame->GetContent();
+    4859:   }
+    4860: 
+    4861:   // If the element currently shown in the status bar has lost its
+    4862:   // frame, clear the status bar.
+    4863:   if (aFrame == mLinkOverFrame.GetFrame()) {
+    4864:     nsIContent* content = aFrame->GetContent();
+    4865:     if (content && content->IsElement()) {
+    4866:       nsPresContext* rootPc = mPresContext->GetRootPresContext();
+    4867:       if (rootPc) {
+    4868:         mPendingLeaveLinkElement = content->AsElement();
+    4869:         RefPtr<ManagedPostRefreshObserver> observer =
+    4870:             new ManagedPostRefreshObserver(
+    4871:                 rootPc,
+    4872:                 [esm = RefPtr<EventStateManager>(this)](bool aWasCanceled)
+    4873:                     -> ManagedPostRefreshObserver::Unregister {
+    4874:                   esm->MaybeLeavePendingLink(aWasCanceled);
+    4875:                   return ManagedPostRefreshObserver::Unregister::Yes;
+    4876:                 });
+    4877:         rootPc->RegisterManagedPostRefreshObserver(observer);
+    4878:       }
+    4879:     }
+    4880:   }
+    4881: }

@@ -1,0 +1,22 @@
+    3160:   // checkpoint for these restyles to go through.
+    3161:   mPresContext->RestyleManager()->PostRestyleEvent(aElement, aHint,
+    3162:                                                    nsChangeHint(0));
+    3163: }
+    3164: 
+    3165: void PresShell::SetForwardingContainer(const WeakPtr<nsDocShell>& aContainer) {
+    3166:   mForwardingContainer = aContainer;
+    3167: }
+    3168: 
+    3169: void PresShell::ClearFrameRefs(nsIFrame* aFrame) {
+>>> 3170:   mPresContext->EventStateManager()->ClearFrameRefs(aFrame);
+    3171: 
+    3172:   AutoWeakFrame* weakFrame = mAutoWeakFrames;
+    3173:   while (weakFrame) {
+    3174:     AutoWeakFrame* prev = weakFrame->GetPreviousWeakFrame();
+    3175:     if (weakFrame->GetFrame() == aFrame) {
+    3176:       // This removes weakFrame from mAutoWeakFrames.
+    3177:       weakFrame->Clear(this);
+    3178:     }
+    3179:     weakFrame = prev;
+    3180:   }
+

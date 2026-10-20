@@ -1,0 +1,202 @@
+>>>  121: class FrameProperties {
+     122:  public:
+     123:   template <typename T>
+     124:   using Descriptor = const FramePropertyDescriptor<T>*;
+     125:   using UntypedDescriptor = const FramePropertyDescriptorUntyped*;
+     126: 
+     127:   template <typename T>
+     128:   using PropertyType = typename detail::FramePropertyTypeHelper<T>::Type;
+     129: 
+     130:   explicit FrameProperties() = default;
+     131: 
+     132:   ~FrameProperties() {
+     133:     MOZ_ASSERT(mProperties.Length() == 0, "forgot to delete properties");
+     134:   }
+     135: 
+     136:   // Prevent copying of FrameProperties; we should always return/pass around
+     137:   // references to it, not copies!
+     138:   FrameProperties(const FrameProperties&) = delete;
+     139:   FrameProperties& operator=(const FrameProperties&) = delete;
+     140: 
+     141:   /**
+     142:    * Return true if we have no properties, otherwise return false.
+     143:    */
+     144:   bool IsEmpty() const { return mProperties.IsEmpty(); }
+     145: 
+     146:   /**
+     147:    * Set a property value. This requires a linear search through
+     148:    * the properties of the frame. Any existing value for the property
+     149:    * is destroyed.
+     150:    */
+     151:   template <typename T>
+     152:   void Set(Descriptor<T> aProperty, PropertyType<T> aValue,
+     153:            const nsIFrame* aFrame) {
+     154:     uint64_t v = ReinterpretHelper<T>::ToInternalValue(aValue);
+     155:     SetInternal(aProperty, v, aFrame);
+     156:   }
+     157: 
+     158:   /**
+     159:    * Add a property value; the descriptor MUST NOT already be present.
+     160:    */
+     161:   template <typename T>
+     162:   void Add(Descriptor<T> aProperty, PropertyType<T> aValue) {
+     163:     MOZ_ASSERT(!Has(aProperty), "duplicate frame property");
+     164:     uint64_t v = ReinterpretHelper<T>::ToInternalValue(aValue);
+     165:     AddInternal(aProperty, v);
+     166:   }
+     167: 
+     168:   /**
+     169:    * @return true if @aProperty is set. This requires a linear search through
+     170:    * the properties of the frame.
+     171:    *
+     172:    * In most cases, this shouldn't be used outside of assertions, because if
+     173:    * you're doing a lookup anyway it would be far more efficient to call Get()
+     174:    * or Take() and check the aFoundResult outparam to find out whether the
+     175:    * property is set. Legitimate non-assertion uses include:
+     176:    *
+     177:    *   - Checking if a frame property is set in cases where that's all we want
+     178:    *     to know (i.e., we don't intend to read the actual value or remove the
+     179:    *     property).
+     180:    *
+     181:    *   - Calling Has() before Set() in cases where we don't want to overwrite
+     182:    *     an existing value for the frame property.
+     183:    */
+     184:   template <typename T>
+     185:   bool Has(Descriptor<T> aProperty) const {
+     186:     return mProperties.Contains(aProperty, PropertyComparator());
+     187:   }
+     188: 
+     189:   /**
+     190:    * Get a property value. This requires a linear search through
+     191:    * the properties of the frame. If the frame has no such property,
+     192:    * returns zero-filled result, which means null for pointers and
+     193:    * zero for integers and floating point types.
+     194:    * @param aFoundResult if non-null, receives a value 'true' iff
+     195:    * the frame has a value for the property. This lets callers
+     196:    * disambiguate a null result, which can mean 'no such property' or
+     197:    * 'property value is null'.
+     198:    */
+     199:   template <typename T>
+     200:   PropertyType<T> Get(Descriptor<T> aProperty,
+     201:                       bool* aFoundResult = nullptr) const {
+     202:     uint64_t v = GetInternal(aProperty, aFoundResult);
+     203:     return ReinterpretHelper<T>::FromInternalValue(v);
+     204:   }
+     205: 
+     206:   /**
+     207:    * Remove a property value, and return it without destroying it.
+     208:    *
+     209:    * This requires a linear search through the properties of the frame.
+     210:    * If the frame has no such property, returns zero-filled result, which means
+     211:    * null for pointers and zero for integers and floating point types.
+     212:    * @param aFoundResult if non-null, receives a value 'true' iff
+     213:    * the frame had a value for the property. This lets callers
+     214:    * disambiguate a null result, which can mean 'no such property' or
+     215:    * 'property value is null'.
+     216:    */
+     217:   template <typename T>
+     218:   PropertyType<T> Take(Descriptor<T> aProperty, bool* aFoundResult = nullptr) {
+     219:     uint64_t v = TakeInternal(aProperty, aFoundResult);
+     220:     return ReinterpretHelper<T>::FromInternalValue(v);
+     221:   }
+     222: 
+     223:   /**
+     224:    * Remove and destroy a property value. This requires a linear search through
+     225:    * the properties of the frame. If the frame has no such property, nothing
+     226:    * happens and false is returned.
+     227:    */
+     228:   template <typename T>
+     229:   bool Remove(Descriptor<T> aProperty, const nsIFrame* aFrame) {
+     230:     return RemoveInternal(aProperty, aFrame);
+     231:   }
+     232: 
+     233:   /**
+     234:    * Call @aFunction for each property or until @aFunction returns false.
+     235:    */
+     236:   template <class F>
+     237:   void ForEach(F aFunction) const {
+     238: #ifdef DEBUG
+     239:     size_t len = mProperties.Length();
+     240: #endif
+     241:     for (const auto& prop : mProperties) {
+     242:       bool shouldContinue = aFunction(prop.mProperty, prop.mValue);
+     243:       MOZ_ASSERT(len == mProperties.Length(),
+     244:                  "frame property list was modified by ForEach callback!");
+     245:       if (!shouldContinue) {
+     246:         return;
+     247:       }
+     248:     }
+     249:   }
+     250: 
+     251:   /**
+     252:    * Remove and destroy all property values for the frame.
+     253:    */
+     254:   void RemoveAll(const nsIFrame* aFrame) {
+     255:     nsTArray<PropertyValue> toDelete = std::move(mProperties);
+     256:     for (auto& prop : toDelete) {
+     257:       prop.DestroyValueFor(aFrame);
+     258:     }
+     259:     MOZ_ASSERT(mProperties.IsEmpty(), "a property dtor added new properties");
+     260:   }
+     261: 
+     262:   size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+     263:     // We currently report only the shallow size of the mProperties array.
+     264:     // As for the PropertyValue entries: we don't need to measure the mProperty
+     265:     // field of because it always points to static memory, and we can't measure
+     266:     // mValue because the type is opaque.
+     267:     // XXX Can we do better, e.g. with a method on the descriptor?
+     268:     return mProperties.ShallowSizeOfExcludingThis(aMallocSizeOf);
+     269:   }
+     270: 
+     271:  private:
+     272:   inline void SetInternal(UntypedDescriptor aProperty, uint64_t aValue,
+     273:                           const nsIFrame* aFrame);
+     274: 
+     275:   inline void AddInternal(UntypedDescriptor aProperty, uint64_t aValue);
+     276: 
+     277:   inline uint64_t GetInternal(UntypedDescriptor aProperty,
+     278:                               bool* aFoundResult) const;
+     279: 
+     280:   inline uint64_t TakeInternal(UntypedDescriptor aProperty, bool* aFoundResult);
+     281: 
+     282:   // Returns whether the property was removed.
+     283:   inline bool RemoveInternal(UntypedDescriptor aProperty,
+     284:                              const nsIFrame* aFrame);
+     285: 
+     286:   template <typename T>
+     287:   struct ReinterpretHelper {
+     288:     static_assert(sizeof(PropertyType<T>) <= sizeof(uint64_t),
+     289:                   "size of the value must never be larger than 64 bits");
+     290: 
+     291:     static uint64_t ToInternalValue(PropertyType<T> aValue) {
+     292:       uint64_t v = 0;
+     293:       memcpy(&v, &aValue, sizeof(aValue));
+     294:       return v;
+     295:     }
+     296: 
+     297:     static PropertyType<T> FromInternalValue(uint64_t aInternalValue) {
+     298:       PropertyType<T> value;
+     299:       memcpy(&value, &aInternalValue, sizeof(value));
+     300:       return value;
+     301:     }
+     302:   };
+     303: 
+     304:   /**
+     305:    * Stores a property descriptor/value pair.
+     306:    */
+     307:   struct PropertyValue {
+     308:     PropertyValue() : mProperty(nullptr), mValue(0) {}
+     309:     PropertyValue(UntypedDescriptor aProperty, uint64_t aValue)
+     310:         : mProperty(aProperty), mValue(aValue) {}
+     311: 
+     312:     // NOTE: This function converts our internal 64-bit-integer representation
+     313:     // to a pointer-type representation. This is lossy on 32-bit systems, but it
+     314:     // should be fine, as long as we *only* do this in cases where we're sure
+     315:     // that the stored property-value is in fact a pointer. And we should have
+     316:     // that assurance, since only pointer-typed frame properties are expected to
+     317:     // have a destructor
+     318:     void DestroyValueFor(const nsIFrame* aFrame) {
+     319:       if (mProperty->mDestructor) {
+     320:         mProperty->mDestructor(
+     321:             ReinterpretHelper<void*>::FromInternalValue(mValue));
+   ...  : (method too long, truncated)

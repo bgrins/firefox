@@ -1,0 +1,64 @@
+>>>  190: void nsContainerFrame::Destroy(DestroyContext& aContext) {
+     191:   DestroyAbsoluteFrames(aContext);
+     192: 
+     193:   // Destroy frames on the principal child list.
+     194:   mFrames.DestroyFrames(aContext);
+     195: 
+     196:   // If we have any IB split siblings, clear their references to us.
+     197:   if (HasAnyStateBits(NS_FRAME_PART_OF_IBSPLIT)) {
+     198:     // Delete previous sibling's reference to me.
+     199:     if (nsIFrame* prevSib = GetProperty(nsIFrame::IBSplitPrevSibling())) {
+     200:       NS_WARNING_ASSERTION(
+     201:           this == prevSib->GetProperty(nsIFrame::IBSplitSibling()),
+     202:           "IB sibling chain is inconsistent");
+     203:       prevSib->RemoveProperty(nsIFrame::IBSplitSibling());
+     204:     }
+     205: 
+     206:     // Delete next sibling's reference to me.
+     207:     if (nsIFrame* nextSib = GetProperty(nsIFrame::IBSplitSibling())) {
+     208:       NS_WARNING_ASSERTION(
+     209:           this == nextSib->GetProperty(nsIFrame::IBSplitPrevSibling()),
+     210:           "IB sibling chain is inconsistent");
+     211:       nextSib->RemoveProperty(nsIFrame::IBSplitPrevSibling());
+     212:     }
+     213: 
+     214: #ifdef DEBUG
+     215:     // This is just so we can assert it's not set in nsIFrame::DestroyFrom.
+     216:     RemoveStateBits(NS_FRAME_PART_OF_IBSPLIT);
+     217: #endif
+     218:   }
+     219: 
+     220:   if (MOZ_UNLIKELY(!mProperties.IsEmpty())) {
+     221:     using T = mozilla::FrameProperties::UntypedDescriptor;
+     222:     bool hasO = false, hasOC = false, hasEOC = false;
+     223:     mProperties.ForEach([&](const T& aProp, uint64_t) {
+     224:       if (aProp == OverflowProperty()) {
+     225:         hasO = true;
+     226:       } else if (aProp == OverflowContainersProperty()) {
+     227:         hasOC = true;
+     228:       } else if (aProp == ExcessOverflowContainersProperty()) {
+     229:         hasEOC = true;
+     230:       }
+     231:       return true;
+     232:     });
+     233: 
+     234:     // Destroy frames on the auxiliary frame lists and delete the lists.
+     235:     mozilla::PresShell* presShell = PresShell();
+     236:     if (hasO) {
+     237:       SafelyDestroyFrameListProp(aContext, presShell, OverflowProperty());
+     238:     }
+     239: 
+     240:     MOZ_ASSERT(CanContainOverflowContainers() || !(hasOC || hasEOC),
+     241:                "this type of frame shouldn't have overflow containers");
+     242:     if (hasOC) {
+     243:       SafelyDestroyFrameListProp(aContext, presShell,
+     244:                                  OverflowContainersProperty());
+     245:     }
+     246:     if (hasEOC) {
+     247:       SafelyDestroyFrameListProp(aContext, presShell,
+     248:                                  ExcessOverflowContainersProperty());
+     249:     }
+     250:   }
+     251: 
+     252:   nsSplittableFrame::Destroy(aContext);
+     253: }

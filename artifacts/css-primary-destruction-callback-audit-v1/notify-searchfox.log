@@ -1,0 +1,54 @@
+>>> 2191: void PresShell::NotifyDestroyingFrame(nsIFrame* aFrame) {
+    2192:   // We must remove these from FrameLayerBuilder::DisplayItemData::mFrameList
+    2193:   // here, otherwise the DisplayItemData destructor will use the destroyed frame
+    2194:   // when it tries to remove it from the (array) value of this property.
+    2195:   aFrame->RemoveDisplayItemDataForDeletion();
+    2196: 
+    2197:   if (!mIgnoreFrameDestruction) {
+    2198:     if (aFrame->HasImageRequest()) {
+    2199:       mDocument->EnsureStyleImageLoader().DropRequestsForFrame(aFrame);
+    2200:     }
+    2201: 
+    2202:     mFrameConstructor->NotifyDestroyingFrame(aFrame);
+    2203: 
+    2204:     mDirtyRoots.Remove(aFrame);
+    2205: 
+    2206:     // Remove frame properties
+    2207:     aFrame->RemoveAllProperties();
+    2208: 
+    2209:     const auto ComputeTargetContent =
+    2210:         [&aFrame](const EventTargetInfo& aEventTargetInfo) -> nsIContent* {
+    2211:       if (!IsForbiddenDispatchingToNonElementContent(
+    2212:               aEventTargetInfo.mEventMessage)) {
+    2213:         return aFrame->GetContent();
+    2214:       }
+    2215:       return aFrame->GetContent()
+    2216:                  ? aFrame->GetContent()
+    2217:                        ->GetInclusiveFlattenedTreeAncestorElement()
+    2218:                  : nullptr;
+    2219:     };
+    2220: 
+    2221:     if (aFrame == mCurrentEventTarget.mFrame) {
+    2222:       mCurrentEventTarget.UpdateFrameAndContent(
+    2223:           nullptr, ComputeTargetContent(mCurrentEventTarget));
+    2224:     }
+    2225: 
+    2226:     for (EventTargetInfo& eventTargetInfo : mCurrentEventTargetStack) {
+    2227:       if (aFrame == eventTargetInfo.mFrame) {
+    2228:         // One of our stack frames was deleted.  Get its content so that when we
+    2229:         // pop it we can still get its new frame from its content
+    2230:         eventTargetInfo.UpdateFrameAndContent(
+    2231:             nullptr, ComputeTargetContent(eventTargetInfo));
+    2232:       }
+    2233:     }
+    2234: 
+    2235:     mFramesToDirty.Remove(aFrame);
+    2236:     mOrthogonalFlows.Remove(aFrame);
+    2237: 
+    2238:     if (ScrollContainerFrame* scrollContainerFrame = do_QueryFrame(aFrame)) {
+    2239:       mPendingScrollAnchorSelection.Remove(scrollContainerFrame);
+    2240:       mPendingScrollAnchorAdjustment.Remove(scrollContainerFrame);
+    2241:       mPendingScrollResnap.Remove(scrollContainerFrame);
+    2242:     }
+    2243:   }
+    2244: }
