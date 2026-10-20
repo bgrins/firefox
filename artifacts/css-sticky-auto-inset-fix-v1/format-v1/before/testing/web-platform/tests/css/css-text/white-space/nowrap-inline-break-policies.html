@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Nowrap inline text suppresses breaks across text partitions</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-4/#valdef-text-wrap-mode-nowrap">
+<link rel="stylesheet" href="/fonts/ahem.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .sample { font: 20px/30px Ahem; }
+  .narrow { width: 20px; }
+  .intrinsic { width: min-content; }
+  .reference { width: max-content; }
+  .nowrap, .target { white-space: nowrap; }
+  .wrap .target { white-space: normal; }
+  .break-all { word-break: break-all; }
+  .keep-all { word-break: keep-all; }
+  .anywhere { line-break: anywhere; }
+  .capitalize { text-transform: capitalize; }
+</style>
+<div id="fixtures"></div>
+<script>
+const fontReady = document.fonts.load("20px Ahem", "ABC D");
+
+function fixture(t, mode, partition, container, transform, sizing) {
+  const block = document.createElement("div");
+  block.className = `sample ${mode} ${container} ${transform} ${sizing}`;
+  const target = document.createElement("span");
+  target.className = "target";
+  if (partition === "whole") {
+    target.append(document.createTextNode("ABC D"));
+  } else {
+    target.append(document.createTextNode("A"));
+    const rest = document.createTextNode("BC D");
+    if (partition === "adjacent") {
+      target.append(rest);
+    } else {
+      const inner = document.createElement("span");
+      inner.append(rest);
+      target.append(inner);
+    }
+  }
+  block.append(target);
+  document.querySelector("#fixtures").append(block);
+  t.add_cleanup(() => block.remove());
+  return { block, target };
+}
+
+function lineCount(target) {
+  const tops = new Set();
+  const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    for (let i = 0; i < node.length; ++i) {
+      if (node.data[i] === " ") {
+        continue;
+      }
+      const range = document.createRange();
+      range.setStart(node, i);
+      range.setEnd(node, i + 1);
+      for (const rect of range.getClientRects()) {
+        tops.add(rect.top);
+      }
+    }
+  }
+  return tops.size;
+}
+
+promise_test(async t => {
+  assert_equals((await fontReady).length, 1, "Ahem is loaded");
+  const { block } = fixture(t, "normal", "whole", "nowrap", "", "reference");
+  assert_equals(block.getBoundingClientRect().width, 100);
+}, "Ahem calibration includes all five characters");
+
+for (const mode of ["normal", "break-all", "keep-all", "anywhere"]) {
+  for (const partition of ["whole", "adjacent", "nested"]) {
+    for (const container of ["normal", "nowrap", "wrap"]) {
+      for (const transform of ["", "capitalize"]) {
+        const name = `${mode}, ${partition}, ${container} container, ${transform || "no transform"}`;
+        promise_test(async t => {
+          await fontReady;
+          const { target } = fixture(t, mode, partition, container, transform, "narrow");
+          assert_equals(getComputedStyle(target).whiteSpace,
+                        container === "wrap" ? "normal" : "nowrap");
+          if (container === "wrap") {
+            assert_greater_than(lineCount(target), 1);
+          } else {
+            assert_equals(lineCount(target), 1);
+          }
+        }, `Line wrapping: ${name}`);
+        promise_test(async t => {
+          await fontReady;
+          const { block } = fixture(t, mode, partition, container, transform, "intrinsic");
+          const expected = container !== "wrap" ? 100 :
+                           mode === "normal" || mode === "keep-all" ? 60 : 20;
+          assert_equals(block.getBoundingClientRect().width, expected);
+        }, `Min-content width: ${name}`);
+        if (container === "normal") {
+          promise_test(async t => {
+            await fontReady;
+            const { block, target } = fixture(t, mode, partition, container, transform, "narrow");
+            const prefix = document.createTextNode("X ");
+            block.prepend(prefix);
+            const before = document.createRange();
+            before.setStart(prefix, 0);
+            before.setEnd(prefix, 1);
+            const after = document.createRange();
+            after.setStart(target.firstChild, 0);
+            after.setEnd(target.firstChild, 1);
+            assert_equals(after.getBoundingClientRect().top -
+                          before.getBoundingClientRect().top, 30);
+            assert_equals(lineCount(target), 1);
+          }, `Break before nowrap inline remains allowed: ${name}`);
+        }
+      }
+    }
+  }
+}
+</script>

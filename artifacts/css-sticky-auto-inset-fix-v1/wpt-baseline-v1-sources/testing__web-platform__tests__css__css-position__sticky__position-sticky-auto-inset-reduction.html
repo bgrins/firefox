@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Sticky view rectangle reduction with an auto opposite inset</title>
+<link rel="help" href="https://drafts.csswg.org/css-position-3/#stickypos-insets">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="fixtures"></div>
+<script>
+const fixtures = document.querySelector("#fixtures");
+
+function element(style, parent) {
+  const result = document.createElement("div");
+  result.style.cssText = style;
+  parent.append(result);
+  return result;
+}
+
+function expectedPosition(size, start, end, scroll, reverse) {
+  if (start === null && end === null) {
+    return 200 - scroll;
+  }
+  const effectiveEnd = Math.min(end ?? 0, 100 - (start ?? 0) - size);
+  const low = reverse ? (end === null ? -Infinity : effectiveEnd)
+                      : (start === null ? -Infinity : start);
+  const high = reverse ? (start === null ? Infinity : 100 - start - size)
+                       : (end === null ? Infinity : 100 - effectiveEnd - size);
+  const shifted = Math.max(low, Math.min(high, 200 - scroll));
+  return Math.max(-scroll, Math.min(600 - size - scroll, shifted));
+}
+
+for (const axis of ["vertical", "horizontal-ltr", "horizontal-rtl"]) {
+  const vertical = axis === "vertical";
+  const reverse = axis === "horizontal-rtl";
+  const startSide = vertical ? "top" : reverse ? "right" : "left";
+  const endSide = vertical ? "bottom" : reverse ? "left" : "right";
+  const coordinate = vertical ? "top" : "left";
+  const scrollProperty = vertical ? "scrollTop" : "scrollLeft";
+  for (const size of [60, 80, 200]) {
+    for (const [start, end] of [[null, -20], [null, 0], [null, 20],
+                              [0, 20], [20, null], [null, null]]) {
+      for (const scroll of [0, 160, 260, 400]) {
+        test(t => {
+          const scroller = element("width:100px;height:100px;overflow:hidden;overflow-anchor:none", fixtures);
+          t.add_cleanup(() => scroller.remove());
+          const container = element(vertical
+            ? "width:100px;height:600px;display:flex;flex-direction:column"
+            : `width:600px;height:100px;display:flex;direction:${reverse ? "rtl" : "ltr"};flex-direction:${reverse ? "row-reverse" : "row"}`,
+            scroller);
+          const dimensions = value => vertical
+            ? `width:100px;height:${value}px;flex:none`
+            : `width:${value}px;height:100px;flex:none`;
+          element(dimensions(200), container);
+          const sticky = element(dimensions(size), container);
+          element(dimensions(200), container);
+          scroller[scrollProperty] = scroll;
+          assert_equals(scroller[scrollProperty], scroll, "Scroll calibration");
+          const origin = scroller.getBoundingClientRect()[coordinate];
+          assert_equals(sticky.getBoundingClientRect()[coordinate] - origin,
+                        200 - scroll, "Normal position calibration");
+          sticky.style.position = "sticky";
+          sticky.style[startSide] = start === null ? "auto" : `${start}px`;
+          sticky.style[endSide] = end === null ? "auto" : `${end}px`;
+          assert_equals(sticky.getBoundingClientRect()[coordinate] - origin,
+                        expectedPosition(size, start, end, scroll, reverse));
+        }, `${axis}, size ${size}, start ${start ?? "auto"}, end ${end ?? "auto"}, scroll ${scroll}`);
+      }
+    }
+  }
+}
+</script>

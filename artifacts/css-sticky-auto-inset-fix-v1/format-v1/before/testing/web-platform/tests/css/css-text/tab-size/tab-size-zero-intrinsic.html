@@ -1,0 +1,80 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Zero-sized tabs do not contribute to intrinsic inline sizes</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-3/#white-space-phase-2">
+<link rel="help" href="https://drafts.csswg.org/css-sizing-3/#intrinsic-sizes">
+<link rel="stylesheet" href="/fonts/ahem.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .container {
+    position: relative;
+    inline-size: 500px;
+    block-size: 100px;
+    font: 20px/20px Ahem;
+    white-space: pre;
+  }
+  .sample {
+    position: absolute;
+    inset-inline-start: 0;
+    inset-block-start: 0;
+  }
+</style>
+<body>
+<script>
+function sample(t, writingMode, direction, sizing, tabSize, text) {
+  const container = document.createElement("div");
+  container.className = "container";
+  container.style.writingMode = writingMode;
+  container.style.direction = direction;
+  const element = document.createElement("div");
+  element.className = "sample";
+  element.style.inlineSize = sizing;
+  element.style.tabSize = tabSize;
+  element.textContent = text;
+  container.append(element);
+  document.body.append(container);
+  t.add_cleanup(() => container.remove());
+  return element;
+}
+
+function inlineSize(element) {
+  const rect = element.getBoundingClientRect();
+  return getComputedStyle(element).writingMode === "horizontal-tb" ? rect.width : rect.height;
+}
+
+promise_setup(async () => {
+  await document.fonts.load("20px Ahem", "AB ");
+  assert_true(document.fonts.check("20px Ahem", "AB "));
+});
+
+for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
+  for (const direction of ["ltr", "rtl"]) {
+    for (const sizing of ["min-content", "max-content", "auto"]) {
+      for (const tabSize of ["0", "0px", "calc(1px - 2px)"]) {
+        for (const count of [1, 3]) {
+          promise_test(async t => {
+            const reference = sample(t, writingMode, direction, sizing, tabSize, "AB");
+            const actual = sample(t, writingMode, direction, sizing, tabSize,
+                                  "A" + "\t".repeat(count) + "B");
+            assert_equals(inlineSize(reference), 40, "Ahem reference size");
+            assert_equals(inlineSize(actual), 40, "Tabs contribute no inline size");
+          }, `${writingMode} ${direction}, ${sizing}, tab-size:${tabSize}, ${count} tabs`);
+        }
+      }
+      promise_test(async t => {
+        const element = sample(t, writingMode, direction, sizing, "20px", "A\tB");
+        assert_equals(inlineSize(element), 60, "Positive tab reaches the next stop");
+      }, `${writingMode} ${direction}, ${sizing}, positive tab control`);
+      promise_test(async t => {
+        const element = sample(t, writingMode, direction, sizing, "20px", "A\tB");
+        assert_equals(inlineSize(element), 60, "Initial positive tab");
+        element.style.tabSize = "0";
+        assert_equals(inlineSize(element), 40, "Changed to zero");
+        element.style.tabSize = "20px";
+        assert_equals(inlineSize(element), 60, "Restored positive tab");
+      }, `${writingMode} ${direction}, ${sizing}, tab-size mutation`);
+    }
+  }
+}
+</script>

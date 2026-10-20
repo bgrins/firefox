@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Fixed descendants of a local containing block are excluded scroll anchors</title>
+<link rel="help" href="https://drafts.csswg.org/css-scroll-anchoring-1/#excluded-subtree">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .scroller { width: 200px; height: 200px; overflow: scroll; }
+  .containing { width: 150px; height: 800px; transform: translate(0px); }
+  .viewport { transform: none; }
+  .candidate { position: fixed; top: 150px; left: 0; width: 40px; height: 20px; }
+  .absolute { position: absolute; }
+  .sticky { position: sticky; top: 50px; }
+  .excluded { overflow-anchor: none; }
+  .prefix { height: 150px; overflow-anchor: none; }
+  .grown { height: 180px; }
+  .anchor { width: 100px; height: 40px; }
+  .tail { height: 1000px; overflow-anchor: none; }
+</style>
+<body>
+<script>
+  const frame = () => new Promise(requestAnimationFrame);
+  async function settle(t) {
+    await frame();
+    await frame();
+    await new Promise(resolve => t.step_timeout(resolve, 0));
+  }
+  function box(className) {
+    const element = document.createElement("div");
+    element.className = className;
+    return element;
+  }
+  for (const [variant, expected] of [
+    ["fixed", 130],
+    ["absolute", 100],
+    ["sticky", 130],
+    ["viewport", 130],
+    ["excluded", 130],
+  ]) {
+    promise_test(async t => {
+      const scroller = box("scroller");
+      const containing = box(`containing ${variant === "viewport" ? "viewport" : ""}`);
+      const candidate = box(`candidate ${variant}`);
+      const prefix = box("prefix");
+      const anchor = box("anchor");
+      containing.append(candidate, prefix, anchor, box("tail"));
+      scroller.append(containing);
+      document.body.append(scroller);
+      t.add_cleanup(() => scroller.remove());
+      scroller.scrollTop = 100;
+      await settle(t);
+      assert_equals(scroller.scrollTop, 100, "Initial offset");
+      assert_equals(getComputedStyle(candidate).position,
+        variant === "absolute" || variant === "sticky" ? variant : "fixed");
+      prefix.classList.add("grown");
+      assert_equals(scroller.scrollTop, expected, "Offset after growth");
+      await settle(t);
+      assert_equals(scroller.scrollTop, expected, "Settled offset");
+    }, `${variant} candidate in a local containing block`);
+  }
+</script>

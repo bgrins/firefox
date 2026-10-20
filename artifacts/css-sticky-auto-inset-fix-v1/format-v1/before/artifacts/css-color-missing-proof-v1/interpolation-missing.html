@@ -1,0 +1,191 @@
+<h3 class="heading settled" data-level="13.3" id="interpolation-missing"><span class="secno">13.3. </span><span class="content">
+Interpolating with Missing Components</span><a class="self-link" href="#interpolation-missing"></a></h3>
+   <p>In the course of converting the two colors
+	to the <a data-link-type="dfn" href="#interpolation-color-space" id="ref-for-interpolation-color-space⑤">interpolation color space</a>,
+	any <a data-link-type="dfn" href="#missing-color-component" id="ref-for-missing-color-component②⑧">missing components</a>
+	would be replaced with the value 0.</p>
+   <p>Thus, the first stage in interpolating two colors
+	is to classify any <a data-link-type="dfn" href="#missing-color-component" id="ref-for-missing-color-component②⑨">missing components</a>
+	in the input colors,
+	and compare them to the components of the
+	<a data-link-type="dfn" href="#interpolation-color-space" id="ref-for-interpolation-color-space⑥">interpolation color space</a>.
+	If any <a data-link-type="dfn" href="#analogous-components" id="ref-for-analogous-components②">analogous components</a> which are <span id="ref-for-missing-color-component③⓪">missing components</span> are found,
+	they will be <strong>carried forward</strong>
+	and re-inserted in the converted color
+	before premultiplication, and
+	before linear interpolation takes place.</p>
+   <p>Similarly, if every component of an <a data-link-type="dfn" href="#analogous-set" id="ref-for-analogous-set①">analogous set</a>
+	(defined below)
+	in the original color
+	is a <a data-link-type="dfn" href="#missing-color-component" id="ref-for-missing-color-component③①">missing component</a>,
+	they are all <a data-link-type="dfn" href="#carried-forward" id="ref-for-carried-forward①">carried forward</a>
+	and re-inserted
+	in the corresponding <span id="ref-for-analogous-set②">analogous set</span>
+	of the <a data-link-type="dfn" href="#interpolation-color-space" id="ref-for-interpolation-color-space⑦">interpolation color space</a>.</p>
+   <p>Alpha is its own analogous component
+	(alpha is analogous to alpha),
+	so a <a data-link-type="dfn" href="#missing-color-component" id="ref-for-missing-color-component③②">missing</a> alpha
+	is <a data-link-type="dfn" href="#carried-forward" id="ref-for-carried-forward②">carried forward</a> in exactly the same way
+	as any other <span id="ref-for-missing-color-component③③">missing component</span>.</p>
+   <p>The <dfn class="dfn-paneled" data-dfn-type="dfn" data-export id="analogous-components">analogous components</dfn>  are as follows:</p>
+   <table>
+    <tbody>
+     <tr>
+      <th>Category
+      <th>Components
+     <tr>
+      <td>Reds
+      <td>r,x
+     <tr>
+      <td>Greens
+      <td>g,y
+     <tr>
+      <td>Blues
+      <td>b,z
+     <tr>
+      <td>Lightness
+      <td>L
+     <tr>
+      <td>Colorfulness
+      <td>C, S
+     <tr>
+      <td>Hue
+      <td>H
+     <tr>
+      <td>Opponent a
+      <td>a
+     <tr>
+      <td>Opponent b
+      <td>b
+     <tr>
+      <td>Alpha
+      <td>alpha
+   </table>
+   <p class="note" role="note"><span class="marker">Note:</span> for the purposes of this classification,
+	the XYZ spaces are considered super-saturated RGB spaces.
+	Also, despite Saturation being Lightness-dependent,
+	it falls in the same category as Chroma here.
+	The Whiteness and Blackness components of HWB
+	have no analogs in other color spaces.</p>
+   <p>Additionally, for any two color spaces,
+	the components that remain
+	after removing all <a data-link-type="dfn" href="#analogous-components" id="ref-for-analogous-components③">analogous components</a>
+	form an <dfn class="dfn-paneled" data-dfn-type="dfn" data-export id="analogous-set">analogous set</dfn> of components.</p>
+   <p class="note" role="note"><span class="marker">Note:</span> Because the full set of all color components
+	is the <a data-link-type="dfn" href="#analogous-set" id="ref-for-analogous-set③">analogous set</a> that remains
+	when there are no individual <a data-link-type="dfn" href="#analogous-components" id="ref-for-analogous-components④">analogous components</a>,
+	a color with all color components <a data-link-type="dfn" href="#missing-color-component" id="ref-for-missing-color-component③④">missing</a>
+	will have all color components <span id="ref-for-missing-color-component③⑤">missing</span>
+	in the <a data-link-type="dfn" href="#interpolation-color-space" id="ref-for-interpolation-color-space⑧">interpolation color space</a> as well.</p>
+   <div class="example" id="ex-analogous-set">
+    <a class="self-link" href="#ex-analogous-set"></a>
+		When converting
+		<code class="highlight lang-css"><c- nf>lab</c-><c- p>(</c-><c- m>50</c-><c- k>%</c-> none none<c- p>)</c-></code> to LCH
+		for interpolation,
+		Lightness is individually <a data-link-type="dfn" href="#analogous-components" id="ref-for-analogous-components⑤">analogous</a>.
+		The remaining components
+		(<a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-color-5/#valdef-oklab-a" id="ref-for-valdef-oklab-a">a</a> and <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-color-5/#valdef-oklab-b" id="ref-for-valdef-oklab-b">b</a> in Lab; <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-color-5/#valdef-oklch-c" id="ref-for-valdef-oklch-c">C</a> and <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-color-5/#valdef-oklch-h" id="ref-for-valdef-oklch-h">H</a> in LCH)
+		form an <a data-link-type="dfn" href="#analogous-set" id="ref-for-analogous-set④">analogous set</a>.
+		Since both <span class="css" id="ref-for-valdef-oklab-a①">a</span> and <span class="css" id="ref-for-valdef-oklab-b①">b</span> are <a data-link-type="dfn" href="#missing-color-component" id="ref-for-missing-color-component③⑥">missing</a>,
+		both <span class="css" id="ref-for-valdef-oklch-c①">C</span> and <span class="css" id="ref-for-valdef-oklch-h①">H</span> are carried forward as <span id="ref-for-missing-color-component③⑦">missing</span>,
+		giving <code class="highlight lang-css"><c- nf>lch</c-><c- p>(</c-><c- m>50</c-><c- k>%</c-> none none<c- p>)</c-></code>
+		rather than <code class="highlight lang-css"><c- nf>lch</c-><c- p>(</c-><c- m>50</c-><c- k>%</c-> <c- m>0</c-> <c- m>0</c-><c- p>)</c-></code>.
+
+
+    <p>Similarly,
+		<code class="highlight lang-css"><c- nf>rgb</c-><c- p>(</c->none none none / <c- m>50</c-><c- k>%</c-><c- p>)</c-></code>
+		converted to OKLab for interpolation
+		yields <code class="highlight lang-css"><c- nf>oklab</c-><c- p>(</c->none none none / <c- m>50</c-><c- k>%</c-><c- p>)</c-></code>,
+		because the three color components
+		form the <a data-link-type="dfn" href="#analogous-set" id="ref-for-analogous-set⑤">analogous set</a>
+		(there are no individual <a data-link-type="dfn" href="#analogous-components" id="ref-for-analogous-components⑥">analogous components</a>
+		between sRGB and OKLab).</p>
+   </div>
+   <details class="wpt-tests-block" dir="ltr" lang="en">
+    <summary>Tests</summary>
+    <ul class="wpt-tests-list">
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/css/css-images/gradient/gradient-none-interpolation.html" title="css/css-images/gradient/gradient-none-interpolation.html">gradient-none-interpolation.html</a> <a class="wpt-live" href="http://wpt.live/css/css-images/gradient/gradient-none-interpolation.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/css/css-images/gradient/gradient-none-interpolation.html"><small>(source)</small></a>
+    </ul>
+   </details>
+   <div class="example" id="ex-analogous-hue">
+    <a class="self-link" href="#ex-analogous-hue"></a>
+		For example, if these two colors
+		are to be interpolated in OkLCh,
+		the missing hue in the CIE LCH color
+		is analogous to the hue component of OkLCh
+		and will be carried forward
+		while the missing blue component
+		in the second color
+		is not analogous to any OkLCh component
+		and will not be carried forward:
+
+		
+<pre class="highlight"><span class="swatch" style="--color: rgb(46.647% 46.628% 46.633%)"></span> <c- nf>lch</c-><c- p>(</c-><c- m>50</c-><c- k>%</c-> <c- m>0.02</c-> none<c- p>)</c->
+<span class="swatch" style="--color: rgb(71.559% 49.813% 0%)"></span> <c- nf>color</c-><c- p>(</c->display-p3 <c- m>0.7</c-> <c- m>0.5</c-> none<c- p>)</c->
+</pre>
+    <p>which convert to</p>
+<pre class="highlight"><span class="swatch" style="--color: rgb(46.647% 46.628% 46.633%)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>56.897</c-><c- k>%</c-> <c- m>0.0001</c-> <c- m>0</c-><c- p>)</c->
+<span class="swatch" style="--color: rgb(71.559% 49.813% 0%)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>63.612</c-><c- k>%</c-> <c- m>0.1522</c-> <c- m>78.748</c-><c- p>)</c->
+</pre>
+    <p>and with carried forward <a data-link-type="dfn" href="#missing-color-component" id="ref-for-missing-color-component③⑧">missing component</a> re-inserted,
+		the two colors to be interpolated are:</p>
+<pre class="highlight"><span class="swatch" style="--color: rgb(46.647% 46.628% 46.633%)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>56.897</c-><c- k>%</c-> <c- m>0.0001</c-> none<c- p>)</c->
+<span class="swatch" style="--color: rgb(71.559% 49.813% 0%)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>63.612</c-><c- k>%</c-> <c- m>0.1522</c-> <c- m>78.748</c-><c- p>)</c->
+</pre>
+   </div>
+   <p>If a color with a carried forward <a data-link-type="dfn" href="#missing-color-component" id="ref-for-missing-color-component③⑨">missing component</a>
+	is interpolated
+	with another color
+	which is not missing that component,
+	the <span id="ref-for-missing-color-component④⓪">missing component</span>
+	is treated as having
+	the <em>other color’s</em> component value.</p>
+   <p>Therefore,
+	the identification of carried-forward components
+	must be performed <em>before</em> any
+	<a data-link-type="dfn" href="#powerless-color-component" id="ref-for-powerless-color-component①⑨">powerless component</a> handling;
+	to prevent conversion of that value to zero.</p>
+   <div class="example" id="ex-oklch-missing-hue">
+    <a class="self-link" href="#ex-oklch-missing-hue"></a>
+		For example, if these two colors are interpolated,
+		the second of which has a missing hue:
+
+		
+<pre class="highlight"><span class="swatch" style="--color: rgb(86.6% 62.7% 86.7%)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>78.3</c-><c- k>%</c-> <c- m>0.108</c-> <c- m>326.5</c-><c- p>)</c->
+<span class="swatch" style="--color: rgb(48.4% 0% 22.8%)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>39.2</c-><c- k>%</c-> <c- m>0.4</c-> none<c- p>)</c->
+</pre>
+    <p>Then the actual colors to be interpolated are</p>
+<pre class="highlight"><span class="swatch" style="--color: rgb(86.6% 62.7% 86.7%)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>78.3</c-><c- k>%</c-> <c- m>0.108</c-> <c- m>326.5</c-><c- p>)</c->
+<span class="swatch" style="--color: rgb(39% 0% 39.4%)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>39.2</c-><c- k>%</c-> <c- m>0.4</c-> <c- m>326.5</c-><c- p>)</c->
+</pre>
+    <div style="width: 100%; height: 5em; background: linear-gradient(to right, oklch(78.3% 0.108 326.5), oklch(73.956% 0.14044 326.5), oklch(69.611% 0.17289 326.5), oklch(65.267% 0.20533 326.5), oklch(60.922% 0.23778 326.5), oklch(56.578% 0.27022 326.5), oklch(52.233% 0.30267 326.5), oklch(47.889% 0.33511 326.5), oklch(43.544% 0.36756 326.5), oklch(39.2% 0.4 326.5))"></div>
+    <p>and not</p>
+<pre class="highlight"><span class="swatch" style="--color: rgb(86.6% 62.7% 86.7%)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>78.3</c-><c- k>%</c-> <c- m>0.108</c-> <c- m>326.5</c-><c- p>)</c->
+<span class="swatch" style="--color: rgb(48.4% 0% 22.8%)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>39.2</c-><c- k>%</c-> <c- m>0.4</c-> <c- m>0</c-><c- p>)</c->
+</pre>
+    <div style="width: 100%; height: 5em; background: linear-gradient(to right, oklch(78.3% 0.108 326.5), oklch(75.507% 0.12886 328.89), oklch(72.714% 0.14971 331.29), oklch(69.921% 0.17057 333.68), oklch(67.129% 0.19143 336.07), oklch(64.336% 0.21229 338.46), oklch(61.543% 0.23314 340.86), oklch(58.75% 0.254 343.25), oklch(55.957% 0.27486 345.64), oklch(53.164% 0.29571 348.04), oklch(50.371% 0.31657 350.43), oklch(47.579% 0.33743 352.82), oklch(44.786% 0.35829 355.21), oklch(41.993% 0.37914 357.61), oklch(39.2% 0.4 360))"></div>
+   </div>
+   <p>If the carried forward <a data-link-type="dfn" href="#missing-color-component" id="ref-for-missing-color-component④①">missing component</a>
+	is alpha, the color must be <a data-link-type="dfn" href="#premultiplied" id="ref-for-premultiplied②">premultiplied</a> with this carried forward value,
+	not with the zero value that would have resulted from color conversion.</p>
+   <div class="example" id="ex-oklch-missing-alpha">
+    <a class="self-link" href="#ex-oklch-missing-alpha"></a>
+		For example, if these two colors are interpolated,
+		the second of which has a missing alpha:
+
+		
+<pre class="highlight"><span class="swatch" style="--color: rgb(86.6% 62.7% 86.7% / 0.5)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>0.783</c-> <c- m>0.108</c-> <c- m>326.5</c-> / <c- m>0.5</c-><c- p>)</c->
+<span class="swatch" style="--color: rgb(48.4% 0% 22.8% / 0)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>0.392</c-> <c- m>0.4</c-> <c- m>0</c-> / none<c- p>)</c->
+</pre>
+    <p>Then the actual colors to be interpolated are</p>
+<pre class="highlight"><span class="swatch" style="--color: rgb(86.6% 62.7% 86.7% / 0.5)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>78.3</c-><c- k>%</c-> <c- m>0.108</c-> <c- m>326.5</c-> / <c- m>0.5</c-><c- p>)</c->
+<span class="swatch" style="--color: rgb(48.4% 0% 22.8% / 0.5)"></span> <c- nf>oklch</c-><c- p>(</c-><c- m>39.2</c-><c- k>%</c-> <c- m>0.4</c-> <c- m>0</c-> / <c- m>0.5</c-><c- p>)</c->
+</pre>
+    <p>giving the premultiplied OkLCh values [0.3915, 0.054, 326] and [0.196, 0.2, 0].</p>
+    <div style="width: 100%; height: 5em; background:linear-gradient(to right, oklch(78.3% 0.108 326.5 / 0.5), oklch(75.507% 0.12886 328.89 / 0.5), oklch(72.714% 0.14971 331.29 / 0.5), oklch(69.921% 0.17057 333.68 / 0.5), oklch(67.129% 0.19143 336.07 / 0.5), oklch(64.336% 0.21229 338.46 / 0.5), oklch(61.543% 0.23314 340.86 / 0.5), oklch(58.75% 0.254 343.25 / 0.5), oklch(55.957% 0.27486 345.64 / 0.5), oklch(53.164% 0.29571 348.04 / 0.5), oklch(50.371% 0.31657 350.43 / 0.5), oklch(47.579% 0.33743 352.82 / 0.5), oklch(44.786% 0.35829 355.21 / 0.5), oklch(41.993% 0.37914 357.61 / 0.5), oklch(39.2% 0.4 360 / 0.5))"></div>
+   </div>
+   <p>If both colors are <a data-link-type="dfn" href="#missing-color-component" id="ref-for-missing-color-component④②">missing</a>
+	a given component,
+	the interpolated color
+	will also be <span id="ref-for-missing-color-component④③">missing</span> that component.</p>
+   

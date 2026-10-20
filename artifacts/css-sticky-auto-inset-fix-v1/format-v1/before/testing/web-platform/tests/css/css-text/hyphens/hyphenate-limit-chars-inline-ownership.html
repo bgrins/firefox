@@ -1,0 +1,113 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hyphenation limits belong to the text being hyphenated</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-4/#hyphenate-char-limits">
+<link rel="stylesheet" href="/fonts/ahem.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.sample {
+  font: 20px/20px Ahem;
+  width: 60px;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphenate-character: "-";
+}
+.different-font { font-size: 21px; }
+.atomic { display: inline-block; }
+</style>
+<div id="log"></div>
+<script>
+const fontReady = document.fonts.load("20px Ahem", "example-x");
+
+function wordLines(target) {
+  const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+  const result = [];
+  while (walker.nextNode() && result.length < 7) {
+    for (let i = 0; i < walker.currentNode.length && result.length < 7; ++i) {
+      const range = document.createRange();
+      range.setStart(walker.currentNode, i);
+      range.setEnd(walker.currentNode, i + 1);
+      result.push(range.getBoundingClientRect().top);
+    }
+  }
+  assert_equals(result.length, 7, "All letters were measured");
+  return result.map(top => top - result[0]);
+}
+
+function fixture(t, limit, suffixLimit, boundary, hyphens,
+                 partition = "single", spaceOwner = "target") {
+  const sample = document.createElement("div");
+  sample.className = "sample";
+  sample.lang = "en-us";
+  sample.style.hyphens = hyphens;
+  const target = document.createElement("span");
+  target.style.hyphenateLimitChars = limit;
+  const text = spaceOwner === "target" ? "example " : "example";
+  if (partition === "single") {
+    target.textContent = text;
+  } else if (partition === "adjacent") {
+    target.append(document.createTextNode(text.slice(0, 3)),
+      document.createTextNode(text.slice(3)));
+  } else {
+    for (const part of [text.slice(0, 3), text.slice(3)]) {
+      const span = document.createElement("span");
+      span.textContent = part;
+      target.append(span);
+    }
+  }
+  sample.append(target);
+  let suffix;
+  if (boundary !== "absent") {
+    suffix = document.createElement("span");
+    suffix.className = boundary;
+    suffix.style.hyphenateLimitChars = suffixLimit;
+    suffix.textContent = spaceOwner === "target" ? "x" : " x";
+    sample.append(suffix);
+  }
+  document.body.append(sample);
+  t.add_cleanup(() => sample.remove());
+  return {sample, target, suffix};
+}
+
+promise_test(async t => {
+  const faces = await fontReady;
+  assert_equals(faces.length, 1, "Ahem loaded");
+  const {target} = fixture(t, "5 2 2", "5 2 2", "absent", "auto");
+  assert_implements_optional(wordLines(target).some(top => top !== 0),
+    "The English dictionary hyphenates example at this width");
+}, "English hyphenation dictionary calibration");
+
+for (const limit of ["100", "5 100 2", "5 2 100"]) {
+  for (const hyphens of ["auto", "none"]) {
+    for (const boundary of ["same-font", "different-font", "atomic", "absent"]) {
+      for (const suffixLimit of ["100", "5 2 2"]) {
+        for (const partition of ["single", "adjacent", "spans"]) {
+          for (const spaceOwner of ["target", "suffix"]) {
+            promise_test(async t => {
+              const faces = await fontReady;
+              assert_equals(faces.length, 1, "Ahem loaded");
+              const {target, suffix} = fixture(t, limit, suffixLimit, boundary, hyphens,
+                partition, spaceOwner);
+              assert_equals(getComputedStyle(target).hyphens, hyphens);
+              assert_equals(getComputedStyle(target).fontSize, "20px");
+              const observations = [{stage: "initial", lines: wordLines(target)}];
+              if (suffix) {
+                suffix.style.hyphenateLimitChars = suffixLimit === "100" ? "5 2 2" : "100";
+                observations.push({stage: "suffix changed", lines: wordLines(target)});
+                suffix.style.hyphenateLimitChars = suffixLimit;
+                observations.push({stage: "suffix restored", lines: wordLines(target)});
+              }
+              for (const observation of observations) {
+                assert_array_equals(observation.lines, [0, 0, 0, 0, 0, 0, 0],
+                  observation.stage + " must not hyphenate: " + JSON.stringify(observations));
+          }
+        }, `limit=${limit}; hyphens=${hyphens}; suffix=${suffixLimit}; ${boundary}; ${partition}; space=${spaceOwner}`);
+          }
+        }
+      }
+    }
+  }
+}
+</script>

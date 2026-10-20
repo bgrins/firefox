@@ -1,0 +1,54 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Negative ligature advances stay bounded across text partitions</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-3/#boundary-shaping">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@font-face { font-family: NegativeAdvance; src: url("support/negative-ligature-advance.ttf"); }
+.sample { font: 20px/30px NegativeAdvance; white-space: pre; width: 200px; }
+</style>
+<div id="fixtures"></div>
+<script>
+const fontReady = document.fonts.load("20px NegativeAdvance", "ABC");
+for (const text of ["AB", "C"]) {
+  for (const liga of [0, 1]) for (const kern of [0, 1]) {
+    for (const direction of ["ltr", "rtl"]) {
+      for (const partition of ["whole", "nodes", "spans"]) {
+        promise_test(async t => {
+          assert_equals((await fontReady).length, 1);
+          const block = document.createElement("div");
+          block.className = "sample";
+          block.style.fontFeatureSettings = `"liga" ${liga}, "kern" ${kern}`;
+          block.style.direction = direction;
+          const span = document.createElement("span");
+          if (partition === "whole") {
+            span.textContent = text;
+          } else {
+            for (const char of text) {
+              if (partition === "nodes") {
+                span.append(document.createTextNode(char));
+              } else {
+                const part = document.createElement("span");
+                part.style.color = span.children.length ? "blue" : "red";
+                part.textContent = char;
+                span.append(part);
+              }
+            }
+          }
+          block.append(span);
+          document.querySelector("#fixtures").append(block);
+          t.add_cleanup(() => block.remove());
+          const width = span.getBoundingClientRect().width;
+          if (kern && (liga || text === "C")) {
+            assert_less_than_equal(width, 40, "Negative advance must not become a large positive width");
+          } else {
+            assert_equals(width, text === "AB" && !liga ? 40 : 20,
+                          "Positive-advance calibration");
+          }
+        }, `${text}, liga ${liga}, kern ${kern}, ${direction}, ${partition}`);
+      }
+    }
+  }
+}
+</script>
