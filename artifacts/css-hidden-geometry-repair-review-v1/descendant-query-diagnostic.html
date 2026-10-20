@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hidden measuring repair: descendant query diagnostic</title>
+<style>
+  body { margin: 0; }
+  .host { width: 320px; }
+  .subject { display: flex; align-items: flex-start; }
+  .item, .added { width: 24px; height: 32px; flex: none; }
+  .child { width: 8px; height: 10px; margin-left: 3px; }
+  .hidden { content-visibility: hidden; }
+</style>
+<body>
+<script>
+const rows = [];
+function create() {
+  const host = document.createElement("div");
+  host.className = "host";
+  const subject = document.createElement("div");
+  subject.className = "subject";
+  const item = document.createElement("div");
+  item.className = "item";
+  const child = document.createElement("div");
+  child.className = "child";
+  item.append(child);
+  subject.append(item);
+  host.append(subject);
+  document.body.append(host);
+  return {host, subject, item, child};
+}
+function rect(element, host) {
+  const r = element.getBoundingClientRect();
+  const h = host.getBoundingClientRect();
+  return [r.x - h.x, r.y - h.y, r.width, r.height];
+}
+function insert(subject, prepend) {
+  const added = document.createElement("div");
+  added.className = "added";
+  if (prepend) subject.prepend(added);
+  else subject.append(added);
+}
+for (const nested of [false, true]) {
+  for (const prepend of [false, true]) {
+    for (const queried of ["item", "child"]) {
+      const live = create();
+      const peer = create();
+      const initial = rect(live[queried], live.host);
+      live.subject.classList.add("hidden");
+      if (nested) live.host.classList.add("hidden");
+      const hiddenOuter = [live.subject.scrollWidth, live.subject.scrollHeight];
+      const hidden = rect(live[queried], live.host);
+      insert(live.subject, prepend);
+      insert(peer.subject, prepend);
+      const outer = [live.subject.scrollWidth, live.subject.scrollHeight];
+      const reads = Array.from({length: 3}, () => rect(live[queried], live.host));
+      const expected = rect(peer[queried], peer.host);
+      live.host.classList.remove("hidden");
+      live.subject.classList.remove("hidden");
+      const shown = rect(live[queried], live.host);
+      rows.push({nested, prepend, queried, initial, hiddenOuter, hidden, outer,
+                 reads, expected, shown});
+      live.host.remove();
+      peer.host.remove();
+    }
+  }
+}
+fetch("/result", {method: "POST", body: JSON.stringify({rows})});
+</script>

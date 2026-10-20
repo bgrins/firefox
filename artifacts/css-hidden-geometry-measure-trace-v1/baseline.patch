@@ -1,0 +1,50 @@
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -2000,7 +2000,18 @@
+    * parameters are given via aReflowInput.
+    */
+   bool IsValidFor(const ReflowInput& aReflowInput) const {
+-    return mKey == Key(aReflowInput);
++    const Key incoming(aReflowInput);
++    const WritingMode wm = aReflowInput.GetWritingMode();
++    FLEX_ITEM_LOG(aReflowInput.mFrame,
++                  "[hidden-key] valid=%d cb=%d,%d->%d,%d computed=%d,%d->%d,%d",
++                  mKey == incoming,
++                  mKey.mContainingBlockSize.ISize(wm),
++                  mKey.mContainingBlockSize.BSize(wm),
++                  incoming.mContainingBlockSize.ISize(wm),
++                  incoming.mContainingBlockSize.BSize(wm),
++                  mKey.mComputedSize.ISize(wm), mKey.mComputedSize.BSize(wm),
++                  incoming.mComputedSize.ISize(wm), incoming.mComputedSize.BSize(wm));
++    return mKey == incoming;
+   }
+ 
+   nscoord BSize() const { return mBSize; }
+@@ -2161,6 +2172,13 @@
+     FLEX_ITEM_LOG(aItem.Frame(), "[perf] No cached measurement");
+   }
+ 
++  FLEX_ITEM_LOG(aItem.Frame(),
++                "[hidden-measure-before] dirty=%d hidden=%d size=%d,%d next=%p",
++                aItem.Frame()->IsSubtreeDirty(),
++                aItem.Frame()->IsHiddenByContentVisibilityOfInFlowParentForLayout(),
++                aItem.Frame()->GetSize().width, aItem.Frame()->GetSize().height,
++                aItem.Frame()->GetNextContinuation());
++
+   // CachedFlexItemData is stored in item's writing mode, so we pass
+   // aChildReflowInput into ReflowOutput's constructor.
+   ReflowOutput childReflowOutput(aChildReflowInput);
+@@ -2190,6 +2208,13 @@
+   FinishReflowChild(aItem.Frame(), PresContext(), childReflowOutput,
+                     &aChildReflowInput, outerWM, dummyPosition,
+                     dummyContainerSize, flags);
++
++  FLEX_ITEM_LOG(aItem.Frame(),
++                "[hidden-measure-after] dirty=%d hidden=%d size=%d,%d output-b=%d",
++                aItem.Frame()->IsSubtreeDirty(),
++                aItem.Frame()->IsHiddenByContentVisibilityOfInFlowParentForLayout(),
++                aItem.Frame()->GetSize().width, aItem.Frame()->GetSize().height,
++                childReflowOutput.BSize(aChildReflowInput.GetWritingMode()));
+ 
+   aItem.SetAscent(childReflowOutput.BlockStartAscent());
+ 

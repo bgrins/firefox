@@ -1,0 +1,39 @@
+void nsContainerFrame::FinishReflowChild(
+    nsIFrame* aKidFrame, nsPresContext* aPresContext,
+    const ReflowOutput& aDesiredSize, const ReflowInput* aReflowInput,
+    const WritingMode& aWM, const LogicalPoint& aPos,
+    const nsSize& aContainerSize, nsIFrame::ReflowChildFlags aFlags) {
+  MOZ_ASSERT(!aReflowInput || aReflowInput->mFrame == aKidFrame);
+  MOZ_ASSERT(aReflowInput || aKidFrame->IsMathMLFrame() ||
+                 aKidFrame->IsTableCellFrame(),
+             "aReflowInput should be passed in almost all cases");
+
+  if (aWM.IsPhysicalRTL()) {
+    NS_ASSERTION(aContainerSize.width != NS_UNCONSTRAINEDSIZE,
+                 "FinishReflowChild with unconstrained container width!");
+  }
+
+  const LogicalSize convertedSize = aDesiredSize.Size(aWM);
+  LogicalPoint pos(aPos);
+
+  if (aFlags & ReflowChildFlags::ApplyRelativePositioning) {
+    MOZ_ASSERT(aReflowInput, "caller must have passed reflow input");
+    // ApplyRelativePositioning in right-to-left writing modes needs to know
+    // the updated frame width to set the normal position correctly.
+    aKidFrame->SetSize(aWM, convertedSize);
+
+    const LogicalMargin offsets = aReflowInput->ComputedLogicalOffsets(aWM);
+    ReflowInput::ApplyRelativePositioning(aKidFrame, aWM, offsets, &pos,
+                                          aContainerSize);
+  }
+
+  if (ReflowChildFlags::NoMoveFrame !=
+      (aFlags & ReflowChildFlags::NoMoveFrame)) {
+    aKidFrame->SetRect(aWM, LogicalRect(aWM, pos, convertedSize),
+                       aContainerSize);
+  } else {
+    aKidFrame->SetSize(aWM, convertedSize);
+  }
+
+  aKidFrame->DidReflow(aPresContext, aReflowInput);
+}
