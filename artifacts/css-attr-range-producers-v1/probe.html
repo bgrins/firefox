@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Attribute substitution offset diagnostic</title>
+<style>
+#target { --v: 37px; width: attr(data-x type(<length>)); height: 1px; }
+</style>
+<div id="target"></div>
+<pre id="result">pending</pre>
+<script>
+const cases = {
+  plain: "var(--v)",
+  space: " var(--v)",
+  tab: "\tvar(--v)",
+  newline: "\nvar(--v)",
+  literal: " 37px",
+  comment: "/**/var(--v)",
+  trailing: "var(--v) ",
+  nested: " calc(var(--v))"
+};
+const name = new URLSearchParams(location.search).get("case") || "space";
+if (!(name in cases)) throw new Error("Unknown case");
+target.setAttribute("data-x", cases[name]);
+const actual = getComputedStyle(target).width;
+result.textContent = JSON.stringify({case: name, input: cases[name], actual, expected: "37px", pass: actual === "37px"});
+document.title = actual === "37px" ? "PASS" : "FAIL";
+</script>

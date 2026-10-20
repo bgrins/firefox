@@ -1,0 +1,19 @@
+--- v1/check.py
++++ v2/check.py
+@@ -1,4 +1,8 @@
+ #!/usr/bin/env python3
++import sys
++if not (sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize):
++    raise RuntimeError('use python3 -I -S without -O/-OO; unsafe execution mode rejected')
++
+ import argparse
+ import hashlib
+ import json
+@@ -7,7 +11,6 @@
+ import re
+ import stat
+ import subprocess
+-import sys
+ 
+ ROOT = Path(__file__).resolve().parent
+ 

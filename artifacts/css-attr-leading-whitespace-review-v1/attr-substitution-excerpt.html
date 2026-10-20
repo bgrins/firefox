@@ -1,0 +1,74 @@
+   <h4 class="heading settled" data-level="8.7.1" id="attr-substitution"><span class="secno">8.7.1. </span><span class="content">
+Substitution</span><a class="self-link" href="#attr-substitution"></a></h4>
+   <p><a class="css" data-link-type="maybe" href="#funcdef-attr" id="ref-for-funcdef-attr①①">attr()</a> is an <a data-link-type="dfn" href="#arbitrary-substitution-function" id="ref-for-arbitrary-substitution-function③">arbitrary substitution function</a>,
+	similar to <a class="css" data-link-type="maybe" href="https://drafts.csswg.org/css-variables-2/#funcdef-var" id="ref-for-funcdef-var⑨">var()</a>,
+	and so is replaced with the value it represents (if possible)
+	at <a data-link-type="dfn" href="https://drafts.csswg.org/css-cascade-5/#computed-value" id="ref-for-computed-value①②">computed value</a> time;
+	otherwise, it’s replaced with the <a data-link-type="dfn" href="https://drafts.csswg.org/css-variables-2/#guaranteed-invalid-value" id="ref-for-guaranteed-invalid-value⑥">guaranteed-invalid value</a>,
+	which will make its declaration <a data-link-type="dfn" href="#invalid-at-computed-value-time" id="ref-for-invalid-at-computed-value-time①">invalid at computed-value time</a>.</p>
+   <div class="algorithm" data-algorithm="replace an attr() function">
+    
+		To <dfn class="dfn-paneled" data-dfn-type="dfn" data-export id="replace-an-attr-function"><a data-link-type="dfn" href="#replace-an-arbitrary-substitution-function" id="ref-for-replace-an-arbitrary-substitution-function②">replace an attr() function</a></dfn>,
+		given a list of <var>arguments</var>:
+
+
+    <ol>
+     <li data-md>
+      <p>Let <var>el</var> be the element that the style containing the <a class="css" data-link-type="maybe" href="#funcdef-attr" id="ref-for-funcdef-attr①②">attr()</a> function
+is being applied to.
+Let <var>first arg</var> be the first <a class="css production" data-link-type="type" href="https://drafts.csswg.org/css-syntax-3/#typedef-declaration-value" id="ref-for-typedef-declaration-value②⑦">&lt;declaration-value></a> in <var>arguments</var>.
+Let <var>second arg</var> be the <span class="production" id="ref-for-typedef-declaration-value②⑧">&lt;declaration-value></span>? passed after the comma,
+or null if there was no comma.</p>
+     <li data-md>
+      <p><a data-link-type="dfn" href="#substitute-arbitrary-substitution-function" id="ref-for-substitute-arbitrary-substitution-function⑥">Substitute arbitrary substitution functions</a> in <var>first arg</var>,
+then <a data-link-type="dfn" href="https://drafts.csswg.org/css-syntax-3/#css-parse-something-according-to-a-css-grammar" id="ref-for-css-parse-something-according-to-a-css-grammar⑧">parse</a> it as <span class="css"><a class="css production" data-link-type="type" href="#typedef-attr-name" id="ref-for-typedef-attr-name④">&lt;attr-name></a> <a class="css production" data-link-type="type" href="#typedef-attr-type" id="ref-for-typedef-attr-type③">&lt;attr-type></a>?</span>.
+If that returns failure, jump to the last step (labeled FAILURE).
+Otherwise, let <var>attr name</var> and <var>syntax</var> be the results of parsing
+(with <var>syntax</var> being null if <a class="css production" data-link-type="type" href="#typedef-attr-type" id="ref-for-typedef-attr-type④">&lt;attr-type></a> was omitted),
+processed as specified in the definition of those arguments.</p>
+     <li data-md>
+      <p>If <var>attr name</var> exists as an attribute on <var>el</var>,
+let <var>attr value</var> be its value;
+otherwise jump to the last step (labeled FAILURE).</p>
+     <li data-md>
+      <p>If <var>syntax</var> is the keyword <span class="css">number</span> or an <a class="css production" data-link-type="type" href="#typedef-attr-unit" id="ref-for-typedef-attr-unit⑤">&lt;attr-unit></a> value,
+parse <var>attr value</var> against <a class="css production" data-link-type="type" href="#typedef-attr-type" id="ref-for-typedef-attr-type⑤">&lt;attr-type></a>.
+If that succeeds, return the result;
+otherwise, jump to the last step (labeled FAILURE).</p>
+      <p class="note" role="note"><span class="marker">Note:</span> No parsing or modification of any kind is performed on the value.</p>
+     <li data-md>
+      <p>If <var>syntax</var> is null
+or the keyword <span class="css">raw-string</span>,
+return a CSS <a class="css production" data-link-type="type" href="https://drafts.csswg.org/css-values-4/#string-value" id="ref-for-string-value⑦">&lt;string></a>
+whose value is <var>attr value</var>.</p>
+      <p class="note" role="note"><span class="marker">Note:</span> No parsing or modification of any kind is performed on the value.</p>
+     <li data-md>
+      <p><a data-link-type="dfn" href="#substitute-arbitrary-substitution-function" id="ref-for-substitute-arbitrary-substitution-function⑦">Substitute arbitrary substitution functions</a> in <var>attr value</var>,
+with «"attribute", <var>attr name</var>» as the <a data-link-type="dfn" href="#substitution-context" id="ref-for-substitution-context②">substitution context</a>,
+then <a data-link-type="dfn" href="#parse-with-a-syntax" id="ref-for-parse-with-a-syntax①">parse with a &lt;syntax></a> <var>attr value</var>, with <var>syntax</var> and <var>el</var>.
+If that succeeds, return the result;
+otherwise, jump to the last step (labeled FAILURE).</p>
+     <li data-md>
+      <p><b>FAILURE:</b></p>
+      <ol>
+       <li data-md>
+        <p>If <var>second arg</var> is null,
+and <var>syntax</var> was omitted,
+return an empty CSS <a class="css production" data-link-type="type" href="https://drafts.csswg.org/css-values-4/#string-value" id="ref-for-string-value⑧">&lt;string></a>.</p>
+       <li data-md>
+        <p>If <var>second arg</var> is null,
+return the <a data-link-type="dfn" href="https://drafts.csswg.org/css-variables-2/#guaranteed-invalid-value" id="ref-for-guaranteed-invalid-value⑦">guaranteed-invalid value</a>.</p>
+       <li data-md>
+        <p><a data-link-type="dfn" href="#substitute-arbitrary-substitution-function" id="ref-for-substitute-arbitrary-substitution-function⑧">Substitute arbitrary substitution functions</a> in <var>second arg</var>,
+and return the result.</p>
+      </ol>
+    </ol>
+   </div>
+   <h4 class="heading settled" data-level="8.7.2" id="attr-security"><span class="secno">8.7.2. </span><span class="content">
+Security</span><a class="self-link" href="#attr-security"></a></h4>
+   <details class="wpt-tests-block" dir="ltr" lang="en">
+    <summary>Tests</summary>
+    <ul class="wpt-tests-list">
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/css/css-values/attr-security-animation.html" title="css/css-values/attr-security-animation.html">attr-security-animation.html</a> <a class="wpt-live" href="http://wpt.live/css/css-values/attr-security-animation.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/css/css-values/attr-security-animation.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/css/css-values/attr-security-if.html" title="css/css-values/attr-security-if.html">attr-security-if.html</a> <a class="wpt-live" href="http://wpt.live/css/css-values/attr-security-if.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/css/css-values/attr-security-if.html"><small>(source)</small></a>
+     <li class="wpt-test"><a class="wpt-name" href="https://wpt.fyi/results/css/css-values/attr-security-transition.html" title="css/css-values/attr-security-transition.html">attr-security-transition.html</a> <a class="wpt-live" href="http://wpt.live/css/css-values/attr-security-transition.html"><small>(live test)</small></a> <a class="wpt-source" href="https://github.com/web-platform-tests/wpt/blob/master/css/css-values/attr-security-transition.html"><small>(source)</small></a>

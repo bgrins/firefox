@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Trailing custom-property whitespace boundary diagnostic</title>
+<style>#parent{width:100px}.target{height:1px}</style>
+<div id="parent"></div><pre id="result"></pre>
+<script>
+const rows = [];
+const cases = [
+ ["number control", "1", "var(--n)px", "100px"],
+ ["trailing space", "1 ", "var(--n)px", "100px"],
+ ["comment control", "1/**/", "var(--n)px", "100px"],
+ ["trailing tab", "1\t", "var(--n)px", "100px"],
+ ["dimension positive", "37px", "var(--n)", "37px"],
+ ["literal positive", "1 ", "37px", "37px"],
+ ["calc positive", "1 ", "calc(var(--n)*37px)", "37px"]
+];
+for (const [name, value, width, expected] of cases) {
+ const target = document.createElement("div");
+ target.className = "target";
+ target.style.setProperty("--n", value);
+ target.style.width = width;
+ document.getElementById("parent").append(target);
+ const style = getComputedStyle(target);
+ rows.push({name, input:value, specified:target.style.getPropertyValue("--n"), computed:style.getPropertyValue("--n"), width:style.width, expected, pass:style.width === expected});
+}
+result.textContent = JSON.stringify(rows);
+document.title = rows.every(row => row.pass) ? "PASS" : "FAIL";
+</script>

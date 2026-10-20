@@ -1,0 +1,48 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Typed attribute substitution keeps reference offsets aligned</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="fixture"></div>
+<script>
+const cases = [
+  ["space", " var(--v)"],
+  ["tab", "\tvar(--v)"],
+  ["line feed", "\nvar(--v)"],
+  ["carriage return", "\rvar(--v)"],
+  ["form feed", "\fvar(--v)"],
+  ["CRLF", "\r\nvar(--v)"],
+  ["mixed whitespace", " \t\n\r\fvar(--v)"],
+  ["nested calc", " calc(var(--v))"],
+  ["var fallback", " var(--missing, var(--v))"],
+  ["nested fallback", " var(--missing, var(--also-missing, var(--v)))"],
+  ["UTF-8 comment", " /*é中𐐀*/var(--v)"],
+  ["UTF-8 fallback comment", " var(--missing, /*é中𐐀*/var(--v))"],
+  ["escaped function", " \\76 ar(--v)"],
+  ["attribute chain", " attr(data-y type(<length>))"],
+  ["attribute fallback", " attr(data-missing type(<length>), var(--v))"],
+  ["multiple references", " calc(var(--v) + var(--zero))"],
+  ["no whitespace control", "var(--v)"],
+  ["leading literal control", " 37px"],
+  ["trailing whitespace control", "var(--v) \t"],
+  ["comment control", "/**/var(--v)"],
+  ["UTF-8 comment control", "/*é中𐐀*/var(--v)"],
+  ["nested control", "calc(var(--v))"],
+  ["fallback control", "var(--missing, var(--v))"],
+  ["unreferenced calc control", " calc(30px + 7px)"],
+  ["vertical tab is not whitespace", "\vvar(--v)", "19px"],
+  ["NBSP is not whitespace", "\u00a0var(--v)", "19px"]
+];
+for (const [name, value, expected = "37px"] of cases) {
+  test(t => {
+    const target = document.createElement("div");
+    target.style.cssText = "--v:37px;--zero:0px;width:attr(data-x type(<length>),19px)";
+    target.setAttribute("data-x", value);
+    target.setAttribute("data-y", "var(--v)");
+    fixture.append(target);
+    t.add_cleanup(() => target.remove());
+    assert_equals(getComputedStyle(target).width, expected);
+  }, name);
+}
+</script>
