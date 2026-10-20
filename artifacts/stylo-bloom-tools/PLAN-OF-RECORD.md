@@ -4,6 +4,18 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
+- **Translation carrier proof committed:** `63bf6c30eef0`. Nine Lean
+  results and six independent checks bound translations for admitted cumulative
+  coordinates without a frame-count limit. Corrected fresh replay passes; the
+  original replay harness failure is retained with an erratum. The native
+  checked64 successor still needs final review, browser tests and performance
+  checks. [Numeric checkpoint](../css-cssom-exact-traversal-bounds-root-replay-v2/REPORT.md).
+- **Destruction callback audit committed:** `6e53130a808e`. Fifty of 51 selected
+  definitions match the live tree; the remaining difference is the committed
+  cache-key value field. Property destruction can precede the second primary-bit
+  read, and SVG observer dispatch can be synchronous. Actual selected-path
+  reachability and lifetime safety remain open; this is no new native bug claim.
+  [Callback checkpoint](../css-primary-destruction-callback-root-v1/REPORT.md).
 - **Primary ownership component accepted and committed:** producer
   `885c94769ed3`, review `2c441db9213b`.
   Root replay passes 40 audits over 26 bound definitions; independent review adds
@@ -13,9 +25,9 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
   cleanup difference; no broad indexed-source lifecycle transfer is claimed.
   [Root acceptance](../css-primary-bit-coherence-root-v1/ACCEPTANCE.json).
 - **Traversal successor remains under review:** metadata on the existing walk
-  avoids a speculative second walk, but a cancellation witness exposes overflow
-  in legacy ancestor-offset grouping. Preserve the original exact domain and
-  defined fallback behavior before starting browser validation. No candidate is
+  avoids a speculative second walk. Two cancellation witnesses required a wider
+  carrier and checked ancestor accumulation. The corrected prototype must preserve
+  the original exact domain and defined matrix behavior before browser validation. No candidate is
   installed and no new native fix is counted.
 - **DOMRect precision committed:** `c0e8c7fd1deb` preserves already calculated
   double coordinates. Its four-case WPT passes independently; selected existing
