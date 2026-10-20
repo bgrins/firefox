@@ -1,0 +1,3 @@
+# Key companion replay receipts
+
+Canonical and manifest-only relocated replay both passed: 14 exact audits, 640 finite cases in original/candidate debug/release/UBSan, two compiled native mutants with 288 differing rows each, four intended Lean false-claim failures. Thirteen negative mode/roster/shadow guards and one intact help/authentication positive pass. Source capsule remains unchanged. Generated compiler products were removed only after these recipes, raw rows and command receipts were retained. Toolchain libraries/runtime remain admitted. This is producer evidence, not independent/root acceptance.

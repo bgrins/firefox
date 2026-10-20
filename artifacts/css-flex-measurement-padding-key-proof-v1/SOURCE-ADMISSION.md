@@ -1,0 +1,23 @@
+# Source and representation admission
+
+The target is the final formatted `candidate-formatted.cpp` from `css-flex-padding-measurement-cache-fix-v1`, SHA256 `825b8e823d5e36061024cf720a2e73597e0895e42614206c862d131d598b8515`. The complete original and candidate files and three complete bodies per version are retained. The only key change adds a `LogicalMargin` field initialized from `aRI.ComputedLogicalBorderPadding(aRI.GetWritingMode())`. Defaulted key equality now includes that field. Existing size, minimum, maximum and available-block fields remain unchanged.
+
+## Native/model mapping
+
+Lean `Input.computed`, `minimumBlock`, `maximumBlock`, `availableBlock` map to the four original native key members. `borderPadding` represents the logical components of the newly stored margin. `oldKey` and `key` are independent structures. The oracle predicates expand the original fields and four padding components individually; they do not invoke key construction or key equality. Native `LogicalMargin::operator==` checks writing-mode consistency and compares the underlying margin; `LogicalSize::operator==` likewise checks mode and compares its underlying size. Their retained Searchfox definitions document this admission. This component assumes consistent logical axes/mode and injective signed-value representation; it does not prove mode stability across frame reconstruction or dirty histories.
+
+Native calibration compiles the **complete unchanged old/new `CachedBAxisMeasurement` class bodies** from their retained source. Small getters, logical coordinate structs, writing mode and output structs are explicit facades. The class constructor, its content-block-size clamp, nested key, defaulted equality, `IsValidFor` and `BSize` remain source text. Synthetic getters do not establish real ReflowInput construction, layout, theme, or cache lifetime. Their mode-free equality is admitted only for the coherent-mode comparison represented by the model.
+
+The runner reconstructs 640 rows deterministically: eight base vectors, one equal vector, each of nine scalar fields changed in each direction, one padding permutation, and all four present/dirty combinations. Independent Python reference compares the first five or all nine scalar inputs, without using C++ output as an oracle. IDs, row count and column grammar are checked. All constructor arithmetic in this finite corpus is within signed32 bounds; the general key theorems concern equality, not the separate native subtraction operation. Debug, optimized and UBSan modes are tested. No browser performance or ABI claim is made.
+
+The present/dirty conjunction in the harness is a translated wrapper for the unchanged `MeasureBSizeForFlexItem` guard; the whole callback/reflow method is retained as a source binding but not compiled. This must not be described as compiling the full native call chain. Two compiled C++ mutants edit the actual class text: remove the new field/initializer, or replace its initializer with zero. Four Lean false-claim files test individual missing-component predicates, whose intended differing-input witnesses already compile in `BaselineWitness`.
+
+## Measurement observer boundary
+
+The one-line independent shared-baseline equation says the current target's padding plus ascent equals the positioned peer's ascent. Reusing the position derived from a different padding aligns iff those paddings are equal, given the represented ascent values. This is a conditional integer relation, not a proof that every native measured ascent is padding plus a fixed font ascent. The separate retained browser fixture supplies concrete calibrated evidence for the ordinary one-line case. The final target rejects that old-key collision; it does not prove all possible accepted hits have fresh baselines, content, overflow or external providers.
+
+## Repair choice
+
+Comparing actual stored inputs is preferable here to adding only `HasPaddingChange` to the validity guard. That flag is set in `InitOffsets` and cleared by `DidReflow`; treating it as a complete invalidation signal requires an additional history proof. The full margin also distinguishes border and explicit override changes. Normal style changes often dirty frames already; this does not make the extra field unsound. Storage and comparison increase by one logical-margin member; this package has no measured memory/performance-neutrality result.
+
+Full F11/F12 and all sixteen collapsed-allocation obligations remain open in their own artifact. Native primitive equality, truthful getters, compiler/runtime, heap/frame identity/lifetime, dirty and callback protocols, and all other measurement dependencies remain admissions. A passing source-only replay does not close those admissions.
