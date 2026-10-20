@@ -1,0 +1,20 @@
+import Witnesses
+#print axioms CaptionCache.candidate_iff_independent_components
+#print axioms CaptionCache.candidate_conjoins_prior_and_basis
+#print axioms CaptionCache.same_basis_preserves_prior_decision
+#print axioms CaptionCache.prior_rejection_preserved
+#print axioms CaptionCache.changed_basis_rejected
+#print axioms CaptionCache.reuse_derives_inputs
+#print axioms CaptionCache.accepted_measurement_leaves_measured_false
+#print axioms CaptionCache.rejected_measurement_sets_measured_true
+#print axioms CaptionCache.fresh_measurement_observation
+#print axioms CaptionCache.changed_basis_forces_measurement
+#print axioms CaptionCache.changed_basis_delivers_supplied_fresh_observation
+#print axioms CaptionCache.stale_plan_allows_final_reuse
+#print axioms CaptionCache.relative_dependency_alone_does_not_reject_nonmeasuring_hit
+#print axioms CaptionCache.two_hits_retain_old_observation
+#print axioms CaptionCache.original_aliases_growing_and_shrinking_basis
+#print axioms CaptionCache.old_two_stage_failure
+#print axioms CaptionCache.repaired_two_stage_witness
+#print axioms CaptionCache.each_basis_component_matters
+#print axioms CaptionCache.same_key_does_not_constrain_fresh_external_provider
