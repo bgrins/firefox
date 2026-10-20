@@ -1,0 +1,39 @@
+>>> 1457: Maybe<nscoord> ScrollContainerFrame::GetNaturalBaselineBOffset(
+    1458:     WritingMode aWM, BaselineSharingGroup aBaselineGroup,
+    1459:     BaselineExportContext aExportContext) const {
+    1460:   // Block containers (except buttons) that are scrollable always have a last
+    1461:   // baseline that are synthesized from block-end margin edge.
+    1462:   // Note(dshin): This behaviour is really only relevant to `inline-block`
+    1463:   // alignment context. In the context of table/flex/grid alignment, first/last
+    1464:   // baselines are calculated through `GetFirstLineBaseline`, which does
+    1465:   // calculations of its own.
+    1466:   // https://drafts.csswg.org/css-align/#baseline-export
+    1467:   if (aExportContext == BaselineExportContext::LineLayout &&
+    1468:       aBaselineGroup == BaselineSharingGroup::Last) {
+    1469:     if (nsBlockFrame* bf = do_QueryFrame(mScrolledFrame);
+    1470:         bf && !bf->IsButtonLike()) {
+    1471:       return Some(SynthesizeFallbackBaseline(aWM, aBaselineGroup));
+    1472:     }
+    1473:   }
+    1474: 
+    1475:   if (StyleDisplay()->IsContainLayout()) {
+    1476:     return Nothing{};
+    1477:   }
+    1478: 
+    1479:   // OK, here's where we defer to our scrolled frame.
+    1480:   return mScrolledFrame
+    1481:       ->GetNaturalBaselineBOffset(aWM, aBaselineGroup, aExportContext)
+    1482:       .map([this, aWM, aBaselineGroup](nscoord aBaseline) {
+    1483:         const bool first = aBaselineGroup == BaselineSharingGroup::First;
+    1484:         const int64_t fromStart =
+    1485:             first ? int64_t(aBaseline)
+    1486:                   : int64_t(mScrolledFrame->BSize(aWM)) - aBaseline;
+    1487:         // Add our block-start border; the scrolled frame handles our padding.
+    1488:         LogicalMargin border = GetLogicalUsedBorder(aWM);
+    1489:         const auto bSize = GetLogicalSize(aWM).BSize(aWM);
+    1490:         // Clamp the baseline to the border rect. See bug 1791069.
+    1491:         const nscoord baseline = nscoord(CSSMinMax(
+    1492:             border.BStart(aWM) + fromStart, int64_t(0), int64_t(bSize)));
+    1493:         return first ? baseline : bSize - baseline;
+    1494:       });
+    1495: }

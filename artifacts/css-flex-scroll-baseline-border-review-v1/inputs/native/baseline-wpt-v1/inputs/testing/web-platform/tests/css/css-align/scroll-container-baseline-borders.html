@@ -1,0 +1,78 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Scroll container baseline offsets account for the baseline group's edge</title>
+<link rel="help" href="https://drafts.csswg.org/css-align-3/#baseline-export">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; font: 16px/24px monospace; }
+.host { display: flex; align-items: first baseline; inline-size: 500px; }
+.last { align-items: last baseline; }
+.horizontal { writing-mode: horizontal-tb; }
+.vertical-lr { writing-mode: vertical-lr; }
+.vertical-rl { writing-mode: vertical-rl; }
+.rtl { direction: rtl; }
+.child { flex: none; inline-size: 60px; block-size: 50px;
+  box-sizing: content-box; border: 0 solid black; }
+.flex { display: flex; }
+.grid { display: grid; align-content: start; }
+.start { border-block-start-width: 9px; }
+.end { border-block-end-width: 9px; }
+.both { border-block-width: 9px; }
+.hidden { overflow: hidden; }
+.auto { overflow: auto; }
+.scroll { overflow: scroll; scrollbar-width: none; }
+.clip { overflow: clip; }
+</style>
+<body>
+<script>
+for (const writingMode of ["horizontal", "vertical-lr", "vertical-rl"]) {
+  for (const direction of ["ltr", "rtl"]) {
+    for (const layout of ["flex", "grid"]) {
+      for (const last of [false, true]) {
+        for (const border of ["none", "start", "end", "both"]) {
+          for (const overflow of ["hidden", "auto", "scroll", "clip"]) {
+            test(t => {
+              const host = document.createElement("div");
+              host.className = `host ${writingMode} ${direction}${last ? " last" : ""}`;
+              const children = [overflow, "visible"].map(value => {
+                const child = document.createElement("div");
+                child.className = `child ${layout} ${border} ${value}`;
+                const text = document.createElement("span");
+                text.textContent = "X";
+                child.append(text);
+                host.append(child);
+                return {child, text};
+              });
+              document.body.append(host);
+              t.add_cleanup(() => host.remove());
+              const position = writingMode === "horizontal" ? "top" : "left";
+              const extent = writingMode === "horizontal" ? "height" : "width";
+              const measure = () => children.map(({child, text}) => ({
+                child: child.getBoundingClientRect(), text: text.getBoundingClientRect()
+              }));
+              const initial = measure();
+              assert_equals(initial[0].child[extent], initial[1].child[extent],
+                "The scroll container and reference have equal block sizes");
+              assert_equals(initial[0].text[position] - initial[0].child[position],
+                initial[1].text[position] - initial[1].child[position],
+                "The identical text has the same position inside both boxes");
+              children[0].child.classList.remove(overflow);
+              const removed = measure();
+              assert_equals(removed[0].text[position], removed[1].text[position],
+                "Visible overflow matches the reference");
+              children[0].child.classList.add(overflow);
+              const restored = measure();
+              assert_equals(restored[0].text[position] - restored[1].text[position],
+                initial[0].text[position] - initial[1].text[position],
+                "Restoring overflow restores the observation");
+              assert_equals(initial[0].text[position], initial[1].text[position],
+                "The scroll container exports the same text baseline as the reference");
+            }, `${writingMode}, ${direction}, ${layout}, ${last ? "last" : "first"} baseline, ${border} border, ${overflow}`);
+          }
+        }
+      }
+    }
+  }
+}
+</script>

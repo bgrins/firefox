@@ -1,0 +1,24 @@
+  /**
+   * Return true if the frame has a first(last) inline-axis baseline per
+   * CSS Box Alignment.  If so, the returned baseline is the distance from
+   * the relevant block-axis border-box edge (Start for
+   * BaselineSharingGroup::First, end for BaselineSharingGroup::Last), where
+   * a positive value points towards the content-box.
+   * Some frames can export different baselines depending if it's in a line
+   * layout context or any other context (e.g. Flex, grid).
+   * https://drafts.csswg.org/css-align-3/#baseline-export
+   * @note The returned value is only valid when reflow is not needed.
+   * @note You should only call this on frames with a WM that's parallel to aWM.
+   * @note We're approaching `nsLayoutUtils::Get(First|Last)LineBaseline` ==
+   * `GetNaturalBaselineBOffset(aWM, (First|Last), Other)`. Grid relies on
+   * baseline synthesis behaviour in `nsLayoutUtils` implementations (bug
+   * 1609403), which blocks its removal.
+   * @param aWM the writing-mode of the alignment context.
+   * @return the baseline offset, if one exists
+   */
+  virtual Maybe<nscoord> GetNaturalBaselineBOffset(
+      mozilla::WritingMode aWM, BaselineSharingGroup aBaselineGroup,
+      BaselineExportContext aExportContext) const {
+    return Nothing{};
+  }
+
