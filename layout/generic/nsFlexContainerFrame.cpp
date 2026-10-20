@@ -5407,7 +5407,8 @@ nsFlexContainerFrame::FlexLayoutResult nsFlexContainerFrame::DoFlexLayout(
   // 'sumLineCrossSizes' includes the size of all gaps between lines. We
   // initialize it with the sum of all the gaps, and add each line's cross size
   // at the end of the following for-loop.
-  nscoord sumLineCrossSizes = aCrossGapSize * (flr.mLines.Length() - 1);
+  nscoord sumLineCrossSizes = std::min<int64_t>(
+      nscoord_MAX, int64_t(aCrossGapSize) * int64_t(flr.mLines.Length() - 1));
   for (FlexLine& line : flr.mLines) {
     for (FlexItem& item : line.Items()) {
       // The item may already have the correct cross-size; only recalculate
@@ -5437,7 +5438,8 @@ nsFlexContainerFrame::FlexLayoutResult nsFlexContainerFrame::DoFlexLayout(
     }
     // Now that we've finished with this line's items, size the line itself:
     line.ComputeCrossSizeAndBaseline(aAxisTracker);
-    sumLineCrossSizes += line.LineCrossSize();
+    sumLineCrossSizes = std::min<int64_t>(
+        nscoord_MAX, int64_t(sumLineCrossSizes) + line.LineCrossSize());
   }
 
   bool isCrossSizeDefinite;
