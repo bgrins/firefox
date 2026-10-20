@@ -159,6 +159,8 @@ void DOMRect::SetLayoutRect(const nsRect& aLayoutRect) {
   double t2pScaled = scale / AppUnitsPerCSSPixel();
   double x = RoundFloat(aLayoutRect.x * t2pScaled) * scaleInv;
   double y = RoundFloat(aLayoutRect.y * t2pScaled) * scaleInv;
-  SetRect(x, y, RoundFloat(aLayoutRect.XMost() * t2pScaled) * scaleInv - x,
-          RoundFloat(aLayoutRect.YMost() * t2pScaled) * scaleInv - y);
+  SetX(x);
+  SetY(y);
+  SetWidth(RoundFloat(aLayoutRect.XMost() * t2pScaled) * scaleInv - x);
+  SetHeight(RoundFloat(aLayoutRect.YMost() * t2pScaled) * scaleInv - y);
 }
