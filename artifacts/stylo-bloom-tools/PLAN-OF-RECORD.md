@@ -15,7 +15,52 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.
-- Signing works. Nothing has been pushed or submitted externally.
+- **Accepted pending commits:** registered-value token boundaries. The corrected 37-case
+  baseline has 27 PASS / 10 FAIL across fonts, margins and token serialization.
+  The repaired build passes 308 cases across 18 WPT files. Native/WPT review and
+  standalone source packaging and bounded proof review pass. It is accepted
+  pending signed companion/native commits; not yet part of the committed count.
+- **Second accepted repair pending commits:** animation publication converts guaranteed-invalid values to
+  registered initial values. The three-file repair fixes ten reproduced failures;
+  the 343-check matrix has 341 passes and two unchanged expected failures. Six
+  added lower-priority suppression/valid-empty controls also pass. Independent
+  native/WPT review, lint and standalone source packaging pass, with root replay.
+  Root and independent review accept the v2 bounded Lean companion: 81 audits,
+  including 42 new results, plus 14 independent boundary challenges. Signed
+  evidence/native commits remain pending.
+- **Three newly reproduced candidates:** a leading-whitespace typed-attribute
+  bounds panic (also script-free on installed Firefox 158), custom-property
+  trailing-whitespace token merging, and escaped space/tab deletion inside
+  identifiers. Each has an independent two-file native/WPT package. The origin
+  repair passes 26 new tests and independent native review. The token-boundary
+  repair changes 28 of 40 cases from failure to pass and passes independent
+  review. The escaped-whitespace repair changes 16 of 20 cases from failure to
+  pass. Its 435-subtest matrix preserves all 415 prior outcomes, including two
+  expected failures; independent native and final evidence review pass.
+  Constructor-origin and terminal-span proofs are in progress. These candidates
+  are not counted as accepted or committed yet.
+- **Attribute-taint follow-up:** both bounded reviews are complete. Actual
+  prohibited local image requests remain established for fix80; no new unknown
+  value disclosure was found. Thirty-six calibrated registration observations
+  preserve raw-string taint. Link-parameter provenance loss is source-confirmed,
+  but current transport/resource restrictions block the proposed HTTP path.
+  Epoch-aware provenance and link-env provider contracts remain open.
+- **Anonymous-box provider:** root accepts the bounded 42-audit component after
+  fresh replay and source review, with six model mutants and 50 passing browser
+  states. Actual reflow-input/frame ancestry, numeric providers and dynamic
+  reconstruction remain open. Completed root compiler outputs were removed.
+- **Parser controls:** seven new compiled results compose represented callbacks,
+  exhaustion checks, whole-input parsing and failed speculation. Twelve fixtures
+  match 52 native/model snapshots in debug and release; two compiled mutants
+  differ in 15 and four snapshots. Independent review passes; standalone proof packaging remains pending. Callback grammar,
+  nested-entry/recovery and whole-program annotation correspondence remain open.
+- The [triage proposal](../css-bugfix-triage-20261019/README.md) groups all 80
+  committed fixes with exposure limits and standalone alternatives. A separate
+  registered-animation WPT calibration correction is accepted, awaiting signing;
+  it does not increase the native-fix count.
+- The latest two signed research commit attempts failed in 1Password (failed to
+  fill whole buffer); its nine files remain staged. Signing stays enabled.
+  Nothing has been pushed or submitted externally.
 
 [Historical checkpoints](PLAN-HISTORY-20261019.md) preserve the previous plan
 verbatim. Their counts, signing blockers, agent states and “next” sections are
@@ -120,7 +165,10 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Close the next animation provenance boundary after fix80: audit actual
+1. Finish the independent reviews and constructor/range proof for the three new
+   whitespace candidates, retaining separate evidence and native/WPT commits.
+   Then continue epoch-aware attribute provenance and link-env providers. Close the next
+   animation provenance boundary after fix80: audit actual
    fallback/composition/publication callers and derive one end-to-end observation
    from admitted constructors. Successful wrapper union is accepted, but it does
    not establish numeric providers or scheduler histories.
@@ -394,3 +442,101 @@ URL assertions are mandatory. This supports a reachable provider instance for
 the next full-segment contributor proof; it is not a new bug or arbitrary native
 history theorem. Producer and independent contributor/admission review are active.
 [Runtime review](../css-animation-segment-provider-root-v1/REVIEW.md).
+
+## Whole-CSS completion strategy and token-boundary candidate
+
+The latest two-agent [completion assessment](../css-whole-spec-completion-strategy-v1/README.md)
+adds a 17-family gap matrix, catalog/CSS2-residual completion gates, standalone
+library boundaries and explicit soundness/availability/construction/preservation
+obligations. Priorities remain a reviewed requirement ledger, a constructed flow
+provider, actual selected fragments, distinct observations and versioned host
+histories. A complete corpus inventory runs alongside the integration experiment.
+The fragmentation requirement pilot now has independent bounded mapping review.
+V3 corrects statement-extractor profile failures while preserving the 18 exact
+claims and ten open providers; independent and root final replays pass. Accounting checks do
+not establish complete semantic coverage.
+
+Typed registered-value conversion exposed a new browser defect: a
+length-percentage serialized as a dimension retains percentage boundary metadata;
+a list also takes both boundary classes from its first component. The corrected
+37-case fixture demonstrates ten failures with 27 passing controls. The patch
+scans the already-serialized tokens and treats block closers explicitly. A first
+compile attempt caught a parser-borrow lifetime error; the corrected build and
+308-case candidate/regression run pass. Independent native/WPT review and
+standalone two-file source apply/reverse pass. Dedicated WPT lint passes; the
+general lint warning is the expected ESLint WPT exclusion. The formal producer
+has completed 22 audited results and 24 native fixtures; independent and root
+fresh replays pass. The bounded component and native/WPT repair are accepted
+in their stated scopes. Signed packaging is waiting on the configured 1Password
+signer after two failed attempts; do not disable signing. It is accepted but uncommitted;
+the committed bug count remains 80.
+
+## Requirements-ledger review defect and segment replay
+
+Independent review found a truncated `Emergency.graphic_slice_contract` claim in
+fragmentation requirements v1. Its extractor selects the first `:=`, including
+record-field assignments inside binders, so a partial statement incorrectly
+passes. Root confirmed the exact source discrepancy. Keep v1 frozen and
+unaccepted; correct extraction in a new version and reject this exact case.
+The underlying accepted Lean theorem and lexical source accounting are intact.
+
+Full segment provenance has passed root fresh replay: 45 new + 15 imported audits,
+15 source bindings and 8 compiling model mutants. Independent review and root outcome reconciliation pass; this conditional
+component is accepted. Publication and actual provider/caller histories remain
+open. [Acceptance](../css-animation-segment-provenance-root-v1/ACCEPTANCE.json). Completed owned
+root and agent compiler outputs have been removed after preserving receipts.
+The whole-spec inventory has independent reconstruction and root replay of all
+402 catalog occurrences and 841 CSS2 TOC entries. The 191 identities remain
+provisional; none of these counts measures normative coverage. The next corpus
+step has retained 26 full CSS2 chapter/appendix bodies, dated counterparts and
+31 errata entries. Independent and root review accept bounded source spans,
+heading reconciliation and the retained unapplied errata overlay. Packaging needs
+the authenticated transitive closure, including two nested manifests omitted
+from top-level FILES. Full normative requirement/dependency mapping remains open.
+[Corpus acceptance](../css-css2-residual-corpus-root-v1/REVIEW.json).
+[Fragmentation ledger acceptance](../css-fragmentation-requirements-root-v3/REVIEW.json).
+
+## Animation publication repair accepted; signing pending
+
+The selected endpoint's inner guaranteed-invalid value currently uncomputes to
+CSS-wide initial, which can select a valid registration initial value. A revised
+16-case browser fixture independently produces invalid underlying values rather
+than relying on the earlier explicit-inheritance fix: ten failures, six controls.
+The candidate introduces an internal GuaranteedInvalid declaration, marks it seen
+and removes its routed map value. Explicit initial behavior remains distinct.
+
+Build and the 343-case paired matrix pass, fixing precisely ten failures with
+333 other status/message pairs unchanged. The final 22-case WPT additionally
+checks suppression of valid underlying declarations/effects, cancellation and
+valid-empty values; these six additions have candidate-only runtime evidence.
+Root excluded an unrelated formatter signature change with an exact recorded
+transfer. Independent native/WPT review, dedicated lint and standalone source
+packaging pass; root freshly replays both review checkers. Root and independent
+review accept the v2 publication/suppression proof: 81 audits (42 new), 29 source
+bindings, five Lean mutants and three Rust mutants in debug/release. Fourteen
+independent boundary theorems also pass. V1 mathematical replay passed, but its
+checker was rejected because Python optimization disabled assertions; v2 rejects
+optimized modes before dispatch. Native translation, providers and scheduling
+remain admitted. [Acceptance](../css-animation-invalid-publication-final-v1/ACCEPTANCE.json).
+The wider comparison combines contemporary and historical baselines;
+neither standalone source package has an isolated browser run.
+
+[Build and paired runtime](../css-animation-invalid-publication-fix-v1/RUN.json).
+[Additional controls](../css-animation-invalid-publication-controls-v1/RUN.json).
+[Proof scope](../css-animation-invalid-publication-proof-v1/SCOPE-PROPOSAL.md).
+
+## Attribute-taint security investigation
+
+The dedicated review reproduced a CSS-only URL-taint policy violation in installed
+Firefox 158 with default CSS feature preferences. Script-free loopback testing
+observed four forbidden image requests in release that disappear in the patched
+shared build; ten literal/permitted controls remain. No arbitrary unknown-byte
+extraction or incremental disclosure was demonstrated. The numeric selection
+experiment also works through permitted static CSS. Fix 80 is the first candidate
+for security triage; official severity remains unassigned. This comparison uses
+an all-fixes development binary, not an isolated fix 80 build.
+
+The formal target remains metadata-preserving optimization and the specified
+URL boundary. Global network noninterference is stronger than that contract.
+[Report](../css-attr-taint-security-review-v1/REPORT.md).
+[Root review](../css-attr-taint-security-root-v1/REVIEW.json).
