@@ -132,7 +132,7 @@ StickyScrollContainer::StickyLimits StickyScrollContainer::ComputeStickyLimits(
 
   const nsRect unbounded(gUnboundedNegative, gUnboundedNegative,
                          gUnboundedExtent, gUnboundedExtent);
-  StickyLimits limits{unbounded, unbounded};
+  StickyLimits limits{nsRectAbsolute::FromRect(unbounded), unbounded};
 
   const nsMargin* computedOffsets =
       aFrame->GetProperty(nsIFrame::ComputedOffsetProperty());
@@ -209,9 +209,10 @@ StickyScrollContainer::StickyLimits StickyScrollContainer::ComputeStickyLimits(
     // Decrease the effective end-edge inset of the sticky view rectangle
     // when its height is less than the height of the border-box of the sticky
     // box.
-    nscoord stickyViewHeight = sfSize.height - effectiveOffsets.TopBottom();
+    const int64_t stickyViewHeight =
+        int64_t(sfSize.height) - effectiveOffsets.top - effectiveOffsets.bottom;
     if (rect.height > stickyViewHeight) {
-      nscoord delta = rect.height - stickyViewHeight;
+      const int64_t delta = int64_t(rect.height) - stickyViewHeight;
       effectiveOffsets.Side(writingMode.PhysicalSide(
           writingMode.IsVertical() ? LogicalSide::IEnd : LogicalSide::BEnd)) -=
           delta;
@@ -223,9 +224,10 @@ StickyScrollContainer::StickyLimits StickyScrollContainer::ComputeStickyLimits(
     // Decrease the effective end-edge inset of the sticky view rectangle
     // when its width is less than the width of the border-box of the sticky
     // box.
-    nscoord stickyViewWidth = sfSize.width - effectiveOffsets.LeftRight();
+    const int64_t stickyViewWidth =
+        int64_t(sfSize.width) - effectiveOffsets.left - effectiveOffsets.right;
     if (rect.width > stickyViewWidth) {
-      nscoord delta = rect.width - stickyViewWidth;
+      const int64_t delta = int64_t(rect.width) - stickyViewWidth;
       effectiveOffsets.Side(writingMode.PhysicalSide(
           writingMode.IsVertical() ? LogicalSide::BEnd : LogicalSide::IEnd)) -=
           delta;
@@ -291,9 +293,9 @@ nsPoint StickyScrollContainer::DoComputePosition(
   // For each sticky direction (top, bottom, left, right), move the frame along
   // the appropriate axis, based on the scroll position, but limit this to keep
   // the element's margin box within the containing block.
-  position.y = std::max(position.y, std::min(stick.y, contain.YMost()));
+  position.y = std::max(position.y, std::min(stick.Y(), contain.YMost()));
   position.y = std::min(position.y, std::max(stick.YMost(), contain.y));
-  position.x = std::max(position.x, std::min(stick.x, contain.XMost()));
+  position.x = std::max(position.x, std::min(stick.X(), contain.XMost()));
   position.x = std::min(position.x, std::max(stick.XMost(), contain.x));
 
   return position;
@@ -321,7 +323,7 @@ void StickyScrollContainer::GetScrollRanges(nsIFrame* aFrame,
 
   const auto [stickRect, containRect] = ComputeStickyLimits(firstCont);
 
-  nsRectAbsolute stick = nsRectAbsolute::FromRect(stickRect);
+  const nsRectAbsolute& stick = stickRect;
   nsRectAbsolute contain = nsRectAbsolute::FromRect(containRect);
 
   aOuter->SetBox(gUnboundedNegative, gUnboundedNegative, gUnboundedPositive,

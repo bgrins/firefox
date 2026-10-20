@@ -170,7 +170,7 @@ class StickyScrollContainer final {
 
   struct StickyLimits {
     // Based on the scroll container.
-    nsRect mStick;
+    nsRectAbsolute mStick;
     // Based on the containing block.
     nsRect mContain;
   };
