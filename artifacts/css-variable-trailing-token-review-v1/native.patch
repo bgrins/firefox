@@ -1,0 +1,107 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1055,14 +1055,15 @@
+         let mut missing_closing_characters = String::new();
+         let mut removed_backslash = false;
+         let start_position = input.position();
+-        let (first_token_type, last_token_type) = parse_declaration_value(
+-            input,
+-            start_position,
+-            namespaces,
+-            &mut references,
+-            &mut missing_closing_characters,
+-            &mut removed_backslash,
+-        )?;
++        let (first_token_type, mut last_token_type, last_non_whitespace_token_type) =
++            parse_declaration_value(
++                input,
++                start_position,
++                namespaces,
++                &mut references,
++                &mut missing_closing_characters,
++                &mut removed_backslash,
++            )?;
+         let mut css = input.slice_from(start_position).to_owned();
+         if !missing_closing_characters.is_empty() {
+             // Unescaped backslash at EOF in a quoted string is ignored.
+@@ -1072,7 +1073,11 @@
+             css.push_str(&missing_closing_characters);
+         }
+ 
+-        css.truncate(css.trim_ascii_end().len());
++        let trimmed_len = css.trim_ascii_end().len();
++        if trimmed_len != css.len() {
++            css.truncate(trimmed_len);
++            last_token_type = last_non_whitespace_token_type;
++        }
+         css.shrink_to_fit();
+         references.refs.shrink_to_fit();
+ 
+@@ -1203,7 +1208,14 @@
+     references: &mut References,
+     missing_closing_characters: &mut String,
+     removed_backslash: &mut bool,
+-) -> Result<(TokenSerializationType, TokenSerializationType), ParseError> {
++) -> Result<
++    (
++        TokenSerializationType,
++        TokenSerializationType,
++        TokenSerializationType,
++    ),
++    ParseError,
++> {
+     input.parse_until_before(Delimiter::Bang | Delimiter::Semicolon, |input| {
+         parse_declaration_value_block(
+             input,
+@@ -1224,10 +1236,18 @@
+     references: &mut References,
+     missing_closing_characters: &mut String,
+     removed_backslash: &mut bool,
+-) -> Result<(TokenSerializationType, TokenSerializationType), ParseError> {
++) -> Result<
++    (
++        TokenSerializationType,
++        TokenSerializationType,
++        TokenSerializationType,
++    ),
++    ParseError,
++> {
+     let mut is_first = true;
+     let mut first_token_type = TokenSerializationType::Nothing;
+     let mut last_token_type = TokenSerializationType::Nothing;
++    let mut last_non_whitespace_token_type = TokenSerializationType::Nothing;
+     let mut prev_reference_index: Option<usize> = None;
+     loop {
+         let token_start = input.position();
+@@ -1238,6 +1258,9 @@
+         let prev_token_type = last_token_type;
+         let serialization_type = token.serialization_type();
+         last_token_type = serialization_type;
++        if !matches!(token, Token::WhiteSpace(_)) {
++            last_non_whitespace_token_type = serialization_type;
++        }
+         if is_first {
+             first_token_type = last_token_type;
+             is_first = false;
+@@ -1374,7 +1397,7 @@
+                             let mut references = References::default();
+                             // NOTE(emilio): Intentionally using parse_declaration_value rather than
+                             // parse_declaration_value_block, since that's what parse_fallback used to do.
+-                            let (first, last) = parse_declaration_value(
++                            let (first, last, _) = parse_declaration_value(
+                                 input,
+                                 input_start,
+                                 namespaces,
+@@ -1489,7 +1512,11 @@
+             _ => {},
+         };
+     }
+-    Ok((first_token_type, last_token_type))
++    Ok((
++        first_token_type,
++        last_token_type,
++        last_non_whitespace_token_type,
++    ))
+ }
+ 
+ /// Parse <attr-type> = type( <syntax> ) | raw-string | number | <attr-unit>.

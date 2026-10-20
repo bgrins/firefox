@@ -1,0 +1,10 @@
+import Std
+#check List.reverseRec
+#check List.reverseRecOn
+#check List.recOnReverse
+#check List.getLast?_cons
+#check List.getLast?_append
+#check List.head?_reverse
+#check List.mem_cons
+#check Option.or_assoc
+#check List.reverseAux

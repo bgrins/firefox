@@ -1,0 +1,73 @@
+artifacts/css-variable-terminal-span-proof-v1/lean/Span.lean:30:17: error: unsolved goals
+case cons.none
+t : Token
+ts : List Token
+ih : ∀ (s : State), (List.foldl step s ts).first = s.first.or (Option.map Token.kind ts.head?)
+s : State
+⊢ (match
+      match s.first, some t.kind with
+      | some a, x => some a
+      | none, b => b,
+      Option.map Token.kind ts.head? with
+    | some a, x => some a
+    | none, b => b) =
+    some t.kind
+
+case cons.some
+t : Token
+ts : List Token
+ih : ∀ (s : State), (List.foldl step s ts).first = s.first.or (Option.map Token.kind ts.head?)
+s : State
+val✝ : Kind
+⊢ (match
+      match s.first, some t.kind with
+      | some a, x => some a
+      | none, b => b,
+      Option.map Token.kind ts.head? with
+    | some a, x => some a
+    | none, b => b) =
+    some val✝
+artifacts/css-variable-terminal-span-proof-v1/lean/Span.lean:36:21: error(lean.unknownIdentifier): Unknown constant `List.reverseRecOn`
+artifacts/css-variable-terminal-span-proof-v1/lean/Span.lean:41:21: error(lean.unknownIdentifier): Unknown constant `List.reverseRecOn`
+artifacts/css-variable-terminal-span-proof-v1/lean/Span.lean:50:21: error(lean.unknownIdentifier): Unknown constant `List.reverseRecOn`
+artifacts/css-variable-terminal-span-proof-v1/lean/Span.lean:83:19: error: Tactic `cases` failed with a nested error:
+Dependent elimination failed: Failed to solve equation
+  (splitRev ts).2 = x :: as✝
+at case `List.Mem.head`
+artifacts/css-variable-terminal-span-proof-v1/lean/Span.lean:111:2: error: Tactic `generalize` failed: result is not type correct
+  ∀ (x : List Token),
+    (bytes
+          (match x, h with
+            | [], h => []
+            | t :: tail, h => if white t = true then [t] else []).reverse).length =
+      match ts.getLast? with
+      | none => { }.trailing
+      | some t => if white t = true then t.raw.length else 0
+
+ts : List Token
+h : coalesced ts.reverse
+⊢ (bytes
+        (match ts.reverse, h with
+          | [], h => []
+          | t :: tail, h => if white t = true then [t] else []).reverse).length =
+    match ts.getLast? with
+    | none => { }.trailing
+    | some t => if white t = true then t.raw.length else 0
+artifacts/css-variable-terminal-span-proof-v1/lean/Span.lean:131:6: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  List.flatMap Token.raw ts
+in the target expression
+  List.take ((bytes ts).length - (bytes (removed ts)).length) (bytes ts) = bytes (retained ts)
+
+ts : List Token
+h : coalesced ts.reverse
+p : List.flatMap Token.raw (retained ts) ++ List.flatMap Token.raw (removed ts) = List.flatMap Token.raw ts
+⊢ List.take ((bytes ts).length - (bytes (removed ts)).length) (bytes ts) = bytes (retained ts)
+artifacts/css-variable-terminal-span-proof-v1/lean/Span.lean:135:49: error: unsolved goals
+ts : List Token
+h : coalesced ts.reverse
+⊢ (List.map (fun a => a.raw.length) (removed (retained ts ++ removed ts))).sum ≤
+    (List.map (fun a => a.raw.length) (retained ts)).sum + (List.map (fun a => a.raw.length) (removed ts)).sum
+artifacts/css-variable-terminal-span-proof-v1/lean/Span.lean:140:5: error: unexpected token 'prefix'; expected '_' or identifier
+artifacts/css-variable-terminal-span-proof-v1/lean/Span.lean:140:11: error: unexpected identifier; expected ':'
+artifacts/css-variable-terminal-span-proof-v1/lean/Span.lean:140:59: error: unexpected token '++'; expected ':'
+artifacts/css-variable-terminal-span-proof-v1/lean/Span.lean:141:28: error: unexpected token '++'; expected ':'

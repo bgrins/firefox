@@ -1,0 +1,54 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Trailing custom property whitespace preserves substitution token boundaries</title>
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#using-variables">
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#serialization">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+#fixture { width: 100px; color: blue; }
+</style>
+<div id="fixture"></div>
+<script>
+const whitespace = [
+  ["space", " "],
+  ["tab", "\t"],
+  ["line feed", "\n"],
+  ["carriage return", "\r"],
+  ["form feed", "\f"],
+  ["CRLF", "\r\n"],
+  ["mixed whitespace", " \t\n\r\f"]
+];
+const boundaries = [
+  ["number and unit", "1", "width", "var(--n)px", "100px"],
+  ["number and percent", "1", "width", "var(--n)%", "100px"],
+  ["dimension and identifier", "1p", "width", "var(--n)x", "100px"],
+  ["two identifiers", "r", "color", "var(--n)ed", "rgb(0, 0, 255)"]
+];
+
+function check(t, value, property, expression, expected) {
+  const target = document.createElement("div");
+  target.style.setProperty("--n", value);
+  target.style.setProperty(property, expression);
+  fixture.append(target);
+  t.add_cleanup(() => target.remove());
+  assert_equals(getComputedStyle(target).getPropertyValue(property), expected);
+}
+
+for (const [spaceName, space] of whitespace) {
+  for (const [name, value, property, expression, expected] of boundaries) {
+    test(t => check(t, value + space, property, expression, expected),
+         `${name} after ${spaceName}`);
+  }
+}
+
+for (const [name, value, property, expression, expected] of boundaries) {
+  test(t => check(t, value, property, expression, expected), `${name} without whitespace`);
+  test(t => check(t, value + "/**/ ", property, expression, expected), `${name} after a retained comment`);
+}
+
+test(t => check(t, "37px ", "width", "var(--n)", "37px"), "Valid dimension");
+test(t => check(t, "1 ", "width", "calc(var(--n) * 37px)", "37px"), "Valid multiplication");
+test(t => check(t, "1 ", "width", "var(--missing, 1 )px", "100px"), "Fallback retains its whitespace");
+test(t => check(t, " \t", "width", "var(--n)37px", "37px"), "Empty substitution");
+</script>

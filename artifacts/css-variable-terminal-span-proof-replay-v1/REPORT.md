@@ -1,0 +1,7 @@
+# Terminal-span producer replay
+
+Canonical and manifest-only relocated source replay PASS:37 exact axiom reports,10 source bindings,5 compiled semantic mutants rejected at intended value checks. Actual audit uses only propext/Quot.sound (Classical.choice permitted by checker but not required if absent in raw reports). Ten integrity challenges reject before output creation: changed/missing/extra inputs, symlink, internal output, -O/-OO, nonisolated invocation, internally repinned source-binding and audit-roster changes. Raw commands/stdout/stderr retained.
+
+Initial development proof errors and first canonical package-root failure are retained. The latter failed before compilation because Lean required an explicit -R source root; final checker supplies it. No theorem/native scope changed for that infrastructure correction. Five mutant commands exit42 with the required SEMANTIC_MISMATCH label after all three modules compile successfully; infrastructure failures are not counted. These are Lean-model mutations, not Rust mutations.
+
+Only completed owned generated .olean files were removed after receipts were copied; CLEANUP.json records exact hashes/sizes. No native, browser, Git, or Firefox build action occurred. The source capsule carries the mathematical/source admissions. Run python3 -I -S check.py to verify this retained receipt set; fresh kernel replay uses the separately pinned source checker.
