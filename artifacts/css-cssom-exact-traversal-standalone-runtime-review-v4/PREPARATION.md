@@ -1,0 +1,3 @@
+# Standalone runtime review preparation
+
+Await terminal restoration notice and authoritative source seal. No conclusions from partial results. Reconstruct 74 unique raw subtest keys and 23 file ends, exact expected-status pairs and candidate exit1. Own untransformed four must PASS; separate transformed suite must retain two PASS and two unexpected FAIL; other 66 retain 64 PASS and two expected FAIL. Validate all five temporary native roles, stable test/source/binary snapshots and restored originals/fixed sources. Bind initial/final HEAD and staged diff/entry hashes within the historical run; later authorized artifact commits may change live HEAD and do not invalidate that historical equality. No timings, browser, build or Git calls are part of this review.
