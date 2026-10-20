@@ -72,8 +72,10 @@ static nscoord ComputeStickySideOffset(Side aSide,
   if (side->IsAuto()) {
     return NS_AUTOOFFSET;
   }
-  return nsLayoutUtils::ComputeCBDependentValue(aPercentBasis,
-                                                side->AsLengthPercentage());
+  // Reserve NS_AUTOOFFSET for actual auto insets.
+  return std::min(NS_AUTOOFFSET - 1,
+                  nsLayoutUtils::ComputeCBDependentValue(
+                      aPercentBasis, side->AsLengthPercentage()));
 }
 
 static nsSize GetScrollContainerSize(
