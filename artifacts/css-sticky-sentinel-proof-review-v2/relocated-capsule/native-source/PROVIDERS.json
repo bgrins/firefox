@@ -1,0 +1,92 @@
+[
+  {
+    "file": "inputs/candidate.cpp",
+    "signature": "StickyScrollContainer::StickyLimits StickyScrollContainer::ComputeStickyLimits(",
+    "start_byte": 4546,
+    "end_byte": 11447,
+    "sha256": "8d47fb7d9247d99cccf889b1a18a4b78a78d1affa6e74a1b9f2d39d4e6136930",
+    "body": "StickyScrollContainer::StickyLimits StickyScrollContainer::ComputeStickyLimits(\n    nsIFrame* aFrame, StickyLimitSpace aSpace) const {\n  NS_ASSERTION(nsLayoutUtils::IsFirstContinuationOrIBSplitSibling(aFrame),\n               \"Can't sticky position individual continuations\");\n\n  const nsPoint scrollPosition = aSpace == StickyLimitSpace::IgnoreCurrentScroll\n                                     ? nsPoint()\n                                     : mScrollPosition;\n\n  const nsRect unbounded(gUnboundedNegative, gUnboundedNegative,\n                         gUnboundedExtent, gUnboundedExtent);\n  StickyLimits limits{unbounded, unbounded};\n\n  const nsMargin* computedOffsets =\n      aFrame->GetProperty(nsIFrame::ComputedOffsetProperty());\n  if (!computedOffsets) {\n    // We haven't reflowed the scroll frame yet, so offsets haven't been\n    // computed. Bail.\n    return limits;\n  }\n\n  nsIFrame* scrolledFrame = mScrollContainerFrame->GetScrolledFrame();\n  nsIFrame* cbFrame = aFrame->GetContainingBlock();\n  NS_ASSERTION(cbFrame == scrolledFrame ||\n                   nsLayoutUtils::IsProperAncestorFrame(scrolledFrame, cbFrame),\n               \"Scroll frame should be an ancestor of the containing block\");\n\n  nsRect rect =\n      nsLayoutUtils::GetAllInFlowRectsUnion(aFrame, aFrame->GetParent());\n\n  // FIXME(bug 1421660): Table row groups aren't supposed to be containing\n  // blocks, but we treat them as such (maybe it's the right thing to do!).\n  // Anyway, not having this basically disables position: sticky on table cells,\n  // which would be really unfortunate, and doesn't match what other browsers\n  // do.\n  if (cbFrame != scrolledFrame && cbFrame->IsTableRowGroupFrame()) {\n    cbFrame = cbFrame->GetContainingBlock();\n  }\n\n  // Containing block limits for the position of aFrame relative to its parent.\n  // The margin box of the sticky element stays within the content box of the\n  // containing-block element.\n  if (cbFrame == scrolledFrame) {\n    // cbFrame is the scrolledFrame, and it won't have continuations. Unlike the\n    // else clause, we consider scrollable overflow rect because the union of\n    // its in-flow rects doesn't include the scrollable overflow area. We need\n    // to subtract the padding however, which _is_ included in the scrollable\n    // area, since we want the content box.\n    MOZ_ASSERT(cbFrame->GetUsedBorder() == nsMargin(),\n               \"How did the ::-moz-scrolled-frame end up with border?\");\n    limits.mContain = cbFrame->ScrollableOverflowRectRelativeToSelf();\n    limits.mContain.Deflate(cbFrame->GetUsedPadding());\n    nsLayoutUtils::TransformRect(cbFrame, aFrame->GetParent(), limits.mContain);\n  } else {\n    limits.mContain = nsLayoutUtils::GetAllInFlowRectsUnion(\n        cbFrame, aFrame->GetParent(),\n        nsLayoutUtils::GetAllInFlowRectsFlag::UseContentBox);\n  }\n\n  nsRect marginRect = nsLayoutUtils::GetAllInFlowRectsUnion(\n      aFrame, aFrame->GetParent(),\n      nsLayoutUtils::GetAllInFlowRectsFlag::UseMarginBoxWithAutoResolvedAsZero);\n\n  // Deflate mContain by the difference between the union of aFrame's\n  // continuations' margin boxes and the union of their border boxes, so that\n  // by keeping aFrame within mContain, we keep the union of the margin boxes\n  // within the containing block's content box.\n  limits.mContain.Deflate(marginRect - rect);\n\n  // Deflate mContain by the border-box size, to form a constraint on the\n  // upper-left corner of aFrame and continuations.\n  limits.mContain.Deflate(nsMargin(0, rect.width, rect.height, 0));\n\n  nsMargin sfPadding = scrolledFrame->GetUsedPadding();\n  nsPoint sfOffset = aFrame->GetParent()->GetOffsetTo(scrolledFrame);\n  nsSize sfSize = GetScrollContainerSize(mScrollContainerFrame);\n  WritingMode writingMode = cbFrame->GetWritingMode();\n  nsMargin effectiveOffsets(\n      computedOffsets->top == NS_AUTOOFFSET ? 0 : computedOffsets->top,\n      computedOffsets->right == NS_AUTOOFFSET ? 0 : computedOffsets->right,\n      computedOffsets->bottom == NS_AUTOOFFSET ? 0 : computedOffsets->bottom,\n      computedOffsets->left == NS_AUTOOFFSET ? 0 : computedOffsets->left);\n\n  if (computedOffsets->top != NS_AUTOOFFSET ||\n      computedOffsets->bottom != NS_AUTOOFFSET) {\n    // Decrease the effective end-edge inset of the sticky view rectangle\n    // when its height is less than the height of the border-box of the sticky\n    // box.\n    nscoord stickyViewHeight = sfSize.height - effectiveOffsets.TopBottom();\n    if (rect.height > stickyViewHeight) {\n      nscoord delta = rect.height - stickyViewHeight;\n      effectiveOffsets.Side(writingMode.PhysicalSide(\n          writingMode.IsVertical() ? LogicalSide::IEnd : LogicalSide::BEnd)) -=\n          delta;\n    }\n  }\n\n  if (computedOffsets->left != NS_AUTOOFFSET ||\n      computedOffsets->right != NS_AUTOOFFSET) {\n    // Decrease the effective end-edge inset of the sticky view rectangle\n    // when its width is less than the width of the border-box of the sticky\n    // box.\n    nscoord stickyViewWidth = sfSize.width - effectiveOffsets.LeftRight();\n    if (rect.width > stickyViewWidth) {\n      nscoord delta = rect.width - stickyViewWidth;\n      effectiveOffsets.Side(writingMode.PhysicalSide(\n          writingMode.IsVertical() ? LogicalSide::BEnd : LogicalSide::IEnd)) -=\n          delta;\n    }\n  }\n\n  // The limits have so far been computed for the \"position\" of the union of\n  // aFrame and its continuations, but our consumers expect the limits to be\n  // on the position of aFrame, so we need to shift the limits by the\n  // difference.\n  // - For |mContain| we're otherwise done, so we apply the offset directly.\n  // - For |mStick| we apply the offset as part of setting |mStick| (applying\n  //   it via `MoveBy` after we set |mStick| would trash any sentinel values).\n  const nsPoint frameOffset = aFrame->GetPosition() - rect.TopLeft();\n\n  limits.mContain.MoveBy(frameOffset);\n\n  // Top\n  if (computedOffsets->top != NS_AUTOOFFSET) {\n    limits.mStick.SetTopEdge(scrollPosition.y + sfPadding.top +\n                             effectiveOffsets.top - sfOffset.y + frameOffset.y);\n  }\n\n  // Bottom\n  if (computedOffsets->bottom != NS_AUTOOFFSET) {\n    limits.mStick.SetBottomEdge(scrollPosition.y + sfPadding.top +\n                                sfSize.height - effectiveOffsets.bottom -\n                                rect.height - sfOffset.y + frameOffset.y);\n  }\n\n  // Left\n  if (computedOffsets->left != NS_AUTOOFFSET) {\n    limits.mStick.SetLeftEdge(scrollPosition.x + sfPadding.left +\n                              effectiveOffsets.left - sfOffset.x +\n                              frameOffset.x);\n  }\n\n  // Right\n  if (computedOffsets->right != NS_AUTOOFFSET) {\n    limits.mStick.SetRightEdge(scrollPosition.x + sfPadding.left +\n                               sfSize.width - effectiveOffsets.right -\n                               rect.width - sfOffset.x + frameOffset.x);\n  }\n\n  return limits;\n}",
+    "executed": false
+  },
+  {
+    "file": "inputs/candidate.cpp",
+    "signature": "void StickyScrollContainer::ComputeStickyOffsets(nsIFrame* aFrame)",
+    "start_byte": 3185,
+    "end_byte": 4334,
+    "sha256": "4c1fac8f9972b255998eda26db74fd7cf475ec995e07e8cff4b7cbaf36edb9ef",
+    "body": "void StickyScrollContainer::ComputeStickyOffsets(nsIFrame* aFrame) {\n  ScrollContainerFrame* scrollContainerFrame =\n      nsLayoutUtils::GetNearestScrollContainerFrame(\n          aFrame->GetParent(), nsLayoutUtils::SCROLLABLE_SAME_DOC |\n                                   nsLayoutUtils::SCROLLABLE_INCLUDE_HIDDEN);\n\n  if (!scrollContainerFrame) {\n    // Bail.\n    return;\n  }\n\n  nsSize scrollContainerSize = GetScrollContainerSize(scrollContainerFrame);\n  nsMargin computedOffsets;\n  const nsStylePosition* position = aFrame->StylePosition();\n\n  computedOffsets.left =\n      ComputeStickySideOffset(eSideLeft, *position, scrollContainerSize.width);\n  computedOffsets.right =\n      ComputeStickySideOffset(eSideRight, *position, scrollContainerSize.width);\n  computedOffsets.top =\n      ComputeStickySideOffset(eSideTop, *position, scrollContainerSize.height);\n  computedOffsets.bottom = ComputeStickySideOffset(eSideBottom, *position,\n                                                   scrollContainerSize.height);\n\n  aFrame->SetOrUpdateDeletableProperty(nsIFrame::ComputedOffsetProperty(),\n                                       computedOffsets);\n}",
+    "executed": false
+  },
+  {
+    "file": "inputs/nsLayoutUtils.cpp",
+    "signature": "nsIFrame* nsLayoutUtils::FirstContinuationOrIBSplitSibling(",
+    "start_byte": 151082,
+    "end_byte": 151405,
+    "sha256": "6558f979f0cb6b8b6ddbb4723da112d39653807c7d8d8b664d17016df21c3438",
+    "body": "nsIFrame* nsLayoutUtils::FirstContinuationOrIBSplitSibling(\n    const nsIFrame* aFrame) {\n  nsIFrame* result = aFrame->FirstContinuation();\n\n  if (result->HasAnyStateBits(NS_FRAME_PART_OF_IBSPLIT)) {\n    while (auto* f = result->GetProperty(nsIFrame::IBSplitPrevSibling())) {\n      result = f;\n    }\n  }\n\n  return result;\n}",
+    "executed": false
+  },
+  {
+    "file": "inputs/nsLayoutUtils.cpp",
+    "signature": "nsIFrame* nsLayoutUtils::GetNextContinuationOrIBSplitSibling(",
+    "start_byte": 150634,
+    "end_byte": 151080,
+    "sha256": "e25a931f8e3cce7c3a2764c84ddd4cbd9a3e13c6f0dfca774e15ce4f657a8e36",
+    "body": "nsIFrame* nsLayoutUtils::GetNextContinuationOrIBSplitSibling(\n    const nsIFrame* aFrame) {\n  if (nsIFrame* result = aFrame->GetNextContinuation()) {\n    return result;\n  }\n\n  if (aFrame->HasAnyStateBits(NS_FRAME_PART_OF_IBSPLIT)) {\n    // We only store the ib-split sibling annotation with the first frame in the\n    // continuation chain.\n    return aFrame->FirstContinuation()->GetProperty(nsIFrame::IBSplitSibling());\n  }\n\n  return nullptr;\n}",
+    "executed": false
+  },
+  {
+    "file": "inputs/nsLayoutUtils.cpp",
+    "signature": "bool nsLayoutUtils::IsFirstContinuationOrIBSplitSibling(",
+    "start_byte": 151747,
+    "end_byte": 152054,
+    "sha256": "ddea7b850ce3b6c7153e7fb9a59250cfeb63142c005e65f0a1ee6ba1c543f909",
+    "body": "bool nsLayoutUtils::IsFirstContinuationOrIBSplitSibling(\n    const nsIFrame* aFrame) {\n  if (aFrame->GetPrevContinuation()) {\n    return false;\n  }\n  if (aFrame->HasAnyStateBits(NS_FRAME_PART_OF_IBSPLIT) &&\n      aFrame->GetProperty(nsIFrame::IBSplitPrevSibling())) {\n    return false;\n  }\n\n  return true;\n}",
+    "executed": false
+  },
+  {
+    "file": "inputs/DepthOrderedFrameList.cpp",
+    "signature": "void DepthOrderedFrameList::BuildSortedList() const",
+    "start_byte": 2208,
+    "end_byte": 2536,
+    "sha256": "f2c43ee8a711b45ecb8b89bfb24258bd0d31dd8cfe1276f7b860bd3c672bf50e",
+    "body": "void DepthOrderedFrameList::BuildSortedList() const {\n  MOZ_ASSERT(mSortedFrames.IsEmpty());\n\n  mSortedFrames.SetCapacity(mFrames.count());\n  for (auto iter = mFrames.iter(); !iter.done(); iter.next()) {\n    mSortedFrames.AppendElement(\n        FrameAndDepth{iter.get().key(), iter.get().value()});\n  }\n  mSortedFrames.Sort();\n}",
+    "executed": false
+  },
+  {
+    "file": "inputs/DepthOrderedFrameList.h",
+    "signature": "auto IterFromShallowest() const",
+    "start_byte": 1260,
+    "end_byte": 1357,
+    "sha256": "7214a8df010915bf66b48b1d069115725a9c5e18634f4a231eb7a72ee99acbf7",
+    "body": "auto IterFromShallowest() const {\n    EnsureSortedList();\n    return Reversed(mSortedFrames);\n  }",
+    "executed": false
+  },
+  {
+    "file": "inputs/OverflowChangedTracker.h",
+    "signature": "void AddFrame(nsIFrame* aFrame, ChangeKind aChangeKind)",
+    "start_byte": 1590,
+    "end_byte": 2710,
+    "sha256": "f2d0f20080ea87eb3f0180d8a8ef5883b213ee7c3d3da0a1c38a26cce4ab6ada",
+    "body": "void AddFrame(nsIFrame* aFrame, ChangeKind aChangeKind) {\n    MOZ_ASSERT(\n        aFrame->FrameMaintainsOverflow(),\n        \"Why add a frame that doesn't maintain overflow to the tracker?\");\n    uint32_t depth = aFrame->GetDepthInFrameTree();\n    // We use fallible allocation to avoid crashing on OOM; in the event that\n    // of allocation failure, we'll effectively ignore the entries that weren't\n    // added to the tracker, which could result in painting glitches but should\n    // be otherwise harmless.\n    if (NS_WARN_IF(!mEntries.EnsureLengthAtLeast(depth + 1, fallible))) {\n      return;  // Failed to extend array! Just ignore this frame.\n    }\n    auto* entriesForDepth = mEntries[depth].get();\n    if (!entriesForDepth) {\n      mEntries[depth] = MakeUnique<FrameChangedMap>();\n      entriesForDepth = mEntries[depth].get();\n    }\n    if (auto p = entriesForDepth->lookupForAdd(aFrame)) {\n      p->value() = std::max(p->value(), aChangeKind);\n    } else {\n      // We also ignore OOM-failure here, just don't track this frame.\n      (void)NS_WARN_IF(!entriesForDepth->add(p, aFrame, aChangeKind));\n    }\n  }",
+    "executed": false
+  },
+  {
+    "file": "inputs/OverflowChangedTracker.h",
+    "signature": "void SetSubtreeRoot(const nsIFrame* aSubtreeRoot)",
+    "start_byte": 3265,
+    "end_byte": 3353,
+    "sha256": "f9209b57f14330d337e1e5584d30833f7142bab8a7b09555730313d2fcc0aba8",
+    "body": "void SetSubtreeRoot(const nsIFrame* aSubtreeRoot) {\n    mSubtreeRoot = aSubtreeRoot;\n  }",
+    "executed": false
+  },
+  {
+    "file": "inputs/OverflowChangedTracker.h",
+    "signature": "void Flush()",
+    "start_byte": 3570,
+    "end_byte": 6677,
+    "sha256": "70967e665fa38e27f10163724b007b6f69bee2f90a25aab7639545803444c322",
+    "body": "void Flush() {\n    while (!mEntries.IsEmpty()) {\n      // This takes ownership of the UniquePtr to the deepestEntries hashtable,\n      // so it will be deleted at the end of the loop iteration.\n      UniquePtr<FrameChangedMap> deepestEntries = mEntries.PopLastElement();\n      if (!deepestEntries || deepestEntries->empty()) {\n        continue;\n      }\n      for (auto iter = deepestEntries->iter(); !iter.done(); iter.next()) {\n        nsIFrame* frame = iter.get().key();\n        ChangeKind kind = iter.get().value();\n        bool overflowChanged = false;\n        if (kind == CHILDREN_CHANGED) {\n          // Need to union the overflow areas of the children.\n          // Only update the parent if the overflow changes.\n          overflowChanged = frame->UpdateOverflow();\n        } else {\n          // Take a faster path that doesn't require unioning the overflow areas\n          // of our children.\n          NS_ASSERTION(frame->GetProperty(\n                           nsIFrame::DebugInitialOverflowPropertyApplied()),\n                       \"InitialOverflowProperty must be set first.\");\n\n          OverflowAreas* overflow =\n              frame->GetProperty(nsIFrame::InitialOverflowProperty());\n          if (overflow) {\n            // FinishAndStoreOverflow will change the overflow areas passed in,\n            // so make a copy.\n            OverflowAreas overflowCopy = *overflow;\n            frame->FinishAndStoreOverflow(overflowCopy, frame->GetSize());\n          } else {\n            nsRect bounds(nsPoint(0, 0), frame->GetSize());\n            OverflowAreas boundsOverflow;\n            boundsOverflow.SetAllTo(bounds);\n            frame->FinishAndStoreOverflow(boundsOverflow, bounds.Size());\n          }\n\n          // We can't tell if the overflow changed, so be conservative\n          overflowChanged = true;\n        }\n\n        // If the frame style changed (e.g. positioning offsets)\n        // then we need to update the parent with the overflow areas of its\n        // children.\n        // The hashmap for the parent's depth will be mEntries.LastElement(),\n        // as we already popped the map for the current depth off the end.\n        if (overflowChanged) {\n          nsIFrame* parent = frame->GetParent();\n\n          // It's possible that the parent is already in a nondisplay context,\n          // should not add it to the list if that's true.\n          if (parent && parent != mSubtreeRoot &&\n              parent->FrameMaintainsOverflow()) {\n            auto* entriesForParentDepth = mEntries.LastElement().get();\n            if (!entriesForParentDepth) {\n              mEntries.LastElement() = MakeUnique<FrameChangedMap>();\n              entriesForParentDepth = mEntries.LastElement().get();\n            }\n            if (auto p = entriesForParentDepth->lookupForAdd(parent)) {\n              p->value() = CHILDREN_CHANGED;\n            } else {\n              // We ignore OOM-failure here, just don't track this frame.\n              (void)NS_WARN_IF(\n                  !entriesForParentDepth->add(p, parent, CHILDREN_CHANGED));\n            }\n          }\n        }\n      }\n    }\n  }",
+    "executed": false
+  }
+]
