@@ -6215,7 +6215,7 @@ void nsFlexContainerFrame::PopulateReflowOutput(
       aFlr.mAscent == nscoord_MIN && !line.IsEmpty()) {
     const FlexItem& item = line.StartmostItem(aAxisTracker);
     aFlr.mAscent = item.Frame()
-                       ->GetLogicalPosition(
+                       ->GetLogicalNormalPosition(
                            flexWM, desiredSizeInFlexWM.GetPhysicalSize(flexWM))
                        .B(flexWM) +
                    item.ResolvedAscent(true);
@@ -6229,8 +6229,8 @@ void nsFlexContainerFrame::PopulateReflowOutput(
     const FlexItem& item = line.EndmostItem(aAxisTracker);
     const nscoord lastAscent =
         item.Frame()
-            ->GetLogicalPosition(flexWM,
-                                 desiredSizeInFlexWM.GetPhysicalSize(flexWM))
+            ->GetLogicalNormalPosition(
+                flexWM, desiredSizeInFlexWM.GetPhysicalSize(flexWM))
             .B(flexWM) +
         item.ResolvedAscent(false);
 
