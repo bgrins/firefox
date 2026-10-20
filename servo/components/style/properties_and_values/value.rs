@@ -231,7 +231,7 @@ impl<Component: Animate> Animate for Value<Component> {
         Ok(Value {
             v,
             url_data: self.url_data.clone(),
-            attr_tainted: self.attr_tainted,
+            attr_tainted: self.attr_tainted || other.attr_tainted,
         })
     }
 }
