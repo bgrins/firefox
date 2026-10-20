@@ -197,7 +197,7 @@ StickyScrollContainer::StickyLimits StickyScrollContainer::ComputeStickyLimits(
   nsMargin sfPadding = scrolledFrame->GetUsedPadding();
   nsPoint sfOffset = aFrame->GetParent()->GetOffsetTo(scrolledFrame);
   nsSize sfSize = GetScrollContainerSize(mScrollContainerFrame);
-  StyleDirection direction = cbFrame->StyleVisibility()->mDirection;
+  WritingMode writingMode = cbFrame->GetWritingMode();
   nsMargin effectiveOffsets(
       computedOffsets->top == NS_AUTOOFFSET ? 0 : computedOffsets->top,
       computedOffsets->right == NS_AUTOOFFSET ? 0 : computedOffsets->right,
@@ -212,7 +212,9 @@ StickyScrollContainer::StickyLimits StickyScrollContainer::ComputeStickyLimits(
     nscoord stickyViewHeight = sfSize.height - effectiveOffsets.TopBottom();
     if (rect.height > stickyViewHeight) {
       nscoord delta = rect.height - stickyViewHeight;
-      effectiveOffsets.bottom -= delta;
+      effectiveOffsets.Side(writingMode.PhysicalSide(
+          writingMode.IsVertical() ? LogicalSide::IEnd : LogicalSide::BEnd)) -=
+          delta;
     }
   }
 
@@ -224,11 +226,9 @@ StickyScrollContainer::StickyLimits StickyScrollContainer::ComputeStickyLimits(
     nscoord stickyViewWidth = sfSize.width - effectiveOffsets.LeftRight();
     if (rect.width > stickyViewWidth) {
       nscoord delta = rect.width - stickyViewWidth;
-      if (direction == StyleDirection::Ltr) {
-        effectiveOffsets.right -= delta;
-      } else {
-        effectiveOffsets.left -= delta;
-      }
+      effectiveOffsets.Side(writingMode.PhysicalSide(
+          writingMode.IsVertical() ? LogicalSide::BEnd : LogicalSide::IEnd)) -=
+          delta;
     }
   }
 
