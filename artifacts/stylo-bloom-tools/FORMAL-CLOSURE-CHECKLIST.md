@@ -687,3 +687,19 @@ compiler/lifetime, scheduler delivery and full URL eligibility remain open.
 The modeled restyle request is a call decision; the synchronous sampling step
 assumes publication and consumption. No arbitrary native history proof follows.
 [Acceptance](../css-animation-base-metadata-final-root-v1/ACCEPTANCE.json).
+
+## Successful interpolation provenance — 19 October 2026
+
+Fix80 closes the generic successful wrapper's provenance union law. Fifteen
+kernel audits establish preserved payload/error behavior, first-input URL data,
+optional branches and finite successful pure composition. Four complete source
+bodies are extracted for 45 native observations per variant; three original
+omission cases disagree. Root and independent fresh replay agree.
+
+This closes only the successful interpolation metadata boundary listed in the
+endpoint checkpoint. The supplied numeric operation, property/value admission,
+actual fallback caller, CSS observer correspondence, storage/publication and
+scheduler histories remain open. The fixture's bundle/direct observer definitions
+are admitted contracts, not derived parsing or URL eligibility semantics.
+Zero-weight/extrapolation policy and URL-data equivalence remain outside scope.
+[Formal acceptance](../css-animation-interpolation-taint-final-root-v1/FORMAL-ACCEPTANCE.json).

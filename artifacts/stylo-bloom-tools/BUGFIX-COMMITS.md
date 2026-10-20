@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **79 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **80 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -78,6 +78,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | attr-taint-half-open-ranges | `8c04b6787e36c9ee42fec440103cf33372c097f1` | `91e709f931abf5ef2d59a77158f66662500bd2ff` |
 | animation-retained-endpoint-taint | `4b4a00e707583382f4773039f13a4f335f48f41a` | `922272780824ee77c05f96972c7bb51a95de7ead` |
 | animation-underlying-base-taint | `2c09cb2e4ff81bbc4af65d1d069517420b9c1529` | `91d47c020cb9c4855e0e35ad51012d2ccf2aeac9` |
+| animation-interpolation-taint | `ede7ceb101d83f0c4044585a5a687f5286b072c9` | `a9b8e799ce9785008c72d63b6539305284cbf9ef` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1845,3 +1846,37 @@ formalization.
 [Acceptance](../css-animation-base-metadata-final-root-v1/ACCEPTANCE.json),
 [commit verification](../css-animation-base-metadata-final-root-v1/ROOT-COMMIT-CHECK.json),
 [standalone verification](../css-animation-base-metadata-final-root-v1/ROOT-STANDALONE-CHECK.json).
+
+## Fix 80: preserve both interpolation operands' attribute taint
+
+Native + WPT: `ede7ceb101d83f0c4044585a5a687f5286b072c9`; preceding proof/runtime/review
+companion: `a9b8e799ce9785008c72d63b6539305284cbf9ef`. The patch contains one Rust line in
+Value<Component>::animate and a 24-case WPT. Successful combinations union both
+operands' provenance; the existing payload operation, failure path and first
+operand's URL data remain unchanged.
+
+Standalone native + WPT: `ed3ad9b8e4ea95d36731e08311c6bb04f904071b`, on
+`stylo-css-interpolation-taint-fix`, preceded by evidence
+`7b51b4de426f54184f155e515d0f1cd65de23eec`. Both stack and upstream variants contain
+exactly two files and require no earlier map, accessor or retention repair.
+Exact source apply/reverse, parent chains and all committed blobs were checked.
+An isolated upstream build/browser run was not performed.
+
+The focused baseline has 22 passes and two failures. The joined reference has
+248 passes and five failures; the candidate has 253 passes across 16 successful
+harnesses. Five assertions improve and 248 statuses are unchanged. The final
+WPT only corrects a help-link fragment after the paired run. Two diagnostic
+boundary cases allow either taint polarity; older conditional tests retain
+that limitation. These failures represent one defect.
+
+Root and independent fresh formal replay pass 15 audits and 45 extracted-native
+observations per variant. The original implementation differs only on three
+successful clean-first/tainted-second cases. The result covers wrapper metadata
+union and finite admitted pure compositions; numerical providers, complete URL
+semantics and native scheduler histories remain assumptions. Zero-weight taint
+policy is not promoted to a new normative assertion. Source/spec investigation
+and browser reproduction preceded formalization.
+
+[Acceptance](../css-animation-interpolation-taint-final-root-v1/ACCEPTANCE.json),
+[commit check](../css-animation-interpolation-taint-final-root-v1/ROOT-COMMIT-CHECK.json),
+[standalone check](../css-animation-interpolation-taint-final-root-v1/ROOT-STANDALONE-CHECK.json).

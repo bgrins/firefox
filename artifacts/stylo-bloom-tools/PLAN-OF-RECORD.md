@@ -4,13 +4,14 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **79 committed native/WPT fixes.** The management index is
+- **80 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest repair:** underlying animation base taint (`2c09cb2e4ff8`), with
-  independent upstream alternative `1181f7b5751c`. The local candidate passes
-  189 checks: four improvements and 185 unchanged from the joined reference.
-  Evidence precedes native/WPT commits; standalone upstream runtime is untested.
+- **Latest repair:** numeric interpolation provenance (`ede7ceb101d8`), with
+  independent upstream alternative `ed3ad9b8e4ea`. The candidate
+  matrix passes 253 checks: five improvements and 248 unchanged statuses from
+  the joined reference. Evidence precedes the two-file native/WPT commit;
+  standalone upstream runtime is untested.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.
@@ -119,15 +120,13 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Repair successful numeric interpolation's lost second-operand attribute
-   provenance. The calibrated 40-case probe has 37 PASS / 3 FAIL / one OK harness;
-   failures are clean-to-tainted bundle observations at .25, .75 and 1. Two
-   boundary diagnostics deliberately do not assert a taint polarity. All numeric,
-   provider, progress and direct-URL controls pass. Native/procedure review and
-   a focused WPT proposal are active; no fix80 is counted yet.
-   [Reproduction](../css-animation-interpolation-taint-root-v1/REVIEW.md).
-   The separate transition-retention lead is INCONCLUSIVE: provenance equality
-   is unresolved in the spec, so no restart or refresh repair is justified.
+1. Close the next animation provenance boundary after fix80: audit actual
+   fallback/composition/publication callers and derive one end-to-end observation
+   from admitted constructors. Successful wrapper union is accepted, but it does
+   not establish numeric providers or scheduler histories.
+   [Accepted repair](../css-animation-interpolation-taint-final-root-v1/REVIEW.md).
+   Keep the transition-retention lead INCONCLUSIVE: provenance equality remains
+   unresolved, so no restart or refresh repair is justified.
    [Oracle](../css-transition-retention-taint-oracle-v1/REPORT.md).
 2. Compose the declaration helper's saved-query/short-circuit paths after the
    accepted skip/next wrapper and production entry component;
@@ -322,3 +321,14 @@ agreement on no-change. It reasons about requesting a restyle, not actual queue
 delivery. Provider identity, native representation, scheduling and full URL
 observations remain open. See
 [review](../css-animation-base-metadata-final-root-v1/REVIEW.md).
+
+## Numeric interpolation provenance — accepted
+
+Fix80 preserves both operands' attribute taint after a successful generic value
+operation. Its 24-case WPT and one-line native patch are independent of earlier
+repairs. Root and independent formal replay accept 15 results with 45 native
+observations per variant. Numeric providers, admitted fixture observers and
+native histories remain open. The whole-CSS coverage, architecture and evolution
+agents are assessing the next integration milestone; fragmentation pilot root
+acceptance remains pending separately.
+[Acceptance](../css-animation-interpolation-taint-final-root-v1/ACCEPTANCE.json).
