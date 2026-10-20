@@ -364,3 +364,22 @@ checks, including stale binding and missing observer/assumption rejection.
 Those inputs are supplied; this is not automated CSS interpretation. Standalone
 specification, executable reference and Gecko-adapter claims remain separate.
 No completion percentage or timeline is inferred from proof counts.
+
+## Animation and fragmentation admission frontiers
+
+The post-interpolation [source audit](../css-animation-post-interpolation-frontier-v1/REPORT.md)
+finds no additional demonstrated metadata bug: failed iteration keeps the
+already-composed endpoint, and final discrete fallback preserves the selected
+whole value. Full segment composition provenance is now the next formal task;
+an independent numeric/length provider oracle will establish a reachable branch
+before browser testing. This is a correct-path proof target, not fix81.
+
+Fragmentation [admission research](../css-fragmentation-admission-research-v1/REPORT.md)
+leaves general sufficiency and emergency-region definitions unresolved. It
+identifies a useful ordinary normal-flow sibling domain on initially empty
+identical fragmentainers. A paragraph-only failure can miss a legal preceding
+deferral; candidate-dependent decorations also defeat a naive shared list.
+CSSWG history resolves the zero-after-overflow policy, while actual box/input
+correspondence remains open. A requirements-ledger pilot is starting from the
+existing174-unit window and explicit adjacent dependencies, before validator
+implementation and independent review.
