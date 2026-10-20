@@ -1,0 +1,42 @@
+>>> 1820: /* static */ void nsLayoutUtils::ConstrainToCoordValues(double& aStart,
+    1821:                                                         double& aSize) {
+    1822:   MOZ_ASSERT(std::isnan(aSize) || aSize >= 0);
+    1823: 
+    1824:   double max = aStart + aSize;
+    1825: 
+    1826:   // Clamp the end points to within nscoord range
+    1827:   ::ConstrainToCoordValues(aStart);
+    1828:   ::ConstrainToCoordValues(max);
+    1829: 
+    1830:   // Here we try to make sure that the resulting nsRect will continue to cover
+    1831:   // as much of the area that was covered by the original gfx Rect as possible.
+    1832: 
+    1833:   // We must also clamp aSize to {0,nscoord_MAX} since nsRect::Width/Height()
+    1834:   // can't return a value greater than nscoord_MAX. If aSize is greater than
+    1835:   // nscoord_MAX then we reduce it to nscoord_MAX while keeping the rect
+    1836:   // centered:
+    1837: 
+    1838:   aSize = max - aStart;
+    1839:   // If the width if still greater than the max nscoord, then bring both
+    1840:   // endpoints in by the same amount until it fits.
+    1841:   if (MOZ_UNLIKELY(std::isnan(aSize))) {
+    1842:     // Can happen if aStart is -inf and aSize is +inf for example.
+    1843:     // If either aStart or aSize is NaN on entry to this function then the
+    1844:     // calculations above this will make the other one NaN too, so this check
+    1845:     // ensures that we do not return NaN for either value.
+    1846:     aStart = 0.0f;
+    1847:     aSize = nscoord_MAX;
+    1848:   } else if (aSize > nscoord_MAX) {
+    1849:     double excess = aSize - nscoord_MAX;
+    1850:     excess /= 2;
+    1851: 
+    1852:     aStart += excess;
+    1853:     aSize = nscoord_MAX;
+    1854:   } else if (aSize < nscoord_MIN) {
+    1855:     double excess = aSize - nscoord_MIN;
+    1856:     excess /= 2;
+    1857: 
+    1858:     aStart -= excess;
+    1859:     aSize = nscoord_MIN;
+    1860:   }
+    1861: }

@@ -1,0 +1,29 @@
+>>>  310: class ResizeObserverSize final : public nsISupports, public nsWrapperCache {
+     311:  public:
+     312:   NS_DECL_CYCLE_COLLECTING_ISUPPORTS_FINAL
+     313:   NS_DECL_CYCLE_COLLECTION_WRAPPERCACHE_CLASS(ResizeObserverSize)
+     314: 
+     315:   ResizeObserverSize(nsISupports* aOwner, const LogicalPixelSize& aSize)
+     316:       : mOwner(aOwner), mSize(aSize) {
+     317:     MOZ_ASSERT(mOwner, "Need a non-null owner");
+     318:   }
+     319: 
+     320:   nsISupports* GetParentObject() const { return mOwner; }
+     321: 
+     322:   JSObject* WrapObject(JSContext* aCx,
+     323:                        JS::Handle<JSObject*> aGivenProto) override {
+     324:     return ResizeObserverSize_Binding::Wrap(aCx, this, aGivenProto);
+     325:   }
+     326: 
+     327:   float InlineSize() const { return mSize.ISize(); }
+     328:   float BlockSize() const { return mSize.BSize(); }
+     329: 
+     330:  protected:
+     331:   ~ResizeObserverSize() = default;
+     332: 
+     333:   nsCOMPtr<nsISupports> mOwner;
+     334:   // The logical size value:
+     335:   // 1. content-box/border-box: in CSS pixels.
+     336:   // 2. device-pixel-content-box: in device pixels.
+     337:   const LogicalPixelSize mSize;
+     338: };

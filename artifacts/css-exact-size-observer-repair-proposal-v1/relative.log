@@ -1,0 +1,22 @@
+     166:   let menuPopup;
+     167:   let menuType;
+     168:   let menuBounds = null;
+     169:   let arrowBounds = null;
+     170:   if (menuButton.hasAttribute("aria-controls")) {
+     171:     menuType = "doorhanger";
+     172:     menuPopup = doc.getElementById(menuButton.getAttribute("aria-controls"));
+     173:     await waitUntil(() => menuPopup.classList.contains("tooltip-visible"));
+     174:     // menuPopup can be a non-menupopup element, e.g. div. Call getBoxQuads to
+     175:     // get its bounds.
+>>>  176:     menuBounds = menuPopup.getBoxQuads({ relativeTo: doc })[0].getBounds();
+     177:   } else {
+     178:     menuType = "native";
+     179:     await waitUntil(() => {
+     180:       const popupset = topDoc.querySelector("popupset");
+     181:       menuPopup = popupset?.querySelector('menupopup[menu-api="true"]');
+     182:       return menuPopup?.state === "open";
+     183:     });
+     184:     // menuPopup is a XUL menupopup element. Call getOuterScreenRect(), which is
+     185:     // suported on both native and non-native menupopup implementations.
+     186:     menuBounds = convertScreenToDoc(menuPopup, doc);
+

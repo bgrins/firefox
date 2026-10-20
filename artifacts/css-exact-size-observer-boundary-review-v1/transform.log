@@ -1,0 +1,21 @@
+>>> 2518: nsRect nsLayoutUtils::TransformFrameRectToAncestor(
+    2519:     const nsIFrame* aFrame, const nsRect& aRect, RelativeTo aAncestor,
+    2520:     bool* aPreservesAxisAlignedRectangles /* = nullptr */,
+    2521:     Maybe<Matrix4x4Flagged>* aMatrixCache /* = nullptr */,
+    2522:     TransformMatrixFlags aFlags /* = {} */,
+    2523:     nsIFrame** aOutAncestor /* = nullptr */) {
+    2524:   MOZ_ASSERT(IsAncestorFrameCrossDocInProcess(aAncestor.mFrame, aFrame),
+    2525:              "Fix the caller");
+    2526:   MOZ_ASSERT(!aFlags.contains(TransformMatrixFlag::InCSSUnits),
+    2527:              "TransformMatrixFlag::InCSSUnits is not supported here!");
+    2528: 
+    2529:   float srcAppUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
+    2530:   Rect result = LayoutDeviceRect::FromAppUnits(aRect, srcAppUnitsPerDevPixel)
+    2531:                     .ToUnknownRect();
+    2532:   result = TransformGfxRectToAncestor(RelativeTo{aFrame}, result, aAncestor,
+    2533:                                       aPreservesAxisAlignedRectangles,
+    2534:                                       aMatrixCache, aFlags, aOutAncestor);
+    2535: 
+    2536:   return ScaleThenRoundGfxRectToAppRect(
+    2537:       result, aAncestor.mFrame->PresContext()->AppUnitsPerDevPixel());
+    2538: }

@@ -1,0 +1,1 @@
+Before freeze, root caught that the executable probe started while the parser was still in the head. An explicit body token was added before both scripts. No browser run was performed here. Searchfox full-file queries first used two incorrect paths; successful actual paths supersede the empty logs. No failed lookup is interpreted as absence of a source implementation.

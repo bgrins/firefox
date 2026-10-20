@@ -1,0 +1,51 @@
+>>>  261: nsIFrame* SVGUtils::GetOuterSVGFrameAndCoveredRegion(nsIFrame* aFrame,
+     262:                                                      nsRect* aRect) {
+     263:   ISVGDisplayableFrame* svg = do_QueryFrame(aFrame);
+     264:   if (!svg) {
+     265:     return nullptr;
+     266:   }
+     267:   SVGOuterSVGFrame* outer = GetOuterSVGFrame(aFrame);
+     268:   if (outer == svg) {
+     269:     return nullptr;
+     270:   }
+     271: 
+     272:   if (aFrame->HasAnyStateBits(NS_FRAME_IS_NONDISPLAY)) {
+     273:     *aRect = nsRect();
+     274:     return outer;
+     275:   }
+     276: 
+     277:   auto ctm = nsLayoutUtils::GetTransformToAncestor(RelativeTo{aFrame},
+     278:                                                    RelativeTo{outer});
+     279: 
+     280:   Matrix mm;
+     281:   ctm.ProjectTo2D();
+     282:   ctm.CanDraw2D(&mm);
+     283:   gfxMatrix m = ThebesMatrix(mm);
+     284: 
+     285:   float appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
+     286:   float devPixelPerCSSPixel =
+     287:       float(AppUnitsPerCSSPixel()) / appUnitsPerDevPixel;
+     288: 
+     289:   // The matrix that GetBBox accepts should operate on "user space",
+     290:   // i.e. with CSS pixel unit.
+     291:   m.PreScale(devPixelPerCSSPixel, devPixelPerCSSPixel);
+     292: 
+     293:   auto initPosition = gfxPoint(
+     294:       NSAppUnitsToFloatPixels(aFrame->GetPosition().x, AppUnitsPerCSSPixel()),
+     295:       NSAppUnitsToFloatPixels(aFrame->GetPosition().y, AppUnitsPerCSSPixel()));
+     296: 
+     297:   // Both SVGUtils::GetBBox and nsLayoutUtils::GetTransformToAncestor
+     298:   // will count this displacement, we should remove it here to avoid
+     299:   // double-counting.
+     300:   m.PreTranslate(-initPosition);
+     301: 
+     302:   SVGBBoxFlags flags = {SVGBBoxFlag::ForGetClientRects,
+     303:                         SVGBBoxFlag::IncludeFillGeometry,
+     304:                         SVGBBoxFlag::IncludeStroke, SVGBBoxFlag::IncludeMarkers,
+     305:                         SVGBBoxFlag::UseUserSpaceOfUseElement};
+     306: 
+     307:   gfxRect bbox = SVGUtils::GetBBox(aFrame, flags, &m);
+     308:   *aRect = nsLayoutUtils::RoundGfxRectToAppRect(bbox, appUnitsPerDevPixel);
+     309: 
+     310:   return outer;
+     311: }

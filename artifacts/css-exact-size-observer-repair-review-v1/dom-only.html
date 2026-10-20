@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>DOMRect conversion preserves an aligned edge on an identity-transformed box</title>
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getboundingclientrect">
+<link rel="help" href="https://drafts.csswg.org/geometry/#DOMRectReadOnly">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.host { position: fixed; left: 0; top: 0; width: 100px; height: 100px; }
+.box { position: absolute; right: 0; bottom: 0; transform: translate(0px); }
+.marker { position: absolute; right: 0; bottom: 0; width: 0; height: 0; }
+</style>
+<body>
+<script>
+for (const axis of ["horizontal", "vertical"]) {
+  for (const size of [120.125, 131072.0666667]) {
+    test(t => {
+      const host = document.createElement("div");
+      host.className = "host";
+      const box = document.createElement("div");
+      box.className = "box";
+      box.style.width = `${axis === "horizontal" ? size : 40}px`;
+      box.style.height = `${axis === "vertical" ? size : 40}px`;
+      const marker = document.createElement("span");
+      marker.className = "marker";
+      box.append(marker);
+      host.append(box);
+      document.body.append(host);
+      t.add_cleanup(() => host.remove());
+      const edge = axis === "horizontal" ? "right" : "bottom";
+      const dimension = axis === "horizontal" ? "width" : "height";
+      assert_not_equals(getComputedStyle(box).transform, "none", "explicit transform retains matrix route");
+      assert_equals(host.getBoundingClientRect()[edge], 100, "containing edge calibration");
+      assert_approx_equals(marker.getBoundingClientRect()[edge], 100, 0.0001, "small end marker");
+      assert_approx_equals(box.getBoundingClientRect()[dimension], size, 0.05, "supported size calibration");
+      assert_approx_equals(box.getBoundingClientRect()[edge], 100, 0.0001, "bounding edge");
+      assert_equals(box.getClientRects().length, 1, "single nonfragmented border box");
+      assert_approx_equals(box.getClientRects()[0][edge], 100, 0.0001, "client edge");
+    }, `${axis}, ${size}px`);
+  }
+}
+</script>

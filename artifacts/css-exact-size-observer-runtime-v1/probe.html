@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Geometry observers</title>
+<link rel="stylesheet" href="diagnostics.css">
+<style>
+  .edge-host { position: fixed; left: 0; top: 0; width: 100px; height: 100px; }
+  .edge-box { position: absolute; right: 0; bottom: 0; box-sizing: border-box; }
+  .edge-box.padded { border: 3px solid; padding: 5px; }
+  .edge-marker { position: absolute; right: 0; bottom: 0; width: 0; height: 0; }
+  .padded > .edge-marker { right: -3px; bottom: -3px; }
+</style>
+<body>
+<script src="diagnostics.js"></script>
+<script src="observer-probe.js"></script>
+
+<script>window.observerBoundaryPromise.then(rows => ({rows}), error => ({error: String(error.stack || error)})).then(result => fetch("/result", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(result)}));</script>

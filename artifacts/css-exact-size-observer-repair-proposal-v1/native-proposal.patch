@@ -1,0 +1,67 @@
+--- a/layout/base/nsLayoutUtils.cpp
++++ b/layout/base/nsLayoutUtils.cpp
+@@ -3525,6 +3525,37 @@
+   return nullptr;
+ }
+ 
++static Maybe<nsRect> GetUntransformedRectToAncestor(
++    const nsIFrame* aFrame, const nsRect& aRect, const nsIFrame* aAncestor) {
++  if (!aAncestor || aRect.width < 0 || aRect.height < 0 ||
++      aRect.width > nscoord_MAX || aRect.height > nscoord_MAX) {
++    return Nothing();
++  }
++  CheckedInt<nscoord> x = aRect.x;
++  CheckedInt<nscoord> y = aRect.y;
++  for (const nsIFrame* frame = aFrame; frame != aAncestor;
++       frame = frame->GetParent()) {
++    if (!frame || frame->PresContext() != aAncestor->PresContext() ||
++        frame->IsTransformed() || frame->IsInSVGTextSubtree() ||
++        frame->HasAnyStateBits(NS_FRAME_SVG_LAYOUT)) {
++      return Nothing();
++    }
++    x += frame->GetPosition().x;
++    y += frame->GetPosition().y;
++    if (!x.isValid() || !y.isValid()) {
++      return Nothing();
++    }
++  }
++  const auto right = x + aRect.width;
++  const auto bottom = y + aRect.height;
++  if (!right.isValid() || !bottom.isValid() || x.value() < nscoord_MIN ||
++      y.value() < nscoord_MIN || right.value() > nscoord_MAX ||
++      bottom.value() > nscoord_MAX) {
++    return Nothing();
++  }
++  return Some(nsRect(x.value(), y.value(), aRect.width, aRect.height));
++}
++
+ struct BoxToRect : public nsLayoutUtils::BoxCallback {
+   const nsIFrame* mRelativeTo;
+   RectCallback* mCallback;
+@@ -3597,6 +3628,13 @@
+           }
+           return false;
+         }();
++        if (mRelativeToIsRoot && !usingSVGOuterFrame) {
++          if (auto translated =
++                  GetUntransformedRectToAncestor(outer, r, mRelativeTo)) {
++            mCallback->AddRect(*translated);
++            return;
++          }
++        }
+         if (isAncestorKnown) {
+           r = nsLayoutUtils::TransformFrameRectToAncestor(outer, r,
+                                                           mRelativeTo);
+--- a/dom/base/DOMRect.cpp
++++ b/dom/base/DOMRect.cpp
+@@ -159,6 +159,8 @@
+   double t2pScaled = scale / AppUnitsPerCSSPixel();
+   double x = RoundFloat(aLayoutRect.x * t2pScaled) * scaleInv;
+   double y = RoundFloat(aLayoutRect.y * t2pScaled) * scaleInv;
+-  SetRect(x, y, RoundFloat(aLayoutRect.XMost() * t2pScaled) * scaleInv - x,
+-          RoundFloat(aLayoutRect.YMost() * t2pScaled) * scaleInv - y);
++  SetX(x);
++  SetY(y);
++  SetWidth(RoundFloat(aLayoutRect.XMost() * t2pScaled) * scaleInv - x);
++  SetHeight(RoundFloat(aLayoutRect.YMost() * t2pScaled) * scaleInv - y);
+ }

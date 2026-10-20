@@ -1,0 +1,34 @@
+>>> 2052: Matrix4x4Flagged nsLayoutUtils::GetTransformToAncestor(
+    2053:     RelativeTo aFrame, RelativeTo aAncestor, TransformMatrixFlags aFlags,
+    2054:     nsIFrame** aOutAncestor) {
+    2055:   nsIFrame* parent;
+    2056:   Matrix4x4Flagged ctm;
+    2057:   // Make sure we don't get an invalid combination of source and destination
+    2058:   // RelativeTo values.
+    2059:   MOZ_ASSERT(!(aFrame.mViewportType == ViewportType::Visual &&
+    2060:                aAncestor.mViewportType == ViewportType::Layout));
+    2061:   if (aFrame == aAncestor) {
+    2062:     return ctm;
+    2063:   }
+    2064:   ctm = aFrame.mFrame->GetTransformMatrix(aFrame.mViewportType, aAncestor,
+    2065:                                           &parent, aFlags);
+    2066:   if (!aFrame.mFrame->Combines3DTransformWithAncestors()) {
+    2067:     ctm.ProjectTo2D();
+    2068:   }
+    2069:   while (parent && parent != aAncestor.mFrame &&
+    2070:          (!aFlags.contains(
+    2071:               TransformMatrixFlag::StopAtStackingContextAndDisplayPort) ||
+    2072:           (!parent->IsStackingContext() &&
+    2073:            !DisplayPortUtils::FrameHasDisplayPort(parent)))) {
+    2074:     nsIFrame* cur = parent;
+    2075:     ctm = ctm * cur->GetTransformMatrix(aFrame.mViewportType, aAncestor,
+    2076:                                         &parent, aFlags);
+    2077:     if (!cur->Combines3DTransformWithAncestors()) {
+    2078:       ctm.ProjectTo2D();
+    2079:     }
+    2080:   }
+    2081:   if (aOutAncestor) {
+    2082:     *aOutAncestor = parent;
+    2083:   }
+    2084:   return ctm;
+    2085: }

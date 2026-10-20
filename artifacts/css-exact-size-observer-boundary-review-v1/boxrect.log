@@ -1,0 +1,89 @@
+>>> 3528: struct BoxToRect : public nsLayoutUtils::BoxCallback {
+    3529:   const nsIFrame* mRelativeTo;
+    3530:   RectCallback* mCallback;
+    3531:   nsLayoutUtils::GetAllInFlowRectsFlags mFlags;
+    3532:   // If the frame we're measuring relative to is the root, we know all frames
+    3533:   // are descendants of it, so we don't need to compute the common ancestor
+    3534:   // between a frame and mRelativeTo.
+    3535:   bool mRelativeToIsRoot;
+    3536:   // For the same reason, if the frame we're measuring relative to is the target
+    3537:   // (this is useful for IntersectionObserver), we know all frames are
+    3538:   // descendants of it except if we're in a continuation or ib-split-sibling of
+    3539:   // it.
+    3540:   bool mRelativeToIsTarget;
+    3541: 
+    3542:   BoxToRect(const nsIFrame* aTargetFrame, const nsIFrame* aRelativeTo,
+    3543:             RectCallback* aCallback,
+    3544:             nsLayoutUtils::GetAllInFlowRectsFlags aFlags)
+    3545:       : mRelativeTo(aRelativeTo),
+    3546:         mCallback(aCallback),
+    3547:         mFlags(aFlags),
+    3548:         mRelativeToIsRoot(!aRelativeTo->GetParent()),
+    3549:         mRelativeToIsTarget(aRelativeTo == aTargetFrame) {}
+    3550: 
+    3551:   void AddBox(nsIFrame* aFrame) override {
+    3552:     nsRect r;
+    3553:     nsIFrame* outer = SVGUtils::GetOuterSVGFrameAndCoveredRegion(aFrame, &r);
+    3554:     const bool usingSVGOuterFrame = !!outer;
+    3555:     if (!outer) {
+    3556:       outer = aFrame;
+    3557:       if (mFlags.contains(
+    3558:               nsLayoutUtils::GetAllInFlowRectsFlag::UseContentBox)) {
+    3559:         r = aFrame->GetContentRectRelativeToSelf();
+    3560:       } else if (mFlags.contains(
+    3561:                      nsLayoutUtils::GetAllInFlowRectsFlag::UsePaddingBox)) {
+    3562:         r = aFrame->GetPaddingRectRelativeToSelf();
+    3563:       } else if (mFlags.contains(
+    3564:                      nsLayoutUtils::GetAllInFlowRectsFlag::UseMarginBox)) {
+    3565:         r = aFrame->GetMarginRectRelativeToSelf();
+    3566:       } else if (mFlags.contains(nsLayoutUtils::GetAllInFlowRectsFlag::
+    3567:                                      UseMarginBoxWithAutoResolvedAsZero)) {
+    3568:         r = aFrame->GetRectRelativeToSelf();
+    3569:         nsMargin usedMargin =
+    3570:             aFrame->GetUsedMargin().ApplySkipSides(aFrame->GetSkipSides());
+    3571:         const auto* styleMargin = aFrame->StyleMargin();
+    3572:         const auto anchorResolutionParams =
+    3573:             AnchorPosResolutionParams::From(aFrame);
+    3574:         for (const Side side : AllPhysicalSides()) {
+    3575:           if (styleMargin->GetMargin(side, anchorResolutionParams)->IsAuto()) {
+    3576:             usedMargin.Side(side) = 0;
+    3577:           }
+    3578:         }
+    3579:         r.Inflate(usedMargin);
+    3580:       } else if (mFlags.contains(nsLayoutUtils::GetAllInFlowRectsFlag::
+    3581:                                      UseInkOverflowAsBox)) {
+    3582:         r = aFrame->InkOverflowRectRelativeToSelf();
+    3583:       } else {
+    3584:         // Use the border-box.
+    3585:         r = aFrame->GetRectRelativeToSelf();
+    3586:       }
+    3587:     }
+    3588:     if (outer != mRelativeTo) {
+    3589:       if (mFlags.contains(
+    3590:               nsLayoutUtils::GetAllInFlowRectsFlag::AccountForTransforms)) {
+    3591:         const bool isAncestorKnown = [&] {
+    3592:           if (mRelativeToIsRoot) {
+    3593:             return true;
+    3594:           }
+    3595:           if (mRelativeToIsTarget && !mInTargetContinuation) {
+    3596:             return !usingSVGOuterFrame;
+    3597:           }
+    3598:           return false;
+    3599:         }();
+    3600:         if (isAncestorKnown) {
+    3601:           r = nsLayoutUtils::TransformFrameRectToAncestor(outer, r,
+    3602:                                                           mRelativeTo);
+    3603:         } else {
+    3604:           nsLayoutUtils::TransformRect(outer, mRelativeTo, r);
+    3605:         }
+    3606:       } else {
+    3607:         if (aFrame->PresContext() != mRelativeTo->PresContext()) {
+    3608:           r += outer->GetOffsetToCrossDoc(mRelativeTo);
+    3609:         } else {
+    3610:           r += outer->GetOffsetTo(mRelativeTo);
+    3611:         }
+    3612:       }
+    3613:     }
+    3614:     mCallback->AddRect(r);
+    3615:   }
+    3616: };

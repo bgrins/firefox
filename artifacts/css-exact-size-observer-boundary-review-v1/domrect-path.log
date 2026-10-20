@@ -1,0 +1,11 @@
+>>>  154: void DOMRect::SetLayoutRect(const nsRect& aLayoutRect) {
+     155:   double scale = 65536.0;
+     156:   // Round to the nearest 1/scale units. We choose scale so it can be
+     157:   // represented exactly by machine floating point.
+     158:   double scaleInv = 1 / scale;
+     159:   double t2pScaled = scale / AppUnitsPerCSSPixel();
+     160:   double x = RoundFloat(aLayoutRect.x * t2pScaled) * scaleInv;
+     161:   double y = RoundFloat(aLayoutRect.y * t2pScaled) * scaleInv;
+     162:   SetRect(x, y, RoundFloat(aLayoutRect.XMost() * t2pScaled) * scaleInv - x,
+     163:           RoundFloat(aLayoutRect.YMost() * t2pScaled) * scaleInv - y);
+     164: }
