@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Custom properties preserve escaped trailing whitespace</title>
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#using-variables">
+<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#consume-an-escaped-code-point">
+<meta name="assert" content="Trimming custom-property whitespace preserves whitespace that belongs to an escaped identifier.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const cases = [];
+for (const [name, raw, decoded] of [
+  ["escaped space", "x\\ ", "x "],
+  ["escaped tab", "x\\\t", "x\t"],
+]) {
+  for (const [suffixName, suffix] of [
+    ["none", ""],
+    ["space", " "],
+    ["tab", "\t"],
+    ["line feed", "\n"],
+    ["carriage return", "\r"],
+    ["form feed", "\f"],
+    ["CRLF", "\r\n"],
+    ["mixed", " \t\r\n\f"],
+  ]) {
+    cases.push([`${name}, trailing whitespace: ${suffixName}`, raw + suffix, decoded]);
+  }
+}
+cases.push(
+  ["Hex escape", "x\\20 ", "x "],
+  ["Quoted space", '"x "', "x "],
+  ["Comment after escaped space", "x\\ /**/", "x "],
+  ["Ordinary identifier", "ordinary", "ordinary"],
+);
+
+for (const [name, raw, decoded] of cases) {
+  test(t => {
+    const target = document.createElement("div");
+    const literal = document.createElement("div");
+    document.body.append(target, literal);
+    t.add_cleanup(() => {
+      target.remove();
+      literal.remove();
+    });
+    const expected = CSS.escape(decoded);
+    assert_true(CSS.supports("animation-name", raw), "Literal syntax is supported");
+    literal.style.animationName = raw;
+    assert_equals(getComputedStyle(literal).animationName, expected, "Literal name");
+    target.style.animationName = "var(--token)";
+    for (const [phase, value, result] of [
+      ["Initial", "clean", "clean"],
+      ["Set", raw, expected],
+      ["Restore", "restored", "restored"],
+      ["Set again", raw, expected],
+    ]) {
+      target.style.setProperty("--token", value);
+      assert_equals(getComputedStyle(target).animationName, result, phase);
+    }
+  }, name);
+}
+</script>
