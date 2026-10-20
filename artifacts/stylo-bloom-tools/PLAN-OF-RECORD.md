@@ -182,9 +182,9 @@ the keyframe-substitution candidate or numeric payload correctness.
    Keep the transition-retention lead INCONCLUSIVE: provenance equality remains
    unresolved, so no restart or refresh repair is justified.
    [Oracle](../css-transition-retention-taint-oracle-v1/REPORT.md).
-2. Compose tokenizer delimiter providers with the accepted until-after contract;
-   the new five-theorem bridge is a draft under independent review. Its driver
-   delimiter law does not establish progress for unsupported provider families.
+2. Derive source-dispatch-specific progress or total admitted provider families.
+   Root and independent review accept the five-theorem delimiter bridge and 12
+   review results; its driver delimiter law does not establish global progress.
    Then extend URL annotation projection through represented callback programs,
    and compose the declaration helper's saved-query/short-circuit paths after the
    accepted skip/next wrapper and production entry component;
@@ -582,7 +582,20 @@ remain open. The predecessor renderer correction is recorded: all old 91 snapsho
 had zero stop masks, while new tests exercise nonzero enclosing masks. No new
 browser defect is counted.
 
-The [provider bridge draft](../css-parser-delimiter-provider-v1/lean/DelimiterProvider.lean)
+The [accepted provider bridge](../css-parser-delimiter-provider-root-v1/ACCEPTANCE.json)
 derives the delimiter law from ByteLex and a one-byte punctuation contract.
-Its global progress corollary cannot be applied to the actual partial driver
-without further admissions; independent review retains that counterexample.
+Fresh root and independent 59-module replays pass five general results and 12 review
+results, including the exact driver law for arbitrary input and jointly inhabited
+provider premises. Its global progress corollary cannot be applied to the actual
+partial driver without further admissions; the explicit counterexample is retained.
+
+## View-transition mutation invalidation lead
+
+The calibrated loopback probe reports six discrepancies among 18 rows: successful
+Add/Delete/Clear update public membership and direct selector matching but retain
+stale computed root color and descendant width, both synchronously and after ready.
+All before-state and forced-refresh calibrations pass; twelve no-op/completed/old
+transition controls pass. No duplicate initial types are used. Source/binary pins
+are stable. Evidence: `../css-view-transition-type-invalidation-v1/v2/runtime-v1/`.
+Independent source/spec/fix review and WPT reduction are active. This is not yet
+an accepted repair or counted commit; it remains separate from initial deduplication.
