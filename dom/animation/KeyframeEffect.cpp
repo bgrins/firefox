@@ -565,8 +565,14 @@ void KeyframeEffect::EnsureBaseStyles(
   if (aBaseStylesChanged != nullptr &&
       std::any_of(
           mBaseValues.cbegin(), mBaseValues.cend(), [&](const auto& entry) {
-            return AnimationValue(entry.GetData()) !=
-                   AnimationValue(previousBaseStyles.Get(entry.GetKey()));
+            const AnimationValue value(entry.GetData());
+            const AnimationValue previous(
+                previousBaseStyles.Get(entry.GetKey()));
+            return value != previous ||
+                   (entry.GetKey().IsCustom() && value.mServo &&
+                    previous.mServo &&
+                    Servo_AnimationValue_IsAttrTainted(value.mServo) !=
+                        Servo_AnimationValue_IsAttrTainted(previous.mServo));
           })) {
     *aBaseStylesChanged = true;
   }
