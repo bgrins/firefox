@@ -182,10 +182,11 @@ the keyframe-substitution candidate or numeric payload correctness.
    Keep the transition-retention lead INCONCLUSIVE: provenance equality remains
    unresolved, so no restart or refresh repair is justified.
    [Oracle](../css-transition-retention-taint-oracle-v1/REPORT.md).
-2. Review and replay the new until-after parser capsule: delimiter ownership,
-   direct cursor advance and curly recovery. Native calibration passes27histories
-   and138snapshots in debug/release; final formal acceptance remains pending.
-   Then compose the declaration helper's saved-query/short-circuit paths after the
+2. Compose tokenizer delimiter providers with the accepted until-after contract;
+   the new five-theorem bridge is a draft under independent review. Its driver
+   delimiter law does not establish progress for unsupported provider families.
+   Then extend URL annotation projection through represented callback programs,
+   and compose the declaration helper's saved-query/short-circuit paths after the
    accepted skip/next wrapper and production entry component;
    metadata, providers, callbacks and compiler admissions remain explicit.
 3. Extend persistent-map caller admission. Count and actual iteration now compose
@@ -562,3 +563,26 @@ Next: inspect and model parse_until_after's direct delimiter advance and curly
 recovery; extend the represented callback grammar where it exposes real callers.
 Lexical progress, native byte bounds, full annotations and Link value parsing
 remain open. [Acceptance](../css-parser-nested-control-root-v1/ACCEPTANCE.json).
+
+## Accepted until-after continuation
+
+Root and independent review accept the [delimiter continuation component](../css-parser-until-after-root-v1/ACCEPTANCE.json):
+22 general theorem audits, 11 root kernel challenges and ten independent checks
+recompiled by root. Fresh manifest-only replays agree with exact-source cssparser
+in debug and release across 27 histories and 138 snapshots. Six successfully
+compiled native mutants are detected. The independent review adds six native
+cases in both modes. Current parser/tokenizer bytes match the retained sources.
+
+The proof connects direct byte advance to source-token consumption using explicit
+progress and delimiter laws, preserves enclosing ownership and Stop/error state,
+and covers curly recovery. Main alignment excludes URL annotations; separate
+continuation write laws cover those effects. Full callback annotation composition,
+arbitrary callbacks, omitted tokenizer providers and native machine correspondence
+remain open. The predecessor renderer correction is recorded: all old 91 snapshots
+had zero stop masks, while new tests exercise nonzero enclosing masks. No new
+browser defect is counted.
+
+The [provider bridge draft](../css-parser-delimiter-provider-v1/lean/DelimiterProvider.lean)
+derives the delimiter law from ByteLex and a one-byte punctuation contract.
+Its global progress corollary cannot be applied to the actual partial driver
+without further admissions; independent review retains that counterexample.

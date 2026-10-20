@@ -1,0 +1,14 @@
+import AfterAudit
+import AfterChallenges
+
+#print axioms AfterChallenges.delimiter_provider_law_is_needed
+#print axioms AfterChallenges.boundary_ownership_premise_is_needed
+#print axioms AfterChallenges.pending_cleanup_premise_is_needed
+#print axioms AfterChallenges.arbitrary_nonascii_mask_is_not_native
+#print axioms AfterChallenges.semicolon_consumes_one_byte
+#print axioms AfterChallenges.overlap_belongs_to_outer
+#print axioms AfterChallenges.outer_close_is_unread
+#print axioms AfterChallenges.stop_keeps_pending_function
+#print axioms AfterChallenges.consume_recovers_function
+#print axioms AfterChallenges.curly_ignores_mismatched_close
+#print axioms AfterChallenges.unterminated_curly_reaches_eof

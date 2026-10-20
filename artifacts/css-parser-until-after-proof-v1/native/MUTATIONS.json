@@ -1,0 +1,38 @@
+[
+  {
+    "id": "outer-ownership",
+    "source": "parser",
+    "old": "if !parser.stop_before.contains(delimiter) {",
+    "new": "if true {"
+  },
+  {
+    "id": "missing-advance",
+    "source": "parser",
+    "old": "parser.advance(1);",
+    "new": "parser.advance(0);"
+  },
+  {
+    "id": "omitted-curly-cleanup",
+    "source": "parser",
+    "old": "parser.consume_until_end_of_block(BlockType::CurlyBracket);",
+    "new": "let _ = BlockType::CurlyBracket;"
+  },
+  {
+    "id": "ignored-stop-guard",
+    "source": "parser",
+    "old": "if error_behavior == ParseUntilErrorBehavior::Stop && result.is_err() {",
+    "new": "if false && error_behavior == ParseUntilErrorBehavior::Stop && result.is_err() {"
+  },
+  {
+    "id": "cache-overwrite",
+    "source": "parser",
+    "old": "parser.advance(1);",
+    "new": "parser.advance(1); parser.cached_token.start_position = SourcePosition(usize::MAX);"
+  },
+  {
+    "id": "erased-curly-writes",
+    "source": "parser",
+    "old": "parser.consume_until_end_of_block(BlockType::CurlyBracket);",
+    "new": "let saved_urls = (parser.source_url, parser.source_map_url); parser.consume_until_end_of_block(BlockType::CurlyBracket); (parser.source_url, parser.source_map_url) = saved_urls;"
+  }
+]

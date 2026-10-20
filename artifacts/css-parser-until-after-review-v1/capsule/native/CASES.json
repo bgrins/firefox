@@ -1,0 +1,275 @@
+[
+  {
+    "name": "semicolon",
+    "input": ";tail",
+    "ops": [
+      "after:4:0:1:0",
+      "next"
+    ]
+  },
+  {
+    "name": "bang",
+    "input": "!tail",
+    "ops": [
+      "after:8:0:1:0",
+      "next"
+    ]
+  },
+  {
+    "name": "comma",
+    "input": ",tail",
+    "ops": [
+      "after:16:0:1:0",
+      "next"
+    ]
+  },
+  {
+    "name": "eof",
+    "input": "",
+    "ops": [
+      "after:4:0:1:0",
+      "next"
+    ]
+  },
+  {
+    "name": "ordinary-prefix",
+    "input": "head;tail",
+    "ops": [
+      "after:4:0:0:0",
+      "next"
+    ]
+  },
+  {
+    "name": "overlapping-semicolon",
+    "input": "head;tail",
+    "ops": [
+      "outer:4",
+      "after:4:0:0:0",
+      "next",
+      "outer:0",
+      "next",
+      "next"
+    ]
+  },
+  {
+    "name": "outer-parenthesis",
+    "input": "x)tail",
+    "ops": [
+      "outer:128",
+      "after:4:0:0:0",
+      "next",
+      "outer:0",
+      "next",
+      "next"
+    ]
+  },
+  {
+    "name": "outer-square",
+    "input": "x]tail",
+    "ops": [
+      "outer:64",
+      "after:4:0:0:0",
+      "next",
+      "outer:0",
+      "next",
+      "next"
+    ]
+  },
+  {
+    "name": "outer-curly",
+    "input": "x}tail",
+    "ops": [
+      "outer:32",
+      "after:4:0:0:0",
+      "next",
+      "outer:0",
+      "next",
+      "next"
+    ]
+  },
+  {
+    "name": "curly-nested-mismatched",
+    "input": "{one;foo(var(--x))]two}tail",
+    "ops": [
+      "enable",
+      "after:2:0:1:0",
+      "query",
+      "next"
+    ]
+  },
+  {
+    "name": "curly-unterminated",
+    "input": "{foo(attr(data-x))",
+    "ops": [
+      "enable",
+      "after:2:0:1:0",
+      "query",
+      "next"
+    ]
+  },
+  {
+    "name": "curly-overlap",
+    "input": "{var(--x)}tail",
+    "ops": [
+      "enable",
+      "outer:2",
+      "after:2:0:1:0",
+      "query",
+      "outer:0",
+      "next",
+      "next"
+    ]
+  },
+  {
+    "name": "pending-error-0",
+    "input": "foo(var(--x));tail",
+    "ops": [
+      "enable",
+      "after:4:1:0:0",
+      "query",
+      "next"
+    ]
+  },
+  {
+    "name": "pending-success-exhaustion-0",
+    "input": "foo(env(x));tail",
+    "ops": [
+      "enable",
+      "after:4:1:1:0",
+      "query",
+      "next"
+    ]
+  },
+  {
+    "name": "stop-at-delimiter-0",
+    "input": ";tail",
+    "ops": [
+      "after:4:0:0:0",
+      "next"
+    ]
+  },
+  {
+    "name": "pending-error-1",
+    "input": "foo(var(--x));tail",
+    "ops": [
+      "enable",
+      "after:4:1:0:1",
+      "query",
+      "next"
+    ]
+  },
+  {
+    "name": "pending-success-exhaustion-1",
+    "input": "foo(env(x));tail",
+    "ops": [
+      "enable",
+      "after:4:1:1:1",
+      "query",
+      "next"
+    ]
+  },
+  {
+    "name": "stop-at-delimiter-1",
+    "input": ";tail",
+    "ops": [
+      "after:4:0:0:1",
+      "next"
+    ]
+  },
+  {
+    "name": "cached-semicolon",
+    "input": ";tail",
+    "ops": [
+      "enable",
+      "save",
+      "next",
+      "reset",
+      "after:4:0:1:0",
+      "reset",
+      "next",
+      "query"
+    ]
+  },
+  {
+    "name": "cached-curly",
+    "input": "{var(--x)}tail",
+    "ops": [
+      "enable",
+      "save",
+      "next",
+      "reset",
+      "after:2:0:1:0",
+      "reset",
+      "next",
+      "query"
+    ]
+  },
+  {
+    "name": "curly-observer-writes",
+    "input": "{/*# sourceURL=A.css */ foo(/*# sourceURL=B.css */var(--x)) /*# sourceMappingURL=M.map */}tail",
+    "ops": [
+      "enable",
+      "after:2:0:1:0",
+      "query",
+      "next"
+    ]
+  },
+  {
+    "name": "curly-three-observers",
+    "input": "{env(x) attr(data-x) VAR(--x)};tail",
+    "ops": [
+      "enable",
+      "after:6:0:1:0",
+      "query",
+      "after:4:0:1:0",
+      "next"
+    ]
+  },
+  {
+    "name": "prefix-and-curly-writes",
+    "input": "/*# sourceURL=prefix.css */head{ /*# sourceURL=body.css */ }suffix",
+    "ops": [
+      "after:2:0:0:0",
+      "next"
+    ]
+  },
+  {
+    "name": "curly-crlf-unicode",
+    "input": "{\r\nα\t[β]\f}tail",
+    "ops": [
+      "after:2:0:1:0",
+      "next"
+    ]
+  },
+  {
+    "name": "multiple-requested",
+    "input": "head,tail;end",
+    "ops": [
+      "after:28:0:0:0",
+      "next",
+      "after:28:0:1:0",
+      "next"
+    ]
+  },
+  {
+    "name": "stop-curly-no-cleanup",
+    "input": "{var(--x)}tail",
+    "ops": [
+      "enable",
+      "after:2:0:0:1",
+      "query",
+      "next"
+    ]
+  },
+  {
+    "name": "controls-restored",
+    "input": "{foo()}tail",
+    "ops": [
+      "limit:1",
+      "depth:255",
+      "outer:128",
+      "after:2:0:1:0",
+      "next"
+    ]
+  }
+]
