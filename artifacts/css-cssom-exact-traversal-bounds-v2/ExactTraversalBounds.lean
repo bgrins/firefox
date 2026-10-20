@@ -1,0 +1,82 @@
+import Std
+
+namespace ExactTraversalBounds
+
+abbrev Int32 (x : Int) : Prop := -2147483648 ≤ x ∧ x ≤ 2147483647
+abbrev Int64 (x : Int) : Prop := -9223372036854775808 ≤ x ∧ x ≤ 9223372036854775807
+abbrev Difference33 (x : Int) : Prop := -4294967295 ≤ x ∧ x ≤ 4294967295
+
+theorem difference_bound (a b : Int) (ha : Int32 a) (hb : Int32 b) :
+    Difference33 (a - b) := by
+  unfold Int32 at ha hb
+  unfold Difference33
+  omega
+
+theorem difference_fits_int64 (x : Int) (h : Difference33 x) : Int64 x := by
+  unfold Difference33 at h
+  unfold Int64
+  omega
+
+theorem translation_reconstruction (origin translation runningTotal : Int)
+    (h : runningTotal = origin + translation) : runningTotal - origin = translation := by omega
+
+theorem translation_width (origin translation runningTotal : Int)
+    (originBound : Int32 origin) (prefixBound : Int32 runningTotal)
+    (h : runningTotal = origin + translation) :
+    Difference33 translation ∧ Int64 translation := by
+  have hd : Difference33 translation := by
+    have := difference_bound runningTotal origin prefixBound originBound
+    unfold Difference33 at *
+    omega
+  exact ⟨hd, difference_fits_int64 translation hd⟩
+
+theorem ancestor_offset_width (origin leaf ancestors runningTotal : Int)
+    (firstBound : Int32 (origin + leaf)) (prefixBound : Int32 runningTotal)
+    (h : runningTotal = origin + leaf + ancestors) :
+    Difference33 ancestors ∧ Int64 ancestors := by
+  have hd : Difference33 ancestors := by
+    have := difference_bound runningTotal (origin + leaf) prefixBound firstBound
+    unfold Difference33 at *
+    omega
+  exact ⟨hd, difference_fits_int64 ancestors hd⟩
+
+theorem bounded_trace_width (runningTotal : Nat → Int) (last : Nat)
+    (bounds : ∀ i, i ≤ last → Int32 (runningTotal i)) :
+    (∀ i, i ≤ last → Difference33 (runningTotal i - runningTotal 0) ∧
+       Int64 (runningTotal i - runningTotal 0)) ∧
+    (∀ i, 1 ≤ last → i ≤ last → Difference33 (runningTotal i - runningTotal 1) ∧
+       Int64 (runningTotal i - runningTotal 1)) := by
+  constructor
+  · intro i hi
+    have hd := difference_bound (runningTotal i) (runningTotal 0) (bounds i hi) (bounds 0 (by omega))
+    exact ⟨hd, difference_fits_int64 _ hd⟩
+  · intro i hlast hi
+    have hd := difference_bound (runningTotal i) (runningTotal 1) (bounds i hi) (bounds 1 hlast)
+    exact ⟨hd, difference_fits_int64 _ hd⟩
+
+theorem ancestor_cancellation_witness :
+    Int32 (-2000000000) ∧ Int32 (-2000000000 + 1400000000) ∧
+    Int32 (-2000000000 + 1400000000 + 1400000000) ∧
+    -2000000000 + 1400000000 + 1400000000 = (800000000 : Int) ∧
+    ¬ Int32 (1400000000 + 1400000000) := by decide
+
+theorem rectangle_relative_witness :
+    Int32 (-2000000000) ∧ Int32 (-2000000000 + 1500000000) ∧
+    Int32 (-2000000000 + 1500000000 + 1000000000) ∧
+    -2000000000 + 1500000000 + 1000000000 = (500000000 : Int) ∧
+    ¬ Int32 (1500000000 + 1000000000) := by decide
+
+theorem narrow_difference_is_not_necessary :
+    ∃ a b : Int, Int32 a ∧ Int32 b ∧ ¬ Int32 (a - b) := by
+  exact ⟨2147483647, -2147483648, by decide, by decide, by decide⟩
+
+#print axioms difference_bound
+#print axioms difference_fits_int64
+#print axioms translation_reconstruction
+#print axioms translation_width
+#print axioms ancestor_offset_width
+#print axioms bounded_trace_width
+#print axioms ancestor_cancellation_witness
+#print axioms rectangle_relative_witness
+#print axioms narrow_difference_is_not_necessary
+end ExactTraversalBounds
