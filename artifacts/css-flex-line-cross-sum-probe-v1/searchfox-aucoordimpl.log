@@ -1,0 +1,38 @@
+>>>   40: struct AuCoordImpl : public gfx::IntCoordTyped<AppUnit, Rep> {
+      41:   using Super = gfx::IntCoordTyped<AppUnit, Rep>;
+      42: 
+      43:   constexpr AuCoordImpl() : Super() {}
+      44:   constexpr MOZ_IMPLICIT AuCoordImpl(Rep aValue) : Super(aValue) {}
+      45:   constexpr MOZ_IMPLICIT AuCoordImpl(Super aValue) : Super(aValue) {}
+      46: 
+      47:   template <typename F>
+      48:   static AuCoordImpl FromRound(F aValue) {
+      49:     // Note: aValue is *not* rounding to nearest integer if it is negative. See
+      50:     // https://bugzilla.mozilla.org/show_bug.cgi?id=410748#c14
+      51:     return AuCoordImpl(std::floor(aValue + 0.5f));
+      52:   }
+      53: 
+      54:   template <typename F>
+      55:   static AuCoordImpl FromTruncate(F aValue) {
+      56:     return AuCoordImpl(std::trunc(aValue));
+      57:   }
+      58: 
+      59:   template <typename F>
+      60:   static AuCoordImpl FromCeil(F aValue) {
+      61:     return AuCoordImpl(std::ceil(aValue));
+      62:   }
+      63: 
+      64:   template <typename F>
+      65:   static AuCoordImpl FromFloor(F aValue) {
+      66:     return AuCoordImpl(std::floor(aValue));
+      67:   }
+      68: 
+      69:   // Note: this returns the result of the operation, without modifying the
+      70:   // original value.
+      71:   [[nodiscard]] AuCoordImpl ToMinMaxClamped() const {
+      72:     return std::clamp(this->value, kMin, kMax);
+      73:   }
+      74: 
+      75:   static constexpr Rep kMax = nscoord_MAX;
+      76:   static constexpr Rep kMin = nscoord_MIN;
+      77: };

@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Wrapped flex line cross sizes respect the container maximum</title>
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#algo-cross-container">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#numeric-types">
+<meta name="assert" content="Summing flex line cross sizes and gaps does not collapse an auto-sized container below its maximum size.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .container {
+    display: flex;
+    align-items: flex-start;
+    align-content: flex-start;
+    inline-size: 100px;
+    min-block-size: 0;
+    max-block-size: 100px;
+  }
+  .item { flex: none; inline-size: 100px; }
+</style>
+<body>
+<script>
+const inputs = [
+  {name: "small lines", count: 3, size: 20, gap: 0},
+  {name: "two large lines", count: 2, size: 12000000, gap: 0},
+  {name: "three large lines", count: 3, size: 12000000, gap: 0},
+  {name: "four large lines", count: 4, size: 12000000, gap: 0},
+  {name: "large gaps", count: 4, size: 20, gap: 12000000},
+  {name: "large lines and gap", count: 2, size: 12000000, gap: 12000000},
+];
+for (const writingMode of ["horizontal-tb", "vertical-lr", "vertical-rl"]) {
+  for (const direction of ["ltr", "rtl"]) {
+    for (const flexDirection of ["row", "row-reverse"]) {
+      for (const flexWrap of ["wrap", "wrap-reverse"]) {
+        for (const input of inputs) {
+          test(t => {
+            const container = document.createElement("div");
+            container.className = "container";
+            Object.assign(container.style, {
+              writingMode, direction, flexDirection, flexWrap,
+              rowGap: `${input.gap}px`,
+            });
+            for (let i = 0; i < input.count; ++i) {
+              const item = document.createElement("div");
+              item.className = "item";
+              item.style.blockSize = `${input.size}px`;
+              container.append(item);
+            }
+            document.body.append(container);
+            t.add_cleanup(() => container.remove());
+            const styles = [...container.children].map(item => getComputedStyle(item));
+            assert_implements_optional(styles.every(style =>
+              Math.abs(parseFloat(style.blockSize) - input.size) <= 2) &&
+              Math.abs(parseFloat(getComputedStyle(container).rowGap) - input.gap) <= 2,
+              "The input sizes and gaps are within the supported numeric range");
+            for (const style of styles) {
+              assert_equals(parseFloat(style.inlineSize), 100, "Each item fills one line");
+            }
+            const axis = writingMode === "horizontal-tb" ? "height" : "width";
+            const initial = container.getBoundingClientRect()[axis];
+            container.style.blockSize = "100px";
+            assert_equals(container.getBoundingClientRect()[axis], 100,
+              "Definite block size control");
+            container.style.blockSize = "";
+            assert_equals(container.getBoundingClientRect()[axis], initial,
+              "Restoring auto size restores the observation");
+            const expected = Math.min(100,
+              input.count * input.size + (input.count - 1) * input.gap);
+            assert_approx_equals(initial, expected, 0.02,
+              "Auto block size clamps the sum of line sizes and gaps");
+          }, `${writingMode}, ${direction}, ${flexDirection}, ${flexWrap}, ${input.name}`);
+        }
+      }
+    }
+  }
+}
+</script>
