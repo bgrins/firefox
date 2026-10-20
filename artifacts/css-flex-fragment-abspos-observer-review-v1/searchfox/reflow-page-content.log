@@ -1,0 +1,163 @@
+>>>   54: nsReflowStatus nsPageFrame::ReflowPageContent(
+      55:     nsPresContext* aPresContext, const ReflowInput& aPageReflowInput) {
+      56:   nsPageContentFrame* const frame = PageContentFrame();
+      57:   // If this is the first page, it won't have its page name and computed style
+      58:   // set yet. Before reflow, make sure that page name and computed style have
+      59:   // been applied.
+      60:   frame->EnsurePageName();
+      61:   // XXX Pay attention to the page's border and padding...
+      62:   //
+      63:   // Reflow our ::-moz-page-content frame, allowing it only to be as big as we
+      64:   // are (minus margins).
+      65:   const nsSize pageSize = ComputePageSize();
+      66:   // Scaling applied to the page in the single page-per-sheet case (used for
+      67:   // down-scaling when the page is too large to fit on the sheet we are printing
+      68:   // on). In the single page-per-sheet case, we need this here to preemptively
+      69:   // increase the margins by the same amount that the scaling will reduce them
+      70:   // in order to make sure that their physical size is unchanged (particularly
+      71:   // important for the unwriteable margins).
+      72:   const auto* ppsInfo = GetSharedPageData()->PagesPerSheetInfo();
+      73:   const float pageSizeScale =
+      74:       ppsInfo->mNumPages == 1 ? ComputeSinglePPSPageSizeScale(pageSize) : 1.0f;
+      75:   // Scaling applied to content, as given by the print UI.
+      76:   // This is an additional scale factor that is applied to the content in the
+      77:   // nsPageContentFrame.
+      78:   const float extraContentScale = aPresContext->GetPageScale();
+      79:   // Size for the page content. This will be scaled by extraContentScale, and
+      80:   // is used to calculate the computed size of the nsPageContentFrame content
+      81:   // by subtracting margins.
+      82:   nsSize availableSpace = pageSize;
+      83: 
+      84:   // When the reflow size is NS_UNCONSTRAINEDSIZE it means we are reflowing
+      85:   // a single page to print selection. So this means we want to use
+      86:   // NS_UNCONSTRAINEDSIZE without altering it.
+      87:   //
+      88:   // FIXME(emilio): Is this still true?
+      89:   availableSpace.width =
+      90:       NSToCoordCeil(availableSpace.width / extraContentScale);
+      91:   if (availableSpace.height != NS_UNCONSTRAINEDSIZE) {
+      92:     availableSpace.height =
+      93:         NSToCoordCeil(availableSpace.height / extraContentScale);
+      94:   }
+      95: 
+      96:   // Get the number of Twips per pixel from the PresContext
+      97:   const nscoord onePixel = AppUnitsPerCSSPixel();
+      98: 
+      99:   // insurance against infinite reflow, when reflowing less than a pixel
+     100:   // XXX Shouldn't we do something more friendly when invalid margins
+     101:   //     are set?
+     102:   if (availableSpace.width < onePixel || availableSpace.height < onePixel) {
+     103:     NS_WARNING("Reflow aborted; no space for content");
+     104:     return {};
+     105:   }
+     106: 
+     107:   const auto kidWM = frame->GetWritingMode();
+     108:   LogicalSize availSizeForKid(kidWM, availableSpace);
+     109:   if (aPageReflowInput.mFlags.mIsInFragmentainerMeasuringReflow) {
+     110:     availSizeForKid.BSize(kidWM) = NS_UNCONSTRAINEDSIZE;
+     111:   }
+     112:   ReflowInput kidReflowInput(aPresContext, aPageReflowInput, frame,
+     113:                              availSizeForKid);
+     114:   kidReflowInput.mFlags.mIsTopOfPage = true;
+     115:   kidReflowInput.mFlags.mTableIsSplittable = true;
+     116: 
+     117:   nsMargin defaultMargins = aPresContext->GetDefaultPageMargin();
+     118:   // The default margins are in the coordinate space of the physical paper.
+     119:   // Scale them by the pageSizeScale to convert them to the content coordinate
+     120:   // space.
+     121:   for (const auto side : mozilla::AllPhysicalSides()) {
+     122:     defaultMargins.Side(side) =
+     123:         NSToCoordRound((float)defaultMargins.Side(side) / pageSizeScale);
+     124:   }
+     125:   mPageContentMargin = defaultMargins;
+     126: 
+     127:   // Use the margins given in the @page rule if told to do so.
+     128:   // We clamp to the paper's unwriteable margins to avoid clipping, *except*
+     129:   // that we will respect a margin of zero if specified, assuming this means
+     130:   // the document is intended to fit the paper size exactly, and the client is
+     131:   // taking full responsibility for what happens around the edges.
+     132:   const auto anchorResolutionParams =
+     133:       AnchorPosResolutionParams::From(&kidReflowInput);
+     134:   if (mPD->mPrintSettings->GetHonorPageRuleMargins()) {
+     135:     for (const auto side : mozilla::AllPhysicalSides()) {
+     136:       if (!kidReflowInput.mStyleMargin->GetMargin(side, anchorResolutionParams)
+     137:                ->IsAuto()) {
+     138:         // Computed margins are already in the coordinate space of the content,
+     139:         // do not scale.
+     140:         const nscoord computed =
+     141:             kidReflowInput.ComputedPhysicalMargin().Side(side);
+     142:         // Respecting a zero margin is particularly important when the client
+     143:         // is PDF.js where the PDF already contains the margins.
+     144:         // User could also be asking to ignore unwriteable margins (Though
+     145:         // currently, it is impossible through the print UI to set both
+     146:         // `HonorPageRuleMargins` and `IgnoreUnwriteableMargins`).
+     147:         if (computed == 0 ||
+     148:             mPD->mPrintSettings->GetIgnoreUnwriteableMargins()) {
+     149:           mPageContentMargin.Side(side) = computed;
+     150:         } else {
+     151:           // Unwriteable margins are in the coordinate space of the physical
+     152:           // paper. Scale them by the pageSizeScale to convert them to the
+     153:           // content coordinate space.
+     154:           const int32_t unwriteableTwips =
+     155:               mPD->mPrintSettings->GetUnwriteableMarginInTwips().Side(side);
+     156:           const nscoord unwriteable = nsPresContext::CSSTwipsToAppUnits(
+     157:               (float)unwriteableTwips / pageSizeScale);
+     158:           mPageContentMargin.Side(side) = std::max(
+     159:               kidReflowInput.ComputedPhysicalMargin().Side(side), unwriteable);
+     160:         }
+     161:       }
+     162:     }
+     163:   }
+     164: 
+     165:   // TODO: This seems odd that we need to scale the margins by the extra
+     166:   // scale factor, but this is needed for correct margins.
+     167:   // Why are the margins already scaled? Shouldn't they be stored so that this
+     168:   // scaling factor would be redundant?
+     169:   nscoord computedWidth =
+     170:       availableSpace.width - mPageContentMargin.LeftRight() / extraContentScale;
+     171:   nscoord computedHeight;
+     172:   if (availableSpace.height == NS_UNCONSTRAINEDSIZE) {
+     173:     computedHeight = NS_UNCONSTRAINEDSIZE;
+     174:   } else {
+     175:     computedHeight = availableSpace.height -
+     176:                      mPageContentMargin.TopBottom() / extraContentScale;
+     177:   }
+     178: 
+     179:   // Check the width and height, if they're too small we reset the margins
+     180:   // back to the default.
+     181:   if (computedWidth < onePixel || computedHeight < onePixel) {
+     182:     mPageContentMargin = defaultMargins;
+     183:     computedWidth = availableSpace.width -
+     184:                     mPageContentMargin.LeftRight() / extraContentScale;
+     185:     if (computedHeight != NS_UNCONSTRAINEDSIZE) {
+     186:       computedHeight = availableSpace.height -
+     187:                        mPageContentMargin.TopBottom() / extraContentScale;
+     188:     }
+     189:     // And if they're still too small, we give up.
+     190:     if (computedWidth < onePixel || computedHeight < onePixel) {
+     191:       NS_WARNING("Reflow aborted; no space for content");
+     192:       return {};
+     193:     }
+     194:   }
+     195: 
+     196:   kidReflowInput.SetComputedWidth(computedWidth);
+     197:   kidReflowInput.SetComputedHeight(computedHeight);
+     198: 
+     199:   // calc location of frame
+     200:   const nscoord xc = mPageContentMargin.left;
+     201:   const nscoord yc = mPageContentMargin.top;
+     202: 
+     203:   // Get the child's desired size
+     204:   ReflowOutput kidOutput(kidReflowInput);
+     205:   nsReflowStatus kidStatus;
+     206:   ReflowChild(frame, aPresContext, kidOutput, kidReflowInput, xc, yc,
+     207:               ReflowChildFlags::Default, kidStatus);
+     208: 
+     209:   // Place and size the child
+     210:   FinishReflowChild(frame, aPresContext, kidOutput, &kidReflowInput, xc, yc,
+     211:                     ReflowChildFlags::Default);
+     212: 
+     213:   NS_ASSERTION(!kidStatus.IsFullyComplete() || !frame->GetNextInFlow(),
+     214:                "bad child flow list");
+     215:   return kidStatus;
+     216: }

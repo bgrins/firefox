@@ -1,0 +1,30 @@
+>>>  218: void nsPageFrame::Reflow(nsPresContext* aPresContext,
+     219:                          ReflowOutput& aReflowOutput,
+     220:                          const ReflowInput& aReflowInput,
+     221:                          nsReflowStatus& aStatus) {
+     222:   MarkInReflow();
+     223:   DO_GLOBAL_REFLOW_COUNT("nsPageFrame");
+     224:   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
+     225:   MOZ_ASSERT(mPD, "Need a pointer to nsSharedPageData before reflow starts");
+     226: 
+     227:   // Our status is the same as our child's.
+     228:   aStatus = ReflowPageContent(aPresContext, aReflowInput);
+     229: 
+     230:   PR_PL(("PageFrame::Reflow %p ", this));
+     231:   PR_PL(("[%d,%d][%d,%d]\n", aReflowOutput.Width(), aReflowOutput.Height(),
+     232:          aReflowInput.AvailableWidth(), aReflowInput.AvailableHeight()));
+     233: 
+     234:   // Return our desired size
+     235:   WritingMode wm = aReflowInput.GetWritingMode();
+     236:   aReflowOutput.ISize(wm) = aReflowInput.AvailableISize();
+     237:   if (aReflowInput.AvailableBSize() != NS_UNCONSTRAINEDSIZE) {
+     238:     aReflowOutput.BSize(wm) = aReflowInput.AvailableBSize();
+     239:   }
+     240: 
+     241:   aReflowOutput.SetOverflowAreasToDesiredBounds();
+     242:   FinishAndStoreOverflow(&aReflowOutput);
+     243: 
+     244:   PR_PL(("PageFrame::Reflow %p ", this));
+     245:   PR_PL(("[%d,%d]\n", aReflowInput.AvailableWidth(),
+     246:          aReflowInput.AvailableHeight()));
+     247: }

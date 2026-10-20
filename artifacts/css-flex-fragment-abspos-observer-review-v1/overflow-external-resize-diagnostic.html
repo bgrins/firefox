@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Overflow continuations during external flex resizing</title>
+<style>
+body { margin: 0; }
+.outer { display: flex; width: 400px; height: 200px; align-items: flex-start; }
+.sibling { flex: none; height: 1px; }
+.columns {
+  writing-mode: vertical-rl;
+  direction: ltr;
+  position: relative;
+  flex: 1 1 0px;
+  min-width: 0;
+  inline-size: 200px;
+  columns: 100px;
+  column-gap: 0;
+  column-fill: auto;
+}
+.flex { display: flex; inline-size: 100px; align-items: flex-start; }
+.row { flex-flow: row wrap; align-content: flex-start; }
+.column { flex-direction: column; }
+.item { flex: none; inline-size: 100px; block-size: 80px; overflow: visible; }
+.item + .item { break-before: always; }
+.descendant { inline-size: 100px; block-size: 160px; break-inside: avoid; }
+.reference { position: relative; writing-mode: vertical-rl; inline-size: 200px; }
+.reference > div { position: absolute; inset-block-start: 0; inline-size: 100px; block-size: 160px; }
+</style>
+<body>
+<script src="overflow-external-resize-diagnostic.js"></script>

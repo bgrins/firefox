@@ -1,0 +1,91 @@
+
+const stages = ["initial", "same-size", "changed-item", "restored-item",
+                "resize", "restore-size", "reinsert"];
+for (const writingMode of ["horizontal-tb", "vertical-lr", "vertical-rl"]) {
+for (const direction of ["ltr", "rtl"]) {
+for (const flexDirection of ["row", "column"]) {
+for (const count of [4, 8]) {
+for (const height of [160, 240]) {
+for (const targetStage of stages) {
+  test(t => {
+    const columns = document.createElement("div");
+    columns.className = "columns";
+    columns.style.writingMode = writingMode;
+    columns.style.direction = direction;
+    columns.style.setProperty("--height", `${height}px`);
+    const flex = document.createElement("div");
+    flex.className = `flex ${flexDirection}`;
+    const items = Array.from({length: count}, () => {
+      const item = document.createElement("div");
+      item.className = "item";
+      flex.append(item);
+      return item;
+    });
+    const descendants = Array.from({length: count}, () => {
+      const item = document.createElement("div");
+      item.className = "descendant";
+      items[0].append(item);
+      return item;
+    });
+    columns.append(flex);
+    document.body.append(columns);
+    t.add_cleanup(() => columns.remove());
+    const logicalRect = (r, c) => writingMode === "horizontal-tb"
+      ? [direction === "rtl" ? c.right - r.right : r.left - c.left,
+         r.top - c.top, r.width, r.height]
+      : [direction === "rtl" ? c.bottom - r.bottom : r.top - c.top,
+         writingMode === "vertical-rl" ? c.right - r.right : r.left - c.left,
+         r.height, r.width];
+    let currentHeight = height;
+    const measure = () => {
+      const origin = columns.getBoundingClientRect();
+      return descendants.map(item => logicalRect(item.getBoundingClientRect(), origin));
+    };
+    for (const stage of stages) {
+      if (stage === "same-size") {
+        items[count - 1].style.minInlineSize = "99px";
+      } else if (stage === "changed-item") {
+        items[count - 1].style.blockSize = "81px";
+      } else if (stage === "restored-item") {
+        items[count - 1].style.blockSize = "80px";
+      } else if (stage === "resize") {
+        currentHeight = height + 40;
+        columns.style.setProperty("--height", `${currentHeight}px`);
+      } else if (stage === "restore-size") {
+        currentHeight = height;
+        columns.style.setProperty("--height", `${currentHeight}px`);
+      } else if (stage === "reinsert") {
+        columns.remove();
+        document.body.append(columns);
+      }
+      const actual = measure();
+      if (stage !== targetStage) {
+        continue;
+      }
+      const reference = columns.cloneNode();
+      reference.classList.add("reference");
+      const references = Array.from({length: count}, (_, i) => {
+        const item = document.createElement("div");
+        item.style.setProperty("--inline", `${i * 100}px`);
+        reference.append(item);
+        return item;
+      });
+      document.body.append(reference);
+      t.add_cleanup(() => reference.remove());
+      const referenceOrigin = reference.getBoundingClientRect();
+      const expected = references.map(item => logicalRect(item.getBoundingClientRect(), referenceOrigin));
+      for (let i = 0; i < count; ++i) {
+        assert_array_equals(expected[i], [i * 100, 0, 100, currentHeight],
+                            `Independent reference for descendant ${i}`);
+        assert_array_equals(actual[i], expected[i],
+                            `Descendant ${i} starts at its fragment's block-start edge`);
+      }
+      break;
+    }
+  }, `${writingMode}, ${direction}, ${flexDirection}, ${count} items, ${height}px: ${targetStage}`);
+}
+}
+}
+}
+}
+}

@@ -1,0 +1,9 @@
+# Continuation topology diagnostic oracle
+
+Run overflow-transition-diagnostic.html, then runOverflowTransitionDiagnostic(). The first four stages reproduce the minimal skip diagnostic. Subsequent stages keep the multicolumn dimensions160px, zero gap, vertical-rl/ltr, and four sequential tall descendants each exactly160px with break-inside:avoid.
+
+Changing their containing flex item's fixed B size80→320 changes how much of that item's own box can consume the first two columns. It does not change the four descendants' total content or their individual fragmentainer-sized blocks. They should still occupy four successive columns at B0. With B320, the first two parent-item fragments can be normal incomplete/complete fragments, with later content overflowing. Returning B80 makes continuation content overflow again. The normal flex siblings remain forced into their own subsequent columns independently of the overflowing first item's content.
+
+Removing descendants3/4 leaves the first two boxes unchanged and should eliminate their overflow continuation tail. Reappending the same nodes restores four boxes. Each stage records actual descendant geometry, parent flex fragments, and independently positioned reference boxes. Expected surviving descendant i is logical[i*100,0,100,160]. The references must independently calibrate that vector; the code records rather than hides a reference mismatch.
+
+The source route targeted is ordinary ReflowChild deletion on full completion, PushIncompleteChildren's normal/overflow NIF conversion, Drain's PIF-parent filter, and the helper tracker construction/AutoFinish around continuation deletion. DOM outcomes do not themselves establish which exact frame lists changed. A trace or source-bound invariant is required for a full lifecycle proof. This proposal has syntax validation only; root owns browser calibration.

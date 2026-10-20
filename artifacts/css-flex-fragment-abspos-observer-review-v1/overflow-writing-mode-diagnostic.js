@@ -1,0 +1,62 @@
+window.runOverflowWritingModeDiagnostic = () => {
+  const rows = [];
+  const offsets = [[0, 0], [17, 0], [-17, 0], [0, 17], [0, -17]];
+  const logical = (r, origin) => [r.top-origin.top, origin.right-r.right, r.height, r.width];
+  for (const childMode of ["vertical-rl", "vertical-lr", "horizontal-tb"]) {
+  for (const flexDirection of ["row", "column"]) {
+  for (const [inlineOffset, blockOffset] of offsets) {
+    const make = reference => {
+      const columns = document.createElement("div");
+      columns.className = "columns";
+      const parent = document.createElement("div");
+      parent.className = reference ? "flow reference-flow" : `flow flex ${flexDirection}`;
+      const items = Array.from({length: 4}, () => {
+        const item = document.createElement("div");
+        item.className = "item";
+        parent.append(item);
+        return item;
+      });
+      items[0].style.writingMode = childMode;
+      items[0].style.position = "relative";
+      items[0].style.insetInlineStart = `${inlineOffset}px`;
+      items[0].style.insetBlockStart = `${blockOffset}px`;
+      const descendants = Array.from({length: 4}, () => {
+        const child = document.createElement("div");
+        child.className = "descendant";
+        items[0].append(child);
+        return child;
+      });
+      columns.append(parent);
+      document.body.append(columns);
+      const origin = columns.getBoundingClientRect();
+      const result = {columnSize: [origin.height, origin.width],
+        descendants: descendants.map(child => logical(child.getBoundingClientRect(), origin)),
+        descendantFragments: descendants.map(child => Array.from(child.getClientRects(), r => logical(r, origin))),
+        firstItemFragments: Array.from(items[0].getClientRects(), r => logical(r, origin)),
+        parentFragments: Array.from(parent.getClientRects(), r => logical(r, origin)),
+        computed: {writingMode: getComputedStyle(items[0]).writingMode,
+                   inlineOffset: getComputedStyle(items[0]).insetInlineStart,
+                   blockOffset: getComputedStyle(items[0]).insetBlockStart}};
+      columns.remove();
+      return result;
+    };
+    const actual = make(false);
+    const blockReference = make(true);
+    const expectedSameMode = childMode === "vertical-rl" ?
+      Array.from({length: 4}, (_, i) => [i*100+inlineOffset, blockOffset, 100, 160]) : null;
+    rows.push({childMode, flexDirection, inlineOffset, blockOffset, actual, blockReference,
+      expectedSameMode,
+      sizesCalibrated: actual.columnSize.join() === "200,160" &&
+        blockReference.columnSize.join() === "200,160" &&
+        actual.descendants.every(r => r[2] === 100 && r[3] === 160) &&
+        blockReference.descendants.every(r => r[2] === 100 && r[3] === 160),
+      blockReferenceMatches: JSON.stringify(actual.descendantFragments) === JSON.stringify(blockReference.descendantFragments),
+      sameModeOracleMatches: expectedSameMode === null ? null :
+        JSON.stringify(actual.descendants) === JSON.stringify(expectedSameMode),
+      blockReferenceSameModeOracleMatches: expectedSameMode === null ? null :
+        JSON.stringify(blockReference.descendants) === JSON.stringify(expectedSameMode)});
+  }
+  }
+  }
+  return rows;
+};

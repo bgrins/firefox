@@ -1,0 +1,118 @@
+>>>  980: LogicalMargin ReflowInput::ComputeRelativeOffsets(WritingMode aWM,
+     981:                                                   nsIFrame* aFrame,
+     982:                                                   const LogicalSize& aCBSize) {
+     983:   // In relative positioning, anchor functions are always invalid;
+     984:   // anchor-resolved insets should no longer contain any reference to anchor
+     985:   // functions.
+     986:   LogicalMargin offsets(aWM);
+     987:   const nsStylePosition* position = aFrame->StylePosition();
+     988:   const auto anchorResolutionParams =
+     989:       AnchorPosOffsetResolutionParams::UseCBFrameSize(
+     990:           AnchorPosResolutionParams::From(aFrame));
+     991: 
+     992:   // Compute the 'inlineStart' and 'inlineEnd' values. 'inlineStart'
+     993:   // moves the boxes to the end of the line, and 'inlineEnd' moves the
+     994:   // boxes to the start of the line. The computed values are always:
+     995:   // inlineStart=-inlineEnd
+     996:   const auto inlineStart = position->GetAnchorResolvedInset(
+     997:       LogicalSide::IStart, aWM, anchorResolutionParams);
+     998:   const auto inlineEnd = position->GetAnchorResolvedInset(
+     999:       LogicalSide::IEnd, aWM, anchorResolutionParams);
+    1000:   bool inlineStartIsAuto = inlineStart->IsAuto();
+    1001:   bool inlineEndIsAuto = inlineEnd->IsAuto();
+    1002: 
+    1003:   // If neither 'inlineStart' nor 'inlineEnd' is auto, then we're
+    1004:   // over-constrained and we ignore one of them
+    1005:   if (!inlineStartIsAuto && !inlineEndIsAuto) {
+    1006:     inlineEndIsAuto = true;
+    1007:   }
+    1008: 
+    1009:   if (inlineStartIsAuto) {
+    1010:     if (inlineEndIsAuto) {
+    1011:       // If both are 'auto' (their initial values), the computed values are 0
+    1012:       offsets.IStart(aWM) = offsets.IEnd(aWM) = 0;
+    1013:     } else {
+    1014:       // 'inlineEnd' isn't being treated as 'auto' so compute its value
+    1015:       offsets.IEnd(aWM) = inlineEnd->IsAuto()
+    1016:                               ? 0
+    1017:                               : nsLayoutUtils::ComputeCBDependentValue(
+    1018:                                     aCBSize.ISize(aWM), inlineEnd);
+    1019: 
+    1020:       // Computed value for 'inlineStart' is minus the value of 'inlineEnd'
+    1021:       offsets.IStart(aWM) = -offsets.IEnd(aWM);
+    1022:     }
+    1023: 
+    1024:   } else {
+    1025:     NS_ASSERTION(inlineEndIsAuto, "unexpected specified constraint");
+    1026: 
+    1027:     // 'InlineStart' isn't 'auto' so compute its value
+    1028:     offsets.IStart(aWM) =
+    1029:         nsLayoutUtils::ComputeCBDependentValue(aCBSize.ISize(aWM), inlineStart);
+    1030: 
+    1031:     // Computed value for 'inlineEnd' is minus the value of 'inlineStart'
+    1032:     offsets.IEnd(aWM) = -offsets.IStart(aWM);
+    1033:   }
+    1034: 
+    1035:   // Compute the 'blockStart' and 'blockEnd' values. The 'blockStart'
+    1036:   // and 'blockEnd' properties move relatively positioned elements in
+    1037:   // the block progression direction. They also must be each other's
+    1038:   // negative
+    1039:   const auto blockStart = position->GetAnchorResolvedInset(
+    1040:       LogicalSide::BStart, aWM, anchorResolutionParams);
+    1041:   const auto blockEnd = position->GetAnchorResolvedInset(
+    1042:       LogicalSide::BEnd, aWM, anchorResolutionParams);
+    1043:   bool blockStartIsAuto = blockStart->IsAuto();
+    1044:   bool blockEndIsAuto = blockEnd->IsAuto();
+    1045: 
+    1046:   // Check for percentage based values and a containing block block-size
+    1047:   // that depends on the content block-size. Treat them like 'auto'
+    1048:   if (NS_UNCONSTRAINEDSIZE == aCBSize.BSize(aWM)) {
+    1049:     if (blockStart->HasPercent()) {
+    1050:       blockStartIsAuto = true;
+    1051:     }
+    1052:     if (blockEnd->HasPercent()) {
+    1053:       blockEndIsAuto = true;
+    1054:     }
+    1055:   }
+    1056: 
+    1057:   // If neither is 'auto', 'block-end' is ignored
+    1058:   if (!blockStartIsAuto && !blockEndIsAuto) {
+    1059:     blockEndIsAuto = true;
+    1060:   }
+    1061: 
+    1062:   if (blockStartIsAuto) {
+    1063:     if (blockEndIsAuto) {
+    1064:       // If both are 'auto' (their initial values), the computed values are 0
+    1065:       offsets.BStart(aWM) = offsets.BEnd(aWM) = 0;
+    1066:     } else {
+    1067:       // 'blockEnd' isn't being treated as 'auto' so compute its value
+    1068:       offsets.BEnd(aWM) = blockEnd->IsAuto()
+    1069:                               ? 0
+    1070:                               : nsLayoutUtils::ComputeCBDependentValue(
+    1071:                                     aCBSize.BSize(aWM), blockEnd);
+    1072: 
+    1073:       // Computed value for 'blockStart' is minus the value of 'blockEnd'
+    1074:       offsets.BStart(aWM) = -offsets.BEnd(aWM);
+    1075:     }
+    1076: 
+    1077:   } else {
+    1078:     NS_ASSERTION(blockEndIsAuto, "unexpected specified constraint");
+    1079: 
+    1080:     // 'blockStart' isn't 'auto' so compute its value
+    1081:     offsets.BStart(aWM) =
+    1082:         nsLayoutUtils::ComputeCBDependentValue(aCBSize.BSize(aWM), blockStart);
+    1083: 
+    1084:     // Computed value for 'blockEnd' is minus the value of 'blockStart'
+    1085:     offsets.BEnd(aWM) = -offsets.BStart(aWM);
+    1086:   }
+    1087: 
+    1088:   // Convert the offsets to physical coordinates and store them on the frame
+    1089:   aFrame->SetOrUpdateDeletableProperty(nsIFrame::ComputedOffsetProperty(),
+    1090:                                        offsets.GetPhysicalMargin(aWM));
+    1091: 
+    1092:   NS_ASSERTION(offsets.IStart(aWM) == -offsets.IEnd(aWM) &&
+    1093:                    offsets.BStart(aWM) == -offsets.BEnd(aWM),
+    1094:                "ComputeRelativeOffsets should return valid results!");
+    1095: 
+    1096:   return offsets;
+    1097: }

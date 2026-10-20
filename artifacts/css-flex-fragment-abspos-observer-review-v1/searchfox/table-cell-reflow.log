@@ -1,0 +1,202 @@
+>>>  692: void nsTableCellFrame::Reflow(nsPresContext* aPresContext,
+     693:                               ReflowOutput& aDesiredSize,
+     694:                               const ReflowInput& aReflowInput,
+     695:                               nsReflowStatus& aStatus) {
+     696:   MarkInReflow();
+     697:   DO_GLOBAL_REFLOW_COUNT("nsTableCellFrame");
+     698:   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
+     699: 
+     700:   if (aReflowInput.mFlags.mSpecialBSizeReflow) {
+     701:     FirstInFlow()->AddStateBits(NS_TABLE_CELL_HAD_SPECIAL_REFLOW);
+     702:   }
+     703: 
+     704:   // see if a special bsize reflow needs to occur due to having a pct height
+     705:   nsTableFrame::CheckRequestSpecialBSizeReflow(aReflowInput);
+     706: 
+     707:   WritingMode wm = aReflowInput.GetWritingMode();
+     708:   LogicalSize availSize = aReflowInput.AvailableSize();
+     709: 
+     710:   // @note |this| frame applies borders but not any padding.  Our anonymous
+     711:   // inner frame applies the padding (but not borders).
+     712:   LogicalMargin border = GetBorderWidth(wm);
+     713: 
+     714:   ReflowOutput kidSize(wm);
+     715:   SetPriorAvailISize(aReflowInput.AvailableISize());
+     716:   nsIFrame* inner = Inner();
+     717:   nsTableFrame* tableFrame = GetTableFrame();
+     718: 
+     719:   if (aReflowInput.mFlags.mSpecialBSizeReflow || aPresContext->IsPaginated()) {
+     720:     // Here, we're changing our own reflow input, so we need to account for our
+     721:     // padding, even though we don't apply it anywhere else, to get the correct
+     722:     // percentage resolution on children.
+     723:     const LogicalMargin bp = border + aReflowInput.ComputedLogicalPadding(wm);
+     724:     if (aReflowInput.mFlags.mSpecialBSizeReflow) {
+     725:       const_cast<ReflowInput&>(aReflowInput)
+     726:           .SetComputedBSize(BSize(wm) - bp.BStartEnd(wm));
+     727:     } else {
+     728:       const nscoord computedUnpaginatedBSize =
+     729:           CalcUnpaginatedBSize(*this, *tableFrame, bp.BStartEnd(wm));
+     730:       if (computedUnpaginatedBSize > 0) {
+     731:         const_cast<ReflowInput&>(aReflowInput)
+     732:             .SetComputedBSize(computedUnpaginatedBSize);
+     733:       }
+     734:     }
+     735:   }
+     736: 
+     737:   // We need to apply the skip sides for current fragmentainer's border after
+     738:   // we finish calculating the special block-size or unpaginated block-size to
+     739:   // prevent the skip sides from affecting the results.
+     740:   //
+     741:   // We assume we are the last fragment by using
+     742:   // PreReflowBlockLevelLogicalSkipSides(), i.e. the block-end border and
+     743:   // padding is not skipped.
+     744:   border.ApplySkipSides(PreReflowBlockLevelLogicalSkipSides());
+     745: 
+     746:   availSize.ISize(wm) -= border.IStartEnd(wm);
+     747: 
+     748:   // If we have a constrained available block-size, shrink it by subtracting our
+     749:   // block-direction border and padding for our children.
+     750:   if (NS_UNCONSTRAINEDSIZE != availSize.BSize(wm)) {
+     751:     availSize.BSize(wm) -= border.BStart(wm);
+     752: 
+     753:     if (aReflowInput.mStyleBorder->mBoxDecorationBreak ==
+     754:         StyleBoxDecorationBreak::Clone) {
+     755:       // We have box-decoration-break:clone. Subtract block-end border from the
+     756:       // available block-size as well.
+     757:       availSize.BSize(wm) -= border.BEnd(wm);
+     758:     }
+     759:   }
+     760: 
+     761:   // Available block-size can became negative after subtracting block-direction
+     762:   // border and padding. Per spec, to guarantee progress, fragmentainers are
+     763:   // assumed to have a minimum block size of 1px regardless of their used size.
+     764:   // https://drafts.csswg.org/css-break/#breaking-rules
+     765:   availSize.BSize(wm) =
+     766:       std::max(availSize.BSize(wm), nsPresContext::CSSPixelsToAppUnits(1));
+     767: 
+     768:   WritingMode kidWM = inner->GetWritingMode();
+     769:   ReflowInput kidReflowInput(aPresContext, aReflowInput, inner,
+     770:                              availSize.ConvertTo(kidWM, wm), Nothing(),
+     771:                              ReflowInput::InitFlag::CallerWillInit);
+     772:   // Override computed padding, in case it's percentage padding
+     773:   {
+     774:     const auto padding = aReflowInput.ComputedLogicalPadding(kidWM);
+     775:     kidReflowInput.Init(aPresContext, Nothing(), Nothing(), Some(padding));
+     776:     if (inner->IsScrollContainerFrame()) {
+     777:       // Propagate explicit block sizes to our inner frame, if it's a scroll
+     778:       // frame. Note that in table layout, explicit heights act as a minimum
+     779:       // height, see nsTableRowFrame::CalcCellActualBSize.
+     780:       //
+     781:       // Table cells don't respect box-sizing, so we need to remove the
+     782:       // padding, so that the scroll-frame sizes properly (since the
+     783:       // scrollbars also add to the padding area).
+     784:       auto ToScrolledBSize = [&](const nscoord aBSize) {
+     785:         return std::max(0, aBSize - padding.BStartEnd(kidWM));
+     786:       };
+     787:       nscoord minBSize = aReflowInput.ComputedMinBSize();
+     788:       if (aReflowInput.ComputedBSize() != NS_UNCONSTRAINEDSIZE) {
+     789:         minBSize = std::max(minBSize, aReflowInput.ComputedBSize());
+     790:       }
+     791:       if (minBSize > 0) {
+     792:         kidReflowInput.SetComputedMinBSize(ToScrolledBSize(minBSize));
+     793:       }
+     794:     }
+     795:   }
+     796: 
+     797:   // Don't be a percent height observer if we're in the middle of
+     798:   // special-bsize reflow, in case we get an accidental NotifyPercentBSize()
+     799:   // call (which we shouldn't honor during special-bsize reflow)
+     800:   if (!aReflowInput.mFlags.mSpecialBSizeReflow) {
+     801:     // mPercentBSizeObserver is for children of cells in quirks mode,
+     802:     // but only those than are tables in standards mode.  NeedsToObserve
+     803:     // will determine how far this is propagated to descendants.
+     804:     kidReflowInput.mPercentBSizeObserver = this;
+     805:   }
+     806:   // Don't propagate special bsize reflow input to our kids
+     807:   kidReflowInput.mFlags.mSpecialBSizeReflow = false;
+     808: 
+     809:   if (aReflowInput.mFlags.mSpecialBSizeReflow ||
+     810:       FirstInFlow()->HasAnyStateBits(NS_TABLE_CELL_HAD_SPECIAL_REFLOW)) {
+     811:     // We need to force the kid to have mBResize set if we've had a
+     812:     // special reflow in the past, since the non-special reflow needs to
+     813:     // resize back to what it was without the special bsize reflow.
+     814:     kidReflowInput.SetBResize(true);
+     815:   }
+     816: 
+     817:   nsSize containerSize = aReflowInput.ComputedSizeAsContainerIfConstrained();
+     818: 
+     819:   const LogicalPoint kidOrigin = border.StartOffset(wm);
+     820:   const nsRect origRect = inner->GetRect();
+     821:   const nsRect origInkOverflow = inner->InkOverflowRect();
+     822:   const bool firstReflow = inner->HasAnyStateBits(NS_FRAME_FIRST_REFLOW);
+     823: 
+     824:   ReflowChild(inner, aPresContext, kidSize, kidReflowInput, wm, kidOrigin,
+     825:               containerSize, ReflowChildFlags::Default, aStatus);
+     826:   if (aStatus.IsOverflowIncomplete()) {
+     827:     // Don't pass OVERFLOW_INCOMPLETE through tables until they can actually
+     828:     // handle it
+     829:     // XXX should paginate overflow as overflow, but not in this patch (bug
+     830:     // 379349)
+     831:     aStatus.SetIncomplete();
+     832:     NS_WARNING(nsPrintfCString("Set table cell incomplete %p", this).get());
+     833:   }
+     834: 
+     835:   // XXXbz is this invalidate actually needed, really?
+     836:   if (HasAnyStateBits(NS_FRAME_IS_DIRTY)) {
+     837:     InvalidateFrameSubtree();
+     838:   }
+     839: 
+     840: #ifdef DEBUG
+     841:   DebugCheckChildSize(inner, kidSize);
+     842: #endif
+     843: 
+     844:   // Place the child
+     845:   FinishReflowChild(inner, aPresContext, kidSize, &kidReflowInput, wm,
+     846:                     kidOrigin, containerSize, ReflowChildFlags::Default);
+     847: 
+     848:   {
+     849:     nsIFrame* prevInFlow = GetPrevInFlow();
+     850:     const bool isEmpty =
+     851:         prevInFlow
+     852:             ? static_cast<nsTableCellFrame*>(prevInFlow)->GetContentEmpty()
+     853:             : !CellHasVisibleContent(tableFrame, this);
+     854:     SetContentEmpty(isEmpty);
+     855:   }
+     856: 
+     857:   if (tableFrame->IsBorderCollapse()) {
+     858:     nsTableFrame::InvalidateTableFrame(inner, origRect, origInkOverflow,
+     859:                                        firstReflow);
+     860:   }
+     861:   // first, compute the bsize which can be set w/o being restricted by
+     862:   // available bsize
+     863:   LogicalSize cellSize(wm);
+     864:   cellSize.BSize(wm) = kidSize.BSize(wm);
+     865: 
+     866:   if (NS_UNCONSTRAINEDSIZE != cellSize.BSize(wm)) {
+     867:     cellSize.BSize(wm) += border.BStart(wm);
+     868: 
+     869:     if (aStatus.IsComplete() ||
+     870:         aReflowInput.mStyleBorder->mBoxDecorationBreak ==
+     871:             StyleBoxDecorationBreak::Clone) {
+     872:       cellSize.BSize(wm) += border.BEnd(wm);
+     873:     }
+     874:   }
+     875: 
+     876:   // next determine the cell's isize. At this point, we've factored in the
+     877:   // cell's style attributes.
+     878:   cellSize.ISize(wm) = kidSize.ISize(wm);
+     879: 
+     880:   // factor in border (and disregard padding, which is handled by our child).
+     881:   if (NS_UNCONSTRAINEDSIZE != cellSize.ISize(wm)) {
+     882:     cellSize.ISize(wm) += border.IStartEnd(wm);
+     883:   }
+     884: 
+     885:   // set the cell's desired size and max element size
+     886:   aDesiredSize.SetSize(wm, cellSize);
+     887: 
+     888:   // the overflow area will be computed when BlockDirAlignChild() gets called
+     889: 
+     890:   if (aReflowInput.mFlags.mSpecialBSizeReflow &&
+     891:       NS_UNCONSTRAINEDSIZE == aReflowInput.AvailableBSize()) {
+     892:     aDesiredSize.BSize(wm) = BSize(wm);
+   ...  : (method too long, truncated)

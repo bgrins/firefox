@@ -1,0 +1,124 @@
+>>> 2363: void SizeComputationInput::InitOffsets(WritingMode aCBWM, nscoord aPercentBasis,
+    2364:                                        LayoutFrameType aFrameType,
+    2365:                                        ComputeSizeFlags aFlags,
+    2366:                                        const Maybe<LogicalMargin>& aBorder,
+    2367:                                        const Maybe<LogicalMargin>& aPadding,
+    2368:                                        const nsStyleDisplay* aDisplay) {
+    2369:   nsPresContext* presContext = mFrame->PresContext();
+    2370: 
+    2371:   // Compute margins from the specified margin style information. These
+    2372:   // become the default computed values, and may be adjusted below
+    2373:   // XXX fix to provide 0,0 for the top&bottom margins for
+    2374:   // inline-non-replaced elements
+    2375:   bool needMarginProp = ComputeMargin(aCBWM, aPercentBasis, aFrameType);
+    2376:   // Note that ComputeMargin() simplistically resolves 'auto' margins to 0.
+    2377:   // In formatting contexts where this isn't correct, some later code will
+    2378:   // need to update the UsedMargin() property with the actual resolved value.
+    2379:   // One example of this is ::CalculateBlockSideMargins().
+    2380:   ::UpdateProp(mFrame, nsIFrame::UsedMarginProperty(), needMarginProp,
+    2381:                ComputedPhysicalMargin());
+    2382: 
+    2383:   const WritingMode wm = GetWritingMode();
+    2384:   const nsStyleDisplay* disp = mFrame->StyleDisplayWithOptionalParam(aDisplay);
+    2385:   bool needPaddingProp;
+    2386:   LayoutDeviceIntMargin widgetPadding;
+    2387:   if (mIsThemed && presContext->Theme()->GetWidgetPadding(
+    2388:                        presContext->DeviceContext(), mFrame,
+    2389:                        disp->EffectiveAppearance(), &widgetPadding)) {
+    2390:     const nsMargin padding = LayoutDevicePixel::ToAppUnits(
+    2391:         widgetPadding, presContext->AppUnitsPerDevPixel());
+    2392:     SetComputedLogicalPadding(wm, LogicalMargin(wm, padding));
+    2393:     needPaddingProp = false;
+    2394:   } else if (mFrame->IsInSVGTextSubtree()) {
+    2395:     SetComputedLogicalPadding(wm, LogicalMargin(wm));
+    2396:     needPaddingProp = false;
+    2397:   } else if (aPadding) {  // padding is an input arg
+    2398:     SetComputedLogicalPadding(wm, *aPadding);
+    2399:     nsMargin stylePadding;
+    2400:     // If the caller passes a padding that doesn't match our style (like
+    2401:     // nsTextControlFrame might due due to theming), then we also need a
+    2402:     // padding prop.
+    2403:     needPaddingProp = !mFrame->StylePadding()->GetPadding(stylePadding) ||
+    2404:                       aPadding->GetPhysicalMargin(wm) != stylePadding;
+    2405:   } else {
+    2406:     needPaddingProp = ComputePadding(aCBWM, aPercentBasis, aFrameType);
+    2407:   }
+    2408: 
+    2409:   // Add [align|justify]-content:baseline padding contribution.
+    2410:   typedef const FramePropertyDescriptor<SmallValueHolder<nscoord>>* Prop;
+    2411:   auto ApplyBaselinePadding = [this, wm, &needPaddingProp](LogicalAxis aAxis,
+    2412:                                                            Prop aProp) {
+    2413:     bool found;
+    2414:     nscoord val = mFrame->GetProperty(aProp, &found);
+    2415:     if (found) {
+    2416:       NS_ASSERTION(val != nscoord(0), "zero in this property is useless");
+    2417:       LogicalSide side;
+    2418:       if (val > 0) {
+    2419:         side = MakeLogicalSide(aAxis, LogicalEdge::Start);
+    2420:       } else {
+    2421:         side = MakeLogicalSide(aAxis, LogicalEdge::End);
+    2422:         val = -val;
+    2423:       }
+    2424:       mComputedPadding.Side(side, wm) += val;
+    2425:       needPaddingProp = true;
+    2426:       if (aAxis == LogicalAxis::Block && val > 0) {
+    2427:         // We have a baseline-adjusted block-axis start padding, so
+    2428:         // we need this to mark lines dirty when mIsBResize is true:
+    2429:         this->mFrame->AddStateBits(NS_FRAME_CONTAINS_RELATIVE_BSIZE);
+    2430:       }
+    2431:     }
+    2432:   };
+    2433:   if (!aFlags.contains(ComputeSizeFlag::IsGridMeasuringReflow)) {
+    2434:     ApplyBaselinePadding(LogicalAxis::Block, nsIFrame::BBaselinePadProperty());
+    2435:   }
+    2436:   if (!aFlags.contains(ComputeSizeFlag::ShrinkWrap)) {
+    2437:     ApplyBaselinePadding(LogicalAxis::Inline, nsIFrame::IBaselinePadProperty());
+    2438:   }
+    2439: 
+    2440:   LogicalMargin border(wm);
+    2441:   if (mIsThemed) {
+    2442:     const LayoutDeviceIntMargin widgetBorder =
+    2443:         presContext->Theme()->GetWidgetBorder(
+    2444:             presContext->DeviceContext(), mFrame, disp->EffectiveAppearance());
+    2445:     border = LogicalMargin(
+    2446:         wm, LayoutDevicePixel::ToAppUnits(widgetBorder,
+    2447:                                           presContext->AppUnitsPerDevPixel()));
+    2448:   } else if (mFrame->IsInSVGTextSubtree()) {
+    2449:     // Do nothing since the border local variable is initialized all zero.
+    2450:   } else if (aBorder) {  // border is an input arg
+    2451:     border = *aBorder;
+    2452:   } else {
+    2453:     border = LogicalMargin(wm, mFrame->StyleBorder()->GetComputedBorder());
+    2454:   }
+    2455:   SetComputedLogicalBorderPadding(wm, border + ComputedLogicalPadding(wm));
+    2456: 
+    2457:   if (aFrameType == LayoutFrameType::Scrollbar) {
+    2458:     // scrollbars may have had their width or height smashed to zero
+    2459:     // by the associated scrollframe, in which case we must not report
+    2460:     // any padding or border.
+    2461:     nsSize size(mFrame->GetSize());
+    2462:     if (size.width == 0 || size.height == 0) {
+    2463:       SetComputedLogicalPadding(wm, LogicalMargin(wm));
+    2464:       SetComputedLogicalBorderPadding(wm, LogicalMargin(wm));
+    2465:     }
+    2466:   }
+    2467: 
+    2468:   bool hasPaddingChange;
+    2469:   if (nsMargin* oldPadding =
+    2470:           mFrame->GetProperty(nsIFrame::UsedPaddingProperty())) {
+    2471:     // Note: If a padding change is already detectable without resolving the
+    2472:     // percentage, e.g. a padding is changing from 50px to 50%,
+    2473:     // nsIFrame::DidSetComputedStyle() will cache the old padding in
+    2474:     // UsedPaddingProperty().
+    2475:     hasPaddingChange = *oldPadding != ComputedPhysicalPadding();
+    2476:   } else {
+    2477:     // Our padding may have changed, but we can't tell at this point.
+    2478:     hasPaddingChange = needPaddingProp;
+    2479:   }
+    2480:   // Keep mHasPaddingChange bit set until we've done reflow. We'll clear it in
+    2481:   // nsIFrame::DidReflow()
+    2482:   mFrame->SetHasPaddingChange(mFrame->HasPaddingChange() || hasPaddingChange);
+    2483: 
+    2484:   ::UpdateProp(mFrame, nsIFrame::UsedPaddingProperty(), needPaddingProp,
+    2485:                ComputedPhysicalPadding());
+    2486: }

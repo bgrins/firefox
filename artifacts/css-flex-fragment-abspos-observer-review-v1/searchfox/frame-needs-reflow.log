@@ -1,0 +1,169 @@
+>>> 2648: void PresShell::FrameNeedsReflow(nsIFrame* aFrame,
+    2649:                                  IntrinsicDirty aIntrinsicDirty,
+    2650:                                  nsFrameState aBitToAdd,
+    2651:                                  ReflowRootHandling aRootHandling) {
+    2652:   MOZ_ASSERT(aBitToAdd == NS_FRAME_IS_DIRTY ||
+    2653:                  aBitToAdd == NS_FRAME_HAS_DIRTY_CHILDREN || !aBitToAdd,
+    2654:              "Unexpected bits being added");
+    2655: 
+    2656:   // FIXME bug 478135
+    2657:   NS_ASSERTION(
+    2658:       aIntrinsicDirty != IntrinsicDirty::FrameAncestorsAndDescendants ||
+    2659:           aBitToAdd != NS_FRAME_HAS_DIRTY_CHILDREN,
+    2660:       "bits don't correspond to style change reason");
+    2661: 
+    2662:   // FIXME bug 457400
+    2663:   NS_ASSERTION(!mIsReflowing, "can't mark frame dirty during reflow");
+    2664: 
+    2665:   // If we've not yet done the initial reflow, then don't bother
+    2666:   // enqueuing a reflow command yet.
+    2667:   if (!mDidInitialize) {
+    2668:     return;
+    2669:   }
+    2670: 
+    2671:   // If we're already destroying, don't bother with this either.
+    2672:   if (mIsDestroying) {
+    2673:     return;
+    2674:   }
+    2675: 
+    2676:   AutoTArray<nsIFrame*, 4> subtrees;
+    2677:   subtrees.AppendElement(aFrame);
+    2678: 
+    2679:   do {
+    2680:     nsIFrame* subtreeRoot = subtrees.PopLastElement();
+    2681: 
+    2682:     // Grab |wasDirty| now so we can go ahead and update the bits on
+    2683:     // subtreeRoot.
+    2684:     bool wasDirty = subtreeRoot->IsSubtreeDirty();
+    2685:     subtreeRoot->AddStateBits(aBitToAdd);
+    2686: 
+    2687:     // Determine whether we need to keep looking for the next ancestor
+    2688:     // reflow root if subtreeRoot itself is a reflow root.
+    2689:     bool targetNeedsReflowFromParent;
+    2690:     switch (aRootHandling) {
+    2691:       case ReflowRootHandling::PositionOrSizeChange:
+    2692:         targetNeedsReflowFromParent = true;
+    2693:         break;
+    2694:       case ReflowRootHandling::NoPositionOrSizeChange:
+    2695:         targetNeedsReflowFromParent = false;
+    2696:         break;
+    2697:       case ReflowRootHandling::InferFromBitToAdd:
+    2698:         targetNeedsReflowFromParent = (aBitToAdd == NS_FRAME_IS_DIRTY);
+    2699:         break;
+    2700:     }
+    2701: 
+    2702:     auto FrameIsReflowRoot = [](const nsIFrame* aFrame) {
+    2703:       return aFrame->HasAnyStateBits(NS_FRAME_REFLOW_ROOT |
+    2704:                                      NS_FRAME_DYNAMIC_REFLOW_ROOT);
+    2705:     };
+    2706: 
+    2707:     auto CanStopClearingAncestorIntrinsics = [&](const nsIFrame* aFrame) {
+    2708:       return FrameIsReflowRoot(aFrame) && aFrame != subtreeRoot;
+    2709:     };
+    2710: 
+    2711:     auto IsReflowBoundary = [&](const nsIFrame* aFrame) {
+    2712:       return FrameIsReflowRoot(aFrame) &&
+    2713:              (aFrame != subtreeRoot || !targetNeedsReflowFromParent);
+    2714:     };
+    2715: 
+    2716:     // Mark the intrinsic widths as dirty on the frame, all of its ancestors,
+    2717:     // and all of its descendants, if needed:
+    2718: 
+    2719:     if (aIntrinsicDirty != IntrinsicDirty::None) {
+    2720:       // Mark argument and all ancestors dirty. (Unless we hit a reflow root
+    2721:       // that should contain the reflow.
+    2722:       for (nsIFrame* a = subtreeRoot;
+    2723:            a && !CanStopClearingAncestorIntrinsics(a); a = a->GetParent()) {
+    2724:         a->MarkIntrinsicISizesDirty();
+    2725:         if (a->IsAbsolutelyPositioned()) {
+    2726:           // If we get here, 'a' is abspos, so its subtree's intrinsic sizing
+    2727:           // has no effect on its ancestors' intrinsic sizing. So, don't loop
+    2728:           // upwards any further.
+    2729:           break;
+    2730:         }
+    2731:       }
+    2732:     }
+    2733: 
+    2734:     const bool frameAncestorAndDescendantISizesDirty =
+    2735:         (aIntrinsicDirty == IntrinsicDirty::FrameAncestorsAndDescendants);
+    2736:     const bool dirty = (aBitToAdd == NS_FRAME_IS_DIRTY);
+    2737:     if (frameAncestorAndDescendantISizesDirty || dirty) {
+    2738:       // Mark all descendants dirty (using an nsTArray stack rather than
+    2739:       // recursion).
+    2740:       // Note that ReflowInput::InitResizeFlags has some similar
+    2741:       // code; see comments there for how and why it differs.
+    2742:       AutoTArray<nsIFrame*, 32> stack;
+    2743:       stack.AppendElement(subtreeRoot);
+    2744: 
+    2745:       do {
+    2746:         nsIFrame* f = stack.PopLastElement();
+    2747: 
+    2748:         if (frameAncestorAndDescendantISizesDirty && f->IsPlaceholderFrame()) {
+    2749:           // Call `GetOutOfFlowFrame` directly because we can get here from
+    2750:           // frame destruction and the placeholder might be already torn down.
+    2751:           if (nsIFrame* oof =
+    2752:                   static_cast<nsPlaceholderFrame*>(f)->GetOutOfFlowFrame()) {
+    2753:             if (!nsLayoutUtils::IsProperAncestorFrame(subtreeRoot, oof)) {
+    2754:               // We have another distinct subtree we need to mark.
+    2755:               subtrees.AppendElement(oof);
+    2756:             }
+    2757:           }
+    2758:         }
+    2759: 
+    2760:         for (const auto& childList : f->ChildLists()) {
+    2761:           for (nsIFrame* kid : childList.mList) {
+    2762:             if (frameAncestorAndDescendantISizesDirty) {
+    2763:               kid->MarkIntrinsicISizesDirty();
+    2764:             }
+    2765:             if (dirty) {
+    2766:               kid->AddStateBits(NS_FRAME_IS_DIRTY);
+    2767:             }
+    2768:             stack.AppendElement(kid);
+    2769:           }
+    2770:         }
+    2771:       } while (stack.Length() != 0);
+    2772:     }
+    2773: 
+    2774:     // Skip setting dirty bits up the tree if we weren't given a bit to add.
+    2775:     if (!aBitToAdd) {
+    2776:       continue;
+    2777:     }
+    2778: 
+    2779:     // Set NS_FRAME_HAS_DIRTY_CHILDREN bits (via nsIFrame::ChildIsDirty)
+    2780:     // up the tree until we reach either a frame that's already dirty or
+    2781:     // a reflow root.
+    2782:     nsIFrame* f = subtreeRoot;
+    2783:     for (;;) {
+    2784:       if (IsReflowBoundary(f) || !f->GetParent()) {
+    2785:         // we've hit a reflow root or the root frame
+    2786:         if (!wasDirty) {
+    2787:           mDirtyRoots.Add(f);
+    2788:           SetNeedLayoutFlush();
+    2789:         }
+    2790: #ifdef DEBUG
+    2791:         else {
+    2792:           VerifyHasDirtyRootAncestor(f);
+    2793:         }
+    2794: #endif
+    2795: 
+    2796:         break;
+    2797:       }
+    2798: 
+    2799:       nsIFrame* child = f;
+    2800:       f = f->GetParent();
+    2801:       wasDirty = f->IsSubtreeDirty();
+    2802:       f->ChildIsDirty(child);
+    2803:       NS_ASSERTION(f->HasAnyStateBits(NS_FRAME_HAS_DIRTY_CHILDREN),
+    2804:                    "ChildIsDirty didn't do its job");
+    2805:       if (wasDirty) {
+    2806:         // This frame was already marked dirty.
+    2807: #ifdef DEBUG
+    2808:         VerifyHasDirtyRootAncestor(f);
+    2809: #endif
+    2810:         break;
+    2811:       }
+    2812:     }
+    2813:   } while (subtrees.Length() != 0);
+    2814: 
+    2815:   EnsureLayoutFlush();
+    2816: }

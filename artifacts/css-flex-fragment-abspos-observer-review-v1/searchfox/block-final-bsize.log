@@ -1,0 +1,164 @@
+>>> 9334: nscoord nsBlockFrame::ComputeFinalBSize(BlockReflowState& aState,
+    9335:                                         nscoord aBEndEdgeOfChildren) {
+    9336:   const WritingMode wm = aState.mReflowInput.GetWritingMode();
+    9337: 
+    9338:   const nscoord effectiveContentBoxBSize =
+    9339:       GetEffectiveComputedBSize(aState.mReflowInput, aState.mConsumedBSize);
+    9340:   const nscoord blockStartBP = aState.BorderPadding().BStart(wm);
+    9341:   const nscoord blockEndBP = aState.BorderPadding().BEnd(wm);
+    9342: 
+    9343:   NS_ASSERTION(
+    9344:       !IsTrueOverflowContainer() || (effectiveContentBoxBSize == 0 &&
+    9345:                                      blockStartBP == 0 && blockEndBP == 0),
+    9346:       "An overflow container's effective content-box block-size, block-start "
+    9347:       "BP, and block-end BP should all be zero!");
+    9348: 
+    9349:   const nscoord effectiveContentBoxBSizeWithBStartBP =
+    9350:       NSCoordSaturatingAdd(blockStartBP, effectiveContentBoxBSize);
+    9351:   const nscoord effectiveBorderBoxBSize =
+    9352:       NSCoordSaturatingAdd(effectiveContentBoxBSizeWithBStartBP, blockEndBP);
+    9353: 
+    9354:   if (HasColumnSpanSiblings()) {
+    9355:     MOZ_ASSERT(LastInFlow()->GetNextContinuation(),
+    9356:                "Frame constructor should've created column-span siblings!");
+    9357: 
+    9358:     // If a block is split by any column-spans, we calculate the final
+    9359:     // block-size by shrinkwrapping our children's block-size for all the
+    9360:     // fragments except for those after the final column-span, but we should
+    9361:     // take no more than our effective border-box block-size. If there's any
+    9362:     // leftover block-size, our next continuations will take up rest.
+    9363:     //
+    9364:     // We don't need to adjust aBri.mReflowStatus because our children's status
+    9365:     // is the same as ours.
+    9366:     return std::min(effectiveBorderBoxBSize, aBEndEdgeOfChildren);
+    9367:   }
+    9368: 
+    9369:   const nscoord availBSize = aState.mReflowInput.AvailableBSize();
+    9370:   if (availBSize == NS_UNCONSTRAINEDSIZE) {
+    9371:     return effectiveBorderBoxBSize;
+    9372:   }
+    9373: 
+    9374:   // Save our children's reflow status.
+    9375:   const bool isChildStatusComplete = aState.mReflowStatus.IsComplete();
+    9376:   if (isChildStatusComplete && effectiveContentBoxBSize > 0 &&
+    9377:       effectiveBorderBoxBSize > availBSize &&
+    9378:       ShouldAvoidBreakInside(aState.mReflowInput)) {
+    9379:     aState.mReflowStatus.SetInlineLineBreakBeforeAndReset();
+    9380:     return effectiveBorderBoxBSize;
+    9381:   }
+    9382: 
+    9383:   const bool isBDBClone =
+    9384:       aState.mReflowInput.mStyleBorder->mBoxDecorationBreak ==
+    9385:       StyleBoxDecorationBreak::Clone;
+    9386: 
+    9387:   // The maximum value our content-box block-size can take within the given
+    9388:   // available block-size.
+    9389:   const nscoord maxContentBoxBSize = aState.ContentBSize();
+    9390: 
+    9391:   // The block-end edge of our content-box (relative to this frame's origin) if
+    9392:   // we consumed the maximum block-size available to us (maxContentBoxBSize).
+    9393:   const nscoord maxContentBoxBEnd = aState.ContentBEnd();
+    9394: 
+    9395:   // These variables are uninitialized intentionally so that the compiler can
+    9396:   // check they are assigned in every if-else branch below.
+    9397:   nscoord finalContentBoxBSizeWithBStartBP;
+    9398:   bool isOurStatusComplete;
+    9399: 
+    9400:   if (effectiveBorderBoxBSize <= availBSize) {
+    9401:     // Our effective border-box block-size can fit in the available block-size,
+    9402:     // so we are complete.
+    9403:     finalContentBoxBSizeWithBStartBP = effectiveContentBoxBSizeWithBStartBP;
+    9404:     isOurStatusComplete = true;
+    9405:   } else if (effectiveContentBoxBSizeWithBStartBP <= maxContentBoxBEnd) {
+    9406:     // Note: The following assertion should generally hold because, for
+    9407:     // box-decoration-break:clone, this "else if" branch is mathematically
+    9408:     // equivalent to the initial "if".
+    9409:     NS_ASSERTION(!isBDBClone,
+    9410:                  "This else-if branch is handling a situation that's specific "
+    9411:                  "to box-decoration-break:slice, i.e. a case when we can skip "
+    9412:                  "our block-end border and padding!");
+    9413: 
+    9414:     // Our effective content-box block-size plus the block-start border and
+    9415:     // padding can fit in the available block-size, but it cannot fit after
+    9416:     // adding the block-end border and padding. Thus, we need a continuation
+    9417:     // (unless we already weren't asking for any block-size, in which case we
+    9418:     // stay complete to avoid looping forever).
+    9419:     finalContentBoxBSizeWithBStartBP = effectiveContentBoxBSizeWithBStartBP;
+    9420:     isOurStatusComplete = effectiveContentBoxBSize == 0;
+    9421:   } else {
+    9422:     // We aren't going to be able to fit our content-box in the space available
+    9423:     // to it, which means we'll probably call ourselves incomplete to request a
+    9424:     // continuation. But before making that decision, we check for certain
+    9425:     // conditions which would force us to overflow beyond the available space --
+    9426:     // these might result in us actually being complete if we're forced to
+    9427:     // overflow far enough.
+    9428:     if (MOZ_UNLIKELY(aState.mReflowInput.mFlags.mIsTopOfPage && isBDBClone &&
+    9429:                      maxContentBoxBSize <= 0 &&
+    9430:                      aBEndEdgeOfChildren == blockStartBP)) {
+    9431:       // In this rare case, we are at the top of page/column, we have
+    9432:       // box-decoration-break:clone and zero available block-size for our
+    9433:       // content-box (e.g. our own block-start border and padding already exceed
+    9434:       // the available block-size), and we didn't lay out any child to consume
+    9435:       // our content-box block-size. To ensure we make progress (avoid looping
+    9436:       // forever), use 1px as our content-box block-size regardless of our
+    9437:       // effective content-box block-size, in the spirit of
+    9438:       // https://drafts.csswg.org/css-break/#breaking-rules.
+    9439:       finalContentBoxBSizeWithBStartBP = blockStartBP + AppUnitsPerCSSPixel();
+    9440:       isOurStatusComplete = effectiveContentBoxBSize <= AppUnitsPerCSSPixel();
+    9441:     } else if (aBEndEdgeOfChildren > maxContentBoxBEnd) {
+    9442:       // We have a unbreakable child whose block-end edge exceeds the available
+    9443:       // block-size for children.
+    9444:       if (aBEndEdgeOfChildren >= effectiveContentBoxBSizeWithBStartBP) {
+    9445:         // The unbreakable child's block-end edge forces us to consume all of
+    9446:         // our effective content-box block-size.
+    9447:         finalContentBoxBSizeWithBStartBP = effectiveContentBoxBSizeWithBStartBP;
+    9448: 
+    9449:         // Even though we've consumed all of our effective content-box
+    9450:         // block-size, we may still need to report an incomplete status in order
+    9451:         // to get another continuation, which will be responsible for laying out
+    9452:         // & drawing our block-end border & padding. But if we have no such
+    9453:         // border & padding, or if we're forced to apply that border & padding
+    9454:         // on this frame due to box-decoration-break:clone, then we don't need
+    9455:         // to bother with that additional continuation.
+    9456:         isOurStatusComplete = (isBDBClone || blockEndBP == 0);
+    9457:       } else {
+    9458:         // The unbreakable child's block-end edge doesn't force us to consume
+    9459:         // all of our effective content-box block-size.
+    9460:         finalContentBoxBSizeWithBStartBP = aBEndEdgeOfChildren;
+    9461:         isOurStatusComplete = false;
+    9462:       }
+    9463:     } else {
+    9464:       // The children's block-end edge can fit in the content-box space that we
+    9465:       // have available for it. Consume all the space that is available so that
+    9466:       // our inline-start/inline-end borders extend all the way to the block-end
+    9467:       // edge of column/page.
+    9468:       finalContentBoxBSizeWithBStartBP = maxContentBoxBEnd;
+    9469:       isOurStatusComplete = false;
+    9470:     }
+    9471:   }
+    9472: 
+    9473:   nscoord finalBorderBoxBSize = finalContentBoxBSizeWithBStartBP;
+    9474:   if (isOurStatusComplete) {
+    9475:     finalBorderBoxBSize = NSCoordSaturatingAdd(finalBorderBoxBSize, blockEndBP);
+    9476:     if (isChildStatusComplete) {
+    9477:       // We want to use children's reflow status as ours, which can be overflow
+    9478:       // incomplete. Suppress the urge to call aBri.mReflowStatus.Reset() here.
+    9479:     } else {
+    9480:       aState.mReflowStatus.SetOverflowIncomplete();
+    9481:     }
+    9482:   } else {
+    9483:     NS_ASSERTION(!IsTrueOverflowContainer(),
+    9484:                  "An overflow container should always be complete because of "
+    9485:                  "its zero border-box block-size!");
+    9486:     if (isBDBClone) {
+    9487:       finalBorderBoxBSize =
+    9488:           NSCoordSaturatingAdd(finalBorderBoxBSize, blockEndBP);
+    9489:     }
+    9490:     aState.mReflowStatus.SetIncomplete();
+    9491:     if (!GetNextInFlow()) {
+    9492:       aState.mReflowStatus.SetNextInFlowNeedsReflow();
+    9493:     }
+    9494:   }
+    9495: 
+    9496:   return finalBorderBoxBSize;
+    9497: }

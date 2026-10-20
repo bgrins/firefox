@@ -1,0 +1,9 @@
+# Relative offsets and child writing modes
+
+Thirty rows were run in release, restored project and standalone retiming candidate builds. Release and restored project rows are identical. All physical-size controls calibrate. The candidate preserves all20 opposite/orthogonal-mode actual observation objects, including full descendant/item/parent fragment arrays. In the ten same-mode cases it fixes the known final-width displacement: zero and inline±17px cases (six rows) now match the independent numeric oracle.
+
+Four same-mode block±17px rows still lose that offset after the first descendant. This predates retiming: the second descendant already loses it in release/baseline; later descendants also lose it in addition to the known width error. The ordinary-block behavioral reference fails eight of its ten same-mode numeric calibrations, so it cannot be treated as an independent normative oracle for those shifted cases. Opposite/orthogonal reference agreement remains a behavioral comparison only; it does not establish execution of a specific overflow-container branch.
+
+Current CSS Fragmentation4 §5.5 places relative positioning after fragmentation and applies graphical effects per fragment: https://drafts.csswg.org/css-break-4/#transforms . Root treats the lost block offset as a separate source/spec lead pending an independent horizontal reduction. The helper forwards Default flags while FinishReflowChild gates relative positioning on an explicit flag; the retiming patch does not change that behavior. No combined fix or new accepted bug is claimed.
+
+Both native experiment builds and all browser runs exit0. Original source/build, HEAD and index are restored. The selected preservation result does not prove arbitrary orthogonal layout or skip-path correctness; bounded native review remains open.

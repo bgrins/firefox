@@ -1,0 +1,202 @@
+>>>  255: void nsPageSequenceFrame::Reflow(nsPresContext* aPresContext,
+     256:                                  ReflowOutput& aReflowOutput,
+     257:                                  const ReflowInput& aReflowInput,
+     258:                                  nsReflowStatus& aStatus) {
+     259:   MarkInReflow();
+     260:   DO_GLOBAL_REFLOW_COUNT("nsPageSequenceFrame");
+     261:   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
+     262:   NS_FRAME_TRACE_REFLOW_IN("nsPageSequenceFrame::Reflow");
+     263: 
+     264:   auto CenterPages = [&] {
+     265:     for (nsIFrame* child : mFrames) {
+     266:       nsMargin pageCSSMargin = child->GetUsedMargin();
+     267:       nscoord centeringMargin =
+     268:           ComputeCenteringMargin(aReflowInput.ComputedWidth(),
+     269:                                  child->GetRect().Width(), pageCSSMargin);
+     270:       nscoord newX = pageCSSMargin.left + centeringMargin;
+     271: 
+     272:       // Adjust the child's x-position:
+     273:       child->MovePositionBy(nsPoint(newX - child->GetNormalPosition().x, 0));
+     274:     }
+     275:   };
+     276: 
+     277:   if (aPresContext->IsScreen()) {
+     278:     // When we're displayed on-screen, the computed size that we're given is
+     279:     // the size of our scrollport. We need to save this for use in
+     280:     // GetPrintPreviewScale.
+     281:     // (NOTE: It's possible but unlikely that we have an unconstrained BSize
+     282:     // here, if we're being sized to content. GetPrintPreviewScale() checks
+     283:     // for and handles this, when making use of this member-var.)
+     284:     mScrollportSize = aReflowInput.ComputedSize();
+     285:   }
+     286: 
+     287:   // Don't do incremental reflow until we've taught tables how to do
+     288:   // it right in paginated mode.
+     289:   if (!HasAnyStateBits(NS_FRAME_FIRST_REFLOW)) {
+     290:     // Return our desired size
+     291:     PopulateReflowOutput(aReflowOutput, aReflowInput);
+     292:     FinishAndStoreOverflow(&aReflowOutput);
+     293: 
+     294:     if (GetSize() != aReflowOutput.PhysicalSize()) {
+     295:       CenterPages();
+     296:     }
+     297:     return;
+     298:   }
+     299: 
+     300:   const bool shouldDoMeasuringReflow = [&]() {
+     301:     if (GetPrevInFlow()) {
+     302:       // A measuring reflow is only needed on first-in-flow.
+     303:       return false;
+     304:     }
+     305:     // Only do measuring reflow if there are absolutely positioned descendants
+     306:     // since the purpose is to compute their unfragmented positions, sizes, etc.
+     307:     return nsLayoutUtils::HasAbsolutelyPositionedDescendants(this);
+     308:   }();
+     309: 
+     310:   if (shouldDoMeasuringReflow) {
+     311:     if (!HasAnyStateBits(NS_FRAME_FIRST_REFLOW)) {
+     312:       // Mark sheets dirty for an incremental measuring reflow.
+     313:       MarkPrincipalChildrenDirty();
+     314:     }
+     315: 
+     316:     for (nsIFrame* kidFrame : mFrames) {
+     317:       auto* sheet = static_cast<PrintedSheetFrame*>(kidFrame);
+     318:       sheet->SetSharedPageData(&mPageData);
+     319: 
+     320:       // If we want to reliably access the nsPageFrame before reflowing the
+     321:       // sheet frame, we need to call this:
+     322:       sheet->ClaimPageFrameFromPrevInFlow();
+     323: 
+     324:       const nsSize sheetSize = sheet->ComputeSheetSize(aPresContext);
+     325: 
+     326:       const auto kidWM = kidFrame->GetWritingMode();
+     327:       LogicalSize availSize(kidWM, sheetSize);
+     328: 
+     329:       // Reflow the kid with an unconstrained available block-size, to compute
+     330:       // unfragmented positions, sizes, etc. for absolutely positioned
+     331:       // descendants.
+     332:       availSize.BSize(kidWM) = NS_UNCONSTRAINEDSIZE;
+     333: 
+     334:       ReflowInput kidReflowInput(aPresContext, aReflowInput, kidFrame,
+     335:                                  availSize);
+     336: 
+     337:       // Given the kid is reflowed under an unconstrained available block-size,
+     338:       // BreakType::Page doesn't really have any effect, but we keep it for
+     339:       // consistency with the normal reflow below.
+     340:       kidReflowInput.mBreakType = BreakType::Page;
+     341:       kidReflowInput.mFlags.mIsInFragmentainerMeasuringReflow = true;
+     342: 
+     343:       ReflowOutput kidReflowOutput(kidReflowInput);
+     344:       nsReflowStatus status;
+     345: 
+     346:       // Position doesn't matter for measuring reflow.
+     347:       const WritingMode wm = kidFrame->GetWritingMode();
+     348:       ReflowChild(kidFrame, aPresContext, kidReflowOutput, kidReflowInput, wm,
+     349:                   LogicalPoint(wm), sheetSize, ReflowChildFlags::Default,
+     350:                   status);
+     351:       FinishReflowChild(kidFrame, aPresContext, kidReflowOutput,
+     352:                         &kidReflowInput, wm, LogicalPoint(wm), sheetSize,
+     353:                         ReflowChildFlags::Default);
+     354:     }
+     355: 
+     356:     // Mark sheets dirty for normal reflow below.
+     357:     MarkPrincipalChildrenDirty();
+     358:   }
+     359: 
+     360:   nsIntMargin unwriteableTwips =
+     361:       mPageData.mPrintSettings->GetUnwriteableMarginInTwips();
+     362: 
+     363:   nsIntMargin edgeTwips = mPageData.mPrintSettings->GetEdgeInTwips();
+     364: 
+     365:   // sanity check the values. three inches are sometimes needed
+     366:   int32_t threeInches = NS_INCHES_TO_INT_TWIPS(3.0);
+     367:   edgeTwips.EnsureAtMost(
+     368:       nsIntMargin(threeInches, threeInches, threeInches, threeInches));
+     369:   edgeTwips.EnsureAtLeast(unwriteableTwips);
+     370: 
+     371:   mPageData.mEdgePaperMargin = nsPresContext::CSSTwipsToAppUnits(edgeTwips);
+     372: 
+     373:   // Get the custom page-range state:
+     374:   mPageData.mPrintSettings->GetPageRanges(mPageData.mPageRanges);
+     375: 
+     376:   // We use the CSS "margin" property on the -moz-printed-sheet pseudoelement
+     377:   // to determine the space between each printed sheet in print preview.
+     378:   // Keep a running y-offset for each printed sheet.
+     379:   nscoord y = 0;
+     380: 
+     381:   // These represent the maximum sheet size across all our sheets (in each
+     382:   // axis), inflated a bit to account for the -moz-printed-sheet 'margin'.
+     383:   nscoord maxInflatedSheetWidth = 0;
+     384:   nscoord maxInflatedSheetHeight = 0;
+     385: 
+     386:   // Tile the sheets vertically
+     387:   for (nsIFrame* kidFrame : mFrames) {
+     388:     // Set the shared data into the page frame before reflow
+     389:     MOZ_ASSERT(kidFrame->IsPrintedSheetFrame(),
+     390:                "we're only expecting PrintedSheetFrame as children");
+     391:     auto* sheet = static_cast<PrintedSheetFrame*>(kidFrame);
+     392:     sheet->SetSharedPageData(&mPageData);
+     393: 
+     394:     // If we want to reliably access the nsPageFrame before reflowing the sheet
+     395:     // frame, we need to call this:
+     396:     sheet->ClaimPageFrameFromPrevInFlow();
+     397: 
+     398:     const nsSize sheetSize = sheet->ComputeSheetSize(aPresContext);
+     399: 
+     400:     // Reflow the sheet
+     401:     ReflowInput kidReflowInput(
+     402:         aPresContext, aReflowInput, kidFrame,
+     403:         LogicalSize(kidFrame->GetWritingMode(), sheetSize));
+     404:     kidReflowInput.mBreakType = BreakType::Page;
+     405: 
+     406:     ReflowOutput kidReflowOutput(kidReflowInput);
+     407:     nsReflowStatus status;
+     408: 
+     409:     kidReflowInput.SetComputedISize(kidReflowInput.AvailableISize());
+     410:     // kidReflowInput.SetComputedHeight(kidReflowInput.AvailableHeight());
+     411:     PR_PL(("AV ISize: %d   BSize: %d\n", kidReflowInput.AvailableISize(),
+     412:            kidReflowInput.AvailableBSize()));
+     413: 
+     414:     nsMargin pageCSSMargin = kidReflowInput.ComputedPhysicalMargin();
+     415:     y += pageCSSMargin.top;
+     416: 
+     417:     nscoord x = pageCSSMargin.left;
+     418: 
+     419:     // Place and size the sheet.
+     420:     ReflowChild(kidFrame, aPresContext, kidReflowOutput, kidReflowInput, x, y,
+     421:                 ReflowChildFlags::Default, status);
+     422: 
+     423:     FinishReflowChild(kidFrame, aPresContext, kidReflowOutput, &kidReflowInput,
+     424:                       x, y, ReflowChildFlags::Default);
+     425:     MOZ_ASSERT(kidFrame->GetSize() == sheetSize,
+     426:                "PrintedSheetFrame::ComputeSheetSize() gave the wrong size!");
+     427:     y += kidReflowOutput.Height();
+     428:     y += pageCSSMargin.bottom;
+     429: 
+     430:     maxInflatedSheetWidth =
+     431:         std::max(maxInflatedSheetWidth,
+     432:                  kidReflowOutput.Width() + pageCSSMargin.LeftRight());
+     433:     maxInflatedSheetHeight =
+     434:         std::max(maxInflatedSheetHeight,
+     435:                  kidReflowOutput.Height() + pageCSSMargin.TopBottom());
+     436: 
+     437:     // Is the sheet complete?
+     438:     nsIFrame* kidNextInFlow = kidFrame->GetNextInFlow();
+     439: 
+     440:     if (status.IsFullyComplete()) {
+     441:       NS_ASSERTION(!kidNextInFlow, "bad child flow list");
+     442:     } else if (!kidNextInFlow) {
+     443:       // The sheet isn't complete and it doesn't have a next-in-flow, so
+     444:       // create a continuing sheet.
+     445:       nsIFrame* continuingSheet =
+     446:           PresShell()->FrameConstructor()->CreateContinuingFrame(kidFrame,
+     447:                                                                  this);
+     448: 
+     449:       // Add it to our child list
+     450:       mFrames.InsertFrame(nullptr, kidFrame, continuingSheet);
+     451:     }
+     452:   }
+     453: 
+     454:   nsAutoString formattedDateString;
+     455:   PRTime now = PR_Now();
+   ...  : (method too long, truncated)

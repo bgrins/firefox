@@ -1,0 +1,202 @@
+>>>  468: nsColumnSetFrame::ColumnBalanceData nsColumnSetFrame::ReflowColumns(
+     469:     ReflowOutput& aDesiredSize, const ReflowInput& aReflowInput,
+     470:     nsReflowStatus& aStatus, const ReflowConfig& aConfig,
+     471:     bool aUnboundedLastColumn) {
+     472:   ColumnBalanceData colData;
+     473:   bool allFit = true;
+     474:   WritingMode wm = GetWritingMode();
+     475:   const bool isRTL = wm.IsBidiRTL();
+     476:   const bool shrinkingBSize = mLastBalanceBSize > aConfig.mColBSize;
+     477:   const bool changingBSize = mLastBalanceBSize != aConfig.mColBSize;
+     478: 
+     479:   COLUMN_SET_LOG(
+     480:       "%s: Doing column reflow pass: mLastBalanceBSize=%d,"
+     481:       " mColBSize=%d, RTL=%d, mUsedColCount=%d,"
+     482:       " mColISize=%d, mColGap=%d",
+     483:       __func__, mLastBalanceBSize, aConfig.mColBSize, isRTL,
+     484:       aConfig.mUsedColCount, aConfig.mColISize, aConfig.mColGap);
+     485: 
+     486:   DrainOverflowColumns();
+     487: 
+     488:   if (changingBSize) {
+     489:     mLastBalanceBSize = aConfig.mColBSize;
+     490:     // XXX Seems like this could fire if incremental reflow pushed the column
+     491:     // set down so we reflow incrementally with a different available height.
+     492:     // We need a way to do an incremental reflow and be sure availableHeight
+     493:     // changes are taken account of! Right now I think block frames with
+     494:     // absolute children might exit early.
+     495:     /*
+     496:     NS_ASSERTION(
+     497:         aKidReason != eReflowReason_Incremental,
+     498:         "incremental reflow should not have changed the balance height");
+     499:     */
+     500:   }
+     501: 
+     502:   nsRect contentRect(0, 0, 0, 0);
+     503:   OverflowAreas overflowRects;
+     504: 
+     505:   nsIFrame* child = mFrames.FirstChild();
+     506:   LogicalPoint childOrigin(wm, 0, 0);
+     507: 
+     508:   // In vertical-rl mode, columns will not be correctly placed if the
+     509:   // reflowInput's ComputedWidth() is UNCONSTRAINED (in which case we'll get
+     510:   // a containerSize.width of zero here). In that case, the column positions
+     511:   // will be adjusted later, after our correct contentSize is known.
+     512:   //
+     513:   // When column-span is enabled, containerSize.width is always constrained.
+     514:   // However, for RTL, we need to adjust the column positions as well after our
+     515:   // correct containerSize is known.
+     516:   nsSize containerSize = aReflowInput.ComputedSizeAsContainerIfConstrained();
+     517: 
+     518:   const nscoord computedBSize =
+     519:       aReflowInput.mParentReflowInput->ComputedBSize();
+     520:   nscoord contentBEnd = 0;
+     521:   bool reflowNext = false;
+     522: 
+     523:   while (child) {
+     524:     const bool reflowLastColumnWithUnconstrainedAvailBSize =
+     525:         aUnboundedLastColumn && colData.mColCount == aConfig.mUsedColCount &&
+     526:         aConfig.mIsBalancing;
+     527: 
+     528:     // We need to reflow the child (column) ...
+     529:     bool reflowChild =
+     530:         // if we are told to do so;
+     531:         aReflowInput.ShouldReflowAllKids() ||
+     532:         // if the child is dirty;
+     533:         child->IsSubtreeDirty() ||
+     534:         // if it's the last child because we need to obtain the block-end
+     535:         // margin;
+     536:         !child->GetNextSibling() ||
+     537:         // if the next column is dirty, because the next column's first line(s)
+     538:         // might be pullable back to this column;
+     539:         child->GetNextSibling()->IsSubtreeDirty() ||
+     540:         // if this is the last column and we are supposed to assign unbounded
+     541:         // block-size to it, because that could change the available block-size
+     542:         // from the last time we reflowed it and we should try to pull all the
+     543:         // content from its next sibling (Note that it might be the last column,
+     544:         // but not be the last child because the desired number of columns has
+     545:         // changed.)
+     546:         reflowLastColumnWithUnconstrainedAvailBSize;
+     547: 
+     548:     // If column-fill is auto (not the default), then we might need to
+     549:     // move content between columns for any change in column block-size.
+     550:     //
+     551:     // The same is true if we have a non-'auto' computed block-size.
+     552:     //
+     553:     // FIXME: It's not clear to me why it's *ever* valid to have
+     554:     // reflowChild be false when changingBSize is true, since it
+     555:     // seems like a child broken over multiple columns might need to
+     556:     // change the size of the fragment in each column.
+     557:     if (!reflowChild && changingBSize &&
+     558:         (StyleColumn()->mColumnFill == StyleColumnFill::Auto ||
+     559:          computedBSize != NS_UNCONSTRAINEDSIZE)) {
+     560:       reflowChild = true;
+     561:     }
+     562:     // If we need to pull up content from the prev-in-flow then this is not just
+     563:     // a block-size shrink. The prev in flow will have set the dirty bit.
+     564:     // Check the overflow rect YMost instead of just the child's content
+     565:     // block-size. The child may have overflowing content that cares about the
+     566:     // available block-size boundary. (It may also have overflowing content that
+     567:     // doesn't care about the available block-size boundary, but if so, too bad,
+     568:     // this optimization is defeated.) We want scrollable overflow here since
+     569:     // this is a calculation that affects layout.
+     570:     if (!reflowChild && shrinkingBSize) {
+     571:       switch (wm.GetBlockDir()) {
+     572:         case WritingMode::BlockDir::TB:
+     573:           if (child->ScrollableOverflowRect().YMost() > aConfig.mColBSize) {
+     574:             reflowChild = true;
+     575:           }
+     576:           break;
+     577:         case WritingMode::BlockDir::LR:
+     578:           if (child->ScrollableOverflowRect().XMost() > aConfig.mColBSize) {
+     579:             reflowChild = true;
+     580:           }
+     581:           break;
+     582:         case WritingMode::BlockDir::RL:
+     583:           // XXX not sure how to handle this, so for now just don't attempt
+     584:           // the optimization
+     585:           reflowChild = true;
+     586:           break;
+     587:         default:
+     588:           MOZ_ASSERT_UNREACHABLE("unknown block direction");
+     589:           break;
+     590:       }
+     591:     }
+     592: 
+     593:     nscoord childContentBEnd = 0;
+     594:     if (!reflowNext && !reflowChild) {
+     595:       // This child does not need to be reflowed, but we may need to move it
+     596:       MoveChildTo(child, childOrigin, wm, containerSize);
+     597: 
+     598:       // If this is the last frame then make sure we get the right status
+     599:       nsIFrame* kidNext = child->GetNextSibling();
+     600:       if (kidNext) {
+     601:         aStatus.Reset();
+     602:         if (kidNext->HasAnyStateBits(NS_FRAME_IS_OVERFLOW_CONTAINER)) {
+     603:           aStatus.SetOverflowIncomplete();
+     604:         } else {
+     605:           aStatus.SetIncomplete();
+     606:         }
+     607:       } else {
+     608:         aStatus = mLastFrameStatus;
+     609:       }
+     610:       childContentBEnd = nsLayoutUtils::CalculateContentBEnd(wm, child);
+     611: 
+     612:       COLUMN_SET_LOG("%s: Skipping child #%d %p: status=%s", __func__,
+     613:                      colData.mColCount, child, ToString(aStatus).c_str());
+     614:     } else {
+     615:       LogicalSize availSize(wm, aConfig.mColISize, aConfig.mColBSize);
+     616:       if (reflowLastColumnWithUnconstrainedAvailBSize) {
+     617:         availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
+     618: 
+     619:         COLUMN_SET_LOG(
+     620:             "%s: Reflowing last column with unconstrained block-size. Change "
+     621:             "available block-size from %d to %d",
+     622:             __func__, aConfig.mColBSize, availSize.BSize(wm));
+     623:       }
+     624: 
+     625:       if (reflowNext) {
+     626:         child->MarkSubtreeDirty();
+     627:       }
+     628: 
+     629:       LogicalSize kidCBSize(wm, availSize.ISize(wm), computedBSize);
+     630:       ReflowInput kidReflowInput(PresContext(), aReflowInput, child, availSize,
+     631:                                  Some(kidCBSize));
+     632:       kidReflowInput.mFlags.mIsTopOfPage = [&]() {
+     633:         const bool isNestedMulticolOrInRootPaginatedDoc =
+     634:             aReflowInput.mParentReflowInput->mFrame->HasAnyStateBits(
+     635:                 NS_FRAME_HAS_MULTI_COLUMN_ANCESTOR) ||
+     636:             PresContext()->IsRootPaginatedDocument();
+     637:         if (isNestedMulticolOrInRootPaginatedDoc) {
+     638:           if (aConfig.mForceAuto) {
+     639:             // If we are forced to fill columns sequentially, force fit the
+     640:             // content whether we are at top of page or not.
+     641:             return true;
+     642:           }
+     643:           if (aReflowInput.mFlags.mIsTopOfPage) {
+     644:             // If this is the last balancing reflow, we want to force fit
+     645:             // content to avoid infinite loops.
+     646:             return !aConfig.mIsBalancing || aConfig.mIsLastBalancingReflow;
+     647:           }
+     648:           // If we are a not at the top of page, we shouldn't force fit content.
+     649:           // This is because our ColumnSetWrapperFrame can be pushed to the next
+     650:           // column or page and reflowed again with a potentially larger
+     651:           // available block-size.
+     652:           return false;
+     653:         }
+     654:         // We are a top-level multicol in a non-paginated root document or in a
+     655:         // subdocument (regardless of whether the root document is paginated).
+     656:         // Force fit the content only if we are not balancing columns.
+     657:         return !aConfig.mIsBalancing;
+     658:       }();
+     659:       kidReflowInput.mFlags.mTableIsSplittable = false;
+     660:       kidReflowInput.mFlags.mIsColumnBalancing = aConfig.mIsBalancing;
+     661:       kidReflowInput.mFlags.mIsInLastColumnBalancingReflow =
+     662:           aConfig.mIsLastBalancingReflow;
+     663:       kidReflowInput.mFlags.mIsInFragmentainerMeasuringReflow =
+     664:           aConfig.mIsInMeasuringReflow;
+     665:       kidReflowInput.mBreakType = BreakType::Column;
+     666: 
+     667:       // We need to reflow any float placeholders even if our column block-size
+     668:       // hasn't changed, or when reflowing the last column with an unconstrained
+   ...  : (method too long, truncated)

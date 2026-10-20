@@ -1,0 +1,31 @@
+>>> 6606: void nsIFrame::MarkSubtreeDirty() {
+    6607:   if (HasAnyStateBits(NS_FRAME_IS_DIRTY)) {
+    6608:     return;
+    6609:   }
+    6610:   // Unconditionally mark given frame dirty.
+    6611:   AddStateBits(NS_FRAME_IS_DIRTY);
+    6612: 
+    6613:   // Mark all descendants dirty, unless:
+    6614:   // - Already dirty.
+    6615:   // - TableColGroup
+    6616:   AutoTArray<nsIFrame*, 32> stack;
+    6617:   for (const auto& childLists : ChildLists()) {
+    6618:     for (nsIFrame* kid : childLists.mList) {
+    6619:       stack.AppendElement(kid);
+    6620:     }
+    6621:   }
+    6622:   while (!stack.IsEmpty()) {
+    6623:     nsIFrame* f = stack.PopLastElement();
+    6624:     if (f->HasAnyStateBits(NS_FRAME_IS_DIRTY) || f->IsTableColGroupFrame()) {
+    6625:       continue;
+    6626:     }
+    6627: 
+    6628:     f->AddStateBits(NS_FRAME_IS_DIRTY);
+    6629: 
+    6630:     for (const auto& childLists : f->ChildLists()) {
+    6631:       for (nsIFrame* kid : childLists.mList) {
+    6632:         stack.AppendElement(kid);
+    6633:       }
+    6634:     }
+    6635:   }
+    6636: }

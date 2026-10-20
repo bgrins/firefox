@@ -1,0 +1,202 @@
+>>> 1573: void nsTableFrame::Reflow(nsPresContext* aPresContext,
+    1574:                           ReflowOutput& aDesiredSize,
+    1575:                           const ReflowInput& aReflowInput,
+    1576:                           nsReflowStatus& aStatus) {
+    1577:   MarkInReflow();
+    1578:   DO_GLOBAL_REFLOW_COUNT("nsTableFrame");
+    1579:   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
+    1580:   MOZ_ASSERT(!HasAnyStateBits(NS_FRAME_OUT_OF_FLOW),
+    1581:              "The nsTableWrapperFrame should be the out-of-flow if needed");
+    1582: 
+    1583:   const WritingMode wm = aReflowInput.GetWritingMode();
+    1584:   MOZ_ASSERT(aReflowInput.ComputedLogicalMargin(wm).IsAllZero(),
+    1585:              "Only nsTableWrapperFrame can have margins!");
+    1586: 
+    1587:   bool isPaginated = aPresContext->IsPaginated();
+    1588: 
+    1589:   if (!GetPrevInFlow() && !mTableLayoutStrategy) {
+    1590:     NS_ERROR("strategy should have been created in Init");
+    1591:     return;
+    1592:   }
+    1593: 
+    1594:   // see if collapsing borders need to be calculated
+    1595:   if (!GetPrevInFlow() && IsBorderCollapse() && NeedToCalcBCBorders()) {
+    1596:     CalcBCBorders();
+    1597:   }
+    1598: 
+    1599:   // Check for an overflow list, and append any row group frames being pushed
+    1600:   MoveOverflowToChildList();
+    1601: 
+    1602:   bool haveCalledCalcDesiredBSize = false;
+    1603:   LogicalMargin borderPadding =
+    1604:       aReflowInput.ComputedLogicalBorderPadding(wm).ApplySkipSides(
+    1605:           PreReflowBlockLevelLogicalSkipSides());
+    1606:   nsIFrame* lastChildReflowed = nullptr;
+    1607:   const nsSize containerSize =
+    1608:       aReflowInput.ComputedSizeAsContainerIfConstrained();
+    1609: 
+    1610:   // The tentative width is the width we assumed for the table when the child
+    1611:   // frames were positioned (which only matters in vertical-rl mode, because
+    1612:   // they're positioned relative to the right-hand edge). Then, after reflowing
+    1613:   // the kids, we can check whether the table ends up with a different width
+    1614:   // than this tentative value (either because it was unconstrained, so we used
+    1615:   // zero, or because it was enlarged by the child frames), we make the
+    1616:   // necessary positioning adjustments along the x-axis.
+    1617:   nscoord tentativeContainerWidth = 0;
+    1618:   bool mayAdjustXForAllChildren = false;
+    1619:   Groups groups = OrderedGroups();
+    1620: 
+    1621:   // Reflow the entire table (pass 2 and possibly pass 3). This phase is
+    1622:   // necessary during a constrained initial reflow and other reflows which
+    1623:   // require either a strategy init or balance. This isn't done during an
+    1624:   // unconstrained reflow, because it will occur later when the parent reflows
+    1625:   // with a constrained isize.
+    1626:   if (IsSubtreeDirty() || aReflowInput.ShouldReflowAllKids() ||
+    1627:       IsGeometryDirty() || isPaginated || aReflowInput.IsBResize() ||
+    1628:       NeedToCollapse()) {
+    1629:     if (aReflowInput.ComputedBSize() != NS_UNCONSTRAINEDSIZE ||
+    1630:         // Also check IsBResize(), to handle the first Reflow preceding a
+    1631:         // special bsize Reflow, when we've already had a special bsize
+    1632:         // Reflow (where ComputedBSize() would not be
+    1633:         // NS_UNCONSTRAINEDSIZE, but without a style change in between).
+    1634:         aReflowInput.IsBResize()) {
+    1635:       // XXX Eventually, we should modify DistributeBSizeToRows to use
+    1636:       // nsTableRowFrame::GetInitialBSize instead of nsIFrame::BSize().
+    1637:       // That way, it will make its calculations based on internal table
+    1638:       // frame bsizes as they are before they ever had any extra bsize
+    1639:       // distributed to them.  In the meantime, this reflows all the
+    1640:       // internal table frames, which restores them to their state before
+    1641:       // DistributeBSizeToRows was called.
+    1642:       SetGeometryDirty();
+    1643:     }
+    1644: 
+    1645:     bool needToInitiateSpecialReflow = false;
+    1646:     if (isPaginated) {
+    1647:       // see if an extra reflow will be necessary in pagination mode
+    1648:       // when there is a specified table bsize
+    1649:       if (!GetPrevInFlow() &&
+    1650:           NS_UNCONSTRAINEDSIZE != aReflowInput.AvailableBSize()) {
+    1651:         nscoord tableSpecifiedBSize = CalcBorderBoxBSize(
+    1652:             aReflowInput, borderPadding, NS_UNCONSTRAINEDSIZE);
+    1653:         if (tableSpecifiedBSize != NS_UNCONSTRAINEDSIZE &&
+    1654:             tableSpecifiedBSize > 0) {
+    1655:           needToInitiateSpecialReflow = true;
+    1656:         }
+    1657:       }
+    1658:     } else {
+    1659:       needToInitiateSpecialReflow =
+    1660:           HasAnyStateBits(NS_FRAME_CONTAINS_RELATIVE_BSIZE);
+    1661:     }
+    1662: 
+    1663:     NS_ASSERTION(!aReflowInput.mFlags.mSpecialBSizeReflow,
+    1664:                  "Shouldn't be in special bsize reflow here!");
+    1665: 
+    1666:     const TableReflowMode firstReflowMode = needToInitiateSpecialReflow
+    1667:                                                 ? TableReflowMode::Measuring
+    1668:                                                 : TableReflowMode::Final;
+    1669:     ReflowTable(aDesiredSize, aReflowInput, borderPadding, firstReflowMode,
+    1670:                 groups, lastChildReflowed, aStatus);
+    1671: 
+    1672:     // When in vertical-rl mode, there may be two kinds of scenarios in which
+    1673:     // the positioning of all the children need to be adjusted along the x-axis
+    1674:     // because the width we assumed for the table when the child frames were
+    1675:     // being positioned(i.e. tentative width) may be different from the final
+    1676:     // width for the table:
+    1677:     // 1. If the computed width for the table is unconstrained, a dummy zero
+    1678:     //    width was assumed as the tentative width to begin with.
+    1679:     // 2. If the child frames enlarge the width for the table, the final width
+    1680:     //    becomes larger than the tentative one.
+    1681:     // Let's record the tentative width here, if later the final width turns out
+    1682:     // to be different from this tentative one, it means one of the above
+    1683:     // scenarios happens, then we adjust positioning of all the children.
+    1684:     // Note that vertical-lr, unlike vertical-rl, doesn't need to take special
+    1685:     // care of this situation, because they're positioned relative to the
+    1686:     // left-hand edge.
+    1687:     if (wm.IsVerticalRL()) {
+    1688:       tentativeContainerWidth = containerSize.width;
+    1689:       mayAdjustXForAllChildren = true;
+    1690:     }
+    1691: 
+    1692:     // reevaluate special bsize reflow conditions
+    1693:     if (HasAnyStateBits(NS_FRAME_CONTAINS_RELATIVE_BSIZE)) {
+    1694:       needToInitiateSpecialReflow = true;
+    1695:     }
+    1696: 
+    1697:     // XXXldb Are all these conditions correct?
+    1698:     if (needToInitiateSpecialReflow && aStatus.IsComplete()) {
+    1699:       // XXXldb Do we need to set the IsBResize flag on any reflow inputs?
+    1700: 
+    1701:       ReflowInput& mutable_rs = const_cast<ReflowInput&>(aReflowInput);
+    1702: 
+    1703:       // distribute extra block-direction space to rows
+    1704:       aDesiredSize.BSize(wm) =
+    1705:           CalcDesiredBSize(aReflowInput, borderPadding, aStatus);
+    1706:       haveCalledCalcDesiredBSize = true;
+    1707: 
+    1708:       mutable_rs.mFlags.mSpecialBSizeReflow = true;
+    1709: 
+    1710:       ReflowTable(aDesiredSize, aReflowInput, borderPadding,
+    1711:                   TableReflowMode::Final, groups, lastChildReflowed, aStatus);
+    1712: 
+    1713:       mutable_rs.mFlags.mSpecialBSizeReflow = false;
+    1714:     }
+    1715:   }
+    1716: 
+    1717:   if (aStatus.IsIncomplete() &&
+    1718:       aReflowInput.mStyleBorder->mBoxDecorationBreak ==
+    1719:           StyleBoxDecorationBreak::Slice) {
+    1720:     borderPadding.BEnd(wm) = 0;
+    1721:   }
+    1722: 
+    1723:   aDesiredSize.ISize(wm) =
+    1724:       aReflowInput.ComputedISize() + borderPadding.IStartEnd(wm);
+    1725:   if (!haveCalledCalcDesiredBSize) {
+    1726:     aDesiredSize.BSize(wm) =
+    1727:         CalcDesiredBSize(aReflowInput, borderPadding, aStatus);
+    1728:   } else if (lastChildReflowed && aStatus.IsIncomplete()) {
+    1729:     // If there is an incomplete child, then set the desired block-size to
+    1730:     // include it but not the next one.
+    1731:     aDesiredSize.BSize(wm) =
+    1732:         borderPadding.BEnd(wm) +
+    1733:         lastChildReflowed->GetLogicalNormalRect(wm, containerSize).BEnd(wm);
+    1734:   }
+    1735:   if (IsRowInserted()) {
+    1736:     ProcessRowInserted(aDesiredSize.BSize(wm));
+    1737:   }
+    1738: 
+    1739:   // For more information on the reason for what we should do this, refer to the
+    1740:   // code which defines and evaluates the variables xAdjustmentForAllKids and
+    1741:   // tentativeContainerWidth in the previous part in this function.
+    1742:   if (mayAdjustXForAllChildren) {
+    1743:     nscoord xAdjustmentForAllKids =
+    1744:         aDesiredSize.Width() - tentativeContainerWidth;
+    1745:     if (0 != xAdjustmentForAllKids) {
+    1746:       for (nsIFrame* kid : mFrames) {
+    1747:         kid->MovePositionBy(nsPoint(xAdjustmentForAllKids, 0));
+    1748:       }
+    1749:     }
+    1750:   }
+    1751: 
+    1752:   SetColumnDimensions(aDesiredSize.BSize(wm), wm, borderPadding,
+    1753:                       aDesiredSize.PhysicalSize());
+    1754:   NS_WARNING_ASSERTION(NS_UNCONSTRAINEDSIZE != aReflowInput.AvailableISize(),
+    1755:                        "reflow branch removed unconstrained available isizes");
+    1756:   if (NeedToCollapse()) {
+    1757:     // This code and the code it depends on assumes that all row groups
+    1758:     // and rows have just been reflowed (i.e., it makes adjustments to
+    1759:     // their rects that are not idempotent).  Thus the reflow code
+    1760:     // checks NeedToCollapse() to ensure this is true.
+    1761:     AdjustForCollapsingRowsCols(aDesiredSize, wm, groups.mRowGroups,
+    1762:                                 borderPadding);
+    1763:   }
+    1764: 
+    1765:   // Calculate the overflow area contribution from our children. We couldn't
+    1766:   // do this on the fly during ReflowChildren(), because in vertical-rl mode
+    1767:   // with unconstrained width, we weren't placing them in their final positions
+    1768:   // until the fixupKidPositions loop just above.
+    1769:   UnionChildOverflow(aDesiredSize.mOverflowAreas);
+    1770: 
+    1771:   // If there are any relatively-positioned table parts, we need to reflow their
+    1772:   // absolutely-positioned descendants now that their dimensions are final.
+    1773:   FixupPositionedTableParts(aPresContext, aDesiredSize, aReflowInput);
+   ...  : (method too long, truncated)

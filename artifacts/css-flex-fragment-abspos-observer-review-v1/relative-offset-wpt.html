@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Relative flex items across forced breaks</title>
+<link rel="help" href="https://drafts.csswg.org/css-flexbox/#pagination">
+<link rel="help" href="https://drafts.csswg.org/css-position-3/#relpos-insets">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.offset-columns {
+  position: relative;
+  inline-size: 200px;
+  block-size: var(--column-height);
+  columns: 100px;
+  column-gap: 0;
+  column-fill: auto;
+}
+.offset-content { display: flex; inline-size: 100px; align-items: flex-start; }
+.offset-row { flex-flow: row wrap; align-content: flex-start; }
+.offset-column { flex-direction: column; }
+.offset-item {
+  position: relative;
+  inset-inline-start: var(--inline-offset);
+  inset-block-start: var(--block-offset);
+  flex: none;
+  inline-size: 100px;
+  block-size: 80px;
+  break-inside: avoid;
+}
+.offset-item + .offset-item { break-before: always; }
+.offset-marker { inline-size: 100px; block-size: 20px; break-inside: avoid; }
+.offset-reference { columns: auto; }
+.offset-reference > div {
+  position: absolute;
+  inline-size: 100px;
+  inset-inline-start: var(--reference-inline);
+}
+.offset-reference-item { block-size: 80px; inset-block-start: var(--block-offset); }
+.offset-reference-fragment { block-size: 80px; inset-block-start: 0; }
+.offset-reference-marker { block-size: 20px; inset-block-start: 80px; }
+</style>
+<body>
+<script src="relative-offset-probe.js"></script>

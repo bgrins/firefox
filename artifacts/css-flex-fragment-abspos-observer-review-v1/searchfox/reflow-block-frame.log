@@ -1,0 +1,202 @@
+>>> 4677: void nsBlockFrame::ReflowBlockFrame(BlockReflowState& aState,
+    4678:                                     LineIterator aLine,
+    4679:                                     bool* aKeepReflowGoing) {
+    4680:   MOZ_ASSERT(*aKeepReflowGoing, "bad caller");
+    4681: 
+    4682:   nsIFrame* frame = aLine->mFirstChild;
+    4683:   if (!frame) {
+    4684:     NS_ASSERTION(false, "program error - unexpected empty line");
+    4685:     return;
+    4686:   }
+    4687: 
+    4688:   // If the previous frame was a page-break-frame, then preemptively push this
+    4689:   // frame to the next page.
+    4690:   // This is primarily important for the placeholders for abspos frames, which
+    4691:   // measure as zero height and then would be placed on this page.
+    4692:   if (aState.ContentBSize() != NS_UNCONSTRAINEDSIZE) {
+    4693:     const nsIFrame* const prev = frame->GetPrevSibling();
+    4694:     if (prev && prev->IsPageBreakFrame()) {
+    4695:       PushTruncatedLine(aState, aLine, aKeepReflowGoing);
+    4696:       return;
+    4697:     }
+    4698:   }
+    4699: 
+    4700:   // Prepare the block reflow engine
+    4701:   nsBlockReflowContext brc(aState.mPresContext, aState.mReflowInput);
+    4702: 
+    4703:   WritingMode cbWM = frame->GetContainingBlock()->GetWritingMode();
+    4704:   UsedClear clearType = frame->StyleDisplay()->UsedClear(cbWM);
+    4705:   if (aState.mTrailingClearFromPIF != UsedClear::None) {
+    4706:     clearType = nsLayoutUtils::CombineClearType(clearType,
+    4707:                                                 aState.mTrailingClearFromPIF);
+    4708:     aState.mTrailingClearFromPIF = UsedClear::None;
+    4709:   }
+    4710: 
+    4711:   // Clear past floats before the block if the clear style is not none
+    4712:   aLine->ClearForcedLineBreak();
+    4713:   if (clearType != UsedClear::None) {
+    4714:     aLine->SetFloatClearTypeBefore(clearType);
+    4715:   }
+    4716: 
+    4717:   // See if we should apply the block-start margin. If the block frame being
+    4718:   // reflowed is a continuation, then we don't apply its block-start margin
+    4719:   // because it's not significant. Otherwise, dig deeper.
+    4720:   bool applyBStartMargin =
+    4721:       !frame->GetPrevContinuation() && ShouldApplyBStartMargin(aState, aLine);
+    4722:   if (applyBStartMargin) {
+    4723:     // The HasClearance setting is only valid if ShouldApplyBStartMargin
+    4724:     // returned false (in which case the block-start margin-root set our
+    4725:     // clearance flag). Otherwise clear it now. We'll set it later on
+    4726:     // ourselves if necessary.
+    4727:     aLine->ClearHasClearance();
+    4728:   }
+    4729:   bool treatWithClearance = aLine->HasClearance();
+    4730: 
+    4731:   bool mightClearFloats = clearType != UsedClear::None;
+    4732:   nsIFrame* floatAvoidingBlock = nullptr;
+    4733:   if (!nsBlockFrame::BlockCanIntersectFloats(frame)) {
+    4734:     mightClearFloats = true;
+    4735:     floatAvoidingBlock = frame;
+    4736:   }
+    4737: 
+    4738:   // If our block-start margin was counted as part of some parent's block-start
+    4739:   // margin collapse, and we are being speculatively reflowed assuming this
+    4740:   // frame DID NOT need clearance, then we need to check that
+    4741:   // assumption.
+    4742:   if (!treatWithClearance && !applyBStartMargin && mightClearFloats &&
+    4743:       aState.mReflowInput.mDiscoveredClearance) {
+    4744:     nscoord curBCoord = aState.mBCoord + aState.mPrevBEndMargin.Get();
+    4745:     if (auto [clearBCoord, result] =
+    4746:             aState.ClearFloats(curBCoord, clearType, floatAvoidingBlock);
+    4747:         result != ClearFloatsResult::BCoordNoChange) {
+    4748:       (void)clearBCoord;
+    4749: 
+    4750:       // Only record the first frame that requires clearance
+    4751:       if (!*aState.mReflowInput.mDiscoveredClearance) {
+    4752:         *aState.mReflowInput.mDiscoveredClearance = frame;
+    4753:       }
+    4754:       aState.mPrevChild = frame;
+    4755:       // Exactly what we do now is flexible since we'll definitely be
+    4756:       // reflowed.
+    4757:       return;
+    4758:     }
+    4759:   }
+    4760:   if (treatWithClearance) {
+    4761:     applyBStartMargin = true;
+    4762:   }
+    4763: 
+    4764:   nsIFrame* clearanceFrame = nullptr;
+    4765:   const nscoord startingBCoord = aState.mBCoord;
+    4766:   const CollapsingMargin incomingMargin = aState.mPrevBEndMargin;
+    4767:   nscoord clearance;
+    4768:   while (true) {
+    4769:     clearance = 0;
+    4770:     nscoord bStartMargin = 0;
+    4771:     bool mayNeedRetry = false;
+    4772:     bool clearedFloats = false;
+    4773:     bool clearedPushedOrSplitFloat = false;
+    4774:     if (applyBStartMargin) {
+    4775:       // Precompute the blocks block-start margin value so that we can get the
+    4776:       // correct available space (there might be a float that's
+    4777:       // already been placed below the aState.mPrevBEndMargin
+    4778: 
+    4779:       // Setup a reflowInput to get the style computed block-start margin
+    4780:       // value. We'll use a reason of `resize' so that we don't fudge
+    4781:       // any incremental reflow input.
+    4782: 
+    4783:       // The availSpace here is irrelevant to our needs - all we want
+    4784:       // out if this setup is the block-start margin value which doesn't depend
+    4785:       // on the childs available space.
+    4786:       // XXX building a complete ReflowInput just to get the block-start
+    4787:       // margin seems like a waste. And we do this for almost every block!
+    4788:       WritingMode wm = frame->GetWritingMode();
+    4789:       LogicalSize availSpace = aState.ContentSize(wm);
+    4790:       ReflowInput reflowInput(aState.mPresContext, aState.mReflowInput, frame,
+    4791:                               availSpace);
+    4792: 
+    4793:       if (treatWithClearance) {
+    4794:         aState.mBCoord += aState.mPrevBEndMargin.Get();
+    4795:         aState.mPrevBEndMargin.Zero();
+    4796:       }
+    4797: 
+    4798:       // Now compute the collapsed margin-block-start value into
+    4799:       // aState.mPrevBEndMargin, assuming that all child margins
+    4800:       // collapse down to clearanceFrame.
+    4801:       brc.ComputeCollapsedBStartMargin(reflowInput, &aState.mPrevBEndMargin,
+    4802:                                        clearanceFrame, &mayNeedRetry);
+    4803: 
+    4804:       // XXX optimization; we could check the collapsing children to see if they
+    4805:       // are sure to require clearance, and so avoid retrying them
+    4806: 
+    4807:       if (clearanceFrame) {
+    4808:         // Don't allow retries on the second pass. The clearance decisions for
+    4809:         // the blocks whose block-start margins collapse with ours are now
+    4810:         // fixed.
+    4811:         mayNeedRetry = false;
+    4812:       }
+    4813: 
+    4814:       if (!treatWithClearance && !clearanceFrame && mightClearFloats) {
+    4815:         // We don't know if we need clearance and this is the first,
+    4816:         // optimistic pass.  So determine whether *this block* needs
+    4817:         // clearance. Note that we do not allow the decision for whether
+    4818:         // this block has clearance to change on the second pass; that
+    4819:         // decision is only allowed to be made under the optimistic
+    4820:         // first pass.
+    4821:         nscoord curBCoord = aState.mBCoord + aState.mPrevBEndMargin.Get();
+    4822:         if (auto [clearBCoord, result] =
+    4823:                 aState.ClearFloats(curBCoord, clearType, floatAvoidingBlock);
+    4824:             result != ClearFloatsResult::BCoordNoChange) {
+    4825:           (void)clearBCoord;
+    4826: 
+    4827:           // Looks like we need clearance and we didn't know about it already.
+    4828:           // So recompute collapsed margin
+    4829:           treatWithClearance = true;
+    4830:           // Remember this decision, needed for incremental reflow
+    4831:           aLine->SetHasClearance();
+    4832: 
+    4833:           // Apply incoming margins
+    4834:           aState.mBCoord += aState.mPrevBEndMargin.Get();
+    4835:           aState.mPrevBEndMargin.Zero();
+    4836: 
+    4837:           // Compute the collapsed margin again, ignoring the incoming margin
+    4838:           // this time
+    4839:           mayNeedRetry = false;
+    4840:           brc.ComputeCollapsedBStartMargin(reflowInput, &aState.mPrevBEndMargin,
+    4841:                                            clearanceFrame, &mayNeedRetry);
+    4842:         }
+    4843:       }
+    4844: 
+    4845:       // Temporarily advance the running block-direction value so that the
+    4846:       // GetFloatAvailableSpace method will return the right available space.
+    4847:       // This undone as soon as the horizontal margins are computed.
+    4848:       bStartMargin = aState.mPrevBEndMargin.Get();
+    4849: 
+    4850:       if (treatWithClearance) {
+    4851:         nscoord currentBCoord = aState.mBCoord;
+    4852:         // advance mBCoord to the clear position.
+    4853:         auto [clearBCoord, result] =
+    4854:             aState.ClearFloats(aState.mBCoord, clearType, floatAvoidingBlock);
+    4855:         aState.mBCoord = clearBCoord;
+    4856: 
+    4857:         clearedFloats = result != ClearFloatsResult::BCoordNoChange;
+    4858:         clearedPushedOrSplitFloat =
+    4859:             result == ClearFloatsResult::FloatsPushedOrSplit;
+    4860: 
+    4861:         // Compute clearance. It's the amount we need to add to the block-start
+    4862:         // border-edge of the frame, after applying collapsed margins
+    4863:         // from the frame and its children, to get it to line up with
+    4864:         // the block-end of the floats. The former is
+    4865:         // currentBCoord + bStartMargin, the latter is the current
+    4866:         // aState.mBCoord.
+    4867:         // Note that negative clearance is possible
+    4868:         clearance = aState.mBCoord - (currentBCoord + bStartMargin);
+    4869: 
+    4870:         // Add clearance to our block-start margin while we compute available
+    4871:         // space for the frame
+    4872:         bStartMargin += clearance;
+    4873: 
+    4874:         // Note that aState.mBCoord should stay where it is: at the block-start
+    4875:         // border-edge of the frame
+    4876:       } else {
+    4877:         // Advance aState.mBCoord to the block-start border-edge of the frame.
+   ...  : (method too long, truncated)
