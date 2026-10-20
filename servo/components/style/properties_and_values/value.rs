@@ -24,7 +24,9 @@ use crate::values::{
     specified,
 };
 use crate::{Namespace, Prefix};
-use cssparser::{BasicParseErrorKind, ParseErrorKind, Parser as CSSParser, TokenSerializationType};
+use cssparser::{
+    BasicParseErrorKind, ParseErrorKind, Parser as CSSParser, Token, TokenSerializationType,
+};
 use selectors::matching::QuirksMode;
 use servo_arc::Arc;
 use smallvec::SmallVec;
@@ -65,33 +67,6 @@ pub type SpecifiedValueComponent = GenericValueComponent<
     specified::Resolution,
     specified::Transform,
 >;
-
-impl<L, N, P, LP, C, Image, U, Integer, A, T, R, Transform>
-    GenericValueComponent<L, N, P, LP, C, Image, U, Integer, A, T, R, Transform>
-{
-    fn serialization_types(&self) -> (TokenSerializationType, TokenSerializationType) {
-        let first_token_type = match self {
-            Self::Length(_) | Self::Angle(_) | Self::Time(_) | Self::Resolution(_) => {
-                TokenSerializationType::Dimension
-            },
-            Self::Number(_) | Self::Integer(_) => TokenSerializationType::Number,
-            Self::Percentage(_) | Self::LengthPercentage(_) => TokenSerializationType::Percentage,
-            Self::Color(_)
-            | Self::Image(_)
-            | Self::Url(_)
-            | Self::TransformFunction(_)
-            | Self::TransformList(_) => TokenSerializationType::Function,
-            Self::CustomIdent(_) => TokenSerializationType::Ident,
-            Self::String(_) => TokenSerializationType::Other,
-        };
-        let last_token_type = if first_token_type == TokenSerializationType::Function {
-            TokenSerializationType::Other
-        } else {
-            first_token_type
-        };
-        (first_token_type, last_token_type)
-    }
-}
 
 /// A generic enum used for both specified value components and computed value components.
 #[derive(
@@ -264,29 +239,28 @@ impl<L, N, P, LP, C, Image, U, Integer, A, T, R, Transform>
 where
     Self: ToCss,
 {
-    fn serialization_types(&self) -> (TokenSerializationType, TokenSerializationType) {
-        match &self.v {
-            ValueInner::Component(component) => component.serialization_types(),
-            ValueInner::Universal(_) => unreachable!(),
-            ValueInner::List(list) => list
-                .components
-                .first()
-                .map_or(Default::default(), |f| f.serialization_types()),
-        }
-    }
-
     /// Convert to an untyped variable value.
     pub fn to_variable_value(&self) -> ComputedPropertyValue {
         if let ValueInner::Universal(ref value) = self.v {
             return (**value).clone();
         }
-        let serialization_types = self.serialization_types();
-        ComputedPropertyValue::new(
-            self.to_css_string(),
-            &self.url_data,
-            serialization_types.0,
-            serialization_types.1,
-        )
+        let css = self.to_css_string();
+        let mut input = CSSParser::new(&css);
+        let mut first = TokenSerializationType::Nothing;
+        let mut last = TokenSerializationType::Nothing;
+        while let Ok(token) = input.next_including_whitespace() {
+            first.set_if_nothing(token.serialization_type());
+            last = match token {
+                // The parser skips nested blocks, including their closing token.
+                Token::Function(_)
+                | Token::ParenthesisBlock
+                | Token::SquareBracketBlock
+                | Token::CurlyBracketBlock => TokenSerializationType::Other,
+                _ => token.serialization_type(),
+            };
+        }
+        drop(input);
+        ComputedPropertyValue::new(css, &self.url_data, first, last)
     }
 }
 
