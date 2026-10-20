@@ -1,0 +1,17 @@
+# Geometric-sentinel R1/R2 correction
+
+Producer implementation and canonical/relocated replays complete; independent acceptance remains pending. The complete v2 is preserved under predecessor-v2 and the independent HOLD is retained under review-v2. Native implementation and browser/WPT evidence are unchanged. The exact original formal contract is copied into capsule/ORIGINAL-FORMAL-CONTRACT.md.
+
+## Required joins
+
+R1 connects the actual indexed StateM moveChain to an independently defined simultaneous array update. Chain records the starting identity, in-bounds indices, exact next links and unique visited identities. Its derived cardinality bound proves the actual nodes.size+1 guard sufficient. Applied records all visited and unvisited Node values, size and exhaustion state. Observed normal is the pre-call property value or current-position fallback, independently for every visited frame. Graph additionally records canonical membership and common parent; those properties survive movement. Canonical translation and the selected-frame wrapper retain their distinct normal sources.
+
+The ordinary/reflow update join follows the exact source-shaped prefix, each primary, the parent overflow path and final flush. Reflow changes only the selected offset field before movement. OverflowPath includes the synthetic root terminal and derives its own finite bound. The reference update is a sequential fold of independent array updates, not the same indexed traversal. Structural links survive each primary; ready paths transfer to later primaries. No desired final frame array or nonexhaustion result is a premise.
+
+R2 supplies signed32 point conversion, two-coordinate addition/subtraction, saturated rectangle endpoints, and the complete ordered-mask position expression. The exact-sum rectangle domain is retained from v2. Machine loops and wrappers are separate definitions; their complete run, including trace, agrees with the mathematical caller under the derived graph relation and all evaluated numerical bounds. ContinuationSafe guards arithmetic by the actual normal-property return. FrameSafe guards translation by sticky/container availability. BatchSafe bounds each primary after its optional refresh and after prior reference updates. It does not assert equality to a final native result.
+
+## Preserved boundary
+
+Native source interpretation, graph construction and ownership, raw signed32 representation, no reserved-auto-code alias, real geometry production and freshness, allocator/compiler/SDK correctness, and actual overflow/display delivery remain explicit admissions. ComputeStickyLimits is still entered before missing-offset/all-auto handling; its internal arithmetic is outside this positional consumer companion and must be admitted separately. The missing-normal continuation return occurs before that provider call. These distinctions are maintained in the native source contract.
+
+The universal graph/numerical model does not prove CSS layout, compositor sampling, range/timeline behavior, arbitrary host mutation histories or the other sticky repairs. The finite source bridge must exercise the complete unchanged selected C++ functions and all 856 prior cases. All previous proofs, native and model mutations, tool inventories and source bindings remain required. New domain/loop mutations require successful compilation and an actual differing witness; failures to compile do not count.

@@ -1,0 +1,151 @@
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyIndexed.lean:34:2: error: Tactic `split` failed: Could not split an `if` or `match` expression in the goal
+
+Hint: Use `set_option trace.split.failure true` to display additional diagnostic information
+
+d : Point
+i : Nat
+w : World
+⊢ (((do
+              let f ← (fun a => a.nodes[i]!) <$> get
+              (fun a => if f.hadNormal = true then f.normal else f.current) <$>
+                  modify fun w =>
+                    { nodes := w.nodes,
+                      trace :=
+                        w.trace.push
+                          (toString "normal:" ++ toString i ++ toString ":" ++
+                            toString (if f.hadNormal = true then 1 else 0)),
+                      exhausted := w.exhausted }) >>=
+            fun n => do
+            do
+              let f ← (fun a => a.nodes[i]!) <$> get
+              if (plus n d != f.current) = true then do
+                  modify fun w =>
+                      {
+                        nodes :=
+                          w.nodes.modify i fun n_1 =>
+                            { first := n_1.first, next := n_1.next, parent := n_1.parent, hadNormal := n_1.hadNormal,
+                              sticky := n_1.sticky, hasContainer := n_1.hasContainer, normal := n_1.normal,
+                              current := plus n d, fallback := n_1.fallback, offsets := n_1.offsets,
+                              recomputed := n_1.recomputed, currentLimits := n_1.currentLimits,
+                              ignoreLimits := n_1.ignoreLimits },
+                        trace := w.trace, exhausted := w.exhausted }
+                  modify fun w =>
+                      { nodes := w.nodes,
+                        trace :=
+                          w.trace.push
+                            (toString "set:" ++ toString i ++ toString ":" ++ toString (plus n d).x ++ toString ":" ++
+                              toString (plus n d).y),
+                        exhausted := w.exhausted }
+                else pure ()
+            let f ← (fun a => a.nodes[i]!) <$> get
+            (fun a => f.next) <$>
+                modify fun w =>
+                  { nodes := w.nodes,
+                    trace :=
+                      w.trace.push
+                        (toString "next:" ++ toString i ++ toString ":" ++
+                          toString ((Option.map Int.ofNat f.next).getD (-1))),
+                    exhausted := w.exhausted })
+          w).snd.nodes =
+    w.nodes.modify i (shifted d)
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyIndexed.lean:45:2: error: Tactic `split` failed: Could not split an `if` or `match` expression in the goal
+
+Hint: Use `set_option trace.split.failure true` to display additional diagnostic information
+
+d : Point
+i : Nat
+w : World
+⊢ (((do
+              let f ← (fun a => a.nodes[i]!) <$> get
+              (fun a => if f.hadNormal = true then f.normal else f.current) <$>
+                  modify fun w =>
+                    { nodes := w.nodes,
+                      trace :=
+                        w.trace.push
+                          (toString "normal:" ++ toString i ++ toString ":" ++
+                            toString (if f.hadNormal = true then 1 else 0)),
+                      exhausted := w.exhausted }) >>=
+            fun n => do
+            do
+              let f ← (fun a => a.nodes[i]!) <$> get
+              if (plus n d != f.current) = true then do
+                  modify fun w =>
+                      {
+                        nodes :=
+                          w.nodes.modify i fun n_1 =>
+                            { first := n_1.first, next := n_1.next, parent := n_1.parent, hadNormal := n_1.hadNormal,
+                              sticky := n_1.sticky, hasContainer := n_1.hasContainer, normal := n_1.normal,
+                              current := plus n d, fallback := n_1.fallback, offsets := n_1.offsets,
+                              recomputed := n_1.recomputed, currentLimits := n_1.currentLimits,
+                              ignoreLimits := n_1.ignoreLimits },
+                        trace := w.trace, exhausted := w.exhausted }
+                  modify fun w =>
+                      { nodes := w.nodes,
+                        trace :=
+                          w.trace.push
+                            (toString "set:" ++ toString i ++ toString ":" ++ toString (plus n d).x ++ toString ":" ++
+                              toString (plus n d).y),
+                        exhausted := w.exhausted }
+                else pure ()
+            let f ← (fun a => a.nodes[i]!) <$> get
+            (fun a => f.next) <$>
+                modify fun w =>
+                  { nodes := w.nodes,
+                    trace :=
+                      w.trace.push
+                        (toString "next:" ++ toString i ++ toString ":" ++
+                          toString ((Option.map Int.ofNat f.next).getD (-1))),
+                    exhausted := w.exhausted })
+          w).snd.exhausted =
+    w.exhausted
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyIndexed.lean:51:2: error: Tactic `split` failed: Could not split an `if` or `match` expression in the goal
+
+Hint: Use `set_option trace.split.failure true` to display additional diagnostic information
+
+d : Point
+i : Nat
+w : World
+hi : i < w.nodes.size
+⊢ (((do
+            let f ← (fun a => a.nodes[i]!) <$> get
+            (fun a => if f.hadNormal = true then f.normal else f.current) <$>
+                modify fun w =>
+                  { nodes := w.nodes,
+                    trace :=
+                      w.trace.push
+                        (toString "normal:" ++ toString i ++ toString ":" ++
+                          toString (if f.hadNormal = true then 1 else 0)),
+                    exhausted := w.exhausted }) >>=
+          fun n => do
+          do
+            let f ← (fun a => a.nodes[i]!) <$> get
+            if (plus n d != f.current) = true then do
+                modify fun w =>
+                    {
+                      nodes :=
+                        w.nodes.modify i fun n_1 =>
+                          { first := n_1.first, next := n_1.next, parent := n_1.parent, hadNormal := n_1.hadNormal,
+                            sticky := n_1.sticky, hasContainer := n_1.hasContainer, normal := n_1.normal,
+                            current := plus n d, fallback := n_1.fallback, offsets := n_1.offsets,
+                            recomputed := n_1.recomputed, currentLimits := n_1.currentLimits,
+                            ignoreLimits := n_1.ignoreLimits },
+                      trace := w.trace, exhausted := w.exhausted }
+                modify fun w =>
+                    { nodes := w.nodes,
+                      trace :=
+                        w.trace.push
+                          (toString "set:" ++ toString i ++ toString ":" ++ toString (plus n d).x ++ toString ":" ++
+                            toString (plus n d).y),
+                      exhausted := w.exhausted }
+              else pure ()
+          let f ← (fun a => a.nodes[i]!) <$> get
+          (fun a => f.next) <$>
+              modify fun w =>
+                { nodes := w.nodes,
+                  trace :=
+                    w.trace.push
+                      (toString "next:" ++ toString i ++ toString ":" ++
+                        toString ((Option.map Int.ofNat f.next).getD (-1))),
+                  exhausted := w.exhausted })
+        w).fst =
+    w.nodes[i]!.next

@@ -1,0 +1,52 @@
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:32:46: error: Tactic `rfl` failed: The left-hand side
+  StateT.run (overflowChain root (fuel + 1) (some i)) w
+is not definitionally equal to the right-hand side
+  StateT.run (overflowChain root fuel (StateT.run (overflowStep root i) w).fst) (StateT.run (overflowStep root i) w).snd
+
+root fuel i : Nat
+w : World
+⊢ StateT.run (overflowChain root (fuel + 1) (some i)) w =
+    StateT.run (overflowChain root fuel (StateT.run (overflowStep root i) w).fst)
+      (StateT.run (overflowStep root i) w).snd
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:123:32: error: Application type mismatch: The argument
+  hb
+has type
+  j < (refreshed true i nodes).size
+but is expected to have type
+  ?m.94 ?m.98 j
+in the application
+  getElem!_pos ?m.98 j hb
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:125:4: error: Tactic `split` failed: Could not split an `if` or `match` expression in the goal
+
+Hint: Use `set_option trace.split.failure true` to display additional diagnostic information
+
+case true
+i j : Nat
+nodes : Array Node
+hj : j < nodes.size
+hb : j < (refreshed true i nodes).size
+⊢ (nodes.modify i fun n =>
+            { first := n.first, next := n.next, parent := n.parent, hadNormal := n.hadNormal, sticky := n.sticky,
+              hasContainer := n.hasContainer, normal := n.normal, current := n.current, fallback := n.fallback,
+              offsets := n.recomputed, recomputed := n.recomputed, currentLimits := n.currentLimits,
+              ignoreLimits := n.ignoreLimits })[j]!.next =
+      nodes[j].next ∧
+    (nodes.modify i fun n =>
+              { first := n.first, next := n.next, parent := n.parent, hadNormal := n.hadNormal, sticky := n.sticky,
+                hasContainer := n.hasContainer, normal := n.normal, current := n.current, fallback := n.fallback,
+                offsets := n.recomputed, recomputed := n.recomputed, currentLimits := n.currentLimits,
+                ignoreLimits := n.ignoreLimits })[j]!.first =
+        nodes[j].first ∧
+      (nodes.modify i fun n =>
+              { first := n.first, next := n.next, parent := n.parent, hadNormal := n.hadNormal, sticky := n.sticky,
+                hasContainer := n.hasContainer, normal := n.normal, current := n.current, fallback := n.fallback,
+                offsets := n.recomputed, recomputed := n.recomputed, currentLimits := n.currentLimits,
+                ignoreLimits := n.ignoreLimits })[j]!.parent =
+        nodes[j].parent
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:124:27: warning: This simp argument is unused:
+  Array.getElem_modify
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [getElem!_pos _ j hb, getElem!_pos nodes j hj, refreshed, ite_true]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

@@ -1,0 +1,312 @@
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:167:29: warning: Variable name `j` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _j
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:330:19: error: Tactic `rfl` failed: The left-hand side
+  StateT.run
+    (do
+      let __do_lift ← get
+      emit
+          (toString "subtree:" ++
+            toString ((Option.map Int.ofNat (if false = true then some __do_lift.nodes.size else none)).getD (-1)))
+      emit (List.foldl (fun s i => s ++ ":" ++ toString i) "order" primaries)
+      forIn primaries PUnit.unit fun i __s =>
+          if false = true then do
+            emit (toString "recompute:" ++ toString i)
+            modify fun w =>
+                {
+                  nodes :=
+                    w.nodes.modify i fun f =>
+                      { first := f.first, next := f.next, parent := f.parent, hadNormal := f.hadNormal,
+                        sticky := f.sticky, hasContainer := f.hasContainer, normal := f.normal, current := f.current,
+                        fallback := f.fallback, offsets := f.recomputed, recomputed := f.recomputed,
+                        currentLimits := f.currentLimits, ignoreLimits := f.ignoreLimits },
+                  trace := w.trace, exhausted := w.exhausted }
+            continuations project repeatLookup i
+            let __do_lift_1 ← node i
+            if (__do_lift_1.parent != if false = true then some __do_lift.nodes.size else none) = true then do
+                overflowChain __do_lift.nodes.size (__do_lift.nodes.size + 1) __do_lift_1.parent
+                pure (ForInStep.yield PUnit.unit)
+              else pure (ForInStep.yield PUnit.unit)
+          else do
+            continuations project repeatLookup i
+            let __do_lift_1 ← node i
+            if (__do_lift_1.parent != if false = true then some __do_lift.nodes.size else none) = true then do
+                overflowChain __do_lift.nodes.size (__do_lift.nodes.size + 1) __do_lift_1.parent
+                pure (ForInStep.yield PUnit.unit)
+              else pure (ForInStep.yield PUnit.unit)
+      emit "flush")
+    w
+is not definitionally equal to the right-hand side
+  StateT.run (emit "flush")
+    (StateT.run
+        (do
+          forIn primaries PUnit.unit fun i __s => do
+              do
+                if false = true then do
+                    emit (toString "recompute:" ++ toString i)
+                    modify fun w =>
+                        {
+                          nodes :=
+                            if True then
+                              w.nodes.modify i fun f =>
+                                { first := f.first, next := f.next, parent := f.parent, hadNormal := f.hadNormal,
+                                  sticky := f.sticky, hasContainer := f.hasContainer, normal := f.normal,
+                                  current := f.current, fallback := f.fallback, offsets := f.recomputed,
+                                  recomputed := f.recomputed, currentLimits := f.currentLimits,
+                                  ignoreLimits := f.ignoreLimits }
+                            else w.nodes,
+                          trace := w.trace, exhausted := w.exhausted }
+                  else pure ()
+                continuations project repeatLookup i
+                let __do_lift ← node i
+                if (__do_lift.parent != if false = true then some w.nodes.size else none) = true then
+                    overflowChain w.nodes.size (w.nodes.size + 1) __do_lift.parent
+                  else pure ()
+              pure (ForInStep.yield PUnit.unit)
+          pure ())
+        (StateT.run
+            (do
+              let __do_lift ← get
+              emit
+                  (toString "subtree:" ++
+                    toString
+                      ((Option.map Int.ofNat (if false = true then some __do_lift.nodes.size else none)).getD (-1)))
+              emit (List.foldl (fun s i => s ++ ":" ++ toString i) "order" primaries)
+              pure __do_lift.nodes.size)
+            w).snd).snd
+
+case false
+project : Projection
+repeatLookup : Bool
+primaries : List Nat
+w : World
+h :
+  sourceFor project repeatLookup false w.nodes.size primaries =
+    primaryLoop project repeatLookup false w.nodes.size primaries
+⊢ StateT.run
+      (do
+        let __do_lift ← get
+        emit
+            (toString "subtree:" ++
+              toString ((Option.map Int.ofNat (if false = true then some __do_lift.nodes.size else none)).getD (-1)))
+        emit (List.foldl (fun s i => s ++ ":" ++ toString i) "order" primaries)
+        forIn primaries PUnit.unit fun i __s =>
+            if false = true then do
+              emit (toString "recompute:" ++ toString i)
+              modify fun w =>
+                  {
+                    nodes :=
+                      w.nodes.modify i fun f =>
+                        { first := f.first, next := f.next, parent := f.parent, hadNormal := f.hadNormal,
+                          sticky := f.sticky, hasContainer := f.hasContainer, normal := f.normal, current := f.current,
+                          fallback := f.fallback, offsets := f.recomputed, recomputed := f.recomputed,
+                          currentLimits := f.currentLimits, ignoreLimits := f.ignoreLimits },
+                    trace := w.trace, exhausted := w.exhausted }
+              continuations project repeatLookup i
+              let __do_lift_1 ← node i
+              if (__do_lift_1.parent != if false = true then some __do_lift.nodes.size else none) = true then do
+                  overflowChain __do_lift.nodes.size (__do_lift.nodes.size + 1) __do_lift_1.parent
+                  pure (ForInStep.yield PUnit.unit)
+                else pure (ForInStep.yield PUnit.unit)
+            else do
+              continuations project repeatLookup i
+              let __do_lift_1 ← node i
+              if (__do_lift_1.parent != if false = true then some __do_lift.nodes.size else none) = true then do
+                  overflowChain __do_lift.nodes.size (__do_lift.nodes.size + 1) __do_lift_1.parent
+                  pure (ForInStep.yield PUnit.unit)
+                else pure (ForInStep.yield PUnit.unit)
+        emit "flush")
+      w =
+    StateT.run (emit "flush")
+      (StateT.run
+          (do
+            forIn primaries PUnit.unit fun i __s => do
+                do
+                  if false = true then do
+                      emit (toString "recompute:" ++ toString i)
+                      modify fun w =>
+                          {
+                            nodes :=
+                              if True then
+                                w.nodes.modify i fun f =>
+                                  { first := f.first, next := f.next, parent := f.parent, hadNormal := f.hadNormal,
+                                    sticky := f.sticky, hasContainer := f.hasContainer, normal := f.normal,
+                                    current := f.current, fallback := f.fallback, offsets := f.recomputed,
+                                    recomputed := f.recomputed, currentLimits := f.currentLimits,
+                                    ignoreLimits := f.ignoreLimits }
+                              else w.nodes,
+                            trace := w.trace, exhausted := w.exhausted }
+                    else pure ()
+                  continuations project repeatLookup i
+                  let __do_lift ← node i
+                  if (__do_lift.parent != if false = true then some w.nodes.size else none) = true then
+                      overflowChain w.nodes.size (w.nodes.size + 1) __do_lift.parent
+                    else pure ()
+                pure (ForInStep.yield PUnit.unit)
+            pure ())
+          (StateT.run
+              (do
+                let __do_lift ← get
+                emit
+                    (toString "subtree:" ++
+                      toString
+                        ((Option.map Int.ofNat (if false = true then some __do_lift.nodes.size else none)).getD (-1)))
+                emit (List.foldl (fun s i => s ++ ":" ++ toString i) "order" primaries)
+                pure __do_lift.nodes.size)
+              w).snd).snd
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:330:19: error: Tactic `rfl` failed: The left-hand side
+  StateT.run
+    (do
+      let __do_lift ← get
+      emit
+          (toString "subtree:" ++
+            toString ((Option.map Int.ofNat (if true = true then some __do_lift.nodes.size else none)).getD (-1)))
+      emit (List.foldl (fun s i => s ++ ":" ++ toString i) "order" primaries)
+      forIn primaries PUnit.unit fun i __s =>
+          if true = true then do
+            emit (toString "recompute:" ++ toString i)
+            modify fun w =>
+                {
+                  nodes :=
+                    w.nodes.modify i fun f =>
+                      { first := f.first, next := f.next, parent := f.parent, hadNormal := f.hadNormal,
+                        sticky := f.sticky, hasContainer := f.hasContainer, normal := f.normal, current := f.current,
+                        fallback := f.fallback, offsets := f.recomputed, recomputed := f.recomputed,
+                        currentLimits := f.currentLimits, ignoreLimits := f.ignoreLimits },
+                  trace := w.trace, exhausted := w.exhausted }
+            continuations project repeatLookup i
+            let __do_lift_1 ← node i
+            if (__do_lift_1.parent != if true = true then some __do_lift.nodes.size else none) = true then do
+                overflowChain __do_lift.nodes.size (__do_lift.nodes.size + 1) __do_lift_1.parent
+                pure (ForInStep.yield PUnit.unit)
+              else pure (ForInStep.yield PUnit.unit)
+          else do
+            continuations project repeatLookup i
+            let __do_lift_1 ← node i
+            if (__do_lift_1.parent != if true = true then some __do_lift.nodes.size else none) = true then do
+                overflowChain __do_lift.nodes.size (__do_lift.nodes.size + 1) __do_lift_1.parent
+                pure (ForInStep.yield PUnit.unit)
+              else pure (ForInStep.yield PUnit.unit)
+      emit "flush")
+    w
+is not definitionally equal to the right-hand side
+  StateT.run (emit "flush")
+    (StateT.run
+        (do
+          forIn primaries PUnit.unit fun i __s => do
+              do
+                if true = true then do
+                    emit (toString "recompute:" ++ toString i)
+                    modify fun w =>
+                        {
+                          nodes :=
+                            if True then
+                              w.nodes.modify i fun f =>
+                                { first := f.first, next := f.next, parent := f.parent, hadNormal := f.hadNormal,
+                                  sticky := f.sticky, hasContainer := f.hasContainer, normal := f.normal,
+                                  current := f.current, fallback := f.fallback, offsets := f.recomputed,
+                                  recomputed := f.recomputed, currentLimits := f.currentLimits,
+                                  ignoreLimits := f.ignoreLimits }
+                            else w.nodes,
+                          trace := w.trace, exhausted := w.exhausted }
+                  else pure ()
+                continuations project repeatLookup i
+                let __do_lift ← node i
+                if (__do_lift.parent != if true = true then some w.nodes.size else none) = true then
+                    overflowChain w.nodes.size (w.nodes.size + 1) __do_lift.parent
+                  else pure ()
+              pure (ForInStep.yield PUnit.unit)
+          pure ())
+        (StateT.run
+            (do
+              let __do_lift ← get
+              emit
+                  (toString "subtree:" ++
+                    toString
+                      ((Option.map Int.ofNat (if true = true then some __do_lift.nodes.size else none)).getD (-1)))
+              emit (List.foldl (fun s i => s ++ ":" ++ toString i) "order" primaries)
+              pure __do_lift.nodes.size)
+            w).snd).snd
+
+case true
+project : Projection
+repeatLookup : Bool
+primaries : List Nat
+w : World
+h :
+  sourceFor project repeatLookup true w.nodes.size primaries =
+    primaryLoop project repeatLookup true w.nodes.size primaries
+⊢ StateT.run
+      (do
+        let __do_lift ← get
+        emit
+            (toString "subtree:" ++
+              toString ((Option.map Int.ofNat (if true = true then some __do_lift.nodes.size else none)).getD (-1)))
+        emit (List.foldl (fun s i => s ++ ":" ++ toString i) "order" primaries)
+        forIn primaries PUnit.unit fun i __s =>
+            if true = true then do
+              emit (toString "recompute:" ++ toString i)
+              modify fun w =>
+                  {
+                    nodes :=
+                      w.nodes.modify i fun f =>
+                        { first := f.first, next := f.next, parent := f.parent, hadNormal := f.hadNormal,
+                          sticky := f.sticky, hasContainer := f.hasContainer, normal := f.normal, current := f.current,
+                          fallback := f.fallback, offsets := f.recomputed, recomputed := f.recomputed,
+                          currentLimits := f.currentLimits, ignoreLimits := f.ignoreLimits },
+                    trace := w.trace, exhausted := w.exhausted }
+              continuations project repeatLookup i
+              let __do_lift_1 ← node i
+              if (__do_lift_1.parent != if true = true then some __do_lift.nodes.size else none) = true then do
+                  overflowChain __do_lift.nodes.size (__do_lift.nodes.size + 1) __do_lift_1.parent
+                  pure (ForInStep.yield PUnit.unit)
+                else pure (ForInStep.yield PUnit.unit)
+            else do
+              continuations project repeatLookup i
+              let __do_lift_1 ← node i
+              if (__do_lift_1.parent != if true = true then some __do_lift.nodes.size else none) = true then do
+                  overflowChain __do_lift.nodes.size (__do_lift.nodes.size + 1) __do_lift_1.parent
+                  pure (ForInStep.yield PUnit.unit)
+                else pure (ForInStep.yield PUnit.unit)
+        emit "flush")
+      w =
+    StateT.run (emit "flush")
+      (StateT.run
+          (do
+            forIn primaries PUnit.unit fun i __s => do
+                do
+                  if true = true then do
+                      emit (toString "recompute:" ++ toString i)
+                      modify fun w =>
+                          {
+                            nodes :=
+                              if True then
+                                w.nodes.modify i fun f =>
+                                  { first := f.first, next := f.next, parent := f.parent, hadNormal := f.hadNormal,
+                                    sticky := f.sticky, hasContainer := f.hasContainer, normal := f.normal,
+                                    current := f.current, fallback := f.fallback, offsets := f.recomputed,
+                                    recomputed := f.recomputed, currentLimits := f.currentLimits,
+                                    ignoreLimits := f.ignoreLimits }
+                              else w.nodes,
+                            trace := w.trace, exhausted := w.exhausted }
+                    else pure ()
+                  continuations project repeatLookup i
+                  let __do_lift ← node i
+                  if (__do_lift.parent != if true = true then some w.nodes.size else none) = true then
+                      overflowChain w.nodes.size (w.nodes.size + 1) __do_lift.parent
+                    else pure ()
+                pure (ForInStep.yield PUnit.unit)
+            pure ())
+          (StateT.run
+              (do
+                let __do_lift ← get
+                emit
+                    (toString "subtree:" ++
+                      toString
+                        ((Option.map Int.ofNat (if true = true then some __do_lift.nodes.size else none)).getD (-1)))
+                emit (List.foldl (fun s i => s ++ ":" ++ toString i) "order" primaries)
+                pure __do_lift.nodes.size)
+              w).snd).snd

@@ -1,0 +1,209 @@
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyIndexed.lean:25:8: error: Type mismatch: After simplification, term
+  h
+ has type
+  plus (observedNormal a[i]) d = a[i].current
+but is expected to have type
+  { first := a[i].first, next := a[i].next, parent := a[i].parent, hadNormal := a[i].hadNormal, sticky := a[i].sticky,
+      hasContainer := a[i].hasContainer, normal := a[i].normal, current := plus (observedNormal a[i]) d,
+      fallback := a[i].fallback, offsets := a[i].offsets, recomputed := a[i].recomputed,
+      currentLimits := a[i].currentLimits, ignoreLimits := a[i].ignoreLimits } =
+    a[i]
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyIndexed.lean:31:2: error: Tactic `split` failed: Could not split an `if` or `match` expression in the goal
+
+Hint: Use `set_option trace.split.failure true` to display additional diagnostic information
+
+d : Point
+i : Nat
+w : World
+⊢ (do
+          let p ←
+            do
+              let p ←
+                do
+                  let p ← pure (w, w)
+                  pure (p.fst.nodes[i]!, p.snd)
+              let p_1 ←
+                pure
+                    (PUnit.unit,
+                      { nodes := p.snd.nodes,
+                        trace :=
+                          p.snd.trace.push
+                            (toString "normal:" ++ toString i ++ toString ":" ++
+                              toString (if p.fst.hadNormal = true then 1 else 0)),
+                        exhausted := p.snd.exhausted })
+              pure (if p.fst.hadNormal = true then p.fst.normal else p.fst.current, p_1.snd)
+          let p ←
+            do
+              let p_1 ←
+                do
+                  let p ← pure (p.snd, p.snd)
+                  pure (p.fst.nodes[i]!, p.snd)
+              (if (plus p.fst d != p_1.fst.current) = true then do
+                    modify fun w =>
+                        {
+                          nodes :=
+                            w.nodes.modify i fun n =>
+                              { first := n.first, next := n.next, parent := n.parent, hadNormal := n.hadNormal,
+                                sticky := n.sticky, hasContainer := n.hasContainer, normal := n.normal,
+                                current := plus p.fst d, fallback := n.fallback, offsets := n.offsets,
+                                recomputed := n.recomputed, currentLimits := n.currentLimits,
+                                ignoreLimits := n.ignoreLimits },
+                          trace := w.trace, exhausted := w.exhausted }
+                    modify fun w =>
+                        { nodes := w.nodes,
+                          trace :=
+                            w.trace.push
+                              (toString "set:" ++ toString i ++ toString ":" ++ toString (plus p.fst d).x ++
+                                  toString ":" ++
+                                toString (plus p.fst d).y),
+                          exhausted := w.exhausted }
+                  else pure ())
+                  p_1.snd
+          let p ←
+            do
+              let p ← pure (p.snd, p.snd)
+              pure (p.fst.nodes[i]!, p.snd)
+          let p_1 ←
+            pure
+                (PUnit.unit,
+                  { nodes := p.snd.nodes,
+                    trace :=
+                      p.snd.trace.push
+                        (toString "next:" ++ toString i ++ toString ":" ++
+                          toString ((Option.map Int.ofNat p.fst.next).getD (-1))),
+                    exhausted := p.snd.exhausted })
+          pure (p.fst.next, p_1.snd)).snd.nodes =
+    w.nodes.modify i (shifted d)
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyIndexed.lean:41:2: error: Tactic `split` failed: Could not split an `if` or `match` expression in the goal
+
+Hint: Use `set_option trace.split.failure true` to display additional diagnostic information
+
+d : Point
+i : Nat
+w : World
+⊢ (do
+          let p ←
+            do
+              let p ←
+                do
+                  let p ← pure (w, w)
+                  pure (p.fst.nodes[i]!, p.snd)
+              let p_1 ←
+                pure
+                    (PUnit.unit,
+                      { nodes := p.snd.nodes,
+                        trace :=
+                          p.snd.trace.push
+                            (toString "normal:" ++ toString i ++ toString ":" ++
+                              toString (if p.fst.hadNormal = true then 1 else 0)),
+                        exhausted := p.snd.exhausted })
+              pure (if p.fst.hadNormal = true then p.fst.normal else p.fst.current, p_1.snd)
+          let p ←
+            do
+              let p_1 ←
+                do
+                  let p ← pure (p.snd, p.snd)
+                  pure (p.fst.nodes[i]!, p.snd)
+              (if (plus p.fst d != p_1.fst.current) = true then do
+                    modify fun w =>
+                        {
+                          nodes :=
+                            w.nodes.modify i fun n =>
+                              { first := n.first, next := n.next, parent := n.parent, hadNormal := n.hadNormal,
+                                sticky := n.sticky, hasContainer := n.hasContainer, normal := n.normal,
+                                current := plus p.fst d, fallback := n.fallback, offsets := n.offsets,
+                                recomputed := n.recomputed, currentLimits := n.currentLimits,
+                                ignoreLimits := n.ignoreLimits },
+                          trace := w.trace, exhausted := w.exhausted }
+                    modify fun w =>
+                        { nodes := w.nodes,
+                          trace :=
+                            w.trace.push
+                              (toString "set:" ++ toString i ++ toString ":" ++ toString (plus p.fst d).x ++
+                                  toString ":" ++
+                                toString (plus p.fst d).y),
+                          exhausted := w.exhausted }
+                  else pure ())
+                  p_1.snd
+          let p ←
+            do
+              let p ← pure (p.snd, p.snd)
+              pure (p.fst.nodes[i]!, p.snd)
+          let p_1 ←
+            pure
+                (PUnit.unit,
+                  { nodes := p.snd.nodes,
+                    trace :=
+                      p.snd.trace.push
+                        (toString "next:" ++ toString i ++ toString ":" ++
+                          toString ((Option.map Int.ofNat p.fst.next).getD (-1))),
+                    exhausted := p.snd.exhausted })
+          pure (p.fst.next, p_1.snd)).snd.exhausted =
+    w.exhausted
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyIndexed.lean:46:2: error: Tactic `split` failed: Could not split an `if` or `match` expression in the goal
+
+Hint: Use `set_option trace.split.failure true` to display additional diagnostic information
+
+d : Point
+i : Nat
+w : World
+hi : i < w.nodes.size
+⊢ (do
+        let p ←
+          do
+            let p ←
+              do
+                let p ← pure (w, w)
+                pure (p.fst.nodes[i]!, p.snd)
+            let p_1 ←
+              pure
+                  (PUnit.unit,
+                    { nodes := p.snd.nodes,
+                      trace :=
+                        p.snd.trace.push
+                          (toString "normal:" ++ toString i ++ toString ":" ++
+                            toString (if p.fst.hadNormal = true then 1 else 0)),
+                      exhausted := p.snd.exhausted })
+            pure (if p.fst.hadNormal = true then p.fst.normal else p.fst.current, p_1.snd)
+        let p ←
+          do
+            let p_1 ←
+              do
+                let p ← pure (p.snd, p.snd)
+                pure (p.fst.nodes[i]!, p.snd)
+            (if (plus p.fst d != p_1.fst.current) = true then do
+                  modify fun w =>
+                      {
+                        nodes :=
+                          w.nodes.modify i fun n =>
+                            { first := n.first, next := n.next, parent := n.parent, hadNormal := n.hadNormal,
+                              sticky := n.sticky, hasContainer := n.hasContainer, normal := n.normal,
+                              current := plus p.fst d, fallback := n.fallback, offsets := n.offsets,
+                              recomputed := n.recomputed, currentLimits := n.currentLimits,
+                              ignoreLimits := n.ignoreLimits },
+                        trace := w.trace, exhausted := w.exhausted }
+                  modify fun w =>
+                      { nodes := w.nodes,
+                        trace :=
+                          w.trace.push
+                            (toString "set:" ++ toString i ++ toString ":" ++ toString (plus p.fst d).x ++
+                                toString ":" ++
+                              toString (plus p.fst d).y),
+                        exhausted := w.exhausted }
+                else pure ())
+                p_1.snd
+        let p ←
+          do
+            let p ← pure (p.snd, p.snd)
+            pure (p.fst.nodes[i]!, p.snd)
+        let p_1 ←
+          pure
+              (PUnit.unit,
+                { nodes := p.snd.nodes,
+                  trace :=
+                    p.snd.trace.push
+                      (toString "next:" ++ toString i ++ toString ":" ++
+                        toString ((Option.map Int.ofNat p.fst.next).getD (-1))),
+                  exhausted := p.snd.exhausted })
+        pure (p.fst.next, p_1.snd)).fst =
+    w.nodes[i]!.next

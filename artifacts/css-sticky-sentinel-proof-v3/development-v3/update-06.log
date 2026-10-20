@@ -1,0 +1,30 @@
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:167:29: warning: Variable name `j` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _j
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:297:8: error: (kernel) declaration has metavariables 'StickyUpdate.for_loop_eq'
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:323:6: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  primaryLoop project repeatLookup reflow w.nodes.size primaries
+in the target expression
+  StateT.run (update project repeatLookup reflow primaries) w =
+    let pre := StateT.run (updatePrefix reflow primaries) w;
+    let body := StateT.run (primaryLoop project repeatLookup reflow pre.fst primaries) pre.snd;
+    StateT.run (emit "flush") body.snd
+
+project : Projection
+repeatLookup reflow : Bool
+primaries : List Nat
+w : World
+h :
+  (do
+      forIn primaries PUnit.unit fun i __s => do
+          primary project repeatLookup reflow w.nodes.size i
+          pure (ForInStep.yield PUnit.unit)
+      pure ()) =
+    primaryLoop project repeatLookup reflow w.nodes.size primaries
+⊢ StateT.run (update project repeatLookup reflow primaries) w =
+    let pre := StateT.run (updatePrefix reflow primaries) w;
+    let body := StateT.run (primaryLoop project repeatLookup reflow pre.fst primaries) pre.snd;
+    StateT.run (emit "flush") body.snd

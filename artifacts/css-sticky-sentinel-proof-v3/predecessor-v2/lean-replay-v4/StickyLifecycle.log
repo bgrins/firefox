@@ -1,0 +1,105 @@
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-lean-qhc8g923/StickyLifecycle.lean:247:72: error: unsolved goals
+project : Projection
+repeatLookup : Bool
+i : Nat
+w : World
+h : w.nodes[i]!.hadNormal = false
+⊢ (match
+          match
+            match getThe World w with
+            | (a, s) => (a.nodes[i]!, s) with
+          | (a, s) =>
+            match
+              MonadStateOf.modifyGet
+                (fun s =>
+                  (PUnit.unit,
+                    { nodes := s.nodes,
+                      trace :=
+                        s.trace.push
+                          (toString "normal:" ++ i.repr ++ toString ":" ++ (if a.hadNormal = true then 1 else 0).repr),
+                      exhausted := s.exhausted }))
+                s with
+            | (a_1, s) => (if a.hadNormal = true then a.normal else a.current, s) with
+        | (a, s) =>
+          match
+            match getThe World s with
+            | (a, s) => (a.nodes[i]!, s) with
+          | (a_1, s) =>
+            (if a_1.hadNormal = true then
+                StateT.bind (compute project repeatLookup i Space.current) fun p =>
+                  StateT.bind (getThe World) fun __do_lift => moveChain (minus p a) (__do_lift.nodes.size + 1) (some i)
+              else StateT.pure ())
+              s).snd.nodes =
+    w.nodes
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-lean-qhc8g923/StickyLifecycle.lean:249:4: warning: This simp argument is unused:
+  Functor.map
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [continuations, normal, node, emit, StateT.run, bind, pure, get, modify, modifyGet, StateT.bind,
+    StateT.map, StateT.pure, StateT.get, StateT.modifyGet, h]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-lean-qhc8g923/StickyLifecycle.lean:249:54: warning: This simp argument is unused:
+  StateT.map
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [continuations, normal, node, emit, StateT.run, bind, pure, Functor.map, get, modify, modifyGet,
+    StateT.bind, StateT.pure, StateT.get, StateT.modifyGet, h]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-lean-qhc8g923/StickyLifecycle.lean:250:4: warning: This simp argument is unused:
+  StateT.get
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [continuations, normal, node, emit, StateT.run, bind, pure, Functor.map, get, modify, modifyGet,
+    StateT.bind, StateT.map, StateT.pure, StateT.modifyGet, h]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-lean-qhc8g923/StickyLifecycle.lean:250:16: warning: This simp argument is unused:
+  StateT.modifyGet
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [continuations, normal, node, emit, StateT.run, bind, pure, Functor.map, get, modify, modifyGet,
+    StateT.bind, StateT.map, StateT.pure, StateT.get, h]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-lean-qhc8g923/StickyLifecycle.lean:250:34: warning: This simp argument is unused:
+  h
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [continuations, normal, node, emit, StateT.run, bind, pure, Functor.map, get, modify, modifyGet,
+    StateT.bind, StateT.map, StateT.pure, StateT.get, StateT.modifyGet]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-lean-qhc8g923/StickyLifecycle.lean:253:57: error: unsolved goals
+i : Nat
+w : World
+⊢ (match
+        match getThe World w with
+        | (a, s) => (a.nodes[i]!, s) with
+      | (a, s) =>
+        (if w.nodes[i]!.current = a.current then StateT.pure ()
+          else
+            StateT.bind
+              (modify fun w_1 =>
+                {
+                  nodes :=
+                    w_1.nodes.modify i fun n =>
+                      { first := n.first, next := n.next, parent := n.parent, hadNormal := n.hadNormal,
+                        sticky := n.sticky, hasContainer := n.hasContainer, normal := n.normal,
+                        current := w.nodes[i]!.current, fallback := n.fallback, offsets := n.offsets,
+                        recomputed := n.recomputed, currentLimits := n.currentLimits, ignoreLimits := n.ignoreLimits },
+                  trace := w_1.trace, exhausted := w_1.exhausted })
+              fun __r =>
+              emit
+                (toString "set:" ++ i.repr ++ toString ":" ++ w.nodes[i]!.current.x.repr ++ toString ":" ++
+                  w.nodes[i]!.current.y.repr))
+          s).snd =
+    w
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-lean-qhc8g923/StickyLifecycle.lean:255:30: warning: This simp argument is unused:
+  StateT.get
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [setPosition, node, StateT.run, bind, pure, get, StateT.bind, StateT.pure]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

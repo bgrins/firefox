@@ -1,0 +1,276 @@
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:167:29: warning: Variable name `j` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _j
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:323:35: error: unsolved goals
+case false
+project : Projection
+repeatLookup : Bool
+primaries : List Nat
+w : World
+h :
+  sourceFor project repeatLookup false w.nodes.size primaries =
+    primaryLoop project repeatLookup false w.nodes.size primaries
+⊢ (match getThe World w with
+    | (a, s) =>
+      match
+        forIn primaries PUnit.unit
+          (fun i __s =>
+            StateT.bind (continuations project repeatLookup i) fun __r =>
+              StateT.bind (node i) fun __do_lift =>
+                if __do_lift.parent = none then StateT.pure (ForInStep.yield PUnit.unit)
+                else
+                  StateT.bind (overflowChain a.nodes.size (a.nodes.size + 1) __do_lift.parent) fun __r =>
+                    StateT.pure (ForInStep.yield PUnit.unit))
+          { nodes := s.nodes,
+            trace :=
+              (s.trace.push (toString "subtree:" ++ (-1).repr)).push
+                (List.foldl (fun s i => s ++ ":" ++ i.repr) "order" primaries),
+            exhausted := s.exhausted } with
+      | (a, s) => (PUnit.unit, { nodes := s.nodes, trace := s.trace.push "flush", exhausted := s.exhausted })) =
+    (PUnit.unit,
+      {
+        nodes :=
+          (match
+                forIn primaries PUnit.unit
+                  (fun i __s =>
+                    ((StateT.pure ()).bind fun __r =>
+                          StateT.bind (continuations project repeatLookup i) fun __r =>
+                            StateT.bind (node i) fun __do_lift =>
+                              if __do_lift.parent = none then StateT.pure ()
+                              else overflowChain w.nodes.size (w.nodes.size + 1) __do_lift.parent).bind
+                      fun __r => StateT.pure (ForInStep.yield PUnit.unit))
+                  (match getThe World w with
+                    | (a, s) =>
+                      (a.nodes.size,
+                        { nodes := s.nodes,
+                          trace :=
+                            (s.trace.push (toString "subtree:" ++ (-1).repr)).push
+                              (List.foldl (fun s i => s ++ ":" ++ i.repr) "order" primaries),
+                          exhausted := s.exhausted })).snd with
+              | (a, s) => ((), s)).snd.nodes,
+        trace :=
+          (match
+                    forIn primaries PUnit.unit
+                      (fun i __s =>
+                        ((StateT.pure ()).bind fun __r =>
+                              StateT.bind (continuations project repeatLookup i) fun __r =>
+                                StateT.bind (node i) fun __do_lift =>
+                                  if __do_lift.parent = none then StateT.pure ()
+                                  else overflowChain w.nodes.size (w.nodes.size + 1) __do_lift.parent).bind
+                          fun __r => StateT.pure (ForInStep.yield PUnit.unit))
+                      (match getThe World w with
+                        | (a, s) =>
+                          (a.nodes.size,
+                            { nodes := s.nodes,
+                              trace :=
+                                (s.trace.push (toString "subtree:" ++ (-1).repr)).push
+                                  (List.foldl (fun s i => s ++ ":" ++ i.repr) "order" primaries),
+                              exhausted := s.exhausted })).snd with
+                  | (a, s) => ((), s)).snd.trace.push
+            "flush",
+        exhausted :=
+          (match
+                forIn primaries PUnit.unit
+                  (fun i __s =>
+                    ((StateT.pure ()).bind fun __r =>
+                          StateT.bind (continuations project repeatLookup i) fun __r =>
+                            StateT.bind (node i) fun __do_lift =>
+                              if __do_lift.parent = none then StateT.pure ()
+                              else overflowChain w.nodes.size (w.nodes.size + 1) __do_lift.parent).bind
+                      fun __r => StateT.pure (ForInStep.yield PUnit.unit))
+                  (match getThe World w with
+                    | (a, s) =>
+                      (a.nodes.size,
+                        { nodes := s.nodes,
+                          trace :=
+                            (s.trace.push (toString "subtree:" ++ (-1).repr)).push
+                              (List.foldl (fun s i => s ++ ":" ++ i.repr) "order" primaries),
+                          exhausted := s.exhausted })).snd with
+              | (a, s) => ((), s)).snd.exhausted })
+
+case true
+project : Projection
+repeatLookup : Bool
+primaries : List Nat
+w : World
+h :
+  sourceFor project repeatLookup true w.nodes.size primaries =
+    primaryLoop project repeatLookup true w.nodes.size primaries
+⊢ (match getThe World w with
+    | (a, s) =>
+      match
+        forIn primaries PUnit.unit
+          (fun i __s =>
+            (StateT.modifyGet fun s =>
+                  (PUnit.unit,
+                    { nodes := s.nodes, trace := s.trace.push (toString "recompute:" ++ i.repr),
+                      exhausted := s.exhausted })).bind
+              fun __r =>
+              (StateT.modifyGet fun s =>
+                    (PUnit.unit,
+                      {
+                        nodes :=
+                          s.nodes.modify i fun f =>
+                            { first := f.first, next := f.next, parent := f.parent, hadNormal := f.hadNormal,
+                              sticky := f.sticky, hasContainer := f.hasContainer, normal := f.normal,
+                              current := f.current, fallback := f.fallback, offsets := f.recomputed,
+                              recomputed := f.recomputed, currentLimits := f.currentLimits,
+                              ignoreLimits := f.ignoreLimits },
+                        trace := s.trace, exhausted := s.exhausted })).bind
+                fun __r =>
+                StateT.bind (continuations project repeatLookup i) fun __r =>
+                  StateT.bind (node i) fun __do_lift =>
+                    if __do_lift.parent = some a.nodes.size then StateT.pure (ForInStep.yield PUnit.unit)
+                    else
+                      StateT.bind (overflowChain a.nodes.size (a.nodes.size + 1) __do_lift.parent) fun __r =>
+                        StateT.pure (ForInStep.yield PUnit.unit))
+          { nodes := s.nodes,
+            trace :=
+              (s.trace.push (toString "subtree:" ++ (↑a.nodes.size).repr)).push
+                (List.foldl (fun s i => s ++ ":" ++ i.repr) "order" primaries),
+            exhausted := s.exhausted } with
+      | (a, s) => (PUnit.unit, { nodes := s.nodes, trace := s.trace.push "flush", exhausted := s.exhausted })) =
+    (PUnit.unit,
+      {
+        nodes :=
+          (match
+                forIn primaries PUnit.unit
+                  (fun i __s =>
+                    (((StateT.modifyGet fun s =>
+                                  (PUnit.unit,
+                                    { nodes := s.nodes, trace := s.trace.push (toString "recompute:" ++ i.repr),
+                                      exhausted := s.exhausted })).bind
+                              fun __r =>
+                              StateT.modifyGet fun s =>
+                                (PUnit.unit,
+                                  {
+                                    nodes :=
+                                      s.nodes.modify i fun f =>
+                                        { first := f.first, next := f.next, parent := f.parent,
+                                          hadNormal := f.hadNormal, sticky := f.sticky, hasContainer := f.hasContainer,
+                                          normal := f.normal, current := f.current, fallback := f.fallback,
+                                          offsets := f.recomputed, recomputed := f.recomputed,
+                                          currentLimits := f.currentLimits, ignoreLimits := f.ignoreLimits },
+                                    trace := s.trace, exhausted := s.exhausted })).bind
+                          fun __r =>
+                          StateT.bind (continuations project repeatLookup i) fun __r =>
+                            StateT.bind (node i) fun __do_lift =>
+                              if __do_lift.parent = some w.nodes.size then StateT.pure ()
+                              else overflowChain w.nodes.size (w.nodes.size + 1) __do_lift.parent).bind
+                      fun __r => StateT.pure (ForInStep.yield PUnit.unit))
+                  (match getThe World w with
+                    | (a, s) =>
+                      (a.nodes.size,
+                        { nodes := s.nodes,
+                          trace :=
+                            (s.trace.push (toString "subtree:" ++ (↑a.nodes.size).repr)).push
+                              (List.foldl (fun s i => s ++ ":" ++ i.repr) "order" primaries),
+                          exhausted := s.exhausted })).snd with
+              | (a, s) => ((), s)).snd.nodes,
+        trace :=
+          (match
+                    forIn primaries PUnit.unit
+                      (fun i __s =>
+                        (((StateT.modifyGet fun s =>
+                                      (PUnit.unit,
+                                        { nodes := s.nodes, trace := s.trace.push (toString "recompute:" ++ i.repr),
+                                          exhausted := s.exhausted })).bind
+                                  fun __r =>
+                                  StateT.modifyGet fun s =>
+                                    (PUnit.unit,
+                                      {
+                                        nodes :=
+                                          s.nodes.modify i fun f =>
+                                            { first := f.first, next := f.next, parent := f.parent,
+                                              hadNormal := f.hadNormal, sticky := f.sticky,
+                                              hasContainer := f.hasContainer, normal := f.normal, current := f.current,
+                                              fallback := f.fallback, offsets := f.recomputed,
+                                              recomputed := f.recomputed, currentLimits := f.currentLimits,
+                                              ignoreLimits := f.ignoreLimits },
+                                        trace := s.trace, exhausted := s.exhausted })).bind
+                              fun __r =>
+                              StateT.bind (continuations project repeatLookup i) fun __r =>
+                                StateT.bind (node i) fun __do_lift =>
+                                  if __do_lift.parent = some w.nodes.size then StateT.pure ()
+                                  else overflowChain w.nodes.size (w.nodes.size + 1) __do_lift.parent).bind
+                          fun __r => StateT.pure (ForInStep.yield PUnit.unit))
+                      (match getThe World w with
+                        | (a, s) =>
+                          (a.nodes.size,
+                            { nodes := s.nodes,
+                              trace :=
+                                (s.trace.push (toString "subtree:" ++ (↑a.nodes.size).repr)).push
+                                  (List.foldl (fun s i => s ++ ":" ++ i.repr) "order" primaries),
+                              exhausted := s.exhausted })).snd with
+                  | (a, s) => ((), s)).snd.trace.push
+            "flush",
+        exhausted :=
+          (match
+                forIn primaries PUnit.unit
+                  (fun i __s =>
+                    (((StateT.modifyGet fun s =>
+                                  (PUnit.unit,
+                                    { nodes := s.nodes, trace := s.trace.push (toString "recompute:" ++ i.repr),
+                                      exhausted := s.exhausted })).bind
+                              fun __r =>
+                              StateT.modifyGet fun s =>
+                                (PUnit.unit,
+                                  {
+                                    nodes :=
+                                      s.nodes.modify i fun f =>
+                                        { first := f.first, next := f.next, parent := f.parent,
+                                          hadNormal := f.hadNormal, sticky := f.sticky, hasContainer := f.hasContainer,
+                                          normal := f.normal, current := f.current, fallback := f.fallback,
+                                          offsets := f.recomputed, recomputed := f.recomputed,
+                                          currentLimits := f.currentLimits, ignoreLimits := f.ignoreLimits },
+                                    trace := s.trace, exhausted := s.exhausted })).bind
+                          fun __r =>
+                          StateT.bind (continuations project repeatLookup i) fun __r =>
+                            StateT.bind (node i) fun __do_lift =>
+                              if __do_lift.parent = some w.nodes.size then StateT.pure ()
+                              else overflowChain w.nodes.size (w.nodes.size + 1) __do_lift.parent).bind
+                      fun __r => StateT.pure (ForInStep.yield PUnit.unit))
+                  (match getThe World w with
+                    | (a, s) =>
+                      (a.nodes.size,
+                        { nodes := s.nodes,
+                          trace :=
+                            (s.trace.push (toString "subtree:" ++ (↑a.nodes.size).repr)).push
+                              (List.foldl (fun s i => s ++ ":" ++ i.repr) "order" primaries),
+                          exhausted := s.exhausted })).snd with
+              | (a, s) => ((), s)).snd.exhausted })
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:330:25: warning: This simp argument is unused:
+  bind_assoc
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [StateT.run, emit, MonadState.get, MonadStateOf.get, StateT.get, StateT.bind, StateT.pure, Pure.pure,
+    Bind.bind, modify, MonadState.modifyGet, MonadStateOf.modifyGet, StateT.modifyGet, Functor.map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:330:71: warning: This simp argument is unused:
+  MonadStateOf.get
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [bind_assoc, StateT.run, emit, MonadState.get, StateT.get, StateT.bind, StateT.pure, Pure.pure,
+    Bind.bind, modify, MonadState.modifyGet, MonadStateOf.modifyGet, StateT.modifyGet, Functor.map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:330:89: warning: This simp argument is unused:
+  StateT.get
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [bind_assoc, StateT.run, emit, MonadState.get, MonadStateOf.get, StateT.bind, StateT.pure, Pure.pure,
+    Bind.bind, modify, MonadState.modifyGet, MonadStateOf.modifyGet, StateT.modifyGet, Functor.map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+/var/folders/6_/h8d9ydg931v94wprdz1fhbnm0000gn/T/sticky-sentinel-v3-0alfl87q/StickyUpdate.lean:332:22: warning: This simp argument is unused:
+  Functor.map
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [bind_assoc, StateT.run, emit, MonadState.get, MonadStateOf.get, StateT.get, StateT.bind, StateT.pure,
+    Pure.pure, Bind.bind, modify, MonadState.modifyGet, MonadStateOf.modifyGet, StateT.modifyGet]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
