@@ -1,0 +1,53 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Flex baseline measurement cache and changing percentage padding</title>
+<style>
+.outer { display:flex; width:600px; align-items:flex-start; margin-bottom:10px }
+.resizer { flex:none; width:100px; height:1px }
+.resizer.large { width:200px }
+.inner { display:flex; flex:1; min-width:0; align-items:baseline }
+.last .inner { align-items:last baseline }
+.item { flex:none; width:100px; font:16px/20px monospace; margin:0; border:0 }
+.target.percent { padding-top:10% }
+.target.literal { padding-top:50px }
+.target.zero { padding-top:0 }
+.marker { display:inline-block; width:0; height:0; vertical-align:baseline }
+</style>
+<body>
+<script>
+const close = (a,b) => Math.abs(a-b)<0.02;
+function make(group,padding,large) {
+  const outer=document.createElement('div');
+  outer.className=`outer ${group}`;
+  outer.innerHTML=`<div class="resizer ${large?'large':''}"></div><div class="inner"><div class="item target ${padding}">text<span class="marker"></span></div><div class="item peer">text<span class="marker"></span></div></div>`;
+  document.body.append(outer);
+  return outer;
+}
+function measure(outer) {
+  const inner=outer.querySelector('.inner'), target=outer.querySelector('.target'), peer=outer.querySelector('.peer');
+  const a=target.getBoundingClientRect(),b=peer.getBoundingClientRect(),r=inner.getBoundingClientRect();
+  return {innerWidth:r.width,innerHeight:r.height,targetWidth:a.width,targetHeight:a.height,
+    padding:parseFloat(getComputedStyle(target).paddingTop),targetTop:a.top-r.top,peerTop:b.top-r.top,
+    baselineDifference:target.querySelector('.marker').getBoundingClientRect().top-peer.querySelector('.marker').getBoundingClientRect().top};
+}
+const rows=[];
+for(const group of ['first','last']) for(const padding of ['percent','literal','zero'])
+for(const direction of ['shrink','grow','unchanged']) {
+  const initialLarge=direction==='grow', finalLarge=direction==='shrink';
+  const warm=make(group,padding,initialLarge),before=measure(warm);
+  warm.querySelector('.resizer').classList.toggle('large',finalLarge);
+  const after=measure(warm);
+  const fresh=make(group,padding,finalLarge),reconstructed=measure(fresh);
+  const afterFreshConstruction=measure(warm);
+  warm.querySelector('.resizer').classList.toggle('large',initialLarge);
+  const restored=measure(warm);
+  const expectedPadding=padding==='percent'?(finalLarge?40:50):padding==='literal'?50:0;
+  const calibrated=close(before.baselineDifference,0)&&close(after.innerWidth,finalLarge?400:500)&&close(after.targetWidth,100)&&close(after.padding,expectedPadding)&&close(reconstructed.baselineDifference,0);
+  const equivalent=Object.keys(after).every(k=>close(after[k],reconstructed[k]));
+  const restoreStable=Object.keys(before).every(k=>close(before[k],restored[k]));
+  rows.push({group,padding,direction,before,after,reconstructed,afterFreshConstruction,restored,calibrated,equivalent,restoreStable,matched:calibrated&&equivalent&&restoreStable&&close(after.baselineDifference,0)});
+  warm.remove();fresh.remove();
+}
+window.RESULT={support:CSS.supports('align-items','last baseline'),rows};
+fetch('/result',{method:'POST',body:JSON.stringify(window.RESULT)});
+</script>
