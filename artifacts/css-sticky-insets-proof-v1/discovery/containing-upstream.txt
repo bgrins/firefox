@@ -1,0 +1,25 @@
+>>> 9114: nsIFrame* nsIFrame::GetContainingBlock(
+    9115:     uint32_t aFlags, const nsStyleDisplay* aStyleDisplay) const {
+    9116:   MOZ_ASSERT(aStyleDisplay == StyleDisplay());
+    9117: 
+    9118:   // Keep this in sync with MightBeContainingBlockFor in ReflowInput.cpp.
+    9119: 
+    9120:   if (!GetParent()) {
+    9121:     return nullptr;
+    9122:   }
+    9123:   // MathML frames might have absolute positioning style, but they would
+    9124:   // still be in-flow.  So we have to check to make sure that the frame
+    9125:   // is really out-of-flow too.
+    9126:   nsIFrame* f;
+    9127:   if (IsAbsolutelyPositioned(aStyleDisplay)) {
+    9128:     f = GetParent();  // the parent is always the containing block
+    9129:   } else {
+    9130:     f = GetNearestBlockContainer(GetParent());
+    9131:   }
+    9132: 
+    9133:   if (aFlags & SKIP_SCROLLED_FRAME && f &&
+    9134:       f->Style()->GetPseudoType() == PseudoStyleType::MozScrolledContent) {
+    9135:     f = f->GetParent();
+    9136:   }
+    9137:   return f;
+    9138: }

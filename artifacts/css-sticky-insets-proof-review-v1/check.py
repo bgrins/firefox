@@ -1,0 +1,143 @@
+import sys
+if not sys.flags.isolated or not sys.flags.no_site or sys.flags.optimize:
+    raise SystemExit("use Python -I -S without optimization")
+sys.dont_write_bytecode = True
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import stat
+import subprocess
+
+ROOT = Path(__file__).resolve().parent
+PINS = {
+    "FILES.json": "dc402d2887444bf0ff6845d69aeed003e8566b77fe1614f2ba0f6b0f3cd731dc",
+    "FREEZE.json": "85d0ddb65a546db5a8abc344eb742b84488b5ac67936a412f0b6bc3491e6a993",
+    "check.py": "79066d2620e94cfb7527a04cad67619762200e0c925819b73071ac4956880b91",
+    "REPORT.md": "7be266162fddb66b9a823d7879be16a20509798b67a61dfb4263d450ca79a524",
+}
+
+def require(ok, message):
+    if not ok:
+        raise ValueError(message)
+
+def decode(text):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            require(key not in result, "duplicate JSON key")
+            result[key] = value
+        return result
+    return json.loads(text, object_pairs_hook=pairs)
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def closure(root):
+    for name in ("FILES.json", "FREEZE.json"):
+        require(stat.S_ISREG((root / name).lstat().st_mode), "nonregular seal")
+    seal = decode((root / "FREEZE.json").read_text())
+    require(seal["manifest_sha256"] == digest(root / "FILES.json"), "manifest digest")
+    data = decode((root / "FILES.json").read_text())
+    require(set(data) == {"algorithm", "files"} and data["algorithm"] == "sha256", "manifest schema")
+    roster = data["files"]
+    require(type(roster) is dict and roster, "empty roster")
+    directories = set()
+    for name, sha in roster.items():
+        q = PurePosixPath(name)
+        require(not q.is_absolute() and q.as_posix() == name and all(x not in (".", "..", "") for x in q.parts), "path grammar")
+        require(type(sha) is str and re.fullmatch("[0-9a-f]{64}", sha), "digest grammar")
+        directories.update(str(x) for x in q.parents if str(x) != ".")
+    actual_files = set()
+    actual_dirs = set()
+    for base, dirs, names in os.walk(root, followlinks=False):
+        for name in dirs + names:
+            path = Path(base) / name
+            relative = path.relative_to(root).as_posix()
+            mode = path.lstat().st_mode
+            if stat.S_ISREG(mode):
+                actual_files.add(relative)
+            elif stat.S_ISDIR(mode):
+                actual_dirs.add(relative)
+            else:
+                raise ValueError("nonregular entry: " + relative)
+    require(actual_files == set(roster) | {"FILES.json", "FREEZE.json"}, "closed file roster")
+    require(actual_dirs == directories, "closed directory roster")
+    for name, sha in roster.items():
+        require(digest(root / name) == sha, "file digest: " + name)
+    return roster
+
+def authenticate(root=ROOT):
+    outer = closure(root)
+    nested = root / "capsule"
+    for name, sha in PINS.items():
+        require(digest(nested / name) == sha, "nested pin: " + name)
+    inner = closure(nested)
+    return {"outer_files": len(outer), "inner_files": len(inner)}
+
+def run(output):
+    tools = decode((ROOT / "capsule/TOOLCHAIN.json").read_text())
+    for item in tools.values():
+        require(digest(Path(item["path"]).resolve()) == item["sha256"], "tool digest")
+    output.mkdir(parents=True)
+    records = []
+    env = os.environ.copy()
+    env.pop("LEAN_SYSROOT", None)
+    env.pop("LEAN_SRC_PATH", None)
+    env["LEAN_PATH"] = str(output / "replay/lean")
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    def command(argv, name, success=True):
+        log = output / (name + ".log")
+        with log.open("w") as f:
+            rc = subprocess.run(argv, cwd=output, env=env, stdout=f, stderr=subprocess.STDOUT).returncode
+        records.append({"name": name, "argv": argv, "exit": rc, "log_sha256": digest(log)})
+        (output / "COMMANDS.json").write_text(json.dumps(records, indent=2) + "\n")
+        require((rc == 0) == success, "unexpected command result: " + name)
+        return log.read_text()
+    command([sys.executable, "-I", "-S", str(ROOT / "capsule/check.py"), "--output", str(output / "replay")], "producer")
+    result = decode((output / "replay/RESULT.json").read_text())
+    expected = decode((ROOT / "EXPECTED.json").read_text())
+    require(result == expected, "fresh result mismatch")
+    command([sys.executable, "-I", "-S", str(ROOT / "capsule/test_integrity.py"), "--output", str(output / "producer-guards")], "producer-guards")
+    guards = decode((output / "producer-guards/RESULT.json").read_text())
+    require(guards["status"] == "pass" and len(guards["pre_dispatch_guards"]) == 17 and len(guards["comparator_guards"]) == 10, "producer guard roster")
+    lean = tools["lean"]["path"]
+    command([lean, "--root=" + str(ROOT), "-o", str(output / "replay/lean/Independent.olean"), str(ROOT / "Independent.lean")], "independent")
+    audit = command([lean, str(ROOT / "Audit.lean")], "independent-axioms")
+    names = decode((ROOT / "AUDITS.json").read_text())
+    require(re.findall(r"^'([^']+)' (?:depends on axioms:|does not depend on any axioms)", audit, re.M) == names, "independent axiom roster")
+    require("sorryAx" not in audit, "sorry axiom")
+    used = set()
+    for body in re.findall(r"depends on axioms:\s*\[([^]]*)\]", audit):
+        used.update(x.strip() for x in body.split(",") if x.strip())
+    require(used <= {"propext", "Quot.sound", "Classical.choice"}, "unexpected independent axiom")
+    negatives = decode((ROOT / "NEGATIVES.json").read_text())
+    for name, claim in negatives.items():
+        path = output / (name + ".lean")
+        path.write_text("import StickyChallenges\nexample : " + claim + " := by decide +kernel\n")
+        log = command([lean, str(path)], "negative-" + name, False)
+        require("is false" in log and "unknown" not in log and "unexpected token" not in log, "negative failure cause")
+    return {"status": "pass", "review_verdict": "HOLD-full-scope", "independent_theorems": len(names), "negative_propositions": len(negatives), "producer_audits": result["audits"]}
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output")
+    parser.add_argument("--authenticate-only", action="store_true")
+    options = parser.parse_args()
+    identity = authenticate()
+    if options.authenticate_only:
+        print(json.dumps(identity))
+        return
+    require(options.output is not None, "output required")
+    output = Path(options.output).expanduser().resolve()
+    require(not output.exists() and output != ROOT and ROOT not in output.parents, "new external output required")
+    result = run(output)
+    require(authenticate() == identity, "input closure changed")
+    (output / "RESULT.json").write_text(json.dumps(result, indent=2) + "\n")
+    print(json.dumps(result))
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,22 @@
+    1319:    * Find the first frame descendant of aFrame (including aFrame) which is
+    1320:    * not an anonymous frame that getBoxQuads/getClientRects should ignore.
+    1321:    */
+    1322:   static nsIFrame* GetFirstNonAnonymousFrame(nsIFrame* aFrame);
+    1323: 
+    1324:   struct RectAccumulator : public mozilla::RectCallback {
+    1325:     nsRect mResultRect;
+    1326:     nsRect mFirstRect;
+    1327:     bool mSeenFirstRect;
+    1328: 
+>>> 1329:     RectAccumulator();
+    1330: 
+    1331:     virtual void AddRect(const nsRect& aRect) override;
+    1332:   };
+    1333: 
+    1334:   struct RectListBuilder : public mozilla::RectCallback {
+    1335:     DOMRectList* mRectList;
+    1336: 
+    1337:     explicit RectListBuilder(DOMRectList* aList);
+    1338:     virtual void AddRect(const nsRect& aRect) override;
+    1339:   };
+

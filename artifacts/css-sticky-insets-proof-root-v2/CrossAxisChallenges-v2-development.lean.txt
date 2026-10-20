@@ -1,0 +1,43 @@
+import StickyEndpointCaller
+open StickyNumeric StickyEndpoints StickyEndpointCaller
+namespace RootCrossAxis
+
+def horizontal : StickyGeometry.Raw := {sampleGeometry with framePosition := 60}
+def shiftOther : StickyGeometry.Raw :=
+  {sampleGeometry with border := ⟨machineMax,0⟩, margin := ⟨machineMax,0⟩, normal := -1, framePosition := machineMax, insets := ⟨none,none⟩}
+def shiftFrame : Frame2 :=
+  ⟨7,true,true,horizontal,shiftOther,true,true,true,60,machineMax,50,-1⟩
+
+theorem unselected_shift_not_bounded :
+    EntrySafe true ([shiftFrame].map (project true)) ∧
+    CallerSafe false 50 (StickyConsumers.nativeTimeline true ([shiftFrame].map (project true))) ∧
+    ¬ InMachine (shiftFrame.currentY-shiftFrame.normalY) := by decide +kernel
+
+def coreOther : StickyGeometry.Raw :=
+  {sampleGeometry with portSize := machineMax, insets := ⟨some (-1),some 0⟩}
+def coreFrame : Frame2 :=
+  ⟨7,true,true,horizontal,coreOther,true,true,true,60,50,50,50⟩
+
+theorem unselected_core_not_bounded :
+    EntrySafe true ([coreFrame].map (project true)) ∧
+    CallerSafe false 50 (StickyConsumers.nativeTimeline true ([coreFrame].map (project true))) ∧
+    ¬ StickyMachineGeometry.ArithmeticSafe
+        (StickyMachineGeometry.construct coreFrame.y coreFrame.yEndFar true) := by decide +kernel
+
+def boundedCore : StickyGeometry.Raw :=
+  {sampleGeometry with portSize := coordMax, insets := ⟨some coordMin,some (-2)⟩}
+def boundedFrame : Frame2 :=
+  ⟨7,true,true,horizontal,boundedCore,true,true,true,60,50,50,50⟩
+
+theorem unselected_core_coordinate_inputs :
+    EntrySafe true ([boundedFrame].map (project true)) ∧
+    CallerSafe false 50 (StickyConsumers.nativeTimeline true ([boundedFrame].map (project true))) ∧
+    InsetAdmitted boundedCore.insets.near ∧ InsetAdmitted boundedCore.insets.far ∧
+    coordMin ≤ boundedCore.portSize ∧ boundedCore.portSize ≤ coordMax ∧
+    ¬ StickyMachineGeometry.ArithmeticSafe
+        (StickyMachineGeometry.construct boundedFrame.y boundedFrame.yEndFar true) := by decide +kernel
+
+#print axioms unselected_core_coordinate_inputs
+#print axioms unselected_shift_not_bounded
+#print axioms unselected_core_not_bounded
+end RootCrossAxis
