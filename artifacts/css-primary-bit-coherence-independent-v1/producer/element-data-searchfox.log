@@ -1,0 +1,22 @@
+    4964:                                           nsIFrame* aParentFrame,
+    4965:                                           ItemFlags aFlags) {
+    4966:   MOZ_ASSERT(aStyle.StyleDisplay()->mDisplay != StyleDisplay::None &&
+    4967:                  aStyle.StyleDisplay()->mDisplay != StyleDisplay::Contents,
+    4968:              "These two special display values should be handled earlier");
+    4969: 
+    4970:   if (auto* text = Text::FromNode(aContent)) {
+    4971:     return FindTextData(*text, aParentFrame);
+    4972:   }
+    4973: 
+>>> 4974:   return FindElementData(*aContent.AsElement(), aStyle, aParentFrame, aFlags);
+    4975: }
+    4976: 
+    4977: const nsCSSFrameConstructor::FrameConstructionData*
+    4978: nsCSSFrameConstructor::FindElementData(const Element& aElement,
+    4979:                                        ComputedStyle& aStyle,
+    4980:                                        nsIFrame* aParentFrame,
+    4981:                                        ItemFlags aFlags) {
+    4982:   // Don't create frames for non-SVG element children of SVG elements.
+    4983:   if (!aElement.IsSVGElement()) {
+    4984:     // NOTE: Anon content (from non display: contents) is allowed, the native
+

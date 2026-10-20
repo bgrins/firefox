@@ -1,0 +1,179 @@
+void nsCSSFrameConstructor::AddFrameConstructionItemsInternal(
+    nsFrameConstructorState& aState, nsIContent* aContent,
+    nsContainerFrame* aParentFrame, bool aSuppressWhiteSpaceOptimizations,
+    ComputedStyle* aComputedStyle, ItemFlags aFlags,
+    FrameConstructionItemList& aItems) {
+  MOZ_ASSERT(aContent->IsText() || aContent->IsElement(),
+             "Shouldn't get anything else here!");
+  MOZ_ASSERT(aContent->IsInComposedDoc());
+  MOZ_ASSERT(!aContent->GetPrimaryFrame() || aState.mCreatingExtraFrames ||
+             aContent->NodeInfo()->NameAtom() == nsGkAtoms::area);
+
+  const bool withinSVGText = aFlags.contains(ItemFlag::IsWithinSVGText);
+  const bool isGeneratedContent = aFlags.contains(ItemFlag::IsGeneratedContent);
+  MOZ_ASSERT(!isGeneratedContent || aComputedStyle->IsPseudoElement(),
+             "Generated content should be a pseudo-element");
+
+  FrameConstructionItem* item = nullptr;
+  auto cleanupGeneratedContent = mozilla::MakeScopeExit([&]() {
+    if (isGeneratedContent && !item) {
+      MOZ_ASSERT(!IsDisplayContents(aContent),
+                 "This would need to change if we support display: contents "
+                 "in generated content");
+      aContent->UnbindFromTree();
+    }
+  });
+
+  // 'display:none' elements never creates any frames at all.
+  const nsStyleDisplay& display = *aComputedStyle->StyleDisplay();
+  if (display.mDisplay == StyleDisplay::None) {
+    return;
+  }
+
+  if (display.mDisplay == StyleDisplay::Contents) {
+    // See the mDisplay fixup code in StyleAdjuster::adjust.
+    MOZ_ASSERT(!aContent->AsElement()->IsRootOfNativeAnonymousSubtree(),
+               "display:contents on anonymous content is unsupported");
+
+    // FIXME(bug 1588477): <svg:text>'s TextNodeCorrespondenceRecorder has
+    // trouble with everything that looks like display: contents.
+    if (withinSVGText) {
+      return;
+    }
+
+    CreateGeneratedContentItem(aState, aParentFrame, *aContent->AsElement(),
+                               *aComputedStyle, PseudoStyleType::Before,
+                               aItems);
+
+    FlattenedChildIterator iter(aContent);
+    InsertionPoint insertion(aParentFrame, aContent);
+    for (nsIContent* child = iter.GetNextChild(); child;
+         child = iter.GetNextChild()) {
+      AddFrameConstructionItems(aState, child, aSuppressWhiteSpaceOptimizations,
+                                *aComputedStyle, insertion, aItems, aFlags);
+    }
+    aItems.SetParentHasNoShadowDOM(!iter.ShadowDOMInvolved());
+
+    CreateGeneratedContentItem(aState, aParentFrame, *aContent->AsElement(),
+                               *aComputedStyle, PseudoStyleType::After, aItems);
+    return;
+  }
+
+  nsIContent* parent = aParentFrame ? aParentFrame->GetContent() : nullptr;
+  if (ShouldSuppressFrameForSelect(parent, *aContent)) {
+    return;
+  }
+
+  if (aContent->IsHTMLElement(nsGkAtoms::legend) && aParentFrame) {
+    const nsFieldSetFrame* const fs = GetFieldSetFrameFor(aParentFrame);
+    if (fs && !fs->GetLegend() && !aState.mHasRenderedLegend &&
+        !aComputedStyle->StyleDisplay()->IsFloatingStyle() &&
+        !aComputedStyle->StyleDisplay()->IsAbsolutelyPositionedStyle()) {
+      aState.mHasRenderedLegend = true;
+      aFlags += ItemFlag::IsForRenderedLegend;
+    }
+  }
+
+  const FrameConstructionData* const data =
+      FindDataForContent(*aContent, *aComputedStyle, aParentFrame, aFlags);
+  if (!data) {
+    return;
+  }
+  const uint32_t bits = data->mBits;
+  if (bits & FCDATA_SUPPRESS_FRAME) {
+    return;
+  }
+  // Create our shadow tree lazily if needed.
+  // NOTE(emilio): This is rather hacky, we should ideally remove this and make
+  // shadow tree creation faster, see bug 2017005.
+  if (const RefPtr input = HTMLInputElement::FromNode(aContent)) {
+    if (auto* sr = input->CreateShadowTreeFromLayoutIfNeeded()) {
+      StyleNewChildRange(sr->GetFirstChild(), nullptr);
+    }
+  }
+
+  const bool canHavePageBreak =
+      aFlags.contains(ItemFlag::AllowPageBreak) &&
+      aState.mPresContext->IsPaginated() &&
+      !display.IsAbsolutelyPositionedStyle() &&
+      !(aParentFrame && aParentFrame->IsFlexOrGridContainer()) &&
+      !(bits & FCDATA_IS_TABLE_PART) && !(bits & FCDATA_IS_SVG_TEXT);
+  if (canHavePageBreak && display.BreakBefore()) {
+    AppendPageBreakItem(aContent, aItems);
+  }
+
+  if (!item) {
+    item = aItems.AppendItem(this, data, aContent, do_AddRef(aComputedStyle),
+                             aSuppressWhiteSpaceOptimizations);
+    if (aFlags.contains(ItemFlag::IsForRenderedLegend)) {
+      item->mIsRenderedLegend = true;
+    }
+  }
+  item->mIsText = !aContent->IsElement();
+  item->mIsGeneratedContent = isGeneratedContent;
+  if (isGeneratedContent) {
+    // We need to keep this alive until the frame takes ownership.
+    // This corresponds to the Release in ConstructFramesFromItem.
+    item->mContent->AddRef();
+  }
+
+  if (canHavePageBreak && display.BreakAfter()) {
+    AppendPageBreakItem(aContent, aItems);
+  }
+
+  if (bits & FCDATA_IS_INLINE) {
+    // To correctly set item->mIsAllInline we need to build up our child items
+    // right now.
+    BuildInlineChildItems(aState, *item,
+                          aFlags.contains(ItemFlag::IsWithinSVGText),
+                          aFlags.contains(ItemFlag::AllowTextPathChild));
+    item->mIsBlock = false;
+  } else {
+    // Compute a boolean isInline which is guaranteed to be false for blocks
+    // (but may also be false for some inlines).
+    const bool isInline =
+        // Table-internal things are inline-outside if and only if they're kids
+        // of inlines, since they'll trigger construction of inline-table
+        // pseudos.
+        ((bits & FCDATA_IS_TABLE_PART) &&
+         (!aParentFrame ||  // No aParentFrame means inline
+          aParentFrame->StyleDisplay()->IsInlineFlow())) ||
+        // Things that are inline-outside but aren't inline frames are inline
+        display.IsInlineOutsideStyle();
+
+    // Set mIsAllInline conservatively.  It just might be that even an inline
+    // that has mIsAllInline false doesn't need an {ib} split.  So this is just
+    // an optimization to keep from doing too much work in cases when we can
+    // show that mIsAllInline is true..
+    item->mIsAllInline =
+        isInline ||
+        // Figure out whether we're guaranteed this item will be out of flow.
+        // This is not a precise test, since one of our ancestor inlines might
+        // add an absolute containing block (if it's relatively positioned) when
+        // there wasn't such a containing block before.  But it's conservative
+        // in the sense that anything that will really end up as an in-flow
+        // non-inline will test false here.  In other words, if this test is
+        // true we're guaranteed to be inline; if it's false we don't know what
+        // we'll end up as.
+        //
+        // If we make this test precise, we can remove some of the code dealing
+        // with the imprecision in ConstructInline and adjust the comments on
+        // mIsAllInline and mIsBlock in the header.
+        (!(bits & FCDATA_DISALLOW_OUT_OF_FLOW) &&
+         aState.GetGeometricParent(display, nullptr));
+
+    // Set mIsBlock conservatively.  It's OK to set it false for some real
+    // blocks, but not OK to set it true for things that aren't blocks.  Since
+    // isOutOfFlow might be false even in cases when the frame will end up
+    // out-of-flow, we can't use it here.  But we _can_ say that the frame will
+    // for sure end up in-flow if it's not floated or absolutely positioned.
+    item->mIsBlock = !isInline && !display.IsAbsolutelyPositionedStyle() &&
+                     !display.IsFloatingStyle() && !(bits & FCDATA_IS_SVG_TEXT);
+  }
+
+  if (item->mIsAllInline) {
+    aItems.InlineItemAdded();
+  } else if (item->mIsBlock) {
+    aItems.BlockItemAdded();
+  }
+}

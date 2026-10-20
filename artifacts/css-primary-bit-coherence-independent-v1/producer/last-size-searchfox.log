@@ -1,0 +1,25 @@
+>>> 1563: void nsIFrame::HandleLastRememberedSize() {
+    1564:   MOZ_ASSERT(IsPrimaryFrame());
+    1565:   auto* element = Element::FromNodeOrNull(mContent);
+    1566:   if (!element) {
+    1567:     return;
+    1568:   }
+    1569:   const WritingMode wm = GetWritingMode();
+    1570:   const nsStylePosition* stylePos = StylePosition();
+    1571:   bool canRememberBSize = stylePos->ContainIntrinsicBSize(wm).HasAuto();
+    1572:   bool canRememberISize = stylePos->ContainIntrinsicISize(wm).HasAuto();
+    1573:   if (!canRememberBSize) {
+    1574:     element->RemoveLastRememberedBSize();
+    1575:   }
+    1576:   if (!canRememberISize) {
+    1577:     element->RemoveLastRememberedISize();
+    1578:   }
+    1579:   if ((canRememberBSize || canRememberISize) && !HidesContent()) {
+    1580:     bool isNonReplacedInline = IsLineParticipant() && !IsReplaced();
+    1581:     if (!isNonReplacedInline) {
+    1582:       PresContext()->Document()->ObserveForLastRememberedSize(*element);
+    1583:       return;
+    1584:     }
+    1585:   }
+    1586:   PresContext()->Document()->UnobserveForLastRememberedSize(*element);
+    1587: }

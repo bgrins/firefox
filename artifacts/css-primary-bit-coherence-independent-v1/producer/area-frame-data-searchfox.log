@@ -1,0 +1,78 @@
+>>> 3366: nsCSSFrameConstructor::FindHTMLData(const Element& aElement,
+    3367:                                     nsIFrame* aParentFrame,
+    3368:                                     ComputedStyle& aStyle) {
+    3369:   MOZ_ASSERT(aElement.IsHTMLElement());
+    3370:   NS_ASSERTION(!aParentFrame ||
+    3371:                    aParentFrame->Style()->GetPseudoType() !=
+    3372:                        PseudoStyleType::MozFieldsetContent ||
+    3373:                    aParentFrame->GetParent()->IsFieldSetFrame(),
+    3374:                "Unexpected parent for fieldset content anon box");
+    3375: 
+    3376:   switch (aStyle.GetPseudoType()) {
+    3377:     case PseudoStyleType::ViewTransitionOld:
+    3378:     case PseudoStyleType::ViewTransitionNew: {
+    3379:       static constexpr FrameConstructionData sViewTransitionData(
+    3380:           NS_NewImageFrameForViewTransition);
+    3381:       return &sViewTransitionData;
+    3382:     }
+    3383:     case PseudoStyleType::MozSelectContent: {
+    3384:       if (aParentFrame && aParentFrame->IsComboboxControlFrame()) {
+    3385:         static constexpr FrameConstructionData sComboboxLabelData(
+    3386:             NS_NewComboboxLabelFrame);
+    3387:         return &sComboboxLabelData;
+    3388:       }
+    3389:       break;
+    3390:     }
+    3391:     case PseudoStyleType::MozFileContent: {
+    3392:       if (aParentFrame && aParentFrame->IsFileControlFrame()) {
+    3393:         static constexpr FrameConstructionData sFileLabelData(
+    3394:             NS_NewFileControlLabelFrame);
+    3395:         return &sFileLabelData;
+    3396:       }
+    3397:       break;
+    3398:     }
+    3399:     case PseudoStyleType::MozReveal:
+    3400:     case PseudoStyleType::MozNumberSpinBox: {
+    3401:       if (aParentFrame && aParentFrame->StyleDisplay()->EffectiveAppearance() ==
+    3402:                               StyleAppearance::Textfield) {
+    3403:         // Suppress button-box pseudo-elements with appearance: textfield.
+    3404:         static constexpr FrameConstructionData sSuppressData =
+    3405:             SUPPRESS_FCDATA();
+    3406:         return &sSuppressData;
+    3407:       }
+    3408:       break;
+    3409:     }
+    3410:     default:
+    3411:       break;
+    3412:   }
+    3413: 
+    3414:   static constexpr FrameConstructionDataByTag sHTMLData[] = {
+    3415:       SIMPLE_TAG_CHAIN(img, nsCSSFrameConstructor::FindImgData),
+    3416:       SIMPLE_TAG_CHAIN(mozgeneratedcontentimage,
+    3417:                        nsCSSFrameConstructor::FindGeneratedImageData),
+    3418:       {nsGkAtoms::br,
+    3419:        {NS_NewBRFrame, FCDATA_IS_LINE_PARTICIPANT | FCDATA_IS_LINE_BREAK}},
+    3420:       SIMPLE_TAG_CREATE(wbr, NS_NewWBRFrame),
+    3421:       SIMPLE_TAG_CHAIN(button, nsCSSFrameConstructor::FindHTMLButtonData),
+    3422:       SIMPLE_TAG_CHAIN(input, nsCSSFrameConstructor::FindInputData),
+    3423:       SIMPLE_TAG_CREATE(textarea, &nsCSSFrameConstructor::ConstructTextControl),
+    3424:       SIMPLE_TAG_CHAIN(select, nsCSSFrameConstructor::FindSelectData),
+    3425:       SIMPLE_TAG_CHAIN(object, nsCSSFrameConstructor::FindObjectData),
+    3426:       SIMPLE_TAG_CHAIN(embed, nsCSSFrameConstructor::FindObjectData),
+    3427:       COMPLEX_TAG_CREATE(fieldset,
+    3428:                          &nsCSSFrameConstructor::ConstructFieldSetFrame),
+    3429:       SIMPLE_TAG_CREATE(frameset, NS_NewHTMLFramesetFrame),
+    3430:       SIMPLE_TAG_CREATE(iframe, NS_NewSubDocumentFrame),
+    3431:       SIMPLE_TAG_CHAIN(canvas, nsCSSFrameConstructor::FindCanvasData),
+    3432:       SIMPLE_TAG_CREATE(video, NS_NewHTMLVideoFrame),
+    3433:       SIMPLE_TAG_CREATE(audio, NS_NewHTMLAudioFrame),
+    3434:       SIMPLE_TAG_CREATE(progress, NS_NewProgressFrame),
+    3435:       SIMPLE_TAG_CREATE(meter, NS_NewMeterFrame),
+    3436:       SIMPLE_TAG_CHAIN(details, nsCSSFrameConstructor::FindDetailsData),
+    3437:       SIMPLE_TAG_CHAIN(label,
+    3438:                        nsCSSFrameConstructor::FindLabelOrDescriptionData),
+    3439:       SIMPLE_TAG_CHAIN(area, SUPPRESS_FCDATA()),
+    3440:   };
+    3441: 
+    3442:   return FindDataByTag(aElement, aStyle, sHTMLData, std::size(sHTMLData));
+    3443: }

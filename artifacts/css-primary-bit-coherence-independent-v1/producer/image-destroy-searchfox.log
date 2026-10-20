@@ -1,0 +1,40 @@
+>>>  510: void nsImageFrame::Destroy(DestroyContext& aContext) {
+     511:   MaybeSendIntrinsicSizeAndRatioToEmbedder(Nothing(), Nothing());
+     512: 
+     513:   if (mReflowCallbackPosted) {
+     514:     PresShell()->CancelReflowCallback(this);
+     515:     mReflowCallbackPosted = false;
+     516:   }
+     517: 
+     518:   // Tell our image map, if there is one, to clean up
+     519:   // This causes the nsImageMap to unregister itself as
+     520:   // a DOM listener.
+     521:   DisconnectMap();
+     522: 
+     523:   MOZ_ASSERT(mListener);
+     524: 
+     525:   if (mKind == Kind::ImageLoadingContent) {
+     526:     MOZ_ASSERT(!mOwnedRequest);
+     527:     MOZ_ASSERT(!mOwnedRequestRegistered);
+     528:     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
+     529:     MOZ_ASSERT(imageLoader);
+     530: 
+     531:     // Notify our image loading content that we are going away so it can
+     532:     // deregister with our refresh driver.
+     533:     imageLoader->FrameDestroyed(this);
+     534:     imageLoader->RemoveNativeObserver(mListener);
+     535:   } else {
+     536:     DeinitOwnedRequest();
+     537:   }
+     538: 
+     539:   // set the frame to null so we don't send messages to a dead object.
+     540:   mListener->SetFrame(nullptr);
+     541:   mListener = nullptr;
+     542: 
+     543:   // If we were displaying an icon, take ourselves off the list
+     544:   if (mDisplayingIcon) {
+     545:     BrokenImageIcon::RemoveObserver(this);
+     546:   }
+     547: 
+     548:   nsAtomicContainerFrame::Destroy(aContext);
+     549: }

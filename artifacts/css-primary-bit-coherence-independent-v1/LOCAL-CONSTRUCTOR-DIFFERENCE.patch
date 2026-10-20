@@ -1,0 +1,20 @@
+--- retained-indexed/AddFrameConstructionItemsInternal
++++ local/AddFrameConstructionItemsInternal
+@@ -16,7 +16,7 @@
+ 
+   FrameConstructionItem* item = nullptr;
+   auto cleanupGeneratedContent = mozilla::MakeScopeExit([&]() {
+-    if (isGeneratedContent && !item && !aState.mCreatingExtraFrames) {
++    if (isGeneratedContent && !item) {
+       MOZ_ASSERT(!IsDisplayContents(aContent),
+                  "This would need to change if we support display: contents "
+                  "in generated content");
+@@ -111,8 +111,6 @@
+   }
+   item->mIsText = !aContent->IsElement();
+   item->mIsGeneratedContent = isGeneratedContent;
+-  item->mIsSharedGeneratedContent =
+-      isGeneratedContent && aState.mCreatingExtraFrames;
+   if (isGeneratedContent) {
+     // We need to keep this alive until the frame takes ownership.
+     // This corresponds to the Release in ConstructFramesFromItem.
