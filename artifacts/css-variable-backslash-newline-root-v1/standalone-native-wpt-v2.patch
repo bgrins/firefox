@@ -1,0 +1,122 @@
+diff --git a/servo/components/style/custom_properties.rs b/servo/components/style/custom_properties.rs
+index bc80bac6e38d28ac50d8c3fb92d178e3ee26c6c0..7c5258f42a2d22afd9d8be1c08812c57d0d1ee61 100644
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -954,7 +954,7 @@ impl VariableValue {
+         let mut references = References::default();
+         let mut missing_closing_characters = String::new();
+         let start_position = input.position();
+-        let (first_token_type, last_token_type) = parse_declaration_value(
++        let (first_token_type, last_token_type, preserve_trailing_whitespace) = parse_declaration_value(
+             input,
+             start_position,
+             namespaces,
+@@ -975,7 +975,9 @@ impl VariableValue {
+             css.push_str(&missing_closing_characters);
+         }
+ 
+-        css.truncate(css.trim_ascii_end().len());
++        if !preserve_trailing_whitespace {
++            css.truncate(css.trim_ascii_end().len());
++        }
+         css.shrink_to_fit();
+         references.refs.shrink_to_fit();
+ 
+@@ -1105,7 +1107,7 @@ fn parse_declaration_value(
+     namespaces: Option<&FxHashMap<Prefix, Namespace>>,
+     references: &mut References,
+     missing_closing_characters: &mut String,
+-) -> Result<(TokenSerializationType, TokenSerializationType), ParseError> {
++) -> Result<(TokenSerializationType, TokenSerializationType, bool), ParseError> {
+     input.parse_until_before(Delimiter::Bang | Delimiter::Semicolon, |input| {
+         parse_declaration_value_block(
+             input,
+@@ -1124,10 +1126,11 @@ fn parse_declaration_value_block(
+     namespaces: Option<&FxHashMap<Prefix, Namespace>>,
+     references: &mut References,
+     missing_closing_characters: &mut String,
+-) -> Result<(TokenSerializationType, TokenSerializationType), ParseError> {
++) -> Result<(TokenSerializationType, TokenSerializationType, bool), ParseError> {
+     let mut is_first = true;
+     let mut first_token_type = TokenSerializationType::Nothing;
+     let mut last_token_type = TokenSerializationType::Nothing;
++    let mut preserve_trailing_whitespace = false;
+     let mut prev_reference_index: Option<usize> = None;
+     loop {
+         let token_start = input.position();
+@@ -1138,6 +1141,10 @@ fn parse_declaration_value_block(
+         let prev_token_type = last_token_type;
+         let serialization_type = token.serialization_type();
+         last_token_type = serialization_type;
++        if !matches!(token, Token::WhiteSpace(_)) {
++            // A backslash delimiter needs its following newline when reserialized.
++            preserve_trailing_whitespace = matches!(token, Token::Delim('\\'));
++        }
+         if is_first {
+             first_token_type = last_token_type;
+             is_first = false;
+@@ -1273,7 +1280,7 @@ fn parse_declaration_value_block(
+                             let mut references = References::default();
+                             // NOTE(emilio): Intentionally using parse_declaration_value rather than
+                             // parse_declaration_value_block, since that's what parse_fallback used to do.
+-                            let (first, last) = parse_declaration_value(
++                            let (first, last, _) = parse_declaration_value(
+                                 input,
+                                 input_start,
+                                 namespaces,
+@@ -1366,7 +1373,7 @@ fn parse_declaration_value_block(
+             _ => {},
+         };
+     }
+-    Ok((first_token_type, last_token_type))
++    Ok((first_token_type, last_token_type, preserve_trailing_whitespace))
+ }
+ 
+ /// Parse <attr-type> = type( <syntax> ) | raw-string | number | <attr-unit>.
+diff --git a/testing/web-platform/tests/css/css-variables/trailing-backslash-newline.html b/testing/web-platform/tests/css/css-variables/trailing-backslash-newline.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..b237cc66f738bc416cb1001a8d62edfc3c064790
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-variables/trailing-backslash-newline.html
+@@ -0,0 +1,41 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Custom property substitution preserves a backslash delimiter before trailing whitespace</title>
++<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#serialization">
++<link rel="help" href="https://drafts.csswg.org/css-variables-1/#using-variables">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++const cases = [];
++for (const [name, newline] of [["LF", "\n"], ["CR", "\r"], ["FF", "\f"], ["CRLF", "\r\n"]]) {
++  for (const prefix of ["", "x"]) {
++    for (const suffix of ["", " \t", "/**/"]) {
++      cases.push({name: `${name}, prefix ${JSON.stringify(prefix)}, suffix ${JSON.stringify(suffix)}`,
++                  value: prefix + "\\" + newline + suffix, expected: "none", valid: false});
++    }
++  }
++}
++for (const [value, decoded] of [["control", "control"], ["control ", "control"],
++                              ["x\\\\", "x\\"],
++                              ["x\\78", "xx"], ["\"x\"", "x"], ["x/**/", "x"]]) {
++  cases.push({name: `valid control ${JSON.stringify(value)}`,
++              value, expected: CSS.escape(decoded), valid: true});
++}
++for (const c of cases) {
++  test(t => {
++    assert_equals(CSS.supports("animation-name", c.value), c.valid, "Literal syntax");
++    const target = document.createElement("div");
++    target.style.animationName = "var(--probe)";
++    document.body.append(target);
++    t.add_cleanup(() => target.remove());
++    for (const [phase, value, expected] of [
++      ["Initial", "control", "control"], ["Set", c.value, c.expected],
++      ["Restore", "control", "control"], ["Set again", c.value, c.expected],
++    ]) {
++      target.style.setProperty("--probe", value);
++      assert_equals(getComputedStyle(target).animationName, expected, phase);
++    }
++  }, c.name);
++}
++</script>

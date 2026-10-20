@@ -1,0 +1,9 @@
+# Exact source admissions
+
+- `Token::serialization_type` maps DelimBackslash to Other. ProtectedSpan.Token therefore keeps an additional lexical bit. Ordinary `&` also maps to Other and must not set it.
+- `next_token_unchecked` dispatches a backslash before a newline to DelimBackslash; otherwise it enters identifier consumption. The EOF backslash case is not a terminal Backslash delimiter. The complete dispatch, name and escape bodies are retained.
+- `consume_whitespace` consumes the maximal raw run and returns its source slice. CRLF occupies two raw bytes. This supplies coalescing and exact whitespace payloads; no universal machine-code/tokenizer theorem is inferred.
+- The integrated scanner measures the current token's raw whitespace width only when the preceding outer token is not DelimBackslash, then replaces that previous-token bit. The standalone scanner changes its preservation bit only for nonwhite tokens. Only their protection decision is compared.
+- Each recursive scanner invocation initializes its own state. The outer token remains its function/block opener class; inner flags do not update the outer local bit. Fallback destructuring discards the added summaries. These facts are complete-source bindings and native-review findings, not a new recursive translation theorem.
+- EOFReady describes a separately supplied completion with a terminal nonwhite outer token whenever bytes are removed/appended. Native is zero/one removed byte; the mathematical bound allows any admitted bounded count. Reference-slice theorems require bounds and do not derive all native endpoints.
+- Standalone original/candidate sources have different prior trimming and EOF implementations from the integrated source. Their full byte results are not generally equated. Four accepted constructor traces calibrate56 selected balanced cases; remaining scanner/provider families and EOF behaviors are not covered by that finite comparison.

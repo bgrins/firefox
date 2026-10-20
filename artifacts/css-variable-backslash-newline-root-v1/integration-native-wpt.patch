@@ -1,0 +1,72 @@
+diff --git a/servo/components/style/custom_properties.rs b/servo/components/style/custom_properties.rs
+index 3f089efb25115bd5f53938dd9409c3278c754cdb..d56191839c373f6b6823f2f0d4a3c1a452b55120 100644
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1255,6 +1255,7 @@ fn parse_declaration_value_block(
+     let mut last_token_type = TokenSerializationType::Nothing;
+     let mut last_non_whitespace_token_type = TokenSerializationType::Nothing;
+     let mut trailing_whitespace_len = 0;
++    let mut last_token_was_backslash = false;
+     let mut prev_reference_index: Option<usize> = None;
+     loop {
+         let token_start = input.position();
+@@ -1266,9 +1267,11 @@ fn parse_declaration_value_block(
+         let serialization_type = token.serialization_type();
+         last_token_type = serialization_type;
+         trailing_whitespace_len = match token {
+-            Token::WhiteSpace(value) => value.len(),
++            // A backslash delimiter needs its following newline when reserialized.
++            Token::WhiteSpace(value) if !last_token_was_backslash => value.len(),
+             _ => 0,
+         };
++        last_token_was_backslash = matches!(token, Token::Delim('\\'));
+         if !matches!(token, Token::WhiteSpace(_)) {
+             last_non_whitespace_token_type = serialization_type;
+         }
+diff --git a/testing/web-platform/tests/css/css-variables/trailing-backslash-newline.html b/testing/web-platform/tests/css/css-variables/trailing-backslash-newline.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..b237cc66f738bc416cb1001a8d62edfc3c064790
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-variables/trailing-backslash-newline.html
+@@ -0,0 +1,41 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Custom property substitution preserves a backslash delimiter before trailing whitespace</title>
++<link rel="help" href="https://drafts.csswg.org/css-syntax-3/#serialization">
++<link rel="help" href="https://drafts.csswg.org/css-variables-1/#using-variables">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++const cases = [];
++for (const [name, newline] of [["LF", "\n"], ["CR", "\r"], ["FF", "\f"], ["CRLF", "\r\n"]]) {
++  for (const prefix of ["", "x"]) {
++    for (const suffix of ["", " \t", "/**/"]) {
++      cases.push({name: `${name}, prefix ${JSON.stringify(prefix)}, suffix ${JSON.stringify(suffix)}`,
++                  value: prefix + "\\" + newline + suffix, expected: "none", valid: false});
++    }
++  }
++}
++for (const [value, decoded] of [["control", "control"], ["control ", "control"],
++                              ["x\\\\", "x\\"],
++                              ["x\\78", "xx"], ["\"x\"", "x"], ["x/**/", "x"]]) {
++  cases.push({name: `valid control ${JSON.stringify(value)}`,
++              value, expected: CSS.escape(decoded), valid: true});
++}
++for (const c of cases) {
++  test(t => {
++    assert_equals(CSS.supports("animation-name", c.value), c.valid, "Literal syntax");
++    const target = document.createElement("div");
++    target.style.animationName = "var(--probe)";
++    document.body.append(target);
++    t.add_cleanup(() => target.remove());
++    for (const [phase, value, expected] of [
++      ["Initial", "control", "control"], ["Set", c.value, c.expected],
++      ["Restore", "control", "control"], ["Set again", c.value, c.expected],
++    ]) {
++      target.style.setProperty("--probe", value);
++      assert_equals(getComputedStyle(target).animationName, expected, phase);
++    }
++  }, c.name);
++}
++</script>
