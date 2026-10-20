@@ -4,7 +4,7 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **86 committed native/WPT fixes.** The management index is
+- **87 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
 - **Latest fixes:** leading-whitespace attribute origin (`ad608a212bd8`),
@@ -169,9 +169,9 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Finish the view-transition initial-type deduplication formal companion and
-   independent review, then sticky H1/H2 obligations. Preserve separate evidence
-   and native/WPT commits. The [worktree audit](../css-native-worktree-reconciliation-v1/REPORT.md)
+1. Complete the separate view-transition type-mutation style-invalidation repair
+   and its runtime/formal gates, then sticky H1/H2 obligations. Initial-type
+   deduplication is committed as fix87. Preserve separate evidence and native/WPT commits. The [worktree audit](../css-native-worktree-reconciliation-v1/REPORT.md)
    records the remaining intentional native candidates and their gates.
    Continue epoch-aware attribute provenance and link-env providers. Close the next
    animation provenance boundary after fix80: audit actual
@@ -599,3 +599,18 @@ transition controls pass. No duplicate initial types are used. Source/binary pin
 are stable. Evidence: `../css-view-transition-type-invalidation-v1/v2/runtime-v1/`.
 Independent source/spec/fix review and WPT reduction are active. This is not yet
 an accepted repair or counted commit; it remains separate from initial deduplication.
+
+## Initial view-transition type deduplication committed
+
+Fix87 (`2db943802038`) contains only the Gecko startup repair and its 21-case WPT;
+`baa7f955bacd` contains preceding evidence. Five baseline failures become passes.
+Fresh root and independent formal replays accept 90 conditional audits and 1,755
+cases; 12 independent challenges exercise provider boundaries. Exact upstream
+source applicability is checked, without an isolated upstream browser claim.
+[Acceptance](../css-view-transition-types-root-v1/ACCEPTANCE.json).
+
+The distinct invalidation lead now also has a baseline WPT run: six failures
+and 12 controls pass, with all 24 initial-type/existing mutable controls passing.
+A separate calibrated probe confirms stale ordinary and transition pseudo-element
+styles. Candidate native source remains offline; implementation/build validation
+and the formal companion are pending. It is not counted as a committed repair.

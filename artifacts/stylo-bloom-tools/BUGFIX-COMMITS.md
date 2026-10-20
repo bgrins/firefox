@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **86 committed fixes; no accepted repairs await signing.**
+Current checkpoint: **87 committed fixes; no accepted repairs await signing.**
 Repairs with incomplete review are excluded from this count.
 
 [Relative triage priority](../css-bugfix-triage-20261019/README.md) groups the first 80
@@ -51,6 +51,24 @@ remains a source-review admission; the native traces directly observe stored byt
 [formal acceptance](../css-variable-backslash-newline-proof-root-v1/ACCEPTANCE.json),
 and [standalone commit receipt](../css-variable-backslash-newline-root-v1/STANDALONE-86.json).
 No release or isolated upstream browser result is claimed.
+
+### Fix 87: initial view-transition types have set semantics
+
+Native + WPT: `2db94380203863bced9e3a7147505beabaaf7599`; preceding evidence:
+`baa7f955bacd6e7bc5b4faf752cb9a1616be1d3a`. The native commit contains only
+`Document.cpp` and the 21-case duplicate-initialization WPT. Deleting a duplicate
+initial type previously left native selector membership behind after public set
+membership disappeared. Five baseline failures become passes; all 21 candidate
+cases and three existing mutable-type cases pass.
+
+Root and independent proof replays pass 90 audited declarations and 1,755
+extracted-native/model/oracle cases, with 12 additional independent challenges.
+The conditional result covers initial uniqueness and successful mutations/direct
+matching. Native providers, lifecycle installation, failure/OOM/GC and cached
+style invalidation remain outside the proved contract. The exact two-file patch
+applies independently to the retained upstream base; no isolated build is claimed.
+[Acceptance](../css-view-transition-types-root-v1/ACCEPTANCE.json) and
+[commit verification](../css-view-transition-types-commit-v1/ROOT-COMMIT-CHECK.json).
 
 <!-- CURRENT-SIGNED-QUEUE -->
 ## Signed commit queue
