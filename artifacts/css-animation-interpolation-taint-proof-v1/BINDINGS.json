@@ -1,0 +1,46 @@
+{
+  "candidate": [
+    {
+      "anchor": "impl<Component: Animate> Animate for Value<Component>",
+      "sha256": "1bd1c255b8bb91588d3170b7c4870daf39915fd38bf4ef1e3cf7456e89f57ce2",
+      "body": "impl<Component: Animate> Animate for Value<Component> {\n    fn animate(&self, other: &Self, procedure: Procedure) -> Result<Self, ()> {\n        let v = self.v.animate(&other.v, procedure)?;\n        Ok(Value {\n            v,\n            url_data: self.url_data.clone(),\n            attr_tainted: self.attr_tainted || other.attr_tainted,\n        })\n    }\n}"
+    },
+    {
+      "anchor": "pub enum Procedure",
+      "sha256": "7950e3cf200af4c59108c6c76c37ff050c27cfb99b4132adb8712ca64ef8cece",
+      "body": "pub enum Procedure {\n    /// <https://drafts.csswg.org/web-animations/#animation-interpolation>\n    Interpolate { progress: f64 },\n    /// <https://drafts.csswg.org/web-animations/#animation-addition>\n    Add,\n    /// <https://drafts.csswg.org/web-animations/#animation-accumulation>\n    Accumulate { count: u64 },\n}"
+    },
+    {
+      "anchor": "impl Procedure",
+      "sha256": "7695a58fd9dfe33ef0ec62b3229a236a07304cc25891464bac0a00dd29f6266a",
+      "body": "impl Procedure {\n    /// Returns this procedure as a pair of weights.\n    ///\n    /// This is useful for animations that don't animate differently\n    /// depending on the used procedure.\n    #[inline]\n    pub fn weights(self) -> (f64, f64) {\n        match self {\n            Procedure::Interpolate { progress } => (1. - progress, progress),\n            Procedure::Add => (1., 1.),\n            Procedure::Accumulate { count } => (count as f64, 1.),\n        }\n    }\n}"
+    },
+    {
+      "anchor": "impl<T> Animate for Option<T>\nwhere\n    T: Animate,",
+      "sha256": "b267a50c33c631570cd50a4657f135b7142ba77a141a0d566bc84e60d61c9c05",
+      "body": "impl<T> Animate for Option<T>\nwhere\n    T: Animate,\n{\n    #[inline]\n    fn animate(&self, other: &Self, procedure: Procedure) -> Result<Self, ()> {\n        match (self.as_ref(), other.as_ref()) {\n            (Some(this), Some(other)) => Ok(Some(this.animate(other, procedure)?)),\n            (None, None) => Ok(None),\n            _ => Err(()),\n        }\n    }\n}"
+    }
+  ],
+  "omission": [
+    {
+      "anchor": "impl<Component: Animate> Animate for Value<Component>",
+      "sha256": "6782c29506fc6f5d508f7dad6fc0287c33ccbe77d7d507c3a621434d4e41a2e6",
+      "body": "impl<Component: Animate> Animate for Value<Component> {\n    fn animate(&self, other: &Self, procedure: Procedure) -> Result<Self, ()> {\n        let v = self.v.animate(&other.v, procedure)?;\n        Ok(Value {\n            v,\n            url_data: self.url_data.clone(),\n            attr_tainted: self.attr_tainted,\n        })\n    }\n}"
+    },
+    {
+      "anchor": "pub enum Procedure",
+      "sha256": "7950e3cf200af4c59108c6c76c37ff050c27cfb99b4132adb8712ca64ef8cece",
+      "body": "pub enum Procedure {\n    /// <https://drafts.csswg.org/web-animations/#animation-interpolation>\n    Interpolate { progress: f64 },\n    /// <https://drafts.csswg.org/web-animations/#animation-addition>\n    Add,\n    /// <https://drafts.csswg.org/web-animations/#animation-accumulation>\n    Accumulate { count: u64 },\n}"
+    },
+    {
+      "anchor": "impl Procedure",
+      "sha256": "7695a58fd9dfe33ef0ec62b3229a236a07304cc25891464bac0a00dd29f6266a",
+      "body": "impl Procedure {\n    /// Returns this procedure as a pair of weights.\n    ///\n    /// This is useful for animations that don't animate differently\n    /// depending on the used procedure.\n    #[inline]\n    pub fn weights(self) -> (f64, f64) {\n        match self {\n            Procedure::Interpolate { progress } => (1. - progress, progress),\n            Procedure::Add => (1., 1.),\n            Procedure::Accumulate { count } => (count as f64, 1.),\n        }\n    }\n}"
+    },
+    {
+      "anchor": "impl<T> Animate for Option<T>\nwhere\n    T: Animate,",
+      "sha256": "b267a50c33c631570cd50a4657f135b7142ba77a141a0d566bc84e60d61c9c05",
+      "body": "impl<T> Animate for Option<T>\nwhere\n    T: Animate,\n{\n    #[inline]\n    fn animate(&self, other: &Self, procedure: Procedure) -> Result<Self, ()> {\n        match (self.as_ref(), other.as_ref()) {\n            (Some(this), Some(other)) => Ok(Some(this.animate(other, procedure)?)),\n            (None, None) => Ok(None),\n            _ => Err(()),\n        }\n    }\n}"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Attribute taint in interpolated registered numbers</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-security">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#animation-behavior">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@property --n {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 12;
+}
+.parent { --n: attr(data-n type(<number>)); }
+.bundle {
+  --bundle: url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7") var(--n);
+  border-image: var(--bundle);
+}
+.direct {
+  border-image: url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7") var(--n);
+}
+</style>
+<body>
+<script>
+const sourceURL = 'url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")';
+
+function target(t, observer) {
+  const parent = document.createElement("div");
+  parent.className = "parent";
+  parent.dataset.n = "8";
+  const child = parent.appendChild(document.createElement("div"));
+  child.className = observer;
+  document.body.appendChild(parent);
+  t.add_cleanup(() => parent.remove());
+  assert_equals(getComputedStyle(parent).getPropertyValue("--n").trim(), "8", "typed attr provider");
+  return child;
+}
+
+for (const observer of ["bundle", "direct"]) {
+  for (const [value, number, tainted] of [["initial", 12, false], ["inherit", 8, true], ["8", 8, false], ["12", 12, false]]) {
+    test(t => {
+      const child = target(t, observer);
+      child.style.setProperty("--n", value);
+      const style = getComputedStyle(child);
+      assert_equals(Number(style.getPropertyValue("--n")), number, "static numeric provider");
+      assert_equals(style.borderImageSource, observer === "bundle" && tainted ? "none" : sourceURL, "static URL calibration");
+    }, `Static ${value}, ${observer} observer`);
+  }
+}
+
+const cases = [
+  {name: "clean-to-clean", from: "12", to: "8", a: 12, b: 8, taintA: false, taintB: false},
+  {name: "clean-to-tainted", from: "initial", to: "inherit", a: 12, b: 8, taintA: false, taintB: true},
+  {name: "tainted-to-clean", from: "inherit", to: "initial", a: 8, b: 12, taintA: true, taintB: false},
+  {name: "tainted-to-tainted", from: "inherit", to: "inherit", a: 8, b: 8, taintA: true, taintB: true},
+];
+for (const c of cases) {
+  for (const progress of [.25, .75]) {
+    for (const observer of ["bundle", "direct"]) {
+      test(t => {
+        const child = target(t, observer);
+        const animation = child.animate([
+          {"--n": c.from}, {"--n": c.to},
+        ], {duration: 1000, fill: "both", easing: "linear", composite: "replace"});
+        t.add_cleanup(() => animation.cancel());
+        animation.pause();
+        animation.currentTime = progress * 1000;
+        assert_true(child.getAnimations().includes(animation), "effect exists");
+        assert_equals(animation.effect.getComputedTiming().progress, progress, "sample progress");
+        const style = getComputedStyle(child);
+        const number = Number(style.getPropertyValue("--n"));
+        const image = style.borderImageSource;
+        assert_equals(number, (1 - progress) * c.a + progress * c.b, "interpolated numeric value");
+        const tainted = c.taintA || c.taintB;
+        assert_equals(image, observer === "bundle" && tainted ? "none" : sourceURL, "sampled URL observer");
+      }, `${c.name}, progress ${progress}, ${observer}`);
+    }
+  }
+}
+</script>
