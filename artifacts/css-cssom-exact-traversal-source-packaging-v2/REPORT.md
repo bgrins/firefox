@@ -1,0 +1,5 @@
+# Traversal successor source packaging
+
+The proposed four-native-file plus one-WPT patch applies and reverses cleanly against the actual local parent and the October14 upstream checkpoint5d41bc07dec206ad511c2689f4b01ab74516c308. The local-parent result exactly reproduces the reviewed candidate snapshots. The new WPT is absent in both bases and is reproduced byte-for-byte. These are source checks, not builds or browser runs against the isolated upstream checkpoint, and do not accept the native repair.
+
+The first check reused historical origin/main4d26a0d0b80b56b95f9f7958a6d16dd4dfb35c1a. That ref is from March17 and the changed methods/headers no longer match its patch context. The failed check and base/local diffs remain. October14 is the latest upstream Bug-prefixed first-parent checkpoint in this local branch; no network claim that it is current upstream is made. The successful October14 check demonstrates this candidate does not require the intervening project bugfix commits to apply. Functional independence and final acceptance still require the recorded review and browser gates.

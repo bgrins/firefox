@@ -1,0 +1,738 @@
+--- base/layout/generic/nsIFrame.h
++++ local/layout/generic/nsIFrame.h
+@@ -1,5 +1,3 @@
+-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+ /* This Source Code Form is subject to the terms of the Mozilla Public
+  * License, v. 2.0. If a copy of the MPL was not distributed with this
+  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+@@ -41,31 +39,30 @@
+ #  define MAX_REFLOW_DEPTH 1026
+ #endif
+ 
+-/* nsIFrame is in the process of being deCOMtaminated, i.e., this file is
+-   eventually going to be eliminated, and all callers will use nsFrame instead.
+-   At the moment we're midway through this process, so you will see inlined
+-   functions and member variables in this file.  -dwh */
+-
+ #include <stdio.h>
+ 
+ #include <algorithm>
++#include <utility>
+ 
+ #include "FrameProperties.h"
+ #include "LayoutConstants.h"
+ #include "Visibility.h"
++#include "fmt/ostream.h"
+ #include "mozilla/AspectRatio.h"
+ #include "mozilla/Attributes.h"
+ #include "mozilla/Baseline.h"
+ #include "mozilla/ComputedStyle.h"
+ #include "mozilla/EnumSet.h"
+ #include "mozilla/EventForwards.h"
++#include "mozilla/LayoutStructs.h"
+ #include "mozilla/Maybe.h"
+-#include "mozilla/ReflowInput.h"
++#include "mozilla/ReflowOutput.h"
+ #include "mozilla/RelativeTo.h"
+ #include "mozilla/Result.h"
+ #include "mozilla/SmallPointerArray.h"
+ #include "mozilla/ToString.h"
+ #include "mozilla/WritingModes.h"
++#include "mozilla/dom/RustTypes.h"
+ #include "mozilla/gfx/2D.h"
+ #include "mozilla/gfx/CompositorHitTestInfo.h"
+ #include "mozilla/gfx/MatrixFwd.h"
+@@ -148,6 +145,7 @@
+ class nsDisplayListBuilder;
+ class nsDisplayListSet;
+ class PresShell;
++struct ReflowInput;
+ class ScrollContainerFrame;
+ class ServoRestyleState;
+ class WidgetGUIEvent;
+@@ -370,6 +368,9 @@
+ // Convert nsReflowStatus to a human-readable string.
+ std::ostream& operator<<(std::ostream& aStream, const nsReflowStatus& aStatus);
+ 
++template <>
++struct fmt::formatter<nsReflowStatus> : fmt::ostream_formatter {};
++
+ namespace mozilla {
+ 
+ // Loosely: https://drafts.csswg.org/css-align-3/#shared-alignment-context
+@@ -424,7 +425,6 @@
+   }
+ 
+   bool operator==(const IntrinsicSize&) const = default;
+-  bool operator!=(const IntrinsicSize&) const = default;
+ };
+ 
+ // Pseudo bidi embedding level indicating nonexistence.
+@@ -573,7 +573,7 @@
+ 
+ //----------------------------------------------------------------------
+ 
+-// Frame allocation boilerplate macros. Every subclass of nsFrame must
++// Frame allocation boilerplate macros. Every subclass of nsIFrame must
+ // either use NS_{DECL,IMPL}_FRAMEARENA_HELPERS pair for allocating
+ // memory correctly, or use NS_DECL_ABSTRACT_FRAME to declare a frame
+ // class abstract and stop it from being instantiated. If a frame class
+@@ -590,9 +590,9 @@
+     return nsQueryFrame::class##_id;                                           \
+   }
+ 
+-#define NS_IMPL_FRAMEARENA_HELPERS(class)                             \
+-  void* class ::operator new(size_t sz, mozilla::PresShell* aShell) { \
+-    return aShell->AllocateFrame(nsQueryFrame::class##_id, sz);       \
++#define NS_IMPL_FRAMEARENA_HELPERS(class)                              \
++  void* class ::operator new(size_t sz, mozilla::PresShell * aShell) { \
++    return aShell->AllocateFrame(nsQueryFrame::class##_id, sz);        \
+   }
+ 
+ #define NS_DECL_ABSTRACT_FRAME(class)                                         \
+@@ -615,7 +615,7 @@
+ struct MOZ_RAII FrameDestroyContext {
+   explicit FrameDestroyContext(PresShell* aPs) : mPresShell(aPs) {}
+ 
+-  void AddAnonymousContent(already_AddRefed<nsIContent>&& aContent) {
++  void AddAnonymousContent(already_AddRefed<nsIContent> aContent) {
+     if (RefPtr<nsIContent> content = aContent) {
+       mAnonymousContent.AppendElement(std::move(content));
+     }
+@@ -696,6 +696,7 @@
+   using AlignmentContext = mozilla::AlignmentContext;
+   using BaselineSharingGroup = mozilla::BaselineSharingGroup;
+   using BaselineExportContext = mozilla::BaselineExportContext;
++  using BreakType = mozilla::BreakType;
+   template <typename T>
+   using Maybe = mozilla::Maybe<T>;
+   template <typename T, typename E>
+@@ -759,7 +760,6 @@
+         mFrameIsModified(false),
+         mHasModifiedDescendants(false),
+         mHasOverrideDirtyRegion(false),
+-        mMayHaveWillChangeBudget(false),
+ #ifdef DEBUG
+         mWasVisitedByAutoFrameConstructionPageName(false),
+ #endif
+@@ -866,7 +866,7 @@
+   void operator delete(void* aPtr, size_t sz);
+ 
+  private:
+-  // Left undefined; nsFrame objects are never allocated from the heap.
++  // Left undefined; nsIFrame objects are never allocated from the heap.
+   void* operator new(size_t sz) noexcept(true);
+ 
+   // Returns true if this frame has any kind of CSS animations.
+@@ -1348,7 +1348,31 @@
+     return aChild->GetPosition();
+   }
+ 
++  /**
++   * Return this frame's position relative to its parent. If this frame is the
++   * scrolled frame of a scroll container, return the position as if that scroll
++   * container were at its initial scroll position [1].
++   *
++   * Note that if this frame is sticky positioned, the sticky offset is
++   * preserved. It is part of the frame's used position, which is what
++   * offsetTop/offsetLeft report. Use GetPositionIgnoringScrollingAndSticky() to
++   * ignore it as well.
++   *
++   * [1] https://drafts.csswg.org/css-overflow-3/#initial-scroll-position
++   */
+   nsPoint GetPositionIgnoringScrolling() const;
++
++  /**
++   * Just like GetPositionIgnoringScrolling(). In addition, if this frame is
++   * sticky positioned, return the position as if its scroll container were at
++   * its initial scroll position. That is, the returned position doesn't change
++   * as its scroll container scrolls.
++   *
++   * Anchor positioning needs this to resolve anchor() against a
++   * scroll-invariant anchor position, and to compensate by how far the anchor
++   * has actually moved.
++   */
++  nsPoint GetPositionIgnoringScrollingAndSticky() const;
+ 
+ #define NS_DECLARE_FRAME_PROPERTY_WITH_DTOR(prop, type, dtor)              \
+   static const mozilla::FramePropertyDescriptor<type>* prop() {            \
+@@ -1484,19 +1508,19 @@
+   // Note: this method only checks 'break-before' property on *this* frame, and
+   // it doesn't handle forced break value propagation from its first child.
+   // Callers should handle the propagation in reflow.
+-  bool ShouldBreakBefore(const ReflowInput::BreakType aBreakType) const;
++  bool ShouldBreakBefore(const BreakType aBreakType) const;
+ 
+   // Return True if this frame has a forced break value after it.
+   //
+   // Note: this method only checks 'break-after' property on *this* frame, and
+   // it doesn't handle forced break value propagation from its last child.
+   // Callers should handle the propagation in reflow.
+-  bool ShouldBreakAfter(const ReflowInput::BreakType aBreakType) const;
++  bool ShouldBreakAfter(const BreakType aBreakType) const;
+ 
+  private:
+   bool ShouldBreakBetween(const nsStyleDisplay* aDisplay,
+                           const mozilla::StyleBreakBetween aBreakBetween,
+-                          const ReflowInput::BreakType aBreakType) const;
++                          const BreakType aBreakType) const;
+ 
+   mozilla::LogicalSize SizeReducedBy(mozilla::WritingMode aWritingMode,
+                                      mozilla::LogicalMargin aMargin) const {
+@@ -1671,6 +1695,7 @@
+    * Return whether any radii are nonzero.
+    */
+   static bool ComputeBorderRadii(const mozilla::BorderRadius&,
++                                 const mozilla::CornerShapeRect&,
+                                  const nsSize& aFrameSize,
+                                  const nsSize& aBorderArea, Sides aSkipSides,
+                                  nsRectCornerRadii&);
+@@ -1821,15 +1846,7 @@
+   }
+ 
+   // Gets a caret baseline suitable for the frame if the frame doesn't have one.
+-  //
+-  // @param aBSize the content box block size of the line container. Needed to
+-  // resolve line-height: -moz-block-height. NS_UNCONSTRAINEDSIZE is fine
+-  // otherwise.
+-  //
+-  // TODO(emilio): Now we support align-content on blocks it seems we could
+-  // get rid of line-height: -moz-block-height.
+-  nscoord GetFontMetricsDerivedCaretBaseline(
+-      nscoord aBSize = NS_UNCONSTRAINEDSIZE) const;
++  nscoord GetFontMetricsDerivedCaretBaseline() const;
+ 
+   /**
+    * Subclasses can call this method to enable visibility tracking for this
+@@ -1992,7 +2009,7 @@
+   }
+   bool IsThemed(const nsStyleDisplay* aDisp,
+                 nsITheme::Transparency* aTransparencyState = nullptr) const {
+-    if (!aDisp->HasAppearance()) {
++    if (!aDisp->HasNativeAppearance()) {
+       return false;
+     }
+     nsIFrame* mutable_this = const_cast<nsIFrame*>(this);
+@@ -2218,7 +2235,7 @@
+   void ComputePreserve3DChildrenOverflow(
+       mozilla::OverflowAreas& aOverflowAreas);
+ 
+-  void RecomputePerspectiveChildrenOverflow(const nsIFrame* aStartFrame);
++  bool RecomputePerspectiveChildrenOverflow(const nsIFrame* aStartFrame);
+ 
+   /**
+    * Returns whether z-index applies to this frame.
+@@ -2270,6 +2287,17 @@
+    * @see     WidgetGUIEvent
+    * @see     nsEventStatus
+    */
++  /**
++   * Select the word or the link at aContextMenuEvent's point, so that the
++   * context menu can act on it. Called from HandleEvent(), after the event
++   * has been dispatched to the page and before the system group listeners
++   * open the context menu, and only if the page did not cancel the event.
++   *
++   * @param aContextMenuEvent       Its message must be eContextMenu.
++   */
++  MOZ_CAN_RUN_SCRIPT_BOUNDARY void HandleContextMenuEventToSelectWordOrLink(
++      const mozilla::WidgetMouseEvent& aContextMenuEvent);
++
+   MOZ_CAN_RUN_SCRIPT_BOUNDARY
+   virtual nsresult HandleEvent(nsPresContext* aPresContext,
+                                mozilla::WidgetGUIEvent* aEvent,
+@@ -2339,6 +2367,38 @@
+       mozilla::WidgetMouseEvent& aSecondaryButtonEvent,
+       const nsIContent& aContentAtEventPoint,
+       int32_t aOffsetAtEventPoint) const;
++
++  /**
++   * Check whether aContextMenuEvent should select what it points at instead of
++   * leaving the selection alone.
++   *
++   * @param aFrameSelection         The nsFrameSelection which owns the
++   *                                selection to compare the event point with.
++   * @param aContextMenuEvent       Its message must be eContextMenu.
++   * @param aPoint                  The event point, relative to this frame.
++   * @param aContentAtEventPoint    The content node at the event point.
++   * @param aOffsetAtEventPoint     The offset in aContentAtEventPoint which
++   *                                aContextMenuEvent points at.
++   */
++  [[nodiscard]] bool SelectingWordOrLinkAtEventPointAllowed(
++      const nsFrameSelection& aFrameSelection,
++      const mozilla::WidgetMouseEvent& aContextMenuEvent, const nsPoint& aPoint,
++      const nsIContent& aContentAtEventPoint,
++      int32_t aOffsetAtEventPoint) const;
++
++  /**
++   * Select the whole text of the link containing aContentAtEventPoint, or the
++   * word at aPoint when it is not in a link.  A link is selected as a whole
++   * because the context menu acts on the link rather than on one of its words.
++   * Blink does the same in
++   * SelectionController::SelectClosestWordOrLinkFromMouseEvent() and WebKit in
++   * EventHandler::selectClosestContextualWordOrLinkFromHitTestResult().
++   *
++   * @param aPoint                  The event point, relative to this frame.
++   * @param aContentAtEventPoint    The content node at aPoint.
++   */
++  MOZ_CAN_RUN_SCRIPT nsresult SelectWordOrLinkAtPoint(
++      const nsPoint& aPoint, const nsIContent& aContentAtEventPoint);
+ 
+   MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHOD HandleMultiplePress(
+       nsPresContext* aPresContext, mozilla::WidgetGUIEvent* aEvent,
+@@ -2373,12 +2433,71 @@
+                                     int32_t* aContentOffset,
+                                     mozilla::TableSelectionMode* aTarget);
+ 
++  enum class ForSelectionStart : bool {
++    No,
++    Yes,
++  };
+   // Whether this frame should move the selection as a response to mouse moves /
+-  // presses / drags.
+-  bool ShouldHandleSelectionMovementEvents();
++  // presses / drags (Or a subset of them).
++  bool ShouldHandleSelectionMovementEvents(
++      ForSelectionStart aType = ForSelectionStart::No);
++
++  static mozilla::StyleUserSelect UsedUserSelect(const nsIFrame* aFrame,
++                                                 ForSelectionStart aType);
++  static Maybe<mozilla::StyleUserSelect> UsedUserSelectRecurse(
++      const nsIFrame* aFrame, ForSelectionStart aType);
+ 
+  public:
+-  virtual nsIContent* GetContentForEvent(const mozilla::WidgetEvent*) const;
++  /**
++   * Return a content node for handling an event on this frame.
++   * - If this is a frame for a generated content, return the parent of the
++   * generated content.
++   * - If this is a image frame for an image map and the event is fired in an
++   * <area>, return the <area>.
++   * Different from GetEventTargetContent, this may return a `Text` node if the
++   * event uses the coordinates and over a `Text`.
++   *
++   * FYI: When you override this method, you should add `using
++   * nsIFrame::GetExplicitEventTargetContent` not to hide the following
++   * overload.
++   */
++  virtual nsIContent* GetExplicitEventTargetContent(
++      const mozilla::WidgetEvent* = nullptr) const;
++
++  /**
++   * Return a content node for handling an event on this frame.
++   * - If this is a frame for a generated content, return the parent of the
++   * generated content.
++   * - If this is a image frame for an image map and the event is fired in an
++   * <area>, return the <area>.
++   * Different from GetEventTargetContent, this may return a `Text` node if the
++   * event uses the coordinates and over a `Text`.
++   */
++  nsIContent* GetExplicitEventTargetContent(
++      const mozilla::WidgetEvent& aEvent) const {
++    return GetExplicitEventTargetContent(&aEvent);
++  }
++
++  /**
++   * Return a content node which may be the target of the event if and only if
++   * the event should be handled by this frame. The result is the same as
++   * the result of GetExplicitEventTargetContent() or its flattened tree parent
++   * element if the result is not an element and the event target should be an
++   * element node.
++   */
++  nsIContent* GetEventTargetContent(
++      const mozilla::WidgetEvent* = nullptr) const;
++
++  /**
++   * Return a content node which may be the target of the event if and only if
++   * the event should be handled by this frame. The result is the same as
++   * the result of GetExplicitEventTargetContent() or its flattened tree parent
++   * element if the result is not an element and the event target should be an
++   * element node.
++   */
++  nsIContent* GetEventTargetContent(const mozilla::WidgetEvent& aEvent) const {
++    return GetEventTargetContent(&aEvent);
++  }
+ 
+   // This structure keeps track of the content node and offsets associated with
+   // a point; there is a primary and a secondary offset associated with any
+@@ -2461,7 +2580,13 @@
+    */
+   void DisassociateImage(const mozilla::StyleImage&);
+ 
+-  mozilla::StyleImageRendering UsedImageRendering() const;
++  const mozilla::ComputedStyle* UsedStyleForImages() const;
++  mozilla::StyleImageRendering UsedImageRendering() const {
++    return UsedStyleForImages()->StyleVisibility()->mImageRendering;
++  }
++  mozilla::StyleImageDecoding UsedImageDecoding() const {
++    return UsedStyleForImages()->StyleVisibility()->mImageDecoding;
++  }
+   mozilla::StyleTouchAction UsedTouchAction() const;
+ 
+   enum class AllowCustomCursorImage {
+@@ -2541,11 +2666,13 @@
+    */
+   bool HasAnyStateBits(nsFrameState aBits) const { return mState & aBits; }
+ 
++ protected:
++  /**
++   * Called when this frame becomes primary for mContent.
++   */
++  virtual void InitPrimaryFrame();
++
+  private:
+-  /**
+-   * Called when this frame becomes primary for mContent.
+-   */
+-  void InitPrimaryFrame();
+   /**
+    * Called when the primary frame style changes.
+    *
+@@ -2662,6 +2789,8 @@
+    * Exceptions: TableColGroupFrame children.
+    */
+   void MarkSubtreeDirty();
++
++  void MarkPrincipalChildrenDirty();
+ 
+   /**
+    * Get the min-content intrinsic inline size of the frame.  This must be
+@@ -2971,7 +3100,8 @@
+       const mozilla::StyleSize& aStyleBSize,
+       const mozilla::StyleSize& aStyleMinBSize,
+       const mozilla::StyleMaxSize& aStyleMaxBSize, nscoord aCBBSize,
+-      nscoord aContentEdgeToBoxSizingBSize);
++      nscoord aContentEdgeToBoxSizingBSize, nscoord aMargin,
++      nscoord aBorderPadding);
+ 
+  protected:
+   /**
+@@ -3205,7 +3335,7 @@
+    */
+   bool ComputeOverflowClipRectRelativeToSelf(
+       const mozilla::PhysicalAxes aClipAxes, nsRect& aOutRect,
+-      nsRectCornerRadii& aOutRadii) const;
++      nsRectCornerRadii& aOutRadii, nsMargin& aOutInset) const;
+ 
+   // Returns the applicable overflow-clip-margin values relative to our
+   // border-box. If aAllowNegative is false, prevents us from returning margins
+@@ -3328,10 +3458,25 @@
+   nsPoint GetOffsetToRootFrame() const;
+ 
+   /**
+-   * Just like GetOffsetTo, but treats all scrollframes as scrolled to
+-   * their origin.
++   * Just like GetOffsetTo(), but treats all scroll containers as being at their
++   * initial scroll position. See GetPositionIgnoringScrolling().
+    */
+   nsPoint GetOffsetToIgnoringScrolling(const nsIFrame* aOther) const;
++
++  /**
++   * Just like GetOffsetToIgnoringScrolling(), but also treating a sticky
++   * element's offset as if its scroll container were at its initial scroll
++   * position. That is, the result does not change regardless of the scroll
++   * positions between |this| and aOther. See
++   * GetPositionIgnoringScrollingAndSticky().
++   */
++  nsPoint GetOffsetToIgnoringScrollingAndSticky(const nsIFrame* aOther) const;
++
++  /**
++   * Return how far |this| has shifted relative to aOther due to scrolling. The
++   * shift applied to a sticky positioned frame counts as scrolling too.
++   */
++  nsPoint GetScrollOffsetTo(const nsIFrame* aOther) const;
+ 
+   /**
+    * Get the offset between the coordinate systems of |this| and aOther
+@@ -3576,6 +3721,7 @@
+ #endif
+ 
+   bool IsReplaced() const;
++  bool IsAtomicInline() const;
+ 
+   /**
+    * Returns a transformation matrix that converts points in this frame's
+@@ -3594,14 +3740,9 @@
+    *   RelativeTo{this, aViewportType} into points in aOutAncestor's
+    *   coordinate space.
+    */
+-  enum {
+-    IN_CSS_UNITS = 1 << 0,
+-    STOP_AT_STACKING_CONTEXT_AND_DISPLAY_PORT = 1 << 1
+-  };
+-  Matrix4x4Flagged GetTransformMatrix(mozilla::ViewportType aViewportType,
+-                                      mozilla::RelativeTo aStopAtAncestor,
+-                                      nsIFrame** aOutAncestor,
+-                                      uint32_t aFlags = 0) const;
++  Matrix4x4Flagged GetTransformMatrix(
++      mozilla::ViewportType aViewportType, mozilla::RelativeTo aStopAtAncestor,
++      nsIFrame** aOutAncestor, mozilla::TransformMatrixFlags aFlags = {}) const;
+ 
+   /**
+    * Return true if this frame's preferred size property or max size property
+@@ -3639,9 +3780,17 @@
+ 
+   /**
+    * Returns true if the frame is an instance of nsBlockFrame or one of its
+-   * subclasses.
++   * subclasses. Note: This uses a slow do_QueryFrame call when |this| is not
++   * nsBlockFrame itself, but a subclass of nsBlockFrame.
+    */
+   bool IsBlockFrameOrSubclass() const;
++
++  /**
++   * Returns true if the frame is an instance of nsInlineFrame or one of its
++   * subclasses. Note: This uses a slow do_QueryFrame call when |this| is not
++   * nsInlineFrame itself, but a subclass of nsInlineFrame.
++   */
++  bool IsInlineFrameOrSubclass() const;
+ 
+   /**
+    * Returns true if the frame is an instance of nsImageFrame or one of its
+@@ -3957,14 +4106,14 @@
+    * the overflow areas changed.
+    */
+   bool FinishAndStoreOverflow(mozilla::OverflowAreas& aOverflowAreas,
+-                              nsSize aNewSize, nsSize* aOldSize = nullptr,
++                              nsSize aNewSize,
+                               const nsStyleDisplay* aStyleDisplay = nullptr);
+ 
+   bool FinishAndStoreOverflow(ReflowOutput* aMetrics,
+                               const nsStyleDisplay* aStyleDisplay = nullptr) {
+     return FinishAndStoreOverflow(aMetrics->mOverflowAreas,
+                                   nsSize(aMetrics->Width(), aMetrics->Height()),
+-                                  nullptr, aStyleDisplay);
++                                  aStyleDisplay);
+   }
+ 
+   /**
+@@ -4494,6 +4643,29 @@
+   }
+ 
+   /**
++   * Set the releasable property with a given value if it doesn't already exist;
++   * otherwise, return the existing value.
++   *
++   * Note: As the name suggests, this will behave properly only for properties
++   * declared with NS_DECLARE_FRAME_PROPERTY_RELEASABLE!
++   */
++  template <typename T, typename... Params>
++  T* GetOrCreateReleasableProperty(FrameProperties::Descriptor<T> aProperty,
++                                   Params&&... aParams) {
++    bool found;
++    using DataType = std::remove_pointer_t<FrameProperties::PropertyType<T>>;
++    DataType* prop = GetProperty(aProperty, &found);
++    if (found) {
++      MOZ_ASSERT(prop, "this property should only store non-null values");
++      return prop;
++    }
++    prop = new DataType{std::forward<Params>(aParams)...};
++    NS_ADDREF(prop);
++    AddProperty(aProperty, prop);
++    return prop;
++  }
++
++  /**
+    * Set the deletable property with a given value if it doesn't already exist;
+    * otherwise, allocate a copy of the passed-in value and insert that as a new
+    * value. Returns the pointer to the property, guaranteed non-null, value that
+@@ -4509,10 +4681,25 @@
+     using DataType = std::remove_pointer_t<FrameProperties::PropertyType<T>>;
+     DataType* storedValue = GetProperty(aProperty, &found);
+     if (!found) {
+-      storedValue = new DataType{aParams...};
++      storedValue = new DataType{std::forward<Params>(aParams)...};
+       AddProperty(aProperty, storedValue);
+     } else {
+-      *storedValue = DataType{aParams...};
++      *storedValue = DataType{std::forward<Params>(aParams)...};
++    }
++    return storedValue;
++  }
++
++  // As above, but creates a default-constructed T if it doesn't exist, and
++  // doesn't override the existing property if it does.
++  template <typename T>
++  FrameProperties::PropertyType<T> GetOrCreateDeletableProperty(
++      FrameProperties::Descriptor<T> aProperty) {
++    bool found;
++    using DataType = std::remove_pointer_t<FrameProperties::PropertyType<T>>;
++    DataType* storedValue = GetProperty(aProperty, &found);
++    if (!found) {
++      storedValue = new DataType{};
++      AddProperty(aProperty, storedValue);
+     }
+     return storedValue;
+   }
+@@ -4602,11 +4789,14 @@
+    * @param  [in] aStart
+    *         true  for getting the first possible caret position
+    *         false for getting the last possible caret position
++   * @param  [in] aFlags
++   *         Flags supported by SelfIsSelectable(). E.g.,
++   *         IGNORE_NATIVE_ANONYMOUS_SUBTREE and SKIP_HIDDEN.
+    * @return The caret position in a CaretPosition.
+    *         the returned value is a 'best effort' in case errors
+    *         are encountered rummaging through the frame.
+    */
+-  CaretPosition GetExtremeCaretPosition(bool aStart);
++  CaretPosition GetExtremeCaretPosition(bool aStart, uint32_t aFlags);
+ 
+   /**
+    * Query whether this frame supports getting a line iterator.
+@@ -4965,9 +5155,8 @@
+   };
+   ISizeComputationResult ComputeISizeValue(
+       gfxContext* aRenderingContext, const mozilla::WritingMode aWM,
+-      const mozilla::LogicalSize& aCBSize,
+-      const mozilla::LogicalSize& aContentEdgeToBoxSizing,
+-      nscoord aBoxSizingToMarginEdge, ExtremumLength aSize,
++      const mozilla::LogicalSize& aCBSize, const mozilla::LogicalSize& aMargin,
++      const mozilla::LogicalSize& aBorderPadding, ExtremumLength aSize,
+       Maybe<nscoord> aAvailableISizeOverride,
+       const mozilla::StyleSize& aStyleBSize,
+       const mozilla::AspectRatio& aAspectRatio,
+@@ -4988,6 +5177,10 @@
+    * This method doesn't handle 'auto' when aSize is of type StyleSize,
+    * nor does it handle 'none' when aSize is of type StyleMaxSize.
+    *
++   * @param aMargin the frame's margin, in both axes.
++   *
++   * @param aBorderPadding the frame's border and padding, in both axes.
++   *
+    * @param aStyleBSize the style block size of the frame, used to compute
+    * intrinsic inline size with aAspectRatio.
+    *
+@@ -4996,14 +5189,17 @@
+   template <typename SizeOrMaxSize>
+   ISizeComputationResult ComputeISizeValue(
+       gfxContext* aRenderingContext, const mozilla::WritingMode aWM,
+-      const mozilla::LogicalSize& aCBSize,
+-      const mozilla::LogicalSize& aContentEdgeToBoxSizing,
+-      nscoord aBoxSizingToMarginEdge, const SizeOrMaxSize& aSize,
++      const mozilla::LogicalSize& aCBSize, const mozilla::LogicalSize& aMargin,
++      const mozilla::LogicalSize& aBorderPadding, const SizeOrMaxSize& aSize,
+       const mozilla::StyleSize& aStyleBSize,
+       const mozilla::AspectRatio& aAspectRatio,
+       mozilla::ComputeSizeFlags aFlags = {}) {
+     if (aSize.IsLengthPercentage()) {
+-      return {ComputeISizeValue(aWM, aCBSize, aContentEdgeToBoxSizing,
++      const auto contentEdgeToBoxSizing =
++          StylePosition()->mBoxSizing == mozilla::StyleBoxSizing::BorderBox
++              ? aBorderPadding
++              : mozilla::LogicalSize(aWM);
++      return {ComputeISizeValue(aWM, aCBSize, contentEdgeToBoxSizing,
+                                 aSize.AsLengthPercentage())};
+     }
+     auto length = ToExtremumLength(aSize);
+@@ -5014,9 +5210,9 @@
+           aSize.AsFitContentFunction().Resolve(aCBSize.ISize(aWM)));
+     }
+     return ComputeISizeValue(
+-        aRenderingContext, aWM, aCBSize, aContentEdgeToBoxSizing,
+-        aBoxSizingToMarginEdge, length.valueOr(ExtremumLength::MinContent),
+-        availbleISizeOverride, aStyleBSize, aAspectRatio, aFlags);
++        aRenderingContext, aWM, aCBSize, aMargin, aBorderPadding,
++        length.valueOr(ExtremumLength::MinContent), availbleISizeOverride,
++        aStyleBSize, aAspectRatio, aFlags);
+   }
+ 
+   DisplayItemArray& DisplayItems() { return mDisplayItems; }
+@@ -5122,11 +5318,6 @@
+     mHasOverrideDirtyRegion = aHasDirtyRegion;
+   }
+ 
+-  bool MayHaveWillChangeBudget() const { return mMayHaveWillChangeBudget; }
+-  void SetMayHaveWillChangeBudget(const bool aHasBudget) {
+-    mMayHaveWillChangeBudget = aHasBudget;
+-  }
+-
+   bool HasBSizeChange() const { return mHasBSizeChange; }
+   void SetHasBSizeChange(const bool aHasBSizeChange) {
+     mHasBSizeChange = aHasBSizeChange;
+@@ -5239,7 +5430,6 @@
+     uint8_t mRight;
+     uint8_t mBottom;
+     bool operator==(const InkOverflowDeltas& aOther) const = default;
+-    bool operator!=(const InkOverflowDeltas& aOther) const = default;
+   };
+   enum class OverflowStorageType : uint32_t {
+     // No overflow area; code relies on this being an all-zero value.
+@@ -5347,12 +5537,6 @@
+    * during partial display list builds.
+    */
+   bool mHasOverrideDirtyRegion : 1;
+-
+-  /**
+-   * True if frame has will-change, and currently has display
+-   * items consuming some of the will-change budget.
+-   */
+-  bool mMayHaveWillChangeBudget : 1;
+ 
+ #ifdef DEBUG
+  public:
+@@ -5498,7 +5682,7 @@
+     // on the current line.
+     nsAutoString mContext;
+ 
+-    PeekWordState() {}
++    PeekWordState() = default;
+     void SetSawBeforeType() { mSawBeforeType = true; }
+     void SetSawInlineCharacter() { mSawInlineCharacter = true; }
+     void Update(bool aAfterPunctuation, bool aAfterWhitespace,
+@@ -5766,13 +5950,13 @@
+ 
+   ~AutoWeakFrame();
+ 
+- private:
+   // Not available for the heap!
+   void* operator new(size_t) = delete;
+   void* operator new[](size_t) = delete;
+   void operator delete(void*) = delete;
+   void operator delete[](void*) = delete;
+ 
++ private:
+   void Init(nsIFrame* aFrame);
+ 
+   AutoWeakFrame* mPrev;
+@@ -5787,13 +5971,15 @@
+ /**
+  * @see AutoWeakFrame
+  */
+-class MOZ_HEAP_CLASS WeakFrame {
++class MOZ_HEAP_CLASS MOZ_NON_MEMMOVABLE WeakFrame {
+  public:
+   WeakFrame() : mFrame(nullptr) {}
+ 
+   WeakFrame(const WeakFrame& aOther) : mFrame(nullptr) {
+     Init(aOther.GetFrame());
+   }
++
++  WeakFrame(WeakFrame&& aOther) : mFrame(nullptr) { *this = std::move(aOther); }
+ 
+   MOZ_IMPLICIT WeakFrame(const AutoWeakFrame& aOther) : mFrame(nullptr) {
+     Init(aOther.GetFrame());
+@@ -5810,6 +5996,13 @@
+     return *this;
+   }
+ 
++  WeakFrame& operator=(WeakFrame&& aOther);
++
++  WeakFrame& operator=(const AutoWeakFrame& aOther) {
++    Init(aOther.GetFrame());
++    return *this;
++  }
++
+   WeakFrame& operator=(nsIFrame* aFrame) {
+     Init(aFrame);
+     return *this;
+@@ -5830,6 +6023,9 @@
+ 
+   nsIFrame* mFrame;
+ };
++
++// The PresShell tracks WeakFrames by address, so they can't be memmoved.
++MOZ_DECLARE_RELOCATE_USING_MOVE_CONSTRUCTOR(WeakFrame)
+ 
+ // Use nsIFrame's fast-path to avoid QueryFrame:
+ inline do_QueryFrameHelper<nsIFrame> do_QueryFrame(WeakFrame& s) {
