@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>mod() and rem() with infinite divisors</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#round-infinities">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="target"></div>
+<script>
+function testOpacity(expression, expected) {
+  test(() => {
+    const target = document.getElementById("target");
+    target.style.opacity = "";
+    target.style.opacity = expression;
+    assert_not_equals(target.style.opacity, "", "Declaration parses");
+    assert_equals(Number(getComputedStyle(target).opacity), expected);
+  }, `opacity: ${expression}`);
+}
+
+for (const [expression, expected] of [
+  ["mod(.5, infinity)", .5],
+  ["calc(1 + mod(-.5, -infinity))", .5],
+  ["rem(.5, infinity)", .5],
+  ["rem(.5, -infinity)", .5],
+  ["calc(1 + rem(-.5, infinity))", .5],
+  ["calc(1 + rem(-.5, -infinity))", .5],
+  ["calc(1 / mod(0, infinity))", 1],
+  ["calc(-1 / mod(0 * -1, -infinity))", 1],
+  ["calc(1 / rem(0, infinity))", 1],
+  ["calc(1 / rem(0, -infinity))", 1],
+  ["calc(-1 / rem(0 * -1, infinity))", 1],
+  ["calc(-1 / rem(0 * -1, -infinity))", 1],
+  ["calc(.5 + mod(.25, -infinity))", 0],
+  ["calc(.5 + mod(-.25, infinity))", 0],
+  ["calc(.5 + mod(0, -infinity))", 0],
+  ["calc(.5 + mod(0 * -1, infinity))", 0],
+  ["mod(.75, .5)", .25],
+  ["calc(1 + mod(-.75, -.5))", .75],
+  ["mod(-.75, .5)", .25],
+  ["calc(1 + mod(.75, -.5))", .75],
+  ["rem(.75, .5)", .25],
+  ["rem(.75, -.5)", .25],
+  ["calc(1 + rem(-.75, .5))", .75],
+  ["calc(1 + rem(-.75, -.5))", .75],
+  ["calc(1 / 0)", 1],
+  ["calc(-1 / (0 * -1))", 1],
+]) {
+  testOpacity(expression, expected);
+}
+
+for (const operation of ["mod", "rem"]) {
+  for (const [dividend, divisor] of [
+    ["NaN", "infinity"],
+    ["NaN", "-infinity"],
+    [".5", "NaN"],
+    [".5", "0"],
+    [".5", "0 * -1"],
+    ["infinity", "infinity"],
+    ["infinity", "-infinity"],
+    ["-infinity", "infinity"],
+    ["-infinity", "-infinity"],
+    ["infinity", ".5"],
+    ["-infinity", "-.5"],
+  ]) {
+    testOpacity(`calc(.5 + ${operation}(${dividend}, ${divisor}))`, 0);
+  }
+}
+</script>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Attribute changes in compound container style queries</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#container-rule">
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#style-container">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="fixtures"></div>
+<script>
+const queries = [
+  ["direct", 1, ([a]) => a, ([a]) => a],
+  ["inner not", 1, ([a]) => `style(not (--p: attr(${a})))`, ([a]) => !a, true],
+  ["parentheses", 1, ([a]) => `(${a})`, ([a]) => a],
+  ["nested parentheses", 1, ([a]) => `(((${a})))`, ([a]) => a],
+  ["outer not", 1, ([a]) => `not ${a}`, ([a]) => !a],
+  ["and", 2, ([a, b]) => `${a} and ${b}`, ([a, b]) => a && b],
+  ["or", 2, ([a, b]) => `${a} or ${b}`, ([a, b]) => a || b],
+  ["negated and", 2, ([a, b]) => `not (${a} and ${b})`, ([a, b]) => !(a && b)],
+  ["negated or", 2, ([a, b]) => `not (${a} or ${b})`, ([a, b]) => !(a || b)],
+  ["and with not", 2, ([a, b]) => `${a} and (not ${b})`, ([a, b]) => a && !b],
+  ["or with not", 2, ([a, b]) => `(not ${a}) or ${b}`, ([a, b]) => !a || b],
+  ["mixed operators", 3, ([a, b, c]) => `(${a} and ${b}) or ${c}`, ([a, b, c]) => (a && b) || c],
+];
+
+let serial = 0;
+for (const named of [false, true]) {
+  for (const [name, count, condition, evaluate, rawAttribute] of queries) {
+    for (let initial = 0; initial < 2 ** count; ++initial) {
+      test(t => {
+        const id = `fixture-${serial++}`;
+        const attributes = Array.from({length: count}, (_, i) => `data-${id}-${i}`);
+        const values = attributes.map((_, i) => Boolean(initial & (1 << i)));
+        const expression = condition(rawAttribute ? attributes :
+          attributes.map(attribute => `style(--p: attr(${attribute}))`));
+        const style = document.createElement("style");
+        style.textContent = `
+          #${id} { --p: "yes"; container-name: query-container; }
+          #${id} .target { color: red; }
+          @container ${named ? "query-container" : ""} ${expression} {
+            #${id} .target { color: green; }
+          }
+        `;
+        document.head.append(style);
+        t.add_cleanup(() => style.remove());
+        assert_true(style.sheet.cssRules[2] instanceof CSSContainerRule,
+                    "The query must parse");
+
+        const container = document.createElement("div");
+        container.id = id;
+        attributes.forEach((attribute, i) => {
+          container.setAttribute(attribute, values[i] ? "yes" : "no");
+        });
+        const target = document.createElement("div");
+        target.className = "target";
+        target.textContent = "Target";
+        const parent = named ? container.appendChild(document.createElement("div")) : container;
+        parent.append(target);
+        document.getElementById("fixtures").append(container);
+        t.add_cleanup(() => container.remove());
+
+        function check(label) {
+          assert_equals(getComputedStyle(target).color,
+                        evaluate(values) ? "rgb(0, 128, 0)" : "rgb(255, 0, 0)", label);
+        }
+
+        check("Initial value");
+        for (let step = 0; step < 2 * count; ++step) {
+          const i = step % count;
+          values[i] = !values[i];
+          container.setAttribute(attributes[i], values[i] ? "yes" : "no");
+          check(`Attribute ${i} changed to ${values[i]}`);
+        }
+        container.setAttribute(`data-unrelated-${id}`, "yes");
+        check("Unrelated attribute changed");
+      }, `${named ? "Named" : "Unnamed"} container: ${name}, initial ${initial}`);
+    }
+  }
+}
+</script>

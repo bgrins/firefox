@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Sticky inset reduction uses the containing block's writing mode</title>
+<link rel="help" href="https://drafts.csswg.org/css-position-3/#stickypos-insets">
+<link rel="help" href="https://drafts.csswg.org/css-writing-modes-4/#logical-to-physical">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="fixtures"></div>
+<script>
+const fixtures = document.querySelector("#fixtures");
+const modes = ["horizontal-tb", "vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr"];
+const children = [["horizontal-tb", "ltr"], ["vertical-rl", "rtl"], ["sideways-lr", "ltr"]];
+
+function element(style, parent) {
+  const result = document.createElement("div");
+  result.style.cssText = style;
+  parent.append(result);
+  return result;
+}
+
+function endIsNear(mode, direction, vertical) {
+  if (!vertical) {
+    return mode === "horizontal-tb" ? direction === "rtl"
+                                   : mode === "vertical-rl" || mode === "sideways-rl";
+  }
+  if (mode === "horizontal-tb") {
+    return false;
+  }
+  return mode === "sideways-lr" ? direction === "ltr" : direction === "rtl";
+}
+
+function expectedPosition(size, near, far, scroll, reduceNear) {
+  const expanded = Math.max(size, 100 - near - far);
+  const lower = reduceNear ? 100 - far - expanded : near;
+  const upper = reduceNear ? 100 - far - size : near + expanded - size;
+  const shifted = Math.max(lower, Math.min(upper, 200 - scroll));
+  const position = Math.max(-scroll, Math.min(600 - size - scroll, shifted));
+  return position === 0 ? 0 : position;
+}
+
+for (const mode of modes) for (const direction of ["ltr", "rtl"]) {
+  for (const [childMode, childDirection] of children) {
+    for (const vertical of [false, true]) {
+      const reduceNear = endIsNear(mode, direction, vertical);
+      const inlineAxis = vertical !== (mode === "horizontal-tb");
+      const flow = (inlineAxis ? "row" : "column") + (reduceNear ? "-reverse" : "");
+      const coordinate = vertical ? "top" : "left";
+      const scrollProperty = vertical ? "scrollTop" : "scrollLeft";
+      for (const size of [70, 200]) for (const [near, far] of [[0, 0], [20, 10], [-20, 10]]) {
+        for (const scroll of [0, 180, 400]) {
+          test(t => {
+            assert_true(CSS.supports("writing-mode", mode), "Containing block mode is supported");
+            assert_true(CSS.supports("writing-mode", childMode), "Child mode is supported");
+            const scroller = element("width:100px;height:100px;overflow:hidden;overflow-anchor:none", fixtures);
+            t.add_cleanup(() => scroller.remove());
+            const container = element(`display:flex;flex-direction:${flow};writing-mode:${mode};direction:${direction};` +
+              (vertical ? "width:100px;height:600px" : "width:600px;height:100px"), scroller);
+            const dimensions = value => vertical ? `width:100px;height:${value}px;flex:none`
+                                                 : `width:${value}px;height:100px;flex:none`;
+            element(dimensions(200), container);
+            const sticky = element(`${dimensions(size)};writing-mode:${childMode};direction:${childDirection}`, container);
+            element(dimensions(200), container);
+            scroller[scrollProperty] = scroll;
+            assert_equals(scroller[scrollProperty], scroll, "Scroll calibration");
+            const origin = scroller.getBoundingClientRect()[coordinate];
+            assert_equals(sticky.getBoundingClientRect()[coordinate] - origin,
+                          200 - scroll, "Normal position calibration");
+            sticky.style.position = "sticky";
+            sticky.style[vertical ? "top" : "left"] = `${near}px`;
+            sticky.style[vertical ? "bottom" : "right"] = `${far}px`;
+            assert_equals(sticky.getBoundingClientRect()[coordinate] - origin,
+                          expectedPosition(size, near, far, scroll, reduceNear));
+          }, `${mode}/${direction}, child ${childMode}/${childDirection}, ${vertical ? "y" : "x"}, size ${size}, insets ${near}/${far}, scroll ${scroll}`);
+        }
+      }
+    }
+  }
+}
+</script>

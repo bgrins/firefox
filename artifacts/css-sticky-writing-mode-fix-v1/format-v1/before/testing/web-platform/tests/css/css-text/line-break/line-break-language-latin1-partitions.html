@@ -1,0 +1,71 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Language-sensitive Latin-1 line breaking across text node partitions</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-3/#line-break-property">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@font-face {
+  font-family: mplus;
+  src: url("/fonts/mplus-1p-regular.woff");
+}
+.sample, .calibration {
+  font: 30px/30px mplus;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
+}
+.calibration {
+  display: inline-block;
+  white-space: nowrap;
+}
+</style>
+<div id="log"></div>
+<script>
+const fontReady = document.fonts.load("30px mplus", "A°");
+for (const language of ["ja", "en"]) {
+  for (const strictness of ["normal", "loose", "strict"]) {
+    for (const partition of ["single", "adjacent", "no-space"]) {
+      for (const transform of ["none", "capitalize"]) {
+        promise_test(async t => {
+          const faces = await fontReady;
+          assert_equals(faces.length, 1, "Test font loaded");
+          const calibration = document.createElement("span");
+          calibration.className = "calibration";
+          calibration.textContent = "A";
+          document.body.append(calibration);
+          t.add_cleanup(() => calibration.remove());
+          const advance = calibration.getBoundingClientRect().width;
+          assert_greater_than(advance, 0);
+          const sample = document.createElement("div");
+          sample.className = "sample";
+          sample.lang = language;
+          sample.style.width = `${advance + 0.1}px`;
+          sample.style.lineBreak = strictness;
+          sample.style.textTransform = transform;
+          if (partition === "adjacent") {
+            sample.append(document.createTextNode("A°A"), document.createTextNode(" "));
+          } else {
+            sample.textContent = "A°A" + (partition === "single" ? " " : "");
+          }
+          document.body.append(sample);
+          t.add_cleanup(() => sample.remove());
+          const rects = [];
+          for (let i = 0; i < 3; ++i) {
+            const range = document.createRange();
+            range.setStart(sample.firstChild, i);
+            range.setEnd(sample.firstChild, i + 1);
+            const rect = range.getBoundingClientRect();
+            rects.push([rect.x, rect.y, rect.width]);
+          }
+          assert_approx_equals(rects[0][2], advance, 0.1, "First glyph advance");
+          const allowed = language === "ja" && strictness === "loose";
+          assert_approx_equals(rects[1][1] - rects[0][1], allowed ? 30 : 0, 0.1,
+            "Break before degree sign: " + JSON.stringify(rects));
+        }, `${language} ${strictness} ${partition} transform=${transform}`);
+      }
+    }
+  }
+}
+</script>

@@ -1,0 +1,85 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Font matching uses the 11-degree oblique search threshold</title>
+<link rel="help" href="https://drafts.csswg.org/css-fonts-4/#font-style-matching">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.sample { display: inline-block; white-space: pre; font-size: 20px;
+  font-synthesis: none; font-kerning: none; font-size-adjust: none;
+  font-optical-sizing: none; letter-spacing: normal; word-spacing: normal; }
+</style>
+<body>
+<script>
+const cases = [
+  ["threshold-positive", "oblique 12deg", ["oblique 14deg", "oblique 10deg"], 0],
+  ["threshold-negative", "oblique -12deg", ["oblique -14deg", "oblique -10deg"], 0],
+  ["threshold-range", "oblique 12deg", ["oblique 13deg 14deg", "oblique 8deg 10deg"], 0],
+  ["threshold-italic-fallback", "italic", ["oblique 12deg", "oblique 20deg"], 0],
+  ["threshold-below-both", "oblique 10deg", ["oblique 8deg", "oblique 14deg"], 0],
+  ["threshold-above-both", "oblique 14deg", ["oblique 16deg", "oblique 10deg"], 0],
+  ["boundary-10.99609375", "oblique 10.99609375deg", ["oblique 12deg", "oblique 10deg"], 1],
+  ["boundary-11", "oblique 11deg", ["oblique 12deg", "oblique 10deg"], 0],
+  ["boundary-11.00390625", "oblique 11.00390625deg", ["oblique 12deg", "oblique 10deg"], 0],
+  ["boundary--10.99609375", "oblique -10.99609375deg", ["oblique -12deg", "oblique -10deg"], 1],
+  ["boundary--11", "oblique -11deg", ["oblique -12deg", "oblique -10deg"], 0],
+  ["boundary--11.00390625", "oblique -11.00390625deg", ["oblique -12deg", "oblique -10deg"], 0],
+  ["exact-positive-boundary", "oblique 11deg", ["oblique 11deg", "oblique 12deg"], 0],
+  ["exact-negative-boundary", "oblique -11deg", ["oblique -11deg", "oblique -12deg"], 0],
+  ["range-includes-boundary", "oblique 11deg", ["oblique 10deg 11deg", "oblique 12deg 13deg"], 0],
+  ["italic-range-includes-boundary", "italic", ["oblique 10deg 11deg", "oblique 12deg 13deg"], 0],
+  ["default-oblique-remains-fourteen", "oblique", ["oblique 14deg", "oblique 11deg"], 0],
+  ["exact-italic-remains-preferred", "italic", ["italic", "oblique 11deg"], 0],
+  ["equal-threshold-distance-order", "oblique 11deg", ["oblique 12deg", "oblique 12deg"], "last"],
+];
+function descriptors(style) {
+  return `font-style:${style};font-weight:400;font-stretch:100%;`;
+}
+for (const [index, [name, request, styles, expectedFace]] of cases.entries()) {
+  for (const reverse of [false, true]) {
+    promise_test(async t => {
+      const family = `font-match-${index}-${reverse}`;
+      const order = reverse ? [1, 0] : [0, 1];
+      const style = document.createElement("style");
+      t.add_cleanup(() => style.remove());
+      function rule(name, i) {
+        return `@font-face { font-family:"${name}";
+          src:url("/fonts/Ahem.ttf");
+          ${descriptors(styles[i])} size-adjust:${i ? 50 : 100}%; }`;
+      }
+      style.textContent = order.map(i => rule(family, i)).join("") +
+        [0, 1].map(i => rule(`${family}-cal-${i}`, i)).join("");
+      document.head.append(style);
+      assert_equals(style.sheet.cssRules.length, 4, "All face rules parsed");
+      for (const rule of style.sheet.cssRules) {
+        for (const property of ["font-style", "font-weight", "size-adjust"]) {
+          assert_not_equals(rule.style.getPropertyValue(property), "", `${property} descriptor parsed`);
+        }
+        assert_equals(rule.style.getPropertyValue("font-width") ||
+                      rule.style.getPropertyValue("font-stretch"), "100%", "Font width descriptor");
+      }
+      const faces = [...document.fonts].filter(face => face.family.replaceAll('"', '').startsWith(family));
+      assert_equals(faces.length, 4, "Four faces registered");
+      await Promise.all(faces.map(face => face.load()));
+      await document.fonts.ready;
+      for (const face of faces) assert_equals(face.status, "loaded");
+      const widths = [family, `${family}-cal-0`, `${family}-cal-1`].map(name => {
+        const sample = document.createElement("span");
+        sample.className = "sample";
+        sample.style.cssText = `font-family:"${name}";${descriptors(request)}`;
+        for (const property of ["font-style", "font-weight", "font-stretch"]) {
+          assert_not_equals(sample.style.getPropertyValue(property), "", `${property} request parsed`);
+        }
+        sample.textContent = "XXXX";
+        document.body.append(sample);
+        t.add_cleanup(() => sample.remove());
+        return sample.getBoundingClientRect().width;
+      });
+      assert_equals(widths[1], 80, "Face A calibration");
+      assert_equals(widths[2], 40, "Face B calibration");
+      const winner = expectedFace === "last" ? order[1] : expectedFace;
+      assert_equals(widths[0], widths[winner + 1], "Selected calibrated face");
+    }, `${name}: ${reverse ? "reverse" : "forward"} declaration order`);
+  }
+}
+</script>

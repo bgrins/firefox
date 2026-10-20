@@ -1,0 +1,107 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Language-sensitive line breaking across text node partitions</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-3/#line-break-property">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@font-face {
+  font-family: mplus;
+  src: url("/fonts/mplus-1p-regular.woff");
+}
+.sample {
+  font: 30px/30px mplus;
+  width: 30px;
+  padding: 0;
+  border: 0;
+  direction: ltr;
+  writing-mode: horizontal-tb;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
+}
+</style>
+<div id="log"></div>
+<script>
+function positions(element) {
+  const origin = element.getBoundingClientRect();
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  const result = [];
+  while (walker.nextNode() && result.length < 3) {
+    const node = walker.currentNode;
+    for (let i = 0; i < node.length && result.length < 3; ++i) {
+      const range = document.createRange();
+      range.setStart(node, i);
+      range.setEnd(node, i + 1);
+      const rect = range.getBoundingClientRect();
+      result.push([rect.x - origin.x, rect.y - origin.y, rect.width]);
+    }
+  }
+  return result;
+}
+
+const fontReady = document.fonts.load("30px mplus", "サ〜゠・");
+for (const language of ["ja", "zh", "en"]) {
+  for (const strictness of ["normal", "loose", "strict"]) {
+    for (const codepoint of [0x301c, 0x30a0, 0x30fb]) {
+      for (const partition of ["single", "adjacent", "spans", "no-space"]) {
+        for (const prefixLanguage of ["none", "en", "ja"]) {
+        promise_test(async t => {
+          const faces = await fontReady;
+          assert_equals(faces.length, 1, "Test font loaded");
+          assert_equals(faces[0].status, "loaded");
+          const sample = document.createElement("div");
+          sample.className = "sample";
+          sample.lang = language;
+          sample.style.lineBreak = strictness;
+          if (prefixLanguage !== "none") {
+            const prefix = document.createElement("span");
+            prefix.lang = prefixLanguage;
+            prefix.textContent = "サ";
+            sample.append(prefix, document.createTextNode(" "));
+          }
+          const target = document.createElement("span");
+          sample.append(target);
+          const word = "サ" + String.fromCodePoint(codepoint) + "サ";
+          if (partition === "spans") {
+            for (const text of [word, " "]) {
+              const span = document.createElement("span");
+              span.textContent = text;
+              target.append(span);
+            }
+          } else if (partition === "adjacent") {
+            target.append(document.createTextNode(word), document.createTextNode(" "));
+          } else {
+            target.textContent = word + (partition === "single" ? " " : "");
+          }
+          document.body.append(sample);
+          t.add_cleanup(() => sample.remove());
+          const style = getComputedStyle(sample);
+          assert_equals(style.lineBreak, strictness);
+          assert_equals(style.width, "30px");
+          assert_equals(style.wordBreak, "normal");
+          assert_equals(style.overflowWrap, "normal");
+          const observations = [{stage: "initial", positions: positions(target)}];
+          if (partition === "single") {
+            target.firstChild.splitText(3);
+            observations.push({stage: "split", positions: positions(target)});
+            target.normalize();
+            observations.push({stage: "normalized", positions: positions(target)});
+          }
+          const allowed = language !== "en" &&
+            (strictness === "loose" || (strictness === "normal" && codepoint !== 0x30fb));
+          for (const observation of observations) {
+            const rects = observation.positions;
+            assert_equals(rects.length, 3, observation.stage + " scalar rectangles");
+            assert_approx_equals(rects[0][2], 30, 0.1, "First glyph is one em");
+            assert_approx_equals(rects[1][1] - rects[0][1], allowed ? 30 : 0, 0.1,
+              observation.stage + " break before punctuation: " + JSON.stringify(observations));
+          }
+        }, `${language} ${strictness} U+${codepoint.toString(16)} ${partition} prefix=${prefixLanguage}`);
+        }
+      }
+    }
+  }
+}
+</script>

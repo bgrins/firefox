@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Container query invalidation when content dimensions change</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#size-container">
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#container-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="fixtures"></div>
+<script>
+let serial = 0;
+for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
+  for (const [type, axis, unit] of [
+    ["inline-size", "inline", "cqi"],
+    ["size", "inline", "cqi"],
+    ["size", "block", "cqb"],
+  ]) {
+    for (const boxSizing of ["border-box", "content-box"]) {
+      for (const change of ["padding", "border"]) {
+        for (const initiallyChanged of [false, true]) {
+          for (const observable of ["query", "unit"]) {
+            test(t => {
+              const id = `container-${serial++}`;
+              const property = change === "padding" ? `padding-${axis}` : `border-${axis}-width`;
+              const sheet = document.createElement("style");
+              sheet.textContent = `
+                #${id} {
+                  container-type: ${type};
+                  writing-mode: ${writingMode};
+                  box-sizing: ${boxSizing};
+                  inline-size: 100px;
+                  block-size: 100px;
+                  padding: 0;
+                  border: 0 solid;
+                }
+                #${id} > div {
+                  color: red;
+                  inline-size: 10${unit};
+                  block-size: 1px;
+                }
+                @container (${axis}-size > 80px) {
+                  #${id} > div { color: green; }
+                }
+              `;
+              document.head.append(sheet);
+              t.add_cleanup(() => sheet.remove());
+              assert_true(sheet.sheet.cssRules[2] instanceof CSSContainerRule);
+              const container = document.createElement("div");
+              container.id = id;
+              container.style.setProperty(property, initiallyChanged ? "20px" : "0px");
+              const target = container.appendChild(document.createElement("div"));
+              document.getElementById("fixtures").append(container);
+              t.add_cleanup(() => container.remove());
+
+              function check(changed, label) {
+                const contentSize = boxSizing === "border-box" && changed ? 60 : 100;
+                const borderSize = boxSizing === "content-box" && changed ? 140 : 100;
+                const rect = container.getBoundingClientRect();
+                const physicalAxis = (axis === "inline") === (writingMode === "horizontal-tb") ? "width" : "height";
+                assert_equals(rect[physicalAxis], borderSize, `${label}: container border box`);
+                const computed = getComputedStyle(target);
+                if (observable === "query") {
+                  assert_equals(computed.color,
+                                contentSize > 80 ? "rgb(0, 128, 0)" : "rgb(255, 0, 0)", label);
+                } else {
+                  assert_equals(computed.inlineSize, `${contentSize / 10}px`, label);
+                }
+              }
+
+              check(initiallyChanged, "Initial state");
+              container.style.setProperty(property, initiallyChanged ? "0px" : "20px");
+              check(!initiallyChanged, "Changed state");
+              container.style.setProperty(property, initiallyChanged ? "20px" : "0px");
+              check(initiallyChanged, "Restored state");
+            }, `${writingMode}, ${type}, ${axis}, ${boxSizing}, ${change}, initially ${initiallyChanged}, ${observable}`);
+          }
+        }
+      }
+    }
+  }
+}
+</script>

@@ -1,0 +1,20 @@
+<!doctype html>
+<html class="reftest-wait">
+<meta charset="utf-8">
+<title>Adding emphasis marks to private-use characters</title>
+<link rel="help" href="https://drafts.csswg.org/css-text-decor-3/#text-emphasis-style-property">
+<link rel="match" href="text-emphasis-private-use-ref.html">
+<link rel="stylesheet" href="support/emphasis-pua.css">
+<body>
+<div class="sample">&#xE000;</div>
+<div class="sample">&#xF0000;</div>
+<div class="sample">&#x100000;</div>
+<div class="sample">A&#xE000;A&#xF0000;A&#x100000;A</div>
+<script>
+document.documentElement.addEventListener("TestRendered", async () => {
+  await document.fonts.load("40px EmphasisPUA", "\uE000\u{F0000}\u{100000}");
+  await document.fonts.ready;
+  document.body.classList.add("emphasized");
+  document.documentElement.classList.remove("reftest-wait");
+}, { once: true });
+</script>
