@@ -1,0 +1,22 @@
+--- a/layout/generic/nsIFrame.cpp
++++ b/layout/generic/nsIFrame.cpp
+@@ -8581,12 +8581,15 @@
+         NSAppUnitsToFloatPixels(offset.x, scaleFactor),
+         NSAppUnitsToFloatPixels(offset.y, scaleFactor));
+   };
++  if (aFlags.isEmpty() && aViewportType == ViewportType::Layout &&
++      aStopAtAncestor.mViewportType == ViewportType::Layout) {
++    if (!aAppUnitTranslation) {
++      return traverse.operator()<false, true>();
++    }
++    return traverse.operator()<true, true>();
++  }
+   if (!aAppUnitTranslation) {
+     return traverse.operator()<false, false>();
+-  }
+-  if (aFlags.isEmpty() && aViewportType == ViewportType::Layout &&
+-      aStopAtAncestor.mViewportType == ViewportType::Layout) {
+-    return traverse.operator()<true, true>();
+   }
+   return traverse.operator()<true, false>();
+ }

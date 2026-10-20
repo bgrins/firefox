@@ -1,0 +1,129 @@
+--- reviewed-v3/experiment.py
++++ draft-v4/experiment.py
+@@ -8,14 +8,14 @@
+ 
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+-PROPOSAL = ROOT / "artifacts/css-cssom-exact-traversal-proposal-v3"
++PROPOSAL = ROOT / "artifacts/css-cssom-exact-traversal-proposal-v4/capsule"
+ SOURCES = ["layout/generic/nsIFrame.cpp", "layout/generic/nsIFrame.h",
+            "layout/base/nsLayoutUtils.cpp", "layout/base/nsLayoutUtils.h"]
+ SOURCE = ROOT / SOURCES[2]
+ TESTS = json.loads((HERE / "TESTS.json").read_text())
+ INSTALL = {TESTS[1]: "getBoundingClientRect-untransformed-edge-precision.html"}
+ GIT = ["git", "-c", "core.fsmonitor=false"]
+-ENV = {**os.environ, "MOZ_SKIP_PATH_PERFORMANCE_CHECK": "1"}
++ENV = {**os.environ, "MOZ_SKIP_PATH_PERFORMANCE_CHECK": "1", "GIT_OPTIONAL_LOCKS": "0"}
+ INPUTS = json.loads((HERE / "INPUTS.json").read_text())
+ 
+ 
+@@ -25,7 +25,7 @@
+ 
+ 
+ def git(*args):
+-    return subprocess.check_output(GIT + list(args), cwd=ROOT)
++    return subprocess.check_output(GIT + list(args), cwd=ROOT, env=ENV)
+ 
+ 
+ def save(name, value):
+@@ -132,7 +132,12 @@
+     assert sha(ROOT / name) == expected, name
+ head = git("rev-parse", "HEAD")
+ index = git("diff", "--cached", "--binary")
+-assert head.decode().strip() == INPUTS["head"] and not index
++assert head.decode().strip() == INPUTS["head"]
++assert hashlib.sha256(index).hexdigest() == INPUTS["index_diff_sha256"]
++index_entries = git("ls-files", "--stage", "-z")
++assert hashlib.sha256(index_entries).hexdigest() == INPUTS["index_entries_sha256"]
++staged_paths = git("diff", "--cached", "--name-only").decode().splitlines()
++assert all(n.startswith("artifacts/") and HERE not in (ROOT / n).parents for n in staged_paths)
+ before = {n: (ROOT / n).read_bytes() for n in SOURCES}
+ for n, data in before.items():
+     assert data == (PROPOSAL / "original" / Path(n).name).read_bytes(), n
+@@ -143,7 +148,8 @@
+               if n.startswith(("layout/", "dom/", "servo/")) and n not in SOURCES}
+ fixed_pins["dom/base/DOMRect.cpp"] = sha(ROOT / "dom/base/DOMRect.cpp")
+ save("BEFORE.json", {"head": head.decode().strip(), "sources": {n: sha(ROOT / n) for n in SOURCES},
+-                     "fixed_native_pins": fixed_pins, "index_diff_sha256": hashlib.sha256(index).hexdigest()})
++                     "fixed_native_pins": fixed_pins, "index_diff_sha256": hashlib.sha256(index).hexdigest(),
++                     "index_entries_sha256": hashlib.sha256(index_entries).hexdigest()})
+ state = {"status": "starting", "accepted": False, "variants": {}}
+ save("STATE.json", state)
+ changed = False
+@@ -206,7 +212,8 @@
+     state["source_restored"] = all((ROOT / n).read_bytes() == content for n, content in before.items()) and all(not (ROOT / n).exists() for n in INSTALL)
+     state["other_native_unchanged"] = all(sha(ROOT / n) == pin for n, pin in fixed_pins.items())
+     state["head_unchanged"] = git("rev-parse", "HEAD") == head
+-    state["index_unchanged"] = git("diff", "--cached", "--binary") == index
++    state["index_unchanged"] = (git("diff", "--cached", "--binary") == index
++                                and git("ls-files", "--stage", "-z") == index_entries)
+     state["status"] = "terminal-failed" if "failure" in state else "restored"
+     save("STATE.json", state)
+     assert not changed or state["restore_build_exit"] == 0
+@@ -215,6 +222,18 @@
+ state["status"] = "measuring restored baseline"
+ save("STATE.json", state)
+ measure("baseline-after")
++final = {"head": git("rev-parse", "HEAD").decode().strip(),
++         "index_diff_sha256": hashlib.sha256(git("diff", "--cached", "--binary")).hexdigest(),
++         "index_entries_sha256": hashlib.sha256(git("ls-files", "--stage", "-z")).hexdigest(),
++         "sources": {n: sha(ROOT / n) for n in SOURCES},
++         "fixed_native_pins": {n: sha(ROOT / n) for n in fixed_pins},
++         "temporary_tests_absent": all(not (ROOT / n).exists() for n in INSTALL)}
++save("FINAL.json", final)
++assert final["head"] == INPUTS["head"]
++assert final["index_diff_sha256"] == INPUTS["index_diff_sha256"]
++assert final["index_entries_sha256"] == INPUTS["index_entries_sha256"]
++assert final["sources"] == {n: hashlib.sha256(data).hexdigest() for n, data in before.items()}
++assert final["fixed_native_pins"] == fixed_pins and final["temporary_tests_absent"]
+ state["status"] = "terminal"
+ save("STATE.json", state)
+ print(json.dumps(state, indent=2))
+--- reviewed-v3/analyze.py
++++ draft-v4/analyze.py
+@@ -9,7 +9,7 @@
+ RUNS = ["baseline-before-1", "baseline-before-2", "candidate-1", "candidate-2", "baseline-after-1", "baseline-after-2"]
+ CONFIG = {"iterations": 100000, "samples": 11, "warmup": 10000, "startupMs": 3000, "depths": [8, 128]}
+ REPO = ROOT.parents[1]
+-PROPOSAL = REPO / "artifacts/css-cssom-exact-traversal-proposal-v3"
++PROPOSAL = REPO / "artifacts/css-cssom-exact-traversal-proposal-v4/capsule"
+ SOURCES = ["layout/generic/nsIFrame.cpp", "layout/generic/nsIFrame.h",
+            "layout/base/nsLayoutUtils.cpp", "layout/base/nsLayoutUtils.h"]
+ 
+@@ -32,6 +32,12 @@
+     for name in ["wpt-lint", "baseline-build", "format-check", "candidate-build", "restore-build"]:
+         assert read(name + ".json")["exit"] == 0
+     before, restored = read("BEFORE.json"), read("RESTORED.json")
++    final = read("FINAL.json")
++    for key in ["head", "index_diff_sha256", "index_entries_sha256"]:
++        assert before[key] == final[key] == inputs[key], key
++    for key in ["sources", "fixed_native_pins"]:
++        assert before[key] == final[key], key
++    assert final["temporary_tests_absent"] is True
+     baseline_sources = {**before["sources"], **before["fixed_native_pins"]}
+     assert all(restored[k] == v for k, v in baseline_sources.items())
+     records, case_results, timings = [], {}, []
+--- reviewed-v3/analyze-retained.py
++++ draft-v4/analyze-retained.py
+@@ -9,7 +9,7 @@
+ RUNS = ["baseline-before-1", "baseline-before-2", "candidate-1", "candidate-2", "baseline-after-1", "baseline-after-2"]
+ CONFIG = {"iterations": 100000, "samples": 11, "warmup": 10000, "startupMs": 3000, "depths": [8, 128]}
+ REPO = ROOT.parents[1]
+-PROPOSAL = REPO / "artifacts/css-cssom-exact-traversal-proposal-v3"
++PROPOSAL = REPO / "artifacts/css-cssom-exact-traversal-proposal-v4/capsule"
+ SOURCES = ["layout/generic/nsIFrame.cpp", "layout/generic/nsIFrame.h",
+            "layout/base/nsLayoutUtils.cpp", "layout/base/nsLayoutUtils.h"]
+ 
+@@ -39,6 +39,12 @@
+     for name in ["wpt-lint", "baseline-build", "format-check", "candidate-build", "restore-build"]:
+         assert read(name + ".json")["exit"] == 0
+     before, restored = read("BEFORE.json"), read("RESTORED.json")
++    final = read("FINAL.json")
++    for key in ["head", "index_diff_sha256", "index_entries_sha256"]:
++        assert before[key] == final[key] == inputs[key], key
++    for key in ["sources", "fixed_native_pins"]:
++        assert before[key] == final[key], key
++    assert final["temporary_tests_absent"] is True
+     baseline_sources = {**before["sources"], **before["fixed_native_pins"]}
+     assert all(restored[k] == v for k, v in baseline_sources.items())
+     records, case_results, timings = [], {}, []
