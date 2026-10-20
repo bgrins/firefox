@@ -1479,14 +1479,18 @@ Maybe<nscoord> ScrollContainerFrame::GetNaturalBaselineBOffset(
   // OK, here's where we defer to our scrolled frame.
   return mScrolledFrame
       ->GetNaturalBaselineBOffset(aWM, aBaselineGroup, aExportContext)
-      .map([this, aWM](nscoord aBaseline) {
-        // We have to add our border BStart thickness to whatever it returns, to
-        // produce an offset in our frame-rect's coordinate system. (We don't
-        // have to add padding, because the scrolled frame handles our padding.)
+      .map([this, aWM, aBaselineGroup](nscoord aBaseline) {
+        const bool first = aBaselineGroup == BaselineSharingGroup::First;
+        const int64_t fromStart =
+            first ? int64_t(aBaseline)
+                  : int64_t(mScrolledFrame->BSize(aWM)) - aBaseline;
+        // Add our block-start border; the scrolled frame handles our padding.
         LogicalMargin border = GetLogicalUsedBorder(aWM);
         const auto bSize = GetLogicalSize(aWM).BSize(aWM);
         // Clamp the baseline to the border rect. See bug 1791069.
-        return CSSMinMax(border.BStart(aWM) + aBaseline, 0, bSize);
+        const nscoord baseline = nscoord(CSSMinMax(
+            border.BStart(aWM) + fromStart, int64_t(0), int64_t(bSize)));
+        return first ? baseline : bSize - baseline;
       });
 }
 
