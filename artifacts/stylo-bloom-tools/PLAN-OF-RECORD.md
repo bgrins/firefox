@@ -24,11 +24,25 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
   heap representation still open. The live constructor has a retained generated
   cleanup difference; no broad indexed-source lifecycle transfer is claimed.
   [Root acceptance](../css-primary-bit-coherence-root-v1/ACCEPTANCE.json).
-- **Traversal successor remains under review:** metadata on the existing walk
-  avoids a speculative second walk. Two cancellation witnesses required a wider
-  carrier and checked ancestor accumulation. The corrected prototype must preserve
-  the original exact domain and defined matrix behavior before browser validation. No candidate is
-  installed and no new native fix is counted.
+- **Traversal v2 browser checks pass; native repair remains held on cost.**
+  Signed evidence `c29fd817ebc3`, runtime `3ec270d944da`. Actual builds and formatting
+  pass. The 23-file/74-subtest comparison fixes both untransformed large-edge
+  failures, with all four new cases passing and all other outcomes unchanged.
+  Six timing runs show deep ordinary medians of 400 ns versus 300–350 ns in surrounding
+  baselines; near-root transforms at 450 ns versus 350–400 ns. Quantization and fixed
+  phase order limit interpretation, but root and independent review recommend
+  holding this version. Source/build restoration completed; no integer candidate
+  remains installed. [Actual experiment](../css-cssom-exact-traversal-runtime-v2/REPORT.md),
+  [independent review](../css-cssom-exact-traversal-runtime-review-v2/REPORT.md).
+- **Next traversal optimization is artifact-only.** Select traversal mode once,
+  simplify checked accumulator state with public SafeAdd and combine redundant
+  guards. Preserve ancestor-context checks, v1 inclusion, v2's expanded exact
+  domain and old-defined matrix behavior. A fresh review/build/browser/timing
+  cycle is required; v2 results are not transferred to the untested v3 draft.
+- **Allocation footprint proof is in development.** Model actual selected
+  detach/delete order in one heap, including allocated empty arrays and raw
+  dangling/repeated frame references. Root review required explicit allocation
+  role checks; cache-type decoding and full callbacks/lifetime remain open.
 - **DOMRect precision committed:** `c0e8c7fd1deb` preserves already calculated
   double coordinates. Its four-case WPT passes independently; selected existing
   regressions retain their outcomes. The bounded 26-audit numeric component has
