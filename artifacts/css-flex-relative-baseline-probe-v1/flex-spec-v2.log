@@ -1,0 +1,119 @@
+# CSS-FLEXBOX#flex-baselines
+
+**Flex Container Baselines** (heading)
+
+**SHA**: hash:6331964c4098d548ddb5cb8ae86140e48992e04be8e3a237b82068f98d773f54
+
+## Content
+
+In order for a [flex container](CSS-FLEXBOX#flex-container) to itself [participate in baseline alignment](CSS-FLEXBOX#baseline-participation) (e.g. when the flex container is itself a [flex item](CSS-FLEXBOX#flex-item) in an outer flex container), it needs to submit the position of the baselines that will best represent its contents. To this end, the baselines of a flex container are determined as follows (after reordering with [order](CSS-DISPLAY-4#propdef-order), and taking [flex-direction](CSS-FLEXBOX#propdef-flex-direction) into account):
+
+first/last ** main-axis baseline set** 
+
+When the [inline axis](CSS-WRITING-MODES-4#inline-axis) of the [flex container](CSS-FLEXBOX#flex-container) matches its [main axis](CSS-FLEXBOX#main-axis), its baselines are determined as follows:
+
+1.  If any of the [flex items](CSS-FLEXBOX#flex-item) on the flex container’s [startmost](CSS-WRITING-MODES-4#css-start) [flex line](CSS-FLEXBOX#flex-line) participate in first [baseline alignment](CSS-ALIGN-3#baseline-alignment) along the [main axis](CSS-FLEXBOX#main-axis), [generate](CSS-ALIGN-3#generate-baselines) a [baseline set](CSS-ALIGN-3#baseline-set) from their shared [alignment baseline](CSS-ALIGN-3#alignment-baseline) and the [flex container’s](CSS-FLEXBOX#flex-container) [first available font](CSS-FONTS-4#first-available-font).
+
+2.  Otherwise, if any of the [flex items](CSS-FLEXBOX#flex-item) on the flex container’s [startmost](CSS-WRITING-MODES-4#css-start) [flex line](CSS-FLEXBOX#flex-line) participate in last [baseline alignment](CSS-ALIGN-3#baseline-alignment) along the [main axis](CSS-FLEXBOX#main-axis), [generate](CSS-ALIGN-3#generate-baselines) a [baseline set](CSS-ALIGN-3#baseline-set) from their shared [alignment baseline](CSS-ALIGN-3#alignment-baseline) and the [flex container’s](CSS-FLEXBOX#flex-container) [first available font](CSS-FONTS-4#first-available-font).
+
+3.  Otherwise, if any [flex items](CSS-FLEXBOX#flex-item) in the [startmost](CSS-WRITING-MODES-4#css-start) [flex line](CSS-FLEXBOX#flex-line) have a [baseline set](CSS-ALIGN-3#baseline-set) along the [main axis](CSS-FLEXBOX#main-axis), take the baseline set from the first such flex item in [order-modified document order](CSS-DISPLAY-4#order-modified-document-order).
+
+4.  Otherwise, if there are any [flex items](CSS-FLEXBOX#flex-item) at all, [synthesize](CSS-ALIGN-3#synthesize-baseline) a [baseline set](CSS-ALIGN-3#baseline-set) from the [startmost](CSS-WRITING-MODES-4#css-start) flex item on the startmost line.
+
+5.  Otherwise, the [flex container](CSS-FLEXBOX#flex-container) has no first [main-axis](CSS-FLEXBOX#main-axis) [baseline set](CSS-ALIGN-3#baseline-set). (One is [synthesized](CSS-ALIGN-3#synthesize-baseline) from the flex container itself if needed, according to the rules of its [alignment context](CSS-ALIGN-3#shared-alignment-context).)
+
+Last baselines are analogous (with “first”/“last” and “start”/“end” inverted).
+
+first/last ** cross-axis baseline set** 
+
+When the [inline axis](CSS-WRITING-MODES-4#inline-axis) of the [flex container](CSS-FLEXBOX#flex-container) matches its [cross axis](CSS-FLEXBOX#cross-axis), its baselines are determined as follows:
+
+1.  If the flex container has at least one [flex item](CSS-FLEXBOX#flex-item), the flex container’s first/last [cross-axis baseline set](CSS-FLEXBOX#cross-axis-baseline) is [generated](CSS-ALIGN-3#generate-baselines) from the [alignment baseline](CSS-ALIGN-3#alignment-baseline) of the [startmost](CSS-WRITING-MODES-4#css-start)/[endmost](CSS-WRITING-MODES-4#css-end) flex item. (If that item has no alignment baseline parallel to the flex container’s [cross axis](CSS-FLEXBOX#cross-axis), then one is first [synthesized](CSS-ALIGN-3#synthesize-baseline) from its border edges.)
+
+2.  Otherwise, the flex container has no first/last cross-axis [baseline set](CSS-ALIGN-3#baseline-set), and one is [synthesized](CSS-ALIGN-3#synthesize-baseline) if needed according to the rules of its [alignment context](CSS-ALIGN-3#shared-alignment-context).
+
+When calculating the baseline according to the above rules, if the box contributing a baseline has an [overflow](CSS-OVERFLOW-3#propdef-overflow) value that allows scrolling, the box must be treated as being in its initial scroll position for the purpose of determining its baseline.
+
+When [determining the baseline of a table cell](CSS2#height-layout), a flex container provides a baseline just as a line box or table-row does. \[CSS2\]
+
+See [CSS Writing Modes 3 § 4.1 Introduction to Baselines](CSS-WRITING-MODES-3#intro-baselines) and [CSS Box Alignment 3 § 9 Baseline Alignment Details](CSS-ALIGN-3#baseline-rules) for more information on baselines.
+
+Tests
+
+*   [flex-align-baseline-001.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-001.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-001.html)
+*   [flex-align-baseline-002.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-002.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-002.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-002.html)
+*   [flex-align-baseline-003.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-003.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-003.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-003.html)
+*   [flex-align-baseline-004.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-004.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-004.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-004.html)
+*   [flex-align-baseline-005.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-005.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-005.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-005.html)
+*   [flex-align-baseline-006.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-006.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-006.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-006.html)
+*   [flex-align-baseline-007.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-007.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-007.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-007.html)
+*   [flex-align-baseline-column-rtl-direction.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-column-rtl-direction.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-column-rtl-direction.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-column-rtl-direction.html)
+*   [flex-align-baseline-column-vert-lr-rtl-wrap-reverse.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-column-vert-lr-rtl-wrap-reverse.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-column-vert-lr-rtl-wrap-reverse.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-column-vert-lr-rtl-wrap-reverse.html)
+*   [flex-align-baseline-column-vert-rl-rtl-wrap-reverse.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-column-vert-rl-rtl-wrap-reverse.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-column-vert-rl-rtl-wrap-reverse.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-column-vert-rl-rtl-wrap-reverse.html)
+*   [flex-align-baseline-fieldset-001.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-fieldset-001.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-fieldset-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-fieldset-001.html)
+*   [flex-align-baseline-fieldset-002.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-fieldset-002.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-fieldset-002.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-fieldset-002.html)
+*   [flex-align-baseline-fieldset-003.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-fieldset-003.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-fieldset-003.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-fieldset-003.html)
+*   [flex-align-baseline-flex-001.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-flex-001.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-flex-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-flex-001.html)
+*   [flex-align-baseline-flex-002.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-flex-002.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-flex-002.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-flex-002.html)
+*   [flex-align-baseline-flex-003.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-flex-003.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-flex-003.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-flex-003.html)
+*   [flex-align-baseline-flex-004.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-flex-004.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-flex-004.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-flex-004.html)
+*   [flex-align-baseline-grid-001.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-grid-001.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-grid-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-grid-001.html)
+*   [flex-align-baseline-grid-002.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-grid-002.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-grid-002.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-grid-002.html)
+*   [flex-align-baseline-grid-003.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-grid-003.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-grid-003.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-grid-003.html)
+*   [flex-align-baseline-multicol-001.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-multicol-001.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-multicol-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-multicol-001.html)
+*   [flex-align-baseline-multicol-002.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-multicol-002.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-multicol-002.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-multicol-002.html)
+*   [flex-align-baseline-multicol-003.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-multicol-003.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-multicol-003.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-multicol-003.html)
+*   [flex-align-baseline-overflow-001.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-overflow-001.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-overflow-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-overflow-001.html)
+*   [flex-align-baseline-overflow-002.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-overflow-002.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-overflow-002.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-overflow-002.html)
+*   [flex-align-baseline-overflow-003.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-overflow-003.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-overflow-003.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-overflow-003.html)
+*   [flex-align-baseline-table-001.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-table-001.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-table-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-table-001.html)
+*   [flex-align-baseline-table-002.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-table-002.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-table-002.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-table-002.html)
+*   [flex-align-baseline-table-003.html](https://wpt.fyi/results/css/css-flexbox/alignment/flex-align-baseline-table-003.html) [(live test)](http://wpt.live/css/css-flexbox/alignment/flex-align-baseline-table-003.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/alignment/flex-align-baseline-table-003.html)
+*   [flex-baseline-overflow-hidden.html](https://wpt.fyi/results/css/css-flexbox/flex-baseline-overflow-hidden.html) [(live test)](http://wpt.live/css/css-flexbox/flex-baseline-overflow-hidden.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flex-baseline-overflow-hidden.html)
+*   [flex-order-last-baseline.html](https://wpt.fyi/results/css/css-flexbox/flex-order-last-baseline.html) [(live test)](http://wpt.live/css/css-flexbox/flex-order-last-baseline.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flex-order-last-baseline.html)
+*   [flex-order-last-baseline-multiple.html](https://wpt.fyi/results/css/css-flexbox/flex-order-last-baseline-multiple.html) [(live test)](http://wpt.live/css/css-flexbox/flex-order-last-baseline-multiple.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flex-order-last-baseline-multiple.html)
+*   [flex-order-wrap-reverse-baseline.html](https://wpt.fyi/results/css/css-flexbox/flex-order-wrap-reverse-baseline.html) [(live test)](http://wpt.live/css/css-flexbox/flex-order-wrap-reverse-baseline.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flex-order-wrap-reverse-baseline.html)
+*   [flexbox-baseline-align-self-baseline-horiz-001.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-align-self-baseline-horiz-001.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-align-self-baseline-horiz-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-align-self-baseline-horiz-001.html)
+*   [flexbox-baseline-align-self-baseline-vert-001.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-align-self-baseline-vert-001.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-align-self-baseline-vert-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-align-self-baseline-vert-001.html)
+*   [flexbox-baseline-empty-001a.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-empty-001a.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-empty-001a.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-empty-001a.html)
+*   [flexbox-baseline-empty-001b.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-empty-001b.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-empty-001b.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-empty-001b.html)
+*   [flexbox-baseline-multi-item-horiz-001a.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-multi-item-horiz-001a.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-multi-item-horiz-001a.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-multi-item-horiz-001a.html)
+*   [flexbox-baseline-multi-item-horiz-001b.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-multi-item-horiz-001b.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-multi-item-horiz-001b.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-multi-item-horiz-001b.html)
+*   [flexbox-baseline-multi-item-vert-001a.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-multi-item-vert-001a.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-multi-item-vert-001a.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-multi-item-vert-001a.html)
+*   [flexbox-baseline-multi-item-vert-001b.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-multi-item-vert-001b.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-multi-item-vert-001b.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-multi-item-vert-001b.html)
+*   [flexbox-baseline-multi-line-horiz-001.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-multi-line-horiz-001.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-multi-line-horiz-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-multi-line-horiz-001.html)
+*   [flexbox-baseline-multi-line-horiz-002.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-multi-line-horiz-002.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-multi-line-horiz-002.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-multi-line-horiz-002.html)
+*   [flexbox-baseline-multi-line-horiz-003.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-multi-line-horiz-003.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-multi-line-horiz-003.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-multi-line-horiz-003.html)
+*   [flexbox-baseline-multi-line-horiz-004.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-multi-line-horiz-004.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-multi-line-horiz-004.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-multi-line-horiz-004.html)
+*   [flexbox-baseline-multi-line-vert-001.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-multi-line-vert-001.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-multi-line-vert-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-multi-line-vert-001.html)
+*   [flexbox-baseline-multi-line-vert-002.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-multi-line-vert-002.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-multi-line-vert-002.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-multi-line-vert-002.html)
+*   [flexbox-baseline-nested-001.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-nested-001.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-nested-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-nested-001.html)
+*   [flexbox-baseline-single-item-001a.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-single-item-001a.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-single-item-001a.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-single-item-001a.html)
+*   [flexbox-baseline-single-item-001b.html](https://wpt.fyi/results/css/css-flexbox/flexbox-baseline-single-item-001b.html) [(live test)](http://wpt.live/css/css-flexbox/flexbox-baseline-single-item-001b.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-flexbox/flexbox-baseline-single-item-001b.html)
+
+## Navigation
+
+- Parent: `alignment` — Alignment
+- Prev: `align-content-property` — Packing Flex Lines: the align-content property
+- Children: 2
+  - `main-axis-baseline` — main-axis baseline set
+  - `cross-axis-baseline` — cross-axis baseline set
+
+## Outgoing refs (24)
+
+`webspec-index refs CSS-FLEXBOX#flex-baselines -d outgoing -l 24`
+
+## Incoming refs (2)
+
+- CSS-FLEXBOX#change-201603-substantive
+- CSS-FLEXBOX#contents
+
+### Possible effects
+
+CSS-FLEXBOX#flex-baselines
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-FLEXBOX#flex-baselines" --format markdown`

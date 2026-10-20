@@ -1,0 +1,32 @@
+diff --git a/layout/generic/nsFlexContainerFrame.cpp b/layout/generic/nsFlexContainerFrame.cpp
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -1013,7 +1013,7 @@
+       if (auto baseline = item.Frame()->GetNaturalBaselineBOffset(
+               wm, aGroup, BaselineExportContext::Other)) {
+         nscoord position =
+-            item.Frame()->GetLogicalPosition(wm, aContainerSize).B(wm);
++            item.Frame()->GetLogicalNormalPosition(wm, aContainerSize).B(wm);
+         if (last) {
+           position = LogicalSize(wm, aContainerSize).BSize(wm) - position -
+                      item.Frame()->BSize(wm);
+@@ -6303,7 +6303,7 @@
+       FindBaselineItem(aFlr.mLines, aAxisTracker, BaselineSharingGroup::First);
+   if (aFlr.mAscent == nscoord_MIN && firstBaselineItem) {
+     aFlr.mAscent = firstBaselineItem->Frame()
+-                       ->GetLogicalPosition(
++                       ->GetLogicalNormalPosition(
+                            flexWM, desiredSizeInFlexWM.GetPhysicalSize(flexWM))
+                        .B(flexWM) +
+                    firstBaselineItem->ResolvedAscent(true);
+@@ -6317,8 +6317,8 @@
+   if (aFlr.mAscentForLast == nscoord_MIN && lastBaselineItem) {
+     const nscoord lastAscent =
+         lastBaselineItem->Frame()
+-            ->GetLogicalPosition(flexWM,
+-                                 desiredSizeInFlexWM.GetPhysicalSize(flexWM))
++            ->GetLogicalNormalPosition(
++                flexWM, desiredSizeInFlexWM.GetPhysicalSize(flexWM))
+             .B(flexWM) +
+         lastBaselineItem->ResolvedAscent(false);
+ 
