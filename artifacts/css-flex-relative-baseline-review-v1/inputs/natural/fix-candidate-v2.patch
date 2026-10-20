@@ -1,0 +1,168 @@
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -998,6 +998,30 @@
+   }
+   const FlexItem& EndmostItem(const FlexboxAxisTracker& aAxisTracker) const {
+     return aAxisTracker.IsMainAxisReversed() ? FirstItem() : LastItem();
++  }
++
++  Maybe<nscoord> NaturalBaselineBOffset(const FlexboxAxisTracker& aAxisTracker,
++                                        BaselineSharingGroup aGroup,
++                                        const nsSize& aContainerSize) const {
++    const WritingMode wm = aAxisTracker.GetWritingMode();
++    const bool last = aGroup == BaselineSharingGroup::Last;
++    for (size_t i = 0; i < mItems.Length(); ++i) {
++      const FlexItem& item = mItems[last ? mItems.Length() - i - 1 : i];
++      if (item.IsStrut() || wm.IsOrthogonalTo(item.GetWritingMode())) {
++        continue;
++      }
++      if (auto baseline = item.Frame()->GetNaturalBaselineBOffset(
++              wm, aGroup, BaselineExportContext::Other)) {
++        nscoord position =
++            item.Frame()->GetLogicalNormalPosition(wm, aContainerSize).B(wm);
++        if (last) {
++          position = LogicalSize(wm, aContainerSize).BSize(wm) - position -
++                     item.Frame()->BSize(wm);
++        }
++        return Some(position + *baseline);
++      }
++    }
++    return Nothing();
+   }
+ 
+   bool IsEmpty() const { return mItems.IsEmpty(); }
+@@ -6201,6 +6225,26 @@
+     aStatus.SetInlineLineBreakAfter();
+   }
+ 
++  if (aAxisTracker.IsRowOriented()) {
++    const nsSize containerSize = desiredSizeInFlexWM.GetPhysicalSize(flexWM);
++    if (aFlr.mAscent == nscoord_MIN) {
++      if (auto baseline = StartmostLine(aFlr.mLines, aAxisTracker)
++                              .NaturalBaselineBOffset(
++                                  aAxisTracker, BaselineSharingGroup::First,
++                                  containerSize)) {
++        aFlr.mAscent = *baseline;
++      }
++    }
++    if (aFlr.mAscentForLast == nscoord_MIN) {
++      if (auto baseline = EndmostLine(aFlr.mLines, aAxisTracker)
++                              .NaturalBaselineBOffset(
++                                  aAxisTracker, BaselineSharingGroup::Last,
++                                  containerSize)) {
++        aFlr.mAscentForLast = *baseline;
++      }
++    }
++  }
++
+   // If we haven't established a baseline for the container yet, i.e. if we
+   // don't have any flex item in the startmost flex line that participates in
+   // baseline alignment, then use the startmost flex item to derive the
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-flexbox/flexbox-natural-baseline-donor.html
+@@ -0,0 +1,105 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Flex containers prefer natural item baselines before synthesizing</title>
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#flex-baselines">
++<link rel="help" href="https://drafts.csswg.org/css-align-3/#baseline-export">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++body { margin: 0; font: 16px/24px monospace; }
++.host { width: 700px; }
++.host.flex { display: flex; align-items: first baseline; }
++.host.flex.last { align-items: last baseline; }
++.box { display: inline-flex; vertical-align: baseline; baseline-source: first;
++  flex: none; align-items: flex-start; width: 160px; height: 80px; }
++.last .box { baseline-source: last; }
++.reverse .box { flex-direction: row-reverse; }
++.item { flex: none; width: 40px; }
++.text { font: 40px/50px monospace; }
++.small-text { font: 20px/30px monospace; }
++.empty { width: 10px; height: 5px; }
++.tall-empty { height: 15px; }
++.later { order: 1; }
++.removed { display: none; }
++</style>
++<body>
++<script>
++function item(classes, text = "") {
++  const node = document.createElement("div");
++  node.className = `item ${classes}`;
++  node.textContent = text;
++  return node;
++}
++
++function fixture(t, layout, reverse, last, targetItems, referenceItems) {
++  const host = document.createElement("div");
++  host.className = `host ${layout}${reverse ? " reverse" : ""}${last ? " last" : ""}`;
++  const target = document.createElement("div");
++  const reference = document.createElement("div");
++  target.className = reference.className = "box";
++  target.append(...targetItems);
++  reference.append(...referenceItems);
++  host.append(target, reference);
++  document.body.append(host);
++  t.add_cleanup(() => host.remove());
++  return {target, reference};
++}
++
++function difference({target, reference}) {
++  const a = target.getBoundingClientRect();
++  const b = reference.getBoundingClientRect();
++  assert_equals(a.width, 160, "Target width");
++  assert_equals(b.width, 160, "Reference width");
++  assert_equals(a.height, 80, "Target height");
++  assert_equals(b.height, 80, "Reference height");
++  return a.top - b.top;
++}
++
++for (const layout of ["flex", "inline"]) {
++  for (const reverse of [false, true]) {
++    for (const last of [false, true]) {
++      const label = `${layout} parent, ${reverse ? "row-reverse" : "row"}, ${last ? "last" : "first"} baseline`;
++      for (const position of ["before", "after", "absent"]) {
++        test(t => {
++          const text = item("text", "X");
++          const empty = item("empty");
++          const targetItems = position === "before" ? [empty, text] :
++            position === "after" ? [text, empty] : [text];
++          const boxes = fixture(t, layout, reverse, last, targetItems, [item("text", "X")]);
++          const initial = difference(boxes);
++          for (const box of [boxes.target, boxes.reference]) {
++            const rect = box.getBoundingClientRect();
++            const textRect = box.querySelector(".text").getBoundingClientRect();
++            assert_equals(textRect.top - rect.top, 0, "Text block offset");
++            assert_equals(textRect.height, 50, "Text block height");
++          }
++          for (let i = 0; i < 2; ++i) {
++            empty.classList.add("removed");
++            assert_equals(difference(boxes), 0, "Removing the empty item matches the reference");
++            empty.classList.remove("removed");
++            assert_equals(difference(boxes), initial, "Restoring the item restores the observation");
++          }
++          assert_equals(initial, 0, "An empty item does not replace the natural text baseline");
++        }, `${label}, empty item ${position}`);
++      }
++      for (const reordered of [false, true]) {
++        test(t => {
++          const large = item(`text${reordered ? " later" : ""}`, "X");
++          const small = item("small-text", "X");
++          const selected = last !== reordered ? small : large;
++          const boxes = fixture(t, layout, reverse, last, [large, small], [selected.cloneNode(true)]);
++          assert_equals(difference(boxes), 0,
++            "Natural donors follow order-modified document order");
++        }, `${label}, two natural donors, reordered ${reordered}`);
++      }
++      test(t => {
++        const first = item("empty");
++        const second = item("empty tall-empty");
++        const selected = reverse !== last ? second : first;
++        const boxes = fixture(t, layout, reverse, last, [first, second], [selected.cloneNode(true)]);
++        assert_equals(difference(boxes), 0, "Without a natural donor, synthesize from the edge item");
++      }, `${label}, no natural donor`);
++    }
++  }
++}
++</script>

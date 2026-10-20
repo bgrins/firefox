@@ -1,0 +1,7 @@
+# Natural flex baseline donor candidate v2
+
+The new helper now uses GetLogicalNormalPosition. This is the only change to the standalone natural-donor patch from v1. Its independently applicable Gecko/WPT patch still contains the two insertions for natural donor selection and the unchanged 48-case WPT. The two preexisting relative-position consumers are repaired only by the separate relative-baseline patch; they are not added to this patch.
+
+The final shared source passes all 48 donor WPT cases and the 288-case relative-position matrix. Relative to the retained v1 donor baseline, sixteen failures become passes and thirty-two outcomes are identical. The v1 paired single-delta experiment remains the evidence for donor-selection causality; this v2 run includes the separately verified relative-position changes. All 29 regression files pass: 23 reftests, 309 subtests, six harnesses. The copied build receipt pins exactly the final candidate bytes.
+
+Both standalone patches apply/reverse independently to the two retained bases and commute exactly. Neither package claims an isolated upstream browser build. The v1 independent native review accepts its ordinary ready-provider scope; focused v2 review and the full conditional formal companion are pending. Fragmented donor readiness, arithmetic range/sentinel behavior, normal-position property lifetime, and all-baseline correctness remain explicit boundaries.

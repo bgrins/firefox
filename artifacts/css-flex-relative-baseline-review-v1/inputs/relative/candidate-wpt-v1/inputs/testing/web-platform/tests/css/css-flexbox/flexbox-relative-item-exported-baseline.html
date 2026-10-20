@@ -1,0 +1,96 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Relative flex item offsets do not change exported baselines</title>
+<link rel="help" href="https://drafts.csswg.org/css-position-3/#valdef-position-relative">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox/#flex-baselines">
+<meta name="assert" content="Relative positioning of a flex item does not move its baseline-aligned container or peer.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .host { inline-size: 700px; font: 16px/24px monospace; }
+  .flex { display: flex; align-items: first baseline; }
+  .flex.last { align-items: last baseline; }
+  .box {
+    display: inline-flex;
+    vertical-align: baseline;
+    baseline-source: first;
+    flex: none;
+    align-items: flex-start;
+    inline-size: 160px;
+    block-size: 80px;
+  }
+  .last .box { baseline-source: last; }
+  .item { flex: none; inline-size: 40px; block-size: 50px; font: 40px/50px monospace; }
+  .relative { position: relative; inset-block-start: var(--offset); }
+</style>
+<body>
+<script>
+for (const writingMode of ["horizontal-tb", "vertical-lr", "vertical-rl"]) {
+  for (const layout of ["flex", "inline"]) {
+    for (const group of ["first", "last"]) {
+      for (const direction of ["row", "row-reverse", "column", "column-reverse"]) {
+        for (const content of ["text", "empty"]) {
+          for (const offset of [-10, 0, 10]) {
+            test(t => {
+              const host = document.createElement("div");
+              host.className = `host ${layout} ${group}`;
+              host.style.writingMode = writingMode;
+              host.style.setProperty("--offset", `${offset}px`);
+              const target = document.createElement("div");
+              const reference = document.createElement("div");
+              target.className = reference.className = "box";
+              target.style.flexDirection = reference.style.flexDirection = direction;
+              const item = document.createElement("div");
+              const refItem = document.createElement("div");
+              item.className = "item relative";
+              refItem.className = "item";
+              if (content === "text") {
+                item.textContent = refItem.textContent = "X";
+              }
+              target.append(item);
+              reference.append(refItem);
+              host.append(target, reference);
+              document.body.append(host);
+              t.add_cleanup(() => host.remove());
+              const blockStart = rect => writingMode === "horizontal-tb" ? rect.top :
+                writingMode === "vertical-rl" ? -rect.right : rect.left;
+              const blockSize = rect => writingMode === "horizontal-tb" ? rect.height : rect.width;
+              const inlineSize = rect => writingMode === "horizontal-tb" ? rect.width : rect.height;
+              const measure = () => {
+                const a = target.getBoundingClientRect();
+                const b = reference.getBoundingClientRect();
+                const c = item.getBoundingClientRect();
+                const d = refItem.getBoundingClientRect();
+                for (const rect of [a, b]) {
+                  assert_equals(blockSize(rect), 80, "Container block size");
+                  assert_equals(inlineSize(rect), 160, "Container inline size");
+                }
+                for (const rect of [c, d]) {
+                  assert_equals(blockSize(rect), 50, "Item block size");
+                  assert_equals(inlineSize(rect), 40, "Item inline size");
+                }
+                return {
+                  difference: blockStart(a) - blockStart(b),
+                  itemOffset: (blockStart(c) - blockStart(a)) -
+                    (blockStart(d) - blockStart(b)),
+                };
+              };
+              const before = measure();
+              assert_equals(before.itemOffset, offset, "Requested relative offset");
+              item.classList.remove("relative");
+              const normal = measure();
+              assert_equals(normal.itemOffset, 0, "Removing relative positioning restores the item");
+              assert_equals(normal.difference, 0, "Static containers align");
+              item.classList.add("relative");
+              const restored = measure();
+              assert_equals(restored.itemOffset, before.itemOffset, "Restored item offset");
+              assert_equals(restored.difference, before.difference, "Restored container alignment");
+              assert_equals(before.difference, 0, "Relative item offset does not move its container");
+            }, `${writingMode}, ${layout}, ${group} baseline, ${direction}, ${content}, offset ${offset}px`);
+          }
+        }
+      }
+    }
+  }
+}
+</script>

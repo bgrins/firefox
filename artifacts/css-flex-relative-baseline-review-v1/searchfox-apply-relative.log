@@ -1,0 +1,21 @@
+>>> 1100: void ReflowInput::ApplyRelativePositioning(nsIFrame* aFrame,
+    1101:                                            const nsMargin& aComputedOffsets,
+    1102:                                            nsPoint* aPosition) {
+    1103:   if (!aFrame->IsRelativelyOrStickyPositioned()) {
+    1104:     MOZ_ASSERT(!aFrame->HasProperty(nsIFrame::NormalPositionProperty()),
+    1105:                "Only a relatively or sticky positioned frame should have a "
+    1106:                "stored normal position.");
+    1107:     return;
+    1108:   }
+    1109: 
+    1110:   // Store the normal position
+    1111:   aFrame->SetProperty(nsIFrame::NormalPositionProperty(), *aPosition);
+    1112: 
+    1113:   const nsStyleDisplay* display = aFrame->StyleDisplay();
+    1114:   if (StylePositionProperty::Relative == display->mPosition) {
+    1115:     *aPosition += nsPoint(aComputedOffsets.left, aComputedOffsets.top);
+    1116:   }
+    1117:   // For sticky positioned elements, we'll leave them until the scroll container
+    1118:   // reflows and calls StickyScrollContainer::UpdatePositions() to update their
+    1119:   // positions.
+    1120: }
