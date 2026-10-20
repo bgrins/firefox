@@ -1,0 +1,135 @@
+{
+  "checked_head": "92a6fddf18e5828b17d7491a34663a0d5a9c12ad",
+  "committed_native_fixes": 87,
+  "scope": "Seven additions to prior80-fix triage; recommendations, not assigned severity or prevalence estimates.",
+  "rows": [
+    {
+      "fix": 81,
+      "repair": "registered-token-boundaries",
+      "native_commit": "34e4e755cb81332819e56457f5fb68b9b305c394",
+      "companion_commit": "76d4707974532db89589ffa39f2728db46527114",
+      "relative_review_order": "Next: rendering and API correctness",
+      "impact": "Registered custom property serialization loses token boundaries, changing downstream interpretation.",
+      "limits": "37-case WPT: ten baseline failures become passes; no release or isolated upstream runtime claim.",
+      "acceptance": {
+        "path": "artifacts/css-registered-token-boundary-final-v1/ACCEPTANCE.json",
+        "sha256": "ede5df596be62074b247261886f9ed1900864435311cd9f2a5f5576e10297376"
+      },
+      "native_paths": [
+        "servo/components/style/properties_and_values/value.rs",
+        "testing/web-platform/tests/css/css-properties-values-api/registered-token-boundaries.html"
+      ],
+      "ancestor_of_checked_head": true
+    },
+    {
+      "fix": 82,
+      "repair": "animation-invalid-publication",
+      "native_commit": "d63735091bf8dc469d900ddba56e8a43bcac26d7",
+      "companion_commit": "5e540197f9afb45e30d0f5714ffbf716115da302",
+      "relative_review_order": "Next: rendering and API correctness",
+      "impact": "Animation publication replaces guaranteed-invalid registered values with initial values, changing required fallback/inheritance behavior.",
+      "limits": "Ten reproduced failures improve in a 343-check matrix; two pre-existing expected failures remain. Six final controls are candidate-only.",
+      "acceptance": {
+        "path": "artifacts/css-animation-invalid-publication-final-v1/ACCEPTANCE.json",
+        "sha256": "c36c76913beb85de4b8854629a7e515b4559c51a15a80a43492026222af8e087"
+      },
+      "native_paths": [
+        "servo/components/style/properties/cascade.rs",
+        "servo/components/style/properties/mod.rs",
+        "servo/components/style/properties_and_values/value.rs",
+        "testing/web-platform/tests/css/css-properties-values-api/animation-invalid-inherit-publication.html"
+      ],
+      "ancestor_of_checked_head": true
+    },
+    {
+      "fix": 83,
+      "repair": "attr-leading-whitespace-origin",
+      "native_commit": "ad608a212bd8d7f77a2f0b9df62df18d33c12b96",
+      "companion_commit": "1d4940ff2211b3a7256999f8090e0f0d61cb8733",
+      "relative_review_order": "First: demonstrated crashes",
+      "impact": "Leading-whitespace reference offsets can trigger a content-process bounds panic.",
+      "limits": "Script-free reproduction in installed Firefox 158; patched build passes 26 new cases. Memory corruption or exploitability is not established.",
+      "acceptance": {
+        "path": "artifacts/css-attr-leading-whitespace-root-v1/ACCEPTANCE.json",
+        "sha256": "21c11f5aeea5e8eb896a1f7b931551252d0f3bb7859a8636c54966aa1696c75f"
+      },
+      "native_paths": [
+        "servo/components/style/custom_properties.rs",
+        "testing/web-platform/tests/css/css-values/attr-substitution-leading-whitespace.html"
+      ],
+      "ancestor_of_checked_head": true
+    },
+    {
+      "fix": 84,
+      "repair": "variable-trailing-whitespace-token-boundary",
+      "native_commit": "bccea9c1fffc59e41a9f9bef16fcaf0056ff1f10",
+      "companion_commit": "35c04a32169744c3c75e2dfef9b8d18b673d8b06",
+      "relative_review_order": "Next: rendering and API correctness",
+      "impact": "Trimming stored whitespace leaves trailing token metadata inconsistent with the actual bytes.",
+      "limits": "28 baseline failures become passes in a 40-case WPT. General serialization correctness remains outside the proof.",
+      "acceptance": {
+        "path": "artifacts/css-variable-trailing-token-root-v1/ACCEPTANCE.json",
+        "sha256": "8c401f1c984a800370100da7876db098a08b50bbf4f42286f3b43dddbf151ad7"
+      },
+      "native_paths": [
+        "servo/components/style/custom_properties.rs",
+        "testing/web-platform/tests/css/css-variables/trailing-whitespace-token-boundary.html"
+      ],
+      "ancestor_of_checked_head": true
+    },
+    {
+      "fix": 85,
+      "repair": "variable-escaped-trailing-whitespace",
+      "native_commit": "fff2d758ef6bb39b4465cb072767bc5db6d5e09f",
+      "companion_commit": "3029d557014c83c6ad6260253243700536499176",
+      "relative_review_order": "Later: narrower syntax triggers",
+      "impact": "Trimming escaped trailing whitespace changes identifier contents.",
+      "limits": "16 failures become passes in a 20-case WPT; escaped space/tab inputs are required.",
+      "acceptance": {
+        "path": "artifacts/css-variable-escaped-whitespace-root-v1/ACCEPTANCE.json",
+        "sha256": "4c68d97d180a1e191487096660795bac01b2a1cc101f0879390dc15692cbeb4b"
+      },
+      "native_paths": [
+        "servo/components/style/custom_properties.rs",
+        "testing/web-platform/tests/css/css-variables/trailing-escaped-whitespace.html"
+      ],
+      "ancestor_of_checked_head": true
+    },
+    {
+      "fix": 86,
+      "repair": "variable-backslash-newline",
+      "native_commit": "246f1ff43250ec24e177f03cde923c9d11ee86e9",
+      "companion_commit": "45721455b1e409b438520a9a4f0ec5f097a523d5",
+      "relative_review_order": "Later: narrower syntax triggers",
+      "impact": "Removing a newline after a backslash delimiter turns an invalid animation name into an identifier.",
+      "limits": "30 final cases pass against a baseline subset with16 failures; no release reproduction claimed.",
+      "acceptance": {
+        "path": "artifacts/css-variable-backslash-newline-root-v1/ACCEPTANCE.json",
+        "sha256": "fb0fb6ef848782b6de2962a36cfe83db33c55142b38816bde40c05f07e980199"
+      },
+      "native_paths": [
+        "servo/components/style/custom_properties.rs",
+        "testing/web-platform/tests/css/css-variables/trailing-backslash-newline.html"
+      ],
+      "ancestor_of_checked_head": true
+    },
+    {
+      "fix": 87,
+      "repair": "view-transition-initial-type-deduplication",
+      "native_commit": "2db94380203863bced9e3a7147505beabaaf7599",
+      "companion_commit": "baa7f955bacd6e7bc5b4faf752cb9a1616be1d3a",
+      "relative_review_order": "Next: rendering and API correctness",
+      "impact": "Deleting an initially duplicated view-transition type leaves native selector membership behind.",
+      "limits": "Five baseline failures become passes; all21 candidate cases pass. The separate cached-style invalidation repair is not counted yet.",
+      "acceptance": {
+        "path": "artifacts/css-view-transition-types-root-v1/ACCEPTANCE.json",
+        "sha256": "510d21bd97727f993795e2eaf1a5effa31df45dd97636b71feef81dfb25b59aa"
+      },
+      "native_paths": [
+        "dom/base/Document.cpp",
+        "testing/web-platform/tests/css/css-view-transitions/view-transition-types-initial-duplicates.html"
+      ],
+      "ancestor_of_checked_head": true
+    }
+  ]
+}

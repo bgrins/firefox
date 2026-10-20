@@ -1,0 +1,194 @@
+diff --git a/dom/view-transitions/ViewTransition.cpp b/dom/view-transitions/ViewTransition.cpp
+index a07a4aae3445..8b0ac7071c70 100644
+--- a/dom/view-transitions/ViewTransition.cpp
++++ b/dom/view-transitions/ViewTransition.cpp
+@@ -2105,6 +2105,16 @@ Maybe<nsRect> ViewTransition::GetNewActiveRect(nsAtom* aName) const {
+   return el->mNewActiveRect;
+ }
+ 
++void ViewTransition::TypesChanged() {
++  if (mDocument->GetActiveViewTransition() != this) {
++    return;
++  }
++  if (Element* root = mDocument->GetRootElement()) {
++    nsLayoutUtils::PostRestyleEvent(root, RestyleHint::RestyleSubtree(),
++                                    nsChangeHint(0));
++  }
++}
++
+ ViewTransitionTypeSet* ViewTransition::Types() {
+   if (!mTypes) {
+     mTypes = new ViewTransitionTypeSet(*this);
+diff --git a/dom/view-transitions/ViewTransition.h b/dom/view-transitions/ViewTransition.h
+index 4159f711a25f..26fcf85760ea 100644
+--- a/dom/view-transitions/ViewTransition.h
++++ b/dom/view-transitions/ViewTransition.h
+@@ -111,6 +111,7 @@ class ViewTransition final : public nsISupports, public nsWrapperCache {
+   Promise* GetReady(ErrorResult&);
+   Promise* GetFinished(ErrorResult&);
+   ViewTransitionTypeSet* Types();
++  void TypesChanged();
+   const TypeList& GetTypeList() const { return mTypeList; }
+   TypeList& GetTypeList() { return mTypeList; }
+ 
+diff --git a/dom/view-transitions/ViewTransitionTypeSet.cpp b/dom/view-transitions/ViewTransitionTypeSet.cpp
+index 5edf7808eda8..ad5fdd521f14 100644
+--- a/dom/view-transitions/ViewTransitionTypeSet.cpp
++++ b/dom/view-transitions/ViewTransitionTypeSet.cpp
+@@ -43,14 +43,16 @@ ViewTransitionTypeSet* ViewTransitionTypeSet::Add(const nsAString& aValue,
+   RefPtr atom = NS_AtomizeMainThread(aValue);
+   MOZ_ASSERT(!mTransition->GetTypeList().Contains(atom));
+   mTransition->GetTypeList().AppendElement(std::move(atom));
++  mTransition->TypesChanged();
+   return this;
+ }
+ void ViewTransitionTypeSet::Clear(ErrorResult& aRv) {
+   SetlikeHelpers::Clear(this, aRv);
+-  if (aRv.Failed()) {
++  if (aRv.Failed() || mTransition->GetTypeList().IsEmpty()) {
+     return;
+   }
+   mTransition->GetTypeList().Clear();
++  mTransition->TypesChanged();
+ }
+ bool ViewTransitionTypeSet::Delete(const nsAString& aValue, ErrorResult& aRv) {
+   if (!SetlikeHelpers::Delete(this, aValue, aRv) || aRv.Failed()) {
+@@ -59,6 +61,7 @@ bool ViewTransitionTypeSet::Delete(const nsAString& aValue, ErrorResult& aRv) {
+   RefPtr atom = NS_AtomizeMainThread(aValue);
+   MOZ_ASSERT(mTransition->GetTypeList().Contains(atom));
+   mTransition->GetTypeList().RemoveElement(atom);
++  mTransition->TypesChanged();
+   return true;
+ }
+ 
+diff --git a/testing/web-platform/tests/css/css-view-transitions/view-transition-types-style-invalidation.html b/testing/web-platform/tests/css/css-view-transitions/view-transition-types-style-invalidation.html
+new file mode 100644
+index 000000000000..5796a3542b3b
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-view-transitions/view-transition-types-style-invalidation.html
+@@ -0,0 +1,125 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Mutating active view transition types invalidates dependent styles</title>
++<link rel="help" href="https://drafts.csswg.org/css-view-transitions-2/#the-active-view-transition-type-pseudo">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++let sequence = 0;
++const cases = [
++  ["add", false, true, types => types.add("alpha")],
++  ["delete", true, false, types => types.delete("alpha")],
++  ["clear", true, false, types => types.clear()],
++  ["add existing", true, true, types => types.add("alpha")],
++  ["delete absent", false, false, types => types.delete("alpha")],
++  ["clear empty", false, false, types => types.clear()],
++];
++for (const phase of ["synchronous", "ready"]) {
++  for (const [name, initial, final, mutate] of cases) {
++    promise_test(async t => {
++      const target = document.createElement("div");
++      target.id = `type-invalidation-${++sequence}`;
++      const style = document.createElement("style");
++      style.textContent = `
++        html { color: rgb(10, 20, 30); }
++        #${target.id} { width: 17px; height: 10px; }
++        html:active-view-transition-type(alpha) { color: rgb(0, 128, 0); }
++        html:active-view-transition-type(alpha) #${target.id} { width: 43px; }
++        html::before { content: ""; opacity: 0.2; }
++        #${target.id}::before { content: ""; opacity: 0.25; }
++        html:active-view-transition-type(alpha)::before { opacity: 0.8; }
++        html:active-view-transition-type(alpha) #${target.id}::before { opacity: 0.75; }
++        ::view-transition-group(*) { animation-duration: 100s; opacity: 0.3; }
++        html:active-view-transition-type(alpha)::view-transition-group(root) { opacity: 0.7; }
++      `;
++      document.head.append(style);
++      document.body.append(target);
++      const transition = document.startViewTransition({types: initial ? ["alpha"] : [], update() {}});
++      transition.ready.catch(() => {});
++      t.add_cleanup(async () => {
++        transition.skipTransition();
++        await transition.finished;
++        style.remove();
++        target.remove();
++      });
++      if (phase === "ready") await transition.ready;
++      const root = document.documentElement;
++      const values = active => [
++        active ? "rgb(0, 128, 0)" : "rgb(10, 20, 30)",
++        active ? "43px" : "17px",
++        active ? "0.8" : "0.2",
++        active ? "0.75" : "0.25",
++        ...(phase === "ready" ? [active ? "0.7" : "0.3"] : []),
++      ];
++      const computed = () => [
++        getComputedStyle(root).color,
++        getComputedStyle(target).width,
++        getComputedStyle(root, "::before").opacity,
++        getComputedStyle(target, "::before").opacity,
++        ...(phase === "ready" ? [getComputedStyle(root, "::view-transition-group(root)").opacity] : []),
++      ];
++      assert_equals(document.activeViewTransition, transition);
++      assert_array_equals(computed(), values(initial), "initial style is cached with the correct type");
++      mutate(transition.types);
++      assert_equals(transition.types.has("alpha"), final, "public type membership");
++      assert_equals(root.matches(":active-view-transition-type(alpha)"), final, "direct selector membership");
++      assert_array_equals(computed(), values(final), "computed element and pseudo-element styles reflect the mutation");
++    }, `${phase}: ${name} updates styles selected by the active transition type`);
++  }
++}
++for (const active of [false, true]) {
++  for (const [name, mutate] of [
++    ["add", types => types.add("alpha")],
++    ["delete", types => types.delete("alpha")],
++    ["clear", types => types.clear()],
++  ]) {
++    promise_test(async t => {
++      const target = document.createElement("div");
++      target.id = `type-invalidation-${++sequence}`;
++      const style = document.createElement("style");
++      style.textContent = `
++        html { color: rgb(10, 20, 30); }
++        #${target.id} { width: 17px; height: 10px; }
++        html:active-view-transition-type(alpha) { color: rgb(0, 128, 0); }
++        html:active-view-transition-type(alpha) #${target.id} { width: 43px; }
++        html:active-view-transition-type(beta) { color: rgb(0, 0, 255); }
++        html:active-view-transition-type(beta) #${target.id} { width: 61px; }
++        ::view-transition-group(*) { animation-duration: 100s; }
++      `;
++      document.head.append(style);
++      document.body.append(target);
++      let current = null;
++      const old = document.startViewTransition({types: name === "add" ? [] : ["alpha"], update() {}});
++      old.ready.catch(() => {});
++      t.add_cleanup(async () => {
++        old.skipTransition();
++        if (current) {
++          current.skipTransition();
++          await current.finished;
++        }
++        await old.finished;
++        style.remove();
++        target.remove();
++      });
++      old.skipTransition();
++      await old.finished;
++      if (active) {
++        current = document.startViewTransition({types: ["beta"], update() {}});
++        current.ready.catch(() => {});
++      }
++      const root = document.documentElement;
++      const computed = () => [getComputedStyle(root).color, getComputedStyle(target).width];
++      const expected = active ? ["rgb(0, 0, 255)", "61px"] : ["rgb(10, 20, 30)", "17px"];
++      assert_equals(document.activeViewTransition, current);
++      assert_array_equals(computed(), expected, "initial current-owner style");
++      mutate(old.types);
++      assert_equals(old.types.has("alpha"), name === "add", "completed object still mutates");
++      assert_equals(document.activeViewTransition, current, "active ownership is unchanged");
++      assert_false(root.matches(":active-view-transition-type(alpha)"));
++      assert_equals(root.matches(":active-view-transition-type(beta)"), active);
++      assert_array_equals(computed(), expected, "completed transition mutation leaves current styles unchanged");
++    }, `${active ? "old during new" : "completed"}: ${name} leaves current-owner styles unchanged`);
++  }
++}
++</script>

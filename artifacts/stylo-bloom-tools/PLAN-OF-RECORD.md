@@ -597,8 +597,12 @@ stale computed root color and descendant width, both synchronously and after rea
 All before-state and forced-refresh calibrations pass; twelve no-op/completed/old
 transition controls pass. No duplicate initial types are used. Source/binary pins
 are stable. Evidence: `../css-view-transition-type-invalidation-v1/v2/runtime-v1/`.
-Independent source/spec/fix review and WPT reduction are active. This is not yet
-an accepted repair or counted commit; it remains separate from initial deduplication.
+Independent source/spec/native/WPT review is accepted. The paired 42-case WPT
+now passes completely: six improvements, 36 unchanged. Warmed root/descendant
+::before and ready-only transition-group opacity checks are included. Build,
+scoped C++/WPT lint and exact four-file upstream apply/reverse pass. Formal
+companion and independent mathematical review remain pending; no native commit
+is counted yet. [Native acceptance](../css-view-transition-type-invalidation-root-v1/ROOT-NATIVE-ACCEPTANCE-v1.json).
 
 ## Initial view-transition type deduplication committed
 
@@ -612,5 +616,13 @@ source applicability is checked, without an isolated upstream browser claim.
 The distinct invalidation lead now also has a baseline WPT run: six failures
 and 12 controls pass, with all 24 initial-type/existing mutable controls passing.
 A separate calibrated probe confirms stale ordinary and transition pseudo-element
-styles. Candidate native source remains offline; implementation/build validation
-and the formal companion are pending. It is not counted as a committed repair.
+styles. The candidate native repair is now applied and its build, paired 42-pass WPT,
+scoped lint and independent native/WPT review pass. The formal companion and
+independent proof review remain pending. It is not counted as a committed repair.
+
+Sticky H1/H2 formal implementation has resumed with all ten preserved obligations
+and explicit rectangle, writing-mode, finite-sentinel, clamp and caller boundaries.
+[Scope checkpoint](../css-view-transition-type-invalidation-root-v1/STICKY-SCOPE-CHECKPOINT.md). No acceptance or H3 repair is claimed.
+
+The [triage addendum](../css-bugfix-triage-20261019-addendum-v1/README.md) covers
+fixes81–87, prioritizing the minimal release bounds-panic reproduction in fix83.

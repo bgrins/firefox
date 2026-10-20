@@ -12,6 +12,8 @@ Repairs with incomplete review are excluded from this count.
 native commits by demonstrated crashes, security-boundary review,
 broader correctness and narrower triggers. It records exposure limitations and
 standalone alternatives; the rankings are recommendations, not assigned severity.
+The [addendum for fixes 81–87](../css-bugfix-triage-20261019-addendum-v1/README.md)
+brings that review order up to the current committed count.
 
 Latest committed fixes:
 

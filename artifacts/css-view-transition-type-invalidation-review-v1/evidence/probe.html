@@ -1,0 +1,110 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>View transition type invalidation</title>
+<style>
+html { color: rgb(10, 20, 30); }
+#target { width: 17px; height: 10px; }
+html:active-view-transition-type(alpha) { color: rgb(0, 128, 0); }
+html:active-view-transition-type(alpha) #target { width: 43px; }
+html:active-view-transition-type(beta) { color: rgb(0, 0, 255); }
+html:active-view-transition-type(beta) #target { width: 61px; }
+::view-transition-group(*) { animation-duration: 100s; }
+</style>
+<div id="target"></div>
+<script>
+const rows = [];
+const root = document.documentElement;
+const target = document.querySelector("#target");
+const sheet = document.styleSheets[0];
+function refresh() {
+  sheet.disabled = true;
+  read();
+  sheet.disabled = false;
+  return read();
+}
+function read() {
+  return {
+    alpha: root.matches(":active-view-transition-type(alpha)"),
+    beta: root.matches(":active-view-transition-type(beta)"),
+    childMatches: target.matches(":active-view-transition-type(alpha, beta)"),
+    active: document.activeViewTransition !== null,
+    color: getComputedStyle(root).color,
+    width: getComputedStyle(target).width,
+  };
+}
+function expected(alpha, beta, active) {
+  return {alpha, beta, childMatches: false, active,
+    color: beta ? "rgb(0, 0, 255)" : alpha ? "rgb(0, 128, 0)" : "rgb(10, 20, 30)",
+    width: beta ? "61px" : alpha ? "43px" : "17px"};
+}
+function differences(actual, wanted) {
+  return Object.keys(wanted).filter(key => actual[key] !== wanted[key]);
+}
+function record(label, before, beforeExpected, wanted, operation) {
+  const actual = read();
+  const refreshed = refresh();
+  rows.push({label, before, beforeExpected, actual, expected: wanted, refreshed, operation,
+    beforeFailures: differences(before, beforeExpected),
+    failures: differences(actual, wanted), refreshFailures: differences(refreshed, wanted)});
+}
+function start(types) {
+  const transition = document.startViewTransition({types, update() {}});
+  transition.ready.catch(() => {});
+  return transition;
+}
+async function stop(transition) {
+  transition.skipTransition();
+  await transition.finished;
+}
+async function run() {
+  const cases = [
+    ["add", [], true, t => t.types.add("alpha")],
+    ["delete", ["alpha"], false, t => t.types.delete("alpha")],
+    ["clear", ["alpha"], false, t => t.types.clear()],
+    ["add-existing", ["alpha"], true, t => t.types.add("alpha")],
+    ["delete-missing", [], false, t => t.types.delete("alpha")],
+    ["clear-empty", [], false, t => t.types.clear()],
+  ];
+  for (const phase of ["synchronous", "ready"]) {
+    for (const [name, types, alpha, mutate] of cases) {
+      const transition = start(types);
+      if (phase === "ready") await transition.ready;
+      const before = refresh();
+      const result = mutate(transition);
+      record(`${phase}/${name}`, before, expected(types.includes("alpha"), false, true),
+        expected(alpha, false, true), {returnType: typeof result, types: [...transition.types],
+          activeIdentity: document.activeViewTransition === transition});
+      await stop(transition);
+    }
+  }
+  const old = start(["alpha"]);
+  await stop(old);
+  for (const [name, mutate] of [
+    ["clear", t => t.types.clear()],
+    ["add", t => t.types.add("alpha")],
+    ["delete", t => t.types.delete("alpha")],
+  ]) {
+    const before = refresh();
+    mutate(old);
+    record(`completed/${name}`, before, expected(false, false, false), expected(false, false, false),
+      {types: [...old.types]});
+  }
+  const current = start(["beta"]);
+  for (const [name, mutate] of [
+    ["add", t => t.types.add("alpha")],
+    ["delete", t => t.types.delete("alpha")],
+    ["clear", t => t.types.clear()],
+  ]) {
+    const before = refresh();
+    mutate(old);
+    record(`old-during-new/${name}`, before, expected(false, true, true), expected(false, true, true),
+      {oldTypes: [...old.types], currentTypes: [...current.types],
+        activeIdentity: document.activeViewTransition === current});
+  }
+  await stop(current);
+  return {complete: true, rows, visibility: document.visibilityState, userAgent: navigator.userAgent};
+}
+run().then(result => fetch("/result", {method: "POST", body: JSON.stringify(result)}))
+  .catch(error => fetch("/result", {method: "POST", body: JSON.stringify({complete: false,
+    rows, error: String(error), stack: error.stack})}));
+</script>
