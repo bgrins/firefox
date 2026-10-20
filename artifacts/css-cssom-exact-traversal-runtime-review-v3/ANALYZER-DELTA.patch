@@ -1,0 +1,56 @@
+--- v2/review_runtime.py
++++ v3/review_runtime.py
+@@ -9,8 +9,8 @@
+ import statistics
+ 
+ HERE = Path(__file__).resolve().parent
+-RUNTIME = HERE.parent / "css-cssom-exact-traversal-runtime-v2"
+-PROPOSAL = HERE.parent / "css-cssom-exact-traversal-proposal-v2"
++RUNTIME = HERE.parent / "css-cssom-exact-traversal-runtime-v3"
++PROPOSAL = HERE.parent / "css-cssom-exact-traversal-proposal-v3"
+ RUNS = [f"{phase}-{n}" for phase in ["baseline-before", "candidate", "baseline-after"] for n in [1, 2]]
+ SOURCES = ["layout/generic/nsIFrame.cpp", "layout/generic/nsIFrame.h", "layout/base/nsLayoutUtils.cpp", "layout/base/nsLayoutUtils.h"]
+ NAMES = [f"{mode}-{depth}" for depth in [8, 128] for mode in ["ordinary", "transform-near-leaf", "transform-near-root"]]
+@@ -92,24 +92,24 @@
+             phase = "candidate" if role == "candidate" else "baseline"
+             assert all(pin(wpt[phase]["before"], "Contents/MacOS/" + n) == h for n, h in binaries[run].items())
+         o = r["observations"][0]
+-        assert o["valid"] and o["totalMeasuredCalls"] == 840000
+-        assert o["config"] == {"iterations": 20000, "samples": 7, "warmup": 3000, "startupMs": 3000, "depths": [8, 128]}
+-        assert len(o["visibility"]) == 44 and set(o["visibility"]) == {"visible"}
++        assert o["valid"] and o["totalMeasuredCalls"] == 6600000
++        assert o["config"] == {"iterations": 100000, "samples": 11, "warmup": 10000, "startupMs": 3000, "depths": [8, 128]}
++        assert len(o["visibility"]) == 68 and set(o["visibility"]) == {"visible"}
+         assert [c["name"] for c in o["cases"]] == NAMES
+-        assert o["order"] == [NAMES[(slot + sample) % 6] for sample in range(7) for slot in range(6)]
++        assert o["order"] == [NAMES[(slot + sample) % 6] for sample in range(11) for slot in range(6)]
+         environment.append({k: o[k] for k in ["userAgent", "devicePixelRatio", "viewport"]})
+         for index, c in enumerate(o["cases"]):
+             depth = [8, 128][index // 3]
+             expected = {"x": depth + (3 if index % 3 else 0), "y": depth + (5 if index % 3 else 0), "width": 20, "height": 10}
+             assert c["before"] == c["after"] == c["expected"] == expected and c["stable"]
+-            assert c["warmupChecksum"] == sum(expected.values()) * 3000
+-            assert len(c["batches"]) == 7
++            assert c["warmupChecksum"] == sum(expected.values()) * 10000
++            assert len(c["batches"]) == 11
+             ns = []
+             for sample, b in enumerate(c["batches"]):
+-                assert b["sample"] == sample and b["slot"] == (index - sample) % 6 and b["calls"] == 20000
++                assert b["sample"] == sample and b["slot"] == (index - sample) % 6 and b["calls"] == 100000
+                 assert math.isfinite(b["elapsedMs"]) and b["elapsedMs"] > 0
+-                assert b["checksum"] == b["expectedChecksum"] == sum(expected.values()) * 20000 and b["checksumMatches"]
+-                assert b["nanosecondsPerCall"] == b["elapsedMs"] * 50
++                assert b["checksum"] == b["expectedChecksum"] == sum(expected.values()) * 100000 and b["checksumMatches"]
++                assert b["nanosecondsPerCall"] == b["elapsedMs"] * 10
+                 ns.append(b["nanosecondsPerCall"])
+             assert statistics.median(ns) == c["medianNanosecondsPerCall"]
+             rows.setdefault(c["name"], {})[run] = {"ns_per_call_batches": ns, "median": statistics.median(ns), "range": [min(ns), max(ns)]}
+@@ -121,7 +121,7 @@
+         medians = {phase: [runs[phase + "-" + str(n)]["median"] for n in [1, 2]] for phase in ["baseline-before", "candidate", "baseline-after"]}
+         center = {k: statistics.median(v) for k, v in medians.items()}
+         comparisons[name] = {"run_medians_ns": medians, "candidate_vs_before_percent": 100 * (center["candidate"] / center["baseline-before"] - 1), "candidate_vs_restored_percent": 100 * (center["candidate"] / center["baseline-after"] - 1), "restored_vs_before_percent": 100 * (center["baseline-after"] / center["baseline-before"] - 1)}
+-    return {"correctness": {"changed": changed, "unchanged_subtests": 72, "retained_expected_failures": expected_fails, "file_outcomes": end_map("candidate"), "baseline_matches_historical_dom_only": True}, "timings": rows, "comparisons": comparisons, "environment": environment[0], "binaries": binaries, "limits": "Six fresh-profile headless processes; fixed phase order; seven quantized repeated batches per case, not independent user samples. Historical binaries identified by contemporaneous hashes, not archived/rebuilt here. No statistical significance or broad performance conclusion."}
++    return {"correctness": {"changed": changed, "unchanged_subtests": 72, "retained_expected_failures": expected_fails, "file_outcomes": end_map("candidate"), "baseline_matches_historical_dom_only": True}, "timings": rows, "comparisons": comparisons, "environment": environment[0], "binaries": binaries, "limits": "Six fresh-profile headless processes; fixed phase order; eleven quantized repeated batches per case, not independent user samples. Historical binaries identified by contemporaneous hashes, not archived/rebuilt here. No statistical significance or broad performance conclusion."}
+ 
+ if __name__ == "__main__":
+     result = review()
