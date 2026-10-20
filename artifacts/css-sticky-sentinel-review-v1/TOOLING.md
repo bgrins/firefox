@@ -1,0 +1,5 @@
+No Read provider is exposed. Layout AGENTS.md was previously read through Python Path.read_text(), and LayoutOverview/ReviewerChecklist were read for this review sequence. The spec-trace skill is applied; webspec-index is unavailable, so current primary HTML and web reading supply the normative trace. Searchfox supplied new upstream discovery. Its context and callgraph queries did not provide complete bodies; retained exact files were fetched for the already identified consumers. Empty graph results are not treated as evidence that callers are absent.
+
+The live sticky source changed while root applied the authorized patch. A source hash assertion caught that transition. The copied file is retained as live-applied-during-review.cpp, and original before.cpp was subsequently copied from root's retained snapshot and authenticated against CANDIDATE.json. No source state was inferred from the failed assertion.
+
+This reviewer has made no production/WPT/Git/browser/build changes. Only this review artifact is writable; the prior frozen reviews and the H1/H2 proof project remain unchanged.

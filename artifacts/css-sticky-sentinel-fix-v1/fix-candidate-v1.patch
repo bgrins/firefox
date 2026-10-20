@@ -1,0 +1,106 @@
+--- a/layout/generic/StickyScrollContainer.cpp
++++ b/layout/generic/StickyScrollContainer.cpp
+@@ -285,14 +285,27 @@
+   const auto [stick, contain] = ComputeStickyLimits(aFrame, aSpace);
+ 
+   nsPoint position = aFrame->GetNormalPosition();
++  const nsMargin* computedOffsets =
++      aFrame->GetProperty(nsIFrame::ComputedOffsetProperty());
++  if (!computedOffsets) {
++    return position;
++  }
+ 
+   // For each sticky direction (top, bottom, left, right), move the frame along
+   // the appropriate axis, based on the scroll position, but limit this to keep
+   // the element's margin box within the containing block.
+-  position.y = std::max(position.y, std::min(stick.y, contain.YMost()));
+-  position.y = std::min(position.y, std::max(stick.YMost(), contain.y));
+-  position.x = std::max(position.x, std::min(stick.x, contain.XMost()));
+-  position.x = std::min(position.x, std::max(stick.XMost(), contain.x));
++  if (computedOffsets->top != NS_AUTOOFFSET) {
++    position.y = std::max(position.y, std::min(stick.y, contain.YMost()));
++  }
++  if (computedOffsets->bottom != NS_AUTOOFFSET) {
++    position.y = std::min(position.y, std::max(stick.YMost(), contain.y));
++  }
++  if (computedOffsets->left != NS_AUTOOFFSET) {
++    position.x = std::max(position.x, std::min(stick.x, contain.XMost()));
++  }
++  if (computedOffsets->right != NS_AUTOOFFSET) {
++    position.x = std::min(position.x, std::max(stick.XMost(), contain.x));
++  }
+ 
+   return position;
+ }
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-position/sticky/position-sticky-auto-insets-large-coordinate.html
+@@ -0,0 +1,69 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Auto sticky insets do not constrain large coordinates</title>
++<link rel="help" href="https://drafts.csswg.org/css-position-3/#stickypos-insets">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++.scroller { width: 100px; height: 100px; overflow: auto; scrollbar-width: none; }
++.vertical .containing-block { height: 17000000px; }
++.vertical .spacer { width: 1px; height: var(--spacer-size); }
++.horizontal .containing-block { display: flex; width: 17000000px; height: 20px; }
++.horizontal .spacer { width: var(--spacer-size); height: 1px; flex: none; }
++.target { position: sticky; inset: auto; width: 10px; height: 10px; flex: none; }
++.vertical .near .target, .vertical .both .target { top: 0; }
++.vertical .far .target, .vertical .both .target { bottom: 0; }
++.horizontal .near .target, .horizontal .both .target { left: 0; }
++.horizontal .far .target, .horizontal .both .target { right: 0; }
++</style>
++<div id="log"></div>
++<script>
++for (const axis of ["vertical", "horizontal"]) {
++  for (const mode of ["auto", "near", "far", "both"]) {
++    for (const spacerSize of [100, 8000000, 9000000]) {
++      test(t => {
++        const vertical = axis === "vertical";
++        const scroller = document.createElement("div");
++        scroller.className = `scroller ${axis}`;
++        scroller.style.setProperty("--spacer-size", `${spacerSize}px`);
++        const containingBlock = document.createElement("div");
++        containingBlock.className = `containing-block ${mode}`;
++        const spacer = document.createElement("div");
++        spacer.className = "spacer";
++        const target = document.createElement("div");
++        target.className = "target";
++        containingBlock.append(spacer, target);
++        scroller.append(containingBlock);
++        document.body.append(scroller);
++        t.add_cleanup(() => scroller.remove());
++        for (const scrollOffset of [0, 100]) {
++          if (vertical) scroller.scrollTop = scrollOffset;
++          else scroller.scrollLeft = scrollOffset;
++          const containerRect = containingBlock.getBoundingClientRect();
++          const spacerRect = spacer.getBoundingClientRect();
++          const targetRect = target.getBoundingClientRect();
++          assert_equals(vertical ? scroller.scrollTop : scroller.scrollLeft,
++                        scrollOffset, "Requested scroll position");
++          assert_equals(vertical ? containerRect.height : containerRect.width,
++                        17000000, "Containing block size");
++          assert_equals(vertical ? spacerRect.height : spacerRect.width,
++                        spacerSize, "Normal-position spacer size");
++          assert_equals(vertical ? targetRect.height : targetRect.width,
++                        10, "Sticky box size");
++          let expected = spacerSize;
++          if (mode === "near" || mode === "both") {
++            expected = Math.max(expected, scrollOffset);
++          }
++          if (mode === "far" || mode === "both") {
++            expected = Math.min(expected, scrollOffset + 90);
++          }
++          const actual = vertical ? targetRect.top - containerRect.top :
++                                    targetRect.left - containerRect.left;
++          assert_approx_equals(actual, expected, 2,
++                               `Sticky position at scroll offset ${scrollOffset}`);
++        }
++      }, `${axis}, ${mode} insets, normal coordinate ${spacerSize}px`);
++    }
++  }
++}
++</script>

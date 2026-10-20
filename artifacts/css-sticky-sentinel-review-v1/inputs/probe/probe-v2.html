@@ -1,0 +1,44 @@
+<!doctype html>
+<meta charset="utf-8"><title>Sticky auto inset at large coordinates</title>
+<style>
+body { margin: 0; }
+.scroll { width: 100px; height: 100px; overflow: auto; scrollbar-width: none; }
+.cb { height: 17000000px; }
+.spacer { width: 1px; }
+.target { width: 10px; height: 10px; inset: auto; }
+</style>
+<script>
+addEventListener("load", async () => {
+  const rows = [];
+  for (const spacerSize of [100, 8000000, 8947840, 8947848, 8947856, 9000000, 11666666]) {
+    for (const position of ["static", "relative", "sticky"]) {
+      const scroll = document.createElement("div");
+      scroll.className = "scroll";
+      const cb = document.createElement("div");
+      cb.className = "cb";
+      const spacer = document.createElement("div");
+      spacer.className = "spacer";
+      spacer.style.height = `${spacerSize}px`;
+      const target = document.createElement("div");
+      target.className = "target";
+      target.style.position = position;
+      cb.append(spacer, target);
+      scroll.append(cb);
+      document.body.append(scroll);
+      for (const requestedScroll of [0, 100]) {
+        scroll.scrollTop = requestedScroll;
+        const c = cb.getBoundingClientRect();
+        const s = spacer.getBoundingClientRect();
+        const t = target.getBoundingClientRect();
+        rows.push({spacerSize, position, requestedScroll, actualScroll: scroll.scrollTop,
+          computedPosition: getComputedStyle(target).position, topInset: getComputedStyle(target).top, bottomInset: getComputedStyle(target).bottom,
+          cbHeight: c.height, spacerHeight: s.height, targetHeight: t.height,
+          targetTop: t.top - c.top, spacerTop: s.top - c.top,
+          matches: Math.abs(t.top - c.top - spacerSize) <= 2});
+      }
+      scroll.remove();
+    }
+  }
+  await fetch("/result", {method: "POST", body: JSON.stringify({userAgent: navigator.userAgent, rows})});
+});
+</script>
