@@ -1,0 +1,64 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Flex baseline cross-size sums preserve the container max-height</title>
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#cross-sizing">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .host {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    width: 20px;
+    max-height: 100px;
+  }
+  .item {
+    flex: none;
+    width: 10px;
+    height: var(--size);
+    font-size: 0;
+    line-height: 0;
+  }
+  .item:first-child {
+    margin-top: calc(-1 * var(--size));
+    margin-bottom: var(--size);
+  }
+  .item:last-child {
+    margin-top: var(--size);
+    margin-bottom: calc(-1 * var(--size));
+  }
+  .marker { display: inline-block; width: 0; height: 0; }
+</style>
+<body>
+<script>
+for (const size of [100, 1000000, 5000000, 7000000, 10000000,
+                   11900000, 12000000, 14000000, 17000000]) {
+  for (const align of ["baseline", "last baseline", "flex-start"]) {
+    for (const direction of ["row", "row-reverse"]) {
+      test(t => {
+        const host = document.createElement("div");
+        host.className = "host";
+        host.style.setProperty("--size", `${size}px`);
+        host.style.alignItems = align;
+        host.style.flexDirection = direction;
+        host.innerHTML = '<div class="item"><span class="marker"></span></div>' +
+                         '<div class="item"><span class="marker"></span></div>';
+        document.body.append(host);
+        t.add_cleanup(() => host.remove());
+        assert_equals(host.getBoundingClientRect().width, 20, "container width");
+        for (const [index, item] of [...host.children].entries()) {
+          const style = getComputedStyle(item);
+          assert_implements_optional(
+            Math.abs(parseFloat(style.height) - size) <= 2 &&
+            Math.abs(parseFloat(style.marginTop) - (index ? size : -size)) <= 2 &&
+            Math.abs(parseFloat(style.marginBottom) - (index ? -size : size)) <= 2,
+            "The item dimensions and margins support this test's numeric range");
+        }
+        assert_equals(host.getBoundingClientRect().height, 100,
+                      "baseline cross-size remains positive before max-height clamping");
+      }, `${direction}, ${align}, ${size}px items and opposing margins`);
+    }
+  }
+}
+</script>

@@ -1,0 +1,8 @@
+{
+  "reason": "Fresh paired WPT after optional numeric-range calibration correction. Only final cross-size sum repair temporarily reverted; restore candidate after baseline.",
+  "before_sha256": "85b109584b8e776b22194739c80a7a6cb9d942ab08f608326f893d0d4f3e6d32",
+  "candidate_sha256": "5241406285ae18dbc6025b14a7f47647530b6d6dd96edab8c795490b4156056d",
+  "wpt_sha256": "69e3eef170f09f1efbece977265430a12ee6a1593c9f670823bce7ef455f86b2",
+  "old_sum": "  mLineCrossSize = std::max(\n      std::max(\n          crossStartToFurthestFirstBaseline + crossEndToFurthestFirstBaseline,\n          crossStartToFurthestLastBaseline + crossEndToFurthestLastBaseline),\n      largestOuterCrossSize);\n",
+  "new_sum": "  const int64_t firstBaselineCrossSize =\n      int64_t(crossStartToFurthestFirstBaseline) +\n      crossEndToFurthestFirstBaseline;\n  const int64_t lastBaselineCrossSize =\n      int64_t(crossStartToFurthestLastBaseline) +\n      crossEndToFurthestLastBaseline;\n  mLineCrossSize = std::min<int64_t>(\n      nscoord_MAX, std::max({firstBaselineCrossSize, lastBaselineCrossSize,\n                             int64_t(largestOuterCrossSize)}));\n"
+}
