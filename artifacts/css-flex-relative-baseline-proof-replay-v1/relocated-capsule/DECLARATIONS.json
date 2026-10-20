@@ -1,0 +1,176 @@
+[
+  {
+    "name": "FlexRelativeBaseline.normal_read_agrees_exactly_when_property_ready",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem normal_read_agrees_exactly_when_property_ready (frame : Frame) :\n    (readNormal frame).point = frame.expectedNormal \u2194 PropertyReady frame := by\n  cases h : frame.normalProperty <;> simp [readNormal,PropertyReady,h]",
+    "sha256": "c3c5bfcd11533ec5c0341e98b17590d89197eb1205c45cd22ecd0c9ed55c67b6"
+  },
+  {
+    "name": "FlexRelativeBaseline.corrected_distance_refines_reference",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem corrected_distance_refines_reference (last : Bool) (mode : Mode)\n    (container : Point) (frame : Frame) (ready : PropertyReady frame) :\n    correctedDistance last mode container frame = referenceDistance last mode container frame := by\n  have h := (normal_read_agrees_exactly_when_property_ready frame).mpr ready\n  simp [correctedDistance,referenceDistance,h]",
+    "sha256": "14915d840d5cc1c3d8aedbdbba2f7c06d9e697b1b1ae9787d831c4655b44ae21"
+  },
+  {
+    "name": "FlexRelativeBaseline.no_property_read_for_established_ascent",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem no_property_read_for_established_ascent (last reversed : Bool) (old : Int)\n    (items : List Frame) (established : old \u2260 unset) :\n    propertyReads last reversed old items = [] := by simp [propertyReads,established]",
+    "sha256": "3b29dbcbc1b3ea879e633e4bb9bbce12118fb8d81c4e5ed8e305223cfe2c72b5"
+  },
+  {
+    "name": "FlexRelativeBaseline.property_read_is_exact_selected_donor",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem property_read_is_exact_selected_donor (last reversed : Bool) (items : List Frame)\n    (frame : Frame) (selected : donor last reversed items = some frame) :\n    propertyReads last reversed unset items = [(frame.identity,(readNormal frame).hasProperty)] := by\n  simp [propertyReads,selected]",
+    "sha256": "7b5cc4b990f3c2a2e79e3ba2430fa669affcde8021518d9843a5d6962bdc99a0"
+  },
+  {
+    "name": "FlexRelativeBaseline.at_most_one_property_read_per_group",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem at_most_one_property_read_per_group (last reversed : Bool) (old : Int) (items : List Frame) :\n    (propertyReads last reversed old items).length \u2264 1 := by\n  unfold propertyReads\n  split\n  \u00b7 cases donor last reversed items <;> simp\n  \u00b7 simp",
+    "sha256": "930e94bcdea60bb78432db8e6ac66828b12f0f331dd1ee84c358e96d76f728b4"
+  },
+  {
+    "name": "FlexRelativeBaseline.selected_donor_belongs_to_raw_line",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem selected_donor_belongs_to_raw_line (last reversed : Bool) (items : List Frame)\n    (frame : Frame) (selected : donor last reversed items = some frame) : frame \u2208 items := by\n  unfold donor at selected\n  split at selected <;> simp_all only [List.head?_eq_some_iff]\n  all_goals rcases selected with \u27e8tail,h\u27e9\n  \u00b7 have : frame \u2208 items.reverse := by rw [h]; simp\n    simpa using this\n  \u00b7 rw [h]; simp",
+    "sha256": "ab22326e04faa4f4bef41d2664b29f5b110bee57b0c24c5998edea1c3e7deeba"
+  },
+  {
+    "name": "FlexRelativeBaseline.arbitrary_line_refinement",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem arbitrary_line_refinement (last reversed : Bool) (mode : Mode) (container : Point)\n    (old : Int) (items : List Frame) (ready : \u2200 frame \u2208 items, PropertyReady frame) :\n    native last reversed mode container old items = reference last reversed mode container old items := by\n  unfold native reference\n  cases selected : donor last reversed items with\n  | none => simp [fallback]\n  | some frame =>\n    have h := corrected_distance_refines_reference last mode container frame\n      (ready frame (selected_donor_belongs_to_raw_line last reversed items frame selected))\n    simp [fallback,h]",
+    "sha256": "291b6f015142c4a00066b5b1cc4e24985cd5934c2bd927c4d18de07dac36c0af"
+  },
+  {
+    "name": "FlexRelativeBaseline.only_executed_donor_requires_property_readiness",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem only_executed_donor_requires_property_readiness (last reversed : Bool) (mode : Mode)\n    (container : Point) (old : Int) (items : List Frame)\n    (ready : old = unset \u2192 \u2200 frame, donor last reversed items = some frame \u2192 PropertyReady frame) :\n    native last reversed mode container old items = reference last reversed mode container old items := by\n  by_cases active : old = unset\n  \u00b7 unfold native reference\n    cases selected : donor last reversed items with\n    | none => simp [fallback]\n    | some frame =>\n      have h := corrected_distance_refines_reference last mode container frame (ready active frame selected)\n      simp [fallback,h]\n  \u00b7 unfold native reference\n    cases donor last reversed items <;> simp [fallback,active]",
+    "sha256": "9284d94f38047e4a78a4acb0470b49e9c03dd4afda2ef9bddf82dc394ae85bdb"
+  },
+  {
+    "name": "FlexRelativeBaseline.established_ascent_is_preserved",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem established_ascent_is_preserved (distance : Frame \u2192 Int) (old : Int)\n    (selected : Option Frame) (established : old \u2260 unset) : fallback distance old selected = old := by\n  simp [fallback,established]",
+    "sha256": "ae330ab7da853dc97e346dc59ecb418d54faac864796ad4a3963140bafd86608"
+  },
+  {
+    "name": "FlexRelativeBaseline.empty_line_preserves_unset",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem empty_line_preserves_unset (last reversed : Bool) (mode : Mode) (container : Point) :\n    native last reversed mode container unset [] = unset := by\n  simp [native,donor,fallback]",
+    "sha256": "7efd6100c50d22e7f1d8e92c9282aa1d747e155fd1ff5b4c1ce2104dac7f48cf"
+  },
+  {
+    "name": "FlexRelativeBaseline.shifted_frame_has_derived_ready_property",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem shifted_frame_has_derived_ready_property (delta : Point) (frame : Frame) :\n    PropertyReady (visualShift delta frame) := by simp [visualShift,PropertyReady]",
+    "sha256": "2f6ba239c3f31a2a017987e4978172e4c7edd3f749e22b47bb8e6226f65f10a3"
+  },
+  {
+    "name": "FlexRelativeBaseline.arbitrary_shifted_distance_is_reference",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem arbitrary_shifted_distance_is_reference (last : Bool) (mode : Mode)\n    (container delta : Point) (frame : Frame) :\n    correctedDistance last mode container (visualShift delta frame) =\n      referenceDistance last mode container frame := by\n  simp [correctedDistance,referenceDistance,baselineDistance,visualShift,readNormal]",
+    "sha256": "ee2ae330d6731e0d9d6fa0a904512e73ada7a1a7d2ebb8c1ca084de31bf98f5b"
+  },
+  {
+    "name": "FlexRelativeBaseline.donor_commutes_with_preserved_line_order",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem donor_commutes_with_preserved_line_order (last reversed : Bool)\n    (items : List Frame) (update : Frame \u2192 Frame) :\n    donor last reversed (items.map update) = (donor last reversed items).map update := by\n  unfold donor\n  split <;> simp [List.head?_map]",
+    "sha256": "1e05b332ae8948e2b2bb6735faabd0cc9c32ecd45ab6a385e291464dbc4c8f29"
+  },
+  {
+    "name": "FlexRelativeBaseline.arbitrary_line_displacement_independence",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem arbitrary_line_displacement_independence (last reversed : Bool) (mode : Mode)\n    (container : Point) (old : Int) (items : List Frame) (a b : Nat \u2192 Point) :\n    native last reversed mode container old (items.map (selectedShift a)) =\n      native last reversed mode container old (items.map (selectedShift b)) := by\n  unfold native\n  rw [donor_commutes_with_preserved_line_order,donor_commutes_with_preserved_line_order]\n  cases h : donor last reversed items <;>\n    simp [fallback,selectedShift,arbitrary_shifted_distance_is_reference]",
+    "sha256": "f6913a00d3c1faa0e18228cf048c49c085c1fa6583f5230d0050a81c536051f6"
+  },
+  {
+    "name": "FlexRelativeBaseline.original_shift_changes_group_distance",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem original_shift_changes_group_distance (last : Bool) (mode : Mode)\n    (container delta : Point) (frame : Frame) :\n    originalDistance last mode container (visualShift delta frame)-referenceDistance last mode container frame =\n      if last then -blockDelta mode delta else blockDelta mode delta := by\n  cases mode <;> cases last <;>\n    simp [originalDistance,referenceDistance,baselineDistance,visualShift,logicalB,blockSize,blockDelta] <;> omega",
+    "sha256": "5e4bc74163645980aa6aa68c4c8eeab65a58e4de309d6e3071c3f7191e3a7336"
+  },
+  {
+    "name": "FlexRelativeBaseline.original_shift_changes_parent_placement",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem original_shift_changes_parent_placement (last : Bool) (mode : Mode)\n    (container delta : Point) (frame : Frame) (parentBaseline : Int) :\n    (parentBaseline-startBaseline last mode container (originalDistance last mode container (visualShift delta frame)))-\n      (parentBaseline-startBaseline last mode container (referenceDistance last mode container frame)) =\n        -blockDelta mode delta := by\n  have h := original_shift_changes_group_distance last mode container delta frame\n  cases last <;> simp [startBaseline] at * <;> omega",
+    "sha256": "adebd42776f5dd0ae74de985230e404a4a6e51488c1dbd80eb5e6e4dc4624a84"
+  },
+  {
+    "name": "FlexRelativeBaseline.each_consumer_intermediate_is_in_range",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem each_consumer_intermediate_is_in_range (mode : Mode) (limit : Int)\n    (container size position : Point) (first last parent : Int)\n    (nonnegative : 0 \u2264 limit) (capacity : 6*limit \u2264 2147483647)\n    (hc : pointBounded limit container) (hs : pointBounded limit size)\n    (hp : pointBounded limit position) (hf : bounded limit first)\n    (hl : bounded limit last) (hparent : bounded limit parent) :\n    bounded 2147483647 (container.x-size.x) \u2227\n    bounded 2147483647 (container.y-size.y) \u2227\n    bounded 2147483647 (container.x-size.x-position.x) \u2227\n    bounded 2147483647 (container.y-size.y-position.y) \u2227\n    bounded 2147483647 (logicalB mode container size position+first) \u2227\n    bounded 2147483647 (logicalB mode container size position+last) \u2227\n    bounded 2147483647 (blockSize mode container-(logicalB mode container size position+last)) \u2227\n    bounded 2147483647 (parent-(logicalB mode container size position+first)) := by\n  unfold pointBounded bounded at *\n  cases mode <;> simp only [logicalB,blockSize] <;> omega",
+    "sha256": "103be41969e5fc2cf8bdd46a03aaf7b0a451f37b5e287ec2ae148a72c1715a05"
+  },
+  {
+    "name": "FlexRelativeBaseline.strict_envelope_excludes_unset",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem strict_envelope_excludes_unset (last : Bool) (mode : Mode) (limit : Int)\n    (container : Point) (frame : Frame)\n    (nonnegative : 0 \u2264 limit) (capacity : 5*limit < 1073741823)\n    (hc : pointBounded limit container) (hs : pointBounded limit frame.size)\n    (hp : pointBounded limit frame.expectedNormal)\n    (hf : bounded limit frame.firstAscent) (hl : bounded limit frame.lastAscent) :\n    referenceDistance last mode container frame \u2260 unset := by\n  unfold pointBounded bounded referenceDistance baselineDistance unset at *\n  cases mode <;> cases last <;> simp only [logicalB,blockSize,Bool.false_eq_true,ite_false,ite_true] <;> omega",
+    "sha256": "5ac73288f740a8f1e88203ccf7c99cc17e1a2fc7aa2f8643acff2039918b05fe"
+  },
+  {
+    "name": "FlexRelativeBaseline.missing_property_does_not_establish_normality",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem missing_property_does_not_establish_normality :\n    \u00ac PropertyReady exampleFrame \u2227\n    correctedDistance false .horizontal \u27e8160,80\u27e9 exampleFrame = 59 \u2227\n    referenceDistance false .horizontal \u27e8160,80\u27e9 exampleFrame = 39 := by\n  unfold PropertyReady exampleFrame\n  decide +kernel",
+    "sha256": "6a3b7de6a5ae227a1cd6576d1b91e34b40a0e4bd56465e0f6f2dd9d6a6299d57"
+  },
+  {
+    "name": "FlexRelativeBaseline.stale_property_still_leaks_a_position_error",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem stale_property_still_leaks_a_position_error :\n    correctedDistance false .horizontal \u27e8160,80\u27e9 { exampleFrame with normalProperty := some \u27e80,10\u27e9 } = 49 \u2227\n    referenceDistance false .horizontal \u27e8160,80\u27e9 exampleFrame = 39 := by decide +kernel",
+    "sha256": "13f7e3117a338f2ccc91e996da3969e65271106b4b38ace55a5647983df3065d"
+  },
+  {
+    "name": "FlexRelativeBaseline.property_dispatch_preserves_the_presence_observer",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem property_dispatch_preserves_the_presence_observer :\n    readNormal exampleFrame = \u27e8\u27e80,20\u27e9,false\u27e9 \u2227\n    readNormal { exampleFrame with normalProperty := some \u27e80,0\u27e9 } = \u27e8\u27e80,0\u27e9,true\u27e9 := by decide +kernel",
+    "sha256": "9bda9bc449d50b8619b2963c30dda7af389373deaddcea43eae2b97a6062ed24"
+  },
+  {
+    "name": "FlexRelativeBaseline.first_and_last_errors_agree_after_parent_conversion",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem first_and_last_errors_agree_after_parent_conversion :\n    originalDistance false .horizontal \u27e8160,80\u27e9 (visualShift \u27e80,20\u27e9 exampleFrame) = 59 \u2227\n    originalDistance true .horizontal \u27e8160,80\u27e9 (visualShift \u27e80,20\u27e9 exampleFrame) = 21 \u2227\n    correctedDistance false .horizontal \u27e8160,80\u27e9 (visualShift \u27e80,20\u27e9 exampleFrame) = 39 \u2227\n    correctedDistance true .horizontal \u27e8160,80\u27e9 (visualShift \u27e80,20\u27e9 exampleFrame) = 41 := by decide +kernel",
+    "sha256": "8584df80d270aec8895850993ae5263ccb583ef9927c633ea57dc661e24589cf"
+  },
+  {
+    "name": "FlexRelativeBaseline.zero_shift_is_a_real_control",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem zero_shift_is_a_real_control (last : Bool) (mode : Mode) (container : Point) (frame : Frame) :\n    originalDistance last mode container (visualShift \u27e80,0\u27e9 frame) = referenceDistance last mode container frame := by\n  simp [originalDistance,referenceDistance,baselineDistance,visualShift]",
+    "sha256": "26b82dbe1222dc84e20f76702dd2d057ffe592d228d332a1e3ef4f1fc63166af"
+  },
+  {
+    "name": "FlexRelativeBaseline.valid_property_alone_does_not_exclude_unset",
+    "module": "RelativeBaseline",
+    "complete_declaration": "theorem valid_property_alone_does_not_exclude_unset :\n    PropertyReady { exampleFrame with\n      actual := \u27e80,-1073741862\u27e9\n      normalProperty := some \u27e80,-1073741862\u27e9\n      expectedNormal := \u27e80,-1073741862\u27e9 } \u2227\n    referenceDistance false .horizontal \u27e8160,80\u27e9\n      { exampleFrame with expectedNormal := \u27e80,-1073741862\u27e9 } = unset := by\n  unfold PropertyReady\n  decide +kernel",
+    "sha256": "94f33c3be2167b9188bc768cdf513c92e12d70f38e101471294bcb5723a1ab67"
+  },
+  {
+    "name": "FlexRelativeWitnesses.first_getter_mutant_discriminates",
+    "module": "Witnesses",
+    "complete_declaration": "theorem first_getter_mutant_discriminates : firstActual \u2260 firstCorrect := by decide +kernel",
+    "sha256": "056598b815391ade49cbdde0bab6b31d931f85cf56ca14950453a8f3d1b32835"
+  },
+  {
+    "name": "FlexRelativeWitnesses.last_getter_mutant_discriminates",
+    "module": "Witnesses",
+    "complete_declaration": "theorem last_getter_mutant_discriminates : lastActual \u2260 lastCorrect := by decide +kernel",
+    "sha256": "f52e781bc581486b8d941f0c14fc6edbcc2cd8f4c9577e2943fa3678d99fc675"
+  },
+  {
+    "name": "FlexRelativeWitnesses.property_dispatch_mutant_discriminates",
+    "module": "Witnesses",
+    "complete_declaration": "theorem property_dispatch_mutant_discriminates : discardProperty \u2260 firstCorrect := by decide +kernel",
+    "sha256": "448116b5e15531833e185bd6505b2d0439ea98256f774f7fdc07613a35705fce"
+  },
+  {
+    "name": "FlexRelativeWitnesses.last_orientation_mutant_discriminates",
+    "module": "Witnesses",
+    "complete_declaration": "theorem last_orientation_mutant_discriminates : noLastConversion \u2260 lastCorrect := by decide +kernel",
+    "sha256": "8ed50cf2d135e29e8f977b6ceceb5e7fa9c6ec442d3d82761cf561716cc9eadc"
+  },
+  {
+    "name": "FlexRelativeWitnesses.shared_ascent_guard_mutant_discriminates",
+    "module": "Witnesses",
+    "complete_declaration": "theorem shared_ascent_guard_mutant_discriminates : overwriteEstablished \u2260 preserveEstablished := by decide +kernel",
+    "sha256": "61404aa0033ecd48a9d6588a79c896d4d00cb959e489d77c3214108607da003a"
+  }
+]

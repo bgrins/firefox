@@ -1,0 +1,215 @@
+# CSS-POSITION-3#position-property
+
+**Choosing A Positioning Scheme: position property** (heading)
+
+**SHA**: hash:5ac9402094a5561500f4862a1af4d6fe394883426745e689591181d5a7169a70
+
+## Content
+
+| Name:                                                                                            |
+| ------------------------------------------------------------------------------------------------ |
+| static [&#124;](CSS-VALUES-4#comb-one) relative &#124; absolute &#124; sticky &#124; fixed |
+| static                                                                                           |
+| all elements except table-column-group and table-column                                          |
+| no                                                                                               |
+| N/A                                                                                              |
+| specified keyword                                                                                |
+| per grammar                                                                                      |
+| discrete                                                                                         |
+
+The [position](CSS-POSITION-3#propdef-position) property determines which of the **positioning schemes** is used to calculate the position of a box. Values other than [static](CSS-POSITION-3#valdef-position-static) make the box a **positioned box**, and cause it to establish an **absolute positioning containing block** for its descendants. Values have the following meanings:
+
+**static** 
+
+The box is not a [positioned box](CSS-POSITION-3#positioned-box), and is laid out according to the rules of its parent [formatting context](CSS-DISPLAY-4#formatting-context). The [inset properties](CSS-POSITION-3#inset-properties) do not apply.
+
+**relative** 
+
+The box is laid out as for [static](CSS-POSITION-3#valdef-position-static), then offset from the resulting position with the [inset properties](CSS-POSITION-3#inset-properties). This offsetting is a purely visual effect, and, unless otherwise specified, does not affect the size or position of any other non-descendant box except insofar as it increases the [scrollable overflow area](CSS-OVERFLOW-3#scrollable-overflow-region) of its ancestors. This [positioning scheme](CSS-POSITION-3#positioning-scheme) is called **relative positioning**.See [§ 3.3 Relative Positioning](CSS-POSITION-3#relpos-insets) for more details.
+
+**sticky** 
+
+Same as [relative](CSS-POSITION-3#valdef-position-relative), except the offsets are calculated *automatically* to keep the element in view as the user scrolls. This [positioning scheme](CSS-POSITION-3#positioning-scheme) is called **sticky positioning**.See [§ 3.4 Sticky positioning](CSS-POSITION-3#stickypos-insets) for more details.
+
+**absolute** 
+
+The box is taken [out of flow](CSS-DISPLAY-4#out-of-flow) such that it has no impact on the size or position of its siblings and ancestors, and does not participate in its parent’s [formatting context](CSS-DISPLAY-4#formatting-context).Instead, the box is positioned and sized solely in reference to its [absolute positioning containing block](CSS-POSITION-3#absolute-positioning-containing-block), as modified by the box’s [inset properties](CSS-POSITION-3#inset-properties), see [§ 4 Absolute Positioning Layout Model](CSS-POSITION-3#abspos-layout) and [§ 3.5 Absolute (and Fixed) Positioning](CSS-POSITION-3#abspos-insets). It can overlap [in-flow](CSS-DISPLAY-4#in-flow) content or other [absolutely positioned](CSS-POSITION-3#absolute-position) elements, and is included in the [scrollable overflow area](CSS-OVERFLOW-3#scrollable-overflow-region) of the box that generates is [containing block](CSS-DISPLAY-4#containing-block). This [positioning scheme](CSS-POSITION-3#positioning-scheme) is called **absolute positioning**.
+
+**fixed** 
+
+Same as [absolute](CSS-POSITION-3#valdef-position-absolute), except the box is positioned and sized relative to a [fixed positioning containing block](CSS-POSITION-3#fixed-positioning-containing-block) (usually the [viewport](CSS2#x1) in [continuous media](MEDIAQUERIES-5#continuous-media), or the [page area](CSS-PAGE-3#page-area) in [paged media](MEDIAQUERIES-5#paged-media)). The box’s position is fixed with respect to this reference rectangle: when attached to the viewport it does not move when the document is scrolled, and when attached to the page area is replicated on every page when the document is paginated. This [positioning scheme](CSS-POSITION-3#positioning-scheme) is called **fixed positioning** and is considered a subset of [absolute positioning](CSS-POSITION-3#absolute-position).
+
+> **Example:** Authors may wish to specify [fixed](CSS-POSITION-3#valdef-position-fixed) in a media-dependent way. For instance, an author may want a box to remain at the top of the [viewport](CSS2#x1) on the screen, but not at the top of each printed page. The two specifications may be separated by using an ['@media'](CSS2#at-media-rule) rule, as in:
+>
+> ```
+> @media screen {
+>     h1#first { position: fixed }
+> }
+> @media print {
+>     h1#first { position: static }
+> }
+> ```
+
+A [position](CSS-POSITION-3#propdef-position) value of [absolute](CSS-POSITION-3#valdef-position-absolute) or [fixed](CSS-POSITION-3#valdef-position-fixed) [blockifies](CSS-DISPLAY-4#blockify) the box, causes [float](CSS2#propdef-float) to compute to [none](CSS2#valdef-float-none), and forces the box to [establish an independent formatting context](CSS-DISPLAY-4#establish-an-independent-formatting-context).
+
+### Containing Blocks of Positioned Boxes
+
+The [containing block](CSS-DISPLAY-4#containing-block) of a [static](CSS-POSITION-3#valdef-position-static), [relative](CSS-POSITION-3#valdef-position-relative), or [sticky](CSS-POSITION-3#valdef-position-sticky) [box](CSS-DISPLAY-4#box) is as defined by its [formatting context](CSS-DISPLAY-4#formatting-context). For [fixed](CSS-POSITION-3#valdef-position-fixed) and [absolute](CSS-POSITION-3#valdef-position-absolute) boxes, it is defined as follows:
+
+If the box has [position: absolute](CSS-POSITION-3#propdef-position): 
+
+The [containing block](CSS-DISPLAY-4#containing-block) is established by the nearest ancestor box that establishes an [absolute positioning containing block](CSS-POSITION-3#absolute-positioning-containing-block), in the following way:
+
+If the ancestor is not an [inline box](CSS-DISPLAY-4#inline-box), 
+
+the [containing block](CSS-DISPLAY-4#containing-block) is formed by the [padding edge](CSS-BOX-4#padding-edge) of the ancestor, unless otherwise specified (for example, see [CSS Grid Layout 1 § 9.1 With a Grid Container as Containing Block](CSS-GRID-1#abspos-items)).
+
+If the ancestor is an [inline box](CSS-DISPLAY-4#inline-box), using the [writing mode](CSS-WRITING-MODES-4#writing-mode) of that box, 
+
+the [containing block](CSS-DISPLAY-4#containing-block) is formed by forming a rectangle from the [start](CSS-WRITING-MODES-4#css-start)-most [content edges](CSS-BOX-4#content-edge) (in both axes) of the first [box fragment](CSS-BREAK-4#box-fragment) of the ancestor, and the [end](CSS-WRITING-MODES-4#css-end)-most content edges of the end-most box fragment(s) of the ancestor in each axis. If there are multiple fragments on the same line (e.g. due to [bidi reordering](CSS-WRITING-MODES-3#bidi-box-model)), take the start-most fragment as the first fragment.
+
+> **Issue:** What is a useful containing block to form when the box is fragmented across multiple lines? [\[Issue #8284\]](https://github.com/w3c/csswg-drafts/issues/8284)
+
+> **Note:** Note: The [containing block](CSS-DISPLAY-4#containing-block) formed by a fragmented [inline box](CSS-DISPLAY-4#inline-box) was undefined in \[CSS2\].
+
+If no ancestor establishes one, the [absolute positioning containing block](CSS-POSITION-3#absolute-positioning-containing-block) is the [initial containing block](CSS-DISPLAY-4#initial-containing-block).
+
+> **Note:** Note: Properties that can cause a box to establish an [absolute positioning containing block](CSS-POSITION-3#absolute-positioning-containing-block) include [position](CSS-POSITION-3#propdef-position), [transform](CSS-TRANSFORMS-1#propdef-transform), [will-change](CSS-WILL-CHANGE-1#propdef-will-change), [contain](CSS-CONTAIN-2#propdef-contain)…
+
+If the box has [position: fixed](CSS-POSITION-3#propdef-position): 
+
+The [containing block](CSS-DISPLAY-4#containing-block) is established by the nearest ancestor box that establishes an **fixed positioning containing block**, with the bounds of the containing block determined identically to the [absolute positioning containing block](CSS-POSITION-3#absolute-positioning-containing-block).
+
+> **Note:** Note: Properties that can cause a box to establish a [fixed positioning containing block](CSS-POSITION-3#fixed-positioning-containing-block) include [transform](CSS-TRANSFORMS-1#propdef-transform), [will-change](CSS-WILL-CHANGE-1#propdef-will-change), [contain](CSS-CONTAIN-2#propdef-contain)…
+
+If no ancestor establishes one, the box’s [fixed positioning containing block](CSS-POSITION-3#fixed-positioning-containing-block) is the **initial fixed containing block**:
+
+*   in [continuous media](MEDIAQUERIES-5#continuous-media), the [layout viewport](CSS-VIEWPORT#layout-viewport) (whose size matches the [dynamic viewport size](CSS-VALUES-4#dynamic-viewport-size)); as a result, [fixed](CSS-POSITION-3#fixed-position) boxes do not move when the document is scrolled.
+
+    > **Note:** Note: In this respect, they are similar to [fixed background images](CSS-BACKGROUNDS-3#background-attachment) ([background-attachment: fixed](CSS-BACKGROUNDS-3#propdef-background-attachment)).
+
+*   in [paged media](MEDIAQUERIES-5#paged-media), the [page area](CSS-PAGE-3#page-area) of each page; [fixed positioned](CSS-POSITION-3#fixed-position) [boxes](CSS-DISPLAY-4#box) are thus replicated on every page. (They are fixed with respect to the page box only, and are not affected by being seen through a [viewport](CSS2#x1); as in the case of print preview, for example.)
+
+> **Note:** Note: As a result, parts of [fixed-positioned boxes](CSS-POSITION-3#fixed-position) that extend outside the [layout viewport](CSS-VIEWPORT#layout-viewport)/[page area](CSS-PAGE-3#page-area) cannot be scrolled to and will not print.
+
+The [initial fixed containing block](CSS-POSITION-3#initial-fixed-containing-block) is the parent of the [initial containing block](CSS-DISPLAY-4#initial-containing-block) in the [containing block chain](CSS-DISPLAY-4#containing-block-chain).
+
+> **Example:** With no positioning, the containing blocks (C.B.) in the following document:
+>
+> ```
+> <!DOCTYPE html>
+> <html>
+>     <head>
+>         <title>Illustration of containing blocks</title>
+>     </head>
+>     <body id="body">
+>         <div id="div1">
+>         <p id="p1">This is text in the first paragraph...</p>
+>         <p id="p2">This is text <em id="em1"> in the
+>         <strong id="strong1">second</strong> paragraph.</em></p>
+>         </div>
+>     </body>
+> </html>
+> ```
+>
+> are established as follows:
+>
+> | For box generated by | C.B. is established by      |
+> | -------------------- | --------------------------- |
+> | html                 | initial C.B. (UA-dependent) |
+> | body                 | html                        |
+> | div1                 | body                        |
+> | p1                   | div1                        |
+> | p2                   | div1                        |
+> | em1                  | p2                          |
+> | strong1              | p2                          |
+>
+> If we position "div1":
+>
+> ```
+> #div1 { position: absolute; left: 50px; top: 50px }
+> ```
+>
+> its containing block is no longer "body"; it becomes the initial containing block (since there are no other positioned ancestor boxes).
+>
+> If we position "em1" as well:
+>
+> ```
+> #div1 { position: absolute; left: 50px; top: 50px }
+> #em1	{ position: absolute; left: 100px; top: 100px }
+> ```
+>
+> the table of containing blocks becomes:
+>
+> | For box generated by | C.B. is established by      |
+> | -------------------- | --------------------------- |
+> | html                 | initial C.B. (UA-dependent) |
+> | body                 | html                        |
+> | div1                 | initial C.B.                |
+> | p1                   | div1                        |
+> | p2                   | div1                        |
+> | em1                  | div1                        |
+> | strong1              | em1                         |
+>
+> By positioning "em1", its containing block becomes the nearest positioned ancestor box (i.e., that generated by "div1").
+
+#### Further Adjustments to the Containing Block
+
+Some features can alter the effective [containing block](CSS-DISPLAY-4#containing-block) rectangle of [absolutely positioned](CSS-POSITION-3#absolute-position) boxes. These are applied in the following order, with earlier steps modifying the containing block that later steps see:
+
+1.  The [grid-placement properties](CSS-GRID-2#grid-placement-property) on an [absolutely positioned box](CSS-POSITION-3#absolute-position) whose [containing block](CSS-DISPLAY-4#containing-block) is generated by a [grid container](CSS-GRID-2#grid-container) can change the containing block rectangle to a specified [grid area](CSS-GRID-2#grid-area). See [CSS Grid Layout 1 § 9.1 With a Grid Container as Containing Block](CSS-GRID-1#abspos-items).
+
+2.  The [position-area](CSS-ANCHOR-POSITION-1#propdef-position-area) and [position-try](CSS-ANCHOR-POSITION-1#propdef-position-try) properties can change the [containing block](CSS-DISPLAY-4#containing-block) rectangle to a specified area of an [position-area grid](CSS-ANCHOR-POSITION-1#position-area-grid). See [CSS Anchor Positioning 1 § 3.1 The position-area Property](CSS-ANCHOR-POSITION-1#position-area).
+
+The element’s **original containing block** is its [containing block](CSS-DISPLAY-4#containing-block) before applying any of these effects.
+
+### Painting Order and Stacking Contexts
+
+The [z-index](CSS2#propdef-z-index) property applies to all [positioned boxes](CSS-POSITION-3#positioned-box). When z-index is [auto](CSS2#valdef-z-index-auto):
+
+*   [Fixed](CSS-POSITION-3#fixed-position) and [sticky](CSS-POSITION-3#sticky-position) [positioned boxes](CSS-POSITION-3#positioned-box) nonetheless form a [stacking context](CSS2#stacking-context).
+
+*   [Relative](CSS-POSITION-3#relative-position) and [absolute](CSS-POSITION-3#absolute-position) [positioned boxes](CSS-POSITION-3#positioned-box) do not form a [stacking context](CSS2#stacking-context), but are painted as if those elements did generated new stacking contexts, except that their positioned descendants and any would-be child stacking contexts take part in the current stacking context.
+
+> **Note:** Note: The [root element](CSS-DISPLAY-4#root-element) always forms a [stacking context](CSS2#stacking-context) regardless.
+
+See [CSS2 § 9.9 Layered presentation](CSS2#layers) and [Appendix E:  Elaborate description of Stacking Contexts](https://www.w3.org/TR/CSS2/zindex.html) for details about [z-index](CSS2#propdef-z-index), [stacking contexts](CSS2#stacking-context), and painting order.
+
+## Navigation
+
+- Prev: `intro` — Introduction
+- Next: `coords` — Positioning Coordinates
+- Children: 15
+  - `propdef-position` — position
+  - `positioning-scheme` — positioning schemes
+  - `positioned-box` — positioned box
+  - `absolute-positioning-containing-block` — absolute positioning containing block
+  - `valdef-position-static` — static
+  - `valdef-position-relative` — relative
+  - `relative-position` — relative positioning
+  - `valdef-position-sticky` — sticky
+  - `sticky-position` — sticky positioning
+  - `valdef-position-absolute` — absolute
+  - `absolute-position` — absolute positioning
+  - `valdef-position-fixed` — fixed
+  - `fixed-position` — fixed positioning
+  - `def-cb` — Containing Blocks of Positioned Boxes
+  - `stacking` — Painting Order and Stacking Contexts
+
+## Outgoing refs (38)
+
+`webspec-index refs CSS-POSITION-3#position-property -d outgoing -l 38`
+
+## Incoming refs (1)
+
+- CSS-POSITION-3#contents
+
+### Possible effects
+
+CSS-POSITION-3#position-property
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-POSITION-3#position-property" --format markdown`
