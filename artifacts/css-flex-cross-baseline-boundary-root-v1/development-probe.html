@@ -1,0 +1,40 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Flex baseline cross-size boundary</title>
+<style>
+body { margin: 0; }
+.host { position: absolute; top: 0; left: 0; display: flex; width: 20px; align-items: baseline; }
+.item { flex: none; width: 10px; font-size: 0; line-height: 0; }
+.marker { display: inline-block; width: 0; height: 0; }
+</style>
+<script>
+const rows = [];
+for (const size of [100, 1000000, 5000000, 7000000, 10000000, 11900000, 12000000, 14000000, 17000000]) {
+  for (const mode of ["baseline", "last baseline", "flex-start"]) {
+    const host = document.createElement("div");
+    host.className = "host";
+    host.style.alignItems = mode;
+    for (const direction of [-1, 1]) {
+      const item = document.createElement("div");
+      item.className = "item";
+      item.style.height = `${size}px`;
+      item.style.marginTop = `${direction * size}px`;
+      item.style.marginBottom = `${-direction * size}px`;
+      item.innerHTML = '<span class="marker"></span>';
+      host.append(item);
+    }
+    document.body.append(host);
+    const rect = host.getBoundingClientRect();
+    const items = [...host.children].map(item => {
+      const r = item.getBoundingClientRect();
+      const m = item.firstElementChild.getBoundingClientRect();
+      const s = getComputedStyle(item);
+      return { top: r.top, height: r.height, marker: m.top, marginTop: s.marginTop, marginBottom: s.marginBottom };
+    });
+    const expected = mode === "flex-start" ? size : 3 * size;
+    rows.push({ size, mode, height: rect.height, expected, matched: Math.abs(rect.height - expected) < 0.1, items });
+    host.remove();
+  }
+}
+fetch("/", { method: "POST", body: JSON.stringify({ userAgent: navigator.userAgent, rows }) });
+</script>

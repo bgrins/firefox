@@ -1,0 +1,92 @@
+>>> 3883: void FlexLine::ComputeCrossSizeAndBaseline(
+    3884:     const FlexboxAxisTracker& aAxisTracker) {
+    3885:   // NOTE: in these "cross{Start,End}ToFurthest{First,Last}Baseline" variables,
+    3886:   // the "first/last" term is referring to the flex *line's* baseline-sharing
+    3887:   // groups, which may or may not match any flex *item's* exact align-self
+    3888:   // value. See the code that sets FlexItem::mBaselineSharingGroup for more
+    3889:   // details.
+    3890:   nscoord crossStartToFurthestFirstBaseline = nscoord_MIN;
+    3891:   nscoord crossEndToFurthestFirstBaseline = nscoord_MIN;
+    3892:   nscoord crossStartToFurthestLastBaseline = nscoord_MIN;
+    3893:   nscoord crossEndToFurthestLastBaseline = nscoord_MIN;
+    3894: 
+    3895:   nscoord largestOuterCrossSize = 0;
+    3896:   for (const FlexItem& item : Items()) {
+    3897:     nscoord curOuterCrossSize = item.OuterCrossSize();
+    3898: 
+    3899:     if ((item.AlignSelf() == StyleAlignFlags::BASELINE ||
+    3900:          item.AlignSelf() == StyleAlignFlags::LAST_BASELINE) &&
+    3901:         item.NumAutoMarginsInCrossAxis() == 0) {
+    3902:       const bool usingItemFirstBaseline =
+    3903:           (item.AlignSelf() == StyleAlignFlags::BASELINE);
+    3904: 
+    3905:       // Find distance from our item's cross-start and cross-end margin-box
+    3906:       // edges to its baseline.
+    3907:       //
+    3908:       // Here's a diagram of a flex-item that we might be doing this on.
+    3909:       // "mmm" is the margin-box, "bbb" is the border-box. The bottom of
+    3910:       // the text "BASE" is the baseline.
+    3911:       //
+    3912:       // ---(cross-start)---
+    3913:       //                ___              ___            ___
+    3914:       //   mmmmmmmmmmmm  |                |margin-start  |
+    3915:       //   m          m  |               _|_   ___       |
+    3916:       //   m bbbbbbbb m  |curOuterCrossSize     |        |crossStartToBaseline
+    3917:       //   m b      b m  |                      |ascent  |
+    3918:       //   m b BASE b m  |                     _|_      _|_
+    3919:       //   m b      b m  |                               |
+    3920:       //   m bbbbbbbb m  |                               |crossEndToBaseline
+    3921:       //   m          m  |                               |
+    3922:       //   mmmmmmmmmmmm _|_                             _|_
+    3923:       //
+    3924:       // ---(cross-end)---
+    3925:       //
+    3926:       // We already have the curOuterCrossSize, margin-start, and the ascent.
+    3927:       // * We can get crossStartToBaseline by adding margin-start + ascent.
+    3928:       // * If we subtract that from the curOuterCrossSize, we get
+    3929:       //   crossEndToBaseline.
+    3930: 
+    3931:       nscoord crossStartToBaseline = item.BaselineOffsetFromOuterCrossEdge(
+    3932:           aAxisTracker.CrossAxisPhysicalStartSide(), usingItemFirstBaseline);
+    3933:       nscoord crossEndToBaseline = curOuterCrossSize - crossStartToBaseline;
+    3934: 
+    3935:       // Now, update our "largest" values for these (across all the flex items
+    3936:       // in this flex line), so we can use them in computing the line's cross
+    3937:       // size below:
+    3938:       if (item.ItemBaselineSharingGroup() == BaselineSharingGroup::First) {
+    3939:         crossStartToFurthestFirstBaseline =
+    3940:             std::max(crossStartToFurthestFirstBaseline, crossStartToBaseline);
+    3941:         crossEndToFurthestFirstBaseline =
+    3942:             std::max(crossEndToFurthestFirstBaseline, crossEndToBaseline);
+    3943:       } else {
+    3944:         crossStartToFurthestLastBaseline =
+    3945:             std::max(crossStartToFurthestLastBaseline, crossStartToBaseline);
+    3946:         crossEndToFurthestLastBaseline =
+    3947:             std::max(crossEndToFurthestLastBaseline, crossEndToBaseline);
+    3948:       }
+    3949:     } else {
+    3950:       largestOuterCrossSize =
+    3951:           std::max(largestOuterCrossSize, curOuterCrossSize);
+    3952:     }
+    3953:   }
+    3954: 
+    3955:   // The line's baseline offset is the distance from the line's edge to the
+    3956:   // furthest item-baseline. The item(s) with that baseline will be exactly
+    3957:   // aligned with the line's edge.
+    3958:   mFirstBaselineOffset = crossStartToFurthestFirstBaseline;
+    3959:   mLastBaselineOffset = crossEndToFurthestLastBaseline;
+    3960: 
+    3961:   // The line's cross-size is the larger of:
+    3962:   //  (a) [largest cross-start-to-baseline + largest baseline-to-cross-end] of
+    3963:   //      all baseline-aligned items with no cross-axis auto margins...
+    3964:   // and
+    3965:   //  (b) [largest cross-start-to-baseline + largest baseline-to-cross-end] of
+    3966:   //      all last baseline-aligned items with no cross-axis auto margins...
+    3967:   // and
+    3968:   //  (c) largest cross-size of all other children.
+    3969:   mLineCrossSize = std::max(
+    3970:       std::max(
+    3971:           crossStartToFurthestFirstBaseline + crossEndToFurthestFirstBaseline,
+    3972:           crossStartToFurthestLastBaseline + crossEndToFurthestLastBaseline),
+    3973:       largestOuterCrossSize);
+    3974: }
