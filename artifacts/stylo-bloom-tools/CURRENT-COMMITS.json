@@ -1,6 +1,6 @@
 {
   "branch": "stylo-bloom-verification-2",
-  "committed_native_fixes": 78,
+  "committed_native_fixes": 79,
   "accepted_pending_native_fixes": 0,
   "previous_committed_fixes": 16,
   "new_queue": [
@@ -1340,6 +1340,50 @@
       },
       "stack_context": "Main stack requires fix76 map do_insert support; upstream standalone includes exactly that one-site prerequisite and CSS-wide WPT,5files. No fix70 typed-keyframe provider.",
       "discovery": "Source investigation and browser reproduction preceded formalization."
+    },
+    {
+      "repair": "animation-underlying-base-taint",
+      "native_commit": "2c09cb2e4ff81bbc4af65d1d069517420b9c1529",
+      "companion_commit": "91d47c020cb9c4855e0e35ad51012d2ccf2aeac9",
+      "patch": {
+        "path": "artifacts/css-animation-base-metadata-review-v1/stack-with-test.patch",
+        "sha256": "5fb8c278be7184c3b6333b3052d66d34be69b3cc4a9eb1d37a7bb981ac40e0ac"
+      },
+      "acceptance": {
+        "path": "artifacts/css-animation-base-metadata-final-root-v1/ACCEPTANCE.json",
+        "sha256": "a7e86b77374dbf418039b53995f570ba636b596346b705eaedf5bc55d2b28b2e"
+      },
+      "native_paths": [
+        "dom/animation/KeyframeEffect.cpp",
+        "testing/web-platform/tests/css/css-values/animation-base-equal-payload-taint.html"
+      ],
+      "runtime_scope": "Fresh eight-case baseline:4FAIL4PASS. Joined reference185PASS4FAIL becomes189PASS14OK,4improvements185unchanged. Pre-seek reads distinguish control flushes from resampling. No isolated upstream runtime.",
+      "formal_scope": "23 new audits,14 source bindings,one compiled omission mutant; root fresh replay and independent7 kernel challenges/6 integrity negatives. Change detection and restyle-call decision; provider/key alignment,request delivery,scheduler and full URL observation remain admitted.",
+      "standalone": {
+        "base": "976279105b2e78b8666a959eb3f25c9176cefaf8",
+        "ref": "refs/heads/stylo-css-animation-base-taint-fix",
+        "companion_commit": "1a6b758e40e1276b510086ba23e7777c0ee37b5f",
+        "native_commit": "1181f7b5751c2a98ad08f28a7b63f30036b53ae7",
+        "stack_head": "2c09cb2e4ff81bbc4af65d1d069517420b9c1529",
+        "companion_files": 368,
+        "native_paths": [
+          "dom/animation/KeyframeEffect.cpp",
+          "servo/components/style/properties_and_values/value.rs",
+          "servo/ports/geckolib/glue.rs",
+          "testing/web-platform/tests/css/css-values/animation-base-equal-payload-taint.html"
+        ],
+        "native_pins": {
+          "dom/animation/KeyframeEffect.cpp": "bb5dc59c5c7992bd1a596e583ff2cb3faff330e74a2b725868eba3b51980ea2a",
+          "servo/components/style/properties_and_values/value.rs": "d6f5eea23e23aa3673c003816667c8341cc131c507e7d70bb63edbcc25d0e5ae",
+          "servo/ports/geckolib/glue.rs": "4d9cc841fdb289e2986bc2bb8e4e4b05a067c1c85b51b3784a3678fad5a364cd",
+          "testing/web-platform/tests/css/css-values/animation-base-equal-payload-taint.html": "3c3f231171b914e38fc60bacdc967aa34605a6b545ee5e4f2b9818131564b5d6"
+        },
+        "signatures_present": true,
+        "head_and_index_preserved": true,
+        "isolated_upstream_build_browser": "NOT_RUN"
+      },
+      "stack_context": "Main stack reuses fix78 getter/FFI. Four-file standalone includes these accessors without endpoint-loop or map prerequisites. Standalone alternatives78/79 share accessors; use stack patch when those already exist.",
+      "discovery": "Source audit and browser reproduction preceded formalization."
     }
   ],
   "verification": "Each committed native delta is the accepted patch, checked against its actual parent. Companions preserve the recorded scope and replay prerequisites. No new browser or full-build claims are made by committing.",

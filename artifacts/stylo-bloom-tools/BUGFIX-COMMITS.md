@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **78 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **79 committed fixes; the accepted queue is fully committed.**
 Repairs with incomplete review are excluded from this count.
 
 <!-- CURRENT-SIGNED-QUEUE -->
@@ -77,6 +77,7 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | custom-property-equal-payload-taint | `e04d672a735edcf0e6529c854207b5ee9555ea7c` | `01c98e4fd49ed6061c1a7ebdd87c124cd2b77254` |
 | attr-taint-half-open-ranges | `8c04b6787e36c9ee42fec440103cf33372c097f1` | `91e709f931abf5ef2d59a77158f66662500bd2ff` |
 | animation-retained-endpoint-taint | `4b4a00e707583382f4773039f13a4f335f48f41a` | `922272780824ee77c05f96972c7bb51a95de7ead` |
+| animation-underlying-base-taint | `2c09cb2e4ff81bbc4af65d1d069517420b9c1529` | `91d47c020cb9c4855e0e35ad51012d2ccf2aeac9` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -1810,3 +1811,37 @@ failures and is under independent review; it is not included in this fix.
 [Acceptance](../css-animation-endpoint-final-root-v1/ACCEPTANCE.json),
 [commit verification](../css-animation-endpoint-final-root-v1/ROOT-COMMIT-CHECK.json),
 [standalone verification](../css-animation-endpoint-final-root-v1/ROOT-STANDALONE-CHECK.json).
+
+## Fix 79: restyle animations when underlying attribute taint changes
+
+Native + WPT: `2c09cb2e4ff81bbc4af65d1d069517420b9c1529`; preceding
+proof/runtime/review companion: `91d47c020cb9c4855e0e35ad51012d2ccf2aeac9`.
+The two-file stack patch adds metadata comparison to EnsureBaseStyles and an
+eight-case WPT. It reuses the accessor from fix 78.
+
+Standalone native + WPT: `1181f7b5751c2a98ad08f28a7b63f30036b53ae7`, on
+`stylo-css-animation-base-taint-fix`, preceded by evidence commit
+`1a6b758e40e1276b510086ba23e7777c0ee37b5f`. Its four files include the getter
+and FFI but need no endpoint-loop or map repair. The standalone alternatives
+for fixes 78 and 79 share accessors; use the stack patch when they already exist.
+Exact upstream apply/reverse and committed blobs were verified; an isolated
+upstream build/browser run was not performed.
+
+Fresh baseline: four failures and four passes. The joined reference of 189
+checks becomes 189 passes across 14 successful harnesses: four improvements,
+185 unchanged. Reads after control flushes but before seeking preserve the
+failure, distinguishing control flushing from the resample that recovers it.
+The older attr-security suite includes conditional assertions; its passing
+entries are not all unconditional coverage.
+
+The formal component has 23 new audits, 14 source bindings and a compiled
+metadata-omission mutant. Root fresh replay and independent seven kernel
+challenges/six integrity negatives pass. It establishes metadata-change
+recognition and the modeled restyle-call decision. Native provider/key
+alignment, delivered scheduling, publication and complete URL observations
+remain assumptions. Source investigation and browser reproduction preceded
+formalization.
+
+[Acceptance](../css-animation-base-metadata-final-root-v1/ACCEPTANCE.json),
+[commit verification](../css-animation-base-metadata-final-root-v1/ROOT-COMMIT-CHECK.json),
+[standalone verification](../css-animation-base-metadata-final-root-v1/ROOT-STANDALONE-CHECK.json).

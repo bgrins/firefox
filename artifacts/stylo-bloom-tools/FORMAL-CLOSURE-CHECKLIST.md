@@ -670,3 +670,20 @@ change notification, compositor/publication scheduling, interpolation, URL-data
 quotient and complete URL observation. Four browser failures now challenge the
 separate EnsureBaseStyles scheduling boundary; do not transfer endpoint proof
 acceptance to that boundary.
+
+## Underlying animation base metadata — 19 October 2026
+
+Fix 79 has a separately accepted local component: 23 new audits, 14 source
+bindings and one compiled metadata-omission mutant. Root fresh replay and
+independent seven kernel challenges/six integrity negatives pass. The original
+payload comparator is retained; added metadata comparison preserves its change
+decisions and establishes selected-new-entry metadata agreement on no-change.
+Outer absence and present guaranteed-invalid values remain distinct; removed
+old-only keys are outside this scan.
+
+This closes the modeled EnsureBaseStyles change-detection boundary raised in
+the endpoint checkpoint. Actual provider/value-key association, representation,
+compiler/lifetime, scheduler delivery and full URL eligibility remain open.
+The modeled restyle request is a call decision; the synchronous sampling step
+assumes publication and consumption. No arbitrary native history proof follows.
+[Acceptance](../css-animation-base-metadata-final-root-v1/ACCEPTANCE.json).

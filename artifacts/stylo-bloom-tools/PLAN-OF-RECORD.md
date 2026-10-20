@@ -4,12 +4,13 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **78 committed native/WPT fixes.** The management index is
+- **79 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest repair:** retained animation endpoint taint (`4b4a00e70758`), with
-  independent upstream alternative `f1a3f777395b`. All 101 local matrix checks
-  and80 existing setKeyframes checks pass. Evidence precedes native/WPT commits.
+- **Latest repair:** underlying animation base taint (`2c09cb2e4ff8`), with
+  independent upstream alternative `1181f7b5751c`. The local candidate passes
+  189 checks: four improvements and 185 unchanged from the joined reference.
+  Evidence precedes native/WPT commits; standalone upstream runtime is untested.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.
@@ -118,12 +119,11 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Repair the separate underlying-animation base metadata scheduling issue.
-   Eight-case probe reproduces four same-payload neutral-endpoint failures;
-   changed-payload, explicit-replacement and forced-resample controls pass.
-   Independent review of EnsureBaseStyles and standalone prerequisites is active.
-   Keep it separate from accepted endpoint fix78. Evidence:
-   `../css-animation-base-metadata-root-v1/`.
+1. Adjudicate the remaining animation equality leads: transition endpoint
+   retention and interpolation metadata transport. Both need independent spec
+   oracles and discriminating browser controls before any repair claim.
+   [Static checkpoint](../css-animation-equality-frontier-v1/CHECKPOINT.md).
+   Endpoint fix 78 and underlying-base fix 79 are committed and separately scoped.
 2. Compose the declaration helper's saved-query/short-circuit paths after the
    accepted skip/next wrapper and production entry component;
    metadata, providers, callbacks and compiler admissions remain explicit.
@@ -290,3 +290,23 @@ Whole-CSS v4 research is producing an executable requirement-ledger prototype,
 compiled phase/epoch interface experiments and independent acceptance examples.
 Review these before adopting them as infrastructure; no new whole-spec coverage
 claim follows from the prototypes.
+
+## Whole-CSS source-ledger pilots — 19 October 2026
+
+The [v4 research and executable prototypes](../css-whole-spec-feasibility-v4/README.md)
+are committed in `bd7952da0a6585c32fb7d26e71b184ea25ae93ee`. Current agents are
+implementing deterministic source accounting for fragmentation, HTML style-block
+updates and font cluster matching, independently interpreting fragmentation,
+and extending architecture/validation/scaling recommendations. Source byte
+coverage does not establish normative interpretation or Lean coverage. Next:
+authenticate and replay the importer, reconcile independent clauses and bind one
+reviewed requirement to actual Lean semantics before widening the inventory.
+
+## Underlying animation base metadata — accepted
+
+Fix 79 adds metadata comparison to the existing new-base-entry scan. The local
+proof preserves original changed decisions and derives selected-entry metadata
+agreement on no-change. It reasons about requesting a restyle, not actual queue
+delivery. Provider identity, native representation, scheduling and full URL
+observations remain open. See
+[review](../css-animation-base-metadata-final-root-v1/REVIEW.md).
