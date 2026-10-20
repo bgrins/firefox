@@ -19917,9 +19917,12 @@ already_AddRefed<ViewTransition> Document::StartViewTransition(
     if (!options.mTypes.IsNull()) {
       const auto& optionsTypes = options.mTypes.Value();
       types.SetCapacity(optionsTypes.Length());
+      nsTHashSet<nsAtom*> seenTypes;
       for (const auto& type : optionsTypes) {
-        // TODO(emilio): should probably de-duplicate here.
-        types.AppendElement(NS_AtomizeMainThread(type));
+        RefPtr<nsAtom> atom = NS_AtomizeMainThread(type);
+        if (seenTypes.EnsureInserted(atom)) {
+          types.AppendElement(std::move(atom));
+        }
       }
     }
   }
