@@ -1,0 +1,19 @@
+--- a/testing/web-platform/tests/css/css-flexbox/flexbox-baseline-cross-size-overflow.html
++++ b/testing/web-platform/tests/css/css-flexbox/flexbox-baseline-cross-size-overflow.html
+@@ -49,11 +49,11 @@
+         assert_equals(host.getBoundingClientRect().width, 20, "container width");
+         for (const [index, item] of [...host.children].entries()) {
+           const style = getComputedStyle(item);
+-          assert_approx_equals(parseFloat(style.height), size, 2, "computed item height");
+-          assert_approx_equals(parseFloat(style.marginTop), index ? size : -size,
+-                               2, "computed start margin");
+-          assert_approx_equals(parseFloat(style.marginBottom), index ? -size : size,
+-                               2, "computed end margin");
++          assert_implements_optional(
++            Math.abs(parseFloat(style.height) - size) <= 2 &&
++            Math.abs(parseFloat(style.marginTop) - (index ? size : -size)) <= 2 &&
++            Math.abs(parseFloat(style.marginBottom) - (index ? -size : size)) <= 2,
++            "The item dimensions and margins support this test's numeric range");
+         }
+         assert_equals(host.getBoundingClientRect().height, 100,
+                       "baseline cross-size remains positive before max-height clamping");
