@@ -1,0 +1,19 @@
+>>> 8038: void nsBlockFrame::DeleteNextInFlowChild(DestroyContext& aContext,
+    8039:                                          nsIFrame* aNextInFlow,
+    8040:                                          bool aDeletingEmptyFrames) {
+    8041:   MOZ_ASSERT(aNextInFlow->GetPrevInFlow(), "bad next-in-flow");
+    8042: 
+    8043:   if (aNextInFlow->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW |
+    8044:                                    NS_FRAME_IS_OVERFLOW_CONTAINER)) {
+    8045:     nsContainerFrame::DeleteNextInFlowChild(aContext, aNextInFlow,
+    8046:                                             aDeletingEmptyFrames);
+    8047:   } else {
+    8048: #ifdef DEBUG
+    8049:     if (aDeletingEmptyFrames) {
+    8050:       nsLayoutUtils::AssertTreeOnlyEmptyNextInFlows(aNextInFlow);
+    8051:     }
+    8052: #endif
+    8053:     DoRemoveFrame(aContext, aNextInFlow,
+    8054:                   aDeletingEmptyFrames ? FRAMES_ARE_EMPTY : 0);
+    8055:   }
+    8056: }

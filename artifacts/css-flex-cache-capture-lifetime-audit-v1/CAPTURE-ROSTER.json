@@ -1,0 +1,119 @@
+[
+  {
+    "id": "M1",
+    "function": "MeasureBSizeForFlexItem",
+    "owner": "aItem.Frame()",
+    "capture": "GetProperty before reflow",
+    "use": "accepted measurement immediate return, or cachedData->Update after ReflowChild and FinishReflowChild",
+    "root_generation": "held across callbacks; not reacquired",
+    "risk": "same-owner destruction or replacement would invalidate capture; reachable route not established"
+  },
+  {
+    "id": "F1",
+    "function": "ReflowFlexItem",
+    "owner": "aItem.Frame()",
+    "capture": "GetProperty after ReflowChild and FinishReflowChild",
+    "use": "Update or new+SetProperty",
+    "root_generation": "reacquired after callbacks",
+    "risk": "item/frame lifetime still required; no retained pre-reflow cache pointer"
+  },
+  {
+    "id": "I1",
+    "function": "MeasureBSizeForFlexItem absent-cache branch",
+    "owner": "aItem.Frame()",
+    "capture": "nullptr before callbacks",
+    "use": "new CachedFlexItemData then SetProperty",
+    "root_generation": "fresh allocation; SetProperty may replace an entry installed during callbacks",
+    "risk": "initial absence is not rechecked; no actual same-owner recursive installation shown"
+  },
+  {
+    "id": "I2",
+    "function": "ReflowFlexItem absent-cache branch",
+    "owner": "aItem.Frame()",
+    "capture": "nullptr after callbacks",
+    "use": "new CachedFlexItemData then SetProperty",
+    "root_generation": "fresh allocation",
+    "risk": "native allocator freshness/registration ownership relation not yet formalized"
+  },
+  {
+    "id": "R1",
+    "function": "MarkCachedFlexMeasurementsDirty",
+    "owner": "argument frame",
+    "capture": "GetProperty immediately before reset",
+    "use": "reset both inline Maybe members",
+    "root_generation": "unchanged allocation; member lifetimes end",
+    "risk": "not a root free or replacement"
+  },
+  {
+    "id": "R2",
+    "function": "MeasuredBSize",
+    "owner": "Frame()->FirstInFlow()",
+    "capture": "GetProperty immediate",
+    "use": "copy BSize into Maybe<nscoord>",
+    "root_generation": "no borrowed cache reference escapes",
+    "risk": "different owner routing from M1; first-in-flow is not by itself content-primary"
+  },
+  {
+    "id": "R3",
+    "function": "NeedsFinalReflow measured branch",
+    "owner": "mFrame",
+    "capture": "GetProperty after size/dependency guards",
+    "use": "Update item+finalSize",
+    "root_generation": "root unchanged, final Maybe reconstructed",
+    "risk": "provider/getter coherence separate"
+  },
+  {
+    "id": "R4",
+    "function": "NeedsFinalReflow cached branch",
+    "owner": "mFrame",
+    "capture": "GetProperty after dirty/continuation/fragment guards",
+    "use": "read final size/BP/definiteness",
+    "root_generation": "no reflow call in retained interval",
+    "risk": "scheduling/value freshness not implied by allocation survival"
+  },
+  {
+    "id": "B1",
+    "function": "MeasureFlexItemContentBSize",
+    "owner": "borrowed returned measurement",
+    "capture": "return from M1",
+    "use": "immediate BSize scalar return",
+    "root_generation": "reference consumed before another callback in this body",
+    "risk": "no independently long-lived reference retained"
+  },
+  {
+    "id": "B2",
+    "function": "SizeItemInCrossAxis",
+    "owner": "borrowed returned measurement",
+    "capture": "return from M1",
+    "use": "measurement.BSize passed to plain SetCrossSize assignment",
+    "root_generation": "reference consumed without an intervening source callout",
+    "risk": "SetCrossSize body retained"
+  },
+  {
+    "id": "D1",
+    "function": "ReflowChild",
+    "owner": "child current frame",
+    "capture": "after virtual child Reflow returns",
+    "use": "DeleteNextInFlowChild on child GetNextInFlow if fully complete/no break/no suppression",
+    "root_generation": "normal deletion targets later flows and their descendants",
+    "risk": "requires actual acyclic/disjoint frame and continuation representation plus destructor callback closure"
+  },
+  {
+    "id": "D2",
+    "function": "FinishReflowChild",
+    "owner": "current frame",
+    "capture": "after size/position commit",
+    "use": "virtual DidReflow",
+    "root_generation": "observer dispatch precedes cache Update in M1",
+    "risk": "base DidReflow and two discovered overrides have separate effects"
+  },
+  {
+    "id": "G1",
+    "function": "FrameProperties::SetInternal/RemoveInternal/RemoveAll",
+    "owner": "owning frame property table",
+    "capture": "descriptor/value lookup",
+    "use": "DestroyValueFor then replace/remove or detached whole-table destroy",
+    "root_generation": "root freed for cache descriptor; no generation counter",
+    "risk": "generic APIs alone do not prove an actual cache mutation callsite"
+  }
+]

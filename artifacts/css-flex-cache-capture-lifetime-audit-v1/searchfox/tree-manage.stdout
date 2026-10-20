@@ -1,0 +1,19 @@
+>>>  371: void nsTreeBodyFrame::ManageReflowCallback() {
+     372:   const nscoord horzWidth = mRect.width;
+     373:   if (!mReflowCallbackPosted) {
+     374:     if (!mLastReflowRect || !mLastReflowRect->IsEqualEdges(mRect) ||
+     375:         mHorzWidth != horzWidth) {
+     376:       PresShell()->PostReflowCallback(this);
+     377:       mReflowCallbackPosted = true;
+     378:       mOriginalHorzWidth = mHorzWidth;
+     379:     }
+     380:   } else if (mHorzWidth != horzWidth && mOriginalHorzWidth == horzWidth) {
+     381:     // FIXME(emilio): This doesn't seem sound to me, if the rect changes in the
+     382:     // block axis.
+     383:     PresShell()->CancelReflowCallback(this);
+     384:     mReflowCallbackPosted = false;
+     385:     mOriginalHorzWidth = -1;
+     386:   }
+     387:   mLastReflowRect = Some(mRect);
+     388:   mHorzWidth = horzWidth;
+     389: }

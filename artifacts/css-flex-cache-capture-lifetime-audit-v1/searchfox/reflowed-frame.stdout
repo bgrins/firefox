@@ -1,0 +1,22 @@
+     889:      docshell if it's the most recent prescontext for the docshell.  Returns
+     890:      whether the prescontext is now being shown.
+     891:   */
+     892:   bool EnsureVisible();
+     893: 
+     894: #ifdef MOZ_REFLOW_PERF
+     895:   void CountReflows(const char* aName, nsIFrame* aFrame);
+     896: #endif
+     897: 
+     898:   void ConstructedFrame() { ++mFramesConstructed; }
+>>>  899:   void ReflowedFrame() { ++mFramesReflowed; }
+     900:   void TriggeredAnimationRestyle() { ++mAnimationTriggeredRestyles; }
+     901: 
+     902:   uint64_t FramesConstructedCount() const { return mFramesConstructed; }
+     903:   uint64_t FramesReflowedCount() const { return mFramesReflowed; }
+     904:   uint64_t AnimationTriggeredRestylesCount() const {
+     905:     return mAnimationTriggeredRestyles;
+     906:   }
+     907: 
+     908:   static nscoord GetBorderWidthForKeyword(unsigned int aBorderWidthKeyword) {
+     909:     // This table maps border-width enums 'thin', 'medium', 'thick'
+
