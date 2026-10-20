@@ -5,8 +5,31 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **80 committed fixes; the accepted queue is fully committed.**
+Current checkpoint: **82 committed fixes; no accepted repairs await signing.**
 Repairs with incomplete review are excluded from this count.
+
+[Relative triage priority](../css-bugfix-triage-20261019/README.md) groups the first 80
+native commits by demonstrated crashes, security-boundary review,
+broader correctness and narrower triggers. It records exposure limitations and
+standalone alternatives; the rankings are recommendations, not assigned severity.
+
+Latest fixes: **registered-token-boundaries** (`34e4e755cb81332819e56457f5fb68b9b305c394`) and
+**animation-invalid-publication** (`d63735091bf8dc469d900ddba56e8a43bcac26d7`).
+Both have preceding evidence commits and separate native/WPT commits. The
+registered-animation calibration is a separate test-only commit
+`5cdd697e02d209bff0368711764523f5d26dba30` and does not increase the native-fix count.
+[Commit verification](../css-signing-resume-20261019-v2/ROOT-COMMIT-CHECK.json).
+
+### New candidates, not yet counted
+
+| Repair | Demonstrated effect | Current evidence |
+| --- | --- | --- |
+| Attribute leading-whitespace origin | Script-free content-process crash in installed Firefox 158 | 26 new WPT pass; independent native review passes; origin/range proof in progress. [Two-file patch package](../css-attr-leading-whitespace-root-v1/PACKAGING.json). |
+| Variable trailing-whitespace token boundary | Separate tokens merge into a valid dimension, percentage or identifier | 28 failing cases repaired; all 40 new cases pass and 375 prior outcomes are unchanged; independent review passes; terminal-span proof in progress. [Two-file patch package](../css-variable-trailing-token-root-v1/PACKAGING.json). |
+| Escaped trailing whitespace | Trimming deletes escaped space/tab within an identifier | 16 failing cases repaired; all 20 new cases pass and 415 prior outcomes are unchanged. [Two-file patch package](../css-variable-escaped-whitespace-root-v1/PACKAGING.json). |
+
+All three candidates have separate native/WPT packages. None has a commit hash or
+an isolated upstream build. Proofs and research will remain in preceding commits.
 
 <!-- CURRENT-SIGNED-QUEUE -->
 ## Signed commit queue
@@ -79,6 +102,8 @@ Full hashes below are the current management identifiers. Earlier evidence recor
 | animation-retained-endpoint-taint | `4b4a00e707583382f4773039f13a4f335f48f41a` | `922272780824ee77c05f96972c7bb51a95de7ead` |
 | animation-underlying-base-taint | `2c09cb2e4ff81bbc4af65d1d069517420b9c1529` | `91d47c020cb9c4855e0e35ad51012d2ccf2aeac9` |
 | animation-interpolation-taint | `ede7ceb101d83f0c4044585a5a687f5286b072c9` | `a9b8e799ce9785008c72d63b6539305284cbf9ef` |
+| registered-token-boundaries | `34e4e755cb81332819e56457f5fb68b9b305c394` | `76d4707974532db89589ffa39f2728db46527114` |
+| animation-invalid-publication | `d63735091bf8dc469d900ddba56e8a43bcac26d7` | `5e540197f9afb45e30d0f5714ffbf716115da302` |
 
 <!-- END-CURRENT-SIGNED-QUEUE -->
 
@@ -142,6 +167,13 @@ and [commit check](../css-parser-depth-recovery-root-v1/ROOT-COMMIT-CHECK.json).
 ## Test-only corrections
 
 These commits improve existing tests and are excluded from the native-fix count.
+
+Pending signing: the registered animation-consumer test now spells
+`initial-value` correctly and checks the registered initial value and animated
+producer before retaining its original consumer assertion. The typo fails the
+new calibration; the correction passes, with all 18 other status/message pairs
+unchanged. WPT lint passes. This is a separate test-only repair, not native fix 82.
+Evidence: [calibration acceptance](../css-animation-registered-consumer-runtime-v1/ACCEPTANCE.json).
 
 | Correction | WPT + metadata commit | Evidence/tooling commit |
 | --- | --- | --- |
@@ -1880,3 +1912,44 @@ and browser reproduction preceded formalization.
 [Acceptance](../css-animation-interpolation-taint-final-root-v1/ACCEPTANCE.json),
 [commit check](../css-animation-interpolation-taint-final-root-v1/ROOT-COMMIT-CHECK.json),
 [standalone check](../css-animation-interpolation-taint-final-root-v1/ROOT-STANDALONE-CHECK.json).
+
+## Attribute-taint release request follow-up
+
+Fix 80 (`ede7ceb101d83f0c4044585a5a687f5286b072c9`; standalone
+`ed3ad9b8e4ea95d36731e08311c6bb04f904071b`) now has script-free release
+Firefox 158 evidence of actual requests from URL uses that should be taint-blocked.
+Four forbidden loopback requests disappear in the patched shared build; ten
+controls remain. This adds release/network evidence, not a new fix. Arbitrary
+unknown-byte extraction and incremental disclosure remain unproved; permitted
+static density selection exposes the same tested numeric distinction. No
+isolated-fix binary comparison or external destination was used.
+
+[Security review](../css-attr-taint-security-review-v1/REPORT.md) and
+[root evidence check](../css-attr-taint-security-root-v1/REVIEW.json).
+
+## Fix 82: preserve guaranteed-invalid animated custom properties
+
+Native + WPT: `d63735091bf8dc469d900ddba56e8a43bcac26d7`; preceding
+proof/runtime/review companion: `5e540197f9afb45e30d0f5714ffbf716115da302`.
+
+The bounded v2 proof and independent review are accepted: 81 audits (42 new),
+29 source bindings, five Lean mutants, three Rust mutants and 14 independent
+boundary theorems. Native/WPT review, build, 22-case final WPT and standalone
+source packaging pass. The 343-check joined comparison repairs ten failures;
+333 outcomes remain unchanged, including two expected failures. Six final WPT
+controls have candidate-only evidence. See
+[acceptance](../css-animation-invalid-publication-final-v1/ACCEPTANCE.json) and
+[commit plan](../css-animation-invalid-publication-final-v1/COMMIT-PLAN.json).
+
+There are 82 committed native fixes. Configured signing remains enabled.
+
+## Fix 81: preserve registered custom property token boundaries
+
+Native + WPT: `34e4e755cb81332819e56457f5fb68b9b305c394`; preceding
+proof/runtime/review companion: `76d4707974532db89589ffa39f2728db46527114`.
+The 37-case WPT changes ten failures to passes; the wider run has 308 passes.
+The bounded proof has 22 audited results, 24 actual-parser cases and four
+compiled mutants. Parser-event projection, balanced serialization and downstream
+concatenation remain explicit assumptions. The two-file patch has an independently
+applicable upstream alternative, with no isolated upstream runtime claim.
+[Acceptance](../css-registered-token-boundary-final-v1/ACCEPTANCE.json).

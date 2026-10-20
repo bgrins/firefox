@@ -9,6 +9,82 @@ of the proof obligations below.
 
 ## Latest component progress
 
+The reference-range producer audit found a real origin mismatch after leading
+whitespace trimming. Installed release Firefox 158 crashes, including a
+script-free fixture; the repaired shared build passes 26 new cases. Independent
+native review passes, while the source-shaped constructor/range/substitution
+proof remains in progress. A separate trailing-whitespace metadata mismatch
+merges tokens; 28 WPT failures become passes in a 415-subtest matrix with all
+375 prior outcomes unchanged. Independent review passes. A third source lead—escaped whitespace removed
+from identifiers—now has 16 failing WPT cases repaired and 20 new cases passing
+in a 435-subtest matrix; the prior 415 outcomes remain unchanged. Its independent
+evidence review passes; the shared terminal-span proof is in progress. No discovery
+is attributed to a completed Lean counterexample, and none is counted yet.
+Evidence: `../css-attr-leading-whitespace-root-v1/` and
+`../css-variable-trailing-token-root-v1/`.
+
+The declaration-helper draft composes represented histories, saved-query control
+and publication, with 12 compiled new results. The independent provider audit
+establishes generated scratch atomicity but identifies nested parser entry and
+raw delimiter recovery outside the accepted history alphabet. Actual callback
+admission remains open; the draft is not a completed native-helper proof. Seven
+new control results now compose represented callbacks with expect_exhausted,
+parse_entirely and try_parse. Native debug/release agree on 52 snapshots from
+12 fixtures; two compiled mutants discriminate. Independent review passes,
+and nested entry/raw recovery/real callback grammar remain open.
+The anonymous-box provider producer has sealed 42 audits and 50 passing browser
+states with no new bug; root review and fresh replay accept the bounded model,
+and native caller
+ancestry, numerical providers and dynamic reconstruction remain open.
+
+The whole-CSS catalog inventory now has independent source reconstruction and a
+root replay: 402 catalog occurrences, 191 provisional identities and 841 CSS2 TOC
+entries. These are accounting units, not normative requirements or a coverage
+denominator. The CSS2 corpus now also has independent and root acceptance for
+56 retained responses, 26 chapter pairs, 841 heading targets and 31 unapplied
+errata entries. Normative interpretation, replacement relationships and external
+contracts remain open. The authenticated packaging closure includes two nested
+manifests beyond top-level FILES. Evidence:
+`../css-whole-spec-universe-root-v1/REVIEW.json` and
+`../css-css2-residual-corpus-root-v1/REVIEW.json`.
+
+Root reproduced the fragmentation v1 statement-extraction defect. V2 restores
+all 18 source headers but fails independent syntax/name-boundary controls. V3
+now has independent and root acceptance for the bounded recognition correction
+and preserved claim records, with all three historical counterexamples rejected.
+It remains a restricted lexical recognizer, not a general Lean parser. The
+original Lean theorems and ten open providers remain unchanged. Evidence:
+`../css-fragmentation-requirements-root-v3/REVIEW.json`.
+
+The animation publication follow-up established reachable inner guaranteed-invalid
+values becoming CSS-wide initial under a static registration. Ten calibrated
+browser failures are repaired by a pending internal invalid-value declaration;
+the joined run has ten improvements and 333 unchanged outcomes. The final WPT
+passes all 22 cases, including six candidate-only suppression/empty controls.
+The native patch is separately packaged and the v2 bounded proof companion has
+root and independent acceptance: 81 audits (42 new), 29 source bindings and
+14 independently compiled boundary challenges. V1 checker acceptance was
+withheld because optimized Python disabled its assertion guard; v2 rejects
+optimized execution before dispatch. Native translation, providers and scheduler
+histories remain admitted. No new native commit is counted. The registered-consumer WPT's
+descriptor correction and initial-value calibration are separately accepted as
+a separately committed test-only repair. Evidence:
+`../css-animation-invalid-publication-final-v1/ACCEPTANCE.json` and
+`../css-animation-registered-consumer-runtime-v1/ACCEPTANCE.json`.
+
+The dedicated attribute-taint security review and deeper follow-up are complete. Installed Firefox 158
+with default CSS feature preferences makes four forbidden image requests in a
+script-free local fixture; the patched shared build blocks these while retaining
+ten controls. No arbitrary unknown-byte extraction or incremental disclosure was
+demonstrated; permitted direct CSS reproduces the numeric selection distinction.
+No isolated fix 80 build, external collector or CSP bypass was tested. The rules
+do not imply global network noninterference. Evidence:
+`../css-attr-taint-security-root-v1/REVIEW.json` and
+`../css-attr-taint-security-root-v1/DEEP-V2-REVIEW.json`. Registration changes
+preserve taint in 36 calibrated observations. Link-env provenance loss is a
+source-level gap with blocked current HTTP transport; epoch-aware provider
+contracts remain open.
+
 The metadata shortcut component and its map-history composition are accepted
 within scope: 31 shortcut audits plus nine new history results connect
 payload-and-taint equality to finite map updates, nearest-owner lookup and
@@ -721,3 +797,42 @@ zero-box after-overflow behavior, real-valued geometry and observers. The
 visible B/C Rule4 interpretation retains its conflicting hyperlink. No browser
 conformance or bug-count increment follows.
 [Acceptance](../css-fragmentation-unforced-root-v1/ACCEPTANCE.json).
+
+## Registered-value token boundary summary — accepted and committed
+
+The candidate repair derives first/last metadata from serialized tokens. Root and
+independent replays accept 22 audited results, 10 complete source bindings,
+24 actual-parser fixtures and 4 compiled loop mutants. The mathematical reference
+observes endpoints of flattened token classes; it retains arbitrary block bodies,
+actual closing classes, comments, whitespace, empty streams and explicit list
+separators. It rejects the original LP classification and first-component-last
+summary as symbolic counterexamples.
+
+Open: valid balanced typed serialization, actual parser-event projection,
+classification/native representation/compiler, complete token-concatenation
+preservation and general downstream CSS observations. The malformed unfinished
+block challenge demonstrates why the balanced premise cannot be removed.
+Separate native/WPT evidence has 308 PASS / 18 OK with 10 intended improvements. This
+is committed as `34e4e755cb81332819e56457f5fb68b9b305c394` after its separate evidence companion. [Acceptance](../css-registered-token-boundary-final-v1/ACCEPTANCE.json).
+
+## Fragmentation requirements ledger — rejected full-statement claim
+
+Independent review found `graphic_slice_contract` truncated by a first-`:=`
+extractor inside a record-valued argument. Root confirmed the mismatch. The
+underlying Lean theorem and its accepted conditional model remain intact; the
+new requirement ledger's full-statement claim is not accepted. Correct extraction
+and a rejection case for this exact failure are required in a new frozen version.
+
+## Full segment contributor preservation — accepted conditional component
+
+The readiness-strengthened custom segment theorem joins endpoint composition,
+positive iteration accumulation, failed-operation retention, discrete/equal-offset
+selection and the accepted optional taint wrapper. Root and independent fresh
+replay pass 45 new plus 15 imported audits, 15 source bindings and eight compiling
+model mutations. The independent reviewer adds four premise-necessity witnesses.
+
+This advances the caller-control-flow boundary beyond the successful wrapper.
+Actual payload/float/input providers, native representation, lookup freshness,
+publication/uncompute/recascade, downstream URL observations and scheduling
+remain open. Contributor inclusion is conservative, not exact taint. No new bug
+is counted. [Acceptance](../css-animation-segment-provenance-root-v1/ACCEPTANCE.json).

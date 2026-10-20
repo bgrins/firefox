@@ -4,30 +4,27 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **80 committed native/WPT fixes.** The management index is
+- **82 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
-- **Latest repair:** numeric interpolation provenance (`ede7ceb101d8`), with
-  independent upstream alternative `ed3ad9b8e4ea`. The candidate
-  matrix passes 253 checks: five improvements and 248 unchanged statuses from
-  the joined reference. Evidence precedes the two-file native/WPT commit;
-  standalone upstream runtime is untested.
+- **Latest fixes:** registered-value token boundaries (`34e4e755cb81`)
+  and guaranteed-invalid animation publication (`d63735091bf8`).
+  Each has a preceding evidence companion and a separate native/WPT commit.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.
-- **Accepted pending commits:** registered-value token boundaries. The corrected 37-case
+- **Committed token-boundary repair:** registered-value token boundaries. The corrected 37-case
   baseline has 27 PASS / 10 FAIL across fonts, margins and token serialization.
   The repaired build passes 308 cases across 18 WPT files. Native/WPT review and
-  standalone source packaging and bounded proof review pass. It is accepted
-  pending signed companion/native commits; not yet part of the committed count.
-- **Second accepted repair pending commits:** animation publication converts guaranteed-invalid values to
+  standalone source packaging and bounded proof review pass. It is committed with its preceding evidence companion.
+- **Committed animation repair:** animation publication converts guaranteed-invalid values to
   registered initial values. The three-file repair fixes ten reproduced failures;
   the 343-check matrix has 341 passes and two unchanged expected failures. Six
   added lower-priority suppression/valid-empty controls also pass. Independent
   native/WPT review, lint and standalone source packaging pass, with root replay.
   Root and independent review accept the v2 bounded Lean companion: 81 audits,
-  including 42 new results, plus 14 independent boundary challenges. Signed
-  evidence/native commits remain pending.
+  including 42 new results, plus 14 independent boundary challenges. Separate signed
+  evidence/native commits are complete.
 - **Three newly reproduced candidates:** a leading-whitespace typed-attribute
   bounds panic (also script-free on installed Firefox 158), custom-property
   trailing-whitespace token merging, and escaped space/tab deletion inside
@@ -54,12 +51,12 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
   match 52 native/model snapshots in debug and release; two compiled mutants
   differ in 15 and four snapshots. Independent review passes; standalone proof packaging remains pending. Callback grammar,
   nested-entry/recovery and whole-program annotation correspondence remain open.
-- The [triage proposal](../css-bugfix-triage-20261019/README.md) groups all 80
+- The [triage proposal](../css-bugfix-triage-20261019/README.md) groups the first 80
   committed fixes with exposure limits and standalone alternatives. A separate
-  registered-animation WPT calibration correction is accepted, awaiting signing;
+  registered-animation WPT calibration correction is committed separately;
   it does not increase the native-fix count.
-- The latest two signed research commit attempts failed in 1Password (failed to
-  fill whole buffer); its nine files remain staged. Signing stays enabled.
+- Signing resumed successfully. The coverage plan, two evidence/fix pairs and
+  calibration evidence/test pair are committed. Signing stays enabled.
   Nothing has been pushed or submitted externally.
 
 [Historical checkpoints](PLAN-HISTORY-20261019.md) preserve the previous plan
@@ -467,9 +464,8 @@ standalone two-file source apply/reverse pass. Dedicated WPT lint passes; the
 general lint warning is the expected ESLint WPT exclusion. The formal producer
 has completed 22 audited results and 24 native fixtures; independent and root
 fresh replays pass. The bounded component and native/WPT repair are accepted
-in their stated scopes. Signed packaging is waiting on the configured 1Password
-signer after two failed attempts; do not disable signing. It is accepted but uncommitted;
-the committed bug count remains 80.
+in their stated scopes. Native/WPT commit `34e4e755cb81332819e56457f5fb68b9b305c394`
+follows evidence `76d4707974532db89589ffa39f2728db46527114`. The committed bug count is 82.
 
 ## Requirements-ledger review defect and segment replay
 
@@ -496,7 +492,7 @@ from top-level FILES. Full normative requirement/dependency mapping remains open
 [Corpus acceptance](../css-css2-residual-corpus-root-v1/REVIEW.json).
 [Fragmentation ledger acceptance](../css-fragmentation-requirements-root-v3/REVIEW.json).
 
-## Animation publication repair accepted; signing pending
+## Animation publication repair accepted and committed
 
 The selected endpoint's inner guaranteed-invalid value currently uncomputes to
 CSS-wide initial, which can select a valid registration initial value. A revised
