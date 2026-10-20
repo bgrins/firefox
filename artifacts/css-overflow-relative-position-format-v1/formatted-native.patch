@@ -1,0 +1,27 @@
+--- a/layout/generic/nsContainerFrame.cpp
++++ b/layout/generic/nsContainerFrame.cpp
+@@ -954,13 +954,21 @@
+       const nsSize containerSize =
+           aContainerSize ? *aContainerSize
+                          : aReflowInput.AvailableSize(wm).GetPhysicalSize(wm);
+-      const LogicalPoint pos(wm, prevInFlow->IStart(wm, containerSize), 0);
++      const bool isRelative = frame->IsRelativelyPositioned();
++      const nscoord inlineStart =
++          isRelative
++              ? prevInFlow->GetLogicalNormalPosition(wm, containerSize).I(wm)
++              : prevInFlow->IStart(wm, containerSize);
++      const LogicalPoint pos(wm, inlineStart, 0);
+       nsReflowStatus frameStatus;
+ 
+       ReflowChild(frame, aPresContext, desiredSize, reflowInput, wm, pos,
+                   containerSize, aFlags, frameStatus, &tracker);
+-      FinishReflowChild(frame, aPresContext, desiredSize, &reflowInput, wm, pos,
+-                        containerSize, aFlags);
++      FinishReflowChild(
++          frame, aPresContext, desiredSize, &reflowInput, wm, pos,
++          containerSize,
++          isRelative ? aFlags | ReflowChildFlags::ApplyRelativePositioning
++                     : aFlags);
+ 
+       // Handle continuations
+       if (!frameStatus.IsFullyComplete()) {

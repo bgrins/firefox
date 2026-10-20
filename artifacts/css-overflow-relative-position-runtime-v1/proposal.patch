@@ -1,0 +1,167 @@
+--- a/layout/generic/nsContainerFrame.cpp
++++ b/layout/generic/nsContainerFrame.cpp
+@@ -954,13 +954,20 @@
+       const nsSize containerSize =
+           aContainerSize ? *aContainerSize
+                          : aReflowInput.AvailableSize(wm).GetPhysicalSize(wm);
+-      const LogicalPoint pos(wm, prevInFlow->IStart(wm, containerSize), 0);
++      const bool isRelative = frame->IsRelativelyPositioned();
++      const nscoord inlineStart =
++          isRelative
++              ? prevInFlow->GetLogicalNormalPosition(wm, containerSize).I(wm)
++              : prevInFlow->IStart(wm, containerSize);
++      const LogicalPoint pos(wm, inlineStart, 0);
+       nsReflowStatus frameStatus;
+ 
+       ReflowChild(frame, aPresContext, desiredSize, reflowInput, wm, pos,
+                   containerSize, aFlags, frameStatus, &tracker);
+-      FinishReflowChild(frame, aPresContext, desiredSize, &reflowInput, wm, pos,
+-                        containerSize, aFlags);
++      FinishReflowChild(
++          frame, aPresContext, desiredSize, &reflowInput, wm, pos, containerSize,
++          isRelative ? aFlags | ReflowChildFlags::ApplyRelativePositioning
++                     : aFlags);
+ 
+       // Handle continuations
+       if (!frameStatus.IsFullyComplete()) {
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-break/relative-position-overflow-continuations.html
+@@ -0,0 +1,138 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Relative positioning of overflow continuations</title>
++<link rel="help" href="https://drafts.csswg.org/css-break-4/#transforms">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++body { margin: 0; }
++.columns { direction: ltr; inline-size: 200px; block-size: 160px; columns: 100px; column-gap: 0; column-fill: auto; }
++.flow { inline-size: 100px; }
++.flex { display: flex; align-items: flex-start; }
++.row { flex-flow: row wrap; align-content: flex-start; }
++.column { flex-direction: column; }
++.item { flex: none; inline-size: 100px; block-size: 80px; min-inline-size: 0; min-block-size: 0; overflow: visible; }
++.flex .item + .item { break-before: always; }
++.block .item + .item { break-before: column; }
++.subject { position: relative; }
++.normal .subject { block-size: auto; }
++.descendant { inline-size: 100px; block-size: 160px; break-inside: avoid; }
++</style>
++<body>
++<script>
++function collectRelativeOverflowRows() {
++  const rows = [];
++  for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
++  for (const layout of ["row", "column", "block"]) {
++  if (writingMode === "vertical-rl" && layout !== "block") { continue; }
++  for (const kind of ["overflow", "normal"]) {
++  for (const [inlineOffset, blockOffset] of [[0, 0], [0, 17], [0, -17], [17, 0], [-17, 0]]) {
++    const make = (initialInline, initialBlock) => {
++      const columns = document.createElement("div");
++      columns.className = "columns";
++      columns.style.writingMode = writingMode;
++      const parent = document.createElement("div");
++      parent.className = `flow ${layout === "block" ? "block" : "flex"} ${layout} ${kind}`;
++      const items = Array.from({length: 4}, () => {
++        const item = document.createElement("div");
++        item.className = "item";
++        parent.append(item);
++        return item;
++      });
++      const subject = items[0];
++      subject.classList.add("subject");
++      subject.style.insetInlineStart = `${initialInline}px`;
++      subject.style.insetBlockStart = `${initialBlock}px`;
++      const descendants = Array.from({length: 4}, () => {
++        const child = document.createElement("div");
++        child.className = "descendant";
++        subject.append(child);
++        return child;
++      });
++      columns.append(parent);
++      document.body.append(columns);
++      const capture = () => {
++        const origin = columns.getBoundingClientRect();
++        const rect = r => writingMode === "horizontal-tb" ?
++          [r.left-origin.left, r.top-origin.top, r.width, r.height] :
++          [r.top-origin.top, writingMode === "vertical-rl" ? origin.right-r.right : r.left-origin.left,
++            r.height, r.width];
++        const css = getComputedStyle(subject);
++        return {columns: rect(origin).slice(2),
++          descendants: descendants.map(child => rect(child.getBoundingClientRect())),
++          descendantFragments: descendants.map(child => Array.from(child.getClientRects(), rect)),
++          subjectFragments: Array.from(subject.getClientRects(), rect),
++          parentFragments: Array.from(parent.getClientRects(), rect),
++          otherItems: items.slice(1).map(child => rect(child.getBoundingClientRect())),
++          computed: {writingMode: css.writingMode, position: css.position,
++            inlineOffset: css.insetInlineStart, blockOffset: css.insetBlockStart}};
++      };
++      return {columns, subject, capture};
++    };
++    const freshFixture = make(inlineOffset, blockOffset);
++    const fresh = freshFixture.capture();
++    freshFixture.subject.style.insetInlineStart = `${2 * inlineOffset}px`;
++    freshFixture.subject.style.insetBlockStart = `${2 * blockOffset}px`;
++    const updatedFromNonzero = freshFixture.capture();
++    freshFixture.subject.style.insetInlineStart = "0px";
++    freshFixture.subject.style.insetBlockStart = "0px";
++    const zeroAfterNonzero = freshFixture.capture();
++    freshFixture.columns.remove();
++    const dynamicFixture = make(0, 0);
++    const zero = dynamicFixture.capture();
++    dynamicFixture.subject.style.insetInlineStart = `${inlineOffset}px`;
++    dynamicFixture.subject.style.insetBlockStart = `${blockOffset}px`;
++    const dynamic = dynamicFixture.capture();
++    dynamicFixture.subject.style.insetInlineStart = "0px";
++    dynamicFixture.subject.style.insetBlockStart = "0px";
++    const restored = dynamicFixture.capture();
++    dynamicFixture.columns.remove();
++    const differences = value => value.descendants.map((r, i) => r.map((v, a) => v-zero.descendants[i][a]));
++    const freshDeltas = differences(fresh);
++    const dynamicDeltas = differences(dynamic);
++    const expected = [inlineOffset, blockOffset, 0, 0];
++    rows.push({writingMode, layout, kind, inlineOffset, blockOffset,
++      fresh, zero, dynamic, restored, freshDeltas, dynamicDeltas,
++      updatedFromNonzero, zeroAfterNonzero,
++      updatedFromNonzeroDeltas: differences(updatedFromNonzero),
++      zeroAfterNonzeroDeltas: differences(zeroAfterNonzero),
++      doubledTranslationMatches: differences(updatedFromNonzero).every(d =>
++        d.join() === [2 * inlineOffset, 2 * blockOffset, 0, 0].join()),
++      zeroAfterNonzeroMatches: JSON.stringify(zeroAfterNonzero.descendantFragments) ===
++        JSON.stringify(zero.descendantFragments),
++      calibrated: zero.columns.join() === "200,160" &&
++        zero.descendants.every((r, i) => r.join() === [i*100,0,100,160].join()) &&
++        zero.descendantFragments.every(r => r.length === 1),
++      freshAndDynamicComputedEqual: JSON.stringify(fresh.computed) === JSON.stringify(dynamic.computed),
++      freshAndDynamicGeometryEqual: JSON.stringify(fresh.descendantFragments) === JSON.stringify(dynamic.descendantFragments),
++      freshTranslationMatches: freshDeltas.every(d => d.join() === expected.join()),
++      dynamicTranslationMatches: dynamicDeltas.every(d => d.join() === expected.join()),
++      allSizesPreserved: [...freshDeltas, ...dynamicDeltas].every(d => d[2] === 0 && d[3] === 0),
++      otherItemsUnchanged: JSON.stringify(zero.otherItems) === JSON.stringify(fresh.otherItems) &&
++        JSON.stringify(zero.otherItems) === JSON.stringify(dynamic.otherItems),
++      restoredExactly: JSON.stringify(zero) === JSON.stringify(restored)});
++  }
++  }
++  }
++  }
++  return rows;
++}
++
++for (const row of collectRelativeOverflowRows()) {
++  const label = `${row.writingMode} ${row.layout} ${row.kind} inline ${row.inlineOffset} block ${row.blockOffset}`;
++  test(() => {
++    assert_true(row.calibrated, "Unshifted fragment geometry");
++    assert_true(row.allSizesPreserved, "Relative offsets preserve dimensions");
++    assert_true(row.otherItemsUnchanged, "Relative offsets preserve other items");
++    assert_true(row.freshTranslationMatches, "Initial relative translation on every fragment");
++  }, `Initial position: ${label}`);
++  test(() => {
++    assert_true(row.calibrated, "Unshifted fragment geometry");
++    assert_true(row.freshAndDynamicComputedEqual, "Initial and updated styles agree");
++    assert_true(row.dynamicTranslationMatches, "Update from zero");
++    assert_true(row.doubledTranslationMatches, "Update from nonzero");
++    assert_true(row.zeroAfterNonzeroMatches, "Remove nonzero offset");
++    assert_true(row.restoredExactly, "Restore the zero-origin fixture");
++  }, `Updated position: ${label}`);
++}
++</script>

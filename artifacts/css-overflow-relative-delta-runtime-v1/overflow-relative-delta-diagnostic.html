@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Relative offsets across normal and overflow fragments</title>
+<style>
+body { margin: 0; }
+.columns { writing-mode: horizontal-tb; direction: ltr; inline-size: 200px; block-size: 160px; columns: 100px; column-gap: 0; column-fill: auto; }
+.flow { inline-size: 100px; }
+.flex { display: flex; align-items: flex-start; }
+.row { flex-flow: row wrap; align-content: flex-start; }
+.column { flex-direction: column; }
+.item { flex: none; inline-size: 100px; block-size: 80px; min-inline-size: 0; min-block-size: 0; overflow: visible; }
+.flex .item + .item { break-before: always; }
+.block .item + .item { break-before: column; }
+.subject { position: relative; }
+.normal .subject { block-size: auto; }
+.descendant { inline-size: 100px; block-size: 160px; break-inside: avoid; }
+</style>
+<body>
+<script src="overflow-relative-delta-diagnostic.js"></script>
