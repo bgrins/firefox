@@ -1,0 +1,82 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Scroll-container baseline border conversion</title>
+<style>
+body { margin: 0; font: 16px/24px monospace; }
+.host { display: flex; align-items: first baseline; width: 500px; margin-bottom: 10px; }
+.host.inline { display: block; }
+.host.inline .child { display: inline-block; vertical-align: baseline; }
+.host.inline .child.flex-child { display: inline-flex; }
+.host.inline .child.grid-child { display: inline-grid; }
+.child.flex-child { display: flex; }
+.child.grid-child { display: grid; align-content: start; }
+.host.last { align-items: last baseline; }
+.box { display: flex; flex: none; align-items: flex-start; width: 160px; height: 100px; }
+.child { flex: none; width: 60px; height: 50px; box-sizing: content-box; border: 0 solid black; }
+.start { border-block-start-width: 9px; }
+.end { border-block-end-width: 9px; }
+.both { border-block-width: 9px; }
+.hidden { overflow: hidden; }
+.auto { overflow: auto; }
+.scroll { overflow: scroll; scrollbar-width: none; }
+.clip { overflow: clip; }
+.text { font: 16px/24px monospace; }
+.last .child { baseline-source: last; }
+.first .child { baseline-source: first; }
+</style>
+<body>
+<script>
+const rows = [];
+const rect = node => {
+  const r = node.getBoundingClientRect();
+  return {x: r.x, y: r.y, width: r.width, height: r.height};
+};
+for (const layout of ["flex", "inline"]) {
+for (const content of ["block", "flex-child", "grid-child"]) {
+for (const last of [false, true]) {
+  for (const border of ["none", "start", "end", "both"]) {
+    for (const overflow of ["hidden", "auto", "scroll", "clip"]) {
+      for (const nested of layout === "inline" ? [false] : [false, true]) {
+        const host = document.createElement("div");
+        host.className = `host ${layout} ${last ? "last" : "first"}`;
+        const boxes = [overflow, "visible"].map(value => {
+          const box = document.createElement("div");
+          box.className = "box";
+          const child = document.createElement("div");
+          child.className = `child ${content} ${border} ${value}`;
+          const text = document.createElement("span");
+          text.className = "text";
+          text.textContent = "X";
+          child.append(text);
+          box.append(child);
+          host.append(nested ? box : child);
+          return {box: nested ? box : child, child, text};
+        });
+        document.body.append(host);
+        const measure = () => boxes.map(({box, child, text}) => ({
+          box: rect(box), child: rect(child), text: rect(text),
+          scrollHeight: child.scrollHeight, clientHeight: child.clientHeight,
+          overflow: getComputedStyle(child).overflowY
+        }));
+        const initial = measure();
+        boxes[0].child.classList.remove(overflow);
+        const control = measure();
+        boxes[0].child.classList.add(overflow);
+        const restored = measure();
+        const difference = initial[0].text.y - initial[1].text.y;
+        rows.push({layout, content, last, border, overflow, nested, initial, control, restored,
+          difference, matched: difference === 0,
+          restoreStable: JSON.stringify(initial) === JSON.stringify(restored),
+          controlMatched: control[0].text.y === control[1].text.y,
+          geometryCalibrated: initial[0].child.height === initial[1].child.height &&
+            initial[0].text.y - initial[0].child.y === initial[1].text.y - initial[1].child.y &&
+            initial[0].scrollHeight === initial[0].clientHeight});
+        host.remove();
+      }
+    }
+  }
+}
+}
+}
+fetch("/result", {method: "POST", body: JSON.stringify({rows})});
+</script>
