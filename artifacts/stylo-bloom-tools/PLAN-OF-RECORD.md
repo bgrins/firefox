@@ -10,7 +10,8 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 - **Latest fixes:** leading-whitespace attribute origin (`ad608a212bd8`),
   trailing-whitespace token metadata (`bccea9c1fffc`) and escaped trailing
   whitespace (`fff2d758ef6b`). Each has a preceding evidence companion and
-  a separate two-file native/WPT commit.
+  a separate two-file native/WPT commit. All three also have signed standalone
+  upstream alternatives; see the commit ledger. No isolated upstream runtime is claimed.
 - URL native state/capture, ordinary batching, parser-priority winners, animation
   identity and primary parser-history admission are accepted within scope. Public
   parser wrappers and storage composition remain active.

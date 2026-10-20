@@ -21,9 +21,19 @@ Latest committed fixes:
 | 84: trailing-whitespace token boundaries | `bccea9c1fffc59e41a9f9bef16fcaf0056ff1f10` | `35c04a32169744c3c75e2dfef9b8d18b673d8b06` |
 | 85: escaped trailing whitespace | `fff2d758ef6bb39b4465cb072767bc5db6d5e09f` | `3029d557014c83c6ad6260253243700536499176` |
 
-Each native commit contains only the Rust fix and its WPT. Independent upstream
-patches remain in each evidence package; no isolated upstream build is claimed.
-[Commit verification](../css-signing-resume-20261019-v3/ROOT-COMMIT-CHECK.json).
+Each native commit contains only the Rust fix and its WPT. Independently applicable
+upstream alternatives are now signed local commits with separate evidence parents:
+
+| Fix | Standalone native + WPT | Local branch |
+| --- | --- | --- |
+| 83 | `4be5b070191054a263197654d1f30096a9306b43` | `stylo-css-attr-leading-whitespace-fix` |
+| 84 | `5b4fe54b37bc5a3bb848ceb8300f5d92ea4c2e3a` | `stylo-css-variable-trailing-token-fix` |
+| 85 | `8a528dbb92bbaca6db31123f8b0da45983fa798a` | `stylo-css-variable-escaped-whitespace-fix` |
+
+Use these alternatives when extracting a fix independently of the integration stack.
+No isolated upstream build/runtime is claimed.
+[Stack verification](../css-signing-resume-20261019-v3/ROOT-COMMIT-CHECK.json) and
+[standalone verification](../css-variable-whitespace-standalone-root-v1/ROOT-COMMIT-CHECK.json).
 The registered-animation calibration remains a separate test-only commit,
 `5cdd697e02d209bff0368711764523f5d26dba30`, excluded from the native-fix count.
 
