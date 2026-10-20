@@ -1,0 +1,42 @@
+{
+  "lead": "GetScrollRanges empty-axis clamp can overflow the other wide axis",
+  "classification": "preexisting extracted-source arithmetic witness; no browser reproduction claimed",
+  "inputs_app_units": {
+    "port_width": 6000,
+    "port_height": 6000,
+    "box_width": 6000,
+    "box_height": 600,
+    "top": -1073741823,
+    "bottom": -1073734823,
+    "left": 0,
+    "right": 0,
+    "scroll": 0,
+    "padding": 0,
+    "parent_offset": 0,
+    "frame_offset": 0,
+    "normal_x": 0,
+    "normal_y": 12000,
+    "contain": [
+      0,
+      0,
+      6000,
+      59400
+    ]
+  },
+  "derived": {
+    "old_offset_sum": -2147476646,
+    "view_height": 2147482646,
+    "stick_top": -1073741823,
+    "stick_bottom": 1073740223,
+    "old_stick_height": 2147482046,
+    "range_outer_top": -1073740223,
+    "range_outer_bottom": 1073801223,
+    "range_outer_height": 2147541446,
+    "range_inner_height": 2147482046,
+    "range_inner_width": 0
+  },
+  "pre_range_old_arithmetic_signed32_defined": true,
+  "both_old_and_new_ubsan_fail": "range-calibration/*-clamp.log",
+  "cause": "The empty X interval enters MoveInsideAndClamp, which evaluates outer.Height() as signed32 even though Y endpoints fit.",
+  "required_full_companion_treatment": "Keep complete GetScrollRanges/Intersect/IsEmpty/MoveInsideAndClamp call graph; name branch-sensitive width/height/add/subtract safety assumptions, retain this witness, and do not infer safety from endpoints alone. Browser investigation is separate."
+}

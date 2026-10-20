@@ -1,0 +1,77 @@
+/Users/bgrins/code/firefox/artifacts/css-sticky-negative-inset-overflow-proof-v2/development-lean-v1/WideNormalization.lean:26:24: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  wide (WidenedInsets.view p s e)
+in the target expression
+  (have first := p - s;
+    have extent := wide (first - e);
+    if b > extent then signed32 (wide (e - wide (b - extent))) else signed32 e) =
+    WidenedInsets.referenceEnd p b s e
+
+p b s e : Int
+hp : InMachine p
+hb : InMachine b
+hs : InMachine s
+he : InMachine e
+hr : InMachine (WidenedInsets.nativeEnd p b s e)
+h :
+  WidenedInsets.In64 (p - s) ∧
+    WidenedInsets.In64 (WidenedInsets.view p s e) ∧
+      WidenedInsets.In64 (b - WidenedInsets.view p s e) ∧ WidenedInsets.In64 (e - (b - WidenedInsets.view p s e))
+⊢ (have first := p - s;
+    have extent := wide (first - e);
+    if b > extent then signed32 (wide (e - wide (b - extent))) else signed32 e) =
+    WidenedInsets.referenceEnd p b s e
+/Users/bgrins/code/firefox/artifacts/css-sticky-negative-inset-overflow-proof-v2/development-lean-v1/WideNormalization.lean:94:10: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  machineEnd p b (rawValue m v.near) (rawValue m v.far)
+in the target expression
+  (have a := rawValue m v.near;
+    have b_1 := rawValue m v.far;
+    (a, machineEnd p b a b_1)) =
+    have a := rawValue m v.near;
+    have b_1 := rawValue m v.far;
+    (a, min b_1 (p - a - b))
+
+case isTrue.isTrue
+m : Bool
+v : Insets
+p b : Int
+e : Bool
+ha : InMachine (rawValue m v.near)
+hb : InMachine (rawValue m v.far)
+enabled : active m v = true
+h : InMachine p ∧ InMachine b ∧ InMachine (source m v p b e).fst ∧ InMachine (source m v p b e).snd
+ending : e = true
+out : InMachine (WidenedInsets.nativeEnd p b (rawValue m v.near) (rawValue m v.far))
+⊢ (have a := rawValue m v.near;
+    have b_1 := rawValue m v.far;
+    (a, machineEnd p b a b_1)) =
+    have a := rawValue m v.near;
+    have b_1 := rawValue m v.far;
+    (a, min b_1 (p - a - b))
+/Users/bgrins/code/firefox/artifacts/css-sticky-negative-inset-overflow-proof-v2/development-lean-v1/WideNormalization.lean:99:10: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  machineEnd p b (rawValue m v.far) (rawValue m v.near)
+in the target expression
+  (have a := rawValue m v.near;
+    have b_1 := rawValue m v.far;
+    (machineEnd p b b_1 a, b_1)) =
+    have a := rawValue m v.near;
+    have b_1 := rawValue m v.far;
+    (min a (p - b_1 - b), b_1)
+
+case isTrue.isFalse
+m : Bool
+v : Insets
+p b : Int
+e : Bool
+ha : InMachine (rawValue m v.near)
+hb : InMachine (rawValue m v.far)
+enabled : active m v = true
+h : InMachine p ∧ InMachine b ∧ InMachine (source m v p b e).fst ∧ InMachine (source m v p b e).snd
+ending : ¬e = true
+out : InMachine (WidenedInsets.nativeEnd p b (rawValue m v.far) (rawValue m v.near))
+⊢ (have a := rawValue m v.near;
+    have b_1 := rawValue m v.far;
+    (machineEnd p b b_1 a, b_1)) =
+    have a := rawValue m v.near;
+    have b_1 := rawValue m v.far;
+    (min a (p - b_1 - b), b_1)
+/Users/bgrins/code/firefox/artifacts/css-sticky-negative-inset-overflow-proof-v2/development-lean-v1/WideNormalization.lean:115:2: error: `simp` made no progress
