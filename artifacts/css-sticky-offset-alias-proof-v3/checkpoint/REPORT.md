@@ -1,0 +1,13 @@
+# Sticky explicit-offset encoding checkpoint
+
+Not frozen or accepted. Independent review, closed replay/tamper controls and final native acceptance remain required.
+
+The native repair reserves NS_AUTOOFFSET after actual-auto detection. Twelve kernel-checked theorems prove exact auto classification, explicit decoding, preservation of nonreserved values, numeric bounds, monotonicity and a maximum one-app-unit change for results within the resolver's normal range. The original explicit-maximum alias has a concrete kernel counterexample. The repair establishes the no-reserved-code-alias premise required by the separate positional consumer proof.
+
+The source harness extracts the complete old/new ComputeStickySideOffset bodies, authenticates the exact producer-only delta and actual coordinate/sentinel declarations, and compiles both with debug/optimized UBSan settings. Each run checks216cases over all four sides, auto/explicit states, negative/zero/near-boundary/maximum resolved values and three bases. The oracle branches on the reserved integer boundary. Five additional compiled mutants alter actual-auto classification, min/max direction, reservation size, negative-value preservation or selected side; each has semantic output/trace differences. The original source is separately calibrated and has a known alias witness in Lean.
+
+Anchor resolution and numeric resolution are explicit provider facades: the numeric provider supplies its already-resolved bounded nscoord. This harness does not prove floating-point conversion, Rust calc evaluation, native lifetimes, all downstream arithmetic or all CSS. Source review separately confirms the real length/percentage/calc clamp paths can return nscoord_MAX; real browser/WPT evidence covers those paths. The compiler/SDK/standard library and Lean toolchain/kernel are trusted.
+
+Fresh Lean replay audits only the three ordinary allowed Lean axioms. Source calibration and Lean replay remove their temporary compiler products. Historical setup failures are retained: native-v1 rejected a mistaken macro spelling assumption; native-v2 failed compilation because the SDK was not specified. Neither is mutation evidence. Native-v3 passes with an explicit SDK.
+
+Native evidence is in ../css-sticky-offset-alias-fix-v1:80paired WPT rows improve32FAIL/48PASS to80PASS; the shared build succeeds;1328regression subtests and3reftests pass. The final native change only reformats the verified return expression, with exact token correspondence recorded. The standalone two-file patch applies/reverses on HEAD and retained upstream, without an isolated-base build claim.

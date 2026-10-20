@@ -1,0 +1,43 @@
+# Source bridge and remaining premises
+
+## Exact native input
+
+The retained source snapshots are:
+
+- Before: `38d14faa60bfe3180e87904f5085fdbbee5aa47746a38df77f4edb50360af40c`.
+- Tested repair: `51e60438c405a4163cd0f8c43a669ee712d06dc6d202ccefa7519b968ea7925c`.
+- Final formatted repair: `2a0794213ffad4d35d96b915b0fc858e2bfb18ddf74b20e4884a2d6b6f0f3b4b`.
+
+The checker extracts and compiles the entire ComputeStickySideOffset function from each. It checks that the producer repair is exactly the recorded return-expression replacement and one directly related comment, that no other file bytes change between those snapshots, and that the final format transfer changes only whitespace in the selected body. It extracts actual nscoord, nscoord_MIN/MAX, NS_UNCONSTRAINEDSIZE and NS_AUTOOFFSET declarations. BINDINGS.json records all eight compiled body/constant slices and byte hashes. The limited lexer/brace extractor supports these pinned source signatures and ordinary strings/comments; it is not a general C++ parser.
+
+Other functions in the full retained native files are context, not compiled code in this artifact. In particular the separate DoComputePosition finite-sentinel consumer repair is already present in the before snapshot and is not part of this proof. The native two-file standalone patch and browser evidence belong to the parent fix artifact; no isolated-base build claim follows from this replay.
+
+## Native providers
+
+The complete helper first calls GetAnchorResolvedInset for the supplied Side, with UseCBFrameSize({nullptr, Sticky}), tests the returned inset's IsAuto, returns the reserved code immediately for auto, and otherwise resolves its LengthPercentage exactly once with the original basis before applying std::min(NS_AUTOOFFSET - 1, resolved).
+
+The native facade models stable style storage and a successful anchor-resolved inset. Its `automatic` flag represents the result of that provider, not raw CSS syntax. It admits anchor fallback/invalidity rules, object lifetime, pointer validity, no reentrancy and the LengthPercentage representation. It records the selected side, one anchor query, whether numeric resolution occurred, and the forwarded basis. The facade supplies the already-resolved integer; it does not implement layout sizing, floating-point conversion, percentage arithmetic, Rust calc evaluation, rounding, saturation or allocation behavior.
+
+The exact real LengthPercentage overload of nsLayoutUtils::ComputeCBDependentValue is retained separately in PROVIDER.json. It calls Resolve(aPercentBasis) and asserts that an unconstrained basis is used only when there is no percentage. This overload is not executed in the facade. Its selected body was independently compared to the known local header and matches. The maximum-basis corpus additions are interpreted as pure-length provider cases satisfying !HasPercent. Other rows assume the same native provider precondition. The modeled numeric contract is nscoord_MIN ≤ resolved ≤ nscoord_MAX; this is a premise for the bounded-difference result, not a theorem about the FP/Rust implementations. Real parent browser evidence supplies separate examples of the upper endpoint being reachable.
+
+The native Side input must be one of the four enum values. The harness initializes all other sides to distinct explicit values 7 + side, allowing the wrong-side mutation to be observed. This setup is faithfully represented by that Lean mutation; it is a fixture context, not a universal characterization of other sides. Percentage bases in the closed harness profile are nonnegative and at most nscoord_MAX. The semantic observer theorems themselves can quantify more broadly over Int and Nat; native correspondence is conditional on the stated valid-side/provider domain.
+
+## Mathematical scope and source correspondence
+
+OffsetEncoding is preserved byte-for-byte from v1. It defines semantic Option Int insets, reserved auto code 1073741823, and explicit encoding min(1073741822, resolved). Auto round-trip and no-alias are unconditional integer results. Preservation and a maximum one-app-unit change use the specified upper-bound premise; the lower bound gives the stated resolver range. OffsetSource adds the source-shaped branch and trace observation, then proves its numeric result refines that encoding. It also proves exact auto classification after the provider, skipped numeric resolution for auto, correct forwarding, signed output range, nonalias observation preservation and the necessary numerical premise. Constant subtraction is separately checked to fit signed32.
+
+The bridge from actual C++ objects and standard min/return semantics to this source-shaped model remains a small explicit source interpretation plus calibration, not a fully mechanized C++ semantics proof. Native constants and complete helper bodies are compiled without rewriting in correct variants. Integer arithmetic here is the representable constant subtraction; the larger FP/calc resolver is admitted. The selected Apple C++ compiler, standard library, ABI and facade fidelity are trusted. The checker never infers source equivalence from a grep hit alone: it executes all correct native variants and compares full rows to independently executed Lean and a separately written boundary oracle.
+
+## Finite calibration and mutation evidence
+
+The complete original 216 inputs are retained verbatim and occur as the first 216 of the regenerated 236-case roster. The 20 additions cover the numerical endpoints and near-endpoints with the maximum pure-length basis across all sides. Both the historical corpus hash and exact prefix relation are enforced. Eleven invalid-schema, side, bound and basis controls are rejected. The internal native driver accepts only the generated integer protocol after that closed-profile validation; it is not a general input parser.
+
+The Python oracle branches on actual auto and on equality with the reserved endpoint within the admitted range; it does not use std::min or the Lean reserve definition. Two generated theorems use `decide +kernel` to check the full old/new expected observation tables. The Lean runtime separately emits the original/repaired observations and five mutant interpretations. Six correct native runs (three exact bodies times debug/optimized) must match these rows. Five independently compiled native mutations must match the corresponding Lean mutant observations and differ from the correct result; compiler failure never counts. Mutations cover actual-auto misclassification, max/min reversal, two-unit reservation, negative-value loss and wrong-side selection. Five kernel witnesses also distinguish those modeled mutations.
+
+This does not establish arbitrary floating-point values, all native mutations, browser reachability for every synthetic input, all downstream sticky constraints, layout/timeline correctness or all CSS. It establishes the no-reserved-code-alias premise supplied to the separate positional consumer proof, under the resolved-value and native-provider interpretation described above.
+
+## Replay closure and trust
+
+The capsule includes all project proof modules and source-generation code. The fixed import roster is OffsetEncoding → Std, OffsetSource → OffsetEncoding, and ModelMutants → OffsetSource; generated Calibration/Driver/Audit depend only on these. Fresh build output is isolated through LEAN_PATH. Every imported installed Lean library in the transitive Init/Std closure is covered by the larger full bin/lib manifest (15,308 file entries plus exact directory and symlink rosters). These libraries are pinned trusted compiled dependencies, not freshly rebuilt or universally re-proved Std sources. The checker verifies all those entries before and after replay, and pins the Lean executable/version and C++ executable/version. The exact compiler-emitted native header closure is also pinned, compared against every variant dependency file, and authenticated before and after execution. System loader/libraries, compiler dynamic dependencies, Python and OS remain trusted; this is not a complete immutable operating-system/toolchain image.
+
+The theorem inventory is a closed list for the pinned module profile; its anchored declaration scan is not advertised as a general Lean parser. The axiom gate allows only propext, Classical.choice and Quot.sound, rejects other dependencies and all Lean warnings, and checks exact audit roster completeness. Mutated-copy tests separately challenge a custom axiom and sorry. Their transfer pins are intentionally re-bound in the disposable copies to reach the axiom gate; they do not alter or invalidate the unchanged original v1 proof.

@@ -1,0 +1,11 @@
+import Independent
+#print axioms AliasIndependent.integer_machine_no_alias
+#print axioms AliasIndependent.source_endpoint_exact
+#print axioms AliasIndependent.actual_auto_trace
+#print axioms AliasIndependent.below_endpoint_full_trace
+#print axioms AliasIndependent.intended_resolution_loss
+#print axioms AliasIndependent.clamping_is_idempotent
+#print axioms AliasIndependent.zero_and_negative_remain_numeric
+#print axioms AliasIndependent.explicit_vs_auto_are_distinct
+#print axioms AliasIndependent.negative_outside_range_preserved
+#print axioms AliasIndependent.upper_bound_is_required

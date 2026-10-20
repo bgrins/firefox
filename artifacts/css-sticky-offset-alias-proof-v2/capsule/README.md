@@ -1,0 +1,9 @@
+# Explicit sticky inset encoding
+
+This source capsule connects the integer encoding model to the complete retained ComputeStickySideOffset helper. It preserves the original 12-theorem model and 216-case corpus, adds a source-shaped observation model, and calibrates the original, tested repair and final formatted repair against Lean and an independent boundary oracle. It is a producer artifact; independent review is a separate gate.
+
+Run `python3 -I -S check.py --manifest-sha <externally authenticated FILES.json SHA256> --out <new directory outside the capsule>`. The checker authenticates the closed source roster, pinned compiler and full installed Lean bin/lib trees before loading local producer modules. It then freshly compiles its proof modules, kernel-decides both complete concrete result tables, audits every claimed result's axioms, executes the Lean observations and semantic mutants, and compiles the exact native bodies in debug/optimized UBSan configurations. It reauthenticates source/toolchain inputs before writing RESULT.json. Compiler products are inventoried and removed after successful terminal checks.
+
+The output must be absent. Failures are retained and never counted as semantic mutation evidence. The manifest hash is an external trust anchor; recomputing it from arbitrary adjacent input is not authentication. This guards ordinary replay integrity, not malicious concurrent filesystem changes, a compromised interpreter/compiler/kernel or OS.
+
+Read SOURCE-CONTRACT.md and THEOREMS.md before using the claims. Numeric floating-point/Rust resolution, anchor/style providers and downstream geometry are not verified by this artifact. In particular, the one-app-unit bound requires the resolver's bounded output premise. `actual auto` refers to the inset returned by anchor resolution, not necessarily a literal authored CSS keyword.
