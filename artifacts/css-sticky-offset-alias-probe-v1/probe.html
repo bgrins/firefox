@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Sticky explicit inset encoding</title>
+<style>
+body { margin: 0; }
+.scroller { width: 100px; height: 100px; overflow: auto; scrollbar-width: none; }
+.cb { position: relative; }
+.vertical .cb { width: 100px; height: 1000px; }
+.horizontal .cb { width: 1000px; height: 100px; }
+.target { position: sticky; width: 10px; height: 10px; }
+.vertical .target { top: var(--inset); }
+.horizontal .target { left: var(--inset); }
+</style>
+<body>
+<script>
+const values = [0, 50, 1000, 10000000, 17895696, 17895697, 17895698, 1000000000];
+const sheet = document.createElement("style");
+sheet.textContent = values.map((value, i) => `.value${i} { --inset: ${value}px; }`).join("\n");
+document.head.append(sheet);
+const rows = [];
+for (const axis of ["vertical", "horizontal"]) {
+  for (const [i, inset] of values.entries()) {
+    for (const requestedScroll of [0, 100]) {
+      const scroller = document.createElement("div");
+      scroller.className = `scroller ${axis} value${i}`;
+      const cb = document.createElement("div");
+      cb.className = "cb";
+      const target = document.createElement("div");
+      target.className = "target";
+      cb.append(target);
+      scroller.append(cb);
+      document.body.append(scroller);
+      const vertical = axis === "vertical";
+      if (vertical) scroller.scrollTop = requestedScroll;
+      else scroller.scrollLeft = requestedScroll;
+      const outer = scroller.getBoundingClientRect();
+      const inner = target.getBoundingClientRect();
+      const containing = cb.getBoundingClientRect();
+      const position = vertical ? inner.top - outer.top : inner.left - outer.left;
+      const expected = Math.max(0, Math.min(requestedScroll + inset, 990)) - requestedScroll;
+      const computed = getComputedStyle(target);
+      rows.push({axis, inset, requestedScroll, position, expected, matched: Math.abs(position - expected) < .1,
+        actualScroll: vertical ? scroller.scrollTop : scroller.scrollLeft,
+        client: vertical ? scroller.clientHeight : scroller.clientWidth,
+        cbSize: vertical ? containing.height : containing.width,
+        targetSize: vertical ? inner.height : inner.width,
+        computedPosition: computed.position,
+        computedInset: vertical ? computed.top : computed.left,
+        oppositeInset: vertical ? computed.bottom : computed.right});
+      scroller.remove();
+    }
+  }
+}
+fetch("/", {method:"POST", body:JSON.stringify({rows, userAgent:navigator.userAgent})});
+</script>
