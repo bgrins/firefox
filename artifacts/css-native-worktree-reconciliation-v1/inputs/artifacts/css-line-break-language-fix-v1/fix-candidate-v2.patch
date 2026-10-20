@@ -1,0 +1,300 @@
+--- a/dom/base/nsLineBreaker.cpp
++++ b/dom/base/nsLineBreaker.cpp
+@@ -253,6 +253,37 @@
+   (BREAK_SUPPRESS_INITIAL | BREAK_SUPPRESS_INSIDE | \
+    BREAK_SKIP_SETTING_NO_BREAKS)
+ 
++static bool IsChineseOrJapanese(nsAtom* aLanguage) {
++  if (!aLanguage) {
++    return false;
++  }
++
++  static mozilla::StaticRefPtr<nsAtom> sLastLanguage;
++  static bool sLastScriptIsChineseOrJapanese = false;
++  static bool sInit = false;
++
++  if (!sInit) {
++    mozilla::ClearOnShutdown(&sLastLanguage);
++    sInit = true;
++  }
++
++  if (sLastLanguage == aLanguage) {
++    return sLastScriptIsChineseOrJapanese;
++  }
++
++  Locale loc;
++  if (LocaleParser::TryParse(nsAtomCString(aLanguage), loc).isErr() ||
++      (loc.Script().Missing() && loc.AddLikelySubtags().isErr())) {
++    return false;
++  }
++
++  sLastScriptIsChineseOrJapanese =
++      loc.Script().EqualTo("Hans") || loc.Script().EqualTo("Hant") ||
++      loc.Script().EqualTo("Jpan") || loc.Script().EqualTo("Hrkt");
++  sLastLanguage = aLanguage;
++  return sLastScriptIsChineseOrJapanese;
++}
++
+ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
+                                    const char16_t* aText, uint32_t aLength,
+                                    uint32_t aFlags, nsILineBreakSink* aSink) {
+@@ -363,7 +394,8 @@
+             AutoRestore<uint8_t> saveWordStartBreakState(breakState[wordStart]);
+             LineBreaker::ComputeBreakPositions(
+                 Span<const char16_t>(aText + wordStart, offset - wordStart),
+-                mWordBreak, mLineBreak, mScriptIsChineseOrJapanese,
++                mWordBreak, mLineBreak,
++                IsChineseOrJapanese(aHyphenationLanguage),
+                 Span<uint8_t>(breakState.Elements() + wordStart,
+                               offset - wordStart));
+           }
+@@ -553,6 +585,7 @@
+     }
+ 
+     if (offset > 0) {
++      UpdateCurrentWordLanguage(aHyphenationLanguage);
+       mTextItems.AppendElement(TextItem(aSink, 0, offset, aFlags));
+     }
+ 
+@@ -625,7 +658,7 @@
+           AutoRestore<uint8_t> saveWordStartBreakState(breakState[wordStart]);
+           LineBreaker::ComputeBreakPositions(
+               Span<const uint8_t>(aText + wordStart, offset - wordStart),
+-              mWordBreak, mLineBreak, mScriptIsChineseOrJapanese,
++              mWordBreak, mLineBreak, IsChineseOrJapanese(aHyphenationLanguage),
+               Span<uint8_t>(breakState.Elements() + wordStart,
+                             offset - wordStart));
+         }
+@@ -660,6 +693,7 @@
+       mTextItems.AppendElement(TextItem(aSink, wordStart, len, aFlags));
+       // Ensure that the break-before for this word is written out
+       offset = wordStart + 1;
++      UpdateCurrentWordLanguage(aHyphenationLanguage);
+       break;
+     }
+   }
+@@ -677,38 +711,8 @@
+     return;
+   }
+ 
+-  if (aHyphenationLanguage && !mCurrentWordLanguage) {
+-    static mozilla::StaticRefPtr<nsAtom> sLastHyphenationLanguage;
+-    static bool sLastScriptIsChineseOrJapanese = false;
+-    static bool sInit = false;
+-
+-    if (!sInit) {
+-      mozilla::ClearOnShutdown(&sLastHyphenationLanguage);
+-      sInit = true;
+-    }
+-
+-    if (sLastHyphenationLanguage == aHyphenationLanguage) {
+-      MOZ_ASSERT(nsAtomString(sLastHyphenationLanguage)
+-                     .Equals(nsAtomString(aHyphenationLanguage)));
+-      mScriptIsChineseOrJapanese = sLastScriptIsChineseOrJapanese;
+-    } else {
+-      Locale loc;
+-      auto result =
+-          LocaleParser::TryParse(nsAtomCString(aHyphenationLanguage), loc);
+-
+-      if (result.isErr()) {
+-        return;
+-      }
+-      if (loc.Script().Missing() && loc.AddLikelySubtags().isErr()) {
+-        return;
+-      }
+-      mScriptIsChineseOrJapanese =
+-          loc.Script().EqualTo("Hans") || loc.Script().EqualTo("Hant") ||
+-          loc.Script().EqualTo("Jpan") || loc.Script().EqualTo("Hrkt");
+-
+-      sLastHyphenationLanguage = aHyphenationLanguage;
+-      sLastScriptIsChineseOrJapanese = mScriptIsChineseOrJapanese;
+-    }
++  if (!mCurrentWordLanguage) {
++    mScriptIsChineseOrJapanese = IsChineseOrJapanese(aHyphenationLanguage);
+   }
+   mCurrentWordLanguage = aHyphenationLanguage;
+ }
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-text/line-break/line-break-language-latin1-partitions.html
+@@ -0,0 +1,71 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Language-sensitive Latin-1 line breaking across text node partitions</title>
++<link rel="help" href="https://drafts.csswg.org/css-text-3/#line-break-property">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++@font-face {
++  font-family: mplus;
++  src: url("/fonts/mplus-1p-regular.woff");
++}
++.sample, .calibration {
++  font: 30px/30px mplus;
++  white-space: normal;
++  word-break: normal;
++  overflow-wrap: normal;
++  hyphens: manual;
++}
++.calibration {
++  display: inline-block;
++  white-space: nowrap;
++}
++</style>
++<div id="log"></div>
++<script>
++const fontReady = document.fonts.load("30px mplus", "A°");
++for (const language of ["ja", "en"]) {
++  for (const strictness of ["normal", "loose", "strict"]) {
++    for (const partition of ["single", "adjacent", "no-space"]) {
++      for (const transform of ["none", "capitalize"]) {
++        promise_test(async t => {
++          const faces = await fontReady;
++          assert_equals(faces.length, 1, "Test font loaded");
++          const calibration = document.createElement("span");
++          calibration.className = "calibration";
++          calibration.textContent = "A";
++          document.body.append(calibration);
++          t.add_cleanup(() => calibration.remove());
++          const advance = calibration.getBoundingClientRect().width;
++          assert_greater_than(advance, 0);
++          const sample = document.createElement("div");
++          sample.className = "sample";
++          sample.lang = language;
++          sample.style.width = `${advance + 0.1}px`;
++          sample.style.lineBreak = strictness;
++          sample.style.textTransform = transform;
++          if (partition === "adjacent") {
++            sample.append(document.createTextNode("A°A"), document.createTextNode(" "));
++          } else {
++            sample.textContent = "A°A" + (partition === "single" ? " " : "");
++          }
++          document.body.append(sample);
++          t.add_cleanup(() => sample.remove());
++          const rects = [];
++          for (let i = 0; i < 3; ++i) {
++            const range = document.createRange();
++            range.setStart(sample.firstChild, i);
++            range.setEnd(sample.firstChild, i + 1);
++            const rect = range.getBoundingClientRect();
++            rects.push([rect.x, rect.y, rect.width]);
++          }
++          assert_approx_equals(rects[0][2], advance, 0.1, "First glyph advance");
++          const allowed = language === "ja" && strictness === "loose";
++          assert_approx_equals(rects[1][1] - rects[0][1], allowed ? 30 : 0, 0.1,
++            "Break before degree sign: " + JSON.stringify(rects));
++        }, `${language} ${strictness} ${partition} transform=${transform}`);
++      }
++    }
++  }
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-text/line-break/line-break-language-text-partitions.html
+@@ -0,0 +1,107 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Language-sensitive line breaking across text node partitions</title>
++<link rel="help" href="https://drafts.csswg.org/css-text-3/#line-break-property">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++@font-face {
++  font-family: mplus;
++  src: url("/fonts/mplus-1p-regular.woff");
++}
++.sample {
++  font: 30px/30px mplus;
++  width: 30px;
++  padding: 0;
++  border: 0;
++  direction: ltr;
++  writing-mode: horizontal-tb;
++  white-space: normal;
++  word-break: normal;
++  overflow-wrap: normal;
++  hyphens: manual;
++}
++</style>
++<div id="log"></div>
++<script>
++function positions(element) {
++  const origin = element.getBoundingClientRect();
++  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
++  const result = [];
++  while (walker.nextNode() && result.length < 3) {
++    const node = walker.currentNode;
++    for (let i = 0; i < node.length && result.length < 3; ++i) {
++      const range = document.createRange();
++      range.setStart(node, i);
++      range.setEnd(node, i + 1);
++      const rect = range.getBoundingClientRect();
++      result.push([rect.x - origin.x, rect.y - origin.y, rect.width]);
++    }
++  }
++  return result;
++}
++
++const fontReady = document.fonts.load("30px mplus", "サ〜゠・");
++for (const language of ["ja", "zh", "en"]) {
++  for (const strictness of ["normal", "loose", "strict"]) {
++    for (const codepoint of [0x301c, 0x30a0, 0x30fb]) {
++      for (const partition of ["single", "adjacent", "spans", "no-space"]) {
++        for (const prefixLanguage of ["none", "en", "ja"]) {
++        promise_test(async t => {
++          const faces = await fontReady;
++          assert_equals(faces.length, 1, "Test font loaded");
++          assert_equals(faces[0].status, "loaded");
++          const sample = document.createElement("div");
++          sample.className = "sample";
++          sample.lang = language;
++          sample.style.lineBreak = strictness;
++          if (prefixLanguage !== "none") {
++            const prefix = document.createElement("span");
++            prefix.lang = prefixLanguage;
++            prefix.textContent = "サ";
++            sample.append(prefix, document.createTextNode(" "));
++          }
++          const target = document.createElement("span");
++          sample.append(target);
++          const word = "サ" + String.fromCodePoint(codepoint) + "サ";
++          if (partition === "spans") {
++            for (const text of [word, " "]) {
++              const span = document.createElement("span");
++              span.textContent = text;
++              target.append(span);
++            }
++          } else if (partition === "adjacent") {
++            target.append(document.createTextNode(word), document.createTextNode(" "));
++          } else {
++            target.textContent = word + (partition === "single" ? " " : "");
++          }
++          document.body.append(sample);
++          t.add_cleanup(() => sample.remove());
++          const style = getComputedStyle(sample);
++          assert_equals(style.lineBreak, strictness);
++          assert_equals(style.width, "30px");
++          assert_equals(style.wordBreak, "normal");
++          assert_equals(style.overflowWrap, "normal");
++          const observations = [{stage: "initial", positions: positions(target)}];
++          if (partition === "single") {
++            target.firstChild.splitText(3);
++            observations.push({stage: "split", positions: positions(target)});
++            target.normalize();
++            observations.push({stage: "normalized", positions: positions(target)});
++          }
++          const allowed = language !== "en" &&
++            (strictness === "loose" || (strictness === "normal" && codepoint !== 0x30fb));
++          for (const observation of observations) {
++            const rects = observation.positions;
++            assert_equals(rects.length, 3, observation.stage + " scalar rectangles");
++            assert_approx_equals(rects[0][2], 30, 0.1, "First glyph is one em");
++            assert_approx_equals(rects[1][1] - rects[0][1], allowed ? 30 : 0, 0.1,
++              observation.stage + " break before punctuation: " + JSON.stringify(observations));
++          }
++        }, `${language} ${strictness} U+${codepoint.toString(16)} ${partition} prefix=${prefixLanguage}`);
++        }
++      }
++    }
++  }
++}
++</script>

@@ -1,0 +1,291 @@
+diff --git a/layout/generic/nsFloatManager.cpp b/layout/generic/nsFloatManager.cpp
+--- a/layout/generic/nsFloatManager.cpp
++++ b/layout/generic/nsFloatManager.cpp
+@@ -266,13 +266,16 @@
+ 
+ void nsFloatManager::AddFloat(nsIFrame* aFloatFrame,
+                               const LogicalRect& aMarginRect, WritingMode aWM,
+-                              const nsSize& aContainerSize) {
++                              const nsSize& aContainerSize,
++                              nscoord aContainingBlockISize) {
+   CHECK_BLOCK_AND_LINE_DIR(aWM);
+   NS_ASSERTION(aMarginRect.ISize(aWM) >= 0, "negative inline size!");
+   NS_ASSERTION(aMarginRect.BSize(aWM) >= 0, "negative block size!");
+ 
+-  FloatInfo info(aFloatFrame, mLineLeft, mBlockStart, aMarginRect, aWM,
+-                 aContainerSize);
++  FloatInfo info(
++      aFloatFrame, mLineLeft, mBlockStart, aMarginRect, aWM, aContainerSize,
++      aContainingBlockISize == NS_UNCONSTRAINEDSIZE ? 0
++                                                    : aContainingBlockISize);
+ 
+   // Set mLeftBEnd and mRightBEnd.
+   if (HasAnyFloats()) {
+@@ -2260,7 +2263,8 @@
+                                      nscoord aBlockStart,
+                                      const LogicalRect& aMarginRect,
+                                      WritingMode aWM,
+-                                     const nsSize& aContainerSize)
++                                     const nsSize& aContainerSize,
++                                     nscoord aContainingBlockISize)
+     : mFrame(aFrame),
+       mLeftBEnd(nscoord_MIN),
+       mRightBEnd(nscoord_MIN),
+@@ -2282,11 +2286,11 @@
+   const nsStyleDisplay* styleDisplay = mFrame->StyleDisplay();
+   const auto& shapeOutside = styleDisplay->mShapeOutside;
+ 
+-  nscoord shapeMargin = shapeOutside.IsNone()
+-                            ? 0
+-                            : nsLayoutUtils::ResolveToLength<true>(
+-                                  styleDisplay->mShapeMargin,
+-                                  LogicalSize(aWM, aContainerSize).ISize(aWM));
++  nscoord shapeMargin =
++      shapeOutside.IsNone()
++          ? 0
++          : nsLayoutUtils::ResolveToLength<true>(styleDisplay->mShapeMargin,
++                                                 aContainingBlockISize);
+ 
+   switch (shapeOutside.tag) {
+     case ShapeOutsideType::None:
+diff --git a/layout/generic/nsFloatManager.h b/layout/generic/nsFloatManager.h
+--- a/layout/generic/nsFloatManager.h
++++ b/layout/generic/nsFloatManager.h
+@@ -233,9 +233,12 @@
+    *
+    * aMarginRect is relative to the current translation.  The caller
+    * must ensure aMarginRect.height >= 0 and aMarginRect.width >= 0.
++   * aContainingBlockISize is the content inline size for shape-margin
++   * percentages.
+    */
+   void AddFloat(nsIFrame* aFloatFrame, const mozilla::LogicalRect& aMarginRect,
+-                mozilla::WritingMode aWM, const nsSize& aContainerSize);
++                mozilla::WritingMode aWM, const nsSize& aContainerSize,
++                nscoord aContainingBlockISize);
+ 
+   /**
+    * Notify that we tried to place a float that could not fit at all and
+@@ -358,7 +361,7 @@
+ 
+     FloatInfo(nsIFrame* aFrame, nscoord aLineLeft, nscoord aBlockStart,
+               const mozilla::LogicalRect& aMarginRect, mozilla::WritingMode aWM,
+-              const nsSize& aContainerSize);
++              const nsSize& aContainerSize, nscoord aContainingBlockISize);
+ 
+     nscoord LineLeft() const { return mRect.x; }
+     nscoord LineRight() const { return mRect.XMost(); }
+diff --git a/layout/generic/BlockReflowState.cpp b/layout/generic/BlockReflowState.cpp
+--- a/layout/generic/BlockReflowState.cpp
++++ b/layout/generic/BlockReflowState.cpp
+@@ -496,7 +496,7 @@
+       FloatManager()->AddFloat(
+           floatFrame,
+           nsFloatManager::GetRegionFor(wm, floatFrame, ContainerSize()), wm,
+-          ContainerSize());
++          ContainerSize(), ContentISize());
+     }
+   } else if (aLine->IsBlock()) {
+     nsBlockFrame::RecoverFloatsFor(aLine->mFirstChild, *FloatManager(), wm,
+@@ -943,7 +943,7 @@
+     region.BSize(wm) =
+         std::max(region.BSize(wm), ContentBSize() - floatPos.B(wm));
+   }
+-  FloatManager()->AddFloat(aFloat, region, wm, ContainerSize());
++  FloatManager()->AddFloat(aFloat, region, wm, ContainerSize(), ContentISize());
+ 
+   // store region
+   nsFloatManager::StoreRegionFor(wm, aFloat, region, ContainerSize());
+diff --git a/layout/generic/nsBlockFrame.cpp b/layout/generic/nsBlockFrame.cpp
+--- a/layout/generic/nsBlockFrame.cpp
++++ b/layout/generic/nsBlockFrame.cpp
+@@ -8252,10 +8252,14 @@
+   nsIFrame* stop = nullptr;  // Stop before we reach pushed floats that
+                              // belong to our next-in-flow
+   const nsFrameList* floats = GetFloats();
++  const WritingMode wm = GetWritingMode();
++  const nscoord contentISize =
++      floats ? LogicalSize(wm, GetContentRectRelativeToSelf().Size()).ISize(wm)
++             : 0;
+   for (nsIFrame* f = floats ? floats->FirstChild() : nullptr; f && f != stop;
+        f = f->GetNextSibling()) {
+     LogicalRect region = nsFloatManager::GetRegionFor(aWM, f, aContainerSize);
+-    aFloatManager.AddFloat(f, region, aWM, aContainerSize);
++    aFloatManager.AddFloat(f, region, aWM, aContainerSize, contentISize);
+     if (!stop && f->GetNextInFlow()) {
+       stop = f->GetNextInFlow();
+     }
+diff --git a/testing/web-platform/tests/css/css-shapes/shape-outside/shape-margin-containing-block-content-box.html b/testing/web-platform/tests/css/css-shapes/shape-outside/shape-margin-containing-block-content-box.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-shapes/shape-outside/shape-margin-containing-block-content-box.html
+@@ -0,0 +1,88 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Percentage shape-margin uses the containing block content inline size</title>
++<link rel="help" href="https://drafts.csswg.org/css-shapes-1/#shape-margin-property">
++<link rel="help" href="https://www.w3.org/TR/CSS22/visudet.html#containing-block-details">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++function fixture(t, writingMode, orthogonal, size, padding, border, side, margin) {
++  const vertical = writingMode !== "horizontal-tb";
++  const container = document.createElement("div");
++  container.style.cssText = `position:absolute;top:0;left:0;display:flow-root;
++    writing-mode:${writingMode};box-sizing:content-box;inline-size:${size}px;padding:${padding}px;
++    border:${border}px solid transparent;font-size:0;line-height:20px;
++    text-align:${side};direction:ltr;`;
++  const float = document.createElement("div");
++  const inset = vertical ?
++    (side === "left" ? "0 0 100px 0" : "100px 0 0 0") :
++    (side === "left" ? "0 100px 0 0" : "0 0 0 100px");
++  float.style.cssText = `float:${side};width:${vertical ? 120 : 160}px;
++    height:${vertical ? 160 : 120}px;
++    writing-mode:${orthogonal ? (vertical ? "horizontal-tb" : "vertical-rl") : writingMode};
++    shape-outside:inset(${inset});
++    shape-margin:${margin};`;
++  container.append(float);
++  const markers = [];
++  for (let i = 0; i < 5; ++i) {
++    const marker = document.createElement("span");
++    marker.style.cssText = "display:inline-block;inline-size:1px;block-size:20px;vertical-align:top";
++    container.append(marker, document.createElement("br"));
++    markers.push(marker);
++  }
++  document.body.append(container);
++  t.add_cleanup(() => container.remove());
++  return {
++    container,
++    float,
++    measure(expectedSize) {
++      const rect = container.getBoundingClientRect();
++      const marker = markers[2].getBoundingClientRect();
++      const floatRect = float.getBoundingClientRect();
++      assert_equals(vertical ? rect.height : rect.width,
++        expectedSize + 2 * (padding + border), "container border box inline size");
++      assert_equals(vertical ? floatRect.height : floatRect.width, 160, "float extent along parent inline axis");
++      const bandStart = vertical ?
++        (writingMode === "vertical-rl" ? rect.right - marker.right : marker.left - rect.left) :
++        marker.top - rect.top;
++      assert_equals(bandStart - padding - border, 40, "middle line block position");
++      assert_equals(vertical ? marker.width : marker.height, 20, "middle line block size");
++      if (vertical) {
++        return side === "left" ? marker.top - rect.top - padding - border :
++          rect.bottom - padding - border - marker.bottom;
++      }
++      return side === "left" ? marker.left - rect.left - padding - border :
++        rect.right - padding - border - marker.right;
++    }
++  };
++}
++
++for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
++  for (const orthogonal of [false, true]) {
++    for (const size of [200, 400]) {
++      for (const [padding, border] of [[0, 0], [20, 0], [0, 10], [20, 10]]) {
++        for (const side of ["left", "right"]) {
++          for (const percent of [0, 5, 10]) {
++            test(t => {
++              const absolute = fixture(t, writingMode, orthogonal, size, padding, border, side, `${size * percent / 100}px`);
++              const relative = fixture(t, writingMode, orthogonal, size, padding, border, side, `${percent}%`);
++              for (const currentSize of [size, 600 - size, size]) {
++                absolute.container.style.inlineSize = `${currentSize}px`;
++                relative.container.style.inlineSize = `${currentSize}px`;
++                const length = currentSize * percent / 100;
++                absolute.float.style.shapeMargin = `${length}px`;
++                const absoluteEdge = absolute.measure(currentSize);
++                const relativeEdge = relative.measure(currentSize);
++                assert_approx_equals(absoluteEdge, 60 + length, 1 / 60, "absolute margin control");
++                assert_approx_equals(relativeEdge, absoluteEdge, 1 / 60,
++                `percentage and equivalent content-inline-size length at size ${currentSize}`);
++              }
++            }, `${writingMode}, orthogonal float ${orthogonal}, ${side} float, content size ${size}, padding ${padding}, border ${border}, margin ${percent}%`);
++          }
++        }
++      }
++    }
++  }
++}
++</script>
+diff --git a/testing/web-platform/tests/css/css-shapes/shape-outside/shape-margin-containing-block-recovery.html b/testing/web-platform/tests/css/css-shapes/shape-outside/shape-margin-containing-block-recovery.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-shapes/shape-outside/shape-margin-containing-block-recovery.html
+@@ -0,0 +1,77 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Recovering descendant floats preserves percentage shape margins</title>
++<link rel="help" href="https://drafts.csswg.org/css-shapes-1/#shape-margin-property">
++<link rel="help" href="https://www.w3.org/TR/CSS22/visudet.html#containing-block-details">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++function fixture(t, writingMode, outerSize, innerSize, flowRoot, margin) {
++  const vertical = writingMode !== "horizontal-tb";
++  const outer = document.createElement("div");
++  outer.style.cssText = `position:absolute;top:0;left:0;display:flow-root;
++    writing-mode:${writingMode};inline-size:${outerSize}px;font-size:0;line-height:20px;`;
++  const inner = document.createElement("div");
++  inner.style.cssText = `inline-size:${innerSize}px;block-size:0;display:${flowRoot ? "flow-root" : "block"}`;
++  const float = document.createElement("div");
++  float.style.cssText = `float:left;inline-size:160px;block-size:120px;
++    shape-outside:inset(${vertical ? "0 0 100px 0" : "0 100px 0 0"});shape-margin:${margin};`;
++  inner.append(float);
++  outer.append(inner);
++  const markers = [];
++  for (let i = 0; i < 5; ++i) {
++    const marker = document.createElement("span");
++    marker.style.cssText = "display:inline-block;inline-size:1px;block-size:20px;vertical-align:top";
++    outer.append(marker, document.createElement("br"));
++    markers.push(marker);
++  }
++  document.body.append(outer);
++  t.add_cleanup(() => outer.remove());
++  return {
++    tail: markers[4],
++    measure() {
++      const origin = outer.getBoundingClientRect();
++      const innerRect = inner.getBoundingClientRect();
++      const floatRect = float.getBoundingClientRect();
++      assert_equals(vertical ? origin.height : origin.width, outerSize, "outer inline size");
++      assert_equals(vertical ? innerRect.height : innerRect.width, innerSize, "float containing block inline size");
++      assert_equals(vertical ? innerRect.width : innerRect.height, 0, "zero block size of inner block");
++      assert_equals(vertical ? floatRect.height : floatRect.width, 160, "float inline size");
++      return [2, 4].map(i => {
++        const rect = markers[i].getBoundingClientRect();
++        const bandStart = vertical ?
++          (writingMode === "vertical-rl" ? origin.right - rect.right : rect.left - origin.left) :
++          rect.top - origin.top;
++        assert_equals(bandStart, 20 * i, "line band");
++        return vertical ? rect.top - origin.top : rect.left - origin.left;
++      });
++    }
++  };
++}
++
++for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
++  for (const [outerSize, innerSize] of [[200, 200], [400, 200], [600, 300]]) {
++    for (const flowRoot of [false, true]) {
++      test(t => {
++        const percent = fixture(t, writingMode, outerSize, innerSize, flowRoot, "10%");
++        const absolute = fixture(t, writingMode, outerSize, innerSize, flowRoot, `${innerSize / 10}px`);
++        const observations = [];
++        for (const width of [1, 2, 1]) {
++          percent.tail.style.inlineSize = `${width}px`;
++          absolute.tail.style.inlineSize = `${width}px`;
++          observations.push({width, percent: percent.measure(), absolute: absolute.measure()});
++        }
++        const fresh = fixture(t, writingMode, outerSize, innerSize, flowRoot, "10%").measure();
++        const expected = flowRoot ? 0 : 60 + innerSize / 10;
++        const details = JSON.stringify({observations, fresh});
++        for (const row of observations) {
++          assert_array_equals(row.absolute, [expected, expected], `absolute control: ${details}`);
++          assert_array_equals(row.percent, row.absolute, `percentage after tail width ${row.width}: ${details}`);
++        }
++        assert_array_equals(fresh, [expected, expected], `fresh fixture: ${details}`);
++      }, `${writingMode}, outer ${outerSize}, float containing block ${innerSize}, separate formatting context ${flowRoot}`);
++    }
++  }
++}
++</script>

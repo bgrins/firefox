@@ -1,0 +1,279 @@
+diff --git a/layout/generic/nsFlexContainerFrame.cpp b/layout/generic/nsFlexContainerFrame.cpp
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -1003,6 +1003,8 @@
+   bool IsEmpty() const { return mItems.IsEmpty(); }
+ 
+   uint32_t NumItems() const { return mItems.Length(); }
++
++  uint32_t NumNonCollapsedItems() const { return mNumNonCollapsedItems; }
+ 
+   nsTArray<FlexItem>& Items() { return mItems; }
+   const nsTArray<FlexItem>& Items() const { return mItems; }
+@@ -3543,6 +3545,9 @@
+   // we'll subtract out the main sizes of our flex items, so that it ends up
+   // with the *actual* amount of packing space.
+   for (const FlexItem& item : aLine->Items()) {
++    if (item.IsStrut()) {
++      continue;
++    }
+     mPackingSpaceRemaining -= item.OuterMainSize();
+     mNumAutoMarginsInMainAxis += item.NumAutoMarginsInMainAxis();
+   }
+@@ -3555,7 +3560,7 @@
+   // fall back to 'safe center'. In those cases, it's simplest to just pretend
+   // we have a different 'justify-content' value and share code.
+   // https://drafts.csswg.org/css-align-3/#distribution-values
+-  if (mPackingSpaceRemaining < 0 || aLine->NumItems() == 1) {
++  if (mPackingSpaceRemaining < 0 || aLine->NumNonCollapsedItems() == 1) {
+     if (mJustifyContent.primary == StyleAlignFlags::SPACE_BETWEEN) {
+       // [1]  XXXdholbert Per spec, we should do...
+       //   justifyContentFlags = StyleAlignFlags::SAFE;
+@@ -3601,7 +3606,7 @@
+   // Figure out how much space we'll set aside for auto margins or
+   // packing spaces, and advance past any leading packing-space.
+   if (mNumAutoMarginsInMainAxis == 0 && mPackingSpaceRemaining != 0 &&
+-      !aLine->IsEmpty()) {
++      aLine->NumNonCollapsedItems() != 0) {
+     if (mJustifyContent.primary == StyleAlignFlags::FLEX_START) {
+       // All packing space should go at the end --> nothing to do here.
+     } else if (mJustifyContent.primary == StyleAlignFlags::FLEX_END) {
+@@ -3614,7 +3619,7 @@
+                mJustifyContent.primary == StyleAlignFlags::SPACE_AROUND ||
+                mJustifyContent.primary == StyleAlignFlags::SPACE_EVENLY) {
+       nsFlexContainerFrame::CalculatePackingSpace(
+-          aLine->NumItems(), mJustifyContent, &mPosition,
++          aLine->NumNonCollapsedItems(), mJustifyContent, &mPosition,
+           &mNumPackingSpacesRemaining, &mPackingSpaceRemaining);
+     } else {
+       MOZ_ASSERT_UNREACHABLE("Unexpected justify-content value");
+@@ -4583,8 +4588,11 @@
+       aAxisTracker, this, aJustifyContent, aContentBoxMainSize);
+   bool hadItemBefore = false;
+   for (FlexItem& item : Items()) {
+-    const bool strut = item.IsStrut();
+-    if (hadItemBefore && !strut) {
++    if (item.IsStrut()) {
++      item.SetMainPosition(mainAxisPosnTracker.Position());
++      continue;
++    }
++    if (hadItemBefore) {
+       mainAxisPosnTracker.TraverseGap(mMainGapSize);
+     }
+ 
+@@ -4604,7 +4612,7 @@
+     mainAxisPosnTracker.ExitChildFrame(itemMainBorderBoxSize);
+     mainAxisPosnTracker.ExitMargin(item.Margin());
+     mainAxisPosnTracker.TraversePackingSpace();
+-    hadItemBefore |= !strut;
++    hadItemBefore = true;
+   }
+ }
+ 
+diff --git a/testing/web-platform/tests/css/css-flexbox/collapsed-item-main-axis-alignment.html b/testing/web-platform/tests/css/css-flexbox/collapsed-item-main-axis-alignment.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-flexbox/collapsed-item-main-axis-alignment.html
+@@ -0,0 +1,130 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Collapsed flex items do not participate in main-axis alignment</title>
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#algo-visibility">
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#main-alignment">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++.container { display: flex; align-items: flex-start; }
++.container, .container > div { margin: 0; padding: 0; border: 0; }
++.container > div { flex: none; }
++.row { width: 100px; }
++.column { height: 100px; width: 30px; flex-direction: column; }
++.row > .target { width: 20px; height: 10px; }
++.row > .collapsed { width: 20px; height: 30px; }
++.column > .target { height: 20px; width: 10px; }
++.column > .collapsed { height: 20px; width: 30px; }
++.row > .auto { margin-left: auto; }
++.column > .auto { margin-top: auto; }
++</style>
++<div id="log"></div>
++<script>
++for (const axis of ["row", "column"]) {
++  for (const position of ["before", "after"]) {
++    for (const autoMargin of [false, true]) {
++      for (const removed of [false, true]) {
++        for (const [justify, expected] of [
++          ["flex-start", 0], ["center", 40], ["space-between", 0],
++          ["space-around", 40], ["space-evenly", 40],
++        ]) {
++          test(t => {
++            const container = document.createElement("div");
++            container.className = "container " + axis;
++            container.style.justifyContent = justify;
++            const collapsed = document.createElement("div");
++            collapsed.className = "collapsed" + (autoMargin ? " auto" : "");
++            collapsed.style.visibility = "collapse";
++            if (removed) {
++              collapsed.style.display = "none";
++            }
++            const target = document.createElement("div");
++            target.className = "target";
++            container.append(...(position === "before" ?
++              [collapsed, target] : [target, collapsed]));
++            document.body.append(container);
++            t.add_cleanup(() => container.remove());
++            const outer = container.getBoundingClientRect();
++            const inner = target.getBoundingClientRect();
++            const offset = axis === "row" ? inner.left - outer.left : inner.top - outer.top;
++            const crossSize = axis === "row" ? outer.height : outer.width;
++            assert_equals(crossSize, axis === "column" || !removed ? 30 : 10,
++              "Only a collapsed item's cross-size strut remains");
++            assert_approx_equals(offset, expected, 0.02,
++              "The single visible item determines main-axis alignment");
++          }, `${axis}; ${position}; auto margin=${autoMargin}; display none=${removed}; ${justify}`);
++        }
++      }
++    }
++  }
++}
++
++for (const axis of ["row", "column"]) {
++  for (const position of [0, 1, 2]) {
++    for (const gap of [0, 10]) {
++      for (const justify of ["flex-start", "center", "space-between", "space-around", "space-evenly"]) {
++        test(t => {
++          const container = document.createElement("div");
++          container.className = "container " + axis;
++          container.style.justifyContent = justify;
++          container.style.gap = gap + "px";
++          const targets = [document.createElement("div"), document.createElement("div")];
++          for (const target of targets) {
++            target.className = "target";
++          }
++          const collapsed = document.createElement("div");
++          collapsed.className = "collapsed auto";
++          collapsed.style.visibility = "collapse";
++          const children = [...targets];
++          children.splice(position, 0, collapsed);
++          container.append(...children);
++          document.body.append(container);
++          t.add_cleanup(() => container.remove());
++          const free = 60 - gap;
++          const leading = {"flex-start": 0, "center": free / 2, "space-between": 0,
++            "space-around": free / 4, "space-evenly": free / 3}[justify];
++          const between = {"flex-start": 0, "center": 0, "space-between": free,
++            "space-around": free / 2, "space-evenly": free / 3}[justify];
++          const observations = [];
++          for (const visibility of ["collapse", "hidden", "collapse"]) {
++            collapsed.style.visibility = visibility;
++            const outer = container.getBoundingClientRect();
++            const offsets = targets.map(target => {
++              const inner = target.getBoundingClientRect();
++              return axis === "row" ? inner.left - outer.left : inner.top - outer.top;
++            });
++            observations.push({visibility, offsets});
++          }
++          for (const observation of [observations[0], observations[2]]) {
++            assert_approx_equals(observation.offsets[0], leading, 0.02,
++              "First visible item; " + JSON.stringify(observations));
++            assert_approx_equals(observation.offsets[1], leading + 20 + gap + between, 0.02,
++              "Second visible item; " + JSON.stringify(observations));
++          }
++        }, `${axis}; two visible items; strut index=${position}; gap=${gap}; ${justify}; collapse restoration`);
++      }
++    }
++  }
++}
++
++for (const axis of ["row", "column"]) {
++  for (const justify of ["flex-start", "center", "space-between", "space-around", "space-evenly"]) {
++    test(t => {
++      const container = document.createElement("div");
++      container.className = "container " + axis;
++      container.style.justifyContent = justify;
++      for (let i = 0; i < 2; ++i) {
++        const child = document.createElement("div");
++        child.className = "collapsed auto";
++        child.style.visibility = "collapse";
++        container.append(child);
++      }
++      document.body.append(container);
++      t.add_cleanup(() => container.remove());
++      const bounds = container.getBoundingClientRect();
++      assert_equals(axis === "row" ? bounds.width : bounds.height, 100);
++      assert_equals(axis === "row" ? bounds.height : bounds.width, 30);
++    }, `${axis}; only collapsed items; ${justify}`);
++  }
++}
++</script>
+diff --git a/testing/web-platform/tests/css/css-flexbox/collapsed-item-main-axis-alignment-controls.html b/testing/web-platform/tests/css/css-flexbox/collapsed-item-main-axis-alignment-controls.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-flexbox/collapsed-item-main-axis-alignment-controls.html
+@@ -0,0 +1,67 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Collapsed item alignment preserves visible zero-size items and auto margins</title>
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#algo-visibility">
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#main-alignment">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++.container { display: flex; align-items: flex-start; }
++.container, .container > div { margin: 0; padding: 0; border: 0; }
++.container > div { flex: none; }
++.row { inline-size: 100px; block-size: 40px; }
++.row > div { inline-size: 20px; block-size: 10px; }
++.row > .zero { inline-size: 0; }
++.row > .auto { margin-inline: auto; }
++.column { block-size: 100px; inline-size: 40px; }
++.column > div { block-size: 20px; inline-size: 10px; }
++.column > .zero { block-size: 0; }
++.column > .auto { margin-block: auto; }
++.collapsed { visibility: collapse; order: -1; }
++</style>
++<div id="log"></div>
++<script>
++for (const writingMode of ["horizontal-tb", "vertical-rl", "vertical-lr"]) {
++  for (const direction of ["ltr", "rtl"]) {
++    for (const flexDirection of ["row", "row-reverse", "column", "column-reverse"]) {
++      for (const autoMargin of [false, true]) {
++        for (const [justify, ordinaryOffset] of [
++          ["flex-start", 0], ["center", 40], ["space-between", 80],
++          ["space-around", 60], ["space-evenly", 160 / 3],
++        ]) {
++          test(t => {
++            const row = flexDirection.startsWith("row");
++            const vertical = writingMode !== "horizontal-tb";
++            const container = document.createElement("div");
++            container.className = "container " + (row ? "row" : "column");
++            Object.assign(container.style, {writingMode, direction, flexDirection,
++              justifyContent: justify});
++            const zero = document.createElement("div");
++            zero.className = "zero" + (autoMargin ? " auto" : "");
++            const target = document.createElement("div");
++            const collapsed = document.createElement("div");
++            collapsed.className = "collapsed auto";
++            container.append(zero, target, collapsed);
++            document.body.append(container);
++            t.add_cleanup(() => container.remove());
++            const outer = container.getBoundingClientRect();
++            const inner = target.getBoundingClientRect();
++            const horizontalMain = row !== vertical;
++            const reversed = flexDirection.endsWith("reverse") !==
++              (row ? direction === "rtl" : writingMode === "vertical-rl");
++            let offset;
++            if (horizontalMain) {
++              offset = reversed ? outer.right - inner.right : inner.left - outer.left;
++            } else {
++              offset = reversed ? outer.bottom - inner.bottom : inner.top - outer.top;
++            }
++            assert_approx_equals(offset, autoMargin ? 80 : ordinaryOffset, 0.02,
++              "The visible zero-size item participates; the collapsed item does not");
++            assert_equals(horizontalMain ? inner.width : inner.height, 20);
++          }, `${writingMode}; ${direction}; ${flexDirection}; visible auto margins=${autoMargin}; ${justify}`);
++        }
++      }
++    }
++  }
++}
++</script>

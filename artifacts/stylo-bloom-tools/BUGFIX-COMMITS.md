@@ -5,7 +5,7 @@ Each fix is one standalone commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **85 committed fixes; no accepted repairs await signing.**
+Current checkpoint: **86 committed fixes; no accepted repairs await signing.**
 Repairs with incomplete review are excluded from this count.
 
 [Relative triage priority](../css-bugfix-triage-20261019/README.md) groups the first 80
@@ -20,6 +20,7 @@ Latest committed fixes:
 | 83: leading-whitespace attribute crash | `ad608a212bd8d7f77a2f0b9df62df18d33c12b96` | `1d4940ff2211b3a7256999f8090e0f0d61cb8733` |
 | 84: trailing-whitespace token boundaries | `bccea9c1fffc59e41a9f9bef16fcaf0056ff1f10` | `35c04a32169744c3c75e2dfef9b8d18b673d8b06` |
 | 85: escaped trailing whitespace | `fff2d758ef6bb39b4465cb072767bc5db6d5e09f` | `3029d557014c83c6ad6260253243700536499176` |
+| 86: backslash/newline preservation | `246f1ff43250ec24e177f03cde923c9d11ee86e9` | `45721455b1e409b438520a9a4f0ec5f097a523d5` |
 
 Each native commit contains only the Rust fix and its WPT. Independently applicable
 upstream alternatives are now signed local commits with separate evidence parents:
@@ -29,6 +30,7 @@ upstream alternatives are now signed local commits with separate evidence parent
 | 83 | `4be5b070191054a263197654d1f30096a9306b43` | `stylo-css-attr-leading-whitespace-fix` |
 | 84 | `5b4fe54b37bc5a3bb848ceb8300f5d92ea4c2e3a` | `stylo-css-variable-trailing-token-fix` |
 | 85 | `8a528dbb92bbaca6db31123f8b0da45983fa798a` | `stylo-css-variable-escaped-whitespace-fix` |
+| 86 | `95b6a9b03c1c7726fd8061ae3ef48e8c52448209` | `stylo-css-variable-backslash-newline-fix` |
 
 Use these alternatives when extracting a fix independently of the integration stack.
 No isolated upstream build/runtime is claimed.
@@ -37,14 +39,18 @@ No isolated upstream build/runtime is claimed.
 The registered-animation calibration remains a separate test-only commit,
 `5cdd697e02d209bff0368711764523f5d26dba30`, excluded from the native-fix count.
 
-### New candidate, not yet counted
+### Backslash/newline repair committed
 
-Backslash/newline serialization: trimming the newline after a backslash delimiter
-changes an invalid animation name into an identifier. The final 30 WPT cases pass;
-the corresponding baseline subset has 16 failures and 14 passes. Independent
-native review accepts the repair; a separate Lean extension is in progress.
-[Evidence](../css-variable-backslash-newline-root-v1/FINAL-WPT.json) and
-[review](../css-variable-backslash-newline-review-v1/REPORT.md).
+Trimming the newline after a backslash delimiter changes an invalid animation
+name into an identifier. All 30 final WPT cases pass; the corresponding baseline
+subset has 16 failures and 14 passes. The earlier combined matrix preserves all
+435 prior outcomes. Root and independent formal review accept 53 conditional
+audits and 15 independent kernel challenges. Native metadata correspondence
+remains a source-review admission; the native traces directly observe stored bytes.
+[Runtime evidence](../css-variable-backslash-newline-root-v1/FINAL-WPT.json),
+[formal acceptance](../css-variable-backslash-newline-proof-root-v1/ACCEPTANCE.json),
+and [standalone commit receipt](../css-variable-backslash-newline-root-v1/STANDALONE-86.json).
+No release or isolated upstream browser result is claimed.
 
 <!-- CURRENT-SIGNED-QUEUE -->
 ## Signed commit queue

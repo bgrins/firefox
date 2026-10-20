@@ -1,0 +1,281 @@
+diff --git a/servo/components/style/applicable_declarations.rs b/servo/components/style/applicable_declarations.rs
+--- a/servo/components/style/applicable_declarations.rs
++++ b/servo/components/style/applicable_declarations.rs
+@@ -139,7 +139,15 @@
+             RevertKind::Origin => {
+                 other.cascade_level.origin().origin() < self.cascade_level.origin().origin()
+             },
+-            RevertKind::Layer => other.unimportant() < self.unimportant(),
++            RevertKind::Layer => {
++                if self.cascade_level.is_important()
++                    && self.layer_order.is_style_attribute_layer()
++                    && other.cascade_level.is_tree()
++                {
++                    return !other.layer_order.is_style_attribute_layer();
++                }
++                other.unimportant() < self.unimportant()
++            },
+             // Any other declaration for the same property we apply in the cascade needs to come
+             // from another rule effectively.
+             RevertKind::Rule => true,
+diff --git a/servo/components/style/properties/cascade.rs b/servo/components/style/properties/cascade.rs
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -694,12 +694,56 @@
+     }
+ }
+ 
++// Origin, layer, and important-inline rollbacks can exclude different regions.
++#[derive(Default)]
++struct RevertState {
++    origin: Option<CascadePriority>,
++    layer: Option<CascadePriority>,
++    important_style_attribute: Option<CascadePriority>,
++}
++
++impl RevertState {
++    fn add(&mut self, priority: CascadePriority, kind: RevertKind) {
++        let bound = match kind {
++            RevertKind::Origin => &mut self.origin,
++            RevertKind::Layer
++                if priority.cascade_level().is_important()
++                    && priority.layer_order().is_style_attribute_layer() =>
++            {
++                &mut self.important_style_attribute
++            },
++            RevertKind::Layer => &mut self.layer,
++            RevertKind::Rule => return,
++        };
++        if bound.is_none_or(|previous| match kind {
++            RevertKind::Origin => {
++                priority.cascade_level().origin().origin()
++                    < previous.cascade_level().origin().origin()
++            },
++            _ => priority.unimportant() < previous.unimportant(),
++        }) {
++            *bound = Some(priority);
++        }
++    }
++
++    fn allows(&self, priority: &CascadePriority) -> bool {
++        self.origin
++            .is_none_or(|cutoff| cutoff.allows_when_reverted(priority, RevertKind::Origin))
++            && self
++                .layer
++                .is_none_or(|cutoff| cutoff.allows_when_reverted(priority, RevertKind::Layer))
++            && self
++                .important_style_attribute
++                .is_none_or(|cutoff| cutoff.allows_when_reverted(priority, RevertKind::Layer))
++    }
++}
++
+ #[derive(Default)]
+ struct RevertedSet {
+     // Just to avoid the hashmap lookup in the common case.
+     longhands_set: LonghandIdSet,
+-    longhands: FxHashMap<LonghandId, (CascadePriority, RevertKind)>,
+-    custom: PrecomputedHashMap<Name, (CascadePriority, RevertKind)>,
++    longhands: FxHashMap<LonghandId, RevertState>,
++    custom: PrecomputedHashMap<Name, RevertState>,
+ }
+ 
+ #[derive(Default)]
+@@ -1096,9 +1140,8 @@
+         }
+ 
+         if self.reverted.longhands_set.contains(longhand_id)
+-            && let Some(&(reverted_priority, revert_kind)) =
+-                self.reverted.longhands.get(&longhand_id)
+-            && !reverted_priority.allows_when_reverted(&priority, revert_kind)
++            && let Some(reverted) = self.reverted.longhands.get(&longhand_id)
++            && !reverted.allows(&priority)
+         {
+             return;
+         }
+@@ -1124,10 +1167,14 @@
+                     // We intentionally don't want to insert it into
+                     // `self.seen.longhands`, `reverted` takes care of rejecting
+                     // other declarations as needed.
+-                    self.reverted.longhands_set.insert(longhand_id);
+-                    self.reverted
+-                        .longhands
+-                        .insert(longhand_id, (priority, revert_kind));
++                    if revert_kind != RevertKind::Rule {
++                        self.reverted.longhands_set.insert(longhand_id);
++                        self.reverted
++                            .longhands
++                            .entry(longhand_id)
++                            .or_default()
++                            .add(priority, revert_kind);
++                    }
+                     return;
+                 }
+ 
+@@ -1745,8 +1792,8 @@
+             ref value,
+         } = *declaration;
+ 
+-        if let Some(&(reverted_priority, revert_kind)) = self.reverted.custom.get(name)
+-            && !reverted_priority.allows_when_reverted(&priority, revert_kind)
++        if let Some(reverted) = self.reverted.custom.get(name)
++            && !reverted.allows(&priority)
+         {
+             return;
+         }
+@@ -1827,9 +1874,13 @@
+             CustomDeclarationValue::CSSWideKeyword(keyword) => match keyword.revert_kind() {
+                 Some(revert_kind) => {
+                     self.seen.custom.var.remove(name);
+-                    self.reverted
+-                        .custom
+-                        .insert(name.clone(), (priority, revert_kind));
++                    if revert_kind != RevertKind::Rule {
++                        self.reverted
++                            .custom
++                            .entry(name.clone())
++                            .or_default()
++                            .add(priority, revert_kind);
++                    }
+                 },
+                 None => match keyword {
+                     CSSWideKeyword::Initial => {
+diff --git a/testing/web-platform/tests/css/css-cascade/revert-layer-important-inline-part.html b/testing/web-platform/tests/css/css-cascade/revert-layer-important-inline-part.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-cascade/revert-layer-important-inline-part.html
+@@ -0,0 +1,41 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Important inline layer rollback preserves outer part rules</title>
++<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-layer">
++<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-rule">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++for (const outer of [false, true]) {
++  for (const keyword of ["none", "revert-layer", "revert", "revert-rule"]) {
++    for (const ruleRollback of [false, true]) {
++      test(t => {
++        const host = document.createElement("div");
++        host.id = "rollback-host";
++        const sheet = document.createElement("style");
++        sheet.textContent = outer ? "#rollback-host::part(p) { margin-left:37px; --value:37px }" : "";
++        document.head.append(sheet);
++        const shadow = host.attachShadow({mode:"open"});
++        const local = document.createElement("style");
++        local.textContent = "#target { margin-left:5px; --value:5px }";
++        if (ruleRollback) local.textContent += "#target { margin-left:revert-rule !important; --value:revert-rule !important }";
++        const target = document.createElement("div");
++        target.id = "target";
++        target.setAttribute("part", "p");
++        if (keyword !== "none") {
++          target.style.setProperty("margin-left", keyword, "important");
++          target.style.setProperty("--value", keyword, "important");
++        }
++        shadow.append(local, target);
++        document.body.append(host);
++        t.add_cleanup(() => { host.remove(); sheet.remove(); });
++        const style = getComputedStyle(target);
++        const expected = keyword === "revert" ? "0px" : outer ? "37px" : "5px";
++        assert_equals(style.marginLeft, expected, "Longhand rollback");
++        assert_equals(style.getPropertyValue("--value").trim(), keyword === "revert" ? "" : expected, "Custom property rollback");
++      }, `Outer part rule ${outer}, inline ${keyword}, intervening rule rollback ${ruleRollback}`);
++    }
++  }
++}
++</script>
+diff --git a/testing/web-platform/tests/css/css-cascade/revert-layer-preserves-inline-exclusion.html b/testing/web-platform/tests/css/css-cascade/revert-layer-preserves-inline-exclusion.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-cascade/revert-layer-preserves-inline-exclusion.html
+@@ -0,0 +1,48 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Layer rollback preserves earlier inline style exclusions</title>
++<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-layer-keyword">
++<link rel="help" href="https://drafts.csswg.org/css-logical-1/#logical-property-group">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++let serial = 0;
++for (const direction of ["ltr", "rtl"]) {
++  for (const outerImportant of [false, true]) {
++    for (const inlineValue of ["revert-layer", "revert", "9px"]) {
++      for (const outerValue of ["revert-layer", "revert-rule", "11px", "none"]) {
++        test(t => {
++          assert_true(CSS.supports("margin-inline-start", inlineValue));
++          const host = document.createElement("div");
++          host.id = `rollback-host-${serial++}`;
++          const physical = direction === "ltr" ? "margin-left" : "margin-right";
++          const sheet = document.createElement("style");
++          if (outerValue !== "none") {
++            sheet.textContent = `#${host.id}::part(p) {
++              ${physical}:${outerValue}${outerImportant ? " !important" : ""}
++            }`;
++          }
++          const shadow = host.attachShadow({mode:"open"});
++          const local = document.createElement("style");
++          local.textContent = `#target { direction:${direction}; ${physical}:37px }`;
++          const target = document.createElement("div");
++          target.id = "target";
++          target.setAttribute("part", "p");
++          target.style.setProperty(physical, "5px");
++          target.style.setProperty("margin-inline-start", inlineValue, "important");
++          shadow.append(local, target);
++          document.body.append(sheet, host);
++          t.add_cleanup(() => { host.remove(); sheet.remove(); });
++          const expected = inlineValue === "revert" ? "0px" :
++            inlineValue === "9px" ? "9px" : outerValue === "11px" ? "11px" : "37px";
++          const computed = getComputedStyle(target);
++          assert_equals(computed.direction, direction);
++          assert_equals(computed.getPropertyValue(physical), expected);
++        }, `${direction}: inline ${inlineValue}, outer ${outerValue}, ` +
++           `${outerImportant ? "important" : "normal"}`);
++      }
++    }
++  }
++}
++</script>
+diff --git a/testing/web-platform/tests/css/css-cascade/revert-rule-preserves-earlier-rollback.html b/testing/web-platform/tests/css/css-cascade/revert-rule-preserves-earlier-rollback.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-cascade/revert-rule-preserves-earlier-rollback.html
+@@ -0,0 +1,36 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Rule rollback preserves earlier layer rollback exclusions</title>
++<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-layer">
++<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-rule">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++for (const keyword of ["none", "revert-layer", "revert", "revert-rule"]) {
++  for (const ruleRollback of [false, true]) {
++    for (const animated of [false, true]) {
++      test(t => {
++        const sheet = document.createElement("style");
++        sheet.textContent = "#rollback-target { margin-left:5px; --value:5px }";
++        if (ruleRollback) sheet.textContent += "#rollback-target { margin-left:revert-rule !important; --value:revert-rule !important }";
++        if (animated) sheet.textContent += "@keyframes rollback-constant { from,to { margin-left:59px; --value:59px } } #rollback-target { animation:rollback-constant 1s -0.5s linear paused }";
++        document.head.append(sheet);
++        const target = document.createElement("div");
++        target.id = "rollback-target";
++        if (keyword !== "none") {
++          target.style.setProperty("margin-left", keyword, "important");
++          target.style.setProperty("--value", keyword, "important");
++        }
++        document.body.append(target);
++        t.add_cleanup(() => { target.remove(); sheet.remove(); });
++        const style = getComputedStyle(target);
++        assert_equals(style.animationName, animated ? "rollback-constant" : "none", "Animation declaration");
++        const expected = keyword === "revert" ? "0px" : animated && keyword !== "revert-layer" ? "59px" : "5px";
++        assert_equals(style.marginLeft, expected, "Longhand rollback");
++        assert_equals(style.getPropertyValue("--value").trim(), keyword === "revert" ? "" : expected, "Custom property rollback");
++      }, `Inline ${keyword}, intervening rule rollback ${ruleRollback}, animation ${animated}`);
++    }
++  }
++}
++</script>

@@ -1,0 +1,675 @@
+diff --git a/servo/components/style/applicable_declarations.rs b/servo/components/style/applicable_declarations.rs
+index 6d82f0866914..33635e449faf 100644
+--- a/servo/components/style/applicable_declarations.rs
++++ b/servo/components/style/applicable_declarations.rs
+@@ -43,7 +43,7 @@ pub struct CascadePriority {
+ 
+ const_assert_eq!(
+     std::mem::size_of::<CascadePriority>(),
+-    std::mem::size_of::<u32>()
++    std::mem::size_of::<u64>()
+ );
+ 
+ impl PartialOrd for CascadePriority {
+@@ -139,7 +139,15 @@ impl CascadePriority {
+             RevertKind::Origin => {
+                 other.cascade_level.origin().origin() < self.cascade_level.origin().origin()
+             },
+-            RevertKind::Layer => other.unimportant() < self.unimportant(),
++            RevertKind::Layer => {
++                if self.cascade_level.is_important()
++                    && self.layer_order.is_style_attribute_layer()
++                    && other.cascade_level.is_tree()
++                {
++                    return !other.layer_order.is_style_attribute_layer();
++                }
++                other.unimportant() < self.unimportant()
++            },
+             // Any other declaration for the same property we apply in the cascade needs to come
+             // from another rule effectively.
+             RevertKind::Rule => true,
+@@ -323,4 +331,4 @@ impl<'a> ApplicableDeclarationBlock<'a> {
+ }
+ 
+ // Size of this struct determines sorting and selector-matching performance.
+-size_of_test!(ApplicableDeclarationBlock<'static>, 24);
++size_of_test!(ApplicableDeclarationBlock<'static>, 32);
+diff --git a/servo/components/style/custom_properties.rs b/servo/components/style/custom_properties.rs
+index 3f089efb2511..d56191839c37 100644
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1255,6 +1255,7 @@ fn parse_declaration_value_block(
+     let mut last_token_type = TokenSerializationType::Nothing;
+     let mut last_non_whitespace_token_type = TokenSerializationType::Nothing;
+     let mut trailing_whitespace_len = 0;
++    let mut last_token_was_backslash = false;
+     let mut prev_reference_index: Option<usize> = None;
+     loop {
+         let token_start = input.position();
+@@ -1266,9 +1267,11 @@ fn parse_declaration_value_block(
+         let serialization_type = token.serialization_type();
+         last_token_type = serialization_type;
+         trailing_whitespace_len = match token {
+-            Token::WhiteSpace(value) => value.len(),
++            // A backslash delimiter needs its following newline when reserialized.
++            Token::WhiteSpace(value) if !last_token_was_backslash => value.len(),
+             _ => 0,
+         };
++        last_token_was_backslash = matches!(token, Token::Delim('\\'));
+         if !matches!(token, Token::WhiteSpace(_)) {
+             last_non_whitespace_token_type = serialization_type;
+         }
+diff --git a/servo/components/style/properties/cascade.rs b/servo/components/style/properties/cascade.rs
+index c46e7213f13c..76ce4c5f5633 100644
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -4,7 +4,6 @@
+ 
+ //! The main cascading algorithm of the style system.
+ 
+-use crate::{FxHashMap, Namespace};
+ use crate::applicable_declarations::{CascadePriority, RevertKind};
+ use crate::color::AbsoluteColor;
+ use crate::computed_value_flags::ComputedValueFlags;
+@@ -21,8 +20,8 @@ use crate::font_metrics::FontMetricsOrientation;
+ use crate::properties::{
+     CASCADE_PROPERTY, CSSWideKeyword, ComputedValues, DeclarationImportanceIterator, LonghandId,
+     LonghandIdSet, PrioritaryPropertyId, PrioritaryPropertyIdSet, PropertyDeclaration,
+-    PropertyDeclarationId, PropertyFlags, PropertyIdRef, ShorthandsWithPropertyReferencesCache,
+-    StyleBuilder, property_counts,
++    PropertyDeclarationBlock, PropertyDeclarationId, PropertyFlags, PropertyIdRef,
++    ShorthandsWithPropertyReferencesCache, StyleBuilder, property_counts,
+ };
+ use crate::properties::{CustomDeclaration, CustomDeclarationValue, UnparsedValue};
+ use crate::properties_and_values::rule::Descriptors as PropertyDescriptors;
+@@ -42,6 +41,7 @@ use crate::values::computed::ToComputedValue;
+ use crate::values::specified::length::FontBaseSize;
+ use crate::values::specified::position::PositionTryFallbacksTryTactic;
+ use crate::values::{computed, specified};
++use crate::{FxHashMap, FxHashSet, Namespace};
+ use hashbrown::hash_map::{Entry, EntryRef};
+ use selectors::matching::ElementSelectorFlags;
+ use servo_arc::Arc;
+@@ -123,6 +123,7 @@ struct DeclarationIterator<'a> {
+     current_rule_node: Option<&'a StrongRuleNode>,
+     // Per rule state.
+     declarations: DeclarationImportanceIterator<'a>,
++    source: Option<&'a PropertyDeclarationBlock>,
+     priority: CascadePriority,
+ }
+ 
+@@ -143,6 +144,7 @@ impl<'a> DeclarationIterator<'a> {
+                 RuleCascadeFlags::empty(),
+             ),
+             declarations: DeclarationImportanceIterator::default(),
++            source: None,
+             restriction,
+         };
+         iter.update_for_node(rule_node);
+@@ -152,15 +154,20 @@ impl<'a> DeclarationIterator<'a> {
+     fn update_for_node(&mut self, node: &'a StrongRuleNode) {
+         self.priority = node.cascade_priority();
+         let guard = self.priority.cascade_level().origin().guard(self.guards);
+-        self.declarations = match node.style_source() {
+-            Some(source) => source.read(guard).declaration_importance_iter(),
+-            None => DeclarationImportanceIterator::default(),
+-        };
++        self.source = node.style_source().map(|source| source.read(guard));
++        self.declarations = self.source.map_or_else(
++            DeclarationImportanceIterator::default,
++            PropertyDeclarationBlock::declaration_importance_iter,
++        );
+     }
+ }
+ 
+ impl<'a> Iterator for DeclarationIterator<'a> {
+-    type Item = (&'a PropertyDeclaration, CascadePriority);
++    type Item = (
++        &'a PropertyDeclaration,
++        CascadePriority,
++        &'a PropertyDeclarationBlock,
++    );
+ 
+     #[inline]
+     fn next(&mut self) -> Option<Self::Item> {
+@@ -183,7 +190,7 @@ impl<'a> Iterator for DeclarationIterator<'a> {
+                     }
+                 }
+ 
+-                return Some((decl, self.priority));
++                return Some((decl, self.priority, self.source.unwrap()));
+             }
+ 
+             let next_node = self.current_rule_node.take()?.parent()?;
+@@ -249,19 +256,25 @@ pub enum CascadeMode<'a, 'b> {
+ }
+ 
+ fn iter_declarations<'c, 'decls: 'c>(
+-    iter: impl Iterator<Item = (&'decls PropertyDeclaration, CascadePriority)>,
++    iter: impl Iterator<
++        Item = (
++            &'decls PropertyDeclaration,
++            CascadePriority,
++            &'decls PropertyDeclarationBlock,
++        ),
++    >,
+     declarations: &mut Declarations<'decls>,
+     mut custom: Option<(&mut Cascade<'c>, &mut computed::Context)>,
+     attribute_tracker: &mut AttributeTracker,
+ ) {
+-    for (declaration, priority) in iter {
++    for (declaration, priority, source) in iter {
+         if let PropertyDeclaration::Custom(ref declaration) = *declaration {
+             if let Some((ref mut cascade, ref mut context)) = custom {
+                 cascade.cascade_custom_property(context, declaration, priority);
+             }
+         } else {
+             let id = declaration.id().as_longhand().unwrap();
+-            declarations.note_declaration(declaration, priority, id);
++            declarations.note_declaration(declaration, priority, source, id);
+             if Cascade::might_have_non_custom_or_attr_dependency(id, declaration)
+                 && let Some((ref mut cascade, ref mut context)) = custom
+             {
+@@ -298,7 +311,13 @@ pub fn apply_declarations<'decls, E, I>(
+ ) -> Arc<ComputedValues>
+ where
+     E: TElement,
+-    I: Iterator<Item = (&'decls PropertyDeclaration, CascadePriority)>,
++    I: Iterator<
++        Item = (
++            &'decls PropertyDeclaration,
++            CascadePriority,
++            &'decls PropertyDeclarationBlock,
++        ),
++    >,
+ {
+     debug_assert!(layout_parent_style.is_none() || parent_style.is_some());
+     let device = stylist.device();
+@@ -639,6 +658,7 @@ impl Default for PrioritaryDeclarationPosition {
+ #[derive(Copy, Clone)]
+ struct Declaration<'a> {
+     decl: &'a PropertyDeclaration,
++    source: *const PropertyDeclarationBlock,
+     priority: CascadePriority,
+     next_index: DeclarationIndex,
+ }
+@@ -681,6 +701,7 @@ impl<'a> Declarations<'a> {
+         &mut self,
+         decl: &'a PropertyDeclaration,
+         priority: CascadePriority,
++        source: &'a PropertyDeclarationBlock,
+         id: LonghandId,
+     ) {
+         if let Some(id) = PrioritaryPropertyId::from_longhand(id) {
+@@ -688,18 +709,65 @@ impl<'a> Declarations<'a> {
+         }
+         self.longhand_declarations.push(Declaration {
+             decl,
++            source,
+             priority,
+             next_index: 0,
+         });
+     }
+ }
+ 
++// Origin, layer, and important-inline rollbacks can exclude different regions.
++#[derive(Default)]
++struct RevertState {
++    origin: Option<CascadePriority>,
++    layer: Option<CascadePriority>,
++    important_style_attribute: Option<CascadePriority>,
++}
++
++impl RevertState {
++    fn add(&mut self, priority: CascadePriority, kind: RevertKind) {
++        let bound = match kind {
++            RevertKind::Origin => &mut self.origin,
++            RevertKind::Layer
++                if priority.cascade_level().is_important()
++                    && priority.layer_order().is_style_attribute_layer() =>
++            {
++                &mut self.important_style_attribute
++            },
++            RevertKind::Layer => &mut self.layer,
++            RevertKind::Rule => return,
++        };
++        if bound.is_none_or(|previous| match kind {
++            RevertKind::Origin => {
++                priority.cascade_level().origin().origin()
++                    < previous.cascade_level().origin().origin()
++            },
++            _ => priority.unimportant() < previous.unimportant(),
++        }) {
++            *bound = Some(priority);
++        }
++    }
++
++    fn allows(&self, priority: &CascadePriority) -> bool {
++        self.origin
++            .is_none_or(|cutoff| cutoff.allows_when_reverted(priority, RevertKind::Origin))
++            && self
++                .layer
++                .is_none_or(|cutoff| cutoff.allows_when_reverted(priority, RevertKind::Layer))
++            && self
++                .important_style_attribute
++                .is_none_or(|cutoff| cutoff.allows_when_reverted(priority, RevertKind::Layer))
++    }
++}
++
+ #[derive(Default)]
+ struct RevertedSet {
+     // Just to avoid the hashmap lookup in the common case.
+     longhands_set: LonghandIdSet,
+-    longhands: FxHashMap<LonghandId, (CascadePriority, RevertKind)>,
+-    custom: PrecomputedHashMap<Name, (CascadePriority, RevertKind)>,
++    longhands: FxHashMap<LonghandId, RevertState>,
++    // Pointers are only compared; callers keep the source blocks alive while cascading.
++    longhand_rules: FxHashSet<(LonghandId, CascadePriority, *const PropertyDeclarationBlock)>,
++    custom: PrecomputedHashMap<Name, RevertState>,
+ }
+ 
+ #[derive(Default)]
+@@ -919,6 +987,7 @@ impl<'a> Cascade<'a> {
+                 longhand_id,
+                 decl.decl,
+                 decl.priority,
++                decl.source,
+                 cache,
+                 attr_provider,
+             );
+@@ -1043,6 +1112,7 @@ impl<'a> Cascade<'a> {
+                 longhand_id,
+                 declaration.decl,
+                 declaration.priority,
++                declaration.source,
+                 shorthand_cache,
+                 attribute_tracker,
+             );
+@@ -1085,6 +1155,7 @@ impl<'a> Cascade<'a> {
+         longhand_id: LonghandId,
+         declaration: &PropertyDeclaration,
+         priority: CascadePriority,
++        source: *const PropertyDeclarationBlock,
+         cache: &mut ShorthandsWithPropertyReferencesCache,
+         attribute_tracker: &mut AttributeTracker,
+     ) {
+@@ -1097,12 +1168,19 @@ impl<'a> Cascade<'a> {
+             return;
+         }
+ 
+-        if self.reverted.longhands_set.contains(longhand_id)
+-            && let Some(&(reverted_priority, revert_kind)) =
+-                self.reverted.longhands.get(&longhand_id)
+-            && !reverted_priority.allows_when_reverted(&priority, revert_kind)
+-        {
+-            return;
++        if self.reverted.longhands_set.contains(longhand_id) {
++            if let Some(reverted) = self.reverted.longhands.get(&longhand_id)
++                && !reverted.allows(&priority)
++            {
++                return;
++            }
++            if self
++                .reverted
++                .longhand_rules
++                .contains(&(longhand_id, priority.unimportant(), source))
++            {
++                return;
++            }
+         }
+ 
+         let mut declaration =
+@@ -1127,9 +1205,19 @@ impl<'a> Cascade<'a> {
+                     // `self.seen.longhands`, `reverted` takes care of rejecting
+                     // other declarations as needed.
+                     self.reverted.longhands_set.insert(longhand_id);
+-                    self.reverted
+-                        .longhands
+-                        .insert(longhand_id, (priority, revert_kind));
++                    if revert_kind == RevertKind::Rule {
++                        self.reverted.longhand_rules.insert((
++                            longhand_id,
++                            priority.unimportant(),
++                            source,
++                        ));
++                    } else {
++                        self.reverted
++                            .longhands
++                            .entry(longhand_id)
++                            .or_default()
++                            .add(priority, revert_kind);
++                    }
+                     return;
+                 }
+ 
+@@ -1747,8 +1835,8 @@ impl<'a> Cascade<'a> {
+             ref value,
+         } = *declaration;
+ 
+-        if let Some(&(reverted_priority, revert_kind)) = self.reverted.custom.get(name)
+-            && !reverted_priority.allows_when_reverted(&priority, revert_kind)
++        if let Some(reverted) = self.reverted.custom.get(name)
++            && !reverted.allows(&priority)
+         {
+             return;
+         }
+@@ -1836,9 +1924,13 @@ impl<'a> Cascade<'a> {
+             CustomDeclarationValue::CSSWideKeyword(keyword) => match keyword.revert_kind() {
+                 Some(revert_kind) => {
+                     self.seen.custom.var.remove(name);
+-                    self.reverted
+-                        .custom
+-                        .insert(name.clone(), (priority, revert_kind));
++                    if revert_kind != RevertKind::Rule {
++                        self.reverted
++                            .custom
++                            .entry(name.clone())
++                            .or_default()
++                            .add(priority, revert_kind);
++                    }
+                 },
+                 None => match keyword {
+                     CSSWideKeyword::Initial => {
+diff --git a/servo/components/style/properties_and_values/syntax/data_type.rs b/servo/components/style/properties_and_values/syntax/data_type.rs
+index a68a328296f4..d383d63b2a93 100644
+--- a/servo/components/style/properties_and_values/syntax/data_type.rs
++++ b/servo/components/style/properties_and_values/syntax/data_type.rs
+@@ -9,12 +9,12 @@ use crate::derives::*;
+ use std::fmt::{self, Debug, Write};
+ use style_traits::{CssWriter, ToCss};
+ 
+-/// Some types (lengths and colors) depend on other properties to resolve correctly.
++/// Types whose values can depend on other properties to resolve correctly.
+ #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, MallocSizeOf, ToShmem)]
+ pub struct DependentDataTypes(u8);
+ bitflags! {
+     impl DependentDataTypes: u8 {
+-        /// <length> values depend on font-size/line-height/zoom...
++        /// Length operands, including those in numeric math, depend on font metrics.
+         const LENGTH = 1 << 0;
+         /// <color> values depend on color-scheme, etc..
+         const COLOR= 1 << 1;
+@@ -101,19 +101,18 @@ impl DataType {
+         match self {
+             DataType::Length
+             | DataType::LengthPercentage
+-            | DataType::TransformFunction
+-            | DataType::TransformList => DependentDataTypes::LENGTH,
+-            DataType::Color => DependentDataTypes::COLOR,
+-            DataType::Number
+-            | DataType::Percentage
+-            | DataType::Image
+-            | DataType::Url
++            | DataType::Number
+             | DataType::Integer
++            | DataType::Percentage
+             | DataType::Angle
+             | DataType::Time
+             | DataType::Resolution
+-            | DataType::CustomIdent
+-            | DataType::String => DependentDataTypes::empty(),
++            | DataType::TransformFunction
++            | DataType::TransformList => DependentDataTypes::LENGTH,
++            DataType::Color => DependentDataTypes::COLOR,
++            DataType::Image | DataType::Url | DataType::CustomIdent | DataType::String => {
++                DependentDataTypes::empty()
++            },
+         }
+     }
+ }
+diff --git a/servo/components/style/rule_collector.rs b/servo/components/style/rule_collector.rs
+index 586237b3c07b..127058d58407 100644
+--- a/servo/components/style/rule_collector.rs
++++ b/servo/components/style/rule_collector.rs
+@@ -299,7 +299,6 @@ where
+     fn collect_host_and_slotted_rules(&mut self) {
+         let mut slots = SmallVec::<[_; 3]>::new();
+         let mut current = self.rule_hash_target.assigned_slot();
+-        let mut shadow_cascade_order = ShadowCascadeOrder::for_outermost_shadow_tree();
+ 
+         while let Some(slot) = current {
+             debug_assert!(
+@@ -308,15 +307,18 @@ where
+             );
+             slots.push(slot);
+             current = slot.assigned_slot();
+-            shadow_cascade_order.dec();
+         }
+ 
+-        self.collect_host_rules(shadow_cascade_order);
++        if let Some(order) = ShadowCascadeOrder::for_inner_tree(slots.len()) {
++            self.collect_host_rules(order);
++        }
+ 
+         // Match slotted rules in reverse order, so that the outer slotted rules
+         // come before the inner rules (and thus have less priority).
+-        for slot in slots.iter().rev() {
+-            shadow_cascade_order.inc();
++        for (index, slot) in slots.iter().enumerate().rev() {
++            let Some(shadow_cascade_order) = ShadowCascadeOrder::for_inner_tree(index) else {
++                continue;
++            };
+ 
+             let shadow = slot.containing_shadow().unwrap();
+             let data = match shadow.style_data() {
+@@ -467,7 +469,10 @@ where
+                         }
+                     }
+                 });
+-                shadow_cascade_order.inc();
++                let Some(next_order) = shadow_cascade_order.next() else {
++                    break;
++                };
++                shadow_cascade_order = next_order;
+             }
+ 
+             inner_shadow = match outer_shadow {
+diff --git a/servo/components/style/rule_tree/level.rs b/servo/components/style/rule_tree/level.rs
+index 808e839fef6e..b6c45a938fa5 100644
+--- a/servo/components/style/rule_tree/level.rs
++++ b/servo/components/style/rule_tree/level.rs
+@@ -18,7 +18,7 @@ use std::cmp::{Ord, Ordering, PartialOrd};
+ ///
+ /// We store them as a bitfield with:
+ ///
+-///  * Shadow cascade order (4 bits). See ShadowCascadeOrder for details.
++///  * Shadow cascade order (28 bits). See ShadowCascadeOrder for details.
+ ///  * Importance bit. Whether the declaration was !important or not.
+ ///  * The CascadeOrigin of the declaration as per [1].
+ ///
+@@ -49,18 +49,18 @@ use std::cmp::{Ord, Ordering, PartialOrd};
+     ToResolvedValue,
+     ToShmem,
+ )]
+-pub struct CascadeLevel(u8);
++pub struct CascadeLevel(u32);
+ bitflags! {
+-    impl CascadeLevel: u8 {
++    impl CascadeLevel: u32 {
+         /// The three bits that represent the CascadeOrigin.
+         const ORIGIN_BITS = 0b00000111;
+         /// Whether the declarations are `!important` or not.
+         const IMPORTANT = 1 << 3;
+-        /// The three bits for cascade order absolute value. If you change this, please change
++        /// The 27 bits for cascade order absolute value. If you change this, please change
+         /// CASCADE_ORDER_SHIFT accordingly.
+-        const CASCADE_ORDER_BITS = 0b01110000;
++        const CASCADE_ORDER_BITS = 0x7ffffff0;
+         /// The bit for the sign.
+-        const CASCADE_ORDER_SIGN = 1 << 7;
++        const CASCADE_ORDER_SIGN = 1 << 31;
+     }
+ }
+ 
+@@ -173,11 +173,11 @@ impl CascadeLevel {
+     /// The shift that we apply to the cascade order.
+     pub const CASCADE_ORDER_SHIFT: usize = 4;
+     /// The author level at the same tree. Here for convenience to avoid duplicating it from C++.
+-    pub const SAME_TREE_AUTHOR_NORMAL: Self = Self(CascadeOrigin::Author as u8);
++    pub const SAME_TREE_AUTHOR_NORMAL: Self = Self(CascadeOrigin::Author as u32);
+ 
+     /// Returns a cascade level with a given origin.
+     pub fn new(origin: CascadeOrigin) -> Self {
+-        let bits = origin as u8;
++        let bits = origin as u32;
+         debug_assert_eq!(bits & Self::ORIGIN_BITS.bits(), bits);
+         Self(bits)
+     }
+@@ -187,7 +187,7 @@ impl CascadeLevel {
+     pub fn origin(self) -> CascadeOrigin {
+         use num_traits::FromPrimitive;
+         let origin = (self & Self::ORIGIN_BITS).bits();
+-        CascadeOrigin::from_u8(origin).unwrap()
++        CascadeOrigin::from_u8(origin as u8).unwrap()
+     }
+ 
+     /// Convert this level from "unimportant" to "important".
+@@ -271,7 +271,7 @@ impl CascadeLevel {
+     pub fn shadow_order(self) -> ShadowCascadeOrder {
+         let neg = self.intersects(Self::CASCADE_ORDER_SIGN);
+         let abs = (self & Self::CASCADE_ORDER_BITS).bits() >> Self::CASCADE_ORDER_SHIFT;
+-        ShadowCascadeOrder(if neg { -(abs as i8) } else { abs as i8 })
++        ShadowCascadeOrder(if neg { -(abs as i32) } else { abs as i32 })
+     }
+ 
+     /// Returns an author normal cascade level with the given shadow cascade order.
+@@ -327,18 +327,17 @@ impl CascadeLevel {
+ /// See the static functions for the meaning of different values.
+ #[derive(Clone, Copy, Debug, Eq, Hash, MallocSizeOf, Ord, PartialEq, PartialOrd)]
+ #[repr(transparent)]
+-pub struct ShadowCascadeOrder(i8);
++pub struct ShadowCascadeOrder(i32);
+ 
+ impl ShadowCascadeOrder {
+-    /// We keep a maximum of 3 bits of order as a limit so that we can pack CascadeLevel in 1 byte.
+-    const MAX: i8 = 0b111;
+-    const MIN: i8 = -Self::MAX;
++    /// The magnitude fits between the origin/importance bits and the sign bit.
++    const MAX: i32 = (1 << 27) - 1;
+ 
+-    /// A level for the outermost shadow tree (the shadow tree we own, and the
+-    /// ones from the slots we're slotted in).
++    /// A level for an inner shadow tree, indexed from the nearest one.
+     #[inline]
+-    pub fn for_outermost_shadow_tree() -> Self {
+-        Self(-1)
++    pub fn for_inner_tree(index: usize) -> Option<Self> {
++        let depth = index.checked_add(1)?;
++        (depth <= Self::MAX as usize).then(|| Self(-(depth as i32)))
+     }
+ 
+     /// A level for the element's tree.
+@@ -360,24 +359,11 @@ impl ShadowCascadeOrder {
+         self.0 > 0
+     }
+ 
+-    /// Decrement the level, moving inwards. We should only move inwards if
+-    /// we're traversing slots.
++    /// The next containing tree, if its order is representable.
+     #[inline]
+-    pub fn dec(&mut self) {
+-        debug_assert!(self.0 < 0);
+-        if self.0 != Self::MIN {
+-            self.0 -= 1;
+-        }
+-    }
+-
+-    /// The level, moving inwards. We should only move inwards if we're
+-    /// traversing slots.
+-    #[inline]
+-    pub fn inc(&mut self) {
+-        debug_assert_ne!(self.0, -1);
+-        if self.0 != Self::MAX {
+-            self.0 += 1;
+-        }
++    pub fn next(self) -> Option<Self> {
++        debug_assert!(self.0 > 0);
++        (self.0 < Self::MAX).then(|| Self(self.0 + 1))
+     }
+ }
+ 
+diff --git a/servo/components/style/stylesheets/page_rule.rs b/servo/components/style/stylesheets/page_rule.rs
+index bb64217ad263..f48564d00b54 100644
+--- a/servo/components/style/stylesheets/page_rule.rs
++++ b/servo/components/style/stylesheets/page_rule.rs
+@@ -6,6 +6,7 @@
+ //!
+ //! [page]: https://drafts.csswg.org/css2/page.html#page-box
+ 
++use crate::Atom;
+ use crate::derives::*;
+ use crate::parser::{Parse, ParserContext};
+ use crate::properties::PropertyDeclarationBlock;
+@@ -305,23 +306,29 @@ impl PageRule {
+             + self.block.read_with(guard).size_of(ops)
+             + self.selectors.size_of(ops)
+     }
+-    /// Computes the specificity of this page rule when matched with flags.
++    /// Computes the specificity of this page rule within a name bucket and flags.
+     ///
+     /// Computing this value has linear-complexity with the size of the
+     /// selectors, so the caller should usually call this once and cache the
+     /// result.
+     ///
+-    /// Returns None if the flags do not match this page rule.
++    /// Returns None if no selector in the name bucket matches the flags.
+     ///
+     /// The return type is ordered by page-rule specificity.
+-    pub fn match_specificity(&self, flags: PagePseudoClassFlags) -> Option<u32> {
++    pub fn match_specificity(&self, name: &Atom, flags: PagePseudoClassFlags) -> Option<u32> {
+         if self.selectors.is_empty() {
+             // A page-rule with no selectors matches all pages, but with the
+             // lowest possible specificity.
+             return Some(selector_specificity(0, 0, false));
+         }
+         let mut specificity = None;
+-        for s in self.selectors.0.iter().map(|s| s.match_specificity(flags)) {
++        for s in self
++            .selectors
++            .0
++            .iter()
++            .filter(|s| &s.name.0 == name)
++            .map(|s| s.match_specificity(flags))
++        {
+             specificity = s.max(specificity);
+         }
+         specificity
+diff --git a/servo/components/style/stylist.rs b/servo/components/style/stylist.rs
+index 8fbf17d186ed..adde946e6ab5 100644
+--- a/servo/components/style/stylist.rs
++++ b/servo/components/style/stylist.rs
+@@ -2058,6 +2058,7 @@ impl Stylist {
+                         LayerOrder::root(),
+                         RuleCascadeFlags::empty(),
+                     ),
++                    block,
+                 )
+             }),
+             Some(parent_style),
+@@ -2370,7 +2371,7 @@ impl PageRuleMap {
+         };
+         for data in rules.iter() {
+             let rule = data.rule.read_with(level.guard(guards));
+-            let specificity = match rule.match_specificity(pseudos) {
++            let specificity = match rule.match_specificity(name, pseudos) {
+                 Some(specificity) => specificity,
+                 None => continue,
+             };
+diff --git a/servo/ports/geckolib/cbindgen.toml b/servo/ports/geckolib/cbindgen.toml
+index 93438d0681b5..1cba4cfff978 100644
+--- a/servo/ports/geckolib/cbindgen.toml
++++ b/servo/ports/geckolib/cbindgen.toml
+@@ -1356,10 +1356,10 @@ renaming_overrides_prefixing = true
+   inline static StyleCascadeLevel Default() {
+     return SAME_TREE_AUTHOR_NORMAL;
+   }
+-  inline int8_t ShadowCascadeOrder() const {
++  inline int32_t ShadowCascadeOrder() const {
+     bool neg(*this & CASCADE_ORDER_SIGN);
+-    uint8_t abs = (*this & CASCADE_ORDER_BITS)._0 >> CASCADE_ORDER_SHIFT;
+-    return int8_t(neg ? -abs : abs);
++    int32_t abs = (*this & CASCADE_ORDER_BITS)._0 >> CASCADE_ORDER_SHIFT;
++    return neg ? -abs : abs;
+   }
+ """
+ 

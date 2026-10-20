@@ -4,7 +4,7 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **85 committed native/WPT fixes.** The management index is
+- **86 committed native/WPT fixes.** The management index is
   [BUGFIX-COMMITS.md](BUGFIX-COMMITS.md); exact commits, standalone alternatives
   and limits are in [CURRENT-COMMITS.json](CURRENT-COMMITS.json).
 - **Latest fixes:** leading-whitespace attribute origin (`ad608a212bd8`),
@@ -34,11 +34,12 @@ Updated 19 October 2026. Work stays local; the user owns pushing.
   20-case WPT. Their shared terminal-span proof has 37 audits and 23 independent
   challenges. Tokenizer, EOF, native correspondence and caller premises remain
   explicit; these are bounded components, not complete serialization proofs.
-- **New serialization candidate:** retain required newline whitespace after an
-  actual backslash delimiter. Native review passes; final WPT has 30 passes,
-  against a baseline subset with 16 failures and 14 passes. All 435 preceding
-  outcomes remain unchanged in the earlier combined matrix. The bounded Lean
-  extension is active; this candidate is excluded from the committed count.
+- **Backslash/newline repair committed:** `246f1ff43250` retains required
+  newline whitespace after an actual backslash delimiter. Its final WPT has
+  30 passes against a baseline subset with 16 failures and 14 passes. Root and
+  independent proof review accept 53 audits plus 15 independent kernel challenges;
+  lexical projection, EOF compatibility and reference bounds remain explicit.
+  Signed standalone upstream alternative: `95b6a9b03c1c`.
 - **Attribute-taint follow-up:** both bounded reviews are complete. Actual
   prohibited local image requests remain established for fix80; no new unknown
   value disclosure was found. Thirty-six calibrated registration observations
@@ -168,9 +169,11 @@ the keyframe-substitution candidate or numeric payload correctness.
 
 ## Next, in priority order
 
-1. Finish the independent reviews and constructor/range proof for the three new
-   whitespace candidates, retaining separate evidence and native/WPT commits.
-   Then continue epoch-aware attribute provenance and link-env providers. Close the next
+1. Finish the view-transition initial-type deduplication formal companion and
+   independent review, then sticky H1/H2 obligations. Preserve separate evidence
+   and native/WPT commits. The [worktree audit](../css-native-worktree-reconciliation-v1/REPORT.md)
+   records the remaining intentional native candidates and their gates.
+   Continue epoch-aware attribute provenance and link-env providers. Close the next
    animation provenance boundary after fix80: audit actual
    fallback/composition/publication callers and derive one end-to-end observation
    from admitted constructors. Successful wrapper union is accepted, but it does
@@ -179,7 +182,10 @@ the keyframe-substitution candidate or numeric payload correctness.
    Keep the transition-retention lead INCONCLUSIVE: provenance equality remains
    unresolved, so no restart or refresh repair is justified.
    [Oracle](../css-transition-retention-taint-oracle-v1/REPORT.md).
-2. Compose the declaration helper's saved-query/short-circuit paths after the
+2. Review and replay the new until-after parser capsule: delimiter ownership,
+   direct cursor advance and curly recovery. Native calibration passes27histories
+   and138snapshots in debug/release; final formal acceptance remains pending.
+   Then compose the declaration helper's saved-query/short-circuit paths after the
    accepted skip/next wrapper and production entry component;
    metadata, providers, callbacks and compiler admissions remain explicit.
 3. Extend persistent-map caller admission. Count and actual iteration now compose

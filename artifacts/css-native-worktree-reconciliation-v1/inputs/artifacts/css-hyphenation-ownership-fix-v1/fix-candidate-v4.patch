@@ -1,0 +1,692 @@
+--- a/dom/base/nsLineBreaker.cpp
++++ b/dom/base/nsLineBreaker.cpp
+@@ -196,9 +196,9 @@
+     RefPtr<nsHyphenator> hyphenator =
+         nsHyphenationManager::Instance()->GetHyphenator(mCurrentWordLanguage);
+     if (hyphenator) {
+-      FindHyphenationPoints(hyphenator, mCurrentWord.Elements(),
+-                            mCurrentWord.Elements() + length,
+-                            breakState.Elements());
++      FindHyphenationPoints(
++          hyphenator, mCurrentWord.Elements(), mCurrentWord.Elements() + length,
++          breakState.Elements(), mCurrentWordHyphenationLimits);
+     }
+   }
+ 
+@@ -276,6 +276,7 @@
+     }
+ 
+     if (offset > 0) {
++      mCurrentWordHyphenationLimits = mHyphenationLimits;
+       mTextItems.AppendElement(TextItem(aSink, 0, offset, aFlags));
+     }
+ 
+@@ -369,7 +370,8 @@
+           }
+           if (hyphenator) {
+             FindHyphenationPoints(hyphenator, aText + wordStart, aText + offset,
+-                                  breakState.Elements() + wordStart);
++                                  breakState.Elements() + wordStart,
++                                  mHyphenationLimits);
+           }
+         }
+         if (!mWordContinuation && !noCapitalizationNeeded) {
+@@ -400,6 +402,7 @@
+         return NS_ERROR_OUT_OF_MEMORY;
+       }
+       memcpy(elems, aText + wordStart, sizeof(char16_t) * len);
++      mCurrentWordHyphenationLimits = mHyphenationLimits;
+       mTextItems.AppendElement(TextItem(aSink, wordStart, len, aFlags));
+       // Ensure that the break-before for this word is written out
+       offset = wordStart + 1;
+@@ -423,9 +426,10 @@
+ void nsLineBreaker::FindHyphenationPoints(nsHyphenator* aHyphenator,
+                                           const char16_t* aTextStart,
+                                           const char16_t* aTextLimit,
+-                                          uint8_t* aBreakState) {
++                                          uint8_t* aBreakState,
++                                          const HyphenationLimits& aLimits) {
+   // Early-return for words that are definitely too short to hyphenate.
+-  if (aTextLimit - aTextStart < mHyphenateLimitWord) {
++  if (aTextLimit - aTextStart < aLimits.mWord) {
+     return;
+   }
+ 
+@@ -449,8 +453,7 @@
+   AutoTArray<BreakInfo, 16> oldBreaks;
+   // Don't consider setting any breaks where i >= endLimit, as they will
+   // definitely be too near the end of the word to be accepted.
+-  uint32_t endLimit =
+-      string.Length() - std::max<uint32_t>(1u, mHyphenateLimitEnd);
++  uint32_t endLimit = string.Length() - std::max<uint32_t>(1u, aLimits.mEnd);
+   for (uint32_t i = 0; i < string.Length(); ++i) {
+     // Get current character, converting surrogate pairs to UCS4 for char
+     // category lookup.
+@@ -490,7 +493,7 @@
+     // all the remaining characters are countable; if there are combining
+     // marks, etc., in the trailing part of the word we may need to reset the
+     // potential break later, after we've fully counted length.)
+-    if (hyphens[i] && length >= mHyphenateLimitStart && i < endLimit) {
++    if (hyphens[i] && length >= aLimits.mStart && i < endLimit) {
+       // Keep track of hyphen position and "countable" length of the word.
+       oldBreaks.AppendElement(BreakInfo{i + 1, length, aBreakState[i + 1]});
+       aBreakState[i + 1] = gfxTextRun::CompressedGlyph::FLAG_BREAK_TYPE_HYPHEN;
+@@ -502,7 +505,7 @@
+     }
+   }
+ 
+-  if (length < mHyphenateLimitWord) {
++  if (length < aLimits.mWord) {
+     // After discounting combining marks, punctuation, controls, etc., the word
+     // was too short for hyphenate-limit-chars. If we've set any hyphen breaks,
+     // forget them.
+@@ -515,7 +518,7 @@
+     // break(s) that we set, until the fragment will be long enough.
+     while (!oldBreaks.IsEmpty()) {
+       auto lastBreak = oldBreaks.PopLastElement();
+-      if (length - lastBreak.mLength >= mHyphenateLimitEnd) {
++      if (length - lastBreak.mLength >= aLimits.mEnd) {
+         break;
+       }
+       aBreakState[lastBreak.mPosition] = lastBreak.mState;
+@@ -553,6 +556,7 @@
+     }
+ 
+     if (offset > 0) {
++      mCurrentWordHyphenationLimits = mHyphenationLimits;
+       mTextItems.AppendElement(TextItem(aSink, 0, offset, aFlags));
+     }
+ 
+@@ -660,6 +664,7 @@
+       mTextItems.AppendElement(TextItem(aSink, wordStart, len, aFlags));
+       // Ensure that the break-before for this word is written out
+       offset = wordStart + 1;
++      mCurrentWordHyphenationLimits = mHyphenationLimits;
+       break;
+     }
+   }
+--- a/dom/base/nsLineBreaker.h
++++ b/dom/base/nsLineBreaker.h
+@@ -220,9 +220,9 @@
+    */
+   void SetHyphenateLimitChars(uint32_t aWordLength, uint32_t aStartLength,
+                               uint32_t aEndLength) {
+-    mHyphenateLimitWord = std::min(255u, aWordLength);
+-    mHyphenateLimitStart = std::min(255u, aStartLength);
+-    mHyphenateLimitEnd = std::min(255u, aEndLength);
++    mHyphenationLimits = {uint8_t(std::min(255u, aWordLength)),
++                          uint8_t(std::min(255u, aStartLength)),
++                          uint8_t(std::min(255u, aEndLength))};
+   }
+ 
+  private:
+@@ -253,9 +253,16 @@
+ 
+   void UpdateCurrentWordLanguage(nsAtom* aHyphenationLanguage);
+ 
++  struct HyphenationLimits {
++    uint8_t mWord = 0;
++    uint8_t mStart = 0;
++    uint8_t mEnd = 0;
++  };
++
+   void FindHyphenationPoints(nsHyphenator* aHyphenator,
+                              const char16_t* aTextStart,
+-                             const char16_t* aTextLimit, uint8_t* aBreakState);
++                             const char16_t* aTextLimit, uint8_t* aBreakState,
++                             const HyphenationLimits& aLimits);
+ 
+   inline constexpr bool IsSegmentSpace(char16_t u) const {
+     return u == 0x0020 ||  // SPACE u
+@@ -275,9 +282,9 @@
+   // so they are not purely codepoint or character counts.)
+   // (Zero values would have no effect; but text-frame code will update the
+   // values from CSS before calling the line-breaker.)
+-  uint8_t mHyphenateLimitWord = 0;   // Min word length to auto-hyphenate
+-  uint8_t mHyphenateLimitStart = 0;  // Min number of chars before the break
+-  uint8_t mHyphenateLimitEnd = 0;    // Min number of chars after the break
++  HyphenationLimits mHyphenationLimits;
++  // Preserve the last contributing text's limits until the word is flushed.
++  HyphenationLimits mCurrentWordHyphenationLimits;
+ 
+   bool mCurrentWordContainsMixedLang = false;
+   bool mCurrentWordMightBeBreakable = false;
+--- a/layout/generic/nsTextFrame.cpp
++++ b/layout/generic/nsTextFrame.cpp
+@@ -1890,30 +1890,6 @@
+     mLineBreakBeforeFrames.AppendElement(aFrame);
+     mStartOfLine = false;
+   }
+-
+-  // Default limits used by `hyphenate-limit-chars` for `auto` components, as
+-  // suggested by the CSS Text spec.
+-  // TODO: consider making these sensitive to the context, e.g. increasing the
+-  // values for long line lengths to reduce the tendency to hyphenate too much.
+-  const uint32_t kDefaultHyphenateTotalWordLength = 5;
+-  const uint32_t kDefaultHyphenatePreBreakLength = 2;
+-  const uint32_t kDefaultHyphenatePostBreakLength = 2;
+-
+-  const auto& hyphenateLimitChars = aFrame->StyleText()->mHyphenateLimitChars;
+-  uint32_t pre =
+-      hyphenateLimitChars.pre_hyphen_length.IsAuto()
+-          ? kDefaultHyphenatePreBreakLength
+-          : std::max(0, hyphenateLimitChars.pre_hyphen_length.AsNumber());
+-  uint32_t post =
+-      hyphenateLimitChars.post_hyphen_length.IsAuto()
+-          ? kDefaultHyphenatePostBreakLength
+-          : std::max(0, hyphenateLimitChars.post_hyphen_length.AsNumber());
+-  uint32_t total =
+-      hyphenateLimitChars.total_word_length.IsAuto()
+-          ? kDefaultHyphenateTotalWordLength
+-          : std::max(0, hyphenateLimitChars.total_word_length.AsNumber());
+-  total = std::max(total, pre + post);
+-  mLineBreaker.SetHyphenateLimitChars(total, pre, post);
+ }
+ 
+ static bool HasTerminalNewline(const nsTextFrame* aFrame) {
+@@ -2913,96 +2889,138 @@
+ 
+   for (uint32_t i = 0; i < mMappedFlows.Length(); ++i) {
+     MappedFlow* mappedFlow = &mMappedFlows[i];
+-    // The CSS word-break value may change within a word, so we reset it for
+-    // each MappedFlow. The line-breaker will flush its text if the property
+-    // actually changes.
+-    const auto* styleText = mappedFlow->mStartFrame->StyleText();
+-    auto wordBreak = styleText->EffectiveWordBreak();
+-    switch (wordBreak) {
+-      case StyleWordBreak::BreakAll:
+-        mLineBreaker.SetWordBreak(WordBreakRule::BreakAll);
+-        break;
+-      case StyleWordBreak::KeepAll:
+-        mLineBreaker.SetWordBreak(WordBreakRule::KeepAll);
+-        break;
+-      case StyleWordBreak::Normal:
+-      default:
+-        MOZ_ASSERT(wordBreak == StyleWordBreak::Normal);
+-        mLineBreaker.SetWordBreak(WordBreakRule::Normal);
+-        break;
+-    }
+-    switch (styleText->mLineBreak) {
+-      case StyleLineBreak::Auto:
+-        mLineBreaker.SetStrictness(LineBreakRule::Auto);
+-        break;
+-      case StyleLineBreak::Normal:
+-        mLineBreaker.SetStrictness(LineBreakRule::Normal);
+-        break;
+-      case StyleLineBreak::Loose:
+-        mLineBreaker.SetStrictness(LineBreakRule::Loose);
+-        break;
+-      case StyleLineBreak::Strict:
+-        mLineBreaker.SetStrictness(LineBreakRule::Strict);
+-        break;
+-      case StyleLineBreak::Anywhere:
+-        mLineBreaker.SetStrictness(LineBreakRule::Anywhere);
+-        break;
+-    }
+-
+-    uint32_t offset = iter.GetSkippedOffset();
+-    gfxSkipCharsIterator iterNext = iter;
+-    iterNext.AdvanceOriginal(mappedFlow->GetContentEnd() -
+-                             mappedFlow->mStartFrame->GetContentOffset());
+-
+-    UniquePtr<BreakSink>* breakSink = mBreakSinks.AppendElement(
+-        MakeUnique<BreakSink>(aTextRun, mDrawTarget, offset));
+-
+-    uint32_t length = iterNext.GetSkippedOffset() - offset;
+-    uint32_t flags = 0;
+-    nsIFrame* initialBreakController =
+-        mappedFlow->mAncestorControllingInitialBreak;
+-    if (!initialBreakController) {
+-      initialBreakController = mLineContainer;
+-    }
+-    if (!initialBreakController->StyleText()->WhiteSpaceCanWrap(
+-            initialBreakController)) {
+-      flags |= nsLineBreaker::BREAK_SUPPRESS_INITIAL;
+-    }
+-    nsTextFrame* startFrame = mappedFlow->mStartFrame;
+-    const nsStyleText* textStyle = startFrame->StyleText();
+-    if (!textStyle->WhiteSpaceCanWrap(startFrame)) {
+-      flags |= nsLineBreaker::BREAK_SUPPRESS_INSIDE;
+-    }
+-    if (aTextRun->GetFlags2() & nsTextFrameUtils::Flags::NoBreaks) {
+-      flags |= nsLineBreaker::BREAK_SKIP_SETTING_NO_BREAKS;
+-    }
+-    if (textStyle->mTextTransform & StyleTextTransform::CAPITALIZE) {
+-      flags |= nsLineBreaker::BREAK_NEED_CAPITALIZATION;
+-    }
+-    if (textStyle->mHyphens == StyleHyphens::Auto &&
+-        textStyle->mLineBreak != StyleLineBreak::Anywhere) {
+-      flags |= nsLineBreaker::BREAK_USE_AUTO_HYPHENATION;
+-    }
+-
+-    if (HasCompressedLeadingWhitespace(startFrame, textStyle,
+-                                       mappedFlow->GetContentEnd(), iter)) {
+-      mLineBreaker.AppendInvisibleWhitespace(flags);
+-    }
+-
+-    if (length > 0) {
+-      BreakSink* sink = mSkipIncompleteTextRuns ? nullptr : (*breakSink).get();
+-      if (mDoubleByteText) {
+-        const char16_t* text = reinterpret_cast<const char16_t*>(aTextPtr);
+-        mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
+-                                flags, sink);
+-      } else {
+-        const uint8_t* text = reinterpret_cast<const uint8_t*>(aTextPtr);
+-        mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
+-                                flags, sink);
+-      }
+-    }
+-
+-    iter = iterNext;
++    bool firstTextRange = true;
++    for (nsTextFrame* startFrame = mappedFlow->mStartFrame;
++         startFrame != mappedFlow->mEndFrame;) {
++      const auto* styleText = startFrame->StyleText();
++      nsTextFrame* endFrame = startFrame->GetNextContinuation();
++      while (endFrame != mappedFlow->mEndFrame &&
++             endFrame->StyleText()->mHyphenateLimitChars ==
++                 styleText->mHyphenateLimitChars) {
++        endFrame = endFrame->GetNextContinuation();
++      }
++      const int32_t contentEnd = endFrame
++                                     ? std::min(endFrame->GetContentOffset(),
++                                                mappedFlow->GetContentEnd())
++                                     : mappedFlow->GetContentEnd();
++      // Default limits used by `hyphenate-limit-chars` for `auto` components,
++      // as suggested by the CSS Text spec.
++      // TODO: consider making these sensitive to the context, e.g. increasing
++      // the values for long line lengths to reduce the tendency to hyphenate
++      // too much.
++      const uint32_t kDefaultHyphenateTotalWordLength = 5;
++      const uint32_t kDefaultHyphenatePreBreakLength = 2;
++      const uint32_t kDefaultHyphenatePostBreakLength = 2;
++
++      const auto& hyphenateLimitChars = styleText->mHyphenateLimitChars;
++      uint32_t pre =
++          hyphenateLimitChars.pre_hyphen_length.IsAuto()
++              ? kDefaultHyphenatePreBreakLength
++              : std::max(0, hyphenateLimitChars.pre_hyphen_length.AsNumber());
++      uint32_t post =
++          hyphenateLimitChars.post_hyphen_length.IsAuto()
++              ? kDefaultHyphenatePostBreakLength
++              : std::max(0, hyphenateLimitChars.post_hyphen_length.AsNumber());
++      uint32_t total =
++          hyphenateLimitChars.total_word_length.IsAuto()
++              ? kDefaultHyphenateTotalWordLength
++              : std::max(0, hyphenateLimitChars.total_word_length.AsNumber());
++      total = std::max(total, pre + post);
++      mLineBreaker.SetHyphenateLimitChars(total, pre, post);
++
++      // The CSS word-break value may change within a word, so we reset it for
++      // each style range. The line-breaker will flush its text if the property
++      // actually changes.
++      auto wordBreak = styleText->EffectiveWordBreak();
++      switch (wordBreak) {
++        case StyleWordBreak::BreakAll:
++          mLineBreaker.SetWordBreak(WordBreakRule::BreakAll);
++          break;
++        case StyleWordBreak::KeepAll:
++          mLineBreaker.SetWordBreak(WordBreakRule::KeepAll);
++          break;
++        case StyleWordBreak::Normal:
++        default:
++          MOZ_ASSERT(wordBreak == StyleWordBreak::Normal);
++          mLineBreaker.SetWordBreak(WordBreakRule::Normal);
++          break;
++      }
++      switch (styleText->mLineBreak) {
++        case StyleLineBreak::Auto:
++          mLineBreaker.SetStrictness(LineBreakRule::Auto);
++          break;
++        case StyleLineBreak::Normal:
++          mLineBreaker.SetStrictness(LineBreakRule::Normal);
++          break;
++        case StyleLineBreak::Loose:
++          mLineBreaker.SetStrictness(LineBreakRule::Loose);
++          break;
++        case StyleLineBreak::Strict:
++          mLineBreaker.SetStrictness(LineBreakRule::Strict);
++          break;
++        case StyleLineBreak::Anywhere:
++          mLineBreaker.SetStrictness(LineBreakRule::Anywhere);
++          break;
++      }
++
++      uint32_t offset = iter.GetSkippedOffset();
++      gfxSkipCharsIterator iterNext = iter;
++      const int32_t contentStart =
++          std::min(startFrame->GetContentOffset(), mappedFlow->GetContentEnd());
++      iterNext.AdvanceOriginal(contentEnd - contentStart);
++
++      uint32_t length = iterNext.GetSkippedOffset() - offset;
++      uint32_t flags = 0;
++      nsIFrame* initialBreakController =
++          firstTextRange ? mappedFlow->mAncestorControllingInitialBreak
++                         : startFrame;
++      if (!initialBreakController) {
++        initialBreakController = mLineContainer;
++      }
++      if (!initialBreakController->StyleText()->WhiteSpaceCanWrap(
++              initialBreakController)) {
++        flags |= nsLineBreaker::BREAK_SUPPRESS_INITIAL;
++      }
++      const nsStyleText* textStyle = startFrame->StyleText();
++      if (!textStyle->WhiteSpaceCanWrap(startFrame)) {
++        flags |= nsLineBreaker::BREAK_SUPPRESS_INSIDE;
++      }
++      if (aTextRun->GetFlags2() & nsTextFrameUtils::Flags::NoBreaks) {
++        flags |= nsLineBreaker::BREAK_SKIP_SETTING_NO_BREAKS;
++      }
++      if (textStyle->mTextTransform & StyleTextTransform::CAPITALIZE) {
++        flags |= nsLineBreaker::BREAK_NEED_CAPITALIZATION;
++      }
++      if (textStyle->mHyphens == StyleHyphens::Auto &&
++          textStyle->mLineBreak != StyleLineBreak::Anywhere) {
++        flags |= nsLineBreaker::BREAK_USE_AUTO_HYPHENATION;
++      }
++
++      if (HasCompressedLeadingWhitespace(startFrame, textStyle, contentEnd,
++                                         iter)) {
++        mLineBreaker.AppendInvisibleWhitespace(flags);
++      }
++
++      UniquePtr<BreakSink>* breakSink = mBreakSinks.AppendElement(
++          MakeUnique<BreakSink>(aTextRun, mDrawTarget, offset));
++      if (length > 0) {
++        BreakSink* sink =
++            mSkipIncompleteTextRuns ? nullptr : (*breakSink).get();
++        if (mDoubleByteText) {
++          const char16_t* text = reinterpret_cast<const char16_t*>(aTextPtr);
++          mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
++                                  flags, sink);
++        } else {
++          const uint8_t* text = reinterpret_cast<const uint8_t*>(aTextPtr);
++          mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
++                                  flags, sink);
++        }
++      }
++
++      firstTextRange = firstTextRange && length == 0;
++      iter = iterNext;
++      startFrame = endFrame;
++    }
+   }
+ }
+ 
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-text/hyphens/hyphenate-limit-chars-inline-ownership.html
+@@ -0,0 +1,113 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Hyphenation limits belong to the text being hyphenated</title>
++<link rel="help" href="https://drafts.csswg.org/css-text-4/#hyphenate-char-limits">
++<link rel="stylesheet" href="/fonts/ahem.css">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++.sample {
++  font: 20px/20px Ahem;
++  width: 60px;
++  white-space: normal;
++  word-break: normal;
++  overflow-wrap: normal;
++  hyphenate-character: "-";
++}
++.different-font { font-size: 21px; }
++.atomic { display: inline-block; }
++</style>
++<div id="log"></div>
++<script>
++const fontReady = document.fonts.load("20px Ahem", "example-x");
++
++function wordLines(target) {
++  const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
++  const result = [];
++  while (walker.nextNode() && result.length < 7) {
++    for (let i = 0; i < walker.currentNode.length && result.length < 7; ++i) {
++      const range = document.createRange();
++      range.setStart(walker.currentNode, i);
++      range.setEnd(walker.currentNode, i + 1);
++      result.push(range.getBoundingClientRect().top);
++    }
++  }
++  assert_equals(result.length, 7, "All letters were measured");
++  return result.map(top => top - result[0]);
++}
++
++function fixture(t, limit, suffixLimit, boundary, hyphens,
++                 partition = "single", spaceOwner = "target") {
++  const sample = document.createElement("div");
++  sample.className = "sample";
++  sample.lang = "en-us";
++  sample.style.hyphens = hyphens;
++  const target = document.createElement("span");
++  target.style.hyphenateLimitChars = limit;
++  const text = spaceOwner === "target" ? "example " : "example";
++  if (partition === "single") {
++    target.textContent = text;
++  } else if (partition === "adjacent") {
++    target.append(document.createTextNode(text.slice(0, 3)),
++      document.createTextNode(text.slice(3)));
++  } else {
++    for (const part of [text.slice(0, 3), text.slice(3)]) {
++      const span = document.createElement("span");
++      span.textContent = part;
++      target.append(span);
++    }
++  }
++  sample.append(target);
++  let suffix;
++  if (boundary !== "absent") {
++    suffix = document.createElement("span");
++    suffix.className = boundary;
++    suffix.style.hyphenateLimitChars = suffixLimit;
++    suffix.textContent = spaceOwner === "target" ? "x" : " x";
++    sample.append(suffix);
++  }
++  document.body.append(sample);
++  t.add_cleanup(() => sample.remove());
++  return {sample, target, suffix};
++}
++
++promise_test(async t => {
++  const faces = await fontReady;
++  assert_equals(faces.length, 1, "Ahem loaded");
++  const {target} = fixture(t, "5 2 2", "5 2 2", "absent", "auto");
++  assert_implements_optional(wordLines(target).some(top => top !== 0),
++    "The English dictionary hyphenates example at this width");
++}, "English hyphenation dictionary calibration");
++
++for (const limit of ["100", "5 100 2", "5 2 100"]) {
++  for (const hyphens of ["auto", "none"]) {
++    for (const boundary of ["same-font", "different-font", "atomic", "absent"]) {
++      for (const suffixLimit of ["100", "5 2 2"]) {
++        for (const partition of ["single", "adjacent", "spans"]) {
++          for (const spaceOwner of ["target", "suffix"]) {
++            promise_test(async t => {
++              const faces = await fontReady;
++              assert_equals(faces.length, 1, "Ahem loaded");
++              const {target, suffix} = fixture(t, limit, suffixLimit, boundary, hyphens,
++                partition, spaceOwner);
++              assert_equals(getComputedStyle(target).hyphens, hyphens);
++              assert_equals(getComputedStyle(target).fontSize, "20px");
++              const observations = [{stage: "initial", lines: wordLines(target)}];
++              if (suffix) {
++                suffix.style.hyphenateLimitChars = suffixLimit === "100" ? "5 2 2" : "100";
++                observations.push({stage: "suffix changed", lines: wordLines(target)});
++                suffix.style.hyphenateLimitChars = suffixLimit;
++                observations.push({stage: "suffix restored", lines: wordLines(target)});
++              }
++              for (const observation of observations) {
++                assert_array_equals(observation.lines, [0, 0, 0, 0, 0, 0, 0],
++                  observation.stage + " must not hyphenate: " + JSON.stringify(observations));
++          }
++        }, `limit=${limit}; hyphens=${hyphens}; suffix=${suffixLimit}; ${boundary}; ${partition}; space=${spaceOwner}`);
++          }
++        }
++      }
++    }
++  }
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-text/hyphens/hyphenate-limit-chars-dynamic.html
+@@ -0,0 +1,90 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Changing hyphenation limits removes obsolete hyphenation opportunities</title>
++<link rel="help" href="https://drafts.csswg.org/css-text-4/#hyphenate-char-limits">
++<link rel="stylesheet" href="/fonts/ahem.css">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++.sample {
++  font: 20px/20px Ahem;
++  width: 60px;
++  white-space: normal;
++  word-break: normal;
++  overflow-wrap: normal;
++  hyphenate-character: "-";
++}
++</style>
++<div id="log"></div>
++<script>
++const fontReady = document.fonts.load("20px Ahem", "example-x");
++
++function wordLines(target) {
++  const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
++  const result = [];
++  while (walker.nextNode() && result.length < 7) {
++    for (let i = 0; i < walker.currentNode.length && result.length < 7; ++i) {
++      const range = document.createRange();
++      range.setStart(walker.currentNode, i);
++      range.setEnd(walker.currentNode, i + 1);
++      result.push(range.getBoundingClientRect().top);
++    }
++  }
++  assert_equals(result.length, 7, "All letters were measured");
++  return result.map(top => top - result[0]);
++}
++
++function fixture(t, limit, partition, hyphens) {
++  const sample = document.createElement("div");
++  sample.className = "sample";
++  sample.lang = "en-us";
++  sample.style.hyphens = hyphens;
++  sample.style.hyphenateLimitChars = limit;
++  if (partition === "single") {
++    sample.textContent = "example ";
++  } else if (partition === "adjacent") {
++    sample.append(document.createTextNode("exa"), document.createTextNode("mple "));
++  } else {
++    for (const text of ["exa", "mple "]) {
++      const span = document.createElement("span");
++      span.textContent = text;
++      sample.append(span);
++    }
++  }
++  document.body.append(sample);
++  t.add_cleanup(() => sample.remove());
++  return sample;
++}
++
++promise_test(async t => {
++  assert_equals((await fontReady).length, 1, "Ahem loaded");
++  const sample = fixture(t, "5 2 2", "single", "auto");
++  assert_implements_optional(wordLines(sample).some(top => top !== 0),
++    "The English dictionary hyphenates example at this width");
++}, "English hyphenation dictionary calibration");
++
++for (const limit of ["100", "5 100 2", "5 2 100"]) {
++  for (const partition of ["single", "adjacent", "spans"]) {
++    for (const hyphens of ["auto", "none"]) {
++      promise_test(async t => {
++        assert_equals((await fontReady).length, 1, "Ahem loaded");
++        const sample = fixture(t, "5 2 2", partition, hyphens);
++        const observations = [{stage: "permissive", lines: wordLines(sample)}];
++        sample.style.hyphenateLimitChars = limit;
++        observations.push({stage: "restricted", lines: wordLines(sample)});
++        sample.style.hyphenateLimitChars = "5 2 2";
++        observations.push({stage: "permissive again", lines: wordLines(sample)});
++        sample.style.hyphenateLimitChars = limit;
++        observations.push({stage: "restricted again", lines: wordLines(sample)});
++        const fresh = fixture(t, limit, partition, hyphens);
++        observations.push({stage: "fresh restricted", lines: wordLines(fresh)});
++        const detail = JSON.stringify(observations);
++        for (const index of [1, 3, 4]) {
++          assert_array_equals(observations[index].lines, [0, 0, 0, 0, 0, 0, 0],
++            observations[index].stage + " must not hyphenate: " + detail);
++        }
++      }, `limit=${limit}; ${partition}; hyphens=${hyphens}`);
++    }
++  }
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-text/hyphens/hyphenate-limit-chars-pseudo-ownership.html
+@@ -0,0 +1,65 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Hyphenation limit pseudo-element ownership probe</title>
++<link rel="help" href="https://drafts.csswg.org/css-text-4/#hyphenate-char-limits">
++<link rel="stylesheet" href="/fonts/ahem.css">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++.sample { font: 20px/20px Ahem; width:60px; white-space:normal; word-break:normal;
++  overflow-wrap:normal; hyphens:auto; hyphenate-character:"-"; }
++.line::first-line { hyphenate-limit-chars:var(--pseudo); }
++.letter::first-letter { hyphenate-limit-chars:var(--pseudo); }
++</style>
++<div id="log"></div>
++<script>
++const ready = document.fonts.load("20px Ahem", "xxx example-");
++function make(t, kind, limit, pseudo) {
++  const el = document.createElement("div");
++  el.className = "sample " + kind;
++  el.lang = "en-us";
++  el.style.hyphenateLimitChars = limit;
++  el.style.setProperty("--pseudo", pseudo);
++  el.textContent = "xxx example";
++  document.body.append(el);
++  t.add_cleanup(() => el.remove());
++  return el;
++}
++function lines(el) {
++  const result = [];
++  for (let i = 4; i < 11; ++i) {
++    const r = document.createRange();
++    r.setStart(el.firstChild, i); r.setEnd(el.firstChild, i + 1);
++    result.push(r.getBoundingClientRect().top);
++  }
++  return result.map(y => y - result[0]);
++}
++for (const kind of ["line", "letter"]) {
++  for (const limit of ["100", "5 2 2"]) {
++    promise_test(async t => {
++      assert_equals((await ready).length, 1, "Ahem loaded");
++      const opposite = limit === "100" ? "5 2 2" : "100";
++      const control = make(t, "", limit, limit);
++      const el = make(t, kind, limit, opposite);
++      const before = lines(el);
++      el.style.setProperty("--pseudo", limit);
++      const same = lines(el);
++      el.style.setProperty("--pseudo", opposite);
++      const restored = lines(el);
++      const expected = lines(control);
++      const detail = JSON.stringify({before, same, restored, expected});
++      if (limit === "100") {
++        assert_array_equals(expected, [0,0,0,0,0,0,0], "Uniform restricted control");
++        for (const observed of [before, same, restored]) {
++          assert_array_equals(observed, [0,0,0,0,0,0,0], detail);
++        }
++      } else {
++        assert_implements_optional(expected.some(y => y !== 0), "English dictionary calibration");
++        for (const observed of [before, same, restored]) {
++          assert_array_equals(observed, expected, detail);
++        }
++      }
++    }, `${kind}: whole later word limit=${limit}`);
++  }
++}
++</script>

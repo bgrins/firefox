@@ -1,0 +1,858 @@
+diff --git a/dom/base/Document.cpp b/dom/base/Document.cpp
+index 7435d615f5f3..e70071c701e8 100644
+--- a/dom/base/Document.cpp
++++ b/dom/base/Document.cpp
+@@ -19917,9 +19917,12 @@ already_AddRefed<ViewTransition> Document::StartViewTransition(
+     if (!options.mTypes.IsNull()) {
+       const auto& optionsTypes = options.mTypes.Value();
+       types.SetCapacity(optionsTypes.Length());
++      nsTHashSet<nsAtom*> seenTypes;
+       for (const auto& type : optionsTypes) {
+-        // TODO(emilio): should probably de-duplicate here.
+-        types.AppendElement(NS_AtomizeMainThread(type));
++        RefPtr<nsAtom> atom = NS_AtomizeMainThread(type);
++        if (seenTypes.EnsureInserted(atom)) {
++          types.AppendElement(std::move(atom));
++        }
+       }
+     }
+   }
+diff --git a/dom/base/nsLineBreaker.cpp b/dom/base/nsLineBreaker.cpp
+index 4540ac19e3f1..ca2555623e85 100644
+--- a/dom/base/nsLineBreaker.cpp
++++ b/dom/base/nsLineBreaker.cpp
+@@ -196,9 +196,9 @@ nsresult nsLineBreaker::FlushCurrentWord() {
+     RefPtr<nsHyphenator> hyphenator =
+         nsHyphenationManager::Instance()->GetHyphenator(mCurrentWordLanguage);
+     if (hyphenator) {
+-      FindHyphenationPoints(hyphenator, mCurrentWord.Elements(),
+-                            mCurrentWord.Elements() + length,
+-                            breakState.Elements());
++      FindHyphenationPoints(
++          hyphenator, mCurrentWord.Elements(), mCurrentWord.Elements() + length,
++          breakState.Elements(), mCurrentWordHyphenationLimits);
+     }
+   }
+ 
+@@ -246,6 +246,23 @@ nsresult nsLineBreaker::FlushCurrentWord() {
+   return NS_OK;
+ }
+ 
++static void ApplyBreakSuppression(uint8_t* aBreaks, uint32_t aOffset,
++                                  uint32_t aLength, uint32_t aFlags) {
++  if (!aLength) {
++    return;
++  }
++  if (!aOffset) {
++    if (aFlags & nsLineBreaker::BREAK_SUPPRESS_INITIAL) {
++      *aBreaks = gfxTextRun::CompressedGlyph::FLAG_BREAK_TYPE_NONE;
++    }
++    ++aBreaks;
++    --aLength;
++  }
++  if (aFlags & nsLineBreaker::BREAK_SUPPRESS_INSIDE) {
++    memset(aBreaks, gfxTextRun::CompressedGlyph::FLAG_BREAK_TYPE_NONE, aLength);
++  }
++}
++
+ // If the aFlags parameter to AppendText has all these bits set,
+ // then we don't need to worry about finding break opportunities
+ // in the appended text.
+@@ -253,6 +270,37 @@ nsresult nsLineBreaker::FlushCurrentWord() {
+   (BREAK_SUPPRESS_INITIAL | BREAK_SUPPRESS_INSIDE | \
+    BREAK_SKIP_SETTING_NO_BREAKS)
+ 
++static bool IsChineseOrJapanese(nsAtom* aLanguage) {
++  if (!aLanguage) {
++    return false;
++  }
++
++  static mozilla::StaticRefPtr<nsAtom> sLastLanguage;
++  static bool sLastScriptIsChineseOrJapanese = false;
++  static bool sInit = false;
++
++  if (!sInit) {
++    mozilla::ClearOnShutdown(&sLastLanguage);
++    sInit = true;
++  }
++
++  if (sLastLanguage == aLanguage) {
++    return sLastScriptIsChineseOrJapanese;
++  }
++
++  Locale loc;
++  if (LocaleParser::TryParse(nsAtomCString(aLanguage), loc).isErr() ||
++      (loc.Script().Missing() && loc.AddLikelySubtags().isErr())) {
++    return false;
++  }
++
++  sLastScriptIsChineseOrJapanese =
++      loc.Script().EqualTo("Hans") || loc.Script().EqualTo("Hant") ||
++      loc.Script().EqualTo("Jpan") || loc.Script().EqualTo("Hrkt");
++  sLastLanguage = aLanguage;
++  return sLastScriptIsChineseOrJapanese;
++}
++
+ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
+                                    const char16_t* aText, uint32_t aLength,
+                                    uint32_t aFlags, nsILineBreakSink* aSink) {
+@@ -276,6 +324,7 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
+     }
+ 
+     if (offset > 0) {
++      mCurrentWordHyphenationLimits = mHyphenationLimits;
+       mTextItems.AppendElement(TextItem(aSink, 0, offset, aFlags));
+     }
+ 
+@@ -363,13 +412,15 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
+             AutoRestore<uint8_t> saveWordStartBreakState(breakState[wordStart]);
+             LineBreaker::ComputeBreakPositions(
+                 Span<const char16_t>(aText + wordStart, offset - wordStart),
+-                mWordBreak, mLineBreak, mScriptIsChineseOrJapanese,
++                mWordBreak, mLineBreak,
++                IsChineseOrJapanese(aHyphenationLanguage),
+                 Span<uint8_t>(breakState.Elements() + wordStart,
+                               offset - wordStart));
+           }
+           if (hyphenator) {
+             FindHyphenationPoints(hyphenator, aText + wordStart, aText + offset,
+-                                  breakState.Elements() + wordStart);
++                                  breakState.Elements() + wordStart,
++                                  mHyphenationLimits);
+           }
+         }
+         if (!mWordContinuation && !noCapitalizationNeeded) {
+@@ -400,6 +451,7 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
+         return NS_ERROR_OUT_OF_MEMORY;
+       }
+       memcpy(elems, aText + wordStart, sizeof(char16_t) * len);
++      mCurrentWordHyphenationLimits = mHyphenationLimits;
+       mTextItems.AppendElement(TextItem(aSink, wordStart, len, aFlags));
+       // Ensure that the break-before for this word is written out
+       offset = wordStart + 1;
+@@ -410,6 +462,8 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
+ 
+   if (aSink) {
+     if (!noBreaksNeeded) {
++      ApplyBreakSuppression(breakState.Elements() + start, start,
++                            offset - start, aFlags);
+       aSink->SetBreaks(start, offset - start, breakState.Elements() + start);
+     }
+     if (!noCapitalizationNeeded) {
+@@ -423,9 +477,10 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
+ void nsLineBreaker::FindHyphenationPoints(nsHyphenator* aHyphenator,
+                                           const char16_t* aTextStart,
+                                           const char16_t* aTextLimit,
+-                                          uint8_t* aBreakState) {
++                                          uint8_t* aBreakState,
++                                          const HyphenationLimits& aLimits) {
+   // Early-return for words that are definitely too short to hyphenate.
+-  if (aTextLimit - aTextStart < mHyphenateLimitWord) {
++  if (aTextLimit - aTextStart < aLimits.mWord) {
+     return;
+   }
+ 
+@@ -449,8 +504,7 @@ void nsLineBreaker::FindHyphenationPoints(nsHyphenator* aHyphenator,
+   AutoTArray<BreakInfo, 16> oldBreaks;
+   // Don't consider setting any breaks where i >= endLimit, as they will
+   // definitely be too near the end of the word to be accepted.
+-  uint32_t endLimit =
+-      string.Length() - std::max<uint32_t>(1u, mHyphenateLimitEnd);
++  uint32_t endLimit = string.Length() - std::max<uint32_t>(1u, aLimits.mEnd);
+   for (uint32_t i = 0; i < string.Length(); ++i) {
+     // Get current character, converting surrogate pairs to UCS4 for char
+     // category lookup.
+@@ -490,7 +544,7 @@ void nsLineBreaker::FindHyphenationPoints(nsHyphenator* aHyphenator,
+     // all the remaining characters are countable; if there are combining
+     // marks, etc., in the trailing part of the word we may need to reset the
+     // potential break later, after we've fully counted length.)
+-    if (hyphens[i] && length >= mHyphenateLimitStart && i < endLimit) {
++    if (hyphens[i] && length >= aLimits.mStart && i < endLimit) {
+       // Keep track of hyphen position and "countable" length of the word.
+       oldBreaks.AppendElement(BreakInfo{i + 1, length, aBreakState[i + 1]});
+       aBreakState[i + 1] = gfxTextRun::CompressedGlyph::FLAG_BREAK_TYPE_HYPHEN;
+@@ -502,7 +556,7 @@ void nsLineBreaker::FindHyphenationPoints(nsHyphenator* aHyphenator,
+     }
+   }
+ 
+-  if (length < mHyphenateLimitWord) {
++  if (length < aLimits.mWord) {
+     // After discounting combining marks, punctuation, controls, etc., the word
+     // was too short for hyphenate-limit-chars. If we've set any hyphen breaks,
+     // forget them.
+@@ -515,7 +569,7 @@ void nsLineBreaker::FindHyphenationPoints(nsHyphenator* aHyphenator,
+     // break(s) that we set, until the fragment will be long enough.
+     while (!oldBreaks.IsEmpty()) {
+       auto lastBreak = oldBreaks.PopLastElement();
+-      if (length - lastBreak.mLength >= mHyphenateLimitEnd) {
++      if (length - lastBreak.mLength >= aLimits.mEnd) {
+         break;
+       }
+       aBreakState[lastBreak.mPosition] = lastBreak.mState;
+@@ -553,6 +607,8 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
+     }
+ 
+     if (offset > 0) {
++      UpdateCurrentWordLanguage(aHyphenationLanguage);
++      mCurrentWordHyphenationLimits = mHyphenationLimits;
+       mTextItems.AppendElement(TextItem(aSink, 0, offset, aFlags));
+     }
+ 
+@@ -625,7 +681,7 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
+           AutoRestore<uint8_t> saveWordStartBreakState(breakState[wordStart]);
+           LineBreaker::ComputeBreakPositions(
+               Span<const uint8_t>(aText + wordStart, offset - wordStart),
+-              mWordBreak, mLineBreak, mScriptIsChineseOrJapanese,
++              mWordBreak, mLineBreak, IsChineseOrJapanese(aHyphenationLanguage),
+               Span<uint8_t>(breakState.Elements() + wordStart,
+                             offset - wordStart));
+         }
+@@ -660,11 +716,15 @@ nsresult nsLineBreaker::AppendText(nsAtom* aHyphenationLanguage,
+       mTextItems.AppendElement(TextItem(aSink, wordStart, len, aFlags));
+       // Ensure that the break-before for this word is written out
+       offset = wordStart + 1;
++      UpdateCurrentWordLanguage(aHyphenationLanguage);
++      mCurrentWordHyphenationLimits = mHyphenationLimits;
+       break;
+     }
+   }
+ 
+   if (!noBreaksNeeded) {
++    ApplyBreakSuppression(breakState.Elements() + start, start, offset - start,
++                          aFlags);
+     aSink->SetBreaks(start, offset - start, breakState.Elements() + start);
+   }
+   return NS_OK;
+@@ -677,38 +737,8 @@ void nsLineBreaker::UpdateCurrentWordLanguage(nsAtom* aHyphenationLanguage) {
+     return;
+   }
+ 
+-  if (aHyphenationLanguage && !mCurrentWordLanguage) {
+-    static mozilla::StaticRefPtr<nsAtom> sLastHyphenationLanguage;
+-    static bool sLastScriptIsChineseOrJapanese = false;
+-    static bool sInit = false;
+-
+-    if (!sInit) {
+-      mozilla::ClearOnShutdown(&sLastHyphenationLanguage);
+-      sInit = true;
+-    }
+-
+-    if (sLastHyphenationLanguage == aHyphenationLanguage) {
+-      MOZ_ASSERT(nsAtomString(sLastHyphenationLanguage)
+-                     .Equals(nsAtomString(aHyphenationLanguage)));
+-      mScriptIsChineseOrJapanese = sLastScriptIsChineseOrJapanese;
+-    } else {
+-      Locale loc;
+-      auto result =
+-          LocaleParser::TryParse(nsAtomCString(aHyphenationLanguage), loc);
+-
+-      if (result.isErr()) {
+-        return;
+-      }
+-      if (loc.Script().Missing() && loc.AddLikelySubtags().isErr()) {
+-        return;
+-      }
+-      mScriptIsChineseOrJapanese =
+-          loc.Script().EqualTo("Hans") || loc.Script().EqualTo("Hant") ||
+-          loc.Script().EqualTo("Jpan") || loc.Script().EqualTo("Hrkt");
+-
+-      sLastHyphenationLanguage = aHyphenationLanguage;
+-      sLastScriptIsChineseOrJapanese = mScriptIsChineseOrJapanese;
+-    }
++  if (!mCurrentWordLanguage) {
++    mScriptIsChineseOrJapanese = IsChineseOrJapanese(aHyphenationLanguage);
+   }
+   mCurrentWordLanguage = aHyphenationLanguage;
+ }
+diff --git a/dom/base/nsLineBreaker.h b/dom/base/nsLineBreaker.h
+index 4e401d33e7fd..9c4bbdd91d17 100644
+--- a/dom/base/nsLineBreaker.h
++++ b/dom/base/nsLineBreaker.h
+@@ -220,9 +220,9 @@ class nsLineBreaker {
+    */
+   void SetHyphenateLimitChars(uint32_t aWordLength, uint32_t aStartLength,
+                               uint32_t aEndLength) {
+-    mHyphenateLimitWord = std::min(255u, aWordLength);
+-    mHyphenateLimitStart = std::min(255u, aStartLength);
+-    mHyphenateLimitEnd = std::min(255u, aEndLength);
++    mHyphenationLimits = {uint8_t(std::min(255u, aWordLength)),
++                          uint8_t(std::min(255u, aStartLength)),
++                          uint8_t(std::min(255u, aEndLength))};
+   }
+ 
+  private:
+@@ -253,9 +253,16 @@ class nsLineBreaker {
+ 
+   void UpdateCurrentWordLanguage(nsAtom* aHyphenationLanguage);
+ 
++  struct HyphenationLimits {
++    uint8_t mWord = 0;
++    uint8_t mStart = 0;
++    uint8_t mEnd = 0;
++  };
++
+   void FindHyphenationPoints(nsHyphenator* aHyphenator,
+                              const char16_t* aTextStart,
+-                             const char16_t* aTextLimit, uint8_t* aBreakState);
++                             const char16_t* aTextLimit, uint8_t* aBreakState,
++                             const HyphenationLimits& aLimits);
+ 
+   inline constexpr bool IsSegmentSpace(char16_t u) const {
+     return u == 0x0020 ||  // SPACE u
+@@ -275,9 +282,9 @@ class nsLineBreaker {
+   // so they are not purely codepoint or character counts.)
+   // (Zero values would have no effect; but text-frame code will update the
+   // values from CSS before calling the line-breaker.)
+-  uint8_t mHyphenateLimitWord = 0;   // Min word length to auto-hyphenate
+-  uint8_t mHyphenateLimitStart = 0;  // Min number of chars before the break
+-  uint8_t mHyphenateLimitEnd = 0;    // Min number of chars after the break
++  HyphenationLimits mHyphenationLimits;
++  // Preserve the last contributing text's limits until the word is flushed.
++  HyphenationLimits mCurrentWordHyphenationLimits;
+ 
+   bool mCurrentWordContainsMixedLang = false;
+   bool mCurrentWordMightBeBreakable = false;
+diff --git a/layout/base/nsQuoteList.cpp b/layout/base/nsQuoteList.cpp
+index 3f55df808513..c19543f9b8ad 100644
+--- a/layout/base/nsQuoteList.cpp
++++ b/layout/base/nsQuoteList.cpp
+@@ -27,6 +27,8 @@ bool nsQuoteNode::InitTextFrame(nsGenConList* aList, nsIFrame* aPseudoFrame,
+   quoteList->Insert(this);
+   if (quoteList->IsLast(this)) {
+     quoteList->Calc(this);
++    // Child scopes can inherit their initial depth from this appended node.
++    dirty = quoteList->HasChildScopes();
+   } else {
+     dirty = true;
+   }
+@@ -112,6 +114,10 @@ static int32_t GetDepthBeforeFirstQuoteNode(ContainStyleScope* aScope) {
+   return 0;
+ }
+ 
++bool nsQuoteList::HasChildScopes() const {
++  return !mScope->GetChildren().IsEmpty();
++}
++
+ void nsQuoteList::Calc(nsQuoteNode* aNode) {
+   if (aNode == FirstNode()) {
+     aNode->mDepthBefore = GetDepthBeforeFirstQuoteNode(mScope);
+diff --git a/layout/base/nsQuoteList.h b/layout/base/nsQuoteList.h
+index fa5f933f7357..49e3cb9e762a 100644
+--- a/layout/base/nsQuoteList.h
++++ b/layout/base/nsQuoteList.h
+@@ -78,6 +78,8 @@ class nsQuoteList : public nsGenConList {
+   // Should be called immediately after calling |Insert|.
+   void Calc(nsQuoteNode* aNode);
+ 
++  bool HasChildScopes() const;
++
+   nsQuoteNode* Next(nsQuoteNode* aNode) {
+     return static_cast<nsQuoteNode*>(nsGenConList::Next(aNode));
+   }
+diff --git a/layout/generic/BlockReflowState.cpp b/layout/generic/BlockReflowState.cpp
+index 4f7e46b6b9ab..e45d3021efcd 100644
+--- a/layout/generic/BlockReflowState.cpp
++++ b/layout/generic/BlockReflowState.cpp
+@@ -496,7 +496,7 @@ void BlockReflowState::RecoverFloats(nsLineList::iterator aLine,
+       FloatManager()->AddFloat(
+           floatFrame,
+           nsFloatManager::GetRegionFor(wm, floatFrame, ContainerSize()), wm,
+-          ContainerSize());
++          ContainerSize(), ContentISize());
+     }
+   } else if (aLine->IsBlock()) {
+     nsBlockFrame::RecoverFloatsFor(aLine->mFirstChild, *FloatManager(), wm,
+@@ -943,7 +943,7 @@ BlockReflowState::PlaceFloatResult BlockReflowState::FlowAndPlaceFloat(
+     region.BSize(wm) =
+         std::max(region.BSize(wm), ContentBSize() - floatPos.B(wm));
+   }
+-  FloatManager()->AddFloat(aFloat, region, wm, ContainerSize());
++  FloatManager()->AddFloat(aFloat, region, wm, ContainerSize(), ContentISize());
+ 
+   // store region
+   nsFloatManager::StoreRegionFor(wm, aFloat, region, ContainerSize());
+diff --git a/layout/generic/StickyScrollContainer.cpp b/layout/generic/StickyScrollContainer.cpp
+index 70be40c95063..10e2ca8e9cb4 100644
+--- a/layout/generic/StickyScrollContainer.cpp
++++ b/layout/generic/StickyScrollContainer.cpp
+@@ -195,34 +195,38 @@ StickyScrollContainer::StickyLimits StickyScrollContainer::ComputeStickyLimits(
+   nsMargin sfPadding = scrolledFrame->GetUsedPadding();
+   nsPoint sfOffset = aFrame->GetParent()->GetOffsetTo(scrolledFrame);
+   nsSize sfSize = GetScrollContainerSize(mScrollContainerFrame);
+-  StyleDirection direction = cbFrame->StyleVisibility()->mDirection;
+-  nsMargin effectiveOffsets = *computedOffsets;
+-
+-  if (computedOffsets->top != NS_AUTOOFFSET &&
++  WritingMode writingMode = cbFrame->GetWritingMode();
++  nsMargin effectiveOffsets(
++      computedOffsets->top == NS_AUTOOFFSET ? 0 : computedOffsets->top,
++      computedOffsets->right == NS_AUTOOFFSET ? 0 : computedOffsets->right,
++      computedOffsets->bottom == NS_AUTOOFFSET ? 0 : computedOffsets->bottom,
++      computedOffsets->left == NS_AUTOOFFSET ? 0 : computedOffsets->left);
++
++  if (computedOffsets->top != NS_AUTOOFFSET ||
+       computedOffsets->bottom != NS_AUTOOFFSET) {
+     // Decrease the effective end-edge inset of the sticky view rectangle
+     // when its height is less than the height of the border-box of the sticky
+     // box.
+-    nscoord stickyViewHeight = sfSize.height - computedOffsets->TopBottom();
++    nscoord stickyViewHeight = sfSize.height - effectiveOffsets.TopBottom();
+     if (rect.height > stickyViewHeight) {
+       nscoord delta = rect.height - stickyViewHeight;
+-      effectiveOffsets.bottom -= delta;
++      effectiveOffsets.Side(writingMode.PhysicalSide(
++          writingMode.IsVertical() ? LogicalSide::IEnd : LogicalSide::BEnd)) -=
++          delta;
+     }
+   }
+ 
+-  if (computedOffsets->left != NS_AUTOOFFSET &&
++  if (computedOffsets->left != NS_AUTOOFFSET ||
+       computedOffsets->right != NS_AUTOOFFSET) {
+     // Decrease the effective end-edge inset of the sticky view rectangle
+     // when its width is less than the width of the border-box of the sticky
+     // box.
+-    nscoord stickyViewWidth = sfSize.width - computedOffsets->LeftRight();
++    nscoord stickyViewWidth = sfSize.width - effectiveOffsets.LeftRight();
+     if (rect.width > stickyViewWidth) {
+       nscoord delta = rect.width - stickyViewWidth;
+-      if (direction == StyleDirection::Ltr) {
+-        effectiveOffsets.right -= delta;
+-      } else {
+-        effectiveOffsets.left -= delta;
+-      }
++      effectiveOffsets.Side(writingMode.PhysicalSide(
++          writingMode.IsVertical() ? LogicalSide::BEnd : LogicalSide::IEnd)) -=
++          delta;
+     }
+   }
+ 
+diff --git a/layout/generic/nsBlockFrame.cpp b/layout/generic/nsBlockFrame.cpp
+index 5da4816d2b02..5b1d5bf1595d 100644
+--- a/layout/generic/nsBlockFrame.cpp
++++ b/layout/generic/nsBlockFrame.cpp
+@@ -8252,10 +8252,14 @@ void nsBlockFrame::RecoverFloats(nsFloatManager& aFloatManager, WritingMode aWM,
+   nsIFrame* stop = nullptr;  // Stop before we reach pushed floats that
+                              // belong to our next-in-flow
+   const nsFrameList* floats = GetFloats();
++  const WritingMode wm = GetWritingMode();
++  const nscoord contentISize =
++      floats ? LogicalSize(wm, GetContentRectRelativeToSelf().Size()).ISize(wm)
++             : 0;
+   for (nsIFrame* f = floats ? floats->FirstChild() : nullptr; f && f != stop;
+        f = f->GetNextSibling()) {
+     LogicalRect region = nsFloatManager::GetRegionFor(aWM, f, aContainerSize);
+-    aFloatManager.AddFloat(f, region, aWM, aContainerSize);
++    aFloatManager.AddFloat(f, region, aWM, aContainerSize, contentISize);
+     if (!stop && f->GetNextInFlow()) {
+       stop = f->GetNextInFlow();
+     }
+diff --git a/layout/generic/nsFlexContainerFrame.cpp b/layout/generic/nsFlexContainerFrame.cpp
+index 253ba3adadcf..c0ba3677b08d 100644
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -1004,6 +1004,8 @@ class nsFlexContainerFrame::FlexLine final {
+ 
+   uint32_t NumItems() const { return mItems.Length(); }
+ 
++  uint32_t NumNonCollapsedItems() const { return mNumNonCollapsedItems; }
++
+   nsTArray<FlexItem>& Items() { return mItems; }
+   const nsTArray<FlexItem>& Items() const { return mItems; }
+ 
+@@ -3543,6 +3545,9 @@ MainAxisPositionTracker::MainAxisPositionTracker(
+   // we'll subtract out the main sizes of our flex items, so that it ends up
+   // with the *actual* amount of packing space.
+   for (const FlexItem& item : aLine->Items()) {
++    if (item.IsStrut()) {
++      continue;
++    }
+     mPackingSpaceRemaining -= item.OuterMainSize();
+     mNumAutoMarginsInMainAxis += item.NumAutoMarginsInMainAxis();
+   }
+@@ -3555,7 +3560,7 @@ MainAxisPositionTracker::MainAxisPositionTracker(
+   // fall back to 'safe center'. In those cases, it's simplest to just pretend
+   // we have a different 'justify-content' value and share code.
+   // https://drafts.csswg.org/css-align-3/#distribution-values
+-  if (mPackingSpaceRemaining < 0 || aLine->NumItems() == 1) {
++  if (mPackingSpaceRemaining < 0 || aLine->NumNonCollapsedItems() == 1) {
+     if (mJustifyContent.primary == StyleAlignFlags::SPACE_BETWEEN) {
+       // [1]  XXXdholbert Per spec, we should do...
+       //   justifyContentFlags = StyleAlignFlags::SAFE;
+@@ -3601,7 +3606,7 @@ MainAxisPositionTracker::MainAxisPositionTracker(
+   // Figure out how much space we'll set aside for auto margins or
+   // packing spaces, and advance past any leading packing-space.
+   if (mNumAutoMarginsInMainAxis == 0 && mPackingSpaceRemaining != 0 &&
+-      !aLine->IsEmpty()) {
++      aLine->NumNonCollapsedItems() != 0) {
+     if (mJustifyContent.primary == StyleAlignFlags::FLEX_START) {
+       // All packing space should go at the end --> nothing to do here.
+     } else if (mJustifyContent.primary == StyleAlignFlags::FLEX_END) {
+@@ -3614,7 +3619,7 @@ MainAxisPositionTracker::MainAxisPositionTracker(
+                mJustifyContent.primary == StyleAlignFlags::SPACE_AROUND ||
+                mJustifyContent.primary == StyleAlignFlags::SPACE_EVENLY) {
+       nsFlexContainerFrame::CalculatePackingSpace(
+-          aLine->NumItems(), mJustifyContent, &mPosition,
++          aLine->NumNonCollapsedItems(), mJustifyContent, &mPosition,
+           &mNumPackingSpacesRemaining, &mPackingSpaceRemaining);
+     } else {
+       MOZ_ASSERT_UNREACHABLE("Unexpected justify-content value");
+@@ -4583,8 +4588,11 @@ void FlexLine::PositionItemsInMainAxis(
+       aAxisTracker, this, aJustifyContent, aContentBoxMainSize);
+   bool hadItemBefore = false;
+   for (FlexItem& item : Items()) {
+-    const bool strut = item.IsStrut();
+-    if (hadItemBefore && !strut) {
++    if (item.IsStrut()) {
++      item.SetMainPosition(mainAxisPosnTracker.Position());
++      continue;
++    }
++    if (hadItemBefore) {
+       mainAxisPosnTracker.TraverseGap(mMainGapSize);
+     }
+ 
+@@ -4604,7 +4612,7 @@ void FlexLine::PositionItemsInMainAxis(
+     mainAxisPosnTracker.ExitChildFrame(itemMainBorderBoxSize);
+     mainAxisPosnTracker.ExitMargin(item.Margin());
+     mainAxisPosnTracker.TraversePackingSpace();
+-    hadItemBefore |= !strut;
++    hadItemBefore = true;
+   }
+ }
+ 
+diff --git a/layout/generic/nsFloatManager.cpp b/layout/generic/nsFloatManager.cpp
+index 34d7952ee11f..14f8afb99f93 100644
+--- a/layout/generic/nsFloatManager.cpp
++++ b/layout/generic/nsFloatManager.cpp
+@@ -266,13 +266,16 @@ nsFlowAreaRect nsFloatManager::GetFlowArea(
+ 
+ void nsFloatManager::AddFloat(nsIFrame* aFloatFrame,
+                               const LogicalRect& aMarginRect, WritingMode aWM,
+-                              const nsSize& aContainerSize) {
++                              const nsSize& aContainerSize,
++                              nscoord aContainingBlockISize) {
+   CHECK_BLOCK_AND_LINE_DIR(aWM);
+   NS_ASSERTION(aMarginRect.ISize(aWM) >= 0, "negative inline size!");
+   NS_ASSERTION(aMarginRect.BSize(aWM) >= 0, "negative block size!");
+ 
+-  FloatInfo info(aFloatFrame, mLineLeft, mBlockStart, aMarginRect, aWM,
+-                 aContainerSize);
++  FloatInfo info(
++      aFloatFrame, mLineLeft, mBlockStart, aMarginRect, aWM, aContainerSize,
++      aContainingBlockISize == NS_UNCONSTRAINEDSIZE ? 0
++                                                    : aContainingBlockISize);
+ 
+   // Set mLeftBEnd and mRightBEnd.
+   if (HasAnyFloats()) {
+@@ -2260,7 +2263,8 @@ nsFloatManager::FloatInfo::FloatInfo(nsIFrame* aFrame, nscoord aLineLeft,
+                                      nscoord aBlockStart,
+                                      const LogicalRect& aMarginRect,
+                                      WritingMode aWM,
+-                                     const nsSize& aContainerSize)
++                                     const nsSize& aContainerSize,
++                                     nscoord aContainingBlockISize)
+     : mFrame(aFrame),
+       mLeftBEnd(nscoord_MIN),
+       mRightBEnd(nscoord_MIN),
+@@ -2282,11 +2286,11 @@ nsFloatManager::FloatInfo::FloatInfo(nsIFrame* aFrame, nscoord aLineLeft,
+   const nsStyleDisplay* styleDisplay = mFrame->StyleDisplay();
+   const auto& shapeOutside = styleDisplay->mShapeOutside;
+ 
+-  nscoord shapeMargin = shapeOutside.IsNone()
+-                            ? 0
+-                            : nsLayoutUtils::ResolveToLength<true>(
+-                                  styleDisplay->mShapeMargin,
+-                                  LogicalSize(aWM, aContainerSize).ISize(aWM));
++  nscoord shapeMargin =
++      shapeOutside.IsNone()
++          ? 0
++          : nsLayoutUtils::ResolveToLength<true>(styleDisplay->mShapeMargin,
++                                                 aContainingBlockISize);
+ 
+   switch (shapeOutside.tag) {
+     case ShapeOutsideType::None:
+diff --git a/layout/generic/nsFloatManager.h b/layout/generic/nsFloatManager.h
+index ccca48c5f052..a5fbbc717a81 100644
+--- a/layout/generic/nsFloatManager.h
++++ b/layout/generic/nsFloatManager.h
+@@ -233,9 +233,12 @@ class nsFloatManager {
+    *
+    * aMarginRect is relative to the current translation.  The caller
+    * must ensure aMarginRect.height >= 0 and aMarginRect.width >= 0.
++   * aContainingBlockISize is the content inline size for shape-margin
++   * percentages.
+    */
+   void AddFloat(nsIFrame* aFloatFrame, const mozilla::LogicalRect& aMarginRect,
+-                mozilla::WritingMode aWM, const nsSize& aContainerSize);
++                mozilla::WritingMode aWM, const nsSize& aContainerSize,
++                nscoord aContainingBlockISize);
+ 
+   /**
+    * Notify that we tried to place a float that could not fit at all and
+@@ -358,7 +361,7 @@ class nsFloatManager {
+ 
+     FloatInfo(nsIFrame* aFrame, nscoord aLineLeft, nscoord aBlockStart,
+               const mozilla::LogicalRect& aMarginRect, mozilla::WritingMode aWM,
+-              const nsSize& aContainerSize);
++              const nsSize& aContainerSize, nscoord aContainingBlockISize);
+ 
+     nscoord LineLeft() const { return mRect.x; }
+     nscoord LineRight() const { return mRect.XMost(); }
+diff --git a/layout/generic/nsTextFrame.cpp b/layout/generic/nsTextFrame.cpp
+index 4b42146f0fb7..c7c4d11731dd 100644
+--- a/layout/generic/nsTextFrame.cpp
++++ b/layout/generic/nsTextFrame.cpp
+@@ -1890,30 +1890,6 @@ void BuildTextRunsScanner::AccumulateRunInfo(nsTextFrame* aFrame) {
+     mLineBreakBeforeFrames.AppendElement(aFrame);
+     mStartOfLine = false;
+   }
+-
+-  // Default limits used by `hyphenate-limit-chars` for `auto` components, as
+-  // suggested by the CSS Text spec.
+-  // TODO: consider making these sensitive to the context, e.g. increasing the
+-  // values for long line lengths to reduce the tendency to hyphenate too much.
+-  const uint32_t kDefaultHyphenateTotalWordLength = 5;
+-  const uint32_t kDefaultHyphenatePreBreakLength = 2;
+-  const uint32_t kDefaultHyphenatePostBreakLength = 2;
+-
+-  const auto& hyphenateLimitChars = aFrame->StyleText()->mHyphenateLimitChars;
+-  uint32_t pre =
+-      hyphenateLimitChars.pre_hyphen_length.IsAuto()
+-          ? kDefaultHyphenatePreBreakLength
+-          : std::max(0, hyphenateLimitChars.pre_hyphen_length.AsNumber());
+-  uint32_t post =
+-      hyphenateLimitChars.post_hyphen_length.IsAuto()
+-          ? kDefaultHyphenatePostBreakLength
+-          : std::max(0, hyphenateLimitChars.post_hyphen_length.AsNumber());
+-  uint32_t total =
+-      hyphenateLimitChars.total_word_length.IsAuto()
+-          ? kDefaultHyphenateTotalWordLength
+-          : std::max(0, hyphenateLimitChars.total_word_length.AsNumber());
+-  total = std::max(total, pre + post);
+-  mLineBreaker.SetHyphenateLimitChars(total, pre, post);
+ }
+ 
+ static bool HasTerminalNewline(const nsTextFrame* aFrame) {
+@@ -2913,96 +2889,138 @@ void BuildTextRunsScanner::SetupBreakSinksForTextRun(gfxTextRun* aTextRun,
+ 
+   for (uint32_t i = 0; i < mMappedFlows.Length(); ++i) {
+     MappedFlow* mappedFlow = &mMappedFlows[i];
+-    // The CSS word-break value may change within a word, so we reset it for
+-    // each MappedFlow. The line-breaker will flush its text if the property
+-    // actually changes.
+-    const auto* styleText = mappedFlow->mStartFrame->StyleText();
+-    auto wordBreak = styleText->EffectiveWordBreak();
+-    switch (wordBreak) {
+-      case StyleWordBreak::BreakAll:
+-        mLineBreaker.SetWordBreak(WordBreakRule::BreakAll);
+-        break;
+-      case StyleWordBreak::KeepAll:
+-        mLineBreaker.SetWordBreak(WordBreakRule::KeepAll);
+-        break;
+-      case StyleWordBreak::Normal:
+-      default:
+-        MOZ_ASSERT(wordBreak == StyleWordBreak::Normal);
+-        mLineBreaker.SetWordBreak(WordBreakRule::Normal);
+-        break;
+-    }
+-    switch (styleText->mLineBreak) {
+-      case StyleLineBreak::Auto:
+-        mLineBreaker.SetStrictness(LineBreakRule::Auto);
+-        break;
+-      case StyleLineBreak::Normal:
+-        mLineBreaker.SetStrictness(LineBreakRule::Normal);
+-        break;
+-      case StyleLineBreak::Loose:
+-        mLineBreaker.SetStrictness(LineBreakRule::Loose);
+-        break;
+-      case StyleLineBreak::Strict:
+-        mLineBreaker.SetStrictness(LineBreakRule::Strict);
+-        break;
+-      case StyleLineBreak::Anywhere:
+-        mLineBreaker.SetStrictness(LineBreakRule::Anywhere);
+-        break;
+-    }
+-
+-    uint32_t offset = iter.GetSkippedOffset();
+-    gfxSkipCharsIterator iterNext = iter;
+-    iterNext.AdvanceOriginal(mappedFlow->GetContentEnd() -
+-                             mappedFlow->mStartFrame->GetContentOffset());
++    bool firstTextRange = true;
++    for (nsTextFrame* startFrame = mappedFlow->mStartFrame;
++         startFrame != mappedFlow->mEndFrame;) {
++      const auto* styleText = startFrame->StyleText();
++      nsTextFrame* endFrame = startFrame->GetNextContinuation();
++      while (endFrame != mappedFlow->mEndFrame &&
++             endFrame->StyleText()->mHyphenateLimitChars ==
++                 styleText->mHyphenateLimitChars) {
++        endFrame = endFrame->GetNextContinuation();
++      }
++      const int32_t contentEnd = endFrame
++                                     ? std::min(endFrame->GetContentOffset(),
++                                                mappedFlow->GetContentEnd())
++                                     : mappedFlow->GetContentEnd();
++      // Default limits used by `hyphenate-limit-chars` for `auto` components,
++      // as suggested by the CSS Text spec.
++      // TODO: consider making these sensitive to the context, e.g. increasing
++      // the values for long line lengths to reduce the tendency to hyphenate
++      // too much.
++      const uint32_t kDefaultHyphenateTotalWordLength = 5;
++      const uint32_t kDefaultHyphenatePreBreakLength = 2;
++      const uint32_t kDefaultHyphenatePostBreakLength = 2;
++
++      const auto& hyphenateLimitChars = styleText->mHyphenateLimitChars;
++      uint32_t pre =
++          hyphenateLimitChars.pre_hyphen_length.IsAuto()
++              ? kDefaultHyphenatePreBreakLength
++              : std::max(0, hyphenateLimitChars.pre_hyphen_length.AsNumber());
++      uint32_t post =
++          hyphenateLimitChars.post_hyphen_length.IsAuto()
++              ? kDefaultHyphenatePostBreakLength
++              : std::max(0, hyphenateLimitChars.post_hyphen_length.AsNumber());
++      uint32_t total =
++          hyphenateLimitChars.total_word_length.IsAuto()
++              ? kDefaultHyphenateTotalWordLength
++              : std::max(0, hyphenateLimitChars.total_word_length.AsNumber());
++      total = std::max(total, pre + post);
++      mLineBreaker.SetHyphenateLimitChars(total, pre, post);
++
++      // The CSS word-break value may change within a word, so we reset it for
++      // each style range. The line-breaker will flush its text if the property
++      // actually changes.
++      auto wordBreak = styleText->EffectiveWordBreak();
++      switch (wordBreak) {
++        case StyleWordBreak::BreakAll:
++          mLineBreaker.SetWordBreak(WordBreakRule::BreakAll);
++          break;
++        case StyleWordBreak::KeepAll:
++          mLineBreaker.SetWordBreak(WordBreakRule::KeepAll);
++          break;
++        case StyleWordBreak::Normal:
++        default:
++          MOZ_ASSERT(wordBreak == StyleWordBreak::Normal);
++          mLineBreaker.SetWordBreak(WordBreakRule::Normal);
++          break;
++      }
++      switch (styleText->mLineBreak) {
++        case StyleLineBreak::Auto:
++          mLineBreaker.SetStrictness(LineBreakRule::Auto);
++          break;
++        case StyleLineBreak::Normal:
++          mLineBreaker.SetStrictness(LineBreakRule::Normal);
++          break;
++        case StyleLineBreak::Loose:
++          mLineBreaker.SetStrictness(LineBreakRule::Loose);
++          break;
++        case StyleLineBreak::Strict:
++          mLineBreaker.SetStrictness(LineBreakRule::Strict);
++          break;
++        case StyleLineBreak::Anywhere:
++          mLineBreaker.SetStrictness(LineBreakRule::Anywhere);
++          break;
++      }
+ 
+-    UniquePtr<BreakSink>* breakSink = mBreakSinks.AppendElement(
+-        MakeUnique<BreakSink>(aTextRun, mDrawTarget, offset));
++      uint32_t offset = iter.GetSkippedOffset();
++      gfxSkipCharsIterator iterNext = iter;
++      const int32_t contentStart =
++          std::min(startFrame->GetContentOffset(), mappedFlow->GetContentEnd());
++      iterNext.AdvanceOriginal(contentEnd - contentStart);
+ 
+-    uint32_t length = iterNext.GetSkippedOffset() - offset;
+-    uint32_t flags = 0;
+-    nsIFrame* initialBreakController =
+-        mappedFlow->mAncestorControllingInitialBreak;
+-    if (!initialBreakController) {
+-      initialBreakController = mLineContainer;
+-    }
+-    if (!initialBreakController->StyleText()->WhiteSpaceCanWrap(
+-            initialBreakController)) {
+-      flags |= nsLineBreaker::BREAK_SUPPRESS_INITIAL;
+-    }
+-    nsTextFrame* startFrame = mappedFlow->mStartFrame;
+-    const nsStyleText* textStyle = startFrame->StyleText();
+-    if (!textStyle->WhiteSpaceCanWrap(startFrame)) {
+-      flags |= nsLineBreaker::BREAK_SUPPRESS_INSIDE;
+-    }
+-    if (aTextRun->GetFlags2() & nsTextFrameUtils::Flags::NoBreaks) {
+-      flags |= nsLineBreaker::BREAK_SKIP_SETTING_NO_BREAKS;
+-    }
+-    if (textStyle->mTextTransform & StyleTextTransform::CAPITALIZE) {
+-      flags |= nsLineBreaker::BREAK_NEED_CAPITALIZATION;
+-    }
+-    if (textStyle->mHyphens == StyleHyphens::Auto &&
+-        textStyle->mLineBreak != StyleLineBreak::Anywhere) {
+-      flags |= nsLineBreaker::BREAK_USE_AUTO_HYPHENATION;
+-    }
++      uint32_t length = iterNext.GetSkippedOffset() - offset;
++      uint32_t flags = 0;
++      nsIFrame* initialBreakController =
++          firstTextRange ? mappedFlow->mAncestorControllingInitialBreak
++                         : startFrame;
++      if (!initialBreakController) {
++        initialBreakController = mLineContainer;
++      }
++      if (!initialBreakController->StyleText()->WhiteSpaceCanWrap(
++              initialBreakController)) {
++        flags |= nsLineBreaker::BREAK_SUPPRESS_INITIAL;
++      }
++      const nsStyleText* textStyle = startFrame->StyleText();
++      if (!textStyle->WhiteSpaceCanWrap(startFrame)) {
++        flags |= nsLineBreaker::BREAK_SUPPRESS_INSIDE;
++      }
++      if (aTextRun->GetFlags2() & nsTextFrameUtils::Flags::NoBreaks) {
++        flags |= nsLineBreaker::BREAK_SKIP_SETTING_NO_BREAKS;
++      }
++      if (textStyle->mTextTransform & StyleTextTransform::CAPITALIZE) {
++        flags |= nsLineBreaker::BREAK_NEED_CAPITALIZATION;
++      }
++      if (textStyle->mHyphens == StyleHyphens::Auto &&
++          textStyle->mLineBreak != StyleLineBreak::Anywhere) {
++        flags |= nsLineBreaker::BREAK_USE_AUTO_HYPHENATION;
++      }
+ 
+-    if (HasCompressedLeadingWhitespace(startFrame, textStyle,
+-                                       mappedFlow->GetContentEnd(), iter)) {
+-      mLineBreaker.AppendInvisibleWhitespace(flags);
+-    }
++      if (HasCompressedLeadingWhitespace(startFrame, textStyle, contentEnd,
++                                         iter)) {
++        mLineBreaker.AppendInvisibleWhitespace(flags);
++      }
+ 
+-    if (length > 0) {
+-      BreakSink* sink = mSkipIncompleteTextRuns ? nullptr : (*breakSink).get();
+-      if (mDoubleByteText) {
+-        const char16_t* text = reinterpret_cast<const char16_t*>(aTextPtr);
+-        mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
+-                                flags, sink);
+-      } else {
+-        const uint8_t* text = reinterpret_cast<const uint8_t*>(aTextPtr);
+-        mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
+-                                flags, sink);
++      UniquePtr<BreakSink>* breakSink = mBreakSinks.AppendElement(
++          MakeUnique<BreakSink>(aTextRun, mDrawTarget, offset));
++      if (length > 0) {
++        BreakSink* sink =
++            mSkipIncompleteTextRuns ? nullptr : (*breakSink).get();
++        if (mDoubleByteText) {
++          const char16_t* text = reinterpret_cast<const char16_t*>(aTextPtr);
++          mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
++                                  flags, sink);
++        } else {
++          const uint8_t* text = reinterpret_cast<const uint8_t*>(aTextPtr);
++          mLineBreaker.AppendText(hyphenationLanguage, text + offset, length,
++                                  flags, sink);
++        }
+       }
+-    }
+ 
+-    iter = iterNext;
++      firstTextRange = firstTextRange && length == 0;
++      iter = iterNext;
++      startFrame = endFrame;
++    }
+   }
+ }
+ 
