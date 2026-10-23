@@ -1,0 +1,26 @@
+diff --git a/layout/generic/nsFlexContainerFrame.cpp b/layout/generic/nsFlexContainerFrame.cpp
+index b362870c51c433012ca7cbf4436895aef7a36912..f1053127cbe3211923eba9d0fb2cf75c4a9c78e0 100644
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -5711,6 +5711,7 @@
+     const LogicalMargin& aBorderPadding, const FlexboxAxisTracker& aAxisTracker,
+     FlexLayoutResult& aFlr, PerFragmentFlexData& aFragmentData) {
+   if (HidesContentForLayout()) {
++    MarkPrincipalChildrenDirty();
+     return {0, nsReflowStatus()};
+   }
+ 
+diff --git a/layout/generic/AbsoluteContainingBlock.cpp b/layout/generic/AbsoluteContainingBlock.cpp
+index b6e9389bd7e91583f1ad5641c984b5a4798fd078..77c59b63dc69524c998d3f1f9c12e9a61ad4587e 100644
+--- a/layout/generic/AbsoluteContainingBlock.cpp
++++ b/layout/generic/AbsoluteContainingBlock.cpp
+@@ -1997,6 +1997,9 @@
+       }
+     }
+     const LogicalSize availSize(outerWM, cbSize.ISize(outerWM), availBSize);
++    if (aKidFrame->IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
++      aKidFrame->MarkSubtreeDirty();
++    }
+     ReflowInput kidReflowInput(aPresContext, aReflowInput, aKidFrame,
+                                availSize.ConvertTo(wm, outerWM),
+                                Some(cbSize.ConvertTo(wm, outerWM)), initFlags,

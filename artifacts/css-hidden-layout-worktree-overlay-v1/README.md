@@ -1,0 +1,17 @@
+# Preserve the experimental worktree when installing the two fixes
+
+This is an offline installation plan, not authorization or an executed installation. First require terminal successful restoration of column-runtime-v1 and the separate scoped native acceptance decision. The experiment must restore its original sources before any installation.
+
+Neither new repair occurs in the retained original sources. Cached-only commits alone would therefore leave each fix reverted in the worktree. Apply the native-only overlays here to the restored working files after validating their exact before hashes. They add only the accepted dirty-marking statements; every preexisting prototype byte remains unchanged. The principal working file then has SHA256 `06939a81f2595cd50f3ee5e05547ac86314ec7ffd259b4477f6a9f26d3759c11`, intentionally different from its clean committed final `83c646378ba60da82d6501bb94089532992a9ecf1bdc20258c7ea28ee48ff3f5`. The absolute final `926858026128b2934df41c6ec3953b76fb84d2ed66796523b553fc8dcf2373c7` is identical in both roles.
+
+## Root-owned installation sequence
+
+1. Authenticate this capsule, the sealed native package, final runtime and acceptance. Confirm the index is in the expected state, all runtime source originals are restored, and all five landing WPT paths are absent. If HEAD has advanced through evidence commits, confirm its native blobs still equal the package's before blobs. Do not bypass any mismatched source identity.
+2. For each repair separately, apply its worktree overlay only to its native file and install its exact tested WPT bytes from native-package BINDINGS. Do not alter the other prototype files. Test installation occurs only after experiment cleanup removed its temporary test paths.
+3. Stage the clean HEAD-based native+WPT package with a cached-only patch operation, not by adding the entire experimental flex file. Verify the staged path roster is exactly four paths for principal or three for absolute, the modes are 100644, and every staged blob matches the corresponding recipe. Check the working native file against the overlay's distinct final hash.
+4. Finalize each draft recipe's expected HEAD and approved metadata, then sign that single native+tests commit. Recheck its exact changed roster and blobs, working native overlay hash, and test bytes. Preserve all other preexisting prototype hashes. Keep the principal mark installed when committing the absolute repair.
+5. After both commits, the remaining unstaged changes must be the original prototypes, with neither new fix reversed and no landing WPT differences. No prototype belongs in these native commits. On a failure, preserve receipts and reconcile the exact state before proceeding; do not blindly reset or add the full worktree.
+
+The package's FIX101-LEDGER-RECOMMENDATION remains applicable: principal has independent old-key value; fix101 needs principal (or equivalent) for its known integration exposure. These native repairs do not depend on one another in the measured landing partitions.
+
+`verify.py` only authenticates retained files and applies/reverses each overlay in disposable directories. It performs no Git operations or live-source edits. The fresh two-path reviewer lookup is retained separately; the earlier lookup and its sealed source manifest are also bound in REVIEWER.json. The initial sandbox-denied invocation remains as diagnostic history.

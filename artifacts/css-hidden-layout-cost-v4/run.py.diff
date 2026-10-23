@@ -1,0 +1,14 @@
+--- cost-v3/run.py
++++ cost-v4/run.py
+@@ -51,9 +51,11 @@
+ (output / "BEFORE.json").write_text(json.dumps(before, indent=2) + "\n")
+ child_env = dict(os.environ)
+ startup_environment = {"MOZ_DISABLE_SAFE_MODE_KEY": "1",
++                       "MOZ_DISABLE_UPDATE_PROCESSING": "1",
+                        "MOZ_SAFE_MODE_RESTART_inherited_present": "MOZ_SAFE_MODE_RESTART" in child_env,
+                        "MOZ_SAFE_MODE_RESTART_removed": True}
+ child_env["MOZ_DISABLE_SAFE_MODE_KEY"] = "1"
++child_env["MOZ_DISABLE_UPDATE_PROCESSING"] = "1"
+ child_env.pop("MOZ_SAFE_MODE_RESTART", None)
+ (output / "STARTUP-ENV.json").write_text(json.dumps(startup_environment, indent=2) + "\n")
+ posts = []

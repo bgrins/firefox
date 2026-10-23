@@ -1,0 +1,383 @@
+diff --git a/layout/generic/nsFlexContainerFrame.cpp b/layout/generic/nsFlexContainerFrame.cpp
+index a684971e1dcdc3873ef18d7b3a08f93cadc88bfc..1a27d83d5a901e26b228f2b3e8f560e842f86db1 100644
+--- a/layout/generic/nsFlexContainerFrame.cpp
++++ b/layout/generic/nsFlexContainerFrame.cpp
+@@ -5637,6 +5637,7 @@
+     const LogicalMargin& aBorderPadding, const FlexboxAxisTracker& aAxisTracker,
+     FlexLayoutResult& aFlr, PerFragmentFlexData& aFragmentData) {
+   if (HidesContentForLayout()) {
++    MarkPrincipalChildrenDirty();
+     return {0, nsReflowStatus()};
+   }
+ 
+diff --git a/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-item-measuring-reflow.html b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-item-measuring-reflow.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..54a54696560bade1ee92f5cf10e61f4517576ce6
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-item-measuring-reflow.html
+@@ -0,0 +1,107 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Hidden flex items and descendants update their geometry after sibling changes</title>
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#resolve-flexible-lengths">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getboundingclientrect">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++body { margin: 0; }
++.host { position: absolute; left: 10px; top: 10px; width: 100px; height: 64px; }
++.subject { display: flex; width: 100px; height: 64px; align-items: flex-start; }
++.subject.hidden { content-visibility: hidden; }
++.item, .added { flex: 0 1 auto; width: 100px; min-width: 0; height: 32px; padding: 0; border: 0; margin: 0; }
++.subject.no-shrink .item, .subject.no-shrink .added { flex-shrink: 0; }
++.subject.zero-sibling .added { width: 0; }
++.nested { width: 100%; height: 32px; padding: 0; border: 0; margin: 0; }
++</style>
++<body>
++<script>
++"use strict";
++const query = {
++  bounding(node) {
++    const rect = node.getBoundingClientRect();
++    return [rect.width, rect.height];
++  },
++  offset: node => [node.offsetWidth, node.offsetHeight],
++};
++
++function create(configuration, inserted) {
++  const host = document.createElement("div");
++  host.className = "host";
++  const subject = document.createElement("div");
++  subject.className = `subject ${configuration.mode}`;
++  const item = document.createElement("div");
++  item.className = "item";
++  let target = item;
++  if (configuration.nested) {
++    target = document.createElement("div");
++    target.className = "nested";
++    item.append(target);
++  }
++  subject.append(item);
++  const added = document.createElement("div");
++  added.className = "added";
++  if (inserted) {
++    subject[configuration.insertion](added);
++  }
++  host.append(subject);
++  document.body.append(host);
++  return {host, subject, item, target, added};
++}
++
++function outerFlush(fixture) {
++  return [fixture.subject.getClientRects().length,
++    fixture.subject.scrollWidth, fixture.subject.scrollHeight];
++}
++
++for (const nested of [false, true]) {
++  for (const insertion of ["append"]) {
++    for (const mode of ["shrink", "no-shrink", "zero-sibling"]) {
++      for (const hidden of [false, true]) {
++        for (const api of ["bounding"]) {
++          test(t => {
++            assert_implements(CSS.supports("content-visibility", "hidden"),
++              "content-visibility: hidden");
++            const configuration = {nested, insertion, mode, hidden, api};
++            const fixture = create(configuration, false);
++            t.add_cleanup(() => { fixture.host.remove(); });
++            const stages = [];
++            for (const phase of ["warm", "visibility", "insert", "remove", "show"]) {
++              if (phase === "visibility") fixture.subject.classList.toggle("hidden", hidden);
++              if (phase === "insert") fixture.subject[insertion](fixture.added);
++              if (phase === "remove") fixture.added.remove();
++              if (phase === "show") fixture.subject.classList.remove("hidden");
++              const outer = outerFlush(fixture);
++              const first = query[api](fixture.target);
++              const second = query[api](fixture.target);
++              const third = query[api](fixture.target);
++              const reference = create(configuration, phase === "insert");
++              let visible;
++              try {
++                outerFlush(reference);
++                visible = query[api](reference.target);
++              } finally {
++                reference.host.remove();
++              }
++              stages.push({phase, outer, first, second, third, visible,
++                expected: [phase === "insert" && mode === "shrink" ? 50 : 100, 32]});
++            }
++            for (const stage of stages) {
++              assert_array_equals(stage.visible, stage.expected,
++                stage.phase + ": independently constructed visible reference");
++            }
++            for (const stage of stages) {
++              for (const read of ["first", "second", "third"]) {
++                assert_array_equals(stage[read], stage.expected,
++                  stage.phase + ": " + read + " geometry query");
++              }
++            }
++          }, `${nested ? "Descendant" : "Flex item"}, ${hidden ? "hidden" : "visible"}, ${insertion}, ${mode}, ${api}`);
++        }
++      }
++    }
++  }
++}
++</script>
+diff --git a/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-fixed-size-query.html b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-fixed-size-query.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..7ea85535f2a5f25b34cfc794a92fc51d8fbd36d1
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-fixed-size-query.html
+@@ -0,0 +1,72 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Hidden fixed-size flex items retain geometry after sibling insertion</title>
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getclientrects">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++body { margin: 0; }
++.host { position: absolute; left: 10px; top: 10px; width: 320px; height: 64px; }
++.columns { columns: 3; column-gap: 10px; column-fill: auto; }
++.subject.flex { display: flex; align-items: flex-start; }
++.subject.hidden { content-visibility: hidden; }
++.target, .added { width: 24px; height: 32px; flex: none; }
++</style>
++<body>
++<script>
++"use strict";
++const queries = {
++  bounding: n => { const r = n.getBoundingClientRect(); return [r.width, r.height]; },
++  rects: n => [...n.getClientRects()].map(r => [r.width, r.height]),
++  offset: n => [n.offsetWidth, n.offsetHeight],
++  scroll: n => [n.scrollWidth, n.scrollHeight],
++};
++for (const columns of [false]) {
++  for (const flex of [false, true]) {
++    for (const initiallyHidden of [false, true]) {
++      for (const api of ["bounding", "offset"]) {
++        const query = queries[api];
++        test(t => {
++          assert_implements(CSS.supports("content-visibility", "hidden"));
++          const host = document.createElement("div");
++          host.className = `host ${columns ? "columns" : ""}`;
++          const subject = document.createElement("div");
++          subject.className = `subject ${flex ? "flex" : ""} ${initiallyHidden ? "hidden" : ""}`;
++          const target = document.createElement("div");
++          target.className = "target";
++          subject.append(target);
++          host.append(subject);
++          document.body.append(host);
++          t.add_cleanup(() => host.remove());
++          const stages = [];
++          for (const phase of ["initial", "hide", "append", "append-again", "show"]) {
++            if (phase === "hide") subject.classList.add("hidden");
++            if (phase.startsWith("append")) {
++              const added = document.createElement("div");
++              added.className = "added";
++              subject.append(added);
++            }
++            if (phase === "show") subject.classList.remove("hidden");
++            const outer = [subject.getClientRects().length, subject.scrollWidth, subject.scrollHeight];
++            const first = query(target);
++            const second = query(target);
++            const third = query(target);
++            stages.push({phase, outer, first, second, third});
++          }
++          for (const stage of stages) {
++            for (const read of ["first", "second", "third"]) {
++              if (api === "rects") {
++                assert_equals(stage[read].length, 1, `${stage.phase}: ${read} rect count`);
++                assert_array_equals(stage[read][0], [24, 32], `${stage.phase}: ${read}`);
++              } else {
++                assert_array_equals(stage[read], [24, 32], `${stage.phase}: ${read}`);
++              }
++            }
++          }
++        }, `Fixed size: ${columns ? "columns" : "single"}, ${flex ? "flex" : "block"}, ${initiallyHidden ? "initially hidden" : "initially visible"}, ${api}`);
++      }
++    }
++  }
++}
++</script>
+diff --git a/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-principal-positions.html b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-principal-positions.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..e49b900aba7df8fcbfab2200b718259c665d002e
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-principal-positions.html
+@@ -0,0 +1,174 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Geometry queries update skipped flex placement and descendants</title>
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#justify-content-property">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getboundingclientrect">
++<link rel="stylesheet" href="/fonts/ahem.css">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++body { margin: 0; }
++.host { position: absolute; left: 10px; top: 10px; width: 200px; height: 80px; }
++.wrapper, .subject { width: 200px; height: 80px; }
++.subject { display: flex; position: relative; justify-content: center; align-items: flex-start; font: 20px/20px Ahem; }
++.hidden { content-visibility: hidden; }
++.item { display: flow-root; flex: none; width: 40px; height: 20px; }
++.added { flex: none; width: 20px; height: 20px; }
++.leaf { width: 12px; height: 40%; margin-left: 3px; margin-top: 4px; }
++.item.width-change { width: 60px; }
++.item.height-change { height: 40px; }
++.item.margin-change { margin-left: 8px; }
++.item.padding-change { padding-left: 8px; }
++</style>
++<body>
++<script>
++"use strict";
++
++function makeFixture(kind = "item") {
++  const host = document.createElement("div");
++  host.className = "host";
++  const wrapper = document.createElement("div");
++  wrapper.className = "wrapper";
++  const subject = document.createElement("div");
++  subject.className = "subject";
++  const added = document.createElement("div");
++  added.className = "added";
++  let item;
++  let target;
++  if (kind === "text") {
++    item = document.createTextNode("XX");
++    target = document.createRange();
++    target.selectNodeContents(item);
++  } else {
++    item = document.createElement("div");
++    item.className = "item";
++    target = item;
++    if (kind === "leaf") {
++      target = document.createElement("div");
++      target.className = "leaf";
++      item.append(target);
++    }
++  }
++  subject.append(item);
++  wrapper.append(subject);
++  host.append(wrapper);
++  document.body.append(host);
++  return {host, wrapper, subject, item, target, added};
++}
++
++function hide(fixture, hidden, nested) {
++  fixture.subject.classList.toggle("hidden", hidden);
++  fixture.wrapper.classList.toggle("hidden", hidden && nested);
++}
++
++function outerFlush(fixture) {
++  fixture.wrapper.getClientRects();
++  fixture.wrapper.scrollHeight;
++  fixture.subject.getClientRects();
++  fixture.subject.scrollWidth;
++}
++
++function rectangle(target) {
++  const rect = target.getBoundingClientRect();
++  return [rect.left, rect.top, rect.width, rect.height];
++}
++
++function record(fixture, reference, label, expected) {
++  outerFlush(fixture);
++  const reads = [rectangle(fixture.target), rectangle(fixture.target), rectangle(fixture.target)];
++  outerFlush(reference);
++  const visible = rectangle(reference.target);
++  return {label, expected, reads, visible};
++}
++
++function check(records) {
++  for (const row of records) {
++    assert_array_equals(row.visible, row.expected, `${row.label}: visible reference calibration`);
++  }
++  for (const row of records) {
++    for (const [index, value] of row.reads.entries()) {
++      assert_array_equals(value, row.expected, `${row.label}: query ${index + 1}`);
++    }
++  }
++}
++
++function setupFixtures(t, kind) {
++  assert_implements(CSS.supports("content-visibility", "hidden"));
++  const fixture = makeFixture(kind);
++  const reference = makeFixture(kind);
++  t.add_cleanup(() => { fixture.host.remove(); reference.host.remove(); });
++  return [fixture, reference];
++}
++
++for (const kind of ["item", "leaf"]) {
++  for (const nested of [false]) {
++    for (const insertion of ["append", "prepend"]) {
++      for (const hidden of [false, true]) {
++        test(t => {
++          const [fixture, reference] = setupFixtures(t, kind);
++          const delta = kind === "leaf" ? [3, 4, 12, 8] : [0, 0, 40, 20];
++          const expected = x => [10 + x + delta[0], 10 + delta[1], delta[2], delta[3]];
++          const records = [record(fixture, reference, "warm", expected(80))];
++          hide(fixture, hidden, nested);
++          records.push(record(fixture, reference, "hidden state", expected(80)));
++          fixture.subject[insertion](fixture.added);
++          reference.subject[insertion](reference.added);
++          records.push(record(fixture, reference, "insertion", expected(insertion === "prepend" ? 90 : 70)));
++          fixture.added.remove();
++          reference.added.remove();
++          records.push(record(fixture, reference, "removal", expected(80)));
++          hide(fixture, false, nested);
++          records.push(record(fixture, reference, "shown", expected(80)));
++          check(records);
++        }, `Placement: ${kind}, ${nested ? "two hidden ancestors" : "one hidden ancestor"}, ${insertion}, ${hidden ? "hidden" : "visible"}`);
++      }
++    }
++  }
++}
++
++for (const nested of [false, true]) {
++  for (const hidden of [true]) {
++    for (const change of ["margin-change", "padding-change", "width-change", "height-change"]) {
++      test(t => {
++        const [fixture, reference] = setupFixtures(t, "leaf");
++        const records = [record(fixture, reference, "warm leaf", [93, 14, 12, 8])];
++        hide(fixture, hidden, nested);
++        records.push(record(fixture, reference, "hidden state", [93, 14, 12, 8]));
++        fixture.item.classList.add(change);
++        reference.item.classList.add(change);
++        const changed = change === "width-change" ? [83, 14, 12, 8] :
++          change === "height-change" ? [93, 14, 12, 16] : [97, 14, 12, 8];
++        const inserted = [changed[0] - 10, changed[1], changed[2], changed[3]];
++        records.push(record(fixture, reference, "parent style change", changed));
++        fixture.subject.append(fixture.added);
++        reference.subject.append(reference.added);
++        records.push(record(fixture, reference, "sibling insertion", inserted));
++        hide(fixture, false, nested);
++        records.push(record(fixture, reference, "shown", inserted));
++        check(records);
++      }, `Parent mutation: ${change}, ${nested ? "two hidden ancestors" : "one hidden ancestor"}, ${hidden ? "hidden" : "visible"}`);
++    }
++  }
++}
++
++for (const insertion of ["append", "prepend"]) {
++  for (const hidden of [true]) {
++    promise_test(async t => {
++      const fonts = await document.fonts.load("20px Ahem");
++      assert_greater_than(fonts.length, 0, "Ahem loaded");
++      const [fixture, reference] = setupFixtures(t, "text");
++      const records = [record(fixture, reference, "warm anonymous item", [90, 10, 40, 20])];
++      hide(fixture, hidden, false);
++      records.push(record(fixture, reference, "hidden state", [90, 10, 40, 20]));
++      fixture.subject[insertion](fixture.added);
++      reference.subject[insertion](reference.added);
++      records.push(record(fixture, reference, "insertion", [insertion === "prepend" ? 100 : 80, 10, 40, 20]));
++      hide(fixture, false, false);
++      records.push(record(fixture, reference, "shown", [insertion === "prepend" ? 100 : 80, 10, 40, 20]));
++      check(records);
++    }, `Anonymous text item: ${insertion}, ${hidden ? "hidden" : "visible"}`);
++  }
++}
++
++</script>

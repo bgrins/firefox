@@ -1,0 +1,35 @@
+--- compact-v3/prepare.py
++++ column-v1/prepare.py
+@@ -34,8 +34,8 @@
+ prior_state=json.loads((prior/'STATE.json').read_text())
+ need(prior_state.get('status')=='terminal' and prior_state.get('restored') is True and prior_state.get('restore_build_exit')==0 and prior_state.get('recovery_errors')==[], 'prior experiment not successfully restored')
+ need((prior/'BEFORE.json').read_bytes()==(prior/'FINAL.json').read_bytes(), 'prior restoration snapshot mismatch')
+-need(len(c['tests'])==6 and sum(map(len,c['expected_subtests'].values()))==58, 'compact roster mismatch')
+-need(len(c['trace_tests'])==2 and sum(len(c['expected_subtests']['/'+str(Path(n).relative_to('testing/web-platform/tests'))]) for n in c['trace_tests'])==12, 'trace roster mismatch')
++need(len(c['tests'])==7 and sum(map(len,c['expected_subtests'].values()))==66, 'compact roster mismatch')
++need(len(c['trace_tests'])==2 and sum(len(c['expected_subtests']['/'+str(Path(n).relative_to('testing/web-platform/tests'))]) for n in c['trace_tests'])==16, 'trace roster mismatch')
+ timing_files = ['probe.html','benchmark.js','CONFIG.json','run.py','validate.py','cleanup.py']
+ need(all('cost/'+n in draft for n in timing_files), 'six timing execution inputs not pinned')
+ timing_config=json.loads((HERE/'cost/CONFIG.json').read_text())
+@@ -45,12 +45,12 @@
+ before = wpt.snapshot()
+ need(before['head'] == args.expected_head, 'HEAD differs from requested post-commit HEAD')
+ need(len(wpt.git('diff','--cached','--name-only').splitlines()) == c['expected_staged_paths'] == 0, 'index not empty')
+-need(len(c['sources']) == 21 and len(set(c['sources'])) == 21 and len(c['guard_sources']) == 26, 'source roster')
++need(len(c['sources']) == 23 and len(set(c['sources'])) == 23 and len(c['guard_sources']) == 28, 'source roster')
+ need(all(before['sources'][n] is not None for n in c['guard_sources']), 'missing guarded source')
+ need(all(not (ROOT/n).exists() and not (ROOT/n).is_symlink() for n in c['must_be_absent']), 'current or proposed temporary test still exists')
+ flex='layout/generic/nsFlexContainerFrame.cpp'
+ absolute='layout/generic/AbsoluteContainingBlock.cpp'
+-for path,selected in [(flex,'flex-baseline.cpp'),(absolute,'absolute-baseline.cpp')]:
++for path,selected in [(flex,'flex-baseline.cpp'),(absolute,'absolute-baseline.cpp'),('layout/base/PresShell.cpp','pres-shell-before.cpp'),('layout/tables/nsTableFrame.cpp','table-frame-before.cpp')]:
+     need(wpt.git('show','HEAD:'+path) == (HERE/'selected'/selected).read_bytes(), 'HEAD body differs from reviewed baseline: '+path)
+ resources = wpt.resource_paths(c['tests'],virtual=True)
+ resource_pins = wpt.pins(resources,virtual=True)
+@@ -73,5 +73,5 @@
+         'prior_terminal_pins':{str((prior/name).relative_to(ROOT)):sha(prior/name) for name in ['STATE.json','BEFORE.json','FINAL.json']}}
+ (HERE/'INPUTS.json').write_text(json.dumps(inputs,indent=2)+'\n')
+ print(json.dumps({'status':'PREPARED_NOT_RUN','head':before['head'],'INPUTS_sha256':sha(HERE/'INPUTS.json'),
+-                  'sources_to_restore':21,'source_guards':26,'tests':len(c['tests']),
++                  'sources_to_restore':23,'source_guards':28,'tests':len(c['tests']),
+                   'subtests':sum(map(len,c['expected_subtests'].values()))},indent=2))

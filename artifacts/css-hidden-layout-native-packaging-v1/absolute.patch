@@ -1,0 +1,219 @@
+diff --git a/layout/generic/AbsoluteContainingBlock.cpp b/layout/generic/AbsoluteContainingBlock.cpp
+index b6e9389bd7e91583f1ad5641c984b5a4798fd078..77c59b63dc69524c998d3f1f9c12e9a61ad4587e 100644
+--- a/layout/generic/AbsoluteContainingBlock.cpp
++++ b/layout/generic/AbsoluteContainingBlock.cpp
+@@ -1997,6 +1997,9 @@
+       }
+     }
+     const LogicalSize availSize(outerWM, cbSize.ISize(outerWM), availBSize);
++    if (aKidFrame->IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
++      aKidFrame->MarkSubtreeDirty();
++    }
+     ReflowInput kidReflowInput(aPresContext, aReflowInput, aKidFrame,
+                                availSize.ConvertTo(wm, outerWM),
+                                Some(cbSize.ConvertTo(wm, outerWM)), initFlags,
+diff --git a/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-absolute-geometry.html b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-absolute-geometry.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..e91dace53c62ab29d9160333b028aea5977f2910
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-absolute-geometry.html
+@@ -0,0 +1,113 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Geometry queries update absolute children of hidden flex containers</title>
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#justify-content-property">
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#abspos-items">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getboundingclientrect">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++body { margin: 0; }
++.host { position: absolute; left: 10px; top: 10px; width: 200px; height: 80px; }
++.wrapper, .subject { width: 200px; height: 80px; }
++.subject { display: flex; position: relative; justify-content: center; align-items: flex-start; }
++.hidden { content-visibility: hidden; }
++.added { flex: none; width: 20px; height: 20px; }
++.oof { position: absolute; width: 12px; height: 8px; }
++.oof.explicit { left: 7px; top: 9px; }
++.subject.end { justify-content: flex-end; }
++</style>
++<body>
++<script>
++"use strict";
++
++function makeFixture(kind = "item") {
++  const host = document.createElement("div");
++  host.className = "host";
++  const wrapper = document.createElement("div");
++  wrapper.className = "wrapper";
++  const subject = document.createElement("div");
++  subject.className = "subject";
++  const added = document.createElement("div");
++  added.className = "added";
++  let item;
++  let target;
++  item = document.createElement("div");
++  item.className = "oof" + (kind === "oof-explicit" ? " explicit" : "");
++  target = item;
++  subject.append(item);
++  wrapper.append(subject);
++  host.append(wrapper);
++  document.body.append(host);
++  return {host, wrapper, subject, item, target, added};
++}
++
++function hide(fixture, hidden, nested) {
++  fixture.subject.classList.toggle("hidden", hidden);
++  fixture.wrapper.classList.toggle("hidden", hidden && nested);
++}
++
++function outerFlush(fixture) {
++  fixture.wrapper.getClientRects();
++  fixture.wrapper.scrollHeight;
++  fixture.subject.getClientRects();
++  fixture.subject.scrollWidth;
++}
++
++function rectangle(target) {
++  const rect = target.getBoundingClientRect();
++  return [rect.left, rect.top, rect.width, rect.height];
++}
++
++function record(fixture, reference, label, expected) {
++  outerFlush(fixture);
++  const reads = [rectangle(fixture.target), rectangle(fixture.target), rectangle(fixture.target)];
++  outerFlush(reference);
++  const visible = rectangle(reference.target);
++  return {label, expected, reads, visible};
++}
++
++function check(records) {
++  for (const row of records) {
++    assert_array_equals(row.visible, row.expected, `${row.label}: visible reference calibration`);
++  }
++  for (const row of records) {
++    for (const [index, value] of row.reads.entries()) {
++      assert_array_equals(value, row.expected, `${row.label}: query ${index + 1}`);
++    }
++  }
++}
++
++function setupFixtures(t, kind) {
++  assert_implements(CSS.supports("content-visibility", "hidden"));
++  const fixture = makeFixture(kind);
++  const reference = makeFixture(kind);
++  t.add_cleanup(() => { fixture.host.remove(); reference.host.remove(); });
++  return [fixture, reference];
++}
++
++for (const nested of [false]) {
++  for (const hidden of [false, true]) {
++    for (const kind of ["oof-static", "oof-explicit"]) {
++      test(t => {
++        const [fixture, reference] = setupFixtures(t, kind);
++        const start = kind === "oof-static" ? [104, 10, 12, 8] : [17, 19, 12, 8];
++        const end = kind === "oof-static" ? [198, 10, 12, 8] : start;
++        const records = [record(fixture, reference, "warm positioned child", start)];
++        hide(fixture, hidden, nested);
++        records.push(record(fixture, reference, "hidden state", start));
++        fixture.subject.prepend(fixture.added);
++        reference.subject.prepend(reference.added);
++        records.push(record(fixture, reference, "in-flow insertion", start));
++        fixture.subject.classList.add("end");
++        reference.subject.classList.add("end");
++        records.push(record(fixture, reference, "alignment change", end));
++        hide(fixture, false, nested);
++        records.push(record(fixture, reference, "shown", end));
++        check(records);
++      }, `Positioned child: ${kind}, ${nested ? "two hidden ancestors" : "one hidden ancestor"}, ${hidden ? "hidden" : "visible"}`);
++    }
++  }
++}
++</script>
+diff --git a/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-oof-descendant-query.html b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-oof-descendant-query.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..7c62696511a15858a21882227276051ce0adf04b
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-oof-descendant-query.html
+@@ -0,0 +1,80 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Leaf-first queries of out-of-flow children of hidden flex containers</title>
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
++<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#abspos-items">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getboundingclientrect">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++body { margin: 0; }
++.host { position: absolute; left: 10px; top: 10px; width: 200px; height: 80px; }
++.wrapper, .subject { width: 200px; height: 80px; }
++.subject { display: flex; position: relative; justify-content: center; align-items: flex-start; }
++.hidden { content-visibility: hidden; }
++.oof { position: absolute; width: 12px; height: 20px; }
++.explicit { left: 7px; top: 9px; }
++.leaf { width: 50%; height: 40%; margin-left: 1px; margin-top: 2px; }
++.added { flex: none; width: 20px; height: 20px; }
++.changed { width: 20px; height: 30px; }
++</style>
++<body>
++<script>
++"use strict";
++function fixture(explicit) {
++  const host = document.createElement("div");
++  host.className = "host";
++  host.innerHTML = `<div class="wrapper"><div class="subject"><div class="oof${explicit ? " explicit" : ""}"><div class="leaf"></div></div></div></div>`;
++  const added = document.createElement("div");
++  added.className = "added";
++  document.body.append(host);
++  return {host, added, wrapper: host.querySelector(".wrapper"), subject: host.querySelector(".subject"), oof: host.querySelector(".oof"), leaf: host.querySelector(".leaf")};
++}
++function rectangle(element) {
++  const r = element.getBoundingClientRect();
++  return [r.left, r.top, r.width, r.height];
++}
++function capture(target, reference, label, expected) {
++  target.wrapper.getClientRects();
++  target.subject.getClientRects();
++  target.subject.scrollWidth;
++  const reads = [rectangle(target.leaf), rectangle(target.leaf), rectangle(target.leaf)];
++  const visible = rectangle(reference.leaf);
++  return {label, expected, reads, visible};
++}
++for (const nested of [false, true]) {
++  for (const explicit of [false, true]) {
++    for (const insertion of ["append", "prepend"]) {
++      test(t => {
++        assert_implements(CSS.supports("content-visibility", "hidden"));
++        const target = fixture(explicit);
++        const reference = fixture(explicit);
++        t.add_cleanup(() => { target.host.remove(); reference.host.remove(); });
++        const start = explicit ? [18, 21, 6, 8] : [105, 12, 6, 8];
++        const changed = explicit ? [18, 21, 10, 12] : [101, 12, 10, 12];
++        const rows = [capture(target, reference, "warm leaf", start)];
++        target.subject.classList.add("hidden");
++        if (nested) target.wrapper.classList.add("hidden");
++        rows.push(capture(target, reference, "hidden leaf", start));
++        target.subject[insertion](target.added);
++        reference.subject[insertion](reference.added);
++        rows.push(capture(target, reference, "in-flow insertion, leaf first", start));
++        target.oof.classList.add("changed");
++        reference.oof.classList.add("changed");
++        rows.push(capture(target, reference, "OOF parent resize, leaf first", changed));
++        target.subject.classList.remove("hidden");
++        target.wrapper.classList.remove("hidden");
++        rows.push(capture(target, reference, "shown leaf", changed));
++        for (const row of rows) {
++          assert_array_equals(row.visible, row.expected, `${row.label}: visible calibration`);
++        }
++        for (const row of rows) {
++          for (const [index, read] of row.reads.entries()) {
++            assert_array_equals(read, row.expected, `${row.label}: read ${index + 1}`);
++          }
++        }
++      }, `OOF leaf first: ${nested ? "two hidden ancestors" : "one hidden ancestor"}, ${explicit ? "explicit offsets" : "static position"}, ${insertion}`);
++    }
++  }
++}
++</script>

@@ -1,0 +1,101 @@
+--- compact-v3/experiment.py
++++ column-v1/experiment.py
+@@ -50,13 +50,8 @@
+ FLEX='layout/generic/nsFlexContainerFrame.cpp'
+ ABSOLUTE='layout/generic/AbsoluteContainingBlock.cpp'
+ phases=[('baseline','flex-baseline.cpp','absolute-baseline.cpp'),
+-        ('principal-only','flex-principal.cpp','absolute-baseline.cpp'),
+-        ('oof-only','flex-baseline.cpp','absolute-oof.cpp'),
+-        ('both','flex-principal.cpp','absolute-oof.cpp'),
+-        ('original-key','flex-original-key.cpp','absolute-baseline.cpp'),
+-        ('original-key-principal','flex-original-key-principal.cpp','absolute-baseline.cpp')]
+-traces=[('trace-baseline','flex-baseline.cpp','absolute-trace-baseline.cpp'),
+-        ('trace-oof-only','flex-baseline.cpp','absolute-trace-oof.cpp')] if args.with_traces else []
++        ('both','flex-principal.cpp','absolute-oof.cpp')]
++traces=[('trace-both-column','flex-principal.cpp','absolute-oof.cpp')] if args.with_traces else []
+ state={'status':'starting','accepted_native_repair':False,'phases':{},'traces':{},'trace_requested':args.with_traces,'timing_requested':args.with_timings}
+ errors=[]
+ changed=False
+@@ -71,7 +66,7 @@
+         expected=hashlib.sha256(selected.get(n,head[n])).hexdigest() if n in head else inputs['source_pins'][n]
+         need(sha(ROOT/n)==expected,'phase source changed '+n)
+ 
+-TIMING_PHASES = {'baseline', 'principal-only', 'oof-only', 'both'}
++TIMING_PHASES = {'baseline', 'both'}
+ TIMING_FILES = ['probe.html', 'benchmark.js', 'CONFIG.json', 'run.py', 'validate.py', 'cleanup.py']
+ 
+ def timing_run(name, selected):
+@@ -106,6 +101,25 @@
+          and termination.get('terminal') is True and termination.get('noLiveGroup') is True
+          and termination.get('errors') == [] and not (output/'profile').exists(),
+          'timing cleanup not verified; stop and restore')
++    startup = result.get('startupEnvironment') or {}
++    need(startup.get('MOZ_DISABLE_SAFE_MODE_KEY') == '1'
++         and startup.get('MOZ_DISABLE_UPDATE_PROCESSING') == '1'
++         and startup.get('MOZ_SAFE_MODE_RESTART_removed') is True
++         and type(startup.get('MOZ_SAFE_MODE_RESTART_inherited_present')) is bool,
++         'controlled child startup environment missing')
++    need(json.loads((output/'STARTUP-ENV.json').read_text()) == startup
++         and json.loads((output/'SPAWN.json').read_text()).get('startupEnvironment') == startup,
++         'startup environment receipt mismatch')
++    progress = result.get('progressReceipts')
++    need(type(progress) is int and 0 <= progress <= 300, 'invalid progress count')
++    progress_path = output/'REQUESTS.jsonl'
++    events = [json.loads(line) for line in progress_path.read_text().splitlines()] if progress_path.exists() else []
++    persisted = [event['value'] for event in events if event.get('event') == 'progress-persisted']
++    need(len(persisted) == progress and [value.get('sequence') for value in persisted] == list(range(progress)),
++         'progress raw/count mismatch')
++    record['startup_environment'] = startup
++    record['progress_count'] = progress
++    record['last_progress'] = persisted[-1] if persisted else None
+     record['cleanup_verified'] = True
+     record['runner_failure'] = result.get('failure')
+     if code == 0:
+@@ -114,9 +128,21 @@
+         validator_spec = importlib.util.spec_from_file_location('cost_validator', HERE/'cost/validate.py')
+         validator = importlib.util.module_from_spec(validator_spec)
+         validator_spec.loader.exec_module(validator)
+-        summary = validator.validate(result['observations'][0],
+-                                     json.loads((HERE/'cost/CONFIG.json').read_text()),name)
++        timing_config = json.loads((HERE/'cost/CONFIG.json').read_text())
++        summary = validator.validate(result['observations'][0], timing_config, name)
+         need(summary == json.loads((output/'SUMMARY.json').read_text()), 'timing summary disagreement')
++        expected_progress = [{'stage':'script-start'}, {'stage':'config-ready','label':name}, {'stage':'fixture-start'}]
++        configurations = [(k,s,n) for k in timing_config['kinds'] for s in timing_config['states'] for n in timing_config['sizes']]
++        for round_no in range(-timing_config['warmup_rounds'], timing_config['measured_rounds']):
++            for slot in range(len(configurations)):
++                ordinal = (slot + round_no + timing_config['warmup_rounds']) % len(configurations)
++                kind, visibility, count = configurations[ordinal]
++                for stage in ['batch-begin','batch-end']:
++                    expected_progress.append({'stage':stage,'round':round_no,'slot':slot,'ordinal':ordinal,
++                                              'kind':kind,'state':visibility,'count':count})
++        expected_progress.append({'stage':'result-ready','rows':summary['measuredRows']})
++        expected_progress = [{'sequence':i,**value} for i,value in enumerate(expected_progress)]
++        need(progress == 220 and persisted == expected_progress, 'complete measurement progress roster')
+         record['measurement_complete'] = True
+         record['summary'] = summary
+     else:
+@@ -145,6 +171,8 @@
+         is_trace=name.startswith('trace-')
+         authenticate_payloads()
+         selected={FLEX:(HERE/'selected'/flex).read_bytes(),ABSOLUTE:(HERE/'selected'/absolute).read_bytes()}
++        selected['layout/base/PresShell.cpp']=(HERE/'selected'/('pres-shell-trace.cpp' if is_trace else 'pres-shell-before.cpp')).read_bytes()
++        selected['layout/tables/nsTableFrame.cpp']=(HERE/'selected'/('table-frame-trace.cpp' if is_trace else 'table-frame-before.cpp')).read_bytes()
+         for n,data in selected.items():
+             (ROOT/n).write_bytes(data)
+         epoch()
+@@ -172,11 +200,11 @@
+             record['timing']=timing_run(name,selected)
+         if is_trace:
+             lines=(HERE/(name+'-wpt.log')).read_text().splitlines()
+-            observed=[line for line in lines if re.search(r'\[hidden-oof-(before|return|commit)\]',line)]
++            observed=[line for line in lines if re.search(r'CV_COLUMN_(QUERY|PUBLISH)',line)]
+             (HERE/name/'TRACE-LINES.json').write_text(json.dumps(observed,indent=2)+'\n')
+             record['trace_line_count']=len(observed)
+-            record['trace_stage_counts']={stage:sum('[hidden-oof-'+stage+']' in line for line in observed) for stage in ['before','return','commit']}
+-            need(all(record['trace_stage_counts'].values()),'trace did not reach all three observation seams')
++            record['trace_stage_counts']={stage:sum('CV_COLUMN_'+stage in line for line in observed) for stage in ['QUERY','PUBLISH']}
++            need(all(record['trace_stage_counts'].values()),'trace did not reach both column observation seams')
+         wpt.save('STATE.json',state)
+ except BaseException as error:
+     state['failure']={'type':type(error).__name__,'message':str(error)}
