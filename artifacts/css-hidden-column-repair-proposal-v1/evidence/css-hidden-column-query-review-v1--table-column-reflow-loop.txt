@@ -1,0 +1,26 @@
+  for (nsTableColGroupFrame* cg : aGroups.mColGroups) {
+    // The column groups don't care about dimensions or reflow inputs. In fact,
+    // we mostly need to do this to deal with dynamic style changes to a
+    // colgroup having to reflow the table with border-collapsing.
+    if (!cg->IsSubtreeDirty()) {
+      continue;
+    }
+    ReflowOutput kidSize(wm);
+    ReflowInput kidReflowInput(presContext, cg,
+                               aReflowInput.mReflowInput.mRenderingContext,
+                               LogicalSize(cg->GetWritingMode()));
+    nsReflowStatus cgStatus;
+    const LogicalPoint dummyPos(wm);
+    const nsSize dummyContainerSize;
+    ReflowChild(cg, presContext, kidSize, kidReflowInput, wm, dummyPos,
+                dummyContainerSize, ReflowChildFlags::Default, cgStatus);
+    FinishReflowChild(cg, presContext, kidSize, &kidReflowInput, wm, dummyPos,
+                      dummyContainerSize, ReflowChildFlags::Default);
+  }
+
+  // We've now propagated the column resizes and geometry changes to all
+  // the children.
+  mBits.mResizedColumns = false;
+  ClearGeometryDirty();
+
+  // nsTableFrame does not pull children from its next-in-flow (bug 1772383).

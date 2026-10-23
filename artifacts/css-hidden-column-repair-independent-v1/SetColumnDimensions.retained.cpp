@@ -1,0 +1,56 @@
+void nsTableFrame::SetColumnDimensions(nscoord aBSize, WritingMode aWM,
+                                       const LogicalMargin& aBorderPadding,
+                                       const nsSize& aContainerSize) {
+  const nscoord colBSize =
+      aBSize - (aBorderPadding.BStartEnd(aWM) + GetRowSpacing(-1) +
+                GetRowSpacing(GetRowCount()));
+  int32_t colIdx = 0;
+  LogicalPoint colGroupOrigin(aWM,
+                              aBorderPadding.IStart(aWM) + GetColSpacing(-1),
+                              aBorderPadding.BStart(aWM) + GetRowSpacing(-1));
+  nsTableFrame* fif = FirstInFlowAsTable();
+  for (nsIFrame* colGroupFrame : OrderedGroups().mColGroups) {
+    MOZ_ASSERT(colGroupFrame->IsTableColGroupFrame());
+    // first we need to figure out the size of the colgroup
+    int32_t groupFirstCol = colIdx;
+    nscoord colGroupISize = 0;
+    nscoord colSpacing = 0;
+    const nsFrameList& columnList = colGroupFrame->PrincipalChildList();
+    for (nsIFrame* colFrame : columnList) {
+      if (mozilla::StyleDisplay::TableColumn ==
+          colFrame->StyleDisplay()->mDisplay) {
+        NS_ASSERTION(colIdx < GetColCount(), "invalid number of columns");
+        colSpacing = GetColSpacing(colIdx);
+        colGroupISize +=
+            fif->GetColumnISizeFromFirstInFlow(colIdx) + colSpacing;
+        ++colIdx;
+      }
+    }
+    if (colGroupISize) {
+      colGroupISize -= colSpacing;
+    }
+
+    LogicalRect colGroupRect(aWM, colGroupOrigin.I(aWM), colGroupOrigin.B(aWM),
+                             colGroupISize, colBSize);
+    colGroupFrame->SetRect(aWM, colGroupRect, aContainerSize);
+    nsSize colGroupSize = colGroupFrame->GetSize();
+
+    // then we can place the columns correctly within the group
+    colIdx = groupFirstCol;
+    LogicalPoint colOrigin(aWM);
+    for (nsIFrame* colFrame : columnList) {
+      if (mozilla::StyleDisplay::TableColumn ==
+          colFrame->StyleDisplay()->mDisplay) {
+        nscoord colISize = fif->GetColumnISizeFromFirstInFlow(colIdx);
+        LogicalRect colRect(aWM, colOrigin.I(aWM), colOrigin.B(aWM), colISize,
+                            colBSize);
+        colFrame->SetRect(aWM, colRect, colGroupSize);
+        colSpacing = GetColSpacing(colIdx);
+        colOrigin.I(aWM) += colISize + colSpacing;
+        ++colIdx;
+      }
+    }
+
+    colGroupOrigin.I(aWM) += colGroupISize + colSpacing;
+  }
+}

@@ -1,0 +1,13 @@
+import ProviderReadiness
+
+#print axioms ColumnReadiness.gate_extends
+#print axioms ColumnReadiness.clean_without_provider
+#print axioms ColumnReadiness.clean_provider_stays_closed
+#print axioms ColumnReadiness.dirty_provider_admits
+#print axioms ColumnReadiness.normal_clean_unchanged
+#print axioms ColumnReadiness.clean_group_dirty_table
+#print axioms ColumnReadiness.clean_column_dirty_table
+#print axioms ColumnReadiness.dirty_selection_unchanged
+#print axioms ColumnReadiness.admitted_selection_uses_original_target
+#print axioms ColumnReadiness.clean_provider_dirty_ancestor_counterexample
+#print axioms ColumnReadiness.original_target_ancestry_distinguishes

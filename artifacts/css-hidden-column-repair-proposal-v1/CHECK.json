@@ -1,0 +1,11 @@
+{
+  "status": "SOURCE_ONLY_DRAFT",
+  "prefix_equal": true,
+  "whole_suffix_equal": true,
+  "before_gate": "void PresShell::UpdateHiddenContentInForcedLayout(nsIFrame* aFrame) {\n  if (!aFrame || !aFrame->IsSubtreeDirty()) {\n    return;\n  }\n\n",
+  "candidate_gate": "void PresShell::UpdateHiddenContentInForcedLayout(nsIFrame* aFrame) {\n  if (!aFrame) {\n    return;\n  }\n  if (!aFrame->IsSubtreeDirty()) {\n    nsIFrame* provider = aFrame;\n    if (provider->IsTableColFrame()) {\n      provider = provider->GetParent();\n    }\n    if (!provider || !provider->IsTableColGroupFrame()) {\n      return;\n    }\n    provider = provider->GetParent();\n    if (!provider || !provider->IsTableFrame() || !provider->IsSubtreeDirty()) {\n      return;\n    }\n  }\n\n",
+  "draft_theorem_declarations": 9,
+  "draft_examples": 2,
+  "compiled": false,
+  "native_runtime": false
+}
