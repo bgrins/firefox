@@ -1,9 +1,31 @@
 # CSS and Stylo verification plan
 
-Updated 20 October 2026. Work stays local; the user owns pushing.
+Updated 22 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
+- **Latest research signed:** subtree model `1c5c364e6acb`,
+  WPT runtime `db64eb791210`, absolute-child proposal `c4f0bba10c50`.
+  All exact blob/path/signature checks pass; native prototypes are preserved.
+- **Uninstrumented hidden-flex WPT comparison complete:** all four builds and
+  restoration passed. Each phase has 656 subtests and 15 files. The principal
+  subtree repair fixes 34 failures with the current key and 18 with the original
+  key, with zero regressions in either pair. One static-position absolute-child
+  failure remains in both pairs; the original key also preserves eight deliberately
+  reintroduced caption/padding failures. [Independent runtime review](../css-hidden-geometry-wpt-runtime-review-v1/REVIEW.md).
+- **Subtree proof extends the direct-item model:** 36 new results plus 30 imported,
+  6,144 extracted comparisons per optimization level, seven semantic mutants,
+  and nine independent kernel checks. This establishes conditional marking and
+  query admission, with actual native histories and layout recovery still open.
+  [Independent proof review](../css-hidden-subtree-proof-review-v1/REVIEW.md).
+- **Separate absolute-child repair under test:** source review supports marking
+  its subtree before constructing reflow input. Next run compares neither repair,
+  principal only, absolute only, and both, including leaf queries, actual
+  fragmentation and non-block providers. Trace the absolute zero-output producer,
+  then sample cost before native acceptance. Hidden containment establishes its
+  own containing block; external-to-inner-flex tests must preserve that boundary.
+  Both repairs remain unaccepted, and fix 101 remains on landing hold.
+  [Absolute-child review](../css-hidden-flex-oof-independent-v1/REPORT.md).
 - **Hidden-layout research signed:** reproduction `b04de6f7890c`,
   scoped model `b990b03e87d3`, experiment `54017a2b4c76`.
   The count remains 103 committed native fixes, with fix 101 on landing hold.
@@ -23,8 +45,9 @@ Updated 20 October 2026. Work stays local; the user owns pushing.
   shrink/descendant stages return zero or stale dimensions. Exact committed-source
   isolation preserves all 32 failures in the earlier fixed-size probe. Four
   instrumented variants produce 44, 12, 4 and zero mismatches across 400 stages.
-  The broader skipped-children repair remains unaccepted pending uninstrumented
-  WPT, position/history/continuation coverage and cost/dependency review.
+  The broader skipped-children repair remains unaccepted pending the remaining
+  fragmentation/provider boundaries and cost/dependency review. Uninstrumented
+  WPT and position/history results are recorded above.
   **Fix 101 is on landing hold:** its required containing-block key exposes the
   preexisting protocol bug more widely. Do not drop that key as a final repair.
   [Experiment](../css-hidden-geometry-measure-trace-v2/REPORT.md).

@@ -12,9 +12,12 @@ Current checkpoint: **103 committed fixes; no accepted repair awaits signing.**
 **Do not land `6cf27eadddf9e63d9bfbcc87ff2bf354e091ae7c` yet.** Its
 containing-block cache key is required for the caption repair, but newly observed
 hidden-layout failures require a separate protocol fix and dependency review.
-The broader candidate passes 400 instrumented stages; it is not accepted and is
-not counted as fix 104. Release Firefox 158 independently fails 12 of 240 related
-stages. [Evidence and limits](../css-hidden-geometry-measure-trace-v2/REPORT.md).
+The principal-subtree candidate repairs 34 failures in a 656-subtest WPT run
+with no regressions; one separate absolute-child failure remains. It also repairs
+18 failures with the original cache key. Both the principal repair and the proposed
+absolute-child repair remain unaccepted and are not counted as new fixes. Release
+Firefox 158 independently fails 12 of 240 related principal-layout stages.
+[WPT evidence and limits](../css-hidden-geometry-wpt-runtime-review-v1/REVIEW.md).
 
 ## Latest signed fix: 103
 
