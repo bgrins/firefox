@@ -1,0 +1,202 @@
+>>> 1745: void AbsoluteContainingBlock::ReflowAbsoluteFrame(
+    1746:     nsContainerFrame* aDelegatingFrame, nsPresContext* aPresContext,
+    1747:     const ReflowInput& aReflowInput,
+    1748:     const ContainingBlockRects& aContainingBlockRects, AbsPosReflowFlags aFlags,
+    1749:     nsIFrame* aKidFrame, nsReflowStatus& aStatus, OverflowAreas* aOverflowAreas,
+    1750:     const ContainingBlockRects* aFragmentedContainingBlockRects,
+    1751:     AnchorPosResolutionCache* aAnchorPosResolutionCache,
+    1752:     bool aReuseUnfragmentedAnchorPosReferences) {
+    1753:   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
+    1754: 
+    1755: #ifdef DEBUG
+    1756:   if (nsBlockFrame::gNoisyReflow) {
+    1757:     nsIFrame::IndentBy(stdout, nsBlockFrame::gNoiseIndent);
+    1758:     fmt::println("abspos {}: begin reflow: availSize={}, orig cbRect={}",
+    1759:                  aKidFrame->ListTag(), aReflowInput.AvailableSize(),
+    1760:                  aContainingBlockRects.mLocal);
+    1761:   }
+    1762:   AutoNoisyIndenter indent(nsBlockFrame::gNoisy);
+    1763: #endif  // DEBUG
+    1764: 
+    1765:   const WritingMode outerWM = aReflowInput.GetWritingMode();
+    1766:   const WritingMode wm = aKidFrame->GetWritingMode();
+    1767: 
+    1768:   const bool isGrid = aFlags.contains(AbsPosReflowFlag::IsGridContainerCB);
+    1769:   const auto* kidStylePosition = aKidFrame->StylePosition();
+    1770:   auto fallbacks = kidStylePosition->mPositionTryFallbacks.value._0.AsSpan();
+    1771:   const auto fallbackScope = kidStylePosition->mPositionTryFallbacks.scope;
+    1772:   Maybe<uint32_t> currentFallbackIndex;
+    1773:   const StylePositionTryFallbacksItem* currentFallback = nullptr;
+    1774:   RefPtr<ComputedStyle> currentFallbackStyle;
+    1775:   RefPtr<ComputedStyle> firstTryStyle;
+    1776:   Maybe<uint32_t> firstTryIndex;
+    1777:   // If non-'normal' position-try-order is in effect, we keep track of the
+    1778:   // index of the "best" option seen, and its size in the relevant axis, so
+    1779:   // that once all fallbacks have been considered we can reset to the one
+    1780:   // that provided the most space.
+    1781:   Maybe<uint32_t> bestIndex;
+    1782:   nscoord bestSize = -1;
+    1783:   // Flag to indicate that we've determined which fallback to use and should
+    1784:   // exit the loop.
+    1785:   bool finalizing = false;
+    1786: 
+    1787:   auto tryOrder = kidStylePosition->mPositionTryOrder;
+    1788:   // If position-try-order is a logical value, resolve to physical using
+    1789:   // the containing block's writing mode.
+    1790:   switch (tryOrder) {
+    1791:     case StylePositionTryOrder::MostInlineSize:
+    1792:       tryOrder = outerWM.IsVertical() ? StylePositionTryOrder::MostHeight
+    1793:                                       : StylePositionTryOrder::MostWidth;
+    1794:       break;
+    1795:     case StylePositionTryOrder::MostBlockSize:
+    1796:       tryOrder = outerWM.IsVertical() ? StylePositionTryOrder::MostWidth
+    1797:                                       : StylePositionTryOrder::MostHeight;
+    1798:       break;
+    1799:     default:
+    1800:       break;
+    1801:   }
+    1802: 
+    1803:   const auto* baseStyle = aKidFrame->Style();
+    1804:   // Set the current fallback to the given index, or reset to the base position
+    1805:   // if Nothing() is passed.
+    1806:   auto SeekFallbackTo = [&](Maybe<uint32_t> aIndex) -> bool {
+    1807:     if (!aIndex) {
+    1808:       currentFallbackIndex = Nothing();
+    1809:       currentFallback = nullptr;
+    1810:       currentFallbackStyle = nullptr;
+    1811:       return true;
+    1812:     }
+    1813:     uint32_t index = *aIndex;
+    1814:     if (index >= fallbacks.Length()) {
+    1815:       return false;
+    1816:     }
+    1817: 
+    1818:     const StylePositionTryFallbacksItem* nextFallback;
+    1819:     RefPtr<ComputedStyle> nextFallbackStyle;
+    1820:     while (true) {
+    1821:       nextFallback = &fallbacks[index];
+    1822:       nextFallbackStyle = aPresContext->StyleSet()->ResolvePositionTry(
+    1823:           fallbackScope, *aKidFrame->GetContent()->AsElement(), *baseStyle,
+    1824:           *nextFallback);
+    1825:       if (nextFallbackStyle) {
+    1826:         break;
+    1827:       }
+    1828:       // No @position-try rule for this name was found, per spec we should
+    1829:       // skip it.
+    1830:       index++;
+    1831:       if (index >= fallbacks.Length()) {
+    1832:         return false;
+    1833:       }
+    1834:     }
+    1835:     currentFallbackIndex = Some(index);
+    1836:     currentFallback = nextFallback;
+    1837:     currentFallbackStyle = std::move(nextFallbackStyle);
+    1838:     return true;
+    1839:   };
+    1840: 
+    1841:   // Advance to the next fallback to be tried. Normally this is simply the next
+    1842:   // index in the position-try-fallbacks list, but we have some special cases:
+    1843:   // - if we're currently at the last-successful fallback (recorded as
+    1844:   //   firstTryIndex), we "advance" to the base position
+    1845:   // - we skip the last-successful fallback when we reach its position again
+    1846:   auto TryAdvanceFallback = [&]() -> bool {
+    1847:     if (fallbacks.IsEmpty()) {
+    1848:       return false;
+    1849:     }
+    1850:     if (firstTryIndex && currentFallbackIndex == firstTryIndex) {
+    1851:       return SeekFallbackTo(Nothing());
+    1852:     }
+    1853:     uint32_t nextFallbackIndex =
+    1854:         currentFallbackIndex ? *currentFallbackIndex + 1 : 0;
+    1855:     if (firstTryIndex && nextFallbackIndex == *firstTryIndex) {
+    1856:       ++nextFallbackIndex;
+    1857:     }
+    1858:     return SeekFallbackTo(Some(nextFallbackIndex));
+    1859:   };
+    1860: 
+    1861:   Maybe<nsRect> firstTryRect;
+    1862:   if (auto* lastSuccessfulPosition =
+    1863:           aKidFrame->GetProperty(nsIFrame::LastSuccessfulPositionFallback());
+    1864:       lastSuccessfulPosition && lastSuccessfulPosition->mRecordedIndex &&
+    1865:       SeekFallbackTo(lastSuccessfulPosition->mRecordedIndex)) {
+    1866:     // Remember which fallback we're trying first; also record its style,
+    1867:     // in case we need to restore it later.
+    1868:     firstTryIndex = lastSuccessfulPosition->mRecordedIndex;
+    1869:     firstTryStyle = currentFallbackStyle;
+    1870:   }
+    1871: 
+    1872:   // Assume we *are* overflowing the CB and if we find a fallback that doesn't
+    1873:   // overflow, we set this to false and break the loop.
+    1874:   bool isOverflowingCB = true;
+    1875: 
+    1876:   do {
+    1877:     AutoFallbackStyleSetter fallback(aKidFrame, currentFallbackStyle,
+    1878:                                      aAnchorPosResolutionCache,
+    1879:                                      firstTryIndex == currentFallbackIndex);
+    1880:     auto cb = ComputeContainingBlock(isGrid, aDelegatingFrame, aReflowInput,
+    1881:                                      aContainingBlockRects, aKidFrame,
+    1882:                                      aAnchorPosResolutionCache,
+    1883:                                      aReuseUnfragmentedAnchorPosReferences);
+    1884:     PhysicalAxes earlyScrollCompensation;
+    1885:     if (aAnchorPosResolutionCache) {
+    1886:       const auto& originalCb = cb.mMaybeScrollableRect;
+    1887:       aAnchorPosResolutionCache->mReferenceData->mOriginalContainingBlockRect =
+    1888:           originalCb;
+    1889:       // Stash the adjusted containing block as well, since the insets need to
+    1890:       // resolve against the adjusted CB, e.g. With `position-area: bottom
+    1891:       // right;`, + `left: anchor(right);`
+    1892:       // resolves to 0.
+    1893:       aAnchorPosResolutionCache->mReferenceData->mAdjustedContainingBlock =
+    1894:           cb.mFinalRect;
+    1895:       // May need to recompute scroll compensation if e.g. anchor-center in one
+    1896:       // axis, then `anchor(--default-anchor)` in another.
+    1897:       earlyScrollCompensation = aAnchorPosResolutionCache->mReferenceData
+    1898:                                     ->CompensatingForScrollAxes();
+    1899:     }
+    1900:     const LogicalSize cbSize(outerWM, cb.mFinalRect.Size());
+    1901: 
+    1902:     ReflowInput::InitFlags initFlags;
+    1903:     const bool staticPosIsCBOrigin = [&] {
+    1904:       if (aFlags.contains(AbsPosReflowFlag::IsGridContainerCB)) {
+    1905:         // When a grid container generates the abs.pos. CB for a *child* then
+    1906:         // the static position is determined via CSS Box Alignment within the
+    1907:         // abs.pos. CB (a grid area, i.e. a piece of the grid). In this
+    1908:         // scenario, due to the multiple coordinate spaces in play, we use a
+    1909:         // convenience flag to simply have the child's ReflowInput give it a
+    1910:         // static position at its abs.pos. CB origin, and then we'll align &
+    1911:         // offset it from there.
+    1912:         nsIFrame* placeholder = aKidFrame->GetPlaceholderFrame();
+    1913:         if (placeholder && placeholder->GetParent() == aDelegatingFrame) {
+    1914:           return true;
+    1915:         }
+    1916:       }
+    1917:       if (aKidFrame->IsMenuPopupFrame()) {
+    1918:         // Popups never use their static pos.
+    1919:         return true;
+    1920:       }
+    1921:       // TODO(emilio): Either reparent the top layer placeholder frames to the
+    1922:       // viewport, or return true here for top layer frames more generally (not
+    1923:       // only menupopups), see https://github.com/w3c/csswg-drafts/issues/8040.
+    1924:       return false;
+    1925:     }();
+    1926: 
+    1927:     if (staticPosIsCBOrigin) {
+    1928:       initFlags += ReflowInput::InitFlag::StaticPosIsCBOrigin;
+    1929:     }
+    1930: 
+    1931:     const bool kidFrameMaySplit =
+    1932:         aReflowInput.AvailableBSize() != NS_UNCONSTRAINEDSIZE &&
+    1933: 
+    1934:         // Don't split if told not to (e.g. for fixed frames)
+    1935:         aFlags.contains(AbsPosReflowFlag::AllowFragmentation) &&
+    1936: 
+    1937:         // In the legacy (pref-off) behavior, don't split abspos frames whose
+    1938:         // containing block is formed by an inline frame.
+    1939:         (StaticPrefs::layout_abspos_fragment_aware_inline_cb_enabled() ||
+    1940:          !aDelegatingFrame->IsInlineFrameOrSubclass()) &&
+    1941: 
+    1942:         // Bug 1588623: Support splitting absolute positioned multicol
+    1943:         // containers.
+    1944:         !aKidFrame->IsColumnSetWrapperFrame();
+    1945: 
+   ...  : (method too long, truncated)
