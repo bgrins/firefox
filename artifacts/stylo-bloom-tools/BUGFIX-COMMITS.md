@@ -5,34 +5,26 @@ Each fix is packaged in one commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **103 committed fixes; no accepted repair awaits signing.**
+Current checkpoint: **105 committed fixes; no accepted repair awaits signing.**
 
-## Landing hold: fix 101
+## Latest signed fixes: 104–105
 
-**Do not land `6cf27eadddf9e63d9bfbcc87ff2bf354e091ae7c` yet.** Its
-containing-block cache key is required for the caption repair, but newly observed
-hidden-layout failures require a separate protocol fix and dependency review.
-The principal-subtree candidate repairs 34 failures in a 656-subtest WPT run
-with no regressions; one separate absolute-child failure remains. It also repairs
-18 failures with the original cache key. Both the principal repair and the proposed
-absolute-child repair remain unaccepted and are not counted as new fixes. Release
-Firefox 158 independently fails 12 of 240 related principal-layout stages.
-[WPT evidence and limits](../css-hidden-geometry-wpt-runtime-review-v1/REVIEW.md).
+| Fix | Repair | Native + WPT commit | Preceding evidence |
+| --- | --- | --- | --- |
+| 104 | Dirty skipped hidden flex children | `29611cb584fdd0e54d5e7f7e0d70ad47cfff1653` | `2c27b25853ff18acc4e0423410e932742829bfaf` |
+| 105 | Dirty hidden absolute subtrees before child reflow | `f8104759d383bd324cdda1e78e3229902e97fb39` | `2c27b25853ff18acc4e0423410e932742829bfaf` |
 
-The subsequent 686-subtest comparison separates 34 principal and seven absolute
-failures: each repair works alone on its cases, and both together pass all cases
-with no regressions. Compact-file execution, the new column query probe, native
-tracing and hidden-query cost adjudication remain pending. Both candidates remain
-unaccepted; the committed count stays 103.
+Each commit contains only its native change and its own WPT files: three files/38 cases for 104, two files/12 cases for 105. Each passes its isolated landing partition. Both pass all 50 landing tests; the fresh 66-case comparison has 25 improvements, no regressions and 11 unchanged column/ordinary-block failures.
 
-The exact compact50 landing tests subsequently pass with both repairs. Four
-additional column/group probes remain broken, with table/cell controls passing;
-this is a separate unaccepted query-readiness investigation. Native traces confirm
-absolute dirty retention. Combined timing still needs a controlled-startup retry
-because its latest run returned no data by the deadline. No new native commit is
-counted and fix101 remains on hold.
+Controlled timing completes 13,440 rectangle observations per variant. Both fixes produce no incorrect rectangles, versus 3,213 hidden absolute errors before. At 256 branches, first-query batch medians rise from 1 ms to 8 ms (principal) and 7 ms (absolute); repeated and visible controls show no blocker in this limited sample. Formal models remain conditional. These are geometry-correctness fixes; no security impact is established.
 
-## Latest signed fix: 103
+[Acceptance and limits](../css-hidden-layout-landing-decision-v1/REPORT.md). [Exact commit checks](../css-hidden-layout-column-commits-v1/COMMIT-CHECK.json).
+
+## Landing prerequisite: fix 101
+
+Fix 101 (`6cf27eadddf9e63d9bfbcc87ff2bf354e091ae7c`) requires **fix 104 above, or an equivalent repair, to land first**. Its known hidden-layout exposure is repaired in the combined branch. Cherry-picking fix 101 alone onto a base without that remedy remains unsafe for the observed geometry cases. Preserve its required containing-block cache key. Fix 104 is independently useful with the original key; fix 105 is a separate defect and is not shown necessary for fix 101's cache exposure.
+
+## Earlier signed fix: 103
 
 | Fix | Repair | Native + WPT commit | Preceding companion |
 | --- | --- | --- | --- |

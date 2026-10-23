@@ -1,6 +1,6 @@
 {
   "branch": "stylo-bloom-verification-2",
-  "committed_native_fixes": 103,
+  "committed_native_fixes": 105,
   "accepted_pending_native_fixes": 0,
   "previous_committed_fixes": 16,
   "new_queue": [
@@ -2254,9 +2254,12 @@
         "4d0749e7d3c43516d8d265901d7c6a918c99f7fa"
       ],
       "commit_verification": "artifacts/css-signing-resume-20261020-v1/ROOT-COMMIT-CHECK.json",
-      "landing_status": "HOLD_HIDDEN_LAYOUT_REGRESSION",
-      "landing_hold": "Containing-block key removal avoids 32 fixed-size failures, but leaves 12 release-derived shrink failures. Preserve the required key; validate the skipped-layout repair and resolve landing dependency before landing fix101.",
-      "landing_hold_evidence": "artifacts/css-hidden-geometry-measure-trace-v2/REPORT.md"
+      "landing_status": "REQUIRES_PRINCIPAL_REPAIR",
+      "landing_hold": "Combined branch exposure repaired by fix104. Land/cherry-pick principal repair first (or an equivalent remedy); do not land fix101 alone on an unremedied base or remove its required containing-block key.",
+      "landing_hold_evidence": "artifacts/css-hidden-layout-landing-decision-v1/REPORT.md",
+      "landing_prerequisites": [
+        "29611cb584fdd0e54d5e7f7e0d70ad47cfff1653"
+      ]
     },
     {
       "repair": "domrect-layout-coordinate-double-precision",
@@ -2321,6 +2324,73 @@
         "57f47f1a183fbc1b3c2287aaa453a35163af38fb",
         "5c3fe8efdb1dd46a5f4dbccfdb7099bc0a9d523f"
       ]
+    },
+    {
+      "fix": 104,
+      "repair": "hidden-flex-skipped-layout",
+      "status": "COMMITTED_NATIVE_WPT",
+      "native_commit": "29611cb584fdd0e54d5e7f7e0d70ad47cfff1653",
+      "native_paths": [
+        "layout/generic/nsFlexContainerFrame.cpp",
+        "testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-item-measuring-reflow.html",
+        "testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-fixed-size-query.html",
+        "testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-principal-positions.html"
+      ],
+      "patch": {
+        "path": "artifacts/css-hidden-layout-native-packaging-v1/principal.patch",
+        "sha256": "134565510ec75c4726f4ae52499066b40d2ef33659bee5cb19ea5183c7ba7a06"
+      },
+      "acceptance": {
+        "path": "artifacts/css-hidden-layout-column-acceptance-v1/ACCEPTANCE.json",
+        "sha256": "94f791141dd5f093b55f57b203cd21e19839d6b41198cd1e7ff0c3c7d90b0e46"
+      },
+      "companion_commit": "2c27b25853ff18acc4e0423410e932742829bfaf",
+      "preceding_evidence_commits": [
+        "2c27b25853ff18acc4e0423410e932742829bfaf",
+        "13a2592f16f72dca91a9ba53e527ba178c0ed416"
+      ],
+      "landing_cases": 38,
+      "runtime": "Own isolated landing partition passes; both pass all50 landing tests. Fresh66 pair has25 improvements, no regressions,11 unchanged diagnostic failures. Earlier broader both run passes686 subtests and3 reftests.",
+      "formal_scope": "Conditional marking and query-admission/source sequence models; complete frame histories, provider, lifetime and CSS conformance remain open.",
+      "discovery": "Mutation-driven browser/source investigation; formal dirty-subtree barriers guided additional column probes. This was not an automatic whole-CSS verification result.",
+      "cost": "At256 branches, median first-query batch over16 mutations: principal1 to8ms, absolute1 to7ms; repeated/visible controls show no blocker at coarse1ms resolution. Both13440 measured rectangles correct; baseline3213 hidden-OOF mismatches.",
+      "limits": "Eleven column/ordinary-block diagnostic failures remain. No comprehensive hidden-layout or broad performance guarantee; no isolated whole-upstream runtime claim.",
+      "triage": "Layout/CSSOM geometry correctness; no security impact established.",
+      "candidate_installed": true,
+      "commit_verification": "artifacts/css-hidden-layout-column-commits-v1/COMMIT-CHECK.json"
+    },
+    {
+      "fix": 105,
+      "repair": "hidden-absolute-child-invalidation",
+      "status": "COMMITTED_NATIVE_WPT",
+      "native_commit": "f8104759d383bd324cdda1e78e3229902e97fb39",
+      "native_paths": [
+        "layout/generic/AbsoluteContainingBlock.cpp",
+        "testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-absolute-geometry.html",
+        "testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-oof-descendant-query.html"
+      ],
+      "patch": {
+        "path": "artifacts/css-hidden-layout-native-packaging-v1/absolute.patch",
+        "sha256": "acaaf9209647b99037cc416a23893519559e97737a1a2fd908d65510a29c131b"
+      },
+      "acceptance": {
+        "path": "artifacts/css-hidden-layout-column-acceptance-v1/ACCEPTANCE.json",
+        "sha256": "94f791141dd5f093b55f57b203cd21e19839d6b41198cd1e7ff0c3c7d90b0e46"
+      },
+      "companion_commit": "2c27b25853ff18acc4e0423410e932742829bfaf",
+      "preceding_evidence_commits": [
+        "2c27b25853ff18acc4e0423410e932742829bfaf",
+        "13a2592f16f72dca91a9ba53e527ba178c0ed416"
+      ],
+      "landing_cases": 12,
+      "runtime": "Own isolated landing partition passes; both pass all50 landing tests. Fresh66 pair has25 improvements, no regressions,11 unchanged diagnostic failures. Earlier broader both run passes686 subtests and3 reftests.",
+      "formal_scope": "Conditional marking and query-admission/source sequence models; complete frame histories, provider, lifetime and CSS conformance remain open.",
+      "discovery": "Mutation-driven browser/source investigation; formal dirty-subtree barriers guided additional column probes. This was not an automatic whole-CSS verification result.",
+      "cost": "At256 branches, median first-query batch over16 mutations: principal1 to8ms, absolute1 to7ms; repeated/visible controls show no blocker at coarse1ms resolution. Both13440 measured rectangles correct; baseline3213 hidden-OOF mismatches.",
+      "limits": "Eleven column/ordinary-block diagnostic failures remain. No comprehensive hidden-layout or broad performance guarantee; no isolated whole-upstream runtime claim.",
+      "triage": "Layout/CSSOM geometry correctness; no security impact established.",
+      "candidate_installed": true,
+      "commit_verification": "artifacts/css-hidden-layout-column-commits-v1/COMMIT-CHECK.json"
     }
   ],
   "verification": "Each committed native delta is the accepted patch, checked against its actual parent. Companions preserve the recorded scope and replay prerequisites. No new browser or full-build claims are made by committing.",
@@ -2686,113 +2756,6 @@
         "runtime": "48release/project identicalrows;allactualchildgeometry/reference/restorationpass.12large span fixtures produceoneextrafragment;36countcontrols pass.",
         "limits": "Separate abspos cumulative-state source lead is not yet runtime-attributed; shared consumed arithmetic may contribute. Do not double-count asacceptednewbug."
       }
-    },
-    {
-      "repair": "hidden-flex-skipped-layout",
-      "status": "ISOLATED_AND_COMBINED_WPT_PASS_ADDITIONAL_GATES_PENDING",
-      "native_accepted": false,
-      "native_installed": false,
-      "report": "artifacts/css-hidden-geometry-measure-trace-v2/REPORT.md",
-      "release_report": "artifacts/css-hidden-geometry-release-key-review-v1/REPORT.md",
-      "release_bad_stages": 12,
-      "release_stages": 240,
-      "instrumented_stages_per_variant": 400,
-      "instrumented_bad_stages": {
-        "baseline": 44,
-        "key_omitted": 12,
-        "direct_item_dirty": 4,
-        "principal_children_dirty": 0
-      },
-      "pending": [
-        "Exact compact landing WPT and table-column query probe",
-        "Selected absolute-child native trace",
-        "First query versus repeated query cost and full rectangle calibration",
-        "Final independent landing/dependency review"
-      ],
-      "discovery": "Browser mutation probe, then source reasoning and release reproduction; subsequent Lean model formalizes the direct-item sequence and its limitations.",
-      "wpt_runtime_report": "artifacts/css-hidden-geometry-wpt-runtime-v1/REPORT.md",
-      "wpt_runtime_files_sha256": "0a542591b868f0ecb2444e4c399bbddc5b4a8501d8730541d31fb17d5eb57c02",
-      "wpt_independent_report": "artifacts/css-hidden-geometry-wpt-runtime-review-v1/REVIEW.md",
-      "wpt_independent_files_sha256": "f3609c144102e0046c47fbbd82e0a7d8dd75301d2c38665c610eeda9c1c73a6f",
-      "wpt_subtests_per_phase": 656,
-      "wpt_failures": {
-        "baseline": 35,
-        "principal": 1,
-        "original_key": 27,
-        "original_key_principal": 9
-      },
-      "wpt_improvements": [
-        34,
-        18
-      ],
-      "wpt_regressions": [
-        0,
-        0
-      ],
-      "remaining_new_failure": "Static-position absolute child, one hidden ancestor: expected [104,10,12,8], observed [110,10,0,0].",
-      "source_and_build_restored": true,
-      "restoration_verified": "2026-10-22",
-      "combined_runtime_directory": "artifacts/css-hidden-flex-combined-runtime-v1",
-      "combined_subtests_per_phase": 686,
-      "combined_files": 22,
-      "combined_failures": {
-        "baseline": 41,
-        "principal_only": 7,
-        "oof_only": 34,
-        "both": 0
-      },
-      "pair_regressions": 0,
-      "all_file_end_outcomes_unchanged": true,
-      "principal_improvements": 34,
-      "absolute_improvements": 7,
-      "combined_timing_status": "REJECTED_CLEANUP_ERROR",
-      "trace_status": "NOT_RUN_AFTER_TIMING_CLEANUP_ABORT",
-      "combined_runtime_files_sha256": "86e59d39179a46b36f0b3c935b03cbd3b106dd1546d96286ea8ef0b0f31f4d07",
-      "combined_source_and_build_restored": true,
-      "combined_restoration_build_exit": 0,
-      "combined_terminal_exit": 1,
-      "combined_failure": "Timing cleanup permission error; no recovery errors; planned traces omitted."
-    },
-    {
-      "repair": "hidden-absolute-child-invalidation",
-      "status": "ISOLATED_AND_COMBINED_WPT_PASS_ADDITIONAL_GATES_PENDING",
-      "native_accepted": false,
-      "native_installed": false,
-      "report": "artifacts/css-hidden-flex-oof-review-v1/REPORT.md",
-      "files_sha256": "4571c5fd5131906fb0bb34a1c5a40c981d40d1ab926edbfaa4be488224cb0d24",
-      "independent_report": "artifacts/css-hidden-flex-oof-independent-v1/REPORT.md",
-      "independent_files_sha256": "350901c736366d6458d71ef03d2f172770d22bbba25daf9fdc5baf94ce50cf2c",
-      "candidate": "artifacts/css-hidden-flex-oof-review-v1/candidate-v2.patch",
-      "patch_sha256": "d5f61ccd4db2871e17e96e5d84cc30dcb59ad92ac3574878d3169cc1999acdf3",
-      "scope": "Mark hidden absolute child subtree before ReflowInput construction; separate producer from skipped principal-child layout. No runtime acceptance yet.",
-      "boundary_correction": "Hidden layout/paint containment ordinarily establishes its own absolute/fixed containing block. External-to-inner-flex ownership is possible inside a hidden outer; escaping that hidden boundary is not established.",
-      "native_fix_count_delta": 0,
-      "combined_runtime_directory": "artifacts/css-hidden-flex-combined-runtime-v1",
-      "combined_subtests_per_phase": 686,
-      "combined_files": 22,
-      "combined_failures": {
-        "baseline": 41,
-        "principal_only": 7,
-        "oof_only": 34,
-        "both": 0
-      },
-      "pair_regressions": 0,
-      "all_file_end_outcomes_unchanged": true,
-      "principal_improvements": 34,
-      "absolute_improvements": 7,
-      "combined_timing_status": "REJECTED_CLEANUP_ERROR",
-      "trace_status": "NOT_RUN_AFTER_TIMING_CLEANUP_ABORT",
-      "pending": [
-        "Exact compact landing WPT and table-column query probe",
-        "Selected absolute-child native trace",
-        "First query versus repeated query cost and full rectangle calibration",
-        "Final independent landing/dependency review"
-      ],
-      "combined_runtime_files_sha256": "86e59d39179a46b36f0b3c935b03cbd3b106dd1546d96286ea8ef0b0f31f4d07",
-      "combined_source_and_build_restored": true,
-      "combined_restoration_build_exit": 0,
-      "combined_terminal_exit": 1,
-      "combined_failure": "Timing cleanup permission error; no recovery errors; planned traces omitted."
     }
   ],
   "pending_native_worktree": {
@@ -2804,19 +2767,19 @@
     "note": "The 14 accepted repairs are now signed commits. Remaining local changes include unaccepted research prototypes and later evidence; the earlier path-count fields describe historical checkpoints. Signing remains enabled.",
     "paths_remaining_after_fix87": 19,
     "paths_with_invalidation_candidate": 22,
-    "paths_with_latest_candidates": 23
+    "paths_with_latest_candidates": 23,
+    "latest_preservation_check": "artifacts/css-hidden-layout-column-commits-v1/COMMIT-CHECK.json"
   },
   "latest_local_integration": {
-    "report": "artifacts/css-overflow-caption-installed-v1/REPORT.md",
-    "manifest_sha256": "6b82a1eb88d35cd335e1d34f8b379dbe668dd599562278f69698da5e7e19835b",
+    "receipt": "artifacts/css-hidden-layout-column-commits-v1/INSTALLED-BUILD.json",
     "build_exit": 0,
-    "wpt_files": 4,
-    "passing_subtests": 510,
     "new_repairs_installed": [
-      "overflow-continuation-relative-position",
-      "flex-table-auto-caption-percentage-height-cache"
+      "hidden-flex-skipped-layout",
+      "hidden-absolute-child-invalidation"
     ],
-    "signed_commits": false
+    "signed_commits": true,
+    "preserved_prototypes": true,
+    "scope": "Both accepted repairs over preserved experimental worktree. Build succeeded; correctness tests were performed in the separately authenticated clean-source experiment."
   },
   "latest_research_checkpoints": {
     "exact_size_transport": {
@@ -3334,9 +3297,9 @@
     },
     "hidden_geometry_regression": {
       "repair": "hidden-flex-skipped-layout",
-      "status": "ISOLATED_AND_COMBINED_WPT_PASS_ADDITIONAL_GATES_PENDING",
-      "native_accepted": false,
-      "native_installed": false,
+      "status": "COMMITTED_NATIVE_WPT",
+      "native_accepted": true,
+      "native_installed": true,
       "report": "artifacts/css-hidden-geometry-measure-trace-v2/REPORT.md",
       "release_report": "artifacts/css-hidden-geometry-release-key-review-v1/REPORT.md",
       "release_bad_stages": 12,
@@ -3348,11 +3311,7 @@
         "direct_item_dirty": 4,
         "principal_children_dirty": 0
       },
-      "pending": [
-        "Controlled-startup baseline/combined cost comparison",
-        "Column target/table-provider readiness trace and independent ordinary-block probe",
-        "Final native acceptance/dependency review"
-      ],
+      "pending": [],
       "discovery": "Browser mutation probe, then source reasoning and release reproduction; subsequent Lean model formalizes the direct-item sequence and its limitations.",
       "head_isolation_report": "artifacts/css-hidden-geometry-head-runtime-review-v1/REPORT.md",
       "head_isolation": "All 160 stages equal combined worktree run after removing all20 dirty native files.",
@@ -3432,7 +3391,16 @@
       "compact_runtime_files_sha256": "d61460eb681158d98c6299d3b6605fd066cd6ae9a388039659674180c2daf019",
       "compact_independent_review": "artifacts/css-hidden-layout-compact-review-v3/REPORT.md",
       "compact_review_files_sha256": "38cbaa9e5fafcc611065fdd7a86d4c7cec9ce87e60ed536f434eb925872f3a98",
-      "compact_source_and_build_restored": true
+      "compact_source_and_build_restored": true,
+      "native_commit": "29611cb584fdd0e54d5e7f7e0d70ad47cfff1653",
+      "latest_acceptance": {
+        "path": "artifacts/css-hidden-layout-column-acceptance-v1/ACCEPTANCE.json",
+        "sha256": "94f791141dd5f093b55f57b203cd21e19839d6b41198cd1e7ff0c3c7d90b0e46"
+      },
+      "latest_runtime": "artifacts/css-hidden-layout-column-runtime-v1",
+      "latest_runtime_files_sha256": "95f4290b6c8d5cc27afac52c94fb20e501282c7cea239caf455d71f52fe2f3e8",
+      "latest_landing_tests": 38,
+      "latest_scope": "Eleven column/ordinary-block diagnostic failures remain. No comprehensive hidden-layout or broad performance guarantee; no isolated whole-upstream runtime claim."
     },
     "hidden_geometry_model": {
       "status": "SCOPED_MODEL_AND_EXTRACTED_CALIBRATION",
@@ -3448,9 +3416,9 @@
     },
     "hidden_absolute_child": {
       "repair": "hidden-absolute-child-invalidation",
-      "status": "ISOLATED_AND_COMBINED_WPT_PASS_ADDITIONAL_GATES_PENDING",
-      "native_accepted": false,
-      "native_installed": false,
+      "status": "COMMITTED_NATIVE_WPT",
+      "native_accepted": true,
+      "native_installed": true,
       "report": "artifacts/css-hidden-flex-oof-review-v1/REPORT.md",
       "files_sha256": "4571c5fd5131906fb0bb34a1c5a40c981d40d1ab926edbfaa4be488224cb0d24",
       "independent_report": "artifacts/css-hidden-flex-oof-independent-v1/REPORT.md",
@@ -3476,11 +3444,7 @@
       "absolute_improvements": 7,
       "combined_timing_status": "REJECTED_CLEANUP_ERROR",
       "trace_status": "DIRTY_RETENTION_OBSERVED_QUERY_GATE_NOT_LOGGED",
-      "pending": [
-        "Controlled-startup baseline/combined cost comparison",
-        "Column target/table-provider readiness trace and independent ordinary-block probe",
-        "Final native acceptance/dependency review"
-      ],
+      "pending": [],
       "combined_runtime_files_sha256": "86e59d39179a46b36f0b3c935b03cbd3b106dd1546d96286ea8ef0b0f31f4d07",
       "combined_source_and_build_restored": true,
       "combined_restoration_build_exit": 0,
@@ -3513,7 +3477,16 @@
       "compact_runtime_files_sha256": "d61460eb681158d98c6299d3b6605fd066cd6ae9a388039659674180c2daf019",
       "compact_independent_review": "artifacts/css-hidden-layout-compact-review-v3/REPORT.md",
       "compact_review_files_sha256": "38cbaa9e5fafcc611065fdd7a86d4c7cec9ce87e60ed536f434eb925872f3a98",
-      "compact_source_and_build_restored": true
+      "compact_source_and_build_restored": true,
+      "native_commit": "f8104759d383bd324cdda1e78e3229902e97fb39",
+      "latest_acceptance": {
+        "path": "artifacts/css-hidden-layout-column-acceptance-v1/ACCEPTANCE.json",
+        "sha256": "94f791141dd5f093b55f57b203cd21e19839d6b41198cd1e7ff0c3c7d90b0e46"
+      },
+      "latest_runtime": "artifacts/css-hidden-layout-column-runtime-v1",
+      "latest_runtime_files_sha256": "95f4290b6c8d5cc27afac52c94fb20e501282c7cea239caf455d71f52fe2f3e8",
+      "latest_landing_tests": 12,
+      "latest_scope": "Eleven column/ordinary-block diagnostic failures remain. No comprehensive hidden-layout or broad performance guarantee; no isolated whole-upstream runtime claim."
     },
     "hidden_subtree_model": {
       "status": "SCOPED_MODEL_AND_EXTRACTED_CALIBRATION",
@@ -3545,7 +3518,7 @@
       "research_commit": "d051133a85b3446c1d6bcc047135057bd44f5a90"
     },
     "hidden_column_queries": {
-      "status": "CALIBRATED_COLUMN_RESIDUAL_WITH_BOTH_REPAIRS",
+      "status": "COLUMN_AND_ORDINARY_BLOCK_RESIDUALS_REPRODUCED",
       "report": "artifacts/css-hidden-table-column-query-v1/REPORT.md",
       "files_sha256": "4d4f7acc9f167e841aaf2ca691a7bd7479caa84af1e11134b530582fd5667518",
       "independent_report": "artifacts/css-hidden-column-query-review-v1/REPORT.md",
@@ -3561,11 +3534,20 @@
       "cell_table_controls_pass_with_corresponding_repair": true,
       "release_attempt": "artifacts/css-hidden-column-release-v1/REPORT.md",
       "release_attempt_status": "STARTUP_INCOMPLETE_NO_TEST_VERDICT_CLEANED",
-      "next": "Trace clean target and table-provider dirty bits; run ordinary-block diagnostic.",
-      "diagnostic_research_commit": "0987b9e43a83d7b69ea33120db4358718d5b0a8b"
+      "next": "Pair column-provider and skipped-block-line candidates, separately and together; add targeted ordinary/inline and provider traces if the comparison supports them.",
+      "diagnostic_research_commit": "0987b9e43a83d7b69ea33120db4358718d5b0a8b",
+      "latest_runtime": "artifacts/css-hidden-layout-column-runtime-v1",
+      "ordinary_block_cases": 8,
+      "ordinary_block_failures": 7,
+      "total_unchanged_diagnostic_failures": 11,
+      "clean_column_or_group_dirty_provider_trace_occurrences": 24,
+      "provider_model_report": "artifacts/css-hidden-column-provider-proof-v1/REPORT.md",
+      "provider_model_audits": 11,
+      "provider_model_false_claims": 2,
+      "provider_model_native_translation": "Manual correspondence; native histories/lifetimes/freshness open."
     },
     "hidden_timing_startup": {
-      "status": "CONTROLLED_PROGRESS_LAUNCHER_READY_EARLY_UPDATE_GUARD_SUCCESSOR_PENDING",
+      "status": "CONTROLLED_LOCAL_BASELINE_BOTH_COMPLETE",
       "research_commit": "c19121785fb5ab97fc788fdd028cc455b0dc4acd",
       "cost_v3_files_sha256": "246667f5d7dabc3941b9674438f0d976892cd947b9bfe0522c06a703f006f883",
       "release_startup_report": "artifacts/css-hidden-layout-cost-v3-release-startup-v1/REPORT.md",
@@ -3574,10 +3556,25 @@
       "release_measurement_accepted": false,
       "release_cleanup_failure": "Updater relaunched exact owned profile outside original group; profile removal failed. Root authenticated/stopped escaped test Firefox and removed owned profile.",
       "root_cleanup_complete": true,
-      "next": "Local-built binary only, direct early update-processing guard, same controlled environment for both comparison phases."
+      "next": "Preserve early update/startup controls and strict cleanup in future local timing work.",
+      "latest_research_commit": "2c27b25853ff18acc4e0423410e932742829bfaf",
+      "latest_runtime": "artifacts/css-hidden-layout-column-runtime-v1",
+      "both_geometry_mismatches": 0,
+      "baseline_geometry_mismatches": 3213,
+      "observations_per_phase": 13440,
+      "progress_markers_per_phase": 220
     }
   },
   "latest_signing": {
+    "base": "683bbe59d5a698a1f708041304f8640a7f987c38",
+    "head": "f8104759d383bd324cdda1e78e3229902e97fb39",
+    "signed_commits": 4,
+    "native_fixes": 2,
+    "exact_native_parent_deltas": true,
+    "index_empty": true,
+    "verification": "artifacts/css-hidden-layout-column-commits-v1/COMMIT-CHECK.json"
+  },
+  "previous_signing": {
     "base": "99a9ca84f08370c1797720db8688bcb3747f6985",
     "head": "7309af28e360d5d9544eb04dbbbe7f74a102e164",
     "signed_commits": 7,
@@ -3586,16 +3583,17 @@
     "index_empty": true,
     "verification": "artifacts/css-signing-resume-20261020-v3/ROOT-COMMIT-CHECK.json"
   },
-  "previous_signing": {
-    "base": "9c6b4af2a64296b2b24a162879907d4b2c439026",
-    "head": "fb5c4a68753962a14fcdb38463e71821754c1027",
-    "signed_commits": 6,
-    "native_fixes": 1,
-    "exact_native_parent_deltas": true,
-    "index_empty": true,
-    "verification": "artifacts/css-domrect-edge-precision-commit-v1/COMMIT-CHECK.json"
-  },
   "latest_research_signing": {
+    "commits": [
+      "2c27b25853ff18acc4e0423410e932742829bfaf",
+      "13a2592f16f72dca91a9ba53e527ba178c0ed416"
+    ],
+    "native_fixes_added": 0,
+    "signature_and_exact_path_checks": [
+      "artifacts/css-hidden-layout-column-commits-v1/COMMIT-CHECK.json"
+    ]
+  },
+  "previous_research_signing": {
     "commits": [
       "0f73c7d76ef62fd71c9931ad591ab7b4149b8b23",
       "0987b9e43a83d7b69ea33120db4358718d5b0a8b",
@@ -3606,29 +3604,30 @@
       "artifacts/css-hidden-layout-compact-commits-v1/COMMIT-CHECK.json"
     ]
   },
-  "previous_research_signing": {
-    "commits": [
-      "d051133a85b3446c1d6bcc047135057bd44f5a90",
-      "9b88ad4818cee6932a636b03ee91d3c5c9f0d028",
-      "dd2a8eeb1f394de4b05d85240fb00dfba87fc40b"
-    ],
-    "native_fixes_added": 0,
-    "signature_and_exact_path_checks": [
-      "artifacts/css-hidden-layout-comparison-commits-v1/COMMIT-CHECK.json"
-    ]
-  },
   "latest_research_signing_attempt": {
+    "status": "SUCCESS",
+    "head": "13a2592f16f72dca91a9ba53e527ba178c0ed416",
+    "new_commits": 2,
+    "staged_paths": 0,
+    "verification": "artifacts/css-hidden-layout-column-commits-v1/COMMIT-CHECK.json"
+  },
+  "previous_research_signing_attempt": {
     "status": "SUCCESS",
     "head": "c19121785fb5ab97fc788fdd028cc455b0dc4acd",
     "new_commits": 3,
     "staged_paths": 0,
     "verification": "artifacts/css-hidden-layout-compact-commits-v1/COMMIT-CHECK.json"
   },
-  "previous_research_signing_attempt": {
-    "status": "SUCCESS",
-    "head": "dd2a8eeb1f394de4b05d85240fb00dfba87fc40b",
-    "new_commits": 3,
-    "staged_paths": 0,
-    "verification": "artifacts/css-hidden-layout-comparison-commits-v1/COMMIT-CHECK.json"
+  "previous_local_integration": {
+    "report": "artifacts/css-overflow-caption-installed-v1/REPORT.md",
+    "manifest_sha256": "6b82a1eb88d35cd335e1d34f8b379dbe668dd599562278f69698da5e7e19835b",
+    "build_exit": 0,
+    "wpt_files": 4,
+    "passing_subtests": 510,
+    "new_repairs_installed": [
+      "overflow-continuation-relative-position",
+      "flex-table-auto-caption-percentage-height-cache"
+    ],
+    "signed_commits": false
   }
 }

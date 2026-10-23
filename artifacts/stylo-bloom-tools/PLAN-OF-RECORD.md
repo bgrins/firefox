@@ -4,6 +4,17 @@ Updated 22 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
+- **105 native fixes committed; no accepted fix awaits signing.** Fix104 `29611cb584fd` repairs skipped hidden flex children. Fix105 `f8104759d383` repairs hidden absolute-child dirtiness. Each contains only its native change and tested WPTs; research precedes both. [Ledger](BUGFIX-COMMITS.md).
+- **Fix101 keeps a landing prerequisite on fix104.** The combined branch's known hidden-layout exposure is repaired. Do not cherry-pick fix101 alone onto an unremedied base; retain the required cache key.
+- **Controlled comparison is complete:** all50 landing tests pass with both repairs. Fresh66 baseline/both gives36→11 failures,25 improvements and no regressions. Both timing variants complete220 progress markers/13,440 rectangles, with0 combined geometry mismatches. First-query recovery cost is disclosed; repeated/visible controls show no blocker in this sample. All28 source/index guards and restoration build pass. [Decision](../css-hidden-layout-landing-decision-v1/REPORT.md).
+- **Remaining query-readiness investigation:** four prior column/group failures and seven new ordinary-block failures remain unchanged. Trace records24 clean-column/group queries with dirty table providers. A minimal provider gate and a separate skipped-block-line marking candidate await paired runtime testing; neither is counted as a fix.
+- **Formal extension:** the provider model passes11 named audits and rejects two false claims, with canonical, relocated and root replay. Actual histories, frame lifetimes, provider publication and full CSS refinement remain open. Generated compiler products were removed.
+- **Next:** compare the two query-readiness candidates independently and together; follow positive results with targeted inline/table/fragment tests and proof joins. Then resume exact-size transport, signed caption reachability and the safe-origin/allocation/lifecycle obligations retained below. No try, push or external submission.
+
+## Earlier checkpoints (historical)
+
+The following entries preserve prior counts, holds and incomplete attempts. The current status above supersedes them.
+
 - **Launcher update escape retained and cleaned:** installed Firefox158 completed
   the progress fixture but its updater relaunched the test profile outside the
   original group, causing profile cleanup failure. Root verified/stopped that
