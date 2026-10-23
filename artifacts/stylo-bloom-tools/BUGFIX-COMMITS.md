@@ -7,6 +7,8 @@ outside those commits. Full commit hashes are the management identifiers.
 
 Current checkpoint: **105 committed fixes; no accepted repair awaits signing.**
 
+Two further hidden-query candidates are under review. In a66-case comparison, the column-provider change repairs six failures, skipped-block-line marking repairs three, and two require both; together they pass all66 with no regressions from adding repairs. Neither has a native commit or is included in the count. Boundary, independence and cost checks remain. [Current evidence](../css-hidden-query-repairs-analysis-v1/REPORT.md).
+
 ## Latest signed fixes: 104–105
 
 | Fix | Repair | Native + WPT commit | Preceding evidence |
