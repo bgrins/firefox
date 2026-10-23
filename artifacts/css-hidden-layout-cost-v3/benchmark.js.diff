@@ -1,0 +1,49 @@
+--- cost-v2/benchmark.js
++++ cost-v3/benchmark.js
+@@ -1,7 +1,14 @@
+ "use strict";
+ (async () => {
++  let progressSequence = 0;
++  async function progress(stage, detail = {}) {
++    const response = await fetch("/progress", {method: "POST", body: JSON.stringify({sequence: progressSequence++, stage, ...detail})});
++    if (!response.ok) throw new Error("progress receipt rejected");
++  }
++  await progress("script-start");
+   const config = await (await fetch("/CONFIG.json")).json();
+   const label = new URL(location.href).searchParams.get("label");
++  await progress("config-ready", {label});
+   const rows = [];
+   const configs = [];
+   for (const kind of config.kinds) {
+@@ -47,6 +54,7 @@
+   try {
+     if (!CSS.supports("content-visibility", "hidden")) throw new Error("unsupported content visibility");
+     await new Promise(resolve => setTimeout(resolve, config.startup_ms));
++    await progress("fixture-start");
+     start = performance.now();
+     for (let round = -config.warmup_rounds; round < config.measured_rounds; ++round) {
+       for (let slot = 0; slot < configs.length; ++slot) {
+@@ -55,6 +63,7 @@
+         const c = configs[ordinal];
+         const n = Math.min(c.count, config.query_limit);
+         const indices = Array.from({length: n}, (_, i) => n === 1 ? 0 : Math.floor(i * (c.count - 1) / (n - 1)));
++        await progress("batch-begin", {round, slot, ordinal, ...c});
+         const constructStart = performance.now();
+         const target = construct(c);
+         const peer = construct(c);
+@@ -107,12 +116,15 @@
+         for (let iteration = 0; iteration < config.no_mutation_iterations; ++iteration) measure("noMutation", iteration, indices, finalWidth);
+         if (round >= 0) rows.push({round, slot, ordinal, ...c, indices, constructionMs, establishMs, mutationFlushMs, outerChecksum, calibration, initial, times, observations});
+         remove(target);
++        await progress("batch-end", {round, slot, ordinal, ...c});
+       }
+       await new Promise(resolve => setTimeout(resolve, 0));
+     }
++    await progress("result-ready", {rows: rows.length});
+     await fetch("/result", {method: "POST", body: JSON.stringify({complete: true, label, config, elapsedMs: performance.now() - start, rows})});
+   } catch (error) {
+     for (const host of active) host.remove();
++    await progress("fixture-error", {error: String(error)});
+     await fetch("/result", {method: "POST", body: JSON.stringify({complete: false, label, config, elapsedMs: start === undefined ? null : performance.now() - start, error: String(error), rows})});
+   }
+ })();

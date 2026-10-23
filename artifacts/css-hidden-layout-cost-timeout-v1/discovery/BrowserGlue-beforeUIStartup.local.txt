@@ -1,0 +1,35 @@
+  _beforeUIStartup: function BG__beforeUIStartup() {
+    lazy.SessionStartup.init();
+
+    // check if we're in safe mode
+    if (Services.appinfo.inSafeMode) {
+      Services.ww.openWindow(
+        null,
+        "chrome://browser/content/safeMode.xhtml",
+        "_blank",
+        "chrome,centerscreen,modal,resizable=no",
+        null
+      );
+    }
+
+    // apply distribution customizations
+    lazy.DistributionManagement.applyCustomizations();
+
+    // handle any UI migration
+    this._migrateUI();
+
+    if (!Services.prefs.prefHasUserValue(PREF_PDFJS_ISDEFAULT_CACHE_STATE)) {
+      lazy.PdfJs.checkIsDefault(this._isNewProfile);
+    }
+
+    if (!AppConstants.NIGHTLY_BUILD && this._isNewProfile) {
+      lazy.FormAutofillUtils.setOSAuthEnabled(false);
+      lazy.LoginHelper.setOSAuthEnabled(false);
+    }
+
+    lazy.BrowserUtils.callModulesFromCategory({
+      categoryName: "browser-before-ui-startup",
+    });
+
+    Services.obs.notifyObservers(null, "browser-ui-startup-complete");
+  },

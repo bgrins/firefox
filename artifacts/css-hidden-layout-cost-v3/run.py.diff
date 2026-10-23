@@ -1,0 +1,86 @@
+--- cost-v2/run.py
++++ cost-v3/run.py
+@@ -49,7 +49,21 @@
+ profile = output / "profile"
+ profile.mkdir()
+ (output / "BEFORE.json").write_text(json.dumps(before, indent=2) + "\n")
++child_env = dict(os.environ)
++startup_environment = {"MOZ_DISABLE_SAFE_MODE_KEY": "1",
++                       "MOZ_SAFE_MODE_RESTART_inherited_present": "MOZ_SAFE_MODE_RESTART" in child_env,
++                       "MOZ_SAFE_MODE_RESTART_removed": True}
++child_env["MOZ_DISABLE_SAFE_MODE_KEY"] = "1"
++child_env.pop("MOZ_SAFE_MODE_RESTART", None)
++(output / "STARTUP-ENV.json").write_text(json.dumps(startup_environment, indent=2) + "\n")
+ posts = []
++progress_count = 0
++request_lock = threading.Lock()
++def request_receipt(value):
++    with request_lock:
++        with (output / "REQUESTS.jsonl").open("a") as stream:
++            stream.write(json.dumps({"monotonic": time.monotonic(), **value}) + "\n")
++
+ class Handler(BaseHTTPRequestHandler):
+     def setup(self):
+         super().setup()
+@@ -57,6 +71,7 @@
+     def log_message(self, *args): pass
+     def do_GET(self):
+         route = urlsplit(self.path).path
++        request_receipt({"method": "GET", "route": route, "event": "received"})
+         names = {"/": ("probe.html", "text/html"), "/benchmark.js": ("benchmark.js", "text/javascript"), "/CONFIG.json": ("CONFIG.json", "application/json")}
+         if route not in names:
+             self.send_error(404)
+@@ -70,7 +85,32 @@
+         self.end_headers()
+         self.wfile.write(body)
+     def do_POST(self):
+-        if urlsplit(self.path).path != "/result":
++        global progress_count
++        route = urlsplit(self.path).path
++        request_receipt({"method": "POST", "route": route, "event": "received"})
++        if route == "/progress":
++            length = int(self.headers.get("Content-Length", "0"))
++            if not 0 < length <= 4096:
++                self.send_error(413)
++                return
++            try:
++                value = json.loads(self.rfile.read(length))
++            except (ValueError, UnicodeDecodeError):
++                request_receipt({"route": route, "event": "progress-rejected", "reason": "invalid-json"})
++                self.send_error(400)
++                return
++            if (not isinstance(value, dict) or type(value.get("sequence")) is not int
++                or value["sequence"] != progress_count or progress_count >= 300
++                or value.get("stage") not in {"script-start", "config-ready", "fixture-start", "batch-begin", "batch-end", "result-ready", "fixture-error"}):
++                request_receipt({"route": route, "event": "progress-rejected", "reason": "identity"})
++                self.send_error(400)
++                return
++            progress_count += 1
++            request_receipt({"method": "POST", "route": route, "event": "progress-persisted", "value": value})
++            self.send_response(204)
++            self.end_headers()
++            return
++        if route != "/result":
+             self.send_error(404)
+             return
+         length = int(self.headers.get("Content-Length", "0"))
+@@ -98,8 +138,8 @@
+     thread.start()
+     command = [str(binary), "-headless", "-no-remote", "-profile", str(profile), f"http://127.0.0.1:{server.server_port}/?" + urlencode({"label": args.label})]
+     with (output / "browser.log").open("w") as log:
+-        process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+-        spawn = {"pid": process.pid, "expectedPgid": process.pid, "startNewSession": True}
++        process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, start_new_session=True, env=child_env)
++        spawn = {"pid": process.pid, "expectedPgid": process.pid, "startNewSession": True, "startupEnvironment": startup_environment}
+         (output / "SPAWN.json").write_text(json.dumps(spawn, indent=2) + "\n")
+         initial_members = cleanup.members(process.pid)
+         spawn["initialMembers"] = initial_members
+@@ -130,7 +170,7 @@
+     except OSError as error:
+         cleanup_errors.append(repr(error))
+ after = {str(p): digest(p) if p.is_file() else None for p in paths}
+-result = {"label": args.label, "command": command, "before": before, "after": after, "stable": before == after, "observations": posts, "processExitAfterOwnedTermination": process.returncode if process is not None else None, "profileRemoved": not profile.exists(), "failure": failure, "cleanupErrors": cleanup_errors, "spawn": spawn, "termination": termination, "noLiveGroup": termination["noLiveGroup"] if termination else None, "terminal": termination["terminal"] if termination else process is None}
++result = {"startupEnvironment": startup_environment, "progressReceipts": progress_count, "label": args.label, "command": command, "before": before, "after": after, "stable": before == after, "observations": posts, "processExitAfterOwnedTermination": process.returncode if process is not None else None, "profileRemoved": not profile.exists(), "failure": failure, "cleanupErrors": cleanup_errors, "spawn": spawn, "termination": termination, "noLiveGroup": termination["noLiveGroup"] if termination else None, "terminal": termination["terminal"] if termination else process is None}
+ (output / "RESULT.json").write_text(json.dumps(result, indent=2) + "\n")
+ if failure or cleanup_errors or before != after or len(posts) != 1 or not termination or not termination["terminal"]:
+     raise RuntimeError("Incomplete, failed, or unstable run; receipts retained")
