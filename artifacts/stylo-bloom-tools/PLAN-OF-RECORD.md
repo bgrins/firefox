@@ -4,8 +4,25 @@ Updated 22 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
-- **Latest research signed:** subtree model `1c5c364e6acb`,
-  WPT runtime `db64eb791210`, absolute-child proposal `c4f0bba10c50`.
+- **Independent repair comparison passes:** 22 WPT files and 686 subtests yield
+  41 baseline failures, seven with principal marking, 34 with absolute marking,
+  and zero with both. All four pair comparisons have zero regressions; all three
+  reftests pass. The combined timing run reported a cleanup permission error, so
+  its timing result is rejected and planned traces did not run. Restoration
+  and its rebuild passed, with all26 guarded sources and empty index verified;
+  no native acceptance follows yet.
+- **Next gates:** run the compact 38 principal and 12 absolute tests as exact
+  landing files, plus eight new column/group probes. The formal subtree barrier
+  led to a concrete source hypothesis: queries inspect clean column frames while
+  tables publish their geometry. It remains unconfirmed. Complete the absolute
+  trace and separate first/repeat query timings with full rectangle calibration.
+- **Absolute sequence proof reviewed:** 23 new and 66 imported kernel results,
+  6,144 rows per optimization and eight semantic mutants. Independent source/math
+  review accepts the conditional component; native provider/lifetime obligations
+  remain explicit. [Review](../css-hidden-oof-proof-review-v1/REVIEW.md).
+- **Latest research signed:** absolute sequence model `d051133a85b3`,
+  independent repair comparison `9b88ad4818ce`, compact landing proposals and
+  column probes `dd2a8eeb1f39`.
   All exact blob/path/signature checks pass; native prototypes are preserved.
 - **Uninstrumented hidden-flex WPT comparison complete:** all four builds and
   restoration passed. Each phase has 656 subtests and 15 files. The principal

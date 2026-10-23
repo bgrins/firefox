@@ -19,6 +19,12 @@ absolute-child repair remain unaccepted and are not counted as new fixes. Releas
 Firefox 158 independently fails 12 of 240 related principal-layout stages.
 [WPT evidence and limits](../css-hidden-geometry-wpt-runtime-review-v1/REVIEW.md).
 
+The subsequent 686-subtest comparison separates 34 principal and seven absolute
+failures: each repair works alone on its cases, and both together pass all cases
+with no regressions. Compact-file execution, the new column query probe, native
+tracing and hidden-query cost adjudication remain pending. Both candidates remain
+unaccepted; the committed count stays 103.
+
 ## Latest signed fix: 103
 
 | Fix | Repair | Native + WPT commit | Preceding companion |
