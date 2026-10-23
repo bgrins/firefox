@@ -5637,6 +5637,7 @@ std::tuple<nscoord, nsReflowStatus> nsFlexContainerFrame::ReflowChildren(
     const LogicalMargin& aBorderPadding, const FlexboxAxisTracker& aAxisTracker,
     FlexLayoutResult& aFlr, PerFragmentFlexData& aFragmentData) {
   if (HidesContentForLayout()) {
+    MarkPrincipalChildrenDirty();
     return {0, nsReflowStatus()};
   }
 
