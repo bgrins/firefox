@@ -25,6 +25,13 @@ with no regressions. Compact-file execution, the new column query probe, native
 tracing and hidden-query cost adjudication remain pending. Both candidates remain
 unaccepted; the committed count stays 103.
 
+The exact compact50 landing tests subsequently pass with both repairs. Four
+additional column/group probes remain broken, with table/cell controls passing;
+this is a separate unaccepted query-readiness investigation. Native traces confirm
+absolute dirty retention. Combined timing still needs a controlled-startup retry
+because its latest run returned no data by the deadline. No new native commit is
+counted and fix101 remains on hold.
+
 ## Latest signed fix: 103
 
 | Fix | Repair | Native + WPT commit | Preceding companion |

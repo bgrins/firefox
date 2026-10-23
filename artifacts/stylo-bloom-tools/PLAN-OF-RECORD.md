@@ -4,6 +4,29 @@ Updated 22 October 2026. Work stays local; the user owns pushing.
 
 ## Current status
 
+- **Launcher update escape retained and cleaned:** installed Firefox158 completed
+  the progress fixture but its updater relaunched the test profile outside the
+  original group, causing profile cleanup failure. Root verified/stopped that
+  exact-profile process and removed the profile; the original result stays
+  rejected. Further comparison uses the local-built binary and an early update
+  processing guard, without enabling unsafe automation preferences.
+- **Compact tests isolate a column-query residual:** all50 proposed landing
+  tests pass with both repairs. Four new col/colgroup cases still fail while
+  separately constructed table/cell controls recover. The original-key principal
+  comparison fixes14 cases; every pair has zero regressions. This was led by the
+  formal model's explicit column-pruning barrier. Independent upstream reachability
+  and a native repair remain open.
+- **Absolute traces confirm dirty retention:** four clean entries commit zero
+  geometry while staying clean before the repair, and become/stay dirty with it.
+  The query-forcing gate itself is not logged. All12 instrumented cases pass with
+  the repair and reproduce uninstrumented outcomes.
+- **Combined cost remains unresolved:** three v2 runs complete84 batches each;
+  first-query cost dominates, repeated-query medians are0ms at coarse resolution.
+  The combined run returns no observation by75seconds, with clean verified
+  termination. A Safe Mode startup message is a clue, not a proven cause.
+  Controlled-startup/progress v3 will compare baseline/both consistently.
+  The Firefox158 ordinary-block WPT attempt also failed startup and gives no
+  correctness verdict; its temporary test/process group are cleaned.
 - **Independent repair comparison passes:** 22 WPT files and 686 subtests yield
   41 baseline failures, seven with principal marking, 34 with absolute marking,
   and zero with both. All four pair comparisons have zero regressions; all three
@@ -11,18 +34,17 @@ Updated 22 October 2026. Work stays local; the user owns pushing.
   its timing result is rejected and planned traces did not run. Restoration
   and its rebuild passed, with all26 guarded sources and empty index verified;
   no native acceptance follows yet.
-- **Next gates:** run the compact 38 principal and 12 absolute tests as exact
-  landing files, plus eight new column/group probes. The formal subtree barrier
-  led to a concrete source hypothesis: queries inspect clean column frames while
-  tables publish their geometry. It remains unconfirmed. Complete the absolute
-  trace and separate first/repeat query timings with full rectangle calibration.
+- **Next gates:** finish the controlled baseline/both timing comparison and
+  trace column target/table-provider dirty bits. The formal subtree barrier now
+  has a calibrated browser residual; ordinary-block reachability and a sufficient
+  native repair remain unconfirmed. The compact tests and absolute traces above
+  have completed, and source/build restoration passed.
 - **Absolute sequence proof reviewed:** 23 new and 66 imported kernel results,
   6,144 rows per optimization and eight semantic mutants. Independent source/math
   review accepts the conditional component; native provider/lifetime obligations
   remain explicit. [Review](../css-hidden-oof-proof-review-v1/REVIEW.md).
-- **Latest research signed:** absolute sequence model `d051133a85b3`,
-  independent repair comparison `9b88ad4818ce`, compact landing proposals and
-  column probes `dd2a8eeb1f39`.
+- **Latest research signed:** compact runtime/traces `0f73c7d76ef6`,
+  column diagnostics `0987b9e43a83`, startup diagnostics `c19121785fb5`.
   All exact blob/path/signature checks pass; native prototypes are preserved.
 - **Uninstrumented hidden-flex WPT comparison complete:** all four builds and
   restoration passed. Each phase has 656 subtests and 15 files. The principal
