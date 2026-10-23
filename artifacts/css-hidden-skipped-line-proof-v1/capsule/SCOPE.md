@@ -1,0 +1,11 @@
+# Scope
+
+The model covers the entered hidden/!OWNS_ANON_BOXES ReflowLine early return, after its actual ClearDirty statement. Other ReflowLine paths are represented by no selected transition, not by a proof that arbitrary normal reflow is identity. The native complete before/candidate methods and full-file replacement are authenticated by reference.
+
+Line.children models the exact counted ChildFrames range as a finite stable list of disjoint ownership trees. This requires correct native count, sibling links, list providers, lifetime and no alias mutation. It does not follow placeholder out-of-flow pointers or other continuations unless actually present in one of these owned trees. The existing Subtree implementation models IS_DIRTY and HAS_DIRTY_CHILDREN separately, direct-dirty-root pruning and descendant table-column-group pruning. No new universal dirty coherence invariant is assumed.
+
+Each child root is marked independently. Descendant coverage is conditional on rootClosure for every root, which includes already-dirty and table barrier obligations. This every-direct-bit condition is stronger than query eligibility, not necessary for every query. Already eligible paths are preserved. Dirty line-box state is independent of the queried frame's bits.
+
+Query recovery is conditional on the same native frame/model target, an actual hidden ancestor, successful forced traversal and the arbitrary actual layout provider. It returns that provider's result rather than assuming desired dimensions. There is no proof of geometry correctness, actual skip reachability, invalidation histories, scheduling, mutable ownership, arithmetic, frame lifetime, full native methods or full CSS. No extracted native executable is added: the exact source-to-list/tree projection is manual and explicit, reusing the previously calibrated helper model.
+
+Replay copies only the two authenticated imported Lean modules into disposable directories, compiles them and this new module, audits the exact 21 new theorem names with a standard axiom allowlist, and checks two rejected false claims. Full installed Lean libraries, OS and Python are trusted; compiler binary is pinned. Source/countermodels are the evidence, not theorem counts. Temporary olean/source copies are removed after receipts, including failure paths.

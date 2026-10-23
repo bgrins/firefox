@@ -1,0 +1,9 @@
+# Path-local provider composition
+
+Reuse Subtree.clear_root_path_marks without reproving its traversal. It requires no incoherent direct-dirty barrier on the selected path to the table; unrelated descendants below the table need not be dirty. Reuse LineReady.newSkip for selecting a member of the actual modeled all-line-root transition, and ColumnReadiness.newGate for provider admission. The same-frame projection equates the actual table provider's combined dirty bit with eligibility of the located marked tree node. This is an explicit identity/state admission, not a native frame-graph theorem or an assumed desired query result.
+
+The concrete witness has a root, table, column group and column with matching IDs and parent/in-flow links. The table path becomes ready while the pruned clean group and column remain clean. Full rootClosure/allDirty is false but the modeled new provider gate is true. A directly dirty upstream root with a clean table makes the path premise false and the new gate remains closed, despite a hidden dirty ancestor. These are valid model worlds, not independently traced DOM histories.
+
+Gate admission and original-target ancestor selection are the conclusion. Actual ancestor traversal, scheduling, layout completion, geometry publication, identity lifetime, provider shape across mutation and CSS correctness remain open. The counted native line range and owned-tree projection remain manual admissions from the sealed source reviews. Empty/nonselected branches do not become native identity proofs. No browser/native executable/build/Git action is included.
+
+Imported Lean modules are authenticated by sealed reference, copied only into temporary work directories and compiled fresh. Exact new audit roster/standard axiom allowlist and two failed false propositions are checked. Installed Lean standard libraries, OS and Python remain trusted dependencies. All temporary olean/source copies are removed after replay receipts.

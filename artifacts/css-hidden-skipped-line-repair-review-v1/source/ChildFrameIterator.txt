@@ -1,0 +1,29 @@
+>>>  217:   class ChildFrameIterator {
+     218:    public:
+     219:     using value_type = nsIFrame*;
+     220:     using pointer = value_type*;
+     221:     using reference = value_type&;
+     222:     using difference_type = ptrdiff_t;
+     223:     // Stashing iterator (operator* returns by value), so the category can be
+     224:     // at most std::input_iterator_tag.
+     225:     using iterator_category = std::input_iterator_tag;
+     226: 
+     227:     ChildFrameIterator(nsIFrame* aFrame, int32_t aRemaining)
+     228:         : mCurrentFrame(aFrame), mRemainingChildCount(aRemaining) {}
+     229: 
+     230:     nsIFrame* operator*() const { return mCurrentFrame; }
+     231: 
+     232:     ChildFrameIterator& operator++() {
+     233:       MOZ_ASSERT(mRemainingChildCount > 0);
+     234:       --mRemainingChildCount;
+     235:       mCurrentFrame =
+     236:           mRemainingChildCount > 0 ? mCurrentFrame->GetNextSibling() : nullptr;
+     237:       return *this;
+     238:     }
+     239: 
+     240:     bool operator==(const ChildFrameIterator&) const = default;
+     241: 
+     242:    private:
+     243:     nsIFrame* mCurrentFrame;
+     244:     int32_t mRemainingChildCount;
+     245:   };

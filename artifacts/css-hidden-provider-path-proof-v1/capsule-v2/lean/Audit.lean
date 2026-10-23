@@ -1,0 +1,17 @@
+import ProviderPath
+
+#print axioms ProviderPath.selected_provider_ready
+#print axioms ProviderPath.clean_query_path_provider_admitted
+#print axioms ProviderPath.admitted_walk_keeps_original_target
+#print axioms ProviderPath.selected_line_root_marked
+#print axioms ProviderPath.selected_line_path_admitted
+#print axioms ProviderPath.table_path_is_clear
+#print axioms ProviderPath.whole_tree_closure_is_false
+#print axioms ProviderPath.marked_provider_ready_columns_clean
+#print axioms ProviderPath.marked_tree_still_not_all_dirty
+#print axioms ProviderPath.concrete_provider_chains
+#print axioms ProviderPath.clean_column_old_closed_new_open
+#print axioms ProviderPath.clean_group_old_closed_new_open
+#print axioms ProviderPath.concrete_hidden_ancestor_selected
+#print axioms ProviderPath.dirty_ancestor_barrier_keeps_provider_clean
+#print axioms ProviderPath.dirty_ancestor_countermodel

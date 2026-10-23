@@ -1,0 +1,28 @@
+>>>  576: void nsTableWrapperFrame::ReflowChild(nsPresContext* aPresContext,
+     577:                                       nsIFrame* aChildFrame,
+     578:                                       const ReflowInput& aChildRI,
+     579:                                       ReflowOutput& aMetrics,
+     580:                                       nsReflowStatus& aStatus) {
+     581:   // Using zero as containerSize here because we want consistency between
+     582:   // the GetLogicalPosition and ReflowChild calls, to avoid unnecessarily
+     583:   // changing the frame's coordinates; but we don't yet know its final
+     584:   // position anyway so the actual value is unimportant.
+     585:   const nsSize zeroCSize;
+     586:   WritingMode wm = aChildRI.GetWritingMode();
+     587: 
+     588:   // Use the current position as a best guess for placement.
+     589:   LogicalPoint childPt = aChildFrame->GetLogicalPosition(wm, zeroCSize);
+     590:   ReflowChildFlags flags = ReflowChildFlags::NoMoveFrame;
+     591: 
+     592:   // We don't want to delete our next-in-flow's child if it's an inner table
+     593:   // frame, because table wrapper frames always assume that their inner table
+     594:   // frames don't go away. If a table wrapper frame is removed because it is
+     595:   // a next-in-flow of an already complete table wrapper frame, then it will
+     596:   // take care of removing it's inner table frame.
+     597:   if (aChildFrame == InnerTableFrame()) {
+     598:     flags |= ReflowChildFlags::NoDeleteNextInFlowChild;
+     599:   }
+     600: 
+     601:   nsContainerFrame::ReflowChild(aChildFrame, aPresContext, aMetrics, aChildRI,
+     602:                                 wm, childPt, zeroCSize, flags, aStatus);
+     603: }

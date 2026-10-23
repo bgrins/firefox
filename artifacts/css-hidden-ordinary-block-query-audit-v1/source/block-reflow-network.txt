@@ -1,0 +1,22 @@
+    1567:   const WritingMode cbwm = aInlineFrame->GetWritingMode();
+    1568: 
+    1569:   // The inline-size in availSize is not important because abspos kids use
+    1570:   // cbRect to resolve their inline-size.
+    1571:   //
+    1572:   // For an inline CB in fragmentation context, AbsoluteContainingBlock stores
+    1573:   // kid's unfragmented position in *this* block's coordinate space. Therefore,
+    1574:   // using this block frame's available block-size is correct, and we don't need
+    1575:   // to subtract the inline CB's position.
+    1576:   LogicalSize availSize =
+>>> 1577:       aReflowInput.AvailableSize().ConvertTo(cbwm, GetWritingMode());
+    1578: 
+    1579:   if (availSize.BSize(cbwm) != NS_UNCONSTRAINEDSIZE &&
+    1580:       (HasColumnSpanSiblings() ||
+    1581:        IsInlineFrameCompleteInCurrentFragmentainer(this, aInlineFrame))) {
+    1582:     // FIXME: Disallow splitting abspos kids by setting the available block-size
+    1583:     // to an unconstrained size, as a workaround for the following scenarios:
+    1584:     //
+    1585:     // 1. This block frame has a column-span sibling, since we don't yet support
+    1586:     // abspos kids's fragmentation across a column-span boundary (Bug 2048784).
+    1587:     //
+

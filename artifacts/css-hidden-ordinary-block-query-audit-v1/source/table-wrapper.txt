@@ -1,0 +1,136 @@
+>>>  612: void nsTableWrapperFrame::Reflow(nsPresContext* aPresContext,
+     613:                                  ReflowOutput& aDesiredSize,
+     614:                                  const ReflowInput& aOuterRI,
+     615:                                  nsReflowStatus& aStatus) {
+     616:   MarkInReflow();
+     617:   DO_GLOBAL_REFLOW_COUNT("nsTableWrapperFrame");
+     618:   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
+     619: 
+     620:   // Initialize out parameters
+     621:   aDesiredSize.ClearSize();
+     622: 
+     623:   if (!HasAnyStateBits(NS_FRAME_FIRST_REFLOW)) {
+     624:     // Set up our kids.  They're already present, on an overflow list,
+     625:     // or there are none so we'll create them now
+     626:     MoveOverflowToChildList();
+     627:   }
+     628: 
+     629:   Maybe<ReflowInput> captionRI;
+     630:   Maybe<ReflowInput> innerRI;
+     631: 
+     632:   nsRect origCaptionRect;
+     633:   nsRect origCaptionInkOverflow;
+     634:   bool captionFirstReflow = false;
+     635:   if (nsIFrame* caption = GetCaption()) {
+     636:     origCaptionRect = caption->GetRect();
+     637:     origCaptionInkOverflow = caption->InkOverflowRect();
+     638:     captionFirstReflow = caption->HasAnyStateBits(NS_FRAME_FIRST_REFLOW);
+     639:   }
+     640: 
+     641:   // ComputeAutoSize has to match this logic.
+     642:   WritingMode wm = aOuterRI.GetWritingMode();
+     643:   Maybe<StyleCaptionSide> captionSide = GetCaptionSide();
+     644:   const nscoord contentBoxISize = aOuterRI.ComputedSize(wm).ISize(wm);
+     645: 
+     646:   MOZ_ASSERT(HasCaption() == captionSide.isSome());
+     647: 
+     648:   // Compute the table's size first, and then prevent the caption from
+     649:   // being larger in the inline dir unless it has to be.
+     650:   //
+     651:   // Note that CSS 2.1 (but not 2.0) says:
+     652:   //   The width of the anonymous box is the border-edge width of the
+     653:   //   table box inside it
+     654:   // We don't actually make our anonymous box that isize (if we did,
+     655:   // it would break 'auto' margins), but this effectively does that.
+     656:   CreateReflowInputForInnerTable(aPresContext, InnerTableFrame(), aOuterRI,
+     657:                                  innerRI, contentBoxISize);
+     658: 
+     659:   // First reflow the caption.
+     660:   ReflowOutput captionMet(wm);
+     661:   LogicalSize captionSize(wm);
+     662:   LogicalMargin captionMargin(wm);
+     663:   if (captionSide) {
+     664:     // It's good that CSS 2.1 says not to include margins, since we can't, since
+     665:     // they already been converted so they exactly fill the available isize
+     666:     // (ignoring the margin on one side if neither are auto).  (We take
+     667:     // advantage of that later when we call GetCaptionOrigin, though.)
+     668:     nscoord innerBorderISize =
+     669:         innerRI->ComputedSizeWithBorderPadding(wm).ISize(wm);
+     670:     CreateReflowInputForCaption(aPresContext, GetCaption(), aOuterRI, captionRI,
+     671:                                 innerBorderISize);
+     672: 
+     673:     // We intentionally don't merge capStatus into aStatus, since we currently
+     674:     // can't handle caption continuations, but we probably should.
+     675:     nsReflowStatus capStatus;
+     676:     ReflowChild(aPresContext, GetCaption(), *captionRI, captionMet, capStatus);
+     677:     captionSize = captionMet.Size(wm);
+     678:     captionMargin = captionRI->ComputedLogicalMargin(wm);
+     679:     nscoord bSizeOccupiedByCaption =
+     680:         captionSize.BSize(wm) + captionMargin.BStartEnd(wm);
+     681:     if (bSizeOccupiedByCaption) {
+     682:       // Reset the inner table's ReflowInput to reduce various sizes because of
+     683:       // the area occupied by caption.
+     684:       innerRI.reset();
+     685:       CreateReflowInputForInnerTable(aPresContext, InnerTableFrame(), aOuterRI,
+     686:                                      innerRI, contentBoxISize,
+     687:                                      bSizeOccupiedByCaption);
+     688:     }
+     689:   }
+     690: 
+     691:   // Now we know how much to reduce the block-size for the inner table to
+     692:   // account for captions. Reflow the inner table.
+     693:   ReflowOutput innerMet(innerRI->GetWritingMode());
+     694:   ReflowChild(aPresContext, InnerTableFrame(), *innerRI, innerMet, aStatus);
+     695:   LogicalSize innerSize(wm, innerMet.ISize(wm), innerMet.BSize(wm));
+     696: 
+     697:   // Now that we've reflowed both we can place them.
+     698:   // Compute the desiredSize so that we can use it as the containerSize
+     699:   // for the FinishReflowChild calls below.
+     700:   LogicalSize desiredSize(wm);
+     701: 
+     702:   // We have zero border and padding, so content-box inline-size is our desired
+     703:   // border-box inline-size.
+     704:   desiredSize.ISize(wm) = contentBoxISize;
+     705:   desiredSize.BSize(wm) =
+     706:       ComputeFinalBSize(innerSize, captionSize, captionMargin, wm);
+     707: 
+     708:   aDesiredSize.SetSize(wm, desiredSize);
+     709:   nsSize containerSize = aDesiredSize.PhysicalSize();
+     710: 
+     711:   MOZ_ASSERT(HasCaption() == captionSide.isSome());
+     712:   if (nsIFrame* caption = GetCaption()) {
+     713:     LogicalPoint captionOrigin(wm);
+     714:     GetCaptionOrigin(*captionSide, innerSize, captionSize, captionMargin,
+     715:                      captionOrigin, wm);
+     716:     FinishReflowChild(caption, aPresContext, captionMet, captionRI.ptr(), wm,
+     717:                       captionOrigin, containerSize,
+     718:                       ReflowChildFlags::ApplyRelativePositioning);
+     719:     captionRI.reset();
+     720:   }
+     721:   // XXX If the bsize is constrained then we need to check whether
+     722:   // everything still fits...
+     723: 
+     724:   LogicalPoint innerOrigin(wm);
+     725:   GetInnerOrigin(captionSide, captionSize, captionMargin, innerSize,
+     726:                  innerOrigin, wm);
+     727:   // NOTE: Relative positioning on the table applies to the whole table wrapper.
+     728:   FinishReflowChild(InnerTableFrame(), aPresContext, innerMet, innerRI.ptr(),
+     729:                     wm, innerOrigin, containerSize, ReflowChildFlags::Default);
+     730:   innerRI.reset();
+     731: 
+     732:   if (HasCaption()) {
+     733:     nsTableFrame::InvalidateTableFrame(GetCaption(), origCaptionRect,
+     734:                                        origCaptionInkOverflow,
+     735:                                        captionFirstReflow);
+     736:   }
+     737: 
+     738:   UpdateOverflowAreas(aDesiredSize);
+     739: 
+     740:   if (GetPrevInFlow()) {
+     741:     ReflowOverflowContainerChildren(aPresContext, aOuterRI,
+     742:                                     aDesiredSize.mOverflowAreas,
+     743:                                     ReflowChildFlags::Default, aStatus);
+     744:   }
+     745: 
+     746:   FinishReflowWithAbsoluteFrames(aPresContext, aDesiredSize, aOuterRI, aStatus);
+     747: }

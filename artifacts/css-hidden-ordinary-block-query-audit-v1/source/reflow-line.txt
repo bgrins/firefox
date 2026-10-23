@@ -1,0 +1,67 @@
+>>> 4291: bool nsBlockFrame::ReflowLine(BlockReflowState& aState, LineIterator aLine,
+    4292:                               bool* aKeepReflowGoing) {
+    4293:   MOZ_ASSERT(aLine->GetChildCount(), "reflowing empty line");
+    4294: 
+    4295:   // Setup the line-layout for the new line
+    4296:   aState.mCurrentLine = aLine;
+    4297:   aLine->ClearDirty();
+    4298:   aLine->InvalidateCachedIsEmpty();
+    4299:   aLine->ClearHadFloatPushed();
+    4300:   aLine->ClearTextBoxTrimStartApplied();
+    4301:   aLine->ClearTextBoxTrimEndApplied();
+    4302: 
+    4303:   // If this line contains a single block that is hidden by `content-visibility`
+    4304:   // don't reflow the line. If this line contains inlines and the first one is
+    4305:   // hidden by `content-visibility`, all of them are, so avoid reflow in that
+    4306:   // case as well.
+    4307:   // For frames that own anonymous children, even the first child is hidden by
+    4308:   // `content-visibility`, there could be some anonymous children need reflow,
+    4309:   // so we don't skip reflow this line.
+    4310:   nsIFrame* firstChild = aLine->mFirstChild;
+    4311:   if (firstChild->IsHiddenByContentVisibilityOfInFlowParentForLayout() &&
+    4312:       !HasAnyStateBits(NS_FRAME_OWNS_ANON_BOXES)) {
+    4313:     return false;
+    4314:   }
+    4315: 
+    4316:   // Now that we know what kind of line we have, reflow it
+    4317:   bool usedOverflowWrap = false;
+    4318:   if (aLine->IsBlock()) {
+    4319:     ReflowBlockFrame(aState, aLine, aKeepReflowGoing);
+    4320:   } else {
+    4321:     aLine->SetLineWrapped(false);
+    4322:     usedOverflowWrap = ReflowInlineFrames(aState, aLine, aKeepReflowGoing);
+    4323: 
+    4324:     // Store the line's float edges for overflow marker analysis if needed.
+    4325:     aLine->ClearFloatEdges();
+    4326:     if (aState.mFlags.mCanHaveOverflowMarkers) {
+    4327:       WritingMode wm = aLine->mWritingMode;
+    4328:       nsFlowAreaRect r = aState.GetFloatAvailableSpaceForBSize(
+    4329:           wm, aLine->BStart(), aLine->BSize(), nullptr);
+    4330:       if (r.HasFloats()) {
+    4331:         LogicalRect so = aLine->GetOverflowArea(OverflowType::Scrollable, wm,
+    4332:                                                 aLine->mContainerSize);
+    4333:         nscoord s = r.mRect.IStart(wm);
+    4334:         nscoord e = r.mRect.IEnd(wm);
+    4335:         if (so.IEnd(wm) > e || so.IStart(wm) < s) {
+    4336:           // This line is overlapping a float - store the edges marking the area
+    4337:           // between the floats for text-overflow analysis.
+    4338:           aLine->SetFloatEdges(s, e);
+    4339:         }
+    4340:       }
+    4341:     }
+    4342:   }
+    4343: 
+    4344:   aLine->ClearMovedFragments();
+    4345: 
+    4346:   // If text-box-trim was applied on the start/end side, clear the
+    4347:   // state flags to prevent checking trim eligibility for later siblings.
+    4348:   if (aLine->TextBoxTrimStartApplied()) {
+    4349:     aState.mFlags.mShouldApplyTextBoxTrimStart = false;
+    4350:   }
+    4351:   if (aLine->TextBoxTrimEndApplied()) {
+    4352:     aState.mFlags.mShouldApplyTextBoxTrimAtBlockEnd = false;
+    4353:     aState.mFlags.mShouldApplyTextBoxTrimAtFragmentEnd = false;
+    4354:   }
+    4355: 
+    4356:   return usedOverflowWrap;
+    4357: }

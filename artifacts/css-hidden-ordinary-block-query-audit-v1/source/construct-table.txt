@@ -1,0 +1,91 @@
+>>> 1991: nsIFrame* nsCSSFrameConstructor::ConstructTable(nsFrameConstructorState& aState,
+    1992:                                                 FrameConstructionItem& aItem,
+    1993:                                                 nsContainerFrame* aParentFrame,
+    1994:                                                 const nsStyleDisplay* aDisplay,
+    1995:                                                 nsFrameList& aFrameList) {
+    1996:   MOZ_ASSERT(aDisplay->mDisplay == StyleDisplay::Table ||
+    1997:                  aDisplay->mDisplay == StyleDisplay::InlineTable,
+    1998:              "Unexpected call");
+    1999: 
+    2000:   nsIContent* const content = aItem.mContent;
+    2001:   ComputedStyle* const computedStyle = aItem.mComputedStyle;
+    2002:   const bool isMathMLContent = content->IsMathMLElement();
+    2003: 
+    2004:   // create the pseudo SC for the table wrapper as a child of the inner SC
+    2005:   RefPtr<ComputedStyle> outerComputedStyle =
+    2006:       mPresShell->StyleSet()->ResolveInheritingAnonymousBoxStyle(
+    2007:           PseudoStyleType::MozTableWrapper, computedStyle);
+    2008: 
+    2009:   // Create the table wrapper frame which holds the caption and inner table
+    2010:   // frame
+    2011:   nsContainerFrame* newFrame;
+    2012:   if (isMathMLContent) {
+    2013:     newFrame = NS_NewMathMLmtableOuterFrame(mPresShell, outerComputedStyle);
+    2014:   } else {
+    2015:     newFrame = NS_NewTableWrapperFrame(mPresShell, outerComputedStyle);
+    2016:   }
+    2017: 
+    2018:   nsContainerFrame* geometricParent = aState.GetGeometricParent(
+    2019:       *outerComputedStyle->StyleDisplay(), aParentFrame);
+    2020: 
+    2021:   // Init the table wrapper frame
+    2022:   InitAndRestoreFrame(aState, content, geometricParent, newFrame);
+    2023: 
+    2024:   // Create the inner table frame
+    2025:   nsContainerFrame* innerFrame;
+    2026:   if (isMathMLContent) {
+    2027:     innerFrame = NS_NewMathMLmtableFrame(mPresShell, computedStyle);
+    2028:   } else {
+    2029:     innerFrame = NS_NewTableFrame(mPresShell, computedStyle);
+    2030:   }
+    2031: 
+    2032:   InitAndRestoreFrame(aState, content, newFrame, innerFrame);
+    2033:   innerFrame->AddStateBits(NS_FRAME_OWNS_ANON_BOXES);
+    2034: 
+    2035:   // Put the newly created frames into the right child list
+    2036:   SetInitialSingleChild(newFrame, innerFrame);
+    2037: 
+    2038:   aState.AddChild(newFrame, aFrameList, content, aParentFrame);
+    2039: 
+    2040:   if (!mRootElementFrame) {
+    2041:     mRootElementFrame = newFrame;
+    2042:   }
+    2043: 
+    2044:   nsFrameList childList;
+    2045: 
+    2046:   // Process children
+    2047:   nsFrameConstructorSaveState absoluteSaveState;
+    2048: 
+    2049:   // Mark the table frame as an absolute container if needed
+    2050:   newFrame->AddStateBits(NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN);
+    2051:   if (newFrame->IsAbsPosContainingBlock()) {
+    2052:     aState.PushAbsoluteContainingBlock(newFrame, newFrame, absoluteSaveState);
+    2053:   }
+    2054: 
+    2055:   nsFrameConstructorSaveState floatSaveState;
+    2056:   aState.MaybePushFloatContainingBlock(innerFrame, floatSaveState);
+    2057: 
+    2058:   if (aItem.mFCData->mBits & FCDATA_USE_CHILD_ITEMS) {
+    2059:     ConstructFramesFromItemList(
+    2060:         aState, aItem.mChildItems, innerFrame,
+    2061:         aItem.mFCData->mBits & FCDATA_IS_WRAPPER_ANON_BOX, childList);
+    2062:   } else {
+    2063:     ProcessChildren(aState, content, computedStyle, innerFrame, true, childList,
+    2064:                     false);
+    2065:   }
+    2066: 
+    2067:   nsFrameList captionList;
+    2068:   PullOutCaptionFrames(childList, captionList);
+    2069: 
+    2070:   // Set the inner table frame's principal child list.
+    2071:   innerFrame->SetInitialChildList(FrameChildListID::Principal,
+    2072:                                   std::move(childList));
+    2073: 
+    2074:   // Append caption frames to the table wrapper frame's principal child list.
+    2075:   if (captionList.NotEmpty()) {
+    2076:     captionList.ApplySetParent(newFrame);
+    2077:     newFrame->AppendFrames(FrameChildListID::Principal, std::move(captionList));
+    2078:   }
+    2079: 
+    2080:   return newFrame;
+    2081: }
