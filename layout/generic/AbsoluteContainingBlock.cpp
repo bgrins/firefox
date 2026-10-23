@@ -1997,6 +1997,9 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
       }
     }
     const LogicalSize availSize(outerWM, cbSize.ISize(outerWM), availBSize);
+    if (aKidFrame->IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
+      aKidFrame->MarkSubtreeDirty();
+    }
     ReflowInput kidReflowInput(aPresContext, aReflowInput, aKidFrame,
                                availSize.ConvertTo(wm, outerWM),
                                Some(cbSize.ConvertTo(wm, outerWM)), initFlags,
