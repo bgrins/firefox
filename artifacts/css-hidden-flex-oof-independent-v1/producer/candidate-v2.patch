@@ -1,0 +1,12 @@
+--- a/layout/generic/AbsoluteContainingBlock.cpp
++++ b/layout/generic/AbsoluteContainingBlock.cpp
+@@ -1997,6 +1997,9 @@
+       }
+     }
+     const LogicalSize availSize(outerWM, cbSize.ISize(outerWM), availBSize);
++    if (aKidFrame->IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
++      aKidFrame->MarkSubtreeDirty();
++    }
+     ReflowInput kidReflowInput(aPresContext, aReflowInput, aKidFrame,
+                                availSize.ConvertTo(wm, outerWM),
+                                Some(cbSize.ConvertTo(wm, outerWM)), initFlags,

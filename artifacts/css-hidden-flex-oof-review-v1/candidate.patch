@@ -1,0 +1,12 @@
+--- a/layout/generic/AbsoluteContainingBlock.cpp
++++ b/layout/generic/AbsoluteContainingBlock.cpp
+@@ -2037,6 +2037,9 @@
+ 
+     // Do the reflow
+     ReflowOutput kidDesiredSize(kidReflowInput);
++    if (aKidFrame->IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
++      aKidFrame->MarkSubtreeDirty();
++    }
+     aKidFrame->Reflow(aPresContext, kidDesiredSize, kidReflowInput, aStatus);
+ 
+     nsMargin insets;

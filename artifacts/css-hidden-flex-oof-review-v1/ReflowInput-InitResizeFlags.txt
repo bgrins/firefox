@@ -1,0 +1,202 @@
+>>>  651: void ReflowInput::InitResizeFlags(nsPresContext* aPresContext,
+     652:                                   LayoutFrameType aFrameType) {
+     653:   SetIResize(false);
+     654:   SetBResize(false);
+     655:   SetBResizeForPercentages(false);
+     656: 
+     657:   const WritingMode wm = mWritingMode;  // just a shorthand
+     658:   // We should report that we have a resize in the inline dimension if
+     659:   // *either* the border-box size or the content-box size in that
+     660:   // dimension has changed.  It might not actually be necessary to do
+     661:   // this if the border-box size has changed and the content-box size
+     662:   // has not changed, but since we've historically used the flag to mean
+     663:   // border-box size change, continue to do that. It's possible for
+     664:   // the content-box size to change without a border-box size change or
+     665:   // a style change given (1) a fixed width (possibly fixed by max-width
+     666:   // or min-width), box-sizing:border-box, and percentage padding;
+     667:   // (2) box-sizing:content-box, M% width, and calc(Npx - M%) padding.
+     668:   //
+     669:   // However, we don't actually have the information at this point to tell
+     670:   // whether the content-box size has changed, since both style data and the
+     671:   // UsedPaddingProperty() have already been updated in
+     672:   // SizeComputationInput::InitOffsets(). So, we check the HasPaddingChange()
+     673:   // bit for the cases where it's possible for the content-box size to have
+     674:   // changed without either (a) a change in the border-box size or (b) an
+     675:   // nsChangeHint_NeedDirtyReflow change hint due to change in border or
+     676:   // padding.
+     677:   //
+     678:   // We don't clear the HasPaddingChange() bit here, since sometimes we
+     679:   // construct reflow input (e.g. in nsBlockFrame::ReflowBlockFrame to compute
+     680:   // margin collapsing) without reflowing the frame. Instead, we clear it in
+     681:   // nsIFrame::DidReflow().
+     682:   bool isIResize =
+     683:       // is the border-box resizing?
+     684:       mFrame->ISize(wm) !=
+     685:           ComputedISize() + ComputedLogicalBorderPadding(wm).IStartEnd(wm) ||
+     686:       // or is the content-box resizing?  (see comment above)
+     687:       mFrame->HasPaddingChange();
+     688: 
+     689:   if (mFrame->HasAnyStateBits(NS_FRAME_FONT_INFLATION_FLOW_ROOT) &&
+     690:       nsLayoutUtils::FontSizeInflationEnabled(aPresContext)) {
+     691:     // Create our font inflation data if we don't have it already, and
+     692:     // give it our current width information.
+     693:     bool dirty = nsFontInflationData::UpdateFontInflationDataISizeFor(*this) &&
+     694:                  // Avoid running this at the box-to-block interface
+     695:                  // (where we shouldn't be inflating anyway, and where
+     696:                  // reflow input construction is probably to construct a
+     697:                  // dummy parent reflow input anyway).
+     698:                  !mFlags.mDummyParentReflowInput;
+     699: 
+     700:     if (dirty || (!mFrame->GetParent() && isIResize)) {
+     701:       // When font size inflation is enabled, a change in either:
+     702:       //  * the effective width of a font inflation flow root
+     703:       //  * the width of the frame
+     704:       // needs to cause a dirty reflow since they change the font size
+     705:       // inflation calculations, which in turn change the size of text,
+     706:       // line-heights, etc.  This is relatively similar to a classic
+     707:       // case of style change reflow, except that because inflation
+     708:       // doesn't affect the intrinsic sizing codepath, there's no need
+     709:       // to invalidate intrinsic sizes.
+     710:       //
+     711:       // Note that this makes horizontal resizing a good bit more
+     712:       // expensive.  However, font size inflation is targeted at a set of
+     713:       // devices (zoom-and-pan devices) where the main use case for
+     714:       // horizontal resizing needing to be efficient (window resizing) is
+     715:       // not present.  It does still increase the cost of dynamic changes
+     716:       // caused by script where a style or content change in one place
+     717:       // causes a resize in another (e.g., rebalancing a table).
+     718: 
+     719:       // FIXME: This isn't so great for the cases where
+     720:       // ReflowInput::SetComputedWidth is called, if the first time
+     721:       // we go through InitResizeFlags we set IsHResize() to true, and then
+     722:       // the second time we'd set it to false even without the
+     723:       // NS_FRAME_IS_DIRTY bit already set.
+     724:       if (mFrame->IsSVGForeignObjectFrame()) {
+     725:         // Foreign object frames use dirty bits in a special way.
+     726:         mFrame->AddStateBits(NS_FRAME_HAS_DIRTY_CHILDREN);
+     727:         nsIFrame* kid = mFrame->PrincipalChildList().FirstChild();
+     728:         if (kid) {
+     729:           kid->MarkSubtreeDirty();
+     730:         }
+     731:       } else {
+     732:         mFrame->MarkSubtreeDirty();
+     733:       }
+     734: 
+     735:       // Mark intrinsic widths on all descendants dirty.  We need to do
+     736:       // this (1) since we're changing the size of text and need to
+     737:       // clear text runs on text frames and (2) since we actually are
+     738:       // changing some intrinsic widths, but only those that live inside
+     739:       // of containers.
+     740: 
+     741:       // It makes sense to do this for descendants but not ancestors
+     742:       // (which is unusual) because we're only changing the unusual
+     743:       // inflation-dependent intrinsic widths (i.e., ones computed with
+     744:       // nsPresContext::mInflationDisabledForShrinkWrap set to false),
+     745:       // which should never affect anything outside of their inflation
+     746:       // flow root (or, for that matter, even their inflation
+     747:       // container).
+     748: 
+     749:       // This is also different from what PresShell::FrameNeedsReflow
+     750:       // does because it doesn't go through placeholders.  It doesn't
+     751:       // need to because we're actually doing something that cares about
+     752:       // frame tree geometry (the width on an ancestor) rather than
+     753:       // style.
+     754: 
+     755:       AutoTArray<nsIFrame*, 32> stack;
+     756:       stack.AppendElement(mFrame);
+     757: 
+     758:       do {
+     759:         nsIFrame* f = stack.PopLastElement();
+     760:         for (const auto& childList : f->ChildLists()) {
+     761:           for (nsIFrame* kid : childList.mList) {
+     762:             kid->MarkIntrinsicISizesDirty();
+     763:             stack.AppendElement(kid);
+     764:           }
+     765:         }
+     766:       } while (stack.Length() != 0);
+     767:     }
+     768:   }
+     769: 
+     770:   SetIResize(!mFrame->HasAnyStateBits(NS_FRAME_IS_DIRTY) && isIResize);
+     771:   const auto anchorResolutionParams =
+     772:       AnchorPosOffsetResolutionParams::UseCBFrameSize(
+     773:           AnchorPosResolutionParams::From(this));
+     774: 
+     775:   const auto bSize =
+     776:       mStylePosition->BSize(wm, anchorResolutionParams.mBaseParams);
+     777:   const auto minBSize =
+     778:       mStylePosition->MinBSize(wm, anchorResolutionParams.mBaseParams);
+     779:   const auto maxBSize =
+     780:       mStylePosition->MaxBSize(wm, anchorResolutionParams.mBaseParams);
+     781:   // XXX Should we really need to null check mCBReflowInput?  (We do for
+     782:   // at least nsBoxFrame).
+     783:   if (mFrame->HasBSizeChange()) {
+     784:     // When we have an nsChangeHint_UpdateComputedBSize, we'll set a bit
+     785:     // on the frame to indicate we're resizing.  This might catch cases,
+     786:     // such as a change between auto and a length, where the box doesn't
+     787:     // actually resize but children with percentages resize (since those
+     788:     // percentages become auto if their containing block is auto).
+     789:     SetBResize(true);
+     790:     SetBResizeForPercentages(true);
+     791:     // We don't clear the HasBSizeChange state here, since sometimes we
+     792:     // construct a ReflowInput (e.g. in nsBlockFrame::ReflowBlockFrame to
+     793:     // compute margin collapsing) without reflowing the frame. Instead, we
+     794:     // clear it in nsIFrame::DidReflow.
+     795:   } else if (mCBReflowInput &&
+     796:              mCBReflowInput->IsBResizeForPercentagesForWM(wm) &&
+     797:              (bSize->HasPercent() || minBSize->HasPercent() ||
+     798:               maxBSize->HasPercent())) {
+     799:     // We have a percentage (or calc-with-percentage) block-size, and the
+     800:     // value it's relative to has changed.
+     801:     SetBResize(true);
+     802:     SetBResizeForPercentages(true);
+     803:   } else if (aFrameType == LayoutFrameType::TableCell &&
+     804:              (mFlags.mSpecialBSizeReflow ||
+     805:               mFrame->FirstInFlow()->HasAnyStateBits(
+     806:                   NS_TABLE_CELL_HAD_SPECIAL_REFLOW)) &&
+     807:              mFrame->HasAnyStateBits(NS_FRAME_CONTAINS_RELATIVE_BSIZE)) {
+     808:     // Need to set the bit on the cell so that
+     809:     // mCBReflowInput->IsBResize() is set correctly below when
+     810:     // reflowing descendant.
+     811:     SetBResize(true);
+     812:     SetBResizeForPercentages(true);
+     813:   } else if (mCBReflowInput && mFrame->IsBlockWrapper()) {
+     814:     // XXX Is this problematic for relatively positioned inlines acting
+     815:     // as containing block for absolutely positioned elements?
+     816:     // Possibly; in that case we should at least be checking
+     817:     // IsSubtreeDirty(), I'd think.
+     818:     SetBResize(mCBReflowInput->IsBResizeForWM(wm));
+     819:     SetBResizeForPercentages(mCBReflowInput->IsBResizeForPercentagesForWM(wm));
+     820:   } else if (ComputedBSize() == NS_UNCONSTRAINEDSIZE) {
+     821:     // We have an 'auto' block-size.
+     822:     if (eCompatibility_NavQuirks == aPresContext->CompatibilityMode() &&
+     823:         mCBReflowInput) {
+     824:       // FIXME: This should probably also check IsIResize().
+     825:       SetBResize(mCBReflowInput->IsBResizeForWM(wm));
+     826:     } else {
+     827:       SetBResize(IsIResize());
+     828:     }
+     829:     SetBResize(IsBResize() || mFrame->IsSubtreeDirty() ||
+     830:                // For an inner table frame, copy IsBResize from its wrapper.
+     831:                (aFrameType == LayoutFrameType::Table &&
+     832:                 mParentReflowInput->IsBResize()));
+     833:   } else {
+     834:     // We have a non-'auto' block-size, i.e., a length.  Set the BResize
+     835:     // flag to whether the size is actually different.
+     836:     SetBResize(mFrame->BSize(wm) !=
+     837:                ComputedBSize() +
+     838:                    ComputedLogicalBorderPadding(wm).BStartEnd(wm));
+     839:   }
+     840: 
+     841:   bool dependsOnCBBSize =
+     842:       (nsStylePosition::BSizeDependsOnContainer(bSize) &&
+     843:        // FIXME: condition this on not-abspos?
+     844:        !bSize->IsAuto()) ||
+     845:       nsStylePosition::MinBSizeDependsOnContainer(minBSize) ||
+     846:       nsStylePosition::MaxBSizeDependsOnContainer(maxBSize) ||
+     847:       mStylePosition
+     848:           ->GetAnchorResolvedInset(LogicalSide::BStart, wm,
+     849:                                    anchorResolutionParams)
+     850:           ->HasPercent() ||
+     851:       !mStylePosition
+   ...  : (method too long, truncated)

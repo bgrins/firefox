@@ -1,0 +1,85 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Fragmented flex descendants remain queryable under a hidden outer container</title>
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#containment-size">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#pagination">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getclientrects">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; width: 220px; height: 40px; }
+.outer { width: 220px; height: 40px; }
+.outer.flex { display: flex; align-items: flex-start; }
+.hidden { content-visibility: hidden; }
+.columns { flex: none; width: 220px; height: 40px; columns: 2; column-gap: 20px; column-fill: auto; }
+.inner { display: flex; flex-direction: column; align-items: flex-start; }
+.target { flex: none; width: 100px; }
+.chunk { height: 40px; break-inside: avoid; }
+.forced .second { break-before: column; }
+.changed .target { width: 80px; }
+.changed .second { height: 20px; }
+</style>
+<body>
+<script>
+"use strict";
+
+function fixture(display, forced) {
+  const host = document.createElement("div");
+  host.className = "host";
+  host.innerHTML = `<div class="outer ${display}"><div class="columns"><div class="inner"><div class="target"><div class="chunk"></div><div class="chunk second"></div></div></div></div></div>`;
+  if (forced) host.classList.add("forced");
+  document.body.append(host);
+  return {host, outer: host.querySelector(".outer"), target: host.querySelector(".target")};
+}
+
+function rectangles(target) {
+  return Array.from(target.getClientRects(), r => [r.left, r.top, r.width, r.height]);
+}
+
+function capture(target, reference, label, expected) {
+  target.outer.getBoundingClientRect();
+  target.outer.scrollHeight;
+  const reads = [rectangles(target.target), rectangles(target.target), rectangles(target.target)];
+  const visible = rectangles(reference.target);
+  return {label, expected, reads, visible};
+}
+
+function assertRectangles(actual, expected, label) {
+  assert_equals(actual.length, expected.length, `${label}: fragment count`);
+  for (let i = 0; i < expected.length; ++i) {
+    assert_array_equals(actual[i], expected[i], `${label}: fragment ${i}`);
+  }
+}
+
+for (const display of ["flex", "block"]) {
+  for (const forced of [false, true]) {
+    test(t => {
+      assert_implements(CSS.supports("content-visibility", "hidden"));
+      const target = fixture(display, forced);
+      const reference = fixture(display, forced);
+      t.add_cleanup(() => { target.host.remove(); reference.host.remove(); });
+      const initial = [[10, 10, 100, 40], [130, 10, 100, 40]];
+      const changed = [[10, 10, 80, 40], [130, 10, 80, 20]];
+      const rows = [capture(target, reference, "visible warm", initial)];
+      target.outer.classList.add("hidden");
+      rows.push(capture(target, reference, "hidden query", initial));
+      target.host.classList.add("changed");
+      reference.host.classList.add("changed");
+      rows.push(capture(target, reference, "hidden changed query", changed));
+      target.outer.classList.remove("hidden");
+      rows.push(capture(target, reference, "shown query", changed));
+      for (const row of rows) {
+        assert_greater_than(row.visible.length, 1, `${row.label}: actual visible fragmentation`);
+        assertRectangles(row.visible, row.expected, `${row.label}: independent visible calibration`);
+      }
+      for (const row of rows) {
+        for (let i = 0; i < row.reads.length; ++i) {
+          assertRectangles(row.reads[i], row.expected, `${row.label}: target read ${i}`);
+        }
+      }
+    }, `Fragmented flex child inside ${display} outer container, ${forced ? "forced" : "natural"} column break`);
+  }
+}
+</script>
