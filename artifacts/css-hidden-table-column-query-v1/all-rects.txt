@@ -1,0 +1,19 @@
+>>> 3629:               nsLayoutUtils::GetAllInFlowRectsFlag::AccountForTransforms)) {
+    3630:         const bool isAncestorKnown = [&] {
+    3631:           if (mRelativeToIsRoot) {
+    3632:             return true;
+    3633:           }
+    3634:           if (mRelativeToIsTarget && !mInTargetContinuation) {
+    3635:             return !usingSVGOuterFrame;
+    3636:           }
+    3637:           return false;
+    3638:         }();
+    3639:         if (mRelativeToIsRoot && !usingSVGOuterFrame) {
+    3640:           r = TransformClientRectToAncestor(outer, r, mRelativeTo);
+    3641:         } else if (isAncestorKnown) {
+    3642:           r = nsLayoutUtils::TransformFrameRectToAncestor(outer, r,
+    3643:                                                           mRelativeTo);
+    3644:         } else {
+    3645:           nsLayoutUtils::TransformRect(outer, mRelativeTo, r);
+    3646:         }
+    3647:       } else {

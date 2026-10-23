@@ -1,0 +1,20 @@
+>>>  134: void nsTableColGroupFrame::DidSetComputedStyle(
+     135:     ComputedStyle* aOldComputedStyle) {
+     136:   nsContainerFrame::DidSetComputedStyle(aOldComputedStyle);
+     137: 
+     138:   if (!aOldComputedStyle) {  // avoid this on init
+     139:     return;
+     140:   }
+     141: 
+     142:   nsTableFrame* tableFrame = GetTableFrame();
+     143:   if (tableFrame->IsBorderCollapse() &&
+     144:       tableFrame->BCRecalcNeeded(aOldComputedStyle, Style())) {
+     145:     int32_t colCount = GetColCount();
+     146:     if (!colCount) {
+     147:       return;  // this is a degenerated colgroup
+     148:     }
+     149:     TableArea damageArea(GetFirstColumn()->GetColIndex(), 0, colCount,
+     150:                          tableFrame->GetRowCount());
+     151:     tableFrame->AddBCDamageArea(damageArea);
+     152:   }
+     153: }

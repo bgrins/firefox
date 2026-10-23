@@ -1,0 +1,12 @@
+>>> 1197: already_AddRefed<DOMRect> Element::GetBoundingClientRect() {
+    1198:   RefPtr<DOMRect> rect = new DOMRect(ToSupports(OwnerDoc()));
+    1199: 
+    1200:   nsIFrame* frame = GetPrimaryFrame(FlushType::Layout);
+    1201:   if (!frame || frame->HasAnyStateBits(NS_FRAME_IS_NONDISPLAY)) {
+    1202:     // display:none, perhaps? Return the empty rect
+    1203:     return rect.forget();
+    1204:   }
+    1205: 
+    1206:   rect->SetLayoutRect(frame->GetBoundingClientRect());
+    1207:   return rect.forget();
+    1208: }

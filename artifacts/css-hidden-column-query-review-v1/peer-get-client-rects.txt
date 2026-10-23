@@ -1,0 +1,15 @@
+>>> 1210: already_AddRefed<DOMRectList> Element::GetClientRects() {
+    1211:   RefPtr<DOMRectList> rectList = new DOMRectList(this);
+    1212: 
+    1213:   nsIFrame* frame = GetPrimaryFrame(FlushType::Layout);
+    1214:   if (!frame || frame->HasAnyStateBits(NS_FRAME_IS_NONDISPLAY)) {
+    1215:     // display:none, perhaps? Return an empty list
+    1216:     return rectList.forget();
+    1217:   }
+    1218: 
+    1219:   nsLayoutUtils::RectListBuilder builder(rectList);
+    1220:   nsLayoutUtils::GetAllInFlowRects(
+    1221:       frame, nsLayoutUtils::GetContainingBlockForClientRect(frame), &builder,
+    1222:       nsLayoutUtils::GetAllInFlowRectsFlag::AccountForTransforms);
+    1223:   return rectList.forget();
+    1224: }

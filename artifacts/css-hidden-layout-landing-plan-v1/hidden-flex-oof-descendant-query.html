@@ -1,0 +1,80 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Leaf-first queries of out-of-flow children of hidden flex containers</title>
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#abspos-items">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getboundingclientrect">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; width: 200px; height: 80px; }
+.wrapper, .subject { width: 200px; height: 80px; }
+.subject { display: flex; position: relative; justify-content: center; align-items: flex-start; }
+.hidden { content-visibility: hidden; }
+.oof { position: absolute; width: 12px; height: 20px; }
+.explicit { left: 7px; top: 9px; }
+.leaf { width: 50%; height: 40%; margin-left: 1px; margin-top: 2px; }
+.added { flex: none; width: 20px; height: 20px; }
+.changed { width: 20px; height: 30px; }
+</style>
+<body>
+<script>
+"use strict";
+function fixture(explicit) {
+  const host = document.createElement("div");
+  host.className = "host";
+  host.innerHTML = `<div class="wrapper"><div class="subject"><div class="oof${explicit ? " explicit" : ""}"><div class="leaf"></div></div></div></div>`;
+  const added = document.createElement("div");
+  added.className = "added";
+  document.body.append(host);
+  return {host, added, wrapper: host.querySelector(".wrapper"), subject: host.querySelector(".subject"), oof: host.querySelector(".oof"), leaf: host.querySelector(".leaf")};
+}
+function rectangle(element) {
+  const r = element.getBoundingClientRect();
+  return [r.left, r.top, r.width, r.height];
+}
+function capture(target, reference, label, expected) {
+  target.wrapper.getClientRects();
+  target.subject.getClientRects();
+  target.subject.scrollWidth;
+  const reads = [rectangle(target.leaf), rectangle(target.leaf), rectangle(target.leaf)];
+  const visible = rectangle(reference.leaf);
+  return {label, expected, reads, visible};
+}
+for (const nested of [false, true]) {
+  for (const explicit of [false, true]) {
+    for (const insertion of ["append", "prepend"]) {
+      test(t => {
+        assert_implements(CSS.supports("content-visibility", "hidden"));
+        const target = fixture(explicit);
+        const reference = fixture(explicit);
+        t.add_cleanup(() => { target.host.remove(); reference.host.remove(); });
+        const start = explicit ? [18, 21, 6, 8] : [105, 12, 6, 8];
+        const changed = explicit ? [18, 21, 10, 12] : [101, 12, 10, 12];
+        const rows = [capture(target, reference, "warm leaf", start)];
+        target.subject.classList.add("hidden");
+        if (nested) target.wrapper.classList.add("hidden");
+        rows.push(capture(target, reference, "hidden leaf", start));
+        target.subject[insertion](target.added);
+        reference.subject[insertion](reference.added);
+        rows.push(capture(target, reference, "in-flow insertion, leaf first", start));
+        target.oof.classList.add("changed");
+        reference.oof.classList.add("changed");
+        rows.push(capture(target, reference, "OOF parent resize, leaf first", changed));
+        target.subject.classList.remove("hidden");
+        target.wrapper.classList.remove("hidden");
+        rows.push(capture(target, reference, "shown leaf", changed));
+        for (const row of rows) {
+          assert_array_equals(row.visible, row.expected, `${row.label}: visible calibration`);
+        }
+        for (const row of rows) {
+          for (const [index, read] of row.reads.entries()) {
+            assert_array_equals(read, row.expected, `${row.label}: read ${index + 1}`);
+          }
+        }
+      }, `OOF leaf first: ${nested ? "two hidden ancestors" : "one hidden ancestor"}, ${explicit ? "explicit offsets" : "static position"}, ${insertion}`);
+    }
+  }
+}
+</script>

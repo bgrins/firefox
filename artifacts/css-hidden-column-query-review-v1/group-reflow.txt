@@ -1,0 +1,30 @@
+>>>  325: void nsTableColGroupFrame::Reflow(nsPresContext* aPresContext,
+     326:                                   ReflowOutput& aDesiredSize,
+     327:                                   const ReflowInput& aReflowInput,
+     328:                                   nsReflowStatus& aStatus) {
+     329:   MarkInReflow();
+     330:   DO_GLOBAL_REFLOW_COUNT("nsTableColGroupFrame");
+     331:   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
+     332:   NS_ASSERTION(nullptr != mContent, "bad state -- null content for frame");
+     333:   if (StyleVisibility()->mVisible == StyleVisibility::Collapse) {
+     334:     GetTableFrame()->SetNeedToCollapse(true);
+     335:   }
+     336: 
+     337:   const WritingMode wm = GetWritingMode();
+     338:   for (nsIFrame* kidFrame : mFrames) {
+     339:     // Give the child frame a chance to reflow, even though we know it'll have 0
+     340:     // size
+     341:     ReflowOutput kidSize(aReflowInput);
+     342:     ReflowInput kidReflowInput(aPresContext, aReflowInput, kidFrame,
+     343:                                LogicalSize(kidFrame->GetWritingMode()));
+     344:     const LogicalPoint dummyPos(wm);
+     345:     const nsSize dummyContainerSize;
+     346:     nsReflowStatus status;
+     347:     ReflowChild(kidFrame, aPresContext, kidSize, kidReflowInput, wm, dummyPos,
+     348:                 dummyContainerSize, ReflowChildFlags::Default, status);
+     349:     FinishReflowChild(kidFrame, aPresContext, kidSize, &kidReflowInput, wm,
+     350:                       dummyPos, dummyContainerSize, ReflowChildFlags::Default);
+     351:   }
+     352: 
+     353:   aDesiredSize.ClearSize();
+     354: }

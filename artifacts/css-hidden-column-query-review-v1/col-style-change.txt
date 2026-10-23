@@ -1,0 +1,14 @@
+>>>   64: void nsTableColFrame::DidSetComputedStyle(ComputedStyle* aOldComputedStyle) {
+      65:   nsSplittableFrame::DidSetComputedStyle(aOldComputedStyle);
+      66: 
+      67:   if (!aOldComputedStyle) {  // avoid this on init
+      68:     return;
+      69:   }
+      70: 
+      71:   nsTableFrame* tableFrame = GetTableFrame();
+      72:   if (tableFrame->IsBorderCollapse() &&
+      73:       tableFrame->BCRecalcNeeded(aOldComputedStyle, Style())) {
+      74:     TableArea damageArea(GetColIndex(), 0, 1, tableFrame->GetRowCount());
+      75:     tableFrame->AddBCDamageArea(damageArea);
+      76:   }
+      77: }
