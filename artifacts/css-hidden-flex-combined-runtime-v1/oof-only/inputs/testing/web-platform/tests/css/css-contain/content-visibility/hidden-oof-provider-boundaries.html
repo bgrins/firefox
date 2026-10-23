@@ -1,0 +1,218 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hidden out-of-flow provider and containing-block boundaries</title>
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#containment-layout">
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#abspos-items">
+<link rel="help" href="https://drafts.csswg.org/css-break-3/#transforms">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getclientrects">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; width: 300px; height: 200px; }
+.subject { position: relative; display: flex; align-items: flex-start; justify-content: center; width: 200px; height: 80px; }
+.hidden { content-visibility: hidden; }
+.reference-containment { contain: size layout style paint; }
+.oof { position: absolute; width: 12px; height: 20px; margin: 0; padding: 0; border: 0; }
+.explicit { left: 7px; top: 9px; }
+.oof.changed { width: 20px; height: 30px; }
+.leaf { width: 50%; height: 40%; margin: 0; padding: 0; border: 0; }
+.added { flex: none; width: 20px; height: 20px; }
+.provider-flex { display: flex; }
+.provider-grid { display: grid; }
+.transition-host { transform: translate(0); }
+.transition-subject { position: static; margin-left: 40px; margin-top: 30px; }
+.fixed { position: fixed; }
+.inner { display: flex; width: 100px; height: 40px; margin-left: 30px; margin-top: 20px; }
+.fragment-outer { width: 220px; height: 40px; }
+.fragment-outer.flex { display: flex; align-items: flex-start; }
+.columns { flex: none; width: 220px; height: 40px; columns: 2; column-gap: 20px; column-fill: auto; }
+.cb { position: relative; width: 100px; }
+.chunk { height: 40px; break-inside: avoid; }
+.fragment-oof { position: absolute; left: 0; top: 0; width: 60px; height: 80px; }
+.short .second { height: 20px; }
+.short .fragment-oof { height: 60px; }
+</style>
+<body>
+<script>
+"use strict";
+function addHost(t, extra = "") {
+  assert_implements(CSS.supports("content-visibility", "hidden"));
+  const host = document.createElement("div");
+  host.className = `host ${extra}`;
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  return host;
+}
+function rect(element) {
+  const r = element.getBoundingClientRect();
+  return [r.left, r.top, r.width, r.height];
+}
+function row(target, reference, outer, label, expected) {
+  outer.getClientRects();
+  outer.scrollWidth;
+  const reads = [rect(target), rect(target), rect(target)];
+  return {label, expected, reads, reference: rect(reference)};
+}
+function check(rows) {
+  for (const r of rows) {
+    assert_array_equals(r.reference, r.expected, `${r.label}: visible calibration`);
+  }
+  for (const r of rows) {
+    for (const [i, value] of r.reads.entries()) {
+      assert_array_equals(value, r.expected, `${r.label}: read ${i}`);
+    }
+  }
+}
+function providerFixture(t, kind, explicit) {
+  const host = addHost(t);
+  const subject = document.createElement("div");
+  subject.className = "subject";
+  let target;
+  if (kind === "svg") {
+    target = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  } else {
+    target = document.createElement(kind === "canvas" ? "canvas" : "div");
+  }
+  target.setAttribute("class", `oof provider-${kind}${explicit ? " explicit" : ""}`);
+  if (kind === "flex" || kind === "grid") {
+    const leaf = document.createElement("div");
+    leaf.className = "leaf";
+    target.append(leaf);
+  }
+  const added = document.createElement("div");
+  added.className = "added";
+  subject.append(target);
+  host.append(subject);
+  return {host, subject, target, added};
+}
+for (const kind of ["canvas", "svg", "flex", "grid"]) {
+  for (const explicit of [false, true]) {
+    test(t => {
+      const a = providerFixture(t, kind, explicit);
+      const b = providerFixture(t, kind, explicit);
+      const start = explicit ? [17, 19, 12, 20] : [104, 10, 12, 20];
+      const resized = explicit ? [17, 19, 20, 30] : [100, 10, 20, 30];
+      const rows = [row(a.target, b.target, a.subject, "warm", start)];
+      a.subject.classList.add("hidden");
+      rows.push(row(a.target, b.target, a.subject, "hidden", start));
+      a.subject.prepend(a.added);
+      b.subject.prepend(b.added);
+      rows.push(row(a.target, b.target, a.subject, "insertion", start));
+      a.target.classList.add("changed");
+      b.target.classList.add("changed");
+      rows.push(row(a.target, b.target, a.subject, "resize", resized));
+      a.subject.classList.remove("hidden");
+      rows.push(row(a.target, b.target, a.subject, "shown", resized));
+      check(rows);
+    }, `OOF provider ${kind}: ${explicit ? "explicit offsets" : "static position"}`);
+  }
+}
+function transitionFixture(t, fixed) {
+  const host = addHost(t, "transition-host");
+  host.innerHTML = `<div class="subject transition-subject"><div class="oof explicit${fixed ? " fixed" : ""}"><div class="leaf"></div></div></div>`;
+  return {host, subject: host.querySelector(".subject"), oof: host.querySelector(".oof"), leaf: host.querySelector(".leaf")};
+}
+for (const fixed of [false, true]) {
+  for (const leaf of [false, true]) {
+    test(t => {
+      const a = transitionFixture(t, fixed);
+      const b = transitionFixture(t, fixed);
+      const target = leaf ? a.leaf : a.oof;
+      const reference = leaf ? b.leaf : b.oof;
+      const size = leaf ? [6, 8] : [12, 20];
+      const external = [17, 19, ...size];
+      const local = [57, 49, ...size];
+      const rows = [row(target, reference, a.subject, "external owner before hidden", external)];
+      const beforeOwner = a.oof.offsetParent;
+      a.subject.classList.add("hidden");
+      b.subject.classList.add("reference-containment");
+      rows.push(row(target, reference, a.subject, "hidden local owner", local));
+      const hiddenOwner = a.oof.offsetParent;
+      a.subject.classList.remove("hidden");
+      b.subject.classList.remove("reference-containment");
+      rows.push(row(target, reference, a.subject, "external owner restored", external));
+      const afterOwner = a.oof.offsetParent;
+      check(rows);
+      if (!fixed) {
+        assert_equals(beforeOwner, a.host, "initial external offset parent");
+        assert_equals(hiddenOwner, a.subject, "hidden containment offset parent");
+        assert_equals(afterOwner, a.host, "external offset parent restored");
+      }
+    }, `Containing-block transition: ${fixed ? "fixed" : "absolute"}, ${leaf ? "leaf first" : "OOF root"}`);
+  }
+}
+for (const leaf of [false, true]) {
+  test(t => {
+    const make = () => {
+      const host = addHost(t);
+      host.innerHTML = `<div class="subject"><div class="inner"><div class="oof explicit"><div class="leaf"></div></div></div></div>`;
+      return {host, subject: host.querySelector(".subject"), inner: host.querySelector(".inner"), oof: host.querySelector(".oof"), leaf: host.querySelector(".leaf")};
+    };
+    const a = make();
+    const b = make();
+    const target = leaf ? a.leaf : a.oof;
+    const reference = leaf ? b.leaf : b.oof;
+    const expected = leaf ? [17, 19, 6, 8] : [17, 19, 12, 20];
+    const rows = [row(target, reference, a.subject, "warm external-to-inner owner", expected)];
+    const beforeOwner = a.oof.offsetParent;
+    a.subject.classList.add("hidden");
+    rows.push(row(target, reference, a.subject, "hidden external-to-inner owner", expected));
+    const hiddenOwner = a.oof.offsetParent;
+    const added = document.createElement("div");
+    added.className = "added";
+    a.inner.prepend(added);
+    b.inner.prepend(added.cloneNode());
+    rows.push(row(target, reference, a.subject, "inner insertion", expected));
+    a.subject.classList.remove("hidden");
+    rows.push(row(target, reference, a.subject, "shown", expected));
+    check(rows);
+    assert_equals(beforeOwner, a.subject, "owner outside inner flex before hidden");
+    assert_equals(hiddenOwner, a.subject, "owner outside inner flex while hidden");
+  }, `OOF owner outside inner flex but inside skipped boundary: ${leaf ? "leaf first" : "OOF root"}`);
+}
+for (const flex of [false, true]) {
+  test(t => {
+    const make = () => {
+      const host = addHost(t);
+      host.innerHTML = `<div class="fragment-outer${flex ? " flex" : ""}"><div class="columns"><div class="cb"><div class="chunk"></div><div class="chunk second"></div><div class="fragment-oof"><div class="chunk"></div><div class="chunk second"></div></div></div></div></div>`;
+      return {host, outer: host.firstElementChild, cb: host.querySelector(".cb"), target: host.querySelector(".fragment-oof")};
+    };
+    const a = make();
+    const b = make();
+    const rects = e => Array.from(e.getClientRects(), r => [r.left, r.top, r.width, r.height]);
+    const capture = (label, expected) => {
+      a.outer.getClientRects();
+      const reads = [rects(a.target), rects(a.target), rects(a.target)];
+      return {label, expected, reads, reference: rects(b.target), cb: rects(b.cb)};
+    };
+    const initial = [[10, 10, 60, 40], [130, 10, 60, 40]];
+    const changed = [[10, 10, 60, 40], [130, 10, 60, 20]];
+    const rows = [capture("warm fragments", initial)];
+    a.outer.classList.add("hidden");
+    rows.push(capture("hidden fragments", initial));
+    a.host.classList.add("short");
+    b.host.classList.add("short");
+    rows.push(capture("hidden shortened fragments", changed));
+    a.outer.classList.remove("hidden");
+    rows.push(capture("shown fragments", changed));
+    for (const r of rows) {
+      assert_greater_than(r.cb.length, 1, `${r.label}: visible containing block fragmented`);
+      assert_greater_than(r.reference.length, 1, `${r.label}: visible OOF fragmented`);
+      assert_equals(r.reference.length, r.expected.length, `${r.label}: visible count`);
+      for (let i = 0; i < r.expected.length; ++i) {
+        assert_array_equals(r.reference[i], r.expected[i], `${r.label}: visible fragment ${i}`);
+      }
+    }
+    for (const r of rows) {
+      for (const [i, read] of r.reads.entries()) {
+        assert_equals(read.length, r.expected.length, `${r.label}: query ${i} count`);
+        for (let j = 0; j < read.length; ++j) {
+          assert_array_equals(read[j], r.expected[j], `${r.label}: query ${i} fragment ${j}`);
+        }
+      }
+    }
+  }, `OOF fragmented descendant of hidden ${flex ? "flex" : "block"} outer`);
+}
+</script>

@@ -1,0 +1,75 @@
+>>> 9399:     // because ReflowInput (specifically when computing the block-size in
+    9400:     // nsIFrame::ComputeSize()) has already clamped the block-size.
+    9401:     return aComputedBSize;
+    9402:   }
+    9403: 
+    9404:   if (aContainIntrinsicBSize) {
+    9405:     // We have an unconstrained block-size, but we also have a specified
+    9406:     // 'contain-intrinsic-block-size'. We apply the min/max constraints to the
+    9407:     // value, and use that for track sizing.
+    9408:     return aGridRI.mReflowInput->ApplyMinMaxBSize(*aContainIntrinsicBSize);
+    9409:   }
+    9410: 
+    9411:   return NS_UNCONSTRAINEDSIZE;
+    9412: }
+    9413: 
+    9414: nscoord nsGridContainerFrame::ComputeIntrinsicContentBSize(
+    9415:     const GridReflowInput& aGridRI, nscoord aComputedBSize,
+    9416:     nscoord aBSizeForResolvingRowSizes,
+    9417:     const Maybe<nscoord>& aContainIntrinsicBSize) const {
+    9418:   MOZ_ASSERT(
+    9419:       aComputedBSize == NS_UNCONSTRAINEDSIZE ||
+    9420:           aGridRI.mReflowInput->ShouldApplyAutomaticMinimumOnBlockAxis(),
+    9421:       "Why call this method when intrinsic content block-size is not needed?");
+    9422: 
+    9423:   if (aComputedBSize == NS_UNCONSTRAINEDSIZE) {
+    9424:     // When we have an unconstrained block-size, the intrinsic content
+    9425:     // block-size would have been determined after we resolved the row sizes the
+    9426:     // first time. Just return that value.
+    9427:     return aBSizeForResolvingRowSizes;
+    9428:   }
+    9429: 
+    9430:   if (aContainIntrinsicBSize) {
+    9431:     // We have a specified 'contain-intrinsic-block-size' which we need to
+    9432:     // honor.
+    9433:     return *aContainIntrinsicBSize;
+    9434:   }
+    9435: 
+    9436:   if (IsRowMasonry()) {
+    9437:     // There aren't any tracks to derive a block-size from, if we're doing
+    9438:     // masonry rather than forming rows in the block direction.
+    9439:     return aBSizeForResolvingRowSizes;
+    9440:   }
+    9441: 
+    9442:   return aGridRI.mRows.TotalTrackSizeWithoutAlignment(this);
+    9443: }
+    9444: 
+    9445: void nsGridContainerFrame::Reflow(nsPresContext* aPresContext,
+    9446:                                   ReflowOutput& aDesiredSize,
+    9447:                                   const ReflowInput& aReflowInput,
+    9448:                                   nsReflowStatus& aStatus) {
+    9449:   NormalizeChildLists();
+    9450: 
+    9451:   if (IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
+    9452:     return;
+    9453:   }
+    9454: 
+    9455:   MarkInReflow();
+    9456:   DO_GLOBAL_REFLOW_COUNT("nsGridContainerFrame");
+    9457:   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
+    9458: 
+    9459:   GRID_LOG("Reflow grid container frame %p", this);
+    9460: 
+    9461:   if (IsFrameTreeTooDeep(aReflowInput, aDesiredSize, aStatus)) {
+    9462:     return;
+    9463:   }
+    9464: 
+    9465: #ifdef DEBUG
+    9466:   mDidPushItemsBitMayLie = false;
+    9467:   SanityCheckChildListsBeforeReflow();
+    9468: #endif  // DEBUG
+    9469: 
+    9470:   for (auto& perAxisBaseline : mBaseline) {
+    9471:     for (auto& baseline : perAxisBaseline) {
+    9472:       baseline = NS_INTRINSIC_ISIZE_UNKNOWN;
+    9473:     }

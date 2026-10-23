@@ -1,0 +1,42 @@
+>>>  396: void nsHTMLCanvasFrame::Reflow(nsPresContext* aPresContext,
+     397:                                ReflowOutput& aMetrics,
+     398:                                const ReflowInput& aReflowInput,
+     399:                                nsReflowStatus& aStatus) {
+     400:   MarkInReflow();
+     401:   DO_GLOBAL_REFLOW_COUNT("nsHTMLCanvasFrame");
+     402:   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
+     403:   NS_FRAME_TRACE(
+     404:       NS_FRAME_TRACE_CALLS,
+     405:       ("enter nsHTMLCanvasFrame::Reflow: availSize=%d,%d",
+     406:        aReflowInput.AvailableWidth(), aReflowInput.AvailableHeight()));
+     407: 
+     408:   MOZ_ASSERT(HasAnyStateBits(NS_FRAME_IN_REFLOW), "frame is not in reflow");
+     409: 
+     410:   WritingMode wm = aReflowInput.GetWritingMode();
+     411:   const LogicalSize finalSize = aReflowInput.ComputedSizeWithBorderPadding(wm);
+     412: 
+     413:   aMetrics.SetSize(wm, finalSize);
+     414:   aMetrics.SetOverflowAreasToDesiredBounds();
+     415:   aMetrics.mOverflowAreas.UnionAllWith(
+     416:       GetDestRect(aReflowInput.ComputedPhysicalContentBoxRelativeToSelf()));
+     417:   FinishAndStoreOverflow(&aMetrics);
+     418: 
+     419:   // Reflow the single anon block child.
+     420:   nsReflowStatus childStatus;
+     421:   nsIFrame* childFrame = mFrames.FirstChild();
+     422:   WritingMode childWM = childFrame->GetWritingMode();
+     423:   LogicalSize availSize = aReflowInput.ComputedSize(childWM);
+     424:   availSize.BSize(childWM) = NS_UNCONSTRAINEDSIZE;
+     425:   NS_ASSERTION(!childFrame->GetNextSibling(), "HTML canvas should have 1 kid");
+     426:   ReflowOutput childDesiredSize(aReflowInput.GetWritingMode());
+     427:   ReflowInput childReflowInput(aPresContext, aReflowInput, childFrame,
+     428:                                availSize);
+     429:   ReflowChild(childFrame, aPresContext, childDesiredSize, childReflowInput, 0,
+     430:               0, ReflowChildFlags::Default, childStatus, nullptr);
+     431:   FinishReflowChild(childFrame, aPresContext, childDesiredSize,
+     432:                     &childReflowInput, 0, 0, ReflowChildFlags::Default);
+     433: 
+     434:   NS_FRAME_TRACE(NS_FRAME_TRACE_CALLS,
+     435:                  ("exit nsHTMLCanvasFrame::Reflow: size=%d,%d",
+     436:                   aMetrics.ISize(wm), aMetrics.BSize(wm)));
+     437: }

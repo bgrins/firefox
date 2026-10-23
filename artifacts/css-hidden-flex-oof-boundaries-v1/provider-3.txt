@@ -1,0 +1,22 @@
+    4614:   // Row-oriented case (cross axis is block axis), with auto BSize:
+    4615:   // Shrink-wrap our line(s), subject to our min-size / max-size
+    4616:   // constraints in that (block) axis.
+    4617:   return contentBSize;
+    4618: }
+    4619: 
+    4620: LogicalSize nsFlexContainerFrame::ComputeAvailableSizeForItems(
+    4621:     const ReflowInput& aReflowInput,
+    4622:     const mozilla::LogicalMargin& aBorderPadding) const {
+    4623:   const WritingMode wm = GetWritingMode();
+>>> 4624:   nscoord availableBSize = aReflowInput.AvailableBSize();
+    4625: 
+    4626:   if (availableBSize != NS_UNCONSTRAINEDSIZE) {
+    4627:     // Available block-size is constrained. Subtract block-start border and
+    4628:     // padding from it.
+    4629:     availableBSize -= aBorderPadding.BStart(wm);
+    4630: 
+    4631:     if (aReflowInput.mStyleBorder->mBoxDecorationBreak ==
+    4632:         StyleBoxDecorationBreak::Clone) {
+    4633:       // We have box-decoration-break:clone. Subtract block-end border and
+    4634:       // padding from the available block-size as well.
+

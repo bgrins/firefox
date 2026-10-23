@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Flex item baselines update when percentage padding changes</title>
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#item-margins">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#align-items-property">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .outer { display: flex; inline-size: 600px; align-items: flex-start; }
+  .resizer { flex: none; inline-size: 100px; block-size: 1px; }
+  .resizer.large { inline-size: 200px; }
+  .inner { display: flex; flex: 1; min-inline-size: 0; align-items: baseline; }
+  .last .inner { align-items: last baseline; }
+  .item { flex: none; inline-size: 100px; font: 16px/20px monospace; }
+  .percent { padding-block-start: 10%; }
+  .literal { padding-block-start: 50px; }
+  .zero { padding-block-start: 0; }
+  .marker { display: inline-block; inline-size: 0; block-size: 0; vertical-align: baseline; }
+</style>
+<body>
+<script>
+for (const group of ["first", "last"]) {
+  for (const padding of ["percent", "literal", "zero"]) {
+    for (const change of ["shrink", "grow", "unchanged"]) {
+      test(t => {
+        const outer = document.createElement("div");
+        outer.className = `outer ${group}`;
+        outer.innerHTML = `<div class="resizer"></div><div class="inner">
+          <div class="item ${padding}">text<span class="marker"></span></div>
+          <div class="item">text<span class="marker"></span></div>
+        </div>`;
+        const resizer = outer.querySelector(".resizer");
+        const inner = outer.querySelector(".inner");
+        const [target, peer] = inner.children;
+        const initialLarge = change === "grow";
+        const finalLarge = change === "shrink";
+        resizer.classList.toggle("large", initialLarge);
+        document.body.append(outer);
+        t.add_cleanup(() => outer.remove());
+
+        function check(large, phase) {
+          const expectedPadding = padding === "percent" ? (large ? 40 : 50) :
+            padding === "literal" ? 50 : 0;
+          assert_equals(inner.getBoundingClientRect().width, large ? 400 : 500,
+                        `${phase}: containing block width`);
+          assert_equals(target.getBoundingClientRect().width, 100,
+                        `${phase}: item content width remains fixed`);
+          assert_equals(parseFloat(getComputedStyle(target).paddingBlockStart),
+                        expectedPadding, `${phase}: resolved padding`);
+          assert_approx_equals(
+            target.querySelector(".marker").getBoundingClientRect().top,
+            peer.querySelector(".marker").getBoundingClientRect().top,
+            0.02, `${phase}: item baselines align`);
+        }
+
+        check(initialLarge, "initial");
+        resizer.classList.toggle("large", finalLarge);
+        check(finalLarge, "changed");
+        resizer.classList.toggle("large", initialLarge);
+        check(initialLarge, "restored");
+      }, `${group} baseline, ${padding} padding, ${change}`);
+    }
+  }
+}
+</script>
