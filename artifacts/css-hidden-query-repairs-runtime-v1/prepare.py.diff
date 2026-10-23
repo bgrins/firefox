@@ -1,0 +1,36 @@
+--- predecessor/prepare.py
++++ draft/prepare.py
+@@ -35,23 +35,22 @@
+ need(prior_state.get('status')=='terminal' and prior_state.get('restored') is True and prior_state.get('restore_build_exit')==0 and prior_state.get('recovery_errors')==[], 'prior experiment not successfully restored')
+ need((prior/'BEFORE.json').read_bytes()==(prior/'FINAL.json').read_bytes(), 'prior restoration snapshot mismatch')
+ need(len(c['tests'])==7 and sum(map(len,c['expected_subtests'].values()))==66, 'compact roster mismatch')
+-need(len(c['trace_tests'])==2 and sum(len(c['expected_subtests']['/'+str(Path(n).relative_to('testing/web-platform/tests'))]) for n in c['trace_tests'])==16, 'trace roster mismatch')
+-timing_files = ['probe.html','benchmark.js','CONFIG.json','run.py','validate.py','cleanup.py']
+-need(all('cost/'+n in draft for n in timing_files), 'six timing execution inputs not pinned')
+-timing_config=json.loads((HERE/'cost/CONFIG.json').read_text())
+-need(timing_config['version']==2 and timing_config['measured_rounds']==7
+-     and timing_config['iterations']==16 and timing_config['no_mutation_iterations']==16,
+-     'reviewed timing configuration changed')
+ before = wpt.snapshot()
+ need(before['head'] == args.expected_head, 'HEAD differs from requested post-commit HEAD')
+ need(len(wpt.git('diff','--cached','--name-only').splitlines()) == c['expected_staged_paths'] == 0, 'index not empty')
+ need(len(c['sources']) == 23 and len(set(c['sources'])) == 23 and len(c['guard_sources']) == 28, 'source roster')
+ need(all(before['sources'][n] is not None for n in c['guard_sources']), 'missing guarded source')
+ need(all(not (ROOT/n).exists() and not (ROOT/n).is_symlink() for n in c['must_be_absent']), 'current or proposed temporary test still exists')
+-flex='layout/generic/nsFlexContainerFrame.cpp'
+-absolute='layout/generic/AbsoluteContainingBlock.cpp'
+-for path,selected in [(flex,'flex-baseline.cpp'),(absolute,'absolute-baseline.cpp'),('layout/base/PresShell.cpp','pres-shell-before.cpp'),('layout/tables/nsTableFrame.cpp','table-frame-before.cpp')]:
+-    need(wpt.git('show','HEAD:'+path) == (HERE/'selected'/selected).read_bytes(), 'HEAD body differs from reviewed baseline: '+path)
++need(len(c['install'])==2 and len(c['tracked_tests'])==5
++     and set(c['install']).isdisjoint(c['tracked_tests'])
++     and set(c['tests'])==set(c['install'])|set(c['tracked_tests']), 'test ownership partition')
++for path,selected in c['baseline_sources'].items():
++    need(wpt.git('show','HEAD:'+path) == (HERE/selected).read_bytes(), 'HEAD body differs from reviewed baseline: '+path)
++for path in set(c['guard_sources'])-set(c['sources']):
++    need(wpt.git('show','HEAD:'+path)==(ROOT/path).read_bytes(), 'non-written guard differs from HEAD: '+path)
++for path,payload in c['tracked_test_payloads'].items():
++    need(wpt.git('ls-files','--error-unmatch','--',path).decode().strip()==path, 'landing test not tracked: '+path)
++    need(wpt.git('show','HEAD:'+path)==(ROOT/path).read_bytes()==(HERE/payload).read_bytes(), 'tracked landing test differs: '+path)
+ resources = wpt.resource_paths(c['tests'],virtual=True)
+ resource_pins = wpt.pins(resources,virtual=True)
+ need(all(resource_pins[n] is not None for n in c['tests']+c['support_paths']), 'missing test/support')

@@ -1,0 +1,212 @@
+--- predecessor/experiment.py
++++ draft/experiment.py
+@@ -6,7 +6,6 @@
+ import hashlib
+ import importlib.util
+ import json
+-import re
+ from pathlib import Path
+ import stat
+ import subprocess
+@@ -20,8 +19,6 @@
+     return hashlib.sha256(p.read_bytes()).hexdigest()
+ parser=argparse.ArgumentParser()
+ parser.add_argument('--inputs-sha',required=True)
+-parser.add_argument('--with-traces',action='store_true')
+-parser.add_argument('--with-timings',action='store_true')
+ args=parser.parse_args()
+ need(not (HERE/'BEFORE.json').exists(),'experiment already started')
+ need(sha(HERE/'INPUTS.json')==args.inputs_sha,'INPUTS external pin')
+@@ -47,12 +44,13 @@
+ head={n:(HERE/'prepared/head'/n).read_bytes() for n in c['sources']}
+ for n in c['sources']:
+     need((ROOT/n).read_bytes()==original[n] and wpt.git('show','HEAD:'+n)==head[n],'original/HEAD snapshot '+n)
+-FLEX='layout/generic/nsFlexContainerFrame.cpp'
+-ABSOLUTE='layout/generic/AbsoluteContainingBlock.cpp'
+-phases=[('baseline','flex-baseline.cpp','absolute-baseline.cpp'),
+-        ('both','flex-principal.cpp','absolute-oof.cpp')]
+-traces=[('trace-both-column','flex-principal.cpp','absolute-oof.cpp')] if args.with_traces else []
+-state={'status':'starting','accepted_native_repair':False,'phases':{},'traces':{},'trace_requested':args.with_traces,'timing_requested':args.with_timings}
++PRES_SHELL='layout/base/PresShell.cpp'
++BLOCK='layout/generic/nsBlockFrame.cpp'
++phases=[('baseline','pres-shell-before.cpp','block-before.cpp'),
++        ('column-provider','pres-shell-column.cpp','block-before.cpp'),
++        ('skipped-line-block','pres-shell-before.cpp','block-skipped-line.cpp'),
++        ('both','pres-shell-column.cpp','block-skipped-line.cpp')]
++state={'status':'starting','accepted_native_repair':False,'phases':{}}
+ errors=[]
+ changed=False
+ installed=[]
+@@ -66,89 +64,13 @@
+         expected=hashlib.sha256(selected.get(n,head[n])).hexdigest() if n in head else inputs['source_pins'][n]
+         need(sha(ROOT/n)==expected,'phase source changed '+n)
+ 
+-TIMING_PHASES = {'baseline', 'both'}
+-TIMING_FILES = ['probe.html', 'benchmark.js', 'CONFIG.json', 'run.py', 'validate.py', 'cleanup.py']
++def result_map(run):
++    return {(r['test'],r['subtest']):(r['status'],r.get('message')) for r in run['rows']}
+ 
+-def timing_run(name, selected):
+-    paths = sorted(set(c['guard_sources'] + wpt.BINARIES + list(inputs['resource_pins'])))
+-    pins_before = wpt.pins(paths)
+-    timing_files = {str((HERE/'cost'/n).resolve()): sha(HERE/'cost'/n) for n in TIMING_FILES}
+-    expected_runner = dict(timing_files)
+-    for n in c['guard_sources'] + wpt.BINARIES:
+-        expected_runner[str((ROOT/n).resolve())] = pins_before[n]
+-    output = HERE/(name+'-timing')
+-    command = [sys.executable, '-I', '-S', str(HERE/'cost/run.py'),
+-               '--binary', str(ROOT/wpt.BINARIES[0]), '--output', str(output), '--label', name]
+-    for n in c['guard_sources']:
+-        command.extend(['--pin', str(ROOT/n)])
+-    code = wpt.command(name+'-timing-runner', command)
+-    pins_after = wpt.pins(paths)
+-    record = {'exit':code, 'before':pins_before, 'after':pins_after,
+-              'execution_inputs':timing_files, 'measurement_complete':False}
+-    wpt.save(name+'-timing-parent.json',record)
+-    epoch()
+-    sources_expected(selected)
+-    authenticate_payloads()
+-    need(pins_before == pins_after, 'timing source/binary/resource drift')
+-    result_path = output/'RESULT.json'
+-    need(result_path.is_file(), 'timing runner missing terminal cleanup receipt')
+-    result = json.loads(result_path.read_text())
+-    termination = result.get('termination') or {}
+-    need(result.get('before') == expected_runner and result.get('after') == expected_runner
+-         and result.get('stable') is True, 'timing runner pin mismatch')
+-    need(result.get('cleanupErrors') == [] and result.get('profileRemoved') is True
+-         and result.get('terminal') is True and result.get('noLiveGroup') is True
+-         and termination.get('terminal') is True and termination.get('noLiveGroup') is True
+-         and termination.get('errors') == [] and not (output/'profile').exists(),
+-         'timing cleanup not verified; stop and restore')
+-    startup = result.get('startupEnvironment') or {}
+-    need(startup.get('MOZ_DISABLE_SAFE_MODE_KEY') == '1'
+-         and startup.get('MOZ_DISABLE_UPDATE_PROCESSING') == '1'
+-         and startup.get('MOZ_SAFE_MODE_RESTART_removed') is True
+-         and type(startup.get('MOZ_SAFE_MODE_RESTART_inherited_present')) is bool,
+-         'controlled child startup environment missing')
+-    need(json.loads((output/'STARTUP-ENV.json').read_text()) == startup
+-         and json.loads((output/'SPAWN.json').read_text()).get('startupEnvironment') == startup,
+-         'startup environment receipt mismatch')
+-    progress = result.get('progressReceipts')
+-    need(type(progress) is int and 0 <= progress <= 300, 'invalid progress count')
+-    progress_path = output/'REQUESTS.jsonl'
+-    events = [json.loads(line) for line in progress_path.read_text().splitlines()] if progress_path.exists() else []
+-    persisted = [event['value'] for event in events if event.get('event') == 'progress-persisted']
+-    need(len(persisted) == progress and [value.get('sequence') for value in persisted] == list(range(progress)),
+-         'progress raw/count mismatch')
+-    record['startup_environment'] = startup
+-    record['progress_count'] = progress
+-    record['last_progress'] = persisted[-1] if persisted else None
+-    record['cleanup_verified'] = True
+-    record['runner_failure'] = result.get('failure')
+-    if code == 0:
+-        need(result.get('failure') is None and len(result.get('observations',[])) == 1,
+-             'successful timing runner lacks unique observation')
+-        validator_spec = importlib.util.spec_from_file_location('cost_validator', HERE/'cost/validate.py')
+-        validator = importlib.util.module_from_spec(validator_spec)
+-        validator_spec.loader.exec_module(validator)
+-        timing_config = json.loads((HERE/'cost/CONFIG.json').read_text())
+-        summary = validator.validate(result['observations'][0], timing_config, name)
+-        need(summary == json.loads((output/'SUMMARY.json').read_text()), 'timing summary disagreement')
+-        expected_progress = [{'stage':'script-start'}, {'stage':'config-ready','label':name}, {'stage':'fixture-start'}]
+-        configurations = [(k,s,n) for k in timing_config['kinds'] for s in timing_config['states'] for n in timing_config['sizes']]
+-        for round_no in range(-timing_config['warmup_rounds'], timing_config['measured_rounds']):
+-            for slot in range(len(configurations)):
+-                ordinal = (slot + round_no + timing_config['warmup_rounds']) % len(configurations)
+-                kind, visibility, count = configurations[ordinal]
+-                for stage in ['batch-begin','batch-end']:
+-                    expected_progress.append({'stage':stage,'round':round_no,'slot':slot,'ordinal':ordinal,
+-                                              'kind':kind,'state':visibility,'count':count})
+-        expected_progress.append({'stage':'result-ready','rows':summary['measuredRows']})
+-        expected_progress = [{'sequence':i,**value} for i,value in enumerate(expected_progress)]
+-        need(progress == 220 and persisted == expected_progress, 'complete measurement progress roster')
+-        record['measurement_complete'] = True
+-        record['summary'] = summary
+-    else:
+-        record['measurement_limit'] = 'Diagnostic failure retained; verified cleanup and stable inputs allow later WPT phases.'
+-    wpt.save(name+'-timing-parent.json',record)
+-    return record
++prior_run=json.loads((HERE/'evidence/prior-both-RUN.json').read_text())
++prior_rows=result_map(prior_run)
++need(prior_run['complete'] and len(prior_rows)==66, 'prior baseline oracle incomplete')
++baseline_rows=None
+ 
+ def recovery_save(name,value):
+     try:
+@@ -162,24 +84,22 @@
+         with (ROOT/target).open('xb') as stream:
+             installed.append(target)
+             stream.write((HERE/source).read_bytes())
+-    state['wpt_lint_exit']=wpt.command('wpt-lint',['./mach','lint','-l','wpt',*c['install']])
++    state['wpt_lint_exit']=wpt.command('wpt-lint',['./mach','lint','-l','wpt',*c['tests']])
+     need(state['wpt_lint_exit']==0,'WPT lint failed')
+     for n,data in head.items():
+         changed=True
+         (ROOT/n).write_bytes(data)
+-    for name,flex,absolute in phases+traces:
+-        is_trace=name.startswith('trace-')
++    for name,pres_shell,block in phases:
+         authenticate_payloads()
+-        selected={FLEX:(HERE/'selected'/flex).read_bytes(),ABSOLUTE:(HERE/'selected'/absolute).read_bytes()}
+-        selected['layout/base/PresShell.cpp']=(HERE/'selected'/('pres-shell-trace.cpp' if is_trace else 'pres-shell-before.cpp')).read_bytes()
+-        selected['layout/tables/nsTableFrame.cpp']=(HERE/'selected'/('table-frame-trace.cpp' if is_trace else 'table-frame-before.cpp')).read_bytes()
++        selected={PRES_SHELL:(HERE/'selected'/pres_shell).read_bytes(),
++                  BLOCK:(HERE/'selected'/block).read_bytes()}
+         for n,data in selected.items():
+             (ROOT/n).write_bytes(data)
+         epoch()
+         sources_expected(selected)
+         need(wpt.pins(list(inputs['resource_pins']))==inputs['resource_pins'],'pre-build test/resource drift')
+         state['status']='building '+name
+-        record=(state['traces'] if is_trace else state['phases'])[name]={}
++        record=state['phases'][name]={}
+         record['source_pins']={n:hashlib.sha256(data).hexdigest() for n,data in selected.items()}
+         wpt.save('STATE.json',state)
+         record['build_exit']=wpt.command(name+'-build',['./mach','build','binaries'])
+@@ -188,23 +108,24 @@
+         sources_expected(selected)
+         state['status']='testing '+name
+         wpt.save('STATE.json',state)
+-        record['wpt']=wpt.test_run(name,c['trace_tests'] if is_trace else c['tests'],inputs['resource_pins'])
++        record['wpt']=wpt.test_run(name,c['tests'],inputs['resource_pins'])
+         epoch()
+         sources_expected(selected)
++        authenticate_payloads()
+         run=json.loads((HERE/name/'RUN.json').read_text())
+         record['status_counts']={status:sum(r['status']==status for r in run['rows']) for status in ['PASS','FAIL']}
+         record['failures']=[{'test':r['test'],'subtest':r['subtest'],'message':r.get('message')} for r in run['rows'] if r['status']=='FAIL']
+-        if args.with_timings and name in TIMING_PHASES:
+-            state['status']='timing '+name
+-            wpt.save('STATE.json',state)
+-            record['timing']=timing_run(name,selected)
+-        if is_trace:
+-            lines=(HERE/(name+'-wpt.log')).read_text().splitlines()
+-            observed=[line for line in lines if re.search(r'CV_COLUMN_(QUERY|PUBLISH)',line)]
+-            (HERE/name/'TRACE-LINES.json').write_text(json.dumps(observed,indent=2)+'\n')
+-            record['trace_line_count']=len(observed)
+-            record['trace_stage_counts']={stage:sum('CV_COLUMN_'+stage in line for line in observed) for stage in ['QUERY','PUBLISH']}
+-            need(all(record['trace_stage_counts'].values()),'trace did not reach both column observation seams')
++        rows=result_map(run)
++        if name=='baseline':
++            need(rows==prior_rows, 'baseline differs from retained both-repair oracle')
++            need({r['test']:r['status'] for r in run['ends']}==
++                 {r['test']:r['status'] for r in prior_run['ends']}, 'baseline file-end oracle differs')
++            baseline_rows=rows
++        changes=[{'test':key[0],'subtest':key[1],'before':baseline_rows[key],
++                  'after':rows[key]} for key in sorted(rows) if rows[key]!=baseline_rows[key]]
++        record['changes_from_baseline']=changes
++        record['status_transitions']={label:sum(baseline_rows[k][0]+'->'+rows[k][0]==label for k in rows)
++                                      for label in ['PASS->PASS','PASS->FAIL','FAIL->PASS','FAIL->FAIL']}
+         wpt.save('STATE.json',state)
+ except BaseException as error:
+     state['failure']={'type':type(error).__name__,'message':str(error)}
+@@ -239,7 +160,8 @@
+     state['restored']=False
+     try:
+         final=wpt.snapshot()
+-        state['restored']=final==before and all(not (ROOT/n).exists() and not (ROOT/n).is_symlink() for n in c['must_be_absent'])
++        state['restored']=(final==before and all(not (ROOT/n).exists() and not (ROOT/n).is_symlink() for n in c['must_be_absent'])
++                           and wpt.pins(wpt.resource_paths(c['tests'],virtual=True),virtual=True)==inputs['resource_pins'])
+         recovery_save('FINAL.json',final)
+     except BaseException as error:
+         errors.append({'operation':'final snapshot','error':repr(error)})
