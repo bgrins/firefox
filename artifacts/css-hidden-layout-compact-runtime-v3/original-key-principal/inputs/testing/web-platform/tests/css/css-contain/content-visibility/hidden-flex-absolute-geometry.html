@@ -1,0 +1,113 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Geometry queries update absolute children of hidden flex containers</title>
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#justify-content-property">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#abspos-items">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getboundingclientrect">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; width: 200px; height: 80px; }
+.wrapper, .subject { width: 200px; height: 80px; }
+.subject { display: flex; position: relative; justify-content: center; align-items: flex-start; }
+.hidden { content-visibility: hidden; }
+.added { flex: none; width: 20px; height: 20px; }
+.oof { position: absolute; width: 12px; height: 8px; }
+.oof.explicit { left: 7px; top: 9px; }
+.subject.end { justify-content: flex-end; }
+</style>
+<body>
+<script>
+"use strict";
+
+function makeFixture(kind = "item") {
+  const host = document.createElement("div");
+  host.className = "host";
+  const wrapper = document.createElement("div");
+  wrapper.className = "wrapper";
+  const subject = document.createElement("div");
+  subject.className = "subject";
+  const added = document.createElement("div");
+  added.className = "added";
+  let item;
+  let target;
+  item = document.createElement("div");
+  item.className = "oof" + (kind === "oof-explicit" ? " explicit" : "");
+  target = item;
+  subject.append(item);
+  wrapper.append(subject);
+  host.append(wrapper);
+  document.body.append(host);
+  return {host, wrapper, subject, item, target, added};
+}
+
+function hide(fixture, hidden, nested) {
+  fixture.subject.classList.toggle("hidden", hidden);
+  fixture.wrapper.classList.toggle("hidden", hidden && nested);
+}
+
+function outerFlush(fixture) {
+  fixture.wrapper.getClientRects();
+  fixture.wrapper.scrollHeight;
+  fixture.subject.getClientRects();
+  fixture.subject.scrollWidth;
+}
+
+function rectangle(target) {
+  const rect = target.getBoundingClientRect();
+  return [rect.left, rect.top, rect.width, rect.height];
+}
+
+function record(fixture, reference, label, expected) {
+  outerFlush(fixture);
+  const reads = [rectangle(fixture.target), rectangle(fixture.target), rectangle(fixture.target)];
+  outerFlush(reference);
+  const visible = rectangle(reference.target);
+  return {label, expected, reads, visible};
+}
+
+function check(records) {
+  for (const row of records) {
+    assert_array_equals(row.visible, row.expected, `${row.label}: visible reference calibration`);
+  }
+  for (const row of records) {
+    for (const [index, value] of row.reads.entries()) {
+      assert_array_equals(value, row.expected, `${row.label}: query ${index + 1}`);
+    }
+  }
+}
+
+function setupFixtures(t, kind) {
+  assert_implements(CSS.supports("content-visibility", "hidden"));
+  const fixture = makeFixture(kind);
+  const reference = makeFixture(kind);
+  t.add_cleanup(() => { fixture.host.remove(); reference.host.remove(); });
+  return [fixture, reference];
+}
+
+for (const nested of [false]) {
+  for (const hidden of [false, true]) {
+    for (const kind of ["oof-static", "oof-explicit"]) {
+      test(t => {
+        const [fixture, reference] = setupFixtures(t, kind);
+        const start = kind === "oof-static" ? [104, 10, 12, 8] : [17, 19, 12, 8];
+        const end = kind === "oof-static" ? [198, 10, 12, 8] : start;
+        const records = [record(fixture, reference, "warm positioned child", start)];
+        hide(fixture, hidden, nested);
+        records.push(record(fixture, reference, "hidden state", start));
+        fixture.subject.prepend(fixture.added);
+        reference.subject.prepend(reference.added);
+        records.push(record(fixture, reference, "in-flow insertion", start));
+        fixture.subject.classList.add("end");
+        reference.subject.classList.add("end");
+        records.push(record(fixture, reference, "alignment change", end));
+        hide(fixture, false, nested);
+        records.push(record(fixture, reference, "shown", end));
+        check(records);
+      }, `Positioned child: ${kind}, ${nested ? "two hidden ancestors" : "one hidden ancestor"}, ${hidden ? "hidden" : "visible"}`);
+    }
+  }
+}
+</script>

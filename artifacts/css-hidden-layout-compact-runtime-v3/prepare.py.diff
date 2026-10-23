@@ -1,0 +1,15 @@
+--- v2/prepare.py
++++ v3/prepare.py
+@@ -36,6 +36,12 @@
+ need((prior/'BEFORE.json').read_bytes()==(prior/'FINAL.json').read_bytes(), 'prior restoration snapshot mismatch')
+ need(len(c['tests'])==6 and sum(map(len,c['expected_subtests'].values()))==58, 'compact roster mismatch')
+ need(len(c['trace_tests'])==2 and sum(len(c['expected_subtests']['/'+str(Path(n).relative_to('testing/web-platform/tests'))]) for n in c['trace_tests'])==12, 'trace roster mismatch')
++timing_files = ['probe.html','benchmark.js','CONFIG.json','run.py','validate.py','cleanup.py']
++need(all('cost/'+n in draft for n in timing_files), 'six timing execution inputs not pinned')
++timing_config=json.loads((HERE/'cost/CONFIG.json').read_text())
++need(timing_config['version']==2 and timing_config['measured_rounds']==7
++     and timing_config['iterations']==16 and timing_config['no_mutation_iterations']==16,
++     'reviewed timing configuration changed')
+ before = wpt.snapshot()
+ need(before['head'] == args.expected_head, 'HEAD differs from requested post-commit HEAD')
+ need(len(wpt.git('diff','--cached','--name-only').splitlines()) == c['expected_staged_paths'] == 0, 'index not empty')

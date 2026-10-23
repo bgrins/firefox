@@ -1,0 +1,90 @@
+--- v2/experiment.py
++++ v3/experiment.py
+@@ -21,6 +21,7 @@
+ parser=argparse.ArgumentParser()
+ parser.add_argument('--inputs-sha',required=True)
+ parser.add_argument('--with-traces',action='store_true')
++parser.add_argument('--with-timings',action='store_true')
+ args=parser.parse_args()
+ need(not (HERE/'BEFORE.json').exists(),'experiment already started')
+ need(sha(HERE/'INPUTS.json')==args.inputs_sha,'INPUTS external pin')
+@@ -56,7 +57,7 @@
+         ('original-key-principal','flex-original-key-principal.cpp','absolute-baseline.cpp')]
+ traces=[('trace-baseline','flex-baseline.cpp','absolute-trace-baseline.cpp'),
+         ('trace-oof-only','flex-baseline.cpp','absolute-trace-oof.cpp')] if args.with_traces else []
+-state={'status':'starting','accepted_native_repair':False,'phases':{},'traces':{},'trace_requested':args.with_traces}
++state={'status':'starting','accepted_native_repair':False,'phases':{},'traces':{},'trace_requested':args.with_traces,'timing_requested':args.with_timings}
+ errors=[]
+ changed=False
+ installed=[]
+@@ -69,6 +70,59 @@
+     for n in c['guard_sources']:
+         expected=hashlib.sha256(selected.get(n,head[n])).hexdigest() if n in head else inputs['source_pins'][n]
+         need(sha(ROOT/n)==expected,'phase source changed '+n)
++
++TIMING_PHASES = {'baseline', 'principal-only', 'oof-only', 'both'}
++TIMING_FILES = ['probe.html', 'benchmark.js', 'CONFIG.json', 'run.py', 'validate.py', 'cleanup.py']
++
++def timing_run(name, selected):
++    paths = sorted(set(c['guard_sources'] + wpt.BINARIES + list(inputs['resource_pins'])))
++    pins_before = wpt.pins(paths)
++    timing_files = {str((HERE/'cost'/n).resolve()): sha(HERE/'cost'/n) for n in TIMING_FILES}
++    expected_runner = dict(timing_files)
++    for n in c['guard_sources'] + wpt.BINARIES:
++        expected_runner[str((ROOT/n).resolve())] = pins_before[n]
++    output = HERE/(name+'-timing')
++    command = [sys.executable, '-I', '-S', str(HERE/'cost/run.py'),
++               '--binary', str(ROOT/wpt.BINARIES[0]), '--output', str(output), '--label', name]
++    for n in c['guard_sources']:
++        command.extend(['--pin', str(ROOT/n)])
++    code = wpt.command(name+'-timing-runner', command)
++    pins_after = wpt.pins(paths)
++    record = {'exit':code, 'before':pins_before, 'after':pins_after,
++              'execution_inputs':timing_files, 'measurement_complete':False}
++    wpt.save(name+'-timing-parent.json',record)
++    epoch()
++    sources_expected(selected)
++    authenticate_payloads()
++    need(pins_before == pins_after, 'timing source/binary/resource drift')
++    result_path = output/'RESULT.json'
++    need(result_path.is_file(), 'timing runner missing terminal cleanup receipt')
++    result = json.loads(result_path.read_text())
++    termination = result.get('termination') or {}
++    need(result.get('before') == expected_runner and result.get('after') == expected_runner
++         and result.get('stable') is True, 'timing runner pin mismatch')
++    need(result.get('cleanupErrors') == [] and result.get('profileRemoved') is True
++         and result.get('terminal') is True and result.get('noLiveGroup') is True
++         and termination.get('terminal') is True and termination.get('noLiveGroup') is True
++         and termination.get('errors') == [] and not (output/'profile').exists(),
++         'timing cleanup not verified; stop and restore')
++    record['cleanup_verified'] = True
++    record['runner_failure'] = result.get('failure')
++    if code == 0:
++        need(result.get('failure') is None and len(result.get('observations',[])) == 1,
++             'successful timing runner lacks unique observation')
++        validator_spec = importlib.util.spec_from_file_location('cost_validator', HERE/'cost/validate.py')
++        validator = importlib.util.module_from_spec(validator_spec)
++        validator_spec.loader.exec_module(validator)
++        summary = validator.validate(result['observations'][0],
++                                     json.loads((HERE/'cost/CONFIG.json').read_text()),name)
++        need(summary == json.loads((output/'SUMMARY.json').read_text()), 'timing summary disagreement')
++        record['measurement_complete'] = True
++        record['summary'] = summary
++    else:
++        record['measurement_limit'] = 'Diagnostic failure retained; verified cleanup and stable inputs allow later WPT phases.'
++    wpt.save(name+'-timing-parent.json',record)
++    return record
+ 
+ def recovery_save(name,value):
+     try:
+@@ -112,6 +166,10 @@
+         run=json.loads((HERE/name/'RUN.json').read_text())
+         record['status_counts']={status:sum(r['status']==status for r in run['rows']) for status in ['PASS','FAIL']}
+         record['failures']=[{'test':r['test'],'subtest':r['subtest'],'message':r.get('message')} for r in run['rows'] if r['status']=='FAIL']
++        if args.with_timings and name in TIMING_PHASES:
++            state['status']='timing '+name
++            wpt.save('STATE.json',state)
++            record['timing']=timing_run(name,selected)
+         if is_trace:
+             lines=(HERE/(name+'-wpt.log')).read_text().splitlines()
+             observed=[line for line in lines if re.search(r'\[hidden-oof-(before|return|commit)\]',line)]

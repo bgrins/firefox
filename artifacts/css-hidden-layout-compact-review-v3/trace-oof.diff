@@ -1,0 +1,85 @@
+--- absolute-oof.cpp
+
++++ absolute-trace-oof.cpp
+
+@@ -5,12 +5,14 @@
+
+ /*
+  * code for managing absolutely positioned children of a rendering
+  * object that is a containing block for them
+  */
+ 
+ #include "mozilla/AbsoluteContainingBlock.h"
++
++#include <stdio.h>
+ 
+ #include "AnchorPositioningUtils.h"
+ #include "mozilla/CSSAlignUtils.h"
+ #include "mozilla/DebugOnly.h"
+ #include "mozilla/PresShell.h"
+ #include "mozilla/ReflowInput.h"
+@@ -1994,12 +1996,21 @@
+
+       }
+       if (stylePos->BSize(wm, resolutionParams)->IsAuto()) {
+         unfragmentedBSizeAsMinBSize = Some(unfragmentedSize->BSize(wm));
+       }
+     }
+     const LogicalSize availSize(outerWM, cbSize.ISize(outerWM), availBSize);
++    const bool hiddenOOFTrace =
++        aKidFrame->IsHiddenByContentVisibilityOfInFlowParentForLayout();
++    if (hiddenOOFTrace) {
++      fprintf(stderr,
++              "[hidden-oof-before] frame=%p dirty=%d size=%d,%d next=%d\n",
++              static_cast<void*>(aKidFrame), aKidFrame->IsSubtreeDirty(),
++              aKidFrame->GetSize().width, aKidFrame->GetSize().height,
++              aKidFrame->GetNextContinuation() != nullptr);
++    }
+     if (aKidFrame->IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
+       aKidFrame->MarkSubtreeDirty();
+     }
+     ReflowInput kidReflowInput(aPresContext, aReflowInput, aKidFrame,
+                                availSize.ConvertTo(wm, outerWM),
+                                Some(cbSize.ConvertTo(wm, outerWM)), initFlags,
+@@ -2038,12 +2049,19 @@
+
+       }
+     }
+ 
+     // Do the reflow
+     ReflowOutput kidDesiredSize(kidReflowInput);
+     aKidFrame->Reflow(aPresContext, kidDesiredSize, kidReflowInput, aStatus);
++    if (hiddenOOFTrace) {
++      fprintf(stderr,
++              "[hidden-oof-return] frame=%p dirty=%d output=%d,%d\n",
++              static_cast<void*>(aKidFrame), aKidFrame->IsSubtreeDirty(),
++              kidDesiredSize.PhysicalSize().width,
++              kidDesiredSize.PhysicalSize().height);
++    }
+ 
+     nsMargin insets;
+     if (aKidFrame->IsMenuPopupFrame()) {
+       // Do nothing. Popup frame will handle its own positioning.
+     } else if (unfragmentedPosition || kidPrevInFlow) {
+       LogicalPoint kidPos(outerWM);
+@@ -2258,12 +2276,19 @@
+
+       }
+       r -= scrollShift;
+       aKidFrame->SetRect(r);
+     }
+ 
+     aKidFrame->DidReflow(aPresContext, &kidReflowInput);
++    if (hiddenOOFTrace) {
++      fprintf(stderr,
++              "[hidden-oof-commit] frame=%p dirty=%d rect=%d,%d,%d,%d\n",
++              static_cast<void*>(aKidFrame), aKidFrame->IsSubtreeDirty(),
++              aKidFrame->GetPosition().x, aKidFrame->GetPosition().y,
++              aKidFrame->GetSize().width, aKidFrame->GetSize().height);
++    }
+ 
+     if (!firstTryRect) {
+       firstTryRect.emplace(aKidFrame->GetRect());
+     }
+ 
+     const auto FitsInContainingBlock = [&]() {
