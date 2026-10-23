@@ -1,0 +1,23 @@
+>>> 13104: void PresShell::UpdateHiddenContentInForcedLayout(nsIFrame* aFrame) {
+    13105:   if (!aFrame || !aFrame->IsSubtreeDirty()) {
+    13106:     return;
+    13107:   }
+    13108: 
+    13109:   nsIFrame* topmostFrameWithContentHidden = nullptr;
+    13110:   for (nsIFrame* cur = aFrame->GetInFlowParent(); cur;
+    13111:        cur = cur->GetInFlowParent()) {
+    13112:     if (cur->HidesContent()) {
+    13113:       topmostFrameWithContentHidden = cur;
+    13114:       mHiddenContentInForcedLayout.Insert(cur->GetContent());
+    13115:     }
+    13116:   }
+    13117: 
+    13118:   if (mHiddenContentInForcedLayout.IsEmpty()) {
+    13119:     return;
+    13120:   }
+    13121: 
+    13122:   // Queue and immediately flush a reflow for this node.
+    13123:   MOZ_ASSERT(topmostFrameWithContentHidden);
+    13124:   FrameNeedsReflow(topmostFrameWithContentHidden, IntrinsicDirty::None,
+    13125:                    NS_FRAME_IS_DIRTY);
+    13126: }

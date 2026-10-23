@@ -1,0 +1,24 @@
+>>>  275: nsIFrame* nsIContent::GetPrimaryFrame(mozilla::FlushType aType) {
+     276:   Document* doc = GetComposedDoc();
+     277:   if (!doc) {
+     278:     return nullptr;
+     279:   }
+     280: 
+     281:   // Cause a flush, so we get up-to-date frame information.
+     282:   if (aType != mozilla::FlushType::None) {
+     283:     doc->FlushPendingNotifications(aType);
+     284:   }
+     285: 
+     286:   auto* frame = GetPrimaryFrame();
+     287:   if (!frame) {
+     288:     return nullptr;
+     289:   }
+     290: 
+     291:   RefPtr<mozilla::PresShell> presShell = frame->PresShell();
+     292:   if (aType == mozilla::FlushType::Layout) {
+     293:     presShell->EnsureReflowIfFrameHasHiddenContent(frame);
+     294:     frame = GetPrimaryFrame();
+     295:   }
+     296: 
+     297:   return frame;
+     298: }

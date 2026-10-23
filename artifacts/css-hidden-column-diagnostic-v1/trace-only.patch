@@ -1,0 +1,53 @@
+--- a/layout/base/PresShell.cpp
++++ b/layout/base/PresShell.cpp
+@@ -13102,6 +13102,26 @@
+ }
+ 
+ void PresShell::UpdateHiddenContentInForcedLayout(nsIFrame* aFrame) {
++  if (aFrame && (aFrame->IsTableColFrame() || aFrame->IsTableColGroupFrame() ||
++                 aFrame->IsTableFrame())) {
++    nsIFrame* provider = aFrame;
++    if (provider->IsTableColFrame()) {
++      provider = provider->GetParent();
++    }
++    if (provider && provider->IsTableColGroupFrame()) {
++      provider = provider->GetParent();
++    }
++    fprintf(stderr,
++            "CV_COLUMN_QUERY target=%p kind=%s d=%d h=%d provider=%p table=%d pd=%d ph=%d\n",
++            static_cast<void*>(aFrame),
++            aFrame->IsTableColFrame() ? "col" :
++            aFrame->IsTableColGroupFrame() ? "group" : "table",
++            int(aFrame->HasAnyStateBits(NS_FRAME_IS_DIRTY)),
++            int(aFrame->HasAnyStateBits(NS_FRAME_HAS_DIRTY_CHILDREN)),
++            static_cast<void*>(provider), int(provider && provider->IsTableFrame()),
++            int(provider && provider->HasAnyStateBits(NS_FRAME_IS_DIRTY)),
++            int(provider && provider->HasAnyStateBits(NS_FRAME_HAS_DIRTY_CHILDREN)));
++  }
+   if (!aFrame || !aFrame->IsSubtreeDirty()) {
+     return;
+   }
+--- a/layout/tables/nsTableFrame.cpp
++++ b/layout/tables/nsTableFrame.cpp
+@@ -1239,6 +1239,10 @@
+     LogicalRect colGroupRect(aWM, colGroupOrigin.I(aWM), colGroupOrigin.B(aWM),
+                              colGroupISize, colBSize);
+     colGroupFrame->SetRect(aWM, colGroupRect, aContainerSize);
++    fprintf(stderr, "CV_COLUMN_PUBLISH table=%p target=%p kind=group rect=%d,%d,%d,%d\n",
++            static_cast<void*>(this), static_cast<void*>(colGroupFrame),
++            int(colGroupFrame->GetRect().x), int(colGroupFrame->GetRect().y),
++            int(colGroupFrame->GetRect().width), int(colGroupFrame->GetRect().height));
+     nsSize colGroupSize = colGroupFrame->GetSize();
+ 
+     // then we can place the columns correctly within the group
+@@ -1251,6 +1255,10 @@
+         LogicalRect colRect(aWM, colOrigin.I(aWM), colOrigin.B(aWM), colISize,
+                             colBSize);
+         colFrame->SetRect(aWM, colRect, colGroupSize);
++        fprintf(stderr, "CV_COLUMN_PUBLISH table=%p target=%p kind=col rect=%d,%d,%d,%d\n",
++                static_cast<void*>(this), static_cast<void*>(colFrame),
++                int(colFrame->GetRect().x), int(colFrame->GetRect().y),
++                int(colFrame->GetRect().width), int(colFrame->GetRect().height));
+         colSpacing = GetColSpacing(colIdx);
+         colOrigin.I(aWM) += colISize + colSpacing;
+         ++colIdx;
