@@ -1,0 +1,87 @@
+# CSSOM-VIEW#determine-the-scroll-into-view-position
+
+**determine the scroll-into-view position** (algorithm)
+
+**SHA**: hash:71d9ce94f21ec00a5a333ee5a20d2b0f999a862d3543fbdb85cd4d1d3dcac176
+
+## Content
+
+To **determine the scroll-into-view position** of a *target*, which is an [Element](DOM#concept-element), [pseudo-element](SELECTORS-4#pseudo-element), or [Range](DOM#concept-range), with a scroll behavior *behavior*, a block flow direction position *block*, an inline base direction position *inline*, and a [scrolling box](CSSOM-VIEW#scrolling-box) *scrolling box*, run the following steps:
+
+1. Let *target bounding border box* be the box represented by the return value of invoking Element’s [`getBoundingClientRect()`](CSSOM-VIEW#dom-element-getboundingclientrect), if *target* is an [Element](DOM#concept-element), or Range’s [`getBoundingClientRect()`](CSSOM-VIEW#dom-range-getboundingclientrect), if *target* is a [Range](DOM#concept-range).
+2. Let *scrolling box edge A* be the [beginning edge](CSSOM-VIEW#beginning-edges) in the [block flow direction](CSS-WRITING-MODES-4#block-flow-direction) of *scrolling box*, and let *element edge A* be *target bounding border box*’s edge on the same physical side as that of *scrolling box edge A*.
+3. Let *scrolling box edge B* be the [ending edge](CSSOM-VIEW#ending-edges) in the [block flow direction](CSS-WRITING-MODES-4#block-flow-direction) of *scrolling box*, and let *element edge B* be *target bounding border box*’s edge on the same physical side as that of *scrolling box edge B*.
+4. Let *scrolling box edge C* be the [beginning edge](CSSOM-VIEW#beginning-edges) in the [inline base direction](CSS-WRITING-MODES-4#inline-base-direction) of *scrolling box*, and let *element edge C* be *target bounding border box*’s edge on the same physical side as that of *scrolling box edge C*.
+5. Let *scrolling box edge D* be the [ending edge](CSSOM-VIEW#ending-edges) in the [inline base direction](CSS-WRITING-MODES-4#inline-base-direction) of *scrolling box*, and let *element edge D* be *target bounding border box*’s edge on the same physical side as that of *scrolling box edge D*.
+6. Let *element height* be the distance between *element edge A* and *element edge B*.
+7. Let *scrolling box height* be the distance between *scrolling box edge A* and *scrolling box edge B*.
+8. Let *element width* be the distance between *element edge C* and *element edge D*.
+9. Let *scrolling box width* be the distance between *scrolling box edge C* and *scrolling box edge D*.
+10. Let *position* be the scroll position *scrolling box* would have by following these steps:
+
+    1. If *block* is "`start`", then align *element edge A* with *scrolling box edge A*.
+    2. Otherwise, if *block* is "`end`", then align *element edge B* with *scrolling box edge B*.
+    3. Otherwise, if *block* is "`center`", then align the center of *target bounding border box* with the center of *scrolling box* in *scrolling box*’s [block flow direction](CSS-WRITING-MODES-4#block-flow-direction).
+    4. Otherwise, *block* is "`nearest`":
+
+        If *element edge A* and *element edge B* are both outside *scrolling box edge A* and *scrolling box edge B* 
+
+        Do nothing.
+
+        If *element edge A* is outside *scrolling box edge A* and *element height* is less than *scrolling box height* 
+
+        If *element edge B* is outside *scrolling box edge B* and *element height* is greater than *scrolling box height* 
+
+        Align *element edge A* with *scrolling box edge A*.
+
+        If *element edge A* is outside *scrolling box edge A* and *element height* is greater than *scrolling box height* 
+
+        If *element edge B* is outside *scrolling box edge B* and *element height* is less than *scrolling box height* 
+
+        Align *element edge B* with *scrolling box edge B*.
+    5. If *inline* is "`start`", then align *element edge C* with *scrolling box edge C*.
+    6. Otherwise, if *inline* is "`end`", then align *element edge D* with *scrolling box edge D*.
+    7. Otherwise, if *inline* is "`center`", then align the center of *target bounding border box* with the center of *scrolling box* in *scrolling box*’s [inline base direction](CSS-WRITING-MODES-4#inline-base-direction).
+    8. Otherwise, *inline* is "`nearest`":
+
+        If *element edge C* and *element edge D* are both outside *scrolling box edge C* and *scrolling box edge D* 
+
+        Do nothing.
+
+        If *element edge C* is outside *scrolling box edge C* and *element width* is less than *scrolling box width* 
+
+        If *element edge D* is outside *scrolling box edge D* and *element width* is greater than *scrolling box width* 
+
+        Align *element edge C* with *scrolling box edge C*.
+
+        If *element edge C* is outside *scrolling box edge C* and *element width* is greater than *scrolling box width* 
+
+        If *element edge D* is outside *scrolling box edge D* and *element width* is less than *scrolling box width* 
+
+        Align *element edge D* with *scrolling box edge D*.
+    9. If *target* is an [Element](DOM#concept-element), and the target element defines some [scroll snap positions](CSS-SCROLL-SNAP-1#scroll-snap-position), then the user agent must [scroll snap](CSS-SCROLL-SNAP-1#scroll-snap) the resulting *position* to one of that element’s scroll snap positions if its nearest [scroll container](CSS-OVERFLOW-3#scroll-container) is a [scroll snap container](CSS-SCROLL-SNAP-1#scroll-snap-container). The user agent *may* also do this even when the scroll container has [scroll-snap-type: none](CSS-SCROLL-SNAP-1#propdef-scroll-snap-type).
+    10. Return *position*.
+
+## Navigation
+
+- Parent: `element-scrolling-members` — Element Scrolling Members
+- Next: `scroll-a-target-into-view` — scroll a target into view
+
+## Outgoing refs (15)
+
+`webspec-index refs CSSOM-VIEW#determine-the-scroll-into-view-position -d outgoing -l 15`
+
+## Incoming refs (2)
+
+- CSSOM-VIEW#index-defined-here
+- CSSOM-VIEW#scroll-a-target-into-view
+
+### Possible effects
+
+CSSOM-VIEW#determine-the-scroll-into-view-position
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSSOM-VIEW#determine-the-scroll-into-view-position" --format markdown`

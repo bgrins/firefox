@@ -1,0 +1,46 @@
+--- prior/prepare.py
++++ successor/prepare.py
+@@ -29,19 +29,24 @@
+ spec = importlib.util.spec_from_file_location('compact_wpt',HERE/'run_wpt.py')
+ wpt = importlib.util.module_from_spec(spec)
+ spec.loader.exec_module(wpt)
++cost_spec=importlib.util.spec_from_file_location('cost_hook',HERE/'cost_hook.py')
++cost_hook=importlib.util.module_from_spec(cost_spec)
++cost_spec.loader.exec_module(cost_hook)
+ c = wpt.CONFIG
++need(c.get('ready_for_preparation') is True, 'draft not ready for preparation')
+ prior=ROOT/c['prior_runtime']
+ prior_state=json.loads((prior/'STATE.json').read_text())
+ need(prior_state.get('status')=='terminal' and prior_state.get('restored') is True and prior_state.get('restore_build_exit')==0 and prior_state.get('recovery_errors')==[], 'prior experiment not successfully restored')
+ need((prior/'BEFORE.json').read_bytes()==(prior/'FINAL.json').read_bytes(), 'prior restoration snapshot mismatch')
+-need(len(c['tests'])==7 and sum(map(len,c['expected_subtests'].values()))==66, 'compact roster mismatch')
++need(sum(map(len,c['expected_subtests'].values()))==c['expected_total_subtests']
++     and len(c['tests'])==len(c['expected_subtests']), 'exact expanded roster mismatch')
+ before = wpt.snapshot()
+ need(before['head'] == args.expected_head, 'HEAD differs from requested post-commit HEAD')
+ need(len(wpt.git('diff','--cached','--name-only').splitlines()) == c['expected_staged_paths'] == 0, 'index not empty')
+ need(len(c['sources']) == 23 and len(set(c['sources'])) == 23 and len(c['guard_sources']) == 28, 'source roster')
+ need(all(before['sources'][n] is not None for n in c['guard_sources']), 'missing guarded source')
+ need(all(not (ROOT/n).exists() and not (ROOT/n).is_symlink() for n in c['must_be_absent']), 'current or proposed temporary test still exists')
+-need(len(c['install'])==2 and len(c['tracked_tests'])==5
++need(len(c['install'])==len(c['tests'])-5 and len(c['tracked_tests'])==5
+      and set(c['install']).isdisjoint(c['tracked_tests'])
+      and set(c['tests'])==set(c['install'])|set(c['tracked_tests']), 'test ownership partition')
+ for path,selected in c['baseline_sources'].items():
+@@ -54,6 +59,7 @@
+ resources = wpt.resource_paths(c['tests'],virtual=True)
+ resource_pins = wpt.pins(resources,virtual=True)
+ need(all(resource_pins[n] is not None for n in c['tests']+c['support_paths']), 'missing test/support')
++cost_pins=cost_hook.authenticate(ROOT,c['cost'])
+ prepared=HERE/'prepared'
+ prepared.mkdir()
+ for path in c['sources']:
+@@ -68,7 +74,7 @@
+         payloads[str(f.relative_to(HERE))]=sha(f)
+ inputs={'before':before,'source_pins':before['sources'],'resource_pins':resource_pins,
+         'temporary_test_state':{n:None for n in c['install']},'expected_staged_paths':0,
+-        'draft_sha256':args.draft_sha,'payload_pins':payloads,
++        'draft_sha256':args.draft_sha,'payload_pins':payloads,'cost_payload_pins':cost_pins,
+         'prior_terminal_pins':{str((prior/name).relative_to(ROOT)):sha(prior/name) for name in ['STATE.json','BEFORE.json','FINAL.json']}}
+ (HERE/'INPUTS.json').write_text(json.dumps(inputs,indent=2)+'\n')
+ print(json.dumps({'status':'PREPARED_NOT_RUN','head':before['head'],'INPUTS_sha256':sha(HERE/'INPUTS.json'),

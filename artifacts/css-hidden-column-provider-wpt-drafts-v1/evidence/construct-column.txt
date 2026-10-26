@@ -1,0 +1,28 @@
+>>> 2143: nsIFrame* nsCSSFrameConstructor::ConstructTableCol(
+    2144:     nsFrameConstructorState& aState, FrameConstructionItem& aItem,
+    2145:     nsContainerFrame* aParentFrame, const nsStyleDisplay* aStyleDisplay,
+    2146:     nsFrameList& aFrameList) {
+    2147:   nsIContent* const content = aItem.mContent;
+    2148:   ComputedStyle* const computedStyle = aItem.mComputedStyle;
+    2149: 
+    2150:   nsTableColFrame* colFrame = NS_NewTableColFrame(mPresShell, computedStyle);
+    2151:   InitAndRestoreFrame(aState, content, aParentFrame, colFrame);
+    2152: 
+    2153:   NS_ASSERTION(colFrame->Style() == computedStyle, "Unexpected style");
+    2154: 
+    2155:   aFrameList.AppendFrame(nullptr, colFrame);
+    2156: 
+    2157:   // construct additional col frames if the col frame has a span > 1
+    2158:   int32_t span = colFrame->GetSpan();
+    2159:   for (int32_t spanX = 1; spanX < span; spanX++) {
+    2160:     nsTableColFrame* newCol = NS_NewTableColFrame(mPresShell, computedStyle);
+    2161:     InitAndRestoreFrame(aState, content, aParentFrame, newCol,
+    2162:                         AllowCounters::No);
+    2163:     aFrameList.LastChild()->SetNextContinuation(newCol);
+    2164:     newCol->SetPrevContinuation(aFrameList.LastChild());
+    2165:     aFrameList.AppendFrame(nullptr, newCol);
+    2166:     newCol->SetColType(eColAnonymousCol);
+    2167:   }
+    2168: 
+    2169:   return colFrame;
+    2170: }

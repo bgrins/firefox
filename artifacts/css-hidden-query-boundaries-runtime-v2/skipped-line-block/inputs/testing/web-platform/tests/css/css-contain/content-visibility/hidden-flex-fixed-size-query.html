@@ -1,0 +1,72 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hidden fixed-size flex items retain geometry after sibling insertion</title>
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getclientrects">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; width: 320px; height: 64px; }
+.columns { columns: 3; column-gap: 10px; column-fill: auto; }
+.subject.flex { display: flex; align-items: flex-start; }
+.subject.hidden { content-visibility: hidden; }
+.target, .added { width: 24px; height: 32px; flex: none; }
+</style>
+<body>
+<script>
+"use strict";
+const queries = {
+  bounding: n => { const r = n.getBoundingClientRect(); return [r.width, r.height]; },
+  rects: n => [...n.getClientRects()].map(r => [r.width, r.height]),
+  offset: n => [n.offsetWidth, n.offsetHeight],
+  scroll: n => [n.scrollWidth, n.scrollHeight],
+};
+for (const columns of [false]) {
+  for (const flex of [false, true]) {
+    for (const initiallyHidden of [false, true]) {
+      for (const api of ["bounding", "offset"]) {
+        const query = queries[api];
+        test(t => {
+          assert_implements(CSS.supports("content-visibility", "hidden"));
+          const host = document.createElement("div");
+          host.className = `host ${columns ? "columns" : ""}`;
+          const subject = document.createElement("div");
+          subject.className = `subject ${flex ? "flex" : ""} ${initiallyHidden ? "hidden" : ""}`;
+          const target = document.createElement("div");
+          target.className = "target";
+          subject.append(target);
+          host.append(subject);
+          document.body.append(host);
+          t.add_cleanup(() => host.remove());
+          const stages = [];
+          for (const phase of ["initial", "hide", "append", "append-again", "show"]) {
+            if (phase === "hide") subject.classList.add("hidden");
+            if (phase.startsWith("append")) {
+              const added = document.createElement("div");
+              added.className = "added";
+              subject.append(added);
+            }
+            if (phase === "show") subject.classList.remove("hidden");
+            const outer = [subject.getClientRects().length, subject.scrollWidth, subject.scrollHeight];
+            const first = query(target);
+            const second = query(target);
+            const third = query(target);
+            stages.push({phase, outer, first, second, third});
+          }
+          for (const stage of stages) {
+            for (const read of ["first", "second", "third"]) {
+              if (api === "rects") {
+                assert_equals(stage[read].length, 1, `${stage.phase}: ${read} rect count`);
+                assert_array_equals(stage[read][0], [24, 32], `${stage.phase}: ${read}`);
+              } else {
+                assert_array_equals(stage[read], [24, 32], `${stage.phase}: ${read}`);
+              }
+            }
+          }
+        }, `Fixed size: ${columns ? "columns" : "single"}, ${flex ? "flex" : "block"}, ${initiallyHidden ? "initially hidden" : "initially visible"}, ${api}`);
+      }
+    }
+  }
+}
+</script>

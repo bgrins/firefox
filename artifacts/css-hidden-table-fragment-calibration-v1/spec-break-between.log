@@ -1,0 +1,128 @@
+# CSS-BREAK-3#break-between
+
+**Breaks Between Boxes: the break-before and break-after properties** (heading)
+
+**SHA**: hash:d1847a93aa9f3cf56986329c048a0701fac305502a1605858912bec8b54192ad
+
+## Content
+
+| Name:                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| auto [&#124;](CSS-VALUES-4#comb-one) avoid &#124; avoid-page &#124; page &#124; left &#124; right &#124; recto &#124; verso &#124; avoid-column &#124; column &#124; avoid-region &#124; region |
+| auto                                                                                                                                                               |
+| block-level boxes, grid items, flex items, table row groups, table rows (but see prose)                                                                            |
+| no                                                                                                                                                                 |
+| n/a                                                                                                                                                                |
+| specified keyword                                                                                                                                                  |
+| per grammar                                                                                                                                                        |
+| discrete                                                                                                                                                           |
+
+These properties specify page/column/region break behavior before/after the generated box. The **forced break values** [left](CSS-BREAK-3#valdef-break-before-left), [right](CSS-BREAK-3#valdef-break-before-right), [recto](CSS-BREAK-3#valdef-break-before-recto), [verso](CSS-BREAK-3#valdef-break-before-verso), [page](CSS-BREAK-3#valdef-break-before-page), [column](CSS-BREAK-3#valdef-break-before-column) and [region](CSS-BREAK-3#valdef-break-before-region) create a [forced break](CSS-BREAK-3#forced-breaks) in the flow while the **avoid break values** [avoid](CSS-BREAK-3#valdef-break-before-avoid), [avoid-page](CSS-BREAK-3#valdef-break-before-avoid-page), [avoid-column](CSS-BREAK-3#valdef-break-before-avoid-column) and [avoid-region](CSS-BREAK-3#valdef-break-before-avoid-region) indicate that content should be kept together.
+
+Values for [break-before](CSS-BREAK-3#propdef-break-before) and [break-after](CSS-BREAK-3#propdef-break-after) are defined in the sub-sections below. User agents must apply these properties to boxes in the normal flow of the [fragmentation root](CSS-BREAK-3#fragmentation-root). User agents should also apply these properties to floated boxes whose containing block is in the normal flow of the root fragmented element. User agents may also apply these properties to other boxes. User agents must not apply these properties to absolutely-positioned boxes.
+
+#### Generic Break Values
+
+These values have an effect regardless of the type of fragmented context containing the flow.
+
+**auto** 
+
+Neither force nor forbid a break before/after the [principal box](CSS21#block-boxes).
+
+**avoid** 
+
+Avoid a break before/after the [principal box](CSS21#block-boxes).
+
+#### Page Break Values
+
+These values only have an effect in paginated contexts; if the flow is not paginated, they have no effect.
+
+**avoid-page** 
+
+Avoid a page break before/after the [principal box](CSS21#block-boxes).
+
+**page** 
+
+Always force a page break before/after the [principal box](CSS21#block-boxes).
+
+**left** 
+
+Force one or two page breaks before/after the [principal box](CSS21#block-boxes) so that the next page is formatted as a left page.
+
+**right** 
+
+Force one or two page breaks before/after the [principal box](CSS21#block-boxes) so that the next page is formatted as a right page.
+
+**recto** 
+
+Force one or two page breaks before/after the [principal box](CSS21#block-boxes) so that the next page is formatted as either a left page or a right page, whichever is second (according to the [page progression](CSS-PAGE-3#page-progression)) in a page spread.
+
+**verso** 
+
+Force one or two page breaks before/after the [principal box](CSS21#block-boxes) so that the next page is formatted as either a left page or a right page, whichever is first (according to the [page progression](CSS-PAGE-3#page-progression)) in a page spread.
+
+#### Column Break Values
+
+These values only have an effect in multi-column contexts; if the flow is not within a multi-column context, they have no effect.
+
+**avoid-column** 
+
+Avoid a column break before/after the [principal box](CSS21#block-boxes).
+
+**column** 
+
+Always force a column break before/after the [principal box](CSS21#block-boxes).
+
+#### Region Break Values
+
+These values only have an effect in multi-region contexts; if the flow is not linked across multiple regions, these values have no effect.
+
+**avoid-region** 
+
+Avoid a region break before/after the [principal box](CSS21#block-boxes).
+
+**region** 
+
+Always force a region break before/after the [principal box](CSS21#block-boxes).
+
+#### Child→Parent Break Propagation
+
+Since breaks are only allowed between siblings, not between a box and its container (see [Possible Break Points](CSS-BREAK-3#possible-breaks)), break values applied to children at the start/end of a parent are **propagated** to the parent, where they can take effect.
+
+Specifically—​except in layout modes which define more specific rules to account for reordering and parallel layout (e.g. in [flex layout](CSS-FLEXBOX-1#pagination) \[CSS-FLEXBOX-1\] or [grid layout](CSS-GRID-1#pagination) \[CSS-GRID-1\])—​a [break-before](CSS-BREAK-3#propdef-break-before) value on a first [in-flow](CSS-DISPLAY-4#in-flow) child box is [propagated](CSS-BREAK-3#propagate) to its container. Likewise a [break-after](CSS-BREAK-3#propdef-break-after) value on a last in-flow child box is propagated to its container. (Conflicting values [combine](CSS-BREAK-3#forced-breaks) as defined below.) This propagation stops before it breaks through the nearest matching fragmentation context.
+
+Break [propagation](CSS-BREAK-3#propagate) does not affect [computed values](CSS-CASCADE-5#computed-value); it is part of interpreting the elements’ computed values for layout.
+
+## Navigation
+
+- Parent: `breaking-controls` — Controlling Breaks
+- Next: `break-within` — Breaks Within Boxes: the break-inside property
+- Children: 9
+  - `propdef-break-before` — break-before
+  - `propdef-break-after` — break-after
+  - `forced-break-values` — forced break values
+  - `avoid-break-values` — avoid break values
+  - `generic-break-values` — Generic Break Values
+  - `page-break-values` — Page Break Values
+  - `column-break-values` — Column Break Values
+  - `region-break-values` — Region Break Values
+  - `break-propagation` — Child→Parent Break Propagation
+
+## Outgoing refs (24)
+
+`webspec-index refs CSS-BREAK-3#break-between -d outgoing -l 24`
+
+## Incoming refs (2)
+
+- CSS-BREAK-3#contents
+- CSS-CONTAIN-2#layout-containment-box
+
+### Possible effects
+
+CSS-BREAK-3#break-between
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-BREAK-3#break-between" --format markdown`

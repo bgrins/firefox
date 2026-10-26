@@ -1,0 +1,79 @@
+# CSS-CONTAIN-2#content-visibility-auto-state-change
+
+**Detecting content-visibility: auto state changes: the contentvisibilityautostatechange event** (heading)
+
+**SHA**: hash:d3d2a6aead18ef518d694f62280f5a8cd01c52e0a817546858760c002f240cee
+
+## Content
+
+The **`contentvisibilityautostatechange`** event is fired on an element with [content-visibility: auto](CSS-CONTAIN-2#propdef-content-visibility) style when the rendering state changes and the element either becomes or stops being [relevant to the user](CSS-CONTAIN-2#relevant-to-the-user).
+
+Tests
+
+*   [content-visibility-auto-state-changed.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-auto-state-changed.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-auto-state-changed.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-auto-state-changed.html)
+*   [content-visibility-auto-state-changed-first-observation.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-auto-state-changed-first-observation.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-auto-state-changed-first-observation.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-auto-state-changed-first-observation.html)
+*   [content-visibility-auto-state-changed-removed.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-auto-state-changed-removed.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-auto-state-changed-removed.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-auto-state-changed-removed.html)
+*   [content-visibility-auto-state-changed.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-auto-state-changed.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-auto-state-changed.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-auto-state-changed.html)
+
+This event is dispatched by posting a task at the time when the state change occurs.
+
+```webidl
+[Exposed=Window]
+interface ContentVisibilityAutoStateChangeEvent : Event {
+  constructor(DOMString type, optional ContentVisibilityAutoStateChangeEventInit eventInitDict = {});
+  readonly attribute boolean skipped;
+};
+dictionary ContentVisibilityAutoStateChangeEventInit : EventInit {
+  boolean skipped = false;
+};
+```
+
+Description of ContentVisibilityAutoStateChangeEvent attributes:
+
+**`skipped`**, of type [boolean](WEBIDL#idl-boolean), readonly 
+
+Set to true if target changed state to [skip its contents](CSS-CONTAIN-2#skips-its-contents), and false otherwise.
+
+Tests
+
+*   [content-visibility-auto-state-changed-first-observation.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-auto-state-changed-first-observation.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-auto-state-changed-first-observation.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-auto-state-changed-first-observation.html)
+*   [content-visibility-auto-state-changed.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-auto-state-changed.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-auto-state-changed.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-auto-state-changed.html)
+
+Description of ContentVisibilityAutoStateChangeEventInit members:
+
+**`skipped`**, of type [boolean](WEBIDL#idl-boolean), defaulting to `false` 
+
+See the description of the [`skipped`](CSS-CONTAIN-2#dom-contentvisibilityautostatechangeevent-skipped) attribute.
+
+Note that elements in [content-visibility: auto](CSS-CONTAIN-2#propdef-content-visibility) subtrees remain semantically relevant even for elements that [skip its contents](CSS-CONTAIN-2#skips-its-contents). This means that it is inappropriate to use this signal to indefinitely skip DOM updates in the subtree that is skipped. Instead, it should be used to deprioritize updates, but ensure that the content remains semantically relevant and reasonably up-to-date. This is particularly important for assistive technologies which consume this content even when the ancestor is set to skip its contents.
+
+## Navigation
+
+- Parent: `content-visibility` — Suppressing An Element’s Contents Entirely: the content-visibility property
+- Prev: `using-cv-auto` — Using content-visibility: auto
+- Next: `cv-notes` — Restrictions and Clarifications
+- Children: 6
+  - `eventdef-element-contentvisibilityautostatechange` — contentvisibilityautostatechange
+  - `contentvisibilityautostatechangeevent` — ContentVisibilityAutoStateChangeEvent
+  - `dom-contentvisibilityautostatechangeevent-contentvisibilityautostatechangeevent` — constructor
+  - `dictdef-contentvisibilityautostatechangeeventinit` — ContentVisibilityAutoStateChangeEventInit
+  - `dom-contentvisibilityautostatechangeevent-skipped` — skipped
+  - `dom-contentvisibilityautostatechangeeventinit-skipped` — skipped
+
+## Outgoing refs (12)
+
+`webspec-index refs CSS-CONTAIN-2#content-visibility-auto-state-change -d outgoing -l 12`
+
+## Incoming refs (1)
+
+- CSS-CONTAIN-2#contents
+
+### Possible effects
+
+CSS-CONTAIN-2#content-visibility-auto-state-change
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-CONTAIN-2#content-visibility-auto-state-change" --format markdown`

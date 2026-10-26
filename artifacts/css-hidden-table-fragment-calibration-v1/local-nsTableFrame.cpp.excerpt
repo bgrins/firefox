@@ -1,0 +1,31 @@
+  NS_WARNING_ASSERTION(
+      wm.IsVertical() ||
+          NS_UNCONSTRAINEDSIZE != aReflowInput.mReflowInput.ComputedWidth(),
+      "shouldn't have unconstrained width in horizontal mode");
+  nsSize containerSize =
+      aReflowInput.mReflowInput.ComputedSizeAsContainerIfConstrained();
+
+  nsPresContext* presContext = PresContext();
+  // nsTableFrame is not able to pull back children from its next-in-flow, per
+  // bug 1772383.  So even under paginated contexts, tables should not fragment
+  // if they are inside of (i.e. potentially being fragmented by) a column-set
+  // frame.  (This is indicated by the "mTableIsSplittable" flag.)
+  bool isPaginated =
+      presContext->IsPaginated() &&
+      aReflowInput.mReflowInput.AvailableBSize() != NS_UNCONSTRAINEDSIZE &&
+      aReflowInput.mReflowInput.mFlags.mTableIsSplittable;
+
+  // Tables currently (though we ought to fix this) only fragment in
+  // paginated contexts, not in multicolumn contexts.  (See bug 888257.)
+  // This is partly because they don't correctly handle incremental
+  // layout when paginated.
+  //
+  // Since we propagate NS_FRAME_IS_DIRTY from parent to child at the
+  // start of the parent's reflow (behavior that's new as of bug
+  // 1308876), we can do things that are effectively incremental reflow
+  // during paginated layout.  Since the table code doesn't handle this
+  // correctly, we need to set the flag that says to reflow everything
+  // within the table structure.
+  if (presContext->IsPaginated()) {
+    SetGeometryDirty();
+  }

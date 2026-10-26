@@ -1,0 +1,151 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hidden table span and fragment geometry queries</title>
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getclientrects">
+<link rel="help" href="https://html.spec.whatwg.org/multipage/tables.html#the-col-element">
+<link rel="help" href="https://html.spec.whatwg.org/multipage/tables.html#the-colgroup-element">
+<link rel="help" href="https://drafts.csswg.org/css-break-3/#possible-breaks">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+html { direction: ltr; writing-mode: horizontal-tb; }
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; }
+.outer { width: 120px; height: 80px; }
+.outer.narrow { width: 60px; }
+.subject { width: 100%; height: 80px; font-size: 0; line-height: 0; }
+.subject.hidden { content-visibility: hidden; }
+table { width: 100%; table-layout: fixed; border-spacing: 0; border: 0; padding: 0; margin: 0; }
+table.narrow { width: 50%; }
+tr, td { height: 20px; border: 0; padding: 0; }
+tr { break-inside: avoid; }
+.fragmented.outer { width: 260px; }
+.fragmented.outer.narrow { width: 140px; }
+.fragmented .columns { width: 100%; height: 40px; column-count: 2; column-gap: 20px; column-fill: auto; }
+</style>
+<body>
+<script>
+"use strict";
+window.columnProviderQueryResults = [];
+const cases = [
+  {"name": "Hidden table span provider: col-one, outer-width, bounding", "shape": "col-one", "route": "outer-width", "api": "bounding", "fragmented": false, "target": "selected"},
+  {"name": "Hidden table span provider: col-one, outer-width, rects", "shape": "col-one", "route": "outer-width", "api": "rects", "fragmented": false, "target": "selected"},
+  {"name": "Hidden table span provider: col-one, table-width, bounding", "shape": "col-one", "route": "table-width", "api": "bounding", "fragmented": false, "target": "selected"},
+  {"name": "Hidden table span provider: col-one, table-width, rects", "shape": "col-one", "route": "table-width", "api": "rects", "fragmented": false, "target": "selected"},
+  {"name": "Hidden table span provider: col-two, outer-width, bounding", "shape": "col-two", "route": "outer-width", "api": "bounding", "fragmented": false, "target": "selected"},
+  {"name": "Hidden table span provider: col-two, outer-width, rects", "shape": "col-two", "route": "outer-width", "api": "rects", "fragmented": false, "target": "selected"},
+  {"name": "Hidden table span provider: col-two, table-width, bounding", "shape": "col-two", "route": "table-width", "api": "bounding", "fragmented": false, "target": "selected"},
+  {"name": "Hidden table span provider: col-two, table-width, rects", "shape": "col-two", "route": "table-width", "api": "rects", "fragmented": false, "target": "selected"},
+  {"name": "Hidden table span provider: group-two, outer-width, bounding", "shape": "group-two", "route": "outer-width", "api": "bounding", "fragmented": false, "target": "selected"},
+  {"name": "Hidden table span provider: group-two, outer-width, rects", "shape": "group-two", "route": "outer-width", "api": "rects", "fragmented": false, "target": "selected"},
+  {"name": "Hidden table span provider: group-two, table-width, bounding", "shape": "group-two", "route": "table-width", "api": "bounding", "fragmented": false, "target": "selected"},
+  {"name": "Hidden table span provider: group-two, table-width, rects", "shape": "group-two", "route": "table-width", "api": "rects", "fragmented": false, "target": "selected"},
+  {"name": "Hidden fragmented table provider: col-two, selected, bounding", "shape": "col-two", "route": "outer-width", "api": "bounding", "fragmented": true, "target": "selected"},
+  {"name": "Hidden fragmented table provider: col-two, selected, rects", "shape": "col-two", "route": "outer-width", "api": "rects", "fragmented": true, "target": "selected"},
+  {"name": "Hidden fragmented table provider: col-two, table, bounding", "shape": "col-two", "route": "outer-width", "api": "bounding", "fragmented": true, "target": "table"},
+  {"name": "Hidden fragmented table provider: col-two, table, rects", "shape": "col-two", "route": "outer-width", "api": "rects", "fragmented": true, "target": "table"},
+  {"name": "Hidden fragmented table provider: group-two, selected, bounding", "shape": "group-two", "route": "outer-width", "api": "bounding", "fragmented": true, "target": "selected"},
+  {"name": "Hidden fragmented table provider: group-two, selected, rects", "shape": "group-two", "route": "outer-width", "api": "rects", "fragmented": true, "target": "selected"},
+  {"name": "Hidden fragmented table provider: group-two, table, bounding", "shape": "group-two", "route": "outer-width", "api": "bounding", "fragmented": true, "target": "table"},
+  {"name": "Hidden fragmented table provider: group-two, table, rects", "shape": "group-two", "route": "outer-width", "api": "rects", "fragmented": true, "target": "table"}
+];
+const columns = {
+  "col-one": '<colgroup><col class="selected"><col><col></colgroup>',
+  "col-two": '<colgroup><col class="selected" span="2"><col></colgroup>',
+  "group-two": '<colgroup class="selected" span="2"></colgroup><colgroup span="1"></colgroup>'
+};
+function fixture(c) {
+  const host = document.createElement("div");
+  host.className = "host";
+  const rows = '<tr><td></td><td></td><td></td></tr>'.repeat(c.fragmented ? 4 : 1);
+  host.innerHTML = `<div class="outer${c.fragmented ? " fragmented" : ""}"><div class="subject"><div class="columns"><table>${columns[c.shape]}<tbody>${rows}</tbody></table></div></div></div>`;
+  document.body.append(host);
+  return {
+    host,
+    outer: host.querySelector(".outer"),
+    subject: host.querySelector(".subject"),
+    table: host.querySelector("table"),
+    target: host.querySelector(c.target === "table" ? "table" : ".selected"),
+    cells: [...host.querySelectorAll("td")]
+  };
+}
+function rect(r) {
+  return [r.x, r.y, r.width, r.height];
+}
+function rectangles(element) {
+  return [...element.getClientRects()].map(rect);
+}
+function observe(element, api) {
+  return api === "bounding" ? [rect(element.getBoundingClientRect())] : rectangles(element);
+}
+function equalRects(actual, expected, message) {
+  assert_equals(actual.length, expected.length, `${message}: rectangle count`);
+  for (let i = 0; i < expected.length; ++i) {
+    assert_array_equals(actual[i], expected[i], `${message}: rectangle ${i}`);
+  }
+}
+function bounding(rects) {
+  if (!rects.length) return [0, 0, 0, 0];
+  if (rects.every(r => r[2] === 0 || r[3] === 0)) return rects[0];
+  const included = rects.filter(r => r[2] !== 0 || r[3] !== 0);
+  const x = Math.min(...included.map(r => r[0]));
+  const y = Math.min(...included.map(r => r[1]));
+  const right = Math.max(...included.map(r => r[0] + r[2]));
+  const bottom = Math.max(...included.map(r => r[1] + r[3]));
+  return [x, y, right - x, bottom - y];
+}
+for (const c of cases) {
+  test(t => {
+    assert_true(CSS.supports("content-visibility", "hidden"), "calibration: hidden support");
+    const target = fixture(c);
+    const peer = fixture(c);
+    t.add_cleanup(() => { target.host.remove(); peer.host.remove(); });
+    const rows = [];
+    for (const stage of ["warm", "hide", "change", "restore", "show"]) {
+      if (stage === "hide") target.subject.classList.add("hidden");
+      if (stage === "change" || stage === "restore") {
+        for (const f of [target, peer]) {
+          (c.route === "outer-width" ? f.outer : f.table).classList.toggle("narrow", stage === "change");
+        }
+      }
+      if (stage === "show") target.subject.classList.remove("hidden");
+      const outer = rect(target.outer.getBoundingClientRect());
+      const first = observe(target.target, c.api);
+      const repeat = observe(target.target, c.api);
+      const visible = observe(peer.target, c.api);
+      const visibleRects = rectangles(peer.target);
+      const visibleBounding = rect(peer.target.getBoundingClientRect());
+      const grid = peer.cells.map(cell => rect(cell.getBoundingClientRect()));
+      const tableRects = rectangles(peer.table);
+      rows.push({stage, outer, first, repeat, visible, visibleRects, visibleBounding, grid, tableRects});
+    }
+    window.columnProviderQueryResults.push({name: c.name, rows});
+    for (const row of rows) {
+      const changed = row.stage === "change";
+      const tableWidth = changed ? 60 : 120;
+      const outerWidth = c.fragmented ? (changed ? 140 : 260) :
+        (changed && c.route === "outer-width" ? 60 : 120);
+      assert_array_equals(row.outer, [10, 10, outerWidth, 80], `${row.stage}: outer calibration`);
+      assert_equals(row.grid.length, c.fragmented ? 12 : 3, `${row.stage}: cell roster calibration`);
+      for (let i = 0; i < row.grid.length; ++i) {
+        const rowIndex = Math.floor(i / 3);
+        const fragment = c.fragmented ? Math.floor(rowIndex / 2) : 0;
+        const expected = [10 + fragment * (tableWidth + 20) + (i % 3) * tableWidth / 3,
+                          10 + (rowIndex % 2) * 20, tableWidth / 3, 20];
+        assert_array_equals(row.grid[i], expected, `${row.stage}: visible cell ${i} fragmentation calibration`);
+      }
+      const expectedTable = [[10, 10, tableWidth, c.fragmented ? 40 : 20]];
+      if (c.fragmented) expectedTable.push([30 + tableWidth, 10, tableWidth, 40]);
+      equalRects(row.tableRects, expectedTable, `${row.stage}: visible table fragment calibration`);
+      assert_greater_than(row.visibleRects.length, 0, `${row.stage}: provider rectangle calibration`);
+      assert_true(row.visibleRects.flat().every(Number.isFinite), `${row.stage}: finite provider calibration`);
+      assert_true(row.visibleRects.some(r => r[2] > 0 && r[3] > 0), `${row.stage}: nondegenerate provider calibration`);
+      assert_array_equals(row.visibleBounding, bounding(row.visibleRects), `${row.stage}: visible CSSOM union calibration`);
+    }
+    for (const row of rows) {
+      equalRects(row.first, row.visible, `${row.stage}: first selected query`);
+      equalRects(row.repeat, row.visible, `${row.stage}: repeated selected query`);
+    }
+  }, c.name);
+}
+</script>

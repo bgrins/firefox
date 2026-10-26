@@ -1,0 +1,19 @@
+>>>  733: void nsBlockFrame::GetChildLists(nsTArray<ChildList>* aLists) const {
+     734:   nsContainerFrame::GetChildLists(aLists);
+     735:   FrameLines* overflowLines = GetOverflowLines();
+     736:   if (overflowLines) {
+     737:     overflowLines->mFrames.AppendIfNonempty(aLists, FrameChildListID::Overflow);
+     738:   }
+     739:   if (const nsFrameList* list = GetOverflowFloats()) {
+     740:     list->AppendIfNonempty(aLists, FrameChildListID::OverflowFloats);
+     741:   }
+     742:   if (const nsFrameList* list = GetOutsideMarkerList()) {
+     743:     list->AppendIfNonempty(aLists, FrameChildListID::Marker);
+     744:   }
+     745:   if (const nsFrameList* list = GetFloats()) {
+     746:     list->AppendIfNonempty(aLists, FrameChildListID::Float);
+     747:   }
+     748:   if (const nsFrameList* list = GetPushedFloats()) {
+     749:     list->AppendIfNonempty(aLists, FrameChildListID::PushedFloats);
+     750:   }
+     751: }

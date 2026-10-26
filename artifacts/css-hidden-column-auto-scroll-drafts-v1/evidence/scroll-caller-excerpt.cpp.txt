@@ -1,0 +1,44 @@
+  bool reflowedForHiddenContent = false;
+  if (mContentToScrollTo) {
+    if (nsIFrame* frame = mContentToScrollTo->GetPrimaryFrame()) {
+      bool hasContentVisibilityAutoAncestor = false;
+      auto* ancestor = frame->GetClosestContentVisibilityAncestor(
+          nsIFrame::IncludeContentVisibility::Auto);
+      while (ancestor) {
+        if (auto* element = Element::FromNodeOrNull(ancestor->GetContent())) {
+          hasContentVisibilityAutoAncestor = true;
+          element->SetTemporarilyVisibleForScrolledIntoViewDescendant(true);
+          element->SetVisibleForContentVisibility(true);
+        }
+        ancestor = ancestor->GetClosestContentVisibilityAncestor(
+            nsIFrame::IncludeContentVisibility::Auto);
+      }
+      if (hasContentVisibilityAutoAncestor) {
+        UpdateHiddenContentInForcedLayout(frame);
+        // TODO: There might be the other already scheduled relevancy updates,
+        // other than caused be scrollIntoView.
+        UpdateContentRelevancyImmediately(ContentRelevancyReason::Visible);
+        reflowedForHiddenContent = ReflowForHiddenContentIfNeeded();
+      }
+    }
+  }
+
+  if (!reflowedForHiddenContent) {
+    // Flush layout and attempt to scroll in the process.
+    if (PresShell* presShell = composedDoc->GetPresShell()) {
+      presShell->SetNeedLayoutFlush();
+    }
+    composedDoc->FlushPendingNotifications(FlushType::InterruptibleLayout);
+  }
+
+  // If mContentToScrollTo is non-null, that means we interrupted the reflow
+  // (or suppressed it altogether because we're suppressing interruptible
+  // flushes right now) and won't necessarily get the position correct, but do
+  // a best-effort scroll here.  The other option would be to do this inside
+  // FlushPendingNotifications, but I'm not sure the repeated scrolling that
+  // could trigger if reflows keep getting interrupted would be more desirable
+  // than a single best-effort scroll followed by one final scroll on the first
+  // completed reflow.
+  if (mContentToScrollTo) {
+    DoScrollContentIntoView();
+  }

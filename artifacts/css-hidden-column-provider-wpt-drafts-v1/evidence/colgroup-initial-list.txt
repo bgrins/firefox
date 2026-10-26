@@ -1,0 +1,18 @@
+>>>  114: void nsTableColGroupFrame::SetInitialChildList(ChildListID aListID,
+     115:                                                nsFrameList&& aChildList) {
+     116:   MOZ_ASSERT(mFrames.IsEmpty(),
+     117:              "unexpected second call to SetInitialChildList");
+     118:   MOZ_ASSERT(aListID == FrameChildListID::Principal, "unexpected child list");
+     119: #ifdef DEBUG
+     120:   for (nsIFrame* f : aChildList) {
+     121:     MOZ_ASSERT(f->GetParent() == this, "Unexpected parent");
+     122:   }
+     123: #endif
+     124:   if (aChildList.IsEmpty()) {
+     125:     GetTableFrame()->AppendAnonymousColFrames(this, GetSpan(),
+     126:                                               eColAnonymousColGroup, false);
+     127:     return;
+     128:   }
+     129: 
+     130:   mFrames.AppendFrames(this, std::move(aChildList));
+     131: }

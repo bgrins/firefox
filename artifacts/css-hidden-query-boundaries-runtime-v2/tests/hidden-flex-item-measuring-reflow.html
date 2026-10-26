@@ -1,0 +1,107 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hidden flex items and descendants update their geometry after sibling changes</title>
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#resolve-flexible-lengths">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getboundingclientrect">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; width: 100px; height: 64px; }
+.subject { display: flex; width: 100px; height: 64px; align-items: flex-start; }
+.subject.hidden { content-visibility: hidden; }
+.item, .added { flex: 0 1 auto; width: 100px; min-width: 0; height: 32px; padding: 0; border: 0; margin: 0; }
+.subject.no-shrink .item, .subject.no-shrink .added { flex-shrink: 0; }
+.subject.zero-sibling .added { width: 0; }
+.nested { width: 100%; height: 32px; padding: 0; border: 0; margin: 0; }
+</style>
+<body>
+<script>
+"use strict";
+const query = {
+  bounding(node) {
+    const rect = node.getBoundingClientRect();
+    return [rect.width, rect.height];
+  },
+  offset: node => [node.offsetWidth, node.offsetHeight],
+};
+
+function create(configuration, inserted) {
+  const host = document.createElement("div");
+  host.className = "host";
+  const subject = document.createElement("div");
+  subject.className = `subject ${configuration.mode}`;
+  const item = document.createElement("div");
+  item.className = "item";
+  let target = item;
+  if (configuration.nested) {
+    target = document.createElement("div");
+    target.className = "nested";
+    item.append(target);
+  }
+  subject.append(item);
+  const added = document.createElement("div");
+  added.className = "added";
+  if (inserted) {
+    subject[configuration.insertion](added);
+  }
+  host.append(subject);
+  document.body.append(host);
+  return {host, subject, item, target, added};
+}
+
+function outerFlush(fixture) {
+  return [fixture.subject.getClientRects().length,
+    fixture.subject.scrollWidth, fixture.subject.scrollHeight];
+}
+
+for (const nested of [false, true]) {
+  for (const insertion of ["append"]) {
+    for (const mode of ["shrink", "no-shrink", "zero-sibling"]) {
+      for (const hidden of [false, true]) {
+        for (const api of ["bounding"]) {
+          test(t => {
+            assert_implements(CSS.supports("content-visibility", "hidden"),
+              "content-visibility: hidden");
+            const configuration = {nested, insertion, mode, hidden, api};
+            const fixture = create(configuration, false);
+            t.add_cleanup(() => { fixture.host.remove(); });
+            const stages = [];
+            for (const phase of ["warm", "visibility", "insert", "remove", "show"]) {
+              if (phase === "visibility") fixture.subject.classList.toggle("hidden", hidden);
+              if (phase === "insert") fixture.subject[insertion](fixture.added);
+              if (phase === "remove") fixture.added.remove();
+              if (phase === "show") fixture.subject.classList.remove("hidden");
+              const outer = outerFlush(fixture);
+              const first = query[api](fixture.target);
+              const second = query[api](fixture.target);
+              const third = query[api](fixture.target);
+              const reference = create(configuration, phase === "insert");
+              let visible;
+              try {
+                outerFlush(reference);
+                visible = query[api](reference.target);
+              } finally {
+                reference.host.remove();
+              }
+              stages.push({phase, outer, first, second, third, visible,
+                expected: [phase === "insert" && mode === "shrink" ? 50 : 100, 32]});
+            }
+            for (const stage of stages) {
+              assert_array_equals(stage.visible, stage.expected,
+                stage.phase + ": independently constructed visible reference");
+            }
+            for (const stage of stages) {
+              for (const read of ["first", "second", "third"]) {
+                assert_array_equals(stage[read], stage.expected,
+                  stage.phase + ": " + read + " geometry query");
+              }
+            }
+          }, `${nested ? "Descendant" : "Flex item"}, ${hidden ? "hidden" : "visible"}, ${insertion}, ${mode}, ${api}`);
+        }
+      }
+    }
+  }
+}
+</script>

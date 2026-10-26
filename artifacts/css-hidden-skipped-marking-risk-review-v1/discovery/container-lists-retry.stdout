@@ -1,0 +1,27 @@
+>>>  281: void nsContainerFrame::GetChildLists(nsTArray<ChildList>* aLists) const {
+     282:   mFrames.AppendIfNonempty(aLists, FrameChildListID::Principal);
+     283: 
+     284:   using T = mozilla::FrameProperties::UntypedDescriptor;
+     285:   mProperties.ForEach([this, aLists](const T& aProp, uint64_t aValue) {
+     286:     typedef const nsFrameList* L;
+     287:     if (aProp == OverflowProperty()) {
+     288:       reinterpret_cast<L>(aValue)->AppendIfNonempty(aLists,
+     289:                                                     FrameChildListID::Overflow);
+     290:     } else if (aProp == OverflowContainersProperty()) {
+     291:       MOZ_ASSERT(CanContainOverflowContainers(),
+     292:                  "found unexpected OverflowContainersProperty");
+     293:       (void)this;  // silence clang -Wunused-lambda-capture in opt builds
+     294:       reinterpret_cast<L>(aValue)->AppendIfNonempty(
+     295:           aLists, FrameChildListID::OverflowContainers);
+     296:     } else if (aProp == ExcessOverflowContainersProperty()) {
+     297:       MOZ_ASSERT(CanContainOverflowContainers(),
+     298:                  "found unexpected ExcessOverflowContainersProperty");
+     299:       (void)this;  // silence clang -Wunused-lambda-capture in opt builds
+     300:       reinterpret_cast<L>(aValue)->AppendIfNonempty(
+     301:           aLists, FrameChildListID::ExcessOverflowContainers);
+     302:     }
+     303:     return true;
+     304:   });
+     305: 
+     306:   nsSplittableFrame::GetChildLists(aLists);
+     307: }

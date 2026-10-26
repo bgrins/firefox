@@ -1,0 +1,83 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Visible table multicol fragmentation calibration</title>
+<link rel="help" href="https://drafts.csswg.org/css-break-3/#possible-breaks">
+<link rel="help" href="https://drafts.csswg.org/css-break-3/#break-between">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; }
+.columns { height: 40px; column-count: 2; column-gap: 20px; column-fill: auto; }
+.wide { width: 260px; }
+.narrow { width: 140px; }
+table { width: 100%; table-layout: fixed; border-spacing: 0; border: 0; margin: 0; padding: 0; font-size: 0; line-height: 0; }
+tr, td { height: 20px; border: 0; padding: 0; }
+tr, .block-row { break-inside: avoid; }
+.forced tr:nth-child(3) { break-before: column; }
+.solid { width: 1px; height: 20px; }
+.block-row { height: 20px; }
+</style>
+<body>
+<script>
+"use strict";
+window.tableFragmentCalibration = [];
+const variants = ["empty", "solid", "forced-empty", "forced-solid", "block-control"];
+function rect(r) {
+  return [r.x, r.y, r.width, r.height];
+}
+function rects(element) {
+  return [...element.getClientRects()].map(rect);
+}
+for (const width of [260, 140]) {
+  for (const variant of variants) {
+    test(t => {
+      const host = document.createElement("div");
+      host.className = "host";
+      const columns = document.createElement("div");
+      columns.className = `columns ${width === 260 ? "wide" : "narrow"}`;
+      const isBlock = variant === "block-control";
+      if (isBlock) {
+        columns.innerHTML = '<div class="block-row"><div class="solid"></div></div>'.repeat(4);
+      } else {
+        const content = variant.endsWith("solid") ? '<div class="solid"></div>' : "";
+        const cells = `<td>${content}</td>`.repeat(3);
+        const rows = `<tr>${cells}</tr>`.repeat(4);
+        columns.innerHTML = `<table class="${variant.startsWith("forced") ? "forced" : ""}"><colgroup><col span="2"><col></colgroup><tbody>${rows}</tbody></table>`;
+      }
+      host.append(columns);
+      document.body.append(host);
+      t.add_cleanup(() => host.remove());
+      const rowElements = [...columns.querySelectorAll(isBlock ? ".block-row" : "tr")];
+      const rowRects = rowElements.map(element => rect(element.getBoundingClientRect()));
+      const cells = [...columns.querySelectorAll("td")].map(element => rect(element.getBoundingClientRect()));
+      const table = columns.querySelector("table");
+      const column = columns.querySelector("col");
+      const record = { width, variant, columns: rect(columns.getBoundingClientRect()), rows: rowRects,
+        cells, tableRects: table ? rects(table) : [], columnRects: column ? rects(column) : [],
+        rowBreaks: rowElements.map(element => getComputedStyle(element).breakBefore) };
+      window.tableFragmentCalibration.push(record);
+      assert_array_equals(record.columns, [10, 10, width, 40], "calibration: multicol bounds");
+      assert_equals(rowRects.length, 4, "calibration: four rows");
+      const columnWidth = (width - 20) / 2;
+      for (let i = 0; i < rowRects.length; ++i) {
+        const expected = [10 + Math.floor(i / 2) * (columnWidth + 20), 10 + (i % 2) * 20, columnWidth, 20];
+        assert_array_equals(rowRects[i], expected, `calibration: row ${i} in two-column geometry`);
+      }
+      if (!isBlock) {
+        assert_equals(cells.length, 12, "calibration: cell roster");
+        for (let i = 0; i < cells.length; ++i) {
+          const row = Math.floor(i / 3);
+          const expected = [10 + Math.floor(row / 2) * (columnWidth + 20) + (i % 3) * columnWidth / 3,
+            10 + (row % 2) * 20, columnWidth / 3, 20];
+          assert_array_equals(cells[i], expected, `calibration: cell ${i}`);
+        }
+        assert_equals(record.tableRects.length, 2, "calibration: two table fragments");
+        for (let i = 0; i < 2; ++i) {
+          assert_array_equals(record.tableRects[i], [10 + i * (columnWidth + 20), 10, columnWidth, 40], "calibration: table fragment");
+        }
+      }
+    }, `Visible fragmentation calibration: ${variant}, width ${width}`);
+  }
+}
+</script>

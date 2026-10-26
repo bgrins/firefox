@@ -1,0 +1,43 @@
+void PresShell::UpdateHiddenContentInForcedLayout(nsIFrame* aFrame) {
+  mozilla::HiddenColumnIdentityTrace::Record("query-entry", aFrame);
+  if (!aFrame) {
+    return;
+  }
+  if (!aFrame->IsSubtreeDirty()) {
+    nsIFrame* provider = aFrame;
+    if (provider->IsTableColFrame()) {
+      provider = provider->GetParent();
+    }
+    if (!provider || !provider->IsTableColGroupFrame()) {
+      mozilla::HiddenColumnIdentityTrace::Record("query-reject-kind", aFrame);
+      return;
+    }
+    provider = provider->GetParent();
+    if (!provider || !provider->IsTableFrame() || !provider->IsSubtreeDirty()) {
+      mozilla::HiddenColumnIdentityTrace::Record("query-reject-provider", aFrame);
+      return;
+    }
+  }
+
+  mozilla::HiddenColumnIdentityTrace::Record("query-admitted", aFrame);
+  nsIFrame* topmostFrameWithContentHidden = nullptr;
+  for (nsIFrame* cur = aFrame->GetInFlowParent(); cur;
+       cur = cur->GetInFlowParent()) {
+    if (cur->HidesContent()) {
+      mozilla::HiddenColumnIdentityTrace::Record("query-hidden-ancestor", cur, aFrame);
+      topmostFrameWithContentHidden = cur;
+      mHiddenContentInForcedLayout.Insert(cur->GetContent());
+    }
+  }
+
+  if (mHiddenContentInForcedLayout.IsEmpty()) {
+    mozilla::HiddenColumnIdentityTrace::Record("query-no-forcing", aFrame);
+    return;
+  }
+
+  // Queue and immediately flush a reflow for this node.
+  MOZ_ASSERT(topmostFrameWithContentHidden);
+  mozilla::HiddenColumnIdentityTrace::Record("query-queue", aFrame, topmostFrameWithContentHidden);
+  FrameNeedsReflow(topmostFrameWithContentHidden, IntrinsicDirty::None,
+                   NS_FRAME_IS_DIRTY);
+}

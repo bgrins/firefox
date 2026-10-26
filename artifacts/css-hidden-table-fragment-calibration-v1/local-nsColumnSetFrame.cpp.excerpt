@@ -1,0 +1,31 @@
+            // If this is the last balancing reflow, we want to force fit
+            // content to avoid infinite loops.
+            return !aConfig.mIsBalancing || aConfig.mIsLastBalancingReflow;
+          }
+          // If we are a not at the top of page, we shouldn't force fit content.
+          // This is because our ColumnSetWrapperFrame can be pushed to the next
+          // column or page and reflowed again with a potentially larger
+          // available block-size.
+          return false;
+        }
+        // We are a top-level multicol in a non-paginated root document or in a
+        // subdocument (regardless of whether the root document is paginated).
+        // Force fit the content only if we are not balancing columns.
+        return !aConfig.mIsBalancing;
+      }();
+      kidReflowInput.mFlags.mTableIsSplittable = false;
+      kidReflowInput.mFlags.mIsColumnBalancing = aConfig.mIsBalancing;
+      kidReflowInput.mFlags.mIsInLastColumnBalancingReflow =
+          aConfig.mIsLastBalancingReflow;
+      kidReflowInput.mFlags.mIsInFragmentainerMeasuringReflow =
+          aConfig.mIsInMeasuringReflow;
+      kidReflowInput.mBreakType = BreakType::Column;
+
+      // We need to reflow any float placeholders even if our column block-size
+      // hasn't changed, or when reflowing the last column with an unconstrained
+      // available block-size, so floats pushed during an earlier reflow get
+      // reflowed again.
+      kidReflowInput.mFlags.mMustReflowPlaceholders =
+          !changingBSize || reflowLastColumnWithUnconstrainedAvailBSize;
+
+      COLUMN_SET_LOG(

@@ -1,0 +1,121 @@
+--- prior/experiment.py
++++ successor/experiment.py
+@@ -32,7 +32,12 @@
+ spec=importlib.util.spec_from_file_location('compact_wpt',HERE/'run_wpt.py')
+ wpt=importlib.util.module_from_spec(spec)
+ spec.loader.exec_module(wpt)
++cost_spec=importlib.util.spec_from_file_location('cost_hook',HERE/'cost_hook.py')
++cost_hook=importlib.util.module_from_spec(cost_spec)
++cost_spec.loader.exec_module(cost_hook)
+ c=wpt.CONFIG
++need(c.get('ready_for_preparation') is True, 'draft not ready for execution')
++need(cost_hook.authenticate(ROOT,c['cost'])==inputs['cost_payload_pins'],'cost inputs changed')
+ for n,h in inputs['prior_terminal_pins'].items():
+     need(sha(ROOT/n)==h,'prior terminal receipt changed '+n)
+ before=wpt.snapshot()
+@@ -46,10 +51,13 @@
+     need((ROOT/n).read_bytes()==original[n] and wpt.git('show','HEAD:'+n)==head[n],'original/HEAD snapshot '+n)
+ PRES_SHELL='layout/base/PresShell.cpp'
+ BLOCK='layout/generic/nsBlockFrame.cpp'
+-phases=[('baseline','pres-shell-before.cpp','block-before.cpp'),
+-        ('column-provider','pres-shell-column.cpp','block-before.cpp'),
+-        ('skipped-line-block','pres-shell-before.cpp','block-skipped-line.cpp'),
+-        ('both','pres-shell-column.cpp','block-skipped-line.cpp')]
++phases=[('baseline','pres-shell-before.cpp','block-before.cpp',False),
++        ('column-provider','pres-shell-column.cpp','block-before.cpp',False),
++        ('skipped-line-block','pres-shell-before.cpp','block-skipped-line.cpp',False),
++        ('both','pres-shell-column.cpp','block-skipped-line.cpp',False),
++        ('standalone-baseline','pres-shell-before.cpp','block-before.cpp',True),
++        ('standalone-column-provider','pres-shell-column.cpp','block-before.cpp',True),
++        ('standalone-skipped-line-block','pres-shell-before.cpp','block-skipped-line.cpp',True)]
+ state={'status':'starting','accepted_native_repair':False,'phases':{}}
+ errors=[]
+ changed=False
+@@ -67,10 +75,15 @@
+ def result_map(run):
+     return {(r['test'],r['subtest']):(r['status'],r.get('message')) for r in run['rows']}
+ 
+-prior_run=json.loads((HERE/'evidence/prior-both-RUN.json').read_text())
+-prior_rows=result_map(prior_run)
+-need(prior_run['complete'] and len(prior_rows)==66, 'prior baseline oracle incomplete')
+-baseline_rows=None
++prior_runs={name:json.loads((HERE/'evidence'/('prior-'+name+'-RUN.json')).read_text())
++            for name in ['baseline','column-provider','skipped-line-block','both']}
++prior_keys=set(result_map(prior_runs['baseline']))
++need(len(prior_keys)==66 and all(run['complete'] and set(result_map(run))==prior_keys
++     for run in prior_runs.values()), 'prior four-phase oracle incomplete')
++standalone_prior=json.loads((HERE/'evidence/prior-standalone-baseline-RUN.json').read_text())
++need(standalone_prior['complete'] and set(result_map(standalone_prior))==prior_keys,
++     'standalone historical oracle incomplete')
++family_baselines={}
+ 
+ def recovery_save(name,value):
+     try:
+@@ -89,14 +102,19 @@
+     for n,data in head.items():
+         changed=True
+         (ROOT/n).write_bytes(data)
+-    for name,pres_shell,block in phases:
++    for name,pres_shell,block,standalone in phases:
+         authenticate_payloads()
+         selected={PRES_SHELL:(HERE/'selected'/pres_shell).read_bytes(),
+-                  BLOCK:(HERE/'selected'/block).read_bytes()}
++                  BLOCK:(HERE/'selected'/block).read_bytes(),
++                  'layout/generic/nsFlexContainerFrame.cpp':(HERE/'selected'/('flex-without104.cpp' if standalone else 'flex-accepted.cpp')).read_bytes(),
++                  'layout/generic/AbsoluteContainingBlock.cpp':(HERE/'selected'/('absolute-without105.cpp' if standalone else 'absolute-accepted.cpp')).read_bytes()}
+         for n,data in selected.items():
+             (ROOT/n).write_bytes(data)
+         epoch()
+         sources_expected(selected)
++        if name=='standalone-baseline':
++            need(all(sha(ROOT/n)==standalone_prior['before'][n] for n in c['guard_sources']),
++                 'standalone historical source roles differ')
+         need(wpt.pins(list(inputs['resource_pins']))==inputs['resource_pins'],'pre-build test/resource drift')
+         state['status']='building '+name
+         record=state['phases'][name]={}
+@@ -116,17 +134,40 @@
+         record['status_counts']={status:sum(r['status']==status for r in run['rows']) for status in ['PASS','FAIL']}
+         record['failures']=[{'test':r['test'],'subtest':r['subtest'],'message':r.get('message')} for r in run['rows'] if r['status']=='FAIL']
+         rows=result_map(run)
+-        if name=='baseline':
+-            need(rows==prior_rows, 'baseline differs from retained both-repair oracle')
+-            need({r['test']:r['status'] for r in run['ends']}==
+-                 {r['test']:r['status'] for r in prior_run['ends']}, 'baseline file-end oracle differs')
+-            baseline_rows=rows
++        if not standalone or name=='standalone-baseline':
++            prior_run=standalone_prior if standalone else prior_runs[name]
++            need(all(run['before'][n]==pin for n,pin in prior_run['before'].items()
++                     if n not in c['guard_sources']+wpt.BINARIES),
++                 'prior66 test/resource/metadata differs '+name)
++            need({key:rows[key] for key in prior_keys}==result_map(prior_run),
++                 'prior66 variant oracle changed '+name)
++            current_ends={r['test']:r['status'] for r in run['ends']}
++            need(all(current_ends[r['test']]==r['status'] for r in prior_run['ends']),
++                 'prior66 file-end oracle differs '+name)
++        family='standalone' if standalone else 'main'
++        if name in ['baseline','standalone-baseline']:
++            family_baselines[family]=rows
++        baseline_rows=family_baselines[family]
++        record['comparison_family']=family
++        tracked_ids={'/'+str(Path(t).relative_to('testing/web-platform/tests')) for t in c['tracked_tests']}
++        record['tracked50_historical_controls']={status:sum(key[0] in tracked_ids and value[0]==status for key,value in rows.items()) for status in ['PASS','FAIL']}
++        record['candidate54_cases']={status:sum(key[0] not in tracked_ids and value[0]==status for key,value in rows.items()) for status in ['PASS','FAIL']}
++        record['standalone_control_limit']='Removing 104/105 can fail tracked50; candidate independence uses the other54 and this family baseline' if standalone else None
++        record['prior66_exact_match']=not standalone or name=='standalone-baseline'
+         changes=[{'test':key[0],'subtest':key[1],'before':baseline_rows[key],
+                   'after':rows[key]} for key in sorted(rows) if rows[key]!=baseline_rows[key]]
+         record['changes_from_baseline']=changes
+         record['status_transitions']={label:sum(baseline_rows[k][0]+'->'+rows[k][0]==label for k in rows)
+                                       for label in ['PASS->PASS','PASS->FAIL','FAIL->PASS','FAIL->FAIL']}
+         wpt.save('STATE.json',state)
++        if name in c['cost']['phases']:
++            state['status']='cost '+name
++            wpt.save('STATE.json',state)
++            record['cost']=cost_hook.run(wpt,name,inputs['cost_payload_pins'],run)
++            epoch()
++            sources_expected(selected)
++            need(wpt.pins(list(inputs['resource_pins']))==inputs['resource_pins'],'post-cost resource drift')
++            wpt.save('STATE.json',state)
+ except BaseException as error:
+     state['failure']={'type':type(error).__name__,'message':str(error)}
+ finally:

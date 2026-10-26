@@ -1,0 +1,22 @@
+    1941:    */
+    1942:   virtual const nsFrameList& GetChildList(ChildListID aListID) const;
+    1943:   const nsFrameList& PrincipalChildList() const {
+    1944:     return GetChildList(mozilla::FrameChildListID::Principal);
+    1945:   }
+    1946: 
+    1947:   /**
+    1948:    * Sub-classes should override this methods if they want to append their own
+    1949:    * child lists into aLists.
+    1950:    */
+>>> 1951:   virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
+    1952: 
+    1953:   /**
+    1954:    * Returns the child lists for this frame.
+    1955:    */
+    1956:   AutoTArray<ChildList, 4> ChildLists() const {
+    1957:     AutoTArray<ChildList, 4> childLists;
+    1958:     GetChildLists(&childLists);
+    1959:     return childLists;
+    1960:   }
+    1961: 
+

@@ -1,0 +1,22 @@
+>>>   89: class NS_ConvertUTF16toUTF8 : public nsAutoCString {
+      90:  public:
+      91:   explicit NS_ConvertUTF16toUTF8(const char16ptr_t aString) {
+      92:     AppendUTF16toUTF8(mozilla::MakeStringSpan(aString), *this);
+      93:   }
+      94: 
+      95:   NS_ConvertUTF16toUTF8(const char16ptr_t aString, size_t aLength) {
+      96:     AppendUTF16toUTF8(Substring(static_cast<const char16_t*>(aString), aLength),
+      97:                       *this);
+      98:   }
+      99: 
+     100:   explicit NS_ConvertUTF16toUTF8(const nsAString& aString) {
+     101:     AppendUTF16toUTF8(aString, *this);
+     102:   }
+     103: 
+     104:   explicit NS_ConvertUTF16toUTF8(mozilla::Span<const char16_t> aString) {
+     105:     AppendUTF16toUTF8(aString, *this);
+     106:   }
+     107: 
+     108:   // NOT TO BE IMPLEMENTED
+     109:   NS_ConvertUTF16toUTF8(char) = delete;
+     110: };

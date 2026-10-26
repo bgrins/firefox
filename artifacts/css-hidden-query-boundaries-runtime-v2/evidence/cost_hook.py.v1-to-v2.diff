@@ -1,0 +1,9 @@
+--- v1/cost_hook.py
++++ v2/cost_hook.py
+@@ -79,5 +79,6 @@
+     need(summary == json.loads((output / 'SUMMARY.json').read_text())
+          and summary['measuredRows'] == 90 and summary['queryReads'] == 2952000,
+          'cost exact work/summary')
++    need(summary['hotMismatchesByGroup'] == {}, 'clean-state hot geometry mismatch')
+     return {'exit': code, 'summary': summary, 'progress': len(progress),
+             'result_sha256': sha(output / 'RESULT.json'), 'cleanup_verified': True}

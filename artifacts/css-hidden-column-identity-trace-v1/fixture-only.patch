@@ -1,0 +1,35 @@
+--- unlabeled-two-case.html
++++ paired-fixed-ids.html
+@@ -21,10 +21,20 @@
+ <script>
+ "use strict";
+ window.columnIndependentResults = [];
+-function fixture(selector) {
++function fixture(selector, role) {
+   const host = document.createElement("div");
+   host.className = "host";
+   host.innerHTML = `<div class="outer"><div class="subject"><div class="item"><table><colgroup><col><col></colgroup><tbody><tr><td></td><td></td></tr></tbody></table></div></div></div>`;
++  const prefix = `cvjoin-${selector}-${role}`;
++  host.id = `${prefix}-host`;
++  for (const [path, name] of [
++    [".outer", "outer"], [".subject", "subject"], [".item", "item"],
++    ["table", "table"], ["colgroup", "group"], ["col:first-child", "col0"],
++    ["col:last-child", "col1"], ["tbody", "body"], ["tr", "row"],
++    ["td:first-child", "cell0"], ["td:last-child", "cell1"]
++  ]) {
++    host.querySelector(path).id = `${prefix}-${name}`;
++  }
+   document.body.append(host);
+   return {host, outer: host.querySelector(".outer"), subject: host.querySelector(".subject"), table: host.querySelector("table"), target: host.querySelector(selector)};
+ }
+@@ -36,8 +46,8 @@
+   for (const selector of ["col", "colgroup"]) {
+     test(t => {
+       assert_implements(CSS.supports("content-visibility", "hidden"));
+-      const target = fixture(selector);
+-      const reference = fixture(selector);
++      const target = fixture(selector, "target");
++      const reference = fixture(selector, "reference");
+       t.add_cleanup(() => { target.host.remove(); reference.host.remove(); });
+       const rows = [];
+       for (const stage of ["warm", "hide", "change", "restore", "show"]) {

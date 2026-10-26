@@ -1,0 +1,61 @@
+
+"use strict";
+window.columnIndependentResults = [];
+function fixture(selector, role) {
+  const host = document.createElement("div");
+  host.className = "host";
+  host.innerHTML = `<div class="outer"><div class="subject"><div class="item"><table><colgroup><col><col></colgroup><tbody><tr><td></td><td></td></tr></tbody></table></div></div></div>`;
+  const prefix = `cvjoin-${selector}-${role}`;
+  host.id = `${prefix}-host`;
+  for (const [path, name] of [
+    [".outer", "outer"], [".subject", "subject"], [".item", "item"],
+    ["table", "table"], ["colgroup", "group"], ["col:first-child", "col0"],
+    ["col:last-child", "col1"], ["tbody", "body"], ["tr", "row"],
+    ["td:first-child", "cell0"], ["td:last-child", "cell1"]
+  ]) {
+    host.querySelector(path).id = `${prefix}-${name}`;
+  }
+  document.body.append(host);
+  return {host, outer: host.querySelector(".outer"), subject: host.querySelector(".subject"), table: host.querySelector("table"), target: host.querySelector(selector)};
+}
+function rect(element) {
+  const r = element.getBoundingClientRect();
+  return [r.x, r.y, r.width, r.height];
+}
+for (const route of ["outer-width"]) {
+  for (const selector of ["col", "colgroup"]) {
+    test(t => {
+      assert_implements(CSS.supports("content-visibility", "hidden"));
+      const target = fixture(selector, "target");
+      const reference = fixture(selector, "reference");
+      t.add_cleanup(() => { target.host.remove(); reference.host.remove(); });
+      const rows = [];
+      for (const stage of ["warm", "hide", "change", "restore", "show"]) {
+        if (stage === "hide") target.subject.classList.add("hidden");
+        if (stage === "change" || stage === "restore") {
+          const key = route === "outer-width" ? "outer" : "table";
+          target[key].classList.toggle("narrow", stage === "change");
+          reference[key].classList.toggle("narrow", stage === "change");
+        }
+        if (stage === "show") target.subject.classList.remove("hidden");
+        const outer = rect(target.outer);
+        const first = rect(target.target);
+        const second = rect(target.target);
+        const visible = rect(reference.target);
+        const tableWidth = stage === "change" ? 50 : 100;
+        const width = selector === "col" || selector === "td" ? tableWidth / 2 : tableWidth;
+        rows.push({stage, outer, first, second, visible, expected: [10, 10, width, 32]});
+      }
+      window.columnIndependentResults.push({route, selector, rows});
+      for (const row of rows) {
+        assert_array_equals(row.visible, row.expected, `${row.stage}: independent visible calibration`);
+        const outerWidth = route === "outer-width" && row.stage === "change" ? 50 : 100;
+        assert_array_equals(row.outer, [10, 10, outerWidth, 64], `${row.stage}: outer-only flush calibration`);
+      }
+      for (const row of rows) {
+        assert_array_equals(row.first, row.expected, `${row.stage}: first selected query`);
+        assert_array_equals(row.second, row.expected, `${row.stage}: repeat selected query`);
+      }
+    }, `Independent hidden column trigger: ${route}, ${selector}`);
+  }
+}

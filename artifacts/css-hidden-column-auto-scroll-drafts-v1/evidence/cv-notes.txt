@@ -1,0 +1,137 @@
+# CSS-CONTAIN-2#cv-notes
+
+**Restrictions and Clarifications** (heading)
+
+**SHA**: hash:d3d2a6aead18ef518d694f62280f5a8cd01c52e0a817546858760c002f240cee
+
+## Content
+
+1.   From the perspective of an [`IntersectionObserver`](INTERSECTIONOBSERVER#intersectionobserver), the [skipped contents](CSS-CONTAIN-2#skips-its-contents) of an element are never intersecting the [intersection root](INTERSECTIONOBSERVER#intersectionobserver-intersection-root). This is true even if both the root and the target elements are in the skipped contents.
+
+     Tests
+
+     *   [content-visibility-030.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-030.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-030.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-030.html)
+
+2.   From the perspective of a [`ResizeObserver`](RESIZE-OBSERVER-1#resizeobserver), the [skipped contents](CSS-CONTAIN-2#skips-its-contents) of an element never change their size. If these elements become non-skipped later, the resize observation will be delivered if the new size differs from the last size used to notify the resize observer.
+
+     Tests
+
+     *   [content-visibility-031.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-031.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-031.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-031.html)
+
+3.   If an element starts or stops [skipping its contents](CSS-CONTAIN-2#skips-its-contents), this change happens when [update content relevancy for a document](CSS-CONTAIN-2#update-content-relevancy-for-a-document) runs.
+
+     > **Note:** Determining the viewport intersection of the element can be done with an internal version of an IntersectionObserver. However, since the observations from this are dispatched at step 14 of [update the rendering](HTML#update-the-rendering), any changes to the [skipped](CSS-CONTAIN-2#skips-its-contents) (and thus painted) state will not be visible to the user until the next frame’s processing. For this reason, updating the skipped state, including containment adjustments, is deferred to that frame as well. This ensures that script accessing, for example, the containment value of the element between these two events (internal intersection observation and skipped state update) will retrieve values consistent with current painted state and not cause any forced layouts.
+
+4.   Elements with [content-visibility: auto](CSS-CONTAIN-2#propdef-content-visibility) that have not determined [proximity to the viewport](CSS-CONTAIN-2#proximity-to-the-viewport) must determine their proximity to the viewport in the next [update the rendering](HTML#update-the-rendering) cycle. The effect of this determination must be reflected in the visual update which results from this update the rendering cycle. See [the event loop process model](HTML#event-loop-processing-model:content-visibility-auto) for the concrete algorithm description.
+
+     > **Note:** When an element first gains [content-visibility: auto](CSS-CONTAIN-2#propdef-content-visibility), it may or may not be positioned on screen. The determination of this state and thus determination of whether this element is [skipped](CSS-CONTAIN-2#skips-its-contents) must happen in the same frame. If it does not, then there is a possibility of producing blank content in the element’s place since visibility check and skipped state update would be deferred to the next frame.
+
+5.   For the purposes of scrolling operations, such as [`scrollIntoView()`](CSSOM-VIEW-1#dom-element-scrollintoview), an element with [content-visibility: auto](CSS-CONTAIN-2#propdef-content-visibility) that is [skipping its contents](CSS-CONTAIN-2#skips-its-contents) has its size and location determined *with* [size containment](CSS-CONTAIN-2#size-containment) still active.
+
+     Tests
+
+     *   [content-visibility-058.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-058.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-058.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-058.html)
+
+     > **Note:** Note: Once it’s scrolled into view, the element will no longer [skip its contents](CSS-CONTAIN-2#skips-its-contents), and so might not have [size containment](CSS-CONTAIN-2#size-containment); if this changes the element’s size, it might not align in the viewport exactly as requested.
+
+     If an element is not available to user-agent features (for example, if it is [skipped](CSS-CONTAIN-2#skips-its-contents) due to a [content-visibility: hidden](CSS-CONTAIN-2#propdef-content-visibility) ancestor), then scrolling operations must not scroll to it at all, as if it did not have a layout box.
+
+     Tests
+
+     *   [content-visibility-043.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-043.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-043.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-043.html)
+     *   [content-visibility-056.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-056.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-056.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-056.html)
+
+6.   If an element with [content-visibility: auto](CSS-CONTAIN-2#propdef-content-visibility) that is [skipping its contents](CSS-CONTAIN-2#skips-its-contents) is focused (or its contents are), it becomes [relevant to the user](CSS-CONTAIN-2#relevant-to-the-user) (and thus stops skipping its contents) *before* it is scrolled into view due to the focusing.
+
+     Tests
+
+     *   [content-visibility-064.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-064.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-064.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-064.html)
+
+     > **Note:** Note: Thus, unlike the previous point, the element *will* be correctly sized and aligned in the viewport. This is consistent with the order of the steps for the [`focus()`](HTML#dom-window-focus) method.
+
+7.   If an [`iframe`](HTML#the-iframe-element) [skips its contents](CSS-CONTAIN-2#skips-its-contents) or is part of an element’s skipped contents, the user agent should entirely skip the [Update The Rendering](HTML#update-the-rendering) step in the iframe’s event loop, if possible.
+
+     Tests
+
+     *   [content-visibility-004.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-004.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-004.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-004.html)
+     *   [content-visibility-020.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-020.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-020.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-020.html)
+
+     > **Note:** Note: At the moment the [`iframe`](HTML#the-iframe-element) starts being [skipped](CSS-CONTAIN-2#skips-its-contents), it needs to run that step at least once to remove the painted output.
+
+8.   [Skipped contents](CSS-CONTAIN-2#skips-its-contents) do not contribute to the result of [`innerText`](HTML#dom-innertext).
+
+     Tests
+
+     *   [content-visibility-029.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-029.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-029.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-029.html)
+
+9.   While an element is [skipped](CSS-CONTAIN-2#skips-its-contents), CSS transitions and animations on the element do not update:
+
+     *   New animations are not created even if newly-applied style would start one.
+
+     *   Existing animations do not advance in their timeline.
+
+     *   Running animations on the element do not end.
+     If script queries the style of a [skipped](CSS-CONTAIN-2#skips-its-contents) element (causing a [style change event](CSS-TRANSITIONS-1#style-change-event)) such that knowing the state of animations or transitions is required to return correct information, animation and transitions are sampled according to the styles at the time of that style change event:
+
+     Tests
+
+     *   [animation-display-lock.html](https://wpt.fyi/results/css/css-contain/content-visibility/animation-display-lock.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/animation-display-lock.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/animation-display-lock.html)
+
+     [CSS Animations 2 § 5 Animation Events](CSS-ANIMATIONS-2#events) and [CSS Transitions 2 § 5 Transition Events](CSS-TRANSITIONS-2#transition-events) defines what objects are created and what events are fired, with what data, when an animation or transition is updated,.
+
+     When an element stops being [skipped](CSS-CONTAIN-2#skips-its-contents), animations and transitions are sampled and then resume advancing on their timelines as normal from that point.
+
+     > **Note:** Note: Overall, this is similar to the behavior of transitions/animations when a background tab is brought back to the foreground, allowing user agents to skip as much unnecessary animation work as possible without overly disrupting the animations when they become relevant again.
+
+10.  While an element is [skipped](CSS-CONTAIN-2#skips-its-contents), it must not start any transitions, even if a [style change event](CSS-TRANSITIONS-1#style-change-event) affects its computed styles.
+
+     When an element stops being [skipped](CSS-CONTAIN-2#skips-its-contents), it must not start any transitions as a result of the [style change event](CSS-TRANSITIONS-1#style-change-event) associated with it no longer being skipped.
+
+     > **Note:** Note: This is similar to an element switching from display:none to a non-[none](CSS-DISPLAY-4#valdef-display-none) value—​even though the styles are *technically* changing in that case (from their initial values to their "proper" values from the cascade), no transitions are started.
+
+11.  If an element has an ancestor with [content-visibility: hidden](CSS-CONTAIN-2#propdef-content-visibility), and it is placed in the [top layer](CSS-POSITION-4#document-top-layer), it does not generate any boxes, as if it were [display: none](CSS-DISPLAY-3#propdef-display).
+
+     Tests
+
+     *   [content-visibility-with-top-layer-000.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-with-top-layer-000.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-with-top-layer-000.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-with-top-layer-000.html)
+     *   [content-visibility-with-top-layer-001.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-with-top-layer-001.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-with-top-layer-001.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-with-top-layer-001.html)
+     *   [content-visibility-with-top-layer-002.html](https://wpt.fyi/results/css/css-contain/content-visibility/content-visibility-with-top-layer-002.html) [(live test)](http://wpt.live/css/css-contain/content-visibility/content-visibility-with-top-layer-002.html) [(source)](https://github.com/web-platform-tests/wpt/blob/master/css/css-contain/content-visibility/content-visibility-with-top-layer-002.html)
+
+     > **Note:** Note: An element [skipped](CSS-CONTAIN-2#skips-its-contents) for other reasons, such as having a [content-visibility: auto](CSS-CONTAIN-2#propdef-content-visibility) ancestor, will still generate boxes as normal, and might thus become un-skipped.
+
+12.  A [media element](HTML#media-element) that has [content-visibility: hidden](CSS-CONTAIN-2#propdef-content-visibility) or is in the [skipped contents](CSS-CONTAIN-2#skips-its-contents) of an element with content-visibility: hidden is not paused on account of being skipped. If it is playing, its playback position advances as if it were not skipped. Its audio output must be suppressed while skipped, without changing its [`muted`](HTML#dom-media-muted) or [`volume`](HTML#dom-media-volume) attributes.
+
+     Events queued by the media element while skipped are not dispatched until it stops being skipped. Queries of the media element’s state, such as [`currentTime`](HTML#dom-media-currenttime) or [`paused`](HTML#dom-media-paused), reflect the current playback state.
+
+     If an [`iframe`](HTML#the-iframe-element) has [content-visibility: hidden](CSS-CONTAIN-2#propdef-content-visibility) or is in the [skipped contents](CSS-CONTAIN-2#skips-its-contents) of an element with content-visibility: hidden, this also applies to media elements in its document.
+
+     Audio output need not be suppressed if the media is presented outside the skipped contents, for example in a picture-in-picture window.
+
+     > **Note:** Note: This does not apply to contents [skipped](CSS-CONTAIN-2#skips-its-contents) due to [content-visibility: auto](CSS-CONTAIN-2#propdef-content-visibility), which are off-screen but may remain [relevant to the user](CSS-CONTAIN-2#relevant-to-the-user), such as a playing audio element scrolled out of view.
+
+## Navigation
+
+- Parent: `content-visibility` — Suppressing An Element’s Contents Entirely: the content-visibility property
+- Prev: `content-visibility-auto-state-change` — Detecting content-visibility: auto state changes: the contentvisibilityautostatechange event
+- Next: `cv-a11y` — Accessibility Implications
+
+## Outgoing refs (26)
+
+`webspec-index refs CSS-CONTAIN-2#cv-notes -d outgoing -l 26`
+
+## Incoming refs (4)
+
+- CSS-CONTAIN-2#changes-since-2020-06-03
+- CSS-CONTAIN-2#changes-since-2022-09-17
+- CSS-CONTAIN-2#content-visibility
+- CSS-CONTAIN-2#contents
+
+### Possible effects
+
+CSS-CONTAIN-2#cv-notes
+
+Partial analysis: additional effects may exist.
+
+No effects detected by this analysis.
+
+Traces and conditions (bounded): `webspec-index effects "CSS-CONTAIN-2#cv-notes" --format markdown`

@@ -1,0 +1,13 @@
+--- v1/experiment.py
++++ v2/experiment.py
+@@ -151,8 +151,8 @@
+         record['comparison_family']=family
+         tracked_ids={'/'+str(Path(t).relative_to('testing/web-platform/tests')) for t in c['tracked_tests']}
+         record['tracked50_historical_controls']={status:sum(key[0] in tracked_ids and value[0]==status for key,value in rows.items()) for status in ['PASS','FAIL']}
+-        record['candidate54_cases']={status:sum(key[0] not in tracked_ids and value[0]==status for key,value in rows.items()) for status in ['PASS','FAIL']}
+-        record['standalone_control_limit']='Removing 104/105 can fail tracked50; candidate independence uses the other54 and this family baseline' if standalone else None
++        record['candidate_cases']={status:sum(key[0] not in tracked_ids and value[0]==status for key,value in rows.items()) for status in ['PASS','FAIL']}
++        record['standalone_control_limit']='Removing 104/105 can fail tracked50; candidate independence uses the untracked candidate cases and this family baseline' if standalone else None
+         record['prior66_exact_match']=not standalone or name=='standalone-baseline'
+         changes=[{'test':key[0],'subtest':key[1],'before':baseline_rows[key],
+                   'after':rows[key]} for key in sorted(rows) if rows[key]!=baseline_rows[key]]

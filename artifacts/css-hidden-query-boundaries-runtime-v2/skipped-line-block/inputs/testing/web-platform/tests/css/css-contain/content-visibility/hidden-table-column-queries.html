@@ -1,0 +1,72 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Column geometry queries after hidden child layout is skipped</title>
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getclientrects">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; }
+.subject { display: flex; position: relative; width: 100px; height: 64px; align-items: flex-start; }
+.subject.oof { width: 200px; justify-content: center; }
+.subject.hidden { content-visibility: hidden; }
+.item, .added { flex: 0 1 auto; width: 100px; min-width: 0; height: 32px; }
+.oof .item { position: absolute; }
+.oof .added { flex: none; width: 20px; }
+table { table-layout: fixed; width: 100%; height: 32px; border-spacing: 0; border: 0; padding: 0; margin: 0; }
+td { border: 0; padding: 0; height: 32px; }
+</style>
+<body>
+<script>
+"use strict";
+function fixture(route, selector) {
+  const host = document.createElement("div");
+  host.className = "host";
+  host.innerHTML = `<div class="subject ${route}"><div class="item"><table><colgroup><col><col></colgroup><tbody><tr><td></td><td></td></tr></tbody></table></div></div>`;
+  const added = document.createElement("div");
+  added.className = "added";
+  document.body.append(host);
+  return {host, added, subject: host.querySelector(".subject"), target: host.querySelector(selector)};
+}
+function rect(node) {
+  const r = node.getBoundingClientRect();
+  return [r.x, r.y, r.width, r.height];
+}
+for (const route of ["principal", "oof"]) {
+  for (const selector of ["col", "colgroup", "td", "table"]) {
+    test(t => {
+      assert_implements(CSS.supports("content-visibility", "hidden"));
+      const target = fixture(route, selector);
+      const reference = fixture(route, selector);
+      t.add_cleanup(() => { target.host.remove(); reference.host.remove(); });
+      const rows = [];
+      for (const stage of ["warm", "hide", "append", "remove", "show"]) {
+        if (stage === "hide") target.subject.classList.add("hidden");
+        if (stage === "append") {
+          target.subject.append(target.added);
+          reference.subject.append(reference.added);
+        }
+        if (stage === "remove") { target.added.remove(); reference.added.remove(); }
+        if (stage === "show") target.subject.classList.remove("hidden");
+        target.subject.getClientRects();
+        target.subject.scrollWidth;
+        const first = rect(target.target);
+        const second = rect(target.target);
+        const visible = rect(reference.target);
+        const itemWidth = route === "principal" && stage === "append" ? 50 : 100;
+        const width = selector === "col" || selector === "td" ? itemWidth / 2 : itemWidth;
+        const expected = [route === "oof" ? 60 : 10, 10, width, 32];
+        rows.push({stage, first, second, visible, expected});
+      }
+      for (const row of rows) {
+        assert_array_equals(row.visible, row.expected, `${row.stage}: independent visible calibration`);
+      }
+      for (const row of rows) {
+        assert_array_equals(row.first, row.expected, `${row.stage}: first selected-frame query`);
+        assert_array_equals(row.second, row.expected, `${row.stage}: repeated selected-frame query`);
+      }
+    }, `Hidden table observer: ${route}, ${selector}`);
+  }
+}
+</script>

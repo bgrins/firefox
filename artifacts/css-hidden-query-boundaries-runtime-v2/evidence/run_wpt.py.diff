@@ -1,0 +1,24 @@
+--- prior/run_wpt.py
++++ successor/run_wpt.py
+@@ -92,6 +92,11 @@
+         result[name] = sha(path) if path.is_file() else None
+     return result
+ 
++def calibration_failures(rows):
++    return [r for r in rows if r.get('status')=='FAIL' and
++            any(label in (r.get('message') or '').lower() for label in
++                ['calibration', 'independently constructed visible reference'])]
++
+ def test_run(kind, tests, expected_resources):
+     directory = HERE / kind
+     directory.mkdir()
+@@ -122,6 +127,9 @@
+     result = {'exit':code,'complete':complete,'before':before,'after':pins(paths),'rows':rows,'ends':ends}
+     (directory/'RUN.json').write_text(json.dumps(result,indent=2)+'\n')
+     need(complete and before == result['after'], 'complete exact roster/stable pins')
++    faults=calibration_failures(rows)
++    save(kind+'-calibration-failures.json',faults)
++    need(not faults, 'visible/outer calibration failure; stop and restore')
+     return {'exit':code,'complete':complete,'subtests':len(rows),'files':len(ends)}
+ 
+ def snapshot():
