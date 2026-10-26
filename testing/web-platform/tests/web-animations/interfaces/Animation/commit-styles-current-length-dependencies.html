@@ -1,0 +1,227 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>commitStyles resolves current dependencies of contributing margin-left effects</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#commit-computed-styles">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#computing-property-values">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#effect-composition">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .target { --provider: 0; margin-left: 0; width: calc(var(--provider) * 1px); }
+  .literal { margin-left: 0; }
+</style>
+<body>
+<script>
+setup(() => {
+  CSS.registerProperty({name: "--provider", syntax: "<number>",
+                        inherits: false, initialValue: "0"});
+});
+
+function createTarget(t, className) {
+  const element = document.createElement("div");
+  element.className = className;
+  document.body.append(element);
+  t.add_cleanup(() => element.remove());
+  return element;
+}
+
+function animate(t, element, property, values, composite = "replace") {
+  const animation = element.animate({[property]: values},
+    {duration: 1000, fill: "both", composite});
+  animation.pause();
+  t.add_cleanup(() => animation.cancel());
+  return animation;
+}
+
+function computed(element, property) {
+  return getComputedStyle(element).getPropertyValue(property).trim();
+}
+
+function assertProvider(target, expected) {
+  assert_equals(computed(target, "--provider"), String(expected), "Provider value");
+  assert_equals(getComputedStyle(target).width, expected + "px", "Ordinary var() consumer");
+}
+
+function assertTime(animation, time) {
+  assert_equals(animation.currentTime, time, "Paused current time");
+  assert_equals(animation.effect.getComputedTiming().progress, time / 1000,
+                "Paused progress");
+}
+
+function assertSnapshot(target, inline, expected) {
+  const saved = target.style.getPropertyValue("margin-left").trim();
+  const value = computed(target, "margin-left");
+  assert_equals(inline, expected + "px", "Inline value immediately after commitStyles");
+  assert_equals(saved, expected + "px",
+                "Inline snapshot after cancellation and provider change");
+  assert_equals(value, expected + "px",
+                "Computed snapshot after cancellation and provider change");
+}
+
+for (const [name, providerExpected, expected] of [
+  ["literal-control", 275, 143.75],
+  ["provider-before-consumer", 275, 143.75],
+  ["provider-after-consumer", 275, 143.75],
+  ["higher-provider-winner", 450, 187.5],
+  ["important-provider-winner", 600, 225],
+  ["higher-consumer-excluded", 275, 143.75],
+  ["two-var-endpoints", 275, 275],
+]) {
+  promise_test(async t => {
+    const target = createTarget(t, "target");
+    const literal = createTarget(t, "literal");
+    const providerLast = name === "provider-after-consumer" || name === "two-var-endpoints";
+    const from = name === "two-var-endpoints" ? "calc(var(--provider) * 1px)" : "100px";
+    const to = name === "literal-control" ? "275px" : "calc(var(--provider) * 1px)";
+    let provider, consumer;
+    if (providerLast) {
+      consumer = animate(t, target, "marginLeft", [from, to]);
+      provider = animate(t, target, "--provider", ["200", "300"]);
+    } else {
+      provider = animate(t, target, "--provider", ["200", "300"]);
+      consumer = animate(t, target, "marginLeft", [from, to]);
+    }
+    const winner = name === "higher-provider-winner" ?
+      animate(t, target, "--provider", ["400", "500"]) : null;
+    const higherConsumer = name === "higher-consumer-excluded" ?
+      animate(t, target, "marginLeft", ["999px", "999px"]) : null;
+    const literalAnimation = animate(t, literal, "marginLeft",
+      [name === "two-var-endpoints" ? "275px" : "100px", providerExpected + "px"]);
+    const animations = [provider, consumer, winner, higherConsumer, literalAnimation].filter(Boolean);
+    await Promise.all(animations.map(animation => animation.ready));
+    for (const animation of animations) {
+      animation.currentTime = 250;
+    }
+    computed(target, "margin-left");
+    assertProvider(target, winner ? 425 : 225);
+    computed(literal, "margin-left");
+    provider.currentTime = 750;
+    if (winner) {
+      winner.currentTime = 500;
+    }
+    if (name === "important-provider-winner") {
+      target.style.setProperty("--provider", "600", "important");
+    }
+    consumer.commitStyles();
+    const inline = target.style.getPropertyValue("margin-left").trim();
+
+    assertProvider(target, providerExpected);
+    assert_equals(computed(literal, "margin-left"), expected + "px", "Literal interpolation");
+    assertTime(provider, 750);
+    assertTime(consumer, 250);
+    assertTime(literalAnimation, 250);
+    const ordered = target.getAnimations();
+    assert_greater_than_equal(ordered.indexOf(provider), 0, "Provider remains active");
+    assert_greater_than_equal(ordered.indexOf(consumer), 0, "Consumer remains active");
+    assert_true(providerLast ? ordered.indexOf(provider) > ordered.indexOf(consumer) :
+                              ordered.indexOf(provider) < ordered.indexOf(consumer),
+                "Provider creation order");
+    if (winner) {
+      assertTime(winner, 500);
+      assert_greater_than(ordered.indexOf(winner), ordered.indexOf(consumer),
+                          "Winning provider is above committed effect");
+    }
+    if (higherConsumer) {
+      assertTime(higherConsumer, 250);
+      assert_greater_than(ordered.indexOf(higherConsumer), ordered.indexOf(consumer),
+                          "Uncommitted consumer is above committed effect");
+      assert_equals(computed(target, "margin-left"), "999px", "Higher consumer still wins");
+    }
+    animations.forEach(animation => animation.cancel());
+    target.style.setProperty("--provider", "800");
+    assertProvider(target, 800);
+    assert_equals(target.getAnimations().length, 0, "Animations cancelled");
+    assertSnapshot(target, inline, expected);
+  }, "commitStyles dependency: " + name);
+}
+
+for (const [name, kind, providerLast, higherProvider, expected] of [
+  ["literal-add-control", "literal", false, false, 170],
+  ["literal-multiple-control", "literal-multiple", false, false, 210],
+  ["lower-var-provider-first", "lower", false, false, 295],
+  ["lower-var-provider-last", "lower", true, false, 295],
+  ["committed-var-provider-first", "committed", false, false, 425],
+  ["committed-var-provider-last", "committed", true, false, 425],
+  ["multiple-lower-var", "multiple", false, false, 570],
+  ["higher-provider-winner", "lower", false, true, 470],
+]) {
+  promise_test(async t => {
+    const target = createTarget(t, "target");
+    const literal = createTarget(t, "literal");
+    const variable = ["calc(var(--provider) * 1px)", "calc(var(--provider) * 1px)"];
+    const specs = [{
+      values: kind === "lower" || kind === "multiple" ? variable : ["100px", "300px"],
+      composite: "replace", time: 250,
+    }];
+    if (kind === "multiple" || kind === "literal-multiple") {
+      specs.push({values: kind === "multiple" ? variable : ["20px", "60px"],
+                  composite: "add", time: 500});
+    }
+    specs.push({values: kind === "committed" ? variable : ["10px", "30px"],
+                composite: "add", time: 500});
+    const providerExpected = higherProvider ? 450 : 275;
+    let provider;
+    if (!providerLast) {
+      provider = animate(t, target, "--provider", ["200", "300"]);
+    }
+    const effects = specs.map(spec =>
+      animate(t, target, "marginLeft", spec.values, spec.composite));
+    if (providerLast) {
+      provider = animate(t, target, "--provider", ["200", "300"]);
+    }
+    const winner = higherProvider ? animate(t, target, "--provider", ["400", "500"]) : null;
+    const literalEffects = specs.map(spec => animate(t, literal, "marginLeft",
+      spec.values.map(value => value === "calc(var(--provider) * 1px)" ? providerExpected + "px" : value),
+      spec.composite));
+    const animations = [provider, winner, ...effects, ...literalEffects].filter(Boolean);
+    await Promise.all(animations.map(animation => animation.ready));
+    provider.currentTime = 250;
+    if (winner) {
+      winner.currentTime = 250;
+    }
+    specs.forEach((spec, i) => {
+      effects[i].currentTime = spec.time;
+      literalEffects[i].currentTime = spec.time;
+    });
+    computed(target, "margin-left");
+    assertProvider(target, winner ? 425 : 225);
+    computed(literal, "margin-left");
+    provider.currentTime = 750;
+    if (winner) {
+      winner.currentTime = 500;
+    }
+    effects[effects.length - 1].commitStyles();
+    const inline = target.style.getPropertyValue("margin-left").trim();
+    literalEffects[literalEffects.length - 1].commitStyles();
+    assert_equals(literal.style.getPropertyValue("margin-left").trim(), expected + "px",
+                  "Literal additive commit");
+    assert_equals(computed(literal, "margin-left"), expected + "px", "Literal additive composition");
+    assertProvider(target, providerExpected);
+    assertTime(provider, 750);
+    const ordered = target.getAnimations();
+    assert_greater_than_equal(ordered.indexOf(provider), 0, "Provider remains active");
+    specs.forEach((spec, i) => {
+      assertTime(effects[i], spec.time);
+      assertTime(literalEffects[i], spec.time);
+      assert_equals(effects[i].effect.composite, spec.composite, "Consumer composite operation");
+      assert_greater_than(ordered.indexOf(effects[i]), i ? ordered.indexOf(effects[i - 1]) : -1,
+                          "Consumer prefix order");
+    });
+    assert_true(providerLast ? ordered.indexOf(provider) > ordered.indexOf(effects[effects.length - 1]) :
+                              ordered.indexOf(provider) < ordered.indexOf(effects[0]),
+                "Provider creation order");
+    if (winner) {
+      assertTime(winner, 500);
+      assert_greater_than(ordered.indexOf(winner), ordered.indexOf(effects[effects.length - 1]),
+                          "Winning provider is outside the consumer prefix");
+    }
+    animations.forEach(animation => animation.cancel());
+    target.style.setProperty("--provider", "800");
+    assertProvider(target, 800);
+    assert_equals(target.getAnimations().length + literal.getAnimations().length, 0,
+                  "Animations cancelled");
+    assert_equals(computed(literal, "margin-left"), expected + "px", "Literal snapshot");
+    assertSnapshot(target, inline, expected);
+  }, "commitStyles lower dependencies: " + name);
+}
+</script>

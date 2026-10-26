@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>commitStyles resolves a current lower value at an implicit endpoint</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#commit-computed-styles">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#computing-property-values">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#effect-composition">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .target {
+    --implicit-provider: 0;
+    margin-left: 7px;
+    width: calc(var(--implicit-provider) * 1px);
+  }
+</style>
+<body>
+<script>
+setup(() => {
+  CSS.registerProperty({name: "--implicit-provider", syntax: "<number>",
+                        inherits: false, initialValue: "0"});
+});
+
+function animate(t, target, keyframes) {
+  const animation = target.animate(keyframes, {duration: 1000, fill: "both"});
+  animation.pause();
+  t.add_cleanup(() => animation.cancel());
+  return animation;
+}
+
+function assertTime(animation, time) {
+  assert_equals(animation.playState, "paused", "Animation remains paused");
+  assert_equals(animation.currentTime, time, "Paused current time");
+  assert_equals(animation.effect.getComputedTiming().progress, time / 1000,
+                "Paused progress");
+}
+
+function assertProvider(target, value) {
+  assert_equals(getComputedStyle(target).getPropertyValue("--implicit-provider").trim(),
+                String(value), "Active provider value");
+  assert_equals(getComputedStyle(target).width, value + "px", "Ordinary provider reference");
+}
+
+for (const kind of ["variable", "literal"]) {
+  promise_test(async t => {
+    const target = document.createElement("div");
+    target.className = "target";
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    assert_equals(getComputedStyle(target).marginLeft, "7px", "Underlying literal margin");
+    const value = kind === "variable" ? "calc(var(--implicit-provider) * 1px)" : "275px";
+    const lower = animate(t, target, {marginLeft: [value, value]});
+    const committed = animate(t, target,
+      [{offset: 1, marginLeft: "10px", composite: "add"}]);
+    const provider = animate(t, target, {"--implicit-provider": ["200", "300"]});
+    const animations = [lower, committed, provider];
+    await Promise.all(animations.map(animation => animation.ready));
+    lower.currentTime = 500;
+    committed.currentTime = 500;
+    provider.currentTime = 250;
+    getComputedStyle(target).marginLeft;
+    assertProvider(target, 225);
+    assertTime(lower, 500);
+    assertTime(committed, 500);
+    assertTime(provider, 250);
+    assert_equals(lower.effect.composite, "replace", "Lower effect replaces");
+    const keyframes = committed.effect.getKeyframes();
+    assert_equals(keyframes.length, 1, "Only one explicit endpoint");
+    assert_equals(keyframes[0].computedOffset, 1, "Explicit endpoint is at one");
+    assert_equals(keyframes[0].composite, "add", "Explicit endpoint adds");
+    assert_array_equals(target.getAnimations(), animations,
+                        "Provider is active above the committed consumer prefix");
+
+    provider.currentTime = 750;
+    committed.commitStyles();
+    const inline = target.style.getPropertyValue("margin-left").trim();
+
+    assertProvider(target, 275);
+    assertTime(lower, 500);
+    assertTime(committed, 500);
+    assertTime(provider, 750);
+    assert_array_equals(target.getAnimations(), animations,
+                        "Active effect order survives commitStyles");
+    animations.forEach(animation => animation.cancel());
+    target.style.setProperty("--implicit-provider", "800");
+    assertProvider(target, 800);
+    assert_equals(target.getAnimations().length, 0, "All animations cancelled");
+    const retained = target.style.getPropertyValue("margin-left").trim();
+    const frozen = getComputedStyle(target).marginLeft;
+    assert_equals(inline, "280px", "Inline implicit-endpoint snapshot immediately after commitStyles");
+    assert_equals(retained, "280px", "Inline snapshot after cancellation and provider change");
+    assert_equals(frozen, "280px", "Computed snapshot after cancellation and provider change");
+  }, "commitStyles implicit additive endpoint: " + kind);
+}
+</script>
