@@ -1,0 +1,17 @@
+False.lean:3:88: error: Tactic `decide` failed to reduce
+  @decide (compose stack (refresh resolve 200 [Effect.lower, Effect.top, Effect.higher] old) 0 = 999)
+    (instDecidableEqRat (compose stack (refresh resolve 200 [Effect.lower, Effect.top, Effect.higher] old) 0) 999)
+to `true` or `false`.
+
+Reduction got stuck at
+  match ((refresh resolve 200 [Effect.lower, Effect.top, Effect.higher] old Effect.lower 0).add 10).num, ↑999 with
+  | Int.ofNat a, Int.ofNat b =>
+    match decEq a b with
+    | { decide := true, reflects_decide := h } => isTrue ⋯
+    | { decide := false, reflects_decide := h } => isFalse ⋯
+  | Int.ofNat a, Int.negSucc a_1 => isFalse ⋯
+  | Int.negSucc a, Int.ofNat a_1 => isFalse ⋯
+  | Int.negSucc a, Int.negSucc b =>
+    match decEq a b with
+    | { decide := true, reflects_decide := h } => isTrue ⋯
+    | { decide := false, reflects_decide := h } => isFalse ⋯

@@ -1,0 +1,159 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Diagnostic timing of commitStyles effect prefixes</title>
+<meta name="timeout" content="long">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-animation-commitstyles">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#effect-composition">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.commit-cost-target {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  transform: none;
+}
+</style>
+<body>
+<script>
+"use strict";
+
+const CONFIG = Object.freeze({
+  counts: [1, 8, 32],
+  families: ["literal", "variable"],
+  targets: 16,
+  warmups: 2,
+  measured: 7,
+  duration: 1000,
+  currentTime: 500,
+});
+const CASES = CONFIG.counts.flatMap(count => CONFIG.families.map(family => ({
+  id: `${family}/${count}`, count, family,
+})));
+
+function assertTranslation(value, expected, label) {
+  assert_not_equals(value, "", `${label}: retained value`);
+  const matrix = new DOMMatrixReadOnly(value);
+  assert_true(matrix.is2D, `${label}: 2D`);
+  assert_array_equals([matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f],
+    [1, 0, 0, 1, expected, 0], label);
+}
+
+async function batch(spec, round, result) {
+  const label = `${spec.id} round ${round}`;
+  const scope = document.createElement("section");
+  const targets = [];
+  const stacks = [];
+  const all = [];
+  const top = [];
+  const observed = new Array(CONFIG.targets);
+  let row;
+  let committed = false;
+  let cleanupOK = false;
+  document.body.append(scope);
+  try {
+    for (let i = 0; i < CONFIG.targets; ++i) {
+      const target = document.createElement("div");
+      target.className = "commit-cost-target";
+      target.style.setProperty("--step", "1px");
+      scope.append(target);
+      targets.push(target);
+      const stack = [];
+      stacks.push(stack);
+      const transform = spec.family === "literal"
+        ? "translateX(1px)" : "translateX(var(--step))";
+      for (let j = 0; j < spec.count; ++j) {
+        const animation = target.animate([
+          { offset: 0, transform }, { offset: 1, transform },
+        ], { duration: CONFIG.duration, fill: "both", composite: "add" });
+        stack.push(animation);
+        all.push(animation);
+        animation.pause();
+      }
+      top.push(stack[stack.length - 1]);
+    }
+    await Promise.all(all.map(animation => animation.ready));
+    all.forEach(animation => { animation.currentTime = CONFIG.currentTime; });
+    targets.forEach((target, i) => {
+      assert_equals(target.style.getPropertyValue("--step"), "1px", `${label}: provider retention`);
+      assert_equals(getComputedStyle(target).getPropertyValue("--step").trim(), "1px",
+        `${label}: provider computation`);
+      assertTranslation(getComputedStyle(target).transform, spec.count, `${label}: initial result`);
+      assert_array_equals(target.getAnimations(), stacks[i], `${label}: ordered identities`);
+      stacks[i].forEach(animation => {
+        assert_equals(animation.effect.composite, "add", `${label}: additive effect`);
+        assert_equals(animation.currentTime, CONFIG.currentTime, `${label}: current time`);
+        assert_equals(animation.playState, "paused", `${label}: paused`);
+      });
+    });
+
+    const begin = performance.now();
+    for (const animation of top) {
+      animation.commitStyles();
+    }
+    const afterAPI = performance.now();
+    for (let i = 0; i < targets.length; ++i) {
+      observed[i] = getComputedStyle(targets[i]).transform;
+    }
+    const afterFlush = performance.now();
+
+    row = { case: spec.id, count: spec.count, family: spec.family, round,
+      warmup: round < CONFIG.warmups, targets: CONFIG.targets, calls: top.length,
+      apiMs: afterAPI - begin, flushMs: afterFlush - afterAPI,
+      totalMs: afterFlush - begin, correctness: "PENDING" };
+    result.rows.push(row);
+    assert_true([row.apiMs, row.flushMs, row.totalMs].every(value =>
+      Number.isFinite(value) && value >= 0), `${label}: finite timings`);
+    targets.forEach((target, i) => {
+      assertTranslation(target.style.transform, spec.count, `${label}: committed inline`);
+      assertTranslation(observed[i], 2 * spec.count, `${label}: active additive result`);
+      assert_array_equals(target.getAnimations(), stacks[i], `${label}: retained identities`);
+    });
+    committed = true;
+  } finally {
+    try {
+      all.forEach(animation => animation.cancel());
+      targets.forEach(target => {
+        if (committed) {
+          assertTranslation(getComputedStyle(target).transform, spec.count,
+            `${label}: committed result after cancellation`);
+        }
+        assert_equals(target.getAnimations().length, 0, `${label}: no active effects`);
+      });
+      cleanupOK = true;
+    } finally {
+      scope.remove();
+      result.cleanup.push({ case: spec.id, round, removed: !scope.isConnected,
+        effectsCancelled: cleanupOK });
+    }
+  }
+  row.correctness = "PASS";
+}
+
+promise_test(async () => {
+  const result = { schema: "COMMIT_STYLES_COST_V1", config: CONFIG,
+    caseOrder: CASES.map(spec => spec.id), rows: [], cleanup: [],
+    valid: false, error: null, timingThresholds: false };
+  window.commitStylesCostResults = result;
+  try {
+    assert_true(CSS.supports("transform", "translateX(1px)"), "literal transform admission");
+    assert_true(CSS.supports("transform", "translateX(var(--step))"), "variable transform admission");
+    assert_equals(typeof Animation.prototype.commitStyles, "function", "commitStyles available");
+    for (let round = 0; round < CONFIG.warmups + CONFIG.measured; ++round) {
+      for (let j = 0; j < CASES.length; ++j) {
+        await batch(CASES[(j + round) % CASES.length], round, result);
+      }
+    }
+    assert_equals(result.rows.length, 54, "complete raw rows");
+    assert_equals(result.cleanup.length, 54, "complete cleanup rows");
+    assert_true(result.rows.every(row => row.correctness === "PASS"), "all calibrations pass");
+    assert_true(result.cleanup.every(row => row.removed && row.effectsCancelled), "all cleanup passes");
+    result.valid = true;
+    console.log("COMMIT_STYLES_COST_RESULT_V1 " + JSON.stringify(result));
+  } catch (error) {
+    result.error = String(error.stack || error);
+    console.log("COMMIT_STYLES_COST_INCOMPLETE_V1 " + JSON.stringify(result));
+    throw error;
+  }
+}, "commitStyles prefix cost: six calibrated cases, 54 raw timing rows");
+</script>

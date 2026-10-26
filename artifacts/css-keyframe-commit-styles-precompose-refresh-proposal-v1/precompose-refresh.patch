@@ -1,0 +1,36 @@
+--- a/dom/animation/EffectCompositor.cpp
++++ b/dom/animation/EffectCompositor.cpp
+@@ -456,15 +456,10 @@
+   // need to ensure the cascade results are up-to-date manually.
+   MaybeUpdateCascadeResults(target.mElement, target.mPseudoRequest);
+ 
+-  // We may need to update the base styles cached on the keyframes for |aEffect|
+-  // since they won't be updated as part of the regular animation processing if
+-  // |aEffect| has finished but doesn't have an appropriate fill mode.
+-  // We can get computed style without flush, because |CommitStyles| should have
+-  // already flushed styles.
++  // CommitStyles has already flushed the target's computed style.
+   RefPtr<const ComputedStyle> style =
+       nsComputedDOMStyle::GetComputedStyleNoFlush(target.mElement,
+                                                   target.mPseudoRequest);
+-  aEffect.UpdateBaseStyle(style);
+ 
+   EffectSet* effectSet = EffectSet::Get(target);
+ 
+@@ -482,6 +477,16 @@
+     sortedEffectList.Sort(comparator);
+   }
+   sortedEffectList.AppendElement(&aEffect);
++
++  nsTArray<RefPtr<KeyframeEffect>> effectsToRefresh(sortedEffectList.Length());
++  for (KeyframeEffect* effect : sortedEffectList) {
++    effectsToRefresh.AppendElement(effect);
++  }
++  for (const RefPtr<KeyframeEffect>& effect : effectsToRefresh) {
++    effect->UpdateProperties(style);
++  }
++  MaybeUpdateCascadeResults(target.mElement, target.mPseudoRequest);
++  effectSet = EffectSet::Get(target);
+ 
+   ComposeSortedEffects(sortedEffectList, effectSet, aCascadeLevel,
+                        aAnimationValues, aEndpointBehavior);
