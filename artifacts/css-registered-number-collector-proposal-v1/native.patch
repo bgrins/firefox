@@ -1,0 +1,122 @@
+--- a/servo/components/style/properties_and_values/value.rs
++++ b/servo/components/style/properties_and_values/value.rs
+@@ -11,7 +11,7 @@
+     },
+ };
+ use crate::FxHashMap;
+-use crate::custom_properties::{AttrTaint, ComputedValue as ComputedPropertyValue};
++use crate::custom_properties::{AttrTaint, ComputedValue as ComputedPropertyValue, ReferenceFlags};
+ use crate::derives::*;
+ use crate::parser::{Parse, ParserContext};
+ use crate::properties;
+@@ -286,6 +286,110 @@
+ pub type ComputedValue = Value<ComputedValueComponent>;
+ 
+ impl SpecifiedValue {
++    /// Collects supported font and line-height graph references from an admitted number.
++    pub(crate) fn number_context_references(&self) -> Option<ReferenceFlags> {
++        use crate::values::specified::calc::{CalcNode, Leaf};
++        use crate::values::specified::length::LengthUnit;
++
++        fn visit(node: &CalcNode, flags: &mut ReferenceFlags) -> Option<()> {
++            match node {
++                CalcNode::Leaf(leaf) => match leaf {
++                    Leaf::Length(length) => {
++                        *flags |= match length.length_unit() {
++                            LengthUnit::Em
++                            | LengthUnit::Ex
++                            | LengthUnit::Ch
++                            | LengthUnit::Cap
++                            | LengthUnit::Ic => ReferenceFlags::FONT_UNITS,
++                            LengthUnit::Lh => ReferenceFlags::FONT_UNITS | ReferenceFlags::LH_UNITS,
++                            LengthUnit::Rem
++                            | LengthUnit::Rex
++                            | LengthUnit::Rch
++                            | LengthUnit::Rcap
++                            | LengthUnit::Ric => ReferenceFlags::ROOT_FONT_UNITS,
++                            LengthUnit::Rlh => {
++                                ReferenceFlags::ROOT_FONT_UNITS | ReferenceFlags::ROOT_LH_UNITS
++                            },
++                            LengthUnit::Px
++                            | LengthUnit::In
++                            | LengthUnit::Cm
++                            | LengthUnit::Mm
++                            | LengthUnit::Q
++                            | LengthUnit::Pt
++                            | LengthUnit::Pc => ReferenceFlags::empty(),
++                            _ => return None,
++                        };
++                    },
++                    Leaf::Number(_) | Leaf::Angle(_) | Leaf::Time(_) | Leaf::Resolution(_) => {},
++                    Leaf::Percentage(_)
++                    | Leaf::ColorComponent(_)
++                    | Leaf::TreeCountingFunction(_)
++                    | Leaf::RandomKey(_) => return None,
++                },
++                CalcNode::Negate(child)
++                | CalcNode::Invert(child)
++                | CalcNode::Sin(child)
++                | CalcNode::Cos(child)
++                | CalcNode::Tan(child)
++                | CalcNode::Asin(child)
++                | CalcNode::Acos(child)
++                | CalcNode::Atan(child)
++                | CalcNode::Sqrt(child)
++                | CalcNode::Exp(child)
++                | CalcNode::Abs(child)
++                | CalcNode::Sign(child) => visit(child, flags)?,
++                CalcNode::Sum(children)
++                | CalcNode::Product(children)
++                | CalcNode::MinMax(children, _)
++                | CalcNode::Hypot(children) => {
++                    for child in children.iter() {
++                        visit(child, flags)?;
++                    }
++                },
++                CalcNode::Clamp { min, center, max } => {
++                    visit(min, flags)?;
++                    visit(center, flags)?;
++                    visit(max, flags)?;
++                },
++                CalcNode::Round { value, step, .. }
++                | CalcNode::ModRem {
++                    dividend: value,
++                    divisor: step,
++                    ..
++                }
++                | CalcNode::Atan2(value, step)
++                | CalcNode::Pow(value, step) => {
++                    visit(value, flags)?;
++                    visit(step, flags)?;
++                },
++                CalcNode::Log(value, base) => {
++                    visit(value, flags)?;
++                    if let crate::values::generics::Optional::Some(base) = base {
++                        visit(base, flags)?;
++                    }
++                },
++                CalcNode::Progress {
++                    value, start, end, ..
++                } => {
++                    visit(value, flags)?;
++                    visit(start, flags)?;
++                    visit(end, flags)?;
++                },
++                CalcNode::Random(_) | CalcNode::Anchor(_) | CalcNode::AnchorSize(_) => return None,
++            }
++            Some(())
++        }
++
++        let ValueInner::Component(SpecifiedValueComponent::Number(number)) = &self.v else {
++            return None;
++        };
++        let mut flags = ReferenceFlags::empty();
++        if let Some(calc) = number.as_calc() {
++            visit(&calc.node, &mut flags)?;
++        }
++        Some(flags)
++    }
++
+     /// Convert a registered custom property to a Computed custom property value, given input and a
+     /// property registration.
+     pub fn compute(

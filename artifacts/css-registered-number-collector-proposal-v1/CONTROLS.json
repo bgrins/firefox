@@ -1,0 +1,132 @@
+{
+  "status": "PROPOSED_NOT_EXECUTED",
+  "registration": "<number> exactly, no multiplier",
+  "pref_requirements": [
+    "layout.css.calc-typed-arithmetic.enabled=true; other syntax prefs per current native harness"
+  ],
+  "cases": [
+    {
+      "name": "literal",
+      "selected_css": "4",
+      "expected_flags": []
+    },
+    {
+      "name": "arithmetic",
+      "selected_css": "calc(2 + 3)",
+      "expected_flags": []
+    },
+    {
+      "name": "absolute ratio",
+      "selected_css": "calc(1in / 1px)",
+      "expected_flags": []
+    },
+    {
+      "name": "current font ratio",
+      "selected_css": "calc(1em / 1px)",
+      "expected_flags": [
+        "FONT_UNITS"
+      ]
+    },
+    {
+      "name": "inverse font",
+      "selected_css": "calc(1px / 1em)",
+      "expected_flags": [
+        "FONT_UNITS"
+      ]
+    },
+    {
+      "name": "line height ratio",
+      "selected_css": "calc(1lh / 1px)",
+      "expected_flags": [
+        "FONT_UNITS",
+        "LH_UNITS"
+      ]
+    },
+    {
+      "name": "root font ratio",
+      "selected_css": "calc(1rem / 1px)",
+      "expected_flags": [
+        "ROOT_FONT_UNITS"
+      ]
+    },
+    {
+      "name": "root line height ratio",
+      "selected_css": "calc(1rlh / 1px)",
+      "expected_flags": [
+        "ROOT_FONT_UNITS",
+        "ROOT_LH_UNITS"
+      ]
+    },
+    {
+      "name": "min operands",
+      "selected_css": "calc(min(1em, 10px) / 1px)",
+      "expected_flags": [
+        "FONT_UNITS"
+      ]
+    },
+    {
+      "name": "clamp operands",
+      "selected_css": "calc(clamp(1px, 1em, 10px) / 1px)",
+      "expected_flags": [
+        "FONT_UNITS"
+      ]
+    },
+    {
+      "name": "font metric",
+      "selected_css": "calc(1ch / 1px)",
+      "expected_flags": [
+        "FONT_UNITS"
+      ]
+    },
+    {
+      "name": "mixed root/current",
+      "selected_css": "calc((1em + 1rem) / 1px)",
+      "expected_flags": [
+        "FONT_UNITS",
+        "ROOT_FONT_UNITS"
+      ]
+    },
+    {
+      "name": "parse-time sign",
+      "selected_css": "sign(1em)",
+      "expected_flags": []
+    },
+    {
+      "name": "absolute angle ratio",
+      "selected_css": "calc(1turn / 1deg)",
+      "expected_flags": []
+    },
+    {
+      "name": "unsupported viewport",
+      "selected_css": "calc(1vw / 1px)",
+      "expected_flags": null
+    },
+    {
+      "name": "unsupported container",
+      "selected_css": "calc(1cqw / 1px)",
+      "expected_flags": null
+    }
+  ],
+  "rejected_before_collector": [
+    "1em",
+    "calc(1em + 1)",
+    "4 trailing"
+  ],
+  "separate_integration_controls": [
+    "ready var provider 4 with unused 1em fallback must collect empty",
+    "invalid var provider with selected calc(1em / 1px) fallback must collect FONT_UNITS",
+    "ready wrong-type provider 1em does not retry numeric fallback",
+    "pending provider must remain pending; do not parse it as invalid",
+    "an open SCC must not publish a cached specified value",
+    "root flag mapping differs at root versus nonroot"
+  ],
+  "normalization_controls_without_fixed_oracle": [
+    "calc(1em / 1em)",
+    "calc(0 * 1em / 1px)"
+  ],
+  "notes": [
+    "Run the real descriptor parser; log the admitted AST and returned flags. JSON is a test plan, not test execution.",
+    "Expected empty means no supported graph edge, not absence of zoom or other context effects.",
+    "Cycle invalidation/default numeric values are not asserted by this collector plan."
+  ]
+}
