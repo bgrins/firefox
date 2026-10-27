@@ -59,10 +59,12 @@ impl TimingFunction {
 
         // TODO(Bug 2037743) - Enable calc()-expressions that can only be resolved at
         // computed value time (due to relative lengths, sibling-index(), etc.).
-        if let (Some(x1), Some(_), Some(x2), Some(_)) =
+        if let (Some(_), Some(_), Some(_), Some(_)) =
             (x1.resolve(), y1.resolve(), x2.resolve(), y2.resolve())
         {
-            if !(0.0..=1.0).contains(&x1) || !(0.0..=1.0).contains(&x2) {
+            if matches!(x1.get(), Some(x) if !(0.0..=1.0).contains(&x))
+                || matches!(x2.get(), Some(x) if !(0.0..=1.0).contains(&x))
+            {
                 return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
             }
         } else {
@@ -186,9 +188,9 @@ impl TimingFunction {
             GenericTimingFunction::CubicBezier { x1, y1, x2, y2 } => {
                 // Resolvable value was enforced at parse time
                 GenericTimingFunction::CubicBezier {
-                    x1: x1.resolve().unwrap(),
+                    x1: x1.resolve().unwrap().clamp(0.0, 1.0),
                     y1: y1.resolve().unwrap(),
-                    x2: x2.resolve().unwrap(),
+                    x2: x2.resolve().unwrap().clamp(0.0, 1.0),
                     y2: y2.resolve().unwrap(),
                 }
             },
