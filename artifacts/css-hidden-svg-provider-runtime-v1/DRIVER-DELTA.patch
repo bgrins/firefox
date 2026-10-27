@@ -1,0 +1,152 @@
+--- artifacts/css-cssom-client-precision-installed-draft-v1/run.py
++++ run.py
+@@ -33,54 +33,63 @@
+ assert settings['ready_for_execution'] is True
+ assert all(settings[n] for n in ['epoch', 'epoch_manifest_sha256', 'root_receipt_sha256'])
+ assert not any((HERE / n).exists() or (HERE / n).is_symlink() for n in ['STATE.json', 'capture', 'BEFORE.json', 'FINAL.json', 'SUMMARY.json'])
++proposal = ROOT / settings['proposal']
++assert (HERE / 'probe.html').read_bytes() == (proposal / 'probe.html').read_bytes()
++assert (HERE / 'validate.py').read_bytes() == (proposal / 'validate.py').read_bytes()
+ epoch = ROOT / settings['epoch']
+-assert sha(epoch / 'FILES.json') == settings['epoch_manifest_sha256'] == settings['required_installation_manifest_sha256']
++assert sha(epoch / 'FILES.json') == settings['epoch_manifest_sha256'] == '0bbbfcb6ee3eb5078b33b716336453beeef1eab1386c180af9ca1a10606db822'
+ authenticate(read(epoch / 'FILES.json'), epoch)
+ assert sha(epoch / 'ROOT-FINAL-CHECK.json') == settings['root_receipt_sha256']
+-def installed_epoch(epoch):
++
++def restored_epoch(epoch):
+     expected, state_before = read(epoch / 'FINAL.json'), read(epoch / 'STATE.json')
+     receipt = read(epoch / 'ROOT-FINAL-CHECK.json')
+-    before, installation = read(epoch / 'BEFORE.json'), read(epoch / 'INSTALLATION.json')
+-    config = read(epoch / 'CONFIG.json')
+-    native = 'dom/base/Element.cpp'
+-    candidate = '5770fd0f1134284626ed42152e4b1c1d054cf509ae99e2ebcaf08d5ae00c0913'
+-    owned = 'testing/web-platform/tests/css/cssom-view/offset-scroll-integer-precision.html'
+-    fixture_hash = '18c47e1acbf0a546a975fe5dc92c297a38a71e228a7b6ec576a58bc71c06078b'
+-    assert state_before['status'] == 'terminal' and state_before['installed'] is True and state_before['restored'] is False
+-    assert state_before['build_exit'] == state_before['lint_exit'] == 0 and state_before['recovery_errors'] == []
+-    assert 'failure' not in state_before and state_before['subtests'] == {'PASS': 32, 'FAIL': 0} and state_before['files_ok'] == 1
+-    assert receipt['status'] == 'INSTALLED_VERIFIED' and receipt['fix'] == 112 and receipt['exit'] == 0
+-    assert receipt['build_exit'] == receipt['lint_exit'] == 0 and receipt['existing_stage_paths'] == 925
+-    assert receipt['source_count'] == 47 and receipt['pin_count'] == 318
+-    assert all(receipt[n] is True for n in ['head_index_preserved', 'other_native_sources_preserved', 'owned_wpt_present', 'cleanup_verified'])
++    assert state_before['status'] == 'terminal' and state_before['restored'] is True
++    assert state_before['trace_complete'] is True and state_before['baseline_complete'] is True
++    assert state_before['trace_build_exit'] == state_before['restore_build_exit'] == 0
++    assert state_before['recovery_errors'] == [] and 'failure' not in state_before
++    assert receipt['status'] == 'TRACE_AND_RESTORATION_VERIFIED' and receipt['exit'] == 0
+     assert receipt['state_sha256'] == sha(epoch / 'STATE.json') and receipt['final_sha256'] == sha(epoch / 'FINAL.json')
+-    assert receipt['installed_binary_pins'] == state_before['installed_binary_pins'] == installation['binary_pins']
+-    assert receipt['acceptance_sha256'] == state_before['acceptance_sha256'] == installation['acceptance_sha256'] == 'bf2e4f24e4ddc542346499f108e9510646db050aeec2893e3dbf506870b8d11c'
+-    assert installation['before'] == before and installation['after'] == expected
+-    assert len(expected['sources']) == len(before['sources']) == 47
+-    assert expected['sources'] == {**before['sources'], native: candidate}
+-    assert installation['installed_source_pins'] == {native: candidate}
+-    assert installation['original_source_pins'] == {native: before['sources'][native]}
+-    assert expected['head'] == config['head'] == '90e7c8a3c46c5e84ec0bfffc239e52ea72b2085e'
+-    assert all(expected[k] == before[k] for k in ['head', 'index_diff_sha256', 'index_entries_sha256'])
+-    assert config['source_pins'] == before['sources']
+-    assert len(config['modified_native_paths']) == 24 and native not in config['modified_native_paths']
+-    assert installation['owned_test'] == owned and installation['owned_test_sha256'] == fixture_hash
+-    assert config['install'] == {owned: 'fixture.html'} and sha(epoch / 'fixture.html') == fixture_hash
++    assert receipt['source_count'] == 49 and receipt['pin_count'] == 337
++    assert receipt['staged_paths_preserved'] == 925 and receipt['native_modified_paths_preserved'] == 26
++    assert receipt['installed112_source_and_test_ownership_preserved'] is True
++    assert receipt['both_process_groups_cleaned'] is True and receipt['both_profiles_removed'] is True
++    binaries = state_before['restored_binary_pins']
++    assert binaries == receipt['restored_binary_pins'] == {
++        'objdir-full.noindex/dist/Nightly.app/Contents/MacOS/firefox': 'a783e8f1cce2b4f3ca63e9a5dc1af4396e6af929669ac835e2171d96e76a5ee9',
++        'objdir-full.noindex/dist/Nightly.app/Contents/MacOS/XUL': 'bce39299d0fe371e42177cc27fbebf75fb36ee7150f0f3fa0628403dace852ed'}
++    assert expected == read(epoch / 'BEFORE.json')
++    gate = load('svg_prior_installed_gate', epoch / 'epoch_gate.py')
++    def need(ok, message):
++        if not ok:
++            raise RuntimeError(message)
++    installed, installed_pins, _, config, installed_tests = gate.bind(
++        ROOT, read(epoch / 'CONFIG.json'), read(epoch / 'EPOCH.json'), read, sha, authenticate, need)
++    display = 'layout/painting/nsDisplayList.cpp'
++    assert expected == {**installed, 'sources': {**installed['sources'],
++                           display: '2af39c2e2b92d20891db704e6e60a7a6e56ef05158b3597b601074807862dea0'}}
++    assert len(expected['sources']) == 49 and len(config['modified_native_paths']) == 26
++    before_pins = read(epoch / 'BEFORE-PINS.json')
++    assert before_pins == {**installed_pins, display: expected['sources'][display]}
+     pins = read(epoch / 'FINAL-PINS.json')
+-    assert len(pins) == 318 and pins == {**read(epoch / 'RESOURCES.json'), **expected['sources'],
+-                                       owned: fixture_hash, **state_before['installed_binary_pins']}
++    assert pins == {**before_pins, **binaries} and len(pins) == 337
++    assert all(pins[n] == h for n, h in expected['sources'].items())
+     config['guard_sources'] = sorted(expected['sources'])
+-    config['modified_native_paths'] = sorted([*config['modified_native_paths'], native])
+-    return expected, pins, config, installation
++    config['existing_tests'] = sorted(installed_tests)
++    config['existing_test_pins'] = {n: item['sha256'] for n, item in installed_tests.items()}
++    config['tracked_existing_tests'] = []
++    config['install'] = {}
++    return expected, pins, config, installed_tests
+ 
+-expected, pins, config, installation = installed_epoch(epoch)
++expected, pins, config, installed_tests = restored_epoch(epoch)
+ wpt = load('scroll_client_wpt', ROOT / settings['helpers'] / 'run_wpt.py')
+ bindings = load('scroll_client_bindings', ROOT / settings['helpers'] / 'bindings.py')
+ extras = load('scroll_client_capture', ROOT / settings['capture'])
+ cleanup = load('scroll_client_cleanup', ROOT / settings['cleanup'])
+ validator = load('scroll_client_validator', HERE / 'validate.py')
+ wpt.HERE, wpt.CONFIG = HERE, config
++wpt.ENV.pop('MOZ_ANCESTOR_CANCELLATION_TRACE', None)
++wpt.ENV.pop('MOZ_NESTED_EDGE_TRACE', None)
+ 
+ def verify():
+     authenticate(draft, HERE)
+@@ -89,11 +98,12 @@
+     assert wpt.pins(list(pins)) == pins
+     assert [n for n in wpt.git('diff', '--name-only').decode().splitlines()
+             if not n.startswith('artifacts/')] == config['modified_native_paths']
+-    owned = ROOT / installation['owned_test']
+-    info = owned.lstat()
+-    assert owned.is_file() and not owned.is_symlink() and sha(owned) == installation['owned_test_sha256']
+-    assert [info.st_dev, info.st_ino] == installation['owned_test_identity']
+-    assert not wpt.git('ls-files', '--', installation['owned_test'])
++    for name, item in installed_tests.items():
++        owned = ROOT / name
++        info = owned.lstat()
++        assert owned.is_file() and not owned.is_symlink() and sha(owned) == item['sha256']
++        assert [info.st_dev, info.st_ino] == item['identity']
++    assert not wpt.git('ls-files', '--', *installed_tests).strip()
+     assert not wpt.git('ls-files', '--others', '--exclude-standard', '--', 'layout', 'dom', 'servo', 'mfbt')
+     assert all(not (ROOT / n).exists() and not (ROOT / n).is_symlink() for n in config['must_be_absent'])
+ 
+@@ -101,7 +111,7 @@
+ bindings.index_state(wpt)
+ wpt.save('BEFORE.json', {'snapshot': expected, 'pins': pins})
+ state = {'status': 'starting', 'complete': False, 'preserved': False, 'native_changes': False,
+-         'source_role': 'authenticated installed fix112 working epoch; no source changes by this probe', 'epoch': settings['epoch']}
++         'source_role': 'restored OOF trace epoch with expanded112 installed; no source changes by SVG probe', 'epoch': settings['epoch']}
+ wpt.save('STATE.json', state)
+ try:
+     result = extras.capture(HERE, ROOT, wpt, cleanup, 'capture',
+@@ -110,16 +120,16 @@
+     assert result['process_cleanup']['terminal'] and result['process_cleanup']['noLiveGroup'] and result['profile_removed']
+     assert not result['cleanup_errors'] and result['before'] == result['after'] == pins
+     summary = validator.validate(result['observations'][0])
+-    summary['phase_outcomes'] = {
+-        phase: {metric: {label: sum(row['phases'][phase][metric] is value for row in summary['rows'])
+-                        for label, value in [('PASS', True), ('FAIL', False), ('UNCALIBRATED', None)]}
+-                for metric in ['scroll_matches', 'client_matches', 'client_origin_matches']}
+-        for phase in validator.PHASES}
++    summary['ordinary_controls_pass'] = all(row['matched'] for row in summary['rows']
++                                             if not row['observations']['hidden'])
++    summary['recovery_controls_pass'] = all(row['matches']['afterLayout'] and row['matches']['revealed']
++                                           and row['bboxMatchesLocalShape'] for row in summary['rows'])
+     wpt.save('SUMMARY.json', summary)
+-    assert summary['calibrated'] == summary['repeat_stable'] == summary['restored_stable'] == 8
+-    assert summary['phase_calibrated'] == 32
+-    state.update(complete=True, calibrated=8, phase_calibrated=32, repeat_stable=8,
+-                 restored_stable=8, phase_outcomes=summary['phase_outcomes'])
++    assert summary['calibrated'] == summary['stable'] == 8
++    assert summary['ordinary_controls_pass'] and summary['recovery_controls_pass']
++    state.update(complete=True, calibrated=8, stable=8, matched=summary['matched'],
++                 mismatched=summary['mismatched'], ordinary_controls_pass=True,
++                 recovery_controls_pass=True)
+ except BaseException as error:
+     state['failure'] = {'type': type(error).__name__, 'message': str(error)}
+ finally:

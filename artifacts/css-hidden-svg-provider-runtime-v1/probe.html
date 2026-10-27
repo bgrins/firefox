@@ -1,0 +1,95 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SVG matrix queries after hidden viewport resize</title>
+<style>
+html { direction: ltr; writing-mode: horizontal-tb; }
+body { margin: 0; }
+.host { position: absolute; left: 20px; top: 30px; width: 100px; height: 100px; padding: 0; border: 0; margin: 0; font-size: 0; line-height: 0; }
+.host.wide { width: 200px; }
+.host.hidden { content-visibility: hidden; }
+.host svg { display: block; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; }
+</style>
+<pre id="output"></pre>
+<script>
+"use strict";
+const svgNS = "http://www.w3.org/2000/svg";
+function makeFixture(viewBox) {
+  const host = document.createElement("div");
+  host.className = "host";
+  const svg = document.createElementNS(svgNS, "svg");
+  if (viewBox) {
+    svg.setAttribute("viewBox", "0 0 100 100");
+    svg.setAttribute("preserveAspectRatio", "none");
+  }
+  const target = document.createElementNS(svgNS, "rect");
+  for (const [name, value] of Object.entries({x: 10, y: 20, width: 30, height: 40})) {
+    target.setAttribute(name, value);
+  }
+  svg.append(target);
+  host.append(svg);
+  document.body.append(host);
+  return {host, svg, target};
+}
+function matrix(target, method) {
+  const value = target[method]();
+  return value === null ? null : [value.a, value.b, value.c, value.d, value.e, value.f];
+}
+function rect(value) {
+  return [value.x, value.y, value.width, value.height];
+}
+function sample(method, viewBox, hidden) {
+  const subject = makeFixture(viewBox);
+  const twin = makeFixture(viewBox);
+  try {
+    const warm = matrix(subject.target, method);
+    const twinWarm = matrix(twin.target, method);
+    const warmHost = rect(subject.host.getBoundingClientRect());
+    subject.host.classList.toggle("hidden", hidden);
+    const hiddenHost = rect(subject.host.getBoundingClientRect());
+    subject.host.classList.add("wide");
+    twin.host.classList.add("wide");
+    const first = matrix(subject.target, method);
+    const repeat = matrix(subject.target, method);
+    const twinChanged = matrix(twin.target, method);
+    const hostChanged = rect(subject.host.getBoundingClientRect());
+    const twinHostChanged = rect(twin.host.getBoundingClientRect());
+    const policy = getComputedStyle(subject.host).contentVisibility;
+    const bbox = rect(subject.target.getBBox());
+    const afterBBox = matrix(subject.target, method);
+    const forcedRect = rect(subject.svg.getBoundingClientRect());
+    const afterLayout = matrix(subject.target, method);
+    subject.host.classList.remove("hidden");
+    const revealed = matrix(subject.target, method);
+    subject.host.classList.remove("wide");
+    twin.host.classList.remove("wide");
+    const restored = matrix(subject.target, method);
+    const twinRestored = matrix(twin.target, method);
+    const restoredHost = rect(subject.host.getBoundingClientRect());
+    return {key: `${method}-${viewBox ? "viewBox" : "no-viewBox"}-${hidden ? "hidden" : "visible"}`,
+            method, viewBox, hidden, warm, twinWarm, warmHost, hiddenHost,
+            first, repeat, twinChanged, hostChanged, twinHostChanged, policy,
+            bbox, afterBBox, forcedRect, afterLayout, revealed, restored,
+            twinRestored, restoredHost};
+  } finally {
+    subject.host.remove();
+    twin.host.remove();
+  }
+}
+const rows = [];
+for (const method of ["getCTM", "getScreenCTM"]) {
+  for (const viewBox of [true, false]) {
+    for (const hidden of [false, true]) {
+      rows.push(sample(method, viewBox, hidden));
+    }
+  }
+}
+const result = {compatMode: document.compatMode, scroll: [scrollX, scrollY], rows};
+window.svgMatrixProbeResult = result;
+document.querySelector("#output").textContent = JSON.stringify(result, null, 2);
+if (location.protocol === "http:" || location.protocol === "https:") {
+  fetch("/result", {method: "POST", headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(result)}).catch(error => {
+    document.querySelector("#output").textContent += `\nPOST: ${error.message}`;
+  });
+}
+</script>

@@ -1,0 +1,94 @@
+--- a/dom/svg/SVGGraphicsElement.cpp
++++ b/dom/svg/SVGGraphicsElement.cpp
+@@ -80,10 +80,8 @@
+ }
+ 
+ already_AddRefed<SVGMatrix> SVGGraphicsElement::GetCTM() {
+-  if (auto* currentDoc = GetComposedDoc()) {
+-    // Flush all pending notifications so that our frames are up to date
+-    currentDoc->FlushPendingNotifications(FlushType::Layout);
+-  }
++  // Resolve skipped geometry for SVG 2 getCTM() step 3.
++  GetPrimaryFrame(FlushType::Layout);
+   gfx::Matrix m = SVGContentUtils::GetCTM(this);
+   if (m.IsSingular()) {
+     m = {};
+@@ -92,10 +90,8 @@
+ }
+ 
+ already_AddRefed<SVGMatrix> SVGGraphicsElement::GetScreenCTM() {
+-  if (auto* currentDoc = GetComposedDoc()) {
+-    // Flush all pending notifications so that our frames are up to date
+-    currentDoc->FlushPendingNotifications(FlushType::Layout);
+-  }
++  // Resolve skipped geometry for SVG 2 getScreenCTM() step 3.
++  GetPrimaryFrame(FlushType::Layout);
+   gfx::Matrix m = SVGContentUtils::GetScreenCTM(this);
+   if (m.IsSingular()) {
+     m = {};
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-svg-matrix-viewport-resize.html
+@@ -0,0 +1,63 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>SVG matrix queries resolve resized viewports in hidden content</title>
++<link rel="help" href="https://svgwg.org/svg2-draft/types.html#InterfaceSVGGraphicsElement">
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++html { direction: ltr; writing-mode: horizontal-tb; }
++body { margin: 0; }
++.host { position: absolute; left: 20px; top: 30px; width: 100px; height: 100px; padding: 0; border: 0; margin: 0; }
++.host.wide { width: 200px; }
++.host.hidden { content-visibility: hidden; }
++.host svg { display: block; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; }
++</style>
++<body>
++<script>
++"use strict";
++const svgNS = "http://www.w3.org/2000/svg";
++function matrixValues(target, method) {
++  const value = target[method]();
++  assert_not_equals(value, null, "connected SVG has a matrix");
++  return [value.a, value.b, value.c, value.d, value.e, value.f].map(
++    component => component === 0 ? 0 : component);
++}
++for (const method of ["getCTM", "getScreenCTM"]) {
++  for (const viewBox of [true, false]) {
++    for (const hidden of [false, true]) {
++      test(t => {
++        const host = document.createElement("div");
++        host.className = "host";
++        const svg = document.createElementNS(svgNS, "svg");
++        if (viewBox) {
++          svg.setAttribute("viewBox", "0 0 100 100");
++          svg.setAttribute("preserveAspectRatio", "none");
++        }
++        const target = document.createElementNS(svgNS, "rect");
++        for (const [name, value] of Object.entries({x: 10, y: 20, width: 30, height: 40})) {
++          target.setAttribute(name, value);
++        }
++        svg.append(target);
++        host.append(svg);
++        document.body.append(host);
++        t.add_cleanup(() => host.remove());
++        const origin = method === "getScreenCTM" ? [20, 30] : [0, 0];
++        const initial = [1, 0, 0, 1, ...origin];
++        const changed = [viewBox ? 2 : 1, 0, 0, 1, ...origin];
++        assert_array_equals(matrixValues(target, method), initial, "initial matrix");
++        host.classList.toggle("hidden", hidden);
++        assert_equals(host.getBoundingClientRect().width, 100, "host width before resize");
++        host.classList.add("wide");
++        assert_array_equals(matrixValues(target, method), changed, "first matrix after viewport resize");
++        assert_array_equals(matrixValues(target, method), changed, "repeated matrix");
++        assert_equals(host.getBoundingClientRect().width, 200, "resized host width");
++        host.classList.remove("hidden");
++        assert_array_equals(matrixValues(target, method), changed, "visible matrix");
++        host.classList.remove("wide");
++        assert_array_equals(matrixValues(target, method), initial, "restored matrix");
++      }, `${method}: ${viewBox ? "viewBox" : "no viewBox"}, ${hidden ? "hidden" : "visible"} viewport resize`);
++    }
++  }
++}
++</script>

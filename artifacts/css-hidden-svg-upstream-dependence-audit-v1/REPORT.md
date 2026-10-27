@@ -1,0 +1,13 @@
+# Bounded upstream dependence audit
+
+No plausible dependence on104/105 was found for the new simple matrix WPT. This source conclusion does not substitute for a runtime comparison on recorded upstream976279105b2e78b8666a959eb3f25c9176cefaf8. The actual paired build/test used HEAD90, which contains105 committed fixes; it proves independence from pending106–112 overlays, including107, for these histories.
+
+Ten relevant complete files are byte-identical between upstream and HEAD90, including PresShell forced-hidden-layout admission/flush, block reflow, SVG viewport state/reflow, matrix provider and original SVG entry points. GetPrimaryFrame(Layout)'s exact function body is also identical even though Element.cpp has other branch changes. The compared HEAD PresShell gate is the original queried-frame IsSubtreeDirty gate, not the mixed-tree table-provider prototype. Source hashes are in BINDINGS.json.
+
+Fix104 changes hidden flex principal-child marking. The fixture has a block div, block outer SVG and rect; it does not construct a flex container or flex item. Its branch is therefore not a plausible prerequisite for this history.
+
+Fix105 adds MarkSubtreeDirty when an absolute child's in-flow parent hides content. The only absolute element here is the host itself, whose content is hidden; its body/placeholder parent is not hidden. The normal-flow SVG and rect are not absolute children dispatched through that added branch. The unchanged IsHiddenByContentVisibilityOfInFlowParentForLayout checks the in-flow parent, not the child's own content-visibility. Searchfox symbol discovery and explicit base/HEAD body equality confirm that distinction. No native trace was added to observe branch execution, so this remains source reasoning.
+
+Other AbsoluteContainingBlock changes concern auto margins; all host margins are fixed zero, dimensions/left/top explicit, and the observed discrepancy is SVG viewBox scale rather than host position. The committed transform/DOMRect precision changes102/103 are not readiness changes and the fixture uses small integer coordinates. This bounded audit does not exhaust every transitive style/layout/call-chain dependency or prove complete semantic equivalence to upstream. Exact patch applicability alone is likewise insufficient for that stronger claim.
+
+Read-only source/Git inspection only; no compiler, browser, index or native writes. A first explicit-file check included a nonexistent separate SVGOuterSVGAnonChildFrame.cpp and failed before producing evidence; it was removed rather than counted as equal. Keep the clean-upstream runtime limitation in acceptance/reporting rather than expanding this audit into an unbounded dependency proof.

@@ -1,0 +1,136 @@
+--- client-install/run.py
++++ svg-install/run.py
+@@ -41,28 +41,29 @@
+ authenticate(refs, ROOT)
+ c = read(HERE / 'CONFIG.json')
+ need(c['ready_for_execution'] is True, 'disabled draft')
+-need(all(isinstance(c[n], str) and c[n] for n in ('epoch', 'acceptance', 'acceptance_sha256'))
++need(all(isinstance(c[n], str) and c[n] for n in ('epoch', 'epoch_manifest_sha256', 'acceptance', 'acceptance_sha256'))
+      and c['epoch_receipt'] is not None and c['acceptance_receipt'] is not None, 'unbound epoch or acceptance')
+ need(all(not (HERE / n).exists() and not (HERE / n).is_symlink()
+          for n in ('wpt-candidate', 'BEFORE.json', 'STATE.json', 'original')), 'already started/output collision')
+ acceptance = ROOT / c['acceptance']
+ need(sha(acceptance) == c['acceptance_sha256'] and read(acceptance) == c['acceptance_receipt'], 'exact acceptance')
+-need(c['acceptance_receipt']['fix'] == 112
+-     and c['acceptance_receipt']['status'] == 'SCOPED_ACCEPTED', 'root fix112 acceptance required')
++need(c['acceptance_receipt']['status'] == 'SCOPED_ACCEPTED', 'root scoped acceptance required')
+ proposal = ROOT / c['proposal']
+ authenticate(read(proposal / 'FILES.json'), proposal)
+-source = read(proposal / 'SOURCE.json')['files']['dom/base/Element.h']
++source_pins = read(proposal / 'SOURCE-PINS.json')
++source = {'original': source_pins['before_sha256'], 'candidate': source_pins['candidate_sha256']}
+ accepted_patch = c['acceptance_receipt'].get('patch')
+ accepted_hash = (accepted_patch.get('sha256') if isinstance(accepted_patch, dict)
+                  else c['acceptance_receipt'].get('native_patch_sha256'))
+-need(accepted_hash == sha(proposal / 'combined-112-client-gecko-wpt.patch'), 'accepted exact combined four-path patch')
++need(accepted_hash == sha(proposal / 'gecko-wpt.patch'), 'accepted exact two-path patch')
+ wpt = load('install_wpt', ROOT / c['helpers'] / 'run_wpt.py')
+ bindings = load('install_bindings', ROOT / c['helpers'] / 'bindings.py')
+-tests = load('install_tests', ROOT / 'artifacts/css-cssom-client-comparison-v1/tests.py')
++tests = load('install_tests', ROOT / 'artifacts/css-hidden-svg-matrix-comparison-v1/tests.py')
+ wpt.HERE, wpt.CONFIG = HERE, c
+ wpt.ENV.update(MOZ_DISABLE_SAFE_MODE_KEY='1', MOZ_DISABLE_UPDATE_PROCESSING='1')
+ wpt.ENV.pop('MOZ_SAFE_MODE_RESTART', None)
+ previous = ROOT / c['epoch']
++need(sha(previous / 'FILES.json') == c['epoch_manifest_sha256'], 'comparison epoch seal')
+ authenticate(read(previous / 'FILES.json'), previous)
+ epoch, receipt = read(previous / 'STATE.json'), read(previous / 'ROOT-FINAL-CHECK.json')
+ need(epoch['status'] == 'terminal' and epoch['restored'] is True and epoch['restore_build_exit'] == 0
+@@ -78,6 +79,12 @@
+ prior_pins = read(previous / 'FINAL-PINS.json')
+ need(prior_pins == {**read(previous / 'RESOURCES.json'), **prior_final['sources'],
+                    **epoch['restored_binary_pins']}, 'complete restored role map')
++for directory in ('css-cssom-client-install-runtime-v1', 'css-cssom-offset-scroll-install-runtime-v1'):
++    installed = ROOT / 'artifacts' / directory
++    authenticate(read(installed / 'FILES.json'), installed)
++    item = read(installed / 'INSTALLATION.json')
++    need(c['installed_tests'][item['owned_test']] == {
++        'identity': item['owned_test_identity'], 'sha256': item['owned_test_sha256']}, 'installed112 receipt join')
+ bindings.index_state(wpt)
+ before = wpt.snapshot()
+ need(before == prior_final and before['head'] == c['head']
+@@ -85,27 +92,19 @@
+ need(wpt.pins(list(prior_pins)) == prior_pins, 'current restored resources and binaries')
+ resources = read(HERE / 'RESOURCES.json')
+ need(wpt.pins(list(resources)) == resources, 'initial resources')
+-old_install = ROOT / c['prior_installation']
+-authenticate(read(old_install / 'FILES.json'), old_install)
+-installation = read(old_install / 'INSTALLATION.json')
+-need(installation['after']['sources']['dom/base/Element.cpp'] == before['sources']['dom/base/Element.cpp']
+-     == '5770fd0f1134284626ed42152e4b1c1d054cf509ae99e2ebcaf08d5ae00c0913', 'preserve installed112 implementation')
+-need(before['sources'] == {**installation['after']['sources'], 'dom/base/Element.h':source['original']}, 'restore target is installed112 plus original header')
+-classification = read(previous / 'REPAIR-CLASSIFICATION.json')
+-need(len(classification['main_repairs']) == 10, 'expanded comparison main repairs')
+-native = 'dom/base/Element.h'
++native = 'dom/svg/SVGGraphicsElement.cpp'
+ owned_test = next(iter(c['install']))
+-need(len(c['install']) == 1 and c['sources'] == [native] and set(c['tests']) == {'testing/web-platform/tests'+n for n in c['main_tests']} and len(c['expected_subtests']) == 2
+-     and sum(map(len,c['expected_subtests'].values())) == 40 and len(c['guard_sources']) == 48, 'integration scope')
+-need(before['sources'][native] == source['original'], 'Element.h has unrelated working changes')
++need(len(c['install']) == 1 and c['sources'] == [native] and set(c['tests']) == {'testing/web-platform/tests'+n for n in c['main_tests']} and len(c['expected_subtests']) == 1
++     and sum(map(len,c['expected_subtests'].values())) == 8 and len(c['guard_sources']) == 50, 'integration scope')
++need(before['sources'][native] == source['original'], 'SVGGraphicsElement.cpp has unrelated working changes')
+ fixture = (HERE / c['install'][owned_test]).read_bytes()
+-need(fixture == (proposal / 'client-size-integer-precision.html').read_bytes(), 'exact final fixture')
++need(fixture == (proposal / 'hidden-svg-matrix-viewport-resize.html').read_bytes(), 'exact final fixture')
+ candidate = (ROOT / c['candidate_sources'][native]).read_bytes()
+ need(hashlib.sha256(candidate).hexdigest() == c['candidate_pins'][native] == source['candidate'], 'exact candidate')
+ original = {native: (ROOT / native).read_bytes()}
+ need(not (ROOT / owned_test).exists() and not (ROOT / owned_test).is_symlink()
+      and not wpt.git('ls-files', '--', owned_test), 'owned WPT absent/untracked')
+-temp = (ROOT / native).with_name('.Element.h.rounding-comparison.tmp')
++temp = (ROOT / native).with_name('.SVGGraphicsElement.cpp.svg-install.tmp')
+ need(not temp.exists() and not temp.is_symlink(), 'source temporary exists')
+ 
+ def modified_native():
+@@ -114,11 +113,11 @@
+     return wpt.git('ls-files', '--others', '--exclude-standard', '--', 'layout', 'dom', 'servo', 'mfbt').decode().splitlines()
+ def existing_tests():
+     need(wpt.pins(c['existing_tests']) == c['existing_test_pins'], 'existing tests changed')
+-    old_test = ROOT / installation['owned_test']
+-    info = old_test.lstat()
+-    need(stat.S_ISREG(info.st_mode) and [info.st_dev, info.st_ino] == installation['owned_test_identity']
+-         and sha(old_test) == installation['owned_test_sha256']
+-         == '18c47e1acbf0a546a975fe5dc92c297a38a71e228a7b6ec576a58bc71c06078b', 'installed32 ownership')
++    for name, item in c['installed_tests'].items():
++        old_test = ROOT / name
++        info = old_test.lstat()
++        need(stat.S_ISREG(info.st_mode) and [info.st_dev, info.st_ino] == item['identity']
++             and sha(old_test) == item['sha256'] == c['existing_test_pins'][name], 'installed112 ownership')
+     need(wpt.git('ls-files', '--', *c['existing_tests']).decode().splitlines() == c['tracked_existing_tests'], 'existing test ownership')
+ need(modified_native() == c['modified_native_paths'] and not untracked_native(), 'native inventory')
+ existing_tests()
+@@ -170,7 +169,7 @@
+     need(stat.S_ISREG(info.st_mode) and identity in owned_sources[name], 'unknown native edit: ' + name)
+     if data == current:
+         return
+-    temp = path.with_name('.' + path.name + '.rounding-comparison.tmp')
++    temp = path.with_name('.' + path.name + '.svg-install.tmp')
+     temporary_identity = None
+     try:
+         with temp.open('xb') as stream:
+@@ -212,13 +211,13 @@
+     wpt.save('STATE.json', state)
+     result = tests.run(wpt, 'candidate', phase_resources)
+     tests.require_phase(wpt, 'candidate', result)
+-    need(len(result['rows']) == 40 and all(row['status'] == 'PASS' for row in result['rows']), 'own40 integration')
++    need(len(result['rows']) == 8 and all(row['status'] == 'PASS' for row in result['rows']), 'own8 integration')
+     need(all(result['before'][n] == h for n, h in state['installed_binary_pins'].items()), 'built binary/test join')
+     final = verify_installed()
+     need(wpt.pins(wpt.BINARIES) == state['installed_binary_pins'], 'binary drift')
+     wpt.save('FINAL.json', final)
+     wpt.save('FINAL-PINS.json', {**phase_resources, **state['installed_binary_pins']})
+-    state.update(status='terminal', installed=True, subtests={'PASS': 40, 'FAIL': 0}, files_ok=2)
++    state.update(status='terminal', installed=True, subtests={'PASS': 8, 'FAIL': 0}, files_ok=1)
+     wpt.save('INSTALLATION.json', {'before': before, 'after': final,
+         'original_source_pins': {native: source['original']}, 'installed_source_pins': {native: source['candidate']},
+         'owned_test': owned_test, 'owned_test_sha256': hashlib.sha256(fixture).hexdigest(),
+@@ -240,7 +239,7 @@
+         try:
+             replace_source(native, original[native])
+         except BaseException as error:
+-            errors.append({'operation': 'restore Element.h', 'error': repr(error)})
++            errors.append({'operation': 'restore SVGGraphicsElement.cpp', 'error': repr(error)})
+         if owned_identity is not None:
+             try:
+                 info = (ROOT / owned_test).lstat()

@@ -1,0 +1,11 @@
+# Standalone SVG matrix comparison
+
+On normalized HEAD90, the eight-case regression WPT has six passes and two failures: hidden viewBox-dependent getCTM/getScreenCTM return scale1 after the host grows from100px to200px. With only the SVGGraphicsElement.cpp candidate, all eight pass. All26 existing SVG controls preserve their passing outcomes, giving32PASS/2FAIL to34PASS overall. Eight separate availability observations are stable and identical in both source roles.
+
+All26 pending native changes were removed for both comparison phases; the candidate differed from HEAD90 only in SVGGraphicsElement.cpp. Thus pending fix107 is not needed for these tested histories. HEAD90 still includes earlier committed fixes; this is not a pristine-upstream runtime result. The exact two-path patch also applies to the recorded upstream base in a separate textual audit.
+
+Session85899 exited0. Lint, baseline build, candidate build and original-working-tree restoration build all exit0. All27 saved source bodies were restored, the owned WPT was removed, both installed112 WPT hashes/inodes and925 staged paths were preserved, and the original26 native edits remain exact. Root independently recounted raw WPT records and availability payloads, verified both phase source/build/binary joins, all355 live final source/resource/binary/absence roles, and current HEAD/index/native hashes. WPT groups and both diagnostic groups terminate; both diagnostic profiles were removed. Each build log retains four resource-monitor KeyError export diagnostics; build success is established by command receipts, not absence of warnings.
+
+The new calls enter the existing hidden-content-aware frame query before unchanged matrix calculation and singular fallback. This is a scoped repair supported by source review and browser comparison, not a complete SVG/Gecko refinement proof. Generic ProviderObservation results describe a supplied forcing transition; no new Lean theorem automatically discovered this bug or proves native dirty-state/lifetime completeness.
+
+Full independent result review and root acceptance remain separate. No patch was committed or left installed by this comparison. Restored binary hashes are in STATE.json and ROOT-FINAL-CHECK.json; earlier OOF-build hashes are historical inputs.

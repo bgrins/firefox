@@ -1,0 +1,63 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SVG matrix availability observations</title>
+<style>
+body { margin: 0; }
+.host { position: absolute; left: 20px; top: 30px; }
+.host.none { display: none; }
+svg { display: block; width: 100px; height: 100px; }
+</style>
+<pre id="output"></pre>
+<script>
+"use strict";
+const svgNS = "http://www.w3.org/2000/svg";
+function sample(method, mode) {
+  const host = document.createElement("div");
+  host.className = mode === "display-none" ? "host none" : "host";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", "0 0 100 100");
+  const target = document.createElementNS(svgNS, "rect");
+  target.setAttribute("width", "10");
+  target.setAttribute("height", "10");
+  target.setAttribute("transform", mode === "singular" ? "scale(0)" : "translate(3 4)");
+  const parent = mode === "defs" ? document.createElementNS(svgNS, "defs") : svg;
+  if (parent !== svg) {
+    svg.append(parent);
+  }
+  parent.append(target);
+  host.append(svg);
+  if (mode !== "detached") {
+    document.body.append(host);
+  }
+  const read = () => {
+    try {
+      const value = target[method]();
+      return value === null ? {kind: "null"} :
+        {kind: "matrix", values: [value.a, value.b, value.c, value.d, value.e, value.f]};
+    } catch (error) {
+      return {kind: "exception", name: error.name};
+    }
+  };
+  try {
+    return {key: `${method}-${mode}`, method, mode, connected: target.isConnected,
+            first: read(), repeat: read()};
+  } finally {
+    host.remove();
+  }
+}
+const rows = [];
+for (const method of ["getCTM", "getScreenCTM"]) {
+  for (const mode of ["detached", "display-none", "defs", "singular"]) {
+    rows.push(sample(method, mode));
+  }
+}
+const result = {compatMode: document.compatMode, rows};
+window.svgMatrixAvailability = result;
+document.querySelector("#output").textContent = JSON.stringify(result, null, 2);
+if (location.protocol === "http:" || location.protocol === "https:") {
+  fetch("/result", {method: "POST", headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(result)}).catch(error => {
+    document.querySelector("#output").textContent += `\nPOST: ${error.message}`;
+  });
+}
+</script>

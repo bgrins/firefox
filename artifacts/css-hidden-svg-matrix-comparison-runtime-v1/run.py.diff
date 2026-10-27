@@ -1,0 +1,194 @@
+--- artifacts/css-cssom-client-comparison-runtime-v1/run.py
++++ run.py
+@@ -41,47 +41,50 @@
+ authenticate(refs, ROOT)
+ c = read(HERE / 'CONFIG.json')
+ need(c['ready_for_execution'] is True, 'disabled draft')
+-need(all(isinstance(c[n], str) and c[n] for n in ('epoch', 'reanalysis')), 'unbound restored epoch or baseline reanalysis')
++need(all(isinstance(c[n], str) and c[n] for n in ('epoch', 'proposal')), 'unbound restored epoch or proposal')
+ need(all(not (HERE / n).exists() and not (HERE / n).is_symlink()
+-         for n in ('wpt-baseline', 'wpt-candidate')), 'WPT output directory exists')
++         for n in ('wpt-baseline', 'wpt-candidate', 'availability-baseline', 'availability-candidate')), 'WPT output directory exists')
+ need(not any((HERE / n).exists() for n in ('BEFORE.json', 'STATE.json', 'original')), 'already started')
+-need(all(not (ROOT / n).with_name('.' + Path(n).name + '.rounding-comparison.tmp').exists()
+-         and not (ROOT / n).with_name('.' + Path(n).name + '.rounding-comparison.tmp').is_symlink() for n in c['sources']), 'source temp exists')
++need(all(not (ROOT / n).with_name('.' + Path(n).name + '.svg-matrix-comparison.tmp').exists()
++         and not (ROOT / n).with_name('.' + Path(n).name + '.svg-matrix-comparison.tmp').is_symlink() for n in c['sources']), 'source temp exists')
+ wpt = load('rounding_wpt', ROOT / c['helpers'] / 'run_wpt.py')
+ bindings = load('rounding_bindings', ROOT / c['helpers'] / 'bindings.py')
+-reanalysis = ROOT / c['reanalysis']
+-authenticate(read(reanalysis / 'FILES.json'), reanalysis)
+-old_tests = load('retained_rounding_tests', reanalysis / 'tests.py')
+-tests = load('consolidated_tests', HERE / 'tests.py')
++tests = load('svg_matrix_tests', HERE / 'tests.py')
++extras = load('svg_matrix_capture', ROOT / c['capture'])
++cleanup = load('svg_matrix_cleanup', ROOT / c['cleanup'])
++availability = load('svg_matrix_availability', HERE / 'validate_availability.py')
+ wpt.HERE, wpt.CONFIG = HERE, c
+ previous = ROOT / c['epoch']
+-need(c['epoch_receipt'] is not None and sha(previous / 'FILES.json') == c['required_installation_manifest_sha256'], 'unbound or wrong installed epoch')
++need(sha(previous / 'FILES.json') == c['epoch_manifest_sha256'], 'restored trace epoch')
+ authenticate(read(previous / 'FILES.json'), previous)
+-epoch, receipt = read(previous / 'STATE.json'), read(previous / 'ROOT-FINAL-CHECK.json')
+-need(receipt == c['epoch_receipt'], 'exact installed root receipt')
+-epoch_gate = load('installed_epoch_gate', HERE / 'epoch_gate.py')
+-prior_final, prior_pins, installed_config, installation = epoch_gate.installed_epoch(previous)
++need(read(previous / 'ROOT-FINAL-CHECK.json') == c['epoch_receipt'], 'exact restored root receipt')
++epoch_gate = load('svg_restored_epoch_gate', HERE / 'epoch_gate.py')
++prior_final, prior_pins, installed_config, installed_tests = epoch_gate.bind(
++    ROOT, previous, read, sha, authenticate, load)
++epoch = read(previous / 'STATE.json')
+ bindings.index_state(wpt)
+ before = wpt.snapshot()
+ prior_final = read(previous / 'FINAL.json')
+ need(all(before[k] == prior_final[k] for k in before if k != 'sources')
+      and all(before['sources'][n] == h for n, h in prior_final['sources'].items()), 'installed112 source epoch')
+ need(before['head'] == c['head'] and before['sources'] == c['source_pins'], 'working source roles')
+-need(wpt.pins(wpt.BINARIES) == epoch['installed_binary_pins'], 'installed binaries')
++need(wpt.pins(wpt.BINARIES) == epoch['restored_binary_pins'], 'restored trace binaries')
+ prior_pins = read(previous / 'FINAL-PINS.json')
+ need(wpt.pins(list(prior_pins)) == prior_pins, 'complete prior source/resource/binary epoch')
+ need(all(prior_pins[n] == h for n, h in c['existing_test_pins'].items()), 'installed test epoch transfer')
+ wpt.ENV.update(MOZ_DISABLE_SAFE_MODE_KEY='1', MOZ_DISABLE_UPDATE_PROCESSING='1')
+ wpt.ENV.pop('MOZ_SAFE_MODE_RESTART', None)
++wpt.ENV.pop('MOZ_ANCESTOR_CANCELLATION_TRACE', None)
++wpt.ENV.pop('MOZ_NESTED_EDGE_TRACE', None)
+ resources = read(HERE / 'RESOURCES.json')
+ need(wpt.pins(list(resources)) == resources, 'initial resources')
+ owned_test = next(iter(c['install']))
+-need(len(c['install']) == 1 and len(c['tests']) == 21 and len(c['baseline_tests']) == 8 and len(c['candidate_sources']) == 2, 'comparison scope')
++need(len(c['install']) == 1 and len(c['tests']) == 7 and c['baseline_tests'] == c['tests'] and len(c['candidate_sources']) == 1, 'comparison scope')
+ need(not (ROOT / owned_test).exists() and not (ROOT / owned_test).is_symlink()
+      and not wpt.git('ls-files', '--', owned_test), 'test absent/untracked')
+ fixture = (HERE / c['install'][owned_test]).read_bytes()
+ def phase_resources(phase):
+-    return {**resources, **c['head_pins'], **c['baseline_pins'],
++    return {**resources, **c['head_pins'],
+             **(c['candidate_pins'] if phase == 'candidate' else {}),
+             owned_test: hashlib.sha256(fixture).hexdigest()}
+ 
+@@ -91,47 +94,45 @@
+     return wpt.git('ls-files', '--others', '--exclude-standard', '--', 'layout', 'dom', 'servo', 'mfbt').decode().splitlines()
+ def existing_tests():
+     need(wpt.pins(c['existing_tests']) == c['existing_test_pins'], 'read-only existing tests')
+-    installed_test = ROOT / installation['owned_test']
+-    info = installed_test.lstat()
+-    need(stat.S_ISREG(info.st_mode) and [info.st_dev, info.st_ino] == installation['owned_test_identity'], 'installed32 inode changed')
++    for name, item in installed_tests.items():
++        installed_test = ROOT / name
++        info = installed_test.lstat()
++        need(stat.S_ISREG(info.st_mode) and [info.st_dev, info.st_ino] == item['identity']
++             and sha(installed_test) == item['sha256'], 'installed112 test identity changed')
+     need(wpt.git('ls-files', '--', *c['existing_tests']).decode().splitlines() == c['tracked_existing_tests'], 'existing test ownership')
+     for n, h in read(HERE / 'TEST-SOURCE-PINS.json').items():
+         need(sha(ROOT / n) == h and hashlib.sha256(wpt.git('show', c['head'] + ':' + n)).hexdigest() == h, 'comparison test HEAD binding')
+ existing_tests()
+ need(modified_native() == c['modified_native_paths'] and not untracked_native(), 'complete native roster')
+-need(len(c['sources']) == 31 and len(c['guard_sources']) == 48 and set(c['modified_native_paths']) <= set(c['sources']), 'normalization roster')
++need(len(c['sources']) == 27 and len(c['guard_sources']) == 50 and set(c['modified_native_paths']) <= set(c['sources']), 'normalization roster')
+ head = {n: wpt.git('show', c['head'] + ':' + n) for n in c['guard_sources']}
+ need({n: hashlib.sha256(b).hexdigest() for n, b in head.items()} == c['head_pins'], 'HEAD bodies')
+ original = {n: (ROOT / n).read_bytes() for n in c['sources']}
+-baseline = {n: (ROOT / p).read_bytes() for n, p in c['baseline_sources'].items()}
+-need(set(baseline) <= set(original) and {n: hashlib.sha256(b).hexdigest() for n, b in baseline.items()} == c['baseline_pins'], 'baseline reverse sources')
+ selected = {n: (ROOT / p).read_bytes() for n, p in c['candidate_sources'].items()}
+ need(set(selected) <= set(original) and {n: hashlib.sha256(b).hexdigest() for n, b in selected.items()} == c['candidate_pins'], 'candidate source')
+ 
+ def verify_phase(phase):
+     now = wpt.snapshot()
+     need(all(now[k] == before[k] for k in ('head', 'index_diff_sha256', 'index_entries_sha256')), 'HEAD/index changed')
+-    expected = {**c['head_pins'], **c['baseline_pins'], **(c['candidate_pins'] if phase == 'candidate' else {})}
++    expected = {**c['head_pins'], **(c['candidate_pins'] if phase == 'candidate' else {})}
+     need(now['sources'] == expected, 'exact phase sources')
+-    need(sorted(modified_native()) == sorted(set(baseline) | (set(selected) if phase == 'candidate' else set())) and not untracked_native(), 'complete phase diff')
++    need(sorted(modified_native()) == sorted(set(selected) if phase == 'candidate' else set()) and not untracked_native(), 'complete phase diff')
+     need(wpt.pins(list(phase_resources(phase))) == phase_resources(phase), 'phase resources')
+     need(all(not (ROOT / n).exists() and not (ROOT / n).is_symlink() for n in c['must_be_absent']), 'prior temporary input appeared')
+     need(not wpt.git('ls-files', '--', owned_test), 'owned test became tracked')
++    owned_stat = (ROOT / owned_test).lstat()
++    need(stat.S_ISREG(owned_stat.st_mode) and (owned_stat.st_dev, owned_stat.st_ino) == owned_identity, 'owned fixture identity drift')
+     existing_tests()
+     authenticate(payloads, HERE)
+     authenticate(refs, ROOT)
+-
+-reuse = load('retained141_gate', HERE / 'reuse.py')
+-retained_baseline = reuse.validate(wpt, load, sha, authenticate, phase_resources('baseline'))
+-retained_rows = retained_baseline['rows']
+ 
+ for n, data in original.items():
+     p = HERE / 'original' / n
+     p.parent.mkdir(parents=True, exist_ok=True)
+     p.write_bytes(data)
+ wpt.save('BEFORE.json', before)
+-wpt.save('ORIGINAL-BINARIES.json', epoch['installed_binary_pins'])
+-state = {'status': 'starting', 'phases': {}, 'baseline_reuse': {k:v for k,v in retained_baseline.items() if k != 'rows'}, 'accepted_native_repair': False, 'original_source_role': 'installed112 plus preserved mixed prototypes', 'pending_acceptance_gates': c['pending_acceptance_gates']}
++wpt.save('ORIGINAL-BINARIES.json', epoch['restored_binary_pins'])
++state = {'status': 'starting', 'phases': {}, 'accepted_native_repair': False, 'original_source_role': 'restored expanded112 plus preserved mixed prototypes; both phases normalize all tracked native differences to HEAD90', 'pending_acceptance_gates': c['pending_acceptance_gates']}
+ changed = False
+ owned_identity = None
+ errors = []
+@@ -154,7 +155,7 @@
+     need(stat.S_ISREG(info.st_mode) and identity in owned_sources[name], 'unknown native edit: ' + name)
+     if data == current:
+         return
+-    temp = path.with_name('.' + path.name + '.rounding-comparison.tmp')
++    temp = path.with_name('.' + path.name + '.svg-matrix-comparison.tmp')
+     temporary_identity = None
+     try:
+         with temp.open('xb') as stream:
+@@ -178,7 +179,7 @@
+ 
+ try:
+     for n in c['sources']:
+-        target = baseline.get(n, head[n])
++        target = head[n]
+         if original[n] != target:
+             changed = True
+             replace_source(n, target)
+@@ -216,13 +217,26 @@
+         need(all(runs[phase]['before'][n] == h for n, h in record['binary_pins'].items()), 'built binary/test join')
+         tests.require_phase(wpt, phase, runs[phase])
+         verify_phase(phase)
+-        wpt.save('STATE.json', state)
+-    combined_baseline = {'rows': runs['baseline']['rows'] + retained_rows}
+-    wpt.save('COMBINED-BASELINE.json', {'new_run': 'wpt-baseline/RUN.json', 'retained_runtime': c['retained_combined'],
+-        'retained_reanalysis': c['reanalysis'], **combined_baseline})
+-    tests.compare(wpt, combined_baseline, runs['candidate'])
++        active_pins = {**phase_resources(phase), **record['binary_pins']}
++        captured = extras.capture(HERE, ROOT, wpt, cleanup, 'availability-' + phase,
++            (HERE / 'availability-probe.html').read_bytes(), lambda: verify_phase(phase), active_pins)
++        need(captured['before'] == captured['after'] == active_pins
++             and captured['process_cleanup']['terminal'] and captured['process_cleanup']['noLiveGroup']
++             and captured['profile_removed'] and not captured['cleanup_errors']
++             and len(captured['observations']) == 1, 'availability capture/cleanup')
++        observed = availability.validate(captured['observations'][0])
++        wpt.save('availability-' + phase + '/SUMMARY.json', observed)
++        need(observed['stable'] == 8, 'availability repeat instability')
++        record['availability_stable'] = 8
++        verify_phase(phase)
++        wpt.save('STATE.json', state)
++    tests.compare(wpt, runs['baseline'], runs['candidate'])
++    old_availability = read(HERE / 'availability-baseline/payload.json')
++    new_availability = read(HERE / 'availability-candidate/payload.json')
++    wpt.save('AVAILABILITY-COMPARISON.json', {'identical': old_availability == new_availability,
++             'baseline': old_availability, 'candidate': new_availability})
++    need(old_availability == new_availability, 'availability behavior changed')
+     state['paired_preservation_passed'] = True
+-    state['baseline_reused'] = True
+ except BaseException as error:
+     state['failure'] = {'type': type(error).__name__, 'message': str(error)}
+ finally:
+@@ -271,10 +285,11 @@
+             and all(not (ROOT / n).exists() and not (ROOT / n).is_symlink() for n in c['must_be_absent'])
+             and wpt.pins(list(resources)) == resources and not (ROOT / owned_test).exists()
+             and not (ROOT / owned_test).is_symlink() and not wpt.git('ls-files', '--', owned_test)
+-            and all(not (ROOT / n).with_name('.' + Path(n).name + '.rounding-comparison.tmp').exists()
+-                    and not (ROOT / n).with_name('.' + Path(n).name + '.rounding-comparison.tmp').is_symlink() for n in c['sources']))
++            and all(not (ROOT / n).with_name('.' + Path(n).name + '.svg-matrix-comparison.tmp').exists()
++                    and not (ROOT / n).with_name('.' + Path(n).name + '.svg-matrix-comparison.tmp').is_symlink() for n in c['sources']))
+         state['restored_binary_pins'] = wpt.pins(wpt.BINARIES)
+         recovery_save('FINAL.json', final)
++        recovery_save('FINAL-PINS.json', {**resources, **final['sources'], **state['restored_binary_pins']})
+     except BaseException as error:
+         errors.append({'operation': 'final check', 'error': repr(error)})
+     state['status'] = 'terminal'

@@ -1,0 +1,15 @@
+# Independent SVG matrix comparison results
+
+Recommend scoped acceptance of the exact two-path native+WPT proposal79d50bcc55966c8d179c9b2c5f9d1a013d71a644d983b8f2cffabc5799e2e0d1. No blocker remains in this bounded campaign. This recommendation does not commit or install it.
+
+Authenticated all76 final runtime payloads under d10d6ec3f6e539976bab64fef087e5ab00a12a54692a78f069b98a86a8aa7685. Independent raw recount gives34 unique subtests/seven OK file completions in each phase: baseline32PASS/2FAIL becomes candidate34PASS. The only failures repaired are hidden viewBox getCTM/getScreenCTM first reads, scale1 instead of2. All26 existing controls and six other new cases remain PASS. Candidate assertions also cover repeat/reveal/reset. No infrastructure faults, source/binary drift or failed cleanup was found.
+
+The baseline's50 source hashes equal HEAD90 and its native diff is empty. The candidate differs only in SVGGraphicsElement.cpp. Both build exits are0, recorded source maps remain unchanged during builds, and exact356 source/resource/fixture/binary roles join the raw WPT captures and separate availability captures. Eight availability rows per phase are validated, repeat-stable and byte-identical across phases, retaining detached/display-none/defs/singular behavior without calling every legacy result normative.
+
+The terminal STATE has paired preservation, restored=true, no failure/recovery errors and restore build0. All27 retained original bodies match BEFORE; FINAL equals BEFORE. The full355 final role map joins303 resources,50 source guards and the newly rebuilt binaries. The authenticated root receipt verifies925 staged paths, original26 native differences, both installed112 WPT hashes/inodes, removal of the experiment-owned WPT, all groups cleaned and both profiles removed. This review authenticates that historical restoration rather than rerunning broad live-state checks. The earlier PHASE-RESULTS terminal_restoration_reviewed=false records phase-only scope; FINAL-REVIEW closes it.
+
+Each of the three build logs retains four resource-monitor KeyError:'export' diagnostics. All three underlying builds exited0. These retained monitor diagnostics are not hidden or misclassified as native build failure.
+
+Pending107 independence is demonstrated for these specific histories. HEAD90 contains105 earlier committed fixes, so this is not a clean-upstream runtime claim. Separate bounded source audit found no plausible104/105 dependency and key readiness/SVG code matched upstream976279; exact patch applicability and that source reasoning do not replace clean-upstream execution. No universal dirty-state, availability, performance, release-novelty, security or native formal-refinement claim follows. The bug was found through source audit and browser comparison; the generic provider model remains conditional.
+
+Restored binaries: firefox61f0f447abcf758e0a92e36550b4324a7f2bb3da492c43cb9f3c897b21e9cc53, XUL76e10c74ecc6bab3dbd37b1e61fcbfed0ed5154b3649456baa5b493f8fa93136. Future controllers must bind this epoch rather than the historical OOF binaries.
