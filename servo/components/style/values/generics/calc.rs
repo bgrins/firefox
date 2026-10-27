@@ -2067,7 +2067,11 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
 
                 let (mut lower_bound, mut upper_bound) = if value_or_stop!(value.is_negative_leaf())
                 {
-                    let upper_bound = value_or_stop!(value.try_op(&remainder, Sub::sub));
+                    // A zero upper bound is specifically negative zero.
+                    let upper_bound = value_or_stop!(value.try_op(&remainder, |a, b| {
+                        let result = a - b;
+                        if result == 0.0 { -0.0 } else { result }
+                    }));
                     let lower_bound = value_or_stop!(upper_bound.try_op(step, Sub::sub));
 
                     (lower_bound, upper_bound)
