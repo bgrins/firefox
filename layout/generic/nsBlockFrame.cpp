@@ -4310,6 +4310,9 @@ bool nsBlockFrame::ReflowLine(BlockReflowState& aState, LineIterator aLine,
   nsIFrame* firstChild = aLine->mFirstChild;
   if (firstChild->IsHiddenByContentVisibilityOfInFlowParentForLayout() &&
       !HasAnyStateBits(NS_FRAME_OWNS_ANON_BOXES)) {
+    for (nsIFrame* child : aLine->ChildFrames()) {
+      child->MarkSubtreeDirty();
+    }
     return false;
   }
 
