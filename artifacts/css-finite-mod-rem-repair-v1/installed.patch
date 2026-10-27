@@ -1,0 +1,139 @@
+--- a/servo/components/style/values/generics/calc.rs
++++ b/servo/components/style/values/generics/calc.rs
+@@ -85,12 +85,18 @@
+             return dividend;
+         }
+ 
+-        let (r, same_sign_as) = match self {
+-            Self::Mod => (dividend - divisor * (dividend / divisor).floor(), divisor),
+-            Self::Rem => (dividend - divisor * (dividend / divisor).trunc(), dividend),
++        let mut r = dividend % divisor;
++        let same_sign_as = match self {
++            Self::Mod => {
++                if r != 0.0 && r.is_sign_negative() != divisor.is_sign_negative() {
++                    r += divisor;
++                }
++                divisor
++            },
++            Self::Rem => dividend,
+         };
+-        if r == 0.0 && same_sign_as.is_sign_negative() {
+-            -0.0
++        if r == 0.0 {
++            r.copysign(same_sign_as)
+         } else {
+             r
+         }
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-values/mod-rem-exact-finite-remainder.html
+@@ -0,0 +1,110 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Finite mod and rem preserve exact small integer remainders</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#round-func">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#round-infinities">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++const cases = [
++  { op: "mod", a: 33554432, b: 3, expected: 2, small: 2 },
++  { op: "rem", a: 33554432, b: 3, expected: 2, small: 2 },
++  { op: "mod", a: -33554432, b: 3, expected: 1, small: 1 },
++  { op: "rem", a: -33554432, b: 3, expected: -2, small: -2 },
++  { op: "mod", a: 33554432, b: -3, expected: -1, small: -1 },
++  { op: "rem", a: 33554432, b: -3, expected: 2, small: 2 },
++  { op: "mod", a: -33554432, b: -3, expected: -2, small: -2 },
++  { op: "rem", a: -33554432, b: -3, expected: -2, small: -2 }
++];
++
++function setup(t) {
++  const host = document.createElement("div");
++  host.style.fontSize = "16px";
++  const target = document.createElement("div");
++  const control = document.createElement("div");
++  const em = document.createElement("div");
++  em.style.cssText = "width:1em;height:1px";
++  host.append(target, control, em);
++  document.body.append(host);
++  t.add_cleanup(() => host.remove());
++  return { host, target, control, em };
++}
++
++function sample(element, expression) {
++  assert_true(CSS.supports("opacity", expression), "calibration: expression admission");
++  element.style.removeProperty("opacity");
++  element.style.opacity = expression;
++  assert_not_equals(element.style.opacity, "", "calibration: setter retention");
++  const first = Number(getComputedStyle(element).opacity);
++  const repeat = Number(getComputedStyle(element).opacity);
++  assert_true(Number.isFinite(first) && first >= 0 && first <= 1,
++              "calibration: bounded first opacity");
++  assert_true(Number.isFinite(repeat) && repeat >= 0 && repeat <= 1,
++              "calibration: bounded repeated opacity");
++  assert_equals(repeat, first, "calibration: stable repeated opacity");
++  return { first, repeat };
++}
++
++function equals(element, expression, expected, label) {
++  assert_equals(sample(element, expression).first, expected, `calibration: ${label}`);
++}
++
++for (const item of cases) {
++  for (const route of ["literal", "contextual"]) {
++    test(t => {
++      const { host, target, control, em } = setup(t);
++      equals(control, "0.5", .5, "literal midpoint");
++      equals(control, "calc((33554432 - 33554430) / 4)", .5, "large exact input separation");
++      equals(control, "calc(3 / 4)", .75, "exact divisor");
++      equals(control, `calc(0.5 + ${item.op}(${Math.sign(item.a) * 17}, ${item.b}) / 8)`,
++             .5 + item.small / 8, "small exact remainder");
++      equals(control, `calc(0.5 + ${item.op}(${item.a}, ${Math.sign(item.b) * 4}) / 8)`,
++             .5, "large exact multiple");
++      const dividend = route === "literal" ? `${item.a}` : `${item.a} * sign(1em - 16px)`;
++      const expression = `calc(0.5 + ${item.op}(${dividend}, ${item.b}) / 8)`;
++      const history = [];
++      for (const font of route === "literal" ? [16] : [16, 32, 16]) {
++        host.style.fontSize = `${font}px`;
++        assert_equals(getComputedStyle(host).fontSize, `${font}px`, "calibration: font size");
++        assert_equals(em.getBoundingClientRect().width, font, "calibration: em geometry");
++        equals(control, "sign(1em - 16px)", font === 32 ? 1 : 0, "context input sign");
++        control.style.removeProperty("z-index");
++        control.style.zIndex = `calc(${dividend})`;
++        assert_not_equals(control.style.zIndex, "", "calibration: integer operand setter");
++        const operand = route === "contextual" && font === 16 ? 0 : item.a;
++        assert_equals(getComputedStyle(control).zIndex, `${operand}`,
++                      "calibration: independently computed dividend");
++        control.style.removeProperty("z-index");
++        const expected = route === "contextual" && font === 16 ? .5 : .5 + item.expected / 8;
++        equals(control, `${expected}`, expected, "independent literal output");
++        history.push({ font, expected, ...sample(target, expression) });
++      }
++      if (route === "contextual") {
++        assert_equals(history[0].first, .5, "calibration: zero dividend initially");
++        assert_equals(history[2].first, .5, "calibration: zero dividend after reset");
++      }
++      assert_true(history.every(row => row.first === row.expected),
++                  `target: finite remainder ${JSON.stringify({ ...item, route, expression, history })}`);
++    }, `${item.op} exact finite remainder: A=${item.a}, B=${item.b}, ${route}`);
++  }
++}
++
++const guards = [
++  ["mod negative zero", "calc(0.5 + 0.25 * sign(pow(mod(6, -3), -1)))", .25],
++  ["mod positive zero", "calc(0.5 + 0.25 * sign(pow(mod(-6, 3), -1)))", .75],
++  ["rem negative zero", "calc(0.5 + 0.25 * sign(pow(rem(-6, 3), -1)))", .25],
++  ["rem positive zero", "calc(0.5 + 0.25 * sign(pow(rem(6, -3), -1)))", .75],
++  ["mod same-sign infinite divisor", "calc(0.5 + mod(1, infinity) / 8)", .625],
++  ["mod opposite-sign infinite divisor", "calc(0.5 + mod(-1, infinity) / 8)", 0],
++  ["rem positive infinite divisor", "calc(0.5 + rem(-1, infinity) / 8)", .375],
++  ["rem negative infinite divisor", "calc(0.5 + rem(1, -infinity) / 8)", .625]
++];
++for (const [name, expression, expected] of guards) {
++  test(t => {
++    const { target, control } = setup(t);
++    equals(control, `${expected}`, expected, "literal guard reference");
++    assert_equals(sample(target, expression).first, expected, `control: ${name}`);
++  }, `Finite remainder guard: ${name}`);
++}
++</script>

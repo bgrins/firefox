@@ -1,0 +1,9 @@
+Accepted local fix128: preserve finite CSS mod()/rem() remainders instead of reconstructing them from a rounded quotient. The patch contains exactly one Rust helper change and one24-case WPT; research/proof/tooling remains separate. Normal signed-zero and infinity behavior is preserved.
+
+The fresh700-assertion/10-file comparison changes684PASS/16FAIL to700PASS. Exactly16 target outcomes improve; every other outcome stays exact. Both builds exit0. Restoring the original source/build reproduces all700 baseline outcomes. Temporary-fixture cleanup, controller preservation, root live628-role/24-identity verification and independent terminal review pass. Both build logs retain nonfatal Mach progress-reporting errors; no native build failure was waived.
+
+The installed-parent patch retains all unrelated pending work. The separate HEAD90 alternative is an independently verified scratch transport, not a second sequential patch or a clean-HEAD90 browser claim. The helper has no identified pending-fix prerequisite. Signing and working-stack installation remain pending; this acceptance records the restored pre-installation state.
+
+The finite-backend audit and source inspection found the candidate. Lean then proved a bounded counterexample to the earlier finite-agreement premise under explicit rounding/source contracts. The replacement model proves general sign adjustment, conditional nearest projection and operation-specific zero handling, including a legitimate rounded divisor endpoint. Native remainder, addition rounding and compiler correspondence remain assumptions. CSS numeric precision is implementation-defined; the browser witnesses use independently calibrated exact inputs and representable small results.
+
+This is one local repair spanning mod and rem, not16 separate bugs. No matching public report or security impact is established. Expected triage is ordinary numerical CSS conformance.

@@ -1,0 +1,639 @@
+--- a/CssSemantics.lean
++++ b/CssSemantics.lean
+@@ -1986,3 +1986,8 @@
+ import CssSemantics.CssFiniteRoundExamples
+ import CssSemantics.ImplementationSupport.RoundSpecialKnowledge
+ import CssSemantics.ImplementationSupport.RoundSpecialKnowledgeExamples
++import CssSemantics.ImplementationSupport.FiniteModRemTypes
++import CssSemantics.ImplementationSupport.FiniteModRemWitness
++import CssSemantics.ImplementationSupport.FiniteModRemContract
++import CssSemantics.ImplementationSupport.FiniteModRemWitnessExamples
++import CssSemantics.ImplementationSupport.FiniteModRemContractExamples
+--- a/tests/Audit.lean
++++ b/tests/Audit.lean
+@@ -11740,3 +11740,31 @@
+ #print axioms CssSemantics.ImplementationSupport.RoundSpecialKnowledge.infinite_value_retained_iff
+ #print axioms CssSemantics.ImplementationSupport.RoundSpecialKnowledge.unresolved_step_no_constant
+ #print axioms CssSemantics.ImplementationSupport.RoundSpecialKnowledge.unresolved_value_no_constant
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.raw_strict
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.q_spacing
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.a_spacing
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.concrete_values
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.quotient_strict
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.product_strict
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.quotient_nearest
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.product_nearest
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.quotient_unique
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.product_unique
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.rounded_formula_zero
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.spec_remainder_unique
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.formula_disagrees
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.rounding_contract_inhabited
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.remainder_capacity_reused
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemWitness.finite_agreement_impossible
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemContract.adjustment_mod_relation
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemContract.encoded_zero
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemContract.nearest_closed_interval
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemContract.nearest_self
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemContract.zero_sign_preserved
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemContract.exact_multiple_zero
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemContract.rem_exact
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemContract.mod_projected_relation
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemContract.mod_projected_closed_interval
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemContract.endpoint_predecessor_unrepresentable
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemContract.endpoint_projection
++#print axioms CssSemantics.ImplementationSupport.FiniteModRemContract.strict_projected_interval_false
+--- a/tests/RunExamples.lean
++++ b/tests/RunExamples.lean
+@@ -850,3 +850,7 @@
+     IO.println s!"PASS {name}: {accepted}"
+   for (name, accepted) in CssSemantics.ImplementationSupport.RoundSpecialKnowledgeExamples.checks do
+     IO.println s!"PASS {name}: {accepted}"
++  for (name, accepted) in CssSemantics.ImplementationSupport.FiniteModRemWitnessExamples.checks do
++    IO.println s!"PASS {name}: {accepted}"
++  for (name, accepted) in CssSemantics.ImplementationSupport.FiniteModRemContractExamples.checks do
++    IO.println s!"PASS {name}: {accepted}"
+--- a/check.py
++++ b/check.py
+@@ -12322,6 +12322,30 @@
+     ("Round knowledge rejects negative finite up positive infinity", False),
+     ("Round knowledge rejects NaN value ignored", False),
+     ("Round knowledge rejects NaN step ignored", False),
++    ("finite ModRem witness bounded congruence", True),
++    ("finite ModRem witness lower binade neighbor", True),
++    ("finite ModRem witness upper binade neighbor", True),
++    ("finite ModRem witness quotient predecessor", True),
++    ("finite ModRem witness quotient successor", True),
++    ("finite ModRem witness rounded reconstruction zero", True),
++    ("finite ModRem witness rejects zero congruence", False),
++    ("finite ModRem witness rejects nearer lower quotient", False),
++    ("finite ModRem witness rejects exact rounded product", False),
++    ("finite ModRem witness rejects symmetric predecessor", False),
++    ("finite ModRem witness rejects backend agreement", False),
++    ("finite ModRem contract positive divisor adjustment", True),
++    ("finite ModRem contract negative divisor adjustment", True),
++    ("finite ModRem contract Mod divisor zero sign", True),
++    ("finite ModRem contract Rem dividend zero sign", True),
++    ("finite ModRem contract Rem ignores addition", True),
++    ("finite ModRem contract projected zero sign", True),
++    ("finite ModRem contract projected divisor endpoint", True),
++    ("finite ModRem contract rejects omitted adjustment", False),
++    ("finite ModRem contract rejects divisor added to zero", False),
++    ("finite ModRem contract rejects Mod dividend zero sign", False),
++    ("finite ModRem contract rejects Rem divisor zero sign", False),
++    ("finite ModRem contract rejects strict endpoint", False),
++    ("finite ModRem contract rejects omitted remainder premise", False),
+ ]
+ 
+ 
+--- a/README.md
++++ b/README.md
+@@ -4636,3 +4636,11 @@
+ Accepted counter repairs 123/124 retain the eleven existing descriptor support proofs unchanged. The archived installed plan `css-counter-additive-install-plan-v1` (FILES `93dba57650187be68db6f0a6fb4ae691e371351e54b97f42a98a6451b897aff8`) and runtime `css-counter-additive-install-runtime-v1` (FILES `dfe49f900d2ba34410520beabc165b0cb40639ca06fcc19ebe8dab1316b51bb5`) agree on `counter_style/mod.rs` SHA256 `80afcf21539c512338670bc76ff61d8748ed718cf8419e11a0fc0b19a8cedb01` and `geckolib/glue.rs` SHA256 `0ac3857da5b7a4536cc62366c14e4a12824f73339f2b87b41c6581162da332fa`. These versioned archive pins supplement historical mappings; they are not live-epoch guards.
+ 
+ Every finite range bound is resolved before publication, then finite ordering and inclusive export use resolved values. Additive ordering and export share `AdditiveTuple::resolve_weight`; supplied `Meaning` values must be its post-zero-clamp results. Nonempty admission, numeric normalization and native correspondence remain external premises. Preserve inline-only countermodels as historical negative examples. The separate clamp-equivalence SMT evidence is not Lean theorem credit.
++
++### Finite ModRem implementation support
++
++`ImplementationSupport.FiniteModRemWitness` and `FiniteModRemContract` transfer the reviewed standalone finite arithmetic results. They reuse `Binary32Magnitude` and `RoundRemainderCapacity`; `FiniteModRemTypes` preserves only the four shared operation/value/backend types from the historical exceptional-dispatch model. The exceptional-dispatch theorems are not duplicated. Twenty-eight existing declarations are audited, including spacing/support lemmas, interface consequences and the existing capacity application; this transfer adds zero research theorem credit and no normative CSS coverage. Fourteen original proof examples remain. Twenty-four executable checks include eleven expected-false controls.
++
++The witness derives loss of the exact remainder in the old quotient/product reconstruction under explicit nearest-rounding contracts and native/spec correspondence. The replacement contract proves signed truncating remainder adjustment, operation-specific zero signs and nearest projection into a closed divisor interval. A proved nearest endpoint certificate shows why a rounded result equal to the divisor must be permitted. Projection allows ties; it does not identify a universal native tie-to-even implementation. Rust `%`, native addition rounding, operand/sign encoding and compiler/hardware correspondence remain external premises. Neither module asserts mandatory infinite-precision CSS intermediates or complete native backend refinement.
++
++Versioned source correspondence is accepted fix 128's tested two-path patch, SHA256 `a0330954c31ead2d800eddbf4340f25ce887ee83d76e86811ca888a6f5e4e987`, from `css-finite-mod-rem-acceptance-v1`. It changes `ModRemOp::apply` in generic calc and its own WPT. This is an archive mapping, not a live source/installation guard. The browser evidence and source review remain separate from the mathematical model. The capacity wrapper, inherited types, signed-zero representation and imported decoder receive no new theorem credit.
+--- a/ARTIFACT.md
++++ b/ARTIFACT.md
+@@ -399,3 +399,6 @@
+ 
+ 
+ Conditional Round knowledge support adds four previously reviewed audits and eight controls (four expected false), with no normative coverage increment. See README for partial-classifier limitations and the appended installed counter source mapping. Historical proofs and mappings remain unchanged.
++
++
++Finite ModRem support transfers 28 existing audited declarations and retains 14 proof examples. The 24 appended executable cases include 11 expected-false controls. The two modules share the existing binary32 decoder/remainder capacity and four historical backend types, without duplicate proofs or research credit. Nearest projection permits a divisor endpoint and ties. Native remainder/addition, operand/sign and compiler correspondence remain assumptions; normative coverage is unchanged. README records the versioned accepted-patch mapping and limitations.
+--- a/research/coverage-map.md
++++ b/research/coverage-map.md
+@@ -662,3 +662,6 @@
+ 
+ 
+ - `ImplementationSupport.RoundSpecialKnowledge`: four transferred class-algebra support laws, eight controls; no additional normative coverage. Finite-finite Round, scalar classification, AST knowledge/reachability and native correspondence are external. Existing finite-Round special-value exclusions remain. Installed descriptor source mapping is appended in README; all eleven existing descriptor declarations and nonnegative/representation premises are unchanged.
++
++
++- `ImplementationSupport.FiniteModRemWitness` and `FiniteModRemContract`: 28 transferred implementation-support audits, including wrappers and spacing lemmas; 24 executable controls and 14 proof examples. No new research theorem credit or normative CSS feature. The old-formula witness retains nearest-rounding/source correspondence assumptions; replacement sign adjustment and closed projection retain native remainder/addition and operand-sign premises. The nearest divisor endpoint certificate permits ties and does not prove native tie-to-even behavior. Existing normative coverage remains unchanged.
+--- /dev/null
++++ b/CssSemantics/ImplementationSupport/FiniteModRemTypes.lean
+@@ -0,0 +1,20 @@
++namespace CssSemantics.ImplementationSupport.ModRemInfinity
++
++inductive Op where
++  | mod | rem
++  deriving DecidableEq, Repr
++
++inductive Finite (α : Type) where
++  | zero (negative : Bool)
++  | nonzero (negative : Bool) (magnitude : α)
++  deriving DecidableEq, Repr
++
++inductive Number (α : Type) where
++  | finite (value : Finite α)
++  | infinity (negative : Bool)
++  | nan
++  deriving DecidableEq, Repr
++
++abbrev FiniteBackend (α : Type) := Op → Finite α → Bool → α → Number α
++
++end CssSemantics.ImplementationSupport.ModRemInfinity
+--- /dev/null
++++ b/CssSemantics/ImplementationSupport/FiniteModRemWitness.lean
+@@ -0,0 +1,241 @@
++import CssSemantics.ImplementationSupport.Binary32Magnitude
++import CssSemantics.ImplementationSupport.FiniteModRemTypes
++
++namespace CssSemantics.ImplementationSupport.FiniteModRemWitness
++open Binary32Magnitude
++
++def unit : Nat := 2^149
++def a : BitVec 32 := BitVec.ofNat 32 0x4c000000
++def b : BitVec 32 := BitVec.ofNat 32 0x40400000
++def q : BitVec 32 := BitVec.ofNat 32 0x4b2aaaab
++def r : BitVec 32 := BitVec.ofNat 32 0x40000000
++
++def distance (x y : Nat) : Nat := x - y + (y - x)
++
++theorem raw_strict (e f g h : Nat) (hf : f < 8388608)
++    (order : e < g) : rawMagnitude e f < rawMagnitude g h := by
++  have gp : g ≠ 0 := by omega
++  have powpos : 0 < 2^(g - 1) := Nat.two_pow_pos _
++  by_cases ep : e = 0
++  · have bound := Nat.mul_le_mul_left 8388608 (Nat.one_le_two_pow (n := g - 1))
++    have bigger := Nat.mul_le_mul_right (2^(g - 1)) (show 8388608 ≤ 8388608 + h by omega)
++    simp [rawMagnitude, ep, gp]
++    omega
++  · have coeff : 8388608 + f < 16777216 := by omega
++    have first := Nat.mul_lt_mul_of_pos_right coeff (Nat.two_pow_pos (e - 1))
++    have ex : e = (e - 1) + 1 := by omega
++    have step : 16777216 * 2^(e - 1) = 8388608 * 2^e := by
++      conv => rhs; rw [ex, Nat.pow_succ]
++      omega
++    have power := Nat.pow_le_pow_right (by decide : 0 < 2) (show e ≤ g - 1 by omega)
++    have second := Nat.mul_le_mul_left 8388608 power
++    have third := Nat.mul_le_mul_right (2^(g - 1)) (show 8388608 ≤ 8388608 + h by omega)
++    simp [rawMagnitude, ep, gp]
++    omega
++
++theorem q_spacing (bits : BitVec 32) :
++    decode bits ≤ 11184810 * unit ∨ decode bits = 11184811 * unit ∨
++    11184812 * unit ≤ decode bits := by
++  let e := exponentField bits
++  let f := fractionField bits
++  have hf : f < 8388608 := Nat.mod_lt _ (by decide)
++  change rawMagnitude e f ≤ _ ∨ rawMagnitude e f = _ ∨ _ ≤ rawMagnitude e f
++  by_cases lo : e < 150
++  · have h := raw_strict e f 150 0 hf lo
++    have v : rawMagnitude 150 0 = 8388608 * unit := by decide +kernel
++    rw [v] at h
++    left
++    omega
++  · by_cases hi : 150 < e
++    · have h := raw_strict 150 8388607 e f (by decide) hi
++      have v : rawMagnitude 150 8388607 = 16777215 * unit := by decide +kernel
++      rw [v] at h
++      right; right
++      omega
++    · have eq : e = 150 := by omega
++      rw [eq]
++      simp only [rawMagnitude]
++      change (8388608 + f) * unit ≤ _ ∨ (8388608 + f) * unit = _ ∨ _ ≤ (8388608 + f) * unit
++      simp [unit] at *
++      omega
++
++theorem a_spacing (bits : BitVec 32) :
++    decode bits ≤ 33554430 * unit ∨ decode bits = 33554432 * unit ∨
++    33554436 * unit ≤ decode bits := by
++  let e := exponentField bits
++  let f := fractionField bits
++  have hf : f < 8388608 := Nat.mod_lt _ (by decide)
++  change rawMagnitude e f ≤ _ ∨ rawMagnitude e f = _ ∨ _ ≤ rawMagnitude e f
++  by_cases lo : e < 151
++  · have h := raw_strict e f 151 0 hf lo
++    have v : rawMagnitude 151 0 = 16777216 * unit := by decide +kernel
++    rw [v] at h
++    left; omega
++  · by_cases same : e = 151
++    · rw [same]
++      simp only [rawMagnitude]
++      change (8388608 + f) * (2 * unit) ≤ _ ∨ _ ∨ _
++      left
++      simp [unit] at *
++      omega
++    · by_cases upper : e = 152
++      · rw [upper]
++        simp only [rawMagnitude]
++        change (8388608 + f) * (4 * unit) ≤ _ ∨ _ ∨ _
++        by_cases zero : f = 0
++        · right; left; rw [zero]; decide +kernel
++        · right; right
++          simp [unit] at *
++          omega
++      · have h := raw_strict 152 0 e f (by decide) (by omega)
++        have v : rawMagnitude 152 0 = 33554432 * unit := by decide +kernel
++        rw [v] at h
++        have h2 := raw_strict 152 1 e f (by decide) (by omega)
++        have v2 : rawMagnitude 152 1 = 33554436 * unit := by decide +kernel
++        rw [v2] at h2
++        right; right; omega
++
++theorem concrete_values :
++    finite a ∧ finite b ∧ finite q ∧ finite r ∧
++    decode a = 33554432 * unit ∧ decode b = 3 * unit ∧
++    decode q = 11184811 * unit ∧ decode r = 2 * unit := by
++  decide +kernel
++
++def Nearest (numerator denominator : Nat) (result : BitVec 32) : Prop :=
++  finite result ∧ ∀ candidate : BitVec 32, finite candidate →
++    distance numerator (denominator * decode result) ≤
++      distance numerator (denominator * decode candidate)
++
++theorem quotient_strict (bits : BitVec 32) (other : decode bits ≠ decode q) :
++    distance (decode a) (3 * decode q) < distance (decode a) (3 * decode bits) := by
++  have values := concrete_values
++  have spacing := q_spacing bits
++  simp [distance, unit] at *
++  omega
++
++theorem product_strict (bits : BitVec 32) (other : decode bits ≠ decode a) :
++    distance (33554433 * unit) (decode a) <
++      distance (33554433 * unit) (decode bits) := by
++  have values := concrete_values
++  have spacing := a_spacing bits
++  simp [distance, unit] at *
++  omega
++
++theorem quotient_nearest : Nearest (decode a) 3 q := by
++  refine ⟨concrete_values.2.2.1, ?_⟩
++  intro bits _
++  by_cases same : decode bits = decode q
++  · rw [same]
++    exact Nat.le_refl _
++  · exact Nat.le_of_lt (quotient_strict bits same)
++
++theorem product_nearest : Nearest (33554433 * unit) 1 a := by
++  refine ⟨concrete_values.1, ?_⟩
++  intro bits _
++  simp only [Nat.one_mul]
++  by_cases same : decode bits = decode a
++  · rw [same]
++    exact Nat.le_refl _
++  · exact Nat.le_of_lt (product_strict bits same)
++
++theorem quotient_unique (bits : BitVec 32) (h : Nearest (decode a) 3 bits) :
++    decode bits = decode q := by
++  by_cases eq : decode bits = decode q
++  · exact eq
++  · have strict := quotient_strict bits eq
++    have reverse := h.2 q concrete_values.2.2.1
++    omega
++
++theorem product_unique (bits : BitVec 32) (h : Nearest (33554433 * unit) 1 bits) :
++    decode bits = decode a := by
++  by_cases eq : decode bits = decode a
++  · exact eq
++  · have strict := product_strict bits eq
++    have reverse := h.2 a concrete_values.1
++    simp only [Nat.one_mul] at reverse
++    omega
++
++def RoundingContract (round : Nat → Nat → BitVec 32) : Prop :=
++  Nearest (decode a) 3 (round (decode a) 3) ∧
++  Nearest (33554433 * unit) 1 (round (33554433 * unit) 1)
++
++def roundedFormula (round : Nat → Nat → BitVec 32) : Int :=
++  let quotient := round (decode a) 3
++  let integralQuotient := decode quotient / unit
++  let product := round (decode b * integralQuotient) 1
++  (decode a : Int) - (decode product : Int)
++
++theorem rounded_formula_zero (round : Nat → Nat → BitVec 32)
++    (contract : RoundingContract round) : roundedFormula round = 0 := by
++  have qvalue := quotient_unique _ contract.1
++  have productvalue := product_unique _ contract.2
++  have values := concrete_values
++  have intq : decode (round (decode a) 3) / unit = 11184811 := by
++    rw [qvalue, values.2.2.2.2.2.2.1]
++    decide +kernel
++  have productInput : decode b * (decode (round (decode a) 3) / unit) =
++      33554433 * unit := by
++    rw [intq, values.2.2.2.2.2.1]
++    decide +kernel
++  dsimp only [roundedFormula]
++  rw [productInput, productvalue]
++  omega
++
++def SpecRemainder (value : Int) : Prop :=
++  0 ≤ value ∧ value < 3 ∧ ∃ multiple : Int, 33554432 = 3 * multiple + value
++
++theorem spec_remainder_unique (value : Int) : SpecRemainder value ↔ value = 2 := by
++  constructor
++  · rintro ⟨lower, upper, multiple, equation⟩
++    omega
++  · intro eq
++    subst value
++    exact ⟨by decide, by decide, 11184810, by decide⟩
++
++theorem formula_disagrees (round : Nat → Nat → BitVec 32)
++    (contract : RoundingContract round) : roundedFormula round ≠ (decode r : Int) := by
++  rw [rounded_formula_zero round contract, concrete_values.2.2.2.2.2.2.2]
++  decide +kernel
++
++def localRound (numerator denominator : Nat) : BitVec 32 :=
++  if numerator = decode a ∧ denominator = 3 then q else a
++
++theorem rounding_contract_inhabited : RoundingContract localRound := by
++  constructor
++  · simpa [localRound] using quotient_nearest
++  · have different : 33554433 * unit ≠ decode a := by
++      rw [concrete_values.2.2.2.2.1]
++      decide +kernel
++    simpa [localRound, different] using product_nearest
++
++theorem remainder_capacity_reused :
++    ∃ bits : BitVec 32, finite bits ∧ decode bits = decode a % decode b := by
++  apply remainder_has_bits a b concrete_values.1 concrete_values.2.1
++  rw [concrete_values.2.2.2.2.2.1]
++  decide +kernel
++
++def numberOfGrid (value : Int) : ModRemInfinity.Number Nat :=
++  if value = 0 then .finite (.zero false)
++  else .finite (.nonzero (value < 0) value.natAbs)
++
++theorem finite_agreement_impossible
++    (round : Nat → Nat → BitVec 32) (rounding : RoundingContract round)
++    (nativeArithmetic specArithmetic : ModRemInfinity.FiniteBackend Nat)
++    (op : ModRemInfinity.Op)
++    (nativeCorrespondence :
++      nativeArithmetic op (.nonzero false (decode a)) false (decode b) =
++        numberOfGrid (roundedFormula round))
++    (specCorrespondence : ∃ value : Int, SpecRemainder value ∧
++      specArithmetic op (.nonzero false (decode a)) false (decode b) =
++        numberOfGrid (value * (unit : Int))) :
++    ¬ (∀ operation input sign magnitude,
++      nativeArithmetic operation input sign magnitude =
++        specArithmetic operation input sign magnitude) := by
++  intro agreement
++  obtain ⟨value, spec, eq⟩ := specCorrespondence
++  have value_eq := (spec_remainder_unique value).1 spec
++  have same := agreement op (.nonzero false (decode a)) false (decode b)
++  rw [nativeCorrespondence, eq, value_eq, rounded_formula_zero round rounding] at same
++  simp [numberOfGrid, unit] at same
++
++end CssSemantics.ImplementationSupport.FiniteModRemWitness
+--- /dev/null
++++ b/CssSemantics/ImplementationSupport/FiniteModRemContract.lean
+@@ -0,0 +1,184 @@
++import CssSemantics.ImplementationSupport.Binary32Magnitude
++import CssSemantics.ImplementationSupport.FiniteModRemTypes
++
++namespace CssSemantics.ImplementationSupport.FiniteModRemContract
++open RoundRemainderCapacity ModRemInfinity
++
++def needsAdjustment (remainder divisor : Int) : Prop :=
++  remainder ≠ 0 ∧ decide (remainder < 0) ≠ decide (divisor < 0)
++
++instance (remainder divisor : Int) : Decidable (needsAdjustment remainder divisor) :=
++  inferInstanceAs (Decidable (remainder ≠ 0 ∧ decide (remainder < 0) ≠ decide (divisor < 0)))
++
++def adjust (remainder divisor : Int) : Int :=
++  if needsAdjustment remainder divisor then remainder + divisor else remainder
++
++def ExactInterval (divisor value : Int) : Prop :=
++  if 0 < divisor then 0 ≤ value ∧ value < divisor else divisor < value ∧ value ≤ 0
++
++def ModRelation (dividend divisor value : Int) : Prop :=
++  ExactInterval divisor value ∧ ∃ multiple : Int, dividend = multiple * divisor + value
++
++theorem adjustment_mod_relation (dividend divisor : Int) (nonzero : divisor ≠ 0) :
++    ModRelation dividend divisor (adjust (dividend.tmod divisor) divisor) := by
++  have equation := Int.tdiv_mul_add_tmod dividend divisor
++  constructor
++  · by_cases positive : 0 < divisor
++    · have lower := Int.lt_tmod_of_pos dividend positive
++      have upper := Int.tmod_lt_of_pos dividend positive
++      by_cases rnegative : dividend.tmod divisor < 0
++      · have rz : dividend.tmod divisor ≠ 0 := by omega
++        simp [ExactInterval, positive, adjust, needsAdjustment, rnegative, rz,
++          show ¬ divisor < 0 by omega]
++        omega
++      · simp [ExactInterval, positive, adjust, needsAdjustment, rnegative,
++          show ¬ divisor < 0 by omega]
++        omega
++    · have negative : divisor < 0 := by omega
++      have lower := Int.lt_tmod_of_pos dividend (b := -divisor) (by omega)
++      have upper := Int.tmod_lt_of_pos dividend (b := -divisor) (by omega)
++      rw [Int.tmod_neg] at lower upper
++      by_cases rz : dividend.tmod divisor = 0
++      · simp [ExactInterval, positive, adjust, needsAdjustment, rz, negative]
++      · by_cases rnegative : dividend.tmod divisor < 0
++        · simp [ExactInterval, positive, adjust, needsAdjustment, rnegative, negative]
++          omega
++        · simp [ExactInterval, positive, adjust, needsAdjustment, rnegative, rz, negative]
++          omega
++  · unfold adjust
++    split
++    · refine ⟨dividend.tdiv divisor - 1, ?_⟩
++      rw [Int.sub_mul]
++      omega
++    · exact ⟨dividend.tdiv divisor, equation.symm⟩
++
++def distance (x y : Int) : Int := if x ≤ y then y - x else x - y
++
++def NearestProjection (exact projected : Int) : Prop :=
++  SignedEncoding projected ∧ ∀ candidate : Int, SignedEncoding candidate →
++    distance exact projected ≤ distance exact candidate
++
++theorem encoded_zero : SignedEncoding 0 := by
++  exact ⟨0, 0, by decide, by decide, by decide⟩
++
++theorem nearest_closed_interval (divisor exact projected : Int)
++    (divisorEncoding : SignedEncoding divisor) (interval : ExactInterval divisor exact)
++    (nearest : NearestProjection exact projected) :
++    (if 0 < divisor then 0 ≤ projected ∧ projected ≤ divisor
++     else divisor ≤ projected ∧ projected ≤ 0) := by
++  have zeroBound := nearest.2 0 encoded_zero
++  have divisorBound := nearest.2 divisor divisorEncoding
++  by_cases positive : 0 < divisor
++  · have bounds : 0 ≤ exact ∧ exact < divisor := by simpa [ExactInterval, positive] using interval
++    simp only [ite_eq_left positive]
++    by_cases low : projected < 0
++    · simp only [distance, ite_eq_right (show ¬ exact ≤ projected by omega)] at zeroBound
++      split at zeroBound <;> omega
++    · by_cases high : divisor < projected
++      · simp [distance, show exact ≤ projected by omega, show exact ≤ divisor by omega] at divisorBound
++        omega
++      · omega
++  · have bounds : divisor < exact ∧ exact ≤ 0 := by simpa [ExactInterval, positive] using interval
++    simp only [ite_eq_right positive]
++    by_cases low : projected < divisor
++    · simp [distance, show ¬ exact ≤ projected by omega, show ¬ exact ≤ divisor by omega] at divisorBound
++      omega
++    · by_cases high : 0 < projected
++      · simp [distance, show exact ≤ projected by omega, show exact ≤ 0 by omega] at zeroBound
++        omega
++      · omega
++
++theorem nearest_self (value : Int) (encoded : SignedEncoding value) :
++    NearestProjection value value := by
++  refine ⟨encoded, ?_⟩
++  intro candidate _
++  simp only [distance]
++  split <;> split <;> omega
++
++def candidateGrid (op : Op) (project : Int → Int) (remainder divisor : Int) : Int :=
++  match op with
++  | .rem => remainder
++  | .mod => if needsAdjustment remainder divisor then project (remainder + divisor) else remainder
++
++def zeroSign (op : Op) (dividendSign divisorSign : Bool) : Bool :=
++  match op with
++  | .rem => dividendSign
++  | .mod => divisorSign
++
++def encode (sign : Bool) (value : Int) : Finite Nat :=
++  if value = 0 then .zero sign else .nonzero (decide (value < 0)) value.natAbs
++
++def candidate (op : Op) (project : Int → Int) (dividendSign divisorSign : Bool)
++    (remainder divisor : Int) : Finite Nat :=
++  encode (zeroSign op dividendSign divisorSign) (candidateGrid op project remainder divisor)
++
++theorem zero_sign_preserved (op : Op) (project : Int → Int) (aSign bSign : Bool)
++    (remainder divisor : Int) (zero : candidateGrid op project remainder divisor = 0) :
++    candidate op project aSign bSign remainder divisor = .zero (zeroSign op aSign bSign) := by
++  simp [candidate, encode, zero]
++
++theorem exact_multiple_zero (op : Op) (project : Int → Int) (aSign bSign : Bool)
++    (divisor : Int) :
++    candidate op project aSign bSign 0 divisor = .zero (zeroSign op aSign bSign) := by
++  cases op <;> simp [candidate, candidateGrid, needsAdjustment, encode]
++
++theorem rem_exact (project : Int → Int) (dividend divisor supplied : Int)
++    (rustRemainderCorrespondence : supplied = dividend.tmod divisor) :
++    candidateGrid .rem project supplied divisor = dividend.tmod divisor := by
++  exact rustRemainderCorrespondence
++
++theorem mod_projected_relation (project : Int → Int) (dividend divisor supplied : Int)
++    (aEncoding : SignedEncoding dividend) (bEncoding : SignedEncoding divisor)
++    (nonzero : divisor ≠ 0)
++    (rustRemainderCorrespondence : supplied = dividend.tmod divisor)
++    (additionNearest : needsAdjustment supplied divisor →
++      NearestProjection (supplied + divisor) (project (supplied + divisor))) :
++    ∃ exact, ModRelation dividend divisor exact ∧
++      NearestProjection exact (candidateGrid .mod project supplied divisor) := by
++  subst supplied
++  refine ⟨adjust (dividend.tmod divisor) divisor,
++    adjustment_mod_relation dividend divisor nonzero, ?_⟩
++  by_cases needed : needsAdjustment (dividend.tmod divisor) divisor
++  · simpa [adjust, candidateGrid, needed] using additionNearest needed
++  · simpa [adjust, candidateGrid, needed] using nearest_self (dividend.tmod divisor)
++      (signed_truncating_remainder_capacity dividend divisor aEncoding bEncoding nonzero)
++
++theorem mod_projected_closed_interval (project : Int → Int) (dividend divisor supplied : Int)
++    (aEncoding : SignedEncoding dividend) (bEncoding : SignedEncoding divisor)
++    (nonzero : divisor ≠ 0)
++    (rustRemainderCorrespondence : supplied = dividend.tmod divisor)
++    (additionNearest : needsAdjustment supplied divisor →
++      NearestProjection (supplied + divisor) (project (supplied + divisor))) :
++    (if 0 < divisor then
++      0 ≤ candidateGrid .mod project supplied divisor ∧ candidateGrid .mod project supplied divisor ≤ divisor
++     else divisor ≤ candidateGrid .mod project supplied divisor ∧ candidateGrid .mod project supplied divisor ≤ 0) := by
++  obtain ⟨exact, relation, nearest⟩ := mod_projected_relation project dividend divisor supplied
++    aEncoding bEncoding nonzero rustRemainderCorrespondence additionNearest
++  exact nearest_closed_interval divisor exact _ bEncoding relation.1 nearest
++
++theorem endpoint_predecessor_unrepresentable : ¬ SignedEncoding (33554431 : Int) := by
++  rintro ⟨coefficient, exponent, hc, _, hv⟩
++  change 33554431 = coefficient * 2 ^ exponent at hv
++  cases exponent with
++  | zero => simp at hv; omega
++  | succ e =>
++    rw [Nat.pow_succ, ← Nat.mul_assoc] at hv
++    omega
++
++theorem endpoint_projection : NearestProjection 33554431 33554432 := by
++  refine ⟨⟨8388608, 2, by decide, by decide, by decide⟩, ?_⟩
++  intro candidate encoded
++  have different : candidate ≠ 33554431 := by
++    intro eq
++    subst candidate
++    exact endpoint_predecessor_unrepresentable encoded
++  simp only [distance]
++  split <;> split <;> omega
++
++theorem strict_projected_interval_false :
++    ModRelation (-1) 33554432 33554431 ∧ NearestProjection 33554431 33554432 ∧
++    ¬ ExactInterval 33554432 33554432 := by
++  refine ⟨?_, endpoint_projection, by simp [ExactInterval]⟩
++  exact adjustment_mod_relation (-1) 33554432 (by decide)
++
++end CssSemantics.ImplementationSupport.FiniteModRemContract
+--- /dev/null
++++ b/CssSemantics/ImplementationSupport/FiniteModRemWitnessExamples.lean
+@@ -0,0 +1,28 @@
++import CssSemantics.ImplementationSupport.FiniteModRemWitness
++
++namespace CssSemantics.ImplementationSupport.FiniteModRemWitnessExamples
++open CssSemantics.ImplementationSupport.FiniteModRemWitness
++open CssSemantics.ImplementationSupport.Binary32Magnitude
++
++
++example : SpecRemainder 2 := (spec_remainder_unique 2).2 rfl
++example : decode (BitVec.ofNat 32 0x4bffffff) = 33554430 * unit := by decide +kernel
++example : decode (BitVec.ofNat 32 0x4c000001) = 33554436 * unit := by decide +kernel
++example : decode (BitVec.ofNat 32 0x4b2aaaaa) = 11184810 * unit := by decide +kernel
++example : decode (BitVec.ofNat 32 0x4b2aaaac) = 11184812 * unit := by decide +kernel
++example : roundedFormula localRound = 0 := rounded_formula_zero localRound rounding_contract_inhabited
++
++def checks : List (String × Bool) := [
++  ("finite ModRem witness bounded congruence", decide ((33554432 : Int) = 3 * 11184810 + 2 ∧ (0 : Int) ≤ 2 ∧ (2 : Int) < 3)),
++  ("finite ModRem witness lower binade neighbor", decide (decode (BitVec.ofNat 32 0x4bffffff) = 33554430 * unit)),
++  ("finite ModRem witness upper binade neighbor", decide (decode (BitVec.ofNat 32 0x4c000001) = 33554436 * unit)),
++  ("finite ModRem witness quotient predecessor", decide (decode (BitVec.ofNat 32 0x4b2aaaaa) = 11184810 * unit)),
++  ("finite ModRem witness quotient successor", decide (decode (BitVec.ofNat 32 0x4b2aaaac) = 11184812 * unit)),
++  ("finite ModRem witness rounded reconstruction zero", decide (roundedFormula localRound = 0)),
++  ("finite ModRem witness rejects zero congruence", decide ((33554432 : Int) = 3 * 11184810 + 0)),
++  ("finite ModRem witness rejects nearer lower quotient", decide (distance (decode a) (3 * decode (BitVec.ofNat 32 0x4b2aaaaa)) ≤ distance (decode a) (3 * decode q))),
++  ("finite ModRem witness rejects exact rounded product", decide (decode a = 33554433 * unit)),
++  ("finite ModRem witness rejects symmetric predecessor", decide (decode (BitVec.ofNat 32 0x4bffffff) = 33554428 * unit)),
++  ("finite ModRem witness rejects backend agreement", decide (roundedFormula localRound = (decode r : Int)))]
++
++end CssSemantics.ImplementationSupport.FiniteModRemWitnessExamples
+--- /dev/null
++++ b/CssSemantics/ImplementationSupport/FiniteModRemContractExamples.lean
+@@ -0,0 +1,31 @@
++import CssSemantics.ImplementationSupport.FiniteModRemContract
++
++namespace CssSemantics.ImplementationSupport.FiniteModRemContractExamples
++open CssSemantics.ImplementationSupport.FiniteModRemContract
++open CssSemantics.ImplementationSupport.ModRemInfinity
++
++example : adjust ((-17 : Int).tmod 3) 3 = 1 := by decide +kernel
++example : adjust ((17 : Int).tmod (-3)) (-3) = -1 := by decide +kernel
++example : candidate .mod (fun _ => 999) true false 0 3 = .zero false := by decide +kernel
++example : candidate .rem (fun _ => 999) true false 0 3 = .zero true := by decide +kernel
++example : candidateGrid .rem (fun _ => 999) 2 3 = 2 := by decide +kernel
++example : candidate .mod (fun _ => 0) false true 1 (-3) = .zero true := by decide +kernel
++example : candidateGrid .mod (fun _ => 33554432) (-1) 33554432 = 33554432 := by decide +kernel
++example : NearestProjection 33554431 33554432 := endpoint_projection
++
++def checks : List (String × Bool) := [
++  ("finite ModRem contract positive divisor adjustment", decide (adjust ((-17 : Int).tmod 3) 3 = 1)),
++  ("finite ModRem contract negative divisor adjustment", decide (adjust ((17 : Int).tmod (-3)) (-3) = -1)),
++  ("finite ModRem contract Mod divisor zero sign", decide (candidate .mod (fun _ => 999) true false 0 3 = .zero false)),
++  ("finite ModRem contract Rem dividend zero sign", decide (candidate .rem (fun _ => 999) true false 0 3 = .zero true)),
++  ("finite ModRem contract Rem ignores addition", decide (candidateGrid .rem (fun _ => 999) 2 3 = 2)),
++  ("finite ModRem contract projected zero sign", decide (candidate .mod (fun _ => 0) false true 1 (-3) = .zero true)),
++  ("finite ModRem contract projected divisor endpoint", decide (candidateGrid .mod (fun _ => 33554432) (-1) 33554432 = 33554432)),
++  ("finite ModRem contract rejects omitted adjustment", decide (adjust ((-17 : Int).tmod 3) 3 = -2)),
++  ("finite ModRem contract rejects divisor added to zero", decide (candidateGrid .mod (fun x => x) 0 3 = 3)),
++  ("finite ModRem contract rejects Mod dividend zero sign", decide (candidate .mod (fun x => x) true false 0 3 = .zero true)),
++  ("finite ModRem contract rejects Rem divisor zero sign", decide (candidate .rem (fun x => x) true false 0 3 = .zero false)),
++  ("finite ModRem contract rejects strict endpoint", decide ((33554432 : Int) < 33554432)),
++  ("finite ModRem contract rejects omitted remainder premise", decide (candidateGrid .rem (fun x => x) 0 3 = (33554432 : Int).tmod 3))]
++
++end CssSemantics.ImplementationSupport.FiniteModRemContractExamples

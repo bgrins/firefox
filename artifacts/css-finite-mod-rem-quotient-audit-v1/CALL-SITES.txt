@@ -1,0 +1,25 @@
+1484:                 dividend,
+1485:                 divisor,
+1486:                 op,
+1487:             } => {
+1488:                 let (dividend, dividend_ty) = dividend.resolve_internal(leaf_to_output_fn)?;
+1489:                 let (divisor, divisor_ty) = divisor.resolve_internal(leaf_to_output_fn)?;
+1490:                 let ty = NumericType::add_two_types(&dividend_ty, &divisor_ty)?;
+1491:                 let value = op.apply(dividend, divisor);
+1492:                 Ok((value, ty))
+1493:             },
+1494:             Self::Sin(c) => {
+1495:                 let (value, ty) = c.resolve_internal(leaf_to_output_fn)?;
+
+2122:                 SimplificationResult::Simplified
+2123:             },
+2124:             Self::ModRem {
+2125:                 ref dividend,
+2126:                 ref divisor,
+2127:                 op,
+2128:             } => {
+2129:                 let mut result = value_or_stop!(dividend.try_op(divisor, |a, b| op.apply(a, b)));
+2130:                 replace_self_with!(&mut result);
+2131:                 SimplificationResult::Simplified
+2132:             },
+2133:             Self::MinMax(ref mut children, op) => {
