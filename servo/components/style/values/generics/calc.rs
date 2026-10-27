@@ -85,12 +85,18 @@ impl ModRemOp {
             return dividend;
         }
 
-        let (r, same_sign_as) = match self {
-            Self::Mod => (dividend - divisor * (dividend / divisor).floor(), divisor),
-            Self::Rem => (dividend - divisor * (dividend / divisor).trunc(), dividend),
+        let mut r = dividend % divisor;
+        let same_sign_as = match self {
+            Self::Mod => {
+                if r != 0.0 && r.is_sign_negative() != divisor.is_sign_negative() {
+                    r += divisor;
+                }
+                divisor
+            },
+            Self::Rem => dividend,
         };
-        if r == 0.0 && same_sign_as.is_sign_negative() {
-            -0.0
+        if r == 0.0 {
+            r.copysign(same_sign_as)
         } else {
             r
         }
