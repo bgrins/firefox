@@ -1,0 +1,14 @@
+{
+  "product": "pub fn line_names_length(&self) -> usize {\n        match *self {\n            Self::LineNames(..) => 1,\n            Self::Repeat(ref r) => {\n                match r.count {\n                    // Note: RepeatCount is always >= 1. Unresolvable calc\n                    // expressions were rejected at parse-time.\n                    RepeatCount::Number(ref v) => {\n                        r.line_names\n                            .len()\n                            .saturating_mul(v.resolve().unwrap() as usize)\n                    },\n                    _ => 0,\n                }\n            },\n        }\n    }",
+  "addition": "expanded_line_names_length =\n                expanded_line_names_length.saturating_add(value.line_names_length());",
+  "consumer": "const size_t maxLine = std::max<int32_t>(0, mClampMaxLine);\n      const size_t fixedLineCount = aStyleLineNameList.expanded_line_names_length;\n      // Maximum possible number of repeat name lists.\n      // Note: |expanded_line_names_length| doesn't include auto repeat.\n      const uint32_t possibleRepeatLength =\n          maxLine > fixedLineCount ? uint32_t(maxLine - fixedLineCount) : 0;",
+  "remainder": "const uint32_t repeatRemainder = possibleRepeatLength % fillLen;",
+  "grouped": "const size_t len = possibleRepeatLength - repeatRemainder;",
+  "source_candidate_pins": {
+    "servo/components/style/values/specified/grid.rs": "d5490942eb47734f188d62e0f681b718882fb969c12e6d3b121e8cb25878bc52",
+    "servo/components/style/values/generics/grid.rs": "136c5683798de21adc9fbac8f00b8e93423682d231cd36c1ce091a1258243b94",
+    "layout/generic/nsGridContainerFrame.cpp": "7632fc41e465829f8030698c2219f4fb434921dbdf030e0cbdc82bdcf481898b"
+  },
+  "host_transformation": "none within extracted expressions; parser/list/Integer providers replaced by typed scalars",
+  "width_model_transformation": "usize or size_t in extracted declarations/casts replaced by u32/u64 or uint32_t/uint64_t; not a target build"
+}

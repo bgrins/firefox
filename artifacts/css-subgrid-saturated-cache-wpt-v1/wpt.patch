@@ -1,0 +1,82 @@
+diff --git a/testing/web-platform/tests/css/css-grid/subgrid/subgrid-repeat-count-capacity.html b/testing/web-platform/tests/css/css-grid/subgrid/subgrid-repeat-count-capacity.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-grid/subgrid/subgrid-repeat-count-capacity.html
+@@ -0,0 +1,77 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Subgrid repeat counts preserve remaining line-name capacity</title>
++<link rel="help" href="https://drafts.csswg.org/css-grid-2/#auto-repeat">
++<link rel="help" href="https://drafts.csswg.org/css-grid-2/#resolved-track-list-subgrid">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++.parent {
++  display: grid;
++  width: 200px;
++  height: 200px;
++  grid-template-columns: 100px 100px;
++  grid-template-rows: 100px 100px;
++}
++.child {
++  display: grid;
++  grid-column: 1 / -1;
++  grid-row: 1 / -1;
++}
++</style>
++<body>
++<script>
++const cases = [
++  {name: "large exact product", count: "2147483647", groups: "[a] [b]", tail: "", expected: "subgrid [a] [b] [a]"},
++  {name: "product beyond 32 bits", count: "1431655766", groups: "[a] [b] [c]", tail: "", expected: "subgrid [a] [b] [c]"},
++  {name: "sum beyond 32 bits", count: "2147483647", groups: "[a] [b]", tail: " [x] [y]", expected: "subgrid [a] [b] [a]"}
++];
++for (const axis of ["columns", "rows"]) {
++  for (const entry of cases) {
++    test(t => {
++      const property = `grid-template-${axis}`;
++      const host = document.createElement("div");
++      document.body.append(host);
++      t.add_cleanup(() => host.remove());
++      const small = `repeat(2, ${entry.groups})${entry.tail}`;
++      const large = `repeat(${entry.count}, ${entry.groups})${entry.tail}`;
++      const values = [`subgrid ${small}`,
++                      `subgrid repeat(auto-fill, [fill]) ${small}`,
++                      `subgrid repeat(auto-fill, [fill]) ${large}`];
++      const children = values.map(value => {
++        const parent = document.createElement("div");
++        parent.className = "parent";
++        const child = document.createElement("div");
++        child.className = "child";
++        child.style.setProperty(property, value);
++        parent.append(child);
++        host.append(parent);
++        return child;
++      });
++      for (const child of children) {
++        assert_not_equals(child.style.getPropertyValue(property), "", "declaration admitted");
++        const parentStyle = getComputedStyle(child.parentElement);
++        assert_equals(parentStyle.gridTemplateColumns, "100px 100px", "two parent columns");
++        assert_equals(parentStyle.gridTemplateRows, "100px 100px", "two parent rows");
++        for (const element of [child.parentElement, child]) {
++          const rect = element.getBoundingClientRect();
++          assert_equals(rect.width, 200, "bounded width");
++          assert_equals(rect.height, 200, "bounded height");
++        }
++        const childStyle = getComputedStyle(child);
++        assert_equals(childStyle.gridColumnStart, "1", "column start");
++        assert_equals(childStyle.gridColumnEnd, "-1", "column end");
++        assert_equals(childStyle.gridRowStart, "1", "row start");
++        assert_equals(childStyle.gridRowEnd, "-1", "row end");
++      }
++      assert_true(children[2].style.getPropertyValue(property).includes(entry.count), "literal count retained");
++      const first = children.map(child => getComputedStyle(child).getPropertyValue(property));
++      const repeat = children.map(child => getComputedStyle(child).getPropertyValue(property));
++      assert_array_equals(repeat, first, "resolved values repeat stable");
++      assert_equals(first[0], entry.expected, "literal reference truncation");
++      assert_equals(first[1], entry.expected, "small fixed repeat leaves no auto-fill capacity");
++      assert_equals(first[2], entry.expected, "large fixed repeat leaves no auto-fill capacity");
++    }, `${axis}: ${entry.name}`);
++  }
++}
++</script>
