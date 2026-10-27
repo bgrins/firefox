@@ -12,8 +12,11 @@ out.mkdir(parents=True, exist_ok=True)
 record = json.loads((BASE / "SOURCE-v1.json").read_text())
 for path, entry in record["files"].items():
     for kind in ("old", "current"):
-        data = (subprocess.check_output(["git", "show", f"{PARENT}:{path}"], cwd=ROOT)
-                if kind == "old" else (ROOT / path).read_bytes())
+        data = (
+            subprocess.check_output(["git", "show", f"{PARENT}:{path}"], cwd=ROOT)
+            if kind == "old"
+            else (ROOT / path).read_bytes()
+        )
         if hashlib.sha256(data).hexdigest() != entry[f"{kind}_sha256"]:
             raise RuntimeError(f"Source identity mismatch: {kind} {path}")
         target = out / entry[f"{kind}_snapshot"]
