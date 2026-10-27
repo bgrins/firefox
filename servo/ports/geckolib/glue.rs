@@ -4305,7 +4305,7 @@ pub unsafe extern "C" fn Servo_CounterStyleRule_GetAdditiveSymbols(
                 s.0.iter()
                     .map(|s| AdditiveSymbol {
                         // The value is enforced to be resolvable at parse time
-                        weight: s.weight.resolve().unwrap(),
+                        weight: s.resolve_weight().unwrap(),
                         symbol: symbol_to_string(&s.symbol),
                     })
                     .collect()

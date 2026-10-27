@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Additive weight representation and fallback</title>
+<link rel="help" href="https://drafts.csswg.org/css-counter-styles-3/#descdef-counter-style-additive-symbols">
+<link rel="help" href="https://drafts.csswg.org/css-counter-styles-3/#additive-system">
+<link rel="match" href="additive-symbols-calc-order-rendering-ref.html">
+<style>
+@counter-style boxed { system: additive; additive-symbols: calc(3) "A", calc(1) "B"; }
+@counter-style boxed-first { system: additive; additive-symbols: calc(3) "A", 1 "B"; }
+@counter-style ascending { system: additive; additive-symbols: 1 "A", calc(3) "B"; }
+@counter-style equal { system: additive; additive-symbols: 1 "A", calc(1) "B"; }
+@counter-style literal { system: additive; additive-symbols: 3 "A", 1 "B"; }
+@counter-style boxed-second { system: additive; additive-symbols: 3 "A", calc(1) "B"; }
+@counter-style nonnegative-zero { system: additive; additive-symbols: 1 "A", calc(-1) "B"; }
+@counter-style fractional { system: additive; additive-symbols: calc(1.6) "A", calc(1.4) "B"; }
+div { counter-reset: n 4; }
+.nonnegative-zero { counter-reset: n 0; }
+.fractional { counter-reset: n 3; }
+.nonnegative-zero::before { content: counter(n, nonnegative-zero); }
+.fractional::before { content: counter(n, fractional); }
+.boxed::before { content: counter(n, boxed); }
+.boxed-first::before { content: counter(n, boxed-first); }
+.ascending::before { content: counter(n, ascending); }
+.equal::before { content: counter(n, equal); }
+.literal::before { content: counter(n, literal); }
+.boxed-second::before { content: counter(n, boxed-second); }
+</style>
+<div class="boxed"></div>
+<div class="boxed-first"></div>
+<div class="ascending"></div>
+<div class="equal"></div>
+<div class="literal"></div>
+<div class="boxed-second"></div>
+
+<div class="nonnegative-zero"></div>
+<div class="fractional"></div>

@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Additive counter weights compare their numeric values</title>
+<link rel="help" href="https://drafts.csswg.org/css-counter-styles-3/#descdef-counter-style-additive-symbols">
+<link rel="help" href="https://drafts.csswg.org/css-counter-styles-3/#the-csscounterstylerule-interface">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-type-checking">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const initial = '5 "C", 1 "D"';
+const cases = [
+  ['literal descending', '3 "A", 1 "B"', true],
+  ['boxed descending', 'calc(3) "A", calc(1) "B"', true],
+  ['boxed first descending', 'calc(3) "A", 1 "B"', true],
+  ['boxed second descending', '3 "A", calc(1) "B"', true],
+  ['literal ascending', '1 "A", 3 "B"', false],
+  ['boxed second ascending', '1 "A", calc(3) "B"', false],
+  ['boxed second equal', '1 "A", calc(1) "B"', false],
+  ['boxed first ascending', 'calc(1) "A", 3 "B"', false],
+  ['boxed ascending', 'calc(1) "A", calc(3) "B"', false],
+  ['single boxed', 'calc(3) "A"', true],
+  ['negative weights clamp equal', 'calc(-1) "A", calc(-2) "B"', false],
+  ['negative fractional weights clamp equal', 'calc(-0.6) "A", calc(-1.6) "B"', false],
+  ['positive then negative weight', '1 "A", calc(-1) "B"', true],
+  ['fractional weights round equal', 'calc(1.4) "A", calc(1.2) "B"', false],
+  ['fractional weights descend', 'calc(1.6) "A", calc(1.4) "B"', true],
+  ['fractional zero then negative weight', 'calc(0.49) "A", calc(-0.6) "B"', false]
+];
+for (const mode of ["stylesheet", "setter"]) {
+  for (const [name, value, valid] of cases) {
+    test(t => {
+      const style = document.createElement("style");
+      style.textContent = `@counter-style tested { system: additive; additive-symbols: ${initial}; }`;
+      document.head.append(style);
+      t.add_cleanup(() => style.remove());
+      assert_equals(style.sheet.cssRules.length, 1, "literal rule calibration");
+      assert_equals(style.sheet.cssRules[0].additiveSymbols, initial, "literal descriptor calibration");
+      if (mode === "stylesheet") {
+        style.textContent = `@counter-style tested { system: additive; additive-symbols: ${initial}; additive-symbols: ${value}; }`;
+      } else {
+        style.sheet.cssRules[0].additiveSymbols = value;
+      }
+      assert_equals(style.sheet.cssRules.length, 1, "retained valid rule");
+      const first = style.sheet.cssRules[0].additiveSymbols;
+      const repeat = style.sheet.cssRules[0].additiveSymbols;
+      assert_equals(repeat, first, "stable descriptor read");
+      assert_equals(first, valid ? value : initial, "numeric weight ordering");
+    }, `Additive weight representation ${mode}: ${name}`);
+  }
+}
+</script>

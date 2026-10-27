@@ -674,14 +674,13 @@ pub struct AdditiveSymbols(#[css(iterable)] pub crate::OwnedSlice<AdditiveTuple>
 impl Parse for AdditiveSymbols {
     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
         let tuples = Vec::<AdditiveTuple>::parse(context, input)?;
-        if tuples.iter().any(|t| t.weight.resolve().is_none()) {
+        if tuples.iter().any(|t| t.resolve_weight().is_none()) {
             return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
         }
         // FIXME maybe? https://github.com/w3c/csswg-drafts/issues/1220
-        if tuples
-            .windows(2)
-            .any(|window| window[0].weight.get() <= window[1].weight.get())
-        {
+        if tuples.windows(2).any(|window| {
+            window[0].resolve_weight().unwrap() <= window[1].resolve_weight().unwrap()
+        }) {
             return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
         }
         Ok(AdditiveSymbols(tuples.into()))
@@ -695,6 +694,13 @@ pub struct AdditiveTuple {
     pub weight: Integer,
     /// <symbol>
     pub symbol: Symbol,
+}
+
+impl AdditiveTuple {
+    /// Resolves the additive weight within its nonnegative range.
+    pub fn resolve_weight(&self) -> Option<i32> {
+        self.weight.resolve().map(|weight| weight.max(0))
+    }
 }
 
 impl OneOrMoreSeparated for AdditiveTuple {
