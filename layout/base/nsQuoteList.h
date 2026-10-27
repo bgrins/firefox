@@ -78,6 +78,8 @@ class nsQuoteList : public nsGenConList {
   // Should be called immediately after calling |Insert|.
   void Calc(nsQuoteNode* aNode);
 
+  bool HasChildScopes() const;
+
   nsQuoteNode* Next(nsQuoteNode* aNode) {
     return static_cast<nsQuoteNode*>(nsGenConList::Next(aNode));
   }

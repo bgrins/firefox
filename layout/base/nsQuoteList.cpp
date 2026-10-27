@@ -27,6 +27,8 @@ bool nsQuoteNode::InitTextFrame(nsGenConList* aList, nsIFrame* aPseudoFrame,
   quoteList->Insert(this);
   if (quoteList->IsLast(this)) {
     quoteList->Calc(this);
+    // Child scopes can inherit their initial depth from this appended node.
+    dirty = quoteList->HasChildScopes();
   } else {
     dirty = true;
   }
@@ -110,6 +112,10 @@ static int32_t GetDepthBeforeFirstQuoteNode(ContainStyleScope* aScope) {
     }
   }
   return 0;
+}
+
+bool nsQuoteList::HasChildScopes() const {
+  return !mScope->GetChildren().IsEmpty();
 }
 
 void nsQuoteList::Calc(nsQuoteNode* aNode) {
