@@ -7581,6 +7581,25 @@ pub extern "C" fn Servo_GetComputedKeyframeValues(
                 }
             }
             iter.reset();
+            for property in &mut iter {
+                if simulate_compute_values_failure(property)
+                    || property.mServoDeclarationBlock.mRawPtr.is_null()
+                {
+                    continue;
+                }
+                let declarations = unsafe { &*property.mServoDeclarationBlock.mRawPtr };
+                let guard = declarations.read_with(&guard);
+                for declaration in guard.normal_declaration_iter() {
+                    if let PropertyDeclaration::WithVariables(declaration) = declaration {
+                        builder.prepare_attributes(
+                            &mut context,
+                            &declaration.value,
+                            &mut attribute_tracker,
+                        );
+                    }
+                }
+            }
+            iter.reset();
             builder.build(&mut context, &mut attribute_tracker);
         };
 
@@ -7657,7 +7676,7 @@ pub extern "C" fn Servo_GetComputedKeyframeValues(
                     &mut context,
                     style,
                     &default_values,
-                    &mut AttributeTracker::new_dummy(),
+                    &mut attribute_tracker,
                 ) {
                     maybe_append_animation_value(value.id(), Some(value.clone()));
                 }

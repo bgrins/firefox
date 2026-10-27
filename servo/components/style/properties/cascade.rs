@@ -783,6 +783,17 @@ impl<'a> KeyframeCustomPropertiesBuilder<'a> {
             .cascade_custom_property(context, declaration, priority);
     }
 
+    /// Prepares typed attributes referenced by an ordinary keyframe declaration.
+    pub fn prepare_attributes(
+        &mut self,
+        context: &mut computed::Context,
+        value: &'a UnparsedValue,
+        attribute_tracker: &mut AttributeTracker,
+    ) {
+        self.cascade
+            .update_attributes_map(context, &value.variable_value, attribute_tracker);
+    }
+
     /// Resolves the cascaded custom properties into `context.builder.substitution_functions`.
     pub fn build(
         mut self,

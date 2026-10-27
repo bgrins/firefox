@@ -1,0 +1,157 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Initial attr() substitution in ordinary keyframe properties</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-security">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+let serial = 0;
+const nsA = "urn:keyframe-attr:a";
+const nsB = "urn:keyframe-attr:b";
+
+function element(t, id, attributes) {
+  const result = document.createElement("div");
+  result.id = id;
+  for (const [namespace, name, value] of attributes) {
+    result.setAttributeNS(namespace, name, value);
+  }
+  document.body.append(result);
+  t.add_cleanup(() => result.remove());
+  return result;
+}
+
+function sheet(t, text) {
+  const result = document.createElement("style");
+  result.textContent = `@namespace a url("${nsA}"); @namespace b url("${nsB}"); ${text}`;
+  document.head.append(result);
+  t.add_cleanup(() => result.remove());
+  return result.sheet;
+}
+
+function numeric(target, property) {
+  const text = getComputedStyle(target).getPropertyValue(property);
+  if (property === "width") assert_true(text.endsWith("px"), "width unit calibration");
+  const result = property === "width" ? parseFloat(text) : Number(text);
+  assert_true(Number.isFinite(result), "finite numeric calibration");
+  if (property === "opacity") {
+    assert_true(result >= 0 && result <= 1, "opacity range calibration");
+  }
+  return result;
+}
+
+async function paused(t, target) {
+  const animations = target.getAnimations();
+  assert_equals(animations.length, 1, "one CSS animation");
+  const animation = animations[0];
+  t.add_cleanup(() => animation.cancel());
+  assert_true(animation instanceof CSSAnimation, "CSS animation ownership");
+  animation.currentTime = 500;
+  await animation.ready;
+  assert_equals(animation.playState, "paused", "paused animation");
+  assert_equals(animation.currentTime, 500, "fixed sample time");
+  assert_equals(animation.effect.getTiming().duration, 1000, "duration calibration");
+  assert_equals(animation.effect.getComputedTiming().progress, 0.5, "midpoint calibration");
+  return animation;
+}
+
+const cases = [
+  {name: "number provider", value: "attr(data-a number, 0.125)", attrs: [[null, "data-a", "0.25"]], expected: 0.25},
+  {name: "typed number provider and cache", value: "attr(data-a type(<number>), 0.125)", attrs: [[null, "data-a", "0.25"]], expected: 0.25},
+  {name: "literal unit provider", property: "width", value: "attr(data-a px, 7px)", attrs: [[null, "data-a", "25"]], expected: 25},
+  {name: "unit does not substitute attribute text", property: "width", value: "attr(data-a px, 7px)", attrs: [[null, "data-a", "var(--n)"]], custom: "--n:25", expected: 7},
+  {name: "missing attribute fallback", value: "attr(data-a type(<number>), 0.125)", expected: 0.125},
+  {name: "invalid attribute fallback", value: "attr(data-a type(<number>), 0.125)", attrs: [[null, "data-a", "nope"]], expected: 0.125},
+  {name: "typed attribute in attr fallback", value: "attr(data-missing type(<number>), attr(data-a type(<number>), 0.125))", attrs: [[null, "data-a", "0.25"]], expected: 0.25},
+  {name: "typed attribute in var fallback", value: "var(--missing, attr(data-a type(<number>), 0.125))", attrs: [[null, "data-a", "0.25"]], expected: 0.25},
+  {name: "nested attribute substitution", value: "attr(data-a type(<number>), 0.125)", attrs: [[null, "data-a", "attr(data-b type(<number>))"], [null, "data-b", "0.25"]], expected: 0.25},
+  {name: "attribute references keyframe custom property", value: "attr(data-a type(<number>), 0.125)", attrs: [[null, "data-a", "var(--n)"]], custom: "--n:0.25", expected: 0.25},
+  {name: "attribute cycle fallback", value: "attr(data-a type(<number>), 0.125)", attrs: [[null, "data-a", "attr(data-b type(<number>))"], [null, "data-b", "attr(data-a type(<number>))"]], expected: 0.125},
+  {name: "used fallback cycle", value: "var(--n, 0.125)", attrs: [[null, "data-a", "var(--missing, var(--n))"]], custom: "--n:attr(data-a type(<number>))", expected: 0.125},
+  {name: "unused fallback is not a cycle edge", value: "var(--n, 0.125)", attrs: [[null, "data-a", "var(--good, var(--n))"]], custom: "--good:0.25;--n:attr(data-a type(<number>))", expected: 0.25},
+  {name: "same raw attribute has independent type views", value: "calc(attr(data-a type(<number>), 0.125) + attr(data-a type(<length>), 0.5))", attrs: [[null, "data-a", "0.25"]], expected: 0.75},
+  {name: "different attribute references in separate keyframes", value: "attr(data-a type(<number>), 0.125)", endValue: "attr(data-b type(<number>), 0.125)", attrs: [[null, "data-a", "0.25"], [null, "data-b", "0.75"]], expected: 0.25, endExpected: 0.75},
+  {name: "literal keyframe control", value: "0.25", expected: 0.25},
+];
+
+const qualified = [[nsA, "a:probe", "0.25"], [nsB, "b:probe", "0.5"], [null, "probe", "0.75"]];
+for (const [prefix, expected] of [["a|", 0.25], ["b|", 0.5], ["", 0.75]]) {
+  cases.push({name: `qualified attribute ${prefix || "null namespace"}`, value: `attr(${prefix}probe type(<number>), 0.125)`, attrs: qualified, expected});
+}
+cases.push({name: "missing qualified attribute does not use another namespace", value: "attr(a|probe type(<number>), 0.125)", attrs: [[nsB, "b:probe", "0.5"]], expected: 0.125});
+cases.push({name: "two namespaces in one declaration", value: "calc(attr(a|probe type(<number>), 0.125) + attr(b|probe type(<number>), 0.125))", attrs: qualified, expected: 0.75});
+cases.push({name: "two namespaces in reversed order", value: "calc(attr(b|probe type(<number>), 0.125) + attr(a|probe type(<number>), 0.125))", attrs: qualified, expected: 0.75});
+
+for (const entry of cases) {
+  promise_test(async t => {
+    const id = ++serial;
+    const property = entry.property || "opacity";
+    const attrs = entry.attrs || [];
+    const start = `${entry.custom || ""};${property}:${entry.value}`;
+    const end = `${entry.endCustom ?? entry.custom ?? ""};${property}:${entry.endValue ?? entry.value}`;
+    const endExpected = entry.endExpected ?? entry.expected;
+    const startControl = element(t, `ordinaryStart${id}`, attrs);
+    const endControl = element(t, `ordinaryEnd${id}`, attrs);
+    const target = element(t, `animated${id}`, attrs);
+    const styles = sheet(t, `
+      #${startControl.id} { ${start} }
+      #${endControl.id} { ${end} }
+      #${target.id} { width:7px; opacity:0.875; animation:attrInitial${id} 1000ms linear paused both; }
+      @keyframes attrInitial${id} { from { ${start} } to { ${end} } }
+    `);
+    assert_equals(styles.cssRules.length, 6, "namespace, control and animation rules retained");
+    const frames = styles.cssRules[5].cssRules;
+    assert_equals(frames.length, 2, "two keyframe rules retained");
+    for (const frame of frames) {
+      assert_not_equals(frame.style.getPropertyValue(property), "", "keyframe declaration retained");
+    }
+    assert_approx_equals(numeric(startControl, property), entry.expected, 0.000001, "ordinary start control");
+    assert_approx_equals(numeric(endControl, property), endExpected, 0.000001, "ordinary end control");
+    const animation = await paused(t, target);
+    const midpoint = numeric(target, property);
+    animation.currentTime = 0;
+    assert_equals(animation.effect.getComputedTiming().progress, 0, "start progress");
+    const first = numeric(target, property);
+    animation.currentTime = 1000;
+    assert_equals(animation.effect.getComputedTiming().progress, 1, "end progress");
+    const last = numeric(target, property);
+    assert_approx_equals(first, entry.expected, 0.000001, "initial computed start value");
+    assert_approx_equals(last, endExpected, 0.000001, "initial computed end value");
+    assert_approx_equals(midpoint, (entry.expected + endExpected) / 2, 0.000001, "initial computed midpoint");
+  }, `ordinary keyframe attr initialization: ${entry.name}`);
+}
+
+for (const type of ["raw-string", "type(<string>)"]) {
+  promise_test(async t => {
+    const id = ++serial;
+    const url = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E";
+    const literal = `image-set(${JSON.stringify(url)} 1x)`;
+    const expression = `image-set(attr(data-image ${type}, ${JSON.stringify(url)}) 1x)`;
+    const attribute = type === "raw-string" ? url : JSON.stringify(url);
+    const attrs = [[null, "data-image", attribute]];
+    const clean = element(t, `clean${id}`, []);
+    const ordinary = element(t, `taintOrdinary${id}`, attrs);
+    const target = element(t, `taintAnimated${id}`, attrs);
+    const styles = sheet(t, `
+      #${clean.id} { background-image:${literal}; }
+      #${ordinary.id} { background-image:${expression}; }
+      #${target.id} { background-image:none; animation:attrTaint${id} 1000ms linear paused both; }
+      @keyframes attrTaint${id} { from { background-image:${expression}; } to { background-image:${expression}; } }
+    `);
+    assert_equals(styles.cssRules.length, 6, "taint rules retained");
+    assert_not_equals(styles.cssRules[2].style.backgroundImage, "", "clean syntax retained");
+    assert_not_equals(getComputedStyle(clean).backgroundImage, "none", "clean URL control is usable");
+    assert_not_equals(styles.cssRules[3].style.backgroundImage, "", "ordinary attr syntax retained");
+    assert_equals(getComputedStyle(ordinary).backgroundImage, "none", "ordinary tainted URL rejected");
+    for (const frame of styles.cssRules[5].cssRules) {
+      assert_not_equals(frame.style.backgroundImage, "", "animated attr syntax retained");
+    }
+    await paused(t, target);
+    assert_equals(getComputedStyle(target).backgroundImage, "none", "animated tainted URL rejected");
+  }, `ordinary keyframe attr initialization: ${type} URL taint rejection`);
+}
+</script>
