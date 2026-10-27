@@ -1,0 +1,224 @@
+--- a/layout/base/PresShell.cpp
++++ b/layout/base/PresShell.cpp
+@@ -13102,8 +13102,21 @@
+ }
+ 
+ void PresShell::UpdateHiddenContentInForcedLayout(nsIFrame* aFrame) {
+-  if (!aFrame || !aFrame->IsSubtreeDirty()) {
+-    return;
++  if (!aFrame) {
++    return;
++  }
++  if (!aFrame->IsSubtreeDirty()) {
++    nsIFrame* provider = aFrame;
++    if (provider->IsTableColFrame()) {
++      provider = provider->GetParent();
++    }
++    if (!provider || !provider->IsTableColGroupFrame()) {
++      return;
++    }
++    provider = provider->GetParent();
++    if (!provider || !provider->IsTableFrame() || !provider->IsSubtreeDirty()) {
++      return;
++    }
+   }
+ 
+   nsIFrame* topmostFrameWithContentHidden = nullptr;
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-table-column-size-query.html
+@@ -0,0 +1,65 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Hidden table column queries after table size changes</title>
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getboundingclientrect">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++body { margin: 0; }
++.host { position: absolute; left: 10px; top: 10px; }
++.outer { width: 100px; height: 64px; }
++.subject { width: 100%; height: 64px; }
++.subject.hidden { content-visibility: hidden; }
++.item { width: 100%; height: 32px; }
++table { table-layout: fixed; width: 100%; height: 32px; border-spacing: 0; border: 0; padding: 0; margin: 0; }
++table.narrow { width: 50%; }
++td { border: 0; padding: 0; height: 32px; }
++</style>
++<body>
++<script>
++"use strict";
++function fixture(selector) {
++  const host = document.createElement("div");
++  host.className = "host";
++  host.innerHTML = `<div class="outer"><div class="subject"><div class="item"><table><colgroup><col><col></colgroup><tbody><tr><td></td><td></td></tr></tbody></table></div></div></div>`;
++  document.body.append(host);
++  return {host, outer: host.querySelector(".outer"), subject: host.querySelector(".subject"), table: host.querySelector("table"), target: host.querySelector(selector)};
++}
++function rect(element) {
++  const r = element.getBoundingClientRect();
++  return [r.x, r.y, r.width, r.height];
++}
++for (const selector of ["col", "colgroup", "table"]) {
++  test(t => {
++    assert_implements(CSS.supports("content-visibility", "hidden"));
++    const target = fixture(selector);
++    const reference = fixture(selector);
++    t.add_cleanup(() => { target.host.remove(); reference.host.remove(); });
++    const rows = [];
++    for (const stage of ["warm", "hide", "change", "restore", "show"]) {
++      if (stage === "hide") target.subject.classList.add("hidden");
++      if (stage === "change" || stage === "restore") {
++        target.table.classList.toggle("narrow", stage === "change");
++        reference.table.classList.toggle("narrow", stage === "change");
++      }
++      if (stage === "show") target.subject.classList.remove("hidden");
++      const outer = rect(target.outer);
++      const first = rect(target.target);
++      const second = rect(target.target);
++      const visible = rect(reference.target);
++      const tableWidth = stage === "change" ? 50 : 100;
++      const width = selector === "col" ? tableWidth / 2 : tableWidth;
++      rows.push({stage, outer, first, second, visible, expected: [10, 10, width, 32]});
++    }
++    for (const row of rows) {
++      assert_array_equals(row.visible, row.expected, `${row.stage}: independent visible calibration`);
++      assert_array_equals(row.outer, [10, 10, 100, 64], `${row.stage}: outer-only flush calibration`);
++    }
++    for (const row of rows) {
++      assert_array_equals(row.first, row.expected, `${row.stage}: first selected query`);
++      assert_array_equals(row.second, row.expected, `${row.stage}: repeat selected query`);
++    }
++  }, `Independent hidden column trigger: table-width, ${selector}`);
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-contain/content-visibility/hidden-column-auto-scroll.html
+@@ -0,0 +1,127 @@
++<!doctype html>
++<meta charset="utf-8">
++<meta name="timeout" content="long">
++<title>Scrolling columns in a fixed-size auto-skipped table container</title>
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#cv-notes">
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility-auto-state-change">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#determine-the-scroll-into-view-position">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++html { direction: ltr; writing-mode: horizontal-tb; scroll-behavior: auto; }
++body { margin: 0; }
++.scroller { position: fixed; left: 0; top: 0; width: 100px; height: 100px;
++            overflow: scroll; scrollbar-width: none; border: 0; padding: 0;
++            scroll-behavior: auto; overflow-anchor: none; scroll-snap-type: none; }
++.scroller * { overflow-anchor: none; scroll-margin: 0; scroll-snap-align: none; }
++.leading { width: 600px; height: 8000px; }
++.trailing { width: 600px; height: 1000px; }
++.subject { width: 600px; height: 80px; font-size: 0; line-height: 0; }
++.subject.auto { content-visibility: auto; }
++table { width: 480px; height: 40px; table-layout: fixed; border-spacing: 0;
++        border: 0; padding: 0; margin: 0; }
++table.narrow { width: 240px; }
++tr, td { height: 40px; border: 0; padding: 0; }
++</style>
++<body>
++<script>
++"use strict";
++window.columnAutoScrollResults = [];
++const cases = [
++  {"name": "Auto-skipped table scroll provider: col, no-change", "kind": "col", "change": false},
++  {"name": "Auto-skipped table scroll provider: col, width-change", "kind": "col", "change": true},
++  {"name": "Auto-skipped table scroll provider: colgroup, no-change", "kind": "colgroup", "change": false},
++  {"name": "Auto-skipped table scroll provider: colgroup, width-change", "kind": "colgroup", "change": true}
++];
++function fixture(c, changed = false) {
++  const scroller = document.createElement("div");
++  scroller.className = "scroller";
++  const columns = c.kind === "col" ?
++    '<colgroup><col><col class="selected"><col></colgroup>' :
++    '<colgroup span="1"></colgroup><colgroup class="selected" span="1"></colgroup><colgroup span="1"></colgroup>';
++  scroller.innerHTML = `<div class="leading"></div><div class="subject"><table${changed ? ' class="narrow"' : ""}>${columns}<tbody><tr><td></td><td></td><td></td></tr></tbody></table></div><div class="trailing"></div>`;
++  document.body.append(scroller);
++  return {scroller, subject: scroller.querySelector(".subject"),
++          table: scroller.querySelector("table"), target: scroller.querySelector(".selected"),
++          cells: [...scroller.querySelectorAll("td")]};
++}
++function rect(element) {
++  const r = element.getBoundingClientRect();
++  return [r.x, r.y, r.width, r.height];
++}
++function offset(f) {
++  return [f.scroller.scrollLeft, f.scroller.scrollTop];
++}
++function waitSkipped(t, f, events) {
++  return new Promise((resolve, reject) => {
++    const timer = t.step_timeout(() => reject(new Error("calibration: no skipped=true event within 3000ms")), 3000);
++    const listener = event => {
++      events.push({skipped: event.skipped, trusted: event.isTrusted});
++      if (event.skipped) {
++        clearTimeout(timer);
++        resolve();
++      }
++    };
++    f.subject.addEventListener("contentvisibilityautostatechange", listener);
++    t.add_cleanup(() => {
++      clearTimeout(timer);
++      f.subject.removeEventListener("contentvisibilityautostatechange", listener);
++    });
++  });
++}
++const scrollOptions = {block: "start", inline: "start", behavior: "instant"};
++for (const c of cases) {
++  promise_test(async t => {
++    assert_true(CSS.supports("content-visibility", "auto"), "calibration: auto support");
++    assert_true(CSS.supports("scrollbar-width", "none"), "calibration: scrollbar geometry support");
++    const f = fixture(c);
++    t.add_cleanup(() => f.scroller.remove());
++    const result = {name: c.name, events: []};
++    window.columnAutoScrollResults.push(result);
++    result.warm = {outer: rect(f.scroller), subject: rect(f.subject),
++                   target: rect(f.target), cells: f.cells.map(rect), offset: offset(f)};
++    assert_array_equals(result.warm.outer, [0, 0, 100, 100], "calibration: warm scroller");
++    assert_array_equals(result.warm.subject, [0, 8000, 600, 80], "calibration: explicit subject size");
++    assert_array_equals(result.warm.target, [160, 8000, 160, 40], "calibration: warm column/group");
++    for (let i = 0; i < 3; ++i) {
++      assert_array_equals(result.warm.cells[i], [160 * i, 8000, 160, 40], `calibration: warm cell ${i}`);
++    }
++    assert_array_equals(result.warm.offset, [0, 0], "calibration: initial scroll position");
++    assert_equals(f.scroller.clientWidth, 100, "calibration: scrollport width");
++    assert_equals(f.scroller.clientHeight, 100, "calibration: scrollport height");
++    const skipped = waitSkipped(t, f, result.events);
++    f.subject.classList.add("auto");
++    rect(f.scroller);
++    await skipped;
++    assert_true(result.events.at(-1).skipped && result.events.at(-1).trusted,
++                "calibration: trusted skipped-state notification");
++    if (c.change) f.table.classList.add("narrow");
++    result.outerAfterMutation = rect(f.scroller);
++    result.preScrollOffset = offset(f);
++    assert_array_equals(result.outerAfterMutation, [0, 0, 100, 100], "calibration: outer-only mutation flush");
++    assert_array_equals(result.preScrollOffset, [0, 0], "calibration: no pre-scroll movement");
++    f.target.scrollIntoView(scrollOptions);
++    result.immediateOffset = offset(f);
++    const peer = fixture(c, c.change);
++    t.add_cleanup(() => peer.scroller.remove());
++    result.visible = {subject: rect(peer.subject), target: rect(peer.target), cells: peer.cells.map(rect)};
++    peer.target.scrollIntoView(scrollOptions);
++    result.visibleOffset = offset(peer);
++    const width = c.change ? 80 : 160;
++    assert_array_equals(result.visible.subject, [0, 8000, 600, 80], "calibration: unchanged explicit peer size");
++    assert_array_equals(result.visible.target, [width, 8000, width, 40], "calibration: changed visible target");
++    for (let i = 0; i < 3; ++i) {
++      assert_array_equals(result.visible.cells[i], [width * i, 8000, width, 40], `calibration: changed visible cell ${i}`);
++    }
++    assert_array_equals(result.visibleOffset, [width, 8000], "calibration: visible start-aligned scroll");
++    peer.scroller.remove();
++    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
++    result.settledOffset = offset(f);
++    result.after = {target: rect(f.target), subject: rect(f.subject)};
++    assert_array_equals(result.immediateOffset, [width, 8000], "first scroll uses current column geometry");
++    assert_array_equals(result.settledOffset, [width, 8000], "scroll remains start-aligned after rendering");
++    assert_array_equals(result.after.target, [0, 0, width, 40], "scrolled target rectangle");
++    assert_array_equals(result.after.subject, [-width, 0, 600, 80], "subject dimensions remain fixed after relevance update");
++  }, c.name);
++}
++</script>

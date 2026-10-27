@@ -1,0 +1,68 @@
+--- disabled-grid/experiment.py
++++ landing/experiment.py
+@@ -46,7 +46,8 @@
+ for n in c['sources']:
+     need((ROOT/n).read_bytes()==original[n] and wpt.git('show','HEAD:'+n)==head[n],'original/HEAD snapshot '+n)
+ GRID='layout/generic/nsGridContainerFrame.cpp'
+-phases=['baseline','candidate']
++phases=['baseline','column-only','block-only','grid-only','all-three']
++need(list(c['phases'])==phases,'Exact five-phase roster')
+ state={'status':'starting','accepted_native_repair':False,'phases':{}}
+ errors=[]
+ changed=False
+@@ -65,10 +66,12 @@
+     return {(r['test'],r['subtest']):(r['status'],r.get('message')) for r in run['rows']}
+ 
+ baseline_rows=None
+-grid_id='/' + str(Path(next(iter(c['install']))).relative_to('testing/web-platform/tests'))
++grid_id='/css/css-contain/content-visibility/hidden-grid-own-content-queries.html'
+ tracked_ids={'/'+str(Path(t).relative_to('testing/web-platform/tests')) for t in c['tracked_tests']}
+ hidden_names={n for n in c['expected_subtests'][grid_id] if ': hidden,' in n}
+-need(len(hidden_names)==4 and sum(map(len,c['expected_subtests'].values()))==58,'Grid/total roster')
++need(len(hidden_names)==4 and sum(map(len,c['expected_subtests'].values()))==79,'Grid/total roster')
++oracles=json.loads((HERE/'EXPECTED-OUTCOMES.json').read_text())
++need(list(oracles['phases'])==phases,'Expected phase roster')
+ 
+ def recovery_save(name,value):
+     try:
+@@ -89,7 +92,9 @@
+         (ROOT/n).write_bytes(data)
+     for name in phases:
+         authenticate_payloads()
+-        selected={GRID:head[GRID] if name=='baseline' else (HERE/'selected/grid-candidate.cpp').read_bytes()}
++        selected={path:(HERE/payload).read_bytes() for path,payload in c['phases'][name].items()}
++        need(set(selected)=={GRID,'layout/base/PresShell.cpp','layout/generic/nsBlockFrame.cpp'},
++             'Every phase must explicitly reset all three source roles')
+         for n,data in selected.items():
+             (ROOT/n).write_bytes(data)
+         epoch()
+@@ -124,14 +129,22 @@
+         wpt.save('STATE.json',state)
+         need(record['tracked_controls']=={'PASS':50,'FAIL':0},'tracked control failed '+name)
+         if name=='baseline':
+-            need({key for key,value in rows.items() if value[0]=='FAIL'}=={(grid_id,n) for n in hidden_names},
+-                 'isolated baseline differs from four hidden-query failures')
++            need({key for key,value in rows.items() if key[0]==grid_id and value[0]=='FAIL'}
++                 =={(grid_id,n) for n in hidden_names}, 'isolated Grid baseline differs')
+             need(all('selected query: after-parent-width' in (rows[(grid_id,n)][1] or '') for n in hidden_names),
+-                 'baseline failure stage differs')
+-        else:
+-            need(record['status_counts']=={'PASS':58,'FAIL':0},'candidate did not pass all58')
+-            need({k:v for k,v in rows.items() if k[0] in tracked_ids}
+-                 =={k:v for k,v in baseline_rows.items() if k[0] in tracked_ids},'tracked controls changed')
++                 'Grid baseline failure stage differs')
++        expected={(r['test'],r['subtest']):r for r in oracles['phases'][name]}
++        need(set(rows)==set(expected),'Expected per-case roster differs')
++        discrepancies=[]
++        for key,value in rows.items():
++            oracle=expected[key]
++            if value[0]!=oracle['status'] or ('message' in oracle and value[1]!=oracle['message']):
++                discrepancies.append({'test':key[0],'subtest':key[1],'actual':value,'expected':oracle})
++        record['expectation_discrepancies']=discrepancies
++        wpt.save('STATE.json',state)
++        need(not discrepancies,'Named outcome/diagnostic differs from expected '+name)
++        need({k:v for k,v in rows.items() if k[0] in tracked_ids}
++             =={k:v for k,v in baseline_rows.items() if k[0] in tracked_ids},'tracked controls changed')
+         record['expected_outcomes_match']=True
+         wpt.save('STATE.json',state)
+ except BaseException as error:

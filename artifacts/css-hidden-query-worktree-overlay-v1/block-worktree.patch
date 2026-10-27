@@ -1,0 +1,12 @@
+--- a/layout/generic/nsBlockFrame.cpp
++++ b/layout/generic/nsBlockFrame.cpp
+@@ -4310,6 +4310,9 @@
+   nsIFrame* firstChild = aLine->mFirstChild;
+   if (firstChild->IsHiddenByContentVisibilityOfInFlowParentForLayout() &&
+       !HasAnyStateBits(NS_FRAME_OWNS_ANON_BOXES)) {
++    for (nsIFrame* child : aLine->ChildFrames()) {
++      child->MarkSubtreeDirty();
++    }
+     return false;
+   }
+ 

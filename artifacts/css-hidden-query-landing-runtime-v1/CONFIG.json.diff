@@ -1,0 +1,102 @@
+--- disabled-grid/CONFIG.json
++++ landing/CONFIG.json
+@@ -83,10 +83,16 @@
+     "testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-item-measuring-reflow.html",
+     "testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-oof-descendant-query.html",
+     "testing/web-platform/tests/css/css-contain/content-visibility/hidden-flex-principal-positions.html",
+-    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-grid-own-content-queries.html"
++    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-grid-own-content-queries.html",
++    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-table-column-size-query.html",
++    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-column-auto-scroll.html",
++    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-skipped-block-line-queries.html"
+   ],
+   "install": {
+-    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-grid-own-content-queries.html": "tests/hidden-grid-own-content-queries.html"
++    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-grid-own-content-queries.html": "tests/hidden-grid-own-content-queries.html",
++    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-table-column-size-query.html": "tests/hidden-table-column-size-query.html",
++    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-column-auto-scroll.html": "tests/hidden-column-auto-scroll.html",
++    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-skipped-block-line-queries.html": "tests/hidden-skipped-block-line-queries.html"
+   },
+   "expected_subtests": {
+     "/css/css-contain/content-visibility/hidden-flex-absolute-geometry.html": [
+@@ -158,6 +164,33 @@
+       "Grid own-content query: hidden, direct item, offset",
+       "Grid own-content query: hidden, leaf-first, bounding",
+       "Grid own-content query: hidden, leaf-first, offset"
++    ],
++    "/css/css-contain/content-visibility/hidden-table-column-size-query.html": [
++      "Independent hidden column trigger: table-width, col",
++      "Independent hidden column trigger: table-width, colgroup",
++      "Independent hidden column trigger: table-width, table"
++    ],
++    "/css/css-contain/content-visibility/hidden-column-auto-scroll.html": [
++      "Auto-skipped table scroll provider: col, no-change",
++      "Auto-skipped table scroll provider: col, width-change",
++      "Auto-skipped table scroll provider: colgroup, no-change",
++      "Auto-skipped table scroll provider: colgroup, width-change"
++    ],
++    "/css/css-contain/content-visibility/hidden-skipped-block-line-queries.html": [
++      "Hidden skipped block query: outer-width, item",
++      "Hidden skipped block query: outer-width, inner",
++      "Hidden skipped block query: outer-width, leaf",
++      "Hidden skipped block query: item-width, item",
++      "Hidden skipped block query: item-width, inner",
++      "Hidden skipped block query: item-width, leaf",
++      "Hidden skipped inline line query: first",
++      "Hidden skipped inline line query: second",
++      "Hidden skipped inline line query: first-leaf",
++      "Hidden skipped inline line query: second-leaf",
++      "Hidden table-first rescue query: outer-width, col",
++      "Hidden table-first rescue query: outer-width, td",
++      "Hidden table-first rescue query: table-width, col",
++      "Hidden table-first rescue query: table-width, td"
+     ]
+   },
+   "prior_runtime": "artifacts/css-hidden-query-boundaries-runtime-v2",
+@@ -167,10 +200,11 @@
+     "testing/web-platform/tests/css/css-contain/content-visibility/hidden-skipped-block-line-queries.html",
+     "testing/web-platform/tests/css/css-contain/content-visibility/hidden-table-span-queries.html",
+     "testing/web-platform/tests/css/css-contain/content-visibility/hidden-column-auto-scroll.html",
+-    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-grid-own-content-queries.html"
++    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-grid-own-content-queries.html",
++    "testing/web-platform/tests/css/css-contain/content-visibility/hidden-table-column-size-query.html"
+   ],
+   "ready_for_preparation": false,
+-  "expected_total_subtests": 58,
++  "expected_total_subtests": 79,
+   "expected_head": "90e7c8a3c46c5e84ec0bfffc239e52ea72b2085e",
+   "baseline_sources": {
+     "dom/base/nsLineBreaker.cpp": "selected/head/dom/base/nsLineBreaker.cpp",
+@@ -197,5 +231,32 @@
+     "layout/base/PresShell.cpp": "selected/head/layout/base/PresShell.cpp",
+     "layout/tables/nsTableFrame.cpp": "selected/head/layout/tables/nsTableFrame.cpp",
+     "layout/generic/nsGridContainerFrame.cpp": "selected/head/layout/generic/nsGridContainerFrame.cpp"
++  },
++  "phases": {
++    "baseline": {
++      "layout/base/PresShell.cpp": "selected/pres-shell-before.cpp",
++      "layout/generic/nsBlockFrame.cpp": "selected/block-before.cpp",
++      "layout/generic/nsGridContainerFrame.cpp": "selected/head/layout/generic/nsGridContainerFrame.cpp"
++    },
++    "column-only": {
++      "layout/base/PresShell.cpp": "selected/pres-shell-column.cpp",
++      "layout/generic/nsBlockFrame.cpp": "selected/block-before.cpp",
++      "layout/generic/nsGridContainerFrame.cpp": "selected/head/layout/generic/nsGridContainerFrame.cpp"
++    },
++    "block-only": {
++      "layout/base/PresShell.cpp": "selected/pres-shell-before.cpp",
++      "layout/generic/nsBlockFrame.cpp": "selected/block-skipped-line.cpp",
++      "layout/generic/nsGridContainerFrame.cpp": "selected/head/layout/generic/nsGridContainerFrame.cpp"
++    },
++    "grid-only": {
++      "layout/base/PresShell.cpp": "selected/pres-shell-before.cpp",
++      "layout/generic/nsBlockFrame.cpp": "selected/block-before.cpp",
++      "layout/generic/nsGridContainerFrame.cpp": "selected/grid-candidate.cpp"
++    },
++    "all-three": {
++      "layout/base/PresShell.cpp": "selected/pres-shell-column.cpp",
++      "layout/generic/nsBlockFrame.cpp": "selected/block-skipped-line.cpp",
++      "layout/generic/nsGridContainerFrame.cpp": "selected/grid-candidate.cpp"
++    }
+   }
+ }
