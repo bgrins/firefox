@@ -1,0 +1,10 @@
+--- partial-commit-v1/check.py
++++ partial-commit-v2/check.py
+@@ -179,6 +179,7 @@
+             modified = git('diff', '--name-only', env=env).decode().splitlines()
+         working = {p: h.fingerprint(ROOT, p) for p in set(epoch['modified_native_paths']) | set(plan['paths'])}
+         assert a.verify_current(h, ROOT, ENV, epoch) == before
++        assert sha(epoch_path) == sys.argv[4]
+         assert flags(cwd=ROOT / 'artifacts/css-spec-lean') == nested_flags
+         destination.mkdir()
+         (destination / 'remaining.patch').write_bytes(remaining)

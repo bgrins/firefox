@@ -1,0 +1,69 @@
+{
+  "fix": 137,
+  "repair": "used-non-type-attribute-fallback-cycles",
+  "title": "Include used non-type attr fallbacks in dependency cycles",
+  "status": "DRAFT_NOT_ACCEPTED",
+  "group": "Attributes and custom properties",
+  "native_commit": null,
+  "research_commit": null,
+  "companion_commit": null,
+  "native_paths": [
+    "servo/components/style/custom_properties.rs",
+    "servo/components/style/properties/cascade.rs",
+    "testing/web-platform/tests/css/css-values/attr-non-type-used-fallback-cycle.html"
+  ],
+  "patch": {
+    "path": "artifacts/css-attr-non-type-fallback-repair-v3/fix-head.patch",
+    "sha256": "4c59f852ad5d4af71875049147c21222a66044249918ff798ae27efd93530bb0"
+  },
+  "upstream_export": {
+    "path": "artifacts/css-attr-non-type-fallback-upstream-v1/upstream-self-contained.patch",
+    "sha256": "6cbc5be2c2424255bf7952d9db81b1112dc74a0f3b51f4270cb6b9e79bb49787"
+  },
+  "phase_order": [
+    "original-1",
+    "candidate-1"
+  ],
+  "phase_counts": [
+    [
+      15,
+      19
+    ],
+    [
+      34,
+      0
+    ]
+  ],
+  "landing_cases": 34,
+  "observed_repairs": 19,
+  "unchanged_landing_controls": 15,
+  "existing_regressions": {
+    "subtests_PASS": 154,
+    "reftests_PASS": 6,
+    "exact_both_phases": true
+  },
+  "terminal_review": null,
+  "acceptance": null,
+  "commit_verification": null,
+  "research_commit_verification": null,
+  "reviewer_group": "#firefox-style-system-reviewers",
+  "commit_subject": "No bug - Include used non-type attr fallbacks in dependency cycles. r?#firefox-style-system-reviewers",
+  "triage": "Tentative P3 CSS correctness; no demonstrated security or measured performance impact.",
+  "discovery": "Source inspection and browser reproduction during dependency-verification work; not discovered by a Lean proof.",
+  "formal_attribution": "No new Lean theorem, canonical coverage, or universal native-refinement result is claimed for this repair.",
+  "canonical_lean_coverage_increment": 0,
+  "limits": [
+    "The incremental branch patch removes already-corrected inline numeric parsing from parent 499c0c6; the standalone upstream export adapts that hunk and insertion context and includes the same full shared primitive. Numeric overlap is not another bug discovery.",
+    "Direct ParsedNamespace matching avoids a dependency on the branch namespace() helper. parse_typed_value is only an insertion-context anchor.",
+    "The branch original/candidate comparison runs in the shared experimental checkout. No clean-upstream build or browser validation of the standalone export is claimed.",
+    "Existing raw-nested attr-cycle oracles and metadata remain unchanged; the separate raw-nested repair is not included.",
+    "One original and one candidate phase; no restored-original or repeated-candidate run is claimed."
+  ],
+  "comparison_runtime": [
+    "artifacts/css-attr-non-type-fallback-wpt-runtime-original-1",
+    "artifacts/css-attr-non-type-fallback-wpt-runtime-candidate-1"
+  ],
+  "candidate_source_installed": null,
+  "browser_binary_contains_fix": null,
+  "signature_verified": null
+}
