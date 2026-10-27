@@ -1,0 +1,64 @@
+--- a/testing/web-platform/tests/css/css-values/attr-non-type-used-fallback-cycle.html
++++ b/testing/web-platform/tests/css/css-values/attr-non-type-used-fallback-cycle.html
+@@ -89,4 +89,61 @@
+     check("");
+   }, `Attribute mutation updates ${syntax || "bare"} fallback cycle edges`);
+ }
++
++CSS.registerProperty({
++  name: "--non-type-edge-length",
++  syntax: "<length>",
++  inherits: false,
++  initialValue: "11px",
++});
++const nonCustomCases = [
++  {
++    name: "Used non-type font-size fallback participates in a registered length cycle",
++    declarations: "--non-type-edge-length: 1em; font-size: attr(data-size px, var(--non-type-edge-length))",
++    property: "font-size",
++    attribute: null,
++    expected: {"--non-type-edge-length": "11px", "font-size": "23px", "line-height": "31px", width: "11px"},
++  },
++  {
++    name: "Valid non-type font-size primary excludes a cyclic fallback",
++    declarations: "--non-type-edge-length: 1em; font-size: attr(data-size px, var(--non-type-edge-length))",
++    property: "font-size",
++    attribute: "13",
++    expected: {"--non-type-edge-length": "13px", "font-size": "13px", "line-height": "31px", width: "13px"},
++  },
++  {
++    name: "Used non-type line-height fallback participates in a registered length cycle",
++    declarations: "--non-type-edge-length: 1lh; line-height: attr(data-size px, var(--non-type-edge-length))",
++    property: "line-height",
++    attribute: "nope",
++    expected: {"--non-type-edge-length": "11px", "font-size": "23px", "line-height": "31px", width: "11px"},
++  },
++  {
++    name: "Valid non-type line-height primary excludes a cyclic fallback",
++    declarations: "--non-type-edge-length: 1lh; line-height: attr(data-size px, var(--non-type-edge-length))",
++    property: "line-height",
++    attribute: "13",
++    expected: {"--non-type-edge-length": "13px", "font-size": "23px", "line-height": "13px", width: "13px"},
++  },
++];
++for (const item of nonCustomCases) {
++  test(t => {
++    const parent = document.createElement("div");
++    t.add_cleanup(() => parent.remove());
++    parent.style.cssText = "font-size: 23px; line-height: 31px";
++    const target = document.createElement("div");
++    target.style.cssText = "width: var(--non-type-edge-length); " + item.declarations;
++    if (item.attribute !== null) {
++      target.setAttribute("data-size", item.attribute);
++    }
++    assert_not_equals(target.style.getPropertyValue("--non-type-edge-length"), "", "Custom declaration parsed");
++    assert_not_equals(target.style.getPropertyValue(item.property), "", "Prioritary declaration parsed");
++    parent.append(target);
++    document.body.append(parent);
++    const computed = getComputedStyle(target);
++    for (const [property, expected] of Object.entries(item.expected)) {
++      assert_equals(computed.getPropertyValue(property).trim(), expected, property);
++    }
++  }, item.name);
++}
+ </script>
