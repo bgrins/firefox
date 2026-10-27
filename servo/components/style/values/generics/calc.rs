@@ -1421,7 +1421,7 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
                 // TODO(emilio): Seems like at least a few of these
                 // special-cases could be removed if we do the math in a
                 // particular order.
-                if step.is_zero() {
+                if value.is_nan() || step.is_nan() || step.is_zero() {
                     value = f32::NAN;
                 } else if value.is_infinite() {
                     if step.is_infinite() {
