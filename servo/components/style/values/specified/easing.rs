@@ -83,18 +83,12 @@ impl TimingFunction {
 
         // TODO(Bug 2037743) - Enable calc()-expressions that can only be resolved at
         // computed value time (due to relative lengths, sibling-index(), etc.).
-        let num_steps = match steps.resolve() {
-            Some(v) => v,
-            None => return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError)),
-        };
+        if steps.resolve().is_none() {
+            return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+        }
 
-        // jump-none accepts a positive integer greater than 1.
-        // FIXME(emilio): The spec asks us to avoid rejecting it at parse
-        // time except until computed value time.
-        //
-        // It's not totally clear it's worth it though, and no other browser
-        // does this.
-        if position == StepPosition::JumpNone && num_steps <= 1 {
+        // Literal counts are range-checked here; calculations are clamped on computation.
+        if position == StepPosition::JumpNone && steps.get() == Some(1) {
             return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
         }
         Ok(GenericTimingFunction::Steps(steps, position))
@@ -181,7 +175,13 @@ impl TimingFunction {
         match &self {
             GenericTimingFunction::Steps(steps, pos) => {
                 // Resolvable value was enforced at parse time
-                GenericTimingFunction::Steps(steps.resolve().unwrap(), *pos)
+                let count = steps.resolve().unwrap();
+                let count = if *pos == StepPosition::JumpNone && steps.get().is_none() {
+                    count.max(2)
+                } else {
+                    count
+                };
+                GenericTimingFunction::Steps(count, *pos)
             },
             GenericTimingFunction::CubicBezier { x1, y1, x2, y2 } => {
                 // Resolvable value was enforced at parse time
