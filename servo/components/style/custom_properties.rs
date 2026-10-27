@@ -770,6 +770,15 @@ enum AttributeType {
     Unit(AttrUnit),
 }
 
+fn parse_attr_number<'i>(input: &mut Parser<'i>) -> Result<&'i str, ()> {
+    input.skip_whitespace();
+    let start = input.position();
+    input.expect_number().map_err(|_| ())?;
+    let number = input.slice_from(start);
+    input.expect_exhausted().map_err(|_| ())?;
+    Ok(number)
+}
+
 /// Data specific to an attr() call like type and namespace.
 #[derive(Clone, Debug, MallocSizeOf, PartialEq, ToShmem)]
 pub struct AttributeData {
@@ -778,6 +787,28 @@ pub struct AttributeData {
 }
 
 impl AttributeData {
+    pub(crate) fn non_type_primary_is_valid(
+        &self,
+        name: &Name,
+        attribute_tracker: &mut AttributeTracker,
+    ) -> bool {
+        let namespace = match &self.namespace {
+            ParsedNamespace::Known(namespace) => namespace,
+            ParsedNamespace::Unknown => return false,
+        };
+        let Some(value) = LocalName::with_name(name, |local_name| {
+            attribute_tracker.query(local_name, namespace)
+        }) else {
+            return false;
+        };
+        match &self.kind {
+            AttributeType::None | AttributeType::RawString => true,
+            AttributeType::Unit(_) => parse_attr_number(&mut Parser::new(&value)).is_ok(),
+            AttributeType::Invalid => false,
+            AttributeType::Type(_) => unreachable!("Typed attributes require substitution"),
+        }
+    }
+
     pub(crate) fn parse_typed_value(
         &self,
         input: &mut Parser,
@@ -2097,12 +2128,7 @@ fn substitute_one_reference<'a>(
                         match &reference.attribute_data.kind {
                             AttributeType::Unit(unit) => {
                                 let css = {
-                                    // Verify that attribute data is a <number-token>.
-                                    parser.skip_whitespace();
-                                    let start = parser.position();
-                                    parser.expect_number().ok()?;
-                                    let mut s = String::from(parser.slice_from(start));
-                                    parser.expect_exhausted().ok()?;
+                                    let mut s = String::from(parse_attr_number(&mut parser).ok()?);
                                     s.push_str(unit.as_ref());
                                     s
                                 };

@@ -2362,6 +2362,13 @@ fn substitute_all(
                     // references.
                     let can_chain = next.is_attr_with_type() || matches!(var, VarType::Attr(..));
                     if !can_chain {
+                        if let Some(ref fallback) = next.fallback
+                            && !next
+                                .attribute_data
+                                .non_type_primary_is_valid(&next.name, attribute_tracker)
+                        {
+                            refs_stack.push(&fallback.references);
+                        }
                         continue;
                     }
                     let Some(namespace) = next.attribute_data.namespace() else {
