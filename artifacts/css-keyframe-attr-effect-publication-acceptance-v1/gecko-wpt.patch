@@ -1,0 +1,950 @@
+--- a/dom/animation/KeyframeEffect.cpp
++++ b/dom/animation/KeyframeEffect.cpp
+@@ -105,6 +105,7 @@
+       mKeyframes(aOther.mKeyframes.Clone()),
+       mKeyframeOffsetsHasRangeOffset(aOther.mKeyframeOffsetsHasRangeOffset),
+       mProperties(aOther.mProperties.Clone()),
++      mReferencesAttributes(aOther.mReferencesAttributes),
+       mBaseValues(aOther.mBaseValues.Clone()) {}
+ 
+ JSObject* KeyframeEffect::WrapObject(JSContext* aCx,
+@@ -261,6 +262,7 @@
+   }
+ 
+   mKeyframes = std::move(aKeyframes);
++  mReferencesAttributes = true;
+   mKeyframeOffsetsHasRangeOffset = KeyframeUtils::ComputeMissingKeyframeOffsets(
+       mKeyframes, aTimeline, aRange);
+ 
+@@ -438,9 +440,12 @@
+                                       const AnimationTimeline* aTimeline) {
+   MOZ_ASSERT(aStyle);
+ 
++  bool referencesAttributes = false;
+   nsTArray<AnimationProperty> properties = BuildProperties(
+-      aStyle, aTimeline ? aTimeline
+-                        : (mAnimation ? mAnimation->GetTimeline() : nullptr));
++      aStyle,
++      aTimeline ? aTimeline
++                : (mAnimation ? mAnimation->GetTimeline() : nullptr),
++      referencesAttributes);
+ 
+   bool propertiesChanged = mProperties != properties;
+   if (!propertiesChanged) {
+@@ -473,6 +478,8 @@
+   EnsureBaseStyles(aStyle, properties, aTimeline,
+                    !propertiesChanged ? &baseStylesChanged : nullptr);
+ 
++  mReferencesAttributes = referencesAttributes;
++
+   if (!propertiesChanged) {
+     if (baseStylesChanged) {
+       RequestRestyle(EffectCompositor::RestyleType::Layer);
+@@ -511,7 +518,10 @@
+ void KeyframeEffect::UpdateBaseStyle(const ComputedStyle* aStyle) {
+   const AnimationTimeline* timeline =
+       mAnimation ? mAnimation->GetTimeline() : nullptr;
+-  EnsureBaseStyles(aStyle, BuildProperties(aStyle, timeline), nullptr, nullptr);
++  bool referencesAttributes = false;
++  EnsureBaseStyles(aStyle,
++                   BuildProperties(aStyle, timeline, referencesAttributes),
++                   nullptr, nullptr);
+ }
+ 
+ void KeyframeEffect::EnsureBaseStyles(
+@@ -902,8 +912,10 @@
+ }
+ 
+ nsTArray<AnimationProperty> KeyframeEffect::BuildProperties(
+-    const ComputedStyle* aStyle, const AnimationTimeline* aTimeline) {
++    const ComputedStyle* aStyle, const AnimationTimeline* aTimeline,
++    bool& aReferencesAttributes) {
+   MOZ_ASSERT(aStyle);
++  aReferencesAttributes = false;
+ 
+   nsTArray<AnimationProperty> result;
+   // If mTarget is false (i.e. mTarget.mElement is null), return an empty
+@@ -933,7 +945,7 @@
+ 
+   result = KeyframeUtils::GetAnimationPropertiesFromKeyframes(
+       keyframes, mTarget.mElement, mTarget.mPseudoRequest, aStyle,
+-      mEffectOptions.mComposite, aTimeline);
++      mEffectOptions.mComposite, aTimeline, aReferencesAttributes);
+ 
+ #ifdef DEBUG
+   MOZ_ASSERT(SpecifiedKeyframeArraysAreEqual(mKeyframes, keyframesCopy),
+@@ -982,6 +994,7 @@
+   mTarget = std::move(newTarget);
+ 
+   if (mTarget) {
++    mReferencesAttributes = true;
+     UpdateTargetRegistration();
+     RefPtr<const ComputedStyle> computedStyle =
+         GetTargetComputedStyle(Flush::None);
+--- a/dom/animation/KeyframeEffect.h
++++ b/dom/animation/KeyframeEffect.h
+@@ -262,6 +262,7 @@
+                                                 const nsIFrame* aFrame) const;
+ 
+   const nsTArray<AnimationProperty>& Properties() const { return mProperties; }
++  bool ReferencesAttributes() const { return mReferencesAttributes; }
+ 
+   // Update |mProperties| by recalculating from |mKeyframes| using
+   // |aComputedStyle| to resolve specified values.
+@@ -395,7 +396,8 @@
+   // to resolve specified values. This function also applies paced spacing if
+   // needed.
+   nsTArray<AnimationProperty> BuildProperties(
+-      const ComputedStyle* aStyle, const AnimationTimeline* aTimeline);
++      const ComputedStyle* aStyle, const AnimationTimeline* aTimeline,
++      bool& aReferencesAttributes);
+ 
+   // Helper for SetTarget() and SetPseudoElement().
+   void UpdateTarget(Element* aElement,
+@@ -453,6 +455,8 @@
+ 
+   // A set of per-property value arrays, derived from |mKeyframes|.
+   nsTArray<AnimationProperty> mProperties;
++  // Conservative until keyframes can be computed with a target style.
++  bool mReferencesAttributes = false;
+ 
+   // The computed progress last time we composed the style rule. This is
+   // used to detect when the progress is not changing (e.g. due to a step
+--- a/dom/animation/KeyframeUtils.cpp
++++ b/dom/animation/KeyframeUtils.cpp
+@@ -213,7 +213,7 @@
+ static nsTArray<ComputedKeyframeValues> GetComputedKeyframeValues(
+     const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
+     const PseudoStyleRequest& aPseudoRequest,
+-    const ComputedStyle* aComputedValues);
++    const ComputedStyle* aComputedValues, bool& aReferencesAttributes);
+ 
+ static void BuildSegmentsFromValueEntries(
+     nsTArray<KeyframeValueEntry>& aEntries,
+@@ -377,11 +377,12 @@
+     const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
+     const PseudoStyleRequest& aPseudoRequest, const ComputedStyle* aStyle,
+     dom::CompositeOperation aEffectComposite,
+-    const dom::AnimationTimeline* aTimeline) {
++    const dom::AnimationTimeline* aTimeline, bool& aReferencesAttributes) {
+   nsTArray<AnimationProperty> result;
+ 
+   const nsTArray<ComputedKeyframeValues> computedValues =
+-      GetComputedKeyframeValues(aKeyframes, aElement, aPseudoRequest, aStyle);
++      GetComputedKeyframeValues(aKeyframes, aElement, aPseudoRequest, aStyle,
++                                aReferencesAttributes);
+   if (computedValues.IsEmpty()) {
+     // In rare cases GetComputedKeyframeValues might fail and return an empty
+     // array, in which case we likewise return an empty array from here.
+@@ -820,8 +821,9 @@
+ static nsTArray<ComputedKeyframeValues> GetComputedKeyframeValues(
+     const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
+     const PseudoStyleRequest& aPseudoRequest,
+-    const ComputedStyle* aComputedStyle) {
++    const ComputedStyle* aComputedStyle, bool& aReferencesAttributes) {
+   MOZ_ASSERT(aElement);
++  aReferencesAttributes = false;
+ 
+   nsTArray<ComputedKeyframeValues> result;
+ 
+@@ -835,7 +837,8 @@
+   }
+ 
+   result = presContext->StyleSet()->GetComputedKeyframeValuesFor(
+-      aKeyframes, aElement, aPseudoRequest, aComputedStyle);
++      aKeyframes, aElement, aPseudoRequest, aComputedStyle,
++      aReferencesAttributes);
+   return result;
+ }
+ 
+--- a/dom/animation/KeyframeUtils.h
++++ b/dom/animation/KeyframeUtils.h
+@@ -118,7 +118,7 @@
+       const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
+       const PseudoStyleRequest& aPseudoRequest, const ComputedStyle* aStyle,
+       dom::CompositeOperation aEffectComposite,
+-      const dom::AnimationTimeline* aTimeline);
++      const dom::AnimationTimeline* aTimeline, bool& aReferencesAttributes);
+ 
+   /**
+    * Check if the property or, for shorthands, one or more of
+--- a/layout/style/RestyleManager.cpp
++++ b/layout/style/RestyleManager.cpp
+@@ -35,6 +35,7 @@
+ #include "mozilla/dom/ElementInlines.h"
+ #include "mozilla/dom/HTMLBodyElement.h"
+ #include "mozilla/dom/HTMLInputElement.h"
++#include "mozilla/dom/KeyframeEffect.h"
+ #include "mozilla/layers/AnimationInfo.h"
+ #include "mozilla/layout/ScrollAnchorContainer.h"
+ #include "nsAnimationManager.h"
+@@ -3632,10 +3633,25 @@
+   return aStyleSet.MightHaveAttributeDependency(aElement, aAttribute);
+ }
+ 
++static bool AnimationReferencesAttributes(Element* aTarget) {
++  const auto [element, pseudo] = AnimationUtils::GetElementPseudoPair(aTarget);
++  if (EffectSet* effects = EffectSet::Get(element, pseudo)) {
++    for (const auto* effect : *effects) {
++      if (effect->ReferencesAttributes()) {
++        return true;
++      }
++    }
++  }
++  return false;
++}
++
+ void RestyleManager::MaybeRecascadeForAttrFunction(Element* aElement,
+                                                    nsAtom* aAttribute) {
+   ForEachElementAndPseudo(aElement, [&](Element* aTargetElement) {
+-    if (Servo_Element_ReferencesAttribute(aTargetElement, aAttribute)) {
++    if (AnimationReferencesAttributes(aTargetElement)) {
++      PostRestyleEvent(aTargetElement, RestyleHint::RESTYLE_SELF,
++                       nsChangeHint(0));
++    } else if (Servo_Element_ReferencesAttribute(aTargetElement, aAttribute)) {
+       PostRestyleEvent(aTargetElement, RestyleHint::RECASCADE_SELF,
+                        nsChangeHint(0));
+     }
+--- a/layout/style/ServoStyleSet.cpp
++++ b/layout/style/ServoStyleSet.cpp
+@@ -1155,7 +1155,8 @@
+ 
+ nsTArray<ComputedKeyframeValues> ServoStyleSet::GetComputedKeyframeValuesFor(
+     const nsTArray<Keyframe>& aKeyframes, Element* aElement,
+-    const PseudoStyleRequest& aPseudo, const ComputedStyle* aStyle) {
++    const PseudoStyleRequest& aPseudo, const ComputedStyle* aStyle,
++    bool& aReferencesAttributes) {
+   nsTArray<ComputedKeyframeValues> result(aKeyframes.Length());
+ 
+   // Construct each nsTArray<PropertyStyleAnimationValuePair> here.
+@@ -1163,8 +1164,8 @@
+ 
+   // FIXME: Bug 1922095. For view transition pseudo-element, we should just
+   // use the pseudo-element here.
+-  Servo_GetComputedKeyframeValues(&aKeyframes, aElement, aPseudo.mType, aStyle,
+-                                  mRawData.get(), &result);
++  aReferencesAttributes = Servo_GetComputedKeyframeValues(
++      &aKeyframes, aElement, aPseudo.mType, aStyle, mRawData.get(), &result);
+   return result;
+ }
+ 
+--- a/layout/style/ServoStyleSet.h
++++ b/layout/style/ServoStyleSet.h
+@@ -387,7 +387,8 @@
+ 
+   nsTArray<ComputedKeyframeValues> GetComputedKeyframeValuesFor(
+       const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
+-      const PseudoStyleRequest& aPseudoRequest, const ComputedStyle* aStyle);
++      const PseudoStyleRequest& aPseudoRequest, const ComputedStyle* aStyle,
++      bool& aReferencesAttributes);
+ 
+   void GetAnimationValues(
+       StyleLockedDeclarationBlock* aDeclarations, dom::Element* aElement,
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -7504,7 +7504,7 @@
+     style: &ComputedValues,
+     raw_data: &PerDocumentStyleData,
+     computed_keyframes: &mut nsTArray<structs::ComputedKeyframeValues>,
+-) {
++) -> bool {
+     use style::applicable_declarations::CascadePriority;
+     use style::properties::{
+         CustomDeclarationValue, KeyframeCustomPropertiesBuilder, PropertyDeclaration,
+@@ -7683,6 +7683,7 @@
+             }
+         }
+     }
++    attribute_tracker.references.is_some()
+ }
+ 
+ #[unsafe(no_mangle)]
+diff --git a/testing/web-platform/tests/css/css-animations/keyframe-attribute-mutation.html b/testing/web-platform/tests/css/css-animations/keyframe-attribute-mutation.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-animations/keyframe-attribute-mutation.html
+@@ -0,0 +1,179 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Attribute changes in continuously active paused keyframe effects</title>
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++"use strict";
++const namespace = "urn:keyframe-mutation:a";
++const otherNamespace = "urn:keyframe-mutation:b";
++const attributeName = "data-number";
++const stages = [
++  {name: "initial", value: "0.25", expected: 0.25},
++  {name: "change", value: "0.75", expected: 0.75},
++  {name: "remove", value: null, expected: 0.125},
++  {name: "readd", value: "0.5", expected: 0.5},
++];
++let serial = 0;
++
++function node(t) {
++  const result = document.createElement("div");
++  result.id = `attrMutation${++serial}`;
++  document.body.append(result);
++  t.add_cleanup(() => result.remove());
++  return result;
++}
++
++function setAttributeValue(target, qualified, value) {
++  if (value === null) {
++    target.removeAttributeNS(qualified ? namespace : null, attributeName);
++  } else {
++    target.setAttributeNS(qualified ? namespace : null,
++                          qualified ? `a:${attributeName}` : attributeName, value);
++  }
++  assert_equals(target.getAttributeNS(qualified ? namespace : null, attributeName),
++                value, "attribute mutation retained");
++}
++
++function opacity(target) {
++  const value = Number(getComputedStyle(target).opacity);
++  assert_true(Number.isFinite(value) && value >= 0 && value <= 1, "finite opacity calibration");
++  return value;
++}
++
++function prepare(t, mode, qualified) {
++  const target = node(t);
++  const ordinary = node(t);
++  const literal = node(t);
++  const custom = `--attr-mutation-${serial}`;
++  const property = mode.endsWith("registered") ? custom : "opacity";
++  if (property === custom) {
++    assert_equals(typeof CSS.registerProperty, "function", "registration available");
++    CSS.registerProperty({name: custom, syntax: "<number>", inherits: false, initialValue: "0.875"});
++    target.style.opacity = `var(${custom})`;
++  } else {
++    target.style.opacity = "0.875";
++  }
++  const expression = `attr(${qualified ? "a|" : ""}${attributeName} type(<number>), 0.125)`;
++  const animationName = `attributeMutation${serial}`;
++  const style = document.createElement("style");
++  style.textContent = `@namespace a url("${namespace}");
++    #${ordinary.id} { opacity: ${expression}; }
++    @keyframes ${animationName} {
++      from { ${property}: ${expression}; }
++      to { ${property}: ${expression}; }
++    }`;
++  document.head.append(style);
++  t.add_cleanup(() => style.remove());
++  assert_equals(style.sheet.cssRules.length, 3, "namespace, ordinary and keyframe rules retained");
++  assert_not_equals(style.sheet.cssRules[1].style.opacity, "", "ordinary typed attr syntax retained");
++  for (const frame of style.sheet.cssRules[2].cssRules) {
++    assert_not_equals(frame.style.getPropertyValue(property), "", "keyframe declaration retained");
++  }
++  for (const element of [target, ordinary]) {
++    if (qualified) {
++      element.setAttributeNS(otherNamespace, `b:${attributeName}`, "0.875");
++      element.setAttribute(attributeName, "0.875");
++    }
++    setAttributeValue(element, qualified, "0.25");
++  }
++  const literalAnimation = literal.animate([{opacity: 0.375}, {opacity: 0.375}],
++                                            {duration: 1000, fill: "both"});
++  literalAnimation.pause();
++  literalAnimation.currentTime = 500;
++  t.add_cleanup(() => literalAnimation.cancel());
++  return {target, ordinary, literal, literalAnimation, animationName, property, expression};
++}
++
++async function start(t, setup, mode) {
++  let animation;
++  if (mode.startsWith("CSS")) {
++    setup.target.style.animation = `${setup.animationName} 1000ms linear paused both`;
++    const animations = setup.target.getAnimations();
++    assert_equals(animations.length, 1, "one CSS animation");
++    animation = animations[0];
++    assert_true(animation instanceof CSSAnimation, "CSS ownership calibration");
++  } else {
++    animation = setup.target.animate([{[setup.property]: setup.expression},
++                                      {[setup.property]: setup.expression}],
++                                     {duration: 1000, fill: "both"});
++    animation.pause();
++    assert_false(animation instanceof CSSAnimation, "WAAPI ownership calibration");
++    assert_equals(animation.effect.getKeyframes().length, 2, "two WAAPI endpoints retained");
++  }
++  animation.currentTime = 500;
++  await animation.ready;
++  t.add_cleanup(() => animation.cancel());
++  assert_equals(animation.playState, "paused", "paused calibration");
++  assert_equals(animation.currentTime, 500, "fixed time calibration");
++  assert_equals(animation.effect.getComputedTiming().progress, 0.5, "midpoint calibration");
++  return animation;
++}
++
++const modes = ["CSS ordinary", "CSS registered", "WAAPI ordinary", "WAAPI registered"];
++for (const [mode, qualified] of [...modes.map(mode => [mode, false]), ["CSS ordinary", true]]) {
++  for (const history of ["retained", "fresh"]) {
++    promise_test(async t => {
++      const setup = prepare(t, mode, qualified);
++      await setup.literalAnimation.ready;
++      assert_equals(opacity(setup.literal), 0.375, "independent literal effect calibration");
++      let animation = await start(t, setup, mode);
++      const firstAnimation = animation;
++      assert_equals(opacity(setup.ordinary), 0.25, "initial ordinary provider calibration");
++      assert_equals(opacity(setup.target), 0.25, "initial animated provider calibration");
++      const observations = [];
++      for (const stage of stages) {
++        if (stage.name !== "initial") {
++          if (history === "fresh") {
++            animation.cancel();
++            setup.target.style.animation = "none";
++            assert_equals(setup.target.getAnimations().length, 0, "fresh control has no old effect");
++          }
++          setAttributeValue(setup.target, qualified, stage.value);
++          if (history === "fresh") {
++            const previousAnimation = animation;
++            animation = await start(t, setup, mode);
++            assert_not_equals(animation, previousAnimation, "fresh control constructs a new effect");
++          }
++        }
++        assert_equals(animation.currentTime, 500, "unchanged sample time");
++        assert_equals(animation.effect.getComputedTiming().progress, 0.5, "continuously relevant sample");
++        const actual = opacity(setup.target);
++        assert_equals(opacity(setup.target), actual, "stable repeated first read");
++        setAttributeValue(setup.ordinary, qualified, stage.value);
++        const ordinary = opacity(setup.ordinary);
++        assert_equals(ordinary, stage.expected, "independent ordinary provider after mutation");
++        observations.push({stage: stage.name, actual, ordinary, expected: stage.expected});
++        if (history === "retained") assert_equals(animation, firstAnimation, "effect identity retained");
++      }
++      if (qualified) {
++        setup.target.setAttributeNS(otherNamespace, `b:${attributeName}`, "0.375");
++        setup.target.setAttribute(attributeName, "0.625");
++        const actual = opacity(setup.target);
++        observations.push({stage: "other namespaces", actual, ordinary: 0.5, expected: 0.5});
++      }
++      setup.target.style.marginLeft = "1px";
++      const forced = opacity(setup.target);
++      assert_equals(forced, 0.5, "forced normal recascade provider calibration");
++      assert_equals(opacity(setup.literal), 0.375, "literal effect remains calibrated");
++      for (const sample of observations) {
++        assert_equals(sample.actual, sample.expected,
++                      `attribute mutation first read: ${JSON.stringify({mode, qualified, history, observations, forced})}`);
++      }
++    }, `Keyframe attr mutation: ${mode}, ${qualified ? "qualified" : "unqualified"}, ${history}`);
++  }
++}
++
++for (const qualified of [false, true]) {
++  promise_test(async t => {
++    const setup = prepare(t, "CSS ordinary", qualified);
++    for (const stage of stages) {
++      setAttributeValue(setup.ordinary, qualified, stage.value);
++      assert_equals(opacity(setup.ordinary), stage.expected, "ordinary style follows attribute sequence");
++    }
++  }, `Keyframe attr mutation: ordinary-style control, ${qualified ? "qualified" : "unqualified"}`);
++}
++</script>
+diff --git a/testing/web-platform/tests/css/css-animations/keyframe-attribute-watch-lifecycle.html b/testing/web-platform/tests/css/css-animations/keyframe-attribute-watch-lifecycle.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-animations/keyframe-attribute-watch-lifecycle.html
+@@ -0,0 +1,227 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Attribute dependency lifetime in keyframe effects</title>
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++"use strict";
++let serial = 0;
++const modes = ["CSS ordinary", "CSS registered", "WAAPI ordinary", "WAAPI registered"];
++const expression = name => `attr(${name} type(<number>), 0.125)`;
++
++function node(t, attached = true) {
++  const result = document.createElement("div");
++  result.id = `watch${++serial}`;
++  if (attached) document.body.append(result);
++  t.add_cleanup(() => result.remove());
++  return result;
++}
++
++function opacity(target, pseudo = "") {
++  const value = Number(getComputedStyle(target, pseudo || null).opacity);
++  assert_true(Number.isFinite(value) && value >= 0 && value <= 1,
++              "finite opacity calibration");
++  return value;
++}
++
++function setValue(target, name, value) {
++  if (value === null) target.removeAttribute(name);
++  else target.setAttribute(name, value);
++  assert_equals(target.getAttribute(name), value, "attribute mutation retained");
++}
++
++function frames(property, value) {
++  return [{[property]: value}, {[property]: value}];
++}
++
++async function pause(t, animation) {
++  animation.pause();
++  animation.currentTime = 500;
++  await animation.ready;
++  t.add_cleanup(() => animation.cancel());
++  assert_equals(animation.playState, "paused", "paused calibration");
++  assert_equals(animation.currentTime, 500, "fixed time calibration");
++  assert_equals(animation.effect.getComputedTiming().progress, 0.5, "midpoint calibration");
++  return animation;
++}
++
++async function prepare(t, mode, {pseudo = "", initial = "0.25", value = expression("data-a")} = {}) {
++  const target = node(t);
++  const ordinary = node(t);
++  const literal = node(t);
++  setValue(target, "data-a", initial);
++  const property = mode.endsWith("registered") ? `--watch-${serial}` : "opacity";
++  if (property !== "opacity") {
++    assert_equals(typeof CSS.registerProperty, "function", "registration available");
++    CSS.registerProperty({name: property, syntax: "<number>", inherits: false, initialValue: "0.875"});
++  }
++  const animationName = `watchAnimation${serial}`;
++  const style = document.createElement("style");
++  style.textContent = `#${target.id}${pseudo} {
++      content: ""; display: block;
++      opacity: ${property === "opacity" ? "0.875" : `var(${property})`};
++    }
++    @keyframes ${animationName} { from { ${property}: ${value}; } to { ${property}: ${value}; } }`;
++  document.head.append(style);
++  t.add_cleanup(() => style.remove());
++  assert_equals(style.sheet.cssRules.length, 2, "style and keyframes retained");
++  const targetRule = style.sheet.cssRules[0];
++  const keyframes = style.sheet.cssRules[1];
++  for (const frame of keyframes.cssRules) {
++    assert_not_equals(frame.style.getPropertyValue(property), "", "keyframe syntax retained");
++  }
++  ordinary.style.opacity = expression("data-a");
++  assert_not_equals(ordinary.style.opacity, "", "ordinary attr syntax retained");
++  const literalAnimation = await pause(t, literal.animate(
++    frames("opacity", "0.375"), {duration: 1000, fill: "both"}));
++  assert_equals(opacity(literal), 0.375, "independent literal effect calibration");
++  let animation;
++  if (mode.startsWith("CSS")) {
++    targetRule.style.animation = `${animationName} 1000ms linear paused both`;
++    const animations = target.getAnimations({subtree: true}).filter(a =>
++      a.effect.target === target && (a.effect.pseudoElement || "") === pseudo);
++    assert_equals(animations.length, 1, "one CSS effect for target and pseudo");
++    animation = animations[0];
++    assert_true(animation instanceof CSSAnimation, "CSS ownership calibration");
++  } else {
++    animation = target.animate(frames(property, value),
++      {duration: 1000, fill: "both", pseudoElement: pseudo || null});
++    assert_false(animation instanceof CSSAnimation, "WAAPI ownership calibration");
++  }
++  await pause(t, animation);
++  assert_equals(animation.effect.pseudoElement || "", pseudo, "pseudo target calibration");
++  if (pseudo) assert_equals(getComputedStyle(target, pseudo).content, '""', "pseudo generation calibration");
++  return {target, ordinary, literal, literalAnimation, animation, property, targetRule, keyframes, pseudo, mode};
++}
++
++function stable(setup) {
++  assert_equals(setup.animation.currentTime, 500, "sample time retained");
++  assert_equals(setup.animation.effect.getComputedTiming().progress, 0.5, "sample remains in effect");
++  const first = opacity(setup.target, setup.pseudo);
++  assert_equals(opacity(setup.target, setup.pseudo), first, "stable repeated read");
++  return first;
++}
++
++function sample(setup, name, value, expected, observations) {
++  setValue(setup.target, name, value);
++  const actual = stable(setup);
++  setValue(setup.ordinary, "data-a", value);
++  assert_equals(opacity(setup.ordinary), expected, "independent ordinary provider after mutation");
++  observations.push({actual, expected});
++}
++
++function finish(setup, observations, expected) {
++  setup.targetRule.style.outlineColor = "red";
++  setup.target.style.outlineColor = "red";
++  assert_equals(stable(setup), expected, "forced normal recomputation calibration");
++  assert_equals(opacity(setup.literal), 0.375, "literal effect remains stable");
++  assert_array_equals(observations.map(x => x.actual), observations.map(x => x.expected),
++                      "attribute-watch first reads");
++}
++
++function replace(setup, value) {
++  const effect = setup.animation.effect;
++  if (setup.mode.startsWith("CSS")) {
++    for (const frame of setup.keyframes.cssRules) frame.style.setProperty(setup.property, value);
++  } else {
++    effect.setKeyframes(frames(setup.property, value));
++  }
++  assert_equals(setup.animation.effect, effect, "replacement retains effect identity");
++}
++
++for (const mode of modes) {
++  promise_test(async t => {
++    const setup = await prepare(t, mode, {initial: null});
++    assert_equals(stable(setup), 0.125, "initial missing attribute fallback calibration");
++    const observations = [];
++    sample(setup, "data-a", "0.75", 0.75, observations);
++    sample(setup, "data-a", null, 0.125, observations);
++    sample(setup, "data-a", "0.5", 0.5, observations);
++    finish(setup, observations, 0.5);
++  }, `${mode}: initially absent attribute is watched`);
++
++  promise_test(async t => {
++    const setup = await prepare(t, mode, {value: "0.25"});
++    assert_equals(stable(setup), 0.25, "initial literal calibration");
++    replace(setup, expression("data-a"));
++    assert_equals(stable(setup), 0.25, "equal-value attr replacement calibration");
++    const observations = [];
++    sample(setup, "data-a", "0.75", 0.75, observations);
++    setValue(setup.target, "data-b", "0.75");
++    replace(setup, expression("data-b"));
++    assert_equals(stable(setup), 0.75, "equal-value name replacement calibration");
++    sample(setup, "data-b", "0.5", 0.5, observations);
++    finish(setup, observations, 0.5);
++  }, `${mode}: equal endpoint values retain new attribute dependencies`);
++
++  promise_test(async t => {
++    const setup = await prepare(t, mode);
++    assert_equals(stable(setup), 0.25, "initial provider calibration");
++    const extra = await pause(t, setup.target.animate(
++      frames(setup.property, expression("data-a")), {duration: 1000, fill: "both"}));
++    assert_equals(stable(setup), 0.25, "both effects computed");
++    extra.cancel();
++    const observations = [];
++    sample(setup, "data-a", "0.75", 0.75, observations);
++    assert_equals(extra.playState, "idle", "other effect cancelled");
++    finish(setup, observations, 0.75);
++  }, `${mode}: cancelling one effect preserves the remaining attribute watch`);
++
++  promise_test(async t => {
++    const setup = await prepare(t, mode, {pseudo: "::before"});
++    assert_equals(stable(setup), 0.25, "initial pseudo provider calibration");
++    const observations = [];
++    sample(setup, "data-a", "0.75", 0.75, observations);
++    sample(setup, "data-a", null, 0.125, observations);
++    finish(setup, observations, 0.125);
++  }, `${mode}: before pseudo reads changed originating attributes`);
++}
++
++for (const mode of ["WAAPI ordinary", "WAAPI registered"]) {
++  promise_test(async t => {
++    const setup = await prepare(t, mode);
++    assert_equals(stable(setup), 0.25, "source effect computed");
++    const source = setup.animation;
++    const copy = new KeyframeEffect(source.effect);
++    setup.animation = new Animation(copy, document.timeline);
++    setup.animation.play();
++    await pause(t, setup.animation);
++    source.cancel();
++    assert_equals(stable(setup), 0.25, "copied effect calibration");
++    const observations = [];
++    sample(setup, "data-a", "0.75", 0.75, observations);
++    finish(setup, observations, 0.75);
++  }, `${mode}: copied effects retain attribute dependencies`);
++
++  for (const attached of [true, false]) {
++    promise_test(async t => {
++      const setup = await prepare(t, mode);
++      assert_equals(stable(setup), 0.25, "original target provider calibration");
++      const previousTarget = setup.target;
++      const target = node(t, attached);
++      target.style.opacity = setup.property === "opacity" ? "0.875" : `var(${setup.property})`;
++      setValue(target, "data-a", "0.5");
++      if (attached) assert_equals(opacity(target), 0.875, "new target has underlying style");
++      const effect = setup.animation.effect;
++      effect.target = target;
++      setup.target = target;
++      assert_equals(effect.target, target, "retargeting retained");
++      const observations = [];
++      if (attached) {
++        assert_equals(stable(setup), 0.5, "initial retarget provider calibration");
++        sample(setup, "data-a", "0.625", 0.625, observations);
++      } else {
++        setValue(target, "data-a", "0.625");
++        document.body.append(target);
++        assert_equals(stable(setup), 0.625, "new target provider calibration");
++      }
++      assert_equals(opacity(previousTarget), 0.875, "old target has no effect");
++      sample(setup, "data-a", "0.75", 0.75, observations);
++      finish(setup, observations, 0.75);
++    }, `${mode}: ${attached ? "styled" : "initially unstyled"} retarget retains attribute dependencies`);
++  }
++}
++</script>
+diff --git a/testing/web-platform/tests/css/css-animations/keyframe-attribute-generated-pseudos.html b/testing/web-platform/tests/css/css-animations/keyframe-attribute-generated-pseudos.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-animations/keyframe-attribute-generated-pseudos.html
+@@ -0,0 +1,170 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Attribute dependencies in after and marker keyframe effects</title>
++<link rel="help" href="https://drafts.csswg.org/css-lists-3/#marker-properties">
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++"use strict";
++let serial = 0;
++const kinds = [
++  {pseudo: "::after", css: "opacity", js: "opacity", attribute: "data-number",
++   expression: "attr(data-number type(<number>), 0.125)", underlying: "0.875", literal: "0.375",
++   initial: "0.25", expected: 0.25, literalExpected: 0.375,
++   stages: [["0.75", 0.75], [null, 0.125], ["0.5", 0.5]]},
++  {pseudo: "::marker", css: "font-size", js: "fontSize", attribute: "data-size",
++   expression: "attr(data-size px, 12px)", underlying: "8px", literal: "28px",
++   initial: "20", expected: 20, literalExpected: 28,
++   stages: [["40", 40], [null, 12], ["30", 30]]},
++];
++
++function node(t, kind) {
++  const wrapper = document.createElement(kind.pseudo === "::marker" ? "ul" : "div");
++  wrapper.style.cssText = "margin:0; padding:0; border:0";
++  const target = document.createElement(kind.pseudo === "::marker" ? "li" : "div");
++  target.id = `pseudoWatch${++serial}`;
++  target.style.cssText = "margin:0; padding:0; border:0; font:16px monospace; list-style-position:inside";
++  const text = document.createElement("span");
++  text.textContent = "body";
++  target.append(text);
++  wrapper.append(target);
++  document.body.append(wrapper);
++  t.add_cleanup(() => wrapper.remove());
++  return target;
++}
++
++function setValue(target, kind, value) {
++  if (value === null) target.removeAttribute(kind.attribute);
++  else target.setAttribute(kind.attribute, value);
++  assert_equals(target.getAttribute(kind.attribute), value, "attribute mutation retained");
++}
++
++function metric(target, kind) {
++  const text = getComputedStyle(target, kind.pseudo)[kind.js];
++  const value = kind.js === "fontSize" ? parseFloat(text) : Number(text);
++  assert_true(Number.isFinite(value), "finite pseudo sample");
++  if (kind.js === "fontSize") {
++    assert_true(text.endsWith("px") && value > 0 && value < 1000, "positive pixel font size");
++  } else {
++    assert_true(value >= 0 && value <= 1, "opacity range calibration");
++  }
++  return value;
++}
++
++function generated(target, kind) {
++  assert_equals(getComputedStyle(target, kind.pseudo).content, '"XX"', "pseudo content calibration");
++  assert_greater_than(target.getBoundingClientRect().height, 0, "rendered target calibration");
++  if (kind.pseudo === "::marker") {
++    assert_equals(getComputedStyle(target).display, "list-item", "rendered list item");
++    assert_equals(getComputedStyle(target).listStylePosition, "inside", "inside marker calibration");
++    const advance = target.firstElementChild.getBoundingClientRect().left - target.getBoundingClientRect().left;
++    assert_greater_than(advance, 0, "rendered marker advances inline content");
++  }
++}
++
++function prepare(t, kind) {
++  const target = node(t, kind);
++  const ordinary = node(t, kind);
++  const literal = node(t, kind);
++  for (const element of [target, ordinary]) setValue(element, kind, kind.initial);
++  const name = `pseudoAttribute${serial}`;
++  const style = document.createElement("style");
++  style.textContent = `#${target.id}${kind.pseudo} {content:"XX"; ${kind.css}:${kind.underlying}}
++    #${ordinary.id}${kind.pseudo} {content:"XX"; ${kind.css}:${kind.expression}}
++    #${literal.id}${kind.pseudo} {content:"XX"; ${kind.css}:${kind.underlying}}
++    @keyframes ${name} {from {${kind.css}:${kind.expression}} to {${kind.css}:${kind.expression}}}
++    @keyframes ${name}Literal {from {${kind.css}:${kind.literal}} to {${kind.css}:${kind.literal}}}`;
++  document.head.append(style);
++  t.add_cleanup(() => style.remove());
++  const rules = style.sheet.cssRules;
++  assert_equals(rules.length, 5, "pseudo and keyframe rules retained");
++  assert_not_equals(rules[1].style.getPropertyValue(kind.css), "", "ordinary attr syntax retained");
++  for (const frame of rules[3].cssRules) {
++    assert_not_equals(frame.style.getPropertyValue(kind.css), "", "keyframe attr syntax retained");
++  }
++  for (const element of [target, ordinary, literal]) generated(element, kind);
++  return {target, ordinary, literal, rule: rules[0], literalRule: rules[2], name};
++}
++
++async function start(t, kind, mode, target, rule, name, value) {
++  let animation;
++  if (mode === "CSS") {
++    rule.style.animation = `${name} 1000ms linear paused both`;
++    const matches = target.getAnimations({subtree:true}).filter(a =>
++      a.effect.target === target && a.effect.pseudoElement === kind.pseudo);
++    assert_equals(matches.length, 1, "one CSS animation on expected pseudo");
++    animation = matches[0];
++    assert_true(animation instanceof CSSAnimation, "CSS ownership calibration");
++  } else {
++    animation = target.animate([{[kind.js]:value}, {[kind.js]:value}],
++      {duration:1000, fill:"both", pseudoElement:kind.pseudo});
++    assert_false(animation instanceof CSSAnimation, "WAAPI ownership calibration");
++  }
++  animation.pause();
++  animation.currentTime = 500;
++  await animation.ready;
++  t.add_cleanup(() => animation.cancel());
++  assert_equals(animation.effect.target, target, "originating target calibration");
++  assert_equals(animation.effect.pseudoElement, kind.pseudo, "pseudo identity calibration");
++  assert_equals(animation.playState, "paused", "paused calibration");
++  assert_equals(animation.effect.getComputedTiming().progress, 0.5, "progress calibration");
++  return animation;
++}
++
++for (const kind of kinds) {
++  for (const mode of ["CSS", "WAAPI"]) {
++    for (const history of ["retained", "fresh"]) {
++      promise_test(async t => {
++        const setup = prepare(t, kind);
++        const literalAnimation = await start(t, kind, mode, setup.literal, setup.literalRule,
++          `${setup.name}Literal`, kind.literal);
++        assert_equals(metric(setup.literal, kind), kind.literalExpected, "literal animation calibration");
++        let animation = await start(t, kind, mode, setup.target, setup.rule, setup.name, kind.expression);
++        const first = animation;
++        assert_equals(metric(setup.target, kind), kind.expected, "initial animated provider calibration");
++        assert_equals(metric(setup.ordinary, kind), kind.expected, "initial ordinary provider calibration");
++        const actuals = [];
++        for (const [value, expected] of kind.stages) {
++          if (history === "fresh") {
++            animation.cancel();
++            setup.rule.style.animation = "none";
++            assert_equals(setup.target.getAnimations({subtree:true}).filter(a =>
++              a.effect.target === setup.target && a.effect.pseudoElement === kind.pseudo).length,
++              0, "fresh history removes old effect");
++            metric(setup.target, kind);
++          }
++          setValue(setup.target, kind, value);
++          if (history === "fresh") {
++            const previous = animation;
++            animation = await start(t, kind, mode, setup.target, setup.rule, setup.name, kind.expression);
++            assert_not_equals(animation, previous, "fresh effect identity");
++          }
++          assert_equals(animation.currentTime, 500, "fixed sample time");
++          assert_equals(animation.effect.getComputedTiming().progress, 0.5, "active sample phase");
++          const actual = metric(setup.target, kind);
++          assert_equals(metric(setup.target, kind), actual, "stable repeated pseudo read");
++          setValue(setup.ordinary, kind, value);
++          assert_equals(metric(setup.ordinary, kind), expected, "ordinary pseudo provider after mutation");
++          assert_equals(metric(setup.literal, kind), kind.literalExpected, "independent literal remains stable");
++          actuals.push(actual);
++          if (history === "retained") assert_equals(animation, first, "effect identity retained");
++        }
++        setup.rule.style.color = "rgb(1, 2, 3)";
++        assert_equals(metric(setup.target, kind), kind.stages.at(-1)[1], "forced normal pseudo recomputation");
++        assert_equals(literalAnimation.currentTime, 500, "literal time retained");
++        assert_array_equals(actuals, kind.stages.map(stage => stage[1]), "generated-pseudo first reads");
++      }, `${mode} ${kind.pseudo}: ${history} attribute history`);
++    }
++  }
++  test(t => {
++    const setup = prepare(t, kind);
++    assert_equals(metric(setup.ordinary, kind), kind.expected, "initial ordinary pseudo provider");
++    for (const [value, expected] of kind.stages) {
++      setValue(setup.ordinary, kind, value);
++      assert_equals(metric(setup.ordinary, kind), expected, "ordinary generated pseudo mutation");
++    }
++  }, `${kind.pseudo}: ordinary attribute control`);
++}
++</script>
+diff --git a/testing/web-platform/tests/css/css-animations/keyframe-attribute-unstyled-replacement.html b/testing/web-platform/tests/css/css-animations/keyframe-attribute-unstyled-replacement.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-animations/keyframe-attribute-unstyled-replacement.html
+@@ -0,0 +1,93 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Attribute keyframes replaced while the target has no style</title>
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-setkeyframes">
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++"use strict";
++let serial = 0;
++const expression = "attr(data-value type(<number>), 0.125)";
++
++function node(t) {
++  const element = document.createElement("div");
++  document.body.append(element);
++  t.add_cleanup(() => element.remove());
++  return element;
++}
++
++function opacity(element) {
++  const value = Number(getComputedStyle(element).opacity);
++  assert_true(Number.isFinite(value) && value >= 0 && value <= 1, "finite opacity calibration");
++  return value;
++}
++
++async function paused(t, animation) {
++  animation.pause();
++  animation.currentTime = 500;
++  await animation.ready;
++  t.add_cleanup(() => animation.cancel());
++  assert_equals(animation.playState, "paused", "paused calibration");
++  assert_equals(animation.effect.getComputedTiming().progress, 0.5, "progress calibration");
++  return animation;
++}
++
++for (const registered of [false, true]) {
++  promise_test(async t => {
++    const target = node(t);
++    const ordinary = node(t);
++    const literal = node(t);
++    const property = registered ? `--unstyled-attribute-${++serial}` : "opacity";
++    if (registered) {
++      assert_equals(typeof CSS.registerProperty, "function", "registration available");
++      CSS.registerProperty({name:property, syntax:"<number>", inherits:false, initialValue:"0.875"});
++    }
++    target.style.opacity = registered ? `var(${property})` : "0.875";
++    ordinary.style.opacity = expression;
++    assert_not_equals(ordinary.style.opacity, "", "ordinary attr syntax retained");
++    target.setAttribute("data-value", "0.25");
++    ordinary.setAttribute("data-value", "0.25");
++    const animation = await paused(t, target.animate([{[property]:"0.25"}, {[property]:"0.25"}],
++      {duration:1000, fill:"both"}));
++    const literalAnimation = await paused(t, literal.animate([{opacity:0.375}, {opacity:0.375}],
++      {duration:1000, fill:"both"}));
++    assert_equals(opacity(target), 0.25, "initial literal effect calibration");
++    assert_equals(opacity(ordinary), 0.25, "initial ordinary provider calibration");
++    assert_equals(opacity(literal), 0.375, "literal control calibration");
++    const effect = animation.effect;
++    target.remove();
++    assert_false(target.isConnected, "target detached before replacement");
++    effect.setKeyframes([{[property]:expression}, {[property]:expression}]);
++    assert_equals(effect.getKeyframes().length, 2, "replacement endpoints retained");
++    target.setAttribute("data-value", "0.625");
++    assert_equals(target.getAttribute("data-value"), "0.625", "detached attribute retained");
++    document.body.append(target);
++    assert_true(target.isConnected, "target reattached");
++    assert_equals(effect.target, target, "target identity retained");
++    assert_equals(animation.effect, effect, "effect identity retained");
++    assert_equals(opacity(target), 0.625, "first attached provider calibration");
++    const stages = [["0.75", 0.75], [null, 0.125], ["0.5", 0.5]];
++    const actuals = [];
++    for (const [value, expected] of stages) {
++      if (value === null) target.removeAttribute("data-value");
++      else target.setAttribute("data-value", value);
++      assert_equals(target.getAttribute("data-value"), value, "attribute mutation retained");
++      assert_equals(animation.currentTime, 500, "time retained after attachment");
++      assert_equals(effect.getComputedTiming().progress, 0.5, "active phase after attachment");
++      const actual = opacity(target);
++      assert_equals(opacity(target), actual, "stable repeated first read");
++      if (value === null) ordinary.removeAttribute("data-value");
++      else ordinary.setAttribute("data-value", value);
++      assert_equals(opacity(ordinary), expected, "independent ordinary provider after mutation");
++      actuals.push(actual);
++    }
++    target.style.outlineColor = "red";
++    assert_equals(opacity(target), 0.5, "forced normal recomputation calibration");
++    assert_equals(opacity(literal), 0.375, "literal control remains stable");
++    assert_equals(literalAnimation.currentTime, 500, "literal time retained");
++    assert_array_equals(actuals, stages.map(stage => stage[1]), "unstyled-replacement first reads");
++  }, `WAAPI ${registered ? "registered" : "ordinary"}: attr keyframes installed on detached target`);
++}
++</script>

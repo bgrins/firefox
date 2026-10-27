@@ -1,0 +1,26 @@
+import Witnesses
+
+#print axioms AttributeWatches.erase_map
+#print axioms AttributeWatches.empty_published
+#print axioms AttributeWatches.install_published
+#print axioms AttributeWatches.remove_published
+#print axioms AttributeWatches.change_published
+#print axioms AttributeWatches.published_covers_query
+#print axioms AttributeWatches.missing_read_is_published
+#print axioms AttributeWatches.install_replaces_watch
+#print axioms AttributeWatches.endpoint_irrelevant_to_publication
+#print axioms AttributeWatches.remove_preserves_other_watch
+#print axioms AttributeWatches.other_effect_keeps_coverage
+#print axioms AttributeWatches.covered_change_admits
+#print axioms AttributeWatches.queried_change_admits
+#print axioms AttributeWatches.step_published
+#print axioms AttributeWatches.finite_history_published
+#print axioms AttributeWatches.finite_history_covers
+#print axioms AttributeWatches.delivered_normal_builds_current
+#print axioms AttributeWatches.absent_read_admitted
+#print axioms AttributeWatches.equal_value_new_query_admitted
+#print axioms AttributeWatches.cancelled_one_survivor_admitted
+#print axioms AttributeWatches.retarget_drops_old_watch
+#print axioms AttributeWatches.absent_mutant_misses
+#print axioms AttributeWatches.equal_mutant_misses
+#print axioms AttributeWatches.removal_mutant_misses

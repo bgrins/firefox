@@ -1,0 +1,20 @@
+import Witnesses
+
+#print axioms AttributeWatchBits.erase_abstract
+#print axioms AttributeWatchBits.nonempty_query_sensitive
+#print axioms AttributeWatchBits.named_watch_implies_bit
+#print axioms AttributeWatchBits.empty_simulates
+#print axioms AttributeWatchBits.install_simulates
+#print axioms AttributeWatchBits.remove_simulates
+#print axioms AttributeWatchBits.change_keeps_pending
+#print axioms AttributeWatchBits.bit_hit_admits
+#print axioms AttributeWatchBits.change_simulates
+#print axioms AttributeWatchBits.step_simulates
+#print axioms AttributeWatchBits.finite_history_simulates
+#print axioms AttributeWatchBits.queried_mutation_admitted
+#print axioms AttributeWatchBits.absent_mutation_admitted
+#print axioms AttributeWatchBits.survivor_mutation_admitted
+#print axioms AttributeWatchBits.initially_absent_is_admitted
+#print axioms AttributeWatchBits.surviving_effect_is_admitted
+#print axioms AttributeWatchBits.different_name_is_intentional_extra
+#print axioms AttributeWatchBits.equal_value_empty_replacement_clears_bit

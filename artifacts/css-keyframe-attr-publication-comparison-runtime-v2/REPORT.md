@@ -1,0 +1,7 @@
+# Attribute-watch publication comparison
+
+Actual comparison69119 exited0 (terminal7087b1):126PASS/36FAIL before,159PASS/3FAIL with the repair, and exact126PASS/36FAIL after restoration. All46 selected cases pass on the candidate, repairing33 assertions while preserving116 control outcomes. All162 original outcomes return after restoration. Both native builds exit0. The three retained failures are existing current-custom-context/control observations. No additional security or exfiltration claim follows.
+
+Root verifier42681 exited0 (terminal32dfda), independently confirming the three-phase policy, eight source writes/eight restorations, source/build/binary joins,779 preserved roles,80 guarded sources plus six supplemental sources,27 installed identities,44 restored native paths and925 staged working payloads. All six temporary fixtures are removed and all owned WPT groups are absent. Native source and semantic staged content are preserved. Raw index bytes changed75dd5b→bc3412; their cause is unknown. Current bytes remained stable throughout root verification. Historical raw-byte continuity is not claimed.
+
+The original source stack and rebuilt browser remain installed. The repair is packaged separately as eight native files plus four WPTs, with fix130 as a functional prerequisite. Independent terminal review and acceptance remain separate steps. Mach emitted the previously observed export-tier logging errors in both successful builds; full logs are retained. Performance of conservative unrelated-attribute restyles is unmeasured.

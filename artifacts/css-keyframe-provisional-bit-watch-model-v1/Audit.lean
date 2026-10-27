@@ -1,0 +1,22 @@
+import Witnesses
+
+#print axioms ProvisionalWatches.exact_pair
+#print axioms ProvisionalWatches.exact_relation_is_conservative
+#print axioms ProvisionalWatches.related_member
+#print axioms ProvisionalWatches.named_hit_preserved
+#print axioms ProvisionalWatches.strengthening_preserves_bit_hit
+#print axioms ProvisionalWatches.strengthen_related
+#print axioms ProvisionalWatches.erase_related
+#print axioms ProvisionalWatches.install_related
+#print axioms ProvisionalWatches.install_conservative_related
+#print axioms ProvisionalWatches.remove_related
+#print axioms ProvisionalWatches.change_related
+#print axioms ProvisionalWatches.step_related
+#print axioms ProvisionalWatches.finite_history_related
+#print axioms ProvisionalWatches.finite_history_published
+#print axioms ProvisionalWatches.queried_mutation_admitted
+#print axioms ProvisionalWatches.allocated_empty_is_conservative
+#print axioms ProvisionalWatches.provisional_empty_permits_extra_update
+#print axioms ProvisionalWatches.absent_survivor_remains_admitted
+#print axioms ProvisionalWatches.completed_empty_replacement_clears_obsolete_bit
+#print axioms ProvisionalWatches.clearing_required_bit_breaks_relation
