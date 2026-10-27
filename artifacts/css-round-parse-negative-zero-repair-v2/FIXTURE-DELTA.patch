@@ -1,0 +1,75 @@
+--- v1/testing/web-platform/tests/css/css-values/round-finite-negative-zero.html
++++ v2/testing/web-platform/tests/css/css-values/round-finite-negative-zero.html
+@@ -1,17 +1,18 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Finite round bounds preserve negative zero inside a calculation</title>
++<title>Finite round bounds preserve negative zero inside pow</title>
+ <link rel="help" href="https://drafts.csswg.org/css-values-4/#funcdef-round">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#funcdef-pow">
+ <link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
+ <script src="/resources/testharness.js"></script>
+ <script src="/resources/testharnessreport.js"></script>
+ <body>
+ <script>
+ const cases = [
+-  ["nearest negative fraction", "round(nearest, -0.25, 1)", 0],
+-  ["nearest negative tie", "round(nearest, -0.5, 1)", 0],
+-  ["up negative fraction", "round(up, -0.75, 1)", 0],
+-  ["to-zero negative fraction", "round(to-zero, -0.75, 1)", 0],
++  ["nearest fraction", "round(nearest, -0.25, 1)", 0],
++  ["nearest tie", "round(nearest, -0.5, 1)", 0],
++  ["up fraction", "round(up, -0.75, 1)", 0],
++  ["to-zero fraction", "round(to-zero, -0.75, 1)", 0],
+   ["nearest positive fraction control", "round(nearest, 0.25, 1)", 1],
+   ["down positive fraction control", "round(down, 0.75, 1)", 1],
+   ["exact arithmetic negative zero control", "round(nearest, -1 * 0, 1)", 0],
+@@ -23,29 +24,31 @@
+     function sample(value) {
+       const element = document.createElement("div");
+       t.add_cleanup(() => element.remove());
++      element.style.fontSize = "32px";
+       element.style.opacity = value;
+       assert_not_equals(element.style.opacity, "", "declaration admitted: " + value);
+       document.body.append(element);
+-      return [Number(getComputedStyle(element).opacity),
+-              Number(getComputedStyle(element).opacity)];
++      const computed = getComputedStyle(element);
++      const first = Number(computed.opacity);
++      const repeat = Number(getComputedStyle(element).opacity);
++      assert_equals(computed.fontSize, "32px", "font calibration");
++      assert_true(Number.isFinite(first) && Number.isFinite(repeat), "finite sample");
++      assert_equals(first, repeat, "repeat stability");
++      return first;
+     }
+ 
+-    const observed = sample(`clamp(0, 1 / ${expression}, 1)`);
++    const observed = sample(`clamp(0, pow(${expression}, -1), 1)`);
++    const positive = sample("clamp(0, pow(1 * 0, -1), 1)");
++    const negative = sample("clamp(0, pow(-1 * 0, -1), 1)");
++    const division = sample(`clamp(0, 1 / ${expression}, 1)`);
+     const magnitude = sample(expression);
+-    const positive = sample("clamp(0, 1 / (1 * 0), 1)");
+-    const negative = sample("clamp(0, 1 / (-1 * 0), 1)");
+-    const positiveSign = sample("clamp(0, 1 / sign(1 * 0), 1)");
+-    const negativeSign = sample("clamp(0, 1 / sign(-1 * 0), 1)");
+     const literal = sample(String(expected));
+-    assert_array_equals(magnitude, [0, 0], "rounded magnitude is zero");
+-    assert_array_equals(positive, [1, 1], "positive zero reciprocal calibration");
+-    assert_array_equals(negative, [0, 0], "arithmetic negative zero reciprocal calibration");
+-    assert_array_equals(positiveSign, [1, 1], "positive zero sign calibration");
+-    assert_array_equals(negativeSign, [0, 0], "negative zero sign calibration");
+-    assert_array_equals(literal, [expected, expected], "literal opacity calibration");
+-    assert_true(observed.every(Number.isFinite), "finite observer");
+-    assert_equals(observed[0], observed[1], "repeat stable before final assertion");
+-    assert_equals(observed[0], expected, "nested rounded-zero reciprocal opacity");
+-  }, name);
++    assert_equals(positive, 1, "pow positive-zero calibration");
++    assert_equals(negative, 0, "pow negative-zero calibration");
++    assert_equals(division, expected, "division control");
++    assert_equals(magnitude, 0, "rounded magnitude calibration");
++    assert_equals(literal, expected, "literal opacity calibration");
++    assert_equals(observed, expected, "nested rounded-zero pow opacity");
++  }, `pow observer: ${name}`);
+ }
+ </script>

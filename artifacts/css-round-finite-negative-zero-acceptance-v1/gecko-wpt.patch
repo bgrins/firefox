@@ -1,0 +1,72 @@
+--- a/servo/components/style/values/generics/calc.rs
++++ b/servo/components/style/values/generics/calc.rs
+@@ -2067,7 +2067,11 @@
+ 
+                 let (mut lower_bound, mut upper_bound) = if value_or_stop!(value.is_negative_leaf())
+                 {
+-                    let upper_bound = value_or_stop!(value.try_op(&remainder, Sub::sub));
++                    // A zero upper bound is specifically negative zero.
++                    let upper_bound = value_or_stop!(value.try_op(&remainder, |a, b| {
++                        let result = a - b;
++                        if result == 0.0 { -0.0 } else { result }
++                    }));
+                     let lower_bound = value_or_stop!(upper_bound.try_op(step, Sub::sub));
+ 
+                     (lower_bound, upper_bound)
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-values/round-finite-negative-zero.html
+@@ -0,0 +1,54 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Finite round bounds preserve negative zero inside pow</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#funcdef-round">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#funcdef-pow">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++const cases = [
++  ["nearest fraction", "round(nearest, -0.25, 1)", 0],
++  ["nearest tie", "round(nearest, -0.5, 1)", 0],
++  ["up fraction", "round(up, -0.75, 1)", 0],
++  ["to-zero fraction", "round(to-zero, -0.75, 1)", 0],
++  ["nearest positive fraction control", "round(nearest, 0.25, 1)", 1],
++  ["down positive fraction control", "round(down, 0.75, 1)", 1],
++  ["exact arithmetic negative zero control", "round(nearest, -1 * 0, 1)", 0],
++  ["infinite step negative zero control", "round(nearest, -1, infinity)", 0],
++];
++
++for (const [name, expression, expected] of cases) {
++  test(t => {
++    function sample(value) {
++      const element = document.createElement("div");
++      t.add_cleanup(() => element.remove());
++      element.style.fontSize = "32px";
++      element.style.opacity = value;
++      assert_not_equals(element.style.opacity, "", "declaration admitted: " + value);
++      document.body.append(element);
++      const computed = getComputedStyle(element);
++      const first = Number(computed.opacity);
++      const repeat = Number(getComputedStyle(element).opacity);
++      assert_equals(computed.fontSize, "32px", "font calibration");
++      assert_true(Number.isFinite(first) && Number.isFinite(repeat), "finite sample");
++      assert_equals(first, repeat, "repeat stability");
++      return first;
++    }
++
++    const observed = sample(`clamp(0, pow(${expression}, -1), 1)`);
++    const positive = sample("clamp(0, pow(1 * 0, -1), 1)");
++    const negative = sample("clamp(0, pow(-1 * 0, -1), 1)");
++    const division = sample(`clamp(0, 1 / ${expression}, 1)`);
++    const magnitude = sample(expression);
++    const literal = sample(String(expected));
++    assert_equals(positive, 1, "pow positive-zero calibration");
++    assert_equals(negative, 0, "pow negative-zero calibration");
++    assert_equals(division, expected, "division control");
++    assert_equals(magnitude, 0, "rounded magnitude calibration");
++    assert_equals(literal, expected, "literal opacity calibration");
++    assert_equals(observed, expected, "nested rounded-zero pow opacity");
++  }, `pow observer: ${name}`);
++}
++</script>
