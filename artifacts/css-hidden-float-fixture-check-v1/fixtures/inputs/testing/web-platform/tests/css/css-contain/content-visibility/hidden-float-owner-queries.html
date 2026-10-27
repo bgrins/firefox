@@ -1,0 +1,86 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Geometry queries for floats in skipped block content</title>
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getboundingclientrect">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+html { direction: ltr; writing-mode: horizontal-tb; }
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; }
+.outer { width: 100px; height: 64px; }
+.outer.narrow { width: 50px; }
+.subject { width: 100%; height: 64px; font-size: 0; line-height: 0; }
+.subject.hidden { content-visibility: hidden; }
+.nested-owner { width: 100%; height: 32px; }
+.float-root { float: left; width: 50%; height: 16px; }
+.float-leaf { width: 100%; height: 8px; }
+</style>
+<body>
+<script>
+"use strict";
+window.floatOwnerQueryResults = [];
+function fixture(shape) {
+  const host = document.createElement("div");
+  host.className = "host";
+  const content = '<div class="float-root"><div class="float-leaf"></div></div>';
+  const wrapped = shape === "inline-nested" ? `<span><span>${content}</span></span>` :
+    shape === "nested-block" ? `<div class="nested-owner">${content}</div>` : content;
+  host.innerHTML = `<div class="outer"><div class="subject">${wrapped}</div></div>`;
+  document.body.append(host);
+  return { host, outer: host.querySelector(".outer"), subject: host.querySelector(".subject"),
+    root: host.querySelector(".float-root"), leaf: host.querySelector(".float-leaf") };
+}
+function rect(element) {
+  const r = element.getBoundingClientRect();
+  return [r.x, r.y, r.width, r.height];
+}
+for (const shape of ["direct", "inline-nested", "nested-block"]) {
+  for (const selected of ["root", "leaf"]) {
+    for (const hidden of [false, true]) {
+      test(t => {
+        assert_implements(CSS.supports("content-visibility", "hidden"));
+        const target = fixture(shape);
+        t.add_cleanup(() => target.host.remove());
+        const rows = [];
+        for (const stage of ["warm", "hide", "change", "show", "restore"]) {
+          if (stage === "hide") target.subject.classList.toggle("hidden", hidden);
+          if (stage === "change" || stage === "restore") {
+            target.outer.classList.toggle("narrow", stage === "change");
+          }
+          if (stage === "show") target.subject.classList.remove("hidden");
+          const outer = rect(target.outer);
+          const first = rect(target[selected]);
+          const repeat = rect(target[selected]);
+          const peer = fixture(shape);
+          let visible;
+          try {
+            peer.outer.classList.toggle("narrow", stage === "change" || stage === "show");
+            visible = rect(peer[selected]);
+          } finally {
+            peer.host.remove();
+          }
+          rows.push({ stage, outer, first, repeat, visible,
+            expected: [10, 10, stage === "change" || stage === "show" ? 25 : 50, selected === "leaf" ? 8 : 16],
+            expectedOuter: [10, 10, stage === "change" || stage === "show" ? 50 : 100, 64] });
+        }
+        const name = `Hidden float owner: ${shape}, ${selected}, ${hidden ? "hidden" : "visible"}`;
+        window.floatOwnerQueryResults.push({ name, rows });
+        for (const row of rows) {
+          assert_array_equals(row.outer, row.expectedOuter, `${row.stage}: outer-only flush calibration`);
+          assert_array_equals(row.visible, row.expected, `${row.stage}: fresh visible calibration`);
+        }
+        for (const stage of ["warm", "show"]) {
+          const row = rows.find(value => value.stage === stage);
+          assert_array_equals(row.first, row.expected, `${stage}: target calibration`);
+        }
+        for (const row of rows) {
+          assert_array_equals(row.first, row.expected, `${row.stage}: first selected query`);
+          assert_array_equals(row.repeat, row.expected, `${row.stage}: repeated selected query`);
+        }
+      }, `Hidden float owner: ${shape}, ${selected}, ${hidden ? "hidden" : "visible"}`);
+    }
+  }
+}
+</script>

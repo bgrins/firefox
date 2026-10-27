@@ -1,0 +1,24 @@
+import FloatReady
+
+#print axioms FloatReady.line_projection
+#print axioms FloatReady.line_does_not_follow_float_pointer
+#print axioms FloatReady.line_cannot_change_float_readiness
+#print axioms FloatReady.visible_owner_unchanged
+#print axioms FloatReady.anonymous_owner_unchanged
+#print axioms FloatReady.owner_preserves_nonselected_storage
+#print axioms FloatReady.current_list_length_preserved
+#print axioms FloatReady.selected_root_lookup
+#print axioms FloatReady.pushed_root_untouched
+#print axioms FloatReady.selected_root_ready
+#print axioms FloatReady.selected_path_ready
+#print axioms FloatReady.selected_root_coverage
+#print axioms FloatReady.selected_closed_descendant_ready
+#print axioms FloatReady.selected_query_recovers_provider
+#print axioms FloatReady.placeholder_marked_float_and_leaf_clean
+#print axioms FloatReady.owner_mark_recovers_float_and_leaf
+#print axioms FloatReady.nested_inline_placeholder_still_cannot_reach_float
+#print axioms FloatReady.ordinary_owner_subtree_can_reach_its_float
+#print axioms FloatReady.dirty_float_root_does_not_restore_clean_leaf
+#print axioms FloatReady.pushed_float_excluded_witness
+#print axioms FloatReady.external_and_continuation_stay_clean
+#print axioms FloatReady.placeholder_query_stale_float_query_then_provider

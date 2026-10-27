@@ -1,0 +1,104 @@
+>>>  546: bool BlockReflowState::AddFloat(nsLineLayout* aLineLayout, nsIFrame* aFloat,
+     547:                                 nscoord aAvailableISize) {
+     548:   MOZ_ASSERT(aLineLayout, "must have line layout");
+     549:   MOZ_ASSERT(mBlock->LinesEnd() != mCurrentLine, "null ptr");
+     550:   MOZ_ASSERT(aFloat->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW),
+     551:              "aFloat must be an out-of-flow frame");
+     552: 
+     553:   MOZ_ASSERT(aFloat->GetParent(), "float must have parent");
+     554:   MOZ_ASSERT(aFloat->GetParent()->IsBlockFrameOrSubclass(),
+     555:              "float's parent must be block");
+     556:   if (aFloat->HasAnyStateBits(NS_FRAME_IS_PUSHED_OUT_OF_FLOW) ||
+     557:       aFloat->GetParent() != mBlock) {
+     558:     MOZ_ASSERT(aFloat->HasAnyStateBits(NS_FRAME_IS_PUSHED_OUT_OF_FLOW |
+     559:                                        NS_FRAME_FIRST_REFLOW),
+     560:                "float should be in this block unless it was marked as "
+     561:                "pushed out-of-flow, or just inserted");
+     562:     MOZ_ASSERT(aFloat->GetParent()->FirstContinuation() ==
+     563:                mBlock->FirstContinuation());
+     564:     // If, in a previous reflow, the float was pushed entirely to
+     565:     // another column/page, we need to steal it back.  (We might just
+     566:     // push it again, though.)  Likewise, if that previous reflow
+     567:     // reflowed this block but not its next continuation, we might need
+     568:     // to steal it from our own float-continuations list.
+     569:     //
+     570:     // For more about pushed floats, see the comment above
+     571:     // nsBlockFrame::DrainPushedFloats.
+     572:     auto* floatParent = static_cast<nsBlockFrame*>(aFloat->GetParent());
+     573:     floatParent->StealFrame(aFloat);
+     574: 
+     575:     aFloat->RemoveStateBits(NS_FRAME_IS_PUSHED_OUT_OF_FLOW);
+     576: 
+     577:     // Appending is fine, since if a float was pushed to the next
+     578:     // page/column, all later floats were also pushed.
+     579:     mBlock->EnsureFloats()->AppendFrame(mBlock, aFloat);
+     580:   }
+     581: 
+     582:   // Because we are in the middle of reflowing a placeholder frame
+     583:   // within a line (and possibly nested in an inline frame or two
+     584:   // that's a child of our block) we need to restore the space
+     585:   // manager's translation to the space that the block resides in
+     586:   // before placing the float.
+     587:   nscoord oI, oB;
+     588:   FloatManager()->GetTranslation(oI, oB);
+     589:   nscoord dI = oI - mFloatManagerI;
+     590:   nscoord dB = oB - mFloatManagerB;
+     591:   FloatManager()->Translate(-dI, -dB);
+     592: 
+     593:   bool placed = false;
+     594: 
+     595:   // Now place the float immediately if possible. Otherwise stash it
+     596:   // away in mBelowCurrentLineFloats and place it later.
+     597:   // If one or more floats has already been pushed to the next line,
+     598:   // don't let this one go on the current line, since that would violate
+     599:   // float ordering.
+     600:   bool shouldPlaceFloatBelowCurrentLine = false;
+     601:   if (mBelowCurrentLineFloats.IsEmpty()) {
+     602:     // If the current line is empty, we don't impose any inline-size constraint
+     603:     // from the line layout.
+     604:     Maybe<nscoord> availableISizeInCurrentLine =
+     605:         aLineLayout->LineIsEmpty() ? Nothing() : Some(aAvailableISize);
+     606:     PlaceFloatResult result =
+     607:         FlowAndPlaceFloat(aFloat, availableISizeInCurrentLine);
+     608:     if (result == PlaceFloatResult::Placed) {
+     609:       placed = true;
+     610:       // Pass on updated available space to the current inline reflow engine
+     611:       WritingMode wm = mReflowInput.GetWritingMode();
+     612:       // If we have mLineBSize, we are reflowing the line again due to
+     613:       // LineReflowStatus::RedoMoreFloats. We should use mLineBSize to query the
+     614:       // correct available space.
+     615:       nsFlowAreaRect floatAvailSpace =
+     616:           mLineBSize.isNothing()
+     617:               ? GetFloatAvailableSpace(wm, mBCoord)
+     618:               : GetFloatAvailableSpaceForBSize(wm, mBCoord, mLineBSize.value(),
+     619:                                                nullptr);
+     620:       LogicalRect availSpace(wm, floatAvailSpace.mRect.IStart(wm), mBCoord,
+     621:                              floatAvailSpace.mRect.ISize(wm),
+     622:                              floatAvailSpace.mRect.BSize(wm));
+     623:       aLineLayout->UpdateBand(wm, availSpace, aFloat);
+     624:       // Record this float in the current-line list
+     625:       mCurrentLineFloats.AppendElement(aFloat);
+     626:     } else if (result == PlaceFloatResult::ShouldPlaceInNextContinuation) {
+     627:       (*aLineLayout->GetLine())->SetHadFloatPushed();
+     628:     } else {
+     629:       MOZ_ASSERT(result == PlaceFloatResult::ShouldPlaceBelowCurrentLine);
+     630:       shouldPlaceFloatBelowCurrentLine = true;
+     631:     }
+     632:   } else {
+     633:     shouldPlaceFloatBelowCurrentLine = true;
+     634:   }
+     635: 
+     636:   if (shouldPlaceFloatBelowCurrentLine) {
+     637:     // Always claim to be placed; we don't know whether we fit yet, so we
+     638:     // deal with this in PlaceBelowCurrentLineFloats
+     639:     placed = true;
+     640:     // This float will be placed after the line is done (it is a
+     641:     // below-current-line float).
+     642:     mBelowCurrentLineFloats.AppendElement(aFloat);
+     643:   }
+     644: 
+     645:   // Restore coordinate system
+     646:   FloatManager()->Translate(dI, dB);
+     647: 
+     648:   return placed;
+     649: }

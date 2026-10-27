@@ -1,0 +1,78 @@
+FloatReady.lean:109:88: error: Tactic `decide` failed to reduce
+  @decide
+    (floatEligible 0 [] (markOwner true false noPushed (skipLine fixture)) = true ∧
+      floatEligible 0 [0] (markOwner true false noPushed (skipLine fixture)) = true)
+    instDecidableAnd
+to `true` or `false`.
+
+After unfolding the instances `instDecidableAnd`, `instDecidableEqBool`, and `Bool.decEq`, reduction got stuck at
+  match markDesc (clean 3) with
+  | Tree.node id d h tableColumnGroup children => d || h
+FloatReady.lean:114:51: error: Tactic `decide` failed to reduce
+  @decide
+    (let w :=
+      let __src := fixture;
+      { ownDirty := __src.ownDirty, principal := [Tree.node 10 false false false [placeholder]],
+        otherLists := __src.otherLists, externalOutOfFlow := __src.externalOutOfFlow,
+        nextContinuation := __src.nextContinuation };
+    Option.any (eligibleAt [0]) (skipLine w).principal[0]? = true ∧ floatEligible 0 [0] (skipLine w) = false)
+    instDecidableAnd
+to `true` or `false`.
+
+After unfolding the instances `instDecidableAnd`, `instDecidableEqBool`, and `Bool.decEq`, reduction got stuck at
+  match markDesc placeholder with
+  | Tree.node id d h tableColumnGroup children => d || h
+FloatReady.lean:117:100: error: Tactic `decide` failed to reduce
+  @decide (eligibleAt [1, 0] (markRoot (Tree.node 10 false false false [placeholder, realFloat])) = true)
+    (instDecidableEqBool (eligibleAt [1, 0] (markRoot (Tree.node 10 false false false [placeholder, realFloat]))) true)
+to `true` or `false`.
+
+After unfolding the instances `instDecidableEqBool` and `Bool.decEq`, reduction got stuck at
+  match locate [1, 0] (markRoot (Tree.node 10 false false false [placeholder, realFloat])) with
+  | some a => eligible a
+  | none => false
+FloatReady.lean:137:127: error: Tactic `decide` failed to reduce
+  @decide
+    (let target :=
+      let __src := Hidden.warm;
+      { dirty := floatEligible 0 [0] (skipLine fixture), geometry := __src.geometry, cache := __src.cache };
+    let key :=
+      let __src := Hidden.key 32;
+      { computed := { i := 24, b := 50 }, containingBlock := __src.containingBlock, borderIStart := __src.borderIStart,
+        borderIEnd := __src.borderIEnd, borderBStart := __src.borderBStart, borderBEnd := __src.borderBEnd,
+        minB := __src.minB, maxB := __src.maxB, availableB := __src.availableB };
+    (Hidden.geometryQuery true Hidden.fixedBlock key target).geometry = { i := 24, b := 32 } ∧
+      (Hidden.geometryQuery true Hidden.fixedBlock key
+            { dirty := floatEligible 0 [0] (markOwner true false noPushed (skipLine fixture)),
+              geometry := target.geometry, cache := target.cache }).geometry =
+        { i := 24, b := 50 })
+    instDecidableAnd
+to `true` or `false`.
+
+After unfolding the instances `decEq`, `instDecidableAnd`, `instDecidableEqBool`, `instDecidableEqNat`, `Bool.decEq`, `isTrue`, `Hidden.instDecidableEqSize`, `Int.decEq`, `Int.instDecidableEq`, `Nat.decEq`, and `Hidden.instDecidableEqSize.decEq`, reduction got stuck at
+  match
+    (Hidden.geometryQuery true Hidden.fixedBlock
+          (let __src := Hidden.key 32;
+          { computed := { i := 24, b := 50 }, containingBlock := __src.containingBlock,
+            borderIStart := __src.borderIStart, borderIEnd := __src.borderIEnd, borderBStart := __src.borderBStart,
+            borderBEnd := __src.borderBEnd, minB := __src.minB, maxB := __src.maxB, availableB := __src.availableB })
+          { dirty := floatEligible 0 [0] (markOwner true false noPushed (skipLine fixture)),
+            geometry :=
+              (let __src := Hidden.warm;
+                { dirty := floatEligible 0 [0] (skipLine fixture), geometry := __src.geometry,
+                  cache := __src.cache }).geometry,
+            cache :=
+              (let __src := Hidden.warm;
+                { dirty := floatEligible 0 [0] (skipLine fixture), geometry := __src.geometry,
+                  cache := __src.cache }).cache }).2.i,
+    24 with
+  | Int.ofNat a, Int.ofNat b =>
+    match decEq a b with
+    | { decide := true, reflects_decide := h } => isTrue ⋯
+    | { decide := false, reflects_decide := h } => isFalse ⋯
+  | Int.ofNat a, Int.negSucc a_1 => isFalse ⋯
+  | Int.negSucc a, Int.ofNat a_1 => isFalse ⋯
+  | Int.negSucc a, Int.negSucc b =>
+    match decEq a b with
+    | { decide := true, reflects_decide := h } => isTrue ⋯
+    | { decide := false, reflects_decide := h } => isFalse ⋯

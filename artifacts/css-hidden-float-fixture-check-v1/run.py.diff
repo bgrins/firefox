@@ -1,0 +1,62 @@
+--- reviewed-root-run.py
++++ float-draft-run.py
+@@ -12,12 +12,14 @@
+ ROOT = HERE.parents[1]
+ parser = argparse.ArgumentParser()
+ parser.add_argument('--manifest-sha', required=True)
++parser.add_argument('--execute', action='store_true')
+ args = parser.parse_args()
+ def need(ok, message):
+     if not ok:
+         raise RuntimeError(message)
+ def sha(path):
+     return hashlib.sha256(path.read_bytes()).hexdigest()
++need(args.execute, 'disabled: root must explicitly pass --execute after restoration and review')
+ need(sha(HERE / 'INPUT-FILES.json') == args.manifest_sha, 'manifest identity')
+ manifest = json.loads((HERE / 'INPUT-FILES.json').read_text())
+ for name, pin in manifest.items():
+@@ -28,6 +30,9 @@
+ wpt = importlib.util.module_from_spec(spec)
+ spec.loader.exec_module(wpt)
+ c = wpt.CONFIG
++need(len(c['install']) == 2 and set(c['tests']) == set(c['install'])
++     and not c['sources'] and len(c['guard_sources']) == 28
++     and sum(map(len, c['expected_subtests'].values())) == 16, 'fixture-only scope')
+ prior = ROOT / c['prior_runtime']
+ prior_state = json.loads((prior / 'STATE.json').read_text())
+ need(prior_state['status'] == 'terminal' and prior_state['restored'] is True
+@@ -63,6 +68,25 @@
+     state['counts'] = {status: sum(r['status'] == status for r in run['rows']) for status in ['PASS', 'FAIL']}
+     state['failures'] = [{k: r.get(k) for k in ['test', 'subtest', 'message']}
+                          for r in run['rows'] if r['status'] == 'FAIL']
++    classifications = []
++    for row in run['rows']:
++        message = row.get('message') or ''
++        if row['test'].endswith('/visible-float-push-calibration.html'):
++            family = 'visible-push-calibration'
++        elif row['subtest'].endswith(', visible'):
++            family = 'main-visible-control'
++        elif row['status'] == 'FAIL' and 'calibration' in message.lower():
++            family = 'main-hidden-calibration-failure'
++        else:
++            family = 'main-hidden-query'
++        stage = next((stage for stage in ['warm', 'hide', 'change', 'show', 'restore']
++                      if stage + ':' in message), None)
++        classifications.append({'test': row['test'], 'subtest': row['subtest'],
++                                'status': row['status'], 'family': family,
++                                'first_reported_failure_stage': stage, 'message': row.get('message')})
++    wpt.save('CLASSIFICATION.json', classifications)
++    state['classification_scope'] = 'First reported assertion only; no native pushed-bit or complete per-stage raw-window claim'
++
+ except BaseException as error:
+     state['failure'] = repr(error)
+ finally:
+@@ -73,7 +97,7 @@
+             errors.append({'target': target, 'error': repr(error)})
+     final = wpt.snapshot()
+     state['restored'] = (final == before and wpt.pins(wpt.BINARIES) == binaries
+-                         and all(not (ROOT / n).exists() for n in c['install'])
++                         and all(not (ROOT / n).exists() and not (ROOT / n).is_symlink() for n in c['install'])
+                          and wpt.pins(wpt.resource_paths(c['tests'], virtual=True), virtual=True) == resources)
+     state['cleanup_errors'] = errors
+     state['status'] = 'terminal'

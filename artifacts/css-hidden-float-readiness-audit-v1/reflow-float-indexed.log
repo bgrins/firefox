@@ -1,0 +1,67 @@
+>>> 8063: void nsBlockFrame::ReflowFloat(BlockReflowState& aState, ReflowInput& aFloatRI,
+    8064:                                nsIFrame* aFloat,
+    8065:                                nsReflowStatus& aReflowStatus) {
+    8066:   MOZ_ASSERT(aReflowStatus.IsEmpty(),
+    8067:              "Caller should pass a fresh reflow status!");
+    8068:   MOZ_ASSERT(aFloat->HasAnyStateBits(NS_FRAME_OUT_OF_FLOW),
+    8069:              "aFloat must be an out-of-flow frame");
+    8070: 
+    8071:   WritingMode wm = aState.mReflowInput.GetWritingMode();
+    8072: 
+    8073:   // Setup a block reflow context to reflow the float.
+    8074:   nsBlockReflowContext brc(aState.mPresContext, aState.mReflowInput);
+    8075: 
+    8076:   nsIFrame* clearanceFrame = nullptr;
+    8077:   do {
+    8078:     CollapsingMargin margin;
+    8079:     bool mayNeedRetry = false;
+    8080:     aFloatRI.mDiscoveredClearance = nullptr;
+    8081:     // Only first in flow gets a block-start margin.
+    8082:     if (!aFloat->GetPrevInFlow()) {
+    8083:       brc.ComputeCollapsedBStartMargin(aFloatRI, &margin, clearanceFrame,
+    8084:                                        &mayNeedRetry);
+    8085: 
+    8086:       if (mayNeedRetry && !clearanceFrame) {
+    8087:         aFloatRI.mDiscoveredClearance = &clearanceFrame;
+    8088:         // We don't need to push the float manager state because the the block
+    8089:         // has its own float manager that will be destroyed and recreated
+    8090:       }
+    8091:     }
+    8092: 
+    8093:     // When reflowing a float, aSpace argument doesn't matter because we pass
+    8094:     // nullptr to aLine and we don't call nsBlockReflowContext::PlaceBlock()
+    8095:     // later.
+    8096:     brc.ReflowBlock(LogicalRect(wm), true, margin, 0, nullptr, aFloatRI,
+    8097:                     aReflowStatus, aState);
+    8098:   } while (clearanceFrame);
+    8099: 
+    8100:   if (aFloat->IsLetterFrame()) {
+    8101:     // We never split floating first letters; an incomplete status for such
+    8102:     // frames simply means that there is more content to be reflowed on the
+    8103:     // line.
+    8104:     if (aReflowStatus.IsIncomplete()) {
+    8105:       aReflowStatus.Reset();
+    8106:     }
+    8107:   }
+    8108: 
+    8109:   NS_ASSERTION(aReflowStatus.IsFullyComplete() ||
+    8110:                    aFloatRI.AvailableBSize() != NS_UNCONSTRAINEDSIZE,
+    8111:                "The status can only be incomplete or overflow-incomplete if "
+    8112:                "the available block-size is constrained!");
+    8113: 
+    8114:   if (aReflowStatus.NextInFlowNeedsReflow()) {
+    8115:     aState.mReflowStatus.SetNextInFlowNeedsReflow();
+    8116:   }
+    8117: 
+    8118:   const ReflowOutput& metrics = brc.GetMetrics();
+    8119: 
+    8120:   // Set the rect, make sure the view is properly sized and positioned,
+    8121:   // and tell the frame we're done reflowing it
+    8122:   // XXXldb This seems like the wrong place to be doing this -- shouldn't
+    8123:   // we be doing this in BlockReflowState::FlowAndPlaceFloat after
+    8124:   // we've positioned the float, and shouldn't we be doing the equivalent
+    8125:   // of |PlaceFrameView| here?
+    8126:   WritingMode metricsWM = metrics.GetWritingMode();
+    8127:   aFloat->SetSize(metricsWM, metrics.Size(metricsWM));
+    8128:   aFloat->DidReflow(aState.mPresContext, &aFloatRI);
+    8129: }

@@ -1,0 +1,134 @@
+>>>   55: class nsPlaceholderFrame final : public nsIFrame {
+      56:  public:
+      57:   NS_DECL_FRAMEARENA_HELPERS(nsPlaceholderFrame)
+      58: #ifdef DEBUG
+      59:   NS_DECL_QUERYFRAME
+      60: #endif
+      61: 
+      62:   /**
+      63:    * Create a new placeholder frame.  aTypeBit must be one of the
+      64:    * PLACEHOLDER_FOR_* constants above.
+      65:    */
+      66:   friend nsPlaceholderFrame* NS_NewPlaceholderFrame(
+      67:       mozilla::PresShell* aPresShell, ComputedStyle* aStyle,
+      68:       nsFrameState aTypeBits);
+      69: 
+      70:   nsPlaceholderFrame(ComputedStyle* aStyle, nsPresContext* aPresContext,
+      71:                      nsFrameState aTypeBits)
+      72:       : nsIFrame(aStyle, aPresContext, kClassID), mOutOfFlowFrame(nullptr) {
+      73:     MOZ_ASSERT(
+      74:         aTypeBits == PLACEHOLDER_FOR_FLOAT ||
+      75:             aTypeBits == PLACEHOLDER_FOR_ABSPOS ||
+      76:             aTypeBits == PLACEHOLDER_FOR_FIXEDPOS ||
+      77:             aTypeBits == (PLACEHOLDER_FOR_TOPLAYER | PLACEHOLDER_FOR_ABSPOS) ||
+      78:             aTypeBits == (PLACEHOLDER_FOR_TOPLAYER | PLACEHOLDER_FOR_FIXEDPOS),
+      79:         "Unexpected type bit");
+      80:     AddStateBits(aTypeBits);
+      81:   }
+      82: 
+      83:   // Get/Set the associated out of flow frame
+      84:   nsIFrame* GetOutOfFlowFrame() const {
+      85:     MOZ_ASSERT(mOutOfFlowFrame);
+      86:     return mOutOfFlowFrame;
+      87:   }
+      88:   void SetOutOfFlowFrame(nsIFrame* aFrame) {
+      89:     NS_ASSERTION(!aFrame || !aFrame->GetPrevContinuation(),
+      90:                  "OOF must be first continuation");
+      91:     mOutOfFlowFrame = aFrame;
+      92:   }
+      93: 
+      94:   void AddInlineMinISize(const mozilla::IntrinsicSizeInput& aInput,
+      95:                          InlineMinISizeData* aData) override;
+      96:   void AddInlinePrefISize(const mozilla::IntrinsicSizeInput& aInput,
+      97:                           InlinePrefISizeData* aData) override;
+      98: 
+      99:   void Reflow(nsPresContext* aPresContext, ReflowOutput& aDesiredSize,
+     100:               const ReflowInput& aReflowInput,
+     101:               nsReflowStatus& aStatus) override;
+     102: 
+     103:   void Destroy(DestroyContext&) override;
+     104: 
+     105: #if defined(DEBUG) || (defined(MOZ_REFLOW_PERF_DSP) && defined(MOZ_REFLOW_PERF))
+     106:   void BuildDisplayList(nsDisplayListBuilder* aBuilder,
+     107:                         const nsDisplayListSet& aLists) override;
+     108: #endif  // DEBUG || (MOZ_REFLOW_PERF_DSP && MOZ_REFLOW_PERF)
+     109: 
+     110: #ifdef DEBUG_FRAME_DUMP
+     111:   void List(FILE* out = stderr, const char* aPrefix = "",
+     112:             ListFlags aFlags = ListFlags()) const override;
+     113:   nsresult GetFrameName(nsAString& aResult) const override;
+     114: #endif  // DEBUG
+     115: 
+     116:   bool IsEmpty() override { return true; }
+     117:   bool IsSelfEmpty() override { return true; }
+     118: 
+     119:   bool CanContinueTextRun() const override;
+     120: 
+     121:   void SetLineIsEmptySoFar(bool aValue) {
+     122:     AddOrRemoveStateBits(PLACEHOLDER_LINE_IS_EMPTY_SO_FAR, aValue);
+     123:     AddStateBits(PLACEHOLDER_HAVE_LINE_IS_EMPTY_SO_FAR);
+     124:   }
+     125:   bool GetLineIsEmptySoFar(bool* aResult) const {
+     126:     bool haveValue = HasAnyStateBits(PLACEHOLDER_HAVE_LINE_IS_EMPTY_SO_FAR);
+     127:     if (haveValue) {
+     128:       *aResult = HasAnyStateBits(PLACEHOLDER_LINE_IS_EMPTY_SO_FAR);
+     129:     }
+     130:     return haveValue;
+     131:   }
+     132:   void ForgetLineIsEmptySoFar() {
+     133:     RemoveStateBits(PLACEHOLDER_HAVE_LINE_IS_EMPTY_SO_FAR);
+     134:   }
+     135: 
+     136: #ifdef ACCESSIBILITY
+     137:   mozilla::a11y::AccType AccessibleType() override {
+     138:     nsIFrame* realFrame = GetRealFrameForPlaceholder(this);
+     139:     return realFrame ? realFrame->AccessibleType() : nsIFrame::AccessibleType();
+     140:   }
+     141: #endif
+     142: 
+     143:   ComputedStyle* GetParentComputedStyleForOutOfFlow(
+     144:       nsIFrame** aProviderFrame) const;
+     145: 
+     146:   // Like GetParentComputedStyleForOutOfFlow, but ignores display:contents bits.
+     147:   ComputedStyle* GetLayoutParentStyleForOutOfFlow(
+     148:       nsIFrame** aProviderFrame) const;
+     149: 
+     150:   bool RenumberFrameAndDescendants(int32_t* aOrdinal, int32_t aDepth,
+     151:                                    int32_t aIncrement,
+     152:                                    bool aForCounting) override {
+     153:     return mOutOfFlowFrame->RenumberFrameAndDescendants(
+     154:         aOrdinal, aDepth, aIncrement, aForCounting);
+     155:   }
+     156: 
+     157:   /**
+     158:    * @return the out-of-flow for aFrame if aFrame is a placeholder; otherwise
+     159:    * aFrame
+     160:    */
+     161:   static nsIFrame* GetRealFrameFor(nsIFrame* aFrame) {
+     162:     MOZ_ASSERT(aFrame, "Must have a frame to work with");
+     163:     if (aFrame->IsPlaceholderFrame()) {
+     164:       return GetRealFrameForPlaceholder(aFrame);
+     165:     }
+     166:     return aFrame;
+     167:   }
+     168: 
+     169:   /**
+     170:    * @return the out-of-flow for aFrame, which is known to be a placeholder
+     171:    */
+     172:   static nsIFrame* GetRealFrameForPlaceholder(const nsIFrame* aFrame) {
+     173:     MOZ_ASSERT(aFrame->IsPlaceholderFrame(),
+     174:                "Must have placeholder frame as input");
+     175:     nsIFrame* outOfFlow =
+     176:         static_cast<const nsPlaceholderFrame*>(aFrame)->GetOutOfFlowFrame();
+     177:     NS_ASSERTION(outOfFlow, "Null out-of-flow for placeholder?");
+     178:     return outOfFlow;
+     179:   }
+     180: 
+     181:  protected:
+     182:   // A helper to implement AddInlineMinISize() and AddInlinePrefISize().
+     183:   void AddFloatToIntrinsicISizeData(const mozilla::IntrinsicSizeInput& aInput,
+     184:                                     mozilla::IntrinsicISizeType aType,
+     185:                                     InlineIntrinsicISizeData* aData) const;
+     186: 
+     187:   nsIFrame* mOutOfFlowFrame;
+     188: };
