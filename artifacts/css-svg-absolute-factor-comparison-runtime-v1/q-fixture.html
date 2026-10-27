@@ -1,0 +1,53 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SVGLength conversion from quarter-millimeters</title>
+<link rel="help" href="https://svgwg.org/svg2-draft/types.html#InterfaceSVGLength">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#absolute-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const ns = "http://www.w3.org/2000/svg";
+const targets = [
+  ["px", SVGLength.SVG_LENGTHTYPE_PX, 120 / 127],
+  ["mm", SVGLength.SVG_LENGTHTYPE_MM, 1 / 4],
+  ["in", SVGLength.SVG_LENGTHTYPE_IN, 5 / 508],
+  ["pc", SVGLength.SVG_LENGTHTYPE_PC, 15 / 254],
+];
+for (const kind of ["detached", "scalar", "list"]) {
+  for (const [unit, target, expected] of targets) {
+    test(t => {
+      const svg = document.createElementNS(ns, "svg");
+      svg.setAttribute("width", "200");
+      svg.setAttribute("height", "200");
+      document.body.append(svg);
+      t.add_cleanup(() => svg.remove());
+      let length;
+      if (kind === "detached") {
+        length = svg.createSVGLength();
+      } else {
+        const node = document.createElementNS(ns, kind === "scalar" ? "rect" : "text");
+        node.setAttribute("x", "0");
+        svg.append(node);
+        length = kind === "scalar" ? node.x.baseVal : node.x.baseVal.getItem(0);
+      }
+      length.valueAsString = "1q";
+      const before = length.value;
+      const specified = length.valueInSpecifiedUnits;
+      const sourceText = length.valueAsString;
+      length.convertToSpecifiedUnits(target);
+      const first = length.valueInSpecifiedUnits;
+      const repeat = length.valueInSpecifiedUnits;
+      const after = length.value;
+      const convertedUnit = length.unitType;
+      assert_equals(specified, 1, "parsed source factor");
+      assert_equals(sourceText.toLowerCase(), "1q", "parsed source unit");
+      assert_approx_equals(before, 120 / 127, 1e-6, "source pixel value");
+      assert_equals(convertedUnit, target, "destination unit");
+      assert_approx_equals(first, expected, 1e-6, "converted factor");
+      assert_equals(repeat, first, "repeat factor");
+      assert_approx_equals(after, before, 1e-5, "pixel value preserved");
+    }, `${kind}: q to ${unit}`);
+  }
+}
+</script>

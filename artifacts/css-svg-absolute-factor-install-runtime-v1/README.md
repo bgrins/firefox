@@ -1,0 +1,7 @@
+Disabled bound successor for accepted fix115. Driver, both final fixtures and resource map are byte-identical to v1. CONFIG now binds the actual successful comparison/restoration664b583… and root receipt85a6e0…, scoped acceptance59a1c4…/manifest8a5981…, and final result reviewa6daa7…. The bound restored binaries are850aba…/fdb399…, not the older pre-comparison build. ready_for_execution remains false; root must independently review the binding, validate live state and activate a new runtime copy.
+
+All installer scope and rollback guarantees in v1 remain unchanged: one native source, two independently owned tests,16 requiredPASS/2OK,53 guards,29 original native differences and five installed test identities. Success deliberately retains the accepted change; failure restores the owned source/tests and rebuilds only after original native state is verified. No source, index, build or browser action occurred while preparing this successor.
+
+check.py authenticates the full actual terminal capsule and root schema, before/final equality, complete restored resource/source/binary map, acceptance-to-patch/runtime joins and prior test identities using sealed evidence only. It retains the16 negative candidate checks and two independent cleanup-loop simulations. This is not a live-state preflight or installation receipt.
+
+Root command after readiness-only activation: python3 -I -S <runtime-copy>/run.py --draft-sha <activated-manifest-sha>.

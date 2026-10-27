@@ -1,0 +1,13 @@
+# Absolute-factor paired results review
+
+Recommend scoped acceptance of the exact three-path proposal7ab6beaba89e9753c3d36fccc2eec9565148889af4395d2281219a946b17beba. Independent phase and final restoration reviews passed. Root owns acceptance; no installation was performed by this reviewer.
+
+Exact raw rows recount baseline26PASS/8FAIL and candidate34PASS across five complete harness files per role. The repaired cases are six detached/scalar/list Q-to-inch/pica conversions and two SMIL interpolation samples. All18 existing controls remain PASS, with no changed retained failures or passing-case regressions. Baseline failures occur at the calibrated first-result assertions; later assertions in those failing test bodies were not reached. Candidate PASS reaches all assertions.
+
+The 53 native source roles equal saved HEAD90 in baseline and differ only at the proposed SVGLength.cpp body in candidate. Every recorded phase source snapshot, full resource/test/binary map, build0 and WPT before/after receipt joins. Both subprocess cleanup receipts report absent owned groups and no cleanup errors. The historical nonempty index hashes remain equal. The two-phase result demonstrates independence from the 29 pending native overlays, including114, for this roster. HEAD90 includes earlier committed fixes; clean-upstream browser execution is not claimed.
+
+Discovery was source/numeric inspection, confirmed by extracted-helper and browser evidence. The rational unit-factor library supplies the mathematical ratios but does not prove the float implementation, parser, SMIL timeline, or complete browser execution. No native branch trace, security impact or general conformance claim is made.
+
+Final closure: authenticated all69 runtime payloads under FILES664b5832622ef0b013141ec2e98243866649284b24cc4fbacfd88f26dafe28c9 and the actual root restoration receipt. Driver37555 and restoration build exit0, with no recovery errors. BEFORE equals FINAL; all30 saved original bodies,53 source guards,383 persistent role pins,29 prior native differences,925 staged paths and five prior installed test identities join. Both new fixtures return to pinned absence. The new restored binary epoch is recorded in FINAL-REVIEW.json; this is historical receipt authentication, not a later live-state claim. PHASES.json retains its earlier restoration-pending marker; FINAL-REVIEW.json closes that checkpoint.
+
+Each successful build log retains four Mach build-monitor KeyError diagnostics (including export-tier bookkeeping). These are not described as clean logs and do not override the recorded successful build exits and source/binary joins. No clean-upstream runtime, broader performance or cross-platform conformance guarantee follows.

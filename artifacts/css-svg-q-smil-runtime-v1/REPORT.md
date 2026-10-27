@@ -1,0 +1,7 @@
+The four-case SMIL diagnostic reproduces two incorrect animated positions. A1in-to-0q animation at3s of4s and mirrored0q-to-1in animation at1s both return10.713623046875 user units instead of24. The opposite samples pass at72. All four histories pass static101.6q/1in equivalence, viewport, initial-value, pixel-only reference, rewind and frozen-endpoint controls before the sampled-position assertion. Failed rows do not reach the repeated-position assertion.
+
+The source caller chooses the nearest endpoint unit and directly admits an internal Q destination. The other bad Q-to-inch coefficient multiplies zero in these histories. This supports attribution to the third table entry, but does not constitute native branch instrumentation or a full SMIL proof. Public conversion target11 is not exercised.
+
+One harness ends OK with no infrastructure fault. WPT exits1 for the two expected research failures; controller session86492 exits0 after preservation. Before/final snapshots and all379 roles match;52 sources,29 native modifications,925 staged paths, binary pins and all five installed test identities are preserved. The owned diagnostic is removed and process group absent. The absent inherited animation metadata is explicitly guarded. No native edit or new build occurred.
+
+Together with six direct-conversion failures, this supplies browser witnesses for all three incorrect Q-related factors. Candidate browser comparison remains pending; no new fix is accepted. These working-tree reproductions are separate from the forthcoming normalized paired comparison.

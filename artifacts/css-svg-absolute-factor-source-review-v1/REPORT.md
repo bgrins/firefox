@@ -1,0 +1,9 @@
+# Absolute-factor source review
+
+GO for the isolated HEAD90 comparison; no source or test blocker found. This does not accept the native fix before the paired browser and restoration gates.
+
+The sealed candidate changes exactly three coefficients in SVGLength::GetAbsUnitsPerAbsUnit. Their target/source orientation agrees with independent CSS absolute ratios: inches per Q = 5/508, picas per Q = 15/254, and Q per inch = 508/5. The other 46 entries, indexing, predicates and callers are unchanged. Recounting the retained extracted-helper output gives 49 distinct passing comparisons, with empty sanitizer stderr; these are finite numeric checks, not a full compiler or IEEE proof. No compiler replay was performed here.
+
+The Q12 landing test retains all observed diagnostic names/assertions and removes only unused observations. The four SMIL tests are byte-identical to the observed fixture. Retained raw SMIL output independently recounts two passing controls and two calibrated first-assertion failures (10.713623046875 instead of 24). The static-unit, reference-animation, timeline, rewind and endpoint checks precede those failures; later repeat assertions were not reached. Internal Q destination selection is source-supported interpolation behavior, not public convertToSpecifiedUnits(11) support.
+
+Independence disclosure: this reviewer authored the SMIL fixture/source investigation. Its timing/oracle received a separate review by hidden_provider_scan; the native proposal and comparison controller are authored by float_unsigned_runtime. The complete standalone patch contains only one native file and the two WPTs. Textual upstream applicability is not clean-upstream runtime evidence. Pending-fix independence still requires the normalized comparison, including preservation of the 18 existing controls and complete restoration.

@@ -1,0 +1,5 @@
+Fix115 is accepted for the exact three-path patch: correct three Q-related constants in SVGLength.cpp and add two WPT files with16 cases. Isolated HEAD90 comparison26 PASS/8 FAIL becomes34 PASS, preserving18 existing controls. Both builds, lint, complete original-stack restoration and independent result review pass. The patch is independent of pending native overlays for this roster; pristine-upstream browser execution is not claimed.
+
+Source inspection discovered the constants; actual helper and browser execution reproduced them. Four finite Lean statements corroborate49 binary32 table factors against exact CSS ratios within an engineering error envelope. They do not prove arbitrary floating arithmetic, SMIL execution or native/compiler transfer. No security or performance impact is established.
+
+Working-stack installation and signed commits are pending. The native commit contains only Gecko and WPT; research and proof evidence belongs in a preceding commit. Successful build logs retain Mach monitor bookkeeping diagnostics.

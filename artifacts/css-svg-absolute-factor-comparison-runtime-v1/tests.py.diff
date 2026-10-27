@@ -1,0 +1,29 @@
+--- reviewed-length/tests.py
++++ factor/tests.py
+@@ -98,21 +98,17 @@
+     wpt.need(not regressions and not changed, 'paired preservation failed')
+     main = set(wpt.CONFIG['main_tests'])
+     selected = [r for r in candidate['rows'] if r['test'] in main]
+-    wpt.need(len(selected) == 9 and all(r['status'] == 'PASS' for r in selected), 'candidate9 length oracle failed')
++    wpt.need(len(selected) == 16 and all(r['status'] == 'PASS' for r in selected), 'candidate16 factor oracle failed')
+ 
+ 
+ def require_phase(wpt, phase, result):
+     main = set(wpt.CONFIG['main_tests'])
+     selected = [r for r in result['rows'] if r['test'] in main]
+-    wpt.need(len(selected) == 9, 'nine main identities')
++    wpt.need(len(selected) == 16, 'sixteen main identities')
+     for row in selected:
+-        allowed_conversion = row['subtest'] in (
+-            'scalar: percentage to px after viewport resize',
+-            'scalar: px to percentage after viewport resize',
+-            'list: percentage to px after viewport resize',
+-            'list: px to percentage after viewport resize')
+-        if phase == 'baseline' and allowed_conversion and row['status'] == 'FAIL':
+-            wpt.need('conversion immediately after viewport resize' in (row.get('message') or ''), 'unexpected baseline first failure')
++        allowed_message = wpt.CONFIG['baseline_allowed_failure_messages'].get(row['subtest'])
++        if phase == 'baseline' and allowed_message and row['status'] == 'FAIL':
++            wpt.need(allowed_message in (row.get('message') or ''), 'unexpected baseline first failure')
+         else:
+             wpt.need(row['status'] == 'PASS', 'length calibration/control/candidate failure: ' + row['subtest'])
+     controls = [r for r in result['rows'] + result['ends'] if r['test'] not in main]

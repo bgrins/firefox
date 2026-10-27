@@ -1,0 +1,12 @@
+constexpr uint16_t SVG_LENGTHTYPE_UNKNOWN = 0;
+constexpr uint16_t SVG_LENGTHTYPE_NUMBER = 1;
+constexpr uint16_t SVG_LENGTHTYPE_PERCENTAGE = 2;
+constexpr uint16_t SVG_LENGTHTYPE_EMS = 3;
+constexpr uint16_t SVG_LENGTHTYPE_EXS = 4;
+constexpr uint16_t SVG_LENGTHTYPE_PX = 5;
+constexpr uint16_t SVG_LENGTHTYPE_CM = 6;
+constexpr uint16_t SVG_LENGTHTYPE_MM = 7;
+constexpr uint16_t SVG_LENGTHTYPE_IN = 8;
+constexpr uint16_t SVG_LENGTHTYPE_PT = 9;
+constexpr uint16_t SVG_LENGTHTYPE_PC = 10;
+constexpr uint16_t SVG_LENGTHTYPE_Q = 11;

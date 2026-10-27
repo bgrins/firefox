@@ -1,0 +1,3 @@
+Accepted fix115 is installed on the preserved working stack. The native build and WPT lint exit0; all16 regression cases pass with two complete harness files and clean owned-process cleanup. Exactly SVGLength.cpp changed and the two proposed WPT files were installed.
+
+Root verification confirms53 source guards, all final resource/binary pins, the original29 native differences plus the one accepted change,925 staged paths, five prior test bodies/inodes and both newly owned tests. Session25958 exits0. The successful build retains Mach monitor export-tier bookkeeping diagnostics. No signed commit or push occurred.

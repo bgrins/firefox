@@ -1,0 +1,5 @@
+Three of the 49 literals in SVGLength::GetAbsUnitsPerAbsUnit differ from independent CSS absolute-unit ratios by much more than rounding: inches per Q (2.24 times), picas per Q (286.74 times), and Q per inch (0.4464 times). CSS Values defines1in=96px=2.54cm,1pc=16px and1Q=0.25mm. The matrix body is identical in the working tree, HEAD90 and retained upstream976. Discovery came from source inspection while examining the flush policy, followed by this rational table audit; no Lean discovery claim is made.
+
+Browser reachability remains pending. Public conversion targets admit units1–10, while Q is internal code11 parsed from strings. The Q-source entries may therefore be directly observable, while the Q-target entry needs a separate caller audit. The arithmetic audit checks literals, not compiled floating-point evaluation or runtime outcomes. No repair is accepted and the fix count is unchanged.
+
+Primary reference: https://drafts.csswg.org/css-values-4/#absolute-lengths (read23October2026). The retained source span and49 row records permit independent recalculation. No native files, index, browser or build were changed.

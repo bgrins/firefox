@@ -1,0 +1,7 @@
+Independent root review passes for the finite constant certificate.
+
+Read all definitions and four statements. The target/source oracle orientation agrees with units per unit; the binary32 decoder uses significand times 2^(exponent-150), with a separate positive-normal-domain theorem. Exact roster lengths prevent zip truncation from omitting factors. Main kernel compilation and both false-predicate evaluations replay successfully; all three logs match the producer byte for byte. A separate Python Fraction calculation decodes the archived binary32 values and confirms precisely the same three original discrepancies and no candidate discrepancies within 4*2^-23 relative error.
+
+This establishes four finite results about 98 retained table encodings. It does not verify arbitrary multiplication, SMIL interpolation, table indexing, document freshness or whole C++ execution. The engineering tolerance is not a CSS conformance tolerance. Archived helper execution, float printing/parsing, compiler behavior and the pinned compiled Lean imports remain transfer assumptions. Discovery began with source inspection; this certificate corroborates the repair rather than claiming discovery by Lean.
+
+No native files, canonical library sources, index, browser or build were changed. Temporary Lean inputs were removed; no target directories or compiler products were created. No new fix acceptance or canonical-library count is implied.

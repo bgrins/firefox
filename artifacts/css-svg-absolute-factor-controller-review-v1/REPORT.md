@@ -1,0 +1,13 @@
+# Absolute-factor comparison controller review
+
+GO for the bounded local experiment after root readiness activation. The final disabled draft is 8fdd5550837b6ce055a28097e449476914801eb88837b336af73709a9693c740 (14 payloads, 22 references). This is not native acceptance.
+
+The reviewed executable adaptation normalizes the 29 current native differences plus clean SVGLength.cpp to exact saved HEAD90 bodies, then changes only SVGLength.cpp for the candidate. It preserves 53 native source guards, the nonempty 925-entry index, and all five installed WPT bodies/device/inodes. HEAD90 includes earlier committed fixes, so the comparison does not claim pristine-upstream execution.
+
+Each role runs 34 unique cases across five complete harness files: the 12 conversion cases, four animation cases and 18 existing controls. Baseline failures are limited to calibrated first assertions; candidate requires all 16 new cases to pass. Infrastructure and harness completeness remain strict, and paired comparison rejects passing-case regressions and changed retained-failure diagnostics. Full phase source/resource and both binary pins are joined before/after execution.
+
+Both new tests are exclusively created and independently removed only by recorded ownership. Conditional atomic source replacement retains the previous temporary-inode/body safeguards and unknown-edit refusal. The restoration loop attempts every original separately, withholds rebuilding when an original could not be restored, then checks original source/index/native/resource/test state and records the newly rebuilt binary epoch. Inherited synchronous-build/process-crash limits remain; no stronger crash recovery is claimed.
+
+The animations ancestor metadata and both exact new-test metadata paths are pinned, including absence. The reviewer did not execute the controller, compile Gecko, run browsers, or modify native/index state. The reviewer authored the SMIL fixture; its separate timing/oracle review is disclosed in the source review.
+
+The final driver authenticates complete proposal, observed SMIL and review capsules plus an explicit raw/RUN/STATE/ROOT/FINAL/fixture binding map before mutation. The static replay independently completed in this review directory and matched the producer receipt: observed SMIL four rows/messages, full original 372-role transfer, actual 379-role observation, and all 381 new resource entries agree. Six malformed outcome/control cases were rejected. The final addition changes evidence admission only; WPT runner/fault parser and atomic replacement/recovery functions remain AST-identical to the reviewed predecessor modulo the temporary name. Producer payloads were rehashed unchanged after replay.

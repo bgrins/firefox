@@ -1,0 +1,3 @@
+Disabled four-case Q-destination SMIL diagnostic. Exact captured fixture; unchanged predecessor epoch gate/ownership cleanup and WPT runner. Only case paths/names and first-position failure classification change. Calibration/later failures invalidate the diagnostic; first-position FAIL does not establish repeat equality. Bind the actual expanded114 epoch/manifest/root receipt and enable readiness only after independent review. No native/build/index change.
+
+Version2 also pins the absent svg/animations directory metadata and adds it to the existing before/after explicit absence check. Version1 is retained unactivated because that inherited metadata was not guarded.
