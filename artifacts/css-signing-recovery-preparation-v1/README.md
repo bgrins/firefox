@@ -1,0 +1,15 @@
+# Post-signing recovery snapshot preparation
+
+Disabled preparation only. Root runs this after Arc and steps native commits finish and while project writes/signing are stopped. No source, index, ledger, or commit operation has been performed by this preparation.
+
+1. Copy INPUTS.json to a new activation artifact. Set ready=true, expected_head to the complete final signed HEAD, and output to a new absent repository-relative artifacts directory.
+2. Run `python3 -I -S -B artifacts/css-signing-recovery-preparation-v1/snapshot.py --inputs <activation-inputs.json>` and retain the actual command/exit receipt.
+3. Require CHECK.json status SIGNING_RECOVERY_SNAPSHOT_PASS. Authenticate its FILES.json before selecting the output, this preparation capsule, and ARTIFACT-SELECTION.json paths for a later research checkpoint. No native files are staged by this script.
+
+The snapshot covers current tracked working changes relative to the bound HEAD, plus existing additions named by the original checkpoint SOURCE-PINS.json. Its historical hashes are not imposed on current bodies. ALLOWLIST-CURRENT.json records all 132 allowed paths as they actually exist, including unchanged committed files and absences. Unrelated untracked files are never enumerated or selected. New staged additions outside this allowlist and modified nested gitlinks stop the operation rather than expanding scope.
+
+unfinished.patch includes binary contents, deletions, executable modes and symlinks. A private temporary index and object directory verify exact reverse/forward tree equality, without staging into or writing objects to the project repository. The original index bytes, HEAD, source bodies/modes and selected artifact bytes are checked again before success. staged.patch separately records any existing staging; normal recovery of working bodies must not imply restoring staging. Both patch directions are checked only in scratch. Actual recovery should use a separate checkout at BASE.commit and inspect the patch before applying; never automatically reset or clean the live tree.
+
+Only the three pinned proposal manifests are examined for research selection. Their immutable payloads and manifest files already identical to HEAD are excluded, and remaining paths/modes/hashes are written to ARTIFACT-SELECTION.json. This is not a repository-wide artifact scan. The preparation capsule and newly produced snapshot also belong in the later checkpoint; they are deliberately outside that three-directory selection.
+
+Static validation used an isolated temporary Git repository and verified modifications, deletion, executable addition, symlink addition, unrelated-untracked exclusion, object-valued manifest entries, exact patch roundtrip and unchanged scratch repository index. The scratch was removed. Disabled invocation rejected before Git access. No project snapshot, native build, browser run, performance conclusion, current binary epoch or accepted-fix increment is claimed. Root separately binds the final source/binary preservation epoch after signing.

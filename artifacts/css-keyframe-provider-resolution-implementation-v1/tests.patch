@@ -1,0 +1,311 @@
+--- a/layout/style/test/gtest/TestKeyframePresentation.cpp
++++ b/layout/style/test/gtest/TestKeyframePresentation.cpp
+@@ -12,9 +12,10 @@
+ #include "mozilla/ServoStyleSet.h"
+ #include "mozilla/StyleAnimationValue.h"
+ #include "mozilla/TimingParams.h"
+-#include "mozilla/dom/KeyframeEffect.h"
++#include "mozilla/dom/CSSBinding.h"
+ #include "mozilla/dom/Document.h"
+ #include "mozilla/dom/Element.h"
++#include "mozilla/dom/KeyframeEffect.h"
+ #include "nsComputedDOMStyle.h"
+ #include "nsContentUtils.h"
+ #include "nsGkAtoms.h"
+@@ -251,4 +252,204 @@
+   Rust_CheckTransitionEndpoint(oldTo, 0.8f, 1);
+ }
+ 
++static void RegisterEndpointNumber(ServoStyleSet* aStyleSet,
++                                   const nsCString& aName) {
++  PropertyDefinition definition;
++  definition.mName = aName;
++  definition.mSyntax.AssignLiteral("<number>");
++  definition.mInherits = false;
++  definition.mInitialValue.Construct().AssignLiteral("10");
++  ErrorResult error;
++  aStyleSet->RegisterProperty(definition, error);
++  ASSERT_EQ(NS_OK, error.StealNSResult());
++}
++
++static void AppendCustomEndpoint(Document* aDocument,
++                                 nsTArray<Keyframe>& aKeyframes,
++                                 const nsCString& aName, const char* aValue,
++                                 double aOffset) {
++  RefPtr<StyleLockedDeclarationBlock> block =
++      Servo_DeclarationBlock_CreateEmpty().Consume();
++  const nsCString value(aValue);
++  ASSERT_TRUE(Servo_DeclarationBlock_SetProperty(
++      block, &aName, &value, false, aDocument->DefaultStyleAttrURLData(),
++      StyleParsingMode::DEFAULT, eCompatibility_FullStandards, nullptr,
++      StyleCssRuleType::Style, {}));
++  auto& keyframe = *aKeyframes.AppendElement();
++  keyframe.mComputedOffset = aOffset;
++  keyframe.mPropertyValues.AppendElement(PropertyValuePair(
++      CSSPropertyId::FromCustomProperty(aName), std::move(block)));
++}
++
++static void ExpectResolvedEndpoint(ServoStyleSet* aStyleSet, Element* aTarget,
++                                   const ComputedStyle* aProviders,
++                                   const StyleKeyframeEndpoint* aEndpoint,
++                                   const nsCString& aName,
++                                   const char* aExpected,
++                                   bool aAttributes = false) {
++  auto status = StyleEndpointResolutionStatus::UnsupportedDeclaration;
++  bool referencesAttributes = !aAttributes;
++  RefPtr<StyleAnimationValue> value =
++      Servo_KeyframeEndpoint_ResolveRegistered(
++          aEndpoint, aTarget, PseudoStyleType::NotPseudo, aProviders,
++          aStyleSet->RawData(), &status, &referencesAttributes)
++          .Consume();
++  ASSERT_EQ(StyleEndpointResolutionStatus::Resolved, status);
++  ASSERT_TRUE(value);
++  EXPECT_EQ(aAttributes, referencesAttributes);
++  auto property = CSSPropertyId::FromCustomProperty(aName);
++  nsAutoCString serialized;
++  Servo_AnimationValue_Serialize(value, &property, aStyleSet->RawData(),
++                                 &serialized);
++  EXPECT_STREQ(aExpected, serialized.get());
++}
++
++TEST_F(KeyframePresentation, RetainedEndpointCurrentProviders) {
++  RefPtr<Element> target = mDocument->GetHtmlChildElement(nsGkAtoms::body);
++  ASSERT_TRUE(target);
++  auto* styleSet = mDocument->GetPresShell()->StyleSet();
++  const nsCString name("--retained-consumer");
++  ASSERT_NO_FATAL_FAILURE(RegisterEndpointNumber(styleSet, name));
++  ErrorResult error;
++  target->SetAttr(nsGkAtoms::style,
++                  u"--retained-provider: 20; --retained-consumer: 99"_ns,
++                  error);
++  ASSERT_EQ(NS_OK, error.StealNSResult());
++  RefPtr<const ComputedStyle> initial =
++      nsComputedDOMStyle::GetComputedStyle(target);
++  ASSERT_TRUE(initial);
++  nsTArray<Keyframe> keyframes;
++  ASSERT_NO_FATAL_FAILURE(AppendCustomEndpoint(
++      mDocument, keyframes, name, "var(--retained-provider, 5)", 0));
++  ASSERT_NO_FATAL_FAILURE(
++      AppendCustomEndpoint(mDocument, keyframes, name, "30", 1));
++  ASSERT_NO_FATAL_FAILURE(AppendCustomEndpoint(mDocument, keyframes, name,
++                                               "var(--retained-provider)", 1));
++  bool attributes = true;
++  auto values = styleSet->GetComputedKeyframeValuesFor(keyframes, target, {},
++                                                       initial, attributes);
++  ASSERT_EQ(3u, values.Length());
++  ASSERT_EQ(1u, values[0].Length());
++  ASSERT_EQ(1u, values[1].Length());
++  ASSERT_EQ(1u, values[2].Length());
++  ASSERT_FALSE(attributes);
++  RefPtr<StyleKeyframeEndpoint> from = values[0][0].mEndpoint;
++  RefPtr<StyleKeyframeEndpoint> to = values[1][0].mEndpoint;
++  ASSERT_TRUE(from);
++  ASSERT_TRUE(to);
++  RefPtr<StyleKeyframeEndpoint> withoutFallback = values[2][0].mEndpoint;
++  ASSERT_TRUE(withoutFallback);
++  RefPtr<StyleAnimationValue> originalValue = values[0][0].mValue.mServo;
++  ASSERT_TRUE(originalValue);
++  values.Clear();
++  keyframes.Clear();
++  const struct {
++    const char16_t* style;
++    const char* expected;
++  } cases[] = {
++      {u"--retained-provider: 20; --retained-consumer: 99", "20"},
++      {u"--retained-provider: red !important; --retained-consumer: 99", "10"},
++      {u"--retained-consumer: 99", "5"},
++      {u"--retained-provider: var(--leaf); --leaf: 40; --retained-consumer: 99",
++       "40"},
++      {u"--retained-provider: var(--leaf); --leaf: var(--retained-provider); "
++       u"--retained-consumer: 99",
++       "5"},
++      {u"--retained-provider: 20; --retained-consumer: 99", "20"},
++  };
++  for (const auto& test : cases) {
++    target->SetAttr(nsGkAtoms::style, nsDependentString(test.style), error);
++    ASSERT_EQ(NS_OK, error.StealNSResult());
++    RefPtr<const ComputedStyle> providers =
++        nsComputedDOMStyle::GetComputedStyle(target);
++    ASSERT_TRUE(providers);
++    ASSERT_NO_FATAL_FAILURE(ExpectResolvedEndpoint(styleSet, target, providers,
++                                                   from, name, test.expected));
++    ASSERT_NO_FATAL_FAILURE(
++        ExpectResolvedEndpoint(styleSet, target, providers, to, name, "30"));
++    ASSERT_NO_FATAL_FAILURE(ExpectResolvedEndpoint(
++        styleSet, target, providers, withoutFallback, name,
++        nsDependentCString(test.expected).EqualsLiteral("5") ? "10"
++                                                             : test.expected));
++    ASSERT_NO_FATAL_FAILURE(ExpectResolvedEndpoint(styleSet, target, providers,
++                                                   from, name, test.expected));
++  }
++  ASSERT_NO_FATAL_FAILURE(
++      ExpectResolvedEndpoint(styleSet, target, initial, from, name, "20"));
++  auto property = CSSPropertyId::FromCustomProperty(name);
++  nsAutoCString original;
++  Servo_AnimationValue_Serialize(originalValue, &property, styleSet->RawData(),
++                                 &original);
++  EXPECT_STREQ("20", original.get());
++}
++
++TEST_F(KeyframePresentation, RetainedEndpointIsolationAndAttributes) {
++  RefPtr<Element> target = mDocument->GetHtmlChildElement(nsGkAtoms::body);
++  ASSERT_TRUE(target);
++  auto* styleSet = mDocument->GetPresShell()->StyleSet();
++  const nsCString name("--isolated-consumer");
++  ASSERT_NO_FATAL_FAILURE(RegisterEndpointNumber(styleSet, name));
++  ErrorResult error;
++  target->SetAttr(nsGkAtoms::style,
++                  u"--isolated-consumer: 99; --provider: red"_ns, error);
++  ASSERT_EQ(NS_OK, error.StealNSResult());
++  const RefPtr<nsAtom> attribute = NS_Atomize("data-endpoint");
++  target->SetAttr(attribute, u"20"_ns, error);
++  ASSERT_EQ(NS_OK, error.StealNSResult());
++  RefPtr<const ComputedStyle> providers =
++      nsComputedDOMStyle::GetComputedStyle(target);
++  ASSERT_TRUE(providers);
++  nsTArray<Keyframe> keyframes;
++  ASSERT_NO_FATAL_FAILURE(AppendCustomEndpoint(
++      mDocument, keyframes, name, "attr(data-endpoint type(<number>))", 0));
++  ASSERT_NO_FATAL_FAILURE(
++      AppendCustomEndpoint(mDocument, keyframes, name, "var(--provider)", 1));
++  ASSERT_NO_FATAL_FAILURE(AppendCustomEndpoint(mDocument, keyframes, name,
++                                               "var(--isolated-consumer)", 1));
++  bool attributes = false;
++  auto values = styleSet->GetComputedKeyframeValuesFor(keyframes, target, {},
++                                                       providers, attributes);
++  ASSERT_EQ(3u, values.Length());
++  for (const auto& frame : values) {
++    ASSERT_EQ(1u, frame.Length());
++    ASSERT_TRUE(frame[0].mEndpoint);
++  }
++  ASSERT_TRUE(attributes);
++  RefPtr<StyleKeyframeEndpoint> attrEndpoint = values[0][0].mEndpoint;
++  RefPtr<StyleKeyframeEndpoint> invalidEndpoint = values[1][0].mEndpoint;
++  RefPtr<StyleKeyframeEndpoint> providerEndpoint = values[2][0].mEndpoint;
++  ASSERT_NO_FATAL_FAILURE(ExpectResolvedEndpoint(
++      styleSet, target, providers, attrEndpoint, name, "20", true));
++  target->SetAttr(attribute, u"40"_ns, error);
++  ASSERT_EQ(NS_OK, error.StealNSResult());
++  ASSERT_NO_FATAL_FAILURE(ExpectResolvedEndpoint(styleSet, target, providers,
++                                                 invalidEndpoint, name, "10"));
++  ASSERT_NO_FATAL_FAILURE(ExpectResolvedEndpoint(styleSet, target, providers,
++                                                 providerEndpoint, name, "99"));
++  ASSERT_NO_FATAL_FAILURE(ExpectResolvedEndpoint(
++      styleSet, target, providers, attrEndpoint, name, "40", true));
++  ASSERT_NO_FATAL_FAILURE(ExpectResolvedEndpoint(styleSet, target, providers,
++                                                 providerEndpoint, name, "99"));
++
++  nsTArray<Keyframe> ordinary;
++  ASSERT_NO_FATAL_FAILURE(AppendOpacityKeyframe(mDocument, ordinary, "0.4", 0));
++  auto ordinaryValues = styleSet->GetComputedKeyframeValuesFor(
++      ordinary, target, {}, providers, attributes);
++  ASSERT_EQ(1u, ordinaryValues.Length());
++  ASSERT_EQ(1u, ordinaryValues[0].Length());
++  ASSERT_TRUE(ordinaryValues[0][0].mEndpoint);
++  auto status = StyleEndpointResolutionStatus::Resolved;
++  RefPtr<StyleAnimationValue> unsupported =
++      Servo_KeyframeEndpoint_ResolveRegistered(
++          ordinaryValues[0][0].mEndpoint, target, PseudoStyleType::NotPseudo,
++          providers, styleSet->RawData(), &status, &attributes)
++          .Consume();
++  EXPECT_FALSE(unsupported);
++  EXPECT_EQ(StyleEndpointResolutionStatus::NotRegisteredCustomProperty, status);
++  ASSERT_NO_FATAL_FAILURE(ExpectResolvedEndpoint(styleSet, target, providers,
++                                                 providerEndpoint, name, "99"));
++  ASSERT_NO_FATAL_FAILURE(ExpectResolvedEndpoint(styleSet, target, providers,
++                                                 invalidEndpoint, name, "10"));
++}
++
+ }  // namespace
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-animations/registered-keyframe-provider-winners.html
+@@ -0,0 +1,89 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Registered keyframe endpoints use the winning current custom property</title>
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#computing-property-values">
++<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++"use strict";
++
++function animation(t, target, name, from, to) {
++  const result = target.animate([{[name]: from}, {[name]: to}],
++                               {duration: 1000, fill: "both"});
++  t.add_cleanup(() => result.cancel());
++  result.pause();
++  result.currentTime = 250;
++  return result;
++}
++
++function numeric(target, name) {
++  const text = getComputedStyle(target).getPropertyValue(name).trim();
++  assert_not_equals(text, "", "numeric serialization exists");
++  const value = Number(text);
++  assert_true(Number.isFinite(value), "computed value is finite");
++  return value;
++}
++
++for (const important of [true, false]) {
++  for (const providerFirst of [true, false]) {
++    promise_test(async t => {
++      const suffix = `${Number(important)}-${Number(providerFirst)}`;
++      const consumer = `--winner-consumer-${suffix}`;
++      const provider = `--winner-provider-${suffix}`;
++      CSS.registerProperty({name: consumer, syntax: "<number>", inherits: false,
++                            initialValue: "10"});
++      const target = document.createElement("div");
++      document.body.append(target);
++      t.add_cleanup(() => target.remove());
++      target.style.setProperty(consumer, "99");
++      target.style.setProperty(provider, important ? "40" : "20",
++                               important ? "important" : "");
++      assert_equals(numeric(target, consumer), 99, "ordinary underlying control");
++      let lower;
++      let dependent;
++      if (providerFirst) {
++        lower = animation(t, target, provider, "20", "red");
++      }
++      dependent = animation(t, target, consumer, `var(${provider}, 5)`, "30");
++      if (!providerFirst) {
++        lower = animation(t, target, provider, "20", "red");
++      }
++      const upper = important ? null : animation(t, target, provider, "red", "40");
++      await Promise.all([lower.ready, dependent.ready, ...(upper ? [upper.ready] : [])]);
++      const frames = dependent.effect.getKeyframes();
++      assert_equals(frames[0][consumer], `var(${provider}, 5)`, "retained source declaration");
++      assert_equals(frames[1][consumer], "30", "explicit other endpoint");
++      const actual = [];
++      const expected = [];
++      for (const time of [250, 750, 250]) {
++        lower.currentTime = time;
++        if (upper) {
++          upper.currentTime = time;
++        }
++        const providerValue = important || time === 750 ? "40" : "red";
++        const from = providerValue === "red" ? 10 : 40;
++        for (const consumerTime of [0, 500, 1000]) {
++          dependent.currentTime = consumerTime;
++          actual.push(numeric(target, consumer), numeric(target, consumer));
++          const value = from + (30 - from) * consumerTime / 1000;
++          expected.push(value, value);
++          assert_equals(getComputedStyle(target).getPropertyValue(provider).trim(),
++                        providerValue, "winning provider calibration");
++          assert_equals(dependent.playState, "paused", "consumer paused");
++          assert_equals(dependent.effect.getComputedTiming().progress,
++                        consumerTime / 1000, "consumer progress");
++          assert_equals(lower.effect.getComputedTiming().progress, time / 1000,
++                        "lower provider progress");
++          if (upper) {
++            assert_equals(upper.effect.getComputedTiming().progress, time / 1000,
++                          "upper provider progress");
++          }
++        }
++      }
++      assert_array_equals(actual, expected, "registered endpoint first and repeated reads");
++    }, `registered endpoint current winner: ${important ? "important ordinary" : "higher animation"}, ${providerFirst ? "provider first" : "consumer first"}`);
++  }
++}
++</script>

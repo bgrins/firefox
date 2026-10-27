@@ -1,0 +1,89 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered keyframe endpoints use the winning current custom property</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#computing-property-values">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#cascade-sort">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+
+function animation(t, target, name, from, to) {
+  const result = target.animate([{[name]: from}, {[name]: to}],
+                               {duration: 1000, fill: "both"});
+  t.add_cleanup(() => result.cancel());
+  result.pause();
+  result.currentTime = 250;
+  return result;
+}
+
+function numeric(target, name) {
+  const text = getComputedStyle(target).getPropertyValue(name).trim();
+  assert_not_equals(text, "", "numeric serialization exists");
+  const value = Number(text);
+  assert_true(Number.isFinite(value), "computed value is finite");
+  return value;
+}
+
+for (const important of [true, false]) {
+  for (const providerFirst of [true, false]) {
+    promise_test(async t => {
+      const suffix = `${Number(important)}-${Number(providerFirst)}`;
+      const consumer = `--winner-consumer-${suffix}`;
+      const provider = `--winner-provider-${suffix}`;
+      CSS.registerProperty({name: consumer, syntax: "<number>", inherits: false,
+                            initialValue: "10"});
+      const target = document.createElement("div");
+      document.body.append(target);
+      t.add_cleanup(() => target.remove());
+      target.style.setProperty(consumer, "99");
+      target.style.setProperty(provider, important ? "40" : "20",
+                               important ? "important" : "");
+      assert_equals(numeric(target, consumer), 99, "ordinary underlying control");
+      let lower;
+      let dependent;
+      if (providerFirst) {
+        lower = animation(t, target, provider, "20", "red");
+      }
+      dependent = animation(t, target, consumer, `var(${provider}, 5)`, "30");
+      if (!providerFirst) {
+        lower = animation(t, target, provider, "20", "red");
+      }
+      const upper = important ? null : animation(t, target, provider, "red", "40");
+      await Promise.all([lower.ready, dependent.ready, ...(upper ? [upper.ready] : [])]);
+      const frames = dependent.effect.getKeyframes();
+      assert_equals(frames[0][consumer], `var(${provider}, 5)`, "retained source declaration");
+      assert_equals(frames[1][consumer], "30", "explicit other endpoint");
+      const actual = [];
+      const expected = [];
+      for (const time of [250, 750, 250]) {
+        lower.currentTime = time;
+        if (upper) {
+          upper.currentTime = time;
+        }
+        const providerValue = important || time === 750 ? "40" : "red";
+        const from = providerValue === "red" ? 10 : 40;
+        for (const consumerTime of [0, 500, 1000]) {
+          dependent.currentTime = consumerTime;
+          actual.push(numeric(target, consumer), numeric(target, consumer));
+          const value = from + (30 - from) * consumerTime / 1000;
+          expected.push(value, value);
+          assert_equals(getComputedStyle(target).getPropertyValue(provider).trim(),
+                        providerValue, "winning provider calibration");
+          assert_equals(dependent.playState, "paused", "consumer paused");
+          assert_equals(dependent.effect.getComputedTiming().progress,
+                        consumerTime / 1000, "consumer progress");
+          assert_equals(lower.effect.getComputedTiming().progress, time / 1000,
+                        "lower provider progress");
+          if (upper) {
+            assert_equals(upper.effect.getComputedTiming().progress, time / 1000,
+                          "upper provider progress");
+          }
+        }
+      }
+      assert_array_equals(actual, expected, "registered endpoint first and repeated reads");
+    }, `registered endpoint current winner: ${important ? "important ordinary" : "higher animation"}, ${providerFirst ? "provider first" : "consumer first"}`);
+  }
+}
+</script>

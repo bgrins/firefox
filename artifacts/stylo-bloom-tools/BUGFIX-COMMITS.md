@@ -1,9 +1,15 @@
 # CSS verification bugfix commits
 
-Latest checkpoint: CSS library `ef6f4dd2ed94` is signed in its own repository; animation research `37e1d4e898c6` and steps research `0f0a8a5fb7d5` are signed on this branch. An exact recovery patch preserves the unfinished native/proof-tool work. All 131 accepted fixes remain committed, with repair 120 held and excluded; these checkpoints add no accepted bug. See the [signing record](../css-local-signing-20261027-v1/CHECKPOINT.md) and current [plan of record](PLAN-OF-RECORD.md).
+Latest signed work: fix 133 `75271a173ba0` repairs calculated jump-none counts, preceded by evidence `366551d71eea`. The compact Arc borrow API and tests are separate in `feaec25f9647`. All 132 accepted fixes are committed; repair 120 remains held and excluded. See the [signing record](../css-local-signing-20261027-v2/CHECKPOINT.md).
+
+| Fix | Native/WPT commit | Preceding evidence |
+|---|---|---|
+| 133: calculated jump-none minimum | `75271a173ba0dda9d63728fa21aa12c91ddd85d1` | `366551d71eeaa911948b28b56f6bc647d0dc7079` |
+
+Twenty observed failures repaired; 22 targets pass, 55 controls unchanged, all 77 restored outcomes exact. Tentative P3 conformance. Source/spec audit and browser reproduction found this issue; the separate Lean model supports conditional laws. No full bug 2037743, clean-upstream browser or security claim. Earlier checkpoint text below is historical.
 
 
-**131 accepted fixes: 131 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
+**132 accepted fixes: 132 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
 
 | Area | Committed | Accepted, pending |
 |---|---:|---:|
@@ -11,13 +17,13 @@ Latest checkpoint: CSS library `ef6f4dd2ed94` is signed in its own repository; a
 | Cascade, layers and shorthands | 6 | 0 |
 | Parsing, tokens and CSS math | 26 | 0 |
 | Attributes and custom properties | 16 | 0 |
-| Animations, timelines and transitions | 14 | 0 |
+| Animations, timelines and transitions | 15 | 0 |
 | Text and fonts | 13 | 0 |
 | Layout, sizing and positioning | 22 | 0 |
 | Container queries | 3 | 0 |
 | Colors, images, SVG and shapes | 8 | 0 |
 | CSSOM geometry and hidden layout | 13 | 0 |
-| **Total** | **131** | **0** |
+| **Total** | **132** | **0** |
 
 | Fix | Gecko/WPT commit | Preceding research |
 |---|---|---|

@@ -1,9 +1,9 @@
 # Local CSS/Stylo fixes by area
 
-Latest checkpoint: computed-name research `19a313060adb` and presentation GTest `73a62b1ecf58` are signed locally. The transition descriptor prototype passes its before/after native tests; it adds no accepted browser bug. All 131 accepted fixes remain committed, with repair 120 held and excluded. See the current [plan of record](../stylo-bloom-tools/PLAN-OF-RECORD.md).
+Latest signed work: fix 133 `75271a173ba0` repairs calculated jump-none counts, preceded by evidence `366551d71eea`. The compact Arc borrow API and tests are separate in `feaec25f9647`. All 132 accepted fixes are committed; repair 120 remains held and excluded. See the [signing record](../css-local-signing-20261027-v2/CHECKPOINT.md).
 
 
-**131 accepted fixes: 131 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
+**132 accepted fixes: 132 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
 
 | Area | Committed | Accepted, pending |
 |---|---:|---:|
@@ -11,16 +11,17 @@ Latest checkpoint: computed-name research `19a313060adb` and presentation GTest 
 | Cascade, layers and shorthands | 6 | 0 |
 | Parsing, tokens and CSS math | 26 | 0 |
 | Attributes and custom properties | 16 | 0 |
-| Animations, timelines and transitions | 14 | 0 |
+| Animations, timelines and transitions | 15 | 0 |
 | Text and fonts | 13 | 0 |
 | Layout, sizing and positioning | 22 | 0 |
 | Container queries | 3 | 0 |
 | Colors, images, SVG and shapes | 8 | 0 |
 | CSSOM geometry and hidden layout | 13 | 0 |
-| **Total** | **131** | **0** |
+| **Total** | **132** | **0** |
 
 | Fix | Gecko/WPT commit | Preceding research |
 |---|---|---|
+| 133: calculated-jump-none-minimum | `75271a173ba0dda9d63728fa21aa12c91ddd85d1` | `366551d71eeaa911948b28b56f6bc647d0dc7079` |
 | 121: integer-stored-range-resolution | `231120268a02a948a08a0180fe693997c34e355f` | `55c31aba8fcfd32c10802a8bb8b00a1a53a59d8d` |
 | 122: saturated-subgrid-line-name-cache | `cef7cba29d6c1796af9c3aa17f9468ceb747fe6d` | `d129e631ca88e736e28bdb67df7749cd6a1d86f1` |
 | 123: counter-range-calculated-bound-export | `412a58792433a108e1dd9f97c026a07369fe40f8` | `96f07a02d0dbebcc120dcf2b51aaca0b4b0ec09b`, `422eaa2798f486d867e8ac127935c6df1b493c00` |

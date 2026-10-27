@@ -1,0 +1,225 @@
+--- a/servo/components/style/keyframe_endpoint.rs
++++ b/servo/components/style/keyframe_endpoint.rs
+@@ -77,6 +77,113 @@
+     }
+ }
+ 
++/// Internal unsupported work is distinct from CSS invalid-at-computed-value defaulting.
++#[repr(C)]
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub enum EndpointResolutionStatus {
++    Resolved,
++    NotRegisteredCustomProperty,
++    PropertyMismatch,
++    UnsupportedDeclaration,
++    NeedsCascadeSelection,
++}
++
++impl KeyframeEndpoint {
++    /// Resolve in an isolated context seeded from a complete current provider snapshot.
++    /// This does not schedule other sampled roots or define animated-cycle behavior.
++    pub fn resolve_registered(
++        &self,
++        stylist: &crate::stylist::Stylist,
++        mut context: crate::values::computed::Context,
++        attribute_tracker: &mut crate::dom::AttributeTracker,
++    ) -> Result<crate::properties::animated_properties::AnimationValue, EndpointResolutionStatus>
++    {
++        use crate::custom_properties::{
++            handle_invalid_at_computed_value_time, substitute_references_if_needed_and_apply,
++        };
++        use crate::properties::animated_properties::AnimationValue;
++        use crate::properties::{
++            CSSWideKeyword, CustomDeclarationValue, KeyframeCustomPropertiesBuilder,
++        };
++        use crate::properties_and_values::value::CustomAnimatedValue;
++
++        let OwnedPropertyDeclarationId::Custom(name) = self.property() else {
++            return Err(EndpointResolutionStatus::NotRegisteredCustomProperty);
++        };
++        let registration = stylist.get_custom_property_registration(name);
++        if registration.is_universal() {
++            return Err(EndpointResolutionStatus::NotRegisteredCustomProperty);
++        }
++        let PropertyDeclaration::Custom(declaration) = self.declaration() else {
++            return Err(EndpointResolutionStatus::UnsupportedDeclaration);
++        };
++        if declaration.name != *name {
++            return Err(EndpointResolutionStatus::PropertyMismatch);
++        }
++        let value = match &declaration.value {
++            CustomDeclarationValue::Unparsed(tokens) => {
++                let providers = context.builder.custom_properties().clone();
++                let mut attributes =
++                    KeyframeCustomPropertiesBuilder::new(stylist, &mut context, providers);
++                attributes.prepare_custom_endpoint_attributes(
++                    &mut context,
++                    tokens,
++                    attribute_tracker,
++                );
++                attributes.build_endpoint_attributes(&mut context, attribute_tracker);
++                substitute_references_if_needed_and_apply(
++                    name,
++                    None,
++                    tokens,
++                    stylist,
++                    &mut context,
++                    attribute_tracker,
++                );
++                context
++                    .builder
++                    .custom_properties()
++                    .get(registration, name)
++                    .cloned()
++            },
++            CustomDeclarationValue::GuaranteedInvalid => {
++                handle_invalid_at_computed_value_time(name, registration, &mut context);
++                context
++                    .builder
++                    .custom_properties()
++                    .get(registration, name)
++                    .cloned()
++            },
++            CustomDeclarationValue::CSSWideKeyword(keyword) => {
++                if keyword.revert_kind().is_some() {
++                    return Err(EndpointResolutionStatus::NeedsCascadeSelection);
++                }
++                let inherit = *keyword == CSSWideKeyword::Inherit
++                    || (*keyword == CSSWideKeyword::Unset && registration.inherits());
++                if inherit && !context.is_root_element() {
++                    context
++                        .builder
++                        .inherited_style
++                        .custom_properties()
++                        .get(registration, name)
++                        .cloned()
++                } else {
++                    stylist
++                        .get_custom_property_initial_values()
++                        .get(registration, name)
++                        .cloned()
++                }
++            },
++            CustomDeclarationValue::Parsed(_) => {
++                return Err(EndpointResolutionStatus::UnsupportedDeclaration);
++            },
++        };
++        Ok(AnimationValue::Custom(CustomAnimatedValue::from_computed(
++            name,
++            value.as_ref(),
++        )))
++    }
++}
++
+ impl MallocSizeOf for KeyframeEndpointContext {
+     fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
+         self.declarations.size_of(ops)
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -865,6 +865,41 @@
+     ) {
+         self.cascade
+             .update_attributes_map(context, &value.variable_value, attribute_tracker);
++    }
++
++    /// Prepare a retained custom endpoint's attributes against already-computed providers.
++    pub fn prepare_custom_endpoint_attributes(
++        &mut self,
++        context: &mut computed::Context,
++        value: &'a VariableValue,
++        attribute_tracker: &mut AttributeTracker,
++    ) {
++        self.cascade
++            .update_attributes_map(context, value, attribute_tracker);
++    }
++
++    /// Resolve only prepared attributes; preserve the current custom-provider snapshot.
++    pub fn build_endpoint_attributes(
++        mut self,
++        context: &mut computed::Context,
++        attribute_tracker: &mut AttributeTracker,
++    ) {
++        if self.cascade.may_have_custom_property_cycles {
++            let seen = std::mem::take(&mut self.cascade.seen.custom);
++            let references =
++                std::mem::take(&mut self.cascade.references_from_non_custom_properties);
++            let stylist = self.cascade.stylist;
++            substitute_all(
++                &seen,
++                &references,
++                stylist,
++                context,
++                &mut self.cascade,
++                &self.decls,
++                &mut self.shorthand_cache,
++                attribute_tracker,
++            );
++        }
+     }
+ 
+     /// Resolves the cascaded custom properties into `context.builder.substitution_functions`.
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -7788,6 +7788,62 @@
+ }
+ 
+ #[unsafe(no_mangle)]
++pub extern "C" fn Servo_KeyframeEndpoint_ResolveRegistered(
++    endpoint: &style::keyframe_endpoint::KeyframeEndpoint,
++    element: &RawGeckoElement,
++    pseudo_type: PseudoStyleType,
++    providers: &ComputedValues,
++    raw_data: &PerDocumentStyleData,
++    status: &mut style::keyframe_endpoint::EndpointResolutionStatus,
++    references_attributes: &mut bool,
++) -> Strong<AnimationValue> {
++    use style::keyframe_endpoint::EndpointResolutionStatus;
++
++    let data = raw_data.borrow();
++    let element = GeckoElement(element);
++    let pseudo = PseudoElement::from_pseudo_type(pseudo_type, None);
++    let parent_element = if pseudo.is_none() {
++        element.inheritance_parent()
++    } else {
++        Some(element)
++    };
++    let parent_data = parent_element.as_ref().and_then(|e| e.borrow_data());
++    let parent_style = parent_data.as_ref().map(|d| &**d.styles.primary());
++    let container_size_query =
++        ContainerSizeQuery::for_element(element, parent_style, pseudo.is_some());
++    let mut conditions = Default::default();
++    let mut tree_counting_caches = TreeCountingCaches::default();
++    let mut context = create_context_for_animation(
++        &data,
++        providers,
++        parent_style,
++        false,
++        &mut conditions,
++        container_size_query,
++        &element,
++        &mut tree_counting_caches,
++    );
++    context.builder.substitution_functions =
++        style::custom_properties::ComputedSubstitutionFunctions::new(
++            Some(providers.custom_properties().clone()),
++            None,
++        );
++    let mut tracker = AttributeTracker::new(&element);
++    let result = endpoint.resolve_registered(&data.stylist, context, &mut tracker);
++    *references_attributes = tracker.references.is_some();
++    match result {
++        Ok(value) => {
++            *status = EndpointResolutionStatus::Resolved;
++            Arc::new(value).into()
++        },
++        Err(error) => {
++            *status = error;
++            Strong::null()
++        },
++    }
++}
++
++#[unsafe(no_mangle)]
+ pub extern "C" fn Servo_GetAnimationValues(
+     declarations: &LockedDeclarationBlock,
+     element: &RawGeckoElement,
