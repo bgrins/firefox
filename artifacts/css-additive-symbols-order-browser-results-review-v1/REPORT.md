@@ -1,0 +1,15 @@
+# Actual additive-symbols result review
+
+GO for the observed diagnostic and archived preservation. CHECK.status is ADDITIVE_SYMBOLS_ORDER_BROWSER_RESULTS_GO. The repair is not validated or accepted.
+
+All32 CSSOM cases completed:22PASS/10FAIL, with one OK harness end. Five numeric-ordering mismatches reproduce in both stylesheet and setter modes: boxed descending, boxed first descending, boxed second ascending, boxed second equal and fractional descending. Each exact final assertion message agrees with the source-predicted expected/actual strings. Literal rule/descriptor calibration, retained valid rule and repeated serialization precede those final assertions and therefore passed. Literal and other controls passed. Negative-weight controls can still pass through the old representation ordering for the wrong reason; this diagnostic does not establish correct shared range policy.
+
+The separate eight-row rendering fixture yields one reftest FAIL, with no crash or infrastructure fault. The retained raw/screenshots/decoded PNG files authenticate, but this review makes no row-by-row visual claim and does not turn that single reftest into eight independent failures. Both WPT phases exit1 with complete=true; the outer driver88110 exits0 because capture completed, not because either phase passed.
+
+Authenticated all44 runtime payloads and every direct reference. Independently recounted exact raw starts/ends/ordered subtest identities and messages, joined raw/RUN/observations/STATE/SUMMARY/root records, and replayed the pure observer and archive gate. Actual configuration differs from the reviewed bound draft only by readiness and the two exact successful review references; all scientific/executable/fixture bodies remain unchanged. Exact per-phase source/binary/fixture maps contain542 roles:539 permanent plus three owned fixtures, equal before/after, with exact headless commands. Both owned process groups are recorded absent without errors.
+
+Rootchecker66961 exits0 using the reviewed ffe721 source. Its retained condensed log and state/final/draft hashes match ROOT-FINAL-CHECK. BEFORE=FINAL binds72 source guards,539 permanent roles,925 staged paths,36 native differences and11 installed identities to the actual restored92779 epoch/amendment. Root's authenticated live audit verifies current source/binaries/identities/index/native rosters and removal of all three owned fixtures. This review verifies the archived joins and reviewed checker evidence without repeating live reads or operations.
+
+No native patch was installed, no fresh repaired browser build was tested, and release-browser behavior remains outside this evidence. This review supports the reproduced ordering/rendering lead and next controlled comparison, not acceptance or a new count.
+
+Replay: python3 -B -I -S artifacts/css-additive-symbols-order-browser-results-review-v1/check.py. Sealed archives and pure adapters only; no live checker/browser/build/native/index/binary mutation. All outputs exclusively created in a fresh directory.

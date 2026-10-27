@@ -1,0 +1,9 @@
+# Conditional additive ordering model
+
+Three new general results show that resolving a finite represented list yields its supplied integer meaning, ordering uses exactly that meaning, and two lists with the same resolved meaning have the same strict descending result. The eight imported counter-range results are unchanged dependencies, not new credit. Eight anonymous examples and three rejected false claims cover boxed/inline mixtures, equality, ascending order, unresolved input, empty/single lists, and the effect of nonnegative clamping.
+
+`Meaning` explicitly supplies successful resolution for every element. It does not prove that the supplied integers respect CSS range constraints. The negative example deliberately shows raw [-1,-2] descending while clamped [0,0] is not. Consequently the comparator-only native proposal requires correct nonnegative Integer resolution. CSS requires a nonempty descriptor; the abstract empty-list convention is not CSS admission.
+
+The source mapping is manual: `values` represents the existing parser resolvability guard plus repeated resolution; `descending` represents adjacent strict comparisons; `inlineGreater` represents the faulty Option comparison. No parser, rounding, native extraction, overflow, lifetime, FFI, or browser refinement is proved. Integer storage and specified serialization remain outside the model. CSS Counter Styles 3 additive-symbols strict descending semantics are pinned in the referenced source audit.
+
+Replay rebuilt the exact imported Range module and this module from source with the pinned existing compiler and two threads, then rejected three concrete false propositions by evaluation. Final receipt: results-final/CHECK.json. Earlier results/Ordering.log and replay.log retain the initial unavailable List.Forall₂ name failure; it was replaced with an explicit local Meaning relation. No canonical registration or compiler products remain.
