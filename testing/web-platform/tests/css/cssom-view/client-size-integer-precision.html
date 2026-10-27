@@ -1,0 +1,93 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Client dimensions preserve integral padding-box sizes</title>
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-clientwidth">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-clientheight">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.host {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100px;
+  height: 100px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  direction: ltr;
+  writing-mode: horizontal-tb;
+  transform: none;
+  zoom: 1;
+}
+.target {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  box-sizing: content-box;
+  overflow: visible;
+  transform: none;
+  zoom: 1;
+}
+.target.x.large { width: 16777200px; }
+.target.y.large { height: 16777200px; }
+.target.x.extra { padding-right: 17px; }
+.target.y.extra { padding-bottom: 17px; }
+</style>
+<body>
+<script>
+for (const axis of ["x", "y"]) {
+  for (const base of [16, 16777200]) {
+    for (const extra of [0, 17]) {
+      const observer = axis === "x" ? "clientWidth" : "clientHeight";
+      test(t => {
+        const host = document.createElement("div");
+        host.className = "host";
+        const target = document.createElement("div");
+        target.className = `target ${axis}${base > 16 ? " large" : ""}${extra ? " extra" : ""}`;
+        host.append(target);
+        document.body.append(host);
+        t.add_cleanup(() => host.remove());
+        const dimension = axis === "x" ? "width" : "height";
+        const padding = axis === "x" ? "paddingRight" : "paddingBottom";
+        const read = () => {
+          const value = target[observer];
+          const style = getComputedStyle(target);
+          return {
+            value,
+            content: parseFloat(style[dimension]),
+            padding: parseFloat(style[padding]),
+            boxSizing: style.boxSizing,
+            overflowX: style.overflowX,
+            overflowY: style.overflowY,
+            transform: style.transform,
+            zoom: style.zoom
+          };
+        };
+        const first = read();
+        const repeat = read();
+        target.classList.remove("extra");
+        const reset = read();
+        target.classList.toggle("extra", extra !== 0);
+        const restored = read();
+        for (const [phase, sample] of [["first", first], ["repeat", repeat], ["reset", reset], ["restored", restored]]) {
+          const expectedPadding = phase === "reset" ? 0 : extra;
+          assert_equals(sample.content, base, `${phase}: content size`);
+          assert_equals(sample.padding, expectedPadding, `${phase}: padding`);
+          assert_equals(sample.boxSizing, "content-box", `${phase}: box sizing`);
+          assert_equals(sample.overflowX, "visible", `${phase}: horizontal overflow`);
+          assert_equals(sample.overflowY, "visible", `${phase}: vertical overflow`);
+          assert_equals(sample.transform, "none", `${phase}: transform`);
+          assert_equals(sample.zoom, "1", `${phase}: unit zoom`);
+          assert_equals(sample.value, base + expectedPadding, `${phase}: integral client size`);
+        }
+      }, `${observer}-${base}-${extra}`);
+    }
+  }
+}
+</script>

@@ -1941,16 +1941,16 @@ class Element : public FragmentOrElement {
   MOZ_CAN_RUN_SCRIPT nsSize GetScrollSize();
   MOZ_CAN_RUN_SCRIPT void MozScrollSnap();
   MOZ_CAN_RUN_SCRIPT int32_t ClientTop() {
-    return CSSPixel::FromAppUnits(GetClientAreaRect().y).Rounded();
+    return AppUnitsToClientCSSPixels(GetClientAreaRect().y);
   }
   MOZ_CAN_RUN_SCRIPT int32_t ClientLeft() {
-    return CSSPixel::FromAppUnits(GetClientAreaRect().x).Rounded();
+    return AppUnitsToClientCSSPixels(GetClientAreaRect().x);
   }
   MOZ_CAN_RUN_SCRIPT int32_t ClientWidth() {
-    return CSSPixel::FromAppUnits(GetClientAreaRect().Width()).Rounded();
+    return AppUnitsToClientCSSPixels(GetClientAreaRect().Width());
   }
   MOZ_CAN_RUN_SCRIPT int32_t ClientHeight() {
-    return CSSPixel::FromAppUnits(GetClientAreaRect().Height()).Rounded();
+    return AppUnitsToClientCSSPixels(GetClientAreaRect().Height());
   }
 
   MOZ_CAN_RUN_SCRIPT int32_t ScreenX();
@@ -2705,6 +2705,13 @@ class Element : public FragmentOrElement {
    * Slow path for GetClasses, this should only be called for SVG elements.
    */
   const nsAttrValue* GetSVGAnimatedClass() const;
+
+  // Client metrics round half ties toward positive infinity.
+  static int32_t AppUnitsToClientCSSPixels(nscoord aCoord) {
+    constexpr int32_t scale = AppUnitsPerCSSPixel();
+    const int64_t bias = aCoord >= 0 ? scale / 2 : 1 - scale / 2;
+    return int32_t((int64_t(aCoord) + bias) / scale);
+  }
 
   /**
    * Get this element's client area rect in app units.

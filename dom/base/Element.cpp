@@ -1108,12 +1108,18 @@ nsPoint Element::GetScrollOrigin() {
   return frame->Style()->EffectiveZoom().Unzoom(sf->GetScrollPosition());
 }
 
+static int32_t AppUnitsToRoundedCSSPixels(nscoord aCoord) {
+  constexpr int32_t scale = AppUnitsPerCSSPixel();
+  const int64_t bias = aCoord >= 0 ? scale / 2 : -scale / 2;
+  return int32_t((int64_t(aCoord) + bias) / scale);
+}
+
 int32_t Element::ScrollHeight() {
-  return nsPresContext::AppUnitsToIntCSSPixels(GetScrollSize().height);
+  return AppUnitsToRoundedCSSPixels(GetScrollSize().height);
 }
 
 int32_t Element::ScrollWidth() {
-  return nsPresContext::AppUnitsToIntCSSPixels(GetScrollSize().width);
+  return AppUnitsToRoundedCSSPixels(GetScrollSize().width);
 }
 
 nsRect Element::GetClientAreaRect() {
@@ -6960,8 +6966,11 @@ Element* Element::GetOffsetRect(CSSIntRect& aRect) {
     parent = result.mParent;
   }
 
-  aRect = CSSIntRect::FromAppUnitsRounded(
-      frame->Style()->EffectiveZoom().Unzoom(rect));
+  rect = frame->Style()->EffectiveZoom().Unzoom(rect);
+  aRect = CSSIntRect(AppUnitsToRoundedCSSPixels(rect.x),
+                     AppUnitsToRoundedCSSPixels(rect.y),
+                     AppUnitsToRoundedCSSPixels(rect.Width()),
+                     AppUnitsToRoundedCSSPixels(rect.Height()));
   return parent;
 }
 
