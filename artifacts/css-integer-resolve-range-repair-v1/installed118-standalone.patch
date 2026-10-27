@@ -1,0 +1,62 @@
+diff --git a/servo/components/style/values/specified/number.rs b/servo/components/style/values/specified/number.rs
+--- a/servo/components/style/values/specified/number.rs
++++ b/servo/components/style/values/specified/number.rs
+@@ -481,7 +481,7 @@
+         Some(match self.0.unpack() {
+             Unpacked::Inline((), v) => v,
+             Unpacked::Boxed(calc) => {
+-                let value = calc.as_number()?.get();
++                let value = calc.clamping_mode.clamp(calc.as_number()?.get());
+                 (f64::from(value) + 0.5).floor() as CSSInteger
+             },
+         })
+diff --git a/testing/web-platform/tests/css/css-easing/timing-functions-calculated-step-range.html b/testing/web-platform/tests/css/css-easing/timing-functions-calculated-step-range.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-easing/timing-functions-calculated-step-range.html
+@@ -0,0 +1,45 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Calculated step counts honor the integer range</title>
++<link rel="help" href="https://drafts.csswg.org/css-easing-2/#step-easing-functions">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-range">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++for (const property of ["animation-timing-function", "transition-timing-function"]) {
++  for (const [expression, expected] of [
++    ["-10", 1], ["0", 1], ["1", 1], ["0.49", 1],
++    ["1.49", 1], ["1.5", 2], ["2.5", 3], ["2", 2]
++  ]) {
++    test(t => {
++      const target = document.createElement("div");
++      document.body.append(target);
++      t.add_cleanup(() => target.remove());
++      target.style.setProperty(property, `steps(calc(${expression}), start)`);
++      assert_not_equals(target.style.getPropertyValue(property), "", "calculated count is accepted");
++      assert_equals(getComputedStyle(target).getPropertyValue(property),
++                    `steps(${expected}, start)`, "computed count honors its range");
++    }, `${property}: steps(calc(${expression}), start)`);
++  }
++  for (const literal of ["-1", "0", "1.5"]) {
++    test(() => {
++      const target = document.createElement("div");
++      target.style.setProperty(property, "linear");
++      target.style.setProperty(property, `steps(${literal}, start)`);
++      assert_equals(target.style.getPropertyValue(property), "linear");
++    }, `${property}: rejects literal ${literal}`);
++  }
++  test(t => {
++    const target = document.createElement("div");
++    document.body.append(target);
++    t.add_cleanup(() => target.remove());
++    target.style.setProperty(property, "steps(calc(0), start)");
++    assert_not_equals(target.style.getPropertyValue(property), "");
++    target.style.setProperty(property, "steps(4, end)");
++    assert_equals(getComputedStyle(target).getPropertyValue(property), "steps(4)");
++    target.style.removeProperty(property);
++    assert_equals(getComputedStyle(target).getPropertyValue(property), "ease");
++  }, `${property}: replacement and reset`);
++}
++</script>

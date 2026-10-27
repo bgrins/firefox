@@ -1,0 +1,15 @@
+{
+  "normalize": "pub fn normalize(v: f32) -> f32 {\n    if v.is_nan() { 0.0 } else { v }\n}",
+  "get": "pub fn get(&self) -> f32 {\n        normalize(self.0).min(f32::MAX).max(f32::MIN)\n    }",
+  "clamp": "pub fn clamp(&self, val: f32) -> f32 {\n            match *self {\n                Self::All => val,\n                Self::NonNegative => val.max(0.),\n                Self::AtLeastOne => val.max(1.),\n                Self::ZeroToOne => val.clamp(0., 1.),\n            }\n        }",
+  "rounding": {
+    "head90": {
+      "resolve": "pub fn resolve(&self) -> Option<CSSInteger> {\n        Some(match self.0.unpack() {\n            Unpacked::Inline((), v) => v,\n            Unpacked::Boxed(calc) => {\n                let value = calc.as_number()?.get();\n                (value + 0.5).floor() as CSSInteger\n            },\n        })\n    }",
+      "computed": "impl ToComputedValue for Integer {\n    type ComputedValue = i32;\n\n    #[inline]\n    fn to_computed_value(&self, context: &Context) -> i32 {\n        match self.0.unpack() {\n            Unpacked::Inline((), i) => i,\n            Unpacked::Boxed(calc) => {\n                let value = calc.resolve(context, |result| match result {\n                    Ok(Leaf::Number(n)) => n.get(),\n                    _ => {\n                        debug_assert!(false, \"Unexpected Integer::Calc without resolved number\");\n                        f32::NAN\n                    },\n                });\n                let clamped = crate::values::normalize(value).min(f32::MAX).max(f32::MIN);\n                (clamped + 0.5).floor() as i32\n            },\n        }\n    }\n\n    #[inline]\n    fn from_computed_value(computed: &i32) -> Self {\n        Self::new(*computed)\n    }\n}"
+    },
+    "118": {
+      "resolve": "pub fn resolve(&self) -> Option<CSSInteger> {\n        Some(match self.0.unpack() {\n            Unpacked::Inline((), v) => v,\n            Unpacked::Boxed(calc) => {\n                let value = calc.as_number()?.get();\n                (f64::from(value) + 0.5).floor() as CSSInteger\n            },\n        })\n    }",
+      "computed": "impl ToComputedValue for Integer {\n    type ComputedValue = i32;\n\n    #[inline]\n    fn to_computed_value(&self, context: &Context) -> i32 {\n        match self.0.unpack() {\n            Unpacked::Inline((), i) => i,\n            Unpacked::Boxed(calc) => {\n                let value = calc.resolve(context, |result| match result {\n                    Ok(Leaf::Number(n)) => n.get(),\n                    _ => {\n                        debug_assert!(false, \"Unexpected Integer::Calc without resolved number\");\n                        f32::NAN\n                    },\n                });\n                let clamped = crate::values::normalize(value).min(f32::MAX).max(f32::MIN);\n                (f64::from(clamped) + 0.5).floor() as i32\n            },\n        }\n    }\n\n    #[inline]\n    fn from_computed_value(computed: &i32) -> Self {\n        Self::new(*computed)\n    }\n}"
+    }
+  }
+}

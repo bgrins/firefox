@@ -1,0 +1,15 @@
+# Integer range policy over binary32 inputs
+
+Z3 discharged five counterexample queries as UNSAT and produced three SAT witnesses for the omitted range restriction. This extends the finite extracted-helper checks to every binary32 bit pattern in the stated model. It is not a Lean-checked certificate, compiler refinement, or proof of arbitrary CSS calculation trees.
+
+The two paths share one already-resolved Number leaf. Both first normalize NaN to positive zero and confine infinities to finite binary32 extrema. The candidate then applies the stored range mode. The contextual path applies the same mode and repeats normalization. The four modeled modes are All, NonNegative, AtLeastOne, and ZeroToOne; the last is an enum-level check, not a claimed Integer parser mode. Independent choices represent either allowed zero sign when max compares equal zeros.
+
+The five obligations establish finite policy outputs, identity of repeated normalization, equal final integers for the original binary32 rounding expression, equal final integers for the accepted binary64 rounding expression, and unchanged results for All mode. All raw bit patterns, including NaNs, infinities, subnormals and signed zeros, are admitted. No finite-input assumption is imposed.
+
+The SMT model uses round-to-nearest/ties-even for arithmetic, round-toward-negative-infinity for floor, exact binary32-to-binary64 promotion, and explicit signed32 saturation. Float-to-bitvector conversion occurs only after the finite normalization and bounds branches. It models the two pinned rounding expressions independently; equivalence between routes does not imply the old binary32 expression implements exact mathematical rounding. Its known rounding discrepancies remain outside this repair.
+
+Each omission query asks for a difference between the old unclamped result and the contextual result. The three returned witnesses cover NonNegative, AtLeastOne and ZeroToOne. `check-witnesses.py` reuses the authenticated source-extracted Rust facade and checks the solver's exact old/new integers under both rounding expressions at optimization levels0 and2. The facade manually composes the paths; it does not instantiate Stylo parser/storage/context traversal. Temporary executables are removed.
+
+`REFERENCES.json` pins the original sources, extracted expressions and proposed one-expression patches. The correspondence between those expressions and SMT is manual and requires review. Z3 is pinned by binary hash; no proof object is imported into Lean. The earlier rational Lean theorem remains separate. No canonical library count, browser acceptance, native change, or fix count is added here.
+
+Replay the immutable queries with `python3 replay.py --output /absolute/absent/directory`. Each query has a55-second solver limit and60-second subprocess limit. Unknown, timeout, malformed output and nonzero exit cannot pass. `prepare.py` records how the queries were generated; do not rerun it inside the sealed capsule. Witness replay currently writes an exclusive local directory and must be run in a fresh copy to preserve the retained receipt.

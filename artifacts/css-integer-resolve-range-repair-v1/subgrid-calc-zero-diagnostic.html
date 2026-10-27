@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Bounded subgrid calculated repeat zero diagnostic</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.parent { display: grid; grid-template-columns: 100px 100px; width: 200px; }
+.child { display: grid; grid-column: 1 / -1; }
+</style>
+<div class="parent"><div id="calculated" class="child"></div></div>
+<div class="parent"><div id="literal" class="child"></div></div>
+<script>
+test(() => {
+  assert_true(CSS.supports("grid-template-columns", "subgrid"));
+  calculated.style.gridTemplateColumns = "subgrid repeat(calc(0), [fixed]) repeat(auto-fill, [auto]) [tail]";
+  literal.style.gridTemplateColumns = "subgrid repeat(1, [fixed]) repeat(auto-fill, [auto]) [tail]";
+  for (const element of [calculated, literal]) {
+    assert_not_equals(element.style.gridTemplateColumns, "", "declaration accepted");
+    assert_equals(element.getBoundingClientRect().width, 200, "bounded two-column span");
+  }
+  const expected = getComputedStyle(literal).gridTemplateColumns;
+  const actual = getComputedStyle(calculated).gridTemplateColumns;
+  assert_equals(expected, "subgrid [fixed] [auto] [tail]", "literal resolved-name calibration");
+  assert_equals(actual, expected, "calculated zero and literal one resolve to the same names");
+}, "bounded subgrid calc(0) versus literal repeat(1)");
+</script>

@@ -1,0 +1,12 @@
+diff --git a/servo/components/style/values/specified/number.rs b/servo/components/style/values/specified/number.rs
+--- a/servo/components/style/values/specified/number.rs
++++ b/servo/components/style/values/specified/number.rs
+@@ -481,7 +481,7 @@
+         Some(match self.0.unpack() {
+             Unpacked::Inline((), v) => v,
+             Unpacked::Boxed(calc) => {
+-                let value = calc.as_number()?.get();
++                let value = calc.clamping_mode.clamp(calc.as_number()?.get());
+                 (value + 0.5).floor() as CSSInteger
+             },
+         })

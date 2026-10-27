@@ -1,0 +1,19 @@
+# Integer stored-range landing proposal
+
+UNACCEPTED. This packaging successor contains two alternative three-path patches: one number.rs change plus two standalone WPTs (24 timing cases and one calculated-zero subgrid case). Research scripts, receipts and documentation in this capsule are excluded from both native patches. No active comparison fixture, roster, controller, native file or index was changed.
+
+The native expressions and their postimages are byte-identical to css-integer-resolve-range-repair-v1. The HEAD90 patch is independently applicable to its historical preimage and retains that base's known integer-rounding behavior; it does not depend on fix118 or the separate saturated-cache repair. The installed118 alternative preserves both accepted rounding promotions. These are alternative base-specific patches, not two changes to apply in succession. The shared change applies the stored numeric range after Number::get and before the base's integer rounding, preserving inline integers and unresolved trees returning None. It does not establish equality for arbitrary context-dependent expressions.
+
+The timing fixture is unchanged. The second landing path is `testing/web-platform/tests/css/css-grid/subgrid/subgrid-repeat-calculated-zero.html`, titled “Calculated zero subgrid repeat counts are clamped to one”. Its body comes from the sealed help-link correction: only that title and the landing filename change. Its JavaScript, test identity, styles, declaration admission, two-column geometry, literal resolved-name calibration and repeat-stability assertions remain exact. In particular the valid `[fill]` name is retained; the earlier research fixture's reserved `[auto]` name is not reintroduced. The final assertion compares calculated zero with literal one; failure before it remains calibration failure. The source fixture's Grid repeat-syntax and Values calc-range help links remain present.
+
+`check.py` authenticates both immutable producer manifests, checks exact title-only transfer, registers 25 unique tests without invoking callbacks, and checks JavaScript syntax. It performs real Git check/apply/reverse-check/reverse for each three-path patch in separate owned scratch repositories, verifying exact native and WPT postimages and recovery. It also calls the actual existing WPT linter API on both landing paths in an owned scratch WPT root using unchanged lint.ignore/.gitignore; exit0, no diagnostics. This uses the same lint implementation as the WPT CLI, but does not claim a new live `mach lint` invocation. Scratch products are removed. Retained CHECK includes exact patch/body/native/linter hashes.
+
+No new browser, native compilation or formal replay was performed for this packaging-only change. The prior source/helper/conditional rational evidence remains external through the authenticated original repair capsule. The earlier calibrated diagnostic supplies baseline evidence; the active joint campaign stopped at missing-link lint before phase testing and is not candidate validation. Its recovery is root-owned. Acceptance still requires the actual complete paired source/build/test and restoration evidence, including preserved controls; adding this test to the intended landing set does not supply those results. No bug number, fix count, signing parent or dependency acceptance is assigned here.
+
+Replay with an absent output path:
+
+```
+python3 -I -S -B artifacts/css-integer-resolve-range-landing-v2/check.py --output /tmp/integer-range-landing-review.json
+```
+
+The scratch checker requires the existing Node and WPT Python environment and the two referenced immutable capsules. It does not contain their recursive research closure. No new test metadata or expected-failure waiver is proposed. The current comparison's original 339-subtest roster and diagnostic pathname remain unchanged; selecting these landing names for a later campaign requires an explicit successor binding.

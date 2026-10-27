@@ -1,0 +1,96 @@
+--- v1/validate.py
++++ v2/validate.py
+@@ -142,7 +142,9 @@
+                MOZ_SKIP_PATH_PERFORMANCE_CHECK='1', MOZ_HEADLESS='1', PYTHONDONTWRITEBYTECODE='1')
+     excluded = [':(exclude)' + n for n in sorted(paths)]
+     external = digest(h.git(ROOT, env, 'diff', '--binary', '--', '.', *excluded))
+-    config = {'tests': [t.lstrip('/') for t in roster], 'expected_subtests': roster, 'reftests': [], 'guard_sources': list(roles)}
++    config = {'tests': [t.lstrip('/') for t in roster], 'expected_subtests': roster,
++              'baseline_tests': [t.lstrip('/') for t in roster], 'baseline_expected_subtests': roster,
++              'reftests': [], 'guard_sources': list(roles)}
+     adapter = types.SimpleNamespace(CONFIG=config, HERE=HERE, ROOT=ROOT, ENV=env, PYTHON=common.PYTHON,
+         BINARY=common.OBJ / 'dist/Nightly.app/Contents/MacOS/firefox', BINARIES=common.BINARY_ROLES,
+         WPT_CONFIG=common.OBJ / '_tests/web-platform/wptrunner.local.ini', PREFS_ROOT=ROOT / 'testing/profiles',
+--- v1/check.py
++++ v2/check.py
+@@ -164,6 +164,69 @@
+         else:
+             assert all((root / n).read_bytes() == b for n, b in originals.items()) and not ns['errors']
+         tail_cases.append(fault)
++config_node = next(n for n in main.body if isinstance(n, ast.Assign)
++                   and any(isinstance(t, ast.Name) and t.id == 'config' for t in n.targets))
++config_ns = {'roster': roster, 'roles': {}}
++exec(compile(ast.Module(body=[config_node], type_ignores=[]), '<actual-config>', 'exec'), config_ns)
++config = config_ns['config']
++raw_path = v.bound(v.read(HERE / 'HISTORICAL-CAPTURE.json')['raw'], False)
++archived_events = [json.loads(line) for line in raw_path.read_text().splitlines()]
++dispatch_checks = []
++with tempfile.TemporaryDirectory(prefix='integer-metadata-dispatch-', dir='/private/tmp') as td:
++    scratch = Path(td)
++    calls = []
++    phase_events = {}
++    for phase in ('baseline', 'metadata'):
++        events = copy.deepcopy(archived_events)
++        if phase == 'metadata':
++            for e in events:
++                if e.get('action') == 'test_status' and (e['test'], e['subtest']) == (
++                        before[targets[0]]['test'], before[targets[0]]['subtest']):
++                    del e['expected']
++        phase_events[phase] = events
++    class FakeProcess:
++        pid = 123456
++        def __init__(self, command, **kwargs):
++            calls.append(command)
++            log = Path(next(a.removeprefix('--log-raw=') for a in command if a.startswith('--log-raw=')))
++            phase = log.parent.name.removeprefix('wpt-')
++            events = phase_events[phase]
++            log.write_text(''.join(json.dumps(e) + '\n' for e in events))
++            terminal = [e for e in events if e.get('action') in ('test_status', 'test_end')]
++            self.code = 0 if tests_module.exit_matches_results(0, terminal) else 1
++        def wait(self, timeout):
++            return self.code
++    actual_subprocess = tests_module.subprocess
++    tests_module.subprocess = types.SimpleNamespace(Popen=FakeProcess, STDOUT=-2,
++        TimeoutExpired=actual_subprocess.TimeoutExpired)
++    adapter = types.SimpleNamespace(CONFIG=config, HERE=scratch, ROOT=scratch, ENV={},
++        PYTHON='not-executed', BINARY=scratch/'not-executed', WPT_CONFIG=scratch/'config.ini',
++        PREFS_ROOT=scratch, BINARIES=set(), pins=lambda names: {}, need=v.need,
++        cancelled=lambda: False, owned_group=None,
++        process_control=types.SimpleNamespace(terminate=lambda p: {'owned_group_absent': True}))
++    try:
++        results = {}
++        for phase in ('baseline', 'metadata'):
++            results[phase] = tests_module.run(adapter, phase, {})
++            assert results[phase]['complete'] and len(results[phase]['rows']) == 113
++            assert calls[-1][-5:] == config['tests'] and adapter.owned_group is None
++            assert (scratch/('wpt-'+phase)/'PROCESS-CLEANUP.json').is_file()
++            dispatch_checks.append(phase)
++        v.check_rows(results['baseline']['rows'], results['metadata']['rows'], roster)
++        for key in ('baseline_tests', 'baseline_expected_subtests'):
++            bad = dict(config)
++            del bad[key]
++            adapter.CONFIG = bad
++            count = len(calls)
++            try:
++                tests_module.run(adapter, 'baseline', {})
++            except KeyError as error:
++                assert error.args == (key,) and len(calls) == count
++            else:
++                raise AssertionError('missing baseline key accepted')
++            dispatch_checks.append('missing-'+key+'-rejected-before-process')
++    finally:
++        tests_module.subprocess = actual_subprocess
+ print(json.dumps({'status': 'INTEGER_RANGE_METADATA_STATIC_CHECKS_PASS', 'fresh_baseline_negatives': baseline_negatives, 'row_negatives': negative_count,
+     'capture_epoch_join_negatives': join_negatives,
+-    'actual_tail_cases': tail_cases, 'scratch_removed': True, 'browser_or_live_mutation': False}, indent=2))
++    'actual_tail_cases': tail_cases, 'actual_helper_dispatch': dispatch_checks, 'scratch_removed': True, 'browser_or_live_mutation': False}, indent=2))
+--- v1/README.md
++++ v2/README.md
+@@ -10,4 +10,6 @@
+ 
+ Success retains the exact one-path metadata postimage for root's later attribution/history work. Any capture, policy, guard, partial-write or publication failure restores the original owned body when its identity/hash and process absence still permit it. Unknown replacements and active owned groups block unsafe restoration and are reported. A provisional or partial RESULT is not success: require actual exit zero, complete captures and no FAILURE. Recovery publication follows restoration attempts and cannot prevent them. Raw index bytes must be stable within each guard; full semantic root/nested preservation is required. No native rebuild is needed or attempted.
+ 
+-Static validation authenticates the historical 55-payload archive, reparses actual raw results, checks the one-path proposal bodies, exercises policy and join rejection, and runs the actual try/finally tail on owned scratch files. These are inert controls, not browser evidence. Replay `python3 -I -S -B artifacts/css-integer-stored-range-metadata-validation-v1/check.py`. Referenced historical capsules/helpers remain external replay dependencies; this directory is not a self-contained clean-clone harness.
++Static validation authenticates the historical 55-payload archive, reparses actual raw results, checks the one-path proposal bodies, exercises policy and join rejection, and runs the actual try/finally tail on owned scratch files. These are inert controls, not browser evidence. Replay `python3 -I -S -B artifacts/css-integer-stored-range-metadata-validation-v2/check.py`. Referenced historical capsules/helpers remain external replay dependencies; this directory is not a self-contained clean-clone harness.
++
++V2 preserves the failed v1 preparation and supplies the two baseline-specific CONFIG keys required by the unchanged tests.run helper. The new dispatch check executes that real helper for both phases with archived raw events, stubbing only process creation/cleanup. It also rejects each missing baseline key before any process request. No actual browser is launched by this check.
