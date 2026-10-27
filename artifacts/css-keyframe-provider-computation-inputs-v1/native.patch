@@ -1,0 +1,179 @@
+--- a/dom/animation/KeyframeEffect.cpp
++++ b/dom/animation/KeyframeEffect.cpp
+@@ -674,8 +674,8 @@
+       },
+       [&](StyleAnimationRuleSample* aSample) {
+         Servo_AnimationRuleSample_Compose(
+-            aSample, opaqueTable, &aProperty.mProperty, &aSegment,
+-            &aProperty.mSegments.LastElement(), &aComputedTiming,
++            aSample, opaqueTable, &aProperty.mProperty, &aProperty.mSegments,
++            &aSegment, &aProperty.mSegments.LastElement(), &aComputedTiming,
+             mEffectOptions.mIterationComposite);
+       });
+ }
+--- a/servo/components/style/animation_rule_sample.rs
++++ b/servo/components/style/animation_rule_sample.rs
+@@ -228,9 +228,40 @@
+     }
+ }
+ 
++/// Computation input retained independently of selected arithmetic reachability.
++pub enum KeyframeComputationInput {
++    /// No authored endpoint: the existing underlying-value route remains required.
++    Underlying,
++    /// An explicit synthesized value without an authored declaration.
++    Concrete(servo_arc::Arc<AnimationValue>),
++    /// Original declaration identity and its owned keyframe context.
++    Authored(servo_arc::Arc<crate::keyframe_endpoint::KeyframeEndpoint>),
++}
++
++/// Both endpoints of one stored segment, including unselected segments.
++pub struct KeyframeSegmentInputs {
++    /// From offset in the materialized property segment list.
++    pub from_offset: f32,
++    /// To offset in the materialized property segment list.
++    pub to_offset: f32,
++    /// From-side computation input.
++    pub from: KeyframeComputationInput,
++    /// To-side computation input.
++    pub to: KeyframeComputationInput,
++}
++
++/// One actual normal-rule composition call, before lower-root replacement.
++pub struct KeyframePropertyInputs {
++    /// Property supplied by the native effect's property list.
++    pub property: OwnedPropertyDeclarationId,
++    /// Stored segment order; repeated endpoint identities are not deduplicated.
++    pub segments: Vec<KeyframeSegmentInputs>,
++}
++
+ /// A concrete normal-animation rule retaining its sampled operation identities.
+ pub struct AnimationRuleSource {
+     sample: FrozenAnimationRule<std::convert::Infallible>,
++    computation_inputs: Vec<KeyframePropertyInputs>,
+     declarations:
+         servo_arc::Arc<crate::shared_lock::Locked<crate::properties::PropertyDeclarationBlock>>,
+ }
+@@ -238,14 +269,21 @@
+ impl AnimationRuleSource {
+     pub(crate) fn new(
+         sample: FrozenAnimationRule<std::convert::Infallible>,
++        computation_inputs: Vec<KeyframePropertyInputs>,
+         declarations: servo_arc::Arc<
+             crate::shared_lock::Locked<crate::properties::PropertyDeclarationBlock>,
+         >,
+     ) -> Self {
+         Self {
+             sample,
++            computation_inputs,
+             declarations,
+         }
++    }
++
++    /// Inputs from actual contributing calls, distinct from selected operation roots.
++    pub fn computation_inputs(&self) -> &[KeyframePropertyInputs] {
++        &self.computation_inputs
+     }
+ 
+     /// The concrete declarations materialized from this sample.
+--- a/servo/components/style/properties/declaration_block.rs
++++ b/servo/components/style/properties/declaration_block.rs
+@@ -224,6 +224,7 @@
+ /// The owned concrete output of a normal animation-rule sampling pass.
+ #[cfg(feature = "gecko")]
+ pub struct AnimationRuleSample {
++    computation_inputs: Vec<crate::animation_rule_sample::KeyframePropertyInputs>,
+     operations: crate::animation_rule_sample::AnimationOperationSample<std::convert::Infallible>,
+ }
+ 
+@@ -232,6 +233,7 @@
+     /// Reserve property-root capacity for this sample.
+     pub fn with_capacity(capacity: usize) -> Self {
+         Self {
++            computation_inputs: Vec::new(),
+             operations: crate::animation_rule_sample::AnimationOperationSample::with_capacity(
+                 capacity,
+             ),
+@@ -250,6 +252,14 @@
+             .compose_segment(property, segment, base, progress)
+     }
+ 
++    /// Retain inputs from the native custom-property segment list in call order.
++    pub fn record_computation_inputs(
++        &mut self,
++        inputs: crate::animation_rule_sample::KeyframePropertyInputs,
++    ) {
++        self.computation_inputs.push(inputs);
++    }
++
+     /// Materialize concrete-only roots; recipes are uninhabitable on this route.
+     pub fn into_declaration_block(self) -> PropertyDeclarationBlock {
+         Self::declarations_from_values(self.operations.freeze().into_concrete_values())
+@@ -265,6 +275,7 @@
+         declarations.immutable = AtomicBool::new(true);
+         let source = crate::animation_rule_sample::AnimationRuleSource::new(
+             sample,
++            self.computation_inputs,
+             Arc::new(shared_lock.wrap(declarations)),
+         );
+         crate::rule_tree::StyleSource::from_animation(Arc::new(source))
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -646,6 +646,7 @@
+     sample: &mut AnimationRuleSample,
+     base_values: &structs::RawServoAnimationValueTable,
+     css_property: &structs::CSSPropertyId,
++    property_segments: &nsTArray<structs::AnimationPropertySegment>,
+     segment: &structs::AnimationPropertySegment,
+     last_segment: &structs::AnimationPropertySegment,
+     computed_timing: &structs::ComputedTiming,
+@@ -656,6 +657,40 @@
+     let property = match OwnedPropertyDeclarationId::from_gecko_css_property_id(css_property) {
+         Some(property) if property.as_borrowed().is_animatable() => property,
+         _ => return,
++    };
++    let computation_inputs = if matches!(&property, OwnedPropertyDeclarationId::Custom(_)) {
++        use style::animation_rule_sample::{
++            KeyframeComputationInput, KeyframePropertyInputs, KeyframeSegmentInputs,
++        };
++        let retain =
++            |value: *const AnimationValue,
++             endpoint: *const style::keyframe_endpoint::KeyframeEndpoint| {
++                if value.is_null() {
++                    KeyframeComputationInput::Underlying
++                } else if endpoint.is_null() {
++                    // Native RefPtr values originate from servo Arc allocations.
++                    KeyframeComputationInput::Concrete(unsafe { Arc::from_raw_addrefed(value) })
++                } else {
++                    KeyframeComputationInput::Authored(unsafe { Arc::from_raw_addrefed(endpoint) })
++                }
++            };
++        Some(KeyframePropertyInputs {
++            property: property.clone(),
++            segments: property_segments
++                .iter()
++                .map(|segment| KeyframeSegmentInputs {
++                    from_offset: segment.mFromKey,
++                    to_offset: segment.mToKey,
++                    from: retain(
++                        segment.mFromValue.mServo.mRawPtr,
++                        segment.mFromEndpoint.mRawPtr,
++                    ),
++                    to: retain(segment.mToValue.mServo.mRawPtr, segment.mToEndpoint.mRawPtr),
++                })
++                .collect(),
++        })
++    } else {
++        None
+     };
+     let from = unsafe { segment.mFromValue.mServo.mRawPtr.as_ref() }
+         .map(|value| SampledEndpoint::Value(value.clone()));
+@@ -699,6 +734,8 @@
+     );
+     if !inserted {
+         warn!("Underlying value should be valid when we expect to use it");
++    } else if let Some(inputs) = computation_inputs {
++        sample.record_computation_inputs(inputs);
+     }
+ }
+ 

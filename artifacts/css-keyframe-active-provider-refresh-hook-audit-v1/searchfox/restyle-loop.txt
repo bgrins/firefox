@@ -1,0 +1,185 @@
+>>> 3231: void RestyleManager::DoProcessPendingRestyles(ServoTraversalFlags aFlags) {
+    3232:   nsPresContext* presContext = PresContext();
+    3233:   PresShell* presShell = presContext->PresShell();
+    3234: 
+    3235:   MOZ_ASSERT(presContext->Document(), "No document?  Pshaw!");
+    3236:   // FIXME(emilio): In the "flush animations" case, ideally, we should only
+    3237:   // recascade animation styles running on the compositor, so we shouldn't care
+    3238:   // about other styles, or new rules that apply to the page...
+    3239:   //
+    3240:   // However, that's not true as of right now, see bug 1388031 and bug 1388692.
+    3241:   MOZ_ASSERT((aFlags & ServoTraversalFlags::FlushThrottledAnimations) ||
+    3242:                  !presContext->HasPendingMediaQueryUpdates(),
+    3243:              "Someone forgot to update media queries?");
+    3244:   MOZ_ASSERT(!nsContentUtils::IsSafeToRunScript(), "Missing a script blocker!");
+    3245:   MOZ_RELEASE_ASSERT(!mInStyleRefresh, "Reentrant call?");
+    3246: 
+    3247:   if (MOZ_UNLIKELY(!presShell->DidInitialize())) {
+    3248:     // PresShell::FlushPendingNotifications doesn't early-return in the case
+    3249:     // where the PresShell hasn't yet been initialized (and therefore we haven't
+    3250:     // yet done the initial style traversal of the DOM tree). We should arguably
+    3251:     // fix up the callers and assert against this case, but we just detect and
+    3252:     // handle it for now.
+    3253:     return;
+    3254:   }
+    3255: 
+    3256:   // It'd be bad!
+    3257:   PresShell::AutoAssertNoFlush noReentrantFlush(*presShell);
+    3258: 
+    3259:   // Create a AnimationsWithDestroyedFrame during restyling process to
+    3260:   // stop animations and transitions on elements that have no frame at the end
+    3261:   // of the restyling process.
+    3262:   AnimationsWithDestroyedFrame animationsWithDestroyedFrame(this);
+    3263: 
+    3264:   ServoStyleSet* styleSet = StyleSet();
+    3265:   Document* doc = presContext->Document();
+    3266: 
+    3267:   if (!doc->GetServoRestyleRoot()) {
+    3268:     // This might post new restyles, so need to do it here. Don't do it if we're
+    3269:     // already going to restyle tho, so that we don't potentially reflow with
+    3270:     // dirty styling.
+    3271:     presContext->UpdateContainerQueryStylesAndAnchorPosLayout();
+    3272:     presContext->FinishedContainerQueryUpdate();
+    3273:   }
+    3274: 
+    3275:   // Perform the Servo traversal, and the post-traversal if required. We do this
+    3276:   // in a loop because certain rare paths in the frame constructor can trigger
+    3277:   // additional style invalidations.
+    3278:   //
+    3279:   // FIXME(emilio): Confirm whether that's still true now that XBL is gone.
+    3280:   mInStyleRefresh = true;
+    3281:   if (mHaveNonAnimationRestyles) {
+    3282:     ++mAnimationGeneration;
+    3283:   }
+    3284: 
+    3285:   if (mRestyleForCSSRuleChanges) {
+    3286:     aFlags |= ServoTraversalFlags::ForCSSRuleChanges;
+    3287:   }
+    3288: 
+    3289:   while (styleSet->StyleDocument(aFlags)) {
+    3290:     ClearSnapshots();
+    3291:     mRestyledAsWholeContainer.Clear();
+    3292: 
+    3293:     // Select scroll anchors for frames that have been scrolled. Do this
+    3294:     // before processing restyled frames so that anchor nodes are correctly
+    3295:     // marked when directly moving frames with RecomputePosition.
+    3296:     presContext->PresShell()->FlushPendingScrollAnchorSelections();
+    3297: 
+    3298:     nsStyleChangeList currentChanges;
+    3299:     bool anyStyleChanged = false;
+    3300: 
+    3301:     // Recreate styles , and queue up change hints (which also handle lazy frame
+    3302:     // construction).
+    3303:     nsTArray<RefPtr<Element>> anchorsToSuppress;
+    3304: 
+    3305:     // Unfortunately, the frame constructor and ProcessPostTraversal can
+    3306:     // generate new change hints while processing existing ones. We redirect
+    3307:     // those into a secondary queue and iterate until there's nothing left.
+    3308:     ReentrantChangeList newChanges;
+    3309:     mReentrantChanges = &newChanges;
+    3310: 
+    3311:     {
+    3312:       DocumentStyleRootIterator iter(doc->GetServoRestyleRoot());
+    3313:       while (Element* root = iter.GetNextStyleRoot()) {
+    3314:         nsTArray<nsIFrame*> wrappersToRestyle;
+    3315:         ServoRestyleState state(*styleSet, currentChanges, wrappersToRestyle,
+    3316:                                 anchorsToSuppress);
+    3317:         ServoPostTraversalFlags flags = ServoPostTraversalFlags::Empty;
+    3318:         anyStyleChanged |= ProcessPostTraversal(root, state, flags);
+    3319:       }
+    3320: 
+    3321:       // We want to suppress adjustments the current (before-change) scroll
+    3322:       // anchor container now, and save a reference to the content node so that
+    3323:       // we can suppress them in the after-change scroll anchor .
+    3324:       for (Element* element : anchorsToSuppress) {
+    3325:         if (nsIFrame* frame = element->GetPrimaryFrame()) {
+    3326:           if (auto* container = ScrollAnchorContainer::FindFor(frame)) {
+    3327:             container->SuppressAdjustments();
+    3328:           }
+    3329:         }
+    3330:       }
+    3331:     }
+    3332: 
+    3333:     doc->ClearServoRestyleRoot();
+    3334:     ClearSnapshots();
+    3335: 
+    3336:     while (!currentChanges.IsEmpty()) {
+    3337:       ProcessRestyledFrames(currentChanges);
+    3338:       MOZ_ASSERT(currentChanges.IsEmpty());
+    3339:       for (ReentrantChange& change : newChanges) {
+    3340:         if (!(change.mHint & nsChangeHint_ReconstructFrame) &&
+    3341:             !change.mContent->GetPrimaryFrame()) {
+    3342:           // SVG Elements post change hints without ensuring that the primary
+    3343:           // frame will be there after that (see bug 1366142).
+    3344:           //
+    3345:           // Just ignore those, since we can't really process them.
+    3346:           continue;
+    3347:         }
+    3348:         currentChanges.AppendChange(change.mContent->GetPrimaryFrame(),
+    3349:                                     change.mContent, change.mHint);
+    3350:       }
+    3351:       newChanges.Clear();
+    3352:     }
+    3353: 
+    3354:     mReentrantChanges = nullptr;
+    3355: 
+    3356:     // Suppress adjustments in the after-change scroll anchors if needed, now
+    3357:     // that we're done reframing everything.
+    3358:     for (Element* element : anchorsToSuppress) {
+    3359:       if (nsIFrame* frame = element->GetPrimaryFrame()) {
+    3360:         if (auto* container = ScrollAnchorContainer::FindFor(frame)) {
+    3361:           container->SuppressAdjustments();
+    3362:         }
+    3363:       }
+    3364:     }
+    3365: 
+    3366:     if (anyStyleChanged) {
+    3367:       // Maybe no styles changed when:
+    3368:       //
+    3369:       //  * Only explicit change hints were posted in the first place.
+    3370:       //  * When an attribute or state change in the content happens not to need
+    3371:       //    a restyle after all.
+    3372:       //
+    3373:       // In any case, we don't need to increment the restyle generation in that
+    3374:       // case.
+    3375:       IncrementRestyleGeneration();
+    3376:       // Repaint highlight pseudo-element selections if any were invalidated
+    3377:       // during this restyle. Highlight pseudos (::selection, ::highlight,
+    3378:       // ::target-text) have their styles resolved lazily during painting
+    3379:       // rather than during the restyle traversal, so style changes don't
+    3380:       // automatically generate repaint hints for them.
+    3381:       if (mNeedsPseudoElementSelectionsRepaint) {
+    3382:         presShell->RepaintPseudoElementStyledSelections();
+    3383:         mNeedsPseudoElementSelectionsRepaint = false;
+    3384:       }
+    3385:     }
+    3386: 
+    3387:     // See https://bugzilla.mozilla.org/show_bug.cgi?id=1980206
+    3388:     presContext->PresShell()->MergeAnchorPosAnchorChanges();
+    3389: 
+    3390:     mInStyleRefresh = false;
+    3391:     presContext->UpdateContainerQueryStylesAndAnchorPosLayout();
+    3392:     mInStyleRefresh = true;
+    3393:   }
+    3394: 
+    3395:   doc->ClearServoRestyleRoot();
+    3396:   presContext->FinishedContainerQueryUpdate();
+    3397:   presContext->UpdateHiddenByContentVisibilityForAnimationsIfNeeded();
+    3398:   ClearSnapshots();
+    3399:   mRestyledAsWholeContainer.Clear();
+    3400:   styleSet->AssertTreeIsClean();
+    3401: 
+    3402:   mHaveNonAnimationRestyles = false;
+    3403:   mRestyleForCSSRuleChanges = false;
+    3404:   mInStyleRefresh = false;
+    3405: 
+    3406:   // Now that everything has settled, see if we have enough free rule nodes in
+    3407:   // the tree to warrant sweeping them.
+    3408:   styleSet->MaybeGCRuleTree();
+    3409: 
+    3410:   // Note: We are in the scope of |animationsWithDestroyedFrame|, so
+    3411:   //       |mAnimationsWithDestroyedFrame| is still valid.
+    3412:   MOZ_ASSERT(mAnimationsWithDestroyedFrame);
+    3413:   mAnimationsWithDestroyedFrame->StopAnimationsForElementsWithoutFrames();
+    3414: }
+
