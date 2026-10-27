@@ -1,0 +1,35 @@
+{
+  "candidate": "artifacts/css-counter-calc-sentinel-landing-v2",
+  "bindings": [
+    {
+      "model": "Integer.inlineValue / boxedMath; get / resolve",
+      "native": "specified/number.rs Integer NumericUnion, get, ToComputedValue",
+      "limit": "boxedMath stores the already resolved i32 for one context; AST evaluation/float normalization/rounding not proved"
+    },
+    {
+      "model": "authored; parse; omitted; Mode",
+      "native": "specified/counters.rs parse_counters; literal get()==MIN clamp; boxed values unchanged; omitted reversed reset MIN",
+      "limit": "four Mode constructors encode successful parser modes; invalid grammar and tokenization are not modeled"
+    },
+    {
+      "model": "compute; clampExplicit",
+      "native": "candidate CounterInteger::to_computed_value",
+      "limit": "clampExplicit comparison is the mathematical maximum with MIN+1, not extracted Rust"
+    },
+    {
+      "model": "fromRaw; raw_roundtrip",
+      "native": "CounterInteger::from_computed_value -> Integer::from_computed_value; revised two geckolib constructors",
+      "limit": "numeric identity for all raw i32 proves compatibility, not origin authentication"
+    },
+    {
+      "model": "marker_observation",
+      "native": "CounterInteger PartialEq<i32> -> Integer::get; GenericCounterPair::to_css checks reversed and MIN",
+      "limit": "the unchanged reversed flag selects omission; complete string serialization not modeled"
+    },
+    {
+      "model": "checked MIN+1\u22121 instance",
+      "native": "HTMLSharedListElement::MapOLAttributesIntoRule explicit ordinary start\u22121 -> MappedDeclarationsBuilder -> glue",
+      "limit": "source-reachable mapped reset alias, no browser result or universal negative-range claim"
+    }
+  ]
+}

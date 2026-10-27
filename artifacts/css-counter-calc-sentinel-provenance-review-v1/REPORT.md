@@ -1,0 +1,11 @@
+# Sentinel provenance independent review
+
+GO for the scoped implementation-support proof gate. Independent replay of the exact sealed source completed in session 71155, exit 0, with the pinned Lean toolchain and two threads. All five general laws audited with only standard propext, Quot.sound and Classical.choice axioms. All four negative controls failed with the intended false-proposition diagnostics. No sorry/custom axioms or generated products remain.
+
+The model correctly separates successful CSS parser inputs from arbitrary raw producers. authored_normalizes describes literal-MIN normalization followed by computed clamping; authored_preserves_nonmarker preserves other signed32 results. parsed_domain assumes every supplied resolved input is signed32, and then gives both output bounds and the exact omitted-reversed-reset marker condition. The no-input premise does not need a numerical bound because all four modeled defaults are fixed valid values. This is not a theorem about rejected syntax or all wrapper constructors.
+
+raw_roundtrip preserves every signed32 raw value, including MIN. marker_observation equates inline get()==MIN with computed MIN; together with the unchanged reversed flag it supports the generic serialization omission test, without proving full serialization or origin authentication. The mapped MIN+1 minus one witness is admitted and retained. The negative controls explicitly prevent turning this numeric inverse into a structural AST inverse or a CSS-only provenance guarantee.
+
+Manual source correspondence agrees with the reviewed two-file candidate, including geckolib's raw inverse lifts. Boxed math stores an already resolved i32 for one context: no CSS expression evaluator, float normalization/rounding, complete Rust trait expansion, C++ pipeline, or native extraction is proved. The ordinary mapped reset sentinel alias remains a separate preexisting source lead. Full compilation and paired browser validation remain separate gates; this proof does not expand accepted scope.
+
+The producer and source-review seals are unchanged. All 2,109 canonical source fingerprints, canonical verification report, and raw nested index bytes were preserved. No canonical integration, native/index mutation, browser, or new build target occurred.
