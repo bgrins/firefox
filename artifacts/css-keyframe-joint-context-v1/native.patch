@@ -1,0 +1,438 @@
+--- a/servo/components/style/properties/properties.mako.rs
++++ b/servo/components/style/properties/properties.mako.rs
+@@ -2075,6 +2075,14 @@
+ where
+     T: Clone,
+ {
++    fn fork(&self) -> Option<Self> {
++        Some(match self {
++            Self::Borrowed(value) => Self::Borrowed(*value),
++            Self::Owned(value) => Self::Owned(UniqueArc::new((**value).clone())),
++            Self::Vacated => return None,
++        })
++    }
++
+     /// Ensure a mutable reference of this value exists, either cloning the
+     /// borrowed value, or returning the owned one.
+     pub fn mutate(&mut self) -> &mut T {
+@@ -2324,6 +2332,31 @@
+         }
+     }
+ 
++    pub(crate) fn fork_for_keyframe(&self) -> Option<Self> {
++        Some(Self {
++            device: self.device,
++            stylist: self.stylist,
++            inherited_style: self.inherited_style,
++            reset_style: self.reset_style,
++            rules: self.rules.clone(),
++            substitution_functions: self.substitution_functions.clone(),
++            attribute_references: None,
++            invalid_non_custom_properties: self.invalid_non_custom_properties,
++            pseudo: self.pseudo,
++            modified_reset: false,
++            is_root_element: self.is_root_element,
++            writing_mode: self.writing_mode,
++            color_scheme: self.color_scheme,
++            effective_zoom: self.effective_zoom,
++            effective_zoom_for_inheritance: self.effective_zoom_for_inheritance,
++            flags: Cell::new(self.flags()),
++            visited_style: self.visited_style.clone(),
++            % for style_struct in data.active_style_structs():
++            ${style_struct.ident}: self.${style_struct.ident}.fork()?,
++            % endfor
++        })
++    }
++
+     /// Copy the reset properties from `style`.
+     pub fn copy_reset_from(&mut self, style: &'a ComputedValues) {
+         % for style_struct in data.active_style_structs():
+--- a/servo/components/style/values/computed/mod.rs
++++ b/servo/components/style/values/computed/mod.rs
+@@ -259,6 +259,36 @@
+ }
+ 
+ impl<'a> Context<'a> {
++    /// Copy current computation state into a disposable keyframe context.
++    pub fn fork_for_keyframe<'b>(
++        &'b self,
++        rule_cache_conditions: &'b mut RuleCacheConditions,
++        tree_counting_caches: &'b mut TreeCountingCaches,
++    ) -> Option<Context<'b>> {
++        Some(Context {
++            builder: self.builder.fork_for_keyframe()?,
++            cached_system_font: None,
++            in_media_query: self.in_media_query,
++            in_container_query: self.in_container_query,
++            quirks_mode: self.quirks_mode,
++            for_smil_animation: self.for_smil_animation,
++            container_info: self.container_info.clone(),
++            for_non_inherited_property: self.for_non_inherited_property,
++            rule_cache_conditions: RefCell::new(rule_cache_conditions),
++            scope: self.scope,
++            included_cascade_flags: self.included_cascade_flags,
++            container_size_query: RefCell::new(ContainerSizeQuery::NotEvaluated(Box::new(|| {
++                self.get_container_size_query()
++            }))),
++            element_context: self.element_context,
++            tree_counting_caches: RefCell::new(tree_counting_caches),
++        })
++    }
++
++    pub(crate) fn keyframe_attribute_tracker(&self) -> crate::dom::AttributeTracker<'_> {
++        crate::dom::AttributeTracker::new(self.element_context)
++    }
++
+     /// Lazily evaluate the container size query, returning the result.
+     pub fn get_container_size_query(&self) -> ContainerSizeQueryResult {
+         let mut resolved = self.container_size_query.borrow_mut();
+--- a/servo/components/style/keyframe_endpoint.rs
++++ b/servo/components/style/keyframe_endpoint.rs
+@@ -98,6 +98,16 @@
+         attribute_tracker: &mut crate::dom::AttributeTracker,
+     ) -> Result<crate::properties::animated_properties::AnimationValue, EndpointResolutionStatus>
+     {
++        self.resolve_registered_in_context(stylist, &mut context, attribute_tracker)
++    }
++
++    fn resolve_registered_in_context(
++        &self,
++        stylist: &crate::stylist::Stylist,
++        context: &mut crate::values::computed::Context,
++        attribute_tracker: &mut crate::dom::AttributeTracker,
++    ) -> Result<crate::properties::animated_properties::AnimationValue, EndpointResolutionStatus>
++    {
+         use crate::custom_properties::{
+             handle_invalid_at_computed_value_time, substitute_references_if_needed_and_apply,
+         };
+@@ -124,19 +134,15 @@
+             CustomDeclarationValue::Unparsed(tokens) => {
+                 let providers = context.builder.custom_properties().clone();
+                 let mut attributes =
+-                    KeyframeCustomPropertiesBuilder::new(stylist, &mut context, providers);
+-                attributes.prepare_custom_endpoint_attributes(
+-                    &mut context,
+-                    tokens,
+-                    attribute_tracker,
+-                );
+-                attributes.build_endpoint_attributes(&mut context, attribute_tracker);
++                    KeyframeCustomPropertiesBuilder::new(stylist, context, providers);
++                attributes.prepare_custom_endpoint_attributes(context, tokens, attribute_tracker);
++                attributes.build_endpoint_attributes(context, attribute_tracker);
+                 substitute_references_if_needed_and_apply(
+                     name,
+                     None,
+                     tokens,
+                     stylist,
+-                    &mut context,
++                    context,
+                     attribute_tracker,
+                 );
+                 context
+@@ -146,7 +152,7 @@
+                     .cloned()
+             },
+             CustomDeclarationValue::GuaranteedInvalid => {
+-                handle_invalid_at_computed_value_time(name, registration, &mut context);
++                handle_invalid_at_computed_value_time(name, registration, context);
+                 context
+                     .builder
+                     .custom_properties()
+@@ -216,6 +222,23 @@
+         pending: &std::collections::HashSet<crate::custom_properties::Name>,
+         pending_prioritary: &crate::properties::PrioritaryPropertyIdSet,
+     ) -> Result<crate::properties::animated_properties::AnimationValue, EndpointDemand> {
++        self.resolve_pending_in_context(
++            stylist,
++            &mut context,
++            attribute_tracker,
++            pending,
++            pending_prioritary,
++        )
++    }
++
++    fn resolve_pending_in_context(
++        &self,
++        stylist: &crate::stylist::Stylist,
++        context: &mut crate::values::computed::Context,
++        attribute_tracker: &mut crate::dom::AttributeTracker,
++        pending: &std::collections::HashSet<crate::custom_properties::Name>,
++        pending_prioritary: &crate::properties::PrioritaryPropertyIdSet,
++    ) -> Result<crate::properties::animated_properties::AnimationValue, EndpointDemand> {
+         use crate::custom_properties::{
+             SubstitutionDemand, substitute_references_with_pending_and_apply,
+         };
+@@ -225,7 +248,7 @@
+ 
+         if pending.is_empty() && pending_prioritary.is_empty() {
+             return self
+-                .resolve_registered(stylist, context, attribute_tracker)
++                .resolve_registered_in_context(stylist, context, attribute_tracker)
+                 .map_err(EndpointDemand::Unsupported);
+         }
+         let OwnedPropertyDeclarationId::Custom(name) = self.property() else {
+@@ -251,7 +274,7 @@
+         }
+         let CustomDeclarationValue::Unparsed(tokens) = &declaration.value else {
+             return self
+-                .resolve_registered(stylist, context, attribute_tracker)
++                .resolve_registered_in_context(stylist, context, attribute_tracker)
+                 .map_err(EndpointDemand::Unsupported);
+         };
+         context.builder.substitution_functions.attributes.clear();
+@@ -268,7 +291,7 @@
+                 None,
+                 tokens,
+                 stylist,
+-                &mut context,
++                context,
+                 attribute_tracker,
+                 Some(pending),
+                 Some(pending_prioritary),
+@@ -280,7 +303,7 @@
+                     url_data,
+                 }) => {
+                     crate::properties::KeyframeCustomPropertiesBuilder::resolve_requested_attribute(
+-                        stylist, &mut context, &name, &data, &url_data,
++                        stylist, context, &name, &data, &url_data,
+                         attribute_tracker, pending, pending_prioritary,
+                     ).map_err(external_demand)?;
+                 },
+@@ -291,6 +314,62 @@
+         Ok(AnimationValue::Custom(CustomAnimatedValue::from_computed(
+             name, value,
+         )))
++    }
++}
++
++/// Unpublished effects from one completed endpoint attempt.
++pub struct EndpointEffects {
++    pub(crate) flags: crate::computed_value_flags::ComputedValueFlags,
++    pub(crate) attributes: crate::dom::AttributeReferences,
++    pub(crate) cache_conditions: crate::rule_cache::RuleCacheConditions,
++}
++
++impl EndpointEffects {
++    /// Whether this completed attempt queried a DOM attribute.
++    pub fn references_attributes(&self) -> bool {
++        self.attributes.is_some()
++    }
++}
++
++impl KeyframeEndpoint {
++    /// Resolve against an in-progress cascade without publishing attempt effects.
++    pub fn resolve_from_cascade(
++        &self,
++        stylist: &crate::stylist::Stylist,
++        context: &crate::values::computed::Context,
++        pending: &std::collections::HashSet<crate::custom_properties::Name>,
++        pending_prioritary: &crate::properties::PrioritaryPropertyIdSet,
++    ) -> Result<
++        (
++            crate::properties::animated_properties::AnimationValue,
++            EndpointEffects,
++        ),
++        EndpointDemand,
++    > {
++        let mut cache_conditions = crate::rule_cache::RuleCacheConditions::default();
++        let mut tree_counting_caches = crate::context::TreeCountingCaches::default();
++        let mut tracker = context.keyframe_attribute_tracker();
++        let (value, flags) = {
++            let mut attempt = context
++                .fork_for_keyframe(&mut cache_conditions, &mut tree_counting_caches)
++                .ok_or(EndpointDemand::ContextPreparation)?;
++            let value = self.resolve_pending_in_context(
++                stylist,
++                &mut attempt,
++                &mut tracker,
++                pending,
++                pending_prioritary,
++            )?;
++            (value, attempt.builder.flags())
++        };
++        Ok((
++            value,
++            EndpointEffects {
++                flags,
++                attributes: tracker.finalize(),
++                cache_conditions,
++            },
++        ))
+     }
+ }
+ 
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -7937,6 +7937,134 @@
+ }
+ 
+ #[unsafe(no_mangle)]
++pub extern "C" fn Servo_KeyframeEndpoint_ResolveIsolatedForTesting(
++    endpoint: &style::keyframe_endpoint::KeyframeEndpoint,
++    element: &RawGeckoElement,
++    pseudo_type: PseudoStyleType,
++    providers: &ComputedValues,
++    raw_data: &PerDocumentStyleData,
++    pending_name: &nsACString,
++    pending_font_size: bool,
++    demanded_name: &mut nsACString,
++    status: &mut style::keyframe_endpoint::EndpointDemandStatus,
++    references_attributes: &mut bool,
++    parent_unchanged: &mut bool,
++    owned_struct_isolated: &mut bool,
++    vacated_rejected: &mut bool,
++) -> Strong<AnimationValue> {
++    use style::keyframe_endpoint::{EndpointDemand, EndpointDemandStatus};
++    *references_attributes = false;
++    *parent_unchanged = false;
++    *owned_struct_isolated = false;
++    *vacated_rejected = false;
++    let mut pending = std::collections::HashSet::new();
++    let Ok(pending_text) = std::str::from_utf8(pending_name) else {
++        *status = EndpointDemandStatus::Unsupported;
++        return Strong::null();
++    };
++    if !pending_text.is_empty() {
++        let Ok(name) = style::custom_properties::parse_name(pending_text) else {
++            *status = EndpointDemandStatus::Unsupported;
++            return Strong::null();
++        };
++        pending.insert(Atom::from(name));
++    }
++    demanded_name.assign("");
++    let mut pending_prioritary = style::properties::PrioritaryPropertyIdSet::default();
++    if pending_font_size {
++        pending_prioritary.insert(style::properties::PrioritaryPropertyId::FontSize);
++    }
++
++    let data = raw_data.borrow();
++    let element = GeckoElement(element);
++    let pseudo = PseudoElement::from_pseudo_type(pseudo_type, None);
++    let parent_element = if pseudo.is_none() {
++        element.inheritance_parent()
++    } else {
++        Some(element)
++    };
++    let parent_data = parent_element.as_ref().and_then(|e| e.borrow_data());
++    let parent_style = parent_data.as_ref().map(|d| &**d.styles.primary());
++    let container_size_query =
++        ContainerSizeQuery::for_element(element, parent_style, pseudo.is_some());
++    let mut conditions = Default::default();
++    let mut tree_counting_caches = TreeCountingCaches::default();
++    let mut context = create_context_for_animation(
++        &data,
++        providers,
++        parent_style,
++        false,
++        &mut conditions,
++        container_size_query,
++        &element,
++        &mut tree_counting_caches,
++    );
++    context.builder.substitution_functions =
++        style::custom_properties::ComputedSubstitutionFunctions::new(
++            Some(providers.custom_properties().clone()),
++            None,
++        );
++    context.builder.mutate_font();
++    let before_properties = context.builder.custom_properties().clone();
++    let before_flags = context.builder.flags();
++    let before_font_size = context
++        .builder
++        .get_font()
++        .slow_clone_font_size()
++        .computed_size;
++    let before_cache = format!("{:?}", context.rule_cache_conditions.borrow());
++    {
++        let mut local_conditions = Default::default();
++        let mut local_caches = TreeCountingCaches::default();
++        if let Some(attempt) = context.fork_for_keyframe(&mut local_conditions, &mut local_caches) {
++            *owned_struct_isolated =
++                !std::ptr::eq(attempt.builder.get_font(), context.builder.get_font());
++        }
++    }
++    let font = context.builder.take_font();
++    *vacated_rejected = matches!(
++        endpoint.resolve_from_cascade(&data.stylist, &context, &pending, &pending_prioritary),
++        Err(EndpointDemand::ContextPreparation)
++    );
++    context.builder.put_font(font);
++    let result =
++        endpoint.resolve_from_cascade(&data.stylist, &context, &pending, &pending_prioritary);
++    *parent_unchanged = before_properties == *context.builder.custom_properties()
++        && before_flags == context.builder.flags()
++        && before_font_size
++            == context
++                .builder
++                .get_font()
++                .slow_clone_font_size()
++                .computed_size
++        && before_cache == format!("{:?}", context.rule_cache_conditions.borrow())
++        && context.builder.substitution_functions.attributes.is_empty()
++        && context.builder.attribute_references.is_none();
++    match result {
++        Ok((value, effects)) => {
++            *references_attributes = effects.references_attributes();
++            *status = EndpointDemandStatus::Resolved;
++            Arc::new(value).into()
++        },
++        Err(error) => {
++            *status = match error {
++                EndpointDemand::Provider(name) => {
++                    demanded_name.assign(&name.to_string());
++                    EndpointDemandStatus::Provider
++                },
++                EndpointDemand::Prioritary(id) => {
++                    demanded_name.assign(id.to_longhand().name());
++                    EndpointDemandStatus::Prioritary
++                },
++                EndpointDemand::ContextPreparation => EndpointDemandStatus::ContextPreparation,
++                EndpointDemand::Unsupported(_) => EndpointDemandStatus::Unsupported,
++            };
++            Strong::null()
++        },
++    }
++}
++
++#[unsafe(no_mangle)]
+ pub extern "C" fn Servo_GetAnimationValues(
+     declarations: &LockedDeclarationBlock,
+     element: &RawGeckoElement,
+--- a/layout/style/test/gtest/TestKeyframePresentation.cpp
++++ b/layout/style/test/gtest/TestKeyframePresentation.cpp
+@@ -558,6 +558,35 @@
+             styleSet->RawData(), &pending, test.pendingFontSize, &demanded,
+             &status, &attributes)
+             .Consume();
++    bool parentUnchanged = false;
++    bool ownedStructIsolated = false;
++    bool vacatedRejected = false;
++    bool isolatedAttributes = true;
++    auto isolatedStatus = Status::Unsupported;
++    nsAutoCString isolatedDemanded;
++    RefPtr<StyleAnimationValue> isolated =
++        Servo_KeyframeEndpoint_ResolveIsolatedForTesting(
++            endpoint, target, PseudoStyleType::NotPseudo, providers,
++            styleSet->RawData(), &pending, test.pendingFontSize,
++            &isolatedDemanded, &isolatedStatus, &isolatedAttributes,
++            &parentUnchanged, &ownedStructIsolated, &vacatedRejected)
++            .Consume();
++    EXPECT_TRUE(parentUnchanged) << test.input;
++    EXPECT_TRUE(ownedStructIsolated) << test.input;
++    EXPECT_TRUE(vacatedRejected) << test.input;
++    EXPECT_EQ(test.status, isolatedStatus) << test.input;
++    EXPECT_STREQ(test.demanded, isolatedDemanded.get()) << test.input;
++    if (test.expected) {
++      ASSERT_TRUE(isolated);
++      auto property = CSSPropertyId::FromCustomProperty(testName);
++      nsAutoCString serialized;
++      Servo_AnimationValue_Serialize(isolated, &property, styleSet->RawData(),
++                                     &serialized);
++      EXPECT_STREQ(test.expected, serialized.get()) << test.input;
++    } else {
++      EXPECT_FALSE(isolated);
++      EXPECT_FALSE(isolatedAttributes);
++    }
+     EXPECT_EQ(test.status, status) << test.input;
+     EXPECT_STREQ(test.demanded, demanded.get()) << test.input;
+     if (test.expected) {
