@@ -1,0 +1,39 @@
+Validation successor to v2. Native/fixture bytes are identical. The v1/v2 lint PASS claims are withdrawn: their retained logs contain a fatal outside-repository message despite exit 0. This checker runs the linter with the scratch repository as cwd and also requires empty output; the new receipt is the only lint evidence relied upon here. Prior source/Git/helper checks are unaffected; v2 helper receipts are retained byte-for-byte.
+
+Comment-only successor to v1: the new parser comment describes the implementation restriction without attributing it to a normative descriptor requirement. All native expressions and fixtures are unchanged. Checks were replayed for this successor.
+
+This unaccepted proposal fixes the representation mismatch for admitted calculated counter-range bounds and makes the existing concrete-value admission requirement apply independently to every finite endpoint. It is separate from Sign fix 120 and changes neither Integer rounding nor context-dependent evaluation.
+
+`standalone.patch` contains two Rust changes and three WPT files. In `parse_bound`, a parsed finite Integer must resolve before publication; its original boxed or inline representation is returned unchanged. `CounterRanges::parse` then compares the two validated finite values for ordering. `Servo_CounterStyleRule_IsInRange` uses `resolve()` instead of the inline-only `get()`. Existing inclusive comparisons, empty/auto ranges, missing descriptor behavior, and short-circuit range unions remain unchanged. Specified values and their serialization are not replaced by raw integers.
+
+Publication invariant: each stored finite bound resolves without computed context; when both endpoints are finite, lower ≤ upper. The observed source construction paths support this invariant as follows:
+
+| Publication path | Validation and storage |
+| --- | --- |
+| Stylesheet rule parsing, including inserted rule text | `parse_counter_style_body` uses generated `DescriptorParser`, which calls `Descriptors::set`; the range descriptor has type `CounterRanges` and uses its parser. Storage occurs only after successful entire-value parsing. |
+| CSSCounterStyleRule descriptor setter | `Servo_CounterStyleRule_SetDescriptor` calls `CounterStyleRule::set_descriptor`; Range takes the default generated `Descriptors::set` branch. Invalid input leaves the previous descriptor unchanged. |
+| Empty/default rules and auto | Empty rules have no range descriptor; auto produces an empty range list. Both satisfy the finite-bound invariant vacuously. |
+| Clone/shared-memory transfer | `CounterStyleRule`, `CounterRange`, and `CounterRanges` derive value-preserving Clone/ToShmem; stylesheet deep cloning clones the rule. These are transfers, not alternate numeric factories. |
+| Export | `descriptors()` returns an immutable reference under the existing rule lock. Resolving a valid stored Integer is context-free and does not mutate it, so parser validation remains applicable. |
+
+The indexed constructor search found one nonempty CounterRange construction, inside the audited parser. Both bound constructors are in parse_bound. The native structs' fields are public, so this is an audited production-path invariant, not type-level enforcement against arbitrary future Rust construction or unsafe memory corruption. New constructors must preserve it. Historical exact bodies, generator inputs, and clone/publication excerpts are pinned separately; no current working source was used as provenance.
+
+The implementation-policy distinction matters. CSS Values 4 allows constant number-valued math where integers are accepted and retains math serialization in non-property contexts. CSS Counter Styles 3 requires inclusive bounds and rejects descending finite ranges. These support the constant-math tests. The specifications inspected do not establish that every still-contextual descriptor expression must be rejected. The existing `descriptor-calc.html` expects contextual support and is marked FAIL in the historical metadata. This proposal consistently enforces Gecko's existing resolvability restriction; it does not claim to implement general descriptor calculation contexts.
+
+Accordingly the landing WPT set contains:
+
+- One rendering reftest with eight ordinary rows: both calculated bounds, either calculated bound, each infinite-peer direction, a union, simplified constant math, and a literal control. Five ordinals per row cover inclusive endpoints and fallback outside the range. The reference uses explicit text.
+- One 28-case syntax/serialization harness covering stylesheet parsing and CSSOM setters, unchanged calc wrappers, literal reset, and descending bounds. It never renders the styles, so it isolates admission/serialization from the export.
+- The rendering reference file.
+
+`parser-policy-probe.html` is a separate, unrun Gecko diagnostic, deliberately excluded from the landing patch. Its ten cases cover unresolved finite bounds next to infinite in either direction, finite/finite and union forms, and literal/resolved controls. It checks stylesheet and setter publication without using the custom styles for rendering. Its rejection oracle is an implementation invariant, not an upstream normative WPT claim.
+
+Validation: real scratch Git check/apply/reverse-check/reverse succeeds against HEAD90 and against the sealed accepted-117 glue body. The latter preserves every unrelated producer change byte-for-byte. No Integer source is changed, so installed-118 rounding is preserved rather than made a dependency. Node syntax/inert registration yields 28 distinct WPT names and ten diagnostic names. The actual WPT linter passes all three landing HTML files in a private scratch root using unchanged lint configuration; no main WPT path was written.
+
+`helper.py` extracts the exact old/candidate CounterRanges parser, parse_bound, and export predicate into a small Rust facade. It runs 1,296 endpoint/ordinal rows per variant at optimization 0 and 2, including signed endpoints, inline/resolved-boxed/unresolved representations, both infinite directions, and auto. An independent Python oracle agrees with all rows. Old facade results include 473 caught unwrap panics; candidate results contain no panic and match inclusive membership for admitted values. These are helper observations, not an actual cssparser/Gecko/FFI/browser crash reproduction. Numeric calculation evaluation and tokenization are supplied by the facade. Every admitted object retains its original representation in the checks. Temporary executables are removed.
+
+The separate representation model (FILES 792132a13f3dbc6c617b3036f12d475253cef2f711bea81f315443dd941c5943) proves analogous admission/export laws over an abstract Integer representation. It is implementation support, not parser refinement or normative rejection coverage. No additional theorem is counted here.
+
+Known context is retained in the predecessor audit: bug 2035572 introduced deferred numeric support; bug 2037745 optimized the storage representation. Neither establishes the exact introducing revision for this hazard. The contextual descriptor WPT is pre-existing coverage, so no novelty claim is made. The constant boxed export mismatch remains source-confirmed and browser-unrun. Full Gecko compilation, controlled baseline/candidate rendering, and preservation tests remain required before acceptance.
+
+Primary specifications, checked 24 October 2026: [Counter Styles range](https://drafts.csswg.org/css-counter-styles-3/#counter-style-range) (8 October 2026 draft), [CSS Values type checking](https://drafts.csswg.org/css-values-4/#calc-type-checking), [simplification](https://drafts.csswg.org/css-values-4/#calc-simplification), and [serialization](https://drafts.csswg.org/css-values-4/#calc-serialize) (24 August 2026 draft). No browser, Gecko build, live native/index, or active comparison input was changed.

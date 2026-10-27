@@ -1,0 +1,9 @@
+# Calculated counter range reproduces a content-process panic
+
+The literal rendering control passes. The unused calculated-range CSSOM admission/serialization/reset case passes. Rendering range:calc(1) calc(1) then produces a CRASH test end and a content-process crash record with reason called Option::unwrap() on a None value. The successful stackwalk includes Servo_CounterStyleRule_IsInRange, CustomCounterStyle::IsOrdinalInRange, CounterStyle::GetCounterText and nsCounterUseNode. This matches the earlier inline-only export hypothesis. The structured raw crash record and full stack remain in the retained logs; CRASH-SUMMARY is only a derived index.
+
+Diagnostic session27424 exits0 because all three capture phases completed, not because the rendering test passed. The renderer phase WPT exits1 and reports CRASH. The classifier does not itself infer crash cause/process identity; those observations here come from the explicit crash record and stack. The tested input and build are local WPT conditions; no release-browser reproduction or memory-safety/exfiltration consequence is established.
+
+Root final checker92140 exits0 with CAPTURE_VERIFIED_PRESERVED. Exact per-phase source/binary/fixture maps and commands join where RUN receipts exist; raw observations replay. All72 sources,540 permanent roles,925 staged paths,36 native differences and11 installed identities remain exact. Owned process groups are absent and all four temporary fixtures are removed. The original restored build is unchanged; no repair is installed or accepted from this diagnostic.
+
+The earlier73575 attempt stopped before Firefox due to Mach virtualenv-lock sandbox permissions and remains separately sealed. This retry used the identical reviewed configuration with the local permissions required by Mach. Independent result review and a controlled repair comparison remain next gates.

@@ -1,0 +1,168 @@
+diff --git a/servo/components/style/counter_style/mod.rs b/servo/components/style/counter_style/mod.rs
+--- a/servo/components/style/counter_style/mod.rs
++++ b/servo/components/style/counter_style/mod.rs
+@@ -591,11 +591,7 @@
+             let start = parse_bound(context, input)?;
+             let end = parse_bound(context, input)?;
+             if let (CounterBound::Integer(s), CounterBound::Integer(e)) = (&start, &end) {
+-                // Rejects calc expressions that cannot be resolved at parse time,
+-                // since @counter-style descriptors require concrete values.
+-                let s = s.resolve();
+-                let e = e.resolve();
+-                if s.is_none() || e.is_none() || s.unwrap() > e.unwrap() {
++                if s.resolve().unwrap() > e.resolve().unwrap() {
+                     return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+                 }
+             }
+@@ -608,6 +604,10 @@
+ 
+ fn parse_bound(context: &ParserContext, input: &mut Parser) -> Result<CounterBound, ParseError> {
+     if let Ok(integer) = input.try_parse(|input| Integer::parse(context, input)) {
++        // Reject expressions that require computed-value context.
++        if integer.resolve().is_none() {
++            return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
++        }
+         return Ok(CounterBound::Integer(integer));
+     }
+     input.expect_ident_matching("infinite")?;
+diff --git a/servo/ports/geckolib/glue.rs b/servo/ports/geckolib/glue.rs
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -4250,14 +4250,14 @@
+         let in_range = range.0.iter().any(|r| {
+             if let CounterBound::Integer(start) = &r.start {
+                 // The value is enforced to be resolvable at parse time
+-                if start.get().unwrap() > ordinal {
++                if start.resolve().unwrap() > ordinal {
+                     return false;
+                 }
+             }
+ 
+             if let CounterBound::Integer(end) = &r.end {
+                 // The value is enforced to be resolvable at parse time
+-                if end.get().unwrap() < ordinal {
++                if end.resolve().unwrap() < ordinal {
+                     return false;
+                 }
+             }
+diff --git a/testing/web-platform/tests/css/css-counter-styles/counter-style-at-rule/range-calc-rendering-ref.html b/testing/web-platform/tests/css/css-counter-styles/counter-style-at-rule/range-calc-rendering-ref.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-counter-styles/counter-style-at-rule/range-calc-rendering-ref.html
+@@ -0,0 +1,11 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Calculated counter range reference</title>
++<div>0AAA4</div>
++<div>0AAA4</div>
++<div>0AAA4</div>
++<div>0AAAA</div>
++<div>AAAA4</div>
++<div>0A2A4</div>
++<div>0AAA4</div>
++<div>0AAA4</div>
+diff --git a/testing/web-platform/tests/css/css-counter-styles/counter-style-at-rule/range-calc-rendering.html b/testing/web-platform/tests/css/css-counter-styles/counter-style-at-rule/range-calc-rendering.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-counter-styles/counter-style-at-rule/range-calc-rendering.html
+@@ -0,0 +1,37 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Calculated counter range bounds preserve inclusive membership</title>
++<link rel="help" href="https://drafts.csswg.org/css-counter-styles-3/#counter-style-range">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-type-checking">
++<link rel="match" href="range-calc-rendering-ref.html">
++<style>
++@counter-style both { system: cyclic; symbols: "A"; range: calc(1) calc(3); }
++.both span::before { content: counter(n, both); }
++@counter-style lower { system: cyclic; symbols: "A"; range: calc(1) 3; }
++.lower span::before { content: counter(n, lower); }
++@counter-style upper { system: cyclic; symbols: "A"; range: 1 calc(3); }
++.upper span::before { content: counter(n, upper); }
++@counter-style unbounded-end { system: cyclic; symbols: "A"; range: calc(1) infinite; }
++.unbounded-end span::before { content: counter(n, unbounded-end); }
++@counter-style unbounded-start { system: cyclic; symbols: "A"; range: infinite calc(3); }
++.unbounded-start span::before { content: counter(n, unbounded-start); }
++@counter-style union { system: cyclic; symbols: "A"; range: calc(1) calc(1), calc(3) calc(3); }
++.union span::before { content: counter(n, union); }
++@counter-style simplified { system: cyclic; symbols: "A"; range: calc(2 - 1) calc(1 + 2); }
++.simplified span::before { content: counter(n, simplified); }
++@counter-style literal { system: cyclic; symbols: "A"; range: 1 3; }
++.literal span::before { content: counter(n, literal); }
++.v0 { counter-reset: n 0; }
++.v1 { counter-reset: n 1; }
++.v2 { counter-reset: n 2; }
++.v3 { counter-reset: n 3; }
++.v4 { counter-reset: n 4; }
++</style>
++<div class="both"><span class="v0"></span><span class="v1"></span><span class="v2"></span><span class="v3"></span><span class="v4"></span></div>
++<div class="lower"><span class="v0"></span><span class="v1"></span><span class="v2"></span><span class="v3"></span><span class="v4"></span></div>
++<div class="upper"><span class="v0"></span><span class="v1"></span><span class="v2"></span><span class="v3"></span><span class="v4"></span></div>
++<div class="unbounded-end"><span class="v0"></span><span class="v1"></span><span class="v2"></span><span class="v3"></span><span class="v4"></span></div>
++<div class="unbounded-start"><span class="v0"></span><span class="v1"></span><span class="v2"></span><span class="v3"></span><span class="v4"></span></div>
++<div class="union"><span class="v0"></span><span class="v1"></span><span class="v2"></span><span class="v3"></span><span class="v4"></span></div>
++<div class="simplified"><span class="v0"></span><span class="v1"></span><span class="v2"></span><span class="v3"></span><span class="v4"></span></div>
++<div class="literal"><span class="v0"></span><span class="v1"></span><span class="v2"></span><span class="v3"></span><span class="v4"></span></div>
+diff --git a/testing/web-platform/tests/css/css-counter-styles/counter-style-at-rule/range-calc-syntax.html b/testing/web-platform/tests/css/css-counter-styles/counter-style-at-rule/range-calc-syntax.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-counter-styles/counter-style-at-rule/range-calc-syntax.html
+@@ -0,0 +1,58 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Calculated counter range parsing and serialization</title>
++<link rel="help" href="https://drafts.csswg.org/css-counter-styles-3/#counter-style-range">
++<link rel="help" href="https://drafts.csswg.org/css-counter-styles-3/#the-csscounterstylerule-interface">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-serialize">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++function makeRule(t, range) {
++  const style = document.createElement("style");
++  style.textContent = `@counter-style tested { system: cyclic; symbols: "A"; range: ${range}; }`;
++  document.head.append(style);
++  t.add_cleanup(() => style.remove());
++  assert_equals(style.sheet.cssRules.length, 1, "counter style rule parsed");
++  return style.sheet.cssRules[0];
++}
++
++const valid = [
++  ["auto", "auto"],
++  ["infinite infinite", "infinite infinite"],
++  ["1 3", "1 3"],
++  ["calc(1) calc(3)", "calc(1) calc(3)"],
++  ["calc(1) 3", "calc(1) 3"],
++  ["1 calc(3)", "1 calc(3)"],
++  ["calc(1) infinite", "calc(1) infinite"],
++  ["infinite calc(3)", "infinite calc(3)"],
++  ["calc(1 + 1) calc(4 - 1)", "calc(2) calc(3)"],
++  ["calc(1) calc(1), calc(3) calc(3)", "calc(1) calc(1), calc(3) calc(3)"]
++];
++for (const [value, expected] of valid) {
++  test(t => {
++    const rule = makeRule(t, value);
++    assert_equals(rule.range, expected, "parsed specified range");
++    rule.range = "1 3";
++    assert_equals(rule.range, "1 3", "literal reset");
++  }, `Stylesheet calculated range: ${value}`);
++  test(t => {
++    const rule = makeRule(t, "7 9");
++    rule.range = value;
++    assert_equals(rule.range, expected, "assigned specified range");
++    rule.range = "1 3";
++    assert_equals(rule.range, "1 3", "literal reset");
++  }, `CSSOM calculated range: ${value}`);
++}
++for (const value of ["4 2", "calc(4) calc(2)", "calc(4) 2", "4 calc(2)"]) {
++  test(t => {
++    const rule = makeRule(t, value);
++    assert_equals(rule.range, "", "descending range rejected");
++  }, `Stylesheet descending range: ${value}`);
++  test(t => {
++    const rule = makeRule(t, "7 9");
++    rule.range = value;
++    assert_equals(rule.range, "7 9", "invalid assignment preserves old range");
++  }, `CSSOM descending range: ${value}`);
++}
++</script>

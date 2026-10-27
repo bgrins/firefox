@@ -1,0 +1,86 @@
+{
+  "servo/components/style/values/specified/number.rs": [
+    {
+      "start": 54,
+      "end": 78,
+      "text": "/// Parse an `<integer>` value, with a given clamping mode.\npub fn parse_integer_with_clamping_mode(\n    context: &ParserContext,\n    input: &mut Parser,\n    clamping_mode: AllowedNumericType,\n    percentage_context: PercentageContext,\n) -> Result<Integer, ParseError> {\n    Ok(Integer(match *input.next()? {\n        Token::Number {\n            int_value: Some(v), ..\n        } if clamping_mode.is_ok(context.parsing_mode, v as f32) => NumericUnion::inline((), v),\n        Token::Function(ref name) => {\n            let function = CalcNode::math_function(context, name)?;\n            let calc = CalcNode::parse_number(\n                context,\n                input,\n                clamping_mode,\n                function,\n                percentage_context,\n            )?;\n            NumericUnion::boxed(Box::new(calc))\n        },\n        _ => return Err(ParseError::unexpected_token()),\n    }))\n}\n"
+    },
+    {
+      "start": 468,
+      "end": 488,
+      "text": "    /// Returns the value if this is a plain (non-calc) integer, or None otherwise.\n    /// Use `resolve()` to also handle resolvable calc expressions, or `to_computed_value()`\n    /// when computed context is available.\n    pub fn get(&self) -> Option<CSSInteger> {\n        match self.0.unpack() {\n            Unpacked::Inline((), v) => Some(v),\n            Unpacked::Boxed(..) => None,\n        }\n    }\n\n    /// Returns the value if it can be resolved at parse time, including resolvable calc\n    /// expressions. Returns None for calc expressions that require computed-value context.\n    pub fn resolve(&self) -> Option<CSSInteger> {\n        Some(match self.0.unpack() {\n            Unpacked::Inline((), v) => v,\n            Unpacked::Boxed(calc) => {\n                let value = calc.as_number()?.get();\n                (value + 0.5).floor() as CSSInteger\n            },\n        })\n    }\n"
+    },
+    {
+      "start": 506,
+      "end": 514,
+      "text": "impl Parse for Integer {\n    fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {\n        parse_integer_with_clamping_mode(\n            context,\n            input,\n            AllowedNumericType::All,\n            PercentageContext::not_allowed(),\n        )\n    }\n"
+    }
+  ],
+  "servo/components/style/counter_style/mod.rs": [
+    {
+      "start": 245,
+      "end": 317,
+      "text": "/// A @counter-style rule\n#[derive(Clone, Debug, ToShmem)]\npub struct CounterStyleRule {\n    name: CustomIdent,\n    generation: Wrapping<u32>,\n    descriptors: Descriptors,\n    /// The parser location of the @counter-style rule.\n    pub source_location: SourceLocation,\n}\n\n/// Parse the body (inside `{}`) of an @counter-style rule\npub fn parse_counter_style_body(\n    name: CustomIdent,\n    context: &ParserContext,\n    input: &mut Parser,\n    location: SourceLocation,\n) -> Result<CounterStyleRule, ParseError> {\n    let start = input.current_source_location();\n    let mut rule = CounterStyleRule::empty(name, location);\n    {\n        let mut parser = DescriptorParser {\n            context,\n            descriptors: &mut rule.descriptors,\n        };\n        let iter = RuleBodyParser::new(input, &mut parser);\n        for declaration in iter {\n            if let Err((error, slice, location)) = declaration {\n                let error = ContextualParseError::UnsupportedCounterStyleDescriptorDeclaration(\n                    slice, error,\n                );\n                context.log_css_error(location, error)\n            }\n        }\n    }\n    let error = match *rule.resolved_system() {\n        ref system @ System::Cyclic\n        | ref system @ System::Fixed { .. }\n        | ref system @ System::Symbolic\n        | ref system @ System::Alphabetic\n        | ref system @ System::Numeric\n            if rule.descriptors.symbols.is_none() =>\n        {\n            let system = system.to_css_string();\n            Some(ContextualParseError::InvalidCounterStyleWithoutSymbols(\n                system,\n            ))\n        },\n        ref system @ System::Alphabetic | ref system @ System::Numeric\n            if rule.descriptors.symbols.as_ref().unwrap().0.len() < 2 =>\n        {\n            let system = system.to_css_string();\n            Some(ContextualParseError::InvalidCounterStyleNotEnoughSymbols(\n                system,\n            ))\n        },\n        System::Additive if rule.descriptors.additive_symbols.is_none() => {\n            Some(ContextualParseError::InvalidCounterStyleWithoutAdditiveSymbols)\n        },\n        System::Extends(_) if rule.descriptors.symbols.is_some() => {\n            Some(ContextualParseError::InvalidCounterStyleExtendsWithSymbols)\n        },\n        System::Extends(_) if rule.descriptors.additive_symbols.is_some() => {\n            Some(ContextualParseError::InvalidCounterStyleExtendsWithAdditiveSymbols)\n        },\n        _ => None,\n    };\n    if let Some(error) = error {\n        context.log_css_error(start, error);\n        Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError))\n    } else {\n        Ok(rule)\n    }\n}\n"
+    },
+    {
+      "start": 341,
+      "end": 345,
+      "text": "    /// Expose the descriptors as read-only, since we rely on updating our generation when they\n    /// change, and some setters need extra validation.\n    pub fn descriptors(&self) -> &Descriptors {\n        &self.descriptors\n    }\n"
+    },
+    {
+      "start": 560,
+      "end": 615,
+      "text": "    pub start: CounterBound,\n    /// The end of the range.\n    pub end: CounterBound,\n}\n\n/// <https://drafts.csswg.org/css-counter-styles/#counter-style-range>\n///\n/// Empty represents 'auto'\n#[derive(Clone, Debug, MallocSizeOf, ToCss, ToShmem, PartialEq)]\n#[css(comma)]\npub struct CounterRanges(#[css(iterable, if_empty = \"auto\")] pub crate::OwnedSlice<CounterRange>);\n\n/// A bound found in `CounterRanges`.\n#[derive(Clone, Debug, MallocSizeOf, ToCss, ToShmem, PartialEq)]\npub enum CounterBound {\n    /// An integer bound.\n    Integer(Integer),\n    /// The infinite bound.\n    Infinite,\n}\n\nimpl Parse for CounterRanges {\n    fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {\n        if input\n            .try_parse(|input| input.expect_ident_matching(\"auto\"))\n            .is_ok()\n        {\n            return Ok(CounterRanges(Default::default()));\n        }\n\n        let ranges = input.parse_comma_separated(|input| {\n            let start = parse_bound(context, input)?;\n            let end = parse_bound(context, input)?;\n            if let (CounterBound::Integer(s), CounterBound::Integer(e)) = (&start, &end) {\n                // Rejects calc expressions that cannot be resolved at parse time,\n                // since @counter-style descriptors require concrete values.\n                let s = s.resolve();\n                let e = e.resolve();\n                if s.is_none() || e.is_none() || s.unwrap() > e.unwrap() {\n                    return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));\n                }\n            }\n            Ok(CounterRange { start, end })\n        })?;\n\n        Ok(CounterRanges(ranges.into()))\n    }\n}\n\nfn parse_bound(context: &ParserContext, input: &mut Parser) -> Result<CounterBound, ParseError> {\n    if let Ok(integer) = input.try_parse(|input| Integer::parse(context, input)) {\n        return Ok(CounterBound::Integer(integer));\n    }\n    input.expect_ident_matching(\"infinite\")?;\n    Ok(CounterBound::Infinite)\n}\n"
+    }
+  ],
+  "servo/components/style/properties/counter_style_descriptors.toml": [
+    {
+      "start": 23,
+      "end": 25,
+      "text": "# https://drafts.csswg.org/css-counter-styles/#counter-style-range\n[range]\ntype = \"CounterRanges\"\n"
+    }
+  ],
+  "servo/components/style/properties/properties.mako.rs": [
+    {
+      "start": 2824,
+      "end": 2830,
+      "text": "## Descriptor types for @-rules like @font-face and @counter-style.\n<%def name=\"generate_descriptors(descriptors)\">\nuse super::*;\n#[allow(unused_imports)]\nuse crate::values::specified;\n\n/// Descriptor identifier.\n"
+    },
+    {
+      "start": 2858,
+      "end": 2902,
+      "text": "/// All descriptor values.\n#[derive(Clone, Debug, Default, ToShmem, PartialEq, MallocSizeOf)]\npub struct Descriptors {\n    % for descriptor in descriptors:\n    /// The \"${descriptor.name}\" descriptor value.\n    % if descriptor.ignore_malloc_size_of:\n    #[ignore_malloc_size_of = \"${descriptor.ignore_malloc_size_of}\"]\n    % endif\n    pub ${descriptor.ident}: Option<${descriptor.type}>,\n    % endfor\n}\n\nimpl Descriptors {\n    /// Gets a descriptor in CSS syntax.\n    pub fn get(&self, id: DescriptorId, dest: &mut CssStringWriter) -> fmt::Result {\n        let mut dest = CssWriter::new(dest);\n        match id {\n        % for descriptor in descriptors:\n            DescriptorId::${descriptor.camel_case} => self.${descriptor.ident}.to_css(&mut dest),\n        % endfor\n        }\n    }\n\n    /// Parses a given descriptor. Returns whether the descriptor changed.\n    pub fn set(&mut self, id: DescriptorId, context: &ParserContext, input: &mut Parser) -> Result<bool, ParseError> {\n        use crate::parser::Parse;\n        // DeclarationParser also calls parse_entirely so we\u2019d normally not need to, but in this\n        // case we do because we set the value as a side effect rather than returning it.\n        match id {\n        % for descriptor in descriptors:\n            DescriptorId::${descriptor.camel_case} => {\n                let value = Some(input.parse_entirely(|i|\n                    % if descriptor.parser:\n                        ${descriptor.type}::${descriptor.parser}(context, i)\n                    % else:\n                        Parse::parse(context, i)\n                    % endif\n                )?);\n                let change = self.${descriptor.ident} != value;\n                self.${descriptor.ident} = value;\n                Ok(change)\n            },\n        % endfor\n        }\n    }\n"
+    },
+    {
+      "start": 3017,
+      "end": 3021,
+      "text": "/// Generated code for @counter-style descriptors.\npub mod counter_style {\n    use crate::counter_style::*;\n${generate_descriptors(data.counter_style_descriptors)}\n}\n"
+    }
+  ],
+  "servo/ports/geckolib/glue.rs": [
+    {
+      "start": 4234,
+      "end": 4275,
+      "text": "#[unsafe(no_mangle)]\npub unsafe extern \"C\" fn Servo_CounterStyleRule_IsInRange(\n    rule: &LockedCounterStyleRule,\n    ordinal: i32,\n) -> IsOrdinalInRange {\n    use style::counter_style::CounterBound;\n    read_locked_arc(rule, |rule: &CounterStyleRule| {\n        let range = match rule.descriptors().range {\n            Some(ref r) => r,\n            None => return IsOrdinalInRange::NoOrdinalSpecified,\n        };\n\n        if range.0.is_empty() {\n            return IsOrdinalInRange::Auto;\n        }\n\n        let in_range = range.0.iter().any(|r| {\n            if let CounterBound::Integer(start) = &r.start {\n                // The value is enforced to be resolvable at parse time\n                if start.get().unwrap() > ordinal {\n                    return false;\n                }\n            }\n\n            if let CounterBound::Integer(end) = &r.end {\n                // The value is enforced to be resolvable at parse time\n                if end.get().unwrap() < ordinal {\n                    return false;\n                }\n            }\n\n            true\n        });\n\n        if in_range {\n            IsOrdinalInRange::InRange\n        } else {\n            IsOrdinalInRange::NotInRange\n        }\n    })\n}\n\n"
+    }
+  ],
+  "layout/style/CounterStyleManager.cpp": [
+    {
+      "start": 1197,
+      "end": 1216,
+      "text": "/* virtual */\nbool CustomCounterStyle::IsOrdinalInRange(CounterValue aOrdinal) {\n  auto inRange = Servo_CounterStyleRule_IsInRange(mRule, aOrdinal);\n  switch (inRange) {\n    case StyleIsOrdinalInRange::InRange:\n      return true;\n    case StyleIsOrdinalInRange::NotInRange:\n      return false;\n    case StyleIsOrdinalInRange::NoOrdinalSpecified:\n      if (IsExtendsSystem()) {\n        return GetExtends()->IsOrdinalInRange(aOrdinal);\n      }\n      break;\n    case StyleIsOrdinalInRange::Auto:\n      break;\n    default:\n      MOZ_ASSERT_UNREACHABLE(\"Unkown result from IsInRange?\");\n  }\n  return IsOrdinalInAutoRange(aOrdinal);\n}\n"
+    },
+    {
+      "start": 1659,
+      "end": 1678,
+      "text": "void CounterStyle::GetCounterText(CounterValue aOrdinal,\n                                  WritingMode aWritingMode, nsAString& aResult,\n                                  bool& aIsRTL) {\n  bool success = IsOrdinalInRange(aOrdinal);\n  aIsRTL = false;\n\n  if (success) {\n    // generate initial representation\n    bool useNegativeSign = UseNegativeSign();\n    nsAutoString initialText;\n    CounterValue ordinal;\n    if (!useNegativeSign) {\n      ordinal = aOrdinal;\n    } else {\n      CheckedInt<CounterValue> absolute(Abs(aOrdinal));\n      ordinal = absolute.isValid() ? absolute.value()\n                                   : std::numeric_limits<CounterValue>::max();\n    }\n    success = GetInitialCounterText(ordinal, aWritingMode, initialText, aIsRTL);\n\n"
+    }
+  ],
+  "layout/base/nsCounterManager.cpp": [
+    {
+      "start": 79,
+      "end": 138,
+      "text": "void nsCounterUseNode::GetText(nsString& aResult) {\n  mPseudoFrame->PresContext()\n      ->CounterStyleManager()\n      ->WithCounterStyleNameOrSymbols(mCounterStyle, [&](CounterStyle* aStyle) {\n        GetText(mPseudoFrame->GetWritingMode(), aStyle, aResult);\n      });\n}\n\nvoid nsCounterUseNode::GetText(WritingMode aWM, CounterStyle* aStyle,\n                               nsString& aResult) {\n  const bool isBidiRTL = aWM.IsBidiRTL();\n  auto AppendCounterText = [&aResult, isBidiRTL](const nsAutoString& aText,\n                                                 bool aIsRTL) {\n    if (MOZ_LIKELY(isBidiRTL == aIsRTL)) {\n      aResult.Append(aText);\n    } else {\n      // RLM = 0x200f, LRM = 0x200e\n      const char16_t mark = aIsRTL ? 0x200f : 0x200e;\n      aResult.Append(mark);\n      aResult.Append(aText);\n      aResult.Append(mark);\n    }\n  };\n\n  if (mForLegacyBullet) {\n    nsAutoString prefix;\n    aStyle->GetPrefix(prefix);\n    aResult.Assign(prefix);\n  }\n\n  AutoTArray<nsCounterNode*, 8> stack;\n  stack.AppendElement(static_cast<nsCounterNode*>(this));\n\n  if (mAllCounters && mScopeStart) {\n    for (nsCounterNode* n = mScopeStart; n->mScopePrev; n = n->mScopeStart) {\n      stack.AppendElement(n->mScopePrev);\n    }\n  }\n\n  for (nsCounterNode* n : Reversed(stack)) {\n    nsAutoString text;\n    bool isTextRTL;\n    aStyle->GetCounterText(n->mValueAfter, aWM, text, isTextRTL);\n    if (!mForLegacyBullet || aStyle->IsBullet()) {\n      aResult.Append(text);\n    } else {\n      AppendCounterText(text, isTextRTL);\n    }\n    if (n == this) {\n      break;\n    }\n    aResult.Append(mSeparator);\n  }\n\n  if (mForLegacyBullet) {\n    nsAutoString suffix;\n    aStyle->GetSuffix(suffix);\n    aResult.Append(suffix);\n  }\n}\n"
+    }
+  ]
+}
