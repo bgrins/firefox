@@ -1,0 +1,7 @@
+# Existing proof reuse and limits
+
+`ImplementationSupport.KeyframeGraph.Graph.lower` requires every dependency to decrease a natural rank. `no_dependency_cycle` follows from that premise; it is not a cycle detector or a defaulting policy. `complete_sample_correct` and `evaluation_order_independent`, and `KeyframeSchedule.constructed_sample_correct` / `constructed_history_correct`, are reusable for the admitted acyclic dependency graph once its source correspondence is established. They do not establish which native endpoint/prefix/provider nodes or edges are correct.
+
+`ImplementationSupport.KeyframeContext.shared_provider_current` describes endpoint computation against one supplied current provider. It does not construct that provider or prove a cyclic fixed point. `GuardedState.markCycle`, `pop`, and preservation theorems plus `GuardedSolver.compute_iff` / `Resolves.unique` cover the existing ordinary substitution context machine. They are useful for the inner resolver, but no theorem equates an animation operation root with an ordinary declaration binding or proves that property-wide SCC invalidation preserves composed results.
+
+The canonical historical VariablesGraph profile and modern guarded profile are already deliberately separated. This audit adds no duplicate static-versus-dynamic fallback witness, Lean module, compiler run, audit count, or normative coverage. LOCAL-REFERENCES pins the reviewed exact source bodies; no canonical files changed.

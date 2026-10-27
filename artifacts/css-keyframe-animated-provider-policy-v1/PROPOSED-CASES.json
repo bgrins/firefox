@@ -1,0 +1,116 @@
+{
+  "status": "UNRUN_CASE_DESIGN_NOT_INSTALLED_WPT",
+  "scope": "Same ordinary element, document timeline, fixed registration and numeric values; no scroll timelines, dynamic registration, inheritance, pseudo-elements, attr/URL inputs, transitions or iterations beyond first.",
+  "shared_protocol": [
+    "Use fresh target and distinct registered names per case; assert typed registration on independent ordinary calibration target.",
+    "Use explicit duration1000, linear easing, fillboth; pause all effects and set currentTime before samples. Keep provider and consumer objects separately identified.",
+    "Save first consumer scalar before provider getters or a forced normal recascade; then record provider values, repeated reads, currentTime/playState and authored getKeyframes. Timing calibration failure makes the result inconclusive.",
+    "Retain both creation orders where specified; no expected failure count. Cancel animations and remove only owned targets in test cleanup.",
+    "Reuse existing ordinary typed-cycle/defaulting controls and neutral registered/additive crash tests; do not claim numeric cycle semantics from a no-crash result."
+  ],
+  "cases": [
+    {
+      "id": "full-provider-additive-prefix",
+      "classification": "SPEC_SUPPORTED_ACYCLIC",
+      "setup": "Registered numbers p/q, non-inherited initial 2/3. Base p=7. Lower p endpoints10/30 replace, higher p endpoints4/8 add; consumer q has identical var(p) replace endpoints. All1000ms at500ms.",
+      "expected": {
+        "p": 26,
+        "q": 26
+      },
+      "variants": "Create q before both p effects, between them, and after both; preserve p composite order.",
+      "distinguishes": "Full provider stack versus creation-order partial map or old base7."
+    },
+    {
+      "id": "consumer-implicit-prefix",
+      "classification": "SPEC_SUPPORTED_ACYCLIC",
+      "setup": "Same p stack (26). q base99, lower q constant20 replace, upper q has only offset1 var(p), replace, at500ms of1000ms.",
+      "expected": {
+        "p": 26,
+        "q": 23
+      },
+      "distinguishes": "Implicit zero endpoint is lower q prefix20, not base99 or final q; authored endpoint reads full current p26."
+    },
+    {
+      "id": "important-winner",
+      "classification": "SPEC_SUPPORTED_ACYCLIC",
+      "setup": "p=13!important; p animation has identical var(q) endpoints, q animation identical var(p) endpoints; registered p/q non-inherited numbers.",
+      "expected": {
+        "p": 13,
+        "q": 13
+      },
+      "distinguishes": "Do not create a final-provider cycle from a masked p animation. Both individual endpoint computations can still be well-defined."
+    },
+    {
+      "id": "unused-cyclic-fallback",
+      "classification": "SPEC_SUPPORTED_ACYCLIC",
+      "setup": "p animation identical13 endpoints; q animation identical var(p,var(q)) endpoints, distinct registered numbers.",
+      "expected": {
+        "p": 13,
+        "q": 13
+      },
+      "distinguishes": "Actual var fallback demand, not union of syntactic references."
+    },
+    {
+      "id": "literal-complete-replacement",
+      "classification": "SPEC_SUPPORTED_ACYCLIC",
+      "setup": "p lower constant10; p higher constant50 replace; q identical var(p) endpoints.",
+      "expected": {
+        "p": 50,
+        "q": 50
+      },
+      "distinguishes": "Highest contributing provider and numeric prefix pruning. Does not establish cycle-pruning equivalence."
+    },
+    {
+      "id": "self-additive-cycle",
+      "classification": "OBSERVATION_ONLY_POLICY_DISCRIMINATOR",
+      "setup": "p number initial10, base50; single add animation with identical var(p,91) endpoints, at500ms.",
+      "expected": null,
+      "policy_illustrations": {
+        "default_final_property": 10,
+        "default_endpoint_then_add_base": 60
+      },
+      "record": "p, ordinary downstream width calc(var(p)*1px), repeated reads, playState/currentTime. No hypothesis becomes a PASS oracle."
+    },
+    {
+      "id": "cross-cycle-with-noncyclic-endpoints",
+      "classification": "OBSERVATION_ONLY_POLICY_DISCRIMINATOR",
+      "setup": "x/y number initials10/20 bases77/88; x endpoints var(y,91)/100; y endpoints200/var(x,92); both500ms. Reverse creation order on independent target.",
+      "expected": null,
+      "policy_illustrations": {
+        "default_final_properties": [
+          10,
+          20
+        ],
+        "default_only_cyclic_endpoints_then_interpolate": [
+          55,
+          110
+        ]
+      },
+      "record": "x/y first and repeated samples, downstream consumers and per-animation timing. Preserve every result."
+    },
+    {
+      "id": "nonselected-cyclic-endpoint",
+      "classification": "OBSERVATION_ONLY_POLICY_DISCRIMINATOR",
+      "setup": "q number initial7/base99; q keyframes offset0=10,offset.5=20,offset1=var(q,91); sample250ms of1000ms then750ms, independent reversed-observation target.",
+      "expected": null,
+      "policy_illustrations": {
+        "arithmetic_interval_only_first_sample": 15,
+        "property_wide_invalidation_first_sample": 7
+      },
+      "record": "Tests computed-keyframe-before-selection boundary; 15 is not asserted as normative in the cyclic setup."
+    },
+    {
+      "id": "replaced-lower-cyclic-recipe",
+      "classification": "OBSERVATION_ONLY_POLICY_DISCRIMINATOR",
+      "setup": "p lower identical var(q), p higher identical50 replace, q identical var(p); numbers initial10/20. Lower p numeric contribution discarded.",
+      "expected": null,
+      "policy_illustrations": {
+        "pruned_value_dependency_graph": [
+          50,
+          50
+        ]
+      },
+      "record": "Whether lower endpoint evaluation changes cycle state cannot be inferred solely from arithmetic pruning. Compare with literal-complete-replacement and retain authored keyframes."
+    }
+  ]
+}

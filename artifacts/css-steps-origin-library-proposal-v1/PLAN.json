@@ -1,0 +1,154 @@
+{
+  "changes": {
+    "ARTIFACT.md": {
+      "before": "95444026018dc6c41cf26253fef63195a6cce3ac7e8bfc3ccdea8d0f08e00149",
+      "after": "ab78f7000bff530db74db380c577165264b826fec0723059e64ea44d664ed6aa"
+    },
+    "CssSemantics/StepsOrigin.lean": {
+      "before": null,
+      "after": "14ea45c84df166f53cc3c456d85048049f17c72786928814fc02b46e46ba811d"
+    },
+    "CssSemantics/StepsOriginExamples.lean": {
+      "before": null,
+      "after": "2363b907361de4e5f5d18666467cf668f095c7dd4b6b13462efdf82fc7f1b59b"
+    },
+    "CssSemantics.lean": {
+      "before": "663318868e98f70595190a80d58a3c578bb331036273474d48139a04edb90e97",
+      "after": "146cb2471112668ff1fccc93bba6b24d2964920dd49e1f866bdb34ff810d45fc"
+    },
+    "README.md": {
+      "before": "58ba9965cc0295d65bf278cc4bf2e8d4abc2bebc0ce6c8d0100c8145a10cc759",
+      "after": "b0abfc881acdfdf69a09a9b53ced4038a8bd2901295578a4e2609bb6d0a209cd"
+    },
+    "check.py": {
+      "before": "6eebbc2192773bc605a9b699245061b406d9b3ea82b648384d6859b12ce2d4ee",
+      "after": "e6ae809156c6187aadb4cf82cd8dd0a05a100ef654f955b31438c8e2d009c0fc"
+    },
+    "research/coverage-map.md": {
+      "before": "59f4b8d10007437f376a67481335d162478d4568a09b3965b232c421619dd79a",
+      "after": "35c71fb13d6d6b479ad90a830725df8ab4b2028e8bafd6720d095a97ceccb0e4"
+    },
+    "research/steps-origin-range.md": {
+      "before": null,
+      "after": "86bfc8a490b0245e8e92beebd9885217f272b898cbb217483d30e1ee90e47f42"
+    },
+    "tests/Audit.lean": {
+      "before": "c0fb346a3aa8ba98c04ead0c144eed5256d786019c023ed0f5d3a0827f8acb14",
+      "after": "0afcee486c4f773cf10d9c3a15cc5dca16ca653a2737ef3ac11960094769537c"
+    },
+    "tests/RunExamples.lean": {
+      "before": "e9915cf8dea299ee09273b46f704fba98c32673ea53500d1228d49872d6471d5",
+      "after": "a4598407d7896caf9e52dc8a88cb861bdbac5f11f9fe67b32b45fe1dbd6e0010"
+    }
+  },
+  "audits": [
+    "CssSemantics.StepsOrigin.literal_unchanged",
+    "CssSemantics.StepsOrigin.unresolved_unchanged",
+    "CssSemantics.StepsOrigin.retained_success",
+    "CssSemantics.StepsOrigin.resolved_result_bounded",
+    "CssSemantics.StepsOrigin.normalized_bounded",
+    "CssSemantics.StepsOrigin.calculation_nan_equals_zero",
+    "CssSemantics.StepsOrigin.exact_old_loss",
+    "CssSemantics.StepsOrigin.ordinary_calculation_unchanged",
+    "CssSemantics.StepsOrigin.repaired_jump_none_at_one",
+    "CssSemantics.StepsOrigin.repaired_nan"
+  ],
+  "cases": [
+    [
+      "steps origin normalize NaN to one",
+      true
+    ],
+    [
+      "steps origin normalize zero to one",
+      true
+    ],
+    [
+      "steps origin normalize one to one",
+      true
+    ],
+    [
+      "steps origin calculated NaN clamps to two",
+      true
+    ],
+    [
+      "steps origin old calculated NaN rejects",
+      true
+    ],
+    [
+      "steps origin calculated negative clamps to two",
+      true
+    ],
+    [
+      "steps origin calculated fraction clamps to two",
+      true
+    ],
+    [
+      "steps origin calculated tie reaches two",
+      true
+    ],
+    [
+      "steps origin ordinary calculation remains one",
+      true
+    ],
+    [
+      "steps origin literal one rejects",
+      true
+    ],
+    [
+      "steps origin unresolved calculation rejects",
+      true
+    ],
+    [
+      "steps origin reject literal origin clamping",
+      false
+    ],
+    [
+      "steps origin reject calculated NaN invalidation",
+      false
+    ],
+    [
+      "steps origin reject unresolved admission",
+      false
+    ]
+  ],
+  "claims": [
+    "calculation 4 .nan = .calculation (some 1)",
+    "calculation 4 (.finite \u27e80, false\u27e9) = .calculation (some 1)",
+    "calculation 4 (.finite \u27e81, false\u27e9) = .calculation (some 1)",
+    "repaired .jumpNone (calculation 4 .nan) = some 2",
+    "old .jumpNone (calculation 4 .nan) = none",
+    "repaired .jumpNone (calculation 4 (.finite \u27e8-10, false\u27e9)) = some 2",
+    "repaired .jumpNone (calculation 4 (.finite \u27e87 / 5, false\u27e9)) = some 2",
+    "repaired .jumpNone (calculation 4 (.finite \u27e83 / 2, false\u27e9)) = some 2",
+    "repaired .ordinary (calculation 4 .nan) = some 1",
+    "repaired .jumpNone (.literal 1) = none",
+    "repaired .jumpNone (.calculation none) = none",
+    "repaired .jumpNone (.literal 1) = some 2",
+    "repaired .jumpNone (calculation 4 .nan) = none",
+    "repaired .jumpNone (.calculation none) = some 2"
+  ],
+  "base_head": "ef6f4dd2ed9499006101ac5299d731109b0361f9",
+  "base_report_sha256": "54d7657b8802a9d1f003606f9f8879bd6acab179d07b7a7a1faca03b858520a3",
+  "existing": {
+    "audits": 11830,
+    "cases": 12424,
+    "false": 170,
+    "sources": 2153
+  },
+  "delta": {
+    "audits": 10,
+    "cases": 14,
+    "false": 3,
+    "sources": 2
+  },
+  "intended": {
+    "audits": 11840,
+    "cases": 12438,
+    "false": 173,
+    "sources": 2155
+  },
+  "positive_proof_examples": 11,
+  "canonical_applied": false,
+  "new_proof_discovery_credit": 0,
+  "normative_coverage_increment": 0
+}

@@ -1,15 +1,16 @@
 # CSS verification bugfix commits
 
-Latest signed work: fix 133 `75271a173ba0` repairs calculated jump-none counts, preceded by evidence `366551d71eea`. The compact Arc borrow API and tests are separate in `feaec25f9647`. All 132 accepted fixes are committed; repair 120 remains held and excluded. See the [signing record](../css-local-signing-20261027-v2/CHECKPOINT.md).
+Latest signed fixes: calculated jump-none minimum `ea6cde0db70c` now includes its two expectation corrections; calculated cubic-bezier x ranges `8ccca4c4901c` includes its WPT and two expectation corrections. All 133 accepted fixes are committed; repair 120 stays held and excluded. The current local browser contains both fixes. See the [signing record](../css-local-signing-20261027-v4/CHECKPOINT.md).
 
 | Fix | Native/WPT commit | Preceding evidence |
 |---|---|---|
-| 133: calculated jump-none minimum | `75271a173ba0dda9d63728fa21aa12c91ddd85d1` | `366551d71eeaa911948b28b56f6bc647d0dc7079` |
+| 134: calculated cubic-bezier x range | `8ccca4c4901cc778c30485a3b85c69c0aa62724f` | `df58b1c6808b1cf4c77403c5b99a60487fec88ce` |
+| 133: calculated jump-none minimum | `ea6cde0db70c1fc85baf4fb8d0adc35b83545477` | `56c3cda25c7c6e167db523cb4365ab20dc716422` |
 
 Twenty observed failures repaired; 22 targets pass, 55 controls unchanged, all 77 restored outcomes exact. Tentative P3 conformance. Source/spec audit and browser reproduction found this issue; the separate Lean model supports conditional laws. No full bug 2037743, clean-upstream browser or security claim. Earlier checkpoint text below is historical.
 
 
-**132 accepted fixes: 132 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
+**133 accepted fixes: 133 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
 
 | Area | Committed | Accepted, pending |
 |---|---:|---:|
@@ -17,13 +18,13 @@ Twenty observed failures repaired; 22 targets pass, 55 controls unchanged, all 7
 | Cascade, layers and shorthands | 6 | 0 |
 | Parsing, tokens and CSS math | 26 | 0 |
 | Attributes and custom properties | 16 | 0 |
-| Animations, timelines and transitions | 15 | 0 |
+| Animations, timelines and transitions | 16 | 0 |
 | Text and fonts | 13 | 0 |
 | Layout, sizing and positioning | 22 | 0 |
 | Container queries | 3 | 0 |
 | Colors, images, SVG and shapes | 8 | 0 |
 | CSSOM geometry and hidden layout | 13 | 0 |
-| **Total** | **132** | **0** |
+| **Total** | **133** | **0** |
 
 | Fix | Gecko/WPT commit | Preceding research |
 |---|---|---|

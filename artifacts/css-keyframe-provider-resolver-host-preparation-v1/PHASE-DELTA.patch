@@ -1,0 +1,25 @@
+--- reviewed-build.py
++++ phase.py
+@@ -5,16 +5,18 @@
+ import time
+ 
+ 
+-def run(WORKTREE, OBJDIR, HERE, env, cancelled, state, process_control):
++def run(WORKTREE, OBJDIR, HERE, env, cancelled, state, process_control, argv, publication_errors):
+     phase = 'build'
+     def save(name, value):
+-        with (HERE / name).open('x') as stream:
+-            stream.write(json.dumps(value, indent=2) + '\n')
++        try:
++            with (HERE / name).open('x') as stream:
++                stream.write(json.dumps(value, indent=2) + '\n')
++        except BaseException as error:
++            publication_errors.append(str(HERE / name) + ': ' + repr(error))
+     def free_bytes():
+         value = os.statvfs(WORKTREE)
+         return value.f_bavail * value.f_frsize
+     assert free_bytes() >= 35 * 1024**3
+-    argv = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'build', '-j', '2']
+     stop_reason = None
+     failure = None
+     cleanup_errors = []

@@ -1,0 +1,244 @@
+--- a/ARTIFACT.md
++++ b/ARTIFACT.md
+@@ -417,3 +417,6 @@
+ 
+ 
+ Computed property-name arguments (`GuardedNames`, `GuardedNamesExamples`) extend the existing guarded expression profile with normalized name-expression evaluation before target lookup. The static embedding preserves the complete value/mark-state result of `GuardedCompletion.resolve`; the old snapshot and guarded profiles and their audits remain unchanged. Name-evaluation marks survive decoding, lookup and fallback. The parser is supplied under `NameAdapter` exactness against a caller-defined acceptance relation; identifying that relation with raw CSS custom-property-name parsing is a separate unproved boundary. No escape/token parser, spread, registration, taint, native cache, active animation provider or animated-SCC correspondence is claimed. Twenty-five already-replayed standalone statements are transferred once, with fifteen executable controls (twelve true and three intentionally false). This is a normalized conditional profile, not a new full CSS feature or proof-discovery credit. See `css-variables-computed-name-library-proposal-v1` for source/preimage mappings and pending integration validation. Earlier profile exclusions remain accurate for those fixed-name modules; this additional adapter does not silently broaden their theorems.
++
++
++Steps origin/range support (`StepsOrigin`, `StepsOriginExamples`) transfers ten reviewed consumer laws without changing their proof bodies. Eleven original proof examples remain, with fourteen executable observations including three same-claim false controls. The normalized calculation origin is preserved separately from authored literals; resolved calculations clamp to the position minimum while unresolved values retain rejection. Existing numeric censoring, integer rounding and bounded finalization are reused. This is a transfer with zero new proof-discovery or normative-coverage credit, not a parser or native refinement. Native origin classification, context-free resolution, positive normalization, IEEE conversion and machine bounds remain external premises. See `research/steps-origin-range.md` for the exact mapping and excluded behavior. Proposed totals require the later full canonical checker; this artifact does not update live results.
+--- /dev/null
++++ b/CssSemantics/StepsOrigin.lean
+@@ -0,0 +1,98 @@
++import CssSemantics.CssNumericFinalization
++
++namespace CssSemantics.StepsOrigin
++
++open CssSemantics
++
++inductive Position where
++  | ordinary
++  | jumpNone
++  deriving DecidableEq, Repr
++
++def minimum : Position → Int
++  | .ordinary => 1
++  | .jumpNone => 2
++
++inductive Specified where
++  | literal (value : Int)
++  | calculation (resolved : Option Int)
++  deriving DecidableEq, Repr
++
++def integerNormalize (upper : Int) (value : CssExtendedScalar.Value) : Int :=
++  CssIntegerRounding.round (CssNumericCensorship.complete ⟨1, upper⟩ value)
++
++def calculation (upper : Int) (value : CssExtendedScalar.Value) : Specified :=
++  .calculation (some (integerNormalize upper value))
++
++def old (position : Position) : Specified → Option Int
++  | .literal n | .calculation (some n) =>
++      if minimum position ≤ n then some n else none
++  | .calculation none => none
++
++def repaired (position : Position) : Specified → Option Int
++  | .literal n => if minimum position ≤ n then some n else none
++  | .calculation (some n) => some (max (minimum position) n)
++  | .calculation none => none
++
++theorem literal_unchanged (position n) :
++    repaired position (.literal n) = old position (.literal n) := rfl
++
++theorem unresolved_unchanged (position) :
++    repaired position (.calculation none) = old position (.calculation none) := rfl
++
++theorem retained_success {position source result}
++    (success : old position source = some result) :
++    repaired position source = some result := by
++  cases source with
++  | literal n => exact success
++  | calculation resolved =>
++    cases resolved with
++    | none => contradiction
++    | some n =>
++      simp only [old] at success
++      split at success
++      · simp only [Option.some.injEq] at success
++        subst result
++        simp only [repaired, Option.some.injEq]
++        omega
++      · contradiction
++
++theorem resolved_result_bounded {position : Position} {n upper : Int}
++    (minimumFits : minimum position ≤ upper) (normalizationBound : n ≤ upper) :
++    minimum position ≤ max (minimum position) n ∧
++      max (minimum position) n ≤ upper := by
++  omega
++
++theorem normalized_bounded {upper : Int} (valid : 1 ≤ upper) (value) :
++    1 ≤ integerNormalize upper value ∧ integerNormalize upper value ≤ upper := by
++  have bounds := CssNumericFinalization.finish_bounded
++    (context := .integer 1 upper)
++    (show CssNumericFinalization.Context.Valid (.integer 1 upper) from
++      Rat.intCast_le_intCast.mpr valid) value
++  exact ⟨Rat.intCast_le_intCast.mp bounds.1, Rat.intCast_le_intCast.mp bounds.2⟩
++
++theorem calculation_nan_equals_zero (upper) :
++    calculation upper .nan = calculation upper (.finite ⟨0, false⟩) := rfl
++
++theorem exact_old_loss {n : Int} (normalizedPositive : 1 ≤ n) :
++    old .jumpNone (.calculation (some n)) = none ↔ n = 1 := by
++  by_cases enough : 2 ≤ n
++  · simp [old, minimum, enough]
++    omega
++  · simp [old, minimum, enough]
++    omega
++
++theorem ordinary_calculation_unchanged {n : Int} (normalizedPositive : 1 ≤ n) :
++    repaired .ordinary (.calculation (some n)) = old .ordinary (.calculation (some n)) := by
++  simp only [repaired, old, minimum, normalizedPositive, ite_true, Option.some.injEq]
++  omega
++
++theorem repaired_jump_none_at_one :
++    old .jumpNone (.calculation (some 1)) = none ∧
++    repaired .jumpNone (.calculation (some 1)) = some 2 ∧
++    repaired .jumpNone (.literal 1) = none := by decide +kernel
++
++theorem repaired_nan : repaired .jumpNone (calculation 4 .nan) = some 2 := by
++  decide +kernel
++
++end CssSemantics.StepsOrigin
+--- /dev/null
++++ b/CssSemantics/StepsOriginExamples.lean
+@@ -0,0 +1,36 @@
++import CssSemantics.StepsOrigin
++
++open CssSemantics.StepsOrigin
++
++example : calculation 4 .nan = .calculation (some 1) := by decide +kernel
++example : calculation 4 (.finite ⟨0, false⟩) = .calculation (some 1) := by decide +kernel
++example : calculation 4 (.finite ⟨1, false⟩) = .calculation (some 1) := by decide +kernel
++example : repaired .jumpNone (calculation 4 .nan) = some 2 := by decide +kernel
++example : old .jumpNone (calculation 4 .nan) = none := by decide +kernel
++example : repaired .jumpNone (calculation 4 (.finite ⟨-10, false⟩)) = some 2 := by decide +kernel
++example : repaired .jumpNone (calculation 4 (.finite ⟨7 / 5, false⟩)) = some 2 := by decide +kernel
++example : repaired .jumpNone (calculation 4 (.finite ⟨3 / 2, false⟩)) = some 2 := by decide +kernel
++example : repaired .ordinary (calculation 4 .nan) = some 1 := by decide +kernel
++example : repaired .jumpNone (.literal 1) = none := by decide +kernel
++example : repaired .jumpNone (.calculation none) = none := by decide +kernel
++
++namespace CssSemantics.StepsOrigin.Examples
++
++def checks : List (String × Bool) := [
++  ("steps origin normalize NaN to one", decide (calculation 4 .nan = .calculation (some 1))),
++  ("steps origin normalize zero to one", decide (calculation 4 (.finite ⟨0, false⟩) = .calculation (some 1))),
++  ("steps origin normalize one to one", decide (calculation 4 (.finite ⟨1, false⟩) = .calculation (some 1))),
++  ("steps origin calculated NaN clamps to two", decide (repaired .jumpNone (calculation 4 .nan) = some 2)),
++  ("steps origin old calculated NaN rejects", decide (old .jumpNone (calculation 4 .nan) = none)),
++  ("steps origin calculated negative clamps to two", decide (repaired .jumpNone (calculation 4 (.finite ⟨-10, false⟩)) = some 2)),
++  ("steps origin calculated fraction clamps to two", decide (repaired .jumpNone (calculation 4 (.finite ⟨7 / 5, false⟩)) = some 2)),
++  ("steps origin calculated tie reaches two", decide (repaired .jumpNone (calculation 4 (.finite ⟨3 / 2, false⟩)) = some 2)),
++  ("steps origin ordinary calculation remains one", decide (repaired .ordinary (calculation 4 .nan) = some 1)),
++  ("steps origin literal one rejects", decide (repaired .jumpNone (.literal 1) = none)),
++  ("steps origin unresolved calculation rejects", decide (repaired .jumpNone (.calculation none) = none)),
++  ("steps origin reject literal origin clamping", decide (repaired .jumpNone (.literal 1) = some 2)),
++  ("steps origin reject calculated NaN invalidation", decide (repaired .jumpNone (calculation 4 .nan) = none)),
++  ("steps origin reject unresolved admission", decide (repaired .jumpNone (.calculation none) = some 2))
++]
++
++end CssSemantics.StepsOrigin.Examples
+--- a/CssSemantics.lean
++++ b/CssSemantics.lean
+@@ -2006,3 +2006,6 @@
+ 
+ import CssSemantics.GuardedNames
+ import CssSemantics.GuardedNamesExamples
++
++import CssSemantics.StepsOrigin
++import CssSemantics.StepsOriginExamples
+--- a/README.md
++++ b/README.md
+@@ -4659,3 +4659,6 @@
+ 
+ 
+ Computed property-name support (`GuardedNames`, `GuardedNamesExamples`) preserves the old guarded solver through a full value/state embedding. Its name parser remains a supplied normalized-token adapter, with no raw CSS/native correspondence claim. The 25 transferred audits and 15 executable controls add no proof-discovery or numeric normative coverage credit. Full assumptions and exclusions are recorded in ARTIFACT.md; exact transfer/preimages are in `css-variables-computed-name-library-proposal-v2`. Existing fixed-name profile claims remain unchanged.
++
++
++Steps origin/range support (`StepsOrigin`, `StepsOriginExamples`) transfers ten reviewed consumer laws without changing their proof bodies. Eleven original proof examples remain, with fourteen executable observations including three same-claim false controls. The normalized calculation origin is preserved separately from authored literals; resolved calculations clamp to the position minimum while unresolved values retain rejection. Existing numeric censoring, integer rounding and bounded finalization are reused. This is a transfer with zero new proof-discovery or normative-coverage credit, not a parser or native refinement. Native origin classification, context-free resolution, positive normalization, IEEE conversion and machine bounds remain external premises. See `research/steps-origin-range.md` for the exact mapping and excluded behavior. Proposed totals require the later full canonical checker; this artifact does not update live results.
+--- a/check.py
++++ b/check.py
+@@ -12450,6 +12450,20 @@
+     ('computed name reject wrong valid-target value', False),
+     ('computed name reject lost caller marks', False),
+     ('computed name reject cycle rescue', False),
++    ('steps origin normalize NaN to one', True),
++    ('steps origin normalize zero to one', True),
++    ('steps origin normalize one to one', True),
++    ('steps origin calculated NaN clamps to two', True),
++    ('steps origin old calculated NaN rejects', True),
++    ('steps origin calculated negative clamps to two', True),
++    ('steps origin calculated fraction clamps to two', True),
++    ('steps origin calculated tie reaches two', True),
++    ('steps origin ordinary calculation remains one', True),
++    ('steps origin literal one rejects', True),
++    ('steps origin unresolved calculation rejects', True),
++    ('steps origin reject literal origin clamping', False),
++    ('steps origin reject calculated NaN invalidation', False),
++    ('steps origin reject unresolved admission', False),
+ ]
+ 
+ 
+--- a/research/coverage-map.md
++++ b/research/coverage-map.md
+@@ -680,3 +680,6 @@
+ 
+ 
+ Computed property-name support (`GuardedNames`, `GuardedNamesExamples`) preserves the old guarded solver through a full value/state embedding. Its name parser remains a supplied normalized-token adapter, with no raw CSS/native correspondence claim. The 25 transferred audits and 15 executable controls add no proof-discovery or numeric normative coverage credit. Full assumptions and exclusions are recorded in ARTIFACT.md; exact transfer/preimages are in `css-variables-computed-name-library-proposal-v2`. Existing fixed-name profile claims remain unchanged.
++
++
++Steps origin/range support (`StepsOrigin`, `StepsOriginExamples`) transfers ten reviewed consumer laws without changing their proof bodies. Eleven original proof examples remain, with fourteen executable observations including three same-claim false controls. The normalized calculation origin is preserved separately from authored literals; resolved calculations clamp to the position minimum while unresolved values retain rejection. Existing numeric censoring, integer rounding and bounded finalization are reused. This is a transfer with zero new proof-discovery or normative-coverage credit, not a parser or native refinement. Native origin classification, context-free resolution, positive normalization, IEEE conversion and machine bounds remain external premises. See `research/steps-origin-range.md` for the exact mapping and excluded behavior. Proposed totals require the later full canonical checker; this artifact does not update live results.
+--- /dev/null
++++ b/research/steps-origin-range.md
+@@ -0,0 +1,16 @@
++# Steps origin and consumer range
++
++This is a transfer of the reviewed `css-steps-origin-clamping-model-v1`, not new theorem discovery. The original ten statements/proofs and eleven positive examples are retained under a canonical namespace. Three false claims become expected-false executable observations under the existing exact-output checker; focused replay also preserves the original same-claim kernel rejection controls. No checker rejection gate is relaxed.
++
++| Specification rule | Supplied model boundary |
++| --- | --- |
++| [CSS Easing 1 step functions](https://drafts.csswg.org/css-easing-1/#step-easing-functions): jump-none requires more than one step | `minimum .jumpNone = 2`; other supplied positions use one |
++| [Values 4 numeric ranges](https://drafts.csswg.org/css-values-4/#numeric-ranges): prose ranges are numeric constraints too | Conditional minimum is the final consumer range |
++| [Values 4 numeric functions](https://drafts.csswg.org/css-values-4/#numeric-function): computed out-of-range results clamp rather than invalidate | `Specified.calculation` remains distinct from `.literal`; `repaired` clamps only resolved calculations |
++| [Top-level calculation](https://drafts.csswg.org/css-values-4/#top-level-calculation) and [range checking](https://drafts.csswg.org/css-values-4/#calc-range) | Existing `CssNumericCensorship.complete` and `CssIntegerRounding.round` supply a normalized integer; NaN and zero are equivalent at that boundary |
++
++The authoritative manual trace is `css-steps-nan-oracle-trace-v2` (superseding the earlier inconclusive trace). No fresh web-spec translation or automated translation proof is claimed here. `calculation upper value` first uses the existing positive-integer normalization range [1,upper]; the consumer then applies minimum two. This is a conditional model of the repaired implementation pipeline, not a claim that an intermediate range of one is mandated by CSS. Its repaired NaN result is two. Ordinary-position equivalence explicitly requires normalized positivity. The upper bound theorem requires both the normalized result and the consumer minimum to fit the supplied bound.
++
++`Option.none` represents unavailable context-free resolution; rejecting it preserves the modeled parser admission domain, not a normative requirement to reject every contextual CSS expression. Actual CSS token parsing, literal/calculation tagging, calc tree resolution, binary32/binary64 operations, saturation to signed32, and source/compiler correspondence remain obligations. The abstract exceptional-value model does not prove native IEEE execution. Serialization, WAAPI update atomicity, timing interpolation, DOM/provider lifecycle and browser behavior are outside these theorems.
++
++Versioned native mapping is fix 133's reviewed `css-steps-jump-none-repair-v2` easing change: retain Inline literal validation, admit resolved calculated jump-none counts and clamp in shared computation. Browser discovery/acceptance and later metadata corrections are separate evidence, not Lean-discovered bugs. No whole-CSS coverage increment or quantitative coverage credit is recorded; coverage.json is unchanged.
+--- a/tests/Audit.lean
++++ b/tests/Audit.lean
+@@ -11848,3 +11848,14 @@
+ #print axioms CssSemantics.GuardedNames.Examples.multiple_name_result
+ #print axioms CssSemantics.GuardedNames.Examples.missing_name_result
+ #print axioms CssSemantics.GuardedNames.Examples.nested_name_result
++
++#print axioms CssSemantics.StepsOrigin.literal_unchanged
++#print axioms CssSemantics.StepsOrigin.unresolved_unchanged
++#print axioms CssSemantics.StepsOrigin.retained_success
++#print axioms CssSemantics.StepsOrigin.resolved_result_bounded
++#print axioms CssSemantics.StepsOrigin.normalized_bounded
++#print axioms CssSemantics.StepsOrigin.calculation_nan_equals_zero
++#print axioms CssSemantics.StepsOrigin.exact_old_loss
++#print axioms CssSemantics.StepsOrigin.ordinary_calculation_unchanged
++#print axioms CssSemantics.StepsOrigin.repaired_jump_none_at_one
++#print axioms CssSemantics.StepsOrigin.repaired_nan
+--- a/tests/RunExamples.lean
++++ b/tests/RunExamples.lean
+@@ -869,3 +869,6 @@
+ 
+   for (name, accepted) in CssSemantics.GuardedNames.Examples.checks do
+     IO.println s!"PASS {name}: {accepted}"
++
++  for (name, accepted) in CssSemantics.StepsOrigin.Examples.checks do
++    IO.println s!"PASS {name}: {accepted}"
