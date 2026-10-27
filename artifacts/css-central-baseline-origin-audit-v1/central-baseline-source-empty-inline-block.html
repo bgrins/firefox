@@ -1,0 +1,60 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Empty inline-block central baselines agree for first and last sources</title>
+<link rel="help" href="https://drafts.csswg.org/css-inline-3/#baseline-source">
+<link rel="help" href="https://drafts.csswg.org/css-inline-3/#baseline-synthesis-box">
+<link rel="help" href="https://drafts.csswg.org/css-align-3/#baseline-export">
+<meta name="assert" content="Selecting first or last does not move the synthesized central baseline of an empty inline-block with asymmetric margins.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="fixtures"></div>
+<script>
+"use strict";
+
+for (const writingMode of ["vertical-rl", "vertical-lr"]) {
+  for (const [start, end] of [[10, 30], [30, 10], [20, 20]]) {
+    test(t => {
+      const line = document.createElement("div");
+      line.style.cssText = `writing-mode: ${writingMode}; inline-size: 200px;
+        block-size: 200px; font-size: 0; line-height: 0; white-space: nowrap;
+        text-orientation: mixed;`;
+      const boxes = ["first", "last"].map(source => {
+        const box = document.createElement("span");
+        box.style.cssText = `display: inline-block; inline-size: 20px;
+          block-size: 100px; margin-block-start: ${start}px;
+          margin-block-end: ${end}px; vertical-align: baseline;
+          baseline-source: ${source};`;
+        line.append(box);
+        return box;
+      });
+      document.getElementById("fixtures").append(line);
+      t.add_cleanup(() => line.remove());
+
+      boxes.forEach((box, i) => {
+        const style = getComputedStyle(box);
+        assert_equals(style.baselineSource, ["first", "last"][i], "source applied");
+        assert_equals(style.writingMode, writingMode, "parallel writing modes");
+        assert_equals(style.alignmentBaseline, "baseline", "default baseline type");
+        assert_equals(style.textOrientation, "mixed", "central dominant baseline");
+        assert_equals(style.marginBlockStart, `${start}px`, "start margin applied");
+        assert_equals(style.marginBlockEnd, `${end}px`, "end margin applied");
+        assert_equals(box.childNodes.length, 0, "no content-derived baseline");
+      });
+
+      const first = boxes.map(box => box.getBoundingClientRect().toJSON());
+      const repeated = boxes.map(box => box.getBoundingClientRect().toJSON());
+      first.forEach((rect, i) => {
+        assert_approx_equals(rect.width, 100, 0.02, "border-box block size");
+        assert_approx_equals(rect.height, 20, 0.02, "border-box inline size");
+        for (const edge of ["left", "right", "top", "bottom"]) {
+          assert_equals(repeated[i][edge], rect[edge], `stable ${edge}`);
+        }
+      });
+      assert_approx_equals(first[1].top - first[0].top, 20, 0.02,
+                           "both boxes occupy one unwrapped line");
+      assert_approx_equals(first[0].left, first[1].left, 0.02,
+                           "first and last sources align the same margin-box center");
+    }, `${writingMode}: central synthesis with block margins ${start}px / ${end}px`);
+  }
+}
+</script>

@@ -1,0 +1,90 @@
+--- a/layout/base/Baseline.cpp
++++ b/layout/base/Baseline.cpp
+@@ -89,8 +89,11 @@
+     case StyleAlignmentBaseline::Middle: {
+       nscoord boxBSize = aFrame->BSize(aWM) + bp.BStartEnd(aWM);
+       nscoord halfBoxBSize = (boxBSize / 2) + (boxBSize % 2);
+-      return aWM.IsLineInverted() ? -bp.BEnd(aWM) + halfBoxBSize
+-                                  : -bp.BStart(aWM) + halfBoxBSize;
++      const nscoord offset = aWM.IsLineInverted()
++                                 ? -bp.BEnd(aWM) + halfBoxBSize
++                                 : -bp.BStart(aWM) + halfBoxBSize;
++      return group == BaselineSharingGroup::First ? offset
++                                                  : aFrame->BSize(aWM) - offset;
+     }
+ 
+     case StyleAlignmentBaseline::Hanging:
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-inline/central-baseline-source-margin-center.html
+@@ -0,0 +1,71 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Empty inline-block central baselines align physical margin-box centers</title>
++<link rel="help" href="https://drafts.csswg.org/css-inline-3/#baseline-source">
++<link rel="help" href="https://drafts.csswg.org/css-inline-3/#baseline-synthesis-box">
++<link rel="help" href="https://drafts.csswg.org/css-align-3/#baseline-export">
++<meta name="assert" content="The synthesized central baseline of an empty inline-block is at its physical margin-box center for either baseline source.">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<div id="fixtures"></div>
++<script>
++"use strict";
++
++for (const writingMode of ["vertical-rl", "vertical-lr"]) {
++  for (const [start, end, selected] of [[10, 30], [30, 10], [20, 20]].flatMap(
++    ([start, end]) => [[start, end, 0], [start, end, 1]])) {
++    test(t => {
++      const line = document.createElement("div");
++      line.style.cssText = `writing-mode: ${writingMode}; inline-size: 200px;
++        block-size: 200px; font-size: 0; line-height: 0; white-space: nowrap;
++        text-orientation: mixed;`;
++      const boxes = ["first", "last", "first"].map((source, index) => {
++        const marginStart = index === 2 ? 20 : start;
++        const marginEnd = index === 2 ? 20 : end;
++        const box = document.createElement("span");
++        box.style.cssText = `display: inline-block; inline-size: 20px;
++          block-size: 100px; margin-block-start: ${marginStart}px;
++          margin-block-end: ${marginEnd}px; vertical-align: baseline;
++          baseline-source: ${source};`;
++        line.append(box);
++        return box;
++      });
++      document.getElementById("fixtures").append(line);
++      t.add_cleanup(() => line.remove());
++
++      boxes.forEach((box, i) => {
++        const style = getComputedStyle(box);
++        assert_equals(style.baselineSource, ["first", "last", "first"][i], "source applied");
++        assert_equals(style.writingMode, writingMode, "parallel writing modes");
++        assert_equals(style.alignmentBaseline, "baseline", "default baseline type");
++        assert_equals(style.textOrientation, "mixed", "central dominant baseline");
++        assert_equals(style.marginBlockStart, `${i === 2 ? 20 : start}px`, "start margin applied");
++        assert_equals(style.marginBlockEnd, `${i === 2 ? 20 : end}px`, "end margin applied");
++        assert_equals(box.childNodes.length, 0, "no content-derived baseline");
++      });
++
++      const first = boxes.map(box => box.getBoundingClientRect().toJSON());
++      const repeated = boxes.map(box => box.getBoundingClientRect().toJSON());
++      first.forEach((rect, i) => {
++        assert_approx_equals(rect.width, 100, 0.02, "border-box block size");
++        assert_approx_equals(rect.height, 20, 0.02, "border-box inline size");
++        for (const edge of ["left", "right", "top", "bottom"]) {
++          assert_equals(repeated[i][edge], rect[edge], `stable ${edge}`);
++        }
++      });
++      assert_approx_equals(first[1].top - first[0].top, 20, 0.02,
++                           "both boxes occupy one unwrapped line");
++      assert_approx_equals(first[2].top - first[0].top, 40, 0.02,
++                           "symmetric reference occupies the same unwrapped line");
++      const centers = boxes.map((box, i) => {
++        const style = getComputedStyle(box);
++        return first[i].left + (first[i].width + parseFloat(style.marginRight) -
++                               parseFloat(style.marginLeft)) / 2;
++      });
++      centers.forEach(center => assert_true(Number.isFinite(center), "finite margin center"));
++      assert_approx_equals(centers[selected], centers[2], 0.02,
++                           "physical margin-box center aligns with symmetric reference");
++    }, `${writingMode}: ${["first", "last"][selected]} source, block margins ${start}px / ${end}px`);
++  }
++}
++</script>

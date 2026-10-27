@@ -1,0 +1,9 @@
+# Central baseline origin paired comparison
+
+The one-file correction repairs the four physical-midpoint failures on normalized HEAD. Baseline has208 PASS/8 FAIL; candidate has212 PASS/4 FAIL across the same216 named subtests. All four improvements are the new asymmetric-margin cases. No baseline pass is lost and the four existing failures retain identical diagnostics and expectations. The separate reference test passes both phases. The new WPT passes scoped lint.
+
+Source roles are pinned HEAD90e7c8a3c46c5e84ec0bfffc239e52ea72b2085e versus that HEAD with only layout/base/Baseline.cpp replaced by the reviewed proposal. The candidate encodes the existing rounded central offset relative to the requested origin, using the line-inversion-adjusted group. It changes central/mathematical/middle synthesis; the ordinary browser fixture exercises central margin-box synthesis.
+
+Both builds and the restoration build exit0. The controller restores all32 saved originals and removes its owned WPT. Root independently verifies44 source guards,925 staged paths,61 preexisting test contents/ownership,232 resource guards, the complete native diff roster, temporary-path absence and rebuilt binary identities. Root also recounts the raw216-row/14-file records, exact improvements and retained failures. BEFORE and FINAL match. Full build logs retain the known nonfatal progress-monitor KeyError('export') diagnostics.
+
+This is successful browser repair and preservation evidence, not acceptance. Twenty-six focused Lean declarations passed independent replay, but complete native-domain correspondence remains scoped. Source audits exclude the proposed exceptional margin route in ordinary container families; uncommon widget/privileged frame states remain under investigation. No saturation or legacy-origin fallback was introduced. No new accepted fix or commit is claimed, and the candidate is not left installed in the working tree.

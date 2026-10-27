@@ -1,0 +1,29 @@
+--- working-v1/run.py
++++ working-v2/run.py
+@@ -16,11 +16,12 @@
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+ EPOCH = ROOT / 'artifacts/css-wide-baseline-interface-compile-runtime-v1'
+-FIXTURE = ROOT / 'artifacts/css-central-baseline-origin-audit-v1/central-baseline-source-empty-inline-block.html'
+-DEST = 'testing/web-platform/tests/css/css-inline/central-baseline-source-empty-inline-block.html'
+-TEST = '/css/css-inline/central-baseline-source-empty-inline-block.html'
+-EXPECTED = [f'{wm}: central synthesis with block margins {s}px / {e}px'
+-            for wm in ('vertical-rl', 'vertical-lr') for s, e in ((10, 30), (30, 10), (20, 20))]
++FIXTURE = ROOT / 'artifacts/css-central-baseline-origin-oracle-v2/central-baseline-source-margin-center.html'
++DEST = 'testing/web-platform/tests/css/css-inline/central-baseline-source-margin-center.html'
++TEST = '/css/css-inline/central-baseline-source-margin-center.html'
++EXPECTED = [f'{wm}: {source} source, block margins {s}px / {e}px'
++            for wm in ('vertical-rl', 'vertical-lr') for s, e in ((10, 30), (30, 10), (20, 20))
++            for source in ('first', 'last')]
+ 
+ def need(ok, why):
+     if not ok:
+@@ -132,7 +133,7 @@
+          and ends[0]['status'] == 'OK' and [r['subtest'] for r in rows] == EXPECTED
+          and all(r['test'] == TEST and r['status'] in ('PASS', 'FAIL') for r in rows)
+          and sum(e.get('action') == 'suite_start' for e in events) == 1
+-         and sum(e.get('action') == 'suite_end' for e in events) == 1 and not faults, 'incomplete six-case harness')
++         and sum(e.get('action') == 'suite_end' for e in events) == 1 and not faults, 'incomplete twelve-case harness')
+     need(state['wpt_exit'] == 0 or (state['wpt_exit'] == 1 and any(r['status'] == 'FAIL' for r in rows)), 'unexpected harness exit')
+     state['subtests'] = {s: sum(r['status'] == s for r in rows) for s in ('PASS', 'FAIL')}
+     state['complete'] = True

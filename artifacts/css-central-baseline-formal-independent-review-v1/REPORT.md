@@ -1,0 +1,30 @@
+Independent source review and isolated Lean replay: PASS for the stated arithmetic contracts. No mathematical blocker found. This does not establish universal native safety or accept the repair.
+
+Replayed byte-identical copies of CentralSynthesis.lean, Range.lean and Domain.lean with the pinned Lean 4.35.0-rc4 executable. All three commands exited zero. The 17, 4 and 5 printed declaration audits respectively contain only standard Lean axioms (or no axioms); there is no sorryAx, custom axiom, warning or error. Replay logs exactly match the author logs. These are 26 audited declarations including supporting results, not 26 new CSS behaviors verified. All sealed capsule payloads remained unchanged. Only Std is imported; no library rebuild, output object files or target directory was created.
+
+INPUTS.json retains each capsule manifest, compiler identity and the union of 21 committed-source pins. Those native pins were independently checked with read-only git show at 90e7c8a3c46c5e84ec0bfffc239e52ea72b2085e, avoiding the active experiment tree. The arithmetic capsule's retained HEAD body, proposal snapshot and fixture bindings also authenticate. I inspected the relevant pinned Baseline, nsIFrame, nsBlockFrame, nsTextFrame and absolute-margin bodies for the joins below; this is a focused correspondence review, not an independently exhaustive caller inventory.
+
+The source-expression model matches the candidate's actual adjusted group. With original request F and inversion I, the native local group is F when not inverted and its opposite otherwise. The candidate returns raw r exactly when F differs from I, and E-r otherwise. CentralSynthesis.sourceExpression_eq establishes this Boolean selection; originAware_origin and same_physical_point establish its encoding/decoding relation. The native caller decodes the original Last group as E-result, not the locally adjusted group. Omitting the native group flip would model a different patch.
+
+Signed tdiv/tmod correctly model C++ truncation toward zero for division by positive two. The rounding theorems describe the existing half-away-from-zero policy, including negative and odd totals. The midpoint bound is half an integer unit; native correspondence identifies that unit with an app unit. It is not a proof that CSS specifies that tie policy or that every source caller requests the same synthesis box. Physical-margin midpoint interpretation and browser calibration remain separate evidence.
+
+The range results have useful, limited domains:
+
+| Result | What is established | Required native premise |
+|---|---|---|
+| Range.complement_identity / literal_margin_range | E-(h-s) equals trunc(T/2)-e; a defined int32 total and an opposite addition in ±nscoord_MAX bound the complement strictly inside int32. | T and raw must actually equal the integer expressions; earlier native sum, negation and addition operations must be defined. The cached-margin path does not universally inherit literal conversion bounds. |
+| Domain.nonnegative_extent_lower_margin | A nonnegative E, defined old total/raw upper bounds and opposite addition at least -nscoord_MAX suffice; no upper bound on that addition is needed. | Nonnegative frame extent and the opposite-side lower bound must hold at the query. Large positive auto margins alone do not invalidate this domain. |
+| Domain.negative_insets | Nonnegative int32 E and both additions in [-INT32_MAX,0] bound the final complement. | Used border/padding contributions and their negations must have the stated values, and all earlier native operations must already be defined. The theorem can hold even where an earlier native total would overflow; it does not license that execution. |
+| Domain.noninverted_last_defined | If old raw and the old full logical-query complement fit int32, both candidate subtractions fit and the final result equals raw. | This is an old-full-query-defined premise, stronger than merely having a defined old helper. It is not preservation of the old incorrect baseline value. |
+
+The models use mathematical Int, not extracted C++. In particular, native E+(s+e) and unary -s cannot be justified merely by a representable mathematical E+s+e. The reports correctly require all old intermediates to be defined. None of the lemmas proves compiler arithmetic, frame-size invariants, cached-property lifetime, provider selection or browser reachability.
+
+The arbitrary int32 witness is valid as an API-level arithmetic warning: E=INT32_MAX, selected=INT32_MAX and opposite=-INT32_MAX give a defined old margin sum, total, half, negation and raw, but E-raw=3221225470. It is not a CSS-literal or browser witness. The stronger domain analysis appropriately supersedes the range report's tentative fallback discussion; no arbitrary saturation or legacy-origin fallback follows from the proofs.
+
+The remaining gap is concrete and unchanged. GetUsedMargin prefers UsedMarginProperty; absolute auto-margin resolution can directly publish negative remaining space below -nscoord_MAX. The orthogonal text-baseline path calls its parent's GetLogicalBaseline without an explicit group. An ordinary nsBlockFrame defaults to Last, so that route alone does not demonstrate newly undefined arithmetic: noninverted Last is covered when the old full query was defined, and inverted Last is unchanged. The base default is First, however. These artifacts do not exclude a default-First non-block provider, relevant parent/text or wrapper structure, natural-baseline rejection, and sufficiently negative cached opposite margin coexisting at an inverted query. Nor do they prove all extent/inset premises globally. This is an unresolved production-domain obligation, not an observed regression.
+
+The small paired experiment can test the ordinary midpoint repair independently. Its success cannot close this exceptional caller/range gap. No native, browser, Gecko build, test-install, index or accepted-library action was performed by this review.
+
+Replay:
+
+    python3 -I -S artifacts/css-central-baseline-formal-independent-review-v1/replay.py
