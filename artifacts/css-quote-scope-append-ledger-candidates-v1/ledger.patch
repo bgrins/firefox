@@ -1,0 +1,343 @@
+--- a/artifacts/css-fix-readout-20261023/GROUPS.json
++++ b/artifacts/css-fix-readout-20261023/GROUPS.json
+@@ -1,6 +1,6 @@
+ {
+-  "head": "72ca9cb73758b2550453c03b7382ea3b18284f28",
+-  "committed": 133,
++  "head": "0d27cb839f013f214973215cd0a8ce8a87c4b780",
++  "committed": 134,
+   "accepted_pending": 0,
+   "count_policy": "One primary fix per numbered ledger entry; excludes companion proofs/tooling, test-only commits, alternative branches and unaccepted prototypes. Groups are areas, not assigned severity.",
+   "groups": [
+@@ -2600,11 +2600,11 @@
+         }
+       ],
+       "held": 0,
+-      "total": 14
++      "total": 16
+     },
+     {
+       "group": "Text and fonts",
+-      "committed": 13,
++      "committed": 14,
+       "accepted_pending": 0,
+       "examples": "Font matching/lifecycle, Unicode, shaping and hyphenation",
+       "fixes": [
+@@ -2896,10 +2896,67 @@
+             "isolated_base_build_browser": "PASS: 90 expected checks, 76 new subtests"
+           },
+           "fix": 61
++        },
++        {
++          "fix": 135,
++          "repair": "contained-quote-append-invalidation",
++          "status": "COMMITTED_NATIVE_WPT",
++          "group": "Text and fonts",
++          "native_commit": "0d27cb839f013f214973215cd0a8ce8a87c4b780",
++          "research_commit": "d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4",
++          "native_paths": [
++            "layout/base/nsQuoteList.cpp",
++            "layout/base/nsQuoteList.h",
++            "testing/web-platform/tests/css/css-contain/quote-scoping-append-invalidation.html"
++          ],
++          "phase_order": [
++            "candidate",
++            "scoped_original",
++            "candidate_restored"
++          ],
++          "phase_counts": [
++            [
++              64,
++              0
++            ],
++            [
++              52,
++              12
++            ],
++            [
++              64,
++              0
++            ]
++          ],
++          "observed_repairs": 12,
++          "landing_cases": 64,
++          "unchanged_landing_controls": 52,
++          "existing_regressions": {
++            "PASS": 15,
++            "expected_FAIL": 3,
++            "exact_all_phases": true
++          },
++          "terminal_review": {
++            "path": "artifacts/css-quote-scope-append-coc-terminal-review-v2/CHECK.json",
++            "sha256": "0eb2fbeb99731591f5ac3dc0f8eb6b0ffd82fc601acd06a9ac3df49e6a0e6b1f"
++          },
++          "commit_verification": {
++            "path": "artifacts/css-local-signing-20261027-v6/QUOTE-COMMITS.json",
++            "sha256": "d5de2f15518646537e6a86ba6606a0eef44cb2472f71cab6e1fb8d4d966615cc"
++          },
++          "triage": "Tentative P3 visual correctness; no demonstrated security impact.",
++          "discovery": "Source audit and controlled browser reproduction; not a proof-discovered bug.",
++          "formal_attribution": "Conditional Lean delivery and ordered-scope models corroborate the dependency argument. Uniform provider, actual native traversal/delivery, cache coherence and machine arithmetic remain correspondence premises; no universal native refinement or new canonical coverage credit.",
++          "limits": [
++            "Shared experimental checkout; no clean-upstream browser build claim.",
++            "Three existing regression expected failures remain unchanged.",
++            "Raw index bytes may refresh under exact semantic and flags guards; cause is not established.",
++            "Adjacent counter append hypothesis is unrun and not included in this fix."
++          ]
+         }
+       ],
+       "held": 0,
+-      "total": 13
++      "total": 14
+     },
+     {
+       "group": "Layout, sizing and positioning",
+@@ -4622,8 +4679,8 @@
+     }
+   ],
+   "held": 1,
+-  "tracked": 132,
+-  "accepted": 133,
++  "tracked": 135,
++  "accepted": 134,
+   "source_ledger": "artifacts/stylo-bloom-tools/CURRENT-COMMITS.json",
+   "formal_library_checkpoint": {
+     "status": "STEPS_ORIGIN_LIBRARY_FULL_CHECK_PASS",
+--- a/artifacts/css-fix-readout-20261023/README.md
++++ b/artifacts/css-fix-readout-20261023/README.md
+@@ -1,9 +1,12 @@
+ # Local CSS/Stylo fixes by area
+ 
+-Fix 121 now includes its validated one-block expectation correction. The signed history rewrite preserves the final tree; current commit IDs below come from the [new rewrite receipt](../../artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json). Historical signing receipts retain their original IDs. All 133 accepted fixes remain committed; held repair 120 stays excluded.
+-
+-
+-**133 accepted fixes: 133 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
++Fix 135, contained quote append invalidation, is committed as `0d27cb839f013f214973215cd0a8ce8a87c4b780` after research `d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4`. The candidate/original/candidate comparison gives 64 PASS / 52 PASS + 12 FAIL / 64 PASS, with all 18 existing regressions unchanged (15 PASS and three expected FAIL). Tentative P3 visual correctness. Discovery came from source audit and browser reproduction; conditional Lean models corroborate scope/dependency laws, not universal native correctness. No clean-upstream build, security or measured performance claim. The adjacent counter hypothesis remains unrun and uncounted.
++
++
++Fix 121 now includes its validated one-block expectation correction. The signed history rewrite preserves the final tree; current commit IDs below come from the [new rewrite receipt](../../artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json). Historical signing receipts retain their original IDs. All 134 accepted fixes remain committed; held repair 120 stays excluded.
++
++
++**134 accepted fixes: 134 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
+ 
+ | Area | Committed | Accepted, pending |
+ |---|---:|---:|
+@@ -12,12 +15,12 @@
+ | Parsing, tokens and CSS math | 26 | 0 |
+ | Attributes and custom properties | 16 | 0 |
+ | Animations, timelines and transitions | 16 | 0 |
+-| Text and fonts | 13 | 0 |
++| Text and fonts | 14 | 0 |
+ | Layout, sizing and positioning | 22 | 0 |
+ | Container queries | 3 | 0 |
+ | Colors, images, SVG and shapes | 8 | 0 |
+ | CSSOM geometry and hidden layout | 13 | 0 |
+-| **Total** | **133** | **0** |
++| **Total** | **134** | **0** |
+ 
+ | Fix | Gecko/WPT commit | Preceding research |
+ |---|---|---|
+@@ -39,7 +42,7 @@
+ 
+ The callable current-provider resolver passed the normal and GTest builds and all 19 native tests; normal pending recipe production remains disabled. The 113-case metadata comparison preserved all 110 PASS and three expected FAIL observations, changing only the fix 121 expectation. The canonical library is signed at `162b20fb7c53a0ab89b20875a965baee98fb66bb` and its full check passes 11,840 audits, 12,438 cases, 173 expected-false cases and 2,155 source fingerprints. Ten audits transfer from reviewed steps research, with no new discovery, normative coverage or native-refinement credit.
+ 
+-Next: Run the quote append candidate/original/candidate comparison with fresh captures and exact restoration; then integrate winning pending animation providers through the real cascade and dependency scheduler. Preserve unresolved animated-cycle policy, current underlying-value provenance, dependency publication and memory-reporting obligations.
++Next: Integrate winning pending animation providers through the real cascade and dependency scheduler; preserve explicit current-base, cycle-policy, dependency-publication and memory-reporting obligations. Preserve unresolved animated-cycle policy, current underlying-value provenance, dependency publication and memory-reporting obligations.
+ 
+ Historical checkpoint text follows; its counts and future-work statements describe that earlier state.
+ 
+--- a/artifacts/stylo-bloom-tools/BUGFIX-COMMITS.md
++++ b/artifacts/stylo-bloom-tools/BUGFIX-COMMITS.md
+@@ -1,10 +1,13 @@
+ # CSS verification bugfix commits
+ 
+-Fix 121 now includes its validated one-block expectation correction. The signed history rewrite preserves the final tree; current commit IDs below come from the [new rewrite receipt](../../artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json). Historical signing receipts retain their original IDs. All 133 accepted fixes remain committed; held repair 120 stays excluded.
++Fix 135, contained quote append invalidation, is committed as `0d27cb839f013f214973215cd0a8ce8a87c4b780` after research `d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4`. The candidate/original/candidate comparison gives 64 PASS / 52 PASS + 12 FAIL / 64 PASS, with all 18 existing regressions unchanged (15 PASS and three expected FAIL). Tentative P3 visual correctness. Discovery came from source audit and browser reproduction; conditional Lean models corroborate scope/dependency laws, not universal native correctness. No clean-upstream build, security or measured performance claim. The adjacent counter hypothesis remains unrun and uncounted.
++
++
++Fix 121 now includes its validated one-block expectation correction. The signed history rewrite preserves the final tree; current commit IDs below come from the [new rewrite receipt](../../artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json). Historical signing receipts retain their original IDs. All 134 accepted fixes remain committed; held repair 120 stays excluded.
+ 
+ The callable current-provider resolver passed the normal and GTest builds and all 19 native tests; normal pending recipe production remains disabled. The 113-case metadata comparison preserved all 110 PASS and three expected FAIL observations, changing only the fix 121 expectation. The canonical library is signed at `162b20fb7c53a0ab89b20875a965baee98fb66bb` and its full check passes 11,840 audits, 12,438 cases, 173 expected-false cases and 2,155 source fingerprints. Ten audits transfer from reviewed steps research, with no new discovery, normative coverage or native-refinement credit.
+ 
+-Next: Run the quote append candidate/original/candidate comparison with fresh captures and exact restoration; then integrate winning pending animation providers through the real cascade and dependency scheduler. Preserve unresolved animated-cycle policy, current underlying-value provenance, dependency publication and memory-reporting obligations.
++Next: Integrate winning pending animation providers through the real cascade and dependency scheduler; preserve explicit current-base, cycle-policy, dependency-publication and memory-reporting obligations. Preserve unresolved animated-cycle policy, current underlying-value provenance, dependency publication and memory-reporting obligations.
+ 
+ | Fix | Native/WPT commit | Preceding evidence |
+ |---|---|---|
+@@ -14,7 +17,7 @@
+ Twenty observed failures repaired; 22 targets pass, 55 controls unchanged, all 77 restored outcomes exact. Tentative P3 conformance. Source/spec audit and browser reproduction found this issue; the separate Lean model supports conditional laws. No full bug 2037743, clean-upstream browser or security claim. Earlier checkpoint text below is historical.
+ 
+ 
+-**133 accepted fixes: 133 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
++**134 accepted fixes: 134 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
+ 
+ | Area | Committed | Accepted, pending |
+ |---|---:|---:|
+@@ -23,12 +26,12 @@
+ | Parsing, tokens and CSS math | 26 | 0 |
+ | Attributes and custom properties | 16 | 0 |
+ | Animations, timelines and transitions | 16 | 0 |
+-| Text and fonts | 13 | 0 |
++| Text and fonts | 14 | 0 |
+ | Layout, sizing and positioning | 22 | 0 |
+ | Container queries | 3 | 0 |
+ | Colors, images, SVG and shapes | 8 | 0 |
+ | CSSOM geometry and hidden layout | 13 | 0 |
+-| **Total** | **133** | **0** |
++| **Total** | **134** | **0** |
+ 
+ | Fix | Gecko/WPT commit | Preceding research |
+ |---|---|---|
+--- a/artifacts/stylo-bloom-tools/CURRENT-COMMITS.json
++++ b/artifacts/stylo-bloom-tools/CURRENT-COMMITS.json
+@@ -1,6 +1,6 @@
+ {
+   "branch": "stylo-bloom-verification-2",
+-  "committed_native_fixes": 133,
++  "committed_native_fixes": 134,
+   "accepted_pending_native_fixes": 1,
+   "previous_committed_fixes": 16,
+   "new_queue": [
+@@ -4466,6 +4466,63 @@
+         "path": "artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json",
+         "sha256": "24a832a588759d66cc6a520383ab3437752bbd9c91f2ec4cfe4e2f2ec10d8906"
+       }
++    },
++    {
++      "fix": 135,
++      "repair": "contained-quote-append-invalidation",
++      "status": "COMMITTED_NATIVE_WPT",
++      "group": "Text and fonts",
++      "native_commit": "0d27cb839f013f214973215cd0a8ce8a87c4b780",
++      "research_commit": "d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4",
++      "native_paths": [
++        "layout/base/nsQuoteList.cpp",
++        "layout/base/nsQuoteList.h",
++        "testing/web-platform/tests/css/css-contain/quote-scoping-append-invalidation.html"
++      ],
++      "phase_order": [
++        "candidate",
++        "scoped_original",
++        "candidate_restored"
++      ],
++      "phase_counts": [
++        [
++          64,
++          0
++        ],
++        [
++          52,
++          12
++        ],
++        [
++          64,
++          0
++        ]
++      ],
++      "observed_repairs": 12,
++      "landing_cases": 64,
++      "unchanged_landing_controls": 52,
++      "existing_regressions": {
++        "PASS": 15,
++        "expected_FAIL": 3,
++        "exact_all_phases": true
++      },
++      "terminal_review": {
++        "path": "artifacts/css-quote-scope-append-coc-terminal-review-v2/CHECK.json",
++        "sha256": "0eb2fbeb99731591f5ac3dc0f8eb6b0ffd82fc601acd06a9ac3df49e6a0e6b1f"
++      },
++      "commit_verification": {
++        "path": "artifacts/css-local-signing-20261027-v6/QUOTE-COMMITS.json",
++        "sha256": "d5de2f15518646537e6a86ba6606a0eef44cb2472f71cab6e1fb8d4d966615cc"
++      },
++      "triage": "Tentative P3 visual correctness; no demonstrated security impact.",
++      "discovery": "Source audit and controlled browser reproduction; not a proof-discovered bug.",
++      "formal_attribution": "Conditional Lean delivery and ordered-scope models corroborate the dependency argument. Uniform provider, actual native traversal/delivery, cache coherence and machine arithmetic remain correspondence premises; no universal native refinement or new canonical coverage credit.",
++      "limits": [
++        "Shared experimental checkout; no clean-upstream browser build claim.",
++        "Three existing regression expected failures remain unchanged.",
++        "Raw index bytes may refresh under exact semantic and flags guards; cause is not established.",
++        "Adjacent counter append hypothesis is unrun and not included in this fix."
++      ]
+     }
+   ],
+   "verification": "Each committed native delta is the accepted patch, checked against its actual parent. Companions preserve the recorded scope and replay prerequisites. No new browser or full-build claims are made by committing.",
+@@ -26954,7 +27011,7 @@
+     "sequential_recipes_passed": 11,
+     "packaging_changes_required": false
+   },
+-  "signing_next_action": "Run the quote append candidate/original/candidate comparison with fresh captures and exact restoration; then integrate winning pending animation providers through the real cascade and dependency scheduler.",
++  "signing_next_action": "Integrate winning pending animation providers through the real cascade and dependency scheduler; preserve explicit current-base, cycle-policy, dependency-publication and memory-reporting obligations.",
+   "next_prepared_diagnostic": {
+     "status": "ROOT_VERIFIED_REVIEWED",
+     "planned_cases": 162,
+@@ -27344,7 +27401,8 @@
+       ],
+       "next_work": "Audit exact remaining per-fix research and native recipes before another signing sequence; held fix 120 remains excluded. The two native operation-arena tests already pass; current-provider integration and animated cycles remain open."
+     },
+-    "Fix134 and corrected fix133 are signed. Validate the one remaining expectation correction for fix121 before its deeper fold; keep proof transfer and provider work separate."
++    "Fix134 and corrected fix133 are signed. Validate the one remaining expectation correction for fix121 before its deeper fold; keep proof transfer and provider work separate.",
++    "Run the quote append candidate/original/candidate comparison with fresh captures and exact restoration; then integrate winning pending animation providers through the real cascade and dependency scheduler."
+   ],
+   "active_model_audit": {
+     "status": "STEPS_ORIGIN_LIBRARY_FULL_CHECK_PASS",
+@@ -27630,5 +27688,16 @@
+         "sha256": "8159facb6311b5824df52752fb96748aab475e265ce6791843f39aff2179e445"
+       }
+     }
++  },
++  "latest_quote_fix": {
++    "fix": 135,
++    "terminal_review": {
++      "path": "artifacts/css-quote-scope-append-coc-terminal-review-v2/CHECK.json",
++      "sha256": "0eb2fbeb99731591f5ac3dc0f8eb6b0ffd82fc601acd06a9ac3df49e6a0e6b1f"
++    },
++    "commit_verification": {
++      "path": "artifacts/css-local-signing-20261027-v6/QUOTE-COMMITS.json",
++      "sha256": "d5de2f15518646537e6a86ba6606a0eef44cb2472f71cab6e1fb8d4d966615cc"
++    }
+   }
+ }
+--- a/artifacts/stylo-bloom-tools/PLAN-OF-RECORD.md
++++ b/artifacts/stylo-bloom-tools/PLAN-OF-RECORD.md
+@@ -1,6 +1,9 @@
+ # CSS and Stylo verification plan
+ 
+-**133 accepted fixes: 133 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
++Fix 135, contained quote append invalidation, is committed as `0d27cb839f013f214973215cd0a8ce8a87c4b780` after research `d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4`. The candidate/original/candidate comparison gives 64 PASS / 52 PASS + 12 FAIL / 64 PASS, with all 18 existing regressions unchanged (15 PASS and three expected FAIL). Tentative P3 visual correctness. Discovery came from source audit and browser reproduction; conditional Lean models corroborate scope/dependency laws, not universal native correctness. No clean-upstream build, security or measured performance claim. The adjacent counter hypothesis remains unrun and uncounted.
++
++
++**134 accepted fixes: 134 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
+ 
+ | Area | Committed | Accepted, pending |
+ |---|---:|---:|
+@@ -9,24 +12,24 @@
+ | Parsing, tokens and CSS math | 26 | 0 |
+ | Attributes and custom properties | 16 | 0 |
+ | Animations, timelines and transitions | 16 | 0 |
+-| Text and fonts | 13 | 0 |
++| Text and fonts | 14 | 0 |
+ | Layout, sizing and positioning | 22 | 0 |
+ | Container queries | 3 | 0 |
+ | Colors, images, SVG and shapes | 8 | 0 |
+ | CSSOM geometry and hidden layout | 13 | 0 |
+-| **Total** | **133** | **0** |
++| **Total** | **134** | **0** |
+ 
+-Fix 121 now includes its validated one-block expectation correction. The signed history rewrite preserves the final tree; current commit IDs below come from the [new rewrite receipt](../../artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json). Historical signing receipts retain their original IDs. All 133 accepted fixes remain committed; held repair 120 stays excluded.
++Fix 121 now includes its validated one-block expectation correction. The signed history rewrite preserves the final tree; current commit IDs below come from the [new rewrite receipt](../../artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json). Historical signing receipts retain their original IDs. All 134 accepted fixes remain committed; held repair 120 stays excluded.
+ 
+ ## Latest verified work
+ 
+ The callable current-provider resolver passed the normal and GTest builds and all 19 native tests; normal pending recipe production remains disabled. The 113-case metadata comparison preserved all 110 PASS and three expected FAIL observations, changing only the fix 121 expectation. The canonical library is signed at `162b20fb7c53a0ab89b20875a965baee98fb66bb` and its full check passes 11,840 audits, 12,438 cases, 173 expected-false cases and 2,155 source fingerprints. Ten audits transfer from reviewed steps research, with no new discovery, normative coverage or native-refinement credit.
+ 
+-Next: Run the quote append candidate/original/candidate comparison with fresh captures and exact restoration; then integrate winning pending animation providers through the real cascade and dependency scheduler. Preserve unresolved animated-cycle policy, current underlying-value provenance, dependency publication and memory-reporting obligations.
++Next: Integrate winning pending animation providers through the real cascade and dependency scheduler; preserve explicit current-base, cycle-policy, dependency-publication and memory-reporting obligations. Preserve unresolved animated-cycle policy, current underlying-value provenance, dependency publication and memory-reporting obligations.
+ 
+ ## Execution order
+ 
+-1. Run fresh quote append candidate/original/candidate captures and exact control/restoration checks.
++1. Keep quote fix 135 and its research separately reviewable; retain its exact comparison evidence.
+ 2. Continue the full animation pending-provider integration through winning cascade gates; do not replace scheduling with preselected provider snapshots.
+ 3. Preserve Bloom milestones 1–6 and scoped specification correspondence; keep accepted fixes and their research separately reviewable.
+ 
