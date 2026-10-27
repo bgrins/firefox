@@ -1,13 +1,155 @@
-# Stylo verification bugfix commits
+# CSS verification bugfix commits
+
+Latest checkpoint: computed-name research `19a313060adb` and presentation GTest `73a62b1ecf58` are signed locally. The transition descriptor prototype passes its before/after native tests; it adds no accepted browser bug. All 131 accepted fixes remain committed, with repair 120 held and excluded. See the current [plan of record](PLAN-OF-RECORD.md).
+
+
+**131 accepted fixes: 131 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
+
+| Area | Committed | Accepted, pending |
+|---|---:|---:|
+| Selectors, Bloom filters and scoping | 10 | 0 |
+| Cascade, layers and shorthands | 6 | 0 |
+| Parsing, tokens and CSS math | 26 | 0 |
+| Attributes and custom properties | 16 | 0 |
+| Animations, timelines and transitions | 14 | 0 |
+| Text and fonts | 13 | 0 |
+| Layout, sizing and positioning | 22 | 0 |
+| Container queries | 3 | 0 |
+| Colors, images, SVG and shapes | 8 | 0 |
+| CSSOM geometry and hidden layout | 13 | 0 |
+| **Total** | **131** | **0** |
+
+| Fix | Gecko/WPT commit | Preceding research |
+|---|---|---|
+| 121: integer-stored-range-resolution | `231120268a02a948a08a0180fe693997c34e355f` | `55c31aba8fcfd32c10802a8bb8b00a1a53a59d8d` |
+| 122: saturated-subgrid-line-name-cache | `cef7cba29d6c1796af9c3aa17f9468ceb747fe6d` | `d129e631ca88e736e28bdb67df7749cd6a1d86f1` |
+| 123: counter-range-calculated-bound-export | `412a58792433a108e1dd9f97c026a07369fe40f8` | `96f07a02d0dbebcc120dcf2b51aaca0b4b0ec09b`, `422eaa2798f486d867e8ac127935c6df1b493c00` |
+| 124: additive-symbol-resolved-weight-ordering | `e9947a86cff12ff54ef6c6b993f8a41e4f75bea3` | `96f07a02d0dbebcc120dcf2b51aaca0b4b0ec09b`, `541c2f3cf4a406e974dc5f28f95ad1f32507c98a` |
+| 125: round-runtime-nan-propagation | `ac466b84f24739b473d59fe26707963ad40ffede` | `b1a7c887f651890edbc0bdcd545f1d0f27043aea` |
+| 126: round-finite-negative-zero-bound | `cf7e06c3e1adf7265acfb5a9c9fad025fffa1cd8` | `75c3a91d48e2403a672cb3c544a92216dbb5eb5c` |
+| 127: subgrid-contextual-name-repeat | `6760efc232f48a9ce4a92442cd2d3a4f72b78fd0` | `faf46a8f43d95106b2e0c9c1b3d2f6fc3dfdea45` |
+| 128: finite-mod-rem-quotient-reconstruction | `354b58aa74696e71f7d824e3c117aad09eca2754` | `6365632906ba37c5c698d9e72f94c9ca26a1fd92` |
+| 129: css-duration-reactivation-keyframe-properties | `3fcacaa09e010bcb9fb41ab46b165d316e73dc43` | `a10ed0ad617c0f1eb52eaf3aed4fb8c86338441a` |
+| 130: ordinary-keyframe-attribute-initialization | `f8f045833d29a20b2b50531b078739d56274f3e7` | `4529efd84c0dd82561df5ce1184737940cba6ce6` |
+| 131: active-keyframe-attribute-dependency-publication | `9b8a7506422f4f9b5e8ef31bc08c9bcf161f6bd9` | `3df09487e3d72e3fbe00104bffeca5eabd242fb4` |
+
+All 23 signed-item receipts passed exact parent/content and configured-key signature verification: 11 native/WPT commits and 12 research commits. Shared counter evidence precedes both fixes 123 and 124; prior research dependencies remain in the authenticated recipes. Existing fix 132 and held fix 120 are unchanged. Per-fix prerequisite, standalone, release-exposure and formal-scope caveats remain intact in the JSON records; signing is not a new build, browser test or clean-upstream validation. Source and binary bodies were preserved; main staging is empty, and nested-library index state is retained. Remaining prototype work is not counted as accepted fixes.
+
+The descriptor/operation prototype passed the normal Firefox and GTest-host builds, ten native GTests and the exact browser comparison: 166 unchanged subtest outcomes (162 PASS, four known provider FAIL), two passing crash endpoints and eleven normal harness endpoints OK. Owned-process and fixture cleanup, source/binary/research preservation and both index checks pass. The earlier wrapper failures remain recorded; separate successful validation accounts for the exact GTest packaging copy and the 23 signed commits. This adds no accepted fix or native-refinement result. The computed-name model is now integrated and passes the full checker: 11,830 declaration audits, 12,424 executable cases, 170 expected-false cases and 2,153 source fingerprints. The exact old cases, axiom map and unrelated sources are preserved; 25 statements and 15 cases transfer from reviewed research. Raw CSS name parsing and native refinement remain explicit gaps. Next are presentation-backed descriptor tests and compact rule ownership. A direct transition-start mutation can leave the prototype descriptor naming an old snapshot; this is not an observed rendering bug. Current-provider resolution, animated cycles and complete memory reporting remain open. [Full model check](../css-variables-computed-name-library-application-v1/REPORT.md). [Capture report](../css-keyframe-operation-descriptor-capture-runtime-v1/REPORT.md).
+
+Historical checkpoint text follows; its counts and future-work statements describe that earlier state.
+
+**131 accepted fixes: 120 committed locally and 11 awaiting commits.** One additional numbered repair remains held and excluded.
+
+| Fix | Gecko/WPT commit | Preceding research |
+|---|---|---|
+| 117: counter-calculated-integer-sentinel | `33ae2e8349e96d1778603385d39cdb74b26a12df` | `2f1085d3c8ee068bb012a906b664b5e7a7450d05` |
+| 118: css-integer-math-rounding | `d68543e601c40bf64d1777dfa6b7c79b838f21ae` | `1690a8cd5886ff68209dd3ea1dcbe97b9784d264` |
+| 119: relative-length-nonfinite-intermediates | `6a363fc372c9cc0734faee64ab20f03bc762e97c` | `49862ae74751926b2c3600fe6cf1625e5b31c691` |
+
+Six signed commits passed exact parent/path/blob checks and configured-key signature verification. Each of fixes 117–119 has one native/WPT commit, preceded by its research. The disjoint research selections add 65, 48 and 146 paths. Fix 118 reuses 40 exact files from the preceding fix 117 research commit; fix 119 retains its already-committed reviewer-log dependency. All working native bodies remain unchanged, including later edits sharing committed files. Main staging is empty; existing nested-library staging is preserved. Signing ran no new browser tests and does not establish clean-upstream independence.
+
+Earlier checkpoints follow; their counts describe their recorded state.
+
+**131 accepted fixes: 117 committed locally and 14 awaiting commits.** One additional numbered repair remains held and excluded.
+
+| Fix | Gecko/WPT commit | Preceding research |
+|---|---|---|
+| 109: hidden-float-owner-query | `8a5df95cf9d56c8d0dfde9939f2a7c92151f092c` | `854c39c17bbd177e49addfc48b56872b03a836e0`, `6b9f50396a7bd72368a35c39a71de14dc564f6c9` |
+| 110: hidden-mathml-skipped-child-query | `aaca499a3257e1f196b9dacace42041ab523f399` | `d492f094405606062eb943e0240bacee30c8d1a5` |
+| 111: central-baseline-synthesis-origin | `ee836eba6ca6070cec5c8a25208fd51d9df0a7f0` | `54e8683a6dfbfa686d801f2a6285d81938c5cef5` |
+| 112: cssom-integer-geometry-precision | `b616622d2cd7fa69376261c600f3c9a2ba1e4da4` | `c67102a4c8f6ad1a7190f17a8c1213e4bce5e0a8` |
+| 113: hidden-svg-matrix-viewport-query | `cc52e66ca64a4afde2f5d078f1326249ff106033` | `bf0a7cb4a980d0df51302ab0e7771d068b353c90` |
+| 114: svg-length-context-freshness | `53adf727ea052bb6a08b60be8bbec76c8abccc74` | `a5a6c6545471b8872cdae4e12ec9eb558312d1d8` |
+| 115: svg-absolute-unit-factors | `fa9dff982cecc234294981fb8f668767816f1652` | `e7ec30d7d15993a80a167e6667200c1263dac10b` |
+| 116: svg-hidden-embedding-viewport-readiness | `9c2257a80e3ff6c97080657f5c9a08b717f34cfa` | `01bd90af282902df9f21cf4bd0ddebdef511a824` |
+
+Seventeen signed commits passed exact parent/path/blob checks and configured-key signature verification. Each of fixes 109–116 has one native/WPT commit, preceded by its research. The corrected MathML selection adds 710 paths and retains 341 identical already-committed inputs; fix 116 uses the accepted stack variant after fixes 114 and 115. All working native bodies remain unchanged, including later edits sharing committed files. Main staging is empty; existing nested-library staging is preserved. Signing ran no new browser tests and does not establish clean-upstream independence.
+
+Earlier checkpoints follow; their counts describe their recorded state.
+
+**131 accepted fixes: 109 committed locally and 22 awaiting commits.** One additional numbered repair remains held and excluded.
+
+The canonical Lean library passes its full check with 11,791 audited declarations, 12,401 executable cases, 164 expected-false cases and 2,149 source fingerprints. Contributing-keyframe refresh integration is complete: six previously reviewed declarations were transferred without increasing normative CSS coverage. The model assumes current provider context and a complete contributing prefix; native refinement remains unproved. Both repository indexes and native sources/binaries were preserved. [Integration evidence](../css-keyframe-commit-styles-library-application-v1/REPORT.md).
+
+| Fix | Gecko/WPT commit | Preceding research |
+|---|---|---|
+| 106: hidden-table-column-provider-query | `29e2df85a4a979f7aab73485b7d77ce4b1ea6bf4` | `9cab8f29f688480dd563092ed19e3f3d157c9d38` |
+| 107: hidden-skipped-block-line-query | `e6c73b63765376dbf74daaa0d4f489ea615a2888` | `9cab8f29f688480dd563092ed19e3f3d157c9d38` |
+| 108: hidden-grid-skipped-child-query | `a578671e967f9eac837497481d2012b288b98b5b` | `b6871ca3458e882339873f39fa520fdc19f7edc6` |
+
+Five signed commits passed exact parent/path/blob checks and configured-key signature verification. The three native commits contain only their accepted Gecko changes and WPT files; research precedes them. All working native bodies remain unchanged, including later Block/Grid edits. Staging is empty. The original scoped browser evidence remains authoritative; committing ran no new browser tests.
+
+Tested committed prerequisites and scope limits remain in each acceptance record; these commits do not claim a new pristine-upstream run.
+
+Earlier checkpoints follow; their counts describe their recorded state.
+
+Current: **131 accepted fixes: 106 committed and 25 pending; one additional repair held.**
+
+| Fix | Standalone Gecko/WPT commit | Preceding research commit |
+|---|---|---|
+|132: refresh contributing keyframes before commitStyles |`d477d0c331057847673d3e25646b3f39cd38c1a5`|`ca65cf6d142d4d10a361f2dc3ff7d620a77fd05e`|
+
+The native commit contains exactly EffectCompositor.cpp and two WPT files. Clean-upstream original/candidate/restored comparison repairs12 failures, passes all17 landing cases and retains61 control outcomes; main integration passes146 subtests and two crashes. Signed parent/path/body verification passes, with no working source changes during committing. [Acceptance](../css-keyframe-commit-styles-acceptance-v1/REPORT.md). The earlier prepared research package is committed as `9ad2738c6bdd010d97d607d7e8252dbe619caaa6`.
+
+Earlier checkpoints follow. Their counts and pending/running statements describe those historical checkpoints.
+
+The normal-only keyframe recascade comparison is complete and root-verified: 190 tests improve from 177 PASS/13 FAIL to 187 PASS/3 FAIL, all 22 targeted checks pass, and all 168 controls remain exact. Original sources and generated headers are restored and rebuilt; every baseline outcome returns exactly. All six timing captures complete, but restored controls slow substantially, so performance remains inconclusive and the candidate is unaccepted. A balanced comparison using independent retained browser copies is being prepared. HEAD and staged content are preserved; raw index bytes changed with no established cause. Signing remains blocked by the last 1Password failure.
+
+The dormant-animation candidate passed its 182-case correctness comparison, but local timing now shows an added first-style-flush cost. For 1,000 targets, several literal first-play/replay cases rose from 2–3 ms to about 4.5–6 ms and returned to 2–3 ms after restoration. All six browser runs and both builds passed; root checks verify the original source/build and index are restored. The candidate remains unaccepted. Next: investigate a distinct normal-only recascade request that refreshes every provider without selector rematching, retain the planned 190-case correctness scope, and repeat timings. [Measurements and limits](../css-keyframe-dormant-replay-timing-analysis-v1/REPORT.md).
+
+A follow-up on the restored build reproduces four more stale-value cases: cancelled animations using changed `em` or custom-property inputs return 20 instead of 40 for width/transform; all four fresh-animation controls pass. Root verification and independent review confirm the temporary fixture is removed and source/build/index are preserved. This extends the same dormant-cache investigation, not the accepted bug count. Candidate validation for these eight cases is still pending. [Measured observations](../css-keyframe-dormant-provider-baseline-runtime-v1/SUMMARY.json).
+
+Fix131 is accepted: active animations now refresh attribute-dependent keyframes after attribute changes. The eight-native-file/four-WPT patch passes all46 landing cases and repairs33 failures across162 cases, preserving116 controls and exactly reproducing all baseline outcomes after restoration. Both builds, root verification, terminal review, formatting and exact-body WPT lint pass. Fix130 is a functional prerequisite. Installation and rebuild are complete: all 46 regression checks pass again, and root preservation checks pass. Independent installation review also passes; the signed commit is pending. **130 accepted fixes:105 committed and25 pending; one additional repair held.** [Acceptance and patch](../css-keyframe-attr-effect-publication-acceptance-v1/REPORT.md).
+
+Fix130 is accepted: ordinary keyframe attr() now prepares attribute values and uses the real element provider. Its two-Rust-file/one-WPT patch repairs18 assertions across116 cases, passes all24 landing cases, preserves84 controls, and reproduces every baseline outcome after restoration. Both builds, root preservation, independent terminal review and WPT lint pass. One changed custom-context diagnostic is observational only. Installed and rebuilt: all24 landing cases pass, with root preservation checks and independent installation review complete. Signing remains pending. **129 accepted fixes:105 committed and24 pending; one additional repair held.** [Acceptance and standalone patch](../css-keyframe-ordinary-attr-acceptance-v1/REPORT.md).
+
+Fix129 is accepted: CSS duration changes that reactivate an effect now rebuild its contextual keyframe values. The one-line Rust/six-case WPT patch repairs two failures; all173 strict controls and179 restored non-observational outcomes remain exact across182 cases. Both builds, root preservation, independent terminal review and WPT lint pass. Existing viewport-message variation and unequal raw-index bytes remain explicitly qualified. Installation is complete: the rebuilt browser passes all six landing tests, root preservation checks pass, and the archived result review agrees. Signing is pending. At fix129 acceptance: **128 accepted fixes:105 committed and23 pending; one additional repair held**. [Acceptance and standalone patch](../css-keyframe-css-duration-acceptance-v1/REPORT.md).
+
+Fix128 is accepted: finite mod()/rem() quotient reconstruction loses small remainders. Its one-Rust-file/one-WPT patch repairs16 failures and passes all700 selected assertions. Original-source restoration reproduces the exact baseline; root preservation and independent terminal review pass. The Lean counterexample and replacement contract have independent root replays with explicit native arithmetic assumptions. It is now installed and rebuilt: all 24 landing cases pass, and root verification preserves the source, test and staging state. Independent installation review passes; signing remains pending. [Acceptance and patches](../css-finite-mod-rem-acceptance-v1/REPORT.md), [installation](../css-finite-mod-rem-install-runtime-v2/REPORT.md).
 
 Local branch: `stylo-bloom-verification-2`. No fixes have been pushed or submitted.
 Each fix is packaged in one commit containing its Gecko change, regression WPT,
 and any necessary test metadata. Research, proofs, tooling, and this index stay
 outside those commits. Full commit hashes are the management identifiers.
 
-Current checkpoint: **105 committed fixes; no accepted repair awaits signing.**
+Historical checkpoint: **105 committed fixes; twenty-four accepted repairs awaited commits and fix120 was held (130 tracked repairs).**
 
-Two further hidden-query candidates are under review. In a66-case comparison, the column-provider change repairs six failures, skipped-block-line marking repairs three, and two require both; together they pass all66 with no regressions from adding repairs. Neither has a native commit or is included in the count. Boundary, independence and cost checks remain. [Current evidence](../css-hidden-query-repairs-analysis-v1/REPORT.md).
+Fix 127 is accepted for the subgrid portion of existing bug 2037744. All ten landing cases pass, repairing eight admission failures; every other outcome is preserved across 1,532 assertions and eight rendering tests. Both builds, exact original-stack restoration and independent terminal review pass. Its patch contains two Rust files and one WPT, with fix 122 retained as an explicit prerequisite. It is now installed and rebuilt: all ten landing tests pass, with root preservation checks and independent installation review complete. It is not yet committed and is not a newly discovered issue. [Acceptance and patch](../css-name-repeat-context-acceptance-v1/REPORT.md).
+
+Fixes 125 and 126 are accepted as separate two-path Gecko/WPT repairs. Runtime NaN propagation fixes eight failures and passes ten landing cases; finite negative-zero preservation fixes four failures and passes eight landing cases. The 1,484-assertion comparison preserves every other outcome and all eight references in both isolated phases and their composition. Original source/build restoration and independent review pass. Both are now installed in the local build:1,420PASS/64unchangedFAIL and8PASS references, with all18 landing cases passing. Final and post-lint preservation checks pass; independent installation review passes. All twenty-two pending repairs are installed; held120 remains excluded. Signing remains unresolved. [Installation](../css-round-runtime-finite-install-runtime-v1/REPORT.md). [NaN acceptance](../css-round-runtime-nan-acceptance-v1/REPORT.md), [negative-zero acceptance](../css-round-finite-negative-zero-acceptance-v1/REPORT.md).
+
+[Grouped team readout with all primary commit IDs](../css-fix-readout-20261023/README.md).
+
+Fixes119/121/122 are installed in the working tree and built browser after local run28306, root verification45302 and independent terminal review. The1,382-case comparison improves1,317PASS/65FAIL to1,337PASS/45FAIL, with all99 mandatory assertions and six reftests passing, no lost passes and no changed retained failures. Seven source changes and four WPTs remain; both temporary controls are removed. Signing remains pending. [Installed build](../css-accepted-119-121-122-install-runtime-v1/REPORT.md).
+
+Fixes123 and124 are accepted as independent five-path Gecko/WPT repairs. Counter-range resolution removes the content-process unwrap crash and preserves all28 range CSSOM cases. Additive weight resolution repairs ten CSSOM failures and its rendering reference, with all32 landing cases passing. Both isolated phases and their composition preserve prior outcomes; root and independent terminal review verify full original-stack restoration. Both are installed and independently verified: all60 new assertions and both new rendering tests pass, with all1,388 prior outcomes unchanged. The combined run completes1,397PASS/45retainedFAIL and8PASS references; all159mandatory assertions pass. Signing remains pending. [Installation](../css-counter-additive-install-runtime-v1/REPORT.md). [Counter range](../css-counter-range-acceptance-v1/REPORT.md), [additive weights](../css-additive-symbols-order-acceptance-v1/REPORT.md).
+
+Release evidence for123: pinned Firefox158.0 build20261007201254 passes literal rendering and calculated CSSOM admission, then crashes its content process on calculated-range rendering. Retained annotations report an `Option::unwrap()` None panic. Root verification and independent terminal review pass, with all source/index/app/test state preserved. This uses WPT preferences and a fresh profile; exact native-site symbolication, stock-profile reproduction and memory-safety impact are unestablished. No new fix is counted. [Release result](../css-counter-range-release-browser-runtime-v2/REPORT.md), [independent review](../css-counter-range-release-terminal-review-v2/REVIEW.md).
+
+Fixes121 and122 are accepted as separate standalone repairs after controlled comparison, successful original-stack rebuild, root preservation checks and independent result review. Integer stored-range resolution repairs eight failures and passes25 landing cases; saturated subgrid counts repair six failures and pass six cases. All prior passes and retained-failure diagnostics survive; all six reftests pass. Both are now installed and independently verified; commits remain pending. [Integer range](../css-integer-resolve-range-acceptance-v1/REPORT.md), [subgrid cache](../css-subgrid-saturated-cache-acceptance-v1/REPORT.md).
+
+Fixes119 and120 passed their scoped three-phase comparison, verified restoration and independent terminal review. Fix120 is now held: root and independent source review predict an admission regression at contextual integer consumers. Do not install or sign120 until prerequisite repairs and browser validation resolve the hold. [Consumer review](../css-integer-consumer-root-review-v1/REPORT.md). Preserving relative-length intermediates repairs six failures and passes its eight-case WPT; deferring contextual `sign()` adds five repairs and passes its eleven-case WPT. All1,018 prior control outcomes are unchanged. **Fix120 requires119**; it is not independently safe on HEAD90. Fix119 is now installed and independently verified;120 remains held and uninstalled. Neither is committed. [Intermediate values](../css-relative-length-intermediate-acceptance-v1/REPORT.md), [contextual Sign](../css-contextual-sign-acceptance-v1/REPORT.md).
+
+Fixes117 and118 are accepted after isolated browser comparisons and root/independent restoration review. Counter-marker handling repairs14 failures and passes all23 landing cases; integer rounding repairs13 failures and passes all37 landing cases. Both preserve all prior passes and exact retained failure diagnostics across213 subtests and two reftests. Each has a separate minimal Gecko/WPT patch; working-stack installation passes build/lint, all60 landing cases and the314-subtest/two-reftest integration. Root preservation verification and installation result review pass; signing remains pending. [Counter acceptance](../css-counter-calc-sentinel-acceptance-v1/REPORT.md), [integer acceptance](../css-integer-math-rounding-acceptance-v1/REPORT.md).
+
+Fix116 is accepted: hidden embedding layout is refreshed before viewport-relative SVGLength reads/conversions. The normalized standalone comparison improves32PASS20FAIL to52PASS, preserving28controls; restoration and independent review pass. Its six-path Gecko/WPT patch is packaged separately from research. Working-stack installation passes101cases across12files plus build/lint. Root verifies all source/index/binary roles and nine installed-test identities; no commit exists yet. [Acceptance and patches](../css-svg-hidden-embedder-acceptance-v1/REPORT.md).
+
+Fix115 is accepted: three incorrect Q-related SVG constants produced wrong conversion values and animated positions. Its isolated comparison improves26 PASS/8 FAIL to34 PASS, preserving18 existing controls; original-stack restoration and independent review pass. Four finite Lean results independently corroborate all49 corrected factors against exact CSS ratios within the stated engineering tolerance. The native patch contains one Gecko file and two WPT files (16 cases). Working-stack installation passes build/lint and all16 integration cases, preserving the prior changes and test files. Signing is pending. [Acceptance and patch](../css-svg-absolute-factor-acceptance-v1/REPORT.md). [Separate research and native commit recipes](../css-svg-absolute-factor-commit-queue-v3/README.md) are finalized.
+
+Expanded fix114 is accepted: two Gecko files and three WPT files with25 cases. The isolated comparison improves35 PASS/16 FAIL to51 PASS and preserves all26 controls. Full restoration and independent comparison review pass. Combined-stack installation passes all25 cases, build and lint; independent installation review passes. This expands114 without adding a new fix number. [Acceptance](../css-svg-length-conversion-acceptance-v3/REPORT.md). [Research and native commit recipes](../css-svg-length-conversion-commit-queue-v3/README.md) are finalized; signing parents remain unset.
+
+Fix113 is accepted: hidden SVG viewport matrix queries use the existing hidden-content-aware layout path. Its exact two-path Gecko/WPT patch gives34/34 passes on normalizedHEAD90, preserving26 controls and8 availability observations; pending107 is absent. Full restoration and independent review pass. Working-tree installation passes build/lint and all eight integration cases. [Separate research and native commit recipes](../css-hidden-svg-matrix-commit-queue-v1/README.md) are finalized; signing remains pending. [Acceptance and patch](../css-hidden-svg-matrix-acceptance-v1/REPORT.md), [installation](../css-hidden-svg-matrix-install-runtime-v1/REPORT.md).
+
+Expanded fix 112 is accepted: Element.cpp/Element.h conversion repairs plus two WPT files fix ten offset/scroll/client precision failures. All 40 regression checks pass and all 130 controls are preserved; restoration is independently verified. Expanded working-tree installation passes its build, lint and all40 integration checks; signing remains pending. [Exact four-path patch and acceptance](../css-cssom-integer-geometry-acceptance-v1/REPORT.md).
+
+Three hidden-query repairs are accepted for separate native/WPT commits: column-provider query admission (7 landing cases), skipped-block-line marking (14), and skipped-Grid-child marking (8). Each passes independently; together all 79 final cases pass, including 50 existing controls. The five builds and restoration pass, with no new failures. Native commits are pending the existing 1Password signing flow. The final installed-tree build also passes all 79 cases with the older prototypes preserved. [Acceptance](../css-hidden-query-landing-acceptance-v1/REPORT.md), [independent review](../css-hidden-query-landing-review-v1/REPORT.md).
+
+Float repair109 is now accepted: its unchanged eight-case regression WPT improves from4 PASS/4 FAIL to8 PASS with only the float patch, and the composed95-case run preserves all79 prior controls. The paired benchmark removes480 stale geometry reads. The landing patch contains only nsBlockFrame.cpp and that WPT; calibration/proofs/tooling stay in preceding research. [Acceptance](../css-hidden-float-acceptance-v1/REPORT.md), [two-path patch](../css-hidden-float-acceptance-v1/gecko-wpt.patch). Signing is pending. Float109 and MathML110 are installed and pass all91 combined landing subtests; [working build](../css-hidden-query-consolidation-runtime-v1/REPORT.md).
+
+MathML repair110 is accepted: the isolated four-case WPT improves from2 PASS/2 FAIL to4 PASS, and integration passes299 subtests across18 files. Restoration and independent review pass. Its standalone patch has one native line plus the four-case WPT; formal and diagnostic evidence precedes the fix. [Acceptance](../css-hidden-mathml-acceptance-v1/REPORT.md), [two-path patch](../css-hidden-mathml-acceptance-v1/gecko-wpt.patch). Signing is pending; the candidate is installed in the verified combined working build.
+
+Fix 111 is accepted: central baseline synthesis now uses the correct origin in vertical writing modes. Its twelve-case WPT improves from 8 passes/4 failures to 12 passes; all existing comparison outcomes are preserved. Conditional Lean proofs and source correspondence passed independent review. The two-path patch is installed; all103 combined subtests across12 files pass, including the prior91 cases. Signing remains pending. [Acceptance and patch](../css-central-baseline-acceptance-v1/REPORT.md).
 
 ## Latest signed fixes: 104–105
 
@@ -16,7 +158,7 @@ Two further hidden-query candidates are under review. In a66-case comparison, th
 | 104 | Dirty skipped hidden flex children | `29611cb584fdd0e54d5e7f7e0d70ad47cfff1653` | `2c27b25853ff18acc4e0423410e932742829bfaf` |
 | 105 | Dirty hidden absolute subtrees before child reflow | `f8104759d383bd324cdda1e78e3229902e97fb39` | `2c27b25853ff18acc4e0423410e932742829bfaf` |
 
-Each commit contains only its native change and its own WPT files: three files/38 cases for 104, two files/12 cases for 105. Each passes its isolated landing partition. Both pass all 50 landing tests; the fresh 66-case comparison has 25 improvements, no regressions and 11 unchanged column/ordinary-block failures.
+Each commit contains only its native change and its own WPT files: four files/38 cases for 104, three files/12 cases for 105. Each passes its isolated landing partition. Both pass all 50 landing tests; the fresh 66-case comparison has 25 improvements, no regressions and 11 unchanged column/ordinary-block failures.
 
 Controlled timing completes 13,440 rectangle observations per variant. Both fixes produce no incorrect rectangles, versus 3,213 hidden absolute errors before. At 256 branches, first-query batch medians rise from 1 ms to 8 ms (principal) and 7 ms (absolute); repeated and visible controls show no blocker in this limited sample. Formal models remain conditional. These are geometry-correctness fixes; no security impact is established.
 
@@ -2173,7 +2315,7 @@ The negative-inset v2 complete conditional companion passed a fresh root replay:
 
 Next: finish the collapsed-overflow repair and paired WPT; address the baseline-sum WPT numeric-range portability review; complete independent sticky reviews; build the safe-scroll source/consumer companion without narrowing its contract.
 
-## Current accepted queue: six repairs pending signing
+## Historical checkpoint: six repairs pending signing
 
 Counts: **87 committed fixes, 6 accepted pending**. The opposing-negative-inset repair now has accepted full conditional source/caller proof and native/WPT review. Root's219-audit replay,2,164genuine native observations and12fresh independent kernel checks are sealed in [root acceptance](../css-sticky-negative-inset-overflow-proof-root-v2/REPORT.md). Its original preexisting clamp-UB exclusion remains explicit.
 
