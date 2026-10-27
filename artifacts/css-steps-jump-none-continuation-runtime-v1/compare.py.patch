@@ -1,0 +1,88 @@
+--- v3/compare.py
++++ continuation/compare.py
+@@ -125,7 +125,7 @@
+     inputs = read(HERE / 'INPUTS.json')
+     need(sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize, 'isolated interpreter')
+     need(sys.argv[1:] == ['--run'] and inputs['ready'] is True, 'Disabled comparison')
+-    need(inputs['owner_build_binding'] and inputs['root_review'], 'Future successful owner build and root review required')
++    need(inputs['owner_build_binding'] and inputs['root_review'] and inputs['continuation_binding'], 'Actual candidate reconciliation and root review required')
+     for name in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'CC', 'CXX', 'RUSTFLAGS', 'CARGO_TARGET_DIR',
+                  'RUSTC', 'RUSTC_WRAPPER', 'MOZ_CONFIGURE_OPTIONS', 'MOZ_ARTIFACT_BUILDS'):
+         need(not os.environ.get(name), 'ambient ' + name)
+@@ -139,7 +139,7 @@
+     need(admission['status'] == 'OWNER_BUILD_VERIFIED' and admission['exit'] == 0, 'successful owner compilation')
+     epoch = ref(admission['epoch'])
+     review = ref(inputs['root_review'])
+-    need(review['status'] == 'STEPS_JUMP_NONE_COMPARISON_ROOT_REVIEW_GO' and review['local_pins'] == inputs['local_pins'], 'root source review')
++    need(review['status'] == 'STEPS_JUMP_NONE_CONTINUATION_ROOT_REVIEW_GO' and review['local_pins'] == inputs['local_pins'], 'root source review')
+     need(admission['evidence'], 'underlying owner build evidence')
+     for item in admission['evidence']:
+         ref(item)
+@@ -169,9 +169,14 @@
+     excluded = [':(exclude)' + n for n in sorted(mutable)]
+     external_diff = body_sha(h.git(ROOT, env, 'diff', '--binary', '--', '.', *excluded))
+     state, owned, captures, errors, transitions = {}, {}, {}, [], []
+-    build_attempted = False
++    build_attempted = True
+     binaries = dict(admission['binaries'])
+     roster = read(HERE / 'CANDIDATE-ROSTER.json')
++    continuation = load('steps_continuation', HERE / 'admission.py')
++    resumed, owned, original = continuation.admit(ROOT, inputs['continuation_binding'], policy, tests, roster, pre, post, binary_names)
++    binaries = dict(resumed['binaries'])
++    captures['original'] = original
++    need(external_diff == resumed['external_working_diff'], 'reconciled unrelated working differences')
+     config = {'tests': [t.lstrip('/') for t in sorted(roster)], 'expected_subtests': roster,
+               'baseline_tests': [t.lstrip('/') for t in sorted(roster)], 'baseline_expected_subtests': roster,
+               'guard_sources': list(roles), 'reftests': []}
+@@ -191,6 +196,9 @@
+         need(body_sha(h.git(ROOT, env, 'diff', '--binary', '--', '.', *excluded)) == external_diff, 'all unrelated working differences preserved')
+         for group in ('staged_working', 'committed_research_working_payloads'):
+             need(adapter.pins(epoch[group]) == epoch[group], group)
++        for n, item in owned.items():
++            info = (ROOT / n).lstat()
++            need(stat.S_ISREG(info.st_mode) and [info.st_dev, info.st_ino] == item['identity'], 'owned continuation identity ' + n)
+         for n, identity in epoch['installed_identities'].items():
+             info = (ROOT / n).lstat()
+             need([info.st_dev, info.st_ino] == identity and stat.S_ISREG(info.st_mode), 'installed identity ' + n)
+@@ -219,36 +227,19 @@
+         directory = HERE / (label + '-build')
+         directory.mkdir()
+         build_attempted = True
+-        builder.run(ROOT, OBJ, directory, env, adapter.cancelled, state)
++        builder.run(ROOT, OBJ, directory, env, adapter.cancelled, state, process_control)
+         quiet()
+         binaries.update({n: h.fingerprint(ROOT, n) for n in binary_names})
+         need(all(binaries.values()), 'built binaries present')
+         verify(label + '-BUILD-POST.json')
+-    baseline = None
+-    mutation_started = False
++    baseline = original
++    mutation_started = True
+     error = None
++    need(h.index_state(ROOT, env) == resumed['index'], 'current reconciled index')
+     verify('BEFORE.json')
+-    need(h.semantic_index(h.index_state(ROOT, env)) == epoch['semantic_index'], 'exact owner baseline working difference')
+     save('CONFIG.json', config)
+-    save('EPOCH-BINDING.json', {'admission': admission, 'additional_roles': extra})
++    save('EPOCH-BINDING.json', {'admission': admission, 'additional_roles': extra, 'continuation': resumed})
+     try:
+-        for n in pre:
+-            if n == NATIVE:
+-                continue
+-            info = (ROOT / n).lstat() if pre[n] else None
+-            item = {'path': n, 'identity': [info.st_dev, info.st_ino] if info else None,
+-                    'owned_sha256': pre[n]['sha256'] if pre[n] else None}
+-            owned[n] = item
+-            write_owned(ROOT, item, candidates[n])
+-        capture('original')
+-        baseline = captures['original']
+-        info = (ROOT / NATIVE).lstat()
+-        owned[NATIVE] = {'path': NATIVE, 'identity': [info.st_dev, info.st_ino], 'owned_sha256': pre[NATIVE]['sha256']}
+-        quiet()
+-        mutation_started = True
+-        write_owned(ROOT, owned[NATIVE], candidates[NATIVE])
+-        transitions.append('candidate')
+-        build('candidate')
+         capture('candidate')
+     except BaseException as failure:
+         error = repr(failure)

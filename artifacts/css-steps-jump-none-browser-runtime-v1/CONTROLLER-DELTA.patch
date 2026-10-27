@@ -1,0 +1,24 @@
+--- v1/compare.py
++++ v2/compare.py
+@@ -16,6 +16,12 @@
+ PROPOSAL = ROOT / 'artifacts/css-steps-jump-none-repair-v2'
+ NATIVE = 'servo/components/style/values/specified/easing.rs'
+ PYTHON = '/Users/bgrins/venvs/firefox/bin/python'
++BINARY_ROLES = {
++    'objdir-full.noindex/dist/Nightly.app/Contents/MacOS/firefox',
++    'objdir-full.noindex/dist/Nightly.app/Contents/MacOS/XUL',
++    'objdir-full.noindex/dist/Nightly.app/Contents/MacOS/gtest/XUL',
++    'objdir-full.noindex/dist/bin/gtest/XUL',
++}
+ read = lambda p: json.loads(p.read_text())
+ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+ body_sha = lambda b: hashlib.sha256(b).hexdigest()
+@@ -139,7 +145,7 @@
+         ref(item)
+     signed = ref(inputs['signed_epoch'])
+     binary_names = set(admission['binaries'])
+-    need(binary_names == {n for n in signed['pins'] if n.startswith('objdir-full.noindex/dist/Nightly.app/')}, 'same three binary roles')
++    need(binary_names == BINARY_ROLES and BINARY_ROLES <= set(signed['pins']), 'exact four binary roles')
+     need(set(epoch['pins']) >= set(signed['pins']) and all(epoch['pins'][n] == v for n, v in signed['pins'].items() if n not in binary_names), 'signed nonbinary epoch preserved')
+     need(epoch['semantic_index'] == signed['semantic_index'] and epoch['nested_semantic_index'] == signed['nested_semantic_index'], 'signed root/nested semantic index')
+     need(epoch['installed_identities'] == signed['installed_identities'] and epoch['committed_research_working_payloads'] == signed['committed_research_working_payloads'], 'signed identities/research')

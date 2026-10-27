@@ -1,0 +1,82 @@
+--- v1/validate.py
++++ v2/validate.py
+@@ -81,6 +81,14 @@
+         need([r['subtest'] for r in rows if r['test'] == t] == names, 'retained exact roster')
+     need(all(config['expected_subtests'][t] == names for t, names in roster.items()), 'subset roster join')
+     return [r for r in rows if r['test'] in roster]
++
++
++def capture_epoch_join(retained, roles, binaries, paths, roster, native):
++    capture_roles = set(binaries) | set(paths) | {native} | {
++        'testing/web-platform/tests/' + t.lstrip('/') for t in roster}
++    need(capture_roles <= set(roles) and capture_roles <= set(retained['after'])
++         and all(retained['after'][n] == roles[n] for n in capture_roles),
++         'restored capture to current binaries/native/selected WPT/metadata')
+ 
+ 
+ def main():
+@@ -112,6 +120,7 @@
+     retained = bound(admission['restored_capture']['run'])
+     need(all(retained['before'][n] == value for n, value in admission['binaries'].items()), 'restored capture to current binary epoch')
+     need(all(retained['before'][n] == v['preimage']['sha256'] for n, v in paths.items()), 'restored capture original metadata')
++    capture_epoch_join(retained, roles, common.BINARY_ROLES, paths, roster, common.NATIVE)
+     need(set(paths) <= set(roles) and all(roles[n] == v['preimage']['sha256'] for n, v in paths.items()), 'original metadata roles')
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', MOZCONFIG=str(ROOT / 'mozconfig'), MOZ_OBJDIR=str(common.OBJ),
+                MOZ_SKIP_PATH_PERFORMANCE_CHECK='1', MOZ_HEADLESS='1', PYTHONDONTWRITEBYTECODE='1')
+--- v1/check.py
++++ v2/check.py
+@@ -53,6 +53,30 @@
+         raise AssertionError('bad rows accepted')
+ 
+ tree = ast.parse((HERE / 'validate.py').read_text())
++metadata_paths = v.read(HERE / 'PATHS.json')
++joined = common.BINARY_ROLES | set(metadata_paths) | {common.NATIVE} | {
++    'testing/web-platform/tests/' + t.lstrip('/') for t in roster}
++roles = {name: 'a' * 64 for name in joined}
++retained = {'after': dict(roles)}
++v.capture_epoch_join(retained, roles, common.BINARY_ROLES, metadata_paths, roster, common.NATIVE)
++join_negatives = 0
++for name in sorted(joined):
++    altered = copy.deepcopy(retained)
++    altered['after'][name] = 'b' * 64
++    try:
++        v.capture_epoch_join(altered, roles, common.BINARY_ROLES, metadata_paths, roster, common.NATIVE)
++    except RuntimeError:
++        join_negatives += 1
++    else:
++        raise AssertionError('stale capture role admitted')
++altered = copy.deepcopy(retained)
++del altered['after'][common.NATIVE]
++try:
++    v.capture_epoch_join(altered, roles, common.BINARY_ROLES, metadata_paths, roster, common.NATIVE)
++except RuntimeError:
++    join_negatives += 1
++else:
++    raise AssertionError('missing capture source admitted')
+ main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'main')
+ tail = next(n for n in main.body if isinstance(n, ast.Try))
+ code = compile(ast.Module(body=[tail], type_ignores=[]), '<actual-validation-tail>', 'exec')
+@@ -116,4 +140,5 @@
+             assert all((root / n).read_bytes() == b for n, b in originals.items()) and not ns['errors']
+         tail_cases.append(fault)
+ print(json.dumps({'status': 'STEPS_METADATA_STATIC_CHECKS_PASS', 'row_negatives': negative_count,
++    'capture_epoch_join_negatives': join_negatives,
+     'actual_tail_cases': tail_cases, 'scratch_removed': True, 'browser_or_live_mutation': False}, indent=2))
+--- v1/README.md
++++ v2/README.md
+@@ -2,12 +2,12 @@
+ 
+ Run only from a fresh runtime copy under artifacts after root reviews and binds INPUTS: python3 -I -S -B artifacts/ACTUAL-RUNTIME/validate.py --run. This performs no build, source-WPT change, staging or commit. Two existing syntax tests supply 44 exact rows and two harness ends.
+ 
+-Root must supply restored_admission {path, sha256} to a genuine CUBIC_RESTORED_EPOCH_ROOT_VERIFIED receipt with outer_exit 0, epoch reference, four binaries, nonempty evidence references, and restored_capture {run, raw, config} references. The epoch must be fresh after the cubic restored capture and cleanup, preserve current root/nested source/index/research identities, and guard both original INI files and all capture resources. The restored full 113-row capture is reparsed, lifecycle/exit checked, and its binaries/metadata joined to that epoch. Future fields remain null. Root_review must bind exact local_pins under STEPS_METADATA_VALIDATION_ROOT_REVIEW_GO.
++Root must supply restored_admission {path, sha256} to a genuine CUBIC_RESTORED_EPOCH_ROOT_VERIFIED receipt with outer_exit 0, epoch reference, four binaries, nonempty evidence references, and restored_capture {run, raw, config} references. The epoch must be fresh after the cubic restored capture and cleanup, preserve current root/nested source/index/research identities, and guard both original INI files and all capture resources. The restored full 113-row capture is reparsed, lifecycle/exit checked, and its after-capture four binaries, easing.rs, both existing WPT bodies and both original metadata bodies are joined to that epoch. Known-intermittent absence versus [] is preserved exactly by the policy; it is not normalized. Future fields remain null. Root_review must bind exact local_pins under STEPS_METADATA_VALIDATION_ROOT_REVIEW_GO.
+ 
+ Only two jump-none expected-FAIL blocks change. Raw statuses, messages and intermittent fields must equal the fresh restored subset. The two target effective expectations alone change FAIL to PASS with actual PASS; all other expected fields remain exact, including the earlier integer unexpected PASS. A nonzero WPT exit is valid when it agrees with remaining unexpected results.
+ 
+-Success retains the exact two metadata postimages for root to fold into fix 133. Failure restores each known owned preimage independently and verifies full restoration; an unknown replacement or active owned process blocks unsafe mutation and remains reported. Raw index bytes are observed/stable within guards, while semantic root/nested preservation is required. A failed RESULT publication also enters recovery; FAILURE is authoritative if present. No acceptance follows automatically.
++Success retains the exact two metadata postimages for root to fold into fix 133. Failure restores each known owned preimage independently and verifies full restoration; an unknown replacement or active owned process blocks unsafe mutation and remains reported. Raw index bytes are observed/stable within guards, while semantic root/nested preservation is required. A failed RESULT publication also enters recovery; The outer execution exit and FAILURE are authoritative if RESULT publication fails after writing partial or complete bytes; RESULT alone is not sufficient. No acceptance follows automatically.
+ 
+-All execution helper bytes are reused and pinned. Inert checks exercise ten observation-policy rejections and nine actual try/finally paths (success, capture/comparison/guard/publication failures, partial write, unknown edit and active group). They execute only owned temporary files and remove scratch. Replay: python3 -I -S -B artifacts/css-steps-metadata-validation-v1/check.py.
++All execution helper bytes are reused and pinned. Inert checks exercise ten observation-policy rejections and nine actual try/finally paths (success, capture/comparison/guard/publication failures, partial write, unknown edit and active group). They execute only owned temporary files and remove scratch. Replay: python3 -I -S -B artifacts/css-steps-metadata-validation-v2/check.py.
+ 
+ Include this preparation and its eventual runtime evidence in the preceding steps research selection before rewriting the signed sequence; this package performs no rewrite.

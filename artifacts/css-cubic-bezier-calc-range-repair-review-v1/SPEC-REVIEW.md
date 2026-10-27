@@ -1,0 +1,11 @@
+# Current specification decision
+
+Scenario: a correctly typed, context-free math function occupies x1 or x2; the other arguments are independently valid. The deciding sources were retrieved from official CSSWG drafts during this review. webspec-index remains unavailable, so this is a direct primary-source trace, not an exhaustive tool-generated graph traversal.
+
+1. [CSS Easing cubic-bezier](https://drafts.csswg.org/css-easing-1/#cubic-bezier-easing-functions) assigns x the bounded number production and y an unrestricted number production. Its range sentence does not exempt this function from the numeric-function rules.
+2. [CSS Values numeric functions](https://drafts.csswg.org/css-values-4/#numeric-function) distinguishes literal invalidity from calculated-value clamping at computed time when possible. [Range checking](https://drafts.csswg.org/css-values-4/#calc-range) applies that at the top-level calculation, not nested intermediate nodes.
+3. [Exceptional calculations](https://drafts.csswg.org/css-values-4/#calc-type-checking) states: “NaN does not escape a top-level calculation; it’s censored into a zero value”. Infinities clamp to the context bounds. The proposed x results 0/1 follow, while y is not restricted to the x interval.
+4. [WAAPI timing updates](https://drafts.csswg.org/web-animations-1/#update-the-timing-properties-of-an-animation-effect) parse easing before assigning timing members. [Keyframe processing](https://drafts.csswg.org/web-animations-1/#process-a-keyframes-argument) likewise parses easing and rejects failure. Literal invalidity therefore still produces TypeError; valid context-free calculations must reach evaluation. Specified getter serialization need not expose computed coordinates.
+5. [Cubic output](https://drafts.csswg.org/css-easing-1/#cubic-bezier-algo) maps input x to the corresponding curve y. The quarter-parameter identity is an independent algebraic witness for that mapping.
+
+**REACHED:** context-free calculated x coordinates clamp to [0,1] instead of being rejected only for their resolved range. The unresolved-context branch is outside this repair; it is not an alternative justification for rejecting the supplied context-free values.

@@ -1,0 +1,79 @@
+--- reviewed-steps-v3/build.py
++++ bezier/build.py
+@@ -5,7 +5,7 @@
+ import time
+ 
+ 
+-def run(WORKTREE, OBJDIR, HERE, env, cancelled, state):
++def run(WORKTREE, OBJDIR, HERE, env, cancelled, state, process_control):
+     phase = 'build'
+     def save(name, value):
+         with (HERE / name).open('x') as stream:
+@@ -75,50 +75,32 @@
+                 save(phase + '-RESULT.json', dict(exit=None, error=failure, process_created=False,
+                     free_bytes=free_bytes(), automatic_cleanup=False))
+                 raise RuntimeError('Process creation did not return an owned handle')
+-            try:
+-                signal_group(signal.SIGTERM)
+-                try:
+-                    process.wait(timeout=10)
+-                except subprocess.TimeoutExpired:
+-                    signal_group(signal.SIGKILL)
+-                    process.wait(timeout=10)
+-            except BaseException as error:
+-                cleanup_errors.append('leader reap: ' + repr(error))
+             group_absent = False
+             try:
+-                for attempt in range(100):
+-                    try:
+-                        os.killpg(process.pid, 0)
+-                    except ProcessLookupError:
+-                        group_absent = True
+-                        state.pop('build', None)
+-                        break
+-                    if attempt == 0:
+-                        signal_group(signal.SIGTERM)
+-                    elif attempt == 50:
+-                        signal_group(signal.SIGKILL)
+-                    time.sleep(0.1)
++                receipt = process_control.terminate(process)
++                group_absent = receipt['owned_group_absent']
++                if group_absent:
++                    state.pop('build', None)
++                save('build-GROUP-CLEANUP.json', receipt)
++                if not group_absent:
++                    cleanup_errors.append('build group remains')
+             except BaseException as error:
+-                cleanup_errors.append('build group census: ' + repr(error))
++                cleanup_errors.append('build cleanup: ' + repr(error))
+             finally:
+                 wake_absent = wake is None
+                 if wake is not None:
+                     try:
+-                        if wake.poll() is None:
+-                            wake.terminate()
+-                        try:
+-                            wake.wait(timeout=10)
+-                        except subprocess.TimeoutExpired:
+-                            wake.kill()
+-                            wake.wait(timeout=10)
+-                        try:
+-                            os.killpg(wake.pid, 0)
+-                        except ProcessLookupError:
+-                            wake_absent = True
++                        receipt = process_control.terminate(wake)
++                        wake_absent = receipt['owned_group_absent']
++                        if wake_absent:
+                             state.pop('wake', None)
++                        save('wake-GROUP-CLEANUP.json', receipt)
+                     except BaseException as error:
+-                        cleanup_errors.append('wake process: ' + repr(error))
+-                    save('WAKE-RESULT.json', dict(exit=wake.poll(), owned_group_absent=wake_absent))
++                        cleanup_errors.append('wake cleanup: ' + repr(error))
++                    try:
++                        save('WAKE-RESULT.json', dict(exit=wake.poll(), owned_group_absent=wake_absent))
++                    except BaseException as error:
++                        cleanup_errors.append('wake receipt: ' + repr(error))
+                 if not wake_absent:
+                     cleanup_errors.append('wake group remains')
+             if cancelled():

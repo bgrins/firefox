@@ -1,0 +1,14 @@
+--- v2/compare.py
++++ v3/compare.py
+@@ -261,7 +261,10 @@
+                 transitions.append('restored')
+                 if build_attempted:
+                     binaries.update({n: h.fingerprint(ROOT, n) for n in binary_names})
+-                    save('RESTORATION-INPUT-BINARIES.json', {'binaries': binaries, 'successful_build_claim': False})
++                    try:
++                        save('RESTORATION-INPUT-BINARIES.json', {'binaries': binaries, 'successful_build_claim': False})
++                    except BaseException as failure:
++                        errors.append('restoration binary receipt: ' + repr(failure))
+                 build('restored')
+                 if baseline is not None:
+                     capture('restored')

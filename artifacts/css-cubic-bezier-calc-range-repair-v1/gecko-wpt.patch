@@ -1,0 +1,162 @@
+--- a/servo/components/style/values/specified/easing.rs
++++ b/servo/components/style/values/specified/easing.rs
+@@ -59,10 +59,12 @@
+ 
+         // TODO(Bug 2037743) - Enable calc()-expressions that can only be resolved at
+         // computed value time (due to relative lengths, sibling-index(), etc.).
+-        if let (Some(x1), Some(_), Some(x2), Some(_)) =
++        if let (Some(_), Some(_), Some(_), Some(_)) =
+             (x1.resolve(), y1.resolve(), x2.resolve(), y2.resolve())
+         {
+-            if !(0.0..=1.0).contains(&x1) || !(0.0..=1.0).contains(&x2) {
++            if matches!(x1.get(), Some(x) if !(0.0..=1.0).contains(&x))
++                || matches!(x2.get(), Some(x) if !(0.0..=1.0).contains(&x))
++            {
+                 return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+             }
+         } else {
+@@ -186,9 +188,9 @@
+             GenericTimingFunction::CubicBezier { x1, y1, x2, y2 } => {
+                 // Resolvable value was enforced at parse time
+                 GenericTimingFunction::CubicBezier {
+-                    x1: x1.resolve().unwrap(),
++                    x1: x1.resolve().unwrap().clamp(0.0, 1.0),
+                     y1: y1.resolve().unwrap(),
+-                    x2: x2.resolve().unwrap(),
++                    x2: x2.resolve().unwrap().clamp(0.0, 1.0),
+                     y2: y2.resolve().unwrap(),
+                 }
+             },
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-easing/cubic-bezier-calculated-x-range.html
+@@ -0,0 +1,130 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Calculated cubic-bezier x coordinates clamp to the allowed range</title>
++<link rel="help" href="https://drafts.csswg.org/css-easing-1/#cubic-bezier-easing-functions">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-range">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<div id="fixtures"></div>
++<script>
++const fixtures = document.getElementById("fixtures");
++const cases = [
++  ["x1 below zero", "calc(-2)", "0.5", 0, 0.5],
++  ["x1 above one", "calc(2)", "0.5", 1, 0.5],
++  ["x2 below zero", "0.5", "calc(-2)", 0.5, 0],
++  ["x2 above one", "0.5", "calc(2)", 0.5, 1],
++  ["x1 NaN", "calc(0 / 0)", "0.5", 0, 0.5],
++  ["x2 NaN", "0.5", "calc(NaN)", 0.5, 0],
++  ["opposite infinities", "calc(-infinity)", "calc(infinity)", 0, 1],
++  ["reversed infinities", "calc(infinity)", "calc(-infinity)", 1, 0],
++];
++
++for (const [label, x1, x2, expectedX1, expectedX2] of cases) {
++  const easing = `cubic-bezier(${x1}, 0, ${x2}, 1)`;
++  const literal = `cubic-bezier(${expectedX1}, 0, ${expectedX2}, 1)`;
++  // At curve parameter 1/2, y is 1/2 and x is 1/8 + 3/8 * (x1 + x2).
++  const progress = 0.125 + 0.375 * (expectedX1 + expectedX2);
++
++  for (const property of ["animation-timing-function", "transition-timing-function"]) {
++    test(t => {
++      const target = document.createElement("div");
++      fixtures.append(target);
++      t.add_cleanup(() => target.remove());
++      target.style.setProperty(property, literal);
++      assert_equals(getComputedStyle(target).getPropertyValue(property), literal,
++                    "literal coordinate calibration");
++      target.style.removeProperty(property);
++      assert_true(CSS.supports(property, easing), "calculated coordinate admission");
++      target.style.setProperty(property, easing);
++      assert_not_equals(target.style.getPropertyValue(property), "",
++                        "calculated declaration retained");
++      assert_equals(getComputedStyle(target).getPropertyValue(property), literal,
++                    "only the x coordinates clamp");
++    }, `${property}: ${label}`);
++  }
++
++  test(t => {
++    const controlEffect = new KeyframeEffect(null, [], { duration: 1000, easing: literal });
++    const control = new Animation(controlEffect, document.timeline);
++    t.add_cleanup(() => control.cancel());
++    control.currentTime = progress * 1000;
++    assert_approx_equals(controlEffect.getComputedTiming().progress, 0.5, 0.0001,
++                         "targetless literal output calibration");
++    const effect = new KeyframeEffect(null, [], { duration: 1000, easing });
++    const animation = new Animation(effect, document.timeline);
++    t.add_cleanup(() => animation.cancel());
++    animation.currentTime = progress * 1000;
++    assert_true(CSS.supports("animation-timing-function", effect.getTiming().easing),
++                "targetless serialization remains valid easing");
++    assert_approx_equals(effect.getComputedTiming().progress, 0.5, 0.0001,
++                         "targetless calculated output");
++  }, `targetless effect: ${label}`);
++
++  test(t => {
++    const target = document.createElement("div");
++    fixtures.append(target);
++    t.add_cleanup(() => target.remove());
++    const control = target.animate([
++      { opacity: 0, easing: literal }, { opacity: 1 },
++    ], { duration: 1000, fill: "both" });
++    t.add_cleanup(() => control.cancel());
++    control.pause();
++    control.currentTime = progress * 1000;
++    assert_approx_equals(Number(getComputedStyle(target).opacity), 0.5, 0.0001,
++                         "literal keyframe output calibration");
++    control.cancel();
++    const animation = target.animate([
++      { opacity: 0, easing }, { opacity: 1 },
++    ], { duration: 1000, fill: "both" });
++    t.add_cleanup(() => animation.cancel());
++    animation.pause();
++    animation.currentTime = progress * 1000;
++    assert_true(CSS.supports("animation-timing-function",
++                             animation.effect.getKeyframes()[0].easing),
++                "keyframe serialization remains valid easing");
++    assert_approx_equals(Number(getComputedStyle(target).opacity), 0.5, 0.0001,
++                         "calculated keyframe output");
++  }, `keyframe easing: ${label}`);
++}
++
++for (const property of ["animation-timing-function", "transition-timing-function"]) {
++  test(t => {
++    const target = document.createElement("div");
++    fixtures.append(target);
++    t.add_cleanup(() => target.remove());
++    const value = "cubic-bezier(calc(-2), calc(-2), calc(2), calc(3))";
++    assert_true(CSS.supports(property, value), "calculated coordinates admitted");
++    target.style.setProperty(property, value);
++    assert_equals(getComputedStyle(target).getPropertyValue(property),
++                  "cubic-bezier(0, -2, 1, 3)", "y coordinates remain unrestricted");
++  }, `${property}: y coordinates retain values outside the x range`);
++}
++
++test(() => {
++  for (const property of ["animation-timing-function", "transition-timing-function"]) {
++    assert_true(CSS.supports(property, "cubic-bezier(0, -2, 1, 3)"),
++                "literal boundaries and unrestricted y are valid");
++    for (const value of ["cubic-bezier(-0.1, 0, 1, 1)", "cubic-bezier(1.1, 0, 1, 1)",
++                         "cubic-bezier(0, 0, -0.1, 1)", "cubic-bezier(0, 0, 1.1, 1)"]) {
++      assert_false(CSS.supports(property, value), "out-of-range literal is invalid");
++      const style = document.createElement("div").style;
++      style.setProperty(property, value);
++      assert_equals(style.getPropertyValue(property), "", "invalid declaration not retained");
++    }
++  }
++}, "CSS literal x coordinates outside zero to one remain invalid");
++
++test(() => {
++  const literal = "cubic-bezier(0, 0, 1, 1)";
++  const effect = new KeyframeEffect(null, [], { duration: 1000, easing: literal });
++  for (const easing of ["cubic-bezier(-0.1, 0, 1, 1)", "cubic-bezier(1.1, 0, 1, 1)",
++                        "cubic-bezier(0, 0, -0.1, 1)", "cubic-bezier(0, 0, 1.1, 1)"]) {
++    assert_throws_js(TypeError, () => effect.updateTiming({ duration: 2000, easing }));
++    assert_equals(effect.getTiming().duration, 1000, "failed update retains duration");
++    assert_equals(effect.getTiming().easing, literal, "failed update retains easing");
++    assert_throws_js(TypeError, () => new KeyframeEffect(null, [
++      { opacity: 0, easing }, { opacity: 1 },
++    ], 1000));
++  }
++}, "invalid literal x coordinates preserve atomic timing updates and keyframe rejection");
++</script>

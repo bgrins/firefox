@@ -1,0 +1,35 @@
+--- reviewed/tests.py
++++ steps/tests.py
+@@ -37,7 +37,7 @@
+     command = [wpt.PYTHON, './mach', 'wpt', '--headless', '--processes=1',
+                '--binary=' + str(wpt.BINARY), '--config=' + str(wpt.WPT_CONFIG),
+                '--prefs-root=' + str(wpt.PREFS_ROOT),
+-               '--log-raw=' + str(directory / 'raw.json'), *c['tests']]
++               '--log-raw=' + str(directory / 'raw.json'), '--no-manifest-download', *c['tests']]
+     process = None
+     cleanup = []
+     try:
+@@ -61,19 +61,10 @@
+     finally:
+         if process is not None:
+             try:
+-                for sig in (signal.SIGTERM, signal.SIGKILL):
+-                    try:
+-                        os.killpg(process.pid, sig)
+-                    except ProcessLookupError:
+-                        break
+-                    time.sleep(0.2)
+-                process.wait(timeout=10)
+-                try:
+-                    os.killpg(process.pid, 0)
+-                except ProcessLookupError:
+-                    wpt.owned_group = None
+-                else:
+-                    raise RuntimeError('owned WPT process group remains')
++                receipt = wpt.process_control.terminate(process)
++                wpt.need(receipt['owned_group_absent'], 'owned WPT group remains')
++                wpt.owned_group = None
++                (directory / 'PROCESS-CLEANUP.json').write_text(json.dumps(receipt, indent=2) + '\n')
+             except BaseException as error:
+                 cleanup.append(repr(error))
+         (directory / 'CLEANUP.json').write_text(json.dumps({'owned_group_absent': not cleanup, 'errors': cleanup}, indent=2) + '\n')
