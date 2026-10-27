@@ -1,0 +1,11 @@
+# Sign pair packaging replay
+
+Scoped self-review and fresh replay pass. I authored the packaging checker, so this is not an independent-author review. The complete sealed packaging and six referenced capsules were authenticated; the fresh external replay receipt is byte-identical to the producer CHECK.json. No producer file changed.
+
+The raw patch contains exactly three Rust files plus its eight-case WPT. The Sign patch contains exactly the one-line generic calc change plus its eleven-case WPT. I additionally compared fixture registration names against the rosters, checked both test paths are absent in explicit HEAD90, and verified every encoded Sign prerequisite source hash equals the raw patch's native postimage. Raw-alone application/reversal, ordered raw→Sign/reversal and combined review-only equivalence all passed in owned scratch. Scratch cleanup completed without creating an index.
+
+Sign's semantic prerequisite is explicit. Its disjoint patch paths do not establish independent cherry-pickability or justify applying it alone on HEAD90. The combined patch is review convenience only. The four recipes preserve research-before-native ordering; acceptance, actual terminal evidence, signing parents and commit hashes remain unset.
+
+The retained reviewer lookup reports `#firefox-style-system-reviewers` under both Module and Herald results. Its full log is pinned in REFERENCES.json; I did not rerun the lookup. Parent confirmed the local `No bug -` convention is authorized. An eventual finalized native message can therefore use that prefix and `r?#firefox-style-system-reviewers`, without inventing a bug number or initiating filing. The immutable candidate's earlier pending reviewer/message fields remain unchanged.
+
+This checker is a transport audit, not an acceptance or execution gate: hunk totals are recorded against authenticated exact patches rather than generalized to arbitrary replacements. It does not establish current installed source/index state, terminal restoration, test execution or native correctness. Those require the actual sealed campaign/root receipts and later scoped review. No live native source, HEAD or index was inspected or modified; only explicit historical Git objects and sealed artifacts were read.
