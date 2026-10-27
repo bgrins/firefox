@@ -1,0 +1,231 @@
+--- reviewed/compare.py
++++ install.py
+@@ -13,7 +13,7 @@
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+ OBJ = ROOT / 'objdir-full.noindex'
+-PROPOSAL = ROOT / 'artifacts/css-cubic-bezier-calc-range-repair-v2'
++PROPOSAL = HERE
+ NATIVE = 'servo/components/style/values/specified/easing.rs'
+ PYTHON = '/Users/bgrins/venvs/firefox/bin/python'
+ BINARY_ROLES = {
+@@ -125,7 +125,7 @@
+     inputs = read(HERE / 'INPUTS.json')
+     need(sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize, 'isolated interpreter')
+     need(sys.argv[1:] == ['--run'] and inputs['ready'] is True, 'Disabled comparison')
+-    need(inputs['build_binding'] and inputs['root_review'], 'Successful committed-steps build and root review required')
++    need(inputs['admission'] and inputs['root_review'], 'Actual post-fold admission and root review required')
+     for name in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'CC', 'CXX', 'RUSTFLAGS', 'CARGO_TARGET_DIR',
+                  'RUSTC', 'RUSTC_WRAPPER', 'MOZ_CONFIGURE_OPTIONS', 'MOZ_ARTIFACT_BUILDS'):
+         need(not os.environ.get(name), 'ambient ' + name)
+@@ -133,38 +133,32 @@
+         need(sha(HERE / name) == digest, name)
+     for name, digest in read(HERE / 'REFERENCES.json').items():
+         need(sha(ROOT / name) == digest, name)
+-    for name, item in read(PROPOSAL / 'FILES.json').items():
+-        need(sha(PROPOSAL / name) == (item['sha256'] if isinstance(item, dict) else item), 'proposal ' + name)
+-    admission = ref(inputs['build_binding'])
+-    need(admission['status'] == 'COMMITTED_STEPS_BUILD_VERIFIED' and admission['exit'] == 0, 'successful committed-steps compilation')
++    admission = ref(inputs['admission'])
++    need(admission['status'] == 'CUBIC_POST_STEPS_METADATA_FOLD_ROOT_VERIFIED' and admission['outer_exit'] == 0, 'post-fold actual admission')
+     epoch = ref(admission['epoch'])
+     review = ref(inputs['root_review'])
+-    need(review['status'] == 'CUBIC_BEZIER_CALC_RANGE_COMPARISON_ROOT_REVIEW_GO' and review['local_pins'] == inputs['local_pins'], 'root source review')
+-    need(admission['evidence'], 'underlying committed-steps build evidence')
++    need(review['status'] == 'CUBIC_FINAL_INSTALL_ROOT_REVIEW_GO' and review['local_pins'] == inputs['local_pins'], 'root source review')
++    need(admission['evidence'], 'actual metadata validation and post-fold preservation evidence')
+     for item in admission['evidence']:
+         ref(item)
+-    signed = ref(inputs['signed_epoch'])
+     binary_names = set(admission['binaries'])
+-    need(binary_names == BINARY_ROLES and BINARY_ROLES <= set(signed['pins']), 'exact four binary roles')
+-    need(set(epoch['pins']) >= set(signed['pins']) and all(epoch['pins'][n] == v for n, v in signed['pins'].items() if n not in binary_names), 'signed nonbinary epoch preserved')
+-    need(epoch['semantic_index'] == signed['semantic_index'] and epoch['nested_semantic_index'] == signed['nested_semantic_index'], 'signed root/nested semantic index')
+-    need(epoch['installed_identities'] == signed['installed_identities'] and epoch['committed_research_working_payloads'] == signed['committed_research_working_payloads'], 'signed identities/research')
+-    need(all(epoch['pins'][n] == v for n, v in admission['binaries'].items()), 'committed-steps binary join')
+-    need(all(epoch['pins'][n] == v for n, v in admission['sources'].items()) and NATIVE in admission['sources'], 'committed-steps compiled source join including easing')
++    need(binary_names == BINARY_ROLES and all(epoch['pins'][n] == v for n, v in admission['binaries'].items()), 'four current original binaries')
++    need(all(epoch['pins'][n] == v for n, v in admission['sources'].items()) and NATIVE in admission['sources'], 'current original source provenance')
+     h = load('steps_common', ROOT / 'artifacts/css-keyframe-commit-styles-implicit-clean-comparison-v1/compare.py')
+     tests = load('steps_tests', HERE / 'tests.py')
+     process_control = load('steps_process', HERE / 'process_control.py')
+     builder = load('steps_build', HERE / 'build.py')
+-    policy = load('steps_policy', HERE / 'policy.py')
++    policy = load('install_policy', HERE / 'policy.py')
++    reference_rows = policy.archived_candidate(ROOT, tests, read(HERE / 'HISTORICAL.json'))
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', MOZCONFIG=str(ROOT / 'mozconfig'),
+                MOZ_OBJDIR=str(OBJ), MOZ_SKIP_PATH_PERFORMANCE_CHECK='1', MOZ_HEADLESS='1', PYTHONDONTWRITEBYTECODE='1')
+-    extra = read(HERE / 'ADDITIONAL-ROLES.json')
+-    need(all(n not in epoch['pins'] or epoch['pins'][n] == v for n, v in extra.items()), 'nonconflicting role extension')
+-    roles = epoch['pins'] | extra
++    roles = epoch['pins']
+     pre, post = read(HERE / 'PREIMAGES.json'), read(HERE / 'POSTIMAGES.json')
+-    originals = {n: (PROPOSAL / ('after-steps-original' if n == NATIVE else 'original') / n).read_bytes() if pin else None for n, pin in pre.items()}
+-    candidates = {n: (PROPOSAL / ('after-steps-candidate' if n == NATIVE else 'candidate') / n).read_bytes() for n in post}
++    originals = {n: (PROPOSAL / 'original' / n).read_bytes() if pin else None for n, pin in pre.items()}
++    candidates = {n: (PROPOSAL / 'candidate' / n).read_bytes() for n in post}
+     need(all(roles[n] == (pin['sha256'] if pin else None) for n, pin in pre.items()), 'exact source/test preimages')
++    need(all(body_sha(candidates[n]) == post[n]['sha256'] for n in post), 'exact candidate payloads')
++    need(all(originals[n] is None if pin is None else body_sha(originals[n]) == pin['sha256'] for n, pin in pre.items()), 'exact original payloads')
+     mutable = set(pre)
+     excluded = [':(exclude)' + n for n in sorted(mutable)]
+     external_diff = body_sha(h.git(ROOT, env, 'diff', '--binary', '--', '.', *excluded))
+@@ -172,6 +166,11 @@
+     build_attempted = False
+     binaries = dict(admission['binaries'])
+     roster = read(HERE / 'CANDIDATE-ROSTER.json')
++    historical = read(HERE / 'HISTORICAL.json')
++    historical_run = read(ROOT / historical['directory'] / 'wpt-candidate/RUN.json')
++    selected_bodies = {NATIVE} | {'testing/web-platform/tests/' + t.lstrip('/') for t in roster}
++    need(all(historical_run['after'][n] == (post[n]['sha256'] if n in post else roles[n])
++             for n in selected_bodies), 'historical compiled candidate and unchanged selected WPT bodies')
+     config = {'tests': [t.lstrip('/') for t in sorted(roster)], 'expected_subtests': roster,
+               'baseline_tests': [t.lstrip('/') for t in sorted(roster)], 'baseline_expected_subtests': roster,
+               'guard_sources': list(roles), 'reftests': []}
+@@ -195,6 +194,7 @@
+             if item['identity'] is not None:
+                 info = (ROOT / n).lstat()
+                 need(stat.S_ISREG(info.st_mode) and [info.st_dev, info.st_ino] == item['identity'], 'owned comparison identity ' + n)
++                need(stat.S_IMODE(info.st_mode) == 0o644, 'owned source/test mode ' + n)
+         for n, identity in epoch['installed_identities'].items():
+             info = (ROOT / n).lstat()
+             need([info.st_dev, info.st_ino] == identity and stat.S_ISREG(info.st_mode), 'installed identity ' + n)
+@@ -218,8 +218,8 @@
+         resources = verify(label + '-PRE.json', recover_receipt=label == 'restored')
+         ports_free(read(ROOT / 'testing/web-platform/tests/config.json'))
+         result = tests.run(adapter, label, resources)
+-        captures[label] = policy.values(result['rows'])
+-        policy.check(result['rows'], read(HERE / 'COMPARISON-POLICY.json'), label, captures.get('original'))
++        captures[label] = result['rows']
++        save('OUTCOME-COMPARISON.json', policy.compare(reference_rows, result['rows'], read(HERE / 'COMPARISON-POLICY.json')))
+         verify(label + '-POST.json', recover_receipt=label == 'restored')
+     def build(label):
+         nonlocal build_attempted
+@@ -233,72 +233,83 @@
+         binaries.update({n: h.fingerprint(ROOT, n) for n in binary_names})
+         need(all(binaries.values()), 'built binaries present')
+         verify(label + '-BUILD-POST.json', recover_receipt=label == 'restored')
+-    baseline = None
+     mutation_started = False
++    success = False
+     error = None
+     verify('BEFORE.json')
+-    need(h.semantic_index(h.index_state(ROOT, env)) == epoch['semantic_index'], 'exact committed-steps baseline working difference')
++    need(h.semantic_index(h.index_state(ROOT, env)) == epoch['semantic_index'], 'exact post-fold baseline working difference')
+     save('CONFIG.json', config)
+-    save('EPOCH-BINDING.json', {'admission': admission, 'additional_roles': extra})
++    save('EPOCH-BINDING.json', {'admission': admission})
+     try:
+         for n in pre:
+-            if n == NATIVE:
+-                continue
++            quiet()
++            need(not adapter.cancelled(), 'termination requested')
+             info = (ROOT / n).lstat() if pre[n] else None
+-            item = {'path': n, 'identity': [info.st_dev, info.st_ino] if info else None,
+-                    'owned_sha256': pre[n]['sha256'] if pre[n] else None}
+-            owned[n] = item
+-            write_owned(ROOT, item, candidates[n])
+-        capture('original')
+-        baseline = captures['original']
+-        info = (ROOT / NATIVE).lstat()
+-        owned[NATIVE] = {'path': NATIVE, 'identity': [info.st_dev, info.st_ino], 'owned_sha256': pre[NATIVE]['sha256']}
+-        quiet()
+-        mutation_started = True
+-        write_owned(ROOT, owned[NATIVE], candidates[NATIVE])
++            owned[n] = {'path': n, 'identity': [info.st_dev, info.st_ino] if info else None,
++                        'owned_sha256': pre[n]['sha256'] if pre[n] else None}
++            mutation_started = True
++            write_owned(ROOT, owned[n], candidates[n])
+         transitions.append('candidate')
+         build('candidate')
+         capture('candidate')
++        quiet()
++        final = verify('FINAL.json')
++        need(not adapter.cancelled(), 'termination requested')
++        current = copy.deepcopy(epoch)
++        current['pins'] = final
++        current['semantic_index'] = h.semantic_index(h.index_state(ROOT, env))
++        current['modified_native_paths'] = read(HERE / 'FINAL.json')['modified_native_paths']
++        for n, item in owned.items():
++            if pre[n] is None:
++                current['installed_identities'][n] = item['identity']
++        current['historical_raw_index_observation'] = current.get('raw_index_observation')
++        current['raw_index_observation'] = {'before': read(HERE / 'BEFORE.json')['index']['raw_index'],
++            'current': read(HERE / 'FINAL.json')['index']['raw_index'], 'cause_if_changed': 'not established'}
++        current['counts'].update(roles=len(final), installed_identities=len(current['installed_identities']),
++            native_modified_paths=len(current['modified_native_paths']))
++        current['cubic_install_provenance'] = {'admission': inputs['admission'], 'accepted_fix': False,
++            'source_sha256': post[NATIVE]['sha256'], 'captured_rows': len(captures['candidate'])}
++        save('CURRENT-EPOCH.json', current)
++        save('RESULT.json', {'success': True, 'error': None, 'recovery_errors': [],
++            'source_transitions': transitions, 'captured_phases': list(captures), 'owned_inputs': owned,
++            'outstanding_processes': state, 'wpt_group': adapter.owned_group, 'accepted_fix': False})
++        success = True
+     except BaseException as failure:
+         error = repr(failure)
+     finally:
+         adapter.cancelled = lambda: False
+-        if mutation_started:
+-            try:
+-                quiet()
+-                restore_owned(ROOT, owned[NATIVE], originals[NATIVE])
+-                transitions.append('restored')
+-                if build_attempted:
++        if not success:
++            restored_all = True
++            for n, item in list(owned.items()):
++                try:
++                    quiet()
++                    restore_owned(ROOT, item, originals[n])
++                    owned.pop(n)
++                except BaseException as failure:
++                    restored_all = False
++                    errors.append('input recovery ' + n + ': ' + repr(failure))
++            if restored_all and build_attempted:
++                try:
++                    quiet()
+                     binaries.update({n: h.fingerprint(ROOT, n) for n in binary_names})
+                     try:
+                         save('RESTORATION-INPUT-BINARIES.json', {'binaries': binaries, 'successful_build_claim': False})
+                     except BaseException as failure:
+                         errors.append('restoration binary receipt: ' + repr(failure))
+-                build('restored')
+-                if baseline is not None:
+-                    capture('restored')
+-            except BaseException as failure:
+-                errors.append('native recovery: ' + repr(failure))
+-        for n, item in list(owned.items()):
+-            if n == NATIVE:
+-                continue
++                    transitions.append('restored')
++                    build('restored')
++                except BaseException as failure:
++                    errors.append('original rebuild: ' + repr(failure))
+             try:
+                 quiet()
+-                restore_owned(ROOT, item, originals[n])
+-                owned.pop(n)
++                verify('RECOVERY-FINAL.json', recover_receipt=True)
++                need(h.semantic_index(h.index_state(ROOT, env)) == epoch['semantic_index'], 'complete original source/index restoration')
+             except BaseException as failure:
+-                errors.append('test recovery ' + n + ': ' + repr(failure))
+-        try:
+-            quiet()
+-            final = verify('FINAL.json')
+-            need(h.semantic_index(h.index_state(ROOT, env)) == epoch['semantic_index'], 'complete original source/index restoration')
+-        except BaseException as failure:
+-            errors.append('final preservation: ' + repr(failure))
+-        save('RESULT.json', {'error': error, 'recovery_errors': errors, 'mutation_started': mutation_started,
+-             'source_transitions': transitions, 'captured_phases': list(captures), 'owned_inputs': owned,
+-             'outstanding_processes': state, 'wpt_group': adapter.owned_group,
+-             'accepted_fix': False, 'success': error is None and not errors and set(captures) == {'original', 'candidate', 'restored'}})
+-    need(error is None and not errors and set(captures) == {'original', 'candidate', 'restored'}, 'comparison failed; observations and recovery retained')
++                errors.append('final preservation: ' + repr(failure))
++            save('FAILURE.json', {'success': False, 'error': error, 'recovery_errors': errors,
++                'source_transitions': transitions, 'captured_phases': list(captures), 'owned_inputs': owned,
++                'outstanding_processes': state, 'wpt_group': adapter.owned_group, 'accepted_fix': False})
++    need(success, 'installation failed; use outer exit and FAILURE, not partial success publications')
+ 
+ 
+ def terminate(signum, frame):
