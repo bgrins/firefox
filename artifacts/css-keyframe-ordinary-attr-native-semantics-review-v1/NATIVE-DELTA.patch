@@ -1,0 +1,59 @@
+diff --git a/servo/components/style/properties/cascade.rs b/servo/components/style/properties/cascade.rs
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -849,6 +849,17 @@
+     ) {
+         self.cascade
+             .cascade_custom_property(context, declaration, priority);
++    }
++
++    /// Prepares typed attributes referenced by an ordinary keyframe declaration.
++    pub fn prepare_attributes(
++        &mut self,
++        context: &mut computed::Context,
++        value: &'a UnparsedValue,
++        attribute_tracker: &mut AttributeTracker,
++    ) {
++        self.cascade
++            .update_attributes_map(context, &value.variable_value, attribute_tracker);
+     }
+ 
+     /// Resolves the cascaded custom properties into `context.builder.substitution_functions`.
+diff --git a/servo/ports/geckolib/glue.rs b/servo/ports/geckolib/glue.rs
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -7581,6 +7581,25 @@
+                 }
+             }
+             iter.reset();
++            for property in &mut iter {
++                if simulate_compute_values_failure(property)
++                    || property.mServoDeclarationBlock.mRawPtr.is_null()
++                {
++                    continue;
++                }
++                let declarations = unsafe { &*property.mServoDeclarationBlock.mRawPtr };
++                let guard = declarations.read_with(&guard);
++                for declaration in guard.normal_declaration_iter() {
++                    if let PropertyDeclaration::WithVariables(declaration) = declaration {
++                        builder.prepare_attributes(
++                            &mut context,
++                            &declaration.value,
++                            &mut attribute_tracker,
++                        );
++                    }
++                }
++            }
++            iter.reset();
+             builder.build(&mut context, &mut attribute_tracker);
+         };
+ 
+@@ -7657,7 +7676,7 @@
+                     &mut context,
+                     style,
+                     &default_values,
+-                    &mut AttributeTracker::new_dummy(),
++                    &mut attribute_tracker,
+                 ) {
+                     maybe_append_animation_value(value.id(), Some(value.clone()));
+                 }
