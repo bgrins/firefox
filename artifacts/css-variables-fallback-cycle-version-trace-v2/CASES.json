@@ -1,0 +1,73 @@
+{
+  "cases": [
+    {
+      "browser_observed": false,
+      "cr_2022_width": "7px",
+      "declarations": "--ok:20px;--a:var(--ok,var(--a));width:var(--a,7px)",
+      "editors_draft_width": "20px",
+      "id": "unused-self",
+      "native_source_predicted_width": "20px",
+      "reason": "Primary --ok is valid; unused self fallback is never evaluated."
+    },
+    {
+      "browser_observed": false,
+      "cr_2022_width": "7px",
+      "declarations": "--a:var(--missing,var(--a));width:var(--a,7px)",
+      "editors_draft_width": "7px",
+      "id": "taken-self-fallback",
+      "native_source_predicted_width": "7px",
+      "reason": "Missing primary selects fallback, which re-enters active --a context."
+    },
+    {
+      "browser_observed": false,
+      "cr_2022_width": "7px",
+      "declarations": "--a:var(--a,20px);width:var(--a,7px)",
+      "editors_draft_width": "7px",
+      "id": "direct-self-with-rescue",
+      "native_source_predicted_width": "7px",
+      "reason": "Cycle marks --a before fallback; post-substitution cyclic check prevents rescue."
+    },
+    {
+      "browser_observed": false,
+      "cr_2022_width": "7px",
+      "declarations": "--a:var(--b,20px);--b:var(--a,30px);width:var(--a,7px)",
+      "editors_draft_width": "7px",
+      "id": "mutual-primary-with-rescue",
+      "native_source_predicted_width": "7px",
+      "reason": "Both custom properties participate; numeric fallback does not clear cyclic marking."
+    },
+    {
+      "browser_observed": false,
+      "cr_2022_width": "7px",
+      "declarations": "--ok:20px;--a:var(--ok,var(--b));--b:var(--ok,var(--a));width:var(--a,7px)",
+      "editors_draft_width": "20px",
+      "id": "unused-mutual-fallbacks",
+      "native_source_predicted_width": "20px",
+      "reason": "Neither fallback is evaluated by ED; old graph includes both fallback edges."
+    },
+    {
+      "browser_observed": false,
+      "cr_2022_width": "20px",
+      "declarations": "--a:var(--missing,20px);width:var(--a,7px)",
+      "editors_draft_width": "20px",
+      "id": "acyclic-taken-fallback",
+      "native_source_predicted_width": "20px",
+      "reason": "Missing primary selects a literal fallback without any cycle."
+    },
+    {
+      "browser_observed": false,
+      "cr_2022_width": "20px",
+      "declarations": "--a:var(--b,20px);--b:var(--b);width:var(--a,7px)",
+      "editors_draft_width": "20px",
+      "id": "external-consumer-fallback",
+      "native_source_predicted_width": "20px",
+      "reason": "Only --b is cyclic; --a may recover from the invalid provider."
+    }
+  ],
+  "kind": "Manual specification and source expectations, not executed tests",
+  "preconditions": [
+    "Same element; winning ordinary unregistered custom declarations",
+    "No relevant inherited values, registration, animations, transitions, attributes, env or spread syntax",
+    "--missing is absent; simple block accepts nonnegative px width; no overriding constraints"
+  ]
+}
