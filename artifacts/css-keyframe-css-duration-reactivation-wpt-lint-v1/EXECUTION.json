@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "/Users/bgrins/code/firefox/testing/web-platform/tests/_venv3/bin/python3",
+    "-B",
+    "-I",
+    "-c",
+    "import hashlib,json,pathlib,runpy,sys\nworker, repository, relative, output, root = sys.argv[1:]\nsys.argv = [worker, '--lint-worker', repository, relative]\ntry:\n    runpy.run_path(worker, run_name='__main__')\nfinally:\n    pins = {}\n    for module in list(sys.modules.values()):\n        value = getattr(module, '__file__', None)\n        if not value:\n            continue\n        path = pathlib.Path(value).resolve()\n        if path.is_file() and path.is_relative_to(root):\n            pins[str(path.relative_to(root))] = hashlib.sha256(path.read_bytes()).hexdigest()\n    pathlib.Path(output).write_text(json.dumps(pins, indent=2, sort_keys=True) + '\\n')\n",
+    "/Users/bgrins/code/firefox/artifacts/css-round-parse-negative-zero-repair-v2/check.py",
+    "/private/tmp/css-duration-wpt-lint-lvngqrs3",
+    "css/css-animations/css-duration-reactivation.html",
+    "/Users/bgrins/code/firefox/artifacts/css-keyframe-css-duration-reactivation-wpt-lint-v1/LOADED-SOURCE-PINS.json",
+    "/Users/bgrins/code/firefox"
+  ],
+  "cwd": "/private/tmp/css-duration-wpt-lint-lvngqrs3",
+  "exit": 0,
+  "logical_path": "css/css-animations/css-duration-reactivation.html",
+  "python_version": "Python 3.13.12",
+  "fixture_sha256": "9ce483fa48f486af789ed436b73507103dde9364a8209b43a58cbb1d94a15d35",
+  "bytecode_disabled": true,
+  "jobs": 1
+}

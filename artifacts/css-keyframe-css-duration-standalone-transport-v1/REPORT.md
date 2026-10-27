@@ -1,0 +1,1 @@
+The exact original matching.rs body equals HEAD90. The existing root scratch transport applies the two-path Gecko/WPT patch to this body and checks both postimages. No pending native repair is identified as a semantic prerequisite for the duration six-case witness. This is source/transport evidence, not a clean-HEAD90 browser run.
