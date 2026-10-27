@@ -1,0 +1,120 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CSS duration reactivation updates contextual keyframes</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-1/#animation-duration">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+let serial = 0;
+
+function value(target, property) {
+  const text = getComputedStyle(target)[property];
+  if (property === "width") {
+    assert_true(text.endsWith("px"), "computed width unit calibration");
+    const result = parseFloat(text);
+    assert_true(Number.isFinite(result), "finite width calibration");
+    return result;
+  }
+  const matrix = new DOMMatrixReadOnly(text);
+  assert_true(matrix.is2D, "2D transform calibration");
+  assert_array_equals([matrix.a, matrix.b, matrix.c, matrix.d, matrix.f],
+                      [1, 0, 0, 1, 0], "translation components calibration");
+  assert_true(Number.isFinite(matrix.e), "finite translation calibration");
+  return matrix.e;
+}
+
+function retained(effect, property) {
+  const frames = effect.getKeyframes();
+  assert_equals(frames.length, 2, "two retained keyframes");
+  assert_true(frames.every(frame => typeof frame[property] === "string" &&
+                                   frame[property].includes("sibling-count()")),
+              "retained contextual declarations");
+  return frames.map(frame => JSON.stringify([frame.offset, frame.easing, frame[property]]));
+}
+
+for (const property of ["width", "transform"]) {
+  for (const mode of ["reuse after change", "fresh after change", "reuse without change"]) {
+    promise_test(async t => {
+      const id = ++serial;
+      const oldName = `durationOld${id}`;
+      const freshName = `durationFresh${id}`;
+      const lengths = [10, 30].map(n => `calc(${n}px * sibling-count())`);
+      const values = lengths.map(length => property === "width" ? length : `translateX(${length})`);
+      assert_true(values.every(text => CSS.supports(property, text)), "contextual syntax gate");
+      const style = document.createElement("style");
+      style.textContent = [oldName, freshName].map(name =>
+        `@keyframes ${name} { from { ${property}: ${values[0]}; } to { ${property}: ${values[1]}; } }`
+      ).join("\n");
+      document.head.append(style);
+      t.add_cleanup(() => style.remove());
+      assert_equals(style.sheet.cssRules.length, 2, "both keyframe rules retained");
+      const parent = document.createElement("div");
+      parent.style.width = "300px";
+      const target = document.createElement("div");
+      target.style.cssText = "width: 7px; height: 2px; padding: 0; border: 0";
+      target.style.animation = `${oldName} 500ms linear paused none`;
+      parent.append(target);
+      document.body.append(parent);
+      t.add_cleanup(() => parent.remove());
+      const animations = target.getAnimations();
+      assert_equals(animations.length, 1, "one initial CSS animation");
+      const original = animations[0];
+      t.add_cleanup(() => original.cancel());
+      assert_true(original instanceof CSSAnimation, "CSS animation ownership");
+      const originalEffect = original.effect;
+      const initialFrames = retained(originalEffect, property);
+      original.currentTime = 250;
+      await original.ready;
+      assert_equals(original.playState, "paused", "initial paused state");
+      assert_equals(original.currentTime, 250, "initial time calibration");
+      assert_equals(originalEffect.getTiming().duration, 500, "initial CSS duration");
+      assert_equals(originalEffect.getComputedTiming().progress, 0.5, "initial midpoint");
+      assert_equals(parent.children.length, 1, "initial DOM count");
+      assert_equals(value(target, property), 20, "initial contextual value");
+      original.currentTime = 750;
+      assert_equals(original.playState, "paused", "inactive paused state");
+      assert_equals(original.currentTime, 750, "inactive fixed time");
+      assert_equals(original.startTime, null, "inactive unresolved start time");
+      assert_equals(originalEffect.getComputedTiming().progress, null, "inactive null progress");
+      assert_equals(originalEffect.getComputedTiming().localTime, 750, "inactive local time retained");
+      assert_equals(getComputedStyle(target)[property], property === "width" ? "7px" : "none",
+                    "inactive underlying value");
+      assert_equals(target.getAnimations().length, 0, "inactive effect absent from relevant animations");
+      const changed = mode !== "reuse without change";
+      if (changed) parent.append(document.createElement("div"));
+      assert_equals(parent.children.length, changed ? 2 : 1, "inactive DOM count");
+      assert_equals(getComputedStyle(target)[property], property === "width" ? "7px" : "none",
+                    "inactive mutation flushed");
+      target.style.animationDuration = "1500ms";
+      let current = original;
+      if (mode === "fresh after change") {
+        target.style.animationName = freshName;
+        const fresh = target.getAnimations();
+        assert_equals(fresh.length, 1, "one fresh CSS animation");
+        current = fresh[0];
+        t.add_cleanup(() => current.cancel());
+        assert_not_equals(current, original, "fresh animation identity");
+        assert_not_equals(current.effect, originalEffect, "fresh effect identity");
+        current.currentTime = 750;
+        await current.ready;
+      }
+      const observed = value(target, property);
+      assert_equals(current.playState, "paused", "reactivated paused state");
+      assert_equals(current.currentTime, 750, "reactivated fixed time");
+      assert_equals(current.startTime, null, "reactivated unresolved start time");
+      assert_equals(current.effect.getTiming().duration, 1500, "CSS duration change applied");
+      assert_equals(current.effect.getComputedTiming().progress, 0.5, "reactivated midpoint");
+      assert_equals(current.effect.getComputedTiming().localTime, 750, "reactivated local time");
+      assert_equals(parent.children.length, changed ? 2 : 1, "reactivated DOM count");
+      assert_equals(target.getAnimations()[0], current, "reactivated relevant animation");
+      if (mode !== "fresh after change") assert_equals(current.effect, originalEffect, "retained effect identity");
+      assert_array_equals(retained(current.effect, property), initialFrames, "unchanged keyframe declarations");
+      assert_equals(observed, changed ? 40 : 20,
+                    `first sample after CSS duration change: ${JSON.stringify({property, mode, observed})}`);
+    }, `CSS duration reactivation: ${property}, ${mode}`);
+  }
+}
+</script>

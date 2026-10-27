@@ -508,6 +508,7 @@ trait PrivateMatchMethods: TElement {
             /* pseudo_element = */ None,
         ) {
             tasks.insert(UpdateAnimationsTasks::CSS_ANIMATIONS);
+            tasks.insert(UpdateAnimationsTasks::EFFECT_PROPERTIES);
         }
 
         let before_change_style =
