@@ -1,0 +1,19 @@
+test(t => {
+  const control = fixture(t);
+  calibrate(control, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+  assign(control.subject, "z-index", "sibling-index()", "sibling-index control");
+  const checkIndex = expected => {
+    const first = getComputedStyle(control.subject).zIndex;
+    assert_equals(first, String(expected), "sibling-index control integer");
+    assert_equals(getComputedStyle(control.subject).zIndex, first, "sibling-index control repeat");
+  };
+  const controlPreceding = document.createElement("div");
+  checkIndex(1);
+  control.grid.prepend(controlPreceding);
+  checkIndex(2);
+  controlPreceding.remove();
+  checkIndex(1);
+  control.grid.remove();
+  const f = fixture(t);
+  calibrate(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+  assign(f.subject, "grid-template-columns", "subgrid repeat(sibling-index(), [x]) repeat(auto-fill, [fill])", "target name-repeat");

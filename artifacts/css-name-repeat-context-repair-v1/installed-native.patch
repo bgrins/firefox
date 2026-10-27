@@ -1,0 +1,158 @@
+--- a/servo/components/style/values/specified/grid.rs
++++ b/servo/components/style/values/specified/grid.rs
+@@ -306,12 +306,6 @@
+         input.parse_nested_block(|i| {
+             let count = RepeatCount::parse(context, i)?;
+ 
+-            // TODO(Bug 2037744) - Enable calc()-expressions that can only be resolved at
+-            // computed value time (due to relative lengths, sibling-index(), etc.).
+-            if matches!(count, RepeatCount::Number(ref n) if n.resolve().is_none()) {
+-                return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+-            }
+-
+             // NameRepeat doesn't accept `auto-fit`
+             // https://drafts.csswg.org/css-grid/#typedef-name-repeat
+             if matches!(count, RepeatCount::AutoFit) {
+@@ -343,35 +337,11 @@
+     }
+ }
+ 
+-impl LineNameListValue<Integer> {
+-    /// Returns the length of `<line-names>` after expanding repeat(N, ...). This returns zero for
+-    /// repeat(auto-fill, ...).
+-    #[inline]
+-    pub fn line_names_length(&self) -> usize {
+-        match *self {
+-            Self::LineNames(..) => 1,
+-            Self::Repeat(ref r) => {
+-                match r.count {
+-                    // Note: RepeatCount is always >= 1. Unresolvable calc
+-                    // expressions were rejected at parse-time.
+-                    RepeatCount::Number(ref v) => {
+-                        r.line_names
+-                            .len()
+-                            .saturating_mul(v.resolve().unwrap() as usize)
+-                    },
+-                    _ => 0,
+-                }
+-            },
+-        }
+-    }
+-}
+-
+ impl Parse for LineNameList<Integer> {
+     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
+         input.expect_ident_matching("subgrid")?;
+ 
+         let mut auto_repeat = false;
+-        let mut expanded_line_names_length = 0usize;
+         let mut line_names = vec![];
+         while let Ok(value) = input.try_parse(|i| LineNameListValue::parse(context, i)) {
+             match value {
+@@ -387,13 +357,11 @@
+                 _ => (),
+             };
+ 
+-            expanded_line_names_length =
+-                expanded_line_names_length.saturating_add(value.line_names_length());
+             line_names.push(value);
+         }
+ 
+         Ok(LineNameList {
+-            expanded_line_names_length,
++            expanded_line_names_length: 0,
+             line_names: line_names.into(),
+         })
+     }
+--- a/servo/components/style/values/generics/grid.rs
++++ b/servo/components/style/values/generics/grid.rs
+@@ -8,6 +8,7 @@
+ use crate::derives::*;
+ use crate::parser::{Parse, ParserContext};
+ use crate::typed_om::{NumericType, NumericValue, ToTyped, TypedValue, UnitValue};
++use crate::values::computed::{Context, ToComputedValue};
+ use crate::values::specified;
+ use crate::values::{CSSFloat, CustomIdent};
+ use crate::{One, Zero};
+@@ -863,22 +864,67 @@
+     PartialEq,
+     SpecifiedValueInfo,
+     ToAnimatedValue,
+-    ToComputedValue,
+     ToResolvedValue,
+     ToShmem,
+ )]
+ #[repr(C)]
+ pub struct GenericLineNameList<I> {
+-    /// The pre-computed length of line_names, without the length of repeat(auto-fill, ...).
+-    /// Saturates at usize::MAX.
+-    // We precomputed this at parsing time, so we can avoid an extra loop when expanding
+-    // repeat(auto-fill).
++    /// Saturated computed length excluding auto-fill; zero in specified values.
+     pub expanded_line_names_length: usize,
+     /// The line name list.
+     pub line_names: crate::OwnedSlice<GenericLineNameListValue<I>>,
+ }
+ 
+ pub use self::GenericLineNameList as LineNameList;
++
++impl LineNameListValue<i32> {
++    fn line_names_length(&self) -> usize {
++        match self {
++            Self::LineNames(..) => 1,
++            Self::Repeat(r) => match r.count {
++                RepeatCount::Number(count) => {
++                    debug_assert!(count >= 1);
++                    r.line_names.len().saturating_mul(count as usize)
++                },
++                _ => 0,
++            },
++        }
++    }
++}
++
++impl ToComputedValue for LineNameList<specified::Integer> {
++    type ComputedValue = LineNameList<i32>;
++
++    fn to_computed_value(&self, context: &Context) -> Self::ComputedValue {
++        let line_names = self.line_names.to_computed_value(context);
++        let expanded_line_names_length = line_names.iter().fold(0usize, |length, value| {
++            length.saturating_add(value.line_names_length())
++        });
++        LineNameList {
++            expanded_line_names_length,
++            line_names,
++        }
++    }
++
++    fn from_computed_value(computed: &Self::ComputedValue) -> Self {
++        Self {
++            expanded_line_names_length: 0,
++            line_names: ToComputedValue::from_computed_value(&computed.line_names),
++        }
++    }
++}
++
++impl ToComputedValue for LineNameList<i32> {
++    type ComputedValue = Self;
++
++    fn to_computed_value(&self, _: &Context) -> Self {
++        self.clone()
++    }
++
++    fn from_computed_value(computed: &Self) -> Self {
++        computed.clone()
++    }
++}
+ 
+ impl<I: ToCss> ToCss for LineNameList<I> {
+     fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result
+@@ -928,7 +974,7 @@
+     /// TODO: Support animations for this after subgrid is addressed in [grid-2] spec.
+     #[animation(error)]
+     #[typed(skip)]
+-    Subgrid(Box<GenericLineNameList<I>>),
++    Subgrid(#[compute(field_bound)] Box<GenericLineNameList<I>>),
+ }
+ 
+ pub use self::GenericGridTemplateComponent as GridTemplateComponent;

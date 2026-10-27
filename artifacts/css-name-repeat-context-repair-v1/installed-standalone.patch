@@ -1,0 +1,321 @@
+--- a/servo/components/style/values/specified/grid.rs
++++ b/servo/components/style/values/specified/grid.rs
+@@ -306,12 +306,6 @@
+         input.parse_nested_block(|i| {
+             let count = RepeatCount::parse(context, i)?;
+ 
+-            // TODO(Bug 2037744) - Enable calc()-expressions that can only be resolved at
+-            // computed value time (due to relative lengths, sibling-index(), etc.).
+-            if matches!(count, RepeatCount::Number(ref n) if n.resolve().is_none()) {
+-                return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+-            }
+-
+             // NameRepeat doesn't accept `auto-fit`
+             // https://drafts.csswg.org/css-grid/#typedef-name-repeat
+             if matches!(count, RepeatCount::AutoFit) {
+@@ -343,35 +337,11 @@
+     }
+ }
+ 
+-impl LineNameListValue<Integer> {
+-    /// Returns the length of `<line-names>` after expanding repeat(N, ...). This returns zero for
+-    /// repeat(auto-fill, ...).
+-    #[inline]
+-    pub fn line_names_length(&self) -> usize {
+-        match *self {
+-            Self::LineNames(..) => 1,
+-            Self::Repeat(ref r) => {
+-                match r.count {
+-                    // Note: RepeatCount is always >= 1. Unresolvable calc
+-                    // expressions were rejected at parse-time.
+-                    RepeatCount::Number(ref v) => {
+-                        r.line_names
+-                            .len()
+-                            .saturating_mul(v.resolve().unwrap() as usize)
+-                    },
+-                    _ => 0,
+-                }
+-            },
+-        }
+-    }
+-}
+-
+ impl Parse for LineNameList<Integer> {
+     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
+         input.expect_ident_matching("subgrid")?;
+ 
+         let mut auto_repeat = false;
+-        let mut expanded_line_names_length = 0usize;
+         let mut line_names = vec![];
+         while let Ok(value) = input.try_parse(|i| LineNameListValue::parse(context, i)) {
+             match value {
+@@ -387,13 +357,11 @@
+                 _ => (),
+             };
+ 
+-            expanded_line_names_length =
+-                expanded_line_names_length.saturating_add(value.line_names_length());
+             line_names.push(value);
+         }
+ 
+         Ok(LineNameList {
+-            expanded_line_names_length,
++            expanded_line_names_length: 0,
+             line_names: line_names.into(),
+         })
+     }
+--- a/servo/components/style/values/generics/grid.rs
++++ b/servo/components/style/values/generics/grid.rs
+@@ -8,6 +8,7 @@
+ use crate::derives::*;
+ use crate::parser::{Parse, ParserContext};
+ use crate::typed_om::{NumericType, NumericValue, ToTyped, TypedValue, UnitValue};
++use crate::values::computed::{Context, ToComputedValue};
+ use crate::values::specified;
+ use crate::values::{CSSFloat, CustomIdent};
+ use crate::{One, Zero};
+@@ -863,22 +864,67 @@
+     PartialEq,
+     SpecifiedValueInfo,
+     ToAnimatedValue,
+-    ToComputedValue,
+     ToResolvedValue,
+     ToShmem,
+ )]
+ #[repr(C)]
+ pub struct GenericLineNameList<I> {
+-    /// The pre-computed length of line_names, without the length of repeat(auto-fill, ...).
+-    /// Saturates at usize::MAX.
+-    // We precomputed this at parsing time, so we can avoid an extra loop when expanding
+-    // repeat(auto-fill).
++    /// Saturated computed length excluding auto-fill; zero in specified values.
+     pub expanded_line_names_length: usize,
+     /// The line name list.
+     pub line_names: crate::OwnedSlice<GenericLineNameListValue<I>>,
+ }
+ 
+ pub use self::GenericLineNameList as LineNameList;
++
++impl LineNameListValue<i32> {
++    fn line_names_length(&self) -> usize {
++        match self {
++            Self::LineNames(..) => 1,
++            Self::Repeat(r) => match r.count {
++                RepeatCount::Number(count) => {
++                    debug_assert!(count >= 1);
++                    r.line_names.len().saturating_mul(count as usize)
++                },
++                _ => 0,
++            },
++        }
++    }
++}
++
++impl ToComputedValue for LineNameList<specified::Integer> {
++    type ComputedValue = LineNameList<i32>;
++
++    fn to_computed_value(&self, context: &Context) -> Self::ComputedValue {
++        let line_names = self.line_names.to_computed_value(context);
++        let expanded_line_names_length = line_names.iter().fold(0usize, |length, value| {
++            length.saturating_add(value.line_names_length())
++        });
++        LineNameList {
++            expanded_line_names_length,
++            line_names,
++        }
++    }
++
++    fn from_computed_value(computed: &Self::ComputedValue) -> Self {
++        Self {
++            expanded_line_names_length: 0,
++            line_names: ToComputedValue::from_computed_value(&computed.line_names),
++        }
++    }
++}
++
++impl ToComputedValue for LineNameList<i32> {
++    type ComputedValue = Self;
++
++    fn to_computed_value(&self, _: &Context) -> Self {
++        self.clone()
++    }
++
++    fn from_computed_value(computed: &Self) -> Self {
++        computed.clone()
++    }
++}
+ 
+ impl<I: ToCss> ToCss for LineNameList<I> {
+     fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result
+@@ -928,7 +974,7 @@
+     /// TODO: Support animations for this after subgrid is addressed in [grid-2] spec.
+     #[animation(error)]
+     #[typed(skip)]
+-    Subgrid(Box<GenericLineNameList<I>>),
++    Subgrid(#[compute(field_bound)] Box<GenericLineNameList<I>>),
+ }
+ 
+ pub use self::GenericGridTemplateComponent as GridTemplateComponent;
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-grid/subgrid/subgrid-contextual-name-repeat.html
+@@ -0,0 +1,160 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Subgrid name-repeat counts compute with element context</title>
++<link rel="help" href="https://drafts.csswg.org/css-grid-2/#typedef-name-repeat">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-computed-value">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++.grid { display: grid; grid-template: repeat(4, 20px) / repeat(4, 20px); width: 80px; }
++.subgrid { display: grid; grid-area: 1 / 1 / span 4 / span 4; }
++.font16 { font-size: 16px; }
++.font32 { font-size: 32px; }
++.font8 { font-size: 8px; }
++.em { width: 1em; height: 1px; position: absolute; }
++</style>
++<body>
++<script>
++const count = "calc(2 + sign(1em - 16px))";
++const fonts = [16, 32, 8, 16];
++const autoExpected = [
++  "subgrid [pre] [x] [x] [fill] [tail]",
++  "subgrid [pre] [x] [x] [x] [tail]",
++  "subgrid [pre] [x] [fill] [fill] [tail]",
++  "subgrid [pre] [x] [x] [fill] [tail]",
++];
++const fixedExpected = [
++  "subgrid [x] [x] [tail] [] []",
++  "subgrid [x] [x] [x] [tail] []",
++  "subgrid [x] [tail] [] [] []",
++  "subgrid [x] [x] [tail] [] []",
++];
++
++function fixture(t) {
++  const grid = document.createElement("div");
++  grid.className = "grid font16";
++  const subject = document.createElement("div");
++  const reference = document.createElement("div");
++  subject.className = reference.className = "subgrid";
++  const em = document.createElement("div");
++  em.className = "em";
++  subject.append(em);
++  grid.append(subject, reference);
++  document.body.append(grid);
++  t.add_cleanup(() => grid.remove());
++  return {grid, subject, reference, em};
++}
++
++function assign(element, property, value, label = "literal") {
++  assert_true(CSS.supports(property, value), `${label}: declaration admission`);
++  element.style.removeProperty(property);
++  element.style.setProperty(property, value);
++  assert_not_equals(element.style.getPropertyValue(property), "", `${label}: setter retention`);
++}
++
++function calibrate(f, property, expected, font) {
++  assert_equals(getComputedStyle(f.subject).fontSize, `${font}px`, "computed font");
++  assert_equals(f.em.getBoundingClientRect().width, font, "em calibration");
++  assert_equals(f.grid.getBoundingClientRect().width, 80, "parent width");
++  assign(f.reference, property, expected);
++  assert_equals(getComputedStyle(f.reference).getPropertyValue(property), expected, "literal resolved names");
++}
++
++function compare(f, property, expected, font) {
++  calibrate(f, property, expected, font);
++  const first = getComputedStyle(f.subject).getPropertyValue(property);
++  assert_equals(getComputedStyle(f.subject).getPropertyValue(property), first, "repeat resolved names");
++  assert_equals(first, expected, "contextual resolved names");
++}
++
++for (const property of ["grid-template-columns", "grid-template-rows"]) {
++  test(t => {
++    const f = fixture(t);
++    calibrate(f, property, fixedExpected[0], 16);
++    assign(f.subject, property, `subgrid repeat(${count}, [x]) [tail]`, "target name-repeat");
++    const specified = f.subject.style.getPropertyValue(property);
++    fonts.forEach((font, index) => {
++      f.grid.className = `grid font${font}`;
++      compare(f, property, fixedExpected[index], font);
++      assert_equals(f.subject.style.getPropertyValue(property), specified, "specified expression retained");
++    });
++  }, `Contextual name-repeat font history without auto-fill: ${property}`);
++
++  test(t => {
++    const f = fixture(t);
++    calibrate(f, property, autoExpected[0], 16);
++    assign(f.subject, property, `subgrid [pre] repeat(${count}, [x]) repeat(auto-fill, [fill]) [tail]`, "target name-repeat");
++    fonts.forEach((font, index) => {
++      f.grid.className = `grid font${font}`;
++      compare(f, property, autoExpected[index], font);
++    });
++  }, `Contextual name-repeat font history with auto-fill: ${property}`);
++}
++
++for (const value of ["calc(0)", "calc(-3 + sign(1em - 16px))"]) {
++  test(t => {
++    const f = fixture(t);
++    calibrate(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
++    assign(f.subject, "grid-template-columns", `subgrid repeat(${value}, [x]) repeat(auto-fill, [fill])`, "target name-repeat");
++    fonts.forEach(font => {
++      f.grid.className = `grid font${font}`;
++      compare(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", font);
++    });
++  }, `Name-repeat positive range after computation: ${value}`);
++}
++
++test(t => {
++  const f = fixture(t);
++  calibrate(f, "grid-template-columns", "subgrid [] [x] [] [x] []", 16);
++  assign(f.subject, "grid-template-columns", `subgrid repeat(${count}, [] [x])`, "target name-repeat");
++  const expected = ["subgrid [] [x] [] [x] []", "subgrid [] [x] [] [x] []",
++                    "subgrid [] [x] [] [] []", "subgrid [] [x] [] [x] []"];
++  fonts.forEach((font, index) => {
++    f.grid.className = `grid font${font}`;
++    compare(f, "grid-template-columns", expected[index], font);
++  });
++}, "Contextual name-repeat preserves empty groups and truncates whole expansion");
++
++test(t => {
++  const f = fixture(t);
++  f.subject.className = "subgrid font32";
++  calibrate(f, "grid-template-columns", fixedExpected[1], 32);
++  assign(f.subject, "grid-template-columns", `subgrid repeat(${count}, [x]) [tail]`, "target name-repeat");
++  const child = document.createElement("div");
++  child.className = "subgrid font8";
++  child.style.gridTemplateColumns = "inherit";
++  f.subject.append(child);
++  const literalChild = document.createElement("div");
++  literalChild.className = "subgrid font8";
++  f.reference.append(literalChild);
++  assign(literalChild, "grid-template-columns", "subgrid [x] [x] [x] [tail] []");
++  compare(f, "grid-template-columns", fixedExpected[1], 32);
++  assert_equals(getComputedStyle(child).fontSize, "8px", "child font differs");
++  assert_equals(getComputedStyle(child).gridTemplateColumns,
++                getComputedStyle(literalChild).gridTemplateColumns, "inherited computed count matches literal twin");
++}, "Inherited name-repeat retains the computed count rather than recomputing child font");
++
++test(t => {
++  const f = fixture(t);
++  calibrate(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
++  assign(f.subject, "grid-template-columns", "subgrid repeat(sibling-index(), [x]) repeat(auto-fill, [fill])", "target name-repeat");
++  compare(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
++  const preceding = document.createElement("div");
++  f.grid.prepend(preceding);
++  compare(f, "grid-template-columns", "subgrid [x] [x] [fill] [fill] [fill]", 16);
++  preceding.remove();
++  compare(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
++}, "Contextual name-repeat recomputes after sibling insertion and removal");
++
++test(() => {
++  const style = document.createElement("div").style;
++  for (const value of ["subgrid repeat(0, [x])", "subgrid repeat(auto-fit, [x])",
++                       "subgrid repeat(auto-fill, [x]) repeat(auto-fill, [y])", "subgrid repeat(2,)"]) {
++    assert_false(CSS.supports("grid-template-columns", value), `invalid ${value}`);
++    style.gridTemplateColumns = "";
++    style.gridTemplateColumns = value;
++    assert_equals(style.gridTemplateColumns, "", `invalid setter ${value}`);
++  }
++  assert_true(CSS.supports("grid-template-columns", "subgrid repeat(1, [])"), "empty group remains valid");
++}, "Name-repeat literal and structural safeguards remain enforced");
++</script>

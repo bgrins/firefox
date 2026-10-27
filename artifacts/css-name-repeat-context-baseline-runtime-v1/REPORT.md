@@ -1,0 +1,9 @@
+# Contextual subgrid name-repeat baseline
+
+Root capture session 66325 exits 0. The classifier exits 0 (tool chunk 7c15cc). One harness completes OK: ten assertions produce two PASS and eight declaration-admission FAIL. Each failure has the exact target admission assertion after its calibration checks; later computation and mutation histories are not reached. Literal and structural safeguards and the calc(0) positive-range control pass. The classifier rejects all calibration failures and unclassified messages, and does not enforce a predicted failure count.
+
+This reproduces the known support gap identified by source TODO bug 2037744. It does not establish a new defect, candidate correctness, native branch execution or security impact. The proposed two-file native repair and version-three WPT remain unaccepted pending a full Gecko build and controlled browser comparison. The sibling-index fixture checks syntax support and DOM ordering without installing a computed control property that could mask the target dependency behavior.
+
+No native source is changed and no build runs. The one temporary WPT is removed by recorded body and inode identity. Final verification preserves all 611 roles, 72 sources, 23 installed test identities, 925 staged and working research payloads, and the exact 43-path native inventory. It also verifies no untracked native sources. The extended epoch retains all 609 inherited roles and adds the temporary test and metadata absence roles. HEAD, index and both installed binary hashes are unchanged. WPT exit 1 agrees with the failures; process-group cleanup is clean.
+
+The classifier authenticates the fixture and prior epoch, derives configuration and phase maps, and joins strict raw JSON with RUN, lifecycle, effective metadata and cleanup records. Independent terminal review is pending at sealing. All twenty accepted pending fixes remain installed; held fix 120 remains excluded.

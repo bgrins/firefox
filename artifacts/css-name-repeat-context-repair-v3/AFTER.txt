@@ -1,0 +1,15 @@
+test(t => {
+  const f = fixture(t);
+  calibrate(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+  assert_true(CSS.supports("z-index", "sibling-index()"), "sibling-index availability in z-index");
+  assert_equals(Array.prototype.indexOf.call(f.grid.children, f.subject) + 1, 1, "initial DOM sibling index");
+  assign(f.subject, "grid-template-columns", "subgrid repeat(sibling-index(), [x]) repeat(auto-fill, [fill])", "target name-repeat");
+  compare(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+  const preceding = document.createElement("div");
+  f.grid.prepend(preceding);
+  assert_equals(Array.prototype.indexOf.call(f.grid.children, f.subject) + 1, 2, "inserted DOM sibling index");
+  compare(f, "grid-template-columns", "subgrid [x] [x] [fill] [fill] [fill]", 16);
+  preceding.remove();
+  assert_equals(Array.prototype.indexOf.call(f.grid.children, f.subject) + 1, 1, "reset DOM sibling index");
+  compare(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+}, "Contextual name-repeat recomputes after sibling insertion and removal");

@@ -1,0 +1,7 @@
+Use data/ as the completed archived baseline and source/ownership contract. BINDING.json pins the actual baseline and root preservation receipt; the independent terminal review is also bound, while future comparison preflight and execution remain separate. No controller is included and readiness remains false.
+
+Build/capture the two-source installed-stack candidate, then restore both original bodies and rebuild/capture the original stack. Do not normalize HEAD90. Apply the installed three-path patch only: its WPT is owned temporarily, while the two grid postimages retain the fix 122 prerequisite. Preserve all source guards, resources, installed identities and semantic index; bind rebuilt binary roles to their actual builds.
+
+All seven temporary fixtures require exclusive creation plus exact body/inode cleanup. During capture overlay their known bodies onto the protected absent roles; do not require owned paths absent while installed. Preserve every remaining absence. Candidate requires all ten new cases PASS, eight observed repairs, all baseline PASS preservation and exact retained FAIL diagnostics. Enumerate additional improvements for review. Restoration requires exact baseline outcomes.
+
+assemble.py ABSENT_OUTPUT reconstructs the data from authenticated archives without live inputs. The root roster and *-DRAFT input files are retained assembly inputs, not alternative execution settings. The data/ files contain the actual completed baseline bindings; all candidate/restoration results remain unset.

@@ -1,0 +1,7 @@
+Scoped GO for the v3 four-assertion calibration successor. Full sealed payloads authenticate; external replay matches every author receipt/log, including two patch roundtrips and empty-output scratch WPT lint. Exact v1 native prefixes/candidate postimages and ten case names are unchanged. No unchanged native helper compilation was repeated.
+
+The new CSS.supports check only asks grammar availability; the three direct DOM-index assertions establish the original target history1/2/1. There is no assigned or computed sibling-index control, avoiding the known risk of such a control supplying style dependency flags. Existing font, geometry and explicit literal-name checks remain before target admission. The target itself still must establish computed behavior and invalidation; availability/DOM checks do not prove that behavior. The v2 evaluated-twin version remains historical/superseded.
+
+The retained sibling rows independently match projections of the sealed installed raw log, including all eight PASS rows and retained FAIL rows. These do not prove this new mutation history. Target admission failures after calibration remain legitimate known-bug witnesses, with later assertions not reached. Fix122 dependency and HEAD90 transport-only limitation remain unchanged.
+
+I authored the original v1 native/fixture proposal; this review independently checks another agent’s v3 delta and replay, not independent authorship of the underlying native algorithm. No live native/index/browser/build/canonical actions or new acceptance occurred.

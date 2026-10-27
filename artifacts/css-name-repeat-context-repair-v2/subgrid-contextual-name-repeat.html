@@ -1,0 +1,175 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Subgrid name-repeat counts compute with element context</title>
+<link rel="help" href="https://drafts.csswg.org/css-grid-2/#typedef-name-repeat">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-computed-value">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.grid { display: grid; grid-template: repeat(4, 20px) / repeat(4, 20px); width: 80px; }
+.subgrid { display: grid; grid-area: 1 / 1 / span 4 / span 4; }
+.font16 { font-size: 16px; }
+.font32 { font-size: 32px; }
+.font8 { font-size: 8px; }
+.em { width: 1em; height: 1px; position: absolute; }
+</style>
+<body>
+<script>
+const count = "calc(2 + sign(1em - 16px))";
+const fonts = [16, 32, 8, 16];
+const autoExpected = [
+  "subgrid [pre] [x] [x] [fill] [tail]",
+  "subgrid [pre] [x] [x] [x] [tail]",
+  "subgrid [pre] [x] [fill] [fill] [tail]",
+  "subgrid [pre] [x] [x] [fill] [tail]",
+];
+const fixedExpected = [
+  "subgrid [x] [x] [tail] [] []",
+  "subgrid [x] [x] [x] [tail] []",
+  "subgrid [x] [tail] [] [] []",
+  "subgrid [x] [x] [tail] [] []",
+];
+
+function fixture(t) {
+  const grid = document.createElement("div");
+  grid.className = "grid font16";
+  const subject = document.createElement("div");
+  const reference = document.createElement("div");
+  subject.className = reference.className = "subgrid";
+  const em = document.createElement("div");
+  em.className = "em";
+  subject.append(em);
+  grid.append(subject, reference);
+  document.body.append(grid);
+  t.add_cleanup(() => grid.remove());
+  return {grid, subject, reference, em};
+}
+
+function assign(element, property, value, label = "literal") {
+  assert_true(CSS.supports(property, value), `${label}: declaration admission`);
+  element.style.removeProperty(property);
+  element.style.setProperty(property, value);
+  assert_not_equals(element.style.getPropertyValue(property), "", `${label}: setter retention`);
+}
+
+function calibrate(f, property, expected, font) {
+  assert_equals(getComputedStyle(f.subject).fontSize, `${font}px`, "computed font");
+  assert_equals(f.em.getBoundingClientRect().width, font, "em calibration");
+  assert_equals(f.grid.getBoundingClientRect().width, 80, "parent width");
+  assign(f.reference, property, expected);
+  assert_equals(getComputedStyle(f.reference).getPropertyValue(property), expected, "literal resolved names");
+}
+
+function compare(f, property, expected, font) {
+  calibrate(f, property, expected, font);
+  const first = getComputedStyle(f.subject).getPropertyValue(property);
+  assert_equals(getComputedStyle(f.subject).getPropertyValue(property), first, "repeat resolved names");
+  assert_equals(first, expected, "contextual resolved names");
+}
+
+for (const property of ["grid-template-columns", "grid-template-rows"]) {
+  test(t => {
+    const f = fixture(t);
+    calibrate(f, property, fixedExpected[0], 16);
+    assign(f.subject, property, `subgrid repeat(${count}, [x]) [tail]`, "target name-repeat");
+    const specified = f.subject.style.getPropertyValue(property);
+    fonts.forEach((font, index) => {
+      f.grid.className = `grid font${font}`;
+      compare(f, property, fixedExpected[index], font);
+      assert_equals(f.subject.style.getPropertyValue(property), specified, "specified expression retained");
+    });
+  }, `Contextual name-repeat font history without auto-fill: ${property}`);
+
+  test(t => {
+    const f = fixture(t);
+    calibrate(f, property, autoExpected[0], 16);
+    assign(f.subject, property, `subgrid [pre] repeat(${count}, [x]) repeat(auto-fill, [fill]) [tail]`, "target name-repeat");
+    fonts.forEach((font, index) => {
+      f.grid.className = `grid font${font}`;
+      compare(f, property, autoExpected[index], font);
+    });
+  }, `Contextual name-repeat font history with auto-fill: ${property}`);
+}
+
+for (const value of ["calc(0)", "calc(-3 + sign(1em - 16px))"]) {
+  test(t => {
+    const f = fixture(t);
+    calibrate(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+    assign(f.subject, "grid-template-columns", `subgrid repeat(${value}, [x]) repeat(auto-fill, [fill])`, "target name-repeat");
+    fonts.forEach(font => {
+      f.grid.className = `grid font${font}`;
+      compare(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", font);
+    });
+  }, `Name-repeat positive range after computation: ${value}`);
+}
+
+test(t => {
+  const f = fixture(t);
+  calibrate(f, "grid-template-columns", "subgrid [] [x] [] [x] []", 16);
+  assign(f.subject, "grid-template-columns", `subgrid repeat(${count}, [] [x])`, "target name-repeat");
+  const expected = ["subgrid [] [x] [] [x] []", "subgrid [] [x] [] [x] []",
+                    "subgrid [] [x] [] [] []", "subgrid [] [x] [] [x] []"];
+  fonts.forEach((font, index) => {
+    f.grid.className = `grid font${font}`;
+    compare(f, "grid-template-columns", expected[index], font);
+  });
+}, "Contextual name-repeat preserves empty groups and truncates whole expansion");
+
+test(t => {
+  const f = fixture(t);
+  f.subject.className = "subgrid font32";
+  calibrate(f, "grid-template-columns", fixedExpected[1], 32);
+  assign(f.subject, "grid-template-columns", `subgrid repeat(${count}, [x]) [tail]`, "target name-repeat");
+  const child = document.createElement("div");
+  child.className = "subgrid font8";
+  child.style.gridTemplateColumns = "inherit";
+  f.subject.append(child);
+  const literalChild = document.createElement("div");
+  literalChild.className = "subgrid font8";
+  f.reference.append(literalChild);
+  assign(literalChild, "grid-template-columns", "subgrid [x] [x] [x] [tail] []");
+  compare(f, "grid-template-columns", fixedExpected[1], 32);
+  assert_equals(getComputedStyle(child).fontSize, "8px", "child font differs");
+  assert_equals(getComputedStyle(child).gridTemplateColumns,
+                getComputedStyle(literalChild).gridTemplateColumns, "inherited computed count matches literal twin");
+}, "Inherited name-repeat retains the computed count rather than recomputing child font");
+
+test(t => {
+  const control = fixture(t);
+  calibrate(control, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+  assign(control.subject, "z-index", "sibling-index()", "sibling-index control");
+  const checkIndex = expected => {
+    const first = getComputedStyle(control.subject).zIndex;
+    assert_equals(first, String(expected), "sibling-index control integer");
+    assert_equals(getComputedStyle(control.subject).zIndex, first, "sibling-index control repeat");
+  };
+  const controlPreceding = document.createElement("div");
+  checkIndex(1);
+  control.grid.prepend(controlPreceding);
+  checkIndex(2);
+  controlPreceding.remove();
+  checkIndex(1);
+  control.grid.remove();
+  const f = fixture(t);
+  calibrate(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+  assign(f.subject, "grid-template-columns", "subgrid repeat(sibling-index(), [x]) repeat(auto-fill, [fill])", "target name-repeat");
+  compare(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+  const preceding = document.createElement("div");
+  f.grid.prepend(preceding);
+  compare(f, "grid-template-columns", "subgrid [x] [x] [fill] [fill] [fill]", 16);
+  preceding.remove();
+  compare(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+}, "Contextual name-repeat recomputes after sibling insertion and removal");
+
+test(() => {
+  const style = document.createElement("div").style;
+  for (const value of ["subgrid repeat(0, [x])", "subgrid repeat(auto-fit, [x])",
+                       "subgrid repeat(auto-fill, [x]) repeat(auto-fill, [y])", "subgrid repeat(2,)"]) {
+    assert_false(CSS.supports("grid-template-columns", value), `invalid ${value}`);
+    style.gridTemplateColumns = "";
+    style.gridTemplateColumns = value;
+    assert_equals(style.gridTemplateColumns, "", `invalid setter ${value}`);
+  }
+  assert_true(CSS.supports("grid-template-columns", "subgrid repeat(1, [])"), "empty group remains valid");
+}, "Name-repeat literal and structural safeguards remain enforced");
+</script>

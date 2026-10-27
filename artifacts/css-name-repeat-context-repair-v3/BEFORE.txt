@@ -1,0 +1,11 @@
+test(t => {
+  const f = fixture(t);
+  calibrate(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+  assign(f.subject, "grid-template-columns", "subgrid repeat(sibling-index(), [x]) repeat(auto-fill, [fill])", "target name-repeat");
+  compare(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+  const preceding = document.createElement("div");
+  f.grid.prepend(preceding);
+  compare(f, "grid-template-columns", "subgrid [x] [x] [fill] [fill] [fill]", 16);
+  preceding.remove();
+  compare(f, "grid-template-columns", "subgrid [x] [fill] [fill] [fill] [fill]", 16);
+}, "Contextual name-repeat recomputes after sibling insertion and removal");
