@@ -1,6 +1,6 @@
 {
   "branch": "stylo-bloom-verification-2",
-  "committed_native_fixes": 135,
+  "committed_native_fixes": 136,
   "accepted_pending_native_fixes": 1,
   "previous_committed_fixes": 16,
   "new_queue": [
@@ -925,7 +925,7 @@
         "signatures_present": true,
         "isolated_base_build_browser": "NOT_RUN"
       },
-      "performance": "Isolated body benchmark retains about 0.3\u20130.85ns/token normal-path overhead; browser impact unmeasured."
+      "performance": "Isolated body benchmark retains about 0.3–0.85ns/token normal-path overhead; browser impact unmeasured."
     },
     {
       "repair": "quoted-eof-fallback-endpoints",
@@ -1659,7 +1659,7 @@
       "runtime_scope": "Final 30-case WPT passes; corresponding unchanged baseline subset has 16 FAIL / 14 PASS. The earlier 32-case candidate matrix had 467 checks and 24 OK harnesses, with all 435 prior status/message pairs unchanged including two expected failures. Two unrelated escaped-whitespace controls were removed for standalone applicability. Final scoped WPT lint passes.",
       "formal_scope": "Root and independent scoped acceptance:53 audits, nine modules,24 source bindings,56 fresh tokenizer cases,224 comparisons to historical native constructor outputs, three Lean proof mutants and15 independent kernel challenges replayed by root. Conditional suffix/storage/metadata and standalone preservation-decision correspondence; native metadata not directly observed.",
       "discovery": "Independent source review raised a serialization lead; terminal-span Lean witness shows newline deletion; root browser reproduction demonstrates invalid animation-name becoming an identifier.",
-      "limits": "No release probe or isolated standalone build. Independent native review checks four extracted source variants across 73 cases each. Integrated and standalone preservation decisions correspond under maximal whitespace token premises; full stored output equality is not claimed. The HEAD package base includes fix83; upstream package excludes fixes83\u201385.",
+      "limits": "No release probe or isolated standalone build. Independent native review checks four extracted source variants across 73 cases each. Integrated and standalone preservation decisions correspond under maximal whitespace token premises; full stored output equality is not claimed. The HEAD package base includes fix83; upstream package excludes fixes83–85.",
       "independent_review": "artifacts/css-variable-backslash-newline-review-v1/REPORT.md",
       "formal_review": "artifacts/css-variable-backslash-newline-proof-review-v1/REPORT.md",
       "standalone": {
@@ -4600,6 +4600,87 @@
         "path": "artifacts/css-counter-scope-append-acceptance-v1/ACCEPTANCE.json",
         "sha256": "2348d27407e3629afd82d0aa2f46c50ca850d83d676ef2a83ddc348c2c14f865"
       }
+    },
+    {
+      "fix": 137,
+      "repair": "used-non-type-attribute-fallback-cycles",
+      "title": "Include used non-type attr fallbacks in dependency cycles",
+      "status": "COMMITTED_NATIVE_WPT",
+      "group": "Attributes and custom properties",
+      "native_commit": "aa3f0588538800300df20a2f7de40ce8ac2ffec1",
+      "research_commit": "38c1b6093c7bf87034ad583e2c84c2277f34ccfb",
+      "companion_commit": "38c1b6093c7bf87034ad583e2c84c2277f34ccfb",
+      "native_paths": [
+        "servo/components/style/custom_properties.rs",
+        "servo/components/style/properties/cascade.rs",
+        "testing/web-platform/tests/css/css-values/attr-non-type-used-fallback-cycle.html"
+      ],
+      "patch": {
+        "path": "artifacts/css-attr-non-type-fallback-repair-v3/fix-head.patch",
+        "sha256": "4c59f852ad5d4af71875049147c21222a66044249918ff798ae27efd93530bb0"
+      },
+      "upstream_export": {
+        "path": "artifacts/css-attr-non-type-fallback-upstream-v1/upstream-self-contained.patch",
+        "sha256": "6cbc5be2c2424255bf7952d9db81b1112dc74a0f3b51f4270cb6b9e79bb49787"
+      },
+      "phase_order": [
+        "original-1",
+        "candidate-1"
+      ],
+      "phase_counts": [
+        [
+          15,
+          19
+        ],
+        [
+          34,
+          0
+        ]
+      ],
+      "landing_cases": 34,
+      "observed_repairs": 19,
+      "unchanged_landing_controls": 15,
+      "existing_regressions": {
+        "subtests_PASS": 154,
+        "reftests_PASS": 6,
+        "exact_both_phases": true
+      },
+      "terminal_review": {
+        "path": "artifacts/css-attr-non-type-fallback-candidate-review-v1/AUDIT.json",
+        "sha256": "e2883227b8a5f77249568bddd9ff34562ad754d39ff39ce3c5b154aaf0007eb3"
+      },
+      "acceptance": {
+        "path": "artifacts/css-attr-non-type-fallback-validation-v1/ACCEPTANCE.json",
+        "sha256": "28609dfe0dce408d219e9d71e3db8d17aa6ba15267c903dc2ea3d6918c9a3f19"
+      },
+      "commit_verification": {
+        "path": "artifacts/css-local-signing-20261027-v11/native-fix-receipt.json",
+        "sha256": "8b03450aa86b97d53083c9ab0a5d88ba57f522c7ac669562849a6b19d3c18304"
+      },
+      "research_commit_verification": {
+        "path": "artifacts/css-local-signing-20261027-v11/fallback-validation-receipt.json",
+        "sha256": "177050227887ae8851372eb3e764d02c7f000730b86fce730f815e018d932750"
+      },
+      "reviewer_group": "#firefox-style-system-reviewers",
+      "commit_subject": "No bug - Include used non-type attr fallbacks in dependency cycles. r?#firefox-style-system-reviewers",
+      "triage": "Tentative P3 CSS correctness; no demonstrated security or measured performance impact.",
+      "discovery": "Source inspection and browser reproduction during dependency-verification work; not discovered by a Lean proof.",
+      "formal_attribution": "No new Lean theorem, canonical coverage, or universal native-refinement result is claimed for this repair.",
+      "canonical_lean_coverage_increment": 0,
+      "limits": [
+        "The incremental branch patch removes already-corrected inline numeric parsing from parent 499c0c6; the standalone upstream export adapts that hunk and insertion context and includes the same full shared primitive. Numeric overlap is not another bug discovery.",
+        "Direct ParsedNamespace matching avoids a dependency on the branch namespace() helper. parse_typed_value is only an insertion-context anchor.",
+        "The branch original/candidate comparison runs in the shared experimental checkout. No clean-upstream build or browser validation of the standalone export is claimed.",
+        "Existing raw-nested attr-cycle oracles and metadata remain unchanged; the separate raw-nested repair is not included.",
+        "One original and one candidate phase; no restored-original or repeated-candidate run is claimed."
+      ],
+      "comparison_runtime": [
+        "artifacts/css-attr-non-type-fallback-wpt-runtime-original-1",
+        "artifacts/css-attr-non-type-fallback-wpt-runtime-candidate-1"
+      ],
+      "candidate_source_installed": true,
+      "browser_binary_contains_fix": true,
+      "signature_verified": true
     }
   ],
   "verification": "Each committed native delta is the accepted patch, checked against its actual parent. Companions preserve the recorded scope and replay prerequisites. No new browser or full-build claims are made by committing.",
@@ -4715,7 +4796,7 @@
         "files_sha256": "687bbace0f9c5df7f539dd4cf9d2a531d500bfec35a25a45e35716c89a47de97",
         "freeze_sha256": "2b86453529ea358a046551cf79c8afa2b943fa58136e6d2491fc399e7a3b3bab",
         "status": "PREDICTED_TABLE_PLACEMENT_EXCEPTION_NOT_REPRODUCED",
-        "runtime": "32pairedrows;all100x80clientcalibrationspass.8release reverse-safe outsideorigin rows becomeinside insharedrepaired build;24controlsidentical. Tableactual160sizealreadypositionedat\u221260/end100despitebasis120.",
+        "runtime": "32pairedrows;all100x80clientcalibrationspass.8release reverse-safe outsideorigin rows becomeinside insharedrepaired build;24controlsidentical. Tableactual160sizealreadypositionedat−60/end100despitebasis120.",
         "next": "Trace measuring/finalmain-size source instead of asserting universal requested-to-actual equality."
       },
       "actual_provider_roundtrip_probe": {
@@ -7783,7 +7864,7 @@
         "preserved": true,
         "native_changes": false
       },
-      "conclusion": "Both offsetLeft/offsetTop return \u00b18388610 for calibrated exact geometry \u00b18388609; four failures reproduce and all16 margin-reset controls recover. Native helper separately confirms arithmetic for supplied app-unit inputs.",
+      "conclusion": "Both offsetLeft/offsetTop return ±8388610 for calibrated exact geometry ±8388609; four failures reproduce and all16 margin-reset controls recover. Native helper separately confirms arithmetic for supplied app-unit inputs.",
       "scope": "Shared working build, not clean upstream/release comparison; browser native input unlogged; fractional rounding policy unchanged.",
       "next": "Finish preceding-evidence/native commit recipes for signing; investigate separately reproduced client precision loss with its distinct tie rule.",
       "independent_browser_review": {
@@ -8204,7 +8285,7 @@
       "stable": 8,
       "matched": 6,
       "mismatched": 2,
-      "observation": "Hidden viewBox-dependent getCTM/getScreenCTM retain scale1 after host100\u2192200px. Matrices observed after the twin/host/style/getBBox sequence match scale2; later layout/reveal and reset checks also match. Visible/no-viewBox controls pass.",
+      "observation": "Hidden viewBox-dependent getCTM/getScreenCTM retain scale1 after host100→200px. Matrices observed after the twin/host/style/getBBox sequence match scale2; later layout/reveal and reset checks also match. Visible/no-viewBox controls pass.",
       "native_changes": false,
       "preserved": true,
       "new_accepted_fixes": 0,
@@ -8341,7 +8422,7 @@
       },
       "source_count": 50,
       "pin_count": 369,
-      "observation": "Both scalar/list conversions retain stale source/destination percentage bases after visible200\u2192400px resize; stored error persists after layout. Getter/reference/reset controls pass.",
+      "observation": "Both scalar/list conversions retain stale source/destination percentage bases after visible200→400px resize; stored error persists after layout. Getter/reference/reset controls pass.",
       "result_review": {
         "directory": "artifacts/css-svg-length-readiness-results-review-v1",
         "files_sha256": "79605045bc7b00cd2ee5b823b18c8d1bc4a21d74f7af52d06b17875a3366c3e0"
@@ -9428,7 +9509,7 @@
         "candidate_mismatches": 0,
         "independent_review": "artifacts/css-color-remaining-set-native-bridge-review-v1",
         "review_files_sha256": "37d639f0b73bb385533a57dce24f99eef70550885aaa2cbac7fe92c974516f46",
-        "scope": "Exact extracted helper bodies with a small flag/type facade and supplied conversion flags; source15\u00d7target15\u00d7source mask16\u00d7destination color mask8\u00d7legacy2. Alpha uses caller premise; no parser/float/full pipeline/browser proof."
+        "scope": "Exact extracted helper bodies with a small flag/type facade and supplied conversion flags; source15×target15×source mask16×destination color mask8×legacy2. Alpha uses caller premise; no parser/float/full pipeline/browser proof."
       },
       "discovery": "Reviewed Lean remaining-set relation guided source audit and ordinary WPT cases; exhaustive helper comparison subsequently establishes finite discrepancies. Existing WPT expected failures predate this investigation; no novelty claim.",
       "next": "Shared baseline comparison with independent bare-keyword repair and their composition, after counter restoration/acceptance."
@@ -12393,12 +12474,12 @@
   },
   "latest_signing": {
     "status": "SIGNED_VERIFIED_LOCAL",
-    "fix": 136,
-    "native_commit": "37bc9b06f034c191be50aa4949b072bbf7d5a64e",
-    "research_commit": "7cc4b9b3f524117870d19fff665843fc876d495d",
+    "fix": 137,
+    "native_commit": "aa3f0588538800300df20a2f7de40ce8ac2ffec1",
+    "research_commit": "38c1b6093c7bf87034ad583e2c84c2277f34ccfb",
     "verification": {
-      "path": "artifacts/css-local-signing-20261027-v7/counter-fix-receipt.json",
-      "sha256": "c0eb8033c63fbf98e22ad4567a2483624d3ea874d82c6500a1a2ef412aa5fc9c"
+      "path": "artifacts/css-local-signing-20261027-v11/native-fix-receipt.json",
+      "sha256": "8b03450aa86b97d53083c9ab0a5d88ba57f522c7ac669562849a6b19d3c18304"
     }
   },
   "previous_signing": {
@@ -12415,19 +12496,20 @@
   "latest_research_signing": {
     "status": "SIGNED_VERIFIED_LOCAL",
     "commits": {
+      "fallback-tools": "c43e47f8857bbbdad868541e6e55ac597a907368",
+      "fallback-validation": "38c1b6093c7bf87034ad583e2c84c2277f34ccfb",
+      "raw-proposal": "809b431f5fb335fa26caf2d7a7e07b6e8f76ac36"
+    },
+    "directory": "artifacts/css-local-signing-20261027-v11"
+  },
+  "previous_research_signing": {
+    "status": "SIGNED_VERIFIED_LOCAL",
+    "commits": {
       "guard-model": "2cd2c6e7215c21ee30eecef6384be6151d70cc54",
       "fallback-harness": "2f15c28a1ea9e769ab423a3a2029e8ad3eb01cbb",
       "upstream-variant": "bdc7b46b4b3eb8f58f0318e1ec4f7919e7bca259"
     },
     "directory": "artifacts/css-local-signing-20261027-v10"
-  },
-  "previous_research_signing": {
-    "status": "SIGNED_VERIFIED_LOCAL",
-    "commits": {
-      "animation-research": "54d577935aef6e99d4074716475ca32cfde55abd",
-      "followup-research": "788a0fc1ed630512a8553aa1e0c8baa70d26f760",
-      "quote-research": "d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4"
-    }
   },
   "latest_research_signing_attempt": {
     "status": "CURRENT_EQUIVALENTS_AFTER_VERIFIED_HISTORY_REWRITE",
@@ -12907,13 +12989,14 @@
     }
   ],
   "latest_verified_working_epoch": {
-    "path": "artifacts/css-local-signing-20261027-v10/CURRENT-EPOCH.json",
-    "status": "Typed-demand full build, 20 GTests and four ordinary WPTs; preservation verified",
+    "path": "artifacts/css-local-signing-20261027-v11/CURRENT-EPOCH.json",
+    "status": "Signed used-fallback fix; full native build and controlled original/candidate WPT comparison passed",
     "browser_binary_contains_fixes": [
       133,
       134,
       135,
-      136
+      136,
+      137
     ]
   },
   "local_integration_history": [
@@ -23349,6 +23432,16 @@
         134,
         135
       ]
+    },
+    {
+      "path": "artifacts/css-local-signing-20261027-v10/CURRENT-EPOCH.json",
+      "status": "Typed-demand full build, 20 GTests and four ordinary WPTs; preservation verified",
+      "browser_binary_contains_fixes": [
+        133,
+        134,
+        135,
+        136
+      ]
     }
   ],
   "active_native_experiment": {
@@ -27075,7 +27168,7 @@
     "sequential_recipes_passed": 11,
     "packaging_changes_required": false
   },
-  "signing_next_action": "Commit validation/research frequently; accept used-attribute-fallback native/WPT fix after controlled comparison evidence.",
+  "signing_next_action": "Keep fix137 standalone; validate the raw-nested repair next and preserve independent research/native commits.",
   "next_prepared_diagnostic": {
     "status": "ROOT_VERIFIED_REVIEWED",
     "planned_cases": 162,
@@ -27446,7 +27539,7 @@
         130,
         131
       ],
-      "next_work": "Prepare and sign separate research/native commits for fixes 117\u2013119 against the verified post-host epoch, then the remaining accepted fixes. Held fix 120 is excluded."
+      "next_work": "Prepare and sign separate research/native commits for fixes 117–119 against the verified post-host epoch, then the remaining accepted fixes. Held fix 120 is excluded."
     },
     {
       "status": "FIXES117_119_COMMITTED",
@@ -27635,6 +27728,15 @@
         "fallback-review": "bab9092e4e6a48f47823eb189f984fbb77d521a8"
       },
       "directory": "artifacts/css-local-signing-20261027-v9"
+    },
+    {
+      "status": "SIGNED_VERIFIED_LOCAL",
+      "commits": {
+        "guard-model": "2cd2c6e7215c21ee30eecef6384be6151d70cc54",
+        "fallback-harness": "2f15c28a1ea9e769ab423a3a2029e8ad3eb01cbb",
+        "upstream-variant": "bdc7b46b4b3eb8f58f0318e1ec4f7919e7bca259"
+      },
+      "directory": "artifacts/css-local-signing-20261027-v10"
     }
   ],
   "latest_test_only_signing": {
@@ -27909,6 +28011,16 @@
         "path": "artifacts/css-local-signing-20261027-v6/QUOTE-COMMITS.json",
         "sha256": "d5de2f15518646537e6a86ba6606a0eef44cb2472f71cab6e1fb8d4d966615cc"
       }
+    },
+    {
+      "status": "SIGNED_VERIFIED_LOCAL",
+      "fix": 136,
+      "native_commit": "37bc9b06f034c191be50aa4949b072bbf7d5a64e",
+      "research_commit": "7cc4b9b3f524117870d19fff665843fc876d495d",
+      "verification": {
+        "path": "artifacts/css-local-signing-20261027-v7/counter-fix-receipt.json",
+        "sha256": "c0eb8033c63fbf98e22ad4567a2483624d3ea874d82c6500a1a2ef412aa5fc9c"
+      }
     }
   ],
   "latest_counter_fix": {
@@ -27967,8 +28079,85 @@
   },
   "cycle_repair_queue": {
     "used_attr_fallback": {
-      "disagreements": 7,
-      "controls": 6
+      "fix": 137,
+      "repair": "used-non-type-attribute-fallback-cycles",
+      "title": "Include used non-type attr fallbacks in dependency cycles",
+      "status": "COMMITTED_NATIVE_WPT",
+      "group": "Attributes and custom properties",
+      "native_commit": "aa3f0588538800300df20a2f7de40ce8ac2ffec1",
+      "research_commit": "38c1b6093c7bf87034ad583e2c84c2277f34ccfb",
+      "companion_commit": "38c1b6093c7bf87034ad583e2c84c2277f34ccfb",
+      "native_paths": [
+        "servo/components/style/custom_properties.rs",
+        "servo/components/style/properties/cascade.rs",
+        "testing/web-platform/tests/css/css-values/attr-non-type-used-fallback-cycle.html"
+      ],
+      "patch": {
+        "path": "artifacts/css-attr-non-type-fallback-repair-v3/fix-head.patch",
+        "sha256": "4c59f852ad5d4af71875049147c21222a66044249918ff798ae27efd93530bb0"
+      },
+      "upstream_export": {
+        "path": "artifacts/css-attr-non-type-fallback-upstream-v1/upstream-self-contained.patch",
+        "sha256": "6cbc5be2c2424255bf7952d9db81b1112dc74a0f3b51f4270cb6b9e79bb49787"
+      },
+      "phase_order": [
+        "original-1",
+        "candidate-1"
+      ],
+      "phase_counts": [
+        [
+          15,
+          19
+        ],
+        [
+          34,
+          0
+        ]
+      ],
+      "landing_cases": 34,
+      "observed_repairs": 19,
+      "unchanged_landing_controls": 15,
+      "existing_regressions": {
+        "subtests_PASS": 154,
+        "reftests_PASS": 6,
+        "exact_both_phases": true
+      },
+      "terminal_review": {
+        "path": "artifacts/css-attr-non-type-fallback-candidate-review-v1/AUDIT.json",
+        "sha256": "e2883227b8a5f77249568bddd9ff34562ad754d39ff39ce3c5b154aaf0007eb3"
+      },
+      "acceptance": {
+        "path": "artifacts/css-attr-non-type-fallback-validation-v1/ACCEPTANCE.json",
+        "sha256": "28609dfe0dce408d219e9d71e3db8d17aa6ba15267c903dc2ea3d6918c9a3f19"
+      },
+      "commit_verification": {
+        "path": "artifacts/css-local-signing-20261027-v11/native-fix-receipt.json",
+        "sha256": "8b03450aa86b97d53083c9ab0a5d88ba57f522c7ac669562849a6b19d3c18304"
+      },
+      "research_commit_verification": {
+        "path": "artifacts/css-local-signing-20261027-v11/fallback-validation-receipt.json",
+        "sha256": "177050227887ae8851372eb3e764d02c7f000730b86fce730f815e018d932750"
+      },
+      "reviewer_group": "#firefox-style-system-reviewers",
+      "commit_subject": "No bug - Include used non-type attr fallbacks in dependency cycles. r?#firefox-style-system-reviewers",
+      "triage": "Tentative P3 CSS correctness; no demonstrated security or measured performance impact.",
+      "discovery": "Source inspection and browser reproduction during dependency-verification work; not discovered by a Lean proof.",
+      "formal_attribution": "No new Lean theorem, canonical coverage, or universal native-refinement result is claimed for this repair.",
+      "canonical_lean_coverage_increment": 0,
+      "limits": [
+        "The incremental branch patch removes already-corrected inline numeric parsing from parent 499c0c6; the standalone upstream export adapts that hunk and insertion context and includes the same full shared primitive. Numeric overlap is not another bug discovery.",
+        "Direct ParsedNamespace matching avoids a dependency on the branch namespace() helper. parse_typed_value is only an insertion-context anchor.",
+        "The branch original/candidate comparison runs in the shared experimental checkout. No clean-upstream build or browser validation of the standalone export is claimed.",
+        "Existing raw-nested attr-cycle oracles and metadata remain unchanged; the separate raw-nested repair is not included.",
+        "One original and one candidate phase; no restored-original or repeated-candidate run is claimed."
+      ],
+      "comparison_runtime": [
+        "artifacts/css-attr-non-type-fallback-wpt-runtime-original-1",
+        "artifacts/css-attr-non-type-fallback-wpt-runtime-candidate-1"
+      ],
+      "candidate_source_installed": true,
+      "browser_binary_contains_fix": true,
+      "signature_verified": true
     },
     "raw_nested_attr": {
       "disagreements": 5,
@@ -27979,7 +28168,37 @@
       "release_controls_pass": 7,
       "branch_extra_control_failure": "direct-invalid-em"
     },
-    "status": "REPRODUCED_NOT_ACCEPTED",
-    "next": "Repair used bare/unit attr fallback cycle omission with standalone native+WPT patch; then raw attr cycles with explicit oracle review; preserve numeric context investigation and complete pending cascade integration."
-  }
+    "status": "USED_FALLBACK_COMMITTED_OTHER_LEADS_UNACCEPTED",
+    "next": "Validate raw-nested repair with explicit two-oracle review, then continue registered-number and pending-provider integration work."
+  },
+  "latest_attribute_fallback_fix": {
+    "fix": 137,
+    "acceptance": {
+      "path": "artifacts/css-attr-non-type-fallback-validation-v1/ACCEPTANCE.json",
+      "sha256": "28609dfe0dce408d219e9d71e3db8d17aa6ba15267c903dc2ea3d6918c9a3f19"
+    },
+    "commit_verification": {
+      "path": "artifacts/css-local-signing-20261027-v11/native-fix-receipt.json",
+      "sha256": "8b03450aa86b97d53083c9ab0a5d88ba57f522c7ac669562849a6b19d3c18304"
+    }
+  },
+  "cycle_repair_queue_history": [
+    {
+      "used_attr_fallback": {
+        "disagreements": 7,
+        "controls": 6
+      },
+      "raw_nested_attr": {
+        "disagreements": 5,
+        "controls": 8
+      },
+      "registered_number": {
+        "release_disagreements": 7,
+        "release_controls_pass": 7,
+        "branch_extra_control_failure": "direct-invalid-em"
+      },
+      "status": "REPRODUCED_NOT_ACCEPTED",
+      "next": "Repair used bare/unit attr fallback cycle omission with standalone native+WPT patch; then raw attr cycles with explicit oracle review; preserve numeric context investigation and complete pending cascade integration."
+    }
+  ]
 }
