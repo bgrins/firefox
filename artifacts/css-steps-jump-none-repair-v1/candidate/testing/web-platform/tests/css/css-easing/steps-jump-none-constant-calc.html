@@ -1,0 +1,96 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Context-free calculated steps counts use the jump-none minimum</title>
+<link rel="help" href="https://drafts.csswg.org/css-easing-1/#step-easing-functions">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-range">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="fixtures"></div>
+<script>
+const fixtures = document.getElementById("fixtures");
+const counts = ["calc(1)", "calc(0)", "calc(-10)", "calc(1.4)"];
+const literal = "steps(2, jump-none)";
+
+for (const property of ["animation-timing-function", "transition-timing-function"]) {
+  for (const count of counts) {
+    test(t => {
+      const target = document.createElement("div");
+      fixtures.append(target);
+      t.add_cleanup(() => target.remove());
+      target.style.setProperty(property, literal);
+      assert_equals(getComputedStyle(target).getPropertyValue(property), literal,
+                    "literal count calibration");
+      target.style.removeProperty(property);
+      const easing = `steps(${count}, jump-none)`;
+      assert_true(CSS.supports(property, easing), "calculated count admission");
+      target.style.setProperty(property, easing);
+      assert_not_equals(target.style.getPropertyValue(property), "",
+                        "calculated declaration retained");
+      assert_equals(getComputedStyle(target).getPropertyValue(property), literal,
+                    "calculated count clamps to two");
+    }, `${property}: ${count} uses the jump-none minimum`);
+  }
+}
+
+for (const count of counts) {
+  test(t => {
+    const control = new KeyframeEffect(null, [], { duration: 1000, easing: literal });
+    assert_equals(control.getTiming().easing, literal, "targetless literal calibration");
+    const effect = new KeyframeEffect(null, [], {
+      duration: 1000, easing: `steps(${count}, jump-none)`,
+    });
+    const animation = new Animation(effect, document.timeline);
+    t.add_cleanup(() => animation.cancel());
+    animation.currentTime = 750;
+    assert_true(CSS.supports("animation-timing-function", effect.getTiming().easing),
+                "targetless easing serialization is valid");
+    assert_equals(effect.getComputedTiming().progress, 1, "targetless step output");
+  }, `targetless effect: ${count} uses the jump-none minimum`);
+
+  test(t => {
+    const target = document.createElement("div");
+    fixtures.append(target);
+    t.add_cleanup(() => target.remove());
+    const control = target.animate([
+      { opacity: 0, easing: literal }, { opacity: 1 },
+    ], { duration: 1000, fill: "both" });
+    control.pause();
+    control.currentTime = 750;
+    t.add_cleanup(() => control.cancel());
+    assert_equals(Number(getComputedStyle(target).opacity), 1, "literal output calibration");
+    control.cancel();
+    const animation = target.animate([
+      { opacity: 0, easing: `steps(${count}, jump-none)` }, { opacity: 1 },
+    ], { duration: 1000, fill: "both" });
+    t.add_cleanup(() => animation.cancel());
+    animation.pause();
+    animation.currentTime = 750;
+    assert_true(CSS.supports("animation-timing-function",
+                             animation.effect.getKeyframes()[0].easing),
+                "keyframe easing serialization is valid");
+    assert_equals(Number(getComputedStyle(target).opacity), 1, "keyframe step output");
+  }, `keyframe easing: ${count} uses the jump-none minimum`);
+}
+
+test(() => {
+  for (const property of ["animation-timing-function", "transition-timing-function"]) {
+    const style = document.createElement("div").style;
+    assert_true(CSS.supports(property, literal), "literal two admitted");
+    for (const count of ["-1", "0", "1"]) {
+      const easing = `steps(${count}, jump-none)`;
+      assert_false(CSS.supports(property, easing), "invalid literal rejected");
+      style.setProperty(property, easing);
+      assert_equals(style.getPropertyValue(property), "", "invalid literal not retained");
+    }
+  }
+}, "CSS literal jump-none counts below two remain invalid");
+
+test(() => {
+  const effect = new KeyframeEffect(null, [], { duration: 1000, easing: literal });
+  assert_throws_js(TypeError, () => effect.updateTiming({
+    duration: 2000, easing: "steps(1, jump-none)",
+  }));
+  assert_equals(effect.getTiming().duration, 1000, "failed update retains duration");
+  assert_equals(effect.getTiming().easing, literal, "failed update retains easing");
+}, "invalid literal easing preserves atomic updateTiming behavior");
+</script>

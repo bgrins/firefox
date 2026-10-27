@@ -1,0 +1,9 @@
+# Serialization boundaries
+
+[Values4 math serialization](https://drafts.csswg.org/css-values-4/#calc-serialize) preserves a math function in specified-value serialization, simplifying a numeric tree and spelling NaN as calc(NaN). Clamping to the consumer range applies when serializing a computed value or later. Thus the corrected CSS declaration test expects steps(calc(NaN), jump-none); getComputedStyle expects steps(2, jump-none). The existing finite specified test independently retains steps(calc(1), jump-none).
+
+[Web Animations getTiming](https://drafts.csswg.org/web-animations-1/#dom-animationeffect-gettiming) exposes specified timing properties. [getKeyframes](https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-getkeyframes) has an explicit computed-keyframes branch for CSS animations; the scripted keyframes here use the other branch. Computed offsets do not imply every member is a computed CSS value. The old diagnostic's descriptions targetless computed easing/keyframe computed easing were unjustified. They are replaced with valid-easing checks, while numerical sampling verifies semantics without choosing an unsupported normalization contract.
+
+Current Searchfox source discovery shows AnimationEffect.cpp and KeyframeEffect.cpp serialize stored TimingFunction values via AppendToString; TimingParams::ParseEasing and KeyframeUtils consume the context-free conversion. This explains why Gecko may expose a normalized numeric count, but implementation behavior is not used as a universal specified-getter oracle. No getter-specific native change is proposed.
+
+The CSS NaN correction's normative basis is css-steps-nan-oracle-trace-v2: prose numeric ranges are binding, numeric functions clamp, and top-level NaN censors to zero. Neither a metadata edit nor a new CSSWG resolution is needed to express this expected result.
