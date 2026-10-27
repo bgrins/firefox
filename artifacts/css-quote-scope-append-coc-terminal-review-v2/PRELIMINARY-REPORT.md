@@ -1,0 +1,15 @@
+# Quote append comparison: terminal review pending
+
+The completed initial candidate and scoped-original phases support the observable repair. The review remains pending until candidate-restored capture, final preservation, and the actual outer execution receipt are available. No acceptance GO or terminal success is claimed yet.
+
+Independent archive checks authenticate the activated controller/configuration references and the fixture/native proposal, then join every raw subtest/start/end record to RUN.json. Initial candidate has 64 PASS, WPT exit 0. Scoped-original has 52 PASS and 12 FAIL, WPT exit 1. Each phase has one OK harness and 18 end-only regressions: 15 PASS and three expected FAIL. All 52 passing controls and every regression observation/message/expectation match exactly.
+
+All 12 failures occur at the final inserted-quote assertion, after Ahem, initial depth, fresh depth and restored depth calibrations. Their complete JSON histories retain the old child-scope width after insertion and after fresh construction, while the independently constructed fresh fixture has the expected changed depth. They are exactly the before-child, no-trailing-quote histories, including nested empty intermediate scopes. The candidate removes these 12 failures. This matches the native correction: immediate appended-node calculation remains, but a scope with children now requests the existing batched recalculation.
+
+The original full two-job build exited 0 and its build/wake groups were recorded absent. Both completed WPT groups were recorded absent. All 1177 phase resources join source variants and the per-build binary hashes, with no other resource differences. Root HEAD, staged entries, cached diff and root/nested index flags remain equal in the retained verification intervals. Root raw index bytes changed from e1042c… to 7ffd3f…; semantic preservation does not establish their cause. The nested raw index remained unchanged in these completed receipts.
+
+The original build logs include Rust documentation/clang warnings and a notification-center failure after successful compilation. Browser logs contain settings database console errors; the runner reports no infrastructure faults and all expected lifecycle records complete. These are not warning-free executions. No GTest or performance execution is claimed by this comparison.
+
+The three pre-existing expected regression failures remain: quotes-first-letter-003, quotes-first-letter-004 and quotes-lang-dynamic-001. The experiment is a scoped source reversal on the shared working branch, not a pristine upstream comparison. It does not establish all quote-tree ordering/lifecycle cases. I authored the separate bounded quote dirty-delivery model; this terminal review does not use that model as a substitute for browser evidence or claim broader formal coverage.
+
+Only archived outputs were read. No browser/build, live preservation check, native/index/HEAD/ledger edit or runtime mutation was performed. `inspect.py` is an archive-only checker; the current preliminary outputs explicitly lack outer terminal authentication.

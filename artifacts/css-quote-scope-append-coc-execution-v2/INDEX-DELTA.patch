@@ -1,0 +1,156 @@
+--- v1/compare.py
++++ v2/compare.py
+@@ -71,6 +71,19 @@
+     finally:
+         for s in opened:
+             s.close()
++
++
++def index_flags(h, root, env):
++    return body_sha(h.git(root, env, 'ls-files', '-v', '-z'))
++
++
++def index_interval(h, before, after, flags_before, flags_after, expected_flags):
++    need(h.semantic_index(before) == h.semantic_index(after), 'semantic index stable during verification')
++    need(flags_before == flags_after == expected_flags, 'index flags preserved')
++    return {'raw_before': before['raw_index'], 'raw_after': after['raw_index'],
++            'raw_changed': before['raw_index'] != after['raw_index'],
++            'flags_before': flags_before, 'flags_after': flags_after,
++            'semantic_equal': True, 'cause_established': False}
+ 
+ 
+ def write_owned(root, item, data):
+@@ -184,6 +197,12 @@
+     committed = {n: body_sha(h.git(ROOT, env, 'show', 'HEAD:' + n)) for n in pre}
+     initial_index = h.index_state(ROOT, env)
+     initial_nested = h.index_state(ROOT / 'artifacts/css-spec-lean', env)
++    expected_flags = admission['index_flags']
++    need(set(expected_flags) == {'root', 'nested'}, 'root and nested index flag baselines')
++    need(all(isinstance(v, str) and len(v) == 64 and all(c in '0123456789abcdef' for c in v)
++             for v in expected_flags.values()), 'index flag SHA256')
++    need(index_flags(h, ROOT, env) == expected_flags['root']
++         and index_flags(h, ROOT / 'artifacts/css-spec-lean', env) == expected_flags['nested'], 'admitted index flags')
+     need(initial_index['raw_index'] == epoch['raw_index_observation']['current'], 'admitted raw index')
+     adapter = types.SimpleNamespace(CONFIG=config, HERE=HERE, ROOT=ROOT, ENV=env,
+         PYTHON=PYTHON, BINARY=OBJ / 'dist/Nightly.app/Contents/MacOS/firefox', BINARIES=binary_names,
+@@ -194,12 +213,14 @@
+         need(not state and adapter.owned_group is None, 'owned process group must be absent before source changes')
+     def verify(label, recover_receipt=False):
+         before = h.index_state(ROOT, env)
++        flags_before = index_flags(h, ROOT, env)
+         expected = roles | binaries | {n: item['owned_sha256'] for n, item in owned.items()}
+         need(adapter.pins(expected) == expected, 'all roles/source/binary bodies')
+         need(all(before[k] == epoch['semantic_index'][k] for k in ('head', 'entries', 'cached_diff')), 'root semantic staging')
+         nested = h.index_state(ROOT / 'artifacts/css-spec-lean', env)
+-        need(h.semantic_index(nested) == epoch['nested_semantic_index'] and nested['raw_index'] == initial_nested['raw_index'], 'nested library and raw staging preserved')
+-        need(before['raw_index'] == initial_index['raw_index'], 'root raw staging preserved')
++        nested_flags_before = index_flags(h, ROOT / 'artifacts/css-spec-lean', env)
++        need(h.semantic_index(nested) == epoch['nested_semantic_index'], 'nested library semantic staging preserved')
++        need(flags_before == expected_flags['root'] and nested_flags_before == expected_flags['nested'], 'root and nested index flags preserved')
+         need(body_sha(h.git(ROOT, env, 'diff', '--binary', '--', '.', *excluded)) == external_diff, 'all unrelated working differences preserved')
+         for group in ('staged_working', 'committed_research_working_payloads'):
+             need(adapter.pins(epoch[group]) == epoch[group], group)
+@@ -217,9 +238,17 @@
+         untracked = set(h.git(ROOT, env, 'ls-files', '--others', '--exclude-standard', '--', 'layout', 'dom', 'servo', 'mfbt').decode().splitlines())
+         need(untracked == set(epoch['untracked_native']), 'untracked native inventory')
+         after = h.index_state(ROOT, env)
+-        need(before == after, 'index stable during verification')
++        flags_after = index_flags(h, ROOT, env)
++        nested_after = h.index_state(ROOT / 'artifacts/css-spec-lean', env)
++        nested_flags_after = index_flags(h, ROOT / 'artifacts/css-spec-lean', env)
++        observations = {
++            'root': index_interval(h, before, after, flags_before, flags_after, expected_flags['root']),
++            'nested': index_interval(h, nested, nested_after, nested_flags_before, nested_flags_after, expected_flags['nested'])}
++        for key, initial in [('root', initial_index), ('nested', initial_nested)]:
++            observations[key]['raw_initial'] = initial['raw_index']
++            observations[key]['raw_changed_from_initial'] = observations[key]['raw_after'] != initial['raw_index']
+         try:
+-            save(label, {'index': after, 'pins': expected, 'roles': len(expected), 'modified_native_paths': sorted(native)})
++            save(label, {'index': after, 'pins': expected, 'roles': len(expected), 'modified_native_paths': sorted(native), 'index_observations': observations})
+         except BaseException as failure:
+             if not recover_receipt:
+                 raise
+--- v1/check.py
++++ v2/check.py
+@@ -150,6 +150,18 @@
+         def save(name, data):
+             if case == 'receipt-failure' and name == 'RESTORATION-INPUT-BINARIES.json': raise OSError('publication failed')
+             receipts[name] = copy.deepcopy(data)
++        def index_state(path, env):
++            value = index.copy()
++            nested = path != root
++            if fault == ('raw-nested-only' if nested else 'raw-root-only'):
++                value['raw_index'] = 'refreshed-raw-bytes'
++            if fault == 'staged-content' and not nested:
++                value['entries'] = 'changed-content'
++            return value
++        def git(path, env, *args):
++            if args == ('ls-files', '-v', '-z'):
++                return b'changed-flags' if fault == ('nested-flags' if path != root else 'root-flags') else b''
++            return b'outside' if '--binary' in args else b''
+         env = dict(vars(c), ROOT=root, pre=pre, originals=originals, candidates=candidates, owned=owned,
+             captures=captures, errors=errors, transitions=transitions, quiet=quiet, capture=capture, build=build,
+             write_owned=write, verify=verify, save=save, binaries={}, binary_names=set(), state={}, config=config,
+@@ -175,7 +187,8 @@
+ flow = compile(ast.fix_missing_locations(ast.Module(body=nested, type_ignores=[])), '<actual-recovery-receipt-flow>', 'exec')
+ receipt_cases = []
+ for fault in ('candidate-restored-BUILD-PRE.json', 'candidate-restored-BUILD-POST.json',
+-              'candidate-restored-PRE.json', 'candidate-restored-POST.json', 'guard-failure'):
++              'candidate-restored-PRE.json', 'candidate-restored-POST.json', 'guard-failure',
++              'raw-root-only', 'raw-nested-only', 'staged-content', 'root-flags', 'nested-flags'):
+     with tempfile.TemporaryDirectory(prefix='quote-receipt-', dir='/private/tmp') as tmp:
+         root = Path(tmp)
+         index = {'head': 'head', 'entries': 'entries', 'cached_diff': 'cached', 'raw_index': 'raw'}
+@@ -185,13 +198,25 @@
+                         'original' if n == 'source' else 'rebuilt') for n in names}
+         def save(name, data):
+             if name == fault: raise OSError('verified receipt publication failed')
++        def index_state(path, env):
++            value = index.copy()
++            nested = path != root
++            if fault == ('raw-nested-only' if nested else 'raw-root-only'):
++                value['raw_index'] = 'refreshed-raw-bytes'
++            if fault == 'staged-content' and not nested:
++                value['entries'] = 'changed-content'
++            return value
++        def git(path, env, *args):
++            if args == ('ls-files', '-v', '-z'):
++                return b'changed-flags' if fault == ('nested-flags' if path != root else 'root-flags') else b''
++            return b'outside' if '--binary' in args else b''
+         env = dict(vars(c), ROOT=root, HERE=root, OBJ=root / 'obj', env={}, roles={'source': 'original'},
+             binaries={'binary': 'rebuilt'}, binary_names={'binary'}, owned={}, errors=errors, excluded=[],
+-            external_diff=c.body_sha(b'outside'), pre={}, mutable=set(), committed={}, initial_index=index, initial_nested=index,
+-            epoch={'semantic_index': index, 'nested_semantic_index': index, 'staged_working': {},
++            external_diff=c.body_sha(b'outside'), pre={}, mutable=set(), committed={}, initial_index=index, initial_nested=index, expected_flags={'root': c.body_sha(b''), 'nested': c.body_sha(b'')},
++            epoch={'semantic_index': {k: v for k, v in index.items() if k != 'raw_index'}, 'nested_semantic_index': {k: v for k, v in index.items() if k != 'raw_index'}, 'staged_working': {},
+                 'committed_research_working_payloads': {}, 'installed_identities': {}, 'modified_native_paths': [], 'untracked_native': []},
+-            h=types.SimpleNamespace(index_state=lambda *a: index.copy(), semantic_index=lambda x: x,
+-                git=lambda *a: b'outside' if '--binary' in a else b'', fingerprint=lambda *a: 'rebuilt'),
++            h=types.SimpleNamespace(index_state=index_state, semantic_index=lambda x: {k: v for k, v in x.items() if k != 'raw_index'},
++                git=git, fingerprint=lambda *a: 'rebuilt'),
+             adapter=types.SimpleNamespace(pins=pins, cancelled=lambda: False, owned_group=None), quiet=lambda: None,
+             save=save, read=lambda path: {}, ports_free=lambda config: None, state={}, process_control=types.SimpleNamespace(),
+             captures={'candidate-initial': {}}, config=config, policy=types.SimpleNamespace(values=lambda r: {}, check=lambda *a: None),
+@@ -202,9 +227,10 @@
+             env['build']('candidate-restored')
+             env['capture']('candidate-restored')
+         except RuntimeError:
+-            assert fault == 'guard-failure' and calls == [] and errors == []
++            assert fault in ('guard-failure', 'staged-content', 'root-flags', 'nested-flags') and calls == [] and errors == []
+         else:
+-            assert fault != 'guard-failure' and calls == ['build', 'capture'] and len(errors) == 1
++            assert fault not in ('guard-failure', 'staged-content', 'root-flags', 'nested-flags') and calls == ['build', 'capture']
++            assert len(errors) == (0 if fault in ('raw-root-only', 'raw-nested-only') else 1)
+         receipt_cases.append({'case': fault, 'calls': calls, 'errors': errors})
+ 
+ print(json.dumps({'status': 'QUOTE_COC_STATIC_PASS', 'actual_helper_dispatch': dispatches,
+--- v1/README.md
++++ v2/README.md
+@@ -15,3 +15,7 @@
+ Static replay: `python3 -I -S -B artifacts/css-quote-scope-append-coc-runtime-v1/check.py`. It runs the real WPT helper with fake processes and synthetic raw events for all three phase names, nine actual-tail scratch recovery scenarios, five actual verification/build/capture publication scenarios, eight policy corruptions, exact helper-byte checks and disabled refusal. Temporary files are removed. No browser, build, socket probe, Git operation, or live source write occurs during these checks. The three expected FAIL regressions remain explicit; their unexpected improvement is a policy failure requiring review.
+ 
+ The standalone landing candidate remains the existing three-file native/WPT patch. No new accepted fix, formal proof, or normative coverage is claimed. Prior ignored-file ESLint output is not a WPT lint receipt: exact-body WPT lint remains a separate landing-validation prerequisite if no later receipt is supplied. It does not prevent this independently reviewed observable experiment.
++
++V2 admits raw index byte refresh only while root staged entries, cached diff and HEAD remain identical, the exact root and nested `git ls-files -v -z` flag hashes equal admission.index_flags, nested semantic state stays unchanged, and all existing source/working-diff/identity guards pass. Verification intervals additionally require semantic/flag equality before and after. Each preservation receipt retains initial/before/after raw hashes and change booleans with cause_established=false. This does not claim raw-byte preservation or attribute changes to a writer. A raw-only change cannot block guarded source restoration and the required rebuild. Initial admission still requires its current raw root hash; root supplies a fresh epoch after the preserved failed v1 run.
++
++New admission field: index_flags = {root: SHA256 of exact root ls-files -v -z bytes, nested: SHA256 of exact nested ls-files -v -z bytes}. Old v1 execution remains a failed attempt with only the initial candidate capture; this successor does not relabel that result or reuse its capture as a new successful campaign. Other fixtures, policy, commands, ownership and build/process helpers are unchanged.

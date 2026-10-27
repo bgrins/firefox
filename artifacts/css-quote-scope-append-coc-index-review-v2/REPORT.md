@@ -1,0 +1,11 @@
+# Quote C/O/C index-refresh correction: GO
+
+Independently authenticated the complete sealed v2 draft, read the exact index delta and its interaction with initial admission, phase verification and restoration, and replayed the inert checker successfully. I authored the prior runner; this review concerns accepted_install_review's v2 correction.
+
+Initial admission still requires the root raw digest from the fresh epoch. Both root and nested `ls-files -v -z` hashes must equal the two pinned admission values. Each later verification keeps HEAD, staged entries/cached diff, nested semantic state, all source/binary/resource/identity guards and unrelated working differences. Its interval check compares the full semantic index, including working diff, plus both before/after flag hashes. Raw changes are recorded separately, including initial/before/after digests, with no established-cause or byte-preservation claim.
+
+The actual restoration tail is AST-identical to v1. The restored-build and restored-capture guards now admit raw-only refresh after all other checks pass. Genuine staging, flag or source failures remain hard failures. Receipt-publication failures remain recorded without suppressing safe mandatory recovery. Full initial working-diff and final restored-working-diff checks are retained. The prior failed execution remains failed; v2 starts a fresh campaign.
+
+Independent replay passed three real helper dispatches with fake processes, nine actual recovery-tail scenarios, ten verification/build/capture scenarios and eight policy corruptions. Supplemental calls to the actual index_interval helper accepted changed raw bytes and rejected seven HEAD/entry/cached-diff/working-diff/flag corruptions, including changes during the verification interval. Policy, WPT/build/process helpers and source/observation inputs remain exact v1 bytes.
+
+No correction requested. The guarantee is semantic staging and the recorded `ls-files -v -z` flag projection, not every internal index extension bit or raw-byte identity. The samples do not establish who refreshed the index. No live Git, browser, native, index or build operations were performed. Actual activation and terminal outcomes remain root-owned.
