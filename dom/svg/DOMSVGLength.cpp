@@ -489,7 +489,11 @@ void DOMSVGLength::FlushIfNeeded(uint16_t aTargetUnit) {
       return;
     }
     if (auto* currentDoc = aSVGElement->GetComposedDoc()) {
-      currentDoc->FlushPendingNotifications(flushType);
+      ChangesToFlush flush(flushType, flushType >= FlushType::Style,
+                           flushType >= FlushType::Layout);
+      flush.mFlushHiddenEmbeddingFrames =
+          SVGLength::IsViewportRelativeUnit(aUnitType);
+      currentDoc->FlushPendingNotifications(flush);
     }
   };
 

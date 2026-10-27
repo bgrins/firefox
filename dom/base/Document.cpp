@@ -12024,8 +12024,12 @@ void Document::FlushPendingNotifications(mozilla::ChangesToFlush aFlush) {
   // But if it's not safe to flush ourselves, then don't flush the parent, since
   // that can cause things like resizes of our frame's widget, which we can't
   // handle while flushing is unsafe.
-  if (StyleOrLayoutObservablyDependsOnParentDocumentLayout() &&
-      mParentDocument->MayStartLayout() && IsSafeToFlush()) {
+  auto canFlushParent = [this] {
+    return StyleOrLayoutObservablyDependsOnParentDocumentLayout() &&
+           mParentDocument->MayStartLayout() && IsSafeToFlush();
+  };
+  if (canFlushParent()) {
+    RefPtr<Document> parentDocument = mParentDocument;
     ChangesToFlush parentFlush = aFlush;
     if (flushType >= FlushType::Style) {
       // Since media queries mean that a size change of our container can affect
@@ -12034,7 +12038,14 @@ void Document::FlushPendingNotifications(mozilla::ChangesToFlush aFlush) {
       // determine the correct style.
       parentFlush.mFlushType = std::max(FlushType::Layout, flushType);
     }
-    mParentDocument->FlushPendingNotifications(parentFlush);
+    parentDocument->FlushPendingNotifications(parentFlush);
+    if (aFlush.mFlushHiddenEmbeddingFrames &&
+        mParentDocument == parentDocument && canFlushParent()) {
+      RefPtr<Element> embedder = GetEmbedderElement();
+      if (embedder && embedder->GetComposedDoc() == parentDocument) {
+        embedder->GetPrimaryFrame(FlushType::Layout);
+      }
+    }
   }
 
   if (RefPtr<PresShell> presShell = GetPresShell()) {

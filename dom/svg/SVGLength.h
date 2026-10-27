@@ -121,6 +121,8 @@ class SVGLength {
 
   static bool IsFontRelativeUnit(uint16_t aUnit);
 
+  static bool IsViewportRelativeUnit(uint16_t aUnit);
+
   static float GetAbsUnitsPerAbsUnit(uint16_t aUnits, uint16_t aPerUnit);
 
   static nsCSSUnit SpecifiedUnitTypeToCSSUnit(uint16_t aSpecifiedUnit);

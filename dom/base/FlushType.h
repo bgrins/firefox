@@ -62,6 +62,7 @@ struct ChangesToFlush {
   FlushType mFlushType;
   bool mFlushAnimations;
   bool mUpdateRelevancy;
+  bool mFlushHiddenEmbeddingFrames = false;
 };
 
 }  // namespace mozilla

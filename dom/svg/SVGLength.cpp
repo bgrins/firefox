@@ -36,6 +36,10 @@ constexpr uint16_t SVG_LENGTHTYPE_VH = 23;
 constexpr uint16_t SVG_LENGTHTYPE_VMIN = 24;
 constexpr uint16_t SVG_LENGTHTYPE_VMAX = 25;
 
+bool SVGLength::IsViewportRelativeUnit(uint16_t aUnit) {
+  return aUnit >= SVG_LENGTHTYPE_VW && aUnit <= SVG_LENGTHTYPE_VMAX;
+}
+
 void SVGLength::GetValueAsString(nsAString& aValue) const {
   nsTextFormatter::ssprintf(aValue, u"%g", (double)mValue);
 
