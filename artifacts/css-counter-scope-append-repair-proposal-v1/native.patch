@@ -1,0 +1,33 @@
+--- a/layout/base/nsCounterManager.cpp
++++ b/layout/base/nsCounterManager.cpp
+@@ -153,6 +153,10 @@
+ 
+ bool nsCounterList::IsDirty() const {
+   return mScope->GetScopeManager().CounterDirty(mCounterName);
++}
++
++bool nsCounterList::HasChildScopes() const {
++  return !mScope->GetChildren().IsEmpty();
+ }
+ 
+ void nsCounterList::SetDirty() {
+@@ -408,7 +412,8 @@
+   nsCounterList* counterList =
+       aManager.GetOrCreateCounterList(aPair.name.AsAtom());
+   counterList->Insert(node);
+-  if (!counterList->IsLast(node)) {
++  if (!counterList->IsLast(node) || counterList->HasChildScopes()) {
++    // Child scopes can use counters from this list.
+     // Tell the caller it's responsible for recalculating the entire list.
+     counterList->SetDirty();
+     return true;
+--- a/layout/base/nsCounterManager.h
++++ b/layout/base/nsCounterManager.h
+@@ -266,6 +266,7 @@
+   void RecalcAll();
+ 
+   bool IsDirty() const;
++  bool HasChildScopes() const;
+   void SetDirty();
+   bool IsRecalculatingAll() const { return mRecalculatingAll; }
+ 

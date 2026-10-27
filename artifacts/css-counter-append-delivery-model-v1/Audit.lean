@@ -1,0 +1,16 @@
+import Examples
+
+#print axioms CounterDelivery.set_preserves_existing_scope
+#print axioms CounterDelivery.increment_preserves_outer
+#print axioms CounterDelivery.increment_counter
+#print axioms CounterDelivery.reset_retains_selected_outer
+#print axioms CounterDelivery.use_preserves_stack
+#print axioms CounterDelivery.clean_calculation
+#print axioms CounterDelivery.push_clean_agree
+#print axioms CounterDelivery.dirty_delivery_equals_current
+#print axioms CounterDelivery.all_names_delivery
+#print axioms CounterDelivery.no_dirty_no_edit
+#print axioms CounterDelivery.append_preserves_clean
+#print axioms CounterDelivery.append_then_deliver
+#print axioms CounterDelivery.childless_fastpath
+#print axioms CounterDelivery.Examples.orderedB_sound

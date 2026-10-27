@@ -1,0 +1,135 @@
+--- a/layout/base/nsCounterManager.cpp
++++ b/layout/base/nsCounterManager.cpp
+@@ -153,6 +153,10 @@
+ 
+ bool nsCounterList::IsDirty() const {
+   return mScope->GetScopeManager().CounterDirty(mCounterName);
++}
++
++bool nsCounterList::HasChildScopes() const {
++  return !mScope->GetChildren().IsEmpty();
+ }
+ 
+ void nsCounterList::SetDirty() {
+@@ -408,7 +412,8 @@
+   nsCounterList* counterList =
+       aManager.GetOrCreateCounterList(aPair.name.AsAtom());
+   counterList->Insert(node);
+-  if (!counterList->IsLast(node)) {
++  if (!counterList->IsLast(node) || counterList->HasChildScopes()) {
++    // Child scopes can use counters from this list.
+     // Tell the caller it's responsible for recalculating the entire list.
+     counterList->SetDirty();
+     return true;
+--- a/layout/base/nsCounterManager.h
++++ b/layout/base/nsCounterManager.h
+@@ -266,6 +266,7 @@
+   void RecalcAll();
+ 
+   bool IsDirty() const;
++  bool HasChildScopes() const;
+   void SetDirty();
+   bool IsRecalculatingAll() const { return mRecalculatingAll; }
+ 
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-contain/counter-scoping-append-invalidation.html
+@@ -0,0 +1,99 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Appending a counter change updates contained counter uses</title>
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#containment-style">
++<link rel="help" href="https://drafts.csswg.org/css-lists-3/#inheriting-counters">
++<link rel="stylesheet" href="/fonts/ahem.css">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++@counter-style counter-append-width {
++  system: fixed 0;
++  symbols: "A" "AA" "AAA" "AAAA" "AAAAA";
++  suffix: "";
++}
++.fixture { contain: style; font: 20px/1 Ahem; }
++.scope { contain: style; }
++.seed { counter-reset: counter-append 1; }
++.reset { counter-reset: counter-append 3; }
++.set { counter-set: counter-append 3; }
++.increment { counter-increment: counter-append 2; }
++.target, .calibration { display: inline-block; }
++.single .target::before, .sentinel::before {
++  content: counter(counter-append, counter-append-width);
++}
++.stack .target::before {
++  content: counters(counter-append, ".", counter-append-width);
++}
++</style>
++<div id="log"></div>
++<script>
++const fontReady = document.fonts.load("20px Ahem", "A");
++const width = element => element.getBoundingClientRect().width;
++
++function fixture(t, operation, mode, nested, trailing, withPrefix) {
++  const outer = document.createElement("div");
++  outer.className = `fixture ${mode}`;
++  const seed = document.createElement("span");
++  seed.className = "seed";
++  const scope = document.createElement("div");
++  scope.className = "scope";
++  const target = document.createElement("span");
++  target.className = "target";
++  if (nested) {
++    const emptyParent = document.createElement("div");
++    emptyParent.className = "scope";
++    emptyParent.append(target);
++    scope.append(emptyParent);
++  } else {
++    scope.append(target);
++  }
++  outer.append(seed, scope);
++  if (trailing) {
++    const sentinel = document.createElement("span");
++    sentinel.className = "sentinel";
++    outer.append(sentinel);
++  }
++  const prefix = document.createElement("span");
++  prefix.className = operation;
++  const insert = () => outer.insertBefore(prefix, scope);
++  if (withPrefix) {
++    insert();
++  }
++  const calibration = document.createElement("span");
++  calibration.className = "calibration";
++  calibration.textContent = "A";
++  outer.append(calibration);
++  document.body.append(outer);
++  t.add_cleanup(() => outer.remove());
++  return {target, prefix, insert, calibration};
++}
++
++for (const operation of ["reset", "set", "increment"]) {
++  for (const mode of ["single", "stack"]) {
++    for (const nested of [false, true]) {
++      for (const trailing of [false, true]) {
++        promise_test(async t => {
++          assert_equals((await fontReady).length, 1, "Ahem loaded");
++          const dynamic = fixture(t, operation, mode, nested, trailing, false);
++          assert_equals(width(dynamic.calibration), 20, "One A advance");
++          const initial = width(dynamic.target);
++          dynamic.insert();
++          const mutated = width(dynamic.target);
++          const fresh = fixture(t, operation, mode, nested, trailing, true);
++          const freshWidth = width(fresh.target);
++          const afterFresh = width(dynamic.target);
++          dynamic.prefix.remove();
++          const restored = width(dynamic.target);
++          const history = JSON.stringify({initial, mutated, fresh: freshWidth, afterFresh, restored});
++          assert_equals(initial, 40, "Initial counter 1: " + history);
++          assert_equals(freshWidth, 80, "Fresh counter 3: " + history);
++          assert_equals(restored, 40, "Removed counter change: " + history);
++          assert_equals(mutated, 80, "Inserted counter updates child: " + history);
++          assert_equals(afterFresh, 80, "Later construction retains current value: " + history);
++        }, `${operation}; ${mode}; nested=${nested}; trailing=${trailing}`);
++      }
++    }
++  }
++}
++</script>

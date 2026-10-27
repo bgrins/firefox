@@ -1,0 +1,15 @@
+>>> 4370: void nsCSSFrameConstructor::InitAndRestoreFrame(
+    4371:     const nsFrameConstructorState& aState, nsIContent* aContent,
+    4372:     nsContainerFrame* aParentFrame, nsIFrame* aNewFrame,
+    4373:     AllowCounters aAllowCounters) {
+    4374:   MOZ_ASSERT(aNewFrame, "Null frame cannot be initialized");
+    4375: 
+    4376:   // Initialize the frame
+    4377:   aNewFrame->Init(aContent, aParentFrame, nullptr);
+    4378:   aNewFrame->AddStateBits(aState.mAdditionalStateBits);
+    4379: 
+    4380:   if (aAllowCounters == AllowCounters::Yes &&
+    4381:       mContainStyleScopeManager.AddCounterChanges(aNewFrame)) {
+    4382:     CountersDirty();
+    4383:   }
+    4384: }

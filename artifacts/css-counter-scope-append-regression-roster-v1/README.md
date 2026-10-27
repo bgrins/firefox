@@ -1,0 +1,5 @@
+# Counter regression selection
+
+Eight existing Searchfox-discovered tests: four counter scoping reftests, three reversed ordinal reftests, and one dynamic removal/reparenting reversed-counter crashtest. Source bodies and direct reference URLs are retained. No browser was run and no statuses are prescribed. Fresh baseline, exact runtime metadata and reference/resource guards are required before native comparison. Searchfox metadata search returned no matching entry; that is discovery evidence, not a claim about local manifest applicability. The fixture tests ordinary explicit counts; these controls protect existing scoped set/increment, subtree roots and reversed initialization from the proposed conservative invalidation change.
+
+Native/WPT proposal remains css-counter-scope-append-repair-proposal-v1, FILES 84dac3d9e84a88bd75f229f914bfa12584c66e9581f52a07452851dd71626f31. Root separately reported actual unchanged diagnostic 12 PASS / 12 FAIL with all non-trailing failures at immediate insertion (40 instead of 80); that report is not independently terminal-reviewed here.
