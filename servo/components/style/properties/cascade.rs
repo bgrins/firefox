@@ -2324,7 +2324,6 @@ fn substitute_all(
     ///
     /// We need to bubble up non custom references from unregistered properties.
     fn visit_value_references<'a, 'b, 'c, 'd>(
-        var: &VarType,
         root: &References,
         url_data: &UrlExtraData,
         property_id: Option<PropertyIdRef>,
@@ -2358,10 +2357,7 @@ fn substitute_all(
                 }
 
                 let next_var = if next.substitution_kind == SubstitutionFunctionKind::Attr {
-                    // An type()-less attr() within attr(... type()) can still have nested
-                    // references.
-                    let can_chain = next.is_attr_with_type() || matches!(var, VarType::Attr(..));
-                    if !can_chain {
+                    if !next.is_attr_with_type() {
                         if let Some(ref fallback) = next.fallback
                             && !next
                                 .attribute_data
@@ -2616,7 +2612,6 @@ fn substitute_all(
             };
             // Visit the references in this value...
             visit_value_references(
-                &var,
                 &v.references,
                 &v.url_data,
                 property_id,
@@ -2678,7 +2673,6 @@ fn substitute_all(
                     let property_id = value.substitution_property_id(*longhand_id);
                     let value = &value.variable_value;
                     visit_value_references(
-                        &var,
                         &value.references,
                         &value.url_data,
                         Some(property_id),
