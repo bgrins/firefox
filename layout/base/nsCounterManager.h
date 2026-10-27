@@ -266,6 +266,7 @@ class nsCounterList : public nsGenConList {
   void RecalcAll();
 
   bool IsDirty() const;
+  bool HasChildScopes() const;
   void SetDirty();
   bool IsRecalculatingAll() const { return mRecalculatingAll; }
 

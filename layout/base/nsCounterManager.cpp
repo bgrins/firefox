@@ -155,6 +155,10 @@ bool nsCounterList::IsDirty() const {
   return mScope->GetScopeManager().CounterDirty(mCounterName);
 }
 
+bool nsCounterList::HasChildScopes() const {
+  return !mScope->GetChildren().IsEmpty();
+}
+
 void nsCounterList::SetDirty() {
   mScope->GetScopeManager().SetCounterDirty(mCounterName);
 }
@@ -408,7 +412,8 @@ static bool AddCounterChangeNode(nsCounterManager& aManager, nsIFrame* aFrame,
   nsCounterList* counterList =
       aManager.GetOrCreateCounterList(aPair.name.AsAtom());
   counterList->Insert(node);
-  if (!counterList->IsLast(node)) {
+  if (!counterList->IsLast(node) || counterList->HasChildScopes()) {
+    // Child scopes can use counters from this list.
     // Tell the caller it's responsible for recalculating the entire list.
     counterList->SetDirty();
     return true;
