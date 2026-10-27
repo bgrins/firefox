@@ -1,0 +1,114 @@
+{
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:158.0) Gecko/20100101 Firefox/158.0",
+  "rows": [
+    {
+      "id": "direct",
+      "css": "--x:5px;font-size:var(--x)",
+      "expected": "5px",
+      "calibration": true,
+      "observed": "5px",
+      "computed": "5px",
+      "repeat": "5px"
+    },
+    {
+      "id": "valid-primary-no-fallback",
+      "css": "--known:5px;--x:var(--known);font-size:var(--x)",
+      "expected": "5px",
+      "calibration": true,
+      "observed": "5px",
+      "computed": "5px",
+      "repeat": "5px"
+    },
+    {
+      "id": "valid-primary-px-fallback",
+      "css": "--known:5px;--x:var(--known,1px);font-size:var(--x)",
+      "expected": "5px",
+      "calibration": true,
+      "observed": "5px",
+      "computed": "5px",
+      "repeat": "5px"
+    },
+    {
+      "id": "valid-primary-em-fallback",
+      "css": "--known:5px;--x:var(--known,1em);font-size:var(--x)",
+      "expected": "5px",
+      "observed": "19px",
+      "computed": "3px",
+      "repeat": "19px"
+    },
+    {
+      "id": "used-em-fallback-cycle",
+      "css": "--x:var(--missing,1em);font-size:var(--x)",
+      "expected": "19px",
+      "calibration": true,
+      "observed": "19px",
+      "computed": "3px",
+      "repeat": "19px"
+    },
+    {
+      "id": "direct-em-cycle",
+      "css": "--x:1em;font-size:var(--x)",
+      "expected": "19px",
+      "calibration": true,
+      "observed": "19px",
+      "computed": "3px",
+      "repeat": "19px"
+    },
+    {
+      "id": "inherited-provider-unused-em",
+      "parent": "--known:5px",
+      "css": "--x:var(--known,1em);font-size:var(--x)",
+      "expected": "5px",
+      "observed": "19px",
+      "computed": "3px",
+      "repeat": "19px"
+    },
+    {
+      "id": "number-unused-em",
+      "css": "--known:5;--n:var(--known,1em);font-size:calc(var(--n)*1px)",
+      "property": "--n",
+      "expected": "5px",
+      "calibration": true,
+      "observed": "19px",
+      "computed": "3",
+      "repeat": "19px"
+    },
+    {
+      "id": "universal-unused-em",
+      "css": "--known:5px;--u:var(--known,1em);font-size:var(--u)",
+      "property": "--u",
+      "expected": "5px",
+      "calibration": true,
+      "observed": "5px",
+      "computed": "5px",
+      "repeat": "5px"
+    },
+    {
+      "id": "inherited-computed-length",
+      "parent": "--i:1em",
+      "css": "font-size:var(--i)",
+      "property": "--i",
+      "expected": "19px",
+      "calibration": true,
+      "observed": "19px",
+      "computed": "19px",
+      "repeat": "19px"
+    },
+    {
+      "id": "provider-unused-em",
+      "css": "--known:var(--valid,1em);--valid:5px;--x:var(--known);font-size:var(--x)",
+      "expected": "5px",
+      "observed": "5px",
+      "computed": "5px",
+      "repeat": "5px"
+    }
+  ],
+  "differences_from_short_circuit_hypothesis": [
+    "valid-primary-em-fallback",
+    "inherited-provider-unused-em",
+    "number-unused-em"
+  ],
+  "calibration_failures": [
+    "number-unused-em"
+  ]
+}
