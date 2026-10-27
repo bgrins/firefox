@@ -22,7 +22,7 @@ use crate::values::generics::length::GenericAnchorSizeFunction;
 use crate::values::generics::position::{
     AnchorSideKeyword, GenericAnchorFunction, GenericAnchorSide, TreeScoped,
 };
-use crate::values::specified::length::NoCalcLength;
+use crate::values::specified::length::{FontBaseSize, LineHeightBase, NoCalcLength};
 use crate::values::specified::random::RandomKey;
 use crate::values::specified::{
     NoCalcAngle, NoCalcNumber, NoCalcPercentage, NoCalcResolution, NoCalcTime, TreeCountingFunction,
@@ -156,7 +156,13 @@ impl Leaf {
         Ok(match self {
             Self::Length(l) => {
                 let px = match context {
-                    Some(context) => l.to_computed_value(context).px(),
+                    Some(context) => l
+                        .to_computed_value_for_math(
+                            context,
+                            FontBaseSize::CurrentStyle,
+                            LineHeightBase::CurrentStyle,
+                        )
+                        .px(),
                     None => l.to_computed_pixel_length_without_context()?,
                 };
                 Self::Length(NoCalcLength::from_px(px))

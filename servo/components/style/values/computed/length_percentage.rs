@@ -824,7 +824,7 @@ impl specified::CalcLengthPercentage {
             },
             Leaf::Length(l) => ComputedLeaf::Length({
                 let result =
-                    l.to_computed_value_with_base_size(context, base_size, line_height_base);
+                    l.to_computed_value_for_math(context, base_size, line_height_base);
                 if l.should_zoom_text() {
                     zoom_fn(result)
                 } else {
