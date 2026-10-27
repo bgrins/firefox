@@ -1,0 +1,35 @@
+--- previous/tests.py
++++ client/tests.py
+@@ -96,14 +96,19 @@
+     repaired = [key for key in old if old[key]['status'] == 'FAIL' and new[key]['status'] == 'PASS']
+     wpt.save('COMPARISON.json', {'regressions': regressions, 'changed_failures': changed, 'repaired': repaired, 'native_acceptance': False})
+     wpt.need(not regressions and not changed, 'paired preservation failed')
+-    main = wpt.CONFIG['main_test']
+-    wpt.need(all(r['status'] == 'PASS' for r in candidate['rows'] if r['test'] == main), 'candidate integer rounding oracle failed')
++    main = set(wpt.CONFIG['main_tests'])
++    main_repairs = [key for key in repaired if key[0] in main]
++    control_repairs = [key for key in repaired if key[0] not in main]
++    wpt.save('REPAIR-CLASSIFICATION.json', {'main_repairs': main_repairs, 'control_fail_to_pass': control_repairs, 'new_bug_count': None})
++    selected = [r for r in candidate['rows'] if r['test'] in main]
++    wpt.need(len(selected) == 40 and all(r['status'] == 'PASS' for r in selected), 'candidate40 main oracle failed')
++    wpt.need(len(main_repairs) == 10, 'exact ten main repairs required')
+ 
+ 
+ def require_phase(wpt, phase, result):
+     c = wpt.CONFIG
+-    main = c['main_test']
+-    selected = [r for r in result['rows'] if r['test'] == main]
++    main = set(c['main_tests'])
++    selected = [r for r in result['rows'] if r['test'] in main]
+     failures = c['baseline_failures'] if phase == 'baseline' else {}
+     for row in selected:
+         name = row['subtest']
+@@ -111,7 +116,7 @@
+         wpt.need(row['status'] == expected, 'unexpected main status: ' + name)
+         if expected == 'FAIL':
+             wpt.need(row.get('message') == failures[name], 'unexpected main first assertion: ' + name)
+-    controls = [r for r in result['rows'] + result['ends'] if r['test'] != main]
++    controls = [r for r in result['rows'] + result['ends'] if r['test'] not in main]
+     unexpected = [r for r in controls if r['status'] != r.get('expected', r['status'])
+                   and r['status'] not in r.get('known_intermittent', [])]
+     wpt.need(not unexpected, 'unexpected control results')

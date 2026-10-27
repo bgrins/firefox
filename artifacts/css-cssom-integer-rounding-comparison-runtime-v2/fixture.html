@@ -1,0 +1,113 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Offset coordinates preserve integral CSS pixel distances</title>
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsetleft">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsettop">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsetwidth">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsetheight">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+function offsetCases() {
+  const cases = [];
+  for (const axis of ["x", "y"]) {
+    for (const base of [16, 8388600]) {
+      for (const extra of [0, 9]) {
+        for (const sign of [-1, 1]) {
+          cases.push({axis, base, extra, sign,
+                      key: `${axis}-${base}-${extra}-${sign}`});
+        }
+      }
+    }
+  }
+  return cases;
+}
+
+function sampleOffset(config) {
+  const {axis, base, extra, sign} = config;
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:0;top:0;width:100px;height:100px;margin:0;border:0;padding:0;transform:none;zoom:1;direction:ltr;writing-mode:horizontal-tb";
+  const target = document.createElement("div");
+  target.style.cssText = "position:absolute;left:0;top:0;width:4px;height:4px;margin:0;border:0;padding:0;transform:none;zoom:1;box-sizing:content-box";
+  const edge = axis === "x" ? "left" : "top";
+  const margin = axis === "x" ? "marginLeft" : "marginTop";
+  const observer = axis === "x" ? "offsetLeft" : "offsetTop";
+  target.style[edge] = `${sign * base}px`;
+  target.style[margin] = `${sign * extra}px`;
+  host.append(target);
+  document.body.append(host);
+  try {
+    const read = () => {
+      const style = getComputedStyle(target);
+      return {
+        offset: target[observer],
+        parentMatches: target.offsetParent === host,
+        base: parseFloat(style[edge]),
+        margin: parseFloat(style[margin]),
+        position: style.position,
+        transform: style.transform,
+        zoom: style.zoom,
+        singleBox: target.getClientRects().length === 1
+      };
+    };
+    const first = read();
+    const repeat = read();
+    target.style[margin] = "0px";
+    const recovery = read();
+    target.style[margin] = `${sign * extra}px`;
+    const restored = read();
+    return {...config, expected: sign * (base + extra), recoveryExpected: sign * base,
+            first, repeat, recovery, restored};
+  } finally {
+    host.remove();
+  }
+}
+</script>
+<body>
+<script>
+for (const config of offsetCases()) {
+  test(() => {
+    const row = sampleOffset(config);
+    for (const [phase, value] of [["first", row.first], ["repeat", row.repeat], ["recovery", row.recovery], ["restored", row.restored]]) {
+      assert_true(value.parentMatches, `${phase}: positioned parent`);
+      assert_equals(value.base, config.sign * config.base, `${phase}: base inset`);
+      assert_equals(value.margin, phase === "recovery" ? 0 : (config.extra ? config.sign * config.extra : 0), `${phase}: margin`);
+      assert_equals(value.position, "absolute", `${phase}: positioning`);
+      assert_equals(value.transform, "none", `${phase}: transform`);
+      assert_true(value.singleBox, `${phase}: one border box`);
+      assert_equals(value.offset, phase === "recovery" ? row.recoveryExpected : row.expected, `${phase}: integer offset`);
+    }
+  }, config.key);
+}
+
+for (const axis of ["x", "y"]) {
+  for (const base of [16, 8388600]) {
+    for (const extra of [0, 9]) {
+      test(t => {
+        const host = document.createElement("div");
+        host.style.cssText = "position:fixed;left:0;top:0;width:100px;height:100px;margin:0;border:0;padding:0";
+        const target = document.createElement("div");
+        target.style.cssText = "position:absolute;left:0;top:0;width:4px;height:4px;margin:0;border:0;padding:0;box-sizing:content-box";
+        const dimension = axis === "x" ? "width" : "height";
+        const padding = axis === "x" ? "paddingRight" : "paddingBottom";
+        const observer = axis === "x" ? "offsetWidth" : "offsetHeight";
+        target.style[dimension] = `${base}px`;
+        target.style[padding] = `${extra}px`;
+        host.append(target);
+        document.body.append(host);
+        t.add_cleanup(() => host.remove());
+        assert_equals(target.offsetParent, host, "positioned parent");
+        assert_equals(parseFloat(getComputedStyle(target)[dimension]), base, "content size");
+        assert_equals(parseFloat(getComputedStyle(target)[padding]), extra, "padding");
+        assert_equals(target.getClientRects().length, 1, "one border box");
+        assert_equals(target[observer], base + extra, "first integral border-box size");
+        assert_equals(target[observer], base + extra, "repeated integral border-box size");
+        target.style[padding] = "0px";
+        assert_equals(target[observer], base, "padding reset");
+        target.style[padding] = `${extra}px`;
+        assert_equals(target[observer], base + extra, "padding restored");
+      }, `size-${axis}-${base}-${extra}`);
+    }
+  }
+}
+</script>

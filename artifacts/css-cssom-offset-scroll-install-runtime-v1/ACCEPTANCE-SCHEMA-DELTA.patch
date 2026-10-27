@@ -1,0 +1,18 @@
+--- disabled/run.py
++++ enabled/run.py
+@@ -48,13 +48,13 @@
+ acceptance = ROOT / c['acceptance']
+ need(sha(acceptance) == c['acceptance_sha256'] and read(acceptance) == c['acceptance_receipt'], 'exact acceptance')
+ need(c['acceptance_receipt']['fix'] == 112
+-     and c['acceptance_receipt']['status'].startswith('ACCEPTED'), 'root fix112 acceptance required')
++     and c['acceptance_receipt']['status'] == 'SCOPED_ACCEPTED', 'root fix112 acceptance required')
+ proposal = ROOT / c['proposal']
+ authenticate(read(proposal / 'FILES.json'), proposal)
+ source = read(proposal / 'SOURCE.json')
+ accepted_patch = c['acceptance_receipt'].get('patch')
+ accepted_hash = (accepted_patch.get('sha256') if isinstance(accepted_patch, dict)
+-                 else c['acceptance_receipt'].get('patch_sha256'))
++                 else c['acceptance_receipt'].get('native_patch_sha256'))
+ need(accepted_hash == sha(proposal / 'gecko-wpt.patch'), 'accepted exact two-path patch')
+ wpt = load('install_wpt', ROOT / c['helpers'] / 'run_wpt.py')
+ bindings = load('install_bindings', ROOT / c['helpers'] / 'bindings.py')

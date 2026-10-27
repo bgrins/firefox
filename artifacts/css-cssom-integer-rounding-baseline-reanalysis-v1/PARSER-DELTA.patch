@@ -1,0 +1,12 @@
+--- runtime-v2/tests.py
++++ reanalysis/tests.py
+@@ -72,7 +72,8 @@
+                 and sum(e.get('action') == 'suite_start' for e in events) == 1
+                 and sum(e.get('action') == 'suite_end' for e in events) == 1 and not faults)
+     for test, names in c['expected_subtests'].items():
+-        complete = complete and [r['subtest'] for r in rows if r['test'] == test] == names
++        actual = [r['subtest'] for r in rows if r['test'] == test]
++        complete = complete and len(actual) == len(names) == len(set(names)) and set(actual) == set(names)
+     complete = complete and (code == 0 or (code == 1 and any(r['status'] == 'FAIL' for r in rows + ends)))
+     result = {'command': command, 'exit': code, 'before': before, 'after': wpt.pins(paths),
+               'rows': rows, 'starts': starts, 'ends': ends, 'infrastructure_faults': faults, 'complete': complete}

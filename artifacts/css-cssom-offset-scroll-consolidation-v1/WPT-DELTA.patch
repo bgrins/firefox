@@ -1,0 +1,109 @@
+--- repair-v2/offset-integer-precision.html
++++ consolidation-v1/offset-scroll-integer-precision.html
+@@ -1,10 +1,46 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Offset coordinates preserve integral CSS pixel distances</title>
++<title>Offset and scroll dimensions preserve integral CSS pixels</title>
+ <link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsetleft">
+ <link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsettop">
+ <link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsetwidth">
+ <link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsetheight">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-scrollwidth">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-scrollheight">
++<style>
++.scroll-host {
++  position: fixed;
++  left: 0;
++  top: 0;
++  width: 100px;
++  height: 100px;
++  margin: 0;
++  border: 0;
++  padding: 0;
++  transform: none;
++  zoom: 1;
++  direction: ltr;
++  writing-mode: horizontal-tb;
++}
++.scroll-target {
++  position: absolute;
++  left: 0;
++  top: 0;
++  width: 16px;
++  height: 16px;
++  margin: 0;
++  border: 0;
++  padding: 0;
++  box-sizing: content-box;
++  overflow: visible;
++  transform: none;
++  zoom: 1;
++}
++.scroll-target.x.large { width: 8388600px; }
++.scroll-target.y.large { height: 8388600px; }
++.scroll-target.x.extra { padding-right: 9px; }
++.scroll-target.y.extra { padding-bottom: 9px; }
++</style>
+ <script src="/resources/testharness.js"></script>
+ <script src="/resources/testharnessreport.js"></script>
+ <script>
+@@ -111,3 +147,58 @@
+   }
+ }
+ </script>
++<script>
++for (const axis of ["x", "y"]) {
++  for (const base of [16, 8388600]) {
++    for (const extra of [0, 9]) {
++      const observer = axis === "x" ? "scrollWidth" : "scrollHeight";
++      test(t => {
++        const host = document.createElement("div");
++        host.className = "scroll-host";
++        const target = document.createElement("div");
++        target.className = `scroll-target ${axis}${base > 16 ? " large" : ""}${extra ? " extra" : ""}`;
++        const dimension = axis === "x" ? "width" : "height";
++        const padding = axis === "x" ? "paddingRight" : "paddingBottom";
++        host.append(target);
++        document.body.append(host);
++        t.add_cleanup(() => host.remove());
++        const read = () => {
++          const value = target[observer];
++          const style = getComputedStyle(target);
++          return {
++            value,
++            parent: target.offsetParent === host,
++            size: parseFloat(style[dimension]),
++            padding: parseFloat(style[padding]),
++            boxSizing: style.boxSizing,
++            overflowX: style.overflowX,
++            overflowY: style.overflowY,
++            transform: style.transform,
++            zoom: style.zoom,
++            boxes: target.getClientRects().length
++          };
++        };
++        const first = read();
++        const repeat = read();
++        target.classList.remove("extra");
++        const reset = read();
++        target.classList.toggle("extra", extra !== 0);
++        const restored = read();
++        for (const [phase, value] of [["first", first], ["repeat", repeat], ["reset", reset], ["restored", restored]]) {
++          const paddingValue = phase === "reset" ? 0 : extra;
++          assert_true(value.parent, `${phase}: positioned parent`);
++          assert_equals(value.size, base, `${phase}: content size`);
++          assert_equals(value.padding, paddingValue, `${phase}: padding`);
++          assert_equals(value.boxSizing, "content-box", `${phase}: box sizing`);
++          assert_equals(value.overflowX, "visible", `${phase}: horizontal overflow`);
++          assert_equals(value.overflowY, "visible", `${phase}: vertical overflow`);
++          assert_equals(value.transform, "none", `${phase}: transform`);
++          assert_equals(value.zoom, "1", `${phase}: unit zoom`);
++          assert_equals(value.boxes, 1, `${phase}: one border box`);
++          assert_equals(value.value, base + paddingValue, `${phase}: integral scrolling-area size`);
++        }
++      }, `${observer}-${base}-${extra}`);
++    }
++  }
++}
++</script>

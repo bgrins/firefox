@@ -1,0 +1,7 @@
+# Expanded fix112: integer CSSOM geometry precision
+
+Accept the exact four-path Gecko/WPT patch as a superseding scope for unsigned fix112. It changes Element.cpp, Element.h and two independent WPT files. All40 regression checks pass, repairing10 failures; all130 controls retain their outcomes and diagnostics. Candidate162 PASS/8 retained FAIL compares with combined152 PASS/18 FAIL. The141 historical baseline cases are explicitly authenticated reuse;29 cases were run fresh. Runtime and independent review verify successful builds, process cleanup and full source/build/index restoration.
+
+Offset/scroll conversions preserve half ties away from zero; client adapters preserve half ties toward positive infinity. The21 and14 scoped Lean results establish the proposed arithmetic, with actual-header sanitizer corroboration. They do not prove earlier geometry, compiler correctness or full CSS refinement. Tests failing early do not cover later assertions in their bodies. Large client failures are demonstrated for dimensions only; no large-origin failure is claimed.
+
+The final patch applies and reverses independently on retained HEAD90 and upstream976279105b2e. Clean-upstream runtime validation is unperformed. Research belongs in the preceding commit; the native commit has only these four paths. Original narrow acceptance and installed-subset receipts remain intact. Expanded working-tree installation and its40-case integration are still required. Accepted counts remain105 committed plus7 pending; signing is unchanged.

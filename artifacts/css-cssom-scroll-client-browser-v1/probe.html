@@ -1,0 +1,109 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Scroll and client integer dimensions</title>
+<style>
+html, body { margin: 0; padding: 0; }
+.host {
+  position: fixed;
+  inset-inline-start: 40px;
+  inset-block-start: 40px;
+  inline-size: 100px;
+  block-size: 100px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  direction: ltr;
+  writing-mode: horizontal-tb;
+  transform: none;
+  zoom: 1;
+}
+.target {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 0;
+  inline-size: 16px;
+  block-size: 16px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  box-sizing: content-box;
+  overflow: visible;
+  transform: none;
+  zoom: 1;
+}
+.host.large.x > .target { inline-size: 8388600px; }
+.host.large.y > .target { block-size: 8388600px; }
+.host.extra.x > .target { padding-inline-end: 9px; }
+.host.extra.y > .target { padding-block-end: 9px; }
+</style>
+<body>
+<pre id="output"></pre>
+<script>
+const styleKeys = ["width", "height", "paddingTop", "paddingRight", "paddingBottom",
+  "paddingLeft", "marginTop", "marginRight", "marginBottom", "marginLeft",
+  "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth",
+  "left", "top"];
+const policyKeys = ["position", "display", "boxSizing", "overflowX", "overflowY",
+  "transform", "zoom", "direction", "writingMode", "contain", "clip"];
+const rectValues = rect => [rect.x, rect.y, rect.width, rect.height];
+function styleValues(element) {
+  const style = getComputedStyle(element);
+  return Object.fromEntries([
+    ...styleKeys.map(key => [key, parseFloat(style[key])]),
+    ...policyKeys.map(key => [key, style[key]])
+  ]);
+}
+function sample(axis, base, extra) {
+  const host = document.createElement("div");
+  host.className = `host ${axis} ${base === 16 ? "small" : "large"}${extra ? " extra" : ""}`;
+  const target = document.createElement("div");
+  target.className = "target";
+  host.append(target);
+  document.body.append(host);
+  const read = () => {
+    const scrollSize = [target.scrollWidth, target.scrollHeight];
+    const clientSize = [target.clientWidth, target.clientHeight];
+    const clientOrigin = [target.clientLeft, target.clientTop];
+    return {
+      scrollSize, clientSize, clientOrigin,
+      rect: rectValues(target.getBoundingClientRect()),
+      rects: Array.from(target.getClientRects(), rectValues),
+      hostRect: rectValues(host.getBoundingClientRect()),
+      style: styleValues(target), hostStyle: styleValues(host),
+      parentMatches: target.offsetParent === host,
+      empty: target.childNodes.length === 0,
+      scrollPosition: [window.scrollX, window.scrollY],
+      viewport: [window.innerWidth, window.innerHeight]
+    };
+  };
+  try {
+    const first = read();
+    const repeat = read();
+    host.classList.remove("extra");
+    const reset = read();
+    host.classList.toggle("extra", extra !== 0);
+    const restored = read();
+    return {key: `${axis}-${base}-${extra}`, axis, base, extra,
+            first, repeat, reset, restored};
+  } finally {
+    host.remove();
+  }
+}
+const rows = [];
+for (const axis of ["x", "y"]) {
+  for (const base of [16, 8388600]) {
+    for (const extra of [0, 9]) {
+      rows.push(sample(axis, base, extra));
+    }
+  }
+}
+const result = {compatMode: document.compatMode, rows};
+window.scrollClientProbeResult = result;
+document.querySelector("#output").textContent = JSON.stringify(result, null, 2);
+if (location.protocol === "http:" || location.protocol === "https:") {
+  fetch("/result", {method: "POST", headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(result)}).catch(error => {
+    document.querySelector("#output").textContent += `\nPOST: ${error.message}`;
+  });
+}
+</script>

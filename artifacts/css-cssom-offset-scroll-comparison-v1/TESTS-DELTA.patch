@@ -1,0 +1,39 @@
+--- artifacts/css-cssom-integer-rounding-baseline-reanalysis-v1/tests.py
++++ artifacts/css-cssom-offset-scroll-comparison-v1/tests.py
+@@ -24,7 +24,10 @@
+ 
+ 
+ def run(wpt, phase, resources):
+-    c = wpt.CONFIG
++    c = dict(wpt.CONFIG)
++    if phase == 'baseline':
++        c['tests'] = c['baseline_tests']
++        c['expected_subtests'] = c['baseline_expected_subtests']
+     directory = wpt.HERE / ('wpt-' + phase)
+     directory.mkdir()
+     paths = sorted(set(resources) | set(c['guard_sources']) | set(wpt.BINARIES))
+@@ -78,7 +81,7 @@
+     result = {'command': command, 'exit': code, 'before': before, 'after': wpt.pins(paths),
+               'rows': rows, 'starts': starts, 'ends': ends, 'infrastructure_faults': faults, 'complete': complete}
+     (directory / 'RUN.json').write_text(json.dumps(result, indent=2) + '\n')
+-    wpt.need(complete and result['before'] == result['after'], 'complete exact 104 subtests/9 files and stable source/binary/resources')
++    wpt.need(complete and result['before'] == result['after'], 'complete exact phase roster and stable source/binary/resources')
+     return result
+ 
+ 
+@@ -93,13 +96,13 @@
+     repaired = [key for key in old if old[key]['status'] == 'FAIL' and new[key]['status'] == 'PASS']
+     wpt.save('COMPARISON.json', {'regressions': regressions, 'changed_failures': changed, 'repaired': repaired, 'native_acceptance': False})
+     wpt.need(not regressions and not changed, 'paired preservation failed')
+-    main = next(iter(wpt.CONFIG['expected_subtests']))
++    main = wpt.CONFIG['main_test']
+     wpt.need(all(r['status'] == 'PASS' for r in candidate['rows'] if r['test'] == main), 'candidate integer rounding oracle failed')
+ 
+ 
+ def require_phase(wpt, phase, result):
+     c = wpt.CONFIG
+-    main = next(iter(c['expected_subtests']))
++    main = c['main_test']
+     selected = [r for r in result['rows'] if r['test'] == main]
+     failures = c['baseline_failures'] if phase == 'baseline' else {}
+     for row in selected:

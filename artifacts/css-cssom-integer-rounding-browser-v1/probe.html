@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Integer offset conversion</title>
+<body>
+<pre id="output"></pre>
+<script>
+function offsetCases() {
+  const cases = [];
+  for (const axis of ["x", "y"]) {
+    for (const base of [16, 8388600]) {
+      for (const extra of [0, 9]) {
+        for (const sign of [-1, 1]) {
+          cases.push({axis, base, extra, sign,
+                      key: `${axis}-${base}-${extra}-${sign}`});
+        }
+      }
+    }
+  }
+  return cases;
+}
+
+function sampleOffset(config) {
+  const {axis, base, extra, sign} = config;
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:0;top:0;width:100px;height:100px;margin:0;border:0;padding:0;transform:none;zoom:1;direction:ltr;writing-mode:horizontal-tb";
+  const target = document.createElement("div");
+  target.style.cssText = "position:absolute;left:0;top:0;width:4px;height:4px;margin:0;border:0;padding:0;transform:none;zoom:1;box-sizing:content-box";
+  const edge = axis === "x" ? "left" : "top";
+  const margin = axis === "x" ? "marginLeft" : "marginTop";
+  const observer = axis === "x" ? "offsetLeft" : "offsetTop";
+  target.style[edge] = `${sign * base}px`;
+  target.style[margin] = `${sign * extra}px`;
+  host.append(target);
+  document.body.append(host);
+  try {
+    const read = () => {
+      const style = getComputedStyle(target);
+      const rect = target.getBoundingClientRect();
+      const parentRect = host.getBoundingClientRect();
+      return {
+        offset: target[observer],
+        parentMatches: target.offsetParent === host,
+        base: parseFloat(style[edge]),
+        margin: parseFloat(style[margin]),
+        position: style.position,
+        transform: style.transform,
+        zoom: style.zoom,
+        width: rect.width,
+        height: rect.height,
+        geometricOffset: rect[edge] - parentRect[edge],
+        singleBox: target.getClientRects().length === 1,
+        hostRect: [parentRect.x, parentRect.y, parentRect.width, parentRect.height]
+      };
+    };
+    const first = read();
+    const repeat = read();
+    target.style[margin] = "0px";
+    const recovery = read();
+    target.style[margin] = `${sign * extra}px`;
+    const restored = read();
+    return {...config, expected: sign * (base + extra), recoveryExpected: sign * base,
+            first, repeat, recovery, restored};
+  } finally {
+    host.remove();
+  }
+}
+</script>
+<script>
+const rows = offsetCases().map(sampleOffset);
+const result = {compatMode: document.compatMode, rows};
+window.offsetProbeResult = result;
+document.querySelector("#output").textContent = JSON.stringify(result, null, 2);
+</script>
+
+<script>fetch("/result", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(window.offsetProbeResult)});</script>

@@ -1,0 +1,377 @@
+--- a/dom/base/Element.cpp
++++ b/dom/base/Element.cpp
+@@ -1108,12 +1108,18 @@
+   return frame->Style()->EffectiveZoom().Unzoom(sf->GetScrollPosition());
+ }
+ 
++static int32_t AppUnitsToRoundedCSSPixels(nscoord aCoord) {
++  constexpr int32_t scale = AppUnitsPerCSSPixel();
++  const int64_t bias = aCoord >= 0 ? scale / 2 : -scale / 2;
++  return int32_t((int64_t(aCoord) + bias) / scale);
++}
++
+ int32_t Element::ScrollHeight() {
+-  return nsPresContext::AppUnitsToIntCSSPixels(GetScrollSize().height);
++  return AppUnitsToRoundedCSSPixels(GetScrollSize().height);
+ }
+ 
+ int32_t Element::ScrollWidth() {
+-  return nsPresContext::AppUnitsToIntCSSPixels(GetScrollSize().width);
++  return AppUnitsToRoundedCSSPixels(GetScrollSize().width);
+ }
+ 
+ nsRect Element::GetClientAreaRect() {
+@@ -6960,8 +6966,11 @@
+     parent = result.mParent;
+   }
+ 
+-  aRect = CSSIntRect::FromAppUnitsRounded(
+-      frame->Style()->EffectiveZoom().Unzoom(rect));
++  rect = frame->Style()->EffectiveZoom().Unzoom(rect);
++  aRect = CSSIntRect(AppUnitsToRoundedCSSPixels(rect.x),
++                     AppUnitsToRoundedCSSPixels(rect.y),
++                     AppUnitsToRoundedCSSPixels(rect.Width()),
++                     AppUnitsToRoundedCSSPixels(rect.Height()));
+   return parent;
+ }
+ 
+--- /dev/null
++++ b/testing/web-platform/tests/css/cssom-view/offset-scroll-integer-precision.html
+@@ -0,0 +1,204 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Offset and scroll dimensions preserve integral CSS pixels</title>
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsetleft">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsettop">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsetwidth">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-htmlelement-offsetheight">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-scrollwidth">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-scrollheight">
++<style>
++.scroll-host {
++  position: fixed;
++  left: 0;
++  top: 0;
++  width: 100px;
++  height: 100px;
++  margin: 0;
++  border: 0;
++  padding: 0;
++  transform: none;
++  zoom: 1;
++  direction: ltr;
++  writing-mode: horizontal-tb;
++}
++.scroll-target {
++  position: absolute;
++  left: 0;
++  top: 0;
++  width: 16px;
++  height: 16px;
++  margin: 0;
++  border: 0;
++  padding: 0;
++  box-sizing: content-box;
++  overflow: visible;
++  transform: none;
++  zoom: 1;
++}
++.scroll-target.x.large { width: 8388600px; }
++.scroll-target.y.large { height: 8388600px; }
++.scroll-target.x.extra { padding-right: 9px; }
++.scroll-target.y.extra { padding-bottom: 9px; }
++</style>
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<script>
++function offsetCases() {
++  const cases = [];
++  for (const axis of ["x", "y"]) {
++    for (const base of [16, 8388600]) {
++      for (const extra of [0, 9]) {
++        for (const sign of [-1, 1]) {
++          cases.push({axis, base, extra, sign,
++                      key: `${axis}-${base}-${extra}-${sign}`});
++        }
++      }
++    }
++  }
++  return cases;
++}
++
++function sampleOffset(config) {
++  const {axis, base, extra, sign} = config;
++  const host = document.createElement("div");
++  host.style.cssText = "position:fixed;left:0;top:0;width:100px;height:100px;margin:0;border:0;padding:0;transform:none;zoom:1;direction:ltr;writing-mode:horizontal-tb";
++  const target = document.createElement("div");
++  target.style.cssText = "position:absolute;left:0;top:0;width:4px;height:4px;margin:0;border:0;padding:0;transform:none;zoom:1;box-sizing:content-box";
++  const edge = axis === "x" ? "left" : "top";
++  const margin = axis === "x" ? "marginLeft" : "marginTop";
++  const observer = axis === "x" ? "offsetLeft" : "offsetTop";
++  target.style[edge] = `${sign * base}px`;
++  target.style[margin] = `${sign * extra}px`;
++  host.append(target);
++  document.body.append(host);
++  try {
++    const read = () => {
++      const style = getComputedStyle(target);
++      return {
++        offset: target[observer],
++        parentMatches: target.offsetParent === host,
++        base: parseFloat(style[edge]),
++        margin: parseFloat(style[margin]),
++        position: style.position,
++        transform: style.transform,
++        zoom: style.zoom,
++        singleBox: target.getClientRects().length === 1
++      };
++    };
++    const first = read();
++    const repeat = read();
++    target.style[margin] = "0px";
++    const recovery = read();
++    target.style[margin] = `${sign * extra}px`;
++    const restored = read();
++    return {...config, expected: sign * (base + extra), recoveryExpected: sign * base,
++            first, repeat, recovery, restored};
++  } finally {
++    host.remove();
++  }
++}
++</script>
++<body>
++<script>
++for (const config of offsetCases()) {
++  test(() => {
++    const row = sampleOffset(config);
++    for (const [phase, value] of [["first", row.first], ["repeat", row.repeat], ["recovery", row.recovery], ["restored", row.restored]]) {
++      assert_true(value.parentMatches, `${phase}: positioned parent`);
++      assert_equals(value.base, config.sign * config.base, `${phase}: base inset`);
++      assert_equals(value.margin, phase === "recovery" ? 0 : (config.extra ? config.sign * config.extra : 0), `${phase}: margin`);
++      assert_equals(value.position, "absolute", `${phase}: positioning`);
++      assert_equals(value.transform, "none", `${phase}: transform`);
++      assert_true(value.singleBox, `${phase}: one border box`);
++      assert_equals(value.offset, phase === "recovery" ? row.recoveryExpected : row.expected, `${phase}: integer offset`);
++    }
++  }, config.key);
++}
++
++for (const axis of ["x", "y"]) {
++  for (const base of [16, 8388600]) {
++    for (const extra of [0, 9]) {
++      test(t => {
++        const host = document.createElement("div");
++        host.style.cssText = "position:fixed;left:0;top:0;width:100px;height:100px;margin:0;border:0;padding:0";
++        const target = document.createElement("div");
++        target.style.cssText = "position:absolute;left:0;top:0;width:4px;height:4px;margin:0;border:0;padding:0;box-sizing:content-box";
++        const dimension = axis === "x" ? "width" : "height";
++        const padding = axis === "x" ? "paddingRight" : "paddingBottom";
++        const observer = axis === "x" ? "offsetWidth" : "offsetHeight";
++        target.style[dimension] = `${base}px`;
++        target.style[padding] = `${extra}px`;
++        host.append(target);
++        document.body.append(host);
++        t.add_cleanup(() => host.remove());
++        assert_equals(target.offsetParent, host, "positioned parent");
++        assert_equals(parseFloat(getComputedStyle(target)[dimension]), base, "content size");
++        assert_equals(parseFloat(getComputedStyle(target)[padding]), extra, "padding");
++        assert_equals(target.getClientRects().length, 1, "one border box");
++        assert_equals(target[observer], base + extra, "first integral border-box size");
++        assert_equals(target[observer], base + extra, "repeated integral border-box size");
++        target.style[padding] = "0px";
++        assert_equals(target[observer], base, "padding reset");
++        target.style[padding] = `${extra}px`;
++        assert_equals(target[observer], base + extra, "padding restored");
++      }, `size-${axis}-${base}-${extra}`);
++    }
++  }
++}
++</script>
++<script>
++for (const axis of ["x", "y"]) {
++  for (const base of [16, 8388600]) {
++    for (const extra of [0, 9]) {
++      const observer = axis === "x" ? "scrollWidth" : "scrollHeight";
++      test(t => {
++        const host = document.createElement("div");
++        host.className = "scroll-host";
++        const target = document.createElement("div");
++        target.className = `scroll-target ${axis}${base > 16 ? " large" : ""}${extra ? " extra" : ""}`;
++        const dimension = axis === "x" ? "width" : "height";
++        const padding = axis === "x" ? "paddingRight" : "paddingBottom";
++        host.append(target);
++        document.body.append(host);
++        t.add_cleanup(() => host.remove());
++        const read = () => {
++          const value = target[observer];
++          const style = getComputedStyle(target);
++          return {
++            value,
++            parent: target.offsetParent === host,
++            size: parseFloat(style[dimension]),
++            padding: parseFloat(style[padding]),
++            boxSizing: style.boxSizing,
++            overflowX: style.overflowX,
++            overflowY: style.overflowY,
++            transform: style.transform,
++            zoom: style.zoom,
++            boxes: target.getClientRects().length
++          };
++        };
++        const first = read();
++        const repeat = read();
++        target.classList.remove("extra");
++        const reset = read();
++        target.classList.toggle("extra", extra !== 0);
++        const restored = read();
++        for (const [phase, value] of [["first", first], ["repeat", repeat], ["reset", reset], ["restored", restored]]) {
++          const paddingValue = phase === "reset" ? 0 : extra;
++          assert_true(value.parent, `${phase}: positioned parent`);
++          assert_equals(value.size, base, `${phase}: content size`);
++          assert_equals(value.padding, paddingValue, `${phase}: padding`);
++          assert_equals(value.boxSizing, "content-box", `${phase}: box sizing`);
++          assert_equals(value.overflowX, "visible", `${phase}: horizontal overflow`);
++          assert_equals(value.overflowY, "visible", `${phase}: vertical overflow`);
++          assert_equals(value.transform, "none", `${phase}: transform`);
++          assert_equals(value.zoom, "1", `${phase}: unit zoom`);
++          assert_equals(value.boxes, 1, `${phase}: one border box`);
++          assert_equals(value.value, base + paddingValue, `${phase}: integral scrolling-area size`);
++        }
++      }, `${observer}-${base}-${extra}`);
++    }
++  }
++}
++</script>
+--- a/dom/base/Element.h
++++ b/dom/base/Element.h
+@@ -1941,16 +1941,16 @@
+   MOZ_CAN_RUN_SCRIPT nsSize GetScrollSize();
+   MOZ_CAN_RUN_SCRIPT void MozScrollSnap();
+   MOZ_CAN_RUN_SCRIPT int32_t ClientTop() {
+-    return CSSPixel::FromAppUnits(GetClientAreaRect().y).Rounded();
++    return AppUnitsToClientCSSPixels(GetClientAreaRect().y);
+   }
+   MOZ_CAN_RUN_SCRIPT int32_t ClientLeft() {
+-    return CSSPixel::FromAppUnits(GetClientAreaRect().x).Rounded();
++    return AppUnitsToClientCSSPixels(GetClientAreaRect().x);
+   }
+   MOZ_CAN_RUN_SCRIPT int32_t ClientWidth() {
+-    return CSSPixel::FromAppUnits(GetClientAreaRect().Width()).Rounded();
++    return AppUnitsToClientCSSPixels(GetClientAreaRect().Width());
+   }
+   MOZ_CAN_RUN_SCRIPT int32_t ClientHeight() {
+-    return CSSPixel::FromAppUnits(GetClientAreaRect().Height()).Rounded();
++    return AppUnitsToClientCSSPixels(GetClientAreaRect().Height());
+   }
+ 
+   MOZ_CAN_RUN_SCRIPT int32_t ScreenX();
+@@ -2706,6 +2706,13 @@
+    */
+   const nsAttrValue* GetSVGAnimatedClass() const;
+ 
++  // Client metrics round half ties toward positive infinity.
++  static int32_t AppUnitsToClientCSSPixels(nscoord aCoord) {
++    constexpr int32_t scale = AppUnitsPerCSSPixel();
++    const int64_t bias = aCoord >= 0 ? scale / 2 : 1 - scale / 2;
++    return int32_t((int64_t(aCoord) + bias) / scale);
++  }
++
+   /**
+    * Get this element's client area rect in app units.
+    * @return the frame's client area
+--- /dev/null
++++ b/testing/web-platform/tests/css/cssom-view/client-size-integer-precision.html
+@@ -0,0 +1,93 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Client dimensions preserve integral padding-box sizes</title>
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-clientwidth">
++<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-clientheight">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++.host {
++  position: fixed;
++  left: 0;
++  top: 0;
++  width: 100px;
++  height: 100px;
++  margin: 0;
++  border: 0;
++  padding: 0;
++  direction: ltr;
++  writing-mode: horizontal-tb;
++  transform: none;
++  zoom: 1;
++}
++.target {
++  position: absolute;
++  left: 0;
++  top: 0;
++  width: 16px;
++  height: 16px;
++  margin: 0;
++  border: 0;
++  padding: 0;
++  box-sizing: content-box;
++  overflow: visible;
++  transform: none;
++  zoom: 1;
++}
++.target.x.large { width: 16777200px; }
++.target.y.large { height: 16777200px; }
++.target.x.extra { padding-right: 17px; }
++.target.y.extra { padding-bottom: 17px; }
++</style>
++<body>
++<script>
++for (const axis of ["x", "y"]) {
++  for (const base of [16, 16777200]) {
++    for (const extra of [0, 17]) {
++      const observer = axis === "x" ? "clientWidth" : "clientHeight";
++      test(t => {
++        const host = document.createElement("div");
++        host.className = "host";
++        const target = document.createElement("div");
++        target.className = `target ${axis}${base > 16 ? " large" : ""}${extra ? " extra" : ""}`;
++        host.append(target);
++        document.body.append(host);
++        t.add_cleanup(() => host.remove());
++        const dimension = axis === "x" ? "width" : "height";
++        const padding = axis === "x" ? "paddingRight" : "paddingBottom";
++        const read = () => {
++          const value = target[observer];
++          const style = getComputedStyle(target);
++          return {
++            value,
++            content: parseFloat(style[dimension]),
++            padding: parseFloat(style[padding]),
++            boxSizing: style.boxSizing,
++            overflowX: style.overflowX,
++            overflowY: style.overflowY,
++            transform: style.transform,
++            zoom: style.zoom
++          };
++        };
++        const first = read();
++        const repeat = read();
++        target.classList.remove("extra");
++        const reset = read();
++        target.classList.toggle("extra", extra !== 0);
++        const restored = read();
++        for (const [phase, sample] of [["first", first], ["repeat", repeat], ["reset", reset], ["restored", restored]]) {
++          const expectedPadding = phase === "reset" ? 0 : extra;
++          assert_equals(sample.content, base, `${phase}: content size`);
++          assert_equals(sample.padding, expectedPadding, `${phase}: padding`);
++          assert_equals(sample.boxSizing, "content-box", `${phase}: box sizing`);
++          assert_equals(sample.overflowX, "visible", `${phase}: horizontal overflow`);
++          assert_equals(sample.overflowY, "visible", `${phase}: vertical overflow`);
++          assert_equals(sample.transform, "none", `${phase}: transform`);
++          assert_equals(sample.zoom, "1", `${phase}: unit zoom`);
++          assert_equals(sample.value, base + expectedPadding, `${phase}: integral client size`);
++        }
++      }, `${observer}-${base}-${extra}`);
++    }
++  }
++}
++</script>

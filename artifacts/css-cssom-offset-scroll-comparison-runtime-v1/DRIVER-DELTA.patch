@@ -1,0 +1,120 @@
+--- artifacts/css-cssom-integer-rounding-candidate-only-v1/run.py
++++ artifacts/css-cssom-offset-scroll-comparison-v1/run.py
+@@ -51,22 +51,24 @@
+ bindings = load('rounding_bindings', ROOT / c['helpers'] / 'bindings.py')
+ reanalysis = ROOT / c['reanalysis']
+ authenticate(read(reanalysis / 'FILES.json'), reanalysis)
+-tests = load('rounding_tests', reanalysis / 'tests.py')
++old_tests = load('retained_rounding_tests', reanalysis / 'tests.py')
++tests = load('consolidated_tests', HERE / 'tests.py')
+ wpt.HERE, wpt.CONFIG = HERE, c
+ previous = ROOT / c['epoch']
+ authenticate(read(previous / 'FILES.json'), previous)
+ epoch, receipt = read(previous / 'STATE.json'), read(previous / 'ROOT-FINAL-CHECK.json')
+ def require_epoch(previous, epoch, receipt):
+-    need(c['epoch_failure'] is not None and c['epoch_receipt'] is not None, 'unbound epoch contract')
++    need(c['epoch_receipt'] is not None, 'unbound epoch receipt')
+     need(epoch['status'] == 'terminal' and epoch['restored'] is True
+          and epoch['restore_build_exit'] == 0 and epoch['recovery_errors'] == []
+-         and epoch['lint_exit'] == 0 and epoch['failure'] == c['epoch_failure']
++         and epoch['lint_exit'] == 0 and 'failure' not in epoch
+          and epoch['restored_paths'] == c['sources']
+-         and set(epoch['phases']) == {'baseline'}
+-         and epoch['phases']['baseline']['build_exit'] == 0
+-         and not epoch.get('paired_preservation_passed', False), 'failed comparison restoration gate')
++         and set(epoch['phases']) == {'candidate'}
++         and epoch['phases']['candidate']['build_exit'] == 0
++         and epoch['paired_preservation_passed'] is True, 'successful candidate restoration gate')
+     need(receipt == c['epoch_receipt']
+-         and receipt['baseline_reanalysis_files_sha256'] == sha(reanalysis / 'FILES.json'), 'exact root restoration/reanalysis receipt')
++         and receipt['status'] == 'COMPARISON_PASSED_RESTORATION_VERIFIED'
++         and receipt['baseline_reanalysis_files_sha256'] == sha(reanalysis / 'FILES.json'), 'exact root restoration receipt')
+     need(receipt['state_sha256'] == sha(previous / 'STATE.json')
+          and receipt['final_sha256'] == sha(previous / 'FINAL.json')
+          and receipt['restored_binary_pins'] == epoch['restored_binary_pins'], 'root restoration joins')
+@@ -90,7 +92,7 @@
+ resources = read(HERE / 'RESOURCES.json')
+ need(wpt.pins(list(resources)) == resources, 'initial resources')
+ owned_test = next(iter(c['install']))
+-need(len(c['install']) == 1 and len(c['tests']) == 9 and len(c['candidate_sources']) == 1, 'comparison scope')
++need(len(c['install']) == 1 and len(c['tests']) == 13 and len(c['baseline_tests']) == 5 and len(c['candidate_sources']) == 1, 'comparison scope')
+ need(not (ROOT / owned_test).exists() and not (ROOT / owned_test).is_symlink()
+      and not wpt.git('ls-files', '--', owned_test), 'test absent/untracked')
+ fixture = (HERE / c['install'][owned_test]).read_bytes()
+@@ -133,7 +135,26 @@
+     authenticate(refs, ROOT)
+ 
+ baseline_gate = load('retained_baseline_gate', HERE / 'baseline_gate.py')
+-retained_baseline = baseline_gate.validate(wpt, tests, previous, reanalysis, epoch, resources, hashlib.sha256(fixture).hexdigest(), sha)
++old_runtime = ROOT / c['retained_baseline']
++authenticate(read(old_runtime / 'FILES.json'), old_runtime)
++old_config = read(old_runtime / 'CONFIG.json')
++old_config['epoch'] = c['retained_baseline']
++old_resources = read(old_runtime / 'RESOURCES.json')
++old_fixture_path, old_fixture_copy = next(iter(old_config['install'].items()))
++try:
++    wpt.CONFIG = old_config
++    retained_baseline = baseline_gate.validate(wpt, old_tests, old_runtime, reanalysis,
++        read(old_runtime / 'STATE.json'), old_resources, sha(old_runtime / old_fixture_copy), sha)
++finally:
++    wpt.CONFIG = c
++need(old_config['head_pins'] == c['head_pins'] and old_config['baseline_pins'] == c['baseline_pins'],
++     'retained baseline native role identity')
++old_phase_resources = {**old_resources, **old_config['head_pins'], **old_config['baseline_pins']}
++need(all(phase_resources('baseline').get(n) == h for n, h in old_phase_resources.items()
++         if n != old_fixture_path), 'retained baseline source/resource/metadata transfer')
++retained_controls = [row for row in retained_baseline['rows'] if row['test'] in c['expected_subtests']]
++need(len(retained_controls) == 80 and len({(r['test'], r['subtest']) for r in retained_controls}) == 80,
++     'retained eighty controls')
+ 
+ for n, data in original.items():
+     p = HERE / 'original' / n
+@@ -141,7 +162,7 @@
+     p.write_bytes(data)
+ wpt.save('BEFORE.json', before)
+ wpt.save('ORIGINAL-BINARIES.json', epoch['restored_binary_pins'])
+-state = {'status': 'starting', 'phases': {}, 'baseline_reuse': {'runtime': c['epoch'], 'reanalysis': c['reanalysis'], 'run_sha256': sha(previous / 'wpt-baseline/RUN.json'), 'original_complete': False, 'revalidated_complete': True}, 'accepted_native_repair': False, 'pending_acceptance_gates': c['pending_acceptance_gates']}
++state = {'status': 'starting', 'phases': {}, 'baseline_reuse': {'runtime': c['retained_baseline'], 'reanalysis': c['reanalysis'], 'run_sha256': sha(old_runtime / 'wpt-baseline/RUN.json'), 'original_complete': False, 'revalidated_complete': True}, 'accepted_native_repair': False, 'pending_acceptance_gates': c['pending_acceptance_gates']}
+ changed = False
+ owned_identity = None
+ errors = []
+@@ -188,21 +209,21 @@
+ 
+ try:
+     for n in c['sources']:
+-        target = selected.get(n, baseline.get(n, head[n]))
++        target = baseline.get(n, head[n])
+         if original[n] != target:
+             changed = True
+             replace_source(n, target)
+     with (ROOT / owned_test).open('xb') as stream:
+         info = os.fstat(stream.fileno())
+         owned_identity = (info.st_dev, info.st_ino)
+-        stream.write(fixture)
+-    verify_phase('candidate')
++        need(stream.write(fixture) == len(fixture), 'short fixture write')
++    verify_phase('baseline')
+     state['lint_exit'] = wpt.command('fixture-lint', ['./mach', 'lint', '--linter', 'wpt', owned_test])
+     wpt.save('STATE.json', state)
+     need(state['lint_exit'] == 0, 'owned WPT lint failed')
+-    verify_phase('candidate')
+-    runs = {'baseline': retained_baseline}
+-    for phase in ('candidate',):
++    verify_phase('baseline')
++    runs = {}
++    for phase in ('baseline', 'candidate'):
+         if phase == 'candidate':
+             for n, data in selected.items():
+                 if not (ROOT / n).exists() or (ROOT / n).read_bytes() != data:
+@@ -227,7 +248,10 @@
+         tests.require_phase(wpt, phase, runs[phase])
+         verify_phase(phase)
+         wpt.save('STATE.json', state)
+-    tests.compare(wpt, runs['baseline'], runs['candidate'])
++    combined_baseline = {'rows': runs['baseline']['rows'] + retained_controls}
++    wpt.save('COMBINED-BASELINE.json', {'new_run': 'wpt-baseline/RUN.json', 'retained_runtime': c['retained_baseline'],
++        'retained_reanalysis': c['reanalysis'], **combined_baseline})
++    tests.compare(wpt, combined_baseline, runs['candidate'])
+     state['paired_preservation_passed'] = True
+     state['baseline_reused'] = True
+ except BaseException as error:

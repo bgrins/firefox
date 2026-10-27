@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><title>Integer offset size conversion</title><body><script>
+const rows=[];
+for (const axis of ["x","y"]) for (const base of [16,8388600]) for (const extra of [0,9]) {
+ const host=document.createElement("div"), target=document.createElement("div");
+ host.style.cssText="position:fixed;left:0;top:0;width:100px;height:100px;margin:0;border:0;padding:0;transform:none;zoom:1;direction:ltr;writing-mode:horizontal-tb";
+ target.style.cssText="position:absolute;left:0;top:0;width:4px;height:4px;margin:0;border:0;padding:0;box-sizing:content-box;transform:none;zoom:1";
+ const dimension=axis==="x"?"width":"height", padding=axis==="x"?"paddingRight":"paddingBottom", observer=axis==="x"?"offsetWidth":"offsetHeight";
+ target.style[dimension]=`${base}px`; target.style[padding]=`${extra}px`;
+ host.append(target); document.body.append(host);
+ try {
+  const read=()=>{ const style=getComputedStyle(target), rect=target.getBoundingClientRect(), h=host.getBoundingClientRect();
+   return {offset:target[observer], content:parseFloat(style[dimension]), padding:parseFloat(style[padding]), parentMatches:target.offsetParent===host,
+    rect:[rect.x,rect.y,rect.width,rect.height],hostRect:[h.x,h.y,h.width,h.height],boxes:target.getClientRects().length,
+    position:style.position,boxSizing:style.boxSizing,transform:style.transform,zoom:style.zoom}; };
+  const first=read(),repeat=read(); target.style[padding]="0px"; const recovery=read(); target.style[padding]=`${extra}px`; const restored=read();
+  rows.push({axis,base,extra,first,repeat,recovery,restored});
+ } finally {host.remove();}
+}
+fetch("/result",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({compatMode:document.compatMode,rows})});
+</script>

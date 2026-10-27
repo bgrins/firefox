@@ -1,0 +1,53 @@
+--- scroll-client-proposal-v1/probe.html
++++ client-precision-proposal-v1/probe.html
+@@ -1,6 +1,6 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Scroll and client integer dimensions</title>
++<title>Client integer dimensions at large exact sizes</title>
+ <style>
+ html, body { margin: 0; padding: 0; }
+ .host {
+@@ -31,10 +31,10 @@
+   transform: none;
+   zoom: 1;
+ }
+-.host.large.x > .target { inline-size: 8388600px; }
+-.host.large.y > .target { block-size: 8388600px; }
+-.host.extra.x > .target { padding-inline-end: 9px; }
+-.host.extra.y > .target { padding-block-end: 9px; }
++.host.large.x > .target { inline-size: 16777200px; }
++.host.large.y > .target { block-size: 16777200px; }
++.host.extra.x > .target { padding-inline-end: 17px; }
++.host.extra.y > .target { padding-block-end: 17px; }
+ </style>
+ <body>
+ <pre id="output"></pre>
+@@ -61,8 +61,8 @@
+   host.append(target);
+   document.body.append(host);
+   const read = () => {
++    const clientSize = [target.clientWidth, target.clientHeight];
+     const scrollSize = [target.scrollWidth, target.scrollHeight];
+-    const clientSize = [target.clientWidth, target.clientHeight];
+     const clientOrigin = [target.clientLeft, target.clientTop];
+     return {
+       scrollSize, clientSize, clientOrigin,
+@@ -91,14 +91,14 @@
+ }
+ const rows = [];
+ for (const axis of ["x", "y"]) {
+-  for (const base of [16, 8388600]) {
+-    for (const extra of [0, 9]) {
++  for (const base of [16, 16777200]) {
++    for (const extra of [0, 17]) {
+       rows.push(sample(axis, base, extra));
+     }
+   }
+ }
+ const result = {compatMode: document.compatMode, rows};
+-window.scrollClientProbeResult = result;
++window.clientPrecisionProbeResult = result;
+ document.querySelector("#output").textContent = JSON.stringify(result, null, 2);
+ if (location.protocol === "http:" || location.protocol === "https:") {
+   fetch("/result", {method: "POST", headers: {"Content-Type": "application/json"},

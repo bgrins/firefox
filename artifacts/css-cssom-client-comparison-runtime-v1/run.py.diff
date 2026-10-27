@@ -1,0 +1,122 @@
+--- previous/run.py
++++ client/run.py
+@@ -55,35 +55,19 @@
+ tests = load('consolidated_tests', HERE / 'tests.py')
+ wpt.HERE, wpt.CONFIG = HERE, c
+ previous = ROOT / c['epoch']
++need(c['epoch_receipt'] is not None and sha(previous / 'FILES.json') == c['required_installation_manifest_sha256'], 'unbound or wrong installed epoch')
+ authenticate(read(previous / 'FILES.json'), previous)
+ epoch, receipt = read(previous / 'STATE.json'), read(previous / 'ROOT-FINAL-CHECK.json')
+-def require_epoch(previous, epoch, receipt):
+-    need(c['epoch_receipt'] is not None, 'unbound epoch receipt')
+-    need(epoch['status'] == 'terminal' and epoch['restored'] is True
+-         and epoch['restore_build_exit'] == 0 and epoch['recovery_errors'] == []
+-         and epoch['lint_exit'] == 0 and 'failure' not in epoch
+-         and epoch['restored_paths'] == c['sources']
+-         and set(epoch['phases']) == {'candidate'}
+-         and epoch['phases']['candidate']['build_exit'] == 0
+-         and epoch['paired_preservation_passed'] is True, 'successful candidate restoration gate')
+-    need(receipt == c['epoch_receipt']
+-         and receipt['status'] == 'COMPARISON_PASSED_RESTORATION_VERIFIED'
+-         and receipt['baseline_reanalysis_files_sha256'] == sha(reanalysis / 'FILES.json'), 'exact root restoration receipt')
+-    need(receipt['state_sha256'] == sha(previous / 'STATE.json')
+-         and receipt['final_sha256'] == sha(previous / 'FINAL.json')
+-         and receipt['restored_binary_pins'] == epoch['restored_binary_pins'], 'root restoration joins')
+-    final = read(previous / 'FINAL.json')
+-    need(read(previous / 'BEFORE.json') == final, 'restored snapshot')
+-    need(read(previous / 'FINAL-PINS.json') == {**read(previous / 'RESOURCES.json'),
+-         **final['sources'], **epoch['restored_binary_pins']}, 'restored epoch role map')
+-require_epoch(previous, epoch, receipt)
++need(receipt == c['epoch_receipt'], 'exact installed root receipt')
++epoch_gate = load('installed_epoch_gate', HERE / 'epoch_gate.py')
++prior_final, prior_pins, installed_config, installation = epoch_gate.installed_epoch(previous)
+ bindings.index_state(wpt)
+ before = wpt.snapshot()
+ prior_final = read(previous / 'FINAL.json')
+ need(all(before[k] == prior_final[k] for k in before if k != 'sources')
+-     and all(before['sources'][n] == h for n, h in prior_final['sources'].items()), 'restored source epoch')
++     and all(before['sources'][n] == h for n, h in prior_final['sources'].items()), 'installed112 source epoch')
+ need(before['head'] == c['head'] and before['sources'] == c['source_pins'], 'working source roles')
+-need(wpt.pins(wpt.BINARIES) == epoch['restored_binary_pins'], 'restored binaries')
++need(wpt.pins(wpt.BINARIES) == epoch['installed_binary_pins'], 'installed binaries')
+ prior_pins = read(previous / 'FINAL-PINS.json')
+ need(wpt.pins(list(prior_pins)) == prior_pins, 'complete prior source/resource/binary epoch')
+ need(all(prior_pins[n] == h for n, h in c['existing_test_pins'].items()), 'installed test epoch transfer')
+@@ -92,7 +76,7 @@
+ resources = read(HERE / 'RESOURCES.json')
+ need(wpt.pins(list(resources)) == resources, 'initial resources')
+ owned_test = next(iter(c['install']))
+-need(len(c['install']) == 1 and len(c['tests']) == 13 and len(c['baseline_tests']) == 5 and len(c['candidate_sources']) == 1, 'comparison scope')
++need(len(c['install']) == 1 and len(c['tests']) == 21 and len(c['baseline_tests']) == 8 and len(c['candidate_sources']) == 2, 'comparison scope')
+ need(not (ROOT / owned_test).exists() and not (ROOT / owned_test).is_symlink()
+      and not wpt.git('ls-files', '--', owned_test), 'test absent/untracked')
+ fixture = (HERE / c['install'][owned_test]).read_bytes()
+@@ -107,12 +91,15 @@
+     return wpt.git('ls-files', '--others', '--exclude-standard', '--', 'layout', 'dom', 'servo', 'mfbt').decode().splitlines()
+ def existing_tests():
+     need(wpt.pins(c['existing_tests']) == c['existing_test_pins'], 'read-only existing tests')
++    installed_test = ROOT / installation['owned_test']
++    info = installed_test.lstat()
++    need(stat.S_ISREG(info.st_mode) and [info.st_dev, info.st_ino] == installation['owned_test_identity'], 'installed32 inode changed')
+     need(wpt.git('ls-files', '--', *c['existing_tests']).decode().splitlines() == c['tracked_existing_tests'], 'existing test ownership')
+     for n, h in read(HERE / 'TEST-SOURCE-PINS.json').items():
+         need(sha(ROOT / n) == h and hashlib.sha256(wpt.git('show', c['head'] + ':' + n)).hexdigest() == h, 'comparison test HEAD binding')
+ existing_tests()
+ need(modified_native() == c['modified_native_paths'] and not untracked_native(), 'complete native roster')
+-need(len(c['sources']) == 30 and len(c['guard_sources']) == 47 and set(c['modified_native_paths']) <= set(c['sources']), 'normalization roster')
++need(len(c['sources']) == 31 and len(c['guard_sources']) == 48 and set(c['modified_native_paths']) <= set(c['sources']), 'normalization roster')
+ head = {n: wpt.git('show', c['head'] + ':' + n) for n in c['guard_sources']}
+ need({n: hashlib.sha256(b).hexdigest() for n, b in head.items()} == c['head_pins'], 'HEAD bodies')
+ original = {n: (ROOT / n).read_bytes() for n in c['sources']}
+@@ -134,35 +121,17 @@
+     authenticate(payloads, HERE)
+     authenticate(refs, ROOT)
+ 
+-baseline_gate = load('retained_baseline_gate', HERE / 'baseline_gate.py')
+-old_runtime = ROOT / c['retained_baseline']
+-authenticate(read(old_runtime / 'FILES.json'), old_runtime)
+-old_config = read(old_runtime / 'CONFIG.json')
+-old_config['epoch'] = c['retained_baseline']
+-old_resources = read(old_runtime / 'RESOURCES.json')
+-old_fixture_path, old_fixture_copy = next(iter(old_config['install'].items()))
+-try:
+-    wpt.CONFIG = old_config
+-    retained_baseline = baseline_gate.validate(wpt, old_tests, old_runtime, reanalysis,
+-        read(old_runtime / 'STATE.json'), old_resources, sha(old_runtime / old_fixture_copy), sha)
+-finally:
+-    wpt.CONFIG = c
+-need(old_config['head_pins'] == c['head_pins'] and old_config['baseline_pins'] == c['baseline_pins'],
+-     'retained baseline native role identity')
+-old_phase_resources = {**old_resources, **old_config['head_pins'], **old_config['baseline_pins']}
+-need(all(phase_resources('baseline').get(n) == h for n, h in old_phase_resources.items()
+-         if n != old_fixture_path), 'retained baseline source/resource/metadata transfer')
+-retained_controls = [row for row in retained_baseline['rows'] if row['test'] in c['expected_subtests']]
+-need(len(retained_controls) == 80 and len({(r['test'], r['subtest']) for r in retained_controls}) == 80,
+-     'retained eighty controls')
++reuse = load('retained141_gate', HERE / 'reuse.py')
++retained_baseline = reuse.validate(wpt, load, sha, authenticate, phase_resources('baseline'))
++retained_rows = retained_baseline['rows']
+ 
+ for n, data in original.items():
+     p = HERE / 'original' / n
+     p.parent.mkdir(parents=True, exist_ok=True)
+     p.write_bytes(data)
+ wpt.save('BEFORE.json', before)
+-wpt.save('ORIGINAL-BINARIES.json', epoch['restored_binary_pins'])
+-state = {'status': 'starting', 'phases': {}, 'baseline_reuse': {'runtime': c['retained_baseline'], 'reanalysis': c['reanalysis'], 'run_sha256': sha(old_runtime / 'wpt-baseline/RUN.json'), 'original_complete': False, 'revalidated_complete': True}, 'accepted_native_repair': False, 'pending_acceptance_gates': c['pending_acceptance_gates']}
++wpt.save('ORIGINAL-BINARIES.json', epoch['installed_binary_pins'])
++state = {'status': 'starting', 'phases': {}, 'baseline_reuse': {k:v for k,v in retained_baseline.items() if k != 'rows'}, 'accepted_native_repair': False, 'original_source_role': 'installed112 plus preserved mixed prototypes', 'pending_acceptance_gates': c['pending_acceptance_gates']}
+ changed = False
+ owned_identity = None
+ errors = []
+@@ -248,8 +217,8 @@
+         tests.require_phase(wpt, phase, runs[phase])
+         verify_phase(phase)
+         wpt.save('STATE.json', state)
+-    combined_baseline = {'rows': runs['baseline']['rows'] + retained_controls}
+-    wpt.save('COMBINED-BASELINE.json', {'new_run': 'wpt-baseline/RUN.json', 'retained_runtime': c['retained_baseline'],
++    combined_baseline = {'rows': runs['baseline']['rows'] + retained_rows}
++    wpt.save('COMBINED-BASELINE.json', {'new_run': 'wpt-baseline/RUN.json', 'retained_runtime': c['retained_combined'],
+         'retained_reanalysis': c['reanalysis'], **combined_baseline})
+     tests.compare(wpt, combined_baseline, runs['candidate'])
+     state['paired_preservation_passed'] = True

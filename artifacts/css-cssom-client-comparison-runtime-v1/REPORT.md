@@ -1,0 +1,5 @@
+# Client and offset/scroll precision comparison
+
+The fresh 29-case baseline has23 PASS/6 FAIL; authenticated retained141 gives a combined152 PASS/18 FAIL. The candidate has162 PASS/8 FAIL across170 cases and21 files. All40 precision cases pass, exactly10 main failures are repaired, and all130 control outcomes and failure diagnostics are unchanged. Four retained failures are the fresh scrollbar intermittent outcomes; four are historical controls. Both phase builds, WPT lifecycle/cleanup and restoration build pass. This is the documented historical HEAD90 role with native102/103 reversed, not clean-upstream runtime validation.
+
+All31 original source bodies and48 guards are restored. Root rechecked336 resource/source/binary pins, the925 staged paths, HEAD, native diff, installed112cpp and old32 WPT body/inode. Only the owned new8 WPT was removed. The controller completed with exit0. Independent terminal review and expanded scoped acceptance are separate gates. The build logs retain pre-existing export-monitor diagnostics despite successful build exits.

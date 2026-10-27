@@ -1,0 +1,17 @@
+Inert build-free runner for the existing eight-case scroll/client diagnostic. The HTML and validator are byte-identical to css-cssom-scroll-client-proposal-v1, FILES346112f71595cf02c34c415f18967d25c2e3db9a75dc3eaaaa361c22ce6b9a5b. No browser or native operation has run from this draft.
+
+After the active candidate campaign is terminal and independently restored, root can copy this directory to a fresh execution directory, fill CONFIG.epoch, epoch_manifest_sha256 and root_receipt_sha256 from the actual sealed restoration, set ready_for_execution true, and regenerate DRAFT-FILES.json for that copy. Preserve this inert draft. Then run:
+
+`python3 -I -S artifacts/css-cssom-scroll-client-browser-v1/run.py ACTUAL_EXECUTION_DRAFT_SHA`
+
+The command needs the same permitted localhost/browser/process-inspection environment used by the prior position/size captures. A sandbox failure is not a test result; retain its failure/cleanup receipt. It may require root's existing approved execution context. Do not overlap another browser/native build or change HEAD/index before this capture completes.
+
+The initial gate requires authenticated terminal restoration, zero restore-build exit/recovery errors, BEFORE=FINAL, matching root receipt and actual rebuilt binary hashes. It reconstructs the complete resource/source/binary role map, checks live bytes and modified native roster, and verifies the exact925 staged payloads read-only. No source, index, test-tree or build write is performed. This observes the restored mixed working build, including its accepted overlays and retained prototypes; it is not a clean-HEAD or active candidate-phase measurement.
+
+The reused capture helper serves unchanged HTML over owned localhost, starts one headless fresh-profile Firefox process group, limits result POST to1MB and collection to45seconds, and retains raw JSON. Its existing process identity/session checks, TERM/KILL cleanup, server shutdown and profile removal remain unchanged. Success requires terminal cleanup, no live owned group, removed profile and no cleanup errors. Its scope is the original process group/session, not escaped processes. If ownership/cleanup cannot be established, the run fails and retains evidence; it does not declare success or blindly remove a potentially live profile.
+
+Calibration uses exact DOM rectangles, content/padding/border/margin styles, host identity/geometry and viewport/scroll state. No offsetWidth/Height/Left/Top, scroll size or client size calibrates geometry. offsetParent is used only as an identity check. Both first/repeat and restored measurements must be stable; all8 rows and32 phases must calibrate. A calibration mismatch is retained as a failed measurement, never assigned a tolerance or counted as a scroll/client defect.
+
+SUMMARY.json retains each phase's raw observer values, expected geometry and failed calibration predicates, plus PASS/FAIL/UNCALIBRATED counts for scroll dimensions, client dimensions and client origins. The runner does not require6scroll matches/8client matches or any predicted outcome; those are research hypotheses. Successful capture is diagnostic evidence, not acceptance of a new repair. Final source/resource/binary/index checks run even when validation fails.
+
+Static check: `python3 -I -S check.py`. It compiles Python syntax, authenticates imports, verifies exact fixture/validator transfer and replays the proposal's synthetic validation cases without starting Node, Firefox or a native compiler. No new build target directory is created.
