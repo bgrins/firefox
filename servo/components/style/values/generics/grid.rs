@@ -8,6 +8,7 @@
 use crate::derives::*;
 use crate::parser::{Parse, ParserContext};
 use crate::typed_om::{NumericType, NumericValue, ToTyped, TypedValue, UnitValue};
+use crate::values::computed::{Context, ToComputedValue};
 use crate::values::specified;
 use crate::values::{CSSFloat, CustomIdent};
 use crate::{One, Zero};
@@ -863,22 +864,67 @@ impl<I: ToCss> ToCss for LineNameListValue<I> {
     PartialEq,
     SpecifiedValueInfo,
     ToAnimatedValue,
-    ToComputedValue,
     ToResolvedValue,
     ToShmem,
 )]
 #[repr(C)]
 pub struct GenericLineNameList<I> {
-    /// The pre-computed length of line_names, without the length of repeat(auto-fill, ...).
-    /// Saturates at usize::MAX.
-    // We precomputed this at parsing time, so we can avoid an extra loop when expanding
-    // repeat(auto-fill).
+    /// Saturated computed length excluding auto-fill; zero in specified values.
     pub expanded_line_names_length: usize,
     /// The line name list.
     pub line_names: crate::OwnedSlice<GenericLineNameListValue<I>>,
 }
 
 pub use self::GenericLineNameList as LineNameList;
+
+impl LineNameListValue<i32> {
+    fn line_names_length(&self) -> usize {
+        match self {
+            Self::LineNames(..) => 1,
+            Self::Repeat(r) => match r.count {
+                RepeatCount::Number(count) => {
+                    debug_assert!(count >= 1);
+                    r.line_names.len().saturating_mul(count as usize)
+                },
+                _ => 0,
+            },
+        }
+    }
+}
+
+impl ToComputedValue for LineNameList<specified::Integer> {
+    type ComputedValue = LineNameList<i32>;
+
+    fn to_computed_value(&self, context: &Context) -> Self::ComputedValue {
+        let line_names = self.line_names.to_computed_value(context);
+        let expanded_line_names_length = line_names.iter().fold(0usize, |length, value| {
+            length.saturating_add(value.line_names_length())
+        });
+        LineNameList {
+            expanded_line_names_length,
+            line_names,
+        }
+    }
+
+    fn from_computed_value(computed: &Self::ComputedValue) -> Self {
+        Self {
+            expanded_line_names_length: 0,
+            line_names: ToComputedValue::from_computed_value(&computed.line_names),
+        }
+    }
+}
+
+impl ToComputedValue for LineNameList<i32> {
+    type ComputedValue = Self;
+
+    fn to_computed_value(&self, _: &Context) -> Self {
+        self.clone()
+    }
+
+    fn from_computed_value(computed: &Self) -> Self {
+        computed.clone()
+    }
+}
 
 impl<I: ToCss> ToCss for LineNameList<I> {
     fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result
@@ -928,7 +974,7 @@ pub enum GenericGridTemplateComponent<L, I> {
     /// TODO: Support animations for this after subgrid is addressed in [grid-2] spec.
     #[animation(error)]
     #[typed(skip)]
-    Subgrid(Box<GenericLineNameList<I>>),
+    Subgrid(#[compute(field_bound)] Box<GenericLineNameList<I>>),
 }
 
 pub use self::GenericGridTemplateComponent as GridTemplateComponent;

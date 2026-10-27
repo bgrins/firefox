@@ -306,12 +306,6 @@ impl Parse for NameRepeat<Integer> {
         input.parse_nested_block(|i| {
             let count = RepeatCount::parse(context, i)?;
 
-            // TODO(Bug 2037744) - Enable calc()-expressions that can only be resolved at
-            // computed value time (due to relative lengths, sibling-index(), etc.).
-            if matches!(count, RepeatCount::Number(ref n) if n.resolve().is_none()) {
-                return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
-            }
-
             // NameRepeat doesn't accept `auto-fit`
             // https://drafts.csswg.org/css-grid/#typedef-name-repeat
             if matches!(count, RepeatCount::AutoFit) {
@@ -343,35 +337,11 @@ impl Parse for LineNameListValue<Integer> {
     }
 }
 
-impl LineNameListValue<Integer> {
-    /// Returns the length of `<line-names>` after expanding repeat(N, ...). This returns zero for
-    /// repeat(auto-fill, ...).
-    #[inline]
-    pub fn line_names_length(&self) -> usize {
-        match *self {
-            Self::LineNames(..) => 1,
-            Self::Repeat(ref r) => {
-                match r.count {
-                    // Note: RepeatCount is always >= 1. Unresolvable calc
-                    // expressions were rejected at parse-time.
-                    RepeatCount::Number(ref v) => {
-                        r.line_names
-                            .len()
-                            .saturating_mul(v.resolve().unwrap() as usize)
-                    },
-                    _ => 0,
-                }
-            },
-        }
-    }
-}
-
 impl Parse for LineNameList<Integer> {
     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
         input.expect_ident_matching("subgrid")?;
 
         let mut auto_repeat = false;
-        let mut expanded_line_names_length = 0usize;
         let mut line_names = vec![];
         while let Ok(value) = input.try_parse(|i| LineNameListValue::parse(context, i)) {
             match value {
@@ -387,13 +357,11 @@ impl Parse for LineNameList<Integer> {
                 _ => (),
             };
 
-            expanded_line_names_length =
-                expanded_line_names_length.saturating_add(value.line_names_length());
             line_names.push(value);
         }
 
         Ok(LineNameList {
-            expanded_line_names_length,
+            expanded_line_names_length: 0,
             line_names: line_names.into(),
         })
     }
