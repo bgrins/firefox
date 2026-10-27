@@ -870,6 +870,7 @@ impl<I: ToCss> ToCss for LineNameListValue<I> {
 #[repr(C)]
 pub struct GenericLineNameList<I> {
     /// The pre-computed length of line_names, without the length of repeat(auto-fill, ...).
+    /// Saturates at usize::MAX.
     // We precomputed this at parsing time, so we can avoid an extra loop when expanding
     // repeat(auto-fill).
     pub expanded_line_names_length: usize,

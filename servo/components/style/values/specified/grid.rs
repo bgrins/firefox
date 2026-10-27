@@ -355,7 +355,9 @@ impl LineNameListValue<Integer> {
                     // Note: RepeatCount is always >= 1. Unresolvable calc
                     // expressions were rejected at parse-time.
                     RepeatCount::Number(ref v) => {
-                        r.line_names.len() * v.resolve().unwrap() as usize
+                        r.line_names
+                            .len()
+                            .saturating_mul(v.resolve().unwrap() as usize)
                     },
                     _ => 0,
                 }
@@ -369,7 +371,7 @@ impl Parse for LineNameList<Integer> {
         input.expect_ident_matching("subgrid")?;
 
         let mut auto_repeat = false;
-        let mut expanded_line_names_length = 0;
+        let mut expanded_line_names_length = 0usize;
         let mut line_names = vec![];
         while let Ok(value) = input.try_parse(|i| LineNameListValue::parse(context, i)) {
             match value {
@@ -385,7 +387,8 @@ impl Parse for LineNameList<Integer> {
                 _ => (),
             };
 
-            expanded_line_names_length += value.line_names_length();
+            expanded_line_names_length =
+                expanded_line_names_length.saturating_add(value.line_names_length());
             line_names.push(value);
         }
 

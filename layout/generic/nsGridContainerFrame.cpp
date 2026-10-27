@@ -2098,13 +2098,12 @@ class MOZ_STACK_CLASS nsGridContainerFrame::LineNameMap {
                  "RepeatCount of subgrid is number or auto-fill");
 
       const size_t fillLen = repeatLineNames.Length();
-      const int32_t extraAutoFillLineCount =
-          mClampMaxLine -
-          (int32_t)aStyleLineNameList.expanded_line_names_length;
+      const size_t maxLine = std::max<int32_t>(0, mClampMaxLine);
+      const size_t fixedLineCount = aStyleLineNameList.expanded_line_names_length;
       // Maximum possible number of repeat name lists.
       // Note: |expanded_line_names_length| doesn't include auto repeat.
       const uint32_t possibleRepeatLength =
-          std::max<int32_t>(0, extraAutoFillLineCount);
+          maxLine > fixedLineCount ? uint32_t(maxLine - fixedLineCount) : 0;
       const uint32_t repeatRemainder = possibleRepeatLength % fillLen;
 
       // Note: Expand 'auto-fill' names for subgrid for now since
