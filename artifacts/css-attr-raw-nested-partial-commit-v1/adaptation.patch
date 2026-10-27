@@ -1,0 +1,98 @@
+--- used-fallback-partial-v2/check.py
++++ raw-nested-partial-v1/check.py
+@@ -15,10 +15,14 @@
+ 
+ ROOT = Path(__file__).resolve().parents[2]
+ HERE = Path(__file__).resolve().parent
+-PROPOSAL = ROOT / 'artifacts/css-attr-non-type-fallback-repair-v3'
+-PARENT = '4ebfb9861c95d33290f5fb472fddd78de241d043'
+-WPT = 'testing/web-platform/tests/css/css-values/attr-non-type-used-fallback-cycle.html'
+-WPT_SHA = '6f966f427d1a6884c0a666e173333d62a26b19ee779dcd70f74b4617d2dbd5a3'
++PROPOSAL = ROOT / 'artifacts/css-attr-raw-nested-repair-v1'
++PARENT = 'cc636a8068e3a8a49b5643d065650d675d0a4e76'
++PREREQUISITE = 'aa3f0588538800300df20a2f7de40ce8ac2ffec1'
++CASCADE = 'servo/components/style/properties/cascade.rs'
++HELPER = 'servo/components/style/custom_properties.rs'
++EXISTING_WPT = 'testing/web-platform/tests/css/css-values/attr-cycle.html'
++WPT = 'testing/web-platform/tests/css/css-values/attr-raw-nested-cycle.html'
++WPT_SHA = '1bdb97be472700e499e7abc27bf38a7249fbcd14d6b45a366ba5500fb3f7bf46'
+ SIGNERS = 'artifacts/css-local-signing-20261027-v1/allowed-signers'
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+@@ -80,13 +84,24 @@
+ def staged_plan(env, parent):
+     assert git('rev-parse', 'HEAD').decode().strip() == parent
+     assert not git('diff', '--cached', '--name-only')
+-    assert sha(PROPOSAL / 'FILES.json') == '411feb02715ecbc2636fe40fe72b76de330fd535273c49f0581eddc33dc856b1'
++    assert sha(PROPOSAL / 'FILES.json') == '0f3b2b6d970fc0a5ffca89190d97726b8eacdd121f574b14a2b5e735a1828866'
+     manifest = read(PROPOSAL / 'FILES.json')
+     for name, pin in manifest.get('files', manifest).items():
+         assert sha(PROPOSAL / name) == (pin['sha256'] if isinstance(pin, dict) else pin), name
+-    source = read(PROPOSAL / 'SOURCE-PINS.json')['paths']
++    base = read(PROPOSAL / 'BASE.json')
++    git('merge-base', '--is-ancestor', PREREQUISITE, parent)
++    assert digest(git('show', parent + ':' + HELPER)) == base['head_helper_sha256']
++    source = {}
++    for name in (CASCADE, EXISTING_WPT):
++        committed_base = 'head-base' if name == CASCADE else 'base'
++        committed_candidate = 'head-candidate' if name == CASCADE else 'candidate'
++        source[name] = {
++            'head_sha256': sha(PROPOSAL / committed_base / name),
++            'candidate_head_sha256': sha(PROPOSAL / committed_candidate / name),
++            'candidate_live_sha256': sha(PROPOSAL / 'candidate' / name),
++        }
+     paths = sorted([*source, WPT])
+-    patch = PROPOSAL / 'fix-head.patch'
++    patch = PROPOSAL / 'fix.patch'
+     git('apply', '--cached', '--check', str(patch), env=env)
+     git('apply', '--cached', str(patch), env=env)
+     assert git('diff', '--cached', '--name-only', parent, env=env).decode().splitlines() == paths
+@@ -105,7 +120,10 @@
+             assert not original, 'Fixture must be new at the supplied parent'
+     return {'parent': parent, 'tree': git('write-tree', env=env).decode().strip(),
+             'paths': paths, 'blobs': blobs, 'patch_sha256': sha(patch),
+-            'source_pins': source, 'expected_index_flags': flags(env),
++            'source_pins': source, 'prerequisite_commit': PREREQUISITE,
++            'prerequisite_helper_head_sha256': base['head_helper_sha256'],
++            'prerequisite_helper_live_sha256': base['helper_sha256'],
++            'expected_index_flags': flags(env),
+             'expected_index_entries': digest(git('ls-files', '--stage', '-z', env=env)),
+             'component_pins': {p: sha(ROOT / p) for p in [*HELPERS, SIGNERS]}}, \
+         git('diff', '--cached', '--binary', '--full-index', parent, env=env)
+@@ -136,8 +154,8 @@
+         nested_flags = flags(cwd=ROOT / 'artifacts/css-spec-lean')
+         with isolated_index() as env:
+             plan, patch = staged_plan(env, parent)
+-            git('apply', '--cached', '--reverse', '--check', str(PROPOSAL / 'fix-head.patch'), env=env)
+-            git('apply', '--cached', '--reverse', str(PROPOSAL / 'fix-head.patch'), env=env)
++            git('apply', '--cached', '--reverse', '--check', str(PROPOSAL / 'fix.patch'), env=env)
++            git('apply', '--cached', '--reverse', str(PROPOSAL / 'fix.patch'), env=env)
+             assert git('write-tree', env=env).decode().strip() == git('rev-parse', parent + '^{tree}').decode().strip()
+         assert h.index_state(ROOT, ENV) == before and flags() == before_flags
+         assert h.index_state(ROOT / 'artifacts/css-spec-lean', ENV) == nested
+@@ -158,7 +176,7 @@
+     plan = read(plan_directory / 'PLAN.json')
+     for path, pin in plan['component_pins'].items():
+         assert sha(ROOT / path) == pin, path
+-    assert sha(PROPOSAL / 'fix-head.patch') == plan['patch_sha256']
++    assert sha(PROPOSAL / 'fix.patch') == plan['patch_sha256']
+     destination = Path(sys.argv[2]).resolve()
+     if mode == 'bind':
+         epoch_path = Path(sys.argv[3]).resolve()
+@@ -170,6 +188,7 @@
+         for name, pin in plan['source_pins'].items():
+             assert sha(ROOT / name) == pin['candidate_live_sha256']
+         assert sha(ROOT / WPT) == WPT_SHA
++        assert sha(ROOT / HELPER) == plan['prerequisite_helper_live_sha256']
+         nested_flags = flags(cwd=ROOT / 'artifacts/css-spec-lean')
+         with isolated_index() as env:
+             actual, patch = staged_plan(env, plan['parent'])
+@@ -177,7 +196,7 @@
+             assert patch == (plan_directory / 'staged.patch').read_bytes()
+             remaining = git('diff', '--binary', '--full-index', env=env)
+             modified = git('diff', '--name-only', env=env).decode().splitlines()
+-        working = {p: h.fingerprint(ROOT, p) for p in set(epoch['modified_native_paths']) | set(plan['paths'])}
++        working = {p: h.fingerprint(ROOT, p) for p in set(epoch['modified_native_paths']) | set(plan['paths']) | {HELPER}}
+         assert a.verify_current(h, ROOT, ENV, epoch) == before
+         assert sha(epoch_path) == sys.argv[4]
+         assert flags(cwd=ROOT / 'artifacts/css-spec-lean') == nested_flags

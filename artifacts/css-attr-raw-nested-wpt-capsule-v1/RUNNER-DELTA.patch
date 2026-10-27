@@ -1,0 +1,210 @@
+--- predecessor/run.py
++++ capsule/run.py
+@@ -58,10 +58,16 @@
+ 
+ 
+ def require_compiled_transition(epoch, role):
+-    transition = epoch.get("attribute_fallback_transition")
+-    if role == "candidate" or transition is not None:
++    transition = epoch.get("raw_attribute_transition")
++    if role == "original" and transition is None:
++        prior = epoch.get("attribute_fallback_transition")
++        need(isinstance(prior, dict) and prior.get("role") == "candidate" and
++             prior.get("compiled") is True and prior.get("accepted") is True,
++             "initial original requires accepted compiled used-fallback candidate")
++    else:
+         need(isinstance(transition, dict) and transition.get("role") == role and
+-             transition.get("compiled") is True, "phase requires matching successful native compilation")
++             transition.get("compiled") is True,
++             "phase requires matching successful raw-attribute native compilation")
+ 
+ 
+ def application_target(path):
+@@ -129,7 +135,7 @@
+     out = Path(sys.argv[5])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "output must be absent")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-attr-non-type-fallback-wpt-runtime-"), "owned artifact output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-attr-raw-nested-wpt-runtime-"), "owned artifact output")
+     need(all(not os.environ.get(k) for k in policy["forbidden_environment"]), "unexpected build/git/profile environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+@@ -146,6 +152,7 @@
+     source_pins = read(HERE / "SOURCE-PINS.json")
+     resource_pins = {item["origin"]: item.get("sha256") for item in source_pins.values()}
+     fingerprint_resource = lambda name: resource_fingerprint(h, ROOT, name, policy["application_ini"])
++    resource_pins.update(policy["live_oracle_sources"])
+     resource_pins.update({name: fingerprint_resource(name) for name in policy["runtime_inputs"]})
+     for directory in policy["profile_directories"]:
+         for path in sorted((ROOT / directory).rglob("*")):
+@@ -197,7 +204,7 @@
+               for p in top.rglob("*") if p.is_file() and "tools" not in p.relative_to(top).parts}
+     copied["wptrunner.ini"] = sha(config_path)
+     save(out / "OWNED-INPUT-PINS.json", copied)
+-    tmp = Path(tempfile.mkdtemp(prefix="css-attr-fallback-wpt-", dir="/private/tmp"))
++    tmp = Path(tempfile.mkdtemp(prefix="css-attr-raw-wpt-", dir="/private/tmp"))
+     tmp_identity = (tmp.stat().st_dev, tmp.stat().st_ino)
+     env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+     raw = out / "raw.jsonl"
+@@ -279,7 +286,7 @@
+     result = {"exit": code, "execution_error": error, "preservation_error": post_error,
+               "phase": phase, "observation_gate_passed": bool(passed),
+               "comparison_gate_passed": bool(passed and role == "candidate"),
+-              "native_fix_acceptance": False, "oracle_caveat_retained": True}
++              "native_fix_acceptance": False, "explicit_corrected_oracle_in_both_phases": True}
+     save(out / "RESULT.json", result)
+     print(json.dumps(result, indent=2))
+     return 0 if passed else 1
+--- predecessor/assess.py
++++ capsule/assess.py
+@@ -23,7 +23,7 @@
+ 
+ def assess(events, code, policy, checks, original=None, run_binding=None):
+     tests = policy["tests"]
+-    fixture = policy["candidate_test"]
++    targets = policy["target_subtests"]
+     rows = [e for e in events if e.get("action") == "test_status"]
+     starts = [e for e in events if e.get("action") == "test_start"]
+     ends = [e for e in events if e.get("action") == "test_end"]
+@@ -50,9 +50,10 @@
+         allowed = ("OK",) if tests.get(end.get("test")) == "testharness" else ("PASS", "FAIL")
+         if end.get("status") not in allowed:
+             errors.append("non-completed test end: " + str(end.get("test")))
+-    candidate = [r for r in rows if r.get("test") == fixture]
+-    if Counter(r.get("subtest") for r in candidate) != Counter(policy["candidate_subtests"]):
+-        errors.append("candidate fixture identities/cardinality differ")
++    candidate = [r for r in rows if r.get("test") in targets]
++    for test, expected in dict(policy["regression_subtests"], **targets).items():
++        if Counter(r.get("subtest") for r in rows if r.get("test") == test) != Counter(expected):
++            errors.append("fixture identities/cardinality differ: " + test)
+     run_info = suites[0].get("run_info") if len(suites) == 1 else None
+     if not isinstance(run_info, dict) or not {"os", "debug"} <= set(run_info):
+         errors.append("missing platform/build run_info")
+@@ -66,7 +67,7 @@
+     unexpected = [e for e in rows + ends
+                   if e["status"] != e.get("expected", e["status"])
+                   and e["status"] not in e.get("known_intermittent", [])]
+-    regression = [signature(e) for e in rows + ends if e.get("test") != fixture]
++    regression = [signature(e) for e in rows + ends if e.get("test") not in targets]
+     regression.sort(key=lambda e: (e["test"], e["kind"], e["subtest"] or ""))
+     comparison_errors = []
+     if original is not None:
+@@ -85,7 +86,7 @@
+             if current_stable != original_stable:
+                 comparison_errors.append("run_info changed outside the independently bound BuildID")
+         if any(r.get("status") != "PASS" for r in candidate):
+-            comparison_errors.append("candidate fixture still fails")
++            comparison_errors.append("candidate target fixture still fails")
+     return {"complete": not errors, "errors": errors, "run_info": run_info, "run_binding": run_binding,
+             "observed_subtest_count": len(rows), "rows": rows, "starts": starts, "ends": ends,
+             "per_test": {test: {"type": kind,
+@@ -95,5 +96,5 @@
+             "unexpected": unexpected, "infrastructure_faults": faults,
+             "regression_signature": regression, "comparison_errors": comparison_errors,
+             "comparison_gate_passed": original is not None and not errors and not comparison_errors,
+-            "subtest_cardinality_policy": "Exact candidate identities; existing testharness identities observed in original and required identical in candidate",
+-            "oracle_caveat": "Existing attr-cycle oracle and all metadata preserved; no current-ED conformity claim for raw-nested row"}
++            "subtest_cardinality_policy": "Exact 66 target and 151 regression identities in both phases; regression outcome/expectation/intermittent signatures must match",
++            "oracle_caveat": "Both phases use the same explicitly corrected attr-cycle oracle and new raw-nested fixture; two historical oracle changes are documented in the sealed proposal. Existing metadata is unchanged."}
+--- predecessor/test_assess.py
++++ capsule/test_assess.py
+@@ -15,8 +15,9 @@
+ parser = load("assessment", here / "assess.py")
+ policy = json.loads((here / "POLICY.json").read_text())
+ checks = load("preservation_checks", root / policy["helpers"]["checks"])
+-fixture = policy["candidate_test"]
+-regression = next(t for t, kind in policy["tests"].items() if t != fixture and kind == "testharness")
++targets = policy["target_subtests"]
++fixture = next(iter(targets))
++regression = next(t for t, kind in policy["tests"].items() if t not in targets and kind == "testharness")
+ reftest = next(t for t, kind in policy["tests"].items() if kind == "reftest")
+ binding = {"path": "/probe/application.ini", "resolved": "/probe/build/application.ini",
+            "sha256": "0" * 64, "identity": [1, 2],
+@@ -28,11 +29,11 @@
+     for name, kind in policy["tests"].items():
+         result.append({"action": "test_start", "test": name})
+         if kind == "testharness":
+-            names = policy["candidate_subtests"] if name == fixture else ["regression subtest"]
++            names = targets[name] if name in targets else policy["regression_subtests"][name]
+             for subtest in names:
+                 row = {"action": "test_status", "test": name, "subtest": subtest,
+-                       "status": candidate_status if name == fixture else "PASS"}
+-                if name == fixture and candidate_status == "FAIL":
++                       "status": candidate_status if name in targets else "PASS"}
++                if name in targets and candidate_status == "FAIL":
+                     row["expected"] = "PASS"
+                 if name == regression:
+                     row.update(status="FAIL", expected="PASS", known_intermittent=["FAIL"])
+@@ -51,7 +52,25 @@
+     assert not assessment["comparison_gate_passed"], label
+     rejected.append({"case": label, "errors": assessment["errors"],
+                      "comparison_errors": assessment["comparison_errors"]})
+-reject("missing candidate assertion", [e for e in valid if not (e.get("test") == fixture and e.get("subtest") == policy["candidate_subtests"][0])])
++for target, names in targets.items():
++    reject("missing target assertion: " + target, [e for e in valid if not (e.get("test") == target and e.get("subtest") == names[0])])
++    reject("missing complete target page: " + target, [e for e in valid if e.get("test") != target])
++    changed = copy.deepcopy(valid)
++    row = next(e for e in changed if e.get("test") == target and e.get("action") == "test_status")
++    row.update(status="FAIL", expected="PASS")
++    reject("target assertion still fails: " + target, changed, 1)
++    incomplete_original = parser.assess([e for e in events("FAIL") if e.get("test") != target], 1, policy, checks, run_binding=binding)
++    assert not incomplete_original["complete"], target
++for test in policy["regression_subtests"]:
++    changed = copy.deepcopy(valid)
++    row = next(e for e in changed if e.get("test") == test and e.get("action") == "test_status")
++    row["subtest"] += " altered"
++    reject("untouched regression identity changed: " + test, changed)
++used = "/css/css-values/attr-non-type-used-fallback-cycle.html"
++changed = copy.deepcopy(valid)
++row = next(e for e in changed if e.get("test") == used and e.get("action") == "test_status")
++row.update(status="FAIL", expected="PASS")
++reject("used-fallback regression changes", changed, 1)
+ reject("missing reftest completion", [e for e in valid if not (e.get("test") == reftest and e.get("action") == "test_end")])
+ reject("missing suite completion", valid[:-1])
+ changed = copy.deepcopy(valid)
+@@ -117,22 +136,27 @@
+ assert not parser.assess(changed_changeset, 0, policy, checks, original, binding)["comparison_gate_passed"]
+ build_checks.append("browser_changeset drift rejected")
+ runner = load("runner_without_execution", here / "run.py")
+-for epoch, role in [({}, "original"),
+-                    ({"attribute_fallback_transition": {"role": "original", "compiled": True}}, "original"),
+-                    ({"attribute_fallback_transition": {"role": "candidate", "compiled": True}}, "candidate")]:
++prior = {"attribute_fallback_transition": {"role": "candidate", "compiled": True, "accepted": True}}
++for epoch, role in [(prior, "original"),
++                    ({"raw_attribute_transition": {"role": "original", "compiled": True}}, "original"),
++                    ({"raw_attribute_transition": {"role": "candidate", "compiled": True}}, "candidate")]:
+     runner.require_compiled_transition(epoch, role)
+ phase_rejections = 0
+-for epoch, role in [({}, "candidate"),
+-                    ({"attribute_fallback_transition": {"role": "candidate", "compiled": False}}, "candidate"),
+-                    ({"attribute_fallback_transition": {"role": "original", "compiled": True}}, "candidate"),
+-                    ({"attribute_fallback_transition": {"role": "original", "compiled": False}}, "original")]:
++for epoch, role in [({}, "original"), ({}, "candidate"), (prior, "candidate"),
++                    ({"attribute_fallback_transition": {"role": "candidate", "compiled": True}}, "original"),
++                    ({"attribute_fallback_transition": {"role": "candidate", "compiled": False, "accepted": True}}, "original"),
++                    ({"attribute_fallback_transition": {"role": "original", "compiled": True, "accepted": True}}, "original"),
++                    ({"raw_attribute_transition": {"role": "candidate", "compiled": False}}, "candidate"),
++                    ({"raw_attribute_transition": {"role": "original", "compiled": True}}, "candidate"),
++                    ({"raw_attribute_transition": {"role": "original", "compiled": False}}, "original"),
++                    ({"raw_attribute_transition": {"role": "candidate", "compiled": True}}, "original")]:
+     try:
+         runner.require_compiled_transition(epoch, role)
+     except RuntimeError:
+         phase_rejections += 1
+     else:
+         raise AssertionError((epoch, role))
+-assert phase_rejections == 4
++assert phase_rejections == 10
+ print(json.dumps({"original_expected_failures_retained": True,
+                   "matching_original_candidate_passes": True, "rejected_controls": rejected,
+                   "phase_transition_positive_controls": 3,
+--- predecessor/verify_manifest.py
++++ capsule/verify_manifest.py
+@@ -21,6 +21,6 @@
+                 references[item.id] = item.references
+ assert observed == selected, (observed, selected)
+ assert sum(kind == "reftest" for kind in observed.values()) == 6
+-assert sum(kind == "testharness" for kind in observed.values()) == 8
++assert sum(kind == "testharness" for kind in observed.values()) == 9
+ print(json.dumps({"real_manifest_loader_roundtrip": True, "selected": observed,
+                   "references": references}, indent=2))
