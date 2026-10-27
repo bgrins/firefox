@@ -1,0 +1,32 @@
+--- artifacts/css-attr-raw-nested-wpt-capsule-v3/run.py
++++ artifacts/css-registered-number-wpt-capsule-v1/run.py
+@@ -58,16 +58,10 @@
+ 
+ 
+ def require_compiled_transition(epoch, role):
+-    transition = epoch.get("raw_attribute_transition")
+-    if role == "original" and transition is None:
+-        prior = epoch.get("attribute_fallback_transition")
+-        need(isinstance(prior, dict) and prior.get("role") == "candidate" and
+-             prior.get("compiled") is True and prior.get("accepted") is True,
+-             "initial original requires accepted compiled used-fallback candidate")
+-    else:
+-        need(isinstance(transition, dict) and transition.get("role") == role and
+-             transition.get("compiled") is True,
+-             "phase requires matching successful raw-attribute native compilation")
++    transition = epoch.get("registered_number_transition")
++    need(isinstance(transition, dict) and transition.get("role") == role and
++         transition.get("variant") == "committed-head" and transition.get("compiled") is True,
++         "phase requires matching successful committed-head registered-number compilation")
+ 
+ 
+ def application_target(path):
+@@ -135,7 +129,7 @@
+     out = Path(sys.argv[5])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "output must be absent")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-attr-raw-nested-wpt-runtime-"), "owned artifact output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-number-wpt-runtime-"), "owned artifact output")
+     need(all(not os.environ.get(k) for k in policy["forbidden_environment"]), "unexpected build/git/profile environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),

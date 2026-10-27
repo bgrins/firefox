@@ -1,0 +1,153 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered numbers use selected, admitted dependencies</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#property-replacement">
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#replace-a-var-function">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@property --n { syntax: "<number>"; inherits: false; initial-value: 3; }
+@property --provider { syntax: "<number>"; inherits: false; initial-value: 7; }
+</style>
+<body>
+<script>
+const cases = [
+  {"id": "probe: direct-number", "css": "--n:5", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-no-fallback", "css": "--ready:5;--n:var(--ready)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-number-fallback", "css": "--ready:5;--n:var(--ready,2)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-px-fallback", "css": "--ready:5;--n:var(--ready,1px)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-em-fallback", "css": "--ready:5;--n:var(--ready,1em)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-lh-fallback", "css": "--ready:5;--n:var(--ready,1lh)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-ex-fallback", "css": "--ready:5;--n:var(--ready,1ex)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-nested-em-fallback", "css": "--ready:5;--n:var(--ready,var(--missing,1em))", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: missing-number-fallback", "css": "--n:var(--missing,5)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: missing-em-fallback", "css": "--n:var(--missing,1em)", "parent": "", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "probe: wrong-primary-unused-em", "css": "--wrong:red;--n:var(--wrong,1em)", "parent": "", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "probe: direct-invalid-em", "css": "--n:1em", "parent": "", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "probe: inherited-ready-unused-em", "css": "--n:var(--ready,1em)", "parent": "--ready:5", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: provider-contained-unused-em", "css": "--ready:5;--middle:var(--ready,1em);--n:var(--middle)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "normative: literal-number", "css": "--n:5", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "normative: direct-invalid-length", "css": "--n:1em", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "normative: valid-primary-unused-length", "css": "--ready:5;--n:var(--ready, 1em)", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "normative: used-invalid-length-fallback", "css": "--n:var(--missing, 1em)", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "normative: wrong-type-ready-primary", "css": "--ready:red;--n:var(--ready, 1em)", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "normative: noncyclic-numeric-length-division", "css": "--n:calc(1em / 1px);font-size:20px;width:calc(var(--n) * 1px)", "expected": {"--n": "20", "font-size": "20px", "width": "20px"}, "mutation": {"set": {"font-size": "30px"}, "expected": {"--n": "30", "font-size": "30px", "width": "30px"}}, "fontSize": "20px"},
+  {"id": "normative: provider-introduced-numeric-length-division", "css": "--math:calc(1em / 1px);--n:var(--math);font-size:20px;width:calc(var(--n) * 1px)", "expected": {"--n": "20", "font-size": "20px", "width": "20px"}, "mutation": {"set": {"font-size": "30px"}, "expected": {"--n": "30", "font-size": "30px", "width": "30px"}}, "fontSize": "20px"},
+  {"id": "normative: unused-valid-numeric-math-fallback", "css": "--ready:5;--n:var(--ready, calc(1em / 1px))", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "selected-var-self-cycle", "css": "--n:var(--n,7)", "attributes": {}, "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "selected-var-mutual-cycle", "css": "--n:var(--loop,7);--loop:var(--n,9)", "attributes": {}, "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "selected-typed-attribute-property-cycle", "css": "--n:attr(data-value type(*),7)", "attributes": {"data-value": "var(--n,9)"}, "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "selected-typed-attribute-only-cycle", "css": "--n:attr(data-value type(*),7)", "attributes": {"data-value": "attr(data-value type(*))"}, "expected": {"--n": "7", "font-size": "7px"}},
+  {"id": "wrong-var-primary-does-not-retry-number-fallback", "css": "--ready:red;--n:var(--ready,7)", "attributes": {}, "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "wrong-typed-attribute-primary-does-not-retry-number-fallback", "css": "--n:attr(data-value type(*),7)", "attributes": {"data-value": "red"}, "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "typed-attribute-number-grammar-rejection-uses-fallback", "css": "--n:attr(data-value type(<number>),7)", "attributes": {"data-value": "red"}, "expected": {"--n": "7", "font-size": "7px"}},
+  {"id": "typed-attribute-ready-primary-excludes-length-fallback", "css": "--n:attr(data-value type(*),1em)", "attributes": {"data-value": "5"}, "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "css-wide: direct initial", "css": "--n:initial", "parent": "--n:11;--provider:11", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "css-wide: direct inherit", "css": "--n:inherit", "parent": "--n:11;--provider:11", "expected": {"--n": "11", "font-size": "11px"}},
+  {"id": "css-wide: direct unset", "css": "--n:unset", "parent": "--n:11;--provider:11", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "css-wide: direct inherit extra", "css": "--n:inherit extra", "parent": "--n:11;--provider:11", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "css-wide: selected-fallback initial", "css": "--n:var(--missing,initial)", "parent": "--n:11;--provider:11", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "css-wide: selected-fallback inherit", "css": "--n:var(--missing,inherit)", "parent": "--n:11;--provider:11", "expected": {"--n": "11", "font-size": "11px"}},
+  {"id": "css-wide: selected-fallback unset", "css": "--n:var(--missing,unset)", "parent": "--n:11;--provider:11", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "css-wide: selected-fallback inherit extra", "css": "--n:var(--missing,inherit extra)", "parent": "--n:11;--provider:11", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "css-wide: registered-provider initial", "css": "--provider:initial;--n:var(--provider)", "parent": "--n:11;--provider:11", "expected": {"--n": "7", "font-size": "7px"}},
+  {"id": "css-wide: registered-provider inherit", "css": "--provider:inherit;--n:var(--provider)", "parent": "--n:11;--provider:11", "expected": {"--n": "11", "font-size": "11px"}},
+  {"id": "css-wide: registered-provider unset", "css": "--provider:unset;--n:var(--provider)", "parent": "--n:11;--provider:11", "expected": {"--n": "7", "font-size": "7px"}},
+  {"id": "css-wide: registered-provider inherit extra", "css": "--provider:inherit extra;--n:var(--provider)", "parent": "--n:11;--provider:11", "expected": {"--n": "7", "font-size": "7px"}},
+];
+
+function makeTarget(t, css, parentCSS = "", attributes = {}, fontSize = "calc(var(--n)*1px)") {
+  const parent = document.createElement("div");
+  parent.style.cssText = "font-size:19px;line-height:23px;" + parentCSS;
+  const target = document.createElement("div");
+  target.style.cssText = css + ";font-size:" + fontSize;
+  for (const [name, value] of Object.entries(attributes)) {
+    target.setAttribute(name, value);
+  }
+  parent.append(target);
+  document.body.append(parent);
+  t.add_cleanup(() => parent.remove());
+  return target;
+}
+
+function check(target, expected) {
+  const computed = getComputedStyle(target);
+  for (const [property, value] of Object.entries(expected)) {
+    assert_equals(computed.getPropertyValue(property).trim(), value, property);
+  }
+}
+
+for (const item of cases) {
+  test(t => {
+    const target = makeTarget(t, item.css, item.parent, item.attributes, item.fontSize);
+    check(target, item.expected);
+    if (item.mutation) {
+      for (const [property, value] of Object.entries(item.mutation.set)) {
+        target.style.setProperty(property, value);
+      }
+      check(target, item.mutation.expected);
+    }
+  }, item.id);
+}
+
+for (const order of ["provider-first", "consumer-first"]) {
+  for (const query of ["number-first", "font-first"]) {
+    test(t => {
+      const css = order === "provider-first"
+        ? "--ready:5;--n:var(--ready,1em)"
+        : "--n:var(--ready,1em);--ready:5";
+      const target = makeTarget(t, css);
+      const computed = getComputedStyle(target);
+      if (query === "number-first") {
+        assert_equals(computed.getPropertyValue("--n").trim(), "5");
+        assert_equals(computed.fontSize, "5px");
+      } else {
+        assert_equals(computed.fontSize, "5px");
+        assert_equals(computed.getPropertyValue("--n").trim(), "5");
+      }
+    }, `Provider order: ${order}, ${query}`);
+  }
+}
+
+for (const fallback of ["7", "1em"]) {
+  test(t => {
+    const target = makeTarget(t, `--n:var(--ready,${fallback})`);
+    const missing = fallback === "7" ? "7" : "3";
+    for (const [value, expected] of [[null, missing], ["5", "5"], ["red", "3"], [null, missing]]) {
+      if (value === null) {
+        target.style.removeProperty("--ready");
+      } else {
+        target.style.setProperty("--ready", value);
+      }
+      check(target, {"--n": expected, "font-size": expected + "px"});
+    }
+  }, `Provider mutation with ${fallback} fallback`);
+}
+
+test(t => {
+  const target = makeTarget(t, "--n:attr(data-value type(*),7)");
+  for (const [value, expected] of [[null, "7"], ["5", "5"], ["red", "3"], ["var(--n,9)", "3"], ["5", "5"], [null, "7"]]) {
+    if (value === null) {
+      target.removeAttribute("data-value");
+    } else {
+      target.setAttribute("data-value", value);
+    }
+    check(target, {"--n": expected, "font-size": expected + "px"});
+  }
+}, "Typed attribute mutation clears stale values and cycle state");
+
+for (const mode of ["direct", "selected-fallback", "registered-provider"]) {
+  test(t => {
+    const css = mode === "direct" ? "--n:inherit"
+      : mode === "selected-fallback" ? "--n:var(--missing,inherit)"
+      : "--provider:inherit;--n:var(--provider)";
+    const target = makeTarget(t, css);
+    for (const value of ["11", "13", "11"]) {
+      target.parentElement.style.setProperty("--n", value);
+      target.parentElement.style.setProperty("--provider", value);
+      check(target, {"--n": value, "font-size": value + "px"});
+    }
+  }, `CSS-wide inheritance follows parent mutation: ${mode}`);
+}
+</script>

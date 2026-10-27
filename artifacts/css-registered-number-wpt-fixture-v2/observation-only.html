@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered number self-font observations</title>
+<style>@property --n { syntax: "<number>"; inherits: false; initial-value: 3; }</style>
+<pre id="output"></pre>
+<script>
+const rows = [];
+for (const order of ["number-first", "font-first"]) {
+  for (const query of ["number-first", "font-first"]) {
+    const parent = document.createElement("div");
+    parent.style.cssText = "font-size:19px;line-height:23px";
+    const target = document.createElement("div");
+    const declarations = ["--n:calc(1em / 1px)", "font-size:calc(var(--n)*1px)"];
+    if (order === "font-first") declarations.reverse();
+    target.style.cssText = declarations.join(";") + ";width:calc(var(--n)*1px)";
+    parent.append(target);
+    document.body.append(parent);
+    const style = getComputedStyle(target);
+    const first = query === "number-first" ? style.getPropertyValue("--n").trim() : style.fontSize;
+    rows.push({order, query, first, number:style.getPropertyValue("--n").trim(), fontSize:style.fontSize, width:style.width});
+    parent.remove();
+  }
+}
+window.observations = {userAgent:navigator.userAgent, rows};
+document.getElementById("output").textContent = JSON.stringify(window.observations, null, 2);
+</script>
