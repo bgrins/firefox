@@ -1,0 +1,14 @@
+>>>   18: nsGenConNode* ContainStyleScope::GetPrecedingElementInGenConList(
+      19:     nsGenConList* aList) {
+      20:   nsContentUtils::NodeIndexCache cache;
+      21:   auto IsAfter = [this, &cache](nsGenConNode* aNode) {
+      22:     return nsContentUtils::CompareTreePosition<TreeKind::Flat>(
+      23:                mContent, aNode->mPseudoFrame->GetContent(),
+      24:                /* aCommonAncestor = */ nullptr, &cache) >= 0;
+      25:   };
+      26:   auto* last = aList->GetLast();
+      27:   if (!last || IsAfter(last)) {
+      28:     return last;
+      29:   }
+      30:   return aList->BinarySearch(IsAfter)->getPrevious();
+      31: }

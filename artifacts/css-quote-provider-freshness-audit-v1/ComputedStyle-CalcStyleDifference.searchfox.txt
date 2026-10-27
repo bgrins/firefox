@@ -1,0 +1,173 @@
+>>>   83: nsChangeHint ComputedStyle::CalcStyleDifference(const ComputedStyle& aNewStyle,
+      84:                                                 uint32_t* aEqualStructs) const {
+      85:   AUTO_PROFILER_LABEL_HOT("ComputedStyle::CalcStyleDifference", LAYOUT);
+      86:   static_assert(StyleStructConstants::kStyleStructCount <= 32,
+      87:                 "aEqualStructs is not big enough");
+      88: 
+      89:   *aEqualStructs = 0;
+      90: 
+      91:   nsChangeHint hint = nsChangeHint(0);
+      92:   // We must always ensure that we populate the structs on the new style
+      93:   // context that are filled in on the old context, so that if we get
+      94:   // two style changes in succession, the second of which causes a real
+      95:   // style change, the PeekStyleData doesn't return null (implying that
+      96:   // nobody ever looked at that struct's data).  In other words, we
+      97:   // can't skip later structs if we get a big change up front, because
+      98:   // we could later get a small change in one of those structs that we
+      99:   // don't want to miss.
+     100: 
+     101:   DebugOnly<uint32_t> structsFound = 0;
+     102: 
+     103:   DebugOnly<int> styleStructCount = 0;
+     104: 
+     105:   // Servo's optimization to stop the cascade when there are no style changes
+     106:   // that children need to be recascade for relies on comparing all of the
+     107:   // structs, not just those that are returned from PeekStyleData, although
+     108:   // if PeekStyleData does return null we could avoid to accumulate any change
+     109:   // hints for those structs.
+     110:   //
+     111:   // FIXME(emilio): Reintroduce that optimization either for all kind of structs
+     112:   // after bug 1368290 with a weak parent pointer from text, or just for reset
+     113:   // structs.
+     114: #define STYLE_STRUCT_BIT(name_) \
+     115:   StyleStructConstants::BitFor(StyleStructID::name_)
+     116: 
+     117: #define EXPAND(...) __VA_ARGS__
+     118: #define DO_STRUCT_DIFFERENCE_WITH_ARGS(struct_, extra_args_)               \
+     119:   PR_BEGIN_MACRO                                                           \
+     120:   const nsStyle##struct_* this##struct_ = Style##struct_();                \
+     121:   structsFound |= STYLE_STRUCT_BIT(struct_);                               \
+     122:                                                                            \
+     123:   const nsStyle##struct_* other##struct_ = aNewStyle.Style##struct_();     \
+     124:   if (this##struct_ == other##struct_) {                                   \
+     125:     /* The very same struct, so we know that there will be no */           \
+     126:     /* differences.                                           */           \
+     127:     *aEqualStructs |= STYLE_STRUCT_BIT(struct_);                           \
+     128:   } else {                                                                 \
+     129:     nsChangeHint difference =                                              \
+     130:         this##struct_->CalcDifference(*other##struct_ EXPAND extra_args_); \
+     131:     hint |= difference;                                                    \
+     132:     if (!difference) {                                                     \
+     133:       *aEqualStructs |= STYLE_STRUCT_BIT(struct_);                         \
+     134:     }                                                                      \
+     135:   }                                                                        \
+     136:   styleStructCount++;                                                      \
+     137:   PR_END_MACRO
+     138: #define DO_STRUCT_DIFFERENCE(struct_) \
+     139:   DO_STRUCT_DIFFERENCE_WITH_ARGS(struct_, ())
+     140: 
+     141:   // FIXME: The order of these DO_STRUCT_DIFFERENCE calls is no longer
+     142:   // significant.  With a small amount of effort, we could replace them with a
+     143:   // #include "nsStyleStructList.h".
+     144:   DO_STRUCT_DIFFERENCE_WITH_ARGS(Display, (, *this));
+     145:   DO_STRUCT_DIFFERENCE(XUL);
+     146:   DO_STRUCT_DIFFERENCE(Column);
+     147:   DO_STRUCT_DIFFERENCE(Content);
+     148:   DO_STRUCT_DIFFERENCE(UI);
+     149:   DO_STRUCT_DIFFERENCE(Visibility);
+     150:   DO_STRUCT_DIFFERENCE(Outline);
+     151:   DO_STRUCT_DIFFERENCE(TableBorder);
+     152:   DO_STRUCT_DIFFERENCE(Table);
+     153:   DO_STRUCT_DIFFERENCE(UIReset);
+     154:   DO_STRUCT_DIFFERENCE(Text);
+     155:   DO_STRUCT_DIFFERENCE_WITH_ARGS(List, (, *this));
+     156:   DO_STRUCT_DIFFERENCE(SVGReset);
+     157:   DO_STRUCT_DIFFERENCE(SVG);
+     158:   DO_STRUCT_DIFFERENCE_WITH_ARGS(Position, (, *this));
+     159:   DO_STRUCT_DIFFERENCE(Font);
+     160:   DO_STRUCT_DIFFERENCE(Margin);
+     161:   DO_STRUCT_DIFFERENCE(Padding);
+     162:   DO_STRUCT_DIFFERENCE(Border);
+     163:   DO_STRUCT_DIFFERENCE(TextReset);
+     164:   DO_STRUCT_DIFFERENCE(Effects);
+     165:   DO_STRUCT_DIFFERENCE(Background);
+     166:   DO_STRUCT_DIFFERENCE(Page);
+     167: 
+     168: #undef DO_STRUCT_DIFFERENCE
+     169: #undef DO_STRUCT_DIFFERENCE_WITH_ARGS
+     170: #undef EXPAND
+     171: 
+     172:   MOZ_ASSERT(styleStructCount == StyleStructConstants::kStyleStructCount,
+     173:              "missing a call to DO_STRUCT_DIFFERENCE");
+     174: 
+     175:   // Note that we do not check whether this->RelevantLinkVisited() !=
+     176:   // aNewContext->RelevantLinkVisited(); we don't need to since
+     177:   // nsCSSFrameConstructor::DoContentStateChanged always adds
+     178:   // nsChangeHint_RepaintFrame for ElementState::VISITED changes (and
+     179:   // needs to, since HasStateDependentStyle probably doesn't work right
+     180:   // for ElementState::VISITED).  Hopefully this doesn't actually
+     181:   // expose whether links are visited to performance tests since all
+     182:   // link coloring happens asynchronously at a time when it's hard for
+     183:   // the page to measure.
+     184:   // However, we do need to compute the larger of the changes that can
+     185:   // happen depending on whether the link is visited or unvisited, since
+     186:   // doing only the one that's currently appropriate would expose which
+     187:   // links are in history to easy performance measurement.  Therefore,
+     188:   // here, we add nsChangeHint_RepaintFrame hints (the maximum for
+     189:   // things that can depend on :visited) for the properties on which we
+     190:   // call GetVisitedDependentColor.
+     191:   const ComputedStyle* thisVis = GetStyleIfVisited();
+     192:   const ComputedStyle* otherVis = aNewStyle.GetStyleIfVisited();
+     193:   if (!thisVis != !otherVis) {
+     194:     // One style has a style-if-visited and the other doesn't.
+     195:     // Presume a difference.
+     196: #define CLEAR_STRUCT_BIT(name_, fields_) \
+     197:   *aEqualStructs &= ~STYLE_STRUCT_BIT(name_);
+     198:     FOR_EACH_VISITED_DEPENDENT_STYLE_STRUCT(CLEAR_STRUCT_BIT)
+     199: #undef CLEAR_STRUCT_BIT
+     200:     hint |= nsChangeHint_RepaintFrame;
+     201:   } else if (thisVis) {
+     202:     // Both styles have a style-if-visited.
+     203:     bool change = false;
+     204: 
+     205:     // NB: Calling Peek on |this|, not |thisVis|, since callers may look
+     206:     // at a struct on |this| without looking at the same struct on
+     207:     // |thisVis| (including this function if we skip one of these checks
+     208:     // due to change being true already or due to the old style not having a
+     209:     // style-if-visited), but not the other way around.
+     210: #define STYLE_FIELD(name_) thisVisStruct->name_ != otherVisStruct->name_
+     211: #define CHECK_VISITED_STYLE_STRUCT(name_, fields_)                   \
+     212:   {                                                                  \
+     213:     const nsStyle##name_* thisVisStruct = thisVis->Style##name_();   \
+     214:     const nsStyle##name_* otherVisStruct = otherVis->Style##name_(); \
+     215:     if (MOZ_FOR_EACH_SEPARATED(STYLE_FIELD, (||), (), fields_)) {    \
+     216:       *aEqualStructs &= ~STYLE_STRUCT_BIT(name_);                    \
+     217:       change = true;                                                 \
+     218:     }                                                                \
+     219:   }
+     220:     FOR_EACH_VISITED_DEPENDENT_STYLE_STRUCT(CHECK_VISITED_STYLE_STRUCT)
+     221: #undef CHECK_VISITED_STYLE_STRUCT
+     222: #undef STYLE_FIELD
+     223: #undef STYLE_STRUCT_BIT
+     224: 
+     225:     if (change) {
+     226:       hint |= nsChangeHint_RepaintFrame;
+     227:     }
+     228:   }
+     229: 
+     230:   if (hint & nsChangeHint_UpdateContainingBlock) {
+     231:     if (!ContainingBlockMayHaveChanged(*this, aNewStyle)) {
+     232:       // While some styles that cause the frame to be a containing block
+     233:       // has changed, the overall result cannot have changed (no matter
+     234:       // what the frame type is).
+     235:       hint &= ~nsChangeHint_UpdateContainingBlock;
+     236:     }
+     237:   }
+     238: 
+     239:   if (HasAuthorOrUserSpecifiedBorderOrBackground() !=
+     240:       aNewStyle.HasAuthorOrUserSpecifiedBorderOrBackground()) {
+     241:     const StyleAppearance appearance = StyleDisplay()->EffectiveAppearance();
+     242:     if (appearance != StyleAppearance::None &&
+     243:         nsLayoutUtils::AuthorOrUserSpecifiedBorderBackgroundDisablesTheming(
+     244:             appearance)) {
+     245:       // A background-specified change may cause padding to change, so we may
+     246:       // need to reflow.  We use the same hint here as we do for "appearance"
+     247:       // changes.
+     248:       hint |= nsChangeHint_AllReflowHints | nsChangeHint_RepaintFrame;
+     249:     }
+     250:   }
+     251: 
+     252:   MOZ_ASSERT(NS_IsHintSubset(hint, nsChangeHint_AllHints),
+     253:              "Added a new hint without bumping AllHints?");
+     254:   return hint & ~nsChangeHint_NeutralChange;
+     255: }

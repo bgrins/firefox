@@ -1,0 +1,36 @@
+>>>  247: nsChangeHint nsStyleFont::CalcDifference(const nsStyleFont& aNewData) const {
+     248:   MOZ_ASSERT(mXTextScale == aNewData.mXTextScale,
+     249:              "expected -x-text-scale to be the same on both nsStyleFonts");
+     250:   if (mSize != aNewData.mSize || mLanguage != aNewData.mLanguage ||
+     251:       mExplicitLanguage != aNewData.mExplicitLanguage ||
+     252:       mMathVariant != aNewData.mMathVariant ||
+     253:       mMathStyle != aNewData.mMathStyle || mMathShift != aNewData.mMathShift ||
+     254:       mMinFontSizeRatio != aNewData.mMinFontSizeRatio ||
+     255:       mLineHeight != aNewData.mLineHeight) {
+     256:     return NS_STYLE_HINT_REFLOW;
+     257:   }
+     258: 
+     259:   switch (mFont.CalcDifference(aNewData.mFont)) {
+     260:     case nsFont::MaxDifference::eLayoutAffecting:
+     261:       return NS_STYLE_HINT_REFLOW;
+     262: 
+     263:     case nsFont::MaxDifference::eVisual:
+     264:       return NS_STYLE_HINT_VISUAL;
+     265: 
+     266:     case nsFont::MaxDifference::eNone:
+     267:       break;
+     268:   }
+     269: 
+     270:   if (mFontPalette != aNewData.mFontPalette) {
+     271:     return NS_STYLE_HINT_VISUAL;
+     272:   }
+     273: 
+     274:   // XXX Should any of these cause a non-nsChangeHint_NeutralChange change?
+     275:   if (mMathDepth != aNewData.mMathDepth ||
+     276:       mScriptUnconstrainedSize != aNewData.mScriptUnconstrainedSize ||
+     277:       mScriptMinSize != aNewData.mScriptMinSize) {
+     278:     return nsChangeHint_NeutralChange;
+     279:   }
+     280: 
+     281:   return nsChangeHint(0);
+     282: }

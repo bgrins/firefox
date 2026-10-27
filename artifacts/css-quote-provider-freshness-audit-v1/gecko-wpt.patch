@@ -1,0 +1,90 @@
+--- a/layout/base/nsQuoteList.cpp
++++ b/layout/base/nsQuoteList.cpp
+@@ -128,11 +128,13 @@
+ 
+ void nsQuoteList::RecalcAll() {
+   for (nsQuoteNode* node = FirstNode(); node; node = Next(node)) {
+-    int32_t oldDepth = node->mDepthBefore;
+     Calc(node);
+ 
+-    if (node->mDepthBefore != oldDepth && node->mText && node->IsRealQuote()) {
+-      node->mText->SetData(node->Text(), IgnoreErrors());
++    if (node->mText && node->IsRealQuote()) {
++      const nsString text = node->Text();
++      if (!node->mText->DataBuffer().Equals(text)) {
++        node->mText->SetData(text, IgnoreErrors());
++      }
+     }
+   }
+ }
+--- a/layout/base/nsCSSFrameConstructor.h
++++ b/layout/base/nsCSSFrameConstructor.h
+@@ -258,6 +258,7 @@
+   void NotifyDestroyingFrame(nsIFrame* aFrame);
+ 
+   void RecalcQuotesAndCounters();
++  void QuotesDirty();
+ 
+   // Called when any counter style is changed.
+   void NotifyCounterStylesAreDirty();
+@@ -2057,7 +2058,6 @@
+   nsIFrame* GetInsertionPrevSibling(InsertionPoint* aInsertion,  // inout
+                                     nsIContent* aChild, bool* aIsAppend);
+ 
+-  void QuotesDirty();
+   void CountersDirty();
+ 
+   void ConstructAnonymousContentForRoot(nsFrameConstructorState& aState,
+--- a/layout/generic/nsIFrame.cpp
++++ b/layout/generic/nsIFrame.cpp
+@@ -1337,6 +1337,9 @@
+ /* virtual */
+ void nsIFrame::DidSetComputedStyle(ComputedStyle* aOldComputedStyle) {
+   if (aOldComputedStyle) {
++    if (aOldComputedStyle->StyleFont()->mLanguage != StyleFont()->mLanguage) {
++      PresShell()->FrameConstructor()->QuotesDirty();
++    }
+ #ifdef ACCESSIBILITY
+     // Don't notify for reconstructed frames here, since the frame is still
+     // being constructed at this point and so LocalAccessible::GetFrame() will
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-content/quotes-lang-dynamic-fixed-child-ref.html
+@@ -0,0 +1,13 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Fresh quotation marks in the final surrounding language</title>
++<style>
++  q { quotes: auto; }
++  .explicit q { quotes: "AA" "BB"; }
++  .scope { contain: style; }
++</style>
++<div lang="fr"><q>Inherited language</q></div>
++<div lang="fr"><q lang="en">Fixed child language</q></div>
++<div lang="en"><q lang="fr">Reverse language change</q></div>
++<div lang="fr"><q lang="en">Outer <span class="scope"><q>Contained</q></span></q></div>
++<div class="explicit" lang="fr"><q lang="en">Explicit quotation marks</q></div>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-content/quotes-lang-dynamic-fixed-child.html
+@@ -0,0 +1,22 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Changing the surrounding language refreshes automatic quotation marks</title>
++<link rel="help" href="https://drafts.csswg.org/css-content/#valdef-quotes-auto">
++<link rel="match" href="quotes-lang-dynamic-fixed-child-ref.html">
++<style>
++  q { quotes: auto; }
++  .explicit q { quotes: "AA" "BB"; }
++  .scope { contain: style; }
++</style>
++<div id="inherited" lang="en"><q>Inherited language</q></div>
++<div id="fixed" lang="en"><q lang="en">Fixed child language</q></div>
++<div id="reverse" lang="fr"><q lang="fr">Reverse language change</q></div>
++<div id="nested" lang="en"><q lang="en">Outer <span class="scope"><q>Contained</q></span></q></div>
++<div id="explicit" class="explicit" lang="en"><q lang="en">Explicit quotation marks</q></div>
++<script>
++  document.body.offsetTop;
++  for (const id of ["inherited", "fixed", "nested", "explicit"]) {
++    document.getElementById(id).lang = "fr";
++  }
++  document.getElementById("reverse").lang = "en";
++</script>

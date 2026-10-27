@@ -1,0 +1,202 @@
+>>> 1338: void nsIFrame::DidSetComputedStyle(ComputedStyle* aOldComputedStyle) {
+    1339:   if (aOldComputedStyle) {
+    1340: #ifdef ACCESSIBILITY
+    1341:     // Don't notify for reconstructed frames here, since the frame is still
+    1342:     // being constructed at this point and so LocalAccessible::GetFrame() will
+    1343:     // return null. Style changes for reconstructed frames are handled in
+    1344:     // DocAccessible::PruneOrInsertSubtree.
+    1345:     if (nsAccessibilityService* accService = GetAccService()) {
+    1346:       accService->NotifyOfComputedStyleChange(PresShell(), mContent);
+    1347:     }
+    1348: #endif
+    1349:     UpdateGeneratedContentTextIfNeeded(this, aOldComputedStyle);
+    1350:   }
+    1351: 
+    1352:   MaybeScheduleReflowSVGNonDisplayText(this);
+    1353: 
+    1354:   Document* doc = PresContext()->Document();
+    1355:   ImageLoader& loader = doc->EnsureStyleImageLoader();
+    1356:   // Continuing text frame doesn't initialize its continuation pointer before
+    1357:   // reaching here for the first time, so we have to exclude text frames. This
+    1358:   // doesn't affect correctness because text can't match selectors.
+    1359:   //
+    1360:   // FIXME(emilio): We should consider fixing that.
+    1361:   //
+    1362:   // TODO(emilio): Can we avoid doing some / all of the image stuff when
+    1363:   // isNonTextFirstContinuation is false? We should consider doing this just for
+    1364:   // primary frames and pseudos, but the first-line reparenting code makes it
+    1365:   // all bad, should get around to bug 1465474 eventually :(
+    1366:   const bool isNonText = !IsTextFrame();
+    1367:   if (isNonText) {
+    1368:     mComputedStyle->StartImageLoads(*doc, aOldComputedStyle);
+    1369:   }
+    1370: 
+    1371:   const bool isRootElementStyle = Style()->IsRootElementStyle();
+    1372:   if (isRootElementStyle) {
+    1373:     PresShell()->SetNeedsWindowPropertiesSync();
+    1374:   }
+    1375: 
+    1376:   const nsStyleImageLayers* oldLayers =
+    1377:       aOldComputedStyle ? &aOldComputedStyle->StyleBackground()->mImage
+    1378:                         : nullptr;
+    1379:   const nsStyleImageLayers* newLayers = &StyleBackground()->mImage;
+    1380:   AddAndRemoveImageAssociations(loader, this, oldLayers, newLayers);
+    1381: 
+    1382:   oldLayers =
+    1383:       aOldComputedStyle ? &aOldComputedStyle->StyleSVGReset()->mMask : nullptr;
+    1384:   newLayers = &StyleSVGReset()->mMask;
+    1385:   AddAndRemoveImageAssociations(loader, this, oldLayers, newLayers);
+    1386: 
+    1387:   const nsStyleDisplay* disp = StyleDisplay();
+    1388:   if (aOldComputedStyle) {
+    1389:     // Detect style changes that should trigger a scroll anchor adjustment
+    1390:     // suppression.
+    1391:     // https://drafts.csswg.org/css-scroll-anchoring/#suppression-triggers
+    1392:     bool needScrollAnchorSuppression = false;
+    1393: 
+    1394:     const nsStyleMargin* oldMargin = aOldComputedStyle->StyleMargin();
+    1395:     if (!oldMargin->MarginEquals(*StyleMargin())) {
+    1396:       needScrollAnchorSuppression = true;
+    1397:     }
+    1398: 
+    1399:     const nsStylePadding* oldPadding = aOldComputedStyle->StylePadding();
+    1400:     if (oldPadding->mPadding != StylePadding()->mPadding) {
+    1401:       SetHasPaddingChange(true);
+    1402:       needScrollAnchorSuppression = true;
+    1403:     }
+    1404: 
+    1405:     const nsStyleDisplay* oldDisp = aOldComputedStyle->StyleDisplay();
+    1406:     if (oldDisp->mOverflowAnchor != disp->mOverflowAnchor) {
+    1407:       if (auto* container = ScrollAnchorContainer::FindFor(this)) {
+    1408:         container->InvalidateAnchor();
+    1409:       }
+    1410:       if (ScrollContainerFrame* scrollContainerFrame = do_QueryFrame(this)) {
+    1411:         scrollContainerFrame->Anchor()->InvalidateAnchor();
+    1412:       }
+    1413:     }
+    1414: 
+    1415:     if (mInScrollAnchorChain) {
+    1416:       const nsStylePosition* pos = StylePosition();
+    1417:       const nsStylePosition* oldPos = aOldComputedStyle->StylePosition();
+    1418:       if (!needScrollAnchorSuppression &&
+    1419:           (oldPos->mOffset != pos->mOffset || oldPos->mWidth != pos->mWidth ||
+    1420:            oldPos->mMinWidth != pos->mMinWidth ||
+    1421:            oldPos->mMaxWidth != pos->mMaxWidth ||
+    1422:            oldPos->mHeight != pos->mHeight ||
+    1423:            oldPos->mMinHeight != pos->mMinHeight ||
+    1424:            oldPos->mMaxHeight != pos->mMaxHeight ||
+    1425:            oldDisp->mPosition != disp->mPosition ||
+    1426:            oldDisp->mTransform != disp->mTransform)) {
+    1427:         needScrollAnchorSuppression = true;
+    1428:       }
+    1429: 
+    1430:       if (needScrollAnchorSuppression &&
+    1431:           StaticPrefs::layout_css_scroll_anchoring_suppressions_enabled()) {
+    1432:         ScrollAnchorContainer::FindFor(this)->SuppressAdjustments();
+    1433:       }
+    1434:     }
+    1435: 
+    1436:     if (disp->mPosition != oldDisp->mPosition) {
+    1437:       if (!disp->IsRelativelyOrStickyPositionedStyle() &&
+    1438:           oldDisp->IsRelativelyOrStickyPositionedStyle()) {
+    1439:         RemoveProperty(NormalPositionProperty());
+    1440:       }
+    1441:     }
+    1442:     if (disp->mScrollSnapAlign != oldDisp->mScrollSnapAlign) {
+    1443:       ScrollSnapUtils::PostPendingResnapFor(this);
+    1444:     }
+    1445:     if (isRootElementStyle &&
+    1446:         disp->mScrollSnapType != oldDisp->mScrollSnapType) {
+    1447:       if (ScrollContainerFrame* sf =
+    1448:               PresShell()->GetRootScrollContainerFrame()) {
+    1449:         sf->PostPendingResnap();
+    1450:       }
+    1451:     }
+    1452:     if (StyleUIReset()->mMozSubtreeHiddenOnlyVisually &&
+    1453:         !aOldComputedStyle->StyleUIReset()->mMozSubtreeHiddenOnlyVisually) {
+    1454:       PresShell::ClearMouseCapture(this);
+    1455:     }
+    1456:   }
+    1457: 
+    1458:   imgIRequest* oldBorderImage =
+    1459:       aOldComputedStyle
+    1460:           ? aOldComputedStyle->StyleBorder()->GetBorderImageRequest()
+    1461:           : nullptr;
+    1462:   imgIRequest* newBorderImage = StyleBorder()->GetBorderImageRequest();
+    1463:   // FIXME (Bug 759996): The following is no longer true.
+    1464:   // For border-images, we can't be as conservative (we need to set the
+    1465:   // new loaders if there has been any change) since the CalcDifference
+    1466:   // call depended on the result of GetComputedBorder() and that result
+    1467:   // depends on whether the image has loaded, start the image load now
+    1468:   // so that we'll get notified when it completes loading and can do a
+    1469:   // restyle.  Otherwise, the image might finish loading from the
+    1470:   // network before we start listening to its notifications, and then
+    1471:   // we'll never know that it's finished loading.  Likewise, we want to
+    1472:   // do this for freshly-created frames to prevent a similar race if the
+    1473:   // image loads between reflow (which can depend on whether the image
+    1474:   // is loaded) and paint.  We also don't really care about any callers who try
+    1475:   // to paint borders with a different style, because they won't have the
+    1476:   // correct size for the border either.
+    1477:   if (oldBorderImage != newBorderImage) {
+    1478:     // stop and restart the image loading/notification
+    1479:     if (oldBorderImage && HasImageRequest()) {
+    1480:       loader.DisassociateRequestFromFrame(oldBorderImage, this);
+    1481:     }
+    1482:     if (newBorderImage) {
+    1483:       loader.AssociateRequestToFrame(newBorderImage, this);
+    1484:     }
+    1485:   }
+    1486: 
+    1487:   auto GetShapeImageRequest = [](const ComputedStyle* aStyle) -> imgIRequest* {
+    1488:     if (!aStyle) {
+    1489:       return nullptr;
+    1490:     }
+    1491:     auto& shape = aStyle->StyleDisplay()->mShapeOutside;
+    1492:     if (!shape.IsImage()) {
+    1493:       return nullptr;
+    1494:     }
+    1495:     return shape.AsImage().GetImageRequest();
+    1496:   };
+    1497: 
+    1498:   imgIRequest* oldShapeImage = GetShapeImageRequest(aOldComputedStyle);
+    1499:   imgIRequest* newShapeImage = GetShapeImageRequest(Style());
+    1500:   if (oldShapeImage != newShapeImage) {
+    1501:     if (oldShapeImage && HasImageRequest()) {
+    1502:       loader.DisassociateRequestFromFrame(oldShapeImage, this);
+    1503:     }
+    1504:     if (newShapeImage) {
+    1505:       loader.AssociateRequestToFrame(
+    1506:           newShapeImage, this,
+    1507:           ImageLoader::Flags::
+    1508:               RequiresReflowOnFirstFrameCompleteAndLoadEventBlocking);
+    1509:     }
+    1510:   }
+    1511: 
+    1512:   // SVGObserverUtils::GetEffectProperties() asserts that we only invoke it with
+    1513:   // the first continuation so we need to check that in advance.
+    1514:   const bool isNonTextFirstContinuation = isNonText && !GetPrevContinuation();
+    1515:   if (isNonTextFirstContinuation) {
+    1516:     // Kick off loading of external SVG resources referenced from properties if
+    1517:     // any. This currently includes filter, clip-path, and mask.
+    1518:     SVGObserverUtils::InitiateResourceDocLoads(this);
+    1519:   }
+    1520: 
+    1521:   // If the page contains markup that overrides text direction, and
+    1522:   // does not contain any characters that would activate the Unicode
+    1523:   // bidi algorithm, we need to call |SetBidiEnabled| on the pres
+    1524:   // context before reflow starts.  See bug 115921.
+    1525:   if (StyleVisibility()->mDirection == StyleDirection::Rtl) {
+    1526:     PresContext()->SetBidiEnabled();
+    1527:   }
+    1528: 
+    1529:   // The following part is for caching offset-path:path(). We cache the
+    1530:   // flatten gfx path, so we don't have to rebuild and re-flattern it at
+    1531:   // each cycle if we have animations on offset-* with a fixed offset-path.
+    1532:   const StyleOffsetPath* oldPath =
+    1533:       aOldComputedStyle ? &aOldComputedStyle->StyleDisplay()->mOffsetPath
+    1534:                         : nullptr;
+    1535:   const StyleOffsetPath& newPath = StyleDisplay()->mOffsetPath;
+    1536:   if (!oldPath || *oldPath != newPath) {
+    1537:     // FIXME: Bug 1837042. Cache all basic shapes.
+    1538:     if (newPath.IsPath()) {
+   ...  : (method too long, truncated)

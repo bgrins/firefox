@@ -1,0 +1,23 @@
+>>> 2938: nsChangeHint nsStyleContent::CalcDifference(
+    2939:     const nsStyleContent& aNewData) const {
+    2940:   if (mCounterIncrement != aNewData.mCounterIncrement ||
+    2941:       mCounterReset != aNewData.mCounterReset ||
+    2942:       mCounterSet != aNewData.mCounterSet) {
+    2943:     return nsChangeHint_ReconstructFrame;
+    2944:   }
+    2945: 
+    2946:   if (mContent != aNewData.mContent) {
+    2947:     // Reframing is triggered from the originating element, which can be quite
+    2948:     // costly. When the change is limited to the text of string items, we
+    2949:     // instead rewrite the generated text nodes in place from
+    2950:     // nsIFrame::DidSetComputedStyle and report nsChangeHint_NeutralChange here.
+    2951:     if (CanUpdateGeneratedContentText(*this, aNewData)) {
+    2952:       return nsChangeHint_NeutralChange;
+    2953:     }
+    2954:     // Otherwise reframe: a simple reflow won't pick up different image URLs
+    2955:     // since we set all that up in the CSSFrameConstructor.
+    2956:     return nsChangeHint_ReconstructFrame;
+    2957:   }
+    2958: 
+    2959:   return nsChangeHint(0);
+    2960: }

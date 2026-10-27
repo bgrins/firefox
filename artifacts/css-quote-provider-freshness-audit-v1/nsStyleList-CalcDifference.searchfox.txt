@@ -1,0 +1,24 @@
+>>>  702: nsChangeHint nsStyleList::CalcDifference(const nsStyleList& aNewData,
+     703:                                          const ComputedStyle& aOldStyle) const {
+     704:   // If the quotes implementation is ever going to change we might not need
+     705:   // a framechange here and a reflow should be sufficient.  See bug 35768.
+     706:   if (mQuotes != aNewData.mQuotes) {
+     707:     return nsChangeHint_ReconstructFrame;
+     708:   }
+     709:   nsChangeHint hint = nsChangeHint(0);
+     710:   // Only elements whose display value is list-item can be affected by
+     711:   // list-style-{position,type,image}. This also relies on that when the display
+     712:   // value changes from something else to list-item, that change itself would
+     713:   // cause ReconstructFrame.
+     714:   if (mListStylePosition != aNewData.mListStylePosition ||
+     715:       mListStyleType != aNewData.mListStyleType ||
+     716:       mListStyleImage != aNewData.mListStyleImage) {
+     717:     if (aOldStyle.StyleDisplay()->IsListItem()) {
+     718:       return nsChangeHint_ReconstructFrame;
+     719:     }
+     720:     // list-style-image may affect nsImageFrame for XUL elements, but that is
+     721:     // dealt with explicitly in nsImageFrame::DidSetComputedStyle.
+     722:     hint = nsChangeHint_NeutralChange;
+     723:   }
+     724:   return hint;
+     725: }

@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Changing the surrounding language refreshes automatic quotation marks</title>
+<link rel="help" href="https://drafts.csswg.org/css-content/#valdef-quotes-auto">
+<link rel="match" href="quotes-lang-dynamic-fixed-child-ref.html">
+<style>
+  q { quotes: auto; }
+  .explicit q { quotes: "AA" "BB"; }
+  .scope { contain: style; }
+</style>
+<div id="inherited" lang="en"><q>Inherited language</q></div>
+<div id="fixed" lang="en"><q lang="en">Fixed child language</q></div>
+<div id="reverse" lang="fr"><q lang="fr">Reverse language change</q></div>
+<div id="nested" lang="en"><q lang="en">Outer <span class="scope"><q>Contained</q></span></q></div>
+<div id="explicit" class="explicit" lang="en"><q lang="en">Explicit quotation marks</q></div>
+<script>
+  document.body.offsetTop;
+  for (const id of ["inherited", "fixed", "nested", "explicit"]) {
+    document.getElementById(id).lang = "fr";
+  }
+  document.getElementById("reverse").lang = "en";
+</script>
