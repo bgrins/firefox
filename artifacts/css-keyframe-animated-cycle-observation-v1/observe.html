@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Animated custom-property cycle observations</title>
+<style>
+  .probe {
+    --cycle-x: 77;
+    --cycle-y: 88;
+    --cycle-z: 99;
+    --cycle-wrong: red;
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+  }
+  pre { white-space: pre-wrap; }
+</style>
+<h1>Animated custom-property cycle observations</h1>
+<p>Cyclic values are observations, not conformance results.</p>
+<button id="run" type="button">Run observations</button>
+<pre id="output" aria-live="polite">Not started.</pre>
+<script>
+"use strict";
+
+const names = { x: "--cycle-x", y: "--cycle-y", z: "--cycle-z" };
+const orders = [["x", "y"], ["y", "x"]];
+const phase = (name, x, y, times, expected = null) => ({
+  name, x, y, times, expected,
+});
+const acyclic = name => phase(name, ["var(--cycle-y)", "100"],
+  ["200", "400"], [0.5], [[200, 300]]);
+const mutual = () => phase("cyclic", ["var(--cycle-y)", "100"],
+  ["200", "var(--cycle-x)"], [0.5]);
+const literalTriple = name => phase(name, ["10", "20", "30"],
+  ["200", "400"], [0.25, 0.75, 0.25], [[15, 250], [25, 350], [15, 250]]);
+const selfTriple = () => phase("cyclic", ["10", "20", "var(--cycle-x)"],
+  ["200", "400"], [0.25, 0.75, 0.25]);
+const scenarios = [
+  { name: "mutual-fresh", phases: [mutual()] },
+  { name: "mutual-history", phases: [acyclic("warm"), mutual(), acyclic("return")] },
+  { name: "unselected-fresh", phases: [selfTriple()] },
+  { name: "unselected-history", phases: [literalTriple("warm"), selfTriple(), literalTriple("return")] },
+  { name: "literal-endpoint-reference", phases: [phase("control", ["10", "100"], ["200", "20"], [0.5], [[55, 110]])] },
+  { name: "literal-property-reference", phases: [phase("control", ["10", "10"], ["20", "20"], [0.5], [[10, 20]])] },
+  { name: "acyclic-provider", phases: [acyclic("control")] },
+  { name: "acyclic-literal", phases: [phase("control", ["300", "100"], ["200", "400"], [0.5], [[200, 300]])] },
+  { name: "literal-unselected", phases: [literalTriple("control")] },
+  ...[
+    ["invalid-red", "red", 55],
+    ["missing-no-fallback", "var(--cycle-missing)", 55],
+    ["missing-fallback", "var(--cycle-missing, 30)", 65],
+    ["wrong-type-fallback", "var(--cycle-wrong, 30)", 55],
+  ].map(([name, value, expected]) => ({
+    name, phases: [phase("control", [value, "100"], ["200", "200"], [0.5], [[expected, 200]])],
+  })),
+];
+const roster = scenarios.flatMap(scenario => orders.flatMap(creation =>
+  orders.map(readOrder => ({
+    id: `${scenario.name}/create-${creation.join("")}/read-${readOrder.join("")}`,
+    scenario: scenario.name, creation, read_order: readOrder,
+  }))));
+const output = document.querySelector("#output");
+const button = document.querySelector("#run");
+let started = false;
+let result;
+
+function publish() {
+  window.cycleObservationResult = result;
+  output.textContent = JSON.stringify(result, null, 2);
+}
+
+function record(value) {
+  result.records.push(value);
+  if (!value.calibration_pass) {
+    result.all_calibrations_pass = false;
+  }
+  publish();
+}
+
+function readValues(element, order) {
+  const values = {};
+  for (const key of [...order, "z"]) {
+    values[key] = getComputedStyle(element).getPropertyValue(names[key]).trim();
+  }
+  return values;
+}
+
+function numeric(values, expected) {
+  return Object.entries(expected).every(([key, value]) =>
+    values[key] !== "" && Number.isFinite(Number(values[key])) &&
+    Math.abs(Number(values[key]) - value) < 1e-7);
+}
+
+function frames(key, values) {
+  return values.map((value, index) => {
+    const offset = index / (values.length - 1);
+    return { offset, [names[key]]: value,
+      ...(key === "x" ? { [names.z]: String(2 + 4 * offset) } : {}) };
+  });
+}
+
+function retained(actual, expected) {
+  const compact = value => String(value).replace(/\s+/g, "");
+  return actual.length === expected.length && actual.every((frame, index) =>
+    frame.computedOffset === expected[index].offset &&
+    Object.entries(expected[index]).every(([key, value]) => key === "offset" ||
+      compact(frame[key]) === compact(value)));
+}
+
+function sample(element, animations, expectedFrames, spec, index, trial) {
+  const time = spec.times[index];
+  for (const key of trial.creation) {
+    animations[key].currentTime = time * 1000;
+  }
+  const first = readValues(element, trial.read_order);
+  const repeated = readValues(element, trial.read_order);
+  const details = {};
+  let mechanics = true;
+  for (const key of ["x", "y"]) {
+    const animation = animations[key];
+    const timing = animation.effect.getComputedTiming();
+    const authored = animation.effect.getKeyframes();
+    details[key] = { current_time: animation.currentTime, play_state: animation.playState,
+      pending: animation.pending, timing, authored };
+    mechanics &&= animation.currentTime === time * 1000 &&
+      animation.playState === "paused" && !animation.pending &&
+      timing.duration === 1000 && timing.fill === "both" && timing.easing === "linear" &&
+      timing.currentIteration === 0 && Math.abs(timing.progress - time) < 1e-7 &&
+      animation.effect.composite === "replace" && retained(authored, expectedFrames[key]);
+  }
+  const expected = { z: 2 + 4 * time };
+  if (spec.expected) {
+    [expected.x, expected.y] = spec.expected[index];
+  }
+  record({ trial: trial.id, phase: spec.name, sample: index,
+    kind: spec.expected ? "calibration" : "observation", time,
+    first, repeated, details, expected_calibration: expected,
+    calibration_pass: mechanics && numeric(first, expected) && numeric(repeated, expected),
+    cyclic_numeric_oracle: null, cyclic_values_judged: false });
+}
+
+function runTrial(trial) {
+  const scenario = scenarios.find(item => item.name === trial.scenario);
+  const element = document.createElement("div");
+  element.className = "probe";
+  document.body.append(element);
+  const animations = {};
+  try {
+    const base = readValues(element, trial.read_order);
+    record({ trial: trial.id, kind: "calibration", phase: "base", values: base,
+      calibration_pass: numeric(base, { x: 77, y: 88, z: 99 }) &&
+        getComputedStyle(element).getPropertyValue("--cycle-missing") === "" &&
+        getComputedStyle(element).getPropertyValue("--cycle-wrong").trim() === "red" });
+    for (const spec of scenario.phases) {
+      const expectedFrames = { x: frames("x", spec.x), y: frames("y", spec.y) };
+      for (const key of trial.creation) {
+        if (animations[key]) {
+          animations[key].effect.setKeyframes(expectedFrames[key]);
+        } else {
+          animations[key] = new Animation(new KeyframeEffect(element, expectedFrames[key],
+            { duration: 1000, fill: "both", easing: "linear", composite: "replace" }), document.timeline);
+        }
+      }
+      spec.times.forEach((_, index) => sample(element, animations, expectedFrames, spec, index, trial));
+    }
+  } catch (error) {
+    record({ trial: trial.id, kind: "calibration", phase: "exception",
+      calibration_pass: false, error: String(error), stack: error.stack });
+  } finally {
+    const cleanupErrors = [];
+    for (const animation of Object.values(animations)) {
+      try { animation.cancel(); } catch (error) { cleanupErrors.push(String(error)); }
+    }
+    try {
+      const values = readValues(element, trial.read_order);
+      record({ trial: trial.id, kind: "calibration", phase: "cancel", values,
+        cleanup_errors: cleanupErrors,
+        calibration_pass: cleanupErrors.length === 0 && numeric(values, { x: 77, y: 88, z: 99 }) &&
+          element.getAnimations().length === 0 && Object.values(animations).every(animation =>
+            animation.currentTime === null && animation.playState === "idle" && !animation.pending) });
+    } catch (error) {
+      record({ trial: trial.id, kind: "calibration", phase: "cleanup-exception",
+        calibration_pass: false, error: String(error), cleanup_errors: cleanupErrors });
+    } finally {
+      element.remove();
+    }
+  }
+}
+
+function runObservations() {
+  if (started) {
+    return;
+  }
+  started = true;
+  button.disabled = true;
+  result = { schema: 1, status: "running", user_agent: navigator.userAgent,
+    roster, records: [], all_calibrations_pass: true,
+    cyclic_numeric_oracle: null, cyclic_conformance: "unresolved" };
+  publish();
+  try {
+    for (const [key, initialValue] of [["x", "10"], ["y", "20"], ["z", "3"]]) {
+      CSS.registerProperty({ name: names[key], syntax: "<number>", inherits: false, initialValue });
+    }
+    const initial = document.createElement("div");
+    document.body.append(initial);
+    try {
+      const values = readValues(initial, ["x", "y"]);
+      record({ kind: "calibration", phase: "registration", values,
+        calibration_pass: numeric(values, { x: 10, y: 20, z: 3 }) });
+    } finally {
+      initial.remove();
+    }
+    for (const trial of roster) {
+      runTrial(trial);
+    }
+    result.expected_samples = roster.reduce((count, trial) => count +
+      scenarios.find(item => item.name === trial.scenario).phases.reduce((sum, spec) =>
+        sum + spec.times.length, 0), 0);
+    result.recorded_samples = result.records.filter(item => Number.isInteger(item.sample)).length;
+    result.status = result.recorded_samples === result.expected_samples ? "complete" : "incomplete";
+  } catch (error) {
+    result.status = "incomplete";
+    result.error = String(error);
+    result.all_calibrations_pass = false;
+  }
+  result.remaining_targets = document.querySelectorAll(".probe").length;
+  result.remaining_animations = document.getAnimations().length;
+  result.all_calibrations_pass &&= result.remaining_targets === 0 && result.remaining_animations === 0;
+  publish();
+}
+
+button.addEventListener("click", runObservations);
+window.runCycleObservations = runObservations;
+</script>
