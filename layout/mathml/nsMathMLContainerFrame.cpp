@@ -830,6 +830,7 @@ void nsMathMLContainerFrame::Reflow(nsPresContext* aPresContext,
                                     const ReflowInput& aReflowInput,
                                     nsReflowStatus& aStatus) {
   if (IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
+    MarkSubtreeDirty();
     return;
   }
 
