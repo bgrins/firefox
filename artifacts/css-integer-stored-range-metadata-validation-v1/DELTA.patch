@@ -1,0 +1,248 @@
+--- reviewed/validate.py
++++ candidate/validate.py
+@@ -51,8 +51,9 @@
+         need(set(result) == {(t, n) for t, names in roster.items() for n in names}, 'exact selected roster')
+         return result
+     old, new = keyed(before), keyed(after)
+-    targets = {k for k in old if 'steps(calc(1), jump-none)' in k[1]}
+-    need(len(targets) == 2, 'exact two jump-none targets')
++    targets = {('/css/css-easing/timing-functions-syntax-computed.html',
++                "Property animation-timing-function value 'steps(calc(-10), start)'")}
++    need(targets <= set(old), 'exact stored-range target')
+     for key, a in old.items():
+         b = new[key]
+         need(all(a.get(f) == b.get(f) for f in ('status', 'message', 'known_intermittent')), 'raw observation ' + str(key))
+@@ -64,6 +65,20 @@
+     return {'rows': len(old), 'targets': [list(k) for k in sorted(targets)], 'other_observations_exact': True}
+ 
+ 
++def check_baseline(historical, fresh, roster):
++    expected = {(t, n) for t, names in roster.items() for n in names}
++    def keyed(rows):
++        result = {(r['test'], r['subtest']): r for r in rows}
++        need(len(result) == len(rows) and set(result) == expected, 'exact fresh roster')
++        return result
++    old, new = keyed(historical), keyed(fresh)
++    for key, row in old.items():
++        need(all(row.get(f) == new[key].get(f) for f in
++                 ('status', 'message', 'expected', 'known_intermittent')),
++             'historical outcome changed before metadata correction ' + str(key))
++    return {'rows': len(old), 'historical_outcomes_exact': True}
++
++
+ def archived_baseline(binding, tests, roster):
+     result = bound(binding['run'])
+     events = [json.loads(line) for line in bound(binding['raw'], False).read_text().splitlines()]
+@@ -71,16 +86,16 @@
+     rows = [e for e in events if e.get('action') == 'test_status']
+     starts = [e for e in events if e.get('action') == 'test_start']
+     ends = [e for e in events if e.get('action') == 'test_end']
+-    need(result['complete'] and result['before'] == result['after'], 'retained restored capture complete/stable')
++    need(result['complete'] and result['before'] == result['after'], 'historical installed capture complete/stable')
+     need(rows == result['rows'] and starts == result['starts'] and ends == result['ends'], 'raw to RUN join')
+     need(not tests.infrastructure_faults(events) and tests.lifecycle(events, config), 'retained lifecycle')
+     need(tests.exit_matches_results(result['exit'], rows + ends), 'retained exit semantics')
+-    need(len(rows) == 113 and len(starts) == len(ends) == 5, 'retained full cubic restored run')
++    need(len(rows) == 113 and len(starts) == len(ends) == 5, 'historical full installed cubic run')
+     need(all(e['status'] == e.get('expected', e['status']) == 'OK' and not e.get('known_intermittent') for e in ends), 'retained harness ends')
+     for t, names in config['expected_subtests'].items():
+         need([r['subtest'] for r in rows if r['test'] == t] == names, 'retained exact roster')
+-    need(all(config['expected_subtests'][t] == names for t, names in roster.items()), 'subset roster join')
+-    return [r for r in rows if r['test'] in roster]
++    need(config['expected_subtests'] == roster, 'full historical roster join')
++    return rows
+ 
+ 
+ def capture_epoch_join(retained, roles, binaries, paths, roster, native):
+@@ -88,7 +103,7 @@
+         'testing/web-platform/tests/' + t.lstrip('/') for t in roster}
+     need(capture_roles <= set(roles) and capture_roles <= set(retained['after'])
+          and all(retained['after'][n] == roles[n] for n in capture_roles),
+-         'restored capture to current binaries/native/selected WPT/metadata')
++         'capture to admitted binaries/native/selected WPT/metadata')
+ 
+ 
+ def main():
+@@ -102,9 +117,9 @@
+     for n in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'MOZ_CONFIGURE_OPTIONS', 'MOZ_ARTIFACT_BUILDS'):
+         need(not os.environ.get(n), 'ambient ' + n)
+     review = bound(inputs['root_review'])
+-    need(review['status'] == 'STEPS_METADATA_VALIDATION_ROOT_REVIEW_GO' and review['local_pins'] == inputs['local_pins'], 'root source review')
+-    admission = bound(inputs['restored_admission'])
+-    need(admission['status'] == 'CUBIC_RESTORED_EPOCH_ROOT_VERIFIED' and admission['outer_exit'] == 0, 'actual restored admission')
++    need(review['status'] == 'INTEGER_RANGE_METADATA_VALIDATION_ROOT_REVIEW_GO' and review['local_pins'] == inputs['local_pins'], 'root source review')
++    admission = bound(inputs['installed_admission'])
++    need(admission['status'] == 'INTEGER_RANGE_METADATA_EPOCH_VERIFIED' and admission['outer_exit'] == 0, 'actual current admission')
+     for item in admission['evidence']:
+         bound(item, False)
+     need(admission['evidence'], 'actual terminal/preservation evidence')
+@@ -114,13 +129,14 @@
+     tests = load('metadata_tests', HERE / 'tests.py')
+     process = load('metadata_process', HERE / 'process_control.py')
+     roster, paths = read(HERE / 'ROSTER.json'), read(HERE / 'PATHS.json')
+-    original_rows = archived_baseline(admission['restored_capture'], tests, roster)
++    historical_rows = archived_baseline(read(HERE / 'HISTORICAL-CAPTURE.json'), tests, roster)
+     roles = epoch['pins']
+-    need(set(admission['binaries']) == common.BINARY_ROLES and all(roles[n] == v for n, v in admission['binaries'].items()), 'exact four restored binaries')
+-    retained = bound(admission['restored_capture']['run'])
+-    need(all(retained['before'][n] == value for n, value in admission['binaries'].items()), 'restored capture to current binary epoch')
+-    need(all(retained['before'][n] == v['preimage']['sha256'] for n, v in paths.items()), 'restored capture original metadata')
+-    capture_epoch_join(retained, roles, common.BINARY_ROLES, paths, roster, common.NATIVE)
++    need(set(admission['binaries']) == common.BINARY_ROLES and all(roles[n] == v for n, v in admission['binaries'].items()), 'exact four current binaries')
++    historical_run = bound(read(HERE / 'HISTORICAL-CAPTURE.json')['run'])
++    capture_epoch_join(historical_run, roles, set(), paths, roster, common.NATIVE)
++    for name in ('servo/components/style/values/specified/number.rs',
++                 'testing/web-platform/meta/css/css-easing/timing-functions-syntax-valid.html.ini'):
++        need(name in roles and roles[name] == historical_run['after'][name], 'installed easing input ' + name)
+     need(set(paths) <= set(roles) and all(roles[n] == v['preimage']['sha256'] for n, v in paths.items()), 'original metadata roles')
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', MOZCONFIG=str(ROOT / 'mozconfig'), MOZ_OBJDIR=str(common.OBJ),
+                MOZ_SKIP_PATH_PERFORMANCE_CHECK='1', MOZ_HEADLESS='1', PYTHONDONTWRITEBYTECODE='1')
+@@ -167,6 +183,14 @@
+     save('CONFIG.json', config)
+     success, error = False, None
+     try:
++        resources = verify('BASELINE-BEFORE.json')
++        common.ports_free(read(ROOT / 'testing/web-platform/tests/config.json'))
++        baseline = tests.run(adapter, 'baseline', resources)
++        quiet()
++        capture_epoch_join(baseline, roles, common.BINARY_ROLES, paths, roster, common.NATIVE)
++        save('BASELINE-COMPARISON.json', check_baseline(historical_rows, baseline['rows'], roster))
++        verify('BASELINE-AFTER.json')
++        original_rows = baseline['rows']
+         for n in paths:
+             quiet()
+             need(not terminated, 'termination requested')
+@@ -184,7 +208,7 @@
+         verify('FINAL.json')
+         save('RESULT.json', {'success': True, 'error': None, 'cleanup_errors': [],
+             'metadata_retained': True, 'owned_inputs': owned, 'owned_group': adapter.owned_group,
+-            'native_build': False, 'accepted_fix': False})
++            'native_build': False, 'accepted_fix': False, 'fresh_baseline_required': True})
+         success = True
+     except BaseException as failure:
+         error = repr(failure)
+@@ -204,7 +228,7 @@
+                 errors.append('final guard: ' + repr(failure))
+             save('FAILURE.json', {'success': False, 'error': error, 'cleanup_errors': errors,
+                 'metadata_retained': False, 'owned_inputs': owned, 'owned_group': adapter.owned_group,
+-                'native_build': False, 'accepted_fix': False})
++                'native_build': False, 'accepted_fix': False, 'fresh_baseline_required': True})
+     need(success and not errors, 'validation failed; original evidence and recovery retained')
+ 
+ 
+--- reviewed/check.py
++++ candidate/check.py
+@@ -20,25 +20,44 @@
+ v = load('metadata_validation', HERE / 'validate.py')
+ common = load('metadata_common_check', v.ROOT / v.COMMON)
+ roster = v.read(HERE / 'ROSTER.json')
+-before = [{'test': t, 'subtest': n, 'status': 'PASS'} for t, names in roster.items() for n in names]
+-targets = [i for i, r in enumerate(before) if 'steps(calc(1), jump-none)' in r['subtest']]
+-for i in targets:
+-    before[i]['expected'] = 'FAIL'
+-control = next(i for i, r in enumerate(before) if 'steps(calc(-10), start)' in r['subtest'])
+-before[control]['expected'] = 'FAIL'
++for name, expected in v.read(HERE / 'REFERENCES.json').items():
++    assert v.sha(v.ROOT / name) == expected, name
++for name in ('tests.py', 'process_control.py'):
++    assert (HERE / name).read_bytes() == (v.ROOT / 'artifacts/css-steps-metadata-validation-v2' / name).read_bytes()
++runtime = v.ROOT / 'artifacts/css-cubic-bezier-final-install-runtime-v1'
++manifest = v.read(runtime / 'FILES.json')
++for name, expected in manifest.items():
++    assert v.sha(runtime / name) == expected, name
++tests_module = load('archived_tests', HERE / 'tests.py')
++before = v.archived_baseline(v.read(HERE / 'HISTORICAL-CAPTURE.json'), tests_module, roster)
++targets = [i for i, r in enumerate(before) if r['test'] == '/css/css-easing/timing-functions-syntax-computed.html'
++           and r['subtest'] == "Property animation-timing-function value 'steps(calc(-10), start)'"]
++assert len(targets) == 1
++control = next(i for i, r in enumerate(before) if r['status'] == 'FAIL')
+ after = copy.deepcopy(before)
+ for i in targets:
+     del after[i]['expected']
+-assert v.check_rows(before, after, roster)['rows'] == 44
++assert v.check_rows(before, after, roster)['rows'] == 113
++assert v.check_baseline(before, copy.deepcopy(before), roster)['rows'] == 113
++baseline_negatives = 0
++for field, value in [('status', 'PASS'), ('message', 'changed'), ('expected', 'PASS'), ('known_intermittent', ['PASS'])]:
++    changed = copy.deepcopy(before)
++    changed[control][field] = value
++    try:
++        v.check_baseline(before, changed, roster)
++    except RuntimeError:
++        baseline_negatives += 1
++    else:
++        raise AssertionError('changed fresh baseline admitted')
+ negative_count = 0
+ for mutate in (
+     lambda a: a.pop(),
+     lambda a: a.append(copy.deepcopy(a[0])),
+     lambda a: a[targets[0]].update(status='FAIL'),
+     lambda a: a[targets[0]].update(expected='FAIL'),
+-    lambda a: a[targets[1]].update(message='changed'),
+-    lambda a: a[targets[1]].update(known_intermittent=['PASS']),
+-    lambda a: a[control].pop('expected'),
++    lambda a: a[targets[0]].update(message='changed'),
++    lambda a: a[targets[0]].update(known_intermittent=['PASS']),
++    lambda a: a[control].update(expected='PASS'),
+     lambda a: a[0].update(status='FAIL'),
+     lambda a: a[0].update(message='changed'),
+     lambda a: a[0].update(known_intermittent=['FAIL']),
+@@ -81,10 +100,10 @@
+ tail = next(n for n in main.body if isinstance(n, ast.Try))
+ code = compile(ast.Module(body=[tail], type_ignores=[]), '<actual-validation-tail>', 'exec')
+ tail_cases = []
+-for fault in ('none', 'capture', 'compare', 'post_guard', 'final_guard', 'publication', 'second_write', 'unknown_edit', 'live_group'):
+-    with tempfile.TemporaryDirectory(prefix='steps-metadata-control-', dir='/private/tmp') as td:
++for fault in ('none', 'baseline_capture', 'baseline_policy', 'capture', 'compare', 'post_guard', 'final_guard', 'publication', 'partial_write', 'unknown_edit', 'live_group'):
++    with tempfile.TemporaryDirectory(prefix='integer-metadata-control-', dir='/private/tmp') as td:
+         root = Path(td)
+-        originals = {'one.ini': b'old one', 'two.ini': b'old two'}
++        originals = {'one.ini': b'old one'}
+         candidates = {n: b'new ' + b for n, b in originals.items()}
+         for n, b in originals.items():
+             (root / n).write_bytes(b)
+@@ -103,6 +122,10 @@
+                 raise OSError('publication')
+             records[name] = value
+         def run(*args):
++            if args[1] == 'baseline':
++                if fault == 'baseline_capture':
++                    raise RuntimeError(fault)
++                return {'rows': before}
+             if fault == 'live_group':
+                 adapter.owned_group = 123
+                 raise RuntimeError('cleanup rejected')
+@@ -117,15 +140,17 @@
+                 raise RuntimeError(fault)
+             return v.check_rows(*args)
+         def write(root, item, body):
+-            if fault == 'second_write' and item['path'] == 'two.ini':
++            if fault == 'partial_write' and item['path'] == 'one.ini':
+                 common.write_owned(root, item, body[:2])
+                 raise OSError('partial write')
+             common.write_owned(root, item, body)
+         ns = dict(v.__dict__, ROOT=root, paths=paths, candidates=candidates, originals=originals,
+             owned={}, errors=[], success=False, error=None, terminated=False, adapter=adapter,
+-            original_rows=before, roster=roster, read=lambda p: {}, quiet=quiet, verify=verify, save=save,
++            historical_rows=before, roster=roster, read=lambda p: {}, quiet=quiet, verify=verify, save=save,
++            roles={}, capture_epoch_join=lambda *args: None,
++            check_baseline=lambda *args: v.need(fault != 'baseline_policy', 'baseline policy'),
+             check_rows=compare, tests=types.SimpleNamespace(run=run),
+-            common=types.SimpleNamespace(write_owned=write, restore_owned=common.restore_owned, ports_free=lambda c: None),
++            common=types.SimpleNamespace(write_owned=write, restore_owned=common.restore_owned, ports_free=lambda c: None, BINARY_ROLES=common.BINARY_ROLES, NATIVE=common.NATIVE),
+             epoch={'semantic_index': {}}, env={},
+             h=types.SimpleNamespace(index_state=lambda *args: {}, semantic_index=lambda x: x))
+         exec(code, ns)
+@@ -135,10 +160,10 @@
+         elif fault == 'live_group':
+             assert all((root / n).read_bytes() == b for n, b in candidates.items()) and ns['errors']
+         elif fault == 'unknown_edit':
+-            assert (root / 'one.ini').read_bytes() == b'unknown' and (root / 'two.ini').read_bytes() == originals['two.ini'] and ns['errors']
++            assert (root / 'one.ini').read_bytes() == b'unknown' and ns['errors']
+         else:
+             assert all((root / n).read_bytes() == b for n, b in originals.items()) and not ns['errors']
+         tail_cases.append(fault)
+-print(json.dumps({'status': 'STEPS_METADATA_STATIC_CHECKS_PASS', 'row_negatives': negative_count,
++print(json.dumps({'status': 'INTEGER_RANGE_METADATA_STATIC_CHECKS_PASS', 'fresh_baseline_negatives': baseline_negatives, 'row_negatives': negative_count,
+     'capture_epoch_join_negatives': join_negatives,
+     'actual_tail_cases': tail_cases, 'scratch_removed': True, 'browser_or_live_mutation': False}, indent=2))

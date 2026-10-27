@@ -1,0 +1,15 @@
+# Publication-only recovery: source GO
+
+The sealed disabled recovery can reuse the 37 existing signed objects without re-signing. Exact draft d22f113499b68ffa7423111566db4a7911e3db24ee4cf228dc81f0d6b396e0a9 and source ccd71a26dbfbc363dc7504726ee12ef8fec6ffb4820b4ab282f300bc44b7184f authenticated, including all payload sizes/digests and retained references. No correction is required within its explicit serialized-Git-writer premise. An initial review authenticator treated digest/size records as plain digests and stopped; it was corrected before making this claim.
+
+The runner joins the actual failed terminal and preserved failure, exact map and carrier admission. It rechecks original object hashes and each replacement's author/message, sole parent, tree, verified receipt, selected modes/blobs, complete changed-path set and per-commit metadata transformation. It re-verifies old and replacement signatures plus carrier against the configured public SSH key. Exact final carrier tree, 37-count chain and backup precede publication. There is no commit-tree, hash-object, index writer, checkout, reset or worktree mutation.
+
+I independently joined all 37 archived verified receipts through tip 72ca9cb73758b2550453c03b7382ea3b18284f28 and checked all 13 proposed current mappings. This is archive verification, not a live signature check; actual cryptographic revalidation remains a mandatory runner gate.
+
+Publication checks exact branch and carrier, atomically verifies backup and compare-and-swaps the branch, then checks exact branch/new HEAD. Complete source/binary/research/identity and main/nested index checks surround publication; final branch/HEAD checks precede CURRENT-EPOCH. Raw index bytes are compared explicitly. RESULT reports the verified map/signatures, reused commits and no ledger mutation. Failure is retained and raised; receipt publication failure cannot become a successful outer exit.
+
+The conflicting HEAD symref transaction is removed. My disposable Git 2.53 test proves that the old combination rejects duplicate HEAD while this backup+branch CAS succeeds. Symbolic checks are not atomic with publication. Root's required git_writers_serialized=true admission is an execution constraint, not a theorem supplied by pre/post observations.
+
+Independent author-check replay passes seven actual-function publication scenarios and six environment/disabled refusals without Git calls. My separate seven-scenario check additionally covers interrupted return after a committed transaction: published:false can remain while actual HEAD is new. Inspect actual_head_after and receipts; that flag alone never authorizes retry. The outer runner reports failure and has no automatic retry/rollback.
+
+Original failed evidence remains immutable. Root must bind the exact failed-terminal receipt, reviewed local pins and exclusive-writer admission in a fresh activation copy. No live Git/signature/root preservation check, publication, native/canonical/index/ledger mutation, new CSS bug or canonical credit is claimed by this review.

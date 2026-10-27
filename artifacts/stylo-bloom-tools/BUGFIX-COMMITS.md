@@ -1,11 +1,15 @@
 # CSS verification bugfix commits
 
-Latest signed fixes: calculated jump-none minimum `ea6cde0db70c` now includes its two expectation corrections; calculated cubic-bezier x ranges `8ccca4c4901c` includes its WPT and two expectation corrections. All 133 accepted fixes are committed; repair 120 stays held and excluded. The current local browser contains both fixes. See the [signing record](../css-local-signing-20261027-v4/CHECKPOINT.md).
+Fix 121 now includes its validated one-block expectation correction. The signed history rewrite preserves the final tree; current commit IDs below come from the [new rewrite receipt](../../artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json). Historical signing receipts retain their original IDs. All 133 accepted fixes remain committed; held repair 120 stays excluded.
+
+The callable current-provider resolver passed the normal and GTest builds and all 19 native tests; normal pending recipe production remains disabled. The 113-case metadata comparison preserved all 110 PASS and three expected FAIL observations, changing only the fix 121 expectation. The canonical library is signed at `162b20fb7c53a0ab89b20875a965baee98fb66bb` and its full check passes 11,840 audits, 12,438 cases, 173 expected-false cases and 2,155 source fingerprints. Ten audits transfer from reviewed steps research, with no new discovery, normative coverage or native-refinement credit.
+
+Next: Run the quote append candidate/original/candidate comparison with fresh captures and exact restoration; then integrate winning pending animation providers through the real cascade and dependency scheduler. Preserve unresolved animated-cycle policy, current underlying-value provenance, dependency publication and memory-reporting obligations.
 
 | Fix | Native/WPT commit | Preceding evidence |
 |---|---|---|
-| 134: calculated cubic-bezier x range | `8ccca4c4901cc778c30485a3b85c69c0aa62724f` | `df58b1c6808b1cf4c77403c5b99a60487fec88ce` |
-| 133: calculated jump-none minimum | `ea6cde0db70c1fc85baf4fb8d0adc35b83545477` | `56c3cda25c7c6e167db523cb4365ab20dc716422` |
+| 134: calculated cubic-bezier x range | `70cc9c30ef4420d8dba76ce3e5aab10504339ceb` | `906c05d72653ecf46a591b197a06bc973a8accc3` |
+| 133: calculated jump-none minimum | `e414c8f7cfcd64ccca1a944b5f8e901ec3db2feb` | `be4240e9d1ccab6395139ba975e1a13aeb9f8762` |
 
 Twenty observed failures repaired; 22 targets pass, 55 controls unchanged, all 77 restored outcomes exact. Tentative P3 conformance. Source/spec audit and browser reproduction found this issue; the separate Lean model supports conditional laws. No full bug 2037743, clean-upstream browser or security claim. Earlier checkpoint text below is historical.
 
@@ -28,17 +32,17 @@ Twenty observed failures repaired; 22 targets pass, 55 controls unchanged, all 7
 
 | Fix | Gecko/WPT commit | Preceding research |
 |---|---|---|
-| 121: integer-stored-range-resolution | `231120268a02a948a08a0180fe693997c34e355f` | `55c31aba8fcfd32c10802a8bb8b00a1a53a59d8d` |
-| 122: saturated-subgrid-line-name-cache | `cef7cba29d6c1796af9c3aa17f9468ceb747fe6d` | `d129e631ca88e736e28bdb67df7749cd6a1d86f1` |
-| 123: counter-range-calculated-bound-export | `412a58792433a108e1dd9f97c026a07369fe40f8` | `96f07a02d0dbebcc120dcf2b51aaca0b4b0ec09b`, `422eaa2798f486d867e8ac127935c6df1b493c00` |
-| 124: additive-symbol-resolved-weight-ordering | `e9947a86cff12ff54ef6c6b993f8a41e4f75bea3` | `96f07a02d0dbebcc120dcf2b51aaca0b4b0ec09b`, `541c2f3cf4a406e974dc5f28f95ad1f32507c98a` |
-| 125: round-runtime-nan-propagation | `ac466b84f24739b473d59fe26707963ad40ffede` | `b1a7c887f651890edbc0bdcd545f1d0f27043aea` |
-| 126: round-finite-negative-zero-bound | `cf7e06c3e1adf7265acfb5a9c9fad025fffa1cd8` | `75c3a91d48e2403a672cb3c544a92216dbb5eb5c` |
-| 127: subgrid-contextual-name-repeat | `6760efc232f48a9ce4a92442cd2d3a4f72b78fd0` | `faf46a8f43d95106b2e0c9c1b3d2f6fc3dfdea45` |
-| 128: finite-mod-rem-quotient-reconstruction | `354b58aa74696e71f7d824e3c117aad09eca2754` | `6365632906ba37c5c698d9e72f94c9ca26a1fd92` |
-| 129: css-duration-reactivation-keyframe-properties | `3fcacaa09e010bcb9fb41ab46b165d316e73dc43` | `a10ed0ad617c0f1eb52eaf3aed4fb8c86338441a` |
-| 130: ordinary-keyframe-attribute-initialization | `f8f045833d29a20b2b50531b078739d56274f3e7` | `4529efd84c0dd82561df5ce1184737940cba6ce6` |
-| 131: active-keyframe-attribute-dependency-publication | `9b8a7506422f4f9b5e8ef31bc08c9bcf161f6bd9` | `3df09487e3d72e3fbe00104bffeca5eabd242fb4` |
+| 121: integer-stored-range-resolution | `b218397700bd4ad701a232fad806cf99dd8f9f7b` | `3b1fc453848bd1ef03a5dc118e39cb6d9411ef42` |
+| 122: saturated-subgrid-line-name-cache | `8d0eb95794ebcd0b0dd5585047c9316ae075df92` | `7abb33ffcb2480da8ddddc213249496b902db102` |
+| 123: counter-range-calculated-bound-export | `0f68c5c1a7a556dd3907fdf7caf2d97110c53c12` | `a2eea3d47919f698604fa869593ccab8feccd7ea`, `53989ac9bd082a4dcbe497cf35b6009a9da53e54` |
+| 124: additive-symbol-resolved-weight-ordering | `656b54ea29efd83de6873663882afa0cab6b0e39` | `a2eea3d47919f698604fa869593ccab8feccd7ea`, `b4592416a12e5c9b7c81e1afccc9accbfca9f6c2` |
+| 125: round-runtime-nan-propagation | `a9b7886a5f470942b5e8e9d5863237b301d64425` | `f8b9a6bc48b86d3bbea32e8094f5e664cd4e3394` |
+| 126: round-finite-negative-zero-bound | `4c4ff0d440cd3d1ffd1021e831258043dbb926ed` | `0b3d341c8367da1fd832fabfe85d3628e18839ec` |
+| 127: subgrid-contextual-name-repeat | `f946a0921b8b5ee87661284a827208b00cee5398` | `79f8d7f1ea56ac293fc86a00f70cf327cb58f98a` |
+| 128: finite-mod-rem-quotient-reconstruction | `10b6eabed27195aa21e41f62d8179af3a065a1dc` | `3d889a60923562ff9d0d07b5373ba12698a2592c` |
+| 129: css-duration-reactivation-keyframe-properties | `d13af8f7e9fd232b3d950f4f9bb59436ec6ef29f` | `7626b6ca8866ba2e6288a9b070b5e8d880ede2d1` |
+| 130: ordinary-keyframe-attribute-initialization | `e91224fd2e9e163bfb73d8e3fcdd4a1017b34ef1` | `e40adf1616f3f485163cc4c65176ce0e21b3ddf1` |
+| 131: active-keyframe-attribute-dependency-publication | `65355573964a31a08b3ae3e133c224cbab46e098` | `e9b759281bca085273ddbdfe0895e1adb688f6f0` |
 
 All 23 signed-item receipts passed exact parent/content and configured-key signature verification: 11 native/WPT commits and 12 research commits. Shared counter evidence precedes both fixes 123 and 124; prior research dependencies remain in the authenticated recipes. Existing fix 132 and held fix 120 are unchanged. Per-fix prerequisite, standalone, release-exposure and formal-scope caveats remain intact in the JSON records; signing is not a new build, browser test or clean-upstream validation. Source and binary bodies were preserved; main staging is empty, and nested-library index state is retained. Remaining prototype work is not counted as accepted fixes.
 

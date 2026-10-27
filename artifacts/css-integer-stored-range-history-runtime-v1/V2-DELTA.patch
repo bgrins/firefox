@@ -1,0 +1,120 @@
+--- v1/rewrite.py
++++ v2/rewrite.py
+@@ -107,6 +107,7 @@
+     h = load('fold_preservation', 'artifacts/css-keyframe-commit-styles-implicit-clean-comparison-v1/compare.py')
+     guards = load('fold_epoch', 'artifacts/css-keyframe-operation-descriptor-post-signing-proposal-v2/epoch.py')
+     need(git('rev-parse', 'HEAD').decode().strip() == carrier and git('rev-parse', carrier + '^').decode().strip() == TIP, 'carrier on exact tip')
++    need(git('--version').decode().strip() == read(HERE / 'GIT-CAPABILITY.json')['version'], 'reviewed symbolic-ref transaction Git version')
+     branch = git('symbolic-ref', 'HEAD').decode().strip()
+     need(branch == 'refs/heads/stylo-bloom-verification-2', 'expected branch')
+     need(git('rev-list', '--reverse', '--parents', BASE + '..' + TIP).decode().splitlines()
+@@ -194,15 +195,18 @@
+             save('PROPOSED-CURRENT-FIX-MAPPING.json', mapping)
+             (HERE / 'RANGE-DIFF.txt').write_bytes(git('range-diff', BASE + '..' + carrier, BASE + '..' + parent))
+             need(guards.verify_current(h, ROOT, env, epoch) == before, 'full prepublication preservation')
+-            transaction = 'start\nverify ' + backup + ' ' + carrier + '\nupdate ' + branch + ' ' + parent + ' ' + carrier + '\nprepare\ncommit\n'
++            need(git('symbolic-ref', 'HEAD').decode().strip() == branch, 'prepublication symbolic branch')
++            transaction = 'start\noption no-deref\nsymref-verify HEAD ' + branch + '\nverify ' + backup + ' ' + carrier + '\nupdate ' + branch + ' ' + parent + ' ' + carrier + '\nprepare\ncommit\n'
+             git('update-ref', '--stdin', data=transaction.encode())
+             result.update(published=True, new_tip=parent)
+             state = h.index_state(ROOT, env)
++            need(git('symbolic-ref', 'HEAD').decode().strip() == branch and state['head'] == parent, 'published branch and HEAD')
+             need(all(state[k] == before['index'][k] for k in ('entries', 'cached_diff', 'working_diff', 'raw_index')), 'main index/worktree unchanged')
+             current = copy.deepcopy(epoch)
+             current['semantic_index'] = h.semantic_index(state)
+             after = guards.verify_current(h, ROOT, env, current)
+             need(after['nested_index'] == before['nested_index'], 'nested index unchanged')
++            need(git('symbolic-ref', 'HEAD').decode().strip() == branch and git('rev-parse', 'HEAD').decode().strip() == parent, 'final published branch and HEAD')
+             save('CURRENT-EPOCH.json', current)
+             result.update(status='FIX121_METADATA_HISTORY_REWRITE_VERIFIED', signatures_verified=True, final_tree_exact_carrier=True, current_ledgers_modified=False, configured_public_key_sha256=digest(key.encode()))
+     except BaseException as error:
+@@ -213,6 +217,7 @@
+             result['errors'].append('head observation: ' + repr(observation))
+         try:
+             state = h.index_state(ROOT, env)
++            need(git('symbolic-ref', 'HEAD').decode().strip() == branch, 'failure symbolic branch ownership')
+             need(state['head'] == (result.get('new_tip') if result['published'] else carrier), 'failure head ownership')
+             need(all(state[k] == before['index'][k] for k in ('entries', 'cached_diff', 'working_diff', 'raw_index')), 'failure index/worktree preservation')
+             failure_epoch = copy.deepcopy(epoch)
+--- v1/check.py
++++ v2/check.py
+@@ -101,6 +101,66 @@
+     row = next(e for e in mapping if e['fix'] == fix)
+     assert all(f in row['current_fields'] for f in fields)
+ assert all(not k.startswith('previous') and 'history' not in k for e in mapping for k in e['current_fields'])
++publication_body = next(n.body for n in ast.walk(main) if hasattr(n, 'body') and isinstance(n.body, list)
++                        and any(isinstance(x, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'transaction' for t in x.targets) for x in n.body))
++transaction_index = next(i for i, n in enumerate(publication_body) if isinstance(n, ast.Assign)
++                         and any(isinstance(t, ast.Name) and t.id == 'transaction' for t in n.targets))
++publication_code = compile(ast.Module(body=publication_body[transaction_index-1:transaction_index+5], type_ignores=[]), '<actual-publication-guards>', 'exec')
++final_gate = next(n for n in publication_body if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call)
++                 and any(isinstance(a, ast.Constant) and a.value == 'final published branch and HEAD' for a in n.value.args))
++final_code = compile(ast.Module(body=[final_gate], type_ignores=[]), '<actual-final-branch-gate>', 'exec')
++publication_cases = []
++for fault in ('none', 'before-switch', 'before-detach', 'transaction-switch', 'after-switch', 'after-old-head'):
++    state = {'branch': 'refs/heads/expected', 'head': 'c' * 40, 'updates': 0}
++    expected_branch = state['branch']
++    if fault == 'before-switch':
++        state['branch'] = 'refs/heads/other'
++    if fault == 'before-detach':
++        state['branch'] = None
++    def git(*args, data=None):
++        if args == ('symbolic-ref', 'HEAD'):
++            if state['branch'] is None:
++                raise RuntimeError('detached HEAD')
++            return (state['branch'] + '\n').encode()
++        assert args == ('update-ref', '--stdin')
++        lines = data.decode().splitlines()
++        assert lines == ['start', 'option no-deref', 'symref-verify HEAD ' + expected_branch,
++                         'verify refs/heads/backup ' + 'c' * 40,
++                         'update ' + expected_branch + ' ' + 'n' * 40 + ' ' + 'c' * 40,
++                         'prepare', 'commit']
++        if fault == 'transaction-switch':
++            state['branch'] = 'refs/heads/other'
++        if state['branch'] != expected_branch:
++            raise RuntimeError('simulated atomic symref verification refusal')
++        state['updates'] += 1
++        state['head'] = 'n' * 40
++        if fault == 'after-switch':
++            state['branch'] = 'refs/heads/other'
++        if fault == 'after-old-head':
++            state['head'] = 'c' * 40
++        return b''
++    class Guards:
++        def index_state(self, *args):
++            return {'head': state['head']}
++    namespace = dict(git=git, branch=expected_branch, backup='refs/heads/backup', carrier='c' * 40,
++                     parent='n' * 40, result={}, h=Guards(), ROOT=Path('/not-used'), env={}, need=m.need)
++    try:
++        exec(publication_code, namespace)
++    except RuntimeError:
++        assert fault != 'none'
++        assert state['updates'] == (1 if fault.startswith('after-') else 0)
++    else:
++        assert fault == 'none' and state['updates'] == 1
++    publication_cases.append(fault)
++for branch, head in (('refs/heads/other', 'n' * 40), ('refs/heads/expected', 'c' * 40)):
++    namespace = dict(need=m.need, branch='refs/heads/expected', parent='n' * 40,
++                     git=lambda *args: (branch if args[0] == 'symbolic-ref' else head).encode())
++    try:
++        exec(final_code, namespace)
++    except RuntimeError:
++        negative += 1
++    else:
++        raise AssertionError('changed final branch/head accepted')
+ print(json.dumps({'status': 'FIX121_HISTORY_REWRITE_STATIC_PASS', 'transformed_old_trees': 37,
+-    'negative_controls': negative, 'git_subprocesses': len(git_attempts),
++    'negative_controls': negative, 'publication_cases': publication_cases, 'git_subprocesses': len(git_attempts),
+     'owned_scratch_removed': True, 'git_objects_refs_indices_signatures_created': False}, indent=2))
+--- v1/README.md
++++ v2/README.md
+@@ -22,4 +22,8 @@
+ 
+ REWRITE-MAP gives all37 old→new IDs. PROPOSED-CURRENT-FIX-MAPPING covers the13 affected current fixes, including133/134 research_commit and134 shared_prior_research. The script does not edit current ledgers. Root later updates only explicit active fields using this verified map; archive old signing summaries intact and preserve all previous*/history fields, immutable evidence, and old archived IDs. Current133 accepted/committed count remains unchanged. ACTIVE-LEDGER-REFERENCE-AUDIT supplies the broader prose/summary review list, not a global substitution program.
+ 
+-Replay inert controls: python3 -I -S -B artifacts/css-integer-stored-range-history-rewrite-v1/check.py. They check37 transformations against pinned proposal outputs, malformed blocks/selections, five ambient Git overrides, disabled refusal, exclusive ATTEMPT, and the missing research-field regression. Subprocess hooks forbid every Git call during the replay. Actual signing/tree/index/ref operations remain unexecuted. External helper and plan dependencies are explicit in REFERENCES; this is not a self-contained clean-clone replay package.
++Replay inert controls: python3 -I -S -B artifacts/css-integer-stored-range-history-rewrite-v2/check.py. They check37 transformations against pinned proposal outputs, malformed blocks/selections, five ambient Git overrides, disabled refusal, exclusive ATTEMPT, and the missing research-field regression. Subprocess hooks forbid every Git call during the replay. Actual signing/tree/index/ref operations remain unexecuted. External helper and plan dependencies are explicit in REFERENCES; this is not a self-contained clean-clone replay package.
++
++V2 closes symbolic-HEAD publication ownership. Local read-only inspection found Git2.53.0 and its installed git-update-ref manual explicitly supports symref-verify in no-deref mode. GIT-CAPABILITY records the version, manual hash and exact excerpts; no ref transaction was tested against the repository. Execution refuses a different Git version pending review. Immediately after the full prepublication guard, require symbolic-ref HEAD to equal the expected branch. The atomic transaction contains option no-deref followed by symref-verify HEAD EXPECTED_BRANCH, alongside backup verification and the branch old-object compare-and-swap. There is no check-only fallback. A concurrent branch switch before transaction preparation must fail the symbolic verification instead of updating a branch that is no longer checked out.
++
++After publication, require both the observed symbolic branch and index_state.head to match expected branch/new_tip. Repeat symbolic branch and rev-parse HEAD checks after the full preservation scan, before publishing the new epoch. Failure preservation also checks symbolic branch ownership. Ref locks protect transaction publication, not arbitrary future branch changes after the transaction completes; postpublication checks detect changes at the recorded observation points. Root still serializes Git writers. Six inert actual-source publication controls cover success, pre-switch/detach, simulated transaction-time switch rejection, post-switch and post-old-head; two additional controls reject final branch/head changes. The simulated transaction is not a live Git concurrency experiment.

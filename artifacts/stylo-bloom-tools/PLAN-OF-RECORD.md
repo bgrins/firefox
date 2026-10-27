@@ -16,22 +16,19 @@
 | CSSOM geometry and hidden layout | 13 | 0 |
 | **Total** | **133** | **0** |
 
-Latest signed fixes: calculated jump-none minimum `ea6cde0db70c` now includes its two expectation corrections; calculated cubic-bezier x ranges `8ccca4c4901c` includes its WPT and two expectation corrections. All 133 accepted fixes are committed; repair 120 stays held and excluded. The current local browser contains both fixes. See the [signing record](../css-local-signing-20261027-v4/CHECKPOINT.md).
+Fix 121 now includes its validated one-block expectation correction. The signed history rewrite preserves the final tree; current commit IDs below come from the [new rewrite receipt](../../artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json). Historical signing receipts retain their original IDs. All 133 accepted fixes remain committed; held repair 120 stays excluded.
 
 ## Latest verified work
 
-- Fix 134 `8ccca4c4901c`: original/candidate/restored results 82 PASS/31 FAIL → 110 PASS/3 FAIL → exact 82 PASS/31 FAIL. All 38 targets pass, 28 observations repaired, 75 controls unchanged and all 113 restored exactly. Final installed capture reproduces the candidate with corrected expectations. [Acceptance](../css-cubic-bezier-calc-range-acceptance-v3/REPORT.md).
-- Fix 133 `ea6cde0db70c`: the two stale jump-none expectations are now folded into the native/WPT commit. Its 44-row metadata capture preserves all observations. The signed rewrite preserves the final tree and keeps a backup branch.
-- Compact Arc borrowing passed five unit tests under each allocation configuration, three compile-fail doctests, all 17 selected host tests and the unchanged 166-outcome browser comparison. The API is committed in `feaec25f9647`; broader owner/provider work remains experimental.
-- Canonical Lean totals remain 11,830 audits, 12,424 executable cases, 170 expected-false cases and 2,153 source fingerprints. These are validation counts, not percentages of CSS coverage. The prepared steps transfer has focused replay evidence but is not yet applied to the canonical library.
+The callable current-provider resolver passed the normal and GTest builds and all 19 native tests; normal pending recipe production remains disabled. The 113-case metadata comparison preserved all 110 PASS and three expected FAIL observations, changing only the fix 121 expectation. The canonical library is signed at `162b20fb7c53a0ab89b20875a965baee98fb66bb` and its full check passes 11,840 audits, 12,438 cases, 173 expected-false cases and 2,155 source fingerprints. Ten audits transfer from reviewed steps research, with no new discovery, normative coverage or native-refinement credit.
+
+Next: Run the quote append candidate/original/candidate comparison with fresh captures and exact restoration; then integrate winning pending animation providers through the real cascade and dependency scheduler. Preserve unresolved animated-cycle policy, current underlying-value provenance, dependency publication and memory-reporting obligations.
 
 ## Execution order
 
-1. **Finish the older expectation correction.** Fix 121 owns the remaining calculated-start unexpected pass. Its archived isolated range-only comparison establishes attribution. Validate the one-block expectation change, then fold it with its evidence while preserving a backup and updating descendant commit mappings. This is not a new bug. [Proposal](../css-integer-stored-range-metadata-correction-v2/REPORT.md).
-2. **Review and integrate the prepared steps model.** The prepared transfer preserves ten theorem bodies and adds fourteen executable observations, including three false controls. Run the full canonical checker and preserve old cases/axioms before updating totals or signing the library. No native-refinement or normative-coverage increment is implied. [Proposal](../css-steps-origin-library-proposal-v1/README.md).
-3. **Compile current-provider endpoint resolution.** The reviewed four-file callable stage needs normal/GTest builds and all nineteen host tests. Normal recipe production remains disabled. Winning-provider selection, coherent scheduling, animated-cycle semantics, dependency publication and memory reporting remain open. [Source review](../css-keyframe-provider-resolution-root-review-v1/REPORT.md), [host recipe](../css-keyframe-provider-resolver-host-preparation-v1/README.md), [cycle-policy audit](../css-keyframe-animated-provider-policy-v1/README.md).
-4. **Extend specification correspondence and preserve Bloom milestones 1–6.** Continue versioned normative mapping, parser progress, provider ownership and fragmentation. Retain explicit parser/compiler/heap/provider premises; existing checkpoints do not prove all CSS or unchanged correspondence after implementation edits. [Open obligations](FORMAL-CLOSURE-CHECKLIST.md), [Bloom continuation](CONTINUATION-20261017.md).
-5. **Keep fixes and evidence reviewable.** Commit each accepted native fix with its WPT and necessary expectation metadata; put supporting research before it. Keep work local. Remove obsolete task-owned build targets only after process and retained-evidence checks; keep the active Firefox object directory and canonical Lean build.
+1. Run fresh quote append candidate/original/candidate captures and exact control/restoration checks.
+2. Continue the full animation pending-provider integration through winning cascade gates; do not replace scheduling with preselected provider snapshots.
+3. Preserve Bloom milestones 1–6 and scoped specification correspondence; keep accepted fixes and their research separately reviewable.
 
 ## Historical record
 

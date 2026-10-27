@@ -1,0 +1,13 @@
+# Fix 121 publication-only recovery
+
+Disabled recovery for actual rewrite session 47864, exit 1, terminal 518ee6. The original transaction failed during prepare because Git disallows simultaneously verifying HEAD and updating its referent. Its 37 signed commits and failed receipt remain immutable. This runner creates no replacement commits, invokes no signer, and does not write a Git index or worktree file.
+
+Before publication, reauthenticate the failed mapping and all 37 old/new object, author, message, parent, path, mode, metadata and configured-key signature joins; require the final tree to equal the carrier exactly. Preserve the full admitted source/binary/research/identity and root/nested index epoch. The transaction only verifies the existing backup and compares-and-swaps the expected branch from carrier to the existing new tip.
+
+Symbolic HEAD checks are **not atomic with publication**. Root must serialize every Git writer for the entire run. Exact symbolic branch and HEAD are required before, immediately after, and after final preservation. A concurrent branch switch cannot be made safe by these checks alone; it is a prohibited execution condition. Post-publication failures retain the actual published flag and require inspection, not blind retry or automatic rollback.
+
+Root activation: copy this capsule to a fresh execution directory; retain REFERENCES and source bytes. Bind INPUTS.actual_failed_terminal to a SHA-256-pinned JSON receipt containing session=47864, exit=1, terminal_chunk="518ee6". Bind INPUTS.root_review to a pinned receipt with status FIX121_PUBLICATION_RECOVERY_ROOT_REVIEW_GO, exact local_pins, and git_writers_serialized=true. Only then set ready=true and run `python3 -I -S -B publish.py --run`. The root review and actual terminal are intentionally null here. The authoritative carrier admission remains the authenticated failed runtime's original admission, not a newly invented epoch.
+
+Success uses the distinct FIX121_HISTORY_PUBLICATION_RECOVERY_VERIFIED status, records the actual old-to-new map, verified signatures, reused_signed_commits=37 and current_ledgers_modified=false. Updating current ledger references is a separate root operation. Historical receipts are not rewritten. RESULT is published on caught execution failure before the script raises; publication cannot be blindly repeated.
+
+Inert replay: `python3 -I -S -B check.py`. Seven actual publication-function mock cases cover branch/HEAD mismatches, detachment, transaction failure and post-publication discrepancies; six refusals cover redirecting environments and disabled execution. These are not live Git tests. The independent disposable-Git transaction evidence is `artifacts/css-integer-history-transaction-scratch-review-v1/CHECK.json`.

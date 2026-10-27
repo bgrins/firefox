@@ -1,0 +1,8 @@
+state = h.index_state(ROOT, env)
+need(all((state[k] == before['index'][k] for k in ('entries', 'cached_diff', 'working_diff', 'raw_index'))), 'main index/worktree unchanged')
+current = copy.deepcopy(epoch)
+current['semantic_index'] = h.semantic_index(state)
+after = guards.verify_current(h, ROOT, env, current)
+need(after['nested_index'] == before['nested_index'], 'nested index unchanged')
+save('CURRENT-EPOCH.json', current)
+result.update(status='FIX121_METADATA_HISTORY_REWRITE_VERIFIED', signatures_verified=True, final_tree_exact_carrier=True, current_ledgers_modified=False, configured_public_key_sha256=digest(key.encode()))
