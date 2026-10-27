@@ -1,0 +1,158 @@
+--- indexed
++++ head
+@@ -3828,7 +3828,8 @@
+                                   const StyleGridLine& aEnd,
+                                   const LineNameMap& aNameMap,
+                                   LogicalAxis aAxis, uint32_t aExplicitGridEnd,
+-                                  const nsStylePosition* aStyle);
++                                  const nsStylePosition* aStyle,
++                                  int32_t aClampMinLine, int32_t aClampMaxLine);
+ 
+   /**
+    * Return a LineRange based on the given style data. Non-auto lines
+@@ -3848,7 +3849,8 @@
+                              const StyleGridLine& aEnd,
+                              const LineNameMap& aNameMap, LogicalAxis aAxis,
+                              uint32_t aExplicitGridEnd,
+-                             const nsStylePosition* aStyle);
++                             const nsStylePosition* aStyle,
++                             bool aIsAbsPos = false);
+ 
+   /**
+    * Return a GridArea with non-auto lines placed at a definite line (1-based)
+@@ -4495,7 +4497,8 @@
+ 
+ nsContainerFrame* NS_NewGridContainerFrame(PresShell* aPresShell,
+                                            ComputedStyle* aStyle) {
+-  return new nsGridContainerFrame(aStyle, aPresShell->GetPresContext());
++  return new (aPresShell)
++      nsGridContainerFrame(aStyle, aPresShell->GetPresContext());
+ }
+ 
+ //----------------------------------------------------------------------
+@@ -4692,7 +4695,8 @@
+ nsGridContainerFrame::Grid::ResolveLineRangeHelper(
+     const StyleGridLine& aStart, const StyleGridLine& aEnd,
+     const LineNameMap& aNameMap, LogicalAxis aAxis, uint32_t aExplicitGridEnd,
+-    const nsStylePosition* aStyle) {
++    const nsStylePosition* aStyle, int32_t aClampMinLine,
++    int32_t aClampMaxLine) {
+   MOZ_ASSERT(int32_t(kAutoLine) > kMaxLine);
+   auto startNum = std::clamp(aStart.line_num, kMinLine, kMaxLine);
+   auto endNum = std::clamp(aEnd.line_num, kMinLine, kMaxLine);
+@@ -4718,7 +4722,7 @@
+     if (end <= 1) {
+       // The end is at or before the first explicit line, thus all lines before
+       // it match <custom-ident> since they're implicit.
+-      int32_t start = std::max(end - span, aNameMap.mClampMinLine);
++      int32_t start = std::max(end - span, aClampMinLine);
+       return LinePair(start, end);
+     }
+     auto start = ResolveLine(aStart, -span, end, aNameMap,
+@@ -4768,7 +4772,7 @@
+       if (start >= int32_t(aExplicitGridEnd)) {
+         // The start is at or after the last explicit line, thus all lines
+         // after it match <custom-ident> since they're implicit.
+-        return LinePair(start, std::min(start + nth, aNameMap.mClampMaxLine));
++        return LinePair(start, std::min(start + nth, aClampMaxLine));
+       }
+       from = start;
+     }
+@@ -4780,7 +4784,7 @@
+                          aExplicitGridEnd, aStyle);
+   if (start == int32_t(kAutoLine)) {
+     // auto / definite line
+-    start = std::max(aNameMap.mClampMinLine, end - 1);
++    start = std::max(aClampMinLine, end - 1);
+   }
+   return LinePair(start, end);
+ }
+@@ -4788,16 +4792,19 @@
+ nsGridContainerFrame::LineRange nsGridContainerFrame::Grid::ResolveLineRange(
+     const StyleGridLine& aStart, const StyleGridLine& aEnd,
+     const LineNameMap& aNameMap, LogicalAxis aAxis, uint32_t aExplicitGridEnd,
+-    const nsStylePosition* aStyle) {
+-  LinePair r = ResolveLineRangeHelper(aStart, aEnd, aNameMap, aAxis,
+-                                      aExplicitGridEnd, aStyle);
++    const nsStylePosition* aStyle, bool aIsAbsPos) {
++  const int32_t clampMinLine = aIsAbsPos ? kMinLine : aNameMap.mClampMinLine;
++  const int32_t clampMaxLine = aIsAbsPos ? kMaxLine : aNameMap.mClampMaxLine;
++  LinePair r =
++      ResolveLineRangeHelper(aStart, aEnd, aNameMap, aAxis, aExplicitGridEnd,
++                             aStyle, clampMinLine, clampMaxLine);
+   MOZ_ASSERT(r.second != int32_t(kAutoLine));
+ 
+   if (r.first == int32_t(kAutoLine)) {
+-    // r.second is a span, clamp it to aNameMap.mClampMaxLine - 1 so that
+-    // the returned range has a HypotheticalEnd <= aNameMap.mClampMaxLine.
++    // r.second is a span, clamp it to clampMaxLine - 1 so that
++    // the returned range has a HypotheticalEnd <= clampMaxLine.
+     // https://drafts.csswg.org/css-grid-2/#overlarge-grids
+-    r.second = std::min(r.second, aNameMap.mClampMaxLine - 1);
++    r.second = std::min(r.second, clampMaxLine - 1);
+   } else {
+     // Clamp the lines to be within our limits, per
+     // https://drafts.csswg.org/css-grid-2/#overlarge-grids
+@@ -4809,17 +4816,15 @@
+     //
+     // Note that these two clamped assignments might collapse our range to
+     // have both edges pointing at the same line (spanning 0 tracks); this
+-    // might happen here if e.g. r.first were mClampMaxLine, and r.second gets
+-    // clamped from some higher number down to mClampMaxLine. We'll handle this
++    // might happen here if e.g. r.first were clampMaxLine, and r.second gets
++    // clamped from some higher number down to clampMaxLine. We'll handle this
+     // by shifting the inner line (r.first in this hypothetical) inwards by 1,
+     // in the #grid-placement-errors section; that achieves the outcome of
+     // the #overlarge-grids clamping spec text that says "its span must be
+     // truncated to 1" when clamping an item that was completely outside the
+     // limits.
+-    r.first =
+-        std::clamp(r.first, aNameMap.mClampMinLine, aNameMap.mClampMaxLine);
+-    r.second =
+-        std::clamp(r.second, aNameMap.mClampMinLine, aNameMap.mClampMaxLine);
++    r.first = std::clamp(r.first, clampMinLine, clampMaxLine);
++    r.second = std::clamp(r.second, clampMinLine, clampMaxLine);
+ 
+     // Handle grid placement errors.
+     // https://drafts.csswg.org/css-grid-2/#grid-placement-errors
+@@ -4830,8 +4835,8 @@
+       // that any #overlarge-grids fixup that we did above will end up
+       // truncating the range to a span of 1 rather than 0 -- i.e. sliding
+       // inwards if needed.)
+-      if (MOZ_UNLIKELY(r.first == aNameMap.mClampMaxLine)) {
+-        r.first = aNameMap.mClampMaxLine - 1;
++      if (MOZ_UNLIKELY(r.first == clampMaxLine)) {
++        r.first = clampMaxLine - 1;
+       }
+       r.second = r.first + 1;
+     }
+@@ -4885,8 +4890,8 @@
+     return LineRange(start, kAutoLine);
+   }
+ 
+-  LineRange r =
+-      ResolveLineRange(aStart, aEnd, aNameMap, aAxis, aExplicitGridEnd, aStyle);
++  LineRange r = ResolveLineRange(aStart, aEnd, aNameMap, aAxis,
++                                 aExplicitGridEnd, aStyle, true);
+   if (r.IsAuto()) {
+     MOZ_ASSERT(aStart.is_span && aEnd.is_span,
+                "span / span is the only case "
+@@ -9274,7 +9279,7 @@
+   nscoord bSize = aContentArea.BSize(wm);
+   MOZ_ASSERT(aGridRI.mReflowInput);
+   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
+-  if (HidesContentForLayout() && !GetNextContinuation()) {
++  if (HidesContentForLayout()) {
+     return bSize;
+   }
+ 
+@@ -9443,8 +9448,7 @@
+                                   nsReflowStatus& aStatus) {
+   NormalizeChildLists();
+ 
+-  if (IsHiddenByContentVisibilityOfInFlowParentForLayout() &&
+-      !GetNextContinuation()) {
++  if (IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
+     return;
+   }
+ 

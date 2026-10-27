@@ -1,0 +1,19 @@
+c52c0faec6340 (Mats Palmgren   2018-11-29 00:18:09 +0100 9270)   return parent;
+c52c0faec6340 (Mats Palmgren   2018-11-29 00:18:09 +0100 9271) }
+c52c0faec6340 (Mats Palmgren   2018-11-29 00:18:09 +0100 9272) 
+fd748fc6b3747 (Ting-Yu Lin     2025-02-01 01:03:38 +0000 9273) nscoord nsGridContainerFrame::ReflowChildren(GridReflowInput& aGridRI,
+e5a134f73a75e (Sylvestre Ledru 2018-11-30 11:46:48 +0100 9274)                                              const LogicalRect& aContentArea,
+c3c42e353963e (Mats Palmgren   2020-04-28 01:18:47 +0000 9275)                                              const nsSize& aContainerSize,
+e5a134f73a75e (Sylvestre Ledru 2018-11-30 11:46:48 +0100 9276)                                              ReflowOutput& aDesiredSize,
+e5a134f73a75e (Sylvestre Ledru 2018-11-30 11:46:48 +0100 9277)                                              nsReflowStatus& aStatus) {
+fd748fc6b3747 (Ting-Yu Lin     2025-02-01 01:03:38 +0000 9278)   WritingMode wm = aGridRI.mReflowInput->GetWritingMode();
+55b9a9cfe062a (Martin Robinson 2022-08-29 14:41:36 +0000 9279)   nscoord bSize = aContentArea.BSize(wm);
+fd748fc6b3747 (Ting-Yu Lin     2025-02-01 01:03:38 +0000 9280)   MOZ_ASSERT(aGridRI.mReflowInput);
+59f059dd2dd49 (Norisz Fay      2022-09-15 21:14:04 +0300 9281)   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
+d6b19e86ff729 (Martin Robinson 2022-09-15 20:32:27 +0000 9282)   if (HidesContentForLayout()) {
+d6b19e86ff729 (Martin Robinson 2022-09-15 20:32:27 +0000 9283)     return bSize;
+d6b19e86ff729 (Martin Robinson 2022-09-15 20:32:27 +0000 9284)   }
+59f059dd2dd49 (Norisz Fay      2022-09-15 21:14:04 +0300 9285) 
+558d6cf95caaf (Ting-Yu Lin     2020-11-18 00:08:12 +0000 9286)   OverflowAreas ocBounds;
+e6769617e9cfa (Ting-Yu Lin     2017-02-14 17:55:48 +0800 9287)   nsReflowStatus ocStatus;
+d3defeee82312 (Mats Palmgren   2016-03-11 17:39:26 +0100 9288)   if (GetPrevInFlow()) {

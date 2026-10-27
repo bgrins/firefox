@@ -1,0 +1,202 @@
+>>> 8072: void nsGridContainerFrame::ReflowInFlowChild(
+    8073:     nsIFrame* aChild, const GridItemInfo* aGridItemInfo, nsSize aContainerSize,
+    8074:     const Maybe<nscoord>& aStretchBSize, const Fragmentainer* aFragmentainer,
+    8075:     const GridReflowInput& aGridRI, const LogicalRect& aContentArea,
+    8076:     ReflowOutput& aDesiredSize, nsReflowStatus& aStatus) {
+    8077:   nsPresContext* pc = PresContext();
+    8078:   ComputedStyle* containerSC = Style();
+    8079:   WritingMode wm = aGridRI.mReflowInput->GetWritingMode();
+    8080:   const bool isGridItem = !!aGridItemInfo;
+    8081:   MOZ_ASSERT(isGridItem == !aChild->IsPlaceholderFrame());
+    8082:   LogicalRect cb(wm);
+    8083:   WritingMode childWM = aChild->GetWritingMode();
+    8084:   bool isConstrainedBSize = false;
+    8085:   nscoord toFragmentainerEnd;
+    8086:   // The part of the child's grid area that's in previous container fragments.
+    8087:   nscoord consumedGridAreaBSize = 0;
+    8088:   if (MOZ_LIKELY(isGridItem)) {
+    8089:     MOZ_ASSERT(aGridItemInfo->mFrame == aChild);
+    8090:     const GridArea& area = aGridItemInfo->mArea;
+    8091:     MOZ_ASSERT(area.IsDefinite());
+    8092:     cb = aGridRI.ContainingBlockFor(area);
+    8093:     if (aFragmentainer && !wm.IsOrthogonalTo(childWM)) {
+    8094:       // |gridAreaBOffset| is the offset of the child's grid area in this
+    8095:       // container fragment (if negative, that distance is the child CB size
+    8096:       // consumed in previous container fragments).  Note that cb.BStart
+    8097:       // (initially) and aState.mFragBStart are in "global" grid coordinates
+    8098:       // (like all track positions).
+    8099:       nscoord gridAreaBOffset = cb.BStart(wm) - aGridRI.mFragBStart;
+    8100:       consumedGridAreaBSize = std::max(0, -gridAreaBOffset);
+    8101:       cb.BStart(wm) = std::max(0, gridAreaBOffset);
+    8102:       if (aFragmentainer->mToFragmentainerEnd != NS_UNCONSTRAINEDSIZE) {
+    8103:         toFragmentainerEnd = aFragmentainer->mToFragmentainerEnd -
+    8104:                              aGridRI.mFragBStart - cb.BStart(wm);
+    8105:         toFragmentainerEnd = std::max(toFragmentainerEnd, 0);
+    8106:         isConstrainedBSize = true;
+    8107:       }
+    8108:     }
+    8109:     cb += aContentArea.Origin(wm);
+    8110:     aGridRI.mRows.AlignBaselineSubtree(*aGridItemInfo);
+    8111:     aGridRI.mCols.AlignBaselineSubtree(*aGridItemInfo);
+    8112:     // Setup [align|justify]-content:[last ]baseline related frame properties.
+    8113:     // These are added to the padding in SizeComputationInput::InitOffsets.
+    8114:     // (a negative value signals the value is for 'last baseline' and should be
+    8115:     //  added to the (logical) end padding)
+    8116:     typedef const FramePropertyDescriptor<SmallValueHolder<nscoord>>* Prop;
+    8117:     auto SetProp = [aGridItemInfo, aChild](LogicalAxis aGridAxis, Prop aProp) {
+    8118:       auto state = aGridItemInfo->mState[aGridAxis];
+    8119:       auto baselineAdjust = (state & ItemState::eContentBaseline)
+    8120:                                 ? aGridItemInfo->mBaselineOffset[aGridAxis]
+    8121:                                 : nscoord(0);
+    8122:       if (baselineAdjust < nscoord(0)) {
+    8123:         // This happens when the subtree overflows its track.
+    8124:         // XXX spec issue? it's unclear how to handle this.
+    8125:         baselineAdjust = nscoord(0);
+    8126:       } else if (state & ItemState::eLastBaseline) {
+    8127:         // FIXME: We're not setting the ItemState::eEndSideBaseline flag any
+    8128:         // more as the new baseline sharing group calculation handles most of
+    8129:         // the cases we need.  For non-masonry grids this flag was always set
+    8130:         // for LAST_BASELINE items, so we're just mimicking that behavior here.
+    8131:         // That said, masonry grids might not work 100% any more..
+    8132:         baselineAdjust = -baselineAdjust;
+    8133:       }
+    8134:       if (baselineAdjust != nscoord(0)) {
+    8135:         aChild->SetProperty(aProp, baselineAdjust);
+    8136:       } else {
+    8137:         aChild->RemoveProperty(aProp);
+    8138:       }
+    8139:     };
+    8140:     const bool isOrthogonal = wm.IsOrthogonalTo(childWM);
+    8141:     SetProp(LogicalAxis::Block,
+    8142:             isOrthogonal ? IBaselinePadProperty() : BBaselinePadProperty());
+    8143:     SetProp(LogicalAxis::Inline,
+    8144:             isOrthogonal ? BBaselinePadProperty() : IBaselinePadProperty());
+    8145:   } else {
+    8146:     // By convention, for frames that perform CSS Box Alignment, we position
+    8147:     // placeholder children at the start corner of their alignment container,
+    8148:     // and in this case that's usually the grid's content-box.
+    8149:     // ("Usually" - the exception is when the grid *also* forms the
+    8150:     // abs.pos. containing block. In that case, the alignment container isn't
+    8151:     // the content-box -- it's some grid area instead.  But that case doesn't
+    8152:     // require any special handling here, because we handle it later using a
+    8153:     // special flag (ReflowInput::InitFlag::StaticPosIsCBOrigin) which will make
+    8154:     // us ignore the placeholder's position entirely.)
+    8155:     cb = aContentArea;
+    8156:     aChild->AddStateBits(PLACEHOLDER_STATICPOS_NEEDS_CSSALIGN);
+    8157:   }
+    8158: 
+    8159:   LogicalSize reflowSize(cb.Size(wm));
+    8160:   if (isConstrainedBSize) {
+    8161:     reflowSize.BSize(wm) = toFragmentainerEnd;
+    8162:   }
+    8163:   LogicalSize childCBSize = reflowSize.ConvertTo(childWM, wm);
+    8164: 
+    8165:   // Setup the ClampMarginBoxMinSize reflow flags and property, if needed.
+    8166:   ComputeSizeFlags csFlags;
+    8167:   if (aGridItemInfo) {
+    8168:     const auto childIAxisInWM = childWM.ConvertAxisTo(LogicalAxis::Inline, wm);
+    8169:     // Clamp during reflow if we're stretching in that axis.
+    8170:     if (GridItemShouldStretch(aChild, LogicalAxis::Inline)) {
+    8171:       if (aGridItemInfo->mState[childIAxisInWM] &
+    8172:           ItemState::eClampMarginBoxMinSize) {
+    8173:         csFlags += ComputeSizeFlag::IClampMarginBoxMinSize;
+    8174:       }
+    8175:     } else {
+    8176:       csFlags += ComputeSizeFlag::ShrinkWrap;
+    8177:     }
+    8178: 
+    8179:     const auto childBAxisInWM = GetOrthogonalAxis(childIAxisInWM);
+    8180:     if (GridItemShouldStretch(aChild, LogicalAxis::Block) &&
+    8181:         aGridItemInfo->mState[childBAxisInWM] &
+    8182:             ItemState::eClampMarginBoxMinSize) {
+    8183:       csFlags += ComputeSizeFlag::BClampMarginBoxMinSize;
+    8184:       aChild->SetProperty(BClampMarginBoxMinSizeProperty(),
+    8185:                           childCBSize.BSize(childWM));
+    8186:     } else {
+    8187:       aChild->RemoveProperty(BClampMarginBoxMinSizeProperty());
+    8188:     }
+    8189: 
+    8190:     if ((aGridItemInfo->mState[childIAxisInWM] &
+    8191:          ItemState::eContentBasedAutoMinSize)) {
+    8192:       csFlags += ComputeSizeFlag::IApplyAutoMinSize;
+    8193:     }
+    8194:   }
+    8195: 
+    8196:   if (!isConstrainedBSize) {
+    8197:     childCBSize.BSize(childWM) = NS_UNCONSTRAINEDSIZE;
+    8198:   }
+    8199:   LogicalSize percentBasis(cb.Size(wm).ConvertTo(childWM, wm));
+    8200:   ReflowInput childRI(pc, *aGridRI.mReflowInput, aChild, childCBSize,
+    8201:                       Some(percentBasis), {}, {}, csFlags);
+    8202:   childRI.mFlags.mIsTopOfPage =
+    8203:       aFragmentainer ? aFragmentainer->mIsTopOfPage : false;
+    8204: 
+    8205:   // FIXME (perf): It would be faster to do this only if the previous reflow of
+    8206:   // the child was a measuring reflow, and only if the child does some of the
+    8207:   // things that are affected by ComputeSizeFlag::IsGridMeasuringReflow.
+    8208:   childRI.SetBResize(true);
+    8209:   childRI.SetBResizeForPercentages(true);
+    8210: 
+    8211:   // If the child is stretching in its block axis, and we might be fragmenting
+    8212:   // it in that axis, then setup a frame property to tell
+    8213:   // nsBlockFrame::ComputeFinalSize the size.
+    8214:   if (isConstrainedBSize && !wm.IsOrthogonalTo(childWM)) {
+    8215:     const bool stretch =
+    8216:         childRI.mStylePosition
+    8217:             ->BSize(childWM, AnchorPosResolutionParams::From(&childRI))
+    8218:             ->IsAuto() &&
+    8219:         GridItemShouldStretch(aChild, LogicalAxis::Block);
+    8220:     if (stretch) {
+    8221:       aChild->SetProperty(FragStretchBSizeProperty(), *aStretchBSize);
+    8222:     } else {
+    8223:       aChild->RemoveProperty(FragStretchBSizeProperty());
+    8224:     }
+    8225:   }
+    8226: 
+    8227:   // We need the width of the child before we can correctly convert
+    8228:   // the writing-mode of its origin, so we reflow at (0, 0) using a dummy
+    8229:   // aContainerSize, and then pass the correct position to FinishReflowChild.
+    8230:   ReflowOutput childSize(childRI);
+    8231:   const nsSize dummyContainerSize;
+    8232: 
+    8233:   ReflowChild(aChild, pc, childSize, childRI, childWM, LogicalPoint(childWM),
+    8234:               dummyContainerSize, ReflowChildFlags::Default, aStatus);
+    8235: 
+    8236:   // childPos here initially represents the position that the child would have
+    8237:   // (expressed as an istart,bstart corner *in its own writing-mode*) if it
+    8238:   // were placed at the cb origin:
+    8239:   LogicalPoint childPos = cb.Origin(wm).ConvertRectOriginTo(
+    8240:       childWM, wm, childSize.PhysicalSize(), aContainerSize);
+    8241: 
+    8242:   // Apply align/justify-self and reflow again if that affects the size.
+    8243:   if (MOZ_LIKELY(isGridItem)) {
+    8244:     LogicalSize size = childSize.Size(childWM);  // from the ReflowChild()
+    8245:     auto applyItemSelfAlignment = [&](LogicalAxis aAxis, nscoord aCBSize) {
+    8246:       auto align =
+    8247:           childRI.mStylePosition->UsedSelfAlignment(aAxis, containerSC);
+    8248:       auto state = aGridItemInfo->mState[aAxis];
+    8249:       AlignJustifyFlags flags;
+    8250:       if (IsMasonry(aAxis)) {
+    8251:         // In a masonry axis, we inhibit applying 'stretch' and auto-margins
+    8252:         // here since AlignJustifyTracksInMasonryAxis deals with that.
+    8253:         // The only other {align,justify}-{self,content} values that have an
+    8254:         // effect are '[last] baseline', the rest behave as 'start'.
+    8255:         if (MOZ_LIKELY(!(state & ItemState::eSelfBaseline))) {
+    8256:           align = {StyleAlignFlags::START};
+    8257:         } else {
+    8258:           auto group = (state & ItemState::eFirstBaseline)
+    8259:                            ? BaselineSharingGroup::First
+    8260:                            : BaselineSharingGroup::Last;
+    8261:           auto itemStart = aGridItemInfo->mArea.LineRangeForAxis(aAxis).mStart;
+    8262:           aCBSize = aGridRI.TracksFor(aAxis)
+    8263:                         .mSizes[itemStart]
+    8264:                         .mBaselineSubtreeSize[group];
+    8265:         }
+    8266:         flags += AlignJustifyFlag::IgnoreAutoMargins;
+    8267:       } else if (state & ItemState::eContentBaseline) {
+    8268:         align = {(state & ItemState::eFirstBaseline)
+    8269:                      ? StyleAlignFlags::SELF_START
+    8270:                      : StyleAlignFlags::SELF_END};
+    8271:       }
+    8272:       if (aAxis == LogicalAxis::Block) {
+   ...  : (method too long, truncated)

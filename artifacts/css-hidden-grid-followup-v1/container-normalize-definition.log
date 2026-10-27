@@ -1,0 +1,202 @@
+>>> 1344: void nsContainerFrame::NormalizeChildLists() {
+    1345:   MOZ_ASSERT(IsFlexOrGridContainer(),
+    1346:              "Only Flex / Grid containers can call this!");
+    1347: 
+    1348:   // Note: the following description uses grid container as an example. Flex
+    1349:   // container is similar.
+    1350:   //
+    1351:   // First we gather child frames we should include in our reflow/placement,
+    1352:   // i.e. overflowed children from our prev-in-flow, and pushed first-in-flow
+    1353:   // children (that might now fit). It's important to note that these children
+    1354:   // can be in arbitrary order vis-a-vis the current children in our lists.
+    1355:   // E.g. grid items in the document order: A, B, C may be placed in the rows
+    1356:   // 3, 2, 1.  Assume each row goes in a separate grid container fragment,
+    1357:   // and we reflow the second fragment.  Now if C (in fragment 1) overflows,
+    1358:   // we can't just prepend it to our mFrames like we usually do because that
+    1359:   // would violate the document order invariant that other code depends on.
+    1360:   // Similarly if we pull up child A (from fragment 3) we can't just append
+    1361:   // that for the same reason.  Instead, we must sort these children into
+    1362:   // our child lists.  (The sorting is trivial given that both lists are
+    1363:   // already fully sorted individually - it's just a merge.)
+    1364:   //
+    1365:   // The invariants that we maintain are that each grid container child list
+    1366:   // is sorted in the normal document order at all times, but that children
+    1367:   // in different grid container continuations may be in arbitrary order.
+    1368: 
+    1369:   const auto didPushItemsBit = IsFlexContainerFrame()
+    1370:                                    ? NS_STATE_FLEX_DID_PUSH_ITEMS
+    1371:                                    : NS_STATE_GRID_DID_PUSH_ITEMS;
+    1372:   const auto hasChildNifBit = IsFlexContainerFrame()
+    1373:                                   ? NS_STATE_FLEX_HAS_CHILD_NIFS
+    1374:                                   : NS_STATE_GRID_HAS_CHILD_NIFS;
+    1375: 
+    1376:   auto* prevInFlow = static_cast<nsContainerFrame*>(GetPrevInFlow());
+    1377:   // Merge overflow frames from our prev-in-flow into our principal child list.
+    1378:   if (prevInFlow) {
+    1379:     AutoFrameListPtr overflow(PresContext(), prevInFlow->StealOverflowFrames());
+    1380:     if (overflow) {
+    1381:       ReparentFrames(*overflow, prevInFlow, this);
+    1382:       MergeSortedFrameLists(mFrames, *overflow, GetContent());
+    1383: 
+    1384:       // Move trailing next-in-flows into our overflow list.
+    1385:       nsFrameList continuations;
+    1386:       for (nsIFrame* f = mFrames.FirstChild(); f;) {
+    1387:         nsIFrame* next = f->GetNextSibling();
+    1388:         nsIFrame* pif = f->GetPrevInFlow();
+    1389:         if (pif && pif->GetParent() == this) {
+    1390:           mFrames.RemoveFrame(f);
+    1391:           continuations.AppendFrame(nullptr, f);
+    1392:         }
+    1393:         f = next;
+    1394:       }
+    1395:       MergeSortedOverflow(continuations);
+    1396: 
+    1397:       // Move prev-in-flow's excess overflow containers list into our own
+    1398:       // overflow containers list. If we already have an excess overflow
+    1399:       // containers list, any child in that list which doesn't have a
+    1400:       // prev-in-flow in this frame is also merged into our overflow container
+    1401:       // list.
+    1402:       nsFrameList* overflowContainers =
+    1403:           DrainExcessOverflowContainersList(MergeSortedFrameListsFor);
+    1404: 
+    1405:       // Move trailing OC next-in-flows into our excess overflow containers
+    1406:       // list.
+    1407:       if (overflowContainers) {
+    1408:         nsFrameList moveToEOC;
+    1409:         for (nsIFrame* f = overflowContainers->FirstChild(); f;) {
+    1410:           nsIFrame* next = f->GetNextSibling();
+    1411:           nsIFrame* pif = f->GetPrevInFlow();
+    1412:           if (pif && pif->GetParent() == this) {
+    1413:             overflowContainers->RemoveFrame(f);
+    1414:             moveToEOC.AppendFrame(nullptr, f);
+    1415:           }
+    1416:           f = next;
+    1417:         }
+    1418:         if (overflowContainers->IsEmpty()) {
+    1419:           DestroyOverflowContainers();
+    1420:         }
+    1421:         MergeSortedExcessOverflowContainers(moveToEOC);
+    1422:       }
+    1423:     }
+    1424:   }
+    1425: 
+    1426:   // For each item in aItems, pull up its next-in-flow (if any), and reparent it
+    1427:   // to our next-in-flow, unless its parent is already ourselves or our
+    1428:   // next-in-flow (to avoid leaving a hole there).
+    1429:   auto PullItemsNextInFlow = [this](const nsFrameList& aItems) {
+    1430:     auto* firstNIF = static_cast<nsContainerFrame*>(GetNextInFlow());
+    1431:     if (!firstNIF) {
+    1432:       return;
+    1433:     }
+    1434:     nsFrameList childNIFs;
+    1435:     nsFrameList childOCNIFs;
+    1436:     for (auto* child : aItems) {
+    1437:       if (auto* childNIF = child->GetNextInFlow()) {
+    1438:         if (auto* parent = childNIF->GetParent();
+    1439:             parent != this && parent != firstNIF) {
+    1440:           parent->StealFrame(childNIF);
+    1441:           ReparentFrame(childNIF, parent, firstNIF);
+    1442:           if (childNIF->HasAnyStateBits(NS_FRAME_IS_OVERFLOW_CONTAINER)) {
+    1443:             childOCNIFs.AppendFrame(nullptr, childNIF);
+    1444:           } else {
+    1445:             childNIFs.AppendFrame(nullptr, childNIF);
+    1446:           }
+    1447:         }
+    1448:       }
+    1449:     }
+    1450:     // Merge aItems' NIFs into our NIF's respective overflow child lists.
+    1451:     firstNIF->MergeSortedOverflow(childNIFs);
+    1452:     firstNIF->MergeSortedExcessOverflowContainers(childOCNIFs);
+    1453:   };
+    1454: 
+    1455:   // Merge our own overflow frames into our principal child list,
+    1456:   // except those that are a next-in-flow for one of our items.
+    1457:   DebugOnly<bool> foundOwnPushedChild = false;
+    1458:   {
+    1459:     nsFrameList* ourOverflow = GetOverflowFrames();
+    1460:     if (ourOverflow) {
+    1461:       nsFrameList items;
+    1462:       for (nsIFrame* f = ourOverflow->FirstChild(); f;) {
+    1463:         nsIFrame* next = f->GetNextSibling();
+    1464:         nsIFrame* pif = f->GetPrevInFlow();
+    1465:         if (!pif || pif->GetParent() != this) {
+    1466:           MOZ_ASSERT(f->GetParent() == this);
+    1467:           ourOverflow->RemoveFrame(f);
+    1468:           items.AppendFrame(nullptr, f);
+    1469:           if (!pif) {
+    1470:             foundOwnPushedChild = true;
+    1471:           }
+    1472:         }
+    1473:         f = next;
+    1474:       }
+    1475: 
+    1476:       if (ourOverflow->IsEmpty()) {
+    1477:         DestroyOverflowList();
+    1478:         ourOverflow = nullptr;
+    1479:       }
+    1480:       if (items.NotEmpty()) {
+    1481:         PullItemsNextInFlow(items);
+    1482:       }
+    1483:       MergeSortedFrameLists(mFrames, items, GetContent());
+    1484:     }
+    1485:   }
+    1486: 
+    1487:   // Push any child next-in-flows in our principal list to OverflowList.
+    1488:   if (HasAnyStateBits(hasChildNifBit)) {
+    1489:     nsFrameList framesToPush;
+    1490:     nsIFrame* firstChild = mFrames.FirstChild();
+    1491:     // Note that we potentially modify our mFrames list as we go.
+    1492:     for (auto* child = firstChild; child; child = child->GetNextSibling()) {
+    1493:       if (auto* childNIF = child->GetNextInFlow()) {
+    1494:         if (childNIF->GetParent() == this) {
+    1495:           for (auto* c = child->GetNextSibling(); c; c = c->GetNextSibling()) {
+    1496:             if (c == childNIF) {
+    1497:               // child's next-in-flow is in our principal child list, push it.
+    1498:               mFrames.RemoveFrame(childNIF);
+    1499:               framesToPush.AppendFrame(nullptr, childNIF);
+    1500:               break;
+    1501:             }
+    1502:           }
+    1503:         }
+    1504:       }
+    1505:     }
+    1506:     if (!framesToPush.IsEmpty()) {
+    1507:       MergeSortedOverflow(framesToPush);
+    1508:     }
+    1509:     RemoveStateBits(hasChildNifBit);
+    1510:   }
+    1511: 
+    1512:   // Pull up any first-in-flow children we might have pushed.
+    1513:   if (HasAnyStateBits(didPushItemsBit)) {
+    1514:     RemoveStateBits(didPushItemsBit);
+    1515:     nsFrameList items;
+    1516:     auto* nif = static_cast<nsContainerFrame*>(GetNextInFlow());
+    1517:     DebugOnly<bool> nifNeedPushedItem = false;
+    1518:     while (nif) {
+    1519:       nsFrameList nifItems;
+    1520:       for (nsIFrame* nifChild = nif->PrincipalChildList().FirstChild();
+    1521:            nifChild;) {
+    1522:         nsIFrame* next = nifChild->GetNextSibling();
+    1523:         if (!nifChild->GetPrevInFlow()) {
+    1524:           nif->StealFrame(nifChild);
+    1525:           ReparentFrame(nifChild, nif, this);
+    1526:           nifItems.AppendFrame(nullptr, nifChild);
+    1527:           nifNeedPushedItem = false;
+    1528:         }
+    1529:         nifChild = next;
+    1530:       }
+    1531:       MergeSortedFrameLists(items, nifItems, GetContent());
+    1532: 
+    1533:       if (!nif->HasAnyStateBits(didPushItemsBit)) {
+    1534:         MOZ_ASSERT(!nifNeedPushedItem || mDidPushItemsBitMayLie,
+    1535:                    "The state bit stored in didPushItemsBit lied!");
+    1536:         break;
+    1537:       }
+    1538:       nifNeedPushedItem = true;
+    1539: 
+    1540:       for (nsIFrame* nifChild =
+    1541:                nif->GetChildList(FrameChildListID::Overflow).FirstChild();
+    1542:            nifChild;) {
+    1543:         nsIFrame* next = nifChild->GetNextSibling();
+    1544:         if (!nifChild->GetPrevInFlow()) {
+   ...  : (method too long, truncated)

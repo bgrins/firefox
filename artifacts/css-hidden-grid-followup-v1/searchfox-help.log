@@ -1,0 +1,124 @@
+A command-line interface for searching Mozilla codebases using searchfox.org.
+
+Examples:
+  searchfox-cli -q AudioStream
+  searchfox-cli -q AudioStream -C -l 10
+  searchfox-cli -q '^Audio.*' -r
+  searchfox-cli -q AudioStream -p ^dom/media
+  searchfox-cli -p PContent.ipdl  # Search for files by path only
+  searchfox-cli --get-file dom/media/AudioStream.h
+  searchfox-cli --symbol AudioContext
+  searchfox-cli --symbol 'AudioContext::CreateGain'
+  searchfox-cli --id main
+  searchfox-cli -q 'path:dom/media AudioStream'
+  searchfox-cli -q 'symbol:AudioContext' --context 3
+  searchfox-cli --define 'AudioContext::CreateGain'
+  searchfox-cli --calls-from 'mozilla::dom::AudioContext::CreateGain' --depth 2
+  searchfox-cli --calls-to 'mozilla::dom::AudioContext::CreateGain' --depth 3
+  searchfox-cli --calls-between 'AudioContext,AudioNode' --depth 2
+
+Usage: searchfox-cli [OPTIONS]
+
+Options:
+  -q, --query <QUERY>
+          Search query string
+
+  -R, --repo <REPO>
+          Repository to search in. Available repositories:
+            mozilla-central (default) - Main Firefox development
+            autoland - Integration repository
+            mozilla-beta - Beta release branch
+            mozilla-release - Release branch
+            mozilla-esr115 - ESR 115 branch
+            mozilla-esr128 - ESR 128 branch
+            mozilla-esr140 - ESR 140 branch
+            comm-central - Thunderbird development
+          
+          [default: mozilla-central]
+
+  -p, --path <PATH>
+          Filter search results by file path prefix or search for files by path pattern.
+          Use regex patterns to match specific directories or files.
+          Can be used alone to search for files without a query.
+          Examples:
+            -p ^dom/media (with query) - filters results to files starting with dom/media/
+            -p PContent.ipdl (alone) - finds all files matching PContent.ipdl
+
+  -C, --case
+          Enable case-sensitive search
+
+  -r, --regexp
+          Enable regular expression search mode.
+          Allows using regex patterns in the query string.
+          Example: '^Audio.*' matches identifiers starting with 'Audio'
+
+  -l, --limit <LIMIT>
+          Maximum number of results to display
+          
+          [default: 50]
+
+      --get-file <GET_FILE>
+          Fetch and display the contents of a specific file from the repository.
+          Provide the file path relative to the repository root.
+          Example: --get-file dom/media/AudioStream.h
+
+      --context <CONTEXT>
+          Show N lines of context above and below each match.
+          Only works with text: or re: queries.
+          Example: --context 3
+
+      --symbol <SYMBOL>
+          Search for symbol definitions using searchfox's symbol indexing.
+          Uses symbol: query syntax internally.
+          Example: --symbol AudioContext
+
+      --id <ID>
+          Search for exact identifier matches (not prefix-based).
+          Uses id: query syntax internally.
+          Example: --id main
+
+      --define <DEFINE>
+          Find the definition of a symbol using searchfox's structured data.
+          Searches for symbol definitions and class/struct declarations.
+          Displays the complete method/function body or class declaration.
+          Example: --define 'AudioContext::CreateGain' or --define 'AudioContext'
+
+      --log-requests
+          Log all HTTP requests made to searchfox with detailed timing information:
+          - Request start/end timestamps
+          - Response size and duration
+          - Network latency measurement via ping
+          Useful for performance analysis and infrastructure planning
+
+      --cpp
+          Filter results to C++ files only (.cc, .cpp, .h, .hh, .hpp)
+
+      --c
+          Filter results to C files only (.c, .h)
+
+      --webidl
+          Filter results to WebIDL files only (.webidl)
+
+      --js
+          Filter results to JavaScript files only (.js, .mjs, .ts, .cjs, .jsx, .tsx)
+
+      --calls-from <CALLS_FROM>
+          Search for functions called by the specified symbol using call graph analysis.
+          Example: --calls-from 'mozilla::dom::AudioContext::CreateGain'
+
+      --calls-to <CALLS_TO>
+          Search for functions that call the specified symbol using call graph analysis.
+          Example: --calls-to 'mozilla::dom::AudioContext::CreateGain'
+
+      --calls-between <CALLS_BETWEEN>
+          Find function calls between two symbols or classes.
+          Example: --calls-between 'AudioContext,AudioNode'
+
+      --depth <DEPTH>
+          Set the depth of traversal for call graph searches. Higher values show more indirect calls.
+          Example: --depth 3
+          
+          [default: 2]
+
+  -h, --help
+          Print help (see a summary with '-h')
