@@ -89,8 +89,11 @@ static nscoord SynthesizeBOffsetFromInnerBox(const nsIFrame* aFrame,
     case StyleAlignmentBaseline::Middle: {
       nscoord boxBSize = aFrame->BSize(aWM) + bp.BStartEnd(aWM);
       nscoord halfBoxBSize = (boxBSize / 2) + (boxBSize % 2);
-      return aWM.IsLineInverted() ? -bp.BEnd(aWM) + halfBoxBSize
-                                  : -bp.BStart(aWM) + halfBoxBSize;
+      const nscoord offset = aWM.IsLineInverted()
+                                 ? -bp.BEnd(aWM) + halfBoxBSize
+                                 : -bp.BStart(aWM) + halfBoxBSize;
+      return group == BaselineSharingGroup::First ? offset
+                                                  : aFrame->BSize(aWM) - offset;
     }
 
     case StyleAlignmentBaseline::Hanging:
