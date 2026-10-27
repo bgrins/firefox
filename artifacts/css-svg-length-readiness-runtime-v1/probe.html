@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SVG length conversion after viewport resize</title>
+<link rel="help" href="https://svgwg.org/svg2-draft/types.html#InterfaceSVGLength">
+<style>
+body { margin: 0; }
+.host { width: 200px; height: 100px; }
+.host.wide { width: 400px; }
+.host > svg { display: block; width: 100%; height: 100%; }
+</style>
+<body>
+<pre id="output"></pre>
+<script>
+"use strict";
+const ns = "http://www.w3.org/2000/svg";
+const dimensions = element => {
+  const rect = element.getBoundingClientRect();
+  return [rect.width, rect.height];
+};
+function fixture(binding, operation, wide = false) {
+  const host = document.createElement("div");
+  host.className = wide ? "host wide" : "host";
+  const svg = document.createElementNS(ns, "svg");
+  const element = document.createElementNS(ns, binding === "scalar" ? "rect" : "text");
+  element.setAttribute("x", operation === "to-percentage" ? "100px" : "50%");
+  if (binding === "list") {
+    element.textContent = "A";
+  }
+  svg.append(element);
+  host.append(svg);
+  document.body.append(host);
+  const length = binding === "scalar" ? element.x.baseVal : element.x.baseVal.getItem(0);
+  return {host, svg, element, length};
+}
+function operate(length, operation) {
+  if (operation === "value") {
+    return {observed: length.value, unit: length.unitType, specified: length.valueInSpecifiedUnits};
+  }
+  length.convertToSpecifiedUnits(operation === "to-px" ? SVGLength.SVG_LENGTHTYPE_PX : SVGLength.SVG_LENGTHTYPE_PERCENTAGE);
+  return {observed: length.valueInSpecifiedUnits, unit: length.unitType, specified: length.valueInSpecifiedUnits};
+}
+function runCase(binding, operation) {
+  const target = fixture(binding, operation);
+  let reference;
+  try {
+    const warm = {host: dimensions(target.host), svg: dimensions(target.svg), value: target.length.value};
+    target.host.className = "host wide";
+    const first = operate(target.length, operation);
+    const repeated = operation === "value" ? operate(target.length, operation) :
+      {observed: target.length.valueInSpecifiedUnits, unit: target.length.unitType, specified: target.length.valueInSpecifiedUnits};
+    const after = {host: dimensions(target.host), svg: dimensions(target.svg), value: target.length.value,
+      specified: target.length.valueInSpecifiedUnits, unit: target.length.unitType};
+    reference = fixture(binding, operation, true);
+    const controlGeometry = {host: dimensions(reference.host), svg: dimensions(reference.svg)};
+    const control = operate(reference.length, operation);
+    const expected = operation === "to-percentage" ? 25 : 200;
+    const expectedUnit = operation === "to-px" ? 5 : 2;
+    target.element.setAttribute("x", operation === "to-percentage" ? "100px" : "50%");
+    target.host.className = "host";
+    const reset = {host: dimensions(target.host), svg: dimensions(target.svg), value: target.length.value};
+    const calibrated = JSON.stringify(warm) === JSON.stringify({host: [200, 100], svg: [200, 100], value: 100}) &&
+      JSON.stringify(after.host) === "[400,100]" && JSON.stringify(after.svg) === "[400,100]" &&
+      JSON.stringify(controlGeometry) === JSON.stringify({host: [400, 100], svg: [400, 100]}) &&
+      control.observed === expected && control.unit === expectedUnit &&
+      JSON.stringify(reset) === JSON.stringify(warm) && !target.svg.hasAttribute("viewBox");
+    return {binding, operation, warm, first, repeated, after, controlGeometry, control, reset, expected,
+      calibrated, stable: JSON.stringify(first) === JSON.stringify(repeated),
+      matches: first.observed === expected && first.unit === expectedUnit};
+  } finally {
+    target.host.remove();
+    reference?.host.remove();
+  }
+}
+try {
+  const rows = [];
+  for (const binding of ["scalar", "list"]) {
+    for (const operation of ["value", "to-px", "to-percentage"]) {
+      rows.push(runCase(binding, operation));
+    }
+  }
+  const payload = {compatMode: document.compatMode, rows};
+  window.results = payload;
+  document.getElementById("output").textContent = JSON.stringify(payload, null, 2);
+  if (location.protocol === "http:") {
+    fetch("/result", {method: "POST", body: JSON.stringify(payload)});
+  }
+} catch (error) {
+  const payload = {error: String(error)};
+  document.getElementById("output").textContent = JSON.stringify(payload);
+  if (location.protocol === "http:") {
+    fetch("/result", {method: "POST", body: JSON.stringify(payload)});
+  }
+}
+</script>

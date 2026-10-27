@@ -1,0 +1,497 @@
+dom/svg/SVGLength.cpp :: bool SVGLength::SetValueFromString
+bool SVGLength::SetValueFromString(const nsAString& aString) {
+  bool success;
+  auto token = SVGContentUtils::GetAndEnsureOneToken(aString, success);
+
+  if (!success) {
+    return false;
+  }
+
+  nsAString::const_iterator iter, end;
+  aString.BeginReading(iter);
+  aString.EndReading(end);
+
+  float value;
+
+  if (!SVGContentUtils::ParseNumber(iter, end, value)) {
+    return false;
+  }
+
+  const nsAString& units = Substring(iter, end);
+  uint16_t unitType = GetUnitTypeForString(units);
+  if (unitType == SVG_LENGTHTYPE_UNKNOWN) {
+    return false;
+  }
+  mValue = value;
+  mUnit = uint8_t(unitType);
+  return true;
+}
+
+dom/svg/SVGLength.cpp :: float SVGLength::GetPixelsPerUnit
+float SVGLength::GetPixelsPerUnit(const UserSpaceMetrics& aMetrics,
+                                  uint16_t aUnitType, Axis aAxis,
+                                  bool aApplyZoom) {
+  auto zoomType = ZoomType::Self;
+  float value = [&]() -> float {
+    switch (aUnitType) {
+      case SVG_LENGTHTYPE_NUMBER:
+      case SVG_LENGTHTYPE_PX:
+        return 1.0f;
+      case SVG_LENGTHTYPE_PERCENTAGE:
+        zoomType = ZoomType::None;
+        return aMetrics.GetAxisLength(aAxis) / 100.0f;
+      case SVG_LENGTHTYPE_EMS:
+        zoomType = ZoomType::None;
+        return aMetrics.GetEmLength(UserSpaceMetrics::Type::This);
+      case SVG_LENGTHTYPE_EXS:
+        zoomType = ZoomType::None;
+        return aMetrics.GetExLength(UserSpaceMetrics::Type::This);
+      case SVG_LENGTHTYPE_CH:
+        zoomType = ZoomType::None;
+        return aMetrics.GetChSize(UserSpaceMetrics::Type::This);
+      case SVG_LENGTHTYPE_REM:
+        zoomType = ZoomType::SelfFromRoot;
+        return aMetrics.GetEmLength(UserSpaceMetrics::Type::Root);
+      case SVG_LENGTHTYPE_IC:
+        zoomType = ZoomType::None;
+        return aMetrics.GetIcWidth(UserSpaceMetrics::Type::This);
+      case SVG_LENGTHTYPE_CAP:
+        zoomType = ZoomType::None;
+        return aMetrics.GetCapHeight(UserSpaceMetrics::Type::This);
+      case SVG_LENGTHTYPE_VW:
+        return aMetrics.GetCSSViewportSize().width / 100.f;
+      case SVG_LENGTHTYPE_VH:
+        return aMetrics.GetCSSViewportSize().height / 100.f;
+      case SVG_LENGTHTYPE_VMIN: {
+        auto sz = aMetrics.GetCSSViewportSize();
+        return std::min(sz.width, sz.height) / 100.f;
+      }
+      case SVG_LENGTHTYPE_VMAX: {
+        auto sz = aMetrics.GetCSSViewportSize();
+        return std::max(sz.width, sz.height) / 100.f;
+      }
+      case SVG_LENGTHTYPE_LH:
+        zoomType = ZoomType::None;
+        return aMetrics.GetLineHeight(UserSpaceMetrics::Type::This);
+      case SVG_LENGTHTYPE_RLH:
+        zoomType = ZoomType::SelfFromRoot;
+        return aMetrics.GetLineHeight(UserSpaceMetrics::Type::Root);
+      case SVG_LENGTHTYPE_REX:
+        zoomType = ZoomType::SelfFromRoot;
+        return aMetrics.GetExLength(UserSpaceMetrics::Type::Root);
+      case SVG_LENGTHTYPE_RCH:
+        zoomType = ZoomType::SelfFromRoot;
+        return aMetrics.GetChSize(UserSpaceMetrics::Type::Root);
+      case SVG_LENGTHTYPE_RIC:
+        zoomType = ZoomType::SelfFromRoot;
+        return aMetrics.GetIcWidth(UserSpaceMetrics::Type::Root);
+      case SVG_LENGTHTYPE_RCAP:
+        zoomType = ZoomType::SelfFromRoot;
+        return aMetrics.GetCapHeight(UserSpaceMetrics::Type::Root);
+      default:
+        MOZ_ASSERT(IsAbsoluteUnit(aUnitType));
+        return GetAbsUnitsPerAbsUnit(SVG_LENGTHTYPE_PX, aUnitType);
+    }
+  }();
+  if (aApplyZoom) {
+    switch (zoomType) {
+      case ZoomType::None:
+        break;
+      case ZoomType::Self:
+        value *= aMetrics.GetZoom();
+        break;
+      case ZoomType::SelfFromRoot:
+        value *= aMetrics.GetZoom() / aMetrics.GetRootZoom();
+        break;
+    }
+  }
+  return value;
+}
+
+dom/svg/SVGLength.cpp :: bool SVGLength::IsFontRelativeUnit
+bool SVGLength::IsFontRelativeUnit(uint16_t aUnit) {
+  return aUnit == SVG_LENGTHTYPE_EMS || aUnit == SVG_LENGTHTYPE_EXS ||
+         (aUnit >= SVG_LENGTHTYPE_CH && aUnit <= SVG_LENGTHTYPE_RCAP);
+}
+
+dom/svg/SVGLengthUnits.inc
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+// NOTE: No include guard.  This is meant to be included to generate different
+// code based on how SVG_LENGTH_UNIT is defined, possibly multiple times
+// in a single translation unit.
+
+/* clang-format off */
+
+SVG_LENGTH_EMPTY_UNIT(SVG_LENGTHTYPE_NUMBER, nsCSSUnit::eCSSUnit_Pixel)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_PX, "px", nsCSSUnit::eCSSUnit_Pixel)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_PERCENTAGE, "%", nsCSSUnit::eCSSUnit_Percent)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_MM, "mm", nsCSSUnit::eCSSUnit_Millimeter)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_CM, "cm", nsCSSUnit::eCSSUnit_Centimeter)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_IN, "in", nsCSSUnit::eCSSUnit_Inch)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_PT, "pt", nsCSSUnit::eCSSUnit_Point)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_PC, "pc", nsCSSUnit::eCSSUnit_Pica)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_EMS, "em", nsCSSUnit::eCSSUnit_EM)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_EXS, "ex", nsCSSUnit::eCSSUnit_XHeight)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_Q, "q", nsCSSUnit::eCSSUnit_Quarter)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_CH, "ch", nsCSSUnit::eCSSUnit_Char)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_REM, "rem", nsCSSUnit::eCSSUnit_RootEM)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_IC, "ic", nsCSSUnit::eCSSUnit_Ideographic)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_CAP, "cap", nsCSSUnit::eCSSUnit_CapHeight)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_VW, "vw", nsCSSUnit::eCSSUnit_VW)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_VH, "vh", nsCSSUnit::eCSSUnit_VH)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_VMIN, "vmin", nsCSSUnit::eCSSUnit_VMin)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_VMAX, "vmax", nsCSSUnit::eCSSUnit_VMax)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_LH, "lh", nsCSSUnit::eCSSUnit_LineHeight)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_RLH, "rlh", nsCSSUnit::eCSSUnit_RootLineHeight)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_REX, "rex", nsCSSUnit::eCSSUnit_RootXHeight)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_RCH, "rch", nsCSSUnit::eCSSUnit_RootChar)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_RIC, "ric", nsCSSUnit::eCSSUnit_RootIdeographic)
+SVG_LENGTH_UNIT(SVG_LENGTHTYPE_RCAP, "rcap", nsCSSUnit::eCSSUnit_RootCapHeight)
+
+
+dom/svg/SVGLength.h
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#ifndef DOM_SVG_SVGLENGTH_H_
+#define DOM_SVG_SVGLENGTH_H_
+
+#include "mozilla/dom/SVGLengthBinding.h"
+#include "nsDebug.h"
+
+enum nsCSSUnit : uint32_t;
+
+namespace mozilla {
+
+namespace dom {
+class SVGElement;
+class UserSpaceMetrics;
+}  // namespace dom
+
+/**
+ * This SVGLength class is currently used for SVGLength *list* attributes only.
+ * The class that is currently used for <length> attributes is
+ * SVGAnimatedLength.
+ *
+ * The member mUnit should always be valid, but the member mValue may be
+ * numeric_limits<float>::quiet_NaN() under one circumstances (see the comment
+ * in SetValueAndUnit below). Even if mValue is valid, some methods may return
+ * numeric_limits<float>::quiet_NaN() if they involve a unit conversion that
+ * fails - see comments below.
+ *
+ * The DOM wrapper class for this class is DOMSVGLength.
+ */
+class SVGLength {
+ public:
+  SVGLength()
+      : mValue(0.0f), mUnit(dom::SVGLength_Binding::SVG_LENGTHTYPE_UNKNOWN) {}
+
+  SVGLength(float aValue, uint16_t aUnit)
+      : mValue(aValue), mUnit(uint8_t(aUnit)) {
+    MOZ_ASSERT(aUnit <= std::numeric_limits<uint8_t>::max(),
+               "Length unit-type enums should fit in 8 bits");
+  }
+
+  // Coordinate direction for ObjectSpace/UserSpace.
+  enum class Axis : uint8_t { X, Y, XY };
+
+  bool operator==(const SVGLength& rhs) const = default;
+
+  void GetValueAsString(nsAString& aValue) const;
+
+  /**
+   * This method returns true, unless there was a parse failure, in which
+   * case it returns false (and the length is left unchanged).
+   */
+  bool SetValueFromString(const nsAString& aString);
+
+  /**
+   * This will usually return a valid, finite number. There is one exception
+   * though. If SVGLengthListSMILType has to convert between unit types and the
+   * unit conversion is undefined, it will end up passing in and setting
+   * numeric_limits<float>::quiet_NaN(). The painting code has to be
+   * able to handle NaN anyway, since conversion to user units may fail in
+   * general.
+   */
+  float GetValueInCurrentUnits() const { return mValue; }
+
+  uint16_t GetUnit() const { return mUnit; }
+
+  void SetValueInCurrentUnits(float aValue) {
+    NS_ASSERTION(std::isfinite(aValue), "Set invalid SVGLength");
+    mValue = aValue;
+  }
+
+  void SetValueAndUnit(float aValue, uint16_t aUnit) {
+    MOZ_ASSERT(aUnit <= std::numeric_limits<uint8_t>::max(),
+               "Length unit-type enums should fit in 8 bits");
+    mValue = aValue;
+    mUnit = uint8_t(aUnit);
+  }
+
+  /**
+   * If it's not possible to convert this length's value to pixels, then
+   * this method will return numeric_limits<float>::quiet_NaN().
+   */
+  float GetValueInPixels(const dom::SVGElement* aElement, Axis aAxis) const;
+
+  float GetValueInPixelsWithZoom(const dom::SVGElement* aElement,
+                                 Axis aAxis) const;
+
+  /**
+   * Get this length's value in the units specified.
+   *
+   * This method returns numeric_limits<float>::quiet_NaN() if it is not
+   * possible to convert the value to the specified unit.
+   */
+  float GetValueInSpecifiedUnit(uint16_t aUnit, const dom::SVGElement* aElement,
+                                Axis aAxis) const;
+
+  bool IsPercentage() const { return IsPercentageUnit(mUnit); }
+
+  float GetPixelsPerUnitWithZoom(const dom::UserSpaceMetrics& aMetrics,
+                                 Axis aAxis) const {
+    return GetPixelsPerUnit(aMetrics, mUnit, aAxis, true);
+  }
+
+  float GetPixelsPerUnit(const dom::UserSpaceMetrics& aMetrics,
+                         Axis aAxis) const {
+    return GetPixelsPerUnit(aMetrics, mUnit, aAxis, false);
+  }
+
+  static bool IsValidUnitType(uint16_t aUnitType) {
+    return aUnitType > dom::SVGLength_Binding::SVG_LENGTHTYPE_UNKNOWN &&
+           aUnitType <= dom::SVGLength_Binding::SVG_LENGTHTYPE_PC;
+  }
+
+  static bool IsPercentageUnit(uint16_t aUnit) {
+    return aUnit == dom::SVGLength_Binding::SVG_LENGTHTYPE_PERCENTAGE;
+  }
+
+  static bool IsAbsoluteUnit(uint16_t aUnit);
+
+  static bool IsFontRelativeUnit(uint16_t aUnit);
+
+  static float GetAbsUnitsPerAbsUnit(uint16_t aUnits, uint16_t aPerUnit);
+
+  static nsCSSUnit SpecifiedUnitTypeToCSSUnit(uint16_t aSpecifiedUnit);
+
+  static void GetUnitString(nsAString& aUnit, uint16_t aUnitType);
+
+  static uint16_t GetUnitTypeForString(const nsAString& aUnit);
+
+  /**
+   * Returns the number of pixels per given unit.
+   */
+  static float GetPixelsPerUnit(const dom::UserSpaceMetrics& aMetrics,
+                                uint16_t aUnitType, Axis aAxis,
+                                bool aApplyZoom);
+
+  static float GetPixelsPerCSSUnit(const dom::UserSpaceMetrics& aMetrics,
+                                   nsCSSUnit aCSSUnit, Axis aAxis,
+                                   bool aApplyZoom);
+
+ private:
+  float mValue;
+  uint8_t mUnit;
+};
+
+}  // namespace mozilla
+
+#endif  // DOM_SVG_SVGLENGTH_H_
+
+
+dom/svg/SVGAnimatedLength.cpp :: CSSSize UserSpaceMetrics::GetCSSViewportSizeFromContext
+CSSSize UserSpaceMetrics::GetCSSViewportSizeFromContext(
+    const nsPresContext* aContext) {
+  return CSSPixel::FromAppUnits(aContext->GetSizeForViewportUnits());
+}
+
+dom/svg/SVGAnimatedLength.cpp :: CSSSize SVGElementMetrics::GetCSSViewportSize
+CSSSize SVGElementMetrics::GetCSSViewportSize() const {
+  if (!mSVGElement) {
+    return {0.0f, 0.0f};
+  }
+  nsPresContext* context = nsContentUtils::GetContextForContent(mSVGElement);
+  if (!context) {
+    return {0.0f, 0.0f};
+  }
+  return GetCSSViewportSizeFromContext(context);
+}
+
+layout/base/nsPresContext.h :: nsSize GetSizeForViewportUnits()
+nsSize GetSizeForViewportUnits() const { return mSizeForViewportUnits; }
+
+dom/base/nsContentUtils.cpp :: PresShell* nsContentUtils::GetPresShellForContent
+PresShell* nsContentUtils::GetPresShellForContent(const nsIContent* aContent) {
+  Document* doc = aContent->GetComposedDoc();
+  if (!doc) {
+    return nullptr;
+  }
+  return doc->GetPresShell();
+}
+
+dom/base/nsContentUtils.cpp :: nsPresContext* nsContentUtils::GetContextForContent
+nsPresContext* nsContentUtils::GetContextForContent(
+    const nsIContent* aContent) {
+  PresShell* presShell = GetPresShellForContent(aContent);
+  if (!presShell) {
+    return nullptr;
+  }
+  return presShell->GetPresContext();
+}
+
+dom/base/Document.cpp :: // If we have a parent we must flush
+// If we have a parent we must flush the parent too to ensure that our
+  // container is reflowed if its size was changed.
+  //
+  // We do it only if the subdocument and the parent can observe each other
+  // synchronously (that is, if we're not cross-origin), to avoid work that is
+  // not observable, and if the parent document has finished loading all its
+  // render-blocking stylesheets and may start laying out the document, to avoid
+  // unnecessary flashes of unstyled content on the parent document. Note that
+  // this last bit means that size-dependent media queries in this document may
+  // produce incorrect results temporarily.
+  //
+  // But if it's not safe to flush ourselves, then don't flush the parent, since
+  // that can cause things like resizes of our frame's widget, which we can't
+  // handle while flushing is unsafe.
+  if (StyleOrLayoutObservablyDependsOnParentDocumentLayout() &&
+      mParentDocument->MayStartLayout() && IsSafeToFlush()) {
+    ChangesToFlush parentFlush = aFlush;
+    if (flushType >= FlushType::Style) {
+      // Since media queries mean that a size change of our container can affect
+      // style, we need to promote a style flush on ourself to a layout flush on
+      // our parent, since we need our container to be the correct size to
+      // determine the correct style.
+      parentFlush.mFlushType = std::max(FlushType::Layout, flushType);
+    }
+    mParentDocument->FlushPendingNotifications(parentFlush);
+  }
+
+  if (RefPtr<PresShell> presShell = GetPresShell()) {
+    presShell->FlushPendingNotifications(aFlush);
+  }
+}
+
+
+artifacts/css-svg-length-conversion-repair-v1/candidate/dom/svg/DOMSVGLength.cpp :: DOMSVGLength::GetValue(ErrorResult& aRv)
+DOMSVGLength::GetValue(ErrorResult& aRv) {
+  if (mIsAnimValItem) {
+    Element()->FlushAnimations();  // May make HasOwner() == false
+  }
+
+  // If the unit depends on style or layout then we need to flush before
+  // converting to pixels.
+  FlushIfNeeded();
+
+  if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+    SVGAnimatedLength* length = svg->GetAnimatedLength(mAttrEnum);
+    return mIsAnimValItem ? length->GetAnimValue(svg)
+                          : length->GetBaseValue(svg);
+  }
+
+  if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {
+    float value = InternalItem().GetValueInPixels(lengthList->Element(),
+                                                  lengthList->Axis());
+    if (!std::isfinite(value)) {
+      aRv.ThrowTypeError<MSG_NOT_FINITE>("value");
+      return 0.0f;
+    }
+    return value;
+  }
+
+  if (SVGLength::IsAbsoluteUnit(mUnit)) {
+    return SVGLength(mValue, mUnit)
+        .GetValueInPixels(nullptr, SVGLength::Axis::XY);
+  }
+
+  // else [SVGWG issue] Can't convert this length's value to user units
+  // ReportToConsole
+  aRv.Throw(NS_ERROR_FAILURE);
+  return 0.0f;
+}
+
+artifacts/css-svg-length-conversion-repair-v1/candidate/dom/svg/DOMSVGLength.cpp :: void DOMSVGLength::ConvertToSpecifiedUnits
+void DOMSVGLength::ConvertToSpecifiedUnits(uint16_t aUnit, ErrorResult& aRv) {
+  if (mIsAnimValItem) {
+    aRv.ThrowNoModificationAllowedError("Animated values cannot be set");
+    return;
+  }
+
+  if (!SVGLength::IsValidUnitType(aUnit)) {
+    aRv.ThrowNotSupportedError("Unknown unit type");
+    return;
+  }
+
+  // Resolve both unit bases before acquiring references used by steps 3-7.
+  if (ToSVGLength().GetUnit() != aUnit) {
+    FlushIfNeeded(aUnit);
+  }
+
+  if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+    svg->GetAnimatedLength(mAttrEnum)->ConvertToSpecifiedUnits(aUnit, svg, aRv);
+    return;
+  }
+
+  float val;
+  if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {
+    SVGLength& length = InternalItem();
+    if (length.GetUnit() == aUnit) {
+      return;
+    }
+    val = length.GetValueInSpecifiedUnit(aUnit, lengthList->Element(),
+                                         lengthList->Axis());
+  } else {
+    if (mUnit == aUnit) {
+      return;
+    }
+    val = SVGLength(mValue, mUnit)
+              .GetValueInSpecifiedUnit(aUnit, nullptr, SVGLength::Axis::XY);
+  }
+  if (!std::isfinite(val)) {
+    aRv.ThrowTypeError<MSG_NOT_FINITE>("value");
+    return;
+  }
+  if (HasOwner()) {
+    AutoChangeLengthListNotifier notifier(this);
+    InternalItem().SetValueAndUnit(val, aUnit);
+  } else {
+    mValue = val;
+    mUnit = aUnit;
+  }
+}
+
+artifacts/css-svg-length-conversion-repair-v1/candidate/dom/svg/DOMSVGLength.cpp :: void DOMSVGLength::FlushIfNeeded
+void DOMSVGLength::FlushIfNeeded(uint16_t aTargetUnit) {
+  auto MaybeFlush = [aTargetUnit](uint16_t aUnitType, SVGElement* aSVGElement) {
+    FlushType flushType;
+    if (SVGLength::IsPercentageUnit(aUnitType) ||
+        SVGLength::IsPercentageUnit(aTargetUnit)) {
+      flushType = FlushType::Layout;
+    } else if (SVGLength::IsFontRelativeUnit(aUnitType) ||
+               SVGLength::IsFontRelativeUnit(aTargetUnit)) {
+      flushType = FlushType::Style;
+    } else {
+      return;
+    }
+    if (auto* currentDoc = aSVGElement->GetComposedDoc()) {
+      currentDoc->FlushPendingNotifications(flushType);
+    }
+  };
+
+  if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+    if (mIsAnimValItem) {
+      MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetAnimUnitType(), svg);
+    } else {
+      MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetBaseUnitType(), svg);
+    }
+  }
+  if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {
+    MaybeFlush(InternalItem().GetUnit(), lengthList->Element());
+  }
+}

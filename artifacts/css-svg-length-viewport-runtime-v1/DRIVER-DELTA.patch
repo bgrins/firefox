@@ -1,0 +1,23 @@
+--- unexecuted-v1/run.py
++++ installed115-v2/run.py
+@@ -89,7 +89,7 @@
+     for name, item in installed_tests.items():
+         s = (ROOT / name).lstat()
+         need(stat.S_ISREG(s.st_mode) and [s.st_dev, s.st_ino] == item["identity"]
+-             and sha(ROOT / name) == item["sha256"], "installed five-test inode/hash")
++             and sha(ROOT / name) == item["sha256"], "installed seven-test inode/hash")
+     need(not wpt.git("ls-files", "--", *installed_tests).strip(), "installed tests became tracked")
+ 
+ 
+@@ -98,9 +98,9 @@
+ need(not wpt.git("ls-files", "--", owned_test).strip(), "owned test tracked")
+ wpt.save("BEFORE.json", {"snapshot": expected, "pins": pins})
+ wpt.save("PRIOR-EXPERIMENT.json", {"epoch": settings["epoch"], "state": prior_state, "root_receipt": receipt,
+-                                 "restored_build_used": True, "candidate_acceptance_required": False})
++                                 "installed_build_used": True, "factor_acceptance_required": True})
+ state = {"status": "starting", "complete": False, "preserved": False, "native_changes": False,
+-         "source_role": "restored accepted114 plus mixed prototypes; viewport source freshness diagnostic",
++         "source_role": "installed115 plus accepted114 and mixed prototypes; viewport source freshness diagnostic",
+          "prior_experiment_failed": "failure" in prior_state}
+ owned_identity = None
+ fixture = (HERE / "fixture.html").read_bytes()

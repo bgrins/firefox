@@ -1,0 +1,32 @@
+void DOMSVGLength::FlushIfNeeded(uint16_t aTargetUnit) {
+  auto MaybeFlush = [aTargetUnit](uint16_t aUnitType, SVGElement* aSVGElement) {
+    FlushType flushType;
+    if (SVGLength::IsPercentageUnit(aUnitType) ||
+        SVGLength::IsPercentageUnit(aTargetUnit)) {
+      flushType = FlushType::Layout;
+    } else if (!SVGLength::IsAbsoluteUnit(aUnitType) ||
+               SVGLength::IsFontRelativeUnit(aTargetUnit)) {
+      flushType = FlushType::Style;
+    } else {
+      return;
+    }
+    if (auto* currentDoc = aSVGElement->GetComposedDoc()) {
+      currentDoc->FlushPendingNotifications(flushType);
+    }
+  };
+
+  if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+    if (mIsAnimValItem) {
+      MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetAnimUnitType(), svg);
+    } else {
+      MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetBaseUnitType(), svg);
+    }
+  }
+  if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {
+    MaybeFlush(InternalItem().GetUnit(), lengthList->Element());
+  }
+}
+
+
+void FlushIfNeeded(
+      uint16_t aTargetUnit = SVGLength_Binding::SVG_LENGTHTYPE_UNKNOWN);

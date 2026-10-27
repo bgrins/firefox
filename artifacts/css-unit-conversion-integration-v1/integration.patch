@@ -1,0 +1,335 @@
+--- /dev/null
++++ b/CssSemantics/UnitConversion.lean
+@@ -0,0 +1,109 @@
++import Init.Data.Rat
++
++namespace CssSemantics.UnitConversion
++
++structure Representation (U : Type) where
++  unit : U
++  amount : Rat
++  deriving DecidableEq, Repr
++
++variable {U : Type}
++
++def denote (basis : U → Rat) (value : Representation U) : Rat :=
++  value.amount * basis value.unit
++
++def Preserves (basis : U → Rat) (input : Representation U)
++    (target : U) (output : Representation U) : Prop :=
++  output.unit = target ∧ denote basis output = denote basis input
++
++def convert [DecidableEq U] (sampled : U → Rat)
++    (input : Representation U) (target : U) : Option (Representation U) :=
++  if input.unit = target then some input
++  else if sampled target = 0 then none
++  else some ⟨target, input.amount * sampled input.unit / sampled target⟩
++
++theorem identity [DecidableEq U] (sampled : U → Rat) (input : Representation U) :
++    convert sampled input input.unit = some input := by
++  simp [convert]
++
++theorem sound [DecidableEq U] (current : U → Rat)
++    (input output : Representation U) (target : U)
++    (success : convert current input target = some output) :
++    Preserves current input target output := by
++  unfold convert at success
++  split at success
++  · cases success
++    exact ⟨‹_›, rfl⟩
++  · split at success
++    · contradiction
++    · cases success
++      exact ⟨rfl, Rat.div_mul_cancel ‹_›⟩
++
++theorem unique (current : U → Rat) (input first second : Representation U)
++    (target : U) (nonzero : current target ≠ 0)
++    (left : Preserves current input target first)
++    (right : Preserves current input target second) : first = second := by
++  obtain ⟨fu, fa⟩ := first
++  obtain ⟨su, sa⟩ := second
++  obtain ⟨lf, lv⟩ := left
++  obtain ⟨rf, rv⟩ := right
++  dsimp at lf rf
++  subst fu
++  subst su
++  have eq := congrArg (fun n => n / current target) (lv.trans rv.symm)
++  simp only [denote, Rat.mul_div_cancel nonzero] at eq
++  cases eq
++  rfl
++
++theorem complete [DecidableEq U] (current : U → Rat)
++    (input output : Representation U) (target : U)
++    (nonzero : current target ≠ 0) (preserved : Preserves current input target output) :
++    convert current input target = some output := by
++  have available : ∃ result, convert current input target = some result := by
++    unfold convert
++    split
++    · exact ⟨input, rfl⟩
++    · simp
++  obtain ⟨result, success⟩ := available
++  have same := unique current input result output target nonzero
++    (sound current input result target success) preserved
++  simpa [same] using success
++
++theorem conversion_iff [DecidableEq U] (current : U → Rat)
++    (input output : Representation U) (target : U) (nonzero : current target ≠ 0) :
++    convert current input target = some output ↔ Preserves current input target output :=
++  ⟨sound current input output target, complete current input output target nonzero⟩
++
++theorem two_factor_agreement [DecidableEq U] (sampled current : U → Rat)
++    (input : Representation U) (target : U)
++    (sourceReady : sampled input.unit = current input.unit)
++    (targetReady : sampled target = current target) :
++    convert sampled input target = convert current input target := by
++  simp only [convert, sourceReady, targetReady]
++
++theorem ready_preserves [DecidableEq U] (sampled current : U → Rat)
++    (input output : Representation U) (target : U)
++    (sourceReady : sampled input.unit = current input.unit)
++    (targetReady : sampled target = current target)
++    (success : convert sampled input target = some output) :
++    Preserves current input target output := by
++  rw [two_factor_agreement sampled current input target sourceReady targetReady] at success
++  exact sound current input output target success
++
++theorem round_trip [DecidableEq U] (current : U → Rat)
++    (input middle output : Representation U) (target : U)
++    (sourceNonzero : current input.unit ≠ 0)
++    (forward : convert current input target = some middle)
++    (backward : convert current middle input.unit = some output) : output = input := by
++  have f := sound current input middle target forward
++  have b := sound current middle output input.unit backward
++  exact unique current input output input input.unit sourceNonzero
++    ⟨b.1, b.2.trans f.2⟩ ⟨rfl, rfl⟩
++
++theorem different_zero_target [DecidableEq U] (sampled : U → Rat)
++    (input : Representation U) (target : U)
++    (different : input.unit ≠ target) (zero : sampled target = 0) :
++    convert sampled input target = none := by
++  simp [convert, different, zero]
++
++end CssSemantics.UnitConversion
+--- /dev/null
++++ b/CssSemantics/SvgLengthConversionExamples.lean
+@@ -0,0 +1,77 @@
++import CssSemantics.UnitConversion
++
++namespace CssSemantics.SvgLengthConversionExamples
++
++open UnitConversion
++
++inductive Unit where
++  | px
++  | percentage
++  deriving DecidableEq, Repr
++
++def viewport (width : Rat) : Unit → Rat
++  | .px => 1
++  | .percentage => width / 100
++
++theorem stale_source_witness :
++    convert (viewport 200) ⟨.percentage, 50⟩ .px = some ⟨.px, 100⟩ ∧
++    convert (viewport 400) ⟨.percentage, 50⟩ .px = some ⟨.px, 200⟩ ∧
++    ¬ Preserves (viewport 400) ⟨.percentage, 50⟩ .px ⟨.px, 100⟩ := by
++  unfold Preserves
++  decide +kernel
++
++theorem stale_target_witness :
++    viewport 200 .px = viewport 400 .px ∧
++    convert (viewport 200) ⟨.px, 100⟩ .percentage = some ⟨.percentage, 50⟩ ∧
++    convert (viewport 400) ⟨.px, 100⟩ .percentage = some ⟨.percentage, 25⟩ ∧
++    ¬ Preserves (viewport 400) ⟨.px, 100⟩ .percentage ⟨.percentage, 50⟩ := by
++  unfold Preserves
++  decide +kernel
++
++theorem stale_identity_preserves :
++    convert (viewport 200) ⟨.percentage, 50⟩ .percentage = some ⟨.percentage, 50⟩ ∧
++    Preserves (viewport 400) ⟨.percentage, 50⟩ .percentage ⟨.percentage, 50⟩ ∧
++    denote (viewport 400) ⟨.percentage, 50⟩ = 200 := by
++  unfold Preserves
++  decide +kernel
++
++theorem identity_at_zero_basis :
++    convert (viewport 0) ⟨.percentage, 50⟩ .percentage = some ⟨.percentage, 50⟩ ∧
++    convert (viewport 0) ⟨.px, 100⟩ .percentage = none := by
++  decide +kernel
++
++theorem future_context_not_preserved :
++    convert (viewport 400) ⟨.percentage, 50⟩ .px = some ⟨.px, 200⟩ ∧
++    ¬ Preserves (viewport 200) ⟨.percentage, 50⟩ .px ⟨.px, 200⟩ := by
++  unfold Preserves
++  decide +kernel
++
++local instance {U : Type} [DecidableEq U] (basis : U → Rat)
++    (input output : Representation U) (target : U) :
++    Decidable (Preserves basis input target output) :=
++  inferInstanceAs (Decidable (output.unit = target ∧ denote basis output = denote basis input))
++
++def checks : List (String × Bool) := [
++  ("SVG unit conversion stale source loses current meaning", decide (
++    convert (viewport 200) ⟨.percentage, 50⟩ .px = some ⟨.px, 100⟩ ∧
++    convert (viewport 400) ⟨.percentage, 50⟩ .px = some ⟨.px, 200⟩ ∧
++    ¬ Preserves (viewport 400) ⟨.percentage, 50⟩ .px ⟨.px, 100⟩)),
++  ("SVG unit conversion stale destination loses current meaning", decide (
++    viewport 200 .px = viewport 400 .px ∧
++    convert (viewport 200) ⟨.px, 100⟩ .percentage = some ⟨.percentage, 50⟩ ∧
++    convert (viewport 400) ⟨.px, 100⟩ .percentage = some ⟨.percentage, 25⟩ ∧
++    ¬ Preserves (viewport 400) ⟨.px, 100⟩ .percentage ⟨.percentage, 50⟩)),
++  ("SVG unit conversion identity preserves current meaning", decide (
++    convert (viewport 200) ⟨.percentage, 50⟩ .percentage = some ⟨.percentage, 50⟩ ∧
++    Preserves (viewport 400) ⟨.percentage, 50⟩ .percentage ⟨.percentage, 50⟩ ∧
++    denote (viewport 400) ⟨.percentage, 50⟩ = 200)),
++  ("SVG unit conversion zero basis identity boundary", decide (
++    convert (viewport 0) ⟨.percentage, 50⟩ .percentage = some ⟨.percentage, 50⟩ ∧
++    convert (viewport 0) ⟨.px, 100⟩ .percentage = none)),
++  ("SVG unit conversion future context is not invariant", decide (
++    convert (viewport 400) ⟨.percentage, 50⟩ .px = some ⟨.px, 200⟩ ∧
++    ¬ Preserves (viewport 200) ⟨.percentage, 50⟩ .px ⟨.px, 200⟩))]
++
++example : checks.all Prod.snd = true := by decide +kernel
++
++end CssSemantics.SvgLengthConversionExamples
+--- a/CssSemantics.lean
++++ b/CssSemantics.lean
+@@ -1952,3 +1952,6 @@
+ 
+ import CssSemantics.HitObservation
+ import CssSemantics.HitObservationExamples
++
++import CssSemantics.UnitConversion
++import CssSemantics.SvgLengthConversionExamples
+--- a/tests/Audit.lean
++++ b/tests/Audit.lean
+@@ -11621,3 +11621,18 @@
+ #print axioms CssSemantics.HitObservation.plural_correspondence
+ #print axioms CssSemantics.HitObservation.collect_pruning
+ #print axioms CssSemantics.HitObservation.observations_pruning
++
++#print axioms CssSemantics.UnitConversion.identity
++#print axioms CssSemantics.UnitConversion.sound
++#print axioms CssSemantics.UnitConversion.unique
++#print axioms CssSemantics.UnitConversion.complete
++#print axioms CssSemantics.UnitConversion.conversion_iff
++#print axioms CssSemantics.UnitConversion.two_factor_agreement
++#print axioms CssSemantics.UnitConversion.ready_preserves
++#print axioms CssSemantics.UnitConversion.round_trip
++#print axioms CssSemantics.UnitConversion.different_zero_target
++#print axioms CssSemantics.SvgLengthConversionExamples.stale_source_witness
++#print axioms CssSemantics.SvgLengthConversionExamples.stale_target_witness
++#print axioms CssSemantics.SvgLengthConversionExamples.stale_identity_preserves
++#print axioms CssSemantics.SvgLengthConversionExamples.identity_at_zero_basis
++#print axioms CssSemantics.SvgLengthConversionExamples.future_context_not_preserved
+--- a/tests/RunExamples.lean
++++ b/tests/RunExamples.lean
+@@ -812,3 +812,7 @@
+     unless accepted do
+       throw (IO.userError s!"FAIL {name}")
+     IO.println s!"PASS {name}: true"
++  for (name, accepted) in CssSemantics.SvgLengthConversionExamples.checks do
++    unless accepted do
++      throw (IO.userError s!"FAIL {name}")
++    IO.println s!"PASS {name}: true"
+--- a/check.py
++++ b/check.py
+@@ -12223,6 +12223,11 @@
+     ("hit observation deleted eligible leaf falls back", True),
+     ("hit observation eligible enumeration retained", True),
+     ("hit observation deleted eligible enumeration falls back", True),
++    ('SVG unit conversion stale source loses current meaning', True),
++    ('SVG unit conversion stale destination loses current meaning', True),
++    ('SVG unit conversion identity preserves current meaning', True),
++    ('SVG unit conversion zero basis identity boundary', True),
++    ('SVG unit conversion future context is not invariant', True),
+ ]
+ 
+ 
+--- a/README.md
++++ b/README.md
+@@ -4430,3 +4430,20 @@
+ existing proofs (including three support lemmas) are audited once; thirteen
+ executable checks distinguish bounds, fallback, repetitions and lost eligibility.
+ See the `fixed-provider-cssom-hit-observations` entry in coverage.json.
++
++## Supplied-factor unit conversion
++
++`UnitConversion` relates an executable rational conversion to the independent
++`Preserves` relation: target representation and current user-space meaning must
++agree. It proves soundness/completeness, uniqueness for a nonzero target factor,
++round trips and sufficient source-plus-target factor agreement.
++`SvgLengthConversionExamples` retains the five reviewed percentage witnesses,
++including the stale-destination counterexample and same-unit identity.
++
++SVG2 `SVGLength.convertToSpecifiedUnits` supplies the motivating value and unit
++conversion steps. CSS Values relative-length contexts motivate the supplied
++factors; this module does not acquire them. Freshness, coherent context and
++IEEE/native correspondence remain external obligations. It complements
++`ProviderObservation` sequencing and `CssUnitFactor` lookup without proving
++that a browser flush satisfies either. Fourteen previously reviewed theorems
++are audited once, with five executable witness checks; see coverage.json.
+--- a/coverage.json
++++ b/coverage.json
+@@ -277,6 +277,21 @@
+       "date": "2026-10-08",
+       "retrieved": "2026-10-23",
+       "role": "Section5 elementFromPoint and elementsFromPoint viewport rejection, target association, literal ordered enumeration and root fallback; detailed eligibility supplied."
++    },
++    {
++      "id": "svg2-unit-conversion-20261023",
++      "url": "https://svgwg.org/svg2-draft/types.html#InterfaceSVGLength",
++      "status": "Editor's Draft",
++      "retrieved": "2026-10-23",
++      "role": "SVGLength convertToSpecifiedUnits current-value/target-unit conversion steps3\u20137; exceptions, serialization and native arithmetic are excluded."
++    },
++    {
++      "id": "css-values4-relative-units-20260824",
++      "url": "https://drafts.csswg.org/css-values-4/#relative-lengths",
++      "status": "Editor's Draft",
++      "date": "2026-08-24",
++      "retrieved": "2026-10-23",
++      "role": "Relative-unit factors depend on context; generic supplied-factor preservation only, without factor acquisition or CSS environment derivation."
+     }
+   ],
+   "features": [
+@@ -15432,6 +15447,41 @@
+         "Pruning certificates independently retain every eligible occurrence for each observer; these sufficient conditions do not prove native culling or behavior under DOM deletion/layout mutation.",
+         "Exact finite rational coordinates only; no nonfinite WebIDL conversion, paint-order construction, transforms/clips/pointer-events/shadow retargeting, native geometry/lifetime, forced-layout completion or extreme-range conformance claim."
+       ]
++    },
++    {
++      "id": "supplied-factor-unit-conversion",
++      "status": "checked_fragment",
++      "modules": [
++        "UnitConversion.lean",
++        "SvgLengthConversionExamples.lean"
++      ],
++      "theorems": [
++        "CssSemantics.UnitConversion.identity",
++        "CssSemantics.UnitConversion.sound",
++        "CssSemantics.UnitConversion.unique",
++        "CssSemantics.UnitConversion.complete",
++        "CssSemantics.UnitConversion.conversion_iff",
++        "CssSemantics.UnitConversion.two_factor_agreement",
++        "CssSemantics.UnitConversion.ready_preserves",
++        "CssSemantics.UnitConversion.round_trip",
++        "CssSemantics.UnitConversion.different_zero_target"
++      ],
++      "specifications": [
++        "svg2-unit-conversion-20261023",
++        "css-values4-relative-units-20260824"
++      ],
++      "step_mapping": {
++        "SVGLength convertToSpecifiedUnits steps3-7": "denote and Preserves specify fixed-current user-space meaning; convert chooses a supplied target factor and preserves meaning when its source and destination factors agree with the same current context",
++        "CSS Values relative lengths": "Factors are supplied parameters; contextual factor acquisition is outside this fragment"
++      },
++      "limits": [
++        "Exact rational arithmetic over an arbitrary supplied unit type; no unit registry, dimensional compatibility, CSS parsing or concrete environment acquisition is implemented.",
++        "Two-factor agreement is a sufficient freshness condition, not necessary; stale factors with an unchanged ratio may preserve a particular conversion.",
++        "Same-unit identity is a model operation, not a proof of native unset-scalar notifications or DOM exception precedence.",
++        "Zero destination factor returns none for different units; native FixAxisLength, zero-viewport or failure policy is not specified by this model.",
++        "No IEEE rounding/overflow, serialization, animation, reentrancy, provider lifetime, layout completion or whole-SVG/CSS refinement claim.",
++        "Nine general theorems plus five existing finite witness theorems are registered once; importing the reviewed scratch results does not constitute fourteen new research proofs."
++      ]
+     }
+   ],
+   "next_packages": [

@@ -1,0 +1,3 @@
+The ten-case SVG viewport-unit diagnostic reproduces eight calibrated stale first reads: getter and conversion for vw/vh/vmin/vmax retain the old200×100 iframe dimensions after a synchronous resize to400×300. Both pixel controls pass. Later repeat/post-layout assertions in failed rows are not reached. No native branch tracing or accepted repair is claimed.
+
+Driver53402 exits0, WPT exits1 with ten exact rows and one OK harness, and owned process cleanup passes. Native sources, staged index, full resource/binary pins and all seven installed test identities are preserved; the owned diagnostic is removed. No native build or modification occurred.

@@ -1,0 +1,9 @@
+# SVG viewport-length freshness specification check
+
+Checked the current SVG2 and CSS Values4 editor drafts on23 October2026. CSS Values4 defines vw/vh from viewport dimensions and vmin/vmax from their minimum/maximum; viewport-relative lengths rescale when the initial containing block changes. The ordinary same-origin iframe fixture has no browser-chrome or scrollbar variation. Thus10vw/10vh/10vmin/10vmax at400×300 correspond to40/30/30/40px. [CSS Values4](https://drafts.csswg.org/css-values-4/#viewport-relative-lengths).
+
+SVGLength.value getter step5 converts the stored length to an absolute length; convertToSpecifiedUnits step3 obtains that absolute value and step7 converts it to the requested supported unit. The source may use a parsed unit without a public numeric unit constant; target validation does not exclude such sources. This supports the probe's value and conversion expectations. It does not prescribe Gecko's flush tier or prove that any particular flush completes the viewport provider. [SVG2 SVGLength](https://svgwg.org/svg2-draft/types.html#InterfaceSVGLength).
+
+Searchfox's existing testing/web-platform/tests/svg/types/scripted/SVGLength-viewport.html exercises all four units on scalar rect.x. It reads a CSS reference rectangle before checking SVGLength.value, which already forces layout. It does not cover the immediate read after iframe-size mutation. The new ten-case diagnostic uses list-owned values and performs its first getter/conversion before geometry or a yield; later geometry and reparsed-source checks calibrate the change. No browser failure is claimed by this spec check.
+
+The spec-to-native mapping is to DOMSVGLength::GetValue and ConvertToSpecifiedUnits through FlushIfNeeded, then SVGLength::GetPixelsPerUnit and SVGElementMetrics::GetCSSViewportSize. The separately sealed source audit retains the actual enum, provider and flush excerpts. No specification percentage-coverage metric or end-to-end proof is inferred.

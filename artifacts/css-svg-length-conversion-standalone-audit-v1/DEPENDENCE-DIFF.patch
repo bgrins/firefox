@@ -1,0 +1,89 @@
+diff --git a/dom/base/Document.cpp b/dom/base/Document.cpp
+index 7435d615f5f3..e70071c701e8 100644
+--- a/dom/base/Document.cpp
++++ b/dom/base/Document.cpp
+@@ -19917,9 +19917,12 @@ already_AddRefed<ViewTransition> Document::StartViewTransition(
+     if (!options.mTypes.IsNull()) {
+       const auto& optionsTypes = options.mTypes.Value();
+       types.SetCapacity(optionsTypes.Length());
++      nsTHashSet<nsAtom*> seenTypes;
+       for (const auto& type : optionsTypes) {
+-        // TODO(emilio): should probably de-duplicate here.
+-        types.AppendElement(NS_AtomizeMainThread(type));
++        RefPtr<nsAtom> atom = NS_AtomizeMainThread(type);
++        if (seenTypes.EnsureInserted(atom)) {
++          types.AppendElement(std::move(atom));
++        }
+       }
+     }
+   }
+diff --git a/layout/svg/SVGIntegrationUtils.cpp b/layout/svg/SVGIntegrationUtils.cpp
+index 9822f28b11e9..0060caed81f8 100644
+--- a/layout/svg/SVGIntegrationUtils.cpp
++++ b/layout/svg/SVGIntegrationUtils.cpp
+@@ -455,7 +455,9 @@ static bool PaintMaskSurface(const PaintFramesParams& aParams,
+       SVGMaskFrame::MaskParams params(
+           maskContext.GetDrawTarget(), aParams.frame, cssPxToDevPxMatrix,
+           aOpacity, svgReset->mMask.mLayers[i].mMaskMode, aParams.imgParams);
+-      RefPtr<SourceSurface> svgMask = maskFrame->GetMaskForMaskedFrame(params);
++      bool maskAreaIsEmpty;
++      RefPtr<SourceSurface> svgMask =
++          maskFrame->GetMaskForMaskedFrame(params, &maskAreaIsEmpty);
+       if (svgMask) {
+         Matrix tmp = aMaskDT->GetTransform();
+         aMaskDT->SetTransform(Matrix());
+@@ -463,6 +465,12 @@ static bool PaintMaskSurface(const PaintFramesParams& aParams,
+                              svgMask, Point(0, 0),
+                              DrawOptions(1.0, compositionOp));
+         aMaskDT->SetTransform(tmp);
++      } else if (maskAreaIsEmpty && (compositionOp == CompositionOp::OP_IN ||
++                                     compositionOp == CompositionOp::OP_OUT)) {
++        Matrix tmp = aMaskDT->GetTransform();
++        aMaskDT->SetTransform(Matrix());
++        aMaskDT->ClearRect(Rect(aMaskDT->GetRect()));
++        aMaskDT->SetTransform(tmp);
+       }
+     } else if (svgReset->mMask.mLayers[i].mImage.IsResolved()) {
+       gfxContextMatrixAutoSaveRestore matRestore(&maskContext);
+diff --git a/layout/svg/SVGMaskFrame.cpp b/layout/svg/SVGMaskFrame.cpp
+index 22656cd08152..cd59f56cfd39 100644
+--- a/layout/svg/SVGMaskFrame.cpp
++++ b/layout/svg/SVGMaskFrame.cpp
+@@ -33,7 +33,10 @@ namespace mozilla {
+ NS_IMPL_FRAMEARENA_HELPERS(SVGMaskFrame)
+ 
+ already_AddRefed<SourceSurface> SVGMaskFrame::GetMaskForMaskedFrame(
+-    MaskParams& aParams) {
++    MaskParams& aParams, bool* aMaskAreaIsEmpty) {
++  if (aMaskAreaIsEmpty) {
++    *aMaskAreaIsEmpty = false;
++  }
+   // Make sure we break reference loops and over long reference chains:
+   static int16_t sRefChainLengthCounter = AutoReferenceChainGuard::noChain;
+   AutoReferenceChainGuard refChainGuard(this, &mInUse, &sRefChainLengthCounter);
+@@ -44,6 +47,9 @@ already_AddRefed<SourceSurface> SVGMaskFrame::GetMaskForMaskedFrame(
+ 
+   gfxRect maskArea = GetMaskArea(aParams.maskedFrame);
+   if (maskArea.IsEmpty()) {
++    if (aMaskAreaIsEmpty) {
++      *aMaskAreaIsEmpty = true;
++    }
+     return nullptr;
+   }
+   // Get the clip extents in device space:
+diff --git a/layout/svg/SVGMaskFrame.h b/layout/svg/SVGMaskFrame.h
+index 73b6ac2f7fc3..3bece21becec 100644
+--- a/layout/svg/SVGMaskFrame.h
++++ b/layout/svg/SVGMaskFrame.h
+@@ -65,8 +65,10 @@ class SVGMaskFrame final : public SVGContainerFrame {
+    *
+    * The return surface can be null, it's the caller's responsibility to
+    * null-check before dereferencing.
++   * aMaskAreaIsEmpty distinguishes an empty region from a rendering failure.
+    */
+-  already_AddRefed<SourceSurface> GetMaskForMaskedFrame(MaskParams& aParams);
++  already_AddRefed<SourceSurface> GetMaskForMaskedFrame(
++      MaskParams& aParams, bool* aMaskAreaIsEmpty = nullptr);
+ 
+   gfxRect GetMaskArea(nsIFrame* aMaskedFrame);
+ 

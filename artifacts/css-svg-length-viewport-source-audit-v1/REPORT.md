@@ -1,0 +1,13 @@
+# Parsed viewport units and SVGLength freshness
+
+Plausible, unobserved source lead. No acceptance, native modification or browser run. Source excerpts use immutable HEAD90 bodies plus the accepted114 DOMSVGLength.cpp candidate, not temporarily normalized live sources.
+
+SVGLengthUnits.inc and SVGLength::SetValueFromString admit vw/vh/vmin/vmax. Their GetPixelsPerUnit branches read GetCSSViewportSize, which reaches PresContext's stored GetSizeForViewportUnits through GetContextForContent. The context/pres-shell accessors do not flush. Accepted114 FlushIfNeeded checks percentage and font-relative units only; a viewport source with px destination reaches neither branch. GetValue and ConvertToSpecifiedUnits thus have a plausible stale child-viewport path after the parent changes an iframe's CSS size. This does not depend on hidden subtrees or large coordinates.
+
+Document::FlushPendingNotifications promotes a child style-or-layout request to parent layout when the same-origin/layout-safety conditions apply. A suitable flush might reach the required parent work. Layout is not established as the minimum sufficient tier: a child Style request already promotes the parent to Layout. Provider completion and special embedding cases remain separate obligations. No fix is proposed.
+
+The ten-case fixture uses a fresh same-origin srcdoc iframe per operation, with ordinary dimensions 200×100 changed synchronously to 400×300. Four viewport source units each exercise a getter and conversion to px, with two px controls. First/repeat reads immediately follow the CSS writes, before parent/child geometry and without yielding. Subsequent geometry and a newly parsed source calibrate the resized viewport. Public conversion to internal unit codes is not attempted. Initial parsing, original viewport/value, resized viewport and fresh post-layout source checks precede the first-result assertion. Failed raw WPT rows cannot establish later repeat/post-layout assertions, though those values were sampled.
+
+Expected 10-unit values after resize are 40,30,30,40 for vw,vh,vmin,vmax; px remains10. Eight stale first reads and two passing controls are predictions only. A conversion might retain its wrong absolute value after explicit layout; execution is needed to establish that.
+
+Spec basis: [CSS viewport-relative lengths](https://drafts.csswg.org/css-values-4/#viewport-relative-lengths) define the dimension factors; [SVGLength.value](https://svgwg.org/svg2-draft/types.html#__svg__SVGLength__value) exposes user units and conversion preserves that value. The validated-public-unit Lean model excludes these parsed source units. This audit neither extends that theorem nor proves a provider contract or full parent/child embedding semantics.

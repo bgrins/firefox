@@ -1,0 +1,9 @@
+# Unit-conversion canonical integration review
+
+GO for the bounded canonical integration. Authenticated all39 payloads of4090c7e0c346c5f95ebc1ff7933bf9a681a40aeee04b7264094959c665e300d1 and its referenced proposal/model reviews. Read the full eight-path patch. All14 theorem statements/proof bodies are byte-identical to the reviewed scratch model after separating nine generic results from five SVG witnesses. There are zero new research theorems.
+
+The generic module retains the independent target-unit/current-denotation relation, nonzero uniqueness/completeness conditions, same-context round-trip and sufficient two-factor readiness. SVG-specific finite witnesses are kept in the examples module. Coverage and README preserve supplied-factor/coherent-context assumptions and exclude native IEEE/lifetime/freshness/full-spec claims. No weakening or circular alignment of the relation to the algorithm was introduced.
+
+Independently authenticated all six command logs/return codes,11621 declaration audits,12218 executable cases and2106 final live source hashes. Both intentional negative examples retain exit1. Previous audit results remain identical and the audit/example logs have exact old byte prefixes. The checker AST differs only by five appended expected labels; its validation/axiom rules are unchanged. No duplicate broad canonical compile was performed; the exact scratch proof had already been independently replayed.
+
+All2396 unrelated working hashes remain unchanged; all eight owned paths match retained final source copies. The raw nested index is byte-identical to its saved pre-integration bytes, preserving the four staged ProviderObservation paths. An initial reviewer count treated the2402 total preexisting files as unrelated; after excluding the six preexisting owned paths, the recorded2396 count verified exactly. No producer or library files were edited by review, no targets/products generated, and no native/browser/index action occurred.

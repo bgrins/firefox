@@ -1,0 +1,46 @@
+{
+  "native_files": {
+    "dom/svg/DOMSVGLength.cpp": "9a5759f20448150f17ec7d9b541fddb23cd1563a40057e8463272e325e78da8e",
+    "dom/svg/DOMSVGLength.h": "42e81aeba1faa8d1abddce2d015a9fb452b5da10fca5ddb09b5b8f2b6fc60b33",
+    "dom/svg/SVGLength.cpp": "40101c8899c28ca94d1a59f9422221c3ac0a217549f1f4a4d0acfd75991d6809",
+    "dom/svg/SVGLength.h": "eba1c1d2f6dbcf4126ece5ee8ef56ccdce2981c50b4a158f95a060e601449901",
+    "dom/webidl/SVGLength.webidl": "99e9d419ddc0d72cdc0ff7e1a51cbeb8fad8c44e307dddc3fe93c14a00b66feb"
+  },
+  "bodies": [
+    {
+      "path": "dom/svg/DOMSVGLength.cpp",
+      "symbol": "void DOMSVGLength::ConvertToSpecifiedUnits",
+      "body": "void DOMSVGLength::ConvertToSpecifiedUnits(uint16_t aUnit, ErrorResult& aRv) {\n  if (mIsAnimValItem) {\n    aRv.ThrowNoModificationAllowedError(\"Animated values cannot be set\");\n    return;\n  }\n\n  if (!SVGLength::IsValidUnitType(aUnit)) {\n    aRv.ThrowNotSupportedError(\"Unknown unit type\");\n    return;\n  }\n\n  // Resolve both unit bases before acquiring references used by steps 3-7.\n  if (ToSVGLength().GetUnit() != aUnit) {\n    FlushIfNeeded(aUnit);\n  }\n\n  if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {\n    svg->GetAnimatedLength(mAttrEnum)->ConvertToSpecifiedUnits(aUnit, svg, aRv);\n    return;\n  }\n\n  float val;\n  if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {\n    SVGLength& length = InternalItem();\n    if (length.GetUnit() == aUnit) {\n      return;\n    }\n    val = length.GetValueInSpecifiedUnit(aUnit, lengthList->Element(),\n                                         lengthList->Axis());\n  } else {\n    if (mUnit == aUnit) {\n      return;\n    }\n    val = SVGLength(mValue, mUnit)\n              .GetValueInSpecifiedUnit(aUnit, nullptr, SVGLength::Axis::XY);\n  }\n  if (!std::isfinite(val)) {\n    aRv.ThrowTypeError<MSG_NOT_FINITE>(\"value\");\n    return;\n  }\n  if (HasOwner()) {\n    AutoChangeLengthListNotifier notifier(this);\n    InternalItem().SetValueAndUnit(val, aUnit);\n  } else {\n    mValue = val;\n    mUnit = aUnit;\n  }\n}"
+    },
+    {
+      "path": "dom/svg/DOMSVGLength.cpp",
+      "symbol": "void DOMSVGLength::FlushIfNeeded",
+      "body": "void DOMSVGLength::FlushIfNeeded(uint16_t aTargetUnit) {\n  auto MaybeFlush = [aTargetUnit](uint16_t aUnitType, SVGElement* aSVGElement) {\n    FlushType flushType;\n    if (SVGLength::IsPercentageUnit(aUnitType) ||\n        SVGLength::IsPercentageUnit(aTargetUnit)) {\n      flushType = FlushType::Layout;\n    } else if (SVGLength::IsFontRelativeUnit(aUnitType) ||\n               SVGLength::IsFontRelativeUnit(aTargetUnit)) {\n      flushType = FlushType::Style;\n    } else {\n      return;\n    }\n    if (auto* currentDoc = aSVGElement->GetComposedDoc()) {\n      currentDoc->FlushPendingNotifications(flushType);\n    }\n  };\n\n  if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {\n    if (mIsAnimValItem) {\n      MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetAnimUnitType(), svg);\n    } else {\n      MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetBaseUnitType(), svg);\n    }\n  }\n  if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {\n    MaybeFlush(InternalItem().GetUnit(), lengthList->Element());\n  }\n}"
+    },
+    {
+      "path": "dom/svg/SVGLength.h",
+      "symbol": "static bool IsValidUnitType",
+      "body": "  static bool IsValidUnitType(uint16_t aUnitType) {\n    return aUnitType > dom::SVGLength_Binding::SVG_LENGTHTYPE_UNKNOWN &&\n           aUnitType <= dom::SVGLength_Binding::SVG_LENGTHTYPE_PC;\n  }"
+    },
+    {
+      "path": "dom/svg/SVGLength.h",
+      "symbol": "static bool IsPercentageUnit",
+      "body": "  static bool IsPercentageUnit(uint16_t aUnit) {\n    return aUnit == dom::SVGLength_Binding::SVG_LENGTHTYPE_PERCENTAGE;\n  }"
+    },
+    {
+      "path": "dom/svg/SVGLength.cpp",
+      "symbol": "bool SVGLength::IsFontRelativeUnit",
+      "body": "bool SVGLength::IsFontRelativeUnit(uint16_t aUnit) {\n  return aUnit == SVG_LENGTHTYPE_EMS || aUnit == SVG_LENGTHTYPE_EXS ||\n         (aUnit >= SVG_LENGTHTYPE_CH && aUnit <= SVG_LENGTHTYPE_RCAP);\n}"
+    },
+    {
+      "path": "dom/svg/SVGLength.cpp",
+      "symbol": "internal unit constant declarations",
+      "body": "constexpr uint16_t SVG_LENGTHTYPE_Q = 11;\nconstexpr uint16_t SVG_LENGTHTYPE_CH = 12;\nconstexpr uint16_t SVG_LENGTHTYPE_REM = 13;\nconstexpr uint16_t SVG_LENGTHTYPE_IC = 14;\nconstexpr uint16_t SVG_LENGTHTYPE_CAP = 15;\nconstexpr uint16_t SVG_LENGTHTYPE_LH = 16;\nconstexpr uint16_t SVG_LENGTHTYPE_RLH = 17;\nconstexpr uint16_t SVG_LENGTHTYPE_REX = 18;\nconstexpr uint16_t SVG_LENGTHTYPE_RCH = 19;\nconstexpr uint16_t SVG_LENGTHTYPE_RIC = 20;\nconstexpr uint16_t SVG_LENGTHTYPE_RCAP = 21;\nconstexpr uint16_t SVG_LENGTHTYPE_VW = 22;\nconstexpr uint16_t SVG_LENGTHTYPE_VH = 23;\nconstexpr uint16_t SVG_LENGTHTYPE_VMIN = 24;\nconstexpr uint16_t SVG_LENGTHTYPE_VMAX = 25;\n"
+    },
+    {
+      "path": "dom/webidl/SVGLength.webidl",
+      "symbol": "public SVGLength unit constants",
+      "body": "  const unsigned short SVG_LENGTHTYPE_UNKNOWN = 0;\n  const unsigned short SVG_LENGTHTYPE_NUMBER = 1;\n  const unsigned short SVG_LENGTHTYPE_PERCENTAGE = 2;\n  const unsigned short SVG_LENGTHTYPE_EMS = 3;\n  const unsigned short SVG_LENGTHTYPE_EXS = 4;\n  const unsigned short SVG_LENGTHTYPE_PX = 5;\n  const unsigned short SVG_LENGTHTYPE_CM = 6;\n  const unsigned short SVG_LENGTHTYPE_MM = 7;\n  const unsigned short SVG_LENGTHTYPE_IN = 8;\n  const unsigned short SVG_LENGTHTYPE_PT = 9;\n  const unsigned short SVG_LENGTHTYPE_PC = 10;"
+    }
+  ]
+}

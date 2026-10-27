@@ -1,0 +1,33 @@
+--- v1/finalize.py
++++ v2/finalize.py
+@@ -74,6 +74,7 @@
+ for option in ('comparison', 'results-review', 'acceptance', 'installation', 'installation-review', 'updater', 'updater-review'):
+     parser.add_argument('--' + option, nargs=2, metavar=('MANIFEST', 'SHA256'), required=True)
+ parser.add_argument('--preflight', nargs=2, metavar=('FILE', 'SHA256'), required=True)
++parser.add_argument('--research-extra', nargs=2, metavar=('MANIFEST', 'SHA256'), action='append', default=[])
+ args = parser.parse_args()
+ need(not OUTPUT.exists() and not OUTPUT.is_symlink(), 'successor already exists')
+ self_manifest = read(HERE / 'FILES.json')
+@@ -89,8 +90,11 @@
+ for name, digest in research['source_pins'].items():
+     pinned(name, digest)
+ need(sha(ROOT / native['patch']) == native['patch_sha256'] and len(native['source_pins']) == 5, 'frozen five-path patch')
+-loaded = {role: capsule(getattr(args, role)) for role in
+-          ('comparison', 'results_review', 'acceptance', 'installation', 'installation_review', 'updater', 'updater_review')}
++input_pairs = {role: getattr(args, role) for role in
++               ('comparison', 'results_review', 'acceptance', 'installation', 'installation_review', 'updater', 'updater_review')}
++input_pairs.update({'research_extra_' + str(i): pair for i, pair in enumerate(args.research_extra)})
++input_pairs['finalizer'] = [str((HERE / 'FILES.json').relative_to(ROOT)), sha(HERE / 'FILES.json')]
++loaded = {role: capsule(pair) for role, pair in input_pairs.items()}
+ comparison, _ = loaded['comparison']; installation, _ = loaded['installation']
+ acceptance, _ = loaded['acceptance']; updater, _ = loaded['updater']
+ preflight = pinned(*args.preflight)
+@@ -145,7 +149,7 @@
+ 
+ selection = dict(research['source_pins']); omitted = {}; manifests = {}; external = {}
+ for role, (directory, values) in loaded.items():
+-    manifest_name, manifest_sha = getattr(args, role)
++    manifest_name, manifest_sha = input_pairs[role]
+     manifests[manifest_name] = manifest_sha
+     selection[manifest_name] = manifest_sha
+     for name, digest in values.items():

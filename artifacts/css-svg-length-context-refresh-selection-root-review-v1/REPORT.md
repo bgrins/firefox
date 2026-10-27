@@ -1,0 +1,1 @@
+Root authenticated all438 research source pins and verified preservation of the prior309-file selection. The five-path native recipe has25 landing cases. New acceptance, comparison/restoration, installation and signing bindings remain unset. This is a reviewed selection draft, not acceptance of the running candidate.

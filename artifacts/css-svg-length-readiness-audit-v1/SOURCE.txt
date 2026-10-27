@@ -1,0 +1,686 @@
+
+FILE dom/svg/DOMSVGLength.cpp
+164: float DOMSVGLength::GetValue(ErrorResult& aRv) {
+165:   if (mIsAnimValItem) {
+166:     Element()->FlushAnimations();  // May make HasOwner() == false
+167:   }
+168: 
+169:   // If the unit depends on style or layout then we need to flush before
+170:   // converting to pixels.
+171:   FlushIfNeeded();
+172: 
+173:   if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+174:     SVGAnimatedLength* length = svg->GetAnimatedLength(mAttrEnum);
+175:     return mIsAnimValItem ? length->GetAnimValue(svg)
+176:                           : length->GetBaseValue(svg);
+177:   }
+178: 
+179:   if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {
+180:     float value = InternalItem().GetValueInPixels(lengthList->Element(),
+181:                                                   lengthList->Axis());
+182:     if (!std::isfinite(value)) {
+183:       aRv.ThrowTypeError<MSG_NOT_FINITE>("value");
+184:       return 0.0f;
+185:     }
+186:     return value;
+187:   }
+188: 
+189:   if (SVGLength::IsAbsoluteUnit(mUnit)) {
+190:     return SVGLength(mValue, mUnit)
+191:         .GetValueInPixels(nullptr, SVGLength::Axis::XY);
+192:   }
+193: 
+194:   // else [SVGWG issue] Can't convert this length's value to user units
+195:   // ReportToConsole
+196:   aRv.Throw(NS_ERROR_FAILURE);
+197:   return 0.0f;
+198: }
+369: void DOMSVGLength::ConvertToSpecifiedUnits(uint16_t aUnit, ErrorResult& aRv) {
+370:   if (mIsAnimValItem) {
+371:     aRv.ThrowNoModificationAllowedError("Animated values cannot be set");
+372:     return;
+373:   }
+374: 
+375:   if (!SVGLength::IsValidUnitType(aUnit)) {
+376:     aRv.ThrowNotSupportedError("Unknown unit type");
+377:     return;
+378:   }
+379: 
+380:   if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+381:     svg->GetAnimatedLength(mAttrEnum)->ConvertToSpecifiedUnits(aUnit, svg, aRv);
+382:     return;
+383:   }
+384: 
+385:   float val;
+386:   if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {
+387:     SVGLength& length = InternalItem();
+388:     if (length.GetUnit() == aUnit) {
+389:       return;
+390:     }
+391:     val = length.GetValueInSpecifiedUnit(aUnit, lengthList->Element(),
+392:                                          lengthList->Axis());
+393:   } else {
+394:     if (mUnit == aUnit) {
+395:       return;
+396:     }
+397:     val = SVGLength(mValue, mUnit)
+398:               .GetValueInSpecifiedUnit(aUnit, nullptr, SVGLength::Axis::XY);
+399:   }
+400:   if (!std::isfinite(val)) {
+401:     aRv.ThrowTypeError<MSG_NOT_FINITE>("value");
+402:     return;
+403:   }
+404:   if (HasOwner()) {
+405:     AutoChangeLengthListNotifier notifier(this);
+406:     InternalItem().SetValueAndUnit(val, aUnit);
+407:   } else {
+408:     mValue = val;
+409:     mUnit = aUnit;
+410:   }
+411: }
+474: void DOMSVGLength::FlushIfNeeded() {
+475:   auto MaybeFlush = [](uint16_t aUnitType, SVGElement* aSVGElement) {
+476:     FlushType flushType;
+477:     if (SVGLength::IsPercentageUnit(aUnitType)) {
+478:       flushType = FlushType::Layout;
+479:     } else if (SVGLength::IsFontRelativeUnit(aUnitType)) {
+480:       flushType = FlushType::Style;
+481:     } else {
+482:       return;
+483:     }
+484:     if (auto* currentDoc = aSVGElement->GetComposedDoc()) {
+485:       currentDoc->FlushPendingNotifications(flushType);
+486:     }
+487:   };
+488: 
+489:   if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+490:     if (mIsAnimValItem) {
+491:       MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetAnimUnitType(), svg);
+492:     } else {
+493:       MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetBaseUnitType(), svg);
+494:     }
+495:   }
+496:   if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {
+497:     MaybeFlush(InternalItem().GetUnit(), lengthList->Element());
+498:   }
+499: }
+
+FILE dom/svg/SVGAnimatedLength.cpp
+350:   MOZ_ASSERT_UNREACHABLE("Was a new value added to the enumeration?");
+351:   return 1.0f;
+352: }
+353: 
+354: float UserSpaceMetricsWithSize::GetAxisLength(SVGLength::Axis aAxis) const {
+355:   float length =
+356:       float(SVGContentUtils::AxisLength(ThebesSize(GetSize()), aAxis));
+357:   return FixAxisLength(length);
+358: }
+359: 
+360: float SVGAnimatedLength::GetPixelsPerUnit(const SVGElement* aSVGElement,
+361:                                           uint16_t aUnitType) const {
+362:   return SVGLength::GetPixelsPerUnit(SVGElementMetrics(aSVGElement), aUnitType,
+363:                                      mAxis, false);
+364: }
+365: 
+412: void SVGAnimatedLength::ConvertToSpecifiedUnits(uint16_t aUnitType,
+413:                                                 SVGElement* aSVGElement,
+414:                                                 ErrorResult& aRv) {
+415:   MOZ_ASSERT(SVGLength::IsValidUnitType(aUnitType), "Unexpected unit type");
+416: 
+417:   if (mIsBaseSet && mBaseUnitType == uint8_t(aUnitType)) return;
+418: 
+419:   float valueInSpecifiedUnits;
+420: 
+421:   if (SVGLength::IsAbsoluteUnit(aUnitType) &&
+422:       SVGLength::IsAbsoluteUnit(mBaseUnitType)) {
+423:     valueInSpecifiedUnits =
+424:         mBaseVal * SVGLength::GetAbsUnitsPerAbsUnit(aUnitType, mBaseUnitType);
+425:   } else {
+426:     float pixelsPerUnit = GetPixelsPerUnit(aSVGElement, aUnitType);
+427:     float valueInPixels =
+428:         mBaseVal * GetPixelsPerUnit(aSVGElement, mBaseUnitType);
+429:     valueInSpecifiedUnits = valueInPixels / pixelsPerUnit;
+430:   }
+431: 
+432:   if (!std::isfinite(valueInSpecifiedUnits)) {
+433:     aRv.ThrowTypeError<MSG_NOT_FINITE>("value");
+434:     return;
+435:   }
+436: 
+437:   // Even though we're not changing the visual effect this length will have
+438:   // on the document, we still need to send out notifications in case we have
+439:   // mutation listeners, since the actual string value of the attribute will
+440:   // change.
+441:   AutoChangeLengthNotifier notifier(this, aSVGElement);
+442: 
+443:   mBaseUnitType = uint8_t(aUnitType);
+444:   if (!mIsAnimated) {
+445:     mAnimUnitType = mBaseUnitType;
+446:   }
+447:   // Setting aDoSetAttr to false here will ensure we don't call
+448:   // Will/DidChangeAngle a second time (and dispatch duplicate notifications).
+449:   SetBaseValueInSpecifiedUnits(valueInSpecifiedUnits, aSVGElement, false);
+450: }
+
+FILE dom/svg/SVGLength.cpp
+133: float SVGLength::GetValueInSpecifiedUnit(uint16_t aUnit,
+134:                                          const SVGElement* aElement,
+135:                                          Axis aAxis) const {
+136:   if (aUnit == mUnit) {
+137:     return mValue;
+138:   }
+139:   if ((aUnit == SVG_LENGTHTYPE_NUMBER && mUnit == SVG_LENGTHTYPE_PX) ||
+140:       (aUnit == SVG_LENGTHTYPE_PX && mUnit == SVG_LENGTHTYPE_NUMBER)) {
+141:     return mValue;
+142:   }
+143:   if (IsAbsoluteUnit(aUnit) && IsAbsoluteUnit(mUnit)) {
+144:     return mValue * GetAbsUnitsPerAbsUnit(aUnit, mUnit);
+145:   }
+146: 
+147:   // Otherwise we do a two step conversion via user units. This can only
+148:   // succeed if aElement is non-null (although that's not sufficient to
+149:   // guarantee success).
+150: 
+151:   SVGElementMetrics userSpaceMetrics(aElement);
+152: 
+153:   float userUnitsPerCurrentUnit = GetPixelsPerUnit(userSpaceMetrics, aAxis);
+154:   float userUnitsPerNewUnit =
+155:       SVGLength(0.0f, aUnit).GetPixelsPerUnit(userSpaceMetrics, aAxis);
+156: 
+157:   float value = mValue * userUnitsPerCurrentUnit / userUnitsPerNewUnit;
+158: 
+159:   // userUnitsPerCurrentUnit could be infinity, or userUnitsPerNewUnit could
+160:   // be zero.
+161:   if (std::isfinite(value)) {
+162:     return value;
+163:   }
+164:   return std::numeric_limits<float>::quiet_NaN();
+165: }
+166: 
+167: float SVGLength::GetValueInPixels(const SVGElement* aElement,
+168:                                   Axis aAxis) const {
+169:   return mValue * GetPixelsPerUnit(SVGElementMetrics(aElement), aAxis);
+170: }
+182: float SVGLength::GetPixelsPerUnit(const UserSpaceMetrics& aMetrics,
+183:                                   uint16_t aUnitType, Axis aAxis,
+184:                                   bool aApplyZoom) {
+185:   auto zoomType = ZoomType::Self;
+186:   float value = [&]() -> float {
+187:     switch (aUnitType) {
+188:       case SVG_LENGTHTYPE_NUMBER:
+189:       case SVG_LENGTHTYPE_PX:
+190:         return 1.0f;
+191:       case SVG_LENGTHTYPE_PERCENTAGE:
+192:         zoomType = ZoomType::None;
+193:         return aMetrics.GetAxisLength(aAxis) / 100.0f;
+194:       case SVG_LENGTHTYPE_EMS:
+195:         zoomType = ZoomType::None;
+196:         return aMetrics.GetEmLength(UserSpaceMetrics::Type::This);
+197:       case SVG_LENGTHTYPE_EXS:
+198:         zoomType = ZoomType::None;
+199:         return aMetrics.GetExLength(UserSpaceMetrics::Type::This);
+200:       case SVG_LENGTHTYPE_CH:
+201:         zoomType = ZoomType::None;
+202:         return aMetrics.GetChSize(UserSpaceMetrics::Type::This);
+203:       case SVG_LENGTHTYPE_REM:
+204:         zoomType = ZoomType::SelfFromRoot;
+205:         return aMetrics.GetEmLength(UserSpaceMetrics::Type::Root);
+206:       case SVG_LENGTHTYPE_IC:
+207:         zoomType = ZoomType::None;
+208:         return aMetrics.GetIcWidth(UserSpaceMetrics::Type::This);
+209:       case SVG_LENGTHTYPE_CAP:
+210:         zoomType = ZoomType::None;
+211:         return aMetrics.GetCapHeight(UserSpaceMetrics::Type::This);
+212:       case SVG_LENGTHTYPE_VW:
+213:         return aMetrics.GetCSSViewportSize().width / 100.f;
+214:       case SVG_LENGTHTYPE_VH:
+215:         return aMetrics.GetCSSViewportSize().height / 100.f;
+216:       case SVG_LENGTHTYPE_VMIN: {
+217:         auto sz = aMetrics.GetCSSViewportSize();
+218:         return std::min(sz.width, sz.height) / 100.f;
+219:       }
+220:       case SVG_LENGTHTYPE_VMAX: {
+221:         auto sz = aMetrics.GetCSSViewportSize();
+222:         return std::max(sz.width, sz.height) / 100.f;
+223:       }
+224:       case SVG_LENGTHTYPE_LH:
+225:         zoomType = ZoomType::None;
+226:         return aMetrics.GetLineHeight(UserSpaceMetrics::Type::This);
+227:       case SVG_LENGTHTYPE_RLH:
+228:         zoomType = ZoomType::SelfFromRoot;
+229:         return aMetrics.GetLineHeight(UserSpaceMetrics::Type::Root);
+230:       case SVG_LENGTHTYPE_REX:
+231:         zoomType = ZoomType::SelfFromRoot;
+232:         return aMetrics.GetExLength(UserSpaceMetrics::Type::Root);
+233:       case SVG_LENGTHTYPE_RCH:
+234:         zoomType = ZoomType::SelfFromRoot;
+235:         return aMetrics.GetChSize(UserSpaceMetrics::Type::Root);
+236:       case SVG_LENGTHTYPE_RIC:
+237:         zoomType = ZoomType::SelfFromRoot;
+238:         return aMetrics.GetIcWidth(UserSpaceMetrics::Type::Root);
+239:       case SVG_LENGTHTYPE_RCAP:
+240:         zoomType = ZoomType::SelfFromRoot;
+241:         return aMetrics.GetCapHeight(UserSpaceMetrics::Type::Root);
+242:       default:
+243:         MOZ_ASSERT(IsAbsoluteUnit(aUnitType));
+244:         return GetAbsUnitsPerAbsUnit(SVG_LENGTHTYPE_PX, aUnitType);
+245:     }
+246:   }();
+247:   if (aApplyZoom) {
+248:     switch (zoomType) {
+249:       case ZoomType::None:
+250:         break;
+251:       case ZoomType::Self:
+252:         value *= aMetrics.GetZoom();
+253:         break;
+254:       case ZoomType::SelfFromRoot:
+255:         value *= aMetrics.GetZoom() / aMetrics.GetRootZoom();
+256:         break;
+257:     }
+258:   }
+259:   return value;
+260: }
+
+FILE dom/svg/SVGViewportElement.cpp
+175: float SVGViewportElement::GetLength(SVGLength::Axis aAxis) const {
+176:   const auto& animatedViewBox = GetViewBoxInternal();
+177:   gfxSize size;
+178:   bool shouldComputeWidth =
+179:            (aAxis == SVGLength::Axis::X || aAxis == SVGLength::Axis::XY),
+180:        shouldComputeHeight =
+181:            (aAxis == SVGLength::Axis::Y || aAxis == SVGLength::Axis::XY);
+182: 
+183:   if (animatedViewBox.HasRect()) {
+184:     float zoom = UserSpaceMetrics::GetZoom(this);
+185:     size = ThebesSize(animatedViewBox.GetAnimValue().Size() * zoom);
+186:   } else if (IsInner()) {
+187:     // Resolving length for inner <svg> is exactly the same as other
+188:     // ordinary element. We shouldn't use the SVGViewportElement overload
+189:     // of GetAnimValue().
+190:     SVGElementMetrics metrics(this);
+191:     if (shouldComputeWidth) {
+192:       size.width = mLengthAttributes[ATTR_WIDTH].GetAnimValueWithZoom(metrics);
+193:     }
+194:     if (shouldComputeHeight) {
+195:       size.height =
+196:           mLengthAttributes[ATTR_HEIGHT].GetAnimValueWithZoom(metrics);
+197:     }
+198:   } else if (ShouldSynthesizeViewBox()) {
+199:     if (shouldComputeWidth) {
+200:       size.width = ComputeSynthesizedViewBoxDimension(
+201:           mLengthAttributes[ATTR_WIDTH], mViewportSize.width, this);
+202:     }
+203:     if (shouldComputeHeight) {
+204:       size.height = ComputeSynthesizedViewBoxDimension(
+205:           mLengthAttributes[ATTR_HEIGHT], mViewportSize.height, this);
+206:     }
+207:   } else {
+208:     size = ThebesSize(mViewportSize);
+209:   }
+210: 
+211:   size.width = std::max(size.width, 0.0);
+212:   size.height = std::max(size.height, 0.0);
+213: 
+214:   return float(SVGContentUtils::AxisLength(size, aAxis));
+215: }
+
+FILE dom/svg/SVGViewportElement.h
+94:    * GetAttributeChangeHint is because we need to act on non-attribute (e.g.
+95:    * currentScale) changes in addition to attribute (e.g. viewBox) changes.
+96:    */
+97:   void ChildrenOnlyTransformChanged(
+98:       ChildrenOnlyTransformChangedFlags aFlags = {});
+99: 
+100:   gfx::Matrix GetViewBoxTransform() const;
+101: 
+102:   gfx::Size GetViewportSize() const { return mViewportSize; }
+103: 
+104:   void SetViewportSize(const gfx::Size& aSize) { mViewportSize = aSize; }
+105: 
+106:   /**
+107:    * Returns true if either this is an SVG <svg> element that is the child of
+108:    * another non-foreignObject SVG element, or this is a SVG <symbol> element
+109:    * that is the root of a use-element shadow tree.
+
+FILE dom/svg/SVGElement.cpp
+1484:   return SVGElementBase::GetEventNameForAttr(aAttr);
+1485: }
+1486: 
+1487: SVGViewportElement* SVGElement::GetCtx() const {
+1488:   return SVGContentUtils::GetNearestViewportElement(this);
+1489: }
+1490: 
+1491: /* virtual */
+
+FILE dom/svg/SVGContentUtils.cpp
+443: SVGViewportElement* SVGContentUtils::GetNearestViewportElement(
+444:     const nsIContent* aContent) {
+445:   nsIContent* element = aContent->GetFlattenedTreeParent();
+446: 
+447:   while (element && element->IsSVGElement()) {
+448:     if (element->IsSVGElement(nsGkAtoms::foreignObject)) {
+449:       return nullptr;
+450:     }
+451:     if (EstablishesViewport(element)) {
+452:       return static_cast<SVGViewportElement*>(element);
+453:     }
+454:     element = element->GetFlattenedTreeParent();
+455:   }
+456:   return nullptr;
+457: }
+
+FILE dom/svg/DOMSVGAnimatedLength.cpp
+15: 
+16: JSObject* DOMSVGAnimatedLength::WrapObject(JSContext* aCx,
+17:                                            JS::Handle<JSObject*> aGivenProto) {
+18:   return SVGAnimatedLength_Binding::Wrap(aCx, this, aGivenProto);
+19: }
+20: 
+21: already_AddRefed<DOMSVGLength> DOMSVGAnimatedLength::BaseVal() {
+22:   return mVal->ToDOMBaseVal(mSVGElement);
+23: }
+24: 
+25: already_AddRefed<DOMSVGLength> DOMSVGAnimatedLength::AnimVal() {
+26:   return mVal->ToDOMAnimVal(mSVGElement);
+27: }
+28: 
+29: }  // namespace mozilla::dom
+
+FILE dom/webidl/SVGLength.webidl
+1: /* This Source Code Form is subject to the terms of the Mozilla Public
+2:  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+3:  * You can obtain one at http://mozilla.org/MPL/2.0/.
+4:  *
+5:  * The origin of this IDL file is
+6:  * http://www.w3.org/TR/SVG2/
+7:  *
+8:  * Copyright © 2012 W3C® (MIT, ERCIM, Keio), All Rights Reserved. W3C
+9:  * liability, trademark and document use rules apply.
+10:  */
+11: 
+12: [Exposed=Window]
+13: interface SVGLength {
+14: 
+15:   // Length Unit Types
+16:   const unsigned short SVG_LENGTHTYPE_UNKNOWN = 0;
+17:   const unsigned short SVG_LENGTHTYPE_NUMBER = 1;
+18:   const unsigned short SVG_LENGTHTYPE_PERCENTAGE = 2;
+19:   const unsigned short SVG_LENGTHTYPE_EMS = 3;
+20:   const unsigned short SVG_LENGTHTYPE_EXS = 4;
+21:   const unsigned short SVG_LENGTHTYPE_PX = 5;
+22:   const unsigned short SVG_LENGTHTYPE_CM = 6;
+23:   const unsigned short SVG_LENGTHTYPE_MM = 7;
+24:   const unsigned short SVG_LENGTHTYPE_IN = 8;
+25:   const unsigned short SVG_LENGTHTYPE_PT = 9;
+26:   const unsigned short SVG_LENGTHTYPE_PC = 10;
+27: 
+28:   readonly attribute unsigned short unitType;
+29:   [Throws]
+30:            attribute float value;
+31:   [SetterThrows]
+32:            attribute float valueInSpecifiedUnits;
+33:   [SetterThrows]
+34:            attribute DOMString valueAsString;
+35: 
+36:   [Throws]
+37:   undefined newValueSpecifiedUnits(unsigned short unitType, float valueInSpecifiedUnits);
+38:   [Throws]
+39:   undefined convertToSpecifiedUnits(unsigned short unitType);
+40: };
+
+FILE layout/svg/SVGOuterSVGFrame.cpp
+270:   NS_ASSERTION(!GetPrevInFlow(), "SVG can't currently be broken across pages.");
+271: 
+272:   SVGSVGElement* svgElem = static_cast<SVGSVGElement*>(GetContent());
+273: 
+274:   auto* anonKid = static_cast<SVGOuterSVGAnonChildFrame*>(
+275:       PrincipalChildList().FirstChild());
+276: 
+277:   if (HasAnyStateBits(NS_FRAME_FIRST_REFLOW)) {
+278:     // Initialize
+279:     svgElem->UpdateHasChildrenOnlyTransform();
+280:   }
+281: 
+282:   // If our SVG viewport has changed, update our content and notify.
+283:   // http://www.w3.org/TR/SVG11/coords.html#ViewportSpace
+284: 
+285:   gfx::Size newViewportSize(
+286:       nsPresContext::AppUnitsToFloatCSSPixels(aReflowInput.ComputedWidth()),
+287:       nsPresContext::AppUnitsToFloatCSSPixels(aReflowInput.ComputedHeight()));
+288: 
+289:   ChangeFlags changeBits;
+290:   if (newViewportSize != svgElem->GetViewportSize()) {
+291:     // When our viewport size changes, we may need to update the overflow rects
+292:     // of our child frames. This is the case if:
+293:     //
+294:     //  * We have a real/synthetic viewBox (a children-only transform), since
+295:     //    the viewBox transform will change as the viewport dimensions change.
+296:     //
+297:     //  * We do not have a real/synthetic viewBox, but the last time we
+298:     //    reflowed (or the last time UpdateOverflow() was called) we did.
+299:     //
+300:     // We only handle the former case here, in which case we mark all our child
+301:     // frames as dirty so that we reflow them below and update their overflow
+302:     // rects.
+303:     //
+304:     // In the latter case, updating of overflow rects is handled for removal of
+305:     // real viewBox (the viewBox attribute) in AttributeChanged. Synthetic
+306:     // viewBox "removal" (e.g. a document references the same SVG via both an
+307:     // <svg:image> and then as a CSS background image (a synthetic viewBox is
+308:     // used when painting the former, but not when painting the latter)) is
+309:     // handled in SVGSVGElement::FlushImageTransformInvalidation.
+310:     //
+311:     if (svgElem->HasViewBoxOrSyntheticViewBox()) {
+312:       nsIFrame* anonChild = PrincipalChildList().FirstChild();
+313:       anonChild->MarkSubtreeDirty();
+314:       for (nsIFrame* child : anonChild->PrincipalChildList()) {
+315:         child->MarkSubtreeDirty();
+316:       }
+317:     }
+318:     changeBits += ChangeFlag::CoordContextChanged;
+319:     svgElem->SetViewportSize(newViewportSize);
+320:   }
+321:   if (mIsRootContent && !mIsInIframe) {
+322:     const auto oldZoom = mFullZoom;
+323:     mFullZoom = ComputeFullZoom();
+324:     if (oldZoom != mFullZoom) {
+325:       changeBits += ChangeFlag::FullZoomChanged;
+
+FILE dom/svg/SVGAnimatedLength.cpp
+193: SVGElementMetrics::SVGElementMetrics(const SVGElement* aSVGElement,
+194:                                      const SVGViewportElement* aCtx)
+195:     : mSVGElement(aSVGElement), mCtx(aCtx) {}
+196: 
+197: SVGElementMetrics::~SVGElementMetrics() = default;
+198: 
+199: const Element* SVGElementMetrics::GetElementForType(Type aType) const {
+200:   switch (aType) {
+201:     case Type::This:
+202:       return mSVGElement;
+203:     case Type::Root:
+204:       return mSVGElement ? mSVGElement->OwnerDoc()->GetRootElement() : nullptr;
+205:     default:
+206:       MOZ_ASSERT_UNREACHABLE("Was a new value added to the enumeration?");
+207:       return nullptr;
+208:   }
+209: }
+210: 
+211: GeckoFontMetrics SVGElementMetrics::GetFontMetricsForType(Type aType) const {
+212:   return GetFontMetrics(GetElementForType(aType));
+213: }
+214: 
+215: WritingMode SVGElementMetrics::GetWritingModeForType(Type aType) const {
+216:   return GetWritingMode(GetElementForType(aType));
+217: }
+218: 
+219: float SVGElementMetrics::GetZoom() const {
+220:   return UserSpaceMetrics::GetZoom(mSVGElement);
+221: }
+222: 
+223: float SVGElementMetrics::GetRootZoom() const {
+224:   return UserSpaceMetrics::GetZoom(
+225:       mSVGElement ? mSVGElement->OwnerDoc()->GetRootElement() : nullptr);
+226: }
+227: 
+228: float SVGElementMetrics::GetAxisLength(SVGLength::Axis aAxis) const {
+229:   if (!EnsureCtx()) {
+230:     return 1.0f;
+231:   }
+232: 
+233:   return FixAxisLength(mCtx->GetLength(aAxis));
+234: }
+235: 
+236: CSSSize SVGElementMetrics::GetCSSViewportSize() const {
+237:   if (!mSVGElement) {
+238:     return {0.0f, 0.0f};
+239:   }
+240:   nsPresContext* context = nsContentUtils::GetContextForContent(mSVGElement);
+241:   if (!context) {
+242:     return {0.0f, 0.0f};
+243:   }
+244:   return GetCSSViewportSizeFromContext(context);
+245: }
+246: 
+247: float SVGElementMetrics::GetLineHeight(Type aType) const {
+248:   return SVGContentUtils::GetLineHeight(GetElementForType(aType));
+249: }
+250: 
+251: bool SVGElementMetrics::EnsureCtx() const {
+252:   if (!mCtx && mSVGElement) {
+253:     mCtx = mSVGElement->GetCtx();
+254:     if (!mCtx && mSVGElement->IsSVGElement(nsGkAtoms::svg)) {
+255:       const auto* e = static_cast<const SVGViewportElement*>(mSVGElement);
+256: 
+257:       if (!e->IsInner()) {
+258:         // mSVGElement must be the outer svg element
+259:         mCtx = e;
+260:       }
+261:     }
+262:   }
+263:   return mCtx != nullptr;
+264: }
+
+FILE dom/svg/DOMSVGLengthList.cpp
+163: already_AddRefed<DOMSVGLength> DOMSVGLengthList::GetItem(uint32_t index,
+164:                                                          ErrorResult& aRv) {
+165:   bool found;
+166:   RefPtr<DOMSVGLength> item = IndexedGetter(index, found, aRv);
+167:   if (!found) {
+168:     aRv.ThrowIndexSizeError("Index out of range");
+169:   }
+170:   return item.forget();
+171: }
+172: 
+173: already_AddRefed<DOMSVGLength> DOMSVGLengthList::IndexedGetter(
+174:     uint32_t index, bool& found, ErrorResult& aRv) {
+175:   if (IsAnimValList()) {
+176:     Element()->FlushAnimations();
+177:   }
+178:   found = index < LengthNoFlush();
+179:   if (found) {
+180:     return GetItemAt(index);
+181:   }
+182:   return nullptr;
+183: }
+184: 
+
+FILE dom/svg/SVGAnimatedLength.h
+34: class UserSpaceMetrics {
+35:  public:
+36:   enum class Type : uint32_t { This, Root };
+37:   static GeckoFontMetrics DefaultFontMetrics();
+38:   static GeckoFontMetrics GetFontMetrics(const Element* aElement);
+39:   static WritingMode GetWritingMode(const Element* aElement);
+40:   static float GetZoom(const Element* aElement);
+41:   static CSSSize GetCSSViewportSizeFromContext(const nsPresContext* aContext);
+42: 
+43:   virtual ~UserSpaceMetrics() = default;
+44: 
+45:   virtual float GetEmLength(Type aType) const = 0;
+46:   virtual float GetZoom() const = 0;
+47:   virtual float GetRootZoom() const = 0;
+48:   float GetExLength(Type aType) const;
+49:   float GetChSize(Type aType) const;
+50:   float GetIcWidth(Type aType) const;
+51:   float GetCapHeight(Type aType) const;
+52:   virtual float GetAxisLength(SVGLength::Axis aAxis) const = 0;
+53:   virtual CSSSize GetCSSViewportSize() const = 0;
+54:   virtual float GetLineHeight(Type aType) const = 0;
+55: 
+56:  protected:
+57:   virtual GeckoFontMetrics GetFontMetricsForType(Type aType) const = 0;
+58:   virtual WritingMode GetWritingModeForType(Type aType) const = 0;
+59: };
+60: 
+61: class UserSpaceMetricsWithSize : public UserSpaceMetrics {
+62:  public:
+63:   virtual gfx::Size GetSize() const = 0;
+64:   float GetAxisLength(SVGLength::Axis aAxis) const override;
+65: };
+66: 
+67: class SVGElementMetrics final : public UserSpaceMetrics {
+68:  public:
+69:   explicit SVGElementMetrics(const SVGElement* aSVGElement,
+70:                              const SVGViewportElement* aCtx = nullptr);
+71:   ~SVGElementMetrics();
+72: 
+73:   float GetEmLength(Type aType) const override {
+74:     return SVGContentUtils::GetFontSize(GetElementForType(aType));
+75:   }
+76:   float GetAxisLength(SVGLength::Axis aAxis) const override;
+77:   CSSSize GetCSSViewportSize() const override;
+78:   float GetLineHeight(Type aType) const override;
+79:   float GetZoom() const override;
+80:   float GetRootZoom() const override;
+81: 
+82:  private:
+83:   bool EnsureCtx() const;
+84:   const Element* GetElementForType(Type aType) const;
+85:   GeckoFontMetrics GetFontMetricsForType(Type aType) const override;
+86:   WritingMode GetWritingModeForType(Type aType) const override;
+87: 
+88:   const SVGElement* mSVGElement;
+89:   mutable RefPtr<const SVGViewportElement> mCtx;
+90: };
+91: 
+92: class NonSVGFrameUserSpaceMetrics final : public UserSpaceMetricsWithSize {
+93:  public:
+94:   explicit NonSVGFrameUserSpaceMetrics(nsIFrame* aFrame);
+95: 
+96:   float GetEmLength(Type aType) const override;
+97:   gfx::Size GetSize() const override;
+98:   CSSSize GetCSSViewportSize() const override;
+99:   float GetLineHeight(Type aType) const override;
+100:   float GetZoom() const override;
+
+FILE dom/svg/SVGTextPositioningElement.cpp
+10: #include "SVGLength.h"
+11: 
+12: namespace mozilla::dom {
+13: 
+14: SVGElement::LengthListInfo SVGTextPositioningElement::sLengthListInfo[4] = {
+15:     {nsGkAtoms::x, SVGLength::Axis::X, false},
+16:     {nsGkAtoms::y, SVGLength::Axis::Y, false},
+17:     {nsGkAtoms::dx, SVGLength::Axis::X, true},
+18:     {nsGkAtoms::dy, SVGLength::Axis::Y, true}};
+19: 
+20: SVGElement::LengthListAttributesInfo
+21: SVGTextPositioningElement::GetLengthListInfo() {
+22:   return LengthListAttributesInfo(mLengthListAttributes, sLengthListInfo,
+23:                                   std::size(sLengthListInfo));
+24: }
+
+FILE dom/svg/SVGRectElement.cpp
+28:   return SVGRectElement_Binding::Wrap(aCx, this, aGivenProto);
+29: }
+30: 
+31: SVGElement::LengthInfo SVGRectElement::sLengthInfo[6] = {
+32:     {nsGkAtoms::x, 0, SVGLength_Binding::SVG_LENGTHTYPE_NUMBER,
+33:      SVGLength::Axis::X},
+34:     {nsGkAtoms::y, 0, SVGLength_Binding::SVG_LENGTHTYPE_NUMBER,
+35:      SVGLength::Axis::Y},
+36:     {nsGkAtoms::width, 0, SVGLength_Binding::SVG_LENGTHTYPE_NUMBER,
+37:      SVGLength::Axis::X},
+38:     {nsGkAtoms::height, 0, SVGLength_Binding::SVG_LENGTHTYPE_NUMBER,
+39:      SVGLength::Axis::Y},
+40:     {nsGkAtoms::rx, 0, SVGLength_Binding::SVG_LENGTHTYPE_NUMBER,

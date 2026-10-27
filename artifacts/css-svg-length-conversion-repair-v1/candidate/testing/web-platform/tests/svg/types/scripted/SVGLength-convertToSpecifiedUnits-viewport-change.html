@@ -1,0 +1,103 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SVGLength conversion uses the current viewport for both unit bases</title>
+<link rel="help" href="https://svgwg.org/svg2-draft/types.html#InterfaceSVGLength">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.host { width: 200px; height: 100px; }
+.host.wide { width: 400px; }
+.host > svg { display: block; width: 100%; height: 100%; }
+</style>
+<body>
+<script>
+const ns = "http://www.w3.org/2000/svg";
+
+function fixture(t, binding, value, wide = false) {
+  const host = document.createElement("div");
+  host.className = wide ? "host wide" : "host";
+  const svg = document.createElementNS(ns, "svg");
+  const element = document.createElementNS(ns, binding === "scalar" ? "rect" : "text");
+  element.setAttribute("x", value);
+  if (binding === "list") {
+    element.textContent = "A";
+  }
+  svg.append(element);
+  host.append(svg);
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const length = binding === "scalar" ? element.x.baseVal : element.x.baseVal.getItem(0);
+  return {host, svg, element, length};
+}
+
+function assertViewport(f, width) {
+  assert_equals(f.host.getBoundingClientRect().width, width, "host width calibration");
+  const rect = f.svg.getBoundingClientRect();
+  assert_equals(rect.width, width, "SVG viewport width calibration");
+  assert_equals(rect.height, 100, "SVG viewport height calibration");
+}
+
+for (const binding of ["scalar", "list"]) {
+  for (const toPercentage of [false, true]) {
+    test(t => {
+      const source = toPercentage ? "100px" : "50%";
+      const destination = toPercentage ? SVGLength.SVG_LENGTHTYPE_PERCENTAGE : SVGLength.SVG_LENGTHTYPE_PX;
+      const expected = toPercentage ? 25 : 200;
+      const f = fixture(t, binding, source);
+      assertViewport(f, 200);
+      assert_equals(f.length.value, 100, "initial user-unit calibration");
+      f.host.className = "host wide";
+      f.length.convertToSpecifiedUnits(destination);
+      const first = f.length.valueInSpecifiedUnits;
+      const repeat = f.length.valueInSpecifiedUnits;
+      const unit = f.length.unitType;
+      assertViewport(f, 400);
+      const resolved = f.length.value;
+      const reference = fixture(t, binding, source, true);
+      assertViewport(reference, 400);
+      reference.length.convertToSpecifiedUnits(destination);
+      assert_equals(reference.length.valueInSpecifiedUnits, expected, "pre-flushed reference calibration");
+      assert_equals(first, expected, "conversion immediately after viewport resize");
+      assert_equals(repeat, expected, "repeated converted factor");
+      assert_equals(unit, destination, "destination unit");
+      assert_equals(resolved, toPercentage ? 100 : 200, "represented value after layout");
+    }, `${binding}: ${toPercentage ? "px to percentage" : "percentage to px"} after viewport resize`);
+  }
+
+  test(t => {
+    const f = fixture(t, binding, "50%");
+    assertViewport(f, 200);
+    assert_equals(f.length.value, 100, "initial user-unit calibration");
+    f.host.className = "host wide";
+    const first = f.length.value;
+    const repeat = f.length.value;
+    assertViewport(f, 400);
+    assert_equals(first, 200, "value getter after viewport resize");
+    assert_equals(repeat, 200, "repeated value getter");
+    assert_equals(f.length.valueInSpecifiedUnits, 50, "percentage factor is unchanged");
+  }, `${binding}: value getter uses the current viewport`);
+
+  test(t => {
+    const f = fixture(t, binding, "50%");
+    const animated = binding === "scalar" ? f.element.x.animVal : f.element.x.animVal.getItem(0);
+    assertViewport(f, 200);
+    f.host.className = "host wide";
+    assert_throws_dom("NotSupportedError", () => f.length.convertToSpecifiedUnits(SVGLength.SVG_LENGTHTYPE_UNKNOWN));
+    assert_throws_dom("NoModificationAllowedError", () => animated.convertToSpecifiedUnits(SVGLength.SVG_LENGTHTYPE_UNKNOWN));
+    assert_equals(f.length.valueAsString, "50%", "failed conversions leave the attribute unchanged");
+    f.length.convertToSpecifiedUnits(SVGLength.SVG_LENGTHTYPE_PERCENTAGE);
+    assert_equals(f.length.valueAsString, "50%", "same-unit conversion preserves the representation");
+    assert_equals(f.length.valueInSpecifiedUnits, 50);
+    assert_equals(f.length.value, 200);
+  }, `${binding}: invalid, read-only and same-unit conversion behavior`);
+}
+
+test(t => {
+  const f = fixture(t, "list", "100px");
+  assert_equals(f.element.x.baseVal.removeItem(0), f.length);
+  f.length.convertToSpecifiedUnits(SVGLength.SVG_LENGTHTYPE_NUMBER);
+  assert_equals(f.length.value, 100);
+  assert_equals(f.length.unitType, SVGLength.SVG_LENGTHTYPE_NUMBER);
+  assert_equals(f.element.x.baseVal.numberOfItems, 0);
+}, "Removed list item keeps its detached absolute conversion behavior");
+</script>

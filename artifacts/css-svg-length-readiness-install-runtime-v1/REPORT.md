@@ -1,0 +1,5 @@
+Expanded fix114 is installed on the working stack. Session55789 exited0; the build and WPT lint succeeded, and all25 main cases passed across three successful harness completions. The fresh preflight bound the reviewed updater to the restored comparison epoch and acceptance-v3.
+
+The update changed only DOMSVGLength.cpp from the accepted earlier114 implementation and added the ten-case viewport WPT. The existing header and seven prior WPT hashes/inodes were preserved. Root verification in session54282 exited0, checking all53 source guards,390 resources plus two rebuilt binaries,30 modified native paths and925 staged paths. The new WPT identity is recorded alongside the seven existing tests. Fix115 source and both of its WPTs remain unchanged.
+
+This is integration evidence for the accepted25-case scope, supplementing the isolated51-case comparison. It does not establish hidden-provider completeness, cross-platform compatibility, lifetime or performance guarantees. Build logs retain Mach monitoring diagnostics despite successful exit and verified source/binary joins. No signing, push or CI action occurred.

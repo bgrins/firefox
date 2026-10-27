@@ -1,0 +1,15 @@
+# Installed-repair font diagnostic (disabled)
+
+This is a minimal installed-epoch adaptation of the sealed six-case font runner. Fixture bytes, names, owned diagnostic path, WPT helper, test creation/execution and finally cleanup remain unchanged. There is no native write or build. Five future installation/acceptance fields are null; no previous binary epoch is assumed.
+
+The runner requires an authenticated successful nine-case length installation, its exact root receipt and scoped acceptance of the frozen three-path standalone patch. Both native installed source pins must match the accepted DOMSVGLength candidate; all other52-guard source inputs retain their original values. The installation before/after source maps and index identities are joined. The final resource map explicitly overlays the newly installed nine-case WPT on its former absence and joins actual built binary pins.
+
+All four installed WPT files retain their hash/inode receipts: the two112 files,113 matrix file and new nine-case length file. The actual native roster must be the previous27 plus the two length paths, and the925-entry stage must remain unchanged. Font audit inputs are unchanged except DOMSVGLength.cpp, which may replace only its authenticated baseline hash with the exact accepted candidate hash; the accepted header is independently checked in the full source map. GetFontSize and the other font inputs retain their audit pins.
+
+Every one of the same six font tests must PASS. This means calibration, first result, repeat and post-flush resolution assertions all executed successfully; no earlier conversion failure is tolerated in this installed run. The WPT raw/receipt captures actual identities and complete harness status. It does not observe native factor branches. A baseline comparison is a separate root review against the preceding font result; no baseline result is fabricated or required by this disabled draft.
+
+The same owned temporary WPT/metadata absence checks and finally removal apply. It never adds the newly installed length WPT to the absence roster. An unexpected replacement inode is preserved and reported. Existing process-group timeout/cleanup and128MiB raw ingestion come from the pinned WPT helper. Original source and final resource/binary snapshots must agree exactly.
+
+`python3 -I -S artifacts/css-svg-length-font-installed-browser-v1/check.py` authenticates references, verifies byte-identical fixture/names and unchanged test lifecycle, checks source-override eligibility and Python syntax, and executes the actual summary classifier against sixPASS and each singleFAIL mutation. No browser was run.
+
+After actual scoped acceptance and successful installation, root must create a runtime successor, bind epoch/manifest/root-receipt and acceptance/path hashes, add actual record pins to REFERENCES, verify the root receipt schema, enable readiness and reseal DRAFT-FILES. Root invokes `python3 -I -S <runtime>/run.py <manifest-sha>`. Independent review of the final binding is still required. No patch or accepted bug count changes are made here.

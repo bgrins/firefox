@@ -1,0 +1,218 @@
+--- a/dom/svg/DOMSVGLength.cpp
++++ b/dom/svg/DOMSVGLength.cpp
+@@ -377,6 +377,11 @@
+     return;
+   }
+ 
++  // Resolve both unit bases before acquiring references used by steps 3-7.
++  if (ToSVGLength().GetUnit() != aUnit) {
++    FlushIfNeeded(aUnit);
++  }
++
+   if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+     svg->GetAnimatedLength(mAttrEnum)->ConvertToSpecifiedUnits(aUnit, svg, aRv);
+     return;
+@@ -471,12 +476,14 @@
+                                            : alist->mBaseVal[mListIndex];
+ }
+ 
+-void DOMSVGLength::FlushIfNeeded() {
+-  auto MaybeFlush = [](uint16_t aUnitType, SVGElement* aSVGElement) {
++void DOMSVGLength::FlushIfNeeded(uint16_t aTargetUnit) {
++  auto MaybeFlush = [aTargetUnit](uint16_t aUnitType, SVGElement* aSVGElement) {
+     FlushType flushType;
+-    if (SVGLength::IsPercentageUnit(aUnitType)) {
++    if (SVGLength::IsPercentageUnit(aUnitType) ||
++        SVGLength::IsPercentageUnit(aTargetUnit)) {
+       flushType = FlushType::Layout;
+-    } else if (SVGLength::IsFontRelativeUnit(aUnitType)) {
++    } else if (SVGLength::IsFontRelativeUnit(aUnitType) ||
++               SVGLength::IsFontRelativeUnit(aTargetUnit)) {
+       flushType = FlushType::Style;
+     } else {
+       return;
+--- a/dom/svg/DOMSVGLength.h
++++ b/dom/svg/DOMSVGLength.h
+@@ -181,7 +181,8 @@
+    * Some values have units that depend on style or layout so we may need to
+    * flush to ensure we get or set the right value in pixels.
+    */
+-  void FlushIfNeeded();
++  void FlushIfNeeded(
++      uint16_t aTargetUnit = SVGLength_Binding::SVG_LENGTHTYPE_UNKNOWN);
+ 
+ #ifdef DEBUG
+   bool IndexIsValid();
+--- /dev/null
++++ b/testing/web-platform/tests/svg/types/scripted/SVGLength-convertToSpecifiedUnits-viewport-change.html
+@@ -0,0 +1,103 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>SVGLength conversion uses the current viewport for both unit bases</title>
++<link rel="help" href="https://svgwg.org/svg2-draft/types.html#InterfaceSVGLength">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++.host { width: 200px; height: 100px; }
++.host.wide { width: 400px; }
++.host > svg { display: block; width: 100%; height: 100%; }
++</style>
++<body>
++<script>
++const ns = "http://www.w3.org/2000/svg";
++
++function fixture(t, binding, value, wide = false) {
++  const host = document.createElement("div");
++  host.className = wide ? "host wide" : "host";
++  const svg = document.createElementNS(ns, "svg");
++  const element = document.createElementNS(ns, binding === "scalar" ? "rect" : "text");
++  element.setAttribute("x", value);
++  if (binding === "list") {
++    element.textContent = "A";
++  }
++  svg.append(element);
++  host.append(svg);
++  document.body.append(host);
++  t.add_cleanup(() => host.remove());
++  const length = binding === "scalar" ? element.x.baseVal : element.x.baseVal.getItem(0);
++  return {host, svg, element, length};
++}
++
++function assertViewport(f, width) {
++  assert_equals(f.host.getBoundingClientRect().width, width, "host width calibration");
++  const rect = f.svg.getBoundingClientRect();
++  assert_equals(rect.width, width, "SVG viewport width calibration");
++  assert_equals(rect.height, 100, "SVG viewport height calibration");
++}
++
++for (const binding of ["scalar", "list"]) {
++  for (const toPercentage of [false, true]) {
++    test(t => {
++      const source = toPercentage ? "100px" : "50%";
++      const destination = toPercentage ? SVGLength.SVG_LENGTHTYPE_PERCENTAGE : SVGLength.SVG_LENGTHTYPE_PX;
++      const expected = toPercentage ? 25 : 200;
++      const f = fixture(t, binding, source);
++      assertViewport(f, 200);
++      assert_equals(f.length.value, 100, "initial user-unit calibration");
++      f.host.className = "host wide";
++      f.length.convertToSpecifiedUnits(destination);
++      const first = f.length.valueInSpecifiedUnits;
++      const repeat = f.length.valueInSpecifiedUnits;
++      const unit = f.length.unitType;
++      assertViewport(f, 400);
++      const resolved = f.length.value;
++      const reference = fixture(t, binding, source, true);
++      assertViewport(reference, 400);
++      reference.length.convertToSpecifiedUnits(destination);
++      assert_equals(reference.length.valueInSpecifiedUnits, expected, "pre-flushed reference calibration");
++      assert_equals(first, expected, "conversion immediately after viewport resize");
++      assert_equals(repeat, expected, "repeated converted factor");
++      assert_equals(unit, destination, "destination unit");
++      assert_equals(resolved, toPercentage ? 100 : 200, "represented value after layout");
++    }, `${binding}: ${toPercentage ? "px to percentage" : "percentage to px"} after viewport resize`);
++  }
++
++  test(t => {
++    const f = fixture(t, binding, "50%");
++    assertViewport(f, 200);
++    assert_equals(f.length.value, 100, "initial user-unit calibration");
++    f.host.className = "host wide";
++    const first = f.length.value;
++    const repeat = f.length.value;
++    assertViewport(f, 400);
++    assert_equals(first, 200, "value getter after viewport resize");
++    assert_equals(repeat, 200, "repeated value getter");
++    assert_equals(f.length.valueInSpecifiedUnits, 50, "percentage factor is unchanged");
++  }, `${binding}: value getter uses the current viewport`);
++
++  test(t => {
++    const f = fixture(t, binding, "50%");
++    const animated = binding === "scalar" ? f.element.x.animVal : f.element.x.animVal.getItem(0);
++    assertViewport(f, 200);
++    f.host.className = "host wide";
++    assert_throws_dom("NotSupportedError", () => f.length.convertToSpecifiedUnits(SVGLength.SVG_LENGTHTYPE_UNKNOWN));
++    assert_throws_dom("NoModificationAllowedError", () => animated.convertToSpecifiedUnits(SVGLength.SVG_LENGTHTYPE_UNKNOWN));
++    assert_equals(f.length.valueAsString, "50%", "failed conversions leave the attribute unchanged");
++    f.length.convertToSpecifiedUnits(SVGLength.SVG_LENGTHTYPE_PERCENTAGE);
++    assert_equals(f.length.valueAsString, "50%", "same-unit conversion preserves the representation");
++    assert_equals(f.length.valueInSpecifiedUnits, 50);
++    assert_equals(f.length.value, 200);
++  }, `${binding}: invalid, read-only and same-unit conversion behavior`);
++}
++
++test(t => {
++  const f = fixture(t, "list", "100px");
++  assert_equals(f.element.x.baseVal.removeItem(0), f.length);
++  f.length.convertToSpecifiedUnits(SVGLength.SVG_LENGTHTYPE_NUMBER);
++  assert_equals(f.length.value, 100);
++  assert_equals(f.length.unitType, SVGLength.SVG_LENGTHTYPE_NUMBER);
++  assert_equals(f.element.x.baseVal.numberOfItems, 0);
++}, "Removed list item keeps its detached absolute conversion behavior");
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/svg/types/scripted/SVGLength-convertToSpecifiedUnits-font-mutation.html
+@@ -0,0 +1,64 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>SVGLength conversion immediately after font-size mutation</title>
++<link rel="help" href="https://svgwg.org/svg2-draft/types.html#InterfaceSVGLength">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++svg { width: 400px; height: 100px; font-size: 20px; }
++svg.changed { font-size: 40px; }
++</style>
++<body>
++<script>
++const svgNS = "http://www.w3.org/2000/svg";
++function create(t, kind, source) {
++  const svg = document.createElementNS(svgNS, "svg");
++  const node = document.createElementNS(svgNS, kind === "scalar" ? "rect" : "text");
++  node.setAttribute("x", source);
++  svg.append(node);
++  document.body.append(svg);
++  t.add_cleanup(() => svg.remove());
++  const length = kind === "scalar" ? node.x.baseVal : node.x.baseVal.getItem(0);
++  return { svg, node, length };
++}
++for (const kind of ["scalar", "list"]) {
++  for (const mode of ["px to em", "em to px", "value getter"]) {
++    test(t => {
++      const toEm = mode === "px to em";
++      const getter = mode === "value getter";
++      const source = toEm ? "40px" : "2em";
++      const current = create(t, kind, source);
++      assert_equals(getComputedStyle(current.node).fontSize, "20px", "warm font");
++      assert_equals(current.svg.getBoundingClientRect().width, 400, "warm viewport");
++      assert_equals(current.length.value, 40, "warm value");
++      current.svg.classList.add("changed");
++      const target = toEm ? SVGLength.SVG_LENGTHTYPE_EMS : SVGLength.SVG_LENGTHTYPE_PX;
++      if (!getter) {
++        current.length.convertToSpecifiedUnits(target);
++      }
++      const first = getter ? current.length.value : current.length.valueInSpecifiedUnits;
++      const repeat = getter ? current.length.value : current.length.valueInSpecifiedUnits;
++      const unit = current.length.unitType;
++      const font = getComputedStyle(current.node).fontSize;
++      const rect = current.svg.getBoundingClientRect();
++      const resolved = current.length.value;
++      const reference = create(t, kind, source);
++      reference.svg.classList.add("changed");
++      assert_equals(getComputedStyle(reference.node).fontSize, "40px", "reference font");
++      if (!getter) {
++        reference.length.convertToSpecifiedUnits(target);
++      }
++      const expected = toEm ? 1 : 80;
++      const referenceValue = getter ? reference.length.value : reference.length.valueInSpecifiedUnits;
++      assert_equals(font, "40px", "mutated font");
++      assert_equals(rect.width, 400, "fixed viewport width");
++      assert_equals(rect.height, 100, "fixed viewport height");
++      assert_equals(referenceValue, expected, "preflushed reference");
++      assert_equals(unit, getter ? SVGLength.SVG_LENGTHTYPE_EMS : target, "unit");
++      assert_equals(first, expected, "immediately after font mutation");
++      assert_equals(repeat, expected, "repeated stored result");
++      assert_equals(resolved, toEm ? 40 : 80, "resolved value after style flush");
++    }, `${kind}: ${mode} immediately after font mutation`);
++  }
++}
++</script>

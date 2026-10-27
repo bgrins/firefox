@@ -1,0 +1,7 @@
+Fix114 is accepted for the standalone two-native-file plus nine-case WPT patch. In a normalized HEAD90 comparison, scalar/list percentage-to-pixel and pixel-to-percentage conversion after viewport resize improve from four failures to four passes. All27 candidate cases pass, including18 existing controls and five new adjacent-behavior controls. Independent source and result review pass. All builds/lint and full source/index/test restoration pass.
+
+The repair refreshes both unit bases after validation and before acquiring references used in conversion. Same-unit behavior and default getter/setter paths are preserved. The existing14 rational results specify current-context meaning and sufficient two-factor agreement; they do not prove native floating-point arithmetic, provider acquisition, lifecycle safety or whole CSS/SVG conformance. Source analysis and browser experiments discovered the implementation bug.
+
+The patch applies/reverses on HEAD90 and the recorded upstream base. Runtime comparison excludes all pending native overlays, but HEAD90 already contains committed fixes; no pristine-upstream or release-novelty claim is made. The font-mutation probe is separate follow-up evidence until the candidate is tested against it. This acceptance does not add a second bug for font units.
+
+Installation and signed commits remain pending. The final native commit contains only necessary Gecko code and regression WPT; research belongs in a preceding commit.

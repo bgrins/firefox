@@ -1,0 +1,5 @@
+Expanded fix114 is accepted for the validated scope: SVG length reads and conversions use current percentage, font and viewport-unit bases in the tested visible-document cases. The isolated comparison improved from35 passes and16 failures to51 passes, preserving all26 existing controls. Both builds, lint and original-stack restoration succeeded; root and independent result review agree.
+
+The standalone patch contains two Gecko files and three WPT files with25 cases. It expands the existing pending fix114 and adds no new numbered fix. The original pending stack, including fix115, was removed during comparison. The expanded patch is not yet installed on the combined stack.
+
+The Lean proofs establish conditional conversion and flush-policy properties. Native provider completion, hidden-layout readiness, lifetime, IEEE arithmetic and full CSS/SVG refinement remain open. Discovery came from source/browser investigation; the formal work checks the resulting invariants. No security or performance impact is established.

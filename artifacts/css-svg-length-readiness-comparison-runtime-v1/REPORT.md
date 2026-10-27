@@ -1,0 +1,7 @@
+The isolated expanded fix114 comparison passed: baseline35 PASS/16 FAIL became candidate51 PASS, with all26 existing controls preserved and seven successful harness completions in each phase. The16 repairs cover four percentage conversions, four font conversions and eight viewport-unit getter/conversion cases. Both native builds and WPT lint exited0.
+
+Both phases removed all30 pending native overlays. Baseline used HEAD90; candidate changed only DOMSVGLength.cpp and DOMSVGLength.h. This establishes independence from the pending stack for these cases, not a pristine-upstream runtime result. Candidate PASS reaches all assertions; baseline failures do not establish later repeat/post-layout assertions.
+
+Session20804 exited0. The original30 source bodies and original native diff, all53 source guards,390 resources,925 staged paths and seven installed WPT identities were restored. The owned viewport fixture was removed. The original working stack was rebuilt successfully, and root independently verified the actual new binaries and full final role map. The final checker ran in session1407 and exited0. Build logs retain warnings and Mach monitoring diagnostics; successful exit codes and source/binary joins are the build evidence.
+
+Independent phase review and root replay agree. This comparison receipt records restoration, not installation or automatic acceptance. Subsequent acceptance and integration must bind this restored epoch.

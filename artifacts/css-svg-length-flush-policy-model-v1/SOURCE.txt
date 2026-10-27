@@ -1,0 +1,127 @@
+dom/svg/DOMSVGLength.cpp :: void DOMSVGLength::ConvertToSpecifiedUnits
+void DOMSVGLength::ConvertToSpecifiedUnits(uint16_t aUnit, ErrorResult& aRv) {
+  if (mIsAnimValItem) {
+    aRv.ThrowNoModificationAllowedError("Animated values cannot be set");
+    return;
+  }
+
+  if (!SVGLength::IsValidUnitType(aUnit)) {
+    aRv.ThrowNotSupportedError("Unknown unit type");
+    return;
+  }
+
+  // Resolve both unit bases before acquiring references used by steps 3-7.
+  if (ToSVGLength().GetUnit() != aUnit) {
+    FlushIfNeeded(aUnit);
+  }
+
+  if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+    svg->GetAnimatedLength(mAttrEnum)->ConvertToSpecifiedUnits(aUnit, svg, aRv);
+    return;
+  }
+
+  float val;
+  if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {
+    SVGLength& length = InternalItem();
+    if (length.GetUnit() == aUnit) {
+      return;
+    }
+    val = length.GetValueInSpecifiedUnit(aUnit, lengthList->Element(),
+                                         lengthList->Axis());
+  } else {
+    if (mUnit == aUnit) {
+      return;
+    }
+    val = SVGLength(mValue, mUnit)
+              .GetValueInSpecifiedUnit(aUnit, nullptr, SVGLength::Axis::XY);
+  }
+  if (!std::isfinite(val)) {
+    aRv.ThrowTypeError<MSG_NOT_FINITE>("value");
+    return;
+  }
+  if (HasOwner()) {
+    AutoChangeLengthListNotifier notifier(this);
+    InternalItem().SetValueAndUnit(val, aUnit);
+  } else {
+    mValue = val;
+    mUnit = aUnit;
+  }
+}
+
+dom/svg/DOMSVGLength.cpp :: void DOMSVGLength::FlushIfNeeded
+void DOMSVGLength::FlushIfNeeded(uint16_t aTargetUnit) {
+  auto MaybeFlush = [aTargetUnit](uint16_t aUnitType, SVGElement* aSVGElement) {
+    FlushType flushType;
+    if (SVGLength::IsPercentageUnit(aUnitType) ||
+        SVGLength::IsPercentageUnit(aTargetUnit)) {
+      flushType = FlushType::Layout;
+    } else if (SVGLength::IsFontRelativeUnit(aUnitType) ||
+               SVGLength::IsFontRelativeUnit(aTargetUnit)) {
+      flushType = FlushType::Style;
+    } else {
+      return;
+    }
+    if (auto* currentDoc = aSVGElement->GetComposedDoc()) {
+      currentDoc->FlushPendingNotifications(flushType);
+    }
+  };
+
+  if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+    if (mIsAnimValItem) {
+      MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetAnimUnitType(), svg);
+    } else {
+      MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetBaseUnitType(), svg);
+    }
+  }
+  if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {
+    MaybeFlush(InternalItem().GetUnit(), lengthList->Element());
+  }
+}
+
+dom/svg/SVGLength.h :: static bool IsValidUnitType
+  static bool IsValidUnitType(uint16_t aUnitType) {
+    return aUnitType > dom::SVGLength_Binding::SVG_LENGTHTYPE_UNKNOWN &&
+           aUnitType <= dom::SVGLength_Binding::SVG_LENGTHTYPE_PC;
+  }
+
+dom/svg/SVGLength.h :: static bool IsPercentageUnit
+  static bool IsPercentageUnit(uint16_t aUnit) {
+    return aUnit == dom::SVGLength_Binding::SVG_LENGTHTYPE_PERCENTAGE;
+  }
+
+dom/svg/SVGLength.cpp :: bool SVGLength::IsFontRelativeUnit
+bool SVGLength::IsFontRelativeUnit(uint16_t aUnit) {
+  return aUnit == SVG_LENGTHTYPE_EMS || aUnit == SVG_LENGTHTYPE_EXS ||
+         (aUnit >= SVG_LENGTHTYPE_CH && aUnit <= SVG_LENGTHTYPE_RCAP);
+}
+
+dom/svg/SVGLength.cpp :: internal unit constant declarations
+constexpr uint16_t SVG_LENGTHTYPE_Q = 11;
+constexpr uint16_t SVG_LENGTHTYPE_CH = 12;
+constexpr uint16_t SVG_LENGTHTYPE_REM = 13;
+constexpr uint16_t SVG_LENGTHTYPE_IC = 14;
+constexpr uint16_t SVG_LENGTHTYPE_CAP = 15;
+constexpr uint16_t SVG_LENGTHTYPE_LH = 16;
+constexpr uint16_t SVG_LENGTHTYPE_RLH = 17;
+constexpr uint16_t SVG_LENGTHTYPE_REX = 18;
+constexpr uint16_t SVG_LENGTHTYPE_RCH = 19;
+constexpr uint16_t SVG_LENGTHTYPE_RIC = 20;
+constexpr uint16_t SVG_LENGTHTYPE_RCAP = 21;
+constexpr uint16_t SVG_LENGTHTYPE_VW = 22;
+constexpr uint16_t SVG_LENGTHTYPE_VH = 23;
+constexpr uint16_t SVG_LENGTHTYPE_VMIN = 24;
+constexpr uint16_t SVG_LENGTHTYPE_VMAX = 25;
+
+
+dom/webidl/SVGLength.webidl :: public SVGLength unit constants
+  const unsigned short SVG_LENGTHTYPE_UNKNOWN = 0;
+  const unsigned short SVG_LENGTHTYPE_NUMBER = 1;
+  const unsigned short SVG_LENGTHTYPE_PERCENTAGE = 2;
+  const unsigned short SVG_LENGTHTYPE_EMS = 3;
+  const unsigned short SVG_LENGTHTYPE_EXS = 4;
+  const unsigned short SVG_LENGTHTYPE_PX = 5;
+  const unsigned short SVG_LENGTHTYPE_CM = 6;
+  const unsigned short SVG_LENGTHTYPE_MM = 7;
+  const unsigned short SVG_LENGTHTYPE_IN = 8;
+  const unsigned short SVG_LENGTHTYPE_PT = 9;
+  const unsigned short SVG_LENGTHTYPE_PC = 10;

@@ -1,0 +1,49 @@
+--- reviewed-factor/tests.py
++++ expanded114/tests.py
+@@ -87,8 +87,7 @@
+ 
+ def compare(wpt, baseline, candidate):
+     def values(result):
+-        selected = result['rows']
+-        return {(e['test'], e.get('subtest')): {k: e.get(k) for k in ('status', 'message', 'expected', 'known_intermittent')} for e in selected}
++        return {(e['test'], e['subtest']): {k: e.get(k) for k in ('status', 'message', 'expected', 'known_intermittent')} for e in result['rows']}
+     old, new = values(baseline), values(candidate)
+     wpt.need(old.keys() == new.keys(), 'paired roster')
+     regressions = [key for key in old if old[key]['status'] == 'PASS' and new[key]['status'] != 'PASS']
+@@ -96,22 +95,20 @@
+     repaired = [key for key in old if old[key]['status'] == 'FAIL' and new[key]['status'] == 'PASS']
+     wpt.save('COMPARISON.json', {'regressions': regressions, 'changed_failures': changed, 'repaired': repaired, 'native_acceptance': False})
+     wpt.need(not regressions and not changed, 'paired preservation failed')
+-    main = set(wpt.CONFIG['main_tests'])
+-    selected = [r for r in candidate['rows'] if r['test'] in main]
+-    wpt.need(len(selected) == 16 and all(r['status'] == 'PASS' for r in selected), 'candidate16 factor oracle failed')
++    wpt.need(len(new) == 51 and all(r['status'] == 'PASS' for r in new.values()), 'candidate51 must all PASS')
+ 
+ 
+ def require_phase(wpt, phase, result):
+-    main = set(wpt.CONFIG['main_tests'])
+-    selected = [r for r in result['rows'] if r['test'] in main]
+-    wpt.need(len(selected) == 16, 'sixteen main identities')
+-    for row in selected:
+-        allowed_message = wpt.CONFIG['baseline_allowed_failure_messages'].get(row['subtest'])
+-        if phase == 'baseline' and allowed_message and row['status'] == 'FAIL':
+-            wpt.need(allowed_message in (row.get('message') or ''), 'unexpected baseline first failure')
+-        else:
+-            wpt.need(row['status'] == 'PASS', 'length calibration/control/candidate failure: ' + row['subtest'])
+-    controls = [r for r in result['rows'] + result['ends'] if r['test'] not in main]
+-    unexpected = [r for r in controls if r['status'] != r.get('expected', r['status'])
+-                  and r['status'] not in r.get('known_intermittent', [])]
+-    wpt.need(not unexpected, 'unexpected existing control results')
++    c = wpt.CONFIG
++    keys = [(r['test'], r['subtest']) for r in result['rows']]
++    expected = {(test, name) for test, names in c['expected_subtests'].items() for name in names}
++    wpt.need(len(keys) == len(set(keys)) == 51 and set(keys) == expected, 'exact51 identities')
++    main = set(c['main_tests'])
++    wpt.need(sum(r['test'] in main for r in result['rows']) == 25, 'exact25 main cases')
++    for row in result['rows']:
++        if row['status'] == 'PASS':
++            continue
++        allowed = c['baseline_allowed_failures'].get(row['test'], {}).get(row['subtest'])
++        wpt.need(phase == 'baseline' and allowed is not None and row['status'] == 'FAIL'
++                 and {k: row.get(k) for k in ('status', 'message', 'expected', 'known_intermittent')} == allowed,
++                 'unexpected calibration/control/candidate failure: ' + row['subtest'])

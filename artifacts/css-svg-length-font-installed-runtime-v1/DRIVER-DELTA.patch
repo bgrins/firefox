@@ -1,0 +1,158 @@
+--- artifacts/css-svg-length-font-browser-v1/run.py
++++ artifacts/css-svg-length-font-installed-browser-v1/run.py
+@@ -3,8 +3,6 @@
+     raise SystemExit("Require python3 -I -S without optimization")
+ sys.dont_write_bytecode = True
+ import os
+-import re
+-import math
+ import hashlib
+ import importlib.util
+ import json
+@@ -47,7 +45,7 @@
+ authenticate(draft, HERE)
+ authenticate(refs, ROOT)
+ need(settings["ready_for_execution"] is True, "disabled draft")
+-need(all(isinstance(settings[n], str) and settings[n] for n in ("epoch", "epoch_manifest_sha256", "root_receipt_sha256")), "unbound epoch")
++need(all(isinstance(settings[n], str) and settings[n] for n in ("epoch", "epoch_manifest_sha256", "root_receipt_sha256", "acceptance", "acceptance_sha256")), "unbound epoch")
+ need(not any((HERE / n).exists() or (HERE / n).is_symlink() for n in
+              ("STATE.json", "BEFORE.json", "FINAL.json", "SUMMARY.json", "PRIOR-EXPERIMENT.json", "wpt-font")), "already started")
+ proposal = ROOT / settings["proposal"]
+@@ -59,27 +57,61 @@
+ need(sha(epoch / "ROOT-FINAL-CHECK.json") == settings["root_receipt_sha256"], "actual root receipt")
+ prior_state, receipt = read(epoch / "STATE.json"), read(epoch / "ROOT-FINAL-CHECK.json")
+ expected, pins, c = read(epoch / "FINAL.json"), read(epoch / "FINAL-PINS.json"), read(epoch / "CONFIG.json")
+-need(prior_state["status"] == "terminal" and prior_state["restored"] is True
+-     and prior_state["restore_build_exit"] == 0 and prior_state["recovery_errors"] == [], "successful restoration required")
+-need(expected == read(epoch / "BEFORE.json") and receipt["status"] == "RESTORED_VERIFIED"
+-     and (receipt["exit"] == 0 or (receipt["exit"] == 1 and "failure" in prior_state))
++installation = read(epoch / "INSTALLATION.json")
++acceptance = ROOT / settings["acceptance"]
++need(sha(acceptance) == settings["acceptance_sha256"] == installation["acceptance_sha256"], "accepted installation join")
++accepted = read(acceptance)
++need(accepted["status"] == "SCOPED_ACCEPTED", "root scoped acceptance")
++repair = ROOT / settings["repair_proposal"]
++authenticate(read(repair / "FILES.json"), repair)
++patch = accepted.get("patch")
++patch_hash = patch.get("sha256") if isinstance(patch, dict) else accepted.get("native_patch_sha256")
++need(patch_hash == sha(repair / "standalone.patch"), "accepted exact repair")
++repair_sources = read(repair / "SOURCE-PINS.json")
++original_sources = {n:v["before_sha256"] for n,v in repair_sources.items()}
++candidate_sources = {n:v["candidate_sha256"] for n,v in repair_sources.items()}
++need(prior_state["status"] == "terminal" and prior_state["installed"] is True
++     and "failure" not in prior_state and prior_state["build_exit"] == prior_state["lint_exit"] == 0
++     and prior_state["recovery_errors"] == [] and prior_state["subtests"] == {"PASS":9,"FAIL":0}
++     and prior_state["files_ok"] == 1, "successful nine-case installation required")
++need(expected == installation["after"] and read(epoch / "BEFORE.json") == installation["before"]
++     and receipt["status"] == "INSTALLED_VERIFIED" and receipt["exit"] == 0
+      and receipt["state_sha256"] == sha(epoch / "STATE.json")
+      and receipt["final_sha256"] == sha(epoch / "FINAL.json")
+-     and receipt["restored_binary_pins"] == prior_state["restored_binary_pins"], "restoration/source/binary receipt join")
+-need(pins == {**read(epoch / "RESOURCES.json"), **expected["sources"], **prior_state["restored_binary_pins"]}, "complete restored roles")
+-need(len(expected["sources"]) == receipt["source_count"] == len(c["guard_sources"])
+-     and len(pins) == receipt["pin_count"] and receipt["staged_paths_preserved"] == 925,
+-     "restored comparison role counts")
+-previous = ROOT / c["epoch"]
+-need(sha(previous / "FILES.json") == c["epoch_manifest_sha256"], "previous installed trace epoch")
+-authenticate(read(previous / "FILES.json"), previous)
+-adapter = load("length_prior_adapter", ROOT / settings["prior_epoch_adapter"])
+-old, _, _, installed_tests = adapter.bind(ROOT, previous, read, sha, authenticate, load)
+-need(all(expected[k] == old[k] for k in ("head", "index_diff_sha256", "index_entries_sha256", "native_diff_sha256"))
+-     and all(expected["sources"][n] == h for n, h in old["sources"].items()), "installed working source join")
++     and receipt["installed_binary_pins"] == prior_state["installed_binary_pins"] == installation["binary_pins"], "installation/source/binary receipt join")
++need(installation["original_source_pins"] == original_sources
++     and installation["installed_source_pins"] == candidate_sources
++     and len(candidate_sources) == 2, "exact accepted two-source installation")
++need(expected["sources"] == {**installation["before"]["sources"], **candidate_sources}
++     and all(installation["before"]["sources"][n] == h for n,h in original_sources.items())
++     and all(expected[k] == installation["before"][k] for k in ("head","index_diff_sha256","index_entries_sha256")), "only accepted source changes")
++need(pins == {**read(epoch / "RESOURCES.json"), **expected["sources"], **prior_state["installed_binary_pins"],
++              installation["owned_test"]:installation["owned_test_sha256"]}, "complete installed roles")
++need(len(expected["sources"]) == receipt["source_count"] == len(c["guard_sources"]) == 52
++     and len(pins) == receipt["pin_count"] and receipt["staged_paths_preserved"] == 925, "installed role counts")
++installed_tests = dict(c["installed_tests"])
++need(len(installed_tests) == 3 and installation["owned_test"] not in installed_tests, "distinct fourth test")
++for directory in ("css-cssom-client-install-runtime-v1", "css-cssom-offset-scroll-install-runtime-v1", "css-hidden-svg-matrix-install-runtime-v1"):
++    prior = ROOT / "artifacts" / directory
++    authenticate(read(prior / "FILES.json"), prior)
++    item = read(prior / "INSTALLATION.json")
++    need(installed_tests[item["owned_test"]] == {"identity":item["owned_test_identity"], "sha256":item["owned_test_sha256"]}, "prior installed test ownership join")
++installed_tests[installation["owned_test"]] = {"identity":installation["owned_test_identity"], "sha256":installation["owned_test_sha256"]}
++need(all(pins[n] == item["sha256"] for n,item in installed_tests.items()), "all four installed test role joins")
++need(installation["owned_test"] in c["install"]
++     and (ROOT / c["proposal"] / "candidate" / installation["owned_test"]).read_bytes() == (repair / "candidate" / installation["owned_test"]).read_bytes()
++     and pins[installation["owned_test"]] == sha(repair / "candidate" / installation["owned_test"]), "exact installed nine-case test")
++c["modified_native_paths"] = sorted(set(c["modified_native_paths"]) | set(candidate_sources))
++need(len(c["modified_native_paths"]) == 29, "installed native roster")
++c["existing_tests"] = sorted(installed_tests)
++c["existing_test_pins"] = {n:item["sha256"] for n,item in installed_tests.items()}
++need(c["tracked_existing_tests"] == [], "installed tests remain untracked")
+ source_inputs = read(proposal / "SOURCE-PINS.json")["files"]
+ for name, digest in source_inputs.items():
+-    need(name not in pins or pins[name] == digest, "font source conflicts with restored roles")
++    if name in candidate_sources:
++        need(digest == original_sources[name], "original font audit input join")
++        digest = candidate_sources[name]
++    need(name not in pins or pins[name] == digest, "font source conflicts with installed roles")
+     pins[name] = digest
+ owned_test = settings["owned_test"]
+ owned_metadata = settings["owned_metadata"]
+@@ -88,7 +120,7 @@
+ need(not (ROOT / owned_metadata).exists() and not (ROOT / owned_metadata).is_symlink(), "diagnostic metadata exists")
+ pins[owned_metadata] = None
+ c["guard_sources"] = sorted(expected["sources"])
+-c["must_be_absent"] = sorted(set(c["must_be_absent"]) | set(c["install"]))
++c["must_be_absent"] = sorted(set(c["must_be_absent"]))
+ c["install"] = {}
+ wpt = load("length_wpt", ROOT / settings["helpers"] / "run_wpt.py")
+ bindings = load("length_bindings", ROOT / settings["helpers"] / "bindings.py")
+@@ -111,8 +143,8 @@
+     for name, item in installed_tests.items():
+         s = (ROOT / name).lstat()
+         need(stat.S_ISREG(s.st_mode) and [s.st_dev, s.st_ino] == item["identity"]
+-             and sha(ROOT / name) == item["sha256"], "installed112/113 inode/hash")
+-    need(not wpt.git("ls-files", "--", *installed_tests).strip(), "installed112/113 became tracked")
++             and sha(ROOT / name) == item["sha256"], "installed four-test inode/hash")
++    need(not wpt.git("ls-files", "--", *installed_tests).strip(), "installed tests became tracked")
+ 
+ 
+ verify()
+@@ -120,9 +152,9 @@
+ need(not wpt.git("ls-files", "--", owned_test).strip(), "owned test tracked")
+ wpt.save("BEFORE.json", {"snapshot": expected, "pins": pins})
+ wpt.save("PRIOR-EXPERIMENT.json", {"epoch": settings["epoch"], "state": prior_state, "root_receipt": receipt,
+-                                 "restored_build_used": True, "candidate_acceptance_required": False})
++                                 "installed_build_used": True, "candidate_acceptance_required": True})
+ state = {"status": "starting", "complete": False, "preserved": False, "native_changes": False,
+-         "source_role": "restored installed113 plus mixed prototypes; not SVGLength candidate",
++         "source_role": "accepted SVGLength repair installed with prior113 and mixed prototypes",
+          "prior_experiment_failed": "failure" in prior_state}
+ owned_identity = None
+ fixture = (HERE / "fixture.html").read_bytes()
+@@ -139,21 +171,11 @@
+     phase_pins = {**pins, owned_test: hashlib.sha256(fixture).hexdigest()}
+     result = tests.run(wpt, "font", phase_pins)
+     need(len(result["rows"]) == 6, "six exact rows")
+-    conversion_failures = []
+-    for row in result["rows"]:
+-        getter = ": value getter " in row["subtest"]
+-        if row["status"] == "FAIL":
+-            message = re.fullmatch(r"assert_equals: immediately after font mutation expected (1|80) but got (.+)", row.get("message") or "")
+-            expected_value = "1" if ": px to em " in row["subtest"] else "80"
+-            need(not getter and message is not None and message[1] == expected_value,
+-                 "calibration, getter or later assertion failure: " + row["subtest"])
+-            need(math.isfinite(float(message[2])), "nonfinite conversion observation")
+-            conversion_failures.append(row)
+-    summary = {"calibrated": 6, "getter_controls_pass": 2,
+-               "counts": {status: sum(r["status"] == status for r in result["rows"]) for status in ("PASS", "FAIL")},
+-               "conversion_failures": conversion_failures, "rows": result["rows"],
+-               "failed_first_assertion_stops_repeat_and_resolved_assertions": True,
+-               "native_factor_branch_observed": False}
++    need(all(row["status"] == "PASS" for row in result["rows"]), "all six installed font cases must pass")
++    summary = {"calibrated":6, "getter_controls_pass":2, "counts":{"PASS":6,"FAIL":0},
++               "conversion_failures":[], "rows":result["rows"],
++               "all_first_repeat_and_resolved_assertions_passed":True,
++               "native_factor_branch_observed":False}
+     wpt.save("SUMMARY.json", summary)
+     state.update(complete=True, calibrated=6, getter_controls_pass=2, counts=summary["counts"])
+ except BaseException as error:

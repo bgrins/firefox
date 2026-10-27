@@ -1,0 +1,34 @@
+--- artifacts/css-hidden-svg-matrix-comparison-v1/tests.py
++++ artifacts/css-svg-length-conversion-comparison-v1/tests.py
+@@ -98,21 +98,23 @@
+     wpt.need(not regressions and not changed, 'paired preservation failed')
+     main = set(wpt.CONFIG['main_tests'])
+     selected = [r for r in candidate['rows'] if r['test'] in main]
+-    wpt.need(len(selected) == 8 and all(r['status'] == 'PASS' for r in selected), 'candidate8 matrix oracle failed')
++    wpt.need(len(selected) == 9 and all(r['status'] == 'PASS' for r in selected), 'candidate9 length oracle failed')
+ 
+ 
+ def require_phase(wpt, phase, result):
+     main = set(wpt.CONFIG['main_tests'])
+     selected = [r for r in result['rows'] if r['test'] in main]
+-    wpt.need(len(selected) == 8, 'eight main identities')
++    wpt.need(len(selected) == 9, 'nine main identities')
+     for row in selected:
+-        allowed_hidden = row['subtest'] in (
+-            'getCTM: viewBox, hidden viewport resize',
+-            'getScreenCTM: viewBox, hidden viewport resize')
+-        if phase == 'baseline' and allowed_hidden and row['status'] == 'FAIL':
+-            wpt.need('first matrix after viewport resize' in (row.get('message') or ''), 'unexpected baseline first failure')
++        allowed_conversion = row['subtest'] in (
++            'scalar: percentage to px after viewport resize',
++            'scalar: px to percentage after viewport resize',
++            'list: percentage to px after viewport resize',
++            'list: px to percentage after viewport resize')
++        if phase == 'baseline' and allowed_conversion and row['status'] == 'FAIL':
++            wpt.need('conversion immediately after viewport resize' in (row.get('message') or ''), 'unexpected baseline first failure')
+         else:
+-            wpt.need(row['status'] == 'PASS', 'matrix calibration/control/candidate failure: ' + row['subtest'])
++            wpt.need(row['status'] == 'PASS', 'length calibration/control/candidate failure: ' + row['subtest'])
+     controls = [r for r in result['rows'] + result['ends'] if r['test'] not in main]
+     unexpected = [r for r in controls if r['status'] != r.get('expected', r['status'])
+                   and r['status'] not in r.get('known_intermittent', [])]

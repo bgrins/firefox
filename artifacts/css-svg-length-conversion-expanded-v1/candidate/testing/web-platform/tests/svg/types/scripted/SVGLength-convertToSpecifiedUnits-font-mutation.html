@@ -1,0 +1,64 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SVGLength conversion immediately after font-size mutation</title>
+<link rel="help" href="https://svgwg.org/svg2-draft/types.html#InterfaceSVGLength">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+svg { width: 400px; height: 100px; font-size: 20px; }
+svg.changed { font-size: 40px; }
+</style>
+<body>
+<script>
+const svgNS = "http://www.w3.org/2000/svg";
+function create(t, kind, source) {
+  const svg = document.createElementNS(svgNS, "svg");
+  const node = document.createElementNS(svgNS, kind === "scalar" ? "rect" : "text");
+  node.setAttribute("x", source);
+  svg.append(node);
+  document.body.append(svg);
+  t.add_cleanup(() => svg.remove());
+  const length = kind === "scalar" ? node.x.baseVal : node.x.baseVal.getItem(0);
+  return { svg, node, length };
+}
+for (const kind of ["scalar", "list"]) {
+  for (const mode of ["px to em", "em to px", "value getter"]) {
+    test(t => {
+      const toEm = mode === "px to em";
+      const getter = mode === "value getter";
+      const source = toEm ? "40px" : "2em";
+      const current = create(t, kind, source);
+      assert_equals(getComputedStyle(current.node).fontSize, "20px", "warm font");
+      assert_equals(current.svg.getBoundingClientRect().width, 400, "warm viewport");
+      assert_equals(current.length.value, 40, "warm value");
+      current.svg.classList.add("changed");
+      const target = toEm ? SVGLength.SVG_LENGTHTYPE_EMS : SVGLength.SVG_LENGTHTYPE_PX;
+      if (!getter) {
+        current.length.convertToSpecifiedUnits(target);
+      }
+      const first = getter ? current.length.value : current.length.valueInSpecifiedUnits;
+      const repeat = getter ? current.length.value : current.length.valueInSpecifiedUnits;
+      const unit = current.length.unitType;
+      const font = getComputedStyle(current.node).fontSize;
+      const rect = current.svg.getBoundingClientRect();
+      const resolved = current.length.value;
+      const reference = create(t, kind, source);
+      reference.svg.classList.add("changed");
+      assert_equals(getComputedStyle(reference.node).fontSize, "40px", "reference font");
+      if (!getter) {
+        reference.length.convertToSpecifiedUnits(target);
+      }
+      const expected = toEm ? 1 : 80;
+      const referenceValue = getter ? reference.length.value : reference.length.valueInSpecifiedUnits;
+      assert_equals(font, "40px", "mutated font");
+      assert_equals(rect.width, 400, "fixed viewport width");
+      assert_equals(rect.height, 100, "fixed viewport height");
+      assert_equals(referenceValue, expected, "preflushed reference");
+      assert_equals(unit, getter ? SVGLength.SVG_LENGTHTYPE_EMS : target, "unit");
+      assert_equals(first, expected, "immediately after font mutation");
+      assert_equals(repeat, expected, "repeated stored result");
+      assert_equals(resolved, toEm ? 40 : 80, "resolved value after style flush");
+    }, `${kind}: ${mode} immediately after font mutation`);
+  }
+}
+</script>

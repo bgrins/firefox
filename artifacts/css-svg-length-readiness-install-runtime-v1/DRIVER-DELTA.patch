@@ -1,0 +1,90 @@
+--- artifacts/css-svg-absolute-factor-install-v2/run.py
++++ artifacts/css-svg-length-readiness-install-v1/run.py
+@@ -47,18 +47,19 @@
+          for n in ('wpt-candidate', 'BEFORE.json', 'STATE.json', 'original')), 'already started/output collision')
+ acceptance = ROOT / c['acceptance']
+ need(sha(acceptance) == c['acceptance_sha256'] and read(acceptance) == c['acceptance_receipt'], 'exact acceptance')
+-need(c['acceptance_receipt']['status'] == 'SCOPED_ACCEPTED', 'root scoped acceptance required')
++need(c['acceptance_receipt']['status'] == 'SCOPED_ACCEPTED' and c['acceptance_receipt']['fix'] == 114
++     and c['acceptance_receipt']['landing_cases'] == 25, 'expanded114 scoped acceptance required')
+ proposal = ROOT / c['proposal']
+ authenticate(read(proposal / 'FILES.json'), proposal)
+-original_pins = {'dom/svg/SVGLength.cpp': sha(proposal / 'original-SVGLength.cpp')}
+-candidate_pins = {'dom/svg/SVGLength.cpp': sha(proposal / 'candidate-SVGLength.cpp')}
++original_pins = {'dom/svg/DOMSVGLength.cpp': sha(ROOT / c['original_source_artifact'])}
++candidate_pins = {'dom/svg/DOMSVGLength.cpp': sha(proposal / 'candidate/dom/svg/DOMSVGLength.cpp')}
+ accepted_patch = c['acceptance_receipt'].get('patch')
+ accepted_hash = (accepted_patch.get('sha256') if isinstance(accepted_patch, dict)
+                  else c['acceptance_receipt'].get('native_patch_sha256'))
+-need(accepted_hash == sha(proposal / 'standalone.patch'), 'accepted exact three-path patch')
++need(accepted_hash == sha(proposal / 'standalone.patch'), 'accepted exact expanded five-path patch')
+ wpt = load('install_wpt', ROOT / c['helpers'] / 'run_wpt.py')
+ bindings = load('install_bindings', ROOT / c['helpers'] / 'bindings.py')
+-tests = load('install_tests', ROOT / 'artifacts/css-svg-absolute-factor-comparison-v1/tests.py')
++tests = load('install_tests', ROOT / 'artifacts/css-svg-length-readiness-comparison-v1/tests.py')
+ wpt.HERE, wpt.CONFIG = HERE, c
+ wpt.ENV.update(MOZ_DISABLE_SAFE_MODE_KEY='1', MOZ_DISABLE_UPDATE_PROCESSING='1')
+ wpt.ENV.pop('MOZ_SAFE_MODE_RESTART', None)
+@@ -81,7 +82,7 @@
+                    **epoch['restored_binary_pins']}, 'complete restored role map')
+ prior_config = read(previous / 'CONFIG.json')
+ need(prior_config['epoch_receipt']['installed_tests'] == c['installed_tests']
+-     and len(c['installed_tests']) == 5, 'five installed test identities transferred from comparison')
++     and len(c['installed_tests']) == 7, 'seven installed test identities transferred from comparison')
+ bindings.index_state(wpt)
+ before = wpt.snapshot()
+ need(before == prior_final and before['head'] == c['head']
+@@ -91,19 +92,23 @@
+ need(wpt.pins(list(resources)) == resources, 'initial resources')
+ natives = sorted(original_pins)
+ owned_tests = list(c['install'])
+-need(len(owned_tests) == 2 and sorted(c['sources']) == natives
++need(len(owned_tests) == 1 and sorted(c['sources']) == natives
+      and set(c['tests']) == {'testing/web-platform/tests'+n for n in c['main_tests']}
+-     and len(c['expected_subtests']) == 2 and sum(map(len, c['expected_subtests'].values())) == 16
++     and len(c['expected_subtests']) == 3 and sum(map(len, c['expected_subtests'].values())) == 25
+      and len(c['guard_sources']) == 53 and len(natives) == 1, 'integration scope')
+-need(all(before['sources'][n] == h for n, h in original_pins.items()), 'SVGLength source has unrelated working changes')
++need(all(before['sources'][n] == h for n, h in original_pins.items()), 'installed114 source has unrelated working changes')
+ fixtures = {n: (HERE / c['install'][n]).read_bytes() for n in owned_tests}
+ need(all(body == (proposal / c['proposal_test_files'][n]).read_bytes() for n, body in fixtures.items()), 'exact final fixtures')
++for name, proposal_file in c['proposal_test_files'].items():
++    if name not in fixtures:
++        need(name in c['existing_test_pins'] and sha(proposal / proposal_file) == c['existing_test_pins'][name], 'existing main test remains exact')
++need(before['sources']['dom/svg/DOMSVGLength.h'] == sha(proposal / 'candidate/dom/svg/DOMSVGLength.h'), 'installed114 header already matches')
+ candidate = {n: (ROOT / c['candidate_sources'][n]).read_bytes() for n in natives}
+ need({n: hashlib.sha256(b).hexdigest() for n, b in candidate.items()} == c['candidate_pins'] == candidate_pins, 'exact candidate')
+ original = {n: (ROOT / n).read_bytes() for n in natives}
+ need(all(not (ROOT / n).exists() and not (ROOT / n).is_symlink()
+          and not wpt.git('ls-files', '--', n) for n in owned_tests), 'owned WPTs absent/untracked')
+-temps = [(ROOT / n).with_name('.' + Path(n).name + '.svg-factor-install.tmp') for n in natives]
++temps = [(ROOT / n).with_name('.' + Path(n).name + '.svg-readiness-install.tmp') for n in natives]
+ need(all(not p.exists() and not p.is_symlink() for p in temps), 'source temporary exists')
+ 
+ def modified_native():
+@@ -170,7 +175,7 @@
+     need(stat.S_ISREG(info.st_mode) and identity in owned_sources[name], 'unknown native edit: ' + name)
+     if data == current:
+         return
+-    temp = path.with_name('.' + path.name + '.svg-factor-install.tmp')
++    temp = path.with_name('.' + path.name + '.svg-readiness-install.tmp')
+     temporary_identity = None
+     try:
+         with temp.open('xb') as stream:
+@@ -213,14 +218,13 @@
+     state['status'] = 'testing'
+     wpt.save('STATE.json', state)
+     result = tests.run(wpt, 'candidate', phase_resources)
+-    tests.require_phase(wpt, 'candidate', result)
+-    need(len(result['rows']) == 16 and all(row['status'] == 'PASS' for row in result['rows']), 'own16 integration')
++    need(len(result['rows']) == 25 and all(row['status'] == 'PASS' for row in result['rows']), 'own25 integration')
+     need(all(result['before'][n] == h for n, h in state['installed_binary_pins'].items()), 'built binary/test join')
+     final = verify_installed()
+     need(wpt.pins(wpt.BINARIES) == state['installed_binary_pins'], 'binary drift')
+     wpt.save('FINAL.json', final)
+     wpt.save('FINAL-PINS.json', {**phase_resources, **state['installed_binary_pins']})
+-    state.update(status='terminal', installed=True, subtests={'PASS': 16, 'FAIL': 0}, files_ok=2)
++    state.update(status='terminal', installed=True, subtests={'PASS': 25, 'FAIL': 0}, files_ok=3)
+     wpt.save('INSTALLATION.json', {'before': before, 'after': final,
+         'original_source_pins': original_pins, 'installed_source_pins': candidate_pins,
+         'owned_tests': {n: {'sha256': hashlib.sha256(fixtures[n]).hexdigest(),

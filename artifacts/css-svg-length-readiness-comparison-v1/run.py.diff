@@ -1,0 +1,86 @@
+--- reviewed-factor/run.py
++++ expanded114/run.py
+@@ -42,21 +42,18 @@
+ c = read(HERE / 'CONFIG.json')
+ need(c['ready_for_execution'] is True, 'disabled draft')
+ need(all(isinstance(v, dict) and isinstance(v.get('path'), str) and isinstance(v.get('sha256'), str)
+-         for v in c['required_seals'].values()) and c['smil_binding'] is not None, 'unbound proposal/SMIL/review')
++         for v in c['required_seals'].values()), 'unbound proposal/review')
+ for value in c['required_seals'].values():
+     need(sha(ROOT / value['path']) == value['sha256'], 'required final seal')
+     authenticate(read(ROOT / value['path']), (ROOT / value['path']).parent)
+-authenticate(c['smil_binding'], ROOT)
+-need((ROOT / c['observed_smil_fixture']).read_bytes() == (HERE / 'smil-fixture.html').read_bytes(),
+-     'observed SMIL fixture transfer')
+ proposal = ROOT / c['proposal']
+ authenticate(read(proposal / 'FILES.json'), proposal)
+ need(all(isinstance(c[n], str) and c[n] for n in ('epoch', 'proposal')), 'unbound restored epoch or proposal')
+ need(all(not (HERE / n).exists() and not (HERE / n).is_symlink()
+          for n in ('wpt-baseline', 'wpt-candidate')), 'WPT output directory exists')
+ need(not any((HERE / n).exists() for n in ('BEFORE.json', 'STATE.json', 'original')), 'already started')
+-need(all(not (ROOT / n).with_name('.' + Path(n).name + '.svg-factor-comparison.tmp').exists()
+-         and not (ROOT / n).with_name('.' + Path(n).name + '.svg-factor-comparison.tmp').is_symlink() for n in c['sources']), 'source temp exists')
++need(all(not (ROOT / n).with_name('.' + Path(n).name + '.svg-readiness-comparison.tmp').exists()
++         and not (ROOT / n).with_name('.' + Path(n).name + '.svg-readiness-comparison.tmp').is_symlink() for n in c['sources']), 'source temp exists')
+ wpt = load('rounding_wpt', ROOT / c['helpers'] / 'run_wpt.py')
+ bindings = load('rounding_bindings', ROOT / c['helpers'] / 'bindings.py')
+ tests = load('svg_matrix_tests', HERE / 'tests.py')
+@@ -72,7 +69,7 @@
+ bindings.index_state(wpt)
+ before = wpt.snapshot()
+ need(all(before[k] == prior_final[k] for k in before if k != 'sources')
+-     and all(before['sources'][n] == h for n, h in prior_final['sources'].items()), 'installed114 source epoch')
++     and all(before['sources'][n] == h for n, h in prior_final['sources'].items()), 'installed115 diagnostic epoch')
+ need(before['head'] == c['head'] and before['sources'] == c['source_pins'], 'working source roles')
+ need(wpt.pins(wpt.BINARIES) == epoch['installed_binary_pins'], 'installed build binaries')
+ need(wpt.pins(list(prior_pins)) == prior_pins, 'complete prior source/resource/binary epoch')
+@@ -84,14 +81,18 @@
+ resources = read(HERE / 'RESOURCES.json')
+ need(wpt.pins(list(resources)) == resources, 'initial resources')
+ owned_tests = tuple(c['install'])
+-need(len(owned_tests) == 2 and len(c['tests']) == 5 and c['baseline_tests'] == c['tests']
+-     and len(c['candidate_sources']) == 1, 'comparison scope')
++need(len(owned_tests) == 1 and len(c['tests']) == 7 and c['baseline_tests'] == c['tests']
++     and len(c['candidate_sources']) == 2, 'comparison scope')
+ fixtures = {}
+ for owned_test in owned_tests:
+     need(not (ROOT / owned_test).exists() and not (ROOT / owned_test).is_symlink()
+          and not wpt.git('ls-files', '--', owned_test), 'test absent/untracked')
+     fixtures[owned_test] = (HERE / c['install'][owned_test]).read_bytes()
+     need(fixtures[owned_test] == (proposal / c['proposal_test_files'][owned_test]).read_bytes(), 'exact proposed WPT')
++for name, proposal_file in c['proposal_test_files'].items():
++    if name not in fixtures:
++        need(name in c['existing_test_pins'] and sha(proposal / proposal_file) == c['existing_test_pins'][name],
++             'readonly proposed WPT matches installed test')
+ def phase_resources(phase):
+     return {**resources, **c['head_pins'],
+             **(c['candidate_pins'] if phase == 'candidate' else {}),
+@@ -142,7 +143,7 @@
+     p.write_bytes(data)
+ wpt.save('BEFORE.json', before)
+ wpt.save('ORIGINAL-BINARIES.json', epoch['installed_binary_pins'])
+-state = {'status': 'starting', 'phases': {}, 'accepted_native_repair': False, 'original_source_role': 'installed112-114 plus mixed prototypes; normalize all29 tracked native differences plus clean SVGLength.cpp to HEAD90', 'pending_acceptance_gates': c['pending_acceptance_gates']}
++state = {'status': 'starting', 'phases': {}, 'accepted_native_repair': False, 'original_source_role': 'installed112-115 plus mixed prototypes; normalize all30 native differences to HEAD90, candidate only DOMSVGLength.cpp and .h', 'pending_acceptance_gates': c['pending_acceptance_gates']}
+ changed = False
+ owned_identities = {}
+ errors = []
+@@ -165,7 +166,7 @@
+     need(stat.S_ISREG(info.st_mode) and identity in owned_sources[name], 'unknown native edit: ' + name)
+     if data == current:
+         return
+-    temp = path.with_name('.' + path.name + '.svg-factor-comparison.tmp')
++    temp = path.with_name('.' + path.name + '.svg-readiness-comparison.tmp')
+     temporary_identity = None
+     try:
+         with temp.open('xb') as stream:
+@@ -280,8 +281,8 @@
+             and wpt.pins(list(resources)) == resources
+             and all(not (ROOT / n).exists() and not (ROOT / n).is_symlink()
+                     and not wpt.git('ls-files', '--', n) for n in owned_tests)
+-            and all(not (ROOT / n).with_name('.' + Path(n).name + '.svg-factor-comparison.tmp').exists()
+-                    and not (ROOT / n).with_name('.' + Path(n).name + '.svg-factor-comparison.tmp').is_symlink() for n in c['sources']))
++            and all(not (ROOT / n).with_name('.' + Path(n).name + '.svg-readiness-comparison.tmp').exists()
++                    and not (ROOT / n).with_name('.' + Path(n).name + '.svg-readiness-comparison.tmp').is_symlink() for n in c['sources']))
+         state['restored_binary_pins'] = wpt.pins(wpt.BINARIES)
+         recovery_save('FINAL.json', final)
+         recovery_save('FINAL-PINS.json', {**resources, **final['sources'], **state['restored_binary_pins']})
