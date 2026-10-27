@@ -1,0 +1,11 @@
+# Registered number comparison
+
+Fourteen identical probe cases ran in release Firefox 158 and our local Nightly 160 build. Release has seven disagreements with the current expected values, and all seven calibration controls pass. The local build reproduces those seven disagreements and additionally fails the direct-invalid-em control, so its outer runner deliberately exits 1. No passing-run claim applies to that local probe. Browser cleanup, source/binary stability and row capture succeeded in both.
+
+The shared failure family includes a valid numeric var() primary whose unused fallback contains em, ex or lh; nested/inherited-provider variants; an actually used invalid em fallback; and a wrong-type primary with an unused em fallback. These produce inherited font-size 19px rather than 5px (valid numeric value) or 3px (registered initial value after type invalidation). Placing the unused unit fallback inside an unregistered intermediary works in both browsers.
+
+The direct --n:1em case produces 3px in release, but 19px locally. The existing unfinished data_type.rs prototype widens numeric syntax dependency flags to LENGTH to support length operands in numeric math. That explains a concrete additional path to the conservative graph; it is not yet a controlled native original/candidate comparison proving causation. Do not count this prototype regression as a newly found release bug, discard the regression evidence, or simply remove numeric math support to make the control green.
+
+The earlier ordinary visitor unconditionally unions root/fallback reference flags, bypassing the original registered-syntax filter when a var reference forces traversal. A complete correction must distinguish evaluated dependencies from unused or invalid token branches, while preserving real font-relative operands in numeric math. Merely restoring the old type mask would leave this unfinished arithmetic objective behind.
+
+The CSS Properties and Values API explicit unit-edge clause is scoped to length components. Its interaction with modern numeric math and Values 5 guarded evaluation needs a focused trace; the original length-syntax unused-fallback case remains a separate ambiguity. No native repair, WPT acceptance, security claim or new Lean theorem is asserted here.

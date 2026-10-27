@@ -1,0 +1,69 @@
+{
+  "registration": "--n: <number>, inherits false, initial-value 3 unless specified otherwise",
+  "cases": [
+    {
+      "id": "number-ratio-fixed-font",
+      "declarations": "font-size:20px; --n:calc(1em / 1px); width:calc(var(--n) * 1px)",
+      "expected": "computed --n 20 and width 20px",
+      "role": "numeric math support and current-context calibration",
+      "oracle_status": "Values4 derivation; not executed"
+    },
+    {
+      "id": "number-ratio-font-change",
+      "declarations": "same as fixed-font, then change font-size from 20px to 30px",
+      "expected": "computed --n 30 and width 30px",
+      "role": "dependency invalidation",
+      "oracle_status": "Values4 derivation; not executed"
+    },
+    {
+      "id": "number-ratio-provider",
+      "declarations": "font-size:20px; --source:calc(1em / 1px); --n:var(--source); width:calc(var(--n) * 1px)",
+      "expected": "computed --n 20 and width 20px",
+      "role": "selected provider output preserves real operands",
+      "oracle_status": "Values4 derivation; not executed"
+    },
+    {
+      "id": "number-ratio-cycle",
+      "declarations": "--n:calc(1em / 1px); font-size:calc(var(--n) * 1px)",
+      "expected": null,
+      "role": "retain genuine context dependency; establish exact cycle invalidation oracle separately",
+      "oracle_status": "precise combined-spec invalidation unresolved; not executed"
+    },
+    {
+      "id": "unused-ratio-fallback",
+      "declarations": "--ready:5; --n:var(--ready,calc(1em / 1px)); font-size:calc(var(--n) * 1px)",
+      "expected": "computed --n 5 and font-size 5px",
+      "role": "well-typed but unselected dependency must not run",
+      "oracle_status": "short-circuit derivation; not executed"
+    },
+    {
+      "id": "invalid-number-math",
+      "declarations": "--n:calc(1em + 1px); font-size:calc(var(--n) * 1px)",
+      "expected": "computed --n initial 3 and font-size 3px",
+      "role": "expression valid as length but invalid as number before context conversion",
+      "oracle_status": "typed grammar derivation; not executed"
+    },
+    {
+      "id": "invalid-mixed-math",
+      "declarations": "--n:calc(1em + 1s); font-size:calc(var(--n) * 1px)",
+      "expected": "computed --n initial 3 and font-size 3px",
+      "role": "math type error before any font context conversion",
+      "oracle_status": "typed grammar derivation; not executed"
+    },
+    {
+      "id": "union-ident-unused-fallback",
+      "declarations": "register --u as <number> | fixed with initial 3; --ready:fixed; --u:var(--ready,1em); font-size:19px",
+      "expected": "computed --u fixed",
+      "role": "actual selected syntax alternative, not declared type union, governs conversion",
+      "oracle_status": "registration grammar derivation; not executed"
+    },
+    {
+      "id": "same-unit-cancellation",
+      "declarations": "--n:calc(1em / 1em); font-size:calc(var(--n) * 1px)",
+      "expected": null,
+      "role": "separate simplification/remaining-context-read analysis",
+      "oracle_status": "requires exact simplification trace before oracle; not executed"
+    }
+  ],
+  "all_unexecuted": true
+}
