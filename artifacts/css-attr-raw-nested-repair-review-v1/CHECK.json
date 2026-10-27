@@ -1,0 +1,84 @@
+{
+  "result": "STATIC_SEMANTIC_REVIEW_NO_BLOCKER",
+  "proposal_payloads": 22,
+  "proposal_manifest_sha256": "0f3b2b6d970fc0a5ffca89190d97726b8eacdd121f574b14a2b5e735a1828866",
+  "model_authenticated": true,
+  "reference_hashes_verified": true,
+  "new_test_names": [
+    "raw-literal",
+    "typed-literal",
+    "typed-self-bare",
+    "typed-self-raw",
+    "genuine-typed-self",
+    "nested-bare",
+    "nested-raw",
+    "bare-other",
+    "typed-string-self-bare",
+    "bare-missing",
+    "taken-bare-fallback-cycle",
+    "unused-bare-fallback-cycle",
+    "quoted-function-control",
+    "typed-typed-raw-chain",
+    "genuine-typed-mutual",
+    "empty-raw-ignores-fallback",
+    "taken-raw-fallback-property-cycle",
+    "numeric-self-uses-literal-fallback",
+    "valid-unit-ignores-fallback",
+    "invalid-number-fallback-typed-cycle",
+    "invalid-number-fallback-property-cycle",
+    "namespaced-outer-raw-null-read",
+    "namespaced-outer-missing-null-read",
+    "namespace-alias-outer-raw-read",
+    "unknown-outer-namespace",
+    "namespaced-outer-used-property-cycle",
+    "Mutating between raw reads and typed cycles updates the result",
+    "Mutating a raw primary selects or excludes a typed cyclic fallback",
+    "Raw reads inside a namespaced typed attribute track null-namespace mutations"
+  ],
+  "explicit_oracle_changes": [
+    {
+      "before": {
+        "kind": "cycle",
+        "args": [
+          "--y",
+          "attr(data-foo type(*))",
+          "attr(data-bar type(*))"
+        ]
+      },
+      "after": {
+        "kind": "no_cycle",
+        "args": [
+          "--y",
+          "attr(data-foo type(*))",
+          "attr(data-bar type(*))",
+          "\"attr(data-bar type(*))\""
+        ]
+      }
+    },
+    {
+      "before": {
+        "kind": "no_cycle",
+        "args": [
+          "--x",
+          "attr(data-foo type(*), abc)",
+          "attr(data-bar type(*), fallback)",
+          "abc"
+        ]
+      },
+      "after": {
+        "kind": "no_cycle",
+        "args": [
+          "--x",
+          "attr(data-foo type(*), abc)",
+          "attr(data-bar type(*), fallback)",
+          "\"attr(data-bar type(*), fallback)\" \"attr(data-foo) attr(data-bar)\""
+        ]
+      }
+    }
+  ],
+  "transport_records_verified_not_rerun": true,
+  "browser_run": false,
+  "build_run": false,
+  "native_proof": false,
+  "new_coverage_credit": false
+}
