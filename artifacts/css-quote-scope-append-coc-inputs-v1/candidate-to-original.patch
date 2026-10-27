@@ -1,0 +1,33 @@
+--- a/layout/base/nsQuoteList.cpp
++++ b/layout/base/nsQuoteList.cpp
+@@ -27,8 +27,6 @@
+   quoteList->Insert(this);
+   if (quoteList->IsLast(this)) {
+     quoteList->Calc(this);
+-    // Child scopes can inherit their initial depth from this appended node.
+-    dirty = quoteList->HasChildScopes();
+   } else {
+     dirty = true;
+   }
+@@ -114,10 +112,6 @@
+   return 0;
+ }
+ 
+-bool nsQuoteList::HasChildScopes() const {
+-  return !mScope->GetChildren().IsEmpty();
+-}
+-
+ void nsQuoteList::Calc(nsQuoteNode* aNode) {
+   if (aNode == FirstNode()) {
+     aNode->mDepthBefore = GetDepthBeforeFirstQuoteNode(mScope);
+--- a/layout/base/nsQuoteList.h
++++ b/layout/base/nsQuoteList.h
+@@ -78,8 +78,6 @@
+   // Should be called immediately after calling |Insert|.
+   void Calc(nsQuoteNode* aNode);
+ 
+-  bool HasChildScopes() const;
+-
+   nsQuoteNode* Next(nsQuoteNode* aNode) {
+     return static_cast<nsQuoteNode*>(nsGenConList::Next(aNode));
+   }

@@ -1,0 +1,121 @@
+<!doctype html>
+<meta charset=utf-8>
+<title>Physical and logical shorthand priority in computed keyframes</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
+<meta name="assert" content="Keyframe conflicts prioritize longhands, then fewer shorthand components, then physical properties, then IDL names.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="../css-animations/support/testcommon.js"></script>
+<style>
+.target {
+  border: 0 solid black;
+  direction: ltr;
+  --logical-border: 11px solid red;
+  --physical-border: 22px solid blue;
+}
+.horizontal-tb { writing-mode: horizontal-tb; }
+.vertical-rl { writing-mode: vertical-rl; }
+.vertical-lr { writing-mode: vertical-lr; }
+</style>
+<div id="log"></div>
+<script>
+'use strict';
+
+function animateConstant(t, frame, writingMode = 'horizontal-tb') {
+  const target = addDiv(t, { class: `target ${writingMode}` });
+  const animation = target.animate([frame, frame], 1000);
+  t.add_cleanup(() => animation.cancel());
+  animation.pause();
+  animation.currentTime = 500;
+  for (const keyframe of animation.effect.getKeyframes()) {
+    for (const property of Object.keys(frame)) {
+      assert_own_property(keyframe, property);
+    }
+  }
+  return getComputedStyle(target);
+}
+
+function assertBlueBorder(style, side) {
+  assert_equals(style[`border${side}Width`], '22px', 'border width');
+  assert_equals(style[`border${side}Color`], 'rgb(0, 0, 255)', 'border color');
+}
+
+for (const [writingMode, side] of [
+  ['horizontal-tb', 'Top'],
+  ['vertical-rl', 'Right'],
+  ['vertical-lr', 'Left'],
+]) {
+  for (const physicalFirst of [false, true]) {
+    for (const useVariables of [false, true]) {
+      test(t => {
+        const entries = [
+          ['borderBlockStart', useVariables ? 'var(--logical-border)' : '11px solid red'],
+          [`border${side}`, useVariables ? 'var(--physical-border)' : '22px solid blue'],
+        ];
+        if (physicalFirst) {
+          entries.reverse();
+        }
+        const style = animateConstant(t, Object.fromEntries(entries), writingMode);
+        assertBlueBorder(style, side);
+      }, `Equal-size physical shorthand wins: ${writingMode}, ` +
+         `${physicalFirst ? 'physical' : 'logical'} inserted first, ` +
+         `${useVariables ? 'variables' : 'literal values'}`);
+    }
+  }
+}
+
+test(t => {
+  const style = animateConstant(t, {
+    borderBlockStartWidth: '11px',
+    borderTopWidth: '22px',
+  });
+  assert_equals(style.borderTopWidth, '22px');
+}, 'Physical longhand wins over logical longhand');
+
+test(t => {
+  const style = animateConstant(t, {
+    borderBlockStartWidth: '22px',
+    borderTop: '11px solid red',
+  });
+  assert_equals(style.borderTopWidth, '22px');
+}, 'Logical longhand wins over physical shorthand');
+
+test(t => {
+  const style = animateConstant(t, {
+    borderBlockStart: '11px solid red',
+    borderTopWidth: '22px',
+  });
+  assert_equals(style.borderTopWidth, '22px');
+}, 'Physical longhand wins over logical shorthand');
+
+test(t => {
+  const style = animateConstant(t, {
+    borderBlockStart: '22px solid blue',
+    borderWidth: '11px',
+    borderColor: 'red',
+  });
+  assertBlueBorder(style, 'Top');
+  assert_equals(style.borderBottomWidth, '11px');
+  assert_equals(style.borderBottomColor, 'rgb(255, 0, 0)');
+}, 'Smaller logical shorthand wins over larger physical shorthands');
+
+test(t => {
+  const style = animateConstant(t, {
+    borderBlock: '11px solid red',
+    borderTop: '22px solid blue',
+  });
+  assertBlueBorder(style, 'Top');
+  assert_equals(style.borderBottomWidth, '11px');
+  assert_equals(style.borderBottomColor, 'rgb(255, 0, 0)');
+}, 'Smaller physical shorthand wins over larger logical shorthand');
+
+for (const writingMode of ['vertical-rl', 'vertical-lr']) {
+  test(t => {
+    const style = animateConstant(t, {
+      borderInlineEnd: '11px solid red',
+      borderBottom: '22px solid blue',
+    }, writingMode);
+    assertBlueBorder(style, 'Bottom');
+  }, `Equal-size physical shorthand wins when its IDL name sorts first: ${writingMode}`);
+}
+</script>

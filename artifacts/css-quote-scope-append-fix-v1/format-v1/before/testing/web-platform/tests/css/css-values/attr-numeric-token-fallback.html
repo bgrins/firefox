@@ -1,0 +1,99 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Numeric attr() validates a whole number token before applying its unit</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-notation">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-security">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  #container { width: 200px; }
+</style>
+<div id="container"></div>
+<script>
+function test_value(name, attribute, property, expression, expected) {
+  test(t => {
+    const target = document.createElement("div");
+    t.add_cleanup(() => target.remove());
+    if (attribute !== null) {
+      target.setAttribute("data-value", attribute);
+    }
+    target.style.setProperty("--number", ".2");
+    target.style.setProperty(property, expression);
+    assert_true(CSS.supports(property, expression), "The expression is supported");
+    assert_not_equals(target.style.getPropertyValue(property), "", "The declaration parses");
+    container.append(target);
+    assert_equals(getComputedStyle(target).getPropertyValue(property), expected);
+  }, name);
+}
+
+const cases = [
+  ["unit number", "10", "width", "px", "30px", "10px"],
+  ["unit surrounding spaces", " 10 ", "width", "px", "30px", "10px"],
+  ["unit trailing tab", "10\t", "width", "px", "30px", "10px"],
+  ["unit extra number takes fallback", "10 20", "width", "px", "30px", "30px"],
+  ["unit extra identifier takes fallback", "10 junk", "width", "px", "30px", "30px"],
+  ["unit dimension takes fallback", "10px", "width", "px", "30px", "30px"],
+  ["unit missing attribute takes fallback", null, "width", "px", "30px", "30px"],
+  ["number token", ".2", "opacity", "number", ".3", "0.2"],
+  ["number surrounding spaces", " .2 ", "opacity", "number", ".3", "0.2"],
+  ["number extra identifier takes fallback", ".2 junk", "opacity", "number", ".3", "0.3"],
+  ["percentage number", "10", "width", "%", "30px", "20px"],
+  ["percentage trailing space", "10 ", "width", "%", "30px", "20px"],
+  ["percentage extra number takes fallback", "10 20", "width", "%", "30px", "30px"],
+  ["unit empty attribute takes fallback", "", "width", "px", "30px", "30px"],
+  ["unit whitespace-only attribute takes fallback", " \t\n\r\f", "width", "px", "30px", "30px"],
+  ["unit punctuation takes fallback", "10,", "width", "px", "30px", "30px"],
+  ["number extra number takes fallback", ".2 .4", "opacity", "number", ".3", "0.3"],
+  ["number percentage takes fallback", "20%", "opacity", "number", ".3", "0.3"],
+  ["unit leading comment", "/**/10", "width", "px", "30px", "10px"],
+  ["unit trailing comment", "10/**/", "width", "px", "30px", "10px"],
+  ["unit surrounding comments", "/**/10/**/", "width", "px", "30px", "10px"],
+  ["unit surrounding comments and whitespace", " \t/**/10/**/ \n", "width", "px", "30px", "10px"],
+  ["number trailing comment", ".2/**/", "opacity", "number", ".3", "0.2"],
+  ["percentage trailing comment", "10/**/", "width", "%", "30px", "20px"],
+  ["comment separates two numbers", "1/**/0", "width", "px", "30px", "30px"],
+  ["comment separates an exponent identifier", "1/**/e1", "width", "px", "30px", "30px"],
+  ["unit exponent", "1e1", "width", "px", "30px", "10px"],
+  ["unit signed exponent with whitespace", " +1e1 ", "width", "px", "30px", "10px"],
+  ["number negative exponent", "2e-1", "opacity", "number", ".3", "0.2"],
+  ["percentage exponent", "1e1", "width", "%", "30px", "20px"],
+  ["negative unit exponent", "-1e1", "margin-left", "px", "30px", "-10px"],
+  ["number rejects calculations", "calc(.1 + .1)", "opacity", "number", ".7", "0.7"],
+  ["typed number accepts calculations", "calc(.1 + .1)", "opacity", "type(<number>)", ".7", "0.2"],
+  ["number rejects substitution", "var(--number)", "opacity", "number", ".7", "0.7"],
+  ["typed number accepts substitution", "var(--number)", "opacity", "type(<number>)", ".7", "0.2"],
+];
+
+for (const [name, value, property, type, fallback, expected] of cases) {
+  test_value(name, value, property, `attr(data-value ${type}, ${fallback})`, expected);
+}
+
+for (const [name, whitespace] of [["space", " "], ["tab", "\t"], ["line feed", "\n"], ["carriage return", "\r"], ["form feed", "\f"]]) {
+  test_value(`unit with surrounding ${name}`, `${whitespace}10${whitespace}`,
+             "width", "attr(data-value px, 30px)", "10px");
+}
+
+for (const zero of ["+0", "-0", "-0e0"]) {
+  test_value(`unit ${zero}`, zero, "width", "attr(data-value px, 30px)", "0px");
+  test_value(`number ${zero}`, zero, "opacity", "attr(data-value number, .3)", "0");
+  test_value(`percentage ${zero}`, zero, "width", "attr(data-value %, 30px)", "0px");
+}
+
+for (const attribute of ["1", " 1 "]) {
+  const expression = 'image-set(url("data:,") attr(data-value dppx, 2dppx))';
+  test_value(`numeric attr next to a URL: ${JSON.stringify(attribute)}`, attribute,
+             "background-image", expression, 'image-set(url("data:,") 1dppx)');
+  test(t => {
+    const target = document.createElement("div");
+    t.add_cleanup(() => target.remove());
+    target.setAttribute("data-value", attribute);
+    target.style.setProperty("--image", expression);
+    target.style.backgroundImage = "var(--image)";
+    assert_true(CSS.supports("background-image", expression));
+    assert_not_equals(target.style.getPropertyValue("--image"), "");
+    container.append(target);
+    assert_equals(getComputedStyle(target).backgroundImage, "none");
+  }, `numeric attr taints the substituted custom property: ${JSON.stringify(attribute)}`);
+}
+</script>

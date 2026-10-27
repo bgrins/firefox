@@ -1,0 +1,126 @@
+QuoteAppend.lean:69:75: error: unexpected identifier; expected '}'
+QuoteAppend.lean:78:50: error: unexpected identifier; expected '}'
+QuoteAppend.lean:90:2: error: unsolved goals
+case refine_2
+p : Provider
+s : State
+op : Op
+h : Conserved p s
+⊢ False
+QuoteAppend.lean:92:32: error: unsolved goals
+p : Provider
+s : State
+op : Op
+h : Conserved p s
+ops : List Op
+hc : s.child = some ops
+⊢ s.dirty = true
+QuoteAppend.lean:101:9: error: unsolved goals
+case true
+p : Provider
+s : State
+h : Conserved p s
+hd : s.dirty = true
+⊢ s.parentCache = scan p s.seed s.parents ∧
+    s.childCache =
+      match s.child with
+      | none => []
+      | some ops => scan p (finish s.seed s.parents) ops
+QuoteAppend.lean:101:18: warning: declaration uses `sorry`
+QuoteAppend.lean:114:2: error: unsolved goals
+case refine_2
+p : Provider
+s : State
+op : Op
+h : Fresh p s
+hc : s.child = none
+⊢ False
+QuoteAppend.lean:148:58: error: failed to synthesize
+  Decidable (Fresh explicitPairs initial)
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+QuoteAppend.lean:151:86: error: Tactic `decide` failed to reduce
+  @decide
+    ((deliver explicitPairs (legacyAppend explicitPairs initial Op.noOpen)).childCache ≠
+      childReference explicitPairs (legacyAppend explicitPairs initial Op.noOpen))
+    instDecidableNot
+to `true` or `false`.
+
+Reduction got stuck at
+  match (deliver explicitPairs (legacyAppend explicitPairs initial Op.noOpen)).childCache with
+  | [] =>
+    match childReference explicitPairs (legacyAppend explicitPairs initial Op.noOpen) with
+    | [] => isTrue ⋯
+    | head :: tail => isFalse ⋯
+  | a :: as =>
+    match childReference explicitPairs (legacyAppend explicitPairs initial Op.noOpen) with
+    | [] => isFalse ⋯
+    | b :: bs =>
+      match decEq a b with
+      | { decide := true, reflects_decide := hab } =>
+        match as.hasDecEq bs with
+        | { decide := true, reflects_decide := habs } => isTrue ⋯
+        | { decide := false, reflects_decide := nabs } => isFalse ⋯
+      | { decide := false, reflects_decide := nab } => isFalse ⋯
+QuoteAppend.lean:159:37: error: Tactic `decide` failed to reduce
+  @decide
+    ((deliver explicitPairs (append explicitPairs initial Op.noOpen)).childCache =
+      [{ before := 1, text := "AAA" }, { before := 2, text := "AAA" }])
+    (instDecidableEqList (deliver explicitPairs (append explicitPairs initial Op.noOpen)).childCache
+      [{ before := 1, text := "AAA" }, { before := 2, text := "AAA" }])
+to `true` or `false`.
+
+Reduction got stuck at
+  match (deliver explicitPairs (append explicitPairs initial Op.noOpen)).childCache with
+  | [] =>
+    match [{ before := 1, text := "AAA" }, { before := 2, text := "AAA" }] with
+    | [] => isTrue ⋯
+    | head :: tail => isFalse ⋯
+  | a :: as =>
+    match [{ before := 1, text := "AAA" }, { before := 2, text := "AAA" }] with
+    | [] => isFalse ⋯
+    | b :: bs =>
+      match decEq a b with
+      | { decide := true, reflects_decide := hab } =>
+        match as.hasDecEq bs with
+        | { decide := true, reflects_decide := habs } => isTrue ⋯
+        | { decide := false, reflects_decide := nabs } => isFalse ⋯
+      | { decide := false, reflects_decide := nab } => isFalse ⋯
+QuoteAppend.lean:163:112: error: Tactic `decide` proved that the proposition
+  (append explicitPairs
+        (let __src := initial;
+        { seed := __src.seed, parents := __src.parents, parentEnd := __src.parentEnd, parentCache := __src.parentCache,
+          child := some [], childCache := [], dirty := __src.dirty })
+        Op.noOpen).dirty =
+    true
+is false
+QuoteAppend.lean:164:93: error: Tactic `decide` proved that the proposition
+  (run explicitPairs initial [Event.append Op.noOpen, Event.append Op.noClose]).dirty = true
+is false
+QuoteAppend.lean:165:136: error: Tactic `decide` failed to reduce
+  @decide
+    ((deliver explicitPairs (run explicitPairs initial [Event.append Op.noOpen, Event.append Op.noClose])).childCache =
+      initial.childCache)
+    (instDecidableEqList
+      (deliver explicitPairs (run explicitPairs initial [Event.append Op.noOpen, Event.append Op.noClose])).childCache
+      initial.childCache)
+to `true` or `false`.
+
+Reduction got stuck at
+  match
+    (deliver explicitPairs
+        (run explicitPairs initial [Event.append Op.noOpen, Event.append Op.noClose])).childCache with
+  | [] =>
+    match initial.childCache with
+    | [] => isTrue ⋯
+    | head :: tail => isFalse ⋯
+  | a :: as =>
+    match initial.childCache with
+    | [] => isFalse ⋯
+    | b :: bs =>
+      match decEq a b with
+      | { decide := true, reflects_decide := hab } =>
+        match as.hasDecEq bs with
+        | { decide := true, reflects_decide := habs } => isTrue ⋯
+        | { decide := false, reflects_decide := nabs } => isFalse ⋯
+      | { decide := false, reflects_decide := nab } => isFalse ⋯

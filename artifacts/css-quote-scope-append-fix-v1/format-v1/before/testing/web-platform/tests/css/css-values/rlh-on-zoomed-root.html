@@ -1,0 +1,114 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Root line-height units with CSS zoom</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<link rel="help" href="https://drafts.csswg.org/css-viewport/#zoom-property">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+'use strict';
+
+async function frame(t) {
+  const element = document.createElement('iframe');
+  element.width = 800;
+  element.height = 600;
+  const loaded = new Promise(resolve => element.onload = resolve);
+  element.srcdoc = '<!doctype html><html><head></head><body></body></html>';
+  document.body.append(element);
+  t.add_cleanup(() => element.remove());
+  await loaded;
+  assert_equals(element.contentDocument.compatMode, 'CSS1Compat');
+  return element.contentWindow;
+}
+
+function setRoot(win, zoom, lineHeight = '20px', coefficient = 1) {
+  win.document.documentElement.style.cssText = `
+    zoom: ${zoom}; font-size: 20px; line-height: ${lineHeight};
+    padding-left: ${coefficient}rlh; padding-right: ${coefficient}lh;
+  `;
+}
+
+for (const zoom of [0.5, 1, 2]) {
+  for (const coefficient of [0.5, 1, 2]) {
+    promise_test(async t => {
+      const win = await frame(t);
+      setRoot(win, zoom, '20px', coefficient);
+      const root = win.document.documentElement;
+      const style = win.getComputedStyle(root);
+      assert_equals(root.currentCSSZoom, zoom);
+      assert_equals(style.lineHeight, '20px');
+      assert_equals(style.paddingRight, `${20 * coefficient}px`, 'Local lh');
+      assert_equals(style.paddingLeft, `${20 * coefficient}px`, 'Root rlh');
+    }, `${coefficient}rlh on a root with zoom ${zoom}`);
+  }
+  for (const lineHeight of ['1', '100%']) {
+    promise_test(async t => {
+      const win = await frame(t);
+      setRoot(win, zoom, lineHeight);
+      const style = win.getComputedStyle(win.document.documentElement);
+      assert_equals(style.lineHeight, '20px');
+      assert_equals(style.paddingRight, '20px', 'Local lh');
+      assert_equals(style.paddingLeft, '20px', 'Root rlh');
+    }, `Root rlh with line-height ${lineHeight} and zoom ${zoom}`);
+  }
+  for (const childZoom of [0.5, 1, 2]) {
+    promise_test(async t => {
+      const win = await frame(t);
+      setRoot(win, zoom);
+      const child = win.document.createElement('div');
+      child.style.cssText = `zoom: ${childZoom}; width: 1rlh; height: 0`;
+      win.document.body.append(child);
+      assert_equals(child.currentCSSZoom, zoom * childZoom);
+      assert_equals(win.getComputedStyle(child).width, '20px');
+      assert_equals(child.offsetWidth, 20);
+      assert_equals(child.getBoundingClientRect().width, 20 * zoom * childZoom);
+    }, `Descendant rlh with root zoom ${zoom} and local zoom ${childZoom}`);
+  }
+}
+
+promise_test(async t => {
+  const win = await frame(t);
+  for (const zoom of [1, 2, 0.5, 1]) {
+    setRoot(win, zoom);
+    const root = win.document.documentElement;
+    const style = win.getComputedStyle(root);
+    assert_equals(root.currentCSSZoom, zoom);
+    assert_equals(style.paddingRight, '20px', `Local lh at zoom ${zoom}`);
+    assert_equals(style.paddingLeft, '20px', `Root rlh at zoom ${zoom}`);
+  }
+}, 'Root rlh follows zoom changes without changing its unscaled value');
+
+for (const zoom of [0.5, 1, 2]) {
+  for (const property of ['font-size', 'line-height']) {
+    promise_test(async t => {
+      const local = await frame(t);
+      const rootRelative = await frame(t);
+      local.document.documentElement.style.cssText =
+        `zoom: ${zoom}; ${property}: 1lh`;
+      rootRelative.document.documentElement.style.cssText =
+        `zoom: ${zoom}; ${property}: 1rlh`;
+      const expected = local.getComputedStyle(local.document.documentElement)
+        .getPropertyValue(property);
+      const actual = rootRelative.getComputedStyle(
+        rootRelative.document.documentElement).getPropertyValue(property);
+      assert_greater_than(parseFloat(expected), 0, 'Positive initial metric');
+      assert_equals(actual, expected);
+    }, `Root ${property} resolves rlh like lh at zoom ${zoom}`);
+  }
+  promise_test(async t => {
+    const win = await frame(t);
+    const root = win.document.documentElement;
+    root.style.paddingLeft = '1lh';
+    const initialLineHeight = parseFloat(win.getComputedStyle(root).paddingLeft);
+    const lower = `(min-width: calc(1rlh + ${win.innerWidth - initialLineHeight - 2}px))`;
+    const upper = `(min-width: calc(1rlh + ${win.innerWidth - initialLineHeight + 2}px))`;
+    assert_true(win.matchMedia(lower).matches, 'Initial lower threshold');
+    assert_false(win.matchMedia(upper).matches, 'Initial upper threshold');
+    setRoot(win, zoom, '100px');
+    win.getComputedStyle(root).paddingLeft;
+    assert_true(win.matchMedia(lower).matches, 'Unchanged lower threshold');
+    assert_false(win.matchMedia(upper).matches, 'Unchanged upper threshold');
+  }, `Media-query rlh uses initial metrics with root zoom ${zoom}`);
+}
+</script>

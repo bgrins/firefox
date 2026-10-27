@@ -1,0 +1,104 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Margin collapsing with non-monotonic percentage calculations</title>
+<link rel="help" href="https://www.w3.org/TR/CSS22/box.html#collapsing-margins">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#comp-func">
+<meta name="assert" content="Positive resolved padding, height and minimum height prevent a block's margins from collapsing through it.">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+  .outer {
+    position: absolute;
+    left: 100px;
+    top: 100px;
+    display: flow-root;
+    height: 1500px;
+  }
+  .outer div {
+    margin: 0;
+    border: 0;
+    padding: 0;
+  }
+  .outer .first {
+    height: 0;
+    margin-top: 10px;
+    margin-bottom: 20px;
+  }
+  .outer .second {
+    height: 10px;
+    margin-top: 80px;
+  }
+</style>
+<body>
+<script>
+const expression = "max(0px, min(10%, 100px - 10%))";
+
+function fixture(t, property, basis, boxSizing, barrier, noEndMargins) {
+  const outer = document.createElement("div");
+  outer.className = "outer";
+  outer.style.width = `${property === "padding-bottom" ? basis : 100}px`;
+  const parent = document.createElement("div");
+  if (property !== "padding-bottom") {
+    parent.style.height = `${basis}px`;
+  }
+  const first = document.createElement("div");
+  first.className = "first";
+  first.style.boxSizing = boxSizing;
+  if (barrier) {
+    first.style.display = "flow-root";
+  }
+  const second = document.createElement("div");
+  second.className = "second";
+  if (noEndMargins) {
+    first.style.marginBottom = "0px";
+    second.style.marginTop = "0px";
+  }
+  parent.append(first, second);
+  outer.append(parent);
+  document.body.append(outer);
+  t.add_cleanup(() => outer.remove());
+  return { outer, parent, first };
+}
+
+function checkState(target, property, value, extent, top, label) {
+  target.first.style.setProperty(property, value);
+  assert_not_equals(target.first.style.getPropertyValue(property), "", `${label}: declaration`);
+  const outer = target.outer.getBoundingClientRect();
+  const parent = target.parent.getBoundingClientRect();
+  const first = target.first.getBoundingClientRect();
+  assert_approx_equals(first.height, extent, 0.01, `${label}: first child's border-box height`);
+  assert_approx_equals(parent.left, outer.left, 0.01, `${label}: parent left`);
+  assert_approx_equals(parent.width, outer.width, 0.01, `${label}: parent width`);
+  assert_approx_equals(parent.top - outer.top, top, 0.01, `${label}: collapsed parent top`);
+}
+
+for (const property of ["padding-bottom", "height", "min-height"]) {
+  for (const boxSizing of ["content-box", "border-box"]) {
+    for (const basis of [50, 100, 200, 1000, 1200]) {
+      const extent = Math.max(0, Math.min(basis / 10, 100 - basis / 10));
+      for (const reverse of [false, true]) {
+        test(t => {
+          const target = fixture(t, property, basis, boxSizing, false, false);
+          const pair = reverse ? [`${extent}px`, expression] : [expression, `${extent}px`];
+          for (const [index, value] of [pair[0], pair[1], pair[0]].entries()) {
+            checkState(target, property, value, extent, extent > 0 ? 10 : 80, `state ${index}`);
+          }
+        }, `${property}, ${boxSizing}, basis ${basis}, ${reverse ? "literal" : "expression"} first`);
+      }
+    }
+    for (const control of ["literal-positive", "plain-percentage", "zero", "flow-root", "no-end-margins"]) {
+      test(t => {
+        const target = fixture(t, property, 100, boxSizing, control === "flow-root", control === "no-end-margins");
+        const values = control === "literal-positive" ? ["10px", "20px"] :
+          control === "plain-percentage" ? ["10%", "20%"] :
+          control === "zero" ? ["0px", "0%"] : [expression, "10px"];
+        const extents = control === "zero" ? [0, 0] :
+          ["literal-positive", "plain-percentage"].includes(control) ? [10, 20] : [10, 10];
+        for (const index of [0, 1, 0]) {
+          checkState(target, property, values[index], extents[index], control === "zero" ? 80 : 10, `state ${index}`);
+        }
+      }, `${property}, ${boxSizing}, ${control} control`);
+    }
+  }
+}
+</script>

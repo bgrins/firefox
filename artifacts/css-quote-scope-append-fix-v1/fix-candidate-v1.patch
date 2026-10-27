@@ -1,0 +1,140 @@
+--- a/layout/base/nsQuoteList.cpp
++++ b/layout/base/nsQuoteList.cpp
+@@ -27,6 +27,8 @@
+   quoteList->Insert(this);
+   if (quoteList->IsLast(this)) {
+     quoteList->Calc(this);
++    // Child scopes can inherit their initial depth from this appended node.
++    dirty = quoteList->HasChildScopes();
+   } else {
+     dirty = true;
+   }
+@@ -112,6 +114,10 @@
+   return 0;
+ }
+ 
++bool nsQuoteList::HasChildScopes() const {
++  return !mScope->GetChildren().IsEmpty();
++}
++
+ void nsQuoteList::Calc(nsQuoteNode* aNode) {
+   if (aNode == FirstNode()) {
+     aNode->mDepthBefore = GetDepthBeforeFirstQuoteNode(mScope);
+--- a/layout/base/nsQuoteList.h
++++ b/layout/base/nsQuoteList.h
+@@ -78,6 +78,8 @@
+   // Should be called immediately after calling |Insert|.
+   void Calc(nsQuoteNode* aNode);
+ 
++  bool HasChildScopes() const;
++
+   nsQuoteNode* Next(nsQuoteNode* aNode) {
+     return static_cast<nsQuoteNode*>(nsGenConList::Next(aNode));
+   }
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-contain/quote-scoping-append-invalidation.html
+@@ -0,0 +1,104 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Appending an outer quote updates contained quote depths</title>
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#containment-style">
++<link rel="help" href="https://drafts.csswg.org/css-content-3/#quotes">
++<link rel="stylesheet" href="/fonts/ahem.css">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++.fixture {
++  contain: style;
++  font: 20px/1 Ahem;
++  quotes: "A" "A" "AAA" "AAA" "AAAAA" "AAAAA";
++}
++.scope { contain: style; }
++.target, .calibration { display: inline-block; }
++.target::before { content: open-quote; }
++.target::after { content: close-quote; }
++.prefix::before { content: var(--operation); }
++.seed::before { content: no-open-quote; }
++.sentinel::before { content: no-close-quote; }
++</style>
++<div id="log"></div>
++<script>
++const fontReady = document.fonts.load("20px Ahem", "A");
++const width = element => element.getBoundingClientRect().width;
++
++function makeFixture(t, {sentinel, nested, prefixBefore, withPrefix, seed, operation}) {
++  const fixture = document.createElement("div");
++  fixture.className = "fixture";
++  const scope = document.createElement("div");
++  scope.className = "scope";
++  const target = document.createElement("span");
++  target.className = "target";
++  if (nested) {
++    const inner = document.createElement("div");
++    inner.className = "scope";
++    inner.append(target);
++    scope.append(inner);
++  } else {
++    scope.append(target);
++  }
++  if (seed) {
++    const start = document.createElement("span");
++    start.className = "seed";
++    fixture.append(start);
++  }
++  fixture.append(scope);
++  if (sentinel) {
++    const end = document.createElement("span");
++    end.className = "sentinel";
++    fixture.append(end);
++  }
++  const prefix = document.createElement("span");
++  prefix.className = "prefix";
++  prefix.style.setProperty("--operation", operation);
++  const insert = () => fixture.insertBefore(prefix, prefixBefore ? scope : scope.nextSibling);
++  if (withPrefix) {
++    insert();
++  }
++  const calibration = document.createElement("span");
++  calibration.className = "calibration";
++  calibration.textContent = "A";
++  fixture.append(calibration);
++  document.body.append(fixture);
++  t.add_cleanup(() => fixture.remove());
++  return {fixture, target, prefix, insert, calibration};
++}
++
++for (const operation of ["open-quote", "no-open-quote", "close-quote", "no-close-quote"]) {
++  for (const seed of [0, 1]) {
++    for (const nested of [false, true]) {
++      for (const sentinel of [false, true]) {
++        for (const prefixBefore of [true, false]) {
++          promise_test(async t => {
++            assert_equals((await fontReady).length, 1, "Ahem loaded");
++            const settings = {operation, seed, nested, sentinel, prefixBefore};
++            const dynamic = makeFixture(t, {...settings, withPrefix: false});
++            assert_equals(width(dynamic.calibration), 20, "One A has the expected advance");
++            const initial = width(dynamic.target);
++            dynamic.insert();
++            const mutated = width(dynamic.target);
++            const fresh = makeFixture(t, {...settings, withPrefix: true});
++            const freshWidth = width(fresh.target);
++            const afterFresh = width(dynamic.target);
++            dynamic.prefix.remove();
++            const restored = width(dynamic.target);
++            const delta = operation.includes("open") ? 1 : -1;
++            const depth = prefixBefore ? Math.max(0, seed + delta) : seed;
++            const expected = 40 * (2 * depth + 1);
++            const initialExpected = 40 * (2 * seed + 1);
++            const detail = JSON.stringify({initial, mutated, fresh: freshWidth, afterFresh, restored});
++            assert_equals(initial, initialExpected, "Initial quote depth: " + detail);
++            assert_equals(freshWidth, expected, "Fresh quote depth: " + detail);
++            assert_equals(restored, initialExpected, "Restored quote depth: " + detail);
++            assert_equals(mutated, expected, "Inserted quote updates child scope: " + detail);
++            assert_equals(afterFresh, expected, "Later construction preserves quote depth: " + detail);
++          }, `${operation}; seed=${seed}; nested=${nested}; trailing quote=${sentinel}; insert before=${prefixBefore}`);
++        }
++      }
++    }
++  }
++}
++</script>
