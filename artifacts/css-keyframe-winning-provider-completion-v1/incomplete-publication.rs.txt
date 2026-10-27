@@ -1,0 +1,9 @@
+#[path = "/Users/bgrins/code/firefox/artifacts/css-keyframe-winning-provider-completion-v1/winning_provider_completion.rs"] mod scheduler;
+use scheduler::*;
+use std::collections::HashMap;
+fn main() {
+ let mut work = WinningProviders::<(), u32, u32, ()>::new((), HashMap::new());
+ assert!(work.admit(1, Winner::Pending(())).is_ok());
+ let Err(incomplete) = work.resolve_all(|_,_,_,_| Evaluation::<u32,u32,(),()>::Error(())) else { panic!() };
+ let _ = incomplete.into_parts();
+}
