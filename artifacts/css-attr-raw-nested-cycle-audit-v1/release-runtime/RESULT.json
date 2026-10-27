@@ -1,0 +1,171 @@
+{
+  "command": [
+    "/usr/bin/open",
+    "-W",
+    "-n",
+    "-g",
+    "-a",
+    "/Applications/Firefox.app",
+    "--args",
+    "-headless",
+    "-no-remote",
+    "-profile",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/release-runtime/profile",
+    "http://127.0.0.1:59067/"
+  ],
+  "before": {
+    "/Applications/Firefox.app/Contents/MacOS/firefox": "0620f18d2c56b69f3f0d40cd68da2c76c48ffa26ffa195d8943a08a97b0c932e",
+    "/Applications/Firefox.app/Contents/MacOS/XUL": "b36fe982dc9a2cc27e7643a64fedd6fe1ac68f63729e78a0a9bd3c83e96bfca4",
+    "/Applications/Firefox.app/Contents/Resources/application.ini": "495417125fe2583be8fc935f9553eb6fafa44bbb6b670b5bd379829cb3916823",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/FILES.json": "c6de18495f59ff507e36f8a1c7e56d3eaedc0ff9e9b7725bfa09b9eb84bf0b3e",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/RELEASE-PINS.json": "af6a2a0bc864d1c541bcad820b0aaea6ec8211ce36ae3aa49a2f66eeaaefd5ea",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/application.ini": "495417125fe2583be8fc935f9553eb6fafa44bbb6b670b5bd379829cb3916823",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/probe.html": "96489ee54a7eadaa5fcda0582a1925da38b39fe410d3e36215f90240652cfa8b",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/probe.js": "3cff0435e1f7e2d4512d1d16d3af060caab106fdaae7b3105b5318a9ed6f1704",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/run_browser.py": "74153cc9673cf0662062676dd78b3c44032e5291338296c258c6eaad1c17f4c2",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/validate.py": "140d9004d2480dc194eed5e2fe99e1cee26f3eac509d89d1d969ac88dd28c10b"
+  },
+  "after": {
+    "/Applications/Firefox.app/Contents/MacOS/firefox": "0620f18d2c56b69f3f0d40cd68da2c76c48ffa26ffa195d8943a08a97b0c932e",
+    "/Applications/Firefox.app/Contents/MacOS/XUL": "b36fe982dc9a2cc27e7643a64fedd6fe1ac68f63729e78a0a9bd3c83e96bfca4",
+    "/Applications/Firefox.app/Contents/Resources/application.ini": "495417125fe2583be8fc935f9553eb6fafa44bbb6b670b5bd379829cb3916823",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/FILES.json": "c6de18495f59ff507e36f8a1c7e56d3eaedc0ff9e9b7725bfa09b9eb84bf0b3e",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/RELEASE-PINS.json": "af6a2a0bc864d1c541bcad820b0aaea6ec8211ce36ae3aa49a2f66eeaaefd5ea",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/application.ini": "495417125fe2583be8fc935f9553eb6fafa44bbb6b670b5bd379829cb3916823",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/probe.html": "96489ee54a7eadaa5fcda0582a1925da38b39fe410d3e36215f90240652cfa8b",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/probe.js": "3cff0435e1f7e2d4512d1d16d3af060caab106fdaae7b3105b5318a9ed6f1704",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/run_browser.py": "74153cc9673cf0662062676dd78b3c44032e5291338296c258c6eaad1c17f4c2",
+    "/Users/bgrins/code/firefox/artifacts/css-attr-raw-nested-cycle-audit-v1/probe/validate.py": "140d9004d2480dc194eed5e2fe99e1cee26f3eac509d89d1d969ac88dd28c10b"
+  },
+  "stable": true,
+  "observations": [
+    {
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:158.0) Gecko/20100101 Firefox/158.0",
+      "typedSupported": true,
+      "rows": [
+        {
+          "id": "raw-literal",
+          "declaration": "attr(data-foo)",
+          "foo": "hello",
+          "expected": "\"hello\"",
+          "calibration": true,
+          "observed": "\"hello\"",
+          "repeat": "\"hello\""
+        },
+        {
+          "id": "typed-literal",
+          "declaration": "attr(data-foo type(*), abc)",
+          "foo": "hello",
+          "expected": "hello",
+          "calibration": true,
+          "observed": "hello",
+          "repeat": "hello"
+        },
+        {
+          "id": "typed-self-bare",
+          "declaration": "attr(data-foo type(*), abc)",
+          "foo": "attr(data-foo)",
+          "expected": "\"attr(data-foo)\"",
+          "observed": "abc",
+          "repeat": "abc"
+        },
+        {
+          "id": "typed-self-raw",
+          "declaration": "attr(data-foo type(*), abc)",
+          "foo": "attr(data-foo raw-string)",
+          "expected": "\"attr(data-foo raw-string)\"",
+          "observed": "abc",
+          "repeat": "abc"
+        },
+        {
+          "id": "genuine-typed-self",
+          "declaration": "attr(data-foo type(*), abc)",
+          "foo": "attr(data-foo type(*))",
+          "expected": "abc",
+          "calibration": true,
+          "observed": "abc",
+          "repeat": "abc"
+        },
+        {
+          "id": "nested-bare",
+          "declaration": "attr(data-foo type(*), abc)",
+          "foo": "attr(data-bar type(*), fallback)",
+          "bar": "attr(data-foo) attr(data-bar)",
+          "expected": "\"attr(data-bar type(*), fallback)\" \"attr(data-foo) attr(data-bar)\"",
+          "observed": "abc",
+          "repeat": "abc"
+        },
+        {
+          "id": "nested-raw",
+          "declaration": "attr(data-foo type(*), abc)",
+          "foo": "attr(data-bar type(*), fallback)",
+          "bar": "attr(data-foo raw-string) attr(data-bar raw-string)",
+          "expected": "\"attr(data-bar type(*), fallback)\" \"attr(data-foo raw-string) attr(data-bar raw-string)\"",
+          "observed": "abc",
+          "repeat": "abc"
+        },
+        {
+          "id": "bare-other",
+          "declaration": "attr(data-foo type(*), abc)",
+          "foo": "attr(data-bar)",
+          "bar": "hello",
+          "expected": "\"hello\"",
+          "calibration": true,
+          "observed": "\"hello\"",
+          "repeat": "\"hello\""
+        },
+        {
+          "id": "typed-string-self-bare",
+          "declaration": "attr(data-foo type(<string>), abc)",
+          "foo": "attr(data-foo)",
+          "expected": "\"attr(data-foo)\"",
+          "observed": "abc",
+          "repeat": "abc"
+        },
+        {
+          "id": "bare-missing",
+          "declaration": "attr(data-foo type(*), abc)",
+          "foo": "attr(data-missing)",
+          "expected": "\"\"",
+          "calibration": true,
+          "observed": "\"\"",
+          "repeat": "\"\""
+        },
+        {
+          "id": "taken-bare-fallback-cycle",
+          "declaration": "attr(data-foo type(*), abc)",
+          "foo": "attr(data-missing, attr(data-foo type(*)))",
+          "expected": "abc",
+          "calibration": true,
+          "observed": "abc",
+          "repeat": "abc"
+        },
+        {
+          "id": "unused-bare-fallback-cycle",
+          "declaration": "attr(data-foo type(*), abc)",
+          "foo": "attr(data-bar, attr(data-foo type(*)))",
+          "bar": "hello",
+          "expected": "\"hello\"",
+          "calibration": true,
+          "observed": "\"hello\"",
+          "repeat": "\"hello\""
+        },
+        {
+          "id": "quoted-function-control",
+          "declaration": "attr(data-foo type(*), abc)",
+          "foo": "\"attr(data-foo)\" \"attr(data-bar)\"",
+          "expected": "\"attr(data-foo)\" \"attr(data-bar)\"",
+          "calibration": true,
+          "observed": "\"attr(data-foo)\" \"attr(data-bar)\"",
+          "repeat": "\"attr(data-foo)\" \"attr(data-bar)\""
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "profile_removed": true,
+  "terminated_owned_parents": [
+    80362
+  ],
+  "launcher_exit": 0
+}
