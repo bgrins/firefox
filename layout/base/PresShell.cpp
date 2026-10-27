@@ -13102,8 +13102,21 @@ bool PresShell::ReflowForHiddenContentIfNeeded() {
 }
 
 void PresShell::UpdateHiddenContentInForcedLayout(nsIFrame* aFrame) {
-  if (!aFrame || !aFrame->IsSubtreeDirty()) {
+  if (!aFrame) {
     return;
+  }
+  if (!aFrame->IsSubtreeDirty()) {
+    nsIFrame* provider = aFrame;
+    if (provider->IsTableColFrame()) {
+      provider = provider->GetParent();
+    }
+    if (!provider || !provider->IsTableColGroupFrame()) {
+      return;
+    }
+    provider = provider->GetParent();
+    if (!provider || !provider->IsTableFrame() || !provider->IsSubtreeDirty()) {
+      return;
+    }
   }
 
   nsIFrame* topmostFrameWithContentHidden = nullptr;
