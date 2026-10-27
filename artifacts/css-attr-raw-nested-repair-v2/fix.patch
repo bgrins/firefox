@@ -1,0 +1,215 @@
+diff --git a/servo/components/style/properties/cascade.rs b/servo/components/style/properties/cascade.rs
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -2539,7 +2539,6 @@
+     ///
+     /// We need to bubble up non custom references from unregistered properties.
+     fn visit_value_references<'a, 'b, 'c, 'd>(
+-        var: &VarType,
+         root: &References,
+         url_data: &UrlExtraData,
+         property_id: Option<PropertyIdRef>,
+@@ -2573,10 +2572,7 @@
+                 }
+ 
+                 let next_var = if next.substitution_kind == SubstitutionFunctionKind::Attr {
+-                    // An type()-less attr() within attr(... type()) can still have nested
+-                    // references.
+-                    let can_chain = next.is_attr_with_type() || matches!(var, VarType::Attr(..));
+-                    if !can_chain {
++                    if !next.is_attr_with_type() {
+                         if let Some(ref fallback) = next.fallback
+                             && !next
+                                 .attribute_data
+@@ -2855,7 +2851,6 @@
+             };
+             // Visit the references in this value...
+             visit_value_references(
+-                &var,
+                 &v.references,
+                 &v.url_data,
+                 property_id,
+@@ -2922,7 +2917,6 @@
+                     let property_id = value.substitution_property_id(*longhand_id);
+                     let value = &value.variable_value;
+                     visit_value_references(
+-                        &var,
+                         &value.references,
+                         &value.url_data,
+                         Some(property_id),
+diff --git a/testing/web-platform/tests/css/css-values/attr-cycle.html b/testing/web-platform/tests/css/css-values/attr-cycle.html
+--- a/testing/web-platform/tests/css/css-values/attr-cycle.html
++++ b/testing/web-platform/tests/css/css-values/attr-cycle.html
+@@ -1,7 +1,7 @@
+ <!DOCTYPE html>
+ <title>CSS Values and Units Test: attr</title>
+ <meta name="assert" content="test attr values">
+-<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-notations">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+ <script src="/resources/testharness.js"></script>
+ <script src="/resources/testharnessreport.js"></script>
+ 
+@@ -51,7 +51,7 @@
+   var attrElem = document.getElementById("attr");
+ 
+   attrElem.setAttribute('data-bar', 'attr(data-foo)');
+-  test_attr_cycle('--y', 'attr(data-foo type(*))', 'attr(data-bar type(*))');
++  test_attr_no_cycle('--y', 'attr(data-foo type(*))', 'attr(data-bar type(*))', '"attr(data-bar type(*))"');
+   attrElem.removeAttribute('data-bar');
+ 
+   /* Cycle with attr() and var() */
+@@ -146,12 +146,12 @@
+   attrElem.removeAttribute('data-bar');
+   attrElem.style.setProperty('--y', null);
+ 
+-  /* No cycle, wrong attr syntax in attribute */
+-  test_attr_no_cycle('--x', 'attr(data-foo type(*), abc)', 'attr(data-foo', 'abc');
++  /* EOF closes the nested raw attribute function. */
++  test_attr_no_cycle('--x', 'attr(data-foo type(*), abc)', 'attr(data-foo', '"attr(data-foo"');
+ 
+-  /* Multiple attributes cycling simultaneously in bare attr() form */
++  /* Nested raw attribute reads do not create substitution cycles. */
+   attrElem.setAttribute('data-bar', 'attr(data-foo) attr(data-bar)');
+-  test_attr_no_cycle('--x', 'attr(data-foo type(*), abc)', 'attr(data-bar type(*), fallback)', 'abc');
++  test_attr_no_cycle('--x', 'attr(data-foo type(*), abc)', 'attr(data-bar type(*), fallback)', '"attr(data-bar type(*), fallback)" "attr(data-foo) attr(data-bar)"');
+   attrElem.removeAttribute('data-bar');
+ 
+   /* Transitive cycle through var() */
+diff --git a/testing/web-platform/tests/css/css-values/attr-raw-nested-cycle.html b/testing/web-platform/tests/css/css-values/attr-raw-nested-cycle.html
+new file mode 100644
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-values/attr-raw-nested-cycle.html
+@@ -0,0 +1,133 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Non-type attribute reads do not create substitution-context cycles</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#guarded">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++const cases = [
++  {id: "raw-literal", declaration: "attr(data-foo)", foo: "hello", expected: '"hello"', calibration: true},
++  {id: "typed-literal", declaration: "attr(data-foo type(*), abc)", foo: "hello", expected: "hello", calibration: true},
++  {id: "typed-self-bare", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-foo)", expected: '"attr(data-foo)"'},
++  {id: "typed-self-raw", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-foo raw-string)", expected: '"attr(data-foo raw-string)"'},
++  {id: "genuine-typed-self", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-foo type(*))", expected: "abc", calibration: true},
++  {id: "nested-bare", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-bar type(*), fallback)", bar: "attr(data-foo) attr(data-bar)", expected: '"attr(data-bar type(*), fallback)" "attr(data-foo) attr(data-bar)"'},
++  {id: "nested-raw", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-bar type(*), fallback)", bar: "attr(data-foo raw-string) attr(data-bar raw-string)", expected: '"attr(data-bar type(*), fallback)" "attr(data-foo raw-string) attr(data-bar raw-string)"'},
++  {id: "bare-other", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-bar)", bar: "hello", expected: '"hello"', calibration: true},
++  {id: "typed-string-self-bare", declaration: "attr(data-foo type(<string>), abc)", foo: "attr(data-foo)", expected: '"attr(data-foo)"'},
++  {id: "bare-missing", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-missing)", expected: '""', calibration: true},
++  {id: "taken-bare-fallback-cycle", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-missing, attr(data-foo type(*)))", expected: "abc", calibration: true},
++  {id: "unused-bare-fallback-cycle", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-bar, attr(data-foo type(*)))", bar: "hello", expected: '"hello"', calibration: true},
++  {id: "quoted-function-control", declaration: "attr(data-foo type(*), abc)", foo: '"attr(data-foo)" "attr(data-bar)"', expected: '"attr(data-foo)" "attr(data-bar)"', calibration: true},
++  {id: "typed-typed-raw-chain", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-bar type(*))", bar: "attr(data-foo)", expected: '"attr(data-bar type(*))"'},
++  {id: "genuine-typed-mutual", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-bar type(*))", bar: "attr(data-foo type(*))", expected: "abc"},
++  {id: "empty-raw-ignores-fallback", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-bar, var(--x, red))", bar: "", expected: '""'},
++  {id: "taken-raw-fallback-property-cycle", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-missing, var(--x, red))", expected: ""},
++  {id: "numeric-self-uses-literal-fallback", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-foo number, 5)", expected: "5"},
++  {id: "valid-unit-ignores-fallback", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-bar px, var(--x, red))", bar: "13", expected: "13px"},
++  {id: "invalid-number-fallback-typed-cycle", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-bar number, attr(data-foo type(*)))", bar: "nope", expected: "abc"},
++  {id: "invalid-number-fallback-property-cycle", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-bar number, var(--x, red))", bar: "nope", expected: ""},
++  {id: "namespaced-outer-raw-null-read", declaration: "attr(a|data-foo type(*), abc)", nsFoo: "attr(data-foo)", foo: "attr(a|data-foo type(*))", expected: '"attr(a|data-foo type(*))"'},
++  {id: "namespaced-outer-missing-null-read", declaration: "attr(a|data-foo type(*), abc)", nsFoo: "attr(data-foo)", expected: '""'},
++  {id: "namespace-alias-outer-raw-read", declaration: "attr(b|data-foo type(*), abc)", nsFoo: "attr(data-bar)", bar: "hello", expected: '"hello"'},
++  {id: "unknown-outer-namespace", declaration: "attr(unknown|data-foo type(*), abc)", foo: "attr(data-foo)", expected: "abc"},
++  {id: "namespaced-outer-used-property-cycle", declaration: "attr(a|data-foo type(*), abc)", nsFoo: "attr(data-missing, var(--x, red))", expected: ""},
++  {id: "eof-bare-self", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-foo", expected: "\"attr(data-foo\""},
++  {id: "eof-raw-string-self", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-foo raw-string", expected: "\"attr(data-foo raw-string\""},
++  {id: "eof-typed-self", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-foo type(*)", expected: "abc"},
++  {id: "eof-nested-type-self", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-foo type(*", expected: "abc"},
++  {id: "raw-self-with-valid-trailing-value", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-foo) trailing", expected: "\"attr(data-foo) trailing\" trailing"},
++  {id: "raw-self-with-invalid-string-trailing-value", declaration: "attr(data-foo type(<string>), abc)", foo: "attr(data-foo) trailing", expected: "abc"},
++  {id: "raw-self-with-unmatched-closing-token", declaration: "attr(data-foo type(*), abc)", foo: "attr(data-foo))", expected: "abc"},
++];
++
++function makeTarget(t, id, declaration, checkOutside = false) {
++  const target = document.createElement("div");
++  target.id = id;
++  const style = document.createElement("style");
++  style.textContent = `@namespace a "urn:raw-nested"; @namespace b "urn:raw-nested";
++    #${id} { --x: ${declaration}; ${checkOutside ? "--outside: var(--x, outside-fallback);" : ""} }`;
++  document.head.append(style);
++  t.add_cleanup(() => {
++    target.remove();
++    style.remove();
++  });
++  const rules = style.sheet.cssRules;
++  assert_not_equals(rules[rules.length - 1].style.getPropertyValue("--x"), "", "Declaration parsed");
++  document.body.append(target);
++  return target;
++}
++
++for (const [index, item] of cases.entries()) {
++  test(t => {
++    const target = makeTarget(t, `target-${index}`, item.declaration, item.expected === "");
++    if (item.foo !== undefined) {
++      target.setAttribute("data-foo", item.foo);
++    }
++    if (item.bar !== undefined) {
++      target.setAttribute("data-bar", item.bar);
++    }
++    if (item.nsFoo !== undefined) {
++      target.setAttributeNS("urn:raw-nested", "a:data-foo", item.nsFoo);
++    }
++    const computed = getComputedStyle(target);
++    assert_equals(computed.getPropertyValue("--x").trim(), item.expected);
++    if (item.expected === "") {
++      assert_equals(computed.getPropertyValue("--outside").trim(), "outside-fallback");
++    }
++  }, item.id);
++}
++
++test(t => {
++  const target = makeTarget(t, "mutation-typed", "attr(data-foo type(*), abc)");
++  for (const [value, expected] of [
++    ["attr(data-foo)", '"attr(data-foo)"'],
++    ["attr(data-foo type(*))", "abc"],
++    ["attr(data-missing, attr(data-foo type(*)))", "abc"],
++    ["attr(data-foo raw-string)", '"attr(data-foo raw-string)"'],
++    [null, "abc"],
++    ["hello", "hello"],
++  ]) {
++    if (value === null) {
++      target.removeAttribute("data-foo");
++    } else {
++      target.setAttribute("data-foo", value);
++    }
++    assert_equals(getComputedStyle(target).getPropertyValue("--x").trim(), expected);
++  }
++}, "Mutating between raw reads and typed cycles updates the result");
++
++test(t => {
++  const target = makeTarget(t, "mutation-fallback", "attr(data-foo type(*), abc)");
++  target.setAttribute("data-foo", "attr(data-bar, attr(data-foo type(*)))");
++  for (const [value, expected] of [
++    [null, "abc"], ["", '""'],
++    ["attr(data-foo type(*))", '"attr(data-foo type(*))"'], [null, "abc"],
++  ]) {
++    if (value === null) {
++      target.removeAttribute("data-bar");
++    } else {
++      target.setAttribute("data-bar", value);
++    }
++    assert_equals(getComputedStyle(target).getPropertyValue("--x").trim(), expected);
++  }
++}, "Mutating a raw primary selects or excludes a typed cyclic fallback");
++
++test(t => {
++  const target = makeTarget(t, "mutation-namespace", "attr(a|data-foo type(*), abc)");
++  target.setAttributeNS("urn:raw-nested", "a:data-foo", "attr(data-bar, fallback)");
++  for (const [value, expected] of [
++    [null, "fallback"], ["", '""'],
++    ["attr(a|data-foo type(*))", '"attr(a|data-foo type(*))"'], [null, "fallback"],
++  ]) {
++    if (value === null) {
++      target.removeAttribute("data-bar");
++    } else {
++      target.setAttribute("data-bar", value);
++    }
++    assert_equals(getComputedStyle(target).getPropertyValue("--x").trim(), expected);
++  }
++}, "Raw reads inside a namespaced typed attribute track null-namespace mutations");
++</script>
