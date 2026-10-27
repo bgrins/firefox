@@ -262,6 +262,7 @@ class KeyframeEffect : public AnimationEffect {
                                                 const nsIFrame* aFrame) const;
 
   const nsTArray<AnimationProperty>& Properties() const { return mProperties; }
+  bool ReferencesAttributes() const { return mReferencesAttributes; }
 
   // Update |mProperties| by recalculating from |mKeyframes| using
   // |aComputedStyle| to resolve specified values.
@@ -395,7 +396,8 @@ class KeyframeEffect : public AnimationEffect {
   // to resolve specified values. This function also applies paced spacing if
   // needed.
   nsTArray<AnimationProperty> BuildProperties(
-      const ComputedStyle* aStyle, const AnimationTimeline* aTimeline);
+      const ComputedStyle* aStyle, const AnimationTimeline* aTimeline,
+      bool& aReferencesAttributes);
 
   // Helper for SetTarget() and SetPseudoElement().
   void UpdateTarget(Element* aElement,
@@ -453,6 +455,8 @@ class KeyframeEffect : public AnimationEffect {
 
   // A set of per-property value arrays, derived from |mKeyframes|.
   nsTArray<AnimationProperty> mProperties;
+  // Conservative until keyframes can be computed with a target style.
+  bool mReferencesAttributes = false;
 
   // The computed progress last time we composed the style rule. This is
   // used to detect when the progress is not changing (e.g. due to a step

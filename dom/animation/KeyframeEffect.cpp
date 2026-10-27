@@ -105,6 +105,7 @@ KeyframeEffect::KeyframeEffect(Document* aDocument,
       mKeyframes(aOther.mKeyframes.Clone()),
       mKeyframeOffsetsHasRangeOffset(aOther.mKeyframeOffsetsHasRangeOffset),
       mProperties(aOther.mProperties.Clone()),
+      mReferencesAttributes(aOther.mReferencesAttributes),
       mBaseValues(aOther.mBaseValues.Clone()) {}
 
 JSObject* KeyframeEffect::WrapObject(JSContext* aCx,
@@ -261,6 +262,7 @@ void KeyframeEffect::SetKeyframes(nsTArray<Keyframe>&& aKeyframes,
   }
 
   mKeyframes = std::move(aKeyframes);
+  mReferencesAttributes = true;
   mKeyframeOffsetsHasRangeOffset = KeyframeUtils::ComputeMissingKeyframeOffsets(
       mKeyframes, aTimeline, aRange);
 
@@ -438,9 +440,12 @@ void KeyframeEffect::UpdateProperties(const ComputedStyle* aStyle,
                                       const AnimationTimeline* aTimeline) {
   MOZ_ASSERT(aStyle);
 
+  bool referencesAttributes = false;
   nsTArray<AnimationProperty> properties = BuildProperties(
-      aStyle, aTimeline ? aTimeline
-                        : (mAnimation ? mAnimation->GetTimeline() : nullptr));
+      aStyle,
+      aTimeline ? aTimeline
+                : (mAnimation ? mAnimation->GetTimeline() : nullptr),
+      referencesAttributes);
 
   bool propertiesChanged = mProperties != properties;
   if (!propertiesChanged) {
@@ -472,6 +477,8 @@ void KeyframeEffect::UpdateProperties(const ComputedStyle* aStyle,
   bool baseStylesChanged = false;
   EnsureBaseStyles(aStyle, properties, aTimeline,
                    !propertiesChanged ? &baseStylesChanged : nullptr);
+
+  mReferencesAttributes = referencesAttributes;
 
   if (!propertiesChanged) {
     if (baseStylesChanged) {
@@ -511,7 +518,10 @@ void KeyframeEffect::UpdateProperties(const ComputedStyle* aStyle,
 void KeyframeEffect::UpdateBaseStyle(const ComputedStyle* aStyle) {
   const AnimationTimeline* timeline =
       mAnimation ? mAnimation->GetTimeline() : nullptr;
-  EnsureBaseStyles(aStyle, BuildProperties(aStyle, timeline), nullptr, nullptr);
+  bool referencesAttributes = false;
+  EnsureBaseStyles(aStyle,
+                   BuildProperties(aStyle, timeline, referencesAttributes),
+                   nullptr, nullptr);
 }
 
 void KeyframeEffect::EnsureBaseStyles(
@@ -902,8 +912,10 @@ already_AddRefed<KeyframeEffect> KeyframeEffect::ConstructKeyframeEffect(
 }
 
 nsTArray<AnimationProperty> KeyframeEffect::BuildProperties(
-    const ComputedStyle* aStyle, const AnimationTimeline* aTimeline) {
+    const ComputedStyle* aStyle, const AnimationTimeline* aTimeline,
+    bool& aReferencesAttributes) {
   MOZ_ASSERT(aStyle);
+  aReferencesAttributes = false;
 
   nsTArray<AnimationProperty> result;
   // If mTarget is false (i.e. mTarget.mElement is null), return an empty
@@ -933,7 +945,7 @@ nsTArray<AnimationProperty> KeyframeEffect::BuildProperties(
 
   result = KeyframeUtils::GetAnimationPropertiesFromKeyframes(
       keyframes, mTarget.mElement, mTarget.mPseudoRequest, aStyle,
-      mEffectOptions.mComposite, aTimeline);
+      mEffectOptions.mComposite, aTimeline, aReferencesAttributes);
 
 #ifdef DEBUG
   MOZ_ASSERT(SpecifiedKeyframeArraysAreEqual(mKeyframes, keyframesCopy),
@@ -982,6 +994,7 @@ void KeyframeEffect::UpdateTarget(Element* aElement,
   mTarget = std::move(newTarget);
 
   if (mTarget) {
+    mReferencesAttributes = true;
     UpdateTargetRegistration();
     RefPtr<const ComputedStyle> computedStyle =
         GetTargetComputedStyle(Flush::None);

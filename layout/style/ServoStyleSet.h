@@ -387,7 +387,8 @@ class ServoStyleSet {
 
   nsTArray<ComputedKeyframeValues> GetComputedKeyframeValuesFor(
       const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
-      const PseudoStyleRequest& aPseudoRequest, const ComputedStyle* aStyle);
+      const PseudoStyleRequest& aPseudoRequest, const ComputedStyle* aStyle,
+      bool& aReferencesAttributes);
 
   void GetAnimationValues(
       StyleLockedDeclarationBlock* aDeclarations, dom::Element* aElement,

@@ -1155,7 +1155,8 @@ bool ServoStyleSet::GetKeyframesForName(
 
 nsTArray<ComputedKeyframeValues> ServoStyleSet::GetComputedKeyframeValuesFor(
     const nsTArray<Keyframe>& aKeyframes, Element* aElement,
-    const PseudoStyleRequest& aPseudo, const ComputedStyle* aStyle) {
+    const PseudoStyleRequest& aPseudo, const ComputedStyle* aStyle,
+    bool& aReferencesAttributes) {
   nsTArray<ComputedKeyframeValues> result(aKeyframes.Length());
 
   // Construct each nsTArray<PropertyStyleAnimationValuePair> here.
@@ -1163,8 +1164,8 @@ nsTArray<ComputedKeyframeValues> ServoStyleSet::GetComputedKeyframeValuesFor(
 
   // FIXME: Bug 1922095. For view transition pseudo-element, we should just
   // use the pseudo-element here.
-  Servo_GetComputedKeyframeValues(&aKeyframes, aElement, aPseudo.mType, aStyle,
-                                  mRawData.get(), &result);
+  aReferencesAttributes = Servo_GetComputedKeyframeValues(
+      &aKeyframes, aElement, aPseudo.mType, aStyle, mRawData.get(), &result);
   return result;
 }
 

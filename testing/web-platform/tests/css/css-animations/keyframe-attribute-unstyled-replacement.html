@@ -1,0 +1,93 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Attribute keyframes replaced while the target has no style</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-setkeyframes">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+let serial = 0;
+const expression = "attr(data-value type(<number>), 0.125)";
+
+function node(t) {
+  const element = document.createElement("div");
+  document.body.append(element);
+  t.add_cleanup(() => element.remove());
+  return element;
+}
+
+function opacity(element) {
+  const value = Number(getComputedStyle(element).opacity);
+  assert_true(Number.isFinite(value) && value >= 0 && value <= 1, "finite opacity calibration");
+  return value;
+}
+
+async function paused(t, animation) {
+  animation.pause();
+  animation.currentTime = 500;
+  await animation.ready;
+  t.add_cleanup(() => animation.cancel());
+  assert_equals(animation.playState, "paused", "paused calibration");
+  assert_equals(animation.effect.getComputedTiming().progress, 0.5, "progress calibration");
+  return animation;
+}
+
+for (const registered of [false, true]) {
+  promise_test(async t => {
+    const target = node(t);
+    const ordinary = node(t);
+    const literal = node(t);
+    const property = registered ? `--unstyled-attribute-${++serial}` : "opacity";
+    if (registered) {
+      assert_equals(typeof CSS.registerProperty, "function", "registration available");
+      CSS.registerProperty({name:property, syntax:"<number>", inherits:false, initialValue:"0.875"});
+    }
+    target.style.opacity = registered ? `var(${property})` : "0.875";
+    ordinary.style.opacity = expression;
+    assert_not_equals(ordinary.style.opacity, "", "ordinary attr syntax retained");
+    target.setAttribute("data-value", "0.25");
+    ordinary.setAttribute("data-value", "0.25");
+    const animation = await paused(t, target.animate([{[property]:"0.25"}, {[property]:"0.25"}],
+      {duration:1000, fill:"both"}));
+    const literalAnimation = await paused(t, literal.animate([{opacity:0.375}, {opacity:0.375}],
+      {duration:1000, fill:"both"}));
+    assert_equals(opacity(target), 0.25, "initial literal effect calibration");
+    assert_equals(opacity(ordinary), 0.25, "initial ordinary provider calibration");
+    assert_equals(opacity(literal), 0.375, "literal control calibration");
+    const effect = animation.effect;
+    target.remove();
+    assert_false(target.isConnected, "target detached before replacement");
+    effect.setKeyframes([{[property]:expression}, {[property]:expression}]);
+    assert_equals(effect.getKeyframes().length, 2, "replacement endpoints retained");
+    target.setAttribute("data-value", "0.625");
+    assert_equals(target.getAttribute("data-value"), "0.625", "detached attribute retained");
+    document.body.append(target);
+    assert_true(target.isConnected, "target reattached");
+    assert_equals(effect.target, target, "target identity retained");
+    assert_equals(animation.effect, effect, "effect identity retained");
+    assert_equals(opacity(target), 0.625, "first attached provider calibration");
+    const stages = [["0.75", 0.75], [null, 0.125], ["0.5", 0.5]];
+    const actuals = [];
+    for (const [value, expected] of stages) {
+      if (value === null) target.removeAttribute("data-value");
+      else target.setAttribute("data-value", value);
+      assert_equals(target.getAttribute("data-value"), value, "attribute mutation retained");
+      assert_equals(animation.currentTime, 500, "time retained after attachment");
+      assert_equals(effect.getComputedTiming().progress, 0.5, "active phase after attachment");
+      const actual = opacity(target);
+      assert_equals(opacity(target), actual, "stable repeated first read");
+      if (value === null) ordinary.removeAttribute("data-value");
+      else ordinary.setAttribute("data-value", value);
+      assert_equals(opacity(ordinary), expected, "independent ordinary provider after mutation");
+      actuals.push(actual);
+    }
+    target.style.outlineColor = "red";
+    assert_equals(opacity(target), 0.5, "forced normal recomputation calibration");
+    assert_equals(opacity(literal), 0.375, "literal control remains stable");
+    assert_equals(literalAnimation.currentTime, 500, "literal time retained");
+    assert_array_equals(actuals, stages.map(stage => stage[1]), "unstyled-replacement first reads");
+  }, `WAAPI ${registered ? "registered" : "ordinary"}: attr keyframes installed on detached target`);
+}
+</script>

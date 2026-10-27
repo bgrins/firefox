@@ -213,7 +213,7 @@ static void MarkAsComputeValuesFailureKey(PropertyValuePair& aPair);
 static nsTArray<ComputedKeyframeValues> GetComputedKeyframeValues(
     const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
     const PseudoStyleRequest& aPseudoRequest,
-    const ComputedStyle* aComputedValues);
+    const ComputedStyle* aComputedValues, bool& aReferencesAttributes);
 
 static void BuildSegmentsFromValueEntries(
     nsTArray<KeyframeValueEntry>& aEntries,
@@ -377,11 +377,12 @@ nsTArray<AnimationProperty> KeyframeUtils::GetAnimationPropertiesFromKeyframes(
     const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
     const PseudoStyleRequest& aPseudoRequest, const ComputedStyle* aStyle,
     dom::CompositeOperation aEffectComposite,
-    const dom::AnimationTimeline* aTimeline) {
+    const dom::AnimationTimeline* aTimeline, bool& aReferencesAttributes) {
   nsTArray<AnimationProperty> result;
 
   const nsTArray<ComputedKeyframeValues> computedValues =
-      GetComputedKeyframeValues(aKeyframes, aElement, aPseudoRequest, aStyle);
+      GetComputedKeyframeValues(aKeyframes, aElement, aPseudoRequest, aStyle,
+                                aReferencesAttributes);
   if (computedValues.IsEmpty()) {
     // In rare cases GetComputedKeyframeValues might fail and return an empty
     // array, in which case we likewise return an empty array from here.
@@ -820,8 +821,9 @@ static void MarkAsComputeValuesFailureKey(PropertyValuePair& aPair) {
 static nsTArray<ComputedKeyframeValues> GetComputedKeyframeValues(
     const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
     const PseudoStyleRequest& aPseudoRequest,
-    const ComputedStyle* aComputedStyle) {
+    const ComputedStyle* aComputedStyle, bool& aReferencesAttributes) {
   MOZ_ASSERT(aElement);
+  aReferencesAttributes = false;
 
   nsTArray<ComputedKeyframeValues> result;
 
@@ -835,7 +837,8 @@ static nsTArray<ComputedKeyframeValues> GetComputedKeyframeValues(
   }
 
   result = presContext->StyleSet()->GetComputedKeyframeValuesFor(
-      aKeyframes, aElement, aPseudoRequest, aComputedStyle);
+      aKeyframes, aElement, aPseudoRequest, aComputedStyle,
+      aReferencesAttributes);
   return result;
 }
 

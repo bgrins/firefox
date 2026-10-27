@@ -1,0 +1,179 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Attribute changes in continuously active paused keyframe effects</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+const namespace = "urn:keyframe-mutation:a";
+const otherNamespace = "urn:keyframe-mutation:b";
+const attributeName = "data-number";
+const stages = [
+  {name: "initial", value: "0.25", expected: 0.25},
+  {name: "change", value: "0.75", expected: 0.75},
+  {name: "remove", value: null, expected: 0.125},
+  {name: "readd", value: "0.5", expected: 0.5},
+];
+let serial = 0;
+
+function node(t) {
+  const result = document.createElement("div");
+  result.id = `attrMutation${++serial}`;
+  document.body.append(result);
+  t.add_cleanup(() => result.remove());
+  return result;
+}
+
+function setAttributeValue(target, qualified, value) {
+  if (value === null) {
+    target.removeAttributeNS(qualified ? namespace : null, attributeName);
+  } else {
+    target.setAttributeNS(qualified ? namespace : null,
+                          qualified ? `a:${attributeName}` : attributeName, value);
+  }
+  assert_equals(target.getAttributeNS(qualified ? namespace : null, attributeName),
+                value, "attribute mutation retained");
+}
+
+function opacity(target) {
+  const value = Number(getComputedStyle(target).opacity);
+  assert_true(Number.isFinite(value) && value >= 0 && value <= 1, "finite opacity calibration");
+  return value;
+}
+
+function prepare(t, mode, qualified) {
+  const target = node(t);
+  const ordinary = node(t);
+  const literal = node(t);
+  const custom = `--attr-mutation-${serial}`;
+  const property = mode.endsWith("registered") ? custom : "opacity";
+  if (property === custom) {
+    assert_equals(typeof CSS.registerProperty, "function", "registration available");
+    CSS.registerProperty({name: custom, syntax: "<number>", inherits: false, initialValue: "0.875"});
+    target.style.opacity = `var(${custom})`;
+  } else {
+    target.style.opacity = "0.875";
+  }
+  const expression = `attr(${qualified ? "a|" : ""}${attributeName} type(<number>), 0.125)`;
+  const animationName = `attributeMutation${serial}`;
+  const style = document.createElement("style");
+  style.textContent = `@namespace a url("${namespace}");
+    #${ordinary.id} { opacity: ${expression}; }
+    @keyframes ${animationName} {
+      from { ${property}: ${expression}; }
+      to { ${property}: ${expression}; }
+    }`;
+  document.head.append(style);
+  t.add_cleanup(() => style.remove());
+  assert_equals(style.sheet.cssRules.length, 3, "namespace, ordinary and keyframe rules retained");
+  assert_not_equals(style.sheet.cssRules[1].style.opacity, "", "ordinary typed attr syntax retained");
+  for (const frame of style.sheet.cssRules[2].cssRules) {
+    assert_not_equals(frame.style.getPropertyValue(property), "", "keyframe declaration retained");
+  }
+  for (const element of [target, ordinary]) {
+    if (qualified) {
+      element.setAttributeNS(otherNamespace, `b:${attributeName}`, "0.875");
+      element.setAttribute(attributeName, "0.875");
+    }
+    setAttributeValue(element, qualified, "0.25");
+  }
+  const literalAnimation = literal.animate([{opacity: 0.375}, {opacity: 0.375}],
+                                            {duration: 1000, fill: "both"});
+  literalAnimation.pause();
+  literalAnimation.currentTime = 500;
+  t.add_cleanup(() => literalAnimation.cancel());
+  return {target, ordinary, literal, literalAnimation, animationName, property, expression};
+}
+
+async function start(t, setup, mode) {
+  let animation;
+  if (mode.startsWith("CSS")) {
+    setup.target.style.animation = `${setup.animationName} 1000ms linear paused both`;
+    const animations = setup.target.getAnimations();
+    assert_equals(animations.length, 1, "one CSS animation");
+    animation = animations[0];
+    assert_true(animation instanceof CSSAnimation, "CSS ownership calibration");
+  } else {
+    animation = setup.target.animate([{[setup.property]: setup.expression},
+                                      {[setup.property]: setup.expression}],
+                                     {duration: 1000, fill: "both"});
+    animation.pause();
+    assert_false(animation instanceof CSSAnimation, "WAAPI ownership calibration");
+    assert_equals(animation.effect.getKeyframes().length, 2, "two WAAPI endpoints retained");
+  }
+  animation.currentTime = 500;
+  await animation.ready;
+  t.add_cleanup(() => animation.cancel());
+  assert_equals(animation.playState, "paused", "paused calibration");
+  assert_equals(animation.currentTime, 500, "fixed time calibration");
+  assert_equals(animation.effect.getComputedTiming().progress, 0.5, "midpoint calibration");
+  return animation;
+}
+
+const modes = ["CSS ordinary", "CSS registered", "WAAPI ordinary", "WAAPI registered"];
+for (const [mode, qualified] of [...modes.map(mode => [mode, false]), ["CSS ordinary", true]]) {
+  for (const history of ["retained", "fresh"]) {
+    promise_test(async t => {
+      const setup = prepare(t, mode, qualified);
+      await setup.literalAnimation.ready;
+      assert_equals(opacity(setup.literal), 0.375, "independent literal effect calibration");
+      let animation = await start(t, setup, mode);
+      const firstAnimation = animation;
+      assert_equals(opacity(setup.ordinary), 0.25, "initial ordinary provider calibration");
+      assert_equals(opacity(setup.target), 0.25, "initial animated provider calibration");
+      const observations = [];
+      for (const stage of stages) {
+        if (stage.name !== "initial") {
+          if (history === "fresh") {
+            animation.cancel();
+            setup.target.style.animation = "none";
+            assert_equals(setup.target.getAnimations().length, 0, "fresh control has no old effect");
+          }
+          setAttributeValue(setup.target, qualified, stage.value);
+          if (history === "fresh") {
+            const previousAnimation = animation;
+            animation = await start(t, setup, mode);
+            assert_not_equals(animation, previousAnimation, "fresh control constructs a new effect");
+          }
+        }
+        assert_equals(animation.currentTime, 500, "unchanged sample time");
+        assert_equals(animation.effect.getComputedTiming().progress, 0.5, "continuously relevant sample");
+        const actual = opacity(setup.target);
+        assert_equals(opacity(setup.target), actual, "stable repeated first read");
+        setAttributeValue(setup.ordinary, qualified, stage.value);
+        const ordinary = opacity(setup.ordinary);
+        assert_equals(ordinary, stage.expected, "independent ordinary provider after mutation");
+        observations.push({stage: stage.name, actual, ordinary, expected: stage.expected});
+        if (history === "retained") assert_equals(animation, firstAnimation, "effect identity retained");
+      }
+      if (qualified) {
+        setup.target.setAttributeNS(otherNamespace, `b:${attributeName}`, "0.375");
+        setup.target.setAttribute(attributeName, "0.625");
+        const actual = opacity(setup.target);
+        observations.push({stage: "other namespaces", actual, ordinary: 0.5, expected: 0.5});
+      }
+      setup.target.style.marginLeft = "1px";
+      const forced = opacity(setup.target);
+      assert_equals(forced, 0.5, "forced normal recascade provider calibration");
+      assert_equals(opacity(setup.literal), 0.375, "literal effect remains calibrated");
+      for (const sample of observations) {
+        assert_equals(sample.actual, sample.expected,
+                      `attribute mutation first read: ${JSON.stringify({mode, qualified, history, observations, forced})}`);
+      }
+    }, `Keyframe attr mutation: ${mode}, ${qualified ? "qualified" : "unqualified"}, ${history}`);
+  }
+}
+
+for (const qualified of [false, true]) {
+  promise_test(async t => {
+    const setup = prepare(t, "CSS ordinary", qualified);
+    for (const stage of stages) {
+      setAttributeValue(setup.ordinary, qualified, stage.value);
+      assert_equals(opacity(setup.ordinary), stage.expected, "ordinary style follows attribute sequence");
+    }
+  }, `Keyframe attr mutation: ordinary-style control, ${qualified ? "qualified" : "unqualified"}`);
+}
+</script>

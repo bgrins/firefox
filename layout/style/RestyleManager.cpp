@@ -35,6 +35,7 @@
 #include "mozilla/dom/ElementInlines.h"
 #include "mozilla/dom/HTMLBodyElement.h"
 #include "mozilla/dom/HTMLInputElement.h"
+#include "mozilla/dom/KeyframeEffect.h"
 #include "mozilla/layers/AnimationInfo.h"
 #include "mozilla/layout/ScrollAnchorContainer.h"
 #include "nsAnimationManager.h"
@@ -3632,10 +3633,25 @@ static inline bool NeedToRecordAttrChange(
   return aStyleSet.MightHaveAttributeDependency(aElement, aAttribute);
 }
 
+static bool AnimationReferencesAttributes(Element* aTarget) {
+  const auto [element, pseudo] = AnimationUtils::GetElementPseudoPair(aTarget);
+  if (EffectSet* effects = EffectSet::Get(element, pseudo)) {
+    for (const auto* effect : *effects) {
+      if (effect->ReferencesAttributes()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void RestyleManager::MaybeRecascadeForAttrFunction(Element* aElement,
                                                    nsAtom* aAttribute) {
   ForEachElementAndPseudo(aElement, [&](Element* aTargetElement) {
-    if (Servo_Element_ReferencesAttribute(aTargetElement, aAttribute)) {
+    if (AnimationReferencesAttributes(aTargetElement)) {
+      PostRestyleEvent(aTargetElement, RestyleHint::RESTYLE_SELF,
+                       nsChangeHint(0));
+    } else if (Servo_Element_ReferencesAttribute(aTargetElement, aAttribute)) {
       PostRestyleEvent(aTargetElement, RestyleHint::RECASCADE_SELF,
                        nsChangeHint(0));
     }

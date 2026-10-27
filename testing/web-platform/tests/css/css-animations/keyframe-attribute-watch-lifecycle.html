@@ -1,0 +1,227 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Attribute dependency lifetime in keyframe effects</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+let serial = 0;
+const modes = ["CSS ordinary", "CSS registered", "WAAPI ordinary", "WAAPI registered"];
+const expression = name => `attr(${name} type(<number>), 0.125)`;
+
+function node(t, attached = true) {
+  const result = document.createElement("div");
+  result.id = `watch${++serial}`;
+  if (attached) document.body.append(result);
+  t.add_cleanup(() => result.remove());
+  return result;
+}
+
+function opacity(target, pseudo = "") {
+  const value = Number(getComputedStyle(target, pseudo || null).opacity);
+  assert_true(Number.isFinite(value) && value >= 0 && value <= 1,
+              "finite opacity calibration");
+  return value;
+}
+
+function setValue(target, name, value) {
+  if (value === null) target.removeAttribute(name);
+  else target.setAttribute(name, value);
+  assert_equals(target.getAttribute(name), value, "attribute mutation retained");
+}
+
+function frames(property, value) {
+  return [{[property]: value}, {[property]: value}];
+}
+
+async function pause(t, animation) {
+  animation.pause();
+  animation.currentTime = 500;
+  await animation.ready;
+  t.add_cleanup(() => animation.cancel());
+  assert_equals(animation.playState, "paused", "paused calibration");
+  assert_equals(animation.currentTime, 500, "fixed time calibration");
+  assert_equals(animation.effect.getComputedTiming().progress, 0.5, "midpoint calibration");
+  return animation;
+}
+
+async function prepare(t, mode, {pseudo = "", initial = "0.25", value = expression("data-a")} = {}) {
+  const target = node(t);
+  const ordinary = node(t);
+  const literal = node(t);
+  setValue(target, "data-a", initial);
+  const property = mode.endsWith("registered") ? `--watch-${serial}` : "opacity";
+  if (property !== "opacity") {
+    assert_equals(typeof CSS.registerProperty, "function", "registration available");
+    CSS.registerProperty({name: property, syntax: "<number>", inherits: false, initialValue: "0.875"});
+  }
+  const animationName = `watchAnimation${serial}`;
+  const style = document.createElement("style");
+  style.textContent = `#${target.id}${pseudo} {
+      content: ""; display: block;
+      opacity: ${property === "opacity" ? "0.875" : `var(${property})`};
+    }
+    @keyframes ${animationName} { from { ${property}: ${value}; } to { ${property}: ${value}; } }`;
+  document.head.append(style);
+  t.add_cleanup(() => style.remove());
+  assert_equals(style.sheet.cssRules.length, 2, "style and keyframes retained");
+  const targetRule = style.sheet.cssRules[0];
+  const keyframes = style.sheet.cssRules[1];
+  for (const frame of keyframes.cssRules) {
+    assert_not_equals(frame.style.getPropertyValue(property), "", "keyframe syntax retained");
+  }
+  ordinary.style.opacity = expression("data-a");
+  assert_not_equals(ordinary.style.opacity, "", "ordinary attr syntax retained");
+  const literalAnimation = await pause(t, literal.animate(
+    frames("opacity", "0.375"), {duration: 1000, fill: "both"}));
+  assert_equals(opacity(literal), 0.375, "independent literal effect calibration");
+  let animation;
+  if (mode.startsWith("CSS")) {
+    targetRule.style.animation = `${animationName} 1000ms linear paused both`;
+    const animations = target.getAnimations({subtree: true}).filter(a =>
+      a.effect.target === target && (a.effect.pseudoElement || "") === pseudo);
+    assert_equals(animations.length, 1, "one CSS effect for target and pseudo");
+    animation = animations[0];
+    assert_true(animation instanceof CSSAnimation, "CSS ownership calibration");
+  } else {
+    animation = target.animate(frames(property, value),
+      {duration: 1000, fill: "both", pseudoElement: pseudo || null});
+    assert_false(animation instanceof CSSAnimation, "WAAPI ownership calibration");
+  }
+  await pause(t, animation);
+  assert_equals(animation.effect.pseudoElement || "", pseudo, "pseudo target calibration");
+  if (pseudo) assert_equals(getComputedStyle(target, pseudo).content, '""', "pseudo generation calibration");
+  return {target, ordinary, literal, literalAnimation, animation, property, targetRule, keyframes, pseudo, mode};
+}
+
+function stable(setup) {
+  assert_equals(setup.animation.currentTime, 500, "sample time retained");
+  assert_equals(setup.animation.effect.getComputedTiming().progress, 0.5, "sample remains in effect");
+  const first = opacity(setup.target, setup.pseudo);
+  assert_equals(opacity(setup.target, setup.pseudo), first, "stable repeated read");
+  return first;
+}
+
+function sample(setup, name, value, expected, observations) {
+  setValue(setup.target, name, value);
+  const actual = stable(setup);
+  setValue(setup.ordinary, "data-a", value);
+  assert_equals(opacity(setup.ordinary), expected, "independent ordinary provider after mutation");
+  observations.push({actual, expected});
+}
+
+function finish(setup, observations, expected) {
+  setup.targetRule.style.outlineColor = "red";
+  setup.target.style.outlineColor = "red";
+  assert_equals(stable(setup), expected, "forced normal recomputation calibration");
+  assert_equals(opacity(setup.literal), 0.375, "literal effect remains stable");
+  assert_array_equals(observations.map(x => x.actual), observations.map(x => x.expected),
+                      "attribute-watch first reads");
+}
+
+function replace(setup, value) {
+  const effect = setup.animation.effect;
+  if (setup.mode.startsWith("CSS")) {
+    for (const frame of setup.keyframes.cssRules) frame.style.setProperty(setup.property, value);
+  } else {
+    effect.setKeyframes(frames(setup.property, value));
+  }
+  assert_equals(setup.animation.effect, effect, "replacement retains effect identity");
+}
+
+for (const mode of modes) {
+  promise_test(async t => {
+    const setup = await prepare(t, mode, {initial: null});
+    assert_equals(stable(setup), 0.125, "initial missing attribute fallback calibration");
+    const observations = [];
+    sample(setup, "data-a", "0.75", 0.75, observations);
+    sample(setup, "data-a", null, 0.125, observations);
+    sample(setup, "data-a", "0.5", 0.5, observations);
+    finish(setup, observations, 0.5);
+  }, `${mode}: initially absent attribute is watched`);
+
+  promise_test(async t => {
+    const setup = await prepare(t, mode, {value: "0.25"});
+    assert_equals(stable(setup), 0.25, "initial literal calibration");
+    replace(setup, expression("data-a"));
+    assert_equals(stable(setup), 0.25, "equal-value attr replacement calibration");
+    const observations = [];
+    sample(setup, "data-a", "0.75", 0.75, observations);
+    setValue(setup.target, "data-b", "0.75");
+    replace(setup, expression("data-b"));
+    assert_equals(stable(setup), 0.75, "equal-value name replacement calibration");
+    sample(setup, "data-b", "0.5", 0.5, observations);
+    finish(setup, observations, 0.5);
+  }, `${mode}: equal endpoint values retain new attribute dependencies`);
+
+  promise_test(async t => {
+    const setup = await prepare(t, mode);
+    assert_equals(stable(setup), 0.25, "initial provider calibration");
+    const extra = await pause(t, setup.target.animate(
+      frames(setup.property, expression("data-a")), {duration: 1000, fill: "both"}));
+    assert_equals(stable(setup), 0.25, "both effects computed");
+    extra.cancel();
+    const observations = [];
+    sample(setup, "data-a", "0.75", 0.75, observations);
+    assert_equals(extra.playState, "idle", "other effect cancelled");
+    finish(setup, observations, 0.75);
+  }, `${mode}: cancelling one effect preserves the remaining attribute watch`);
+
+  promise_test(async t => {
+    const setup = await prepare(t, mode, {pseudo: "::before"});
+    assert_equals(stable(setup), 0.25, "initial pseudo provider calibration");
+    const observations = [];
+    sample(setup, "data-a", "0.75", 0.75, observations);
+    sample(setup, "data-a", null, 0.125, observations);
+    finish(setup, observations, 0.125);
+  }, `${mode}: before pseudo reads changed originating attributes`);
+}
+
+for (const mode of ["WAAPI ordinary", "WAAPI registered"]) {
+  promise_test(async t => {
+    const setup = await prepare(t, mode);
+    assert_equals(stable(setup), 0.25, "source effect computed");
+    const source = setup.animation;
+    const copy = new KeyframeEffect(source.effect);
+    setup.animation = new Animation(copy, document.timeline);
+    setup.animation.play();
+    await pause(t, setup.animation);
+    source.cancel();
+    assert_equals(stable(setup), 0.25, "copied effect calibration");
+    const observations = [];
+    sample(setup, "data-a", "0.75", 0.75, observations);
+    finish(setup, observations, 0.75);
+  }, `${mode}: copied effects retain attribute dependencies`);
+
+  for (const attached of [true, false]) {
+    promise_test(async t => {
+      const setup = await prepare(t, mode);
+      assert_equals(stable(setup), 0.25, "original target provider calibration");
+      const previousTarget = setup.target;
+      const target = node(t, attached);
+      target.style.opacity = setup.property === "opacity" ? "0.875" : `var(${setup.property})`;
+      setValue(target, "data-a", "0.5");
+      if (attached) assert_equals(opacity(target), 0.875, "new target has underlying style");
+      const effect = setup.animation.effect;
+      effect.target = target;
+      setup.target = target;
+      assert_equals(effect.target, target, "retargeting retained");
+      const observations = [];
+      if (attached) {
+        assert_equals(stable(setup), 0.5, "initial retarget provider calibration");
+        sample(setup, "data-a", "0.625", 0.625, observations);
+      } else {
+        setValue(target, "data-a", "0.625");
+        document.body.append(target);
+        assert_equals(stable(setup), 0.625, "new target provider calibration");
+      }
+      assert_equals(opacity(previousTarget), 0.875, "old target has no effect");
+      sample(setup, "data-a", "0.75", 0.75, observations);
+      finish(setup, observations, 0.75);
+    }, `${mode}: ${attached ? "styled" : "initially unstyled"} retarget retains attribute dependencies`);
+  }
+}
+</script>

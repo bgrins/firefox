@@ -1,0 +1,170 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Attribute dependencies in after and marker keyframe effects</title>
+<link rel="help" href="https://drafts.csswg.org/css-lists-3/#marker-properties">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#calculating-computed-keyframes">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+"use strict";
+let serial = 0;
+const kinds = [
+  {pseudo: "::after", css: "opacity", js: "opacity", attribute: "data-number",
+   expression: "attr(data-number type(<number>), 0.125)", underlying: "0.875", literal: "0.375",
+   initial: "0.25", expected: 0.25, literalExpected: 0.375,
+   stages: [["0.75", 0.75], [null, 0.125], ["0.5", 0.5]]},
+  {pseudo: "::marker", css: "font-size", js: "fontSize", attribute: "data-size",
+   expression: "attr(data-size px, 12px)", underlying: "8px", literal: "28px",
+   initial: "20", expected: 20, literalExpected: 28,
+   stages: [["40", 40], [null, 12], ["30", 30]]},
+];
+
+function node(t, kind) {
+  const wrapper = document.createElement(kind.pseudo === "::marker" ? "ul" : "div");
+  wrapper.style.cssText = "margin:0; padding:0; border:0";
+  const target = document.createElement(kind.pseudo === "::marker" ? "li" : "div");
+  target.id = `pseudoWatch${++serial}`;
+  target.style.cssText = "margin:0; padding:0; border:0; font:16px monospace; list-style-position:inside";
+  const text = document.createElement("span");
+  text.textContent = "body";
+  target.append(text);
+  wrapper.append(target);
+  document.body.append(wrapper);
+  t.add_cleanup(() => wrapper.remove());
+  return target;
+}
+
+function setValue(target, kind, value) {
+  if (value === null) target.removeAttribute(kind.attribute);
+  else target.setAttribute(kind.attribute, value);
+  assert_equals(target.getAttribute(kind.attribute), value, "attribute mutation retained");
+}
+
+function metric(target, kind) {
+  const text = getComputedStyle(target, kind.pseudo)[kind.js];
+  const value = kind.js === "fontSize" ? parseFloat(text) : Number(text);
+  assert_true(Number.isFinite(value), "finite pseudo sample");
+  if (kind.js === "fontSize") {
+    assert_true(text.endsWith("px") && value > 0 && value < 1000, "positive pixel font size");
+  } else {
+    assert_true(value >= 0 && value <= 1, "opacity range calibration");
+  }
+  return value;
+}
+
+function generated(target, kind) {
+  assert_equals(getComputedStyle(target, kind.pseudo).content, '"XX"', "pseudo content calibration");
+  assert_greater_than(target.getBoundingClientRect().height, 0, "rendered target calibration");
+  if (kind.pseudo === "::marker") {
+    assert_equals(getComputedStyle(target).display, "list-item", "rendered list item");
+    assert_equals(getComputedStyle(target).listStylePosition, "inside", "inside marker calibration");
+    const advance = target.firstElementChild.getBoundingClientRect().left - target.getBoundingClientRect().left;
+    assert_greater_than(advance, 0, "rendered marker advances inline content");
+  }
+}
+
+function prepare(t, kind) {
+  const target = node(t, kind);
+  const ordinary = node(t, kind);
+  const literal = node(t, kind);
+  for (const element of [target, ordinary]) setValue(element, kind, kind.initial);
+  const name = `pseudoAttribute${serial}`;
+  const style = document.createElement("style");
+  style.textContent = `#${target.id}${kind.pseudo} {content:"XX"; ${kind.css}:${kind.underlying}}
+    #${ordinary.id}${kind.pseudo} {content:"XX"; ${kind.css}:${kind.expression}}
+    #${literal.id}${kind.pseudo} {content:"XX"; ${kind.css}:${kind.underlying}}
+    @keyframes ${name} {from {${kind.css}:${kind.expression}} to {${kind.css}:${kind.expression}}}
+    @keyframes ${name}Literal {from {${kind.css}:${kind.literal}} to {${kind.css}:${kind.literal}}}`;
+  document.head.append(style);
+  t.add_cleanup(() => style.remove());
+  const rules = style.sheet.cssRules;
+  assert_equals(rules.length, 5, "pseudo and keyframe rules retained");
+  assert_not_equals(rules[1].style.getPropertyValue(kind.css), "", "ordinary attr syntax retained");
+  for (const frame of rules[3].cssRules) {
+    assert_not_equals(frame.style.getPropertyValue(kind.css), "", "keyframe attr syntax retained");
+  }
+  for (const element of [target, ordinary, literal]) generated(element, kind);
+  return {target, ordinary, literal, rule: rules[0], literalRule: rules[2], name};
+}
+
+async function start(t, kind, mode, target, rule, name, value) {
+  let animation;
+  if (mode === "CSS") {
+    rule.style.animation = `${name} 1000ms linear paused both`;
+    const matches = target.getAnimations({subtree:true}).filter(a =>
+      a.effect.target === target && a.effect.pseudoElement === kind.pseudo);
+    assert_equals(matches.length, 1, "one CSS animation on expected pseudo");
+    animation = matches[0];
+    assert_true(animation instanceof CSSAnimation, "CSS ownership calibration");
+  } else {
+    animation = target.animate([{[kind.js]:value}, {[kind.js]:value}],
+      {duration:1000, fill:"both", pseudoElement:kind.pseudo});
+    assert_false(animation instanceof CSSAnimation, "WAAPI ownership calibration");
+  }
+  animation.pause();
+  animation.currentTime = 500;
+  await animation.ready;
+  t.add_cleanup(() => animation.cancel());
+  assert_equals(animation.effect.target, target, "originating target calibration");
+  assert_equals(animation.effect.pseudoElement, kind.pseudo, "pseudo identity calibration");
+  assert_equals(animation.playState, "paused", "paused calibration");
+  assert_equals(animation.effect.getComputedTiming().progress, 0.5, "progress calibration");
+  return animation;
+}
+
+for (const kind of kinds) {
+  for (const mode of ["CSS", "WAAPI"]) {
+    for (const history of ["retained", "fresh"]) {
+      promise_test(async t => {
+        const setup = prepare(t, kind);
+        const literalAnimation = await start(t, kind, mode, setup.literal, setup.literalRule,
+          `${setup.name}Literal`, kind.literal);
+        assert_equals(metric(setup.literal, kind), kind.literalExpected, "literal animation calibration");
+        let animation = await start(t, kind, mode, setup.target, setup.rule, setup.name, kind.expression);
+        const first = animation;
+        assert_equals(metric(setup.target, kind), kind.expected, "initial animated provider calibration");
+        assert_equals(metric(setup.ordinary, kind), kind.expected, "initial ordinary provider calibration");
+        const actuals = [];
+        for (const [value, expected] of kind.stages) {
+          if (history === "fresh") {
+            animation.cancel();
+            setup.rule.style.animation = "none";
+            assert_equals(setup.target.getAnimations({subtree:true}).filter(a =>
+              a.effect.target === setup.target && a.effect.pseudoElement === kind.pseudo).length,
+              0, "fresh history removes old effect");
+            metric(setup.target, kind);
+          }
+          setValue(setup.target, kind, value);
+          if (history === "fresh") {
+            const previous = animation;
+            animation = await start(t, kind, mode, setup.target, setup.rule, setup.name, kind.expression);
+            assert_not_equals(animation, previous, "fresh effect identity");
+          }
+          assert_equals(animation.currentTime, 500, "fixed sample time");
+          assert_equals(animation.effect.getComputedTiming().progress, 0.5, "active sample phase");
+          const actual = metric(setup.target, kind);
+          assert_equals(metric(setup.target, kind), actual, "stable repeated pseudo read");
+          setValue(setup.ordinary, kind, value);
+          assert_equals(metric(setup.ordinary, kind), expected, "ordinary pseudo provider after mutation");
+          assert_equals(metric(setup.literal, kind), kind.literalExpected, "independent literal remains stable");
+          actuals.push(actual);
+          if (history === "retained") assert_equals(animation, first, "effect identity retained");
+        }
+        setup.rule.style.color = "rgb(1, 2, 3)";
+        assert_equals(metric(setup.target, kind), kind.stages.at(-1)[1], "forced normal pseudo recomputation");
+        assert_equals(literalAnimation.currentTime, 500, "literal time retained");
+        assert_array_equals(actuals, kind.stages.map(stage => stage[1]), "generated-pseudo first reads");
+      }, `${mode} ${kind.pseudo}: ${history} attribute history`);
+    }
+  }
+  test(t => {
+    const setup = prepare(t, kind);
+    assert_equals(metric(setup.ordinary, kind), kind.expected, "initial ordinary pseudo provider");
+    for (const [value, expected] of kind.stages) {
+      setValue(setup.ordinary, kind, value);
+      assert_equals(metric(setup.ordinary, kind), expected, "ordinary generated pseudo mutation");
+    }
+  }, `${kind.pseudo}: ordinary attribute control`);
+}
+</script>

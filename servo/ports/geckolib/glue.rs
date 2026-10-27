@@ -7504,7 +7504,7 @@ pub extern "C" fn Servo_GetComputedKeyframeValues(
     style: &ComputedValues,
     raw_data: &PerDocumentStyleData,
     computed_keyframes: &mut nsTArray<structs::ComputedKeyframeValues>,
-) {
+) -> bool {
     use style::applicable_declarations::CascadePriority;
     use style::properties::{
         CustomDeclarationValue, KeyframeCustomPropertiesBuilder, PropertyDeclaration,
@@ -7683,6 +7683,7 @@ pub extern "C" fn Servo_GetComputedKeyframeValues(
             }
         }
     }
+    attribute_tracker.references.is_some()
 }
 
 #[unsafe(no_mangle)]

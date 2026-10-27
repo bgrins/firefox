@@ -118,7 +118,7 @@ class KeyframeUtils {
       const nsTArray<Keyframe>& aKeyframes, dom::Element* aElement,
       const PseudoStyleRequest& aPseudoRequest, const ComputedStyle* aStyle,
       dom::CompositeOperation aEffectComposite,
-      const dom::AnimationTimeline* aTimeline);
+      const dom::AnimationTimeline* aTimeline, bool& aReferencesAttributes);
 
   /**
    * Check if the property or, for shorthands, one or more of
