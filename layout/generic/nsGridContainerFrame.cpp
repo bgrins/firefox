@@ -9280,6 +9280,7 @@ nscoord nsGridContainerFrame::ReflowChildren(GridReflowInput& aGridRI,
   MOZ_ASSERT(aGridRI.mReflowInput);
   MOZ_ASSERT(aStatus.IsEmpty(), "Caller should pass a fresh reflow status!");
   if (HidesContentForLayout()) {
+    MarkPrincipalChildrenDirty();
     return bSize;
   }
 
