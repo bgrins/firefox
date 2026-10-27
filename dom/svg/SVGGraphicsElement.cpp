@@ -80,10 +80,8 @@ already_AddRefed<SVGRect> SVGGraphicsElement::GetBBox(
 }
 
 already_AddRefed<SVGMatrix> SVGGraphicsElement::GetCTM() {
-  if (auto* currentDoc = GetComposedDoc()) {
-    // Flush all pending notifications so that our frames are up to date
-    currentDoc->FlushPendingNotifications(FlushType::Layout);
-  }
+  // Resolve skipped geometry for SVG 2 getCTM() step 3.
+  GetPrimaryFrame(FlushType::Layout);
   gfx::Matrix m = SVGContentUtils::GetCTM(this);
   if (m.IsSingular()) {
     m = {};
@@ -92,10 +90,8 @@ already_AddRefed<SVGMatrix> SVGGraphicsElement::GetCTM() {
 }
 
 already_AddRefed<SVGMatrix> SVGGraphicsElement::GetScreenCTM() {
-  if (auto* currentDoc = GetComposedDoc()) {
-    // Flush all pending notifications so that our frames are up to date
-    currentDoc->FlushPendingNotifications(FlushType::Layout);
-  }
+  // Resolve skipped geometry for SVG 2 getScreenCTM() step 3.
+  GetPrimaryFrame(FlushType::Layout);
   gfx::Matrix m = SVGContentUtils::GetScreenCTM(this);
   if (m.IsSingular()) {
     m = {};
