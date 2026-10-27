@@ -1,6 +1,6 @@
 {
   "branch": "stylo-bloom-verification-2",
-  "committed_native_fixes": 136,
+  "committed_native_fixes": 137,
   "accepted_pending_native_fixes": 1,
   "previous_committed_fixes": 16,
   "new_queue": [
@@ -4677,6 +4677,96 @@
       "comparison_runtime": [
         "artifacts/css-attr-non-type-fallback-wpt-runtime-original-1",
         "artifacts/css-attr-non-type-fallback-wpt-runtime-candidate-1"
+      ],
+      "candidate_source_installed": true,
+      "browser_binary_contains_fix": true,
+      "signature_verified": true
+    },
+    {
+      "fix": 138,
+      "repair": "raw-nested-attribute-context-cycles",
+      "title": "Avoid substitution cycles through non-type attribute contents",
+      "status": "COMMITTED_NATIVE_WPT",
+      "group": "Attributes and custom properties",
+      "native_commit": "3c29fefb054855bd2b9d55587ac88e8e895067b8",
+      "research_commit": "3e9f8cff13ecd5a9645ff6430110ddf8d0c3f386",
+      "companion_commit": "3e9f8cff13ecd5a9645ff6430110ddf8d0c3f386",
+      "native_paths": [
+        "servo/components/style/properties/cascade.rs",
+        "testing/web-platform/tests/css/css-values/attr-cycle.html",
+        "testing/web-platform/tests/css/css-values/attr-raw-nested-cycle.html"
+      ],
+      "prerequisites": [
+        {
+          "fix": 137,
+          "native_commit": "aa3f0588538800300df20a2f7de40ce8ac2ffec1",
+          "reason": "Uses non_type_primary_is_valid and used-fallback dependency traversal; not independently applicable before fix137."
+        }
+      ],
+      "patch": {
+        "path": "artifacts/css-attr-raw-nested-repair-v2/fix.patch",
+        "sha256": "8468fc40cb9b754655d7f5a8ef554a598f6dc21b360073d09ee52075513e3137"
+      },
+      "capsule": {
+        "path": "artifacts/css-attr-raw-nested-wpt-capsule-v3/FILES.json",
+        "sha256": "46eee2d63d2d063f4fdf5f1b48fb8dd9baf2e9d809511d7f46da3819f46caff5"
+      },
+      "phase_order": [
+        "original-2",
+        "candidate-2"
+      ],
+      "phase_counts": [
+        [
+          56,
+          17
+        ],
+        [
+          73,
+          0
+        ]
+      ],
+      "landing_cases": 73,
+      "new_fixture_cases": 36,
+      "existing_target_cases": 37,
+      "observed_repairs": 17,
+      "unchanged_landing_controls": 56,
+      "existing_regressions": {
+        "subtests_PASS": 329,
+        "reftests_PASS": 6,
+        "exact_both_phases": true
+      },
+      "terminal_review": {
+        "path": "artifacts/css-attr-raw-nested-candidate-review-v2/FILES.json",
+        "sha256": "baa4f84a302d56c0661f1aaa3fbf962da054fa97c2e0befaf1276a3bbfef2946"
+      },
+      "acceptance": {
+        "path": "artifacts/css-attr-raw-nested-validation-v2/ACCEPTANCE.json",
+        "sha256": "580298bc83b9169979b81d3ae5030f8230632fc2c0ecdd0300e7f6b6e521c93c"
+      },
+      "commit_verification": {
+        "path": "artifacts/css-local-signing-20261027-v13/native-fix-receipt.json",
+        "sha256": "a2f8977f4a1e2fbd64f175b3dabb8cfa7e418bebc62c137b232395410a61c25a"
+      },
+      "research_commit_verification": {
+        "path": "artifacts/css-local-signing-20261027-v13/raw-validation-receipt.json",
+        "sha256": "54274773f3f7172bbdd595090e252eae2a40297de56d92f97de85fd8c34b5301"
+      },
+      "comparison_runtime": [
+        "artifacts/css-attr-raw-nested-wpt-runtime-original-2",
+        "artifacts/css-attr-raw-nested-wpt-runtime-candidate-2"
+      ],
+      "reviewer_group": "#firefox-style-system-reviewers",
+      "commit_subject": "No bug - Avoid substitution cycles through non-type attribute contents. r?#firefox-style-system-reviewers",
+      "triage": "Tentative P3 CSS correctness; no demonstrated security or measured performance impact.",
+      "discovery": "Source/spec audit and controlled browser reproduction during verification work; not a proof-discovered bug.",
+      "formal_attribution": "The separate normalized guard model supports raw-versus-typed context laws. CSS tokenization, EOF parser recovery, namespaces, invalidation and native correspondence remain outside that proof boundary. No new canonical Lean coverage or universal native-refinement result.",
+      "canonical_lean_coverage_increment": 0,
+      "limits": [
+        "Requires signed used-fallback fix137; do not squash or hide that prerequisite.",
+        "Exactly three reviewed oracle corrections in existing attr-cycle.html, including EOF function recovery; unchanged metadata. These are explicit assertion changes, not expected-FAIL waivers.",
+        "Earlier 66-target comparison failed because attr-cycle28 changed PASS to FAIL. Its evidence remains historical; only a fresh complete 73-target comparison may support this candidate.",
+        "EOF correction and seven parser-boundary controls add no separate native bug count; native Rust postimages remain byte-identical to repair-v1.",
+        "Shared experimental branch validation does not establish a clean-upstream build/browser result."
       ],
       "candidate_source_installed": true,
       "browser_binary_contains_fix": true,
@@ -12474,12 +12564,12 @@
   },
   "latest_signing": {
     "status": "SIGNED_VERIFIED_LOCAL",
-    "fix": 137,
-    "native_commit": "aa3f0588538800300df20a2f7de40ce8ac2ffec1",
-    "research_commit": "38c1b6093c7bf87034ad583e2c84c2277f34ccfb",
+    "fix": 138,
+    "native_commit": "3c29fefb054855bd2b9d55587ac88e8e895067b8",
+    "research_commit": "3e9f8cff13ecd5a9645ff6430110ddf8d0c3f386",
     "verification": {
-      "path": "artifacts/css-local-signing-20261027-v11/native-fix-receipt.json",
-      "sha256": "8b03450aa86b97d53083c9ab0a5d88ba57f522c7ac669562849a6b19d3c18304"
+      "path": "artifacts/css-local-signing-20261027-v13/native-fix-receipt.json",
+      "sha256": "a2f8977f4a1e2fbd64f175b3dabb8cfa7e418bebc62c137b232395410a61c25a"
     }
   },
   "previous_signing": {
@@ -12496,20 +12586,20 @@
   "latest_research_signing": {
     "status": "SIGNED_VERIFIED_LOCAL",
     "commits": {
+      "raw-tools": "fd45d72451ec7949c4da1fd105b1d28e826abbcc",
+      "raw-validation": "3e9f8cff13ecd5a9645ff6430110ddf8d0c3f386",
+      "numeric-research": "58a399bfd443a8acfd63660457349128e3ca8034"
+    },
+    "directory": "artifacts/css-local-signing-20261027-v13"
+  },
+  "previous_research_signing": {
+    "status": "SIGNED_VERIFIED_LOCAL",
+    "commits": {
       "fallback-tools": "c43e47f8857bbbdad868541e6e55ac597a907368",
       "fallback-validation": "38c1b6093c7bf87034ad583e2c84c2277f34ccfb",
       "raw-proposal": "809b431f5fb335fa26caf2d7a7e07b6e8f76ac36"
     },
     "directory": "artifacts/css-local-signing-20261027-v11"
-  },
-  "previous_research_signing": {
-    "status": "SIGNED_VERIFIED_LOCAL",
-    "commits": {
-      "guard-model": "2cd2c6e7215c21ee30eecef6384be6151d70cc54",
-      "fallback-harness": "2f15c28a1ea9e769ab423a3a2029e8ad3eb01cbb",
-      "upstream-variant": "bdc7b46b4b3eb8f58f0318e1ec4f7919e7bca259"
-    },
-    "directory": "artifacts/css-local-signing-20261027-v10"
   },
   "latest_research_signing_attempt": {
     "status": "CURRENT_EQUIVALENTS_AFTER_VERIFIED_HISTORY_REWRITE",
@@ -12989,14 +13079,15 @@
     }
   ],
   "latest_verified_working_epoch": {
-    "path": "artifacts/css-local-signing-20261027-v11/CURRENT-EPOCH.json",
-    "status": "Signed used-fallback fix; full native build and controlled original/candidate WPT comparison passed",
+    "path": "artifacts/css-local-signing-20261027-v13/CURRENT-EPOCH.json",
+    "status": "Signed raw-nested fix; fresh 73-target comparison passed with exact regressions",
     "browser_binary_contains_fixes": [
       133,
       134,
       135,
       136,
-      137
+      137,
+      138
     ]
   },
   "local_integration_history": [
@@ -23442,6 +23533,17 @@
         135,
         136
       ]
+    },
+    {
+      "path": "artifacts/css-local-signing-20261027-v11/CURRENT-EPOCH.json",
+      "status": "Signed used-fallback fix; full native build and controlled original/candidate WPT comparison passed",
+      "browser_binary_contains_fixes": [
+        133,
+        134,
+        135,
+        136,
+        137
+      ]
     }
   ],
   "active_native_experiment": {
@@ -27168,7 +27270,7 @@
     "sequential_recipes_passed": 11,
     "packaging_changes_required": false
   },
-  "signing_next_action": "Keep fix137 standalone; validate the raw-nested repair next and preserve independent research/native commits.",
+  "signing_next_action": "Continue registered-number investigation and pending-provider integration; preserve fixes137 and138 separately.",
   "next_prepared_diagnostic": {
     "status": "ROOT_VERIFIED_REVIEWED",
     "planned_cases": 162,
@@ -27737,6 +27839,15 @@
         "upstream-variant": "bdc7b46b4b3eb8f58f0318e1ec4f7919e7bca259"
       },
       "directory": "artifacts/css-local-signing-20261027-v10"
+    },
+    {
+      "status": "SIGNED_VERIFIED_LOCAL",
+      "commits": {
+        "fallback-tools": "c43e47f8857bbbdad868541e6e55ac597a907368",
+        "fallback-validation": "38c1b6093c7bf87034ad583e2c84c2277f34ccfb",
+        "raw-proposal": "809b431f5fb335fa26caf2d7a7e07b6e8f76ac36"
+      },
+      "directory": "artifacts/css-local-signing-20261027-v11"
     }
   ],
   "latest_test_only_signing": {
@@ -28021,6 +28132,16 @@
         "path": "artifacts/css-local-signing-20261027-v7/counter-fix-receipt.json",
         "sha256": "c0eb8033c63fbf98e22ad4567a2483624d3ea874d82c6500a1a2ef412aa5fc9c"
       }
+    },
+    {
+      "status": "SIGNED_VERIFIED_LOCAL",
+      "fix": 137,
+      "native_commit": "aa3f0588538800300df20a2f7de40ce8ac2ffec1",
+      "research_commit": "38c1b6093c7bf87034ad583e2c84c2277f34ccfb",
+      "verification": {
+        "path": "artifacts/css-local-signing-20261027-v11/native-fix-receipt.json",
+        "sha256": "8b03450aa86b97d53083c9ab0a5d88ba57f522c7ac669562849a6b19d3c18304"
+      }
     }
   ],
   "latest_counter_fix": {
@@ -28160,16 +28281,102 @@
       "signature_verified": true
     },
     "raw_nested_attr": {
-      "disagreements": 5,
-      "controls": 8
+      "fix": 138,
+      "repair": "raw-nested-attribute-context-cycles",
+      "title": "Avoid substitution cycles through non-type attribute contents",
+      "status": "COMMITTED_NATIVE_WPT",
+      "group": "Attributes and custom properties",
+      "native_commit": "3c29fefb054855bd2b9d55587ac88e8e895067b8",
+      "research_commit": "3e9f8cff13ecd5a9645ff6430110ddf8d0c3f386",
+      "companion_commit": "3e9f8cff13ecd5a9645ff6430110ddf8d0c3f386",
+      "native_paths": [
+        "servo/components/style/properties/cascade.rs",
+        "testing/web-platform/tests/css/css-values/attr-cycle.html",
+        "testing/web-platform/tests/css/css-values/attr-raw-nested-cycle.html"
+      ],
+      "prerequisites": [
+        {
+          "fix": 137,
+          "native_commit": "aa3f0588538800300df20a2f7de40ce8ac2ffec1",
+          "reason": "Uses non_type_primary_is_valid and used-fallback dependency traversal; not independently applicable before fix137."
+        }
+      ],
+      "patch": {
+        "path": "artifacts/css-attr-raw-nested-repair-v2/fix.patch",
+        "sha256": "8468fc40cb9b754655d7f5a8ef554a598f6dc21b360073d09ee52075513e3137"
+      },
+      "capsule": {
+        "path": "artifacts/css-attr-raw-nested-wpt-capsule-v3/FILES.json",
+        "sha256": "46eee2d63d2d063f4fdf5f1b48fb8dd9baf2e9d809511d7f46da3819f46caff5"
+      },
+      "phase_order": [
+        "original-2",
+        "candidate-2"
+      ],
+      "phase_counts": [
+        [
+          56,
+          17
+        ],
+        [
+          73,
+          0
+        ]
+      ],
+      "landing_cases": 73,
+      "new_fixture_cases": 36,
+      "existing_target_cases": 37,
+      "observed_repairs": 17,
+      "unchanged_landing_controls": 56,
+      "existing_regressions": {
+        "subtests_PASS": 329,
+        "reftests_PASS": 6,
+        "exact_both_phases": true
+      },
+      "terminal_review": {
+        "path": "artifacts/css-attr-raw-nested-candidate-review-v2/FILES.json",
+        "sha256": "baa4f84a302d56c0661f1aaa3fbf962da054fa97c2e0befaf1276a3bbfef2946"
+      },
+      "acceptance": {
+        "path": "artifacts/css-attr-raw-nested-validation-v2/ACCEPTANCE.json",
+        "sha256": "580298bc83b9169979b81d3ae5030f8230632fc2c0ecdd0300e7f6b6e521c93c"
+      },
+      "commit_verification": {
+        "path": "artifacts/css-local-signing-20261027-v13/native-fix-receipt.json",
+        "sha256": "a2f8977f4a1e2fbd64f175b3dabb8cfa7e418bebc62c137b232395410a61c25a"
+      },
+      "research_commit_verification": {
+        "path": "artifacts/css-local-signing-20261027-v13/raw-validation-receipt.json",
+        "sha256": "54274773f3f7172bbdd595090e252eae2a40297de56d92f97de85fd8c34b5301"
+      },
+      "comparison_runtime": [
+        "artifacts/css-attr-raw-nested-wpt-runtime-original-2",
+        "artifacts/css-attr-raw-nested-wpt-runtime-candidate-2"
+      ],
+      "reviewer_group": "#firefox-style-system-reviewers",
+      "commit_subject": "No bug - Avoid substitution cycles through non-type attribute contents. r?#firefox-style-system-reviewers",
+      "triage": "Tentative P3 CSS correctness; no demonstrated security or measured performance impact.",
+      "discovery": "Source/spec audit and controlled browser reproduction during verification work; not a proof-discovered bug.",
+      "formal_attribution": "The separate normalized guard model supports raw-versus-typed context laws. CSS tokenization, EOF parser recovery, namespaces, invalidation and native correspondence remain outside that proof boundary. No new canonical Lean coverage or universal native-refinement result.",
+      "canonical_lean_coverage_increment": 0,
+      "limits": [
+        "Requires signed used-fallback fix137; do not squash or hide that prerequisite.",
+        "Exactly three reviewed oracle corrections in existing attr-cycle.html, including EOF function recovery; unchanged metadata. These are explicit assertion changes, not expected-FAIL waivers.",
+        "Earlier 66-target comparison failed because attr-cycle28 changed PASS to FAIL. Its evidence remains historical; only a fresh complete 73-target comparison may support this candidate.",
+        "EOF correction and seven parser-boundary controls add no separate native bug count; native Rust postimages remain byte-identical to repair-v1.",
+        "Shared experimental branch validation does not establish a clean-upstream build/browser result."
+      ],
+      "candidate_source_installed": true,
+      "browser_binary_contains_fix": true,
+      "signature_verified": true
     },
     "registered_number": {
       "release_disagreements": 7,
       "release_controls_pass": 7,
       "branch_extra_control_failure": "direct-invalid-em"
     },
-    "status": "USED_FALLBACK_COMMITTED_OTHER_LEADS_UNACCEPTED",
-    "next": "Validate raw-nested repair with explicit two-oracle review, then continue registered-number and pending-provider integration work."
+    "status": "USED_FALLBACK_AND_RAW_NESTED_COMMITTED_REGISTERED_NUMBER_UNACCEPTED",
+    "next": "Continue registered-number investigation and pending-provider integration; preserve fixes137 and138 separately."
   },
   "latest_attribute_fallback_fix": {
     "fix": 137,
@@ -28199,6 +28406,123 @@
       },
       "status": "REPRODUCED_NOT_ACCEPTED",
       "next": "Repair used bare/unit attr fallback cycle omission with standalone native+WPT patch; then raw attr cycles with explicit oracle review; preserve numeric context investigation and complete pending cascade integration."
+    },
+    {
+      "used_attr_fallback": {
+        "fix": 137,
+        "repair": "used-non-type-attribute-fallback-cycles",
+        "title": "Include used non-type attr fallbacks in dependency cycles",
+        "status": "COMMITTED_NATIVE_WPT",
+        "group": "Attributes and custom properties",
+        "native_commit": "aa3f0588538800300df20a2f7de40ce8ac2ffec1",
+        "research_commit": "38c1b6093c7bf87034ad583e2c84c2277f34ccfb",
+        "companion_commit": "38c1b6093c7bf87034ad583e2c84c2277f34ccfb",
+        "native_paths": [
+          "servo/components/style/custom_properties.rs",
+          "servo/components/style/properties/cascade.rs",
+          "testing/web-platform/tests/css/css-values/attr-non-type-used-fallback-cycle.html"
+        ],
+        "patch": {
+          "path": "artifacts/css-attr-non-type-fallback-repair-v3/fix-head.patch",
+          "sha256": "4c59f852ad5d4af71875049147c21222a66044249918ff798ae27efd93530bb0"
+        },
+        "upstream_export": {
+          "path": "artifacts/css-attr-non-type-fallback-upstream-v1/upstream-self-contained.patch",
+          "sha256": "6cbc5be2c2424255bf7952d9db81b1112dc74a0f3b51f4270cb6b9e79bb49787"
+        },
+        "phase_order": [
+          "original-1",
+          "candidate-1"
+        ],
+        "phase_counts": [
+          [
+            15,
+            19
+          ],
+          [
+            34,
+            0
+          ]
+        ],
+        "landing_cases": 34,
+        "observed_repairs": 19,
+        "unchanged_landing_controls": 15,
+        "existing_regressions": {
+          "subtests_PASS": 154,
+          "reftests_PASS": 6,
+          "exact_both_phases": true
+        },
+        "terminal_review": {
+          "path": "artifacts/css-attr-non-type-fallback-candidate-review-v1/AUDIT.json",
+          "sha256": "e2883227b8a5f77249568bddd9ff34562ad754d39ff39ce3c5b154aaf0007eb3"
+        },
+        "acceptance": {
+          "path": "artifacts/css-attr-non-type-fallback-validation-v1/ACCEPTANCE.json",
+          "sha256": "28609dfe0dce408d219e9d71e3db8d17aa6ba15267c903dc2ea3d6918c9a3f19"
+        },
+        "commit_verification": {
+          "path": "artifacts/css-local-signing-20261027-v11/native-fix-receipt.json",
+          "sha256": "8b03450aa86b97d53083c9ab0a5d88ba57f522c7ac669562849a6b19d3c18304"
+        },
+        "research_commit_verification": {
+          "path": "artifacts/css-local-signing-20261027-v11/fallback-validation-receipt.json",
+          "sha256": "177050227887ae8851372eb3e764d02c7f000730b86fce730f815e018d932750"
+        },
+        "reviewer_group": "#firefox-style-system-reviewers",
+        "commit_subject": "No bug - Include used non-type attr fallbacks in dependency cycles. r?#firefox-style-system-reviewers",
+        "triage": "Tentative P3 CSS correctness; no demonstrated security or measured performance impact.",
+        "discovery": "Source inspection and browser reproduction during dependency-verification work; not discovered by a Lean proof.",
+        "formal_attribution": "No new Lean theorem, canonical coverage, or universal native-refinement result is claimed for this repair.",
+        "canonical_lean_coverage_increment": 0,
+        "limits": [
+          "The incremental branch patch removes already-corrected inline numeric parsing from parent 499c0c6; the standalone upstream export adapts that hunk and insertion context and includes the same full shared primitive. Numeric overlap is not another bug discovery.",
+          "Direct ParsedNamespace matching avoids a dependency on the branch namespace() helper. parse_typed_value is only an insertion-context anchor.",
+          "The branch original/candidate comparison runs in the shared experimental checkout. No clean-upstream build or browser validation of the standalone export is claimed.",
+          "Existing raw-nested attr-cycle oracles and metadata remain unchanged; the separate raw-nested repair is not included.",
+          "One original and one candidate phase; no restored-original or repeated-candidate run is claimed."
+        ],
+        "comparison_runtime": [
+          "artifacts/css-attr-non-type-fallback-wpt-runtime-original-1",
+          "artifacts/css-attr-non-type-fallback-wpt-runtime-candidate-1"
+        ],
+        "candidate_source_installed": true,
+        "browser_binary_contains_fix": true,
+        "signature_verified": true
+      },
+      "raw_nested_attr": {
+        "disagreements": 5,
+        "controls": 8
+      },
+      "registered_number": {
+        "release_disagreements": 7,
+        "release_controls_pass": 7,
+        "branch_extra_control_failure": "direct-invalid-em"
+      },
+      "status": "USED_FALLBACK_COMMITTED_OTHER_LEADS_UNACCEPTED",
+      "next": "Validate raw-nested repair with explicit two-oracle review, then continue registered-number and pending-provider integration work."
     }
-  ]
+  ],
+  "latest_raw_attribute_fix": {
+    "fix": 138,
+    "acceptance": {
+      "path": "artifacts/css-attr-raw-nested-validation-v2/ACCEPTANCE.json",
+      "sha256": "580298bc83b9169979b81d3ae5030f8230632fc2c0ecdd0300e7f6b6e521c93c"
+    },
+    "commit_verification": {
+      "path": "artifacts/css-local-signing-20261027-v13/native-fix-receipt.json",
+      "sha256": "a2f8977f4a1e2fbd64f175b3dabb8cfa7e418bebc62c137b232395410a61c25a"
+    }
+  },
+  "latest_registered_number_research": {
+    "status": "MODEL_CHECKED_NATIVE_REPAIR_PENDING",
+    "design": "artifacts/css-registered-number-native-repair-design-v2",
+    "model": "artifacts/css-registered-number-admission-model-v1",
+    "independent_replay": "artifacts/css-registered-number-admission-model-root-replay-v1",
+    "audited_declarations": 20,
+    "kernel_examples": 14,
+    "decisive_false_controls": 7,
+    "canonical_coverage_increment": 0,
+    "native_refinement_proved": false,
+    "numeric_self_font_cycle_policy": "INCONCLUSIVE"
+  }
 }

@@ -1,0 +1,5 @@
+# Unfinished work checkpoint after fix 138
+
+Apply unfinished.patch to the exact commit in BASE.json to recover the remaining prototypes and fixtures. Exact forward and reverse application and all source hashes were checked in an isolated index. Live source bodies and the real index were preserved.
+
+Fixes 137 and 138 are already committed separately in the base. Their original/candidate browser comparisons and native builds passed; they are not included again as unfinished work. The raw attribute repair passes all 73 revised target assertions, 329 regression assertions and six reftests. The earlier failed oracle comparison remains archived. The 20 selected native regression tests passed on identical source and GTest libraries. The snapshot also captures the five ledger updates awaiting the checkpoint commit. The remaining prototypes retain their individual validation limits. This snapshot is recovery data, not additional accepted fixes. The accepted count is 137, with held repair 120 excluded. Unrelated directories, the nested Lean repository and build outputs are excluded.

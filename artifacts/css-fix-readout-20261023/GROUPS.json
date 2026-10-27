@@ -1,6 +1,6 @@
 {
-  "head": "aa3f0588538800300df20a2f7de40ce8ac2ffec1",
-  "committed": 136,
+  "head": "3c29fefb054855bd2b9d55587ac88e8e895067b8",
+  "committed": 137,
   "accepted_pending": 0,
   "count_policy": "One primary fix per numbered ledger entry; excludes companion proofs/tooling, test-only commits, alternative branches and unaccepted prototypes. Groups are areas, not assigned severity.",
   "groups": [
@@ -1283,7 +1283,7 @@
     },
     {
       "group": "Attributes and custom properties",
-      "committed": 17,
+      "committed": 18,
       "accepted_pending": 0,
       "examples": "attr() fallbacks/dependencies, registration, taint preservation",
       "fixes": [
@@ -1881,10 +1881,100 @@
           "candidate_source_installed": true,
           "browser_binary_contains_fix": true,
           "signature_verified": true
+        },
+        {
+          "fix": 138,
+          "repair": "raw-nested-attribute-context-cycles",
+          "title": "Avoid substitution cycles through non-type attribute contents",
+          "status": "COMMITTED_NATIVE_WPT",
+          "group": "Attributes and custom properties",
+          "native_commit": "3c29fefb054855bd2b9d55587ac88e8e895067b8",
+          "research_commit": "3e9f8cff13ecd5a9645ff6430110ddf8d0c3f386",
+          "companion_commit": "3e9f8cff13ecd5a9645ff6430110ddf8d0c3f386",
+          "native_paths": [
+            "servo/components/style/properties/cascade.rs",
+            "testing/web-platform/tests/css/css-values/attr-cycle.html",
+            "testing/web-platform/tests/css/css-values/attr-raw-nested-cycle.html"
+          ],
+          "prerequisites": [
+            {
+              "fix": 137,
+              "native_commit": "aa3f0588538800300df20a2f7de40ce8ac2ffec1",
+              "reason": "Uses non_type_primary_is_valid and used-fallback dependency traversal; not independently applicable before fix137."
+            }
+          ],
+          "patch": {
+            "path": "artifacts/css-attr-raw-nested-repair-v2/fix.patch",
+            "sha256": "8468fc40cb9b754655d7f5a8ef554a598f6dc21b360073d09ee52075513e3137"
+          },
+          "capsule": {
+            "path": "artifacts/css-attr-raw-nested-wpt-capsule-v3/FILES.json",
+            "sha256": "46eee2d63d2d063f4fdf5f1b48fb8dd9baf2e9d809511d7f46da3819f46caff5"
+          },
+          "phase_order": [
+            "original-2",
+            "candidate-2"
+          ],
+          "phase_counts": [
+            [
+              56,
+              17
+            ],
+            [
+              73,
+              0
+            ]
+          ],
+          "landing_cases": 73,
+          "new_fixture_cases": 36,
+          "existing_target_cases": 37,
+          "observed_repairs": 17,
+          "unchanged_landing_controls": 56,
+          "existing_regressions": {
+            "subtests_PASS": 329,
+            "reftests_PASS": 6,
+            "exact_both_phases": true
+          },
+          "terminal_review": {
+            "path": "artifacts/css-attr-raw-nested-candidate-review-v2/FILES.json",
+            "sha256": "baa4f84a302d56c0661f1aaa3fbf962da054fa97c2e0befaf1276a3bbfef2946"
+          },
+          "acceptance": {
+            "path": "artifacts/css-attr-raw-nested-validation-v2/ACCEPTANCE.json",
+            "sha256": "580298bc83b9169979b81d3ae5030f8230632fc2c0ecdd0300e7f6b6e521c93c"
+          },
+          "commit_verification": {
+            "path": "artifacts/css-local-signing-20261027-v13/native-fix-receipt.json",
+            "sha256": "a2f8977f4a1e2fbd64f175b3dabb8cfa7e418bebc62c137b232395410a61c25a"
+          },
+          "research_commit_verification": {
+            "path": "artifacts/css-local-signing-20261027-v13/raw-validation-receipt.json",
+            "sha256": "54274773f3f7172bbdd595090e252eae2a40297de56d92f97de85fd8c34b5301"
+          },
+          "comparison_runtime": [
+            "artifacts/css-attr-raw-nested-wpt-runtime-original-2",
+            "artifacts/css-attr-raw-nested-wpt-runtime-candidate-2"
+          ],
+          "reviewer_group": "#firefox-style-system-reviewers",
+          "commit_subject": "No bug - Avoid substitution cycles through non-type attribute contents. r?#firefox-style-system-reviewers",
+          "triage": "Tentative P3 CSS correctness; no demonstrated security or measured performance impact.",
+          "discovery": "Source/spec audit and controlled browser reproduction during verification work; not a proof-discovered bug.",
+          "formal_attribution": "The separate normalized guard model supports raw-versus-typed context laws. CSS tokenization, EOF parser recovery, namespaces, invalidation and native correspondence remain outside that proof boundary. No new canonical Lean coverage or universal native-refinement result.",
+          "canonical_lean_coverage_increment": 0,
+          "limits": [
+            "Requires signed used-fallback fix137; do not squash or hide that prerequisite.",
+            "Exactly three reviewed oracle corrections in existing attr-cycle.html, including EOF function recovery; unchanged metadata. These are explicit assertion changes, not expected-FAIL waivers.",
+            "Earlier 66-target comparison failed because attr-cycle28 changed PASS to FAIL. Its evidence remains historical; only a fresh complete 73-target comparison may support this candidate.",
+            "EOF correction and seven parser-boundary controls add no separate native bug count; native Rust postimages remain byte-identical to repair-v1.",
+            "Shared experimental branch validation does not establish a clean-upstream build/browser result."
+          ],
+          "candidate_source_installed": true,
+          "browser_binary_contains_fix": true,
+          "signature_verified": true
         }
       ],
       "held": 0,
-      "total": 17
+      "total": 18
     },
     {
       "group": "Animations, timelines and transitions",
@@ -4837,8 +4927,8 @@
     }
   ],
   "held": 1,
-  "tracked": 137,
-  "accepted": 136,
+  "tracked": 138,
+  "accepted": 137,
   "source_ledger": "artifacts/stylo-bloom-tools/CURRENT-COMMITS.json",
   "formal_library_checkpoint": {
     "status": "STEPS_ORIGIN_LIBRARY_FULL_CHECK_PASS",
