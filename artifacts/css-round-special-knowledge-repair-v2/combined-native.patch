@@ -1,0 +1,21 @@
+--- a/servo/components/style/values/generics/calc.rs
++++ b/servo/components/style/values/generics/calc.rs
+@@ -1421,7 +1421,7 @@
+                 // TODO(emilio): Seems like at least a few of these
+                 // special-cases could be removed if we do the math in a
+                 // particular order.
+-                if step.is_zero() {
++                if value.is_nan() || step.is_nan() || step.is_zero() {
+                     value = f32::NAN;
+                 } else if value.is_infinite() {
+                     if step.is_infinite() {
+@@ -2005,6 +2005,9 @@
+                 }
+ 
+                 if value_or_stop!(step.is_infinite_leaf()) {
++                    if value.as_leaf().is_none() {
++                        return SimplificationResult::Unchanged;
++                    }
+                     match strategy {
+                         RoundingStrategy::Nearest | RoundingStrategy::ToZero => {
+                             let zero = if value_or_stop!(value.is_negative_leaf()) {

@@ -1,0 +1,55 @@
+<!doctype html>
+<title>round() retains unresolved values with an infinite step</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#round-infinities">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#simplify-a-calculation-tree">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function opacity(t, expression, font) {
+  assert_true(CSS.supports("opacity", expression), "expression admission");
+  const element = document.createElement("div");
+  element.style.fontSize = `${font}px`;
+  element.style.opacity = expression;
+  assert_not_equals(element.style.opacity, "", "opacity setter retention");
+  document.body.append(element);
+  t.add_cleanup(() => element.remove());
+  assert_equals(getComputedStyle(element).fontSize, `${font}px`, "font calibration");
+  const first = Number(getComputedStyle(element).opacity);
+  assert_true(Number.isFinite(first) && first >= 0 && first <= 1,
+              "finite in-range first opacity");
+  const repeated = Number(getComputedStyle(element).opacity);
+  assert_true(Number.isFinite(repeated) && repeated >= 0 && repeated <= 1,
+              "finite in-range repeated opacity");
+  assert_equals(repeated, first, "stable computed value");
+  return first;
+}
+test(t => {
+  assert_equals(opacity(t, "sign(1em - 16px)", 32), 1, "positive input sign");
+  assert_equals(opacity(t, "round(up, infinity, infinity)", 32), 0, "literal both-infinite control");
+  assert_equals(opacity(t, "round(up, infinity * sign(1em - 16px), infinity)", 32), 0);
+}, "infinite step: observed deferred-value route");
+for (const strategy of ["nearest", "up", "down", "to-zero"]) {
+  for (const [font, sign] of [[32, 0.75], [16, 0.5]]) {
+    for (const infinity of ["infinity", "-infinity"]) {
+      test(t => {
+        assert_equals(opacity(t, "calc(0.5 + 0.25 * sign(1em - 16px))", font), sign,
+                      "positive or zero sign input calibration");
+        assert_equals(opacity(t, `calc(0.5 + 0.25 * round(${strategy}, ${infinity} * sign(1em - 16px), infinity))`, font), 0,
+                      `NaN or both-infinite result for ${infinity} at font ${font}`);
+      }, `infinite step: ${strategy}, ${infinity}, font ${font}`);
+    }
+  }
+}
+for (const expression of [
+  "repeat(round(nearest, 3, 2), 1px)",
+  "repeat(calc(2 + round(to-zero, sign(1px), infinity)), 1px)",
+]) {
+  test(() => {
+    assert_true(CSS.supports("grid-template-columns", expression));
+    const style = document.createElement("div").style;
+    style.gridTemplateColumns = expression;
+    assert_not_equals(style.gridTemplateColumns, "", "context-free integer setter admission");
+  }, `context-free integer admission: ${expression}`);
+}
+</script>

@@ -1,0 +1,25 @@
+<!doctype html>
+<title>Implementation-policy controls for Round integer admission</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#simplify-a-calculation-tree">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+for (const [name, value, expected] of [
+  ["unchanged discarded unknown step", "repeat(round(up, infinity, sign(1em - 16px)), 1px)", true],
+  ["retained unknown value", "repeat(round(up, sign(1em - 16px), infinity), 1px)", false],
+  ["retained unknown product value", "repeat(round(up, infinity * sign(1em - 16px), infinity), 1px)", false],
+  ["resolved absolute sign", "repeat(calc(2 + round(to-zero, sign(1px), infinity)), 1px)", true],
+  ["invalid dimensional integer", "repeat(round(up, 1px, 1px), 1px)", false],
+]) {
+  test(() => {
+    const supports = CSS.supports("grid-template-columns", value);
+    const style = document.createElement("div").style;
+    style.gridTemplateColumns = value;
+    const admitted = style.gridTemplateColumns !== "";
+    assert_equals(admitted, supports, "supports and setter agree");
+    assert_equals(CSS.supports("grid-template-columns", value), supports, "stable admission");
+    assert_equals(admitted, expected,
+      `source-predicted implementation policy; snapshot=${JSON.stringify({value, supports, serialized: style.gridTemplateColumns})}`);
+  }, `Round integer policy: ${name}`);
+}
+</script>

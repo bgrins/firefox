@@ -1,0 +1,35 @@
+--- v1/round-deferred-infinite-step.html
++++ v2/round-deferred-infinite-step.html
+@@ -24,16 +24,16 @@
+   assert_equals(opacity(t, "round(up, infinity * sign(1em - 16px), infinity)", 32), 0);
+ }, "infinite step: observed deferred-value route");
+ for (const strategy of ["nearest", "up", "down", "to-zero"]) {
+-  test(t => {
+-    for (const [font, sign] of [[32, 0.75], [16, 0.5]]) {
+-      assert_equals(opacity(t, "calc(0.5 + 0.25 * sign(1em - 16px))", font), sign,
+-                    "positive or zero sign input calibration");
+-      for (const infinity of ["infinity", "-infinity"]) {
++  for (const [font, sign] of [[32, 0.75], [16, 0.5]]) {
++    for (const infinity of ["infinity", "-infinity"]) {
++      test(t => {
++        assert_equals(opacity(t, "calc(0.5 + 0.25 * sign(1em - 16px))", font), sign,
++                      "positive or zero sign input calibration");
+         assert_equals(opacity(t, `calc(0.5 + 0.25 * round(${strategy}, ${infinity} * sign(1em - 16px), infinity))`, font), 0,
+                       `NaN or both-infinite result for ${infinity} at font ${font}`);
+-      }
++      }, `infinite step: ${strategy}, ${infinity}, font ${font}`);
+     }
+-  }, `infinite step: ${strategy} at contextual NaN and both signs of infinity`);
++  }
+ }
+ for (const expression of [
+   "repeat(round(nearest, 3, 2), 1px)",
+--- v1/integer-admission-policy-probe.html
++++ v2/integer-admission-policy-probe.html
+@@ -1,5 +1,6 @@
+ <!doctype html>
+ <title>Implementation-policy controls for Round integer admission</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#simplify-a-calculation-tree">
+ <script src="/resources/testharness.js"></script>
+ <script src="/resources/testharnessreport.js"></script>
+ <script>

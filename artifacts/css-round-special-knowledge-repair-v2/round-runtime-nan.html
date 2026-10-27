@@ -1,0 +1,38 @@
+<!doctype html>
+<title>round() propagates NaN before infinity cases during numeric resolution</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#round-infinities">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function opacity(t, expression) {
+  assert_true(CSS.supports("opacity", expression), "expression admission");
+  const element = document.createElement("div");
+  element.style.opacity = expression;
+  document.body.append(element);
+  t.add_cleanup(() => element.remove());
+  const first = Number(getComputedStyle(element).opacity);
+  assert_equals(Number(getComputedStyle(element).opacity), first, "stable computed value");
+  return first;
+}
+for (const strategy of ["nearest", "up", "down", "to-zero"]) {
+  for (const [name, value, step] of [
+    ["NaN value", "NaN", "infinity"],
+    ["NaN step", "infinity", "NaN"],
+  ]) {
+    test(t => {
+      assert_equals(opacity(t, "calc(0.5 + 0.25 / 1)"), 0.75, "positive reciprocal control");
+      assert_equals(opacity(t, "calc(0.5 + 0.25 / NaN)"), 0, "NaN outer-expression control");
+      const observed = opacity(t, `calc(0.5 + 0.25 / round(${strategy}, ${value}, ${step}))`);
+      assert_equals(observed, 0, "NaN propagates through round and reciprocal");
+    }, `numeric resolution: ${strategy}, ${name}`);
+  }
+}
+for (const [name, expression, expected] of [
+  ["finite exact", "calc(0.5 + 0.25 / round(nearest, 2, 1))", 0.625],
+  ["finite negative", "calc(0.5 + 0.25 / round(up, -2, 1))", 0.375],
+]) {
+  test(t => assert_equals(opacity(t, expression), expected), `numeric resolution control: ${name}`);
+}
+</script>

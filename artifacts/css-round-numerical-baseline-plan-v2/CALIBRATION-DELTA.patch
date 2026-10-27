@@ -1,0 +1,41 @@
+--- v1/fixtures/round-runtime-nan.html
++++ v2/fixtures/round-runtime-nan.html
+@@ -10,10 +10,16 @@
+   assert_true(CSS.supports("opacity", expression), "expression admission");
+   const element = document.createElement("div");
+   element.style.opacity = expression;
++  assert_not_equals(element.style.opacity, "", "opacity setter retention");
+   document.body.append(element);
+   t.add_cleanup(() => element.remove());
+   const first = Number(getComputedStyle(element).opacity);
+-  assert_equals(Number(getComputedStyle(element).opacity), first, "stable computed value");
++  assert_true(Number.isFinite(first) && first >= 0 && first <= 1,
++              "finite in-range first opacity");
++  const repeated = Number(getComputedStyle(element).opacity);
++  assert_true(Number.isFinite(repeated) && repeated >= 0 && repeated <= 1,
++              "finite in-range repeated opacity");
++  assert_equals(repeated, first, "stable computed value");
+   return first;
+ }
+ for (const strategy of ["nearest", "up", "down", "to-zero"]) {
+--- v1/fixtures/round-deferred-infinite-step.html
++++ v2/fixtures/round-deferred-infinite-step.html
+@@ -11,11 +11,17 @@
+   const element = document.createElement("div");
+   element.style.fontSize = `${font}px`;
+   element.style.opacity = expression;
++  assert_not_equals(element.style.opacity, "", "opacity setter retention");
+   document.body.append(element);
+   t.add_cleanup(() => element.remove());
+   assert_equals(getComputedStyle(element).fontSize, `${font}px`, "font calibration");
+   const first = Number(getComputedStyle(element).opacity);
+-  assert_equals(Number(getComputedStyle(element).opacity), first, "stable computed value");
++  assert_true(Number.isFinite(first) && first >= 0 && first <= 1,
++              "finite in-range first opacity");
++  const repeated = Number(getComputedStyle(element).opacity);
++  assert_true(Number.isFinite(repeated) && repeated >= 0 && repeated <= 1,
++              "finite in-range repeated opacity");
++  assert_equals(repeated, first, "stable computed value");
+   return first;
+ }
+ test(t => {
