@@ -1,6 +1,6 @@
 {
-  "head": "0d27cb839f013f214973215cd0a8ce8a87c4b780",
-  "committed": 134,
+  "head": "37bc9b06f034c191be50aa4949b072bbf7d5a64e",
+  "committed": 135,
   "accepted_pending": 0,
   "count_policy": "One primary fix per numbered ledger entry; excludes companion proofs/tooling, test-only commits, alternative branches and unaccepted prototypes. Groups are areas, not assigned severity.",
   "groups": [
@@ -303,7 +303,7 @@
             "signatures_present": true,
             "isolated_base_build_browser": "NOT_RUN"
           },
-          "performance": "Isolated body benchmark retains about 0.3\u20130.85ns/token normal-path overhead; browser impact unmeasured.",
+          "performance": "Isolated body benchmark retains about 0.3–0.85ns/token normal-path overhead; browser impact unmeasured.",
           "fix": 62
         },
         {
@@ -615,7 +615,7 @@
           "runtime_scope": "Final 30-case WPT passes; corresponding unchanged baseline subset has 16 FAIL / 14 PASS. The earlier 32-case candidate matrix had 467 checks and 24 OK harnesses, with all 435 prior status/message pairs unchanged including two expected failures. Two unrelated escaped-whitespace controls were removed for standalone applicability. Final scoped WPT lint passes.",
           "formal_scope": "Root and independent scoped acceptance:53 audits, nine modules,24 source bindings,56 fresh tokenizer cases,224 comparisons to historical native constructor outputs, three Lean proof mutants and15 independent kernel challenges replayed by root. Conditional suffix/storage/metadata and standalone preservation-decision correspondence; native metadata not directly observed.",
           "discovery": "Independent source review raised a serialization lead; terminal-span Lean witness shows newline deletion; root browser reproduction demonstrates invalid animation-name becoming an identifier.",
-          "limits": "No release probe or isolated standalone build. Independent native review checks four extracted source variants across 73 cases each. Integrated and standalone preservation decisions correspond under maximal whitespace token premises; full stored output equality is not claimed. The HEAD package base includes fix83; upstream package excludes fixes83\u201385.",
+          "limits": "No release probe or isolated standalone build. Independent native review checks four extracted source variants across 73 cases each. Integrated and standalone preservation decisions correspond under maximal whitespace token premises; full stored output equality is not claimed. The HEAD package base includes fix83; upstream package excludes fixes83–85.",
           "independent_review": "artifacts/css-variable-backslash-newline-review-v1/REPORT.md",
           "formal_review": "artifacts/css-variable-backslash-newline-proof-review-v1/REPORT.md",
           "standalone": {
@@ -2604,7 +2604,7 @@
     },
     {
       "group": "Text and fonts",
-      "committed": 14,
+      "committed": 15,
       "accepted_pending": 0,
       "examples": "Font matching/lifecycle, Unicode, shaping and hyphenation",
       "fixes": [
@@ -2951,12 +2951,89 @@
             "Shared experimental checkout; no clean-upstream browser build claim.",
             "Three existing regression expected failures remain unchanged.",
             "Raw index bytes may refresh under exact semantic and flags guards; cause is not established.",
-            "Adjacent counter append hypothesis is unrun and not included in this fix."
+            "Adjacent counter append invalidation is tracked separately as fix 136."
           ]
+        },
+        {
+          "fix": 136,
+          "repair": "contained-counter-append-invalidation",
+          "status": "COMMITTED_NATIVE_WPT",
+          "group": "Text and fonts",
+          "native_commit": "37bc9b06f034c191be50aa4949b072bbf7d5a64e",
+          "research_commit": "7cc4b9b3f524117870d19fff665843fc876d495d",
+          "native_paths": [
+            "layout/base/nsCounterManager.cpp",
+            "layout/base/nsCounterManager.h",
+            "testing/web-platform/tests/css/css-contain/counter-scoping-append-invalidation.html"
+          ],
+          "patch": {
+            "path": "artifacts/css-counter-scope-append-repair-proposal-v1/native-wpt.patch",
+            "sha256": "e74d02a949310fd5f5bc434294b1167d8eac2dd541096431d48282aa6c069866"
+          },
+          "phase_order": [
+            "original-initial",
+            "candidate-first",
+            "original-restored",
+            "candidate-final"
+          ],
+          "phase_counts": [
+            [
+              12,
+              12
+            ],
+            [
+              24,
+              0
+            ],
+            [
+              12,
+              12
+            ],
+            [
+              24,
+              0
+            ]
+          ],
+          "landing_cases": 24,
+          "terminal_review": {
+            "path": "artifacts/css-counter-scope-append-phase-review-v2/terminal/CHECK.json",
+            "sha256": "200b7914b3ac763f6d66ef94a5084082a946440d5f05e62ad6253ce189bb257f"
+          },
+          "commit_verification": {
+            "path": "artifacts/css-local-signing-20261027-v7/counter-fix-receipt.json",
+            "sha256": "c0eb8033c63fbf98e22ad4567a2483624d3ea874d82c6500a1a2ef412aa5fc9c"
+          },
+          "reviewer_group": "#layout-reviewers",
+          "commit_subject": "No bug - Recalculate contained counters after appending a parent change. r?#layout-reviewers",
+          "triage": "Tentative P3 visual correctness; no demonstrated security or measured performance impact.",
+          "discovery": "Source audit and controlled browser reproduction; not a proof-discovered bug.",
+          "formal_attribution": "Separate Lean delivery model passed 14 declaration audits, 12 examples and five decisive negative controls. Name-selective delivery correctness assumes coherent old caches, unchanged clean recipes and clean-name tables. Native scope selection, normalized worklist alignment, lifecycle/delivery, pointer ownership and machine arithmetic remain correspondence premises; no universal native refinement or new canonical coverage credit.",
+          "limits": [
+            "Shared experimental checkout; no clean-upstream browser build claim.",
+            "Ordinary small explicit counter changes only; the new WPT does not exhaust reversed counters, arbitrary counters() stacks, dynamic reparenting or overflow.",
+            "Conservative recalculation for any child containment scopes; no performance bound or measured performance claim.",
+            "Raw index bytes may refresh under exact semantic and flags guards; cause is not established."
+          ],
+          "comparison_runtime": "artifacts/css-counter-scope-append-comparison-execution-v1",
+          "candidate_source_installed": true,
+          "browser_binary_contains_fix": true,
+          "signature_verified": true,
+          "companion_commit": "7cc4b9b3f524117870d19fff665843fc876d495d",
+          "observed_repairs": 12,
+          "unchanged_landing_controls": 12,
+          "existing_regressions": {
+            "counter_end_only_PASS": 8,
+            "quote_subtests_PASS": 64,
+            "exact_all_phases": true
+          },
+          "acceptance": {
+            "path": "artifacts/css-counter-scope-append-acceptance-v1/ACCEPTANCE.json",
+            "sha256": "2348d27407e3629afd82d0aa2f46c50ca850d83d676ef2a83ddc348c2c14f865"
+          }
         }
       ],
       "held": 0,
-      "total": 14
+      "total": 15
     },
     {
       "group": "Layout, sizing and positioning",
@@ -4679,8 +4756,8 @@
     }
   ],
   "held": 1,
-  "tracked": 135,
-  "accepted": 134,
+  "tracked": 136,
+  "accepted": 135,
   "source_ledger": "artifacts/stylo-bloom-tools/CURRENT-COMMITS.json",
   "formal_library_checkpoint": {
     "status": "STEPS_ORIGIN_LIBRARY_FULL_CHECK_PASS",

@@ -1,6 +1,6 @@
 {
   "branch": "stylo-bloom-verification-2",
-  "committed_native_fixes": 134,
+  "committed_native_fixes": 135,
   "accepted_pending_native_fixes": 1,
   "previous_committed_fixes": 16,
   "new_queue": [
@@ -925,7 +925,7 @@
         "signatures_present": true,
         "isolated_base_build_browser": "NOT_RUN"
       },
-      "performance": "Isolated body benchmark retains about 0.3\u20130.85ns/token normal-path overhead; browser impact unmeasured."
+      "performance": "Isolated body benchmark retains about 0.3–0.85ns/token normal-path overhead; browser impact unmeasured."
     },
     {
       "repair": "quoted-eof-fallback-endpoints",
@@ -1659,7 +1659,7 @@
       "runtime_scope": "Final 30-case WPT passes; corresponding unchanged baseline subset has 16 FAIL / 14 PASS. The earlier 32-case candidate matrix had 467 checks and 24 OK harnesses, with all 435 prior status/message pairs unchanged including two expected failures. Two unrelated escaped-whitespace controls were removed for standalone applicability. Final scoped WPT lint passes.",
       "formal_scope": "Root and independent scoped acceptance:53 audits, nine modules,24 source bindings,56 fresh tokenizer cases,224 comparisons to historical native constructor outputs, three Lean proof mutants and15 independent kernel challenges replayed by root. Conditional suffix/storage/metadata and standalone preservation-decision correspondence; native metadata not directly observed.",
       "discovery": "Independent source review raised a serialization lead; terminal-span Lean witness shows newline deletion; root browser reproduction demonstrates invalid animation-name becoming an identifier.",
-      "limits": "No release probe or isolated standalone build. Independent native review checks four extracted source variants across 73 cases each. Integrated and standalone preservation decisions correspond under maximal whitespace token premises; full stored output equality is not claimed. The HEAD package base includes fix83; upstream package excludes fixes83\u201385.",
+      "limits": "No release probe or isolated standalone build. Independent native review checks four extracted source variants across 73 cases each. Integrated and standalone preservation decisions correspond under maximal whitespace token premises; full stored output equality is not claimed. The HEAD package base includes fix83; upstream package excludes fixes83–85.",
       "independent_review": "artifacts/css-variable-backslash-newline-review-v1/REPORT.md",
       "formal_review": "artifacts/css-variable-backslash-newline-proof-review-v1/REPORT.md",
       "standalone": {
@@ -4521,8 +4521,85 @@
         "Shared experimental checkout; no clean-upstream browser build claim.",
         "Three existing regression expected failures remain unchanged.",
         "Raw index bytes may refresh under exact semantic and flags guards; cause is not established.",
-        "Adjacent counter append hypothesis is unrun and not included in this fix."
+        "Adjacent counter append invalidation is tracked separately as fix 136."
       ]
+    },
+    {
+      "fix": 136,
+      "repair": "contained-counter-append-invalidation",
+      "status": "COMMITTED_NATIVE_WPT",
+      "group": "Text and fonts",
+      "native_commit": "37bc9b06f034c191be50aa4949b072bbf7d5a64e",
+      "research_commit": "7cc4b9b3f524117870d19fff665843fc876d495d",
+      "native_paths": [
+        "layout/base/nsCounterManager.cpp",
+        "layout/base/nsCounterManager.h",
+        "testing/web-platform/tests/css/css-contain/counter-scoping-append-invalidation.html"
+      ],
+      "patch": {
+        "path": "artifacts/css-counter-scope-append-repair-proposal-v1/native-wpt.patch",
+        "sha256": "e74d02a949310fd5f5bc434294b1167d8eac2dd541096431d48282aa6c069866"
+      },
+      "phase_order": [
+        "original-initial",
+        "candidate-first",
+        "original-restored",
+        "candidate-final"
+      ],
+      "phase_counts": [
+        [
+          12,
+          12
+        ],
+        [
+          24,
+          0
+        ],
+        [
+          12,
+          12
+        ],
+        [
+          24,
+          0
+        ]
+      ],
+      "landing_cases": 24,
+      "terminal_review": {
+        "path": "artifacts/css-counter-scope-append-phase-review-v2/terminal/CHECK.json",
+        "sha256": "200b7914b3ac763f6d66ef94a5084082a946440d5f05e62ad6253ce189bb257f"
+      },
+      "commit_verification": {
+        "path": "artifacts/css-local-signing-20261027-v7/counter-fix-receipt.json",
+        "sha256": "c0eb8033c63fbf98e22ad4567a2483624d3ea874d82c6500a1a2ef412aa5fc9c"
+      },
+      "reviewer_group": "#layout-reviewers",
+      "commit_subject": "No bug - Recalculate contained counters after appending a parent change. r?#layout-reviewers",
+      "triage": "Tentative P3 visual correctness; no demonstrated security or measured performance impact.",
+      "discovery": "Source audit and controlled browser reproduction; not a proof-discovered bug.",
+      "formal_attribution": "Separate Lean delivery model passed 14 declaration audits, 12 examples and five decisive negative controls. Name-selective delivery correctness assumes coherent old caches, unchanged clean recipes and clean-name tables. Native scope selection, normalized worklist alignment, lifecycle/delivery, pointer ownership and machine arithmetic remain correspondence premises; no universal native refinement or new canonical coverage credit.",
+      "limits": [
+        "Shared experimental checkout; no clean-upstream browser build claim.",
+        "Ordinary small explicit counter changes only; the new WPT does not exhaust reversed counters, arbitrary counters() stacks, dynamic reparenting or overflow.",
+        "Conservative recalculation for any child containment scopes; no performance bound or measured performance claim.",
+        "Raw index bytes may refresh under exact semantic and flags guards; cause is not established."
+      ],
+      "comparison_runtime": "artifacts/css-counter-scope-append-comparison-execution-v1",
+      "candidate_source_installed": true,
+      "browser_binary_contains_fix": true,
+      "signature_verified": true,
+      "companion_commit": "7cc4b9b3f524117870d19fff665843fc876d495d",
+      "observed_repairs": 12,
+      "unchanged_landing_controls": 12,
+      "existing_regressions": {
+        "counter_end_only_PASS": 8,
+        "quote_subtests_PASS": 64,
+        "exact_all_phases": true
+      },
+      "acceptance": {
+        "path": "artifacts/css-counter-scope-append-acceptance-v1/ACCEPTANCE.json",
+        "sha256": "2348d27407e3629afd82d0aa2f46c50ca850d83d676ef2a83ddc348c2c14f865"
+      }
     }
   ],
   "verification": "Each committed native delta is the accepted patch, checked against its actual parent. Companions preserve the recorded scope and replay prerequisites. No new browser or full-build claims are made by committing.",
@@ -4638,7 +4715,7 @@
         "files_sha256": "687bbace0f9c5df7f539dd4cf9d2a531d500bfec35a25a45e35716c89a47de97",
         "freeze_sha256": "2b86453529ea358a046551cf79c8afa2b943fa58136e6d2491fc399e7a3b3bab",
         "status": "PREDICTED_TABLE_PLACEMENT_EXCEPTION_NOT_REPRODUCED",
-        "runtime": "32pairedrows;all100x80clientcalibrationspass.8release reverse-safe outsideorigin rows becomeinside insharedrepaired build;24controlsidentical. Tableactual160sizealreadypositionedat\u221260/end100despitebasis120.",
+        "runtime": "32pairedrows;all100x80clientcalibrationspass.8release reverse-safe outsideorigin rows becomeinside insharedrepaired build;24controlsidentical. Tableactual160sizealreadypositionedat−60/end100despitebasis120.",
         "next": "Trace measuring/finalmain-size source instead of asserting universal requested-to-actual equality."
       },
       "actual_provider_roundtrip_probe": {
@@ -7706,7 +7783,7 @@
         "preserved": true,
         "native_changes": false
       },
-      "conclusion": "Both offsetLeft/offsetTop return \u00b18388610 for calibrated exact geometry \u00b18388609; four failures reproduce and all16 margin-reset controls recover. Native helper separately confirms arithmetic for supplied app-unit inputs.",
+      "conclusion": "Both offsetLeft/offsetTop return ±8388610 for calibrated exact geometry ±8388609; four failures reproduce and all16 margin-reset controls recover. Native helper separately confirms arithmetic for supplied app-unit inputs.",
       "scope": "Shared working build, not clean upstream/release comparison; browser native input unlogged; fractional rounding policy unchanged.",
       "next": "Finish preceding-evidence/native commit recipes for signing; investigate separately reproduced client precision loss with its distinct tie rule.",
       "independent_browser_review": {
@@ -8127,7 +8204,7 @@
       "stable": 8,
       "matched": 6,
       "mismatched": 2,
-      "observation": "Hidden viewBox-dependent getCTM/getScreenCTM retain scale1 after host100\u2192200px. Matrices observed after the twin/host/style/getBBox sequence match scale2; later layout/reveal and reset checks also match. Visible/no-viewBox controls pass.",
+      "observation": "Hidden viewBox-dependent getCTM/getScreenCTM retain scale1 after host100→200px. Matrices observed after the twin/host/style/getBBox sequence match scale2; later layout/reveal and reset checks also match. Visible/no-viewBox controls pass.",
       "native_changes": false,
       "preserved": true,
       "new_accepted_fixes": 0,
@@ -8264,7 +8341,7 @@
       },
       "source_count": 50,
       "pin_count": 369,
-      "observation": "Both scalar/list conversions retain stale source/destination percentage bases after visible200\u2192400px resize; stored error persists after layout. Getter/reference/reset controls pass.",
+      "observation": "Both scalar/list conversions retain stale source/destination percentage bases after visible200→400px resize; stored error persists after layout. Getter/reference/reset controls pass.",
       "result_review": {
         "directory": "artifacts/css-svg-length-readiness-results-review-v1",
         "files_sha256": "79605045bc7b00cd2ee5b823b18c8d1bc4a21d74f7af52d06b17875a3366c3e0"
@@ -9351,7 +9428,7 @@
         "candidate_mismatches": 0,
         "independent_review": "artifacts/css-color-remaining-set-native-bridge-review-v1",
         "review_files_sha256": "37d639f0b73bb385533a57dce24f99eef70550885aaa2cbac7fe92c974516f46",
-        "scope": "Exact extracted helper bodies with a small flag/type facade and supplied conversion flags; source15\u00d7target15\u00d7source mask16\u00d7destination color mask8\u00d7legacy2. Alpha uses caller premise; no parser/float/full pipeline/browser proof."
+        "scope": "Exact extracted helper bodies with a small flag/type facade and supplied conversion flags; source15×target15×source mask16×destination color mask8×legacy2. Alpha uses caller premise; no parser/float/full pipeline/browser proof."
       },
       "discovery": "Reviewed Lean remaining-set relation guided source audit and ordinary WPT cases; exhaustive helper comparison subsequently establishes finite discrepancies. Existing WPT expected failures predate this investigation; no novelty claim.",
       "next": "Shared baseline comparison with independent bare-keyword repair and their composition, after counter restoration/acceptance."
@@ -12316,12 +12393,12 @@
   },
   "latest_signing": {
     "status": "SIGNED_VERIFIED_LOCAL",
-    "fix": 135,
-    "native_commit": "0d27cb839f013f214973215cd0a8ce8a87c4b780",
-    "research_commit": "d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4",
+    "fix": 136,
+    "native_commit": "37bc9b06f034c191be50aa4949b072bbf7d5a64e",
+    "research_commit": "7cc4b9b3f524117870d19fff665843fc876d495d",
     "verification": {
-      "path": "artifacts/css-local-signing-20261027-v6/QUOTE-COMMITS.json",
-      "sha256": "d5de2f15518646537e6a86ba6606a0eef44cb2472f71cab6e1fb8d4d966615cc"
+      "path": "artifacts/css-local-signing-20261027-v7/counter-fix-receipt.json",
+      "sha256": "c0eb8033c63fbf98e22ad4567a2483624d3ea874d82c6500a1a2ef412aa5fc9c"
     }
   },
   "previous_signing": {
@@ -12338,24 +12415,21 @@
   "latest_research_signing": {
     "status": "SIGNED_VERIFIED_LOCAL",
     "commits": {
+      "animation-completion": "4a676d16c4c2e33f40603a9ca8b9bfd6af786359",
+      "animation-demand": "b55d38f3d26877a3fcac475208837cc806fcb6a3",
+      "counter-research": "b70f5b951d84dd9083665f8ca7b61f4a47429db6",
+      "fallback-version-trace": "2e11730a51ae96154938764c73559de817a7948a",
+      "typed-attribute-demand": "401c688f4a1cabdfee37899090609718a4372287",
+      "counter-validation": "7cc4b9b3f524117870d19fff665843fc876d495d"
+    }
+  },
+  "previous_research_signing": {
+    "status": "SIGNED_VERIFIED_LOCAL",
+    "commits": {
       "animation-research": "54d577935aef6e99d4074716475ca32cfde55abd",
       "followup-research": "788a0fc1ed630512a8553aa1e0c8baa70d26f760",
       "quote-research": "d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4"
     }
-  },
-  "previous_research_signing": {
-    "status": "COMMITTED_SIGNED",
-    "commits": [
-      "2f1085d3c8ee068bb012a906b664b5e7a7450d05",
-      "1690a8cd5886ff68209dd3ea1dcbe97b9784d264",
-      "49862ae74751926b2c3600fe6cf1625e5b31c691"
-    ],
-    "files": [
-      65,
-      48,
-      146
-    ],
-    "verification": "artifacts/css-pending-117-119-signing-execution-v1"
   },
   "latest_research_signing_attempt": {
     "status": "CURRENT_EQUIVALENTS_AFTER_VERIFIED_HISTORY_REWRITE",
@@ -12835,12 +12909,13 @@
     }
   ],
   "latest_verified_working_epoch": {
-    "path": "artifacts/css-local-signing-20261027-v6/CURRENT-EPOCH.json",
-    "status": "Restored quote candidate and signed source; full source/binary/nested preservation verified after each successful commit",
+    "path": "artifacts/css-local-signing-20261027-v7/CURRENT-EPOCH.json",
+    "status": "Final counter candidate and signed sources; full source/binary/nested preservation verified during local signing",
     "browser_binary_contains_fixes": [
       133,
       134,
-      135
+      135,
+      136
     ]
   },
   "local_integration_history": [
@@ -23267,6 +23342,15 @@
         133,
         134
       ]
+    },
+    {
+      "path": "artifacts/css-local-signing-20261027-v6/CURRENT-EPOCH.json",
+      "status": "Restored quote candidate and signed source; full source/binary/nested preservation verified after each successful commit",
+      "browser_binary_contains_fixes": [
+        133,
+        134,
+        135
+      ]
     }
   ],
   "active_native_experiment": {
@@ -26968,7 +27052,7 @@
     "sequential_recipes_passed": 11,
     "packaging_changes_required": false
   },
-  "signing_next_action": "Integrate winning pending animation providers through the real cascade and dependency scheduler; preserve explicit current-base, cycle-policy, dependency-publication and memory-reporting obligations.",
+  "signing_next_action": "Compile and validate the typed-attribute demand proposal before integrating actual winning animation providers; keep new fixes standalone and local.",
   "next_prepared_diagnostic": {
     "status": "ROOT_VERIFIED_REVIEWED",
     "planned_cases": 162,
@@ -27339,7 +27423,7 @@
         130,
         131
       ],
-      "next_work": "Prepare and sign separate research/native commits for fixes 117\u2013119 against the verified post-host epoch, then the remaining accepted fixes. Held fix 120 is excluded."
+      "next_work": "Prepare and sign separate research/native commits for fixes 117–119 against the verified post-host epoch, then the remaining accepted fixes. Held fix 120 is excluded."
     },
     {
       "status": "FIXES117_119_COMMITTED",
@@ -27477,6 +27561,20 @@
           "sha256": "8159facb6311b5824df52752fb96748aab475e265ce6791843f39aff2179e445"
         }
       }
+    },
+    {
+      "status": "COMMITTED_SIGNED",
+      "commits": [
+        "2f1085d3c8ee068bb012a906b664b5e7a7450d05",
+        "1690a8cd5886ff68209dd3ea1dcbe97b9784d264",
+        "49862ae74751926b2c3600fe6cf1625e5b31c691"
+      ],
+      "files": [
+        65,
+        48,
+        146
+      ],
+      "verification": "artifacts/css-pending-117-119-signing-execution-v1"
     }
   ],
   "latest_test_only_signing": {
@@ -27741,6 +27839,27 @@
           "sha256": "8159facb6311b5824df52752fb96748aab475e265ce6791843f39aff2179e445"
         }
       }
+    },
+    {
+      "status": "SIGNED_VERIFIED_LOCAL",
+      "fix": 135,
+      "native_commit": "0d27cb839f013f214973215cd0a8ce8a87c4b780",
+      "research_commit": "d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4",
+      "verification": {
+        "path": "artifacts/css-local-signing-20261027-v6/QUOTE-COMMITS.json",
+        "sha256": "d5de2f15518646537e6a86ba6606a0eef44cb2472f71cab6e1fb8d4d966615cc"
+      }
     }
-  ]
+  ],
+  "latest_counter_fix": {
+    "fix": 136,
+    "acceptance": {
+      "path": "artifacts/css-counter-scope-append-acceptance-v1/ACCEPTANCE.json",
+      "sha256": "2348d27407e3629afd82d0aa2f46c50ca850d83d676ef2a83ddc348c2c14f865"
+    },
+    "commit_verification": {
+      "path": "artifacts/css-local-signing-20261027-v7/counter-fix-receipt.json",
+      "sha256": "c0eb8033c63fbf98e22ad4567a2483624d3ea874d82c6500a1a2ef412aa5fc9c"
+    }
+  }
 }

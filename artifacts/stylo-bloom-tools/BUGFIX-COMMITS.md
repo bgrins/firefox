@@ -1,16 +1,21 @@
 # CSS verification bugfix commits
 
-Fix 135, contained quote append invalidation, is committed as `0d27cb839f013f214973215cd0a8ce8a87c4b780` after research `d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4`. The candidate/original/candidate comparison gives 64 PASS / 52 PASS + 12 FAIL / 64 PASS, with all 18 existing regressions unchanged (15 PASS and three expected FAIL). Tentative P3 visual correctness. Discovery came from source audit and browser reproduction; conditional Lean models corroborate scope/dependency laws, not universal native correctness. No clean-upstream build, security or measured performance claim. The adjacent counter hypothesis remains unrun and uncounted.
+Fix 136, contained counter append invalidation, is committed as `37bc9b06f034c191be50aa4949b072bbf7d5a64e` after research `7cc4b9b3f524117870d19fff665843fc876d495d`. The original/candidate/original/candidate comparison gives 12 PASS + 12 FAIL / 24 PASS / 12 PASS + 12 FAIL / 24 PASS. All 64 quote subtests and eight existing counter regressions remain passing. Three builds and WPT lint pass. Tentative P3 visual correctness. Source audit and browser reproduction found the issue; the separate Lean model corroborates conditional delivery laws (14 audits, 12 examples, five rejected false claims). No clean-upstream build, security, measured performance or universal native-refinement claim. The original outer tool handle was lost; archived child exits and a fresh final-state verification supply the completion evidence.
+
+The signed animation research now includes owned provider completion, demand-aware endpoint substitution and typed-attribute/context demands with 22 proposed real-resolver calls. Native integration remains unfinished and the new proposal code is not compiled or enabled. The versioned fallback-cycle trace confirms ordinary Stylo already skips unused fallback edges. The canonical Lean coverage counts are unchanged.
+
+Fix 135, contained quote append invalidation, is committed as `0d27cb839f013f214973215cd0a8ce8a87c4b780` after research `d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4`. The candidate/original/candidate comparison gives 64 PASS / 52 PASS + 12 FAIL / 64 PASS, with all 18 existing regressions unchanged (15 PASS and three expected FAIL). Tentative P3 visual correctness. Discovery came from source audit and browser reproduction; conditional Lean models corroborate scope/dependency laws, not universal native correctness. No clean-upstream build, security or measured performance claim. The adjacent counter append issue is tracked separately as fix 136.
 
 
-Fix 121 now includes its validated one-block expectation correction. The signed history rewrite preserves the final tree; current commit IDs below come from the [new rewrite receipt](../../artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json). Historical signing receipts retain their original IDs. All 134 accepted fixes remain committed; held repair 120 stays excluded.
+Fix 121 now includes its validated one-block expectation correction. The signed history rewrite preserves the final tree; current commit IDs below come from the [new rewrite receipt](../../artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json). Historical signing receipts retain their original IDs. All 135 accepted fixes remain committed; held repair 120 stays excluded.
 
 The callable current-provider resolver passed the normal and GTest builds and all 19 native tests; normal pending recipe production remains disabled. The 113-case metadata comparison preserved all 110 PASS and three expected FAIL observations, changing only the fix 121 expectation. The canonical library is signed at `162b20fb7c53a0ab89b20875a965baee98fb66bb` and its full check passes 11,840 audits, 12,438 cases, 173 expected-false cases and 2,155 source fingerprints. Ten audits transfer from reviewed steps research, with no new discovery, normative coverage or native-refinement credit.
 
-Next: Integrate winning pending animation providers through the real cascade and dependency scheduler; preserve explicit current-base, cycle-policy, dependency-publication and memory-reporting obligations.
+Next: Compile the typed-attribute demand proposal and execute its 22 real-resolver calls plus existing native tests, then integrate winning pending animation providers through the real cascade and dependency scheduler. Preserve current-base, cycle-policy, dependency-publication and memory-reporting obligations.
 
 | Fix | Native/WPT commit | Preceding evidence |
 |---|---|---|
+| 136: Contained counter append | `37bc9b06f034c191be50aa4949b072bbf7d5a64e` | `7cc4b9b3f524117870d19fff665843fc876d495d` |
 | 135: Contained quote append | `0d27cb839f013f214973215cd0a8ce8a87c4b780` | `d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4` |
 | 134: calculated cubic-bezier x range | `70cc9c30ef4420d8dba76ce3e5aab10504339ceb` | `906c05d72653ecf46a591b197a06bc973a8accc3` |
 | 133: calculated jump-none minimum | `e414c8f7cfcd64ccca1a944b5f8e901ec3db2feb` | `be4240e9d1ccab6395139ba975e1a13aeb9f8762` |
@@ -18,7 +23,7 @@ Next: Integrate winning pending animation providers through the real cascade and
 Twenty observed failures repaired; 22 targets pass, 55 controls unchanged, all 77 restored outcomes exact. Tentative P3 conformance. Source/spec audit and browser reproduction found this issue; the separate Lean model supports conditional laws. No full bug 2037743, clean-upstream browser or security claim. Earlier checkpoint text below is historical.
 
 
-**134 accepted fixes: 134 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
+**135 accepted fixes: 135 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
 
 | Area | Committed | Accepted, pending |
 |---|---:|---:|
@@ -27,12 +32,12 @@ Twenty observed failures repaired; 22 targets pass, 55 controls unchanged, all 7
 | Parsing, tokens and CSS math | 26 | 0 |
 | Attributes and custom properties | 16 | 0 |
 | Animations, timelines and transitions | 16 | 0 |
-| Text and fonts | 14 | 0 |
+| Text and fonts | 15 | 0 |
 | Layout, sizing and positioning | 22 | 0 |
 | Container queries | 3 | 0 |
 | Colors, images, SVG and shapes | 8 | 0 |
 | CSSOM geometry and hidden layout | 13 | 0 |
-| **Total** | **134** | **0** |
+| **Total** | **135** | **0** |
 
 | Fix | Gecko/WPT commit | Preceding research |
 |---|---|---|
