@@ -1,0 +1,20 @@
+Examples.lean:34:10: error: unexpected token '⟨'; expected '}'
+Examples.lean:34:27: error: unexpected token; expected '(', '[', '{' or '⦃'
+Examples.lean:104:77: error: Tactic `decide` failed to reduce
+  @decide
+    ((property { } validPrimitive 64 0).outcome = Outcome.value [Token.number 5] ∧
+      (property { } validPrimitive 64 0).state.guardTrace = [Key.property 0])
+    instDecidableAnd
+to `true` or `false`.
+
+Reduction got stuck at
+  match (property { } validPrimitive 64 0).outcome, Outcome.value [Token.number 5] with
+  | Outcome.value a, Outcome.value b => if h : a = b then h ▸ isTrue ⋯ else isFalse ⋯
+  | Outcome.value tokens, Outcome.invalid => isFalse ⋯
+  | Outcome.value tokens, Outcome.exhausted => isFalse ⋯
+  | Outcome.invalid, Outcome.value tokens => isFalse ⋯
+  | Outcome.invalid, Outcome.invalid => isTrue ⋯
+  | Outcome.invalid, Outcome.exhausted => isFalse instDecidableEqOutcome.decEq._proof_6
+  | Outcome.exhausted, Outcome.value tokens => isFalse ⋯
+  | Outcome.exhausted, Outcome.invalid => isFalse instDecidableEqOutcome.decEq._proof_8
+  | Outcome.exhausted, Outcome.exhausted => isTrue ⋯
