@@ -1,0 +1,22 @@
+import Examples
+
+#print axioms RegisteredNumber.admit_sound
+#print axioms RegisteredNumber.admit_complete
+#print axioms RegisteredNumber.rejected_has_no_schedule
+#print axioms RegisteredNumber.admitted_schedule_exact
+#print axioms RegisteredNumber.ready_requires_admission
+#print axioms RegisteredNumber.ready_excludes_fallback
+#print axioms RegisteredNumber.fallback_replacement_invariant
+#print axioms RegisteredNumber.invalid_uses_fallback
+#print axioms RegisteredNumber.pending_is_not_invalid
+#print axioms RegisteredNumber.wrong_type_ready_does_not_retry
+#print axioms RegisteredNumber.selection_refinement
+#print axioms RegisteredNumber.bare_length_rejected
+#print axioms RegisteredNumber.length_ratio_admitted
+#print axioms RegisteredNumber.relative_ratio_requires_font
+#print axioms RegisteredNumber.selected_invalid_length_no_context
+#print axioms RegisteredNumber.no_font_leaves_is_context_independent
+#print axioms RegisteredNumber.numeric_ratio_uses_current_font
+#print axioms RegisteredNumber.scheduling_independent_of_cycle_policy
+#print axioms RegisteredNumber.seed_false_edge_general
+#print axioms RegisteredNumber.visitor_false_edge_general

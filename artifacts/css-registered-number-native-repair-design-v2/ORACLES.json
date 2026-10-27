@@ -1,0 +1,161 @@
+{
+  "registration": {
+    "name": "--n",
+    "syntax": "<number>",
+    "inherits": false,
+    "initial-value": "3"
+  },
+  "base": {
+    "parent_font_size": "19px",
+    "consumer_font_size": "calc(var(--n) * 1px)",
+    "non_root": true,
+    "unregistered_providers": [
+      "--ready",
+      "--math"
+    ],
+    "no_competing_rules_or_animations": true,
+    "runtime_execution": false
+  },
+  "assertion_cases": [
+    {
+      "id": "literal-number",
+      "declarations": {
+        "--n": "5"
+      },
+      "expected": {
+        "--n": "5",
+        "font-size": "5px"
+      },
+      "status": "unexecuted_assertion_oracle"
+    },
+    {
+      "id": "direct-invalid-length",
+      "declarations": {
+        "--n": "1em"
+      },
+      "expected": {
+        "--n": "3",
+        "font-size": "3px"
+      },
+      "status": "unexecuted_assertion_oracle"
+    },
+    {
+      "id": "valid-primary-unused-length",
+      "declarations": {
+        "--ready": "5",
+        "--n": "var(--ready, 1em)"
+      },
+      "expected": {
+        "--n": "5",
+        "font-size": "5px"
+      },
+      "status": "unexecuted_assertion_oracle"
+    },
+    {
+      "id": "used-invalid-length-fallback",
+      "declarations": {
+        "--n": "var(--missing, 1em)"
+      },
+      "expected": {
+        "--n": "3",
+        "font-size": "3px"
+      },
+      "status": "unexecuted_assertion_oracle"
+    },
+    {
+      "id": "wrong-type-ready-primary",
+      "declarations": {
+        "--ready": "red",
+        "--n": "var(--ready, 1em)"
+      },
+      "expected": {
+        "--n": "3",
+        "font-size": "3px"
+      },
+      "status": "unexecuted_assertion_oracle"
+    },
+    {
+      "id": "noncyclic-numeric-length-division",
+      "declarations": {
+        "--n": "calc(1em / 1px)",
+        "font-size": "20px",
+        "width": "calc(var(--n) * 1px)"
+      },
+      "expected": {
+        "--n": "20",
+        "font-size": "20px",
+        "width": "20px"
+      },
+      "mutation": {
+        "set": {
+          "font-size": "30px"
+        },
+        "expected": {
+          "--n": "30",
+          "font-size": "30px",
+          "width": "30px"
+        }
+      },
+      "status": "unexecuted_assertion_oracle"
+    },
+    {
+      "id": "provider-introduced-numeric-length-division",
+      "declarations": {
+        "--math": "calc(1em / 1px)",
+        "--n": "var(--math)",
+        "font-size": "20px",
+        "width": "calc(var(--n) * 1px)"
+      },
+      "expected": {
+        "--n": "20",
+        "font-size": "20px",
+        "width": "20px"
+      },
+      "mutation": {
+        "set": {
+          "font-size": "30px"
+        },
+        "expected": {
+          "--n": "30",
+          "font-size": "30px",
+          "width": "30px"
+        }
+      },
+      "status": "unexecuted_assertion_oracle"
+    },
+    {
+      "id": "unused-valid-numeric-math-fallback",
+      "declarations": {
+        "--ready": "5",
+        "--n": "var(--ready, calc(1em / 1px))"
+      },
+      "expected": {
+        "--n": "5",
+        "font-size": "5px"
+      },
+      "status": "unexecuted_assertion_oracle"
+    }
+  ],
+  "observation_only_cases": [
+    {
+      "id": "self-font-numeric-length-division",
+      "declarations": {
+        "--n": "calc(1em / 1px)",
+        "font-size": "calc(var(--n) * 1px)",
+        "width": "calc(var(--n) * 1px)"
+      },
+      "expected": null,
+      "status": "unexecuted_observation_only_spec_integration_gap",
+      "record": [
+        "computed --n",
+        "computed font-size",
+        "computed width",
+        "both declaration orders",
+        "query custom property first versus font-size first"
+      ],
+      "not_an_oracle": "Do not assert 3px,19px,0px or a retained calc expression as normatively required without resolving the gap."
+    }
+  ],
+  "retain_existing_14_cases": true,
+  "no_new_WPT_files_written": true
+}
