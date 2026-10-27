@@ -181,7 +181,8 @@ class DOMSVGLength final : public nsWrapperCache {
    * Some values have units that depend on style or layout so we may need to
    * flush to ensure we get or set the right value in pixels.
    */
-  void FlushIfNeeded();
+  void FlushIfNeeded(
+      uint16_t aTargetUnit = SVGLength_Binding::SVG_LENGTHTYPE_UNKNOWN);
 
 #ifdef DEBUG
   bool IndexIsValid();

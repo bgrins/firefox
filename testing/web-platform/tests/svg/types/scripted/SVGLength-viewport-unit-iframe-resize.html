@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SVG length viewport units after an iframe resize</title>
+<link rel="help" href="https://svgwg.org/svg2-draft/types.html#__svg__SVGLength__value">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#viewport-relative-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const units = [["vw", 20, 40], ["vh", 10, 30], ["vmin", 10, 30],
+               ["vmax", 20, 40], ["px", 10, 10]];
+for (const [unit, initial, expected] of units) {
+  for (const operation of ["get", "convert"]) {
+    promise_test(async t => {
+      const frame = document.createElement("iframe");
+      frame.style.cssText = "position:fixed;left:0;top:0;width:200px;height:100px;border:0";
+      t.add_cleanup(() => frame.remove());
+      const loaded = new Promise(resolve => { frame.onload = resolve; });
+      frame.srcdoc = `<!doctype html><style>html,body{margin:0;overflow:hidden}</style>
+        <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+          <text id="target" x="10${unit}">x</text></svg>`;
+      document.body.append(frame);
+      await loaded;
+      const doc = frame.contentDocument;
+      const target = doc.getElementById("target");
+      const beforeRect = frame.getBoundingClientRect();
+      const beforeViewport = [doc.documentElement.clientWidth, doc.documentElement.clientHeight];
+      const length = target.x.baseVal.getItem(0);
+      const source = length.valueAsString;
+      const before = length.value;
+      frame.style.width = "400px";
+      frame.style.height = "300px";
+      if (operation === "convert") {
+        length.convertToSpecifiedUnits(SVGLength.SVG_LENGTHTYPE_PX);
+      }
+      const first = operation === "convert" ? length.valueInSpecifiedUnits : length.value;
+      const repeat = operation === "convert" ? length.valueInSpecifiedUnits : length.value;
+      const afterRect = frame.getBoundingClientRect();
+      const afterViewport = [doc.documentElement.clientWidth, doc.documentElement.clientHeight];
+      const afterFlush = length.value;
+      const finalUnit = length.unitType;
+      target.setAttribute("x", `10${unit}`);
+      const fresh = target.x.baseVal.getItem(0).value;
+      assert_equals(beforeRect.width, 200, "initial iframe width");
+      assert_equals(beforeRect.height, 100, "initial iframe height");
+      assert_array_equals(beforeViewport, [200, 100], "initial child viewport");
+      assert_equals(source, `10${unit}`, "parsed source unit");
+      assert_approx_equals(before, initial, 0.001, "initial source value");
+      assert_equals(afterRect.width, 400, "resized iframe width");
+      assert_equals(afterRect.height, 300, "resized iframe height");
+      assert_array_equals(afterViewport, [400, 300], "resized child viewport");
+      assert_approx_equals(fresh, expected, 0.001, "fresh source after explicit layout");
+      if (operation === "convert") {
+        assert_equals(finalUnit, SVGLength.SVG_LENGTHTYPE_PX, "converted unit");
+      }
+      assert_approx_equals(first, expected, 0.001, "first value after iframe resize");
+      assert_equals(repeat, first, "repeat value");
+      assert_approx_equals(afterFlush, expected, 0.001, "value after explicit layout");
+    }, `${unit}: ${operation} after iframe resize`);
+  }
+}
+</script>

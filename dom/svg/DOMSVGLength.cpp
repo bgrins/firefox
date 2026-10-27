@@ -377,6 +377,11 @@ void DOMSVGLength::ConvertToSpecifiedUnits(uint16_t aUnit, ErrorResult& aRv) {
     return;
   }
 
+  // Resolve both unit bases before acquiring references used by steps 3-7.
+  if (ToSVGLength().GetUnit() != aUnit) {
+    FlushIfNeeded(aUnit);
+  }
+
   if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
     svg->GetAnimatedLength(mAttrEnum)->ConvertToSpecifiedUnits(aUnit, svg, aRv);
     return;
@@ -471,12 +476,14 @@ SVGLength& DOMSVGLength::InternalItem() {
                                            : alist->mBaseVal[mListIndex];
 }
 
-void DOMSVGLength::FlushIfNeeded() {
-  auto MaybeFlush = [](uint16_t aUnitType, SVGElement* aSVGElement) {
+void DOMSVGLength::FlushIfNeeded(uint16_t aTargetUnit) {
+  auto MaybeFlush = [aTargetUnit](uint16_t aUnitType, SVGElement* aSVGElement) {
     FlushType flushType;
-    if (SVGLength::IsPercentageUnit(aUnitType)) {
+    if (SVGLength::IsPercentageUnit(aUnitType) ||
+        SVGLength::IsPercentageUnit(aTargetUnit)) {
       flushType = FlushType::Layout;
-    } else if (SVGLength::IsFontRelativeUnit(aUnitType)) {
+    } else if (!SVGLength::IsAbsoluteUnit(aUnitType) ||
+               SVGLength::IsFontRelativeUnit(aTargetUnit)) {
       flushType = FlushType::Style;
     } else {
       return;
