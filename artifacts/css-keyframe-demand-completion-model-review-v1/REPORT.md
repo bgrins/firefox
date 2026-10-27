@@ -1,0 +1,37 @@
+# Independent review of demand-completion model
+
+GO for the stated conditional theorem scope. No Lean source correction is required. I read Demand.lean, Examples.lean, Audit.lean, the replay driver, the captured native proposal's relevant substitution paths and its report. All 31 source-capsule payloads and every external reference authenticated. I then independently reran the exact model in owned temporary scratch: session 2096, terminal 55099c, outer exit 0. Scratch and generated object files were removed.
+
+The replay compiled both modules and audited all 17 exact names. I independently counted the 16 closed examples and their 16 kernel-decision invocations. All six false claims failed with the intended single decisive kernel diagnostic; the five diagnostic-gate corruptions were also rejected. Every retained command-log digest matches. The axiom union is propext and Quot.sound; Quot.sound occurs only in settled_reached_known, settled_stable_with_trace and completion_order_independent. No added axiom, sorry or native_decide is present. This is a replay of the author's model/driver, not an independent reimplementation of its evaluator.
+
+## Useful theorem content and nonvacuity
+
+The central statement is substantive. `Refines` constrains primitive environment slots, not final evaluation results. `settled_reached_known` derives that a settled evaluation touched no pending slot, and structural `replay_reached` rebuilds evaluation branches from equality on the old reached keys. Their composition proves equality of the complete Run, including values or invalidity and the ordered trace with repetitions. It is not merely proving reflexivity or assuming equality of the two runs.
+
+The examples include actual incomplete environments: provider 1, an attribute and a prioritary key are pending. The unused-fallback expression still settles at value 20, while invalidFirst settles invalid before the pending suffix. Filling pending slots changes those inputs to value 40 yet preserves both settled runs. The taken fallback instead demands provider 1, and later completes to 40. Thus the premises distinguish live cases rather than excluding all partial environments. The pending/cache examples also distinguish an unresolved winner from its stale cached 7.
+
+`replay_reached` is stronger than global `Refines` for locality: arbitrary changes to unread keys are allowed, even completed ones. Its pending-run case needs careful reading, however. Agreement on a reached pending key requires that key to remain pending; it does **not** say that fulfilling that demand preserves the old demand result. The no-demand premise is essential to the completion theorem. The negative omitted-premise control demonstrates exactly this boundary.
+
+`completion_order_independent` compares two refinements of an already settled initial evaluation. It does not prove that starting with pending work and completing providers in different orders converges. `Complete` excludes pending at every key, and finite structural recursion then cannot demand; it does not prove that native computation can produce such a map. `fillPending` assigns arbitrary token lists rather than computing dependencies and is used only as a witness.
+
+## Native correspondence limits
+
+The captured native Var branch checks pending before map lookup and propagates Demand separately from Invalid; those mechanisms match the small-step choices represented by lookup/reference evaluation. Early return on a successful primary, fallback only after invalidity, and `?` propagation through ordered chunks support the proposed local correspondence. The source artifact itself has additional parser, context and ownership behavior which the theorem does not model.
+
+The expression and key universe are fixed for both runs. Finite normalized trees contain constant keys and do not represent recursive unresolved universal values. Expanding actual token graphs into such a tree requires a termination/cycle argument and preservation of fallback selection. Dynamic computed property names cannot be justified by treating their final name as a fixed key unless the computations selecting it are also accounted for. A changed normalization or selected key can invalidate the theorem application even when the environment satisfies its old-key condition.
+
+Tagged attribute and prioritary keys are labels, not implementations. Attribute identity omits type, target, URL base and property-conversion context; these must be fixed externally or included in a stronger model. A known attribute slot must already be a coherent completed value for the intended use. Missing map membership is not enough to prove completed invalidity, and a prioritary-ready flag is not proof that conversion context is current. Environment lookups here perform no parsing, registration defaulting, CSS-wide handling or unit conversion.
+
+The known-value invariant must exclude native universal values that still contain unresolved references. Otherwise a supposedly known token result could change after a provider completes, contradicting Refines at the semantic level even though a cache allocation remains present. Likewise, a known invalid slot cannot later become valid or pending within this theorem's epoch. New winner admission, changed registrations, target mutation, parent context or environment changes require renewed normalization/evaluation or an explicit transport proof.
+
+Run.trace is only the evaluator's primitive lookup trace. It neither equals the complete CSS dependency graph nor proves what native AttributeTracker, cacheability, taint, watches or mutation effects record. The token list has no taint/URL/serialization metadata. No theorem proves that an incomplete attempt's effects are discarded, that complete effects are merged, or that publication is atomic. Those obligations remain with the native owner/scheduler.
+
+There are no guarded recursive contexts or SCCs in the model. Cyclic values can be represented only after an external mechanism correctly classifies them invalid. In particular, early model invalidity is safe only after that classification is final for the coherent epoch; the theorem cannot replace native cycle discovery with an arbitrary fallback rescue. It also does not prove scheduler termination, absence of reentrant mutation, memory safety, arithmetic bounds or performance.
+
+The author's report states these boundaries accurately. Dynamic name selection is worth calling out explicitly in future integration notes, but its absence does not invalidate the fixed-expression theorem. This review certifies neither the live native prototype (which has evolved after the pinned proposal) nor any native/browser behavior.
+
+## Next useful obligation
+
+Before using this result to justify native publication, define a checked correspondence from one coherent native attempt to the normalized expression, primitive slots and returned outcome, including every value that can still recurse. Carry computed-name/context/typed-attribute dependencies into that relation rather than erasing them. Prove demand propagation and effects isolation separately; only then compose with actual cascade winner admission and the completion owner.
+
+This review adds no accepted bug, canonical integration, CSS normative coverage or native refinement credit. It is a useful conditional determinacy/locality result for primary-first evaluation under coherent completion.

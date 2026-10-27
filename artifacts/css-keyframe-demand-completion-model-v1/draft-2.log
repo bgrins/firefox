@@ -1,0 +1,175 @@
+Demand.lean:125:75: error: unsolved goals
+case invalid
+old current : Environment
+key : Key
+fallback : Expression
+ih :
+  (∀ (key : Key), key ∈ (evaluate old fallback).trace → current key = old key) →
+    evaluate current fallback = evaluate old fallback
+agree : ∀ (key_1 : Key), key_1 ∈ (evaluate old (Expression.reference key fallback)).trace → current key_1 = old key_1
+slot : old key = Slot.invalid
+⊢ key ∈
+    match prepend [key] (evaluate old fallback) with
+    | Run.value tokens trace => trace
+    | Run.invalid trace => trace
+    | Run.demand key trace => trace
+Demand.lean:153:49: error: unsolved goals
+case value
+old current : Environment
+left right : Expression
+ihLeft :
+  (∀ (key : Key), key ∈ (evaluate old left).trace → current key = old key) → evaluate current left = evaluate old left
+ihRight :
+  (∀ (key : Key), key ∈ (evaluate old right).trace → current key = old key) →
+    evaluate current right = evaluate old right
+agree : ∀ (key : Key), key ∈ (evaluate old (left.sequence right)).trace → current key = old key
+value : Value
+trace : List Key
+first : evaluate old left = Run.value value trace
+tokens✝ : Value
+trace✝ : List Key
+⊢ (match
+      match evaluate old right with
+      | Run.value rest reached => Run.value (value ++ rest) (trace ++ reached)
+      | Run.invalid reached => Run.invalid (trace ++ reached)
+      | Run.demand key reached => Run.demand key (trace ++ reached) with
+    | Run.value tokens trace => trace
+    | Run.invalid trace => trace
+    | Run.demand key trace => trace) =
+    trace ++ trace✝
+
+case invalid
+old current : Environment
+left right : Expression
+ihLeft :
+  (∀ (key : Key), key ∈ (evaluate old left).trace → current key = old key) → evaluate current left = evaluate old left
+ihRight :
+  (∀ (key : Key), key ∈ (evaluate old right).trace → current key = old key) →
+    evaluate current right = evaluate old right
+agree : ∀ (key : Key), key ∈ (evaluate old (left.sequence right)).trace → current key = old key
+value : Value
+trace : List Key
+first : evaluate old left = Run.value value trace
+trace✝ : List Key
+⊢ (match
+      match evaluate old right with
+      | Run.value rest reached => Run.value (value ++ rest) (trace ++ reached)
+      | Run.invalid reached => Run.invalid (trace ++ reached)
+      | Run.demand key reached => Run.demand key (trace ++ reached) with
+    | Run.value tokens trace => trace
+    | Run.invalid trace => trace
+    | Run.demand key trace => trace) =
+    trace ++ trace✝
+
+case demand
+old current : Environment
+left right : Expression
+ihLeft :
+  (∀ (key : Key), key ∈ (evaluate old left).trace → current key = old key) → evaluate current left = evaluate old left
+ihRight :
+  (∀ (key : Key), key ∈ (evaluate old right).trace → current key = old key) →
+    evaluate current right = evaluate old right
+agree : ∀ (key : Key), key ∈ (evaluate old (left.sequence right)).trace → current key = old key
+value : Value
+trace : List Key
+first : evaluate old left = Run.value value trace
+key✝ : Key
+trace✝ : List Key
+⊢ (match
+      match evaluate old right with
+      | Run.value rest reached => Run.value (value ++ rest) (trace ++ reached)
+      | Run.invalid reached => Run.invalid (trace ++ reached)
+      | Run.demand key reached => Run.demand key (trace ++ reached) with
+    | Run.value tokens trace => trace
+    | Run.invalid trace => trace
+    | Run.demand key trace => trace) =
+    trace ++ trace✝
+Demand.lean:126:64: warning: This simp argument is unused:
+  prepend_trace
+
+Hint: Omit it from the simp argument list.
+  [apply] simp [evaluate, slot, Run.trace]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+Demand.lean:205:69: error: unsolved goals
+case value
+env : Environment
+left right : Expression
+ihLeft : (evaluate env left).settled = true → ∀ (key : Key), key ∈ (evaluate env left).trace → env key ≠ Slot.pending
+ihRight : (evaluate env right).settled = true → ∀ (key : Key), key ∈ (evaluate env right).trace → env key ≠ Slot.pending
+settled : (evaluate env (left.sequence right)).settled = true
+value : Value
+trace : List Key
+first : evaluate env left = Run.value value trace
+leftSettled : (evaluate env left).settled = true
+rightSettled : (evaluate env right).settled = true
+tokens✝ : Value
+trace✝ : List Key
+⊢ (match
+      match evaluate env right with
+      | Run.value rest reached => Run.value (value ++ rest) (trace ++ reached)
+      | Run.invalid reached => Run.invalid (trace ++ reached)
+      | Run.demand key reached => Run.demand key (trace ++ reached) with
+    | Run.value tokens trace => trace
+    | Run.invalid trace => trace
+    | Run.demand key trace => trace) =
+    trace ++ trace✝
+
+case invalid
+env : Environment
+left right : Expression
+ihLeft : (evaluate env left).settled = true → ∀ (key : Key), key ∈ (evaluate env left).trace → env key ≠ Slot.pending
+ihRight : (evaluate env right).settled = true → ∀ (key : Key), key ∈ (evaluate env right).trace → env key ≠ Slot.pending
+settled : (evaluate env (left.sequence right)).settled = true
+value : Value
+trace : List Key
+first : evaluate env left = Run.value value trace
+leftSettled : (evaluate env left).settled = true
+rightSettled : (evaluate env right).settled = true
+trace✝ : List Key
+⊢ (match
+      match evaluate env right with
+      | Run.value rest reached => Run.value (value ++ rest) (trace ++ reached)
+      | Run.invalid reached => Run.invalid (trace ++ reached)
+      | Run.demand key reached => Run.demand key (trace ++ reached) with
+    | Run.value tokens trace => trace
+    | Run.invalid trace => trace
+    | Run.demand key trace => trace) =
+    trace ++ trace✝
+
+case demand
+env : Environment
+left right : Expression
+ihLeft : (evaluate env left).settled = true → ∀ (key : Key), key ∈ (evaluate env left).trace → env key ≠ Slot.pending
+ihRight : (evaluate env right).settled = true → ∀ (key : Key), key ∈ (evaluate env right).trace → env key ≠ Slot.pending
+settled : (evaluate env (left.sequence right)).settled = true
+value : Value
+trace : List Key
+first : evaluate env left = Run.value value trace
+leftSettled : (evaluate env left).settled = true
+rightSettled : (evaluate env right).settled = true
+key✝ : Key
+trace✝ : List Key
+⊢ (match
+      match evaluate env right with
+      | Run.value rest reached => Run.value (value ++ rest) (trace ++ reached)
+      | Run.invalid reached => Run.invalid (trace ++ reached)
+      | Run.demand key reached => Run.demand key (trace ++ reached) with
+    | Run.value tokens trace => trace
+    | Run.invalid trace => trace
+    | Run.demand key trace => trace) =
+    trace ++ trace✝
+Demand.lean:227:21: error: Tactic `rfl` failed: The left-hand side
+  (evaluate env (Expression.reference key fallback)).settled
+is not definitionally equal to the right-hand side
+  true
+
+case reference.known
+env : Environment
+complete : Complete env
+key : Key
+fallback : Expression
+ih : (evaluate env fallback).settled = true
+value : Value
+slot : env key = Slot.known value
+⊢ (evaluate env (Expression.reference key fallback)).settled = true

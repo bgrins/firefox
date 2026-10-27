@@ -1,0 +1,19 @@
+import Examples
+
+#print axioms DemandCompletion.fillPending_refines
+#print axioms DemandCompletion.fillPending_complete
+#print axioms DemandCompletion.pending_masks_cache
+#print axioms DemandCompletion.ready_uses_cache
+#print axioms DemandCompletion.prepend_trace
+#print axioms DemandCompletion.prepend_settled
+#print axioms DemandCompletion.reference_pending
+#print axioms DemandCompletion.unused_fallback
+#print axioms DemandCompletion.invalid_stops_sequence
+#print axioms DemandCompletion.demand_stops_sequence
+#print axioms DemandCompletion.replay_reached
+#print axioms DemandCompletion.settled_reached_known
+#print axioms DemandCompletion.settled_stable_with_trace
+#print axioms DemandCompletion.complete_is_settled
+#print axioms DemandCompletion.completion_order_independent
+#print axioms DemandCompletion.Examples.example_completion_coherent
+#print axioms DemandCompletion.Examples.example_completion_ready
