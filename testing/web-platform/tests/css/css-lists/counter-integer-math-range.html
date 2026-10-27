@@ -1,0 +1,226 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Explicit counter math integers do not become automatic markers</title>
+<link rel="help" href="https://drafts.csswg.org/css-lists-3/#auto-numbering">
+<link rel="help" href="https://drafts.csswg.org/css-lists-3/#instantiating-counters">
+<link rel="stylesheet" href="/fonts/ahem.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.sample { font: 20px/1 Ahem; }
+.subject { counter-reset: n 0; }
+.reference { counter-reset: r 0; }
+.reversed .subject { counter-reset: reversed(n) 0; }
+.reversed .reference { counter-reset: reversed(r) 0; }
+.value, .literal { display: inline-block; white-space: pre; }
+.subject .value::before { content: counter(n); }
+.reference .value::before { content: counter(r); }
+.minimum .subject .value { counter-increment: n calc(-2147483648); }
+.expression .subject .value { counter-increment: n calc(-2147483647 - 1); }
+.literal-minimum .subject .value { counter-increment: n -2147483647; }
+.nearby .subject .value { counter-increment: n calc(-2147483136); }
+.reference .value { counter-increment: r -2147483648; }
+.nearby .reference .value { counter-increment: r -2147483136; }
+
+.sample { font: 20px/1 Ahem; }
+.observer, .literal { display: inline-block; white-space: pre; }
+.observer::before { content: counter(n); }
+
+.marker-item { display: list-item; list-style: none; }
+.marker-value, .auto-value { display: inline-block; }
+.marker-value::before { content: counter(list-item); }
+.auto-value::before { content: counter(n); }
+</style>
+<body>
+<script>
+"use strict";
+{
+
+
+const forms = [
+  ["calc minimum", "minimum", -2147483647],
+  ["calc subtraction minimum", "expression", -2147483647],
+  ["literal minimum plus one", "literal-minimum", -2147483647],
+  ["calc nearby", "nearby", -2147483136],
+];
+for (const reversed of [false, true]) {
+  for (const [form, cls, referenceValue] of forms) {
+    const name = `${reversed ? "reversed" : "ordinary"}: ${form}`;
+    promise_test(async t => {
+      await document.fonts.load("20px Ahem", "-0123456789X");
+      await document.fonts.ready;
+      const root = document.createElement("div");
+      root.className = `sample ${cls}${reversed ? " reversed" : ""}`;
+      root.innerHTML = `<span class="literal calibration">XX</span>
+        <span class="literal expected">${referenceValue}</span>
+        <div class="subject"><span class="value"></span></div>
+        <div class="reference"><span class="value"></span></div>`;
+      document.body.append(root);
+      t.add_cleanup(() => root.remove());
+      const subject = root.querySelector(".subject .value");
+      const reference = root.querySelector(".reference .value");
+      const computedIncrement = getComputedStyle(subject).counterIncrement;
+      const referenceIncrement = getComputedStyle(reference).counterIncrement;
+      const reset = getComputedStyle(root.querySelector(".subject")).counterReset;
+      const referenceReset = getComputedStyle(root.querySelector(".reference")).counterReset;
+      assert_regexp_match(referenceIncrement, /^r -\d+$/, "literal increment reference");
+      const referenceText = referenceIncrement.slice(2);
+      root.querySelector(".expected").textContent = referenceText;
+      assert_equals(reset, reversed ? "reversed(n) 0" : "n 0", "explicit subject reset calibration");
+      assert_equals(referenceReset, reversed ? "reversed(r) 0" : "r 0", "explicit reference reset calibration");
+      const first = subject.getBoundingClientRect().width;
+      const repeat = subject.getBoundingClientRect().width;
+      const referenceWidth = reference.getBoundingClientRect().width;
+      const literalWidth = root.querySelector(".expected").getBoundingClientRect().width;
+      const calibration = root.querySelector(".calibration").getBoundingClientRect().width;
+      assert_true(document.fonts.check("20px Ahem", "-0123456789X"), "Ahem font loaded");
+      assert_equals(calibration, 40, "two-character font calibration");
+      assert_equals(literalWidth, referenceText.length * 20, "literal reference calibration");
+      assert_equals(referenceWidth, literalWidth, "ordinary reference counter calibration");
+      assert_equals(repeat, first, "repeat stable");
+      assert_equals(first, referenceWidth, "authored minimum remains an explicit increment");
+      assert_equals(computedIncrement, `n ${referenceText}`, "computed math matches literal range");
+    }, name);
+  }
+}
+}
+{
+
+
+const expressions = ["calc(-2147483648)", "calc(-2147483647 - 1)"];
+for (const property of ["counter-increment", "counter-set", "counter-reset"]) {
+  for (const expression of expressions) {
+    test(t => {
+      assert_true(CSS.supports(property, `n ${expression}`), "syntax supported");
+      const target = document.createElement("div");
+      const reference = document.createElement("div");
+      target.style.setProperty(property, `n ${expression}`);
+      reference.style.setProperty(property, "n -2147483648");
+      document.body.append(target, reference);
+      t.add_cleanup(() => { target.remove(); reference.remove(); });
+      const actual = getComputedStyle(target).getPropertyValue(property);
+      const expected = getComputedStyle(reference).getPropertyValue(property);
+      assert_equals(getComputedStyle(target).getPropertyValue(property), actual, "repeat stable");
+      assert_regexp_match(expected, /^n -\d+$/, "literal negative reference");
+      assert_equals(actual, expected, "math integer matches literal supported-range clamp");
+    }, `${property}: ${expression} matches literal range clamp`);
+  }
+}
+for (const expression of expressions) {
+  promise_test(async t => {
+    await document.fonts.load("20px Ahem", "-0123456789X");
+    await document.fonts.ready;
+    const root = document.createElement("div");
+    root.className = "sample";
+    root.innerHTML = '<span class="literal calibration">XX</span><span class="literal expected">-2147483647</span>' +
+      '<div class="target"><span class="observer"></span></div>' +
+      '<div class="reference"><span class="observer"></span></div>';
+    const target = root.querySelector(".target");
+    const reference = root.querySelector(".reference");
+    target.style.counterReset = `reversed(n) ${expression}`;
+    reference.style.counterReset = "reversed(n) -2147483648";
+    document.body.append(root);
+    t.add_cleanup(() => root.remove());
+    const referenceComputed = getComputedStyle(reference).counterReset;
+    const referenceText = referenceComputed.match(/-\d+$/)?.[0];
+    assert_true(!!referenceText, "literal negative reset reference");
+    root.querySelector(".expected").textContent = referenceText;
+    const actual = target.firstElementChild.getBoundingClientRect().width;
+    const repeat = target.firstElementChild.getBoundingClientRect().width;
+    const expected = reference.firstElementChild.getBoundingClientRect().width;
+    const literal = root.querySelector(".expected").getBoundingClientRect().width;
+    const calibration = root.querySelector(".calibration").getBoundingClientRect().width;
+    const computed = getComputedStyle(target).counterReset;
+    assert_true(document.fonts.check("20px Ahem", "-0123456789X"), "Ahem loaded");
+    assert_equals(calibration, 40, "two-character calibration");
+    assert_equals(literal, referenceText.length * 20, "large negative literal calibration");
+    assert_equals(expected, literal, "explicit literal reset control");
+    assert_equals(repeat, actual, "repeat stable");
+    assert_equals(actual, expected, `explicit reversed reset remains explicit; computed=${computed}`);
+  }, `explicit reversed reset: ${expression} has no increment or set`);
+}
+for (const expression of expressions) {
+  promise_test(async t => {
+    await document.fonts.load("20px Ahem", "-0123456789X");
+    await document.fonts.ready;
+    const root = document.createElement("div");
+    root.className = "sample";
+    root.innerHTML = '<span class="literal calibration">XX</span><span class="literal expected">-2147483647</span>' +
+      '<div class="target"><span class="observer"></span></div>' +
+      '<div class="reference"><span class="observer"></span></div>';
+    const target = root.querySelector(".target");
+    const reference = root.querySelector(".reference");
+    target.style.counterReset = `n ${expression}`;
+    reference.style.counterReset = "n -2147483648";
+    document.body.append(root);
+    t.add_cleanup(() => root.remove());
+    const referenceComputed = getComputedStyle(reference).counterReset;
+    const referenceText = referenceComputed.match(/-\d+$/)?.[0];
+    assert_true(!!referenceText, "literal negative reset reference");
+    root.querySelector(".expected").textContent = referenceText;
+    const actual = target.firstElementChild.getBoundingClientRect().width;
+    const repeat = target.firstElementChild.getBoundingClientRect().width;
+    const expected = reference.firstElementChild.getBoundingClientRect().width;
+    const literal = root.querySelector(".expected").getBoundingClientRect().width;
+    const calibration = root.querySelector(".calibration").getBoundingClientRect().width;
+    const computed = getComputedStyle(target).counterReset;
+    assert_true(document.fonts.check("20px Ahem", "-0123456789X"), "Ahem loaded");
+    assert_equals(calibration, 40, "two-character calibration");
+    assert_equals(literal, referenceText.length * 20, "large negative literal calibration");
+    assert_equals(expected, literal, "explicit literal reset control");
+    assert_equals(repeat, actual, "repeat stable");
+    assert_equals(actual, expected, `explicit ordinary reset remains explicit; computed=${computed}`);
+  }, `explicit ordinary reset: ${expression} has no increment or set`);
+}
+}
+{
+
+const controls = [
+  ["omitted reversed reset keeps automatic initialization", "auto", "reversed(n)", null, ["10", "1"]],
+  ["ordinary implicit list-item increments by one", "list", "list-item 9", null, ["10"]],
+  ["reversed implicit list-item decrements by one", "list", "reversed(list-item) 10", null, ["9"]],
+  ["explicit zero suppresses ordinary list-item increment", "list", "list-item 9", "list-item 0", ["9"]],
+  ["explicit zero suppresses reversed list-item increment", "list", "reversed(list-item) 10", "list-item 0", ["10"]],
+];
+for (const [name, mode, reset, increment, expected] of controls) {
+  promise_test(async t => {
+    await document.fonts.load("20px Ahem", "0123456789X");
+    await document.fonts.ready;
+    const root = document.createElement("div");
+    root.className = "sample";
+    const calibration = document.createElement("span");
+    calibration.className = "literal";
+    calibration.textContent = "XX";
+    const scope = document.createElement("div");
+    scope.style.counterReset = reset;
+    root.append(calibration, scope);
+    const values = [];
+    for (let i = 0; i < (mode === "auto" ? 10 : 1); ++i) {
+      const item = document.createElement("div");
+      const value = document.createElement("span");
+      if (mode === "auto") {
+        item.style.counterIncrement = "n -1";
+        value.className = "auto-value";
+      } else {
+        item.className = "marker-item";
+        value.className = "marker-value";
+        if (increment !== null) item.style.counterIncrement = increment;
+      }
+      item.append(value);
+      scope.append(item);
+      values.push(value);
+    }
+    document.body.append(root);
+    t.add_cleanup(() => root.remove());
+    const observed = mode === "auto" ? [values[0], values[9]] : values;
+    const first = observed.map(value => value.getBoundingClientRect().width);
+    const repeat = observed.map(value => value.getBoundingClientRect().width);
+    assert_true(document.fonts.check("20px Ahem", "0123456789X"), "Ahem loaded");
+    assert_equals(calibration.getBoundingClientRect().width, 40, "two-character calibration");
+    assert_equals(getComputedStyle(scope).counterReset, reset, "reset mode retained");
+    assert_array_equals(repeat, first, "repeat stable");
+    assert_array_equals(first, expected.map(value => value.length * 20), "default marker behavior retained");
+  }, name);
+}
+}
+</script>

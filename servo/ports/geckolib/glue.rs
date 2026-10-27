@@ -6556,10 +6556,11 @@ pub extern "C" fn Servo_DeclarationBlock_SetCounterResetListItem(
 ) {
     use style::properties::PropertyDeclaration;
     use style::values::generics::counters::{CounterPair, CounterReset};
+    use style::values::specified::counters::CounterInteger;
 
     let prop = PropertyDeclaration::CounterReset(CounterReset::new(vec![CounterPair {
         name: CustomIdent(atom!("list-item")),
-        value: style::values::specified::Integer::new(counter_value),
+        value: CounterInteger::from_computed_value(&counter_value),
         is_reversed,
     }]));
     write_locked_arc(declarations, |decls: &mut PropertyDeclarationBlock| {
@@ -6574,10 +6575,11 @@ pub extern "C" fn Servo_DeclarationBlock_SetCounterSetListItem(
 ) {
     use style::properties::PropertyDeclaration;
     use style::values::generics::counters::{CounterPair, CounterSet};
+    use style::values::specified::counters::CounterInteger;
 
     let prop = PropertyDeclaration::CounterSet(CounterSet::new(vec![CounterPair {
         name: CustomIdent(atom!("list-item")),
-        value: style::values::specified::Integer::new(counter_value),
+        value: CounterInteger::from_computed_value(&counter_value),
         is_reversed: false,
     }]));
     write_locked_arc(declarations, |decls: &mut PropertyDeclarationBlock| {

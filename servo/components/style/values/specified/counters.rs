@@ -5,8 +5,10 @@
 //! Specified types for counter properties.
 
 use crate::counter_style::CounterStyle;
+use crate::derives::*;
 use crate::parser::{Parse, ParserContext};
 use crate::values::CustomIdent;
+use crate::values::computed::{Context, ToComputedValue};
 use crate::values::generics::counters as generics;
 use crate::values::generics::counters::CounterPair;
 use crate::values::specified::Integer;
@@ -14,6 +16,36 @@ use crate::values::specified::image::Image;
 use cssparser::{Parser, Token, match_ignore_ascii_case};
 use selectors::parser::SelectorParseErrorKind;
 use style_traits::{ParseError, StyleParseErrorKind};
+
+/// A counter integer that clamps authored math and preserves raw values.
+#[derive(Clone, Debug, MallocSizeOf, PartialEq, SpecifiedValueInfo, ToCss, ToShmem)]
+#[repr(transparent)]
+pub struct CounterInteger(Integer);
+
+impl PartialEq<i32> for CounterInteger {
+    fn eq(&self, value: &i32) -> bool {
+        self.0 == *value
+    }
+}
+
+impl ToComputedValue for CounterInteger {
+    type ComputedValue = i32;
+
+    fn to_computed_value(&self, context: &Context) -> i32 {
+        let value = self.0.to_computed_value(context);
+        if self.0.get() == Some(i32::MIN) {
+            // Preserve mapped and computed values, including the automatic marker.
+            // Authored literals were clamped during parsing.
+            value
+        } else {
+            value.max(i32::MIN + 1)
+        }
+    }
+
+    fn from_computed_value(computed: &i32) -> Self {
+        Self(Integer::from_computed_value(computed))
+    }
+}
 
 #[derive(PartialEq)]
 enum CounterType {
@@ -32,7 +64,7 @@ impl CounterType {
 }
 
 /// A specified value for the `counter-increment` property.
-pub type CounterIncrement = generics::GenericCounterIncrement<Integer>;
+pub type CounterIncrement = generics::GenericCounterIncrement<CounterInteger>;
 
 impl Parse for CounterIncrement {
     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
@@ -45,7 +77,7 @@ impl Parse for CounterIncrement {
 }
 
 /// A specified value for the `counter-set` property.
-pub type CounterSet = generics::GenericCounterSet<Integer>;
+pub type CounterSet = generics::GenericCounterSet<CounterInteger>;
 
 impl Parse for CounterSet {
     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
@@ -54,7 +86,7 @@ impl Parse for CounterSet {
 }
 
 /// A specified value for the `counter-reset` property.
-pub type CounterReset = generics::GenericCounterReset<Integer>;
+pub type CounterReset = generics::GenericCounterReset<CounterInteger>;
 
 impl Parse for CounterReset {
     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
@@ -70,7 +102,7 @@ fn parse_counters(
     context: &ParserContext,
     input: &mut Parser,
     counter_type: CounterType,
-) -> Result<Vec<CounterPair<Integer>>, ParseError> {
+) -> Result<Vec<CounterPair<CounterInteger>>, ParseError> {
     if input
         .try_parse(|input| input.expect_ident_matching("none"))
         .is_ok()
@@ -113,7 +145,7 @@ fn parse_counters(
         };
         counters.push(CounterPair {
             name,
-            value,
+            value: CounterInteger(value),
             is_reversed,
         });
     }
