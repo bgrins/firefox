@@ -1,6 +1,6 @@
 # CSS verification bugfix commits
 
-Latest checkpoint: computed-name research `19a313060adb` and presentation GTest `73a62b1ecf58` are signed locally. The transition descriptor prototype passes its before/after native tests; it adds no accepted browser bug. All 131 accepted fixes remain committed, with repair 120 held and excluded. See the current [plan of record](PLAN-OF-RECORD.md).
+Latest checkpoint: CSS library `ef6f4dd2ed94` is signed in its own repository; animation research `37e1d4e898c6` and steps research `0f0a8a5fb7d5` are signed on this branch. An exact recovery patch preserves the unfinished native/proof-tool work. All 131 accepted fixes remain committed, with repair 120 held and excluded; these checkpoints add no accepted bug. See the [signing record](../css-local-signing-20261027-v1/CHECKPOINT.md) and current [plan of record](PLAN-OF-RECORD.md).
 
 
 **131 accepted fixes: 131 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
