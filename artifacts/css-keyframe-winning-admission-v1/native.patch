@@ -1,0 +1,330 @@
+--- a/servo/components/style/animation_rule_sample.rs
++++ b/servo/components/style/animation_rule_sample.rs
+@@ -230,6 +230,10 @@
+ 
+ /// A concrete normal-animation rule retaining its sampled operation identities.
+ pub struct AnimationRuleSource {
++    pending_custom: crate::selector_map::PrecomputedHashMap<
++        crate::custom_properties::Name,
++        crate::native_provider_completion::PendingProperty,
++    >,
+     sample: FrozenAnimationRule<std::convert::Infallible>,
+     declarations:
+         servo_arc::Arc<crate::shared_lock::Locked<crate::properties::PropertyDeclarationBlock>>,
+@@ -245,7 +249,44 @@
+         Self {
+             sample,
+             declarations,
+-        }
++            pending_custom: Default::default(),
++        }
++    }
++
++    #[cfg(test)]
++    pub(crate) fn new_pending_for_testing(
++        declarations: servo_arc::Arc<
++            crate::shared_lock::Locked<crate::properties::PropertyDeclarationBlock>,
++        >,
++        pending_custom: crate::selector_map::PrecomputedHashMap<
++            crate::custom_properties::Name,
++            crate::native_provider_completion::PendingProperty,
++        >,
++    ) -> Self {
++        Self {
++            sample: AnimationOperationSample::with_capacity(0).freeze(),
++            declarations,
++            pending_custom,
++        }
++    }
++
++    pub(crate) fn pending_customs(
++        &self,
++    ) -> impl Iterator<
++        Item = (
++            &crate::custom_properties::Name,
++            &crate::native_provider_completion::PendingProperty,
++        ),
++    > {
++        self.pending_custom.iter()
++    }
++
++    pub(crate) fn has_pending_custom(&self, name: &crate::custom_properties::Name) -> bool {
++        self.pending_custom.contains_key(name)
++    }
++
++    pub(crate) fn has_pending_customs(&self) -> bool {
++        !self.pending_custom.is_empty()
+     }
+ 
+     /// The concrete declarations materialized from this sample.
+@@ -261,11 +302,21 @@
+         &self,
+         property: &OwnedPropertyDeclarationId,
+     ) -> Option<SampledAnimationProperty<std::convert::Infallible>> {
++        if let OwnedPropertyDeclarationId::Custom(name) = property {
++            if self.has_pending_custom(name) {
++                return None;
++            }
++        }
+         self.sample.get(property)
+     }
+ 
+     /// Whether this sample owns a root for the declaration.
+     pub fn contains(&self, property: crate::properties::PropertyDeclarationId) -> bool {
++        if let crate::properties::PropertyDeclarationId::Custom(name) = property {
++            if self.has_pending_custom(name) {
++                return true;
++            }
++        }
+         self.sample.roots.contains_key(&property.to_owned())
+     }
+ }
+@@ -275,6 +326,7 @@
+         formatter
+             .debug_struct("AnimationRuleSource")
+             .field("properties", &self.sample.len())
++            .field("pending_custom", &self.pending_custom.len())
+             .finish()
+     }
+ }
+--- a/servo/components/style/rule_tree/source.rs
++++ b/servo/components/style/rule_tree/source.rs
+@@ -150,6 +150,16 @@
+         {
+             ptr::NonNull::from(self.0.get()).cast()
+         }
++    }
++
++    pub(super) fn any_normal(&self, guard: &SharedRwLockReadGuard) -> bool {
++        #[cfg(feature = "gecko")]
++        if let ArcUnionBorrow::Second(rule) = self.0.borrow() {
++            if rule.get().has_pending_customs() {
++                return true;
++            }
++        }
++        self.read(guard).any_normal()
+     }
+ 
+     /// Read this source's concrete declarations.
+--- a/servo/components/style/rule_tree/mod.rs
++++ b/servo/components/style/rule_tree/mod.rs
+@@ -290,7 +290,7 @@
+                     current = current.ensure_child(self.root(), source, cascade_priority);
+                     *important_rules_changed = true;
+                 }
+-            } else if source.read(level.guard(guards)).any_normal() {
++            } else if source.any_normal(level.guard(guards)) {
+                 current = current.ensure_child(self.root(), source, cascade_priority);
+             }
+         }
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -260,6 +260,67 @@
+         /// The cascade for our unvisited style.
+         unvisited_context: &'a computed::Context<'b>,
+     },
++}
++
++#[cfg(feature = "gecko")]
++#[derive(Clone, Copy)]
++enum CustomWinnerInput<'a> {
++    Ordinary(&'a CustomDeclaration),
++    Animated(&'a crate::native_provider_completion::PendingProperty),
++}
++
++#[cfg(feature = "gecko")]
++pub(crate) fn collect_custom_winners<'a>(
++    stylist: &'a Stylist,
++    context: &computed::Context,
++    rules: &'a StrongRuleNode,
++    guards: &'a StylesheetGuards,
++) -> crate::native_provider_completion::CollectedCustomProperties {
++    let mut cascade = Cascade::new_for_custom_properties_only(stylist);
++    let mut winners = Vec::new();
++    for node in rules.self_and_ancestors() {
++        let priority = node.cascade_priority();
++        let Some(source) = node.style_source() else {
++            continue;
++        };
++        let source = source.declaration_source(priority.cascade_level().origin().guard(guards));
++        if !priority.cascade_level().is_important() {
++            if let Some(rule) = source.animation() {
++                for (name, property) in rule.pending_customs() {
++                    cascade.collect_custom_winner(
++                        context,
++                        name,
++                        CustomWinnerInput::Animated(property),
++                        priority,
++                        &mut winners,
++                    );
++                }
++            }
++        }
++        for (declaration, importance) in source.declarations().declaration_importance_iter().rev() {
++            if priority.cascade_level().is_important() != importance.important() {
++                continue;
++            }
++            let PropertyDeclaration::Custom(declaration) = declaration else {
++                continue;
++            };
++            if !priority.cascade_level().is_important()
++                && source
++                    .animation()
++                    .is_some_and(|rule| rule.has_pending_custom(&declaration.name))
++            {
++                continue;
++            }
++            cascade.collect_custom_winner(
++                context,
++                &declaration.name,
++                CustomWinnerInput::Ordinary(declaration),
++                priority,
++                &mut winners,
++            );
++        }
++    }
++    crate::native_provider_completion::CollectedCustomProperties::from_admitted(winners)
+ }
+ 
+ fn iter_declarations<'c, 'decls: 'c>(
+@@ -1916,6 +1977,64 @@
+         self.apply_one_prioritary_property(context, decls, cache, id, attribute_tracker);
+     }
+ 
++    fn allows_custom_property(
++        &self,
++        context: &computed::Context,
++        name: &Name,
++        priority: &CascadePriority,
++    ) -> bool {
++        self.reverted
++            .custom
++            .get(name)
++            .is_none_or(|state| state.allows(priority))
++            && (priority.flags() - context.included_cascade_flags).is_empty()
++    }
++
++    #[cfg(feature = "gecko")]
++    fn collect_custom_winner(
++        &mut self,
++        context: &computed::Context,
++        name: &'a Name,
++        value: CustomWinnerInput<'a>,
++        priority: CascadePriority,
++        output: &mut Vec<(
++            Name,
++            crate::native_provider_completion::AdmittedCustomProperty,
++        )>,
++    ) {
++        use crate::native_provider_completion::AdmittedCustomProperty;
++        if !self.allows_custom_property(context, name, &priority) {
++            return;
++        }
++        let Entry::Vacant(entry) = self.seen.custom.var.entry(name) else {
++            return;
++        };
++        if let CustomWinnerInput::Ordinary(declaration) = value {
++            if let CustomDeclarationValue::CSSWideKeyword(keyword) = &declaration.value {
++                if let Some(kind) = keyword.revert_kind() {
++                    if kind != RevertKind::Rule {
++                        self.reverted
++                            .custom
++                            .entry(name.clone())
++                            .or_default()
++                            .add(priority, kind);
++                    }
++                    return;
++                }
++            }
++        }
++        entry.insert(true);
++        let winner = match value {
++            CustomWinnerInput::Ordinary(declaration) => {
++                AdmittedCustomProperty::Ordinary(declaration.clone())
++            },
++            CustomWinnerInput::Animated(property) => {
++                AdmittedCustomProperty::Animated(property.clone())
++            },
++        };
++        output.push((name.clone(), winner));
++    }
++
+     /// Cascade a given custom property declaration.
+     fn cascade_custom_property(
+         &mut self,
+@@ -1929,13 +2048,7 @@
+             ref value,
+         } = *declaration;
+ 
+-        if let Some(reverted) = self.reverted.custom.get(name)
+-            && !reverted.allows(&priority)
+-        {
+-            return;
+-        }
+-
+-        if !(priority.flags() - context.included_cascade_flags).is_empty() {
++        if !self.allows_custom_property(context, name, &priority) {
+             return;
+         }
+ 
+--- a/servo/components/style/native_provider_completion.rs
++++ b/servo/components/style/native_provider_completion.rs
+@@ -11,6 +11,7 @@
+ use servo_arc::Arc;
+ use std::collections::HashMap;
+ 
++#[derive(Clone)]
+ pub(crate) struct PendingProperty {
+     pub(crate) root: SampledAnimationProperty<Arc<KeyframeEndpoint>>,
+     pub(crate) computations: Vec<Arc<KeyframeEndpoint>>,
+@@ -57,7 +58,7 @@
+             Err(Demand::Provider(name)) => return Evaluation::Need(name),
+             Err(Demand::Error(error)) => {
+                 return Evaluation::Error(NativeFailure::Endpoint(error));
+-            }
++            },
+         };
+         values.insert(key, value);
+         effects.push(local_effects);
+@@ -76,3 +77,41 @@
+     };
+     Evaluation::Complete { value, effects }
+ }
++
++pub(crate) enum AdmittedCustomProperty {
++    Ordinary(crate::properties::CustomDeclaration),
++    Animated(PendingProperty),
++}
++
++pub(crate) struct CollectedCustomProperties {
++    winners: Vec<(Name, AdmittedCustomProperty)>,
++}
++
++pub(crate) type AdmittedNativeWinners<C> =
++    WinningProviders<C, Name, Option<ComputedValue>, AdmittedCustomProperty>;
++
++impl CollectedCustomProperties {
++    pub(crate) fn from_admitted(winners: Vec<(Name, AdmittedCustomProperty)>) -> Self {
++        Self { winners }
++    }
++
++    pub(crate) fn into_owner<C>(
++        self,
++        context: C,
++        already_computed: HashMap<Name, Option<ComputedValue>>,
++    ) -> Result<AdmittedNativeWinners<C>, Name> {
++        let mut owner = WinningProviders::new(context, already_computed);
++        for (name, winner) in self.winners {
++            if owner
++                .admit(
++                    name.clone(),
++                    crate::winning_provider_completion::Winner::Pending(winner),
++                )
++                .is_err()
++            {
++                return Err(name);
++            }
++        }
++        Ok(owner)
++    }
++}

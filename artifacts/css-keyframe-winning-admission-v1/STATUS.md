@@ -1,0 +1,3 @@
+# Superseded draft, do not activate
+
+This artifact explored a separate real-rule admission collector and pending-only rule-source retention. It is superseded by `../css-keyframe-single-collector-v1`, which changes the actual normal collection path. The separate collector here is not the required production handoff; its `cfg(test)` constructor is also unavailable to a normally compiled Gecko style dependency. No native build, actual host test or browser execution was performed. The original source/transport checker and syntax run do not establish integration correctness. `computed-context-searchfox.rs` is an empty failed network capture and contains no evidence. This package is retained as an explicitly unfinished research draft, not a landable patch or accepted fix.

@@ -1,0 +1,626 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -119,6 +119,13 @@
+     )
+ }
+ 
++/// One concrete declaration or an owned unresolved custom-property recipe.
++#[allow(missing_docs)]
++pub enum CascadeDeclaration<'a, P = std::convert::Infallible> {
++    Concrete(&'a PropertyDeclaration),
++    PendingCustom { name: &'a Name, property: P },
++}
++
+ struct DeclarationIterator<'a> {
+     // Global to the iteration.
+     guards: &'a StylesheetGuards<'a>,
+@@ -171,7 +178,7 @@
+ 
+ impl<'a> Iterator for DeclarationIterator<'a> {
+     type Item = (
+-        &'a PropertyDeclaration,
++        CascadeDeclaration<'a>,
+         CascadePriority,
+         DeclarationSource<'a>,
+     );
+@@ -197,7 +204,11 @@
+                     }
+                 }
+ 
+-                return Some((decl, self.priority, self.source.unwrap()));
++                return Some((
++                    CascadeDeclaration::Concrete(decl),
++                    self.priority,
++                    self.source.unwrap(),
++                ));
+             }
+ 
+             let next_node = self.current_rule_node.take()?.parent()?;
+@@ -262,28 +273,51 @@
+     },
+ }
+ 
+-fn iter_declarations<'c, 'decls: 'c>(
++fn iter_declarations<'c, 'decls: 'c, P>(
+     iter: impl Iterator<
+         Item = (
+-            &'decls PropertyDeclaration,
++            CascadeDeclaration<'decls, P>,
+             CascadePriority,
+             DeclarationSource<'decls>,
+         ),
+     >,
+     declarations: &mut Declarations<'decls>,
+-    mut custom: Option<(&mut Cascade<'c>, &mut computed::Context)>,
++    mut custom: Option<(
++        &mut Cascade<'c>,
++        &mut computed::Context,
++        &mut Vec<CollectedCustomProperty<'decls, P>>,
++    )>,
+     attribute_tracker: &mut AttributeTracker,
+ ) {
+     for (declaration, priority, source) in iter {
++        let declaration = match declaration {
++            CascadeDeclaration::Concrete(declaration) => declaration,
++            CascadeDeclaration::PendingCustom { name, property } => {
++                if let Some((ref mut cascade, ref mut context, ref mut winners)) = custom {
++                    if cascade.admit_custom_property(context, name, None, priority, Some(source)) {
++                        winners.push(CollectedCustomProperty::Pending { name, property });
++                    }
++                }
++                continue;
++            },
++        };
+         if let PropertyDeclaration::Custom(ref declaration) = *declaration {
+-            if let Some((ref mut cascade, ref mut context)) = custom {
+-                cascade.cascade_custom_property(context, declaration, priority, Some(source));
++            if let Some((ref mut cascade, ref mut context, ref mut winners)) = custom {
++                if cascade.admit_custom_property(
++                    context,
++                    &declaration.name,
++                    Some(&declaration.value),
++                    priority,
++                    Some(source),
++                ) {
++                    winners.push(CollectedCustomProperty::Ordinary(declaration));
++                }
+             }
+         } else {
+             let id = declaration.id().as_longhand().unwrap();
+             declarations.note_declaration(declaration, priority, source.declarations(), id);
+             if Cascade::might_have_non_custom_or_attr_dependency(id, declaration)
+-                && let Some((ref mut cascade, ref mut context)) = custom
++                && let Some((ref mut cascade, ref mut context, _)) = custom
+             {
+                 cascade.maybe_note_non_custom_dependency(
+                     context,
+@@ -293,6 +327,127 @@
+                 );
+             }
+         }
++    }
++}
++
++enum CollectedCustomProperty<'a, P> {
++    Ordinary(&'a CustomDeclaration),
++    Pending { name: &'a Name, property: P },
++}
++
++struct CollectedDeclarations<'c, 'decls: 'c, P> {
++    cascade: Cascade<'c>,
++    declarations: Declarations<'decls>,
++    custom: Vec<CollectedCustomProperty<'decls, P>>,
++}
++
++struct ResolvedDeclarations<'c, 'decls: 'c> {
++    cascade: Cascade<'c>,
++    declarations: Declarations<'decls>,
++}
++
++impl<'c, 'decls: 'c, P> CollectedDeclarations<'c, 'decls, P> {
++    fn collect(
++        iter: impl Iterator<
++            Item = (
++                CascadeDeclaration<'decls, P>,
++                CascadePriority,
++                DeclarationSource<'decls>,
++            ),
++        >,
++        mut cascade: Cascade<'c>,
++        context: &mut computed::Context,
++        tracker: &mut AttributeTracker,
++    ) -> Self {
++        cascade.init_custom_properties(context);
++        let mut declarations = Declarations::default();
++        let mut custom = Vec::new();
++        iter_declarations(
++            iter,
++            &mut declarations,
++            Some((&mut cascade, context, &mut custom)),
++            tracker,
++        );
++        Self {
++            cascade,
++            declarations,
++            custom,
++        }
++    }
++}
++
++impl<'c, 'decls: 'c> CollectedDeclarations<'c, 'decls, std::convert::Infallible> {
++    fn resolve_concrete(
++        mut self,
++        context: &mut computed::Context,
++        cache: &mut ShorthandsWithPropertyReferencesCache,
++        tracker: &mut AttributeTracker,
++    ) -> ResolvedDeclarations<'c, 'decls> {
++        for winner in self.custom {
++            match winner {
++                CollectedCustomProperty::Ordinary(declaration) => {
++                    self.cascade
++                        .apply_admitted_custom_property(context, declaration);
++                },
++                CollectedCustomProperty::Pending { property, .. } => match property {},
++            }
++        }
++        // Detect cycles, remove properties participating in them, and resolve custom
++        // properties, applying prioritary properties (font-size, color-scheme, line-height)
++        // interleaved so that a custom property depending on `em`/`lh`/the used color-scheme is
++        // substituted once the prioritary property it needs has been applied.
++        self.cascade.apply_custom_and_prioritary_properties(
++            context,
++            &self.declarations,
++            cache,
++            tracker,
++        );
++        ResolvedDeclarations {
++            cascade: self.cascade,
++            declarations: self.declarations,
++        }
++    }
++}
++
++#[cfg(feature = "gecko")]
++struct IncompleteCascade<'c, 'decls: 'c, C> {
++    cascade: Cascade<'c>,
++    declarations: Declarations<'decls>,
++    custom: crate::native_provider_completion::AdmittedNativeWinners<C>,
++}
++
++#[cfg(feature = "gecko")]
++impl<'c, 'decls: 'c>
++    CollectedDeclarations<'c, 'decls, crate::native_provider_completion::PendingProperty>
++{
++    fn into_pending_owner<C>(
++        self,
++        context: C,
++        ready: std::collections::HashMap<Name, Option<ComputedRegisteredValue>>,
++    ) -> Result<IncompleteCascade<'c, 'decls, C>, Name> {
++        use crate::native_provider_completion::{
++            AdmittedCustomProperty, CollectedCustomProperties,
++        };
++        let winners = self
++            .custom
++            .into_iter()
++            .map(|winner| match winner {
++                CollectedCustomProperty::Ordinary(declaration) => (
++                    declaration.name.clone(),
++                    AdmittedCustomProperty::Ordinary(declaration.clone()),
++                ),
++                CollectedCustomProperty::Pending { name, property } => {
++                    (name.clone(), AdmittedCustomProperty::Animated(property))
++                },
++            })
++            .collect();
++        let custom =
++            CollectedCustomProperties::from_admitted(winners).into_owner(context, ready)?;
++        Ok(IncompleteCascade {
++            cascade: self.cascade,
++            declarations: self.declarations,
++            custom,
++        })
+     }
+ }
+ 
+@@ -320,7 +475,7 @@
+     E: TElement,
+     I: Iterator<
+         Item = (
+-            &'decls PropertyDeclaration,
++            CascadeDeclaration<'decls>,
+             CascadePriority,
+             DeclarationSource<'decls>,
+         ),
+@@ -366,14 +521,12 @@
+         .style()
+         .add_flags(stylist.get_custom_property_initial_values_flags());
+ 
+-    let using_cached_reset_properties;
+     let ignore_colors = context.builder.device.forced_colors().is_active();
+-    let mut cascade = Cascade::new(first_line_reparenting, stylist, ignore_colors);
+-    let mut declarations = Default::default();
++    let cascade = Cascade::new(first_line_reparenting, stylist, ignore_colors);
+     let mut shorthand_cache = ShorthandsWithPropertyReferencesCache::default();
+     let mut attribute_tracker = AttributeTracker::new(element_context);
+ 
+-    let properties_to_apply = match cascade_mode {
++    let (mut resolved, using_cached_reset_properties, properties_to_apply) = match cascade_mode {
+         CascadeMode::Visited { unvisited_context } => {
+             context.builder.substitution_functions =
+                 unvisited_context.builder.substitution_functions.clone();
+@@ -382,7 +535,7 @@
+             // We never insert visited styles into the cache so we don't need to try looking it up.
+             // It also wouldn't be super-profitable, only a handful :visited properties are
+             // non-inherited.
+-            using_cached_reset_properties = false;
++            let mut declarations = Declarations::default();
+             // If we match the same rules when visited and unvisited, and we know there isn't any
+             // visited-dependent properties, we can avoid gathering the declarations, we know none
+             // would be relevant.
+@@ -394,41 +547,38 @@
+             {
+                 iter_declarations(iter, &mut declarations, None, &mut attribute_tracker);
+             }
+-            LonghandIdSet::visited_dependent()
++            (
++                ResolvedDeclarations {
++                    cascade,
++                    declarations,
++                },
++                false,
++                LonghandIdSet::visited_dependent(),
++            )
+         },
+         CascadeMode::Unvisited { .. } => {
+-            cascade.init_custom_properties(&mut context);
+-            iter_declarations(
+-                iter,
+-                &mut declarations,
+-                Some((&mut cascade, &mut context)),
+-                &mut attribute_tracker,
+-            );
+-            // Detect cycles, remove properties participating in them, and resolve custom
+-            // properties, applying prioritary properties (font-size, color-scheme, line-height)
+-            // interleaved so that a custom property depending on `em`/`lh`/the used color-scheme is
+-            // substituted once the prioritary property it needs has been applied.
+-            cascade.apply_custom_and_prioritary_properties(
++            let collected =
++                CollectedDeclarations::collect(iter, cascade, &mut context, &mut attribute_tracker);
++            let mut resolved = collected.resolve_concrete(
+                 &mut context,
+-                &declarations,
+                 &mut shorthand_cache,
+                 &mut attribute_tracker,
+             );
+-
+-            using_cached_reset_properties =
+-                cascade.try_to_use_cached_reset_properties(&mut context, rule_cache, guards);
+-
+-            if using_cached_reset_properties {
++            let using_cached_reset_properties = resolved
++                .cascade
++                .try_to_use_cached_reset_properties(&mut context, rule_cache, guards);
++            let properties = if using_cached_reset_properties {
+                 LonghandIdSet::late_group_only_inherited()
+             } else {
+                 LonghandIdSet::late_group()
+-            }
++            };
++            (resolved, using_cached_reset_properties, properties)
+         },
+     };
+ 
+-    cascade.apply_non_prioritary_properties(
++    resolved.cascade.apply_non_prioritary_properties(
+         &mut context,
+-        &declarations.longhand_declarations,
++        &resolved.declarations.longhand_declarations,
+         &mut shorthand_cache,
+         properties_to_apply,
+         &mut attribute_tracker,
+@@ -436,14 +586,16 @@
+ 
+     context.builder.attribute_references = attribute_tracker.finalize();
+ 
+-    cascade.finished_applying_properties(&mut context.builder);
++    resolved
++        .cascade
++        .finished_applying_properties(&mut context.builder);
+ 
+     context.builder.clear_modified_reset();
+ 
+     if let CascadeMode::Unvisited { visited_rules } = cascade_mode {
+         // NOTE: This relies on finished_applying_properties() having already happened.
+         if let Some(visited_rules) = visited_rules {
+-            cascade.compute_visited_style_if_needed(
++            resolved.cascade.compute_visited_style_if_needed(
+                 &mut context,
+                 element,
+                 parent_style,
+@@ -458,7 +610,7 @@
+             layout_parent_style.unwrap_or(inherited_style),
+             element,
+             try_tactic,
+-            &cascade.author_or_user_specified,
++            &resolved.cascade.author_or_user_specified,
+         );
+     }
+ 
+@@ -1916,43 +2068,76 @@
+         self.apply_one_prioritary_property(context, decls, cache, id, attribute_tracker);
+     }
+ 
++    fn admit_custom_property(
++        &mut self,
++        context: &computed::Context,
++        name: &'a Name,
++        value: Option<&CustomDeclarationValue>,
++        priority: CascadePriority,
++        _source: Option<DeclarationSource<'a>>,
++    ) -> bool {
++        if let Some(reverted) = self.reverted.custom.get(name)
++            && !reverted.allows(&priority)
++        {
++            return false;
++        }
++        if !(priority.flags() - context.included_cascade_flags).is_empty() {
++            return false;
++        }
++        let Entry::Vacant(entry) = self.seen.custom.var.entry(name) else {
++            return false;
++        };
++        #[cfg(feature = "gecko")]
++        if let Some(rule) = _source.and_then(DeclarationSource::animation) {
++            debug_assert!(rule.contains(PropertyDeclarationId::Custom(name)));
++        }
++        if let Some(CustomDeclarationValue::CSSWideKeyword(keyword)) = value {
++            if let Some(kind) = keyword.revert_kind() {
++                if kind != RevertKind::Rule {
++                    self.reverted
++                        .custom
++                        .entry(name.clone())
++                        .or_default()
++                        .add(priority, kind);
++                }
++                return false;
++            }
++        }
++        entry.insert(false);
++        true
++    }
++
+     /// Cascade a given custom property declaration.
+     fn cascade_custom_property(
+         &mut self,
+         context: &mut computed::Context,
+         declaration: &'a CustomDeclaration,
+         priority: CascadePriority,
+-        _source: Option<DeclarationSource<'a>>,
++        source: Option<DeclarationSource<'a>>,
++    ) {
++        if self.admit_custom_property(
++            context,
++            &declaration.name,
++            Some(&declaration.value),
++            priority,
++            source,
++        ) {
++            self.apply_admitted_custom_property(context, declaration);
++        }
++    }
++
++    fn apply_admitted_custom_property(
++        &mut self,
++        context: &mut computed::Context,
++        declaration: &'a CustomDeclaration,
+     ) {
+         let CustomDeclaration {
+             ref name,
+             ref value,
+         } = *declaration;
+-
+-        if let Some(reverted) = self.reverted.custom.get(name)
+-            && !reverted.allows(&priority)
+-        {
+-            return;
+-        }
+-
+-        if !(priority.flags() - context.included_cascade_flags).is_empty() {
+-            return;
+-        }
+-
+-        let entry = match self.seen.custom.var.entry(name) {
+-            Entry::Occupied(..) => return,
+-            Entry::Vacant(v) => v,
+-        };
+-
+-        #[cfg(feature = "gecko")]
+-        if let Some(rule) = _source.and_then(DeclarationSource::animation) {
+-            debug_assert!(rule.contains(PropertyDeclarationId::Custom(name)));
+-        }
+-
+         let registration = self.stylist.get_custom_property_registration(name);
+         let initial_values = self.stylist.get_custom_property_initial_values();
+         if !Self::value_may_affect_style(context, name, registration, initial_values, value) {
+-            entry.insert(false);
+             return;
+         }
+ 
+@@ -1982,7 +2167,7 @@
+             CustomDeclarationValue::CSSWideKeyword(..) => false,
+         };
+         self.may_have_custom_property_cycles |= has_references;
+-        entry.insert(has_references);
++        self.seen.custom.var.insert(name, has_references);
+ 
+         match value {
+             CustomDeclarationValue::GuaranteedInvalid => {
+@@ -2020,58 +2205,46 @@
+                     .substitution_functions
+                     .insert_var(registration, name, value);
+             },
+-            CustomDeclarationValue::CSSWideKeyword(keyword) => match keyword.revert_kind() {
+-                Some(revert_kind) => {
+-                    self.seen.custom.var.remove(name);
+-                    if revert_kind != RevertKind::Rule {
+-                        self.reverted
+-                            .custom
+-                            .entry(name.clone())
+-                            .or_default()
+-                            .add(priority, revert_kind);
++            CustomDeclarationValue::CSSWideKeyword(keyword) => match keyword {
++                CSSWideKeyword::Initial => {
++                    // For non-inherited custom properties, 'initial' was handled in value_may_affect_style.
++                    debug_assert!(registration.inherits(), "Should've been handled earlier");
++                    remove_and_insert_initial_value(
++                        name,
++                        registration,
++                        initial_values,
++                        &mut context.builder.substitution_functions,
++                    );
++                },
++                CSSWideKeyword::Inherit => {
++                    // For inherited custom properties, 'inherit' was handled in value_may_affect_style.
++                    debug_assert!(!registration.inherits(), "Should've been handled earlier");
++                    context
++                        .style()
++                        .add_flags(ComputedValueFlags::INHERITS_RESET_STYLE);
++                    let inherited_value = context
++                        .inherited_custom_properties()
++                        .non_inherited
++                        .get(name)
++                        .cloned();
++                    if let Some(inherited_value) = inherited_value {
++                        context.builder.substitution_functions.insert_var(
++                            registration,
++                            name,
++                            inherited_value,
++                        );
++                    } else {
++                        context
++                            .builder
++                            .substitution_functions
++                            .remove_var(registration, name);
+                     }
+                 },
+-                None => match keyword {
+-                    CSSWideKeyword::Initial => {
+-                        // For non-inherited custom properties, 'initial' was handled in value_may_affect_style.
+-                        debug_assert!(registration.inherits(), "Should've been handled earlier");
+-                        remove_and_insert_initial_value(
+-                            name,
+-                            registration,
+-                            initial_values,
+-                            &mut context.builder.substitution_functions,
+-                        );
+-                    },
+-                    CSSWideKeyword::Inherit => {
+-                        // For inherited custom properties, 'inherit' was handled in value_may_affect_style.
+-                        debug_assert!(!registration.inherits(), "Should've been handled earlier");
+-                        context
+-                            .style()
+-                            .add_flags(ComputedValueFlags::INHERITS_RESET_STYLE);
+-                        let inherited_value = context
+-                            .inherited_custom_properties()
+-                            .non_inherited
+-                            .get(name)
+-                            .cloned();
+-                        if let Some(inherited_value) = inherited_value {
+-                            context.builder.substitution_functions.insert_var(
+-                                registration,
+-                                name,
+-                                inherited_value,
+-                            );
+-                        } else {
+-                            context
+-                                .builder
+-                                .substitution_functions
+-                                .remove_var(registration, name);
+-                        }
+-                    },
+-                    // handled in value_may_affect_style or in the revert_kind branch above.
+-                    CSSWideKeyword::Revert
+-                    | CSSWideKeyword::RevertLayer
+-                    | CSSWideKeyword::RevertRule
+-                    | CSSWideKeyword::Unset => unreachable!(),
+-                },
++                // handled in value_may_affect_style or in the revert_kind branch above.
++                CSSWideKeyword::Revert
++                | CSSWideKeyword::RevertLayer
++                | CSSWideKeyword::RevertRule
++                | CSSWideKeyword::Unset => unreachable!(),
+             },
+         }
+     }
+--- a/servo/components/style/stylist.rs
++++ b/servo/components/style/stylist.rs
+@@ -2054,7 +2054,7 @@
+             guards,
+             block.declaration_importance_iter().map(|(declaration, _)| {
+                 (
+-                    declaration,
++                    crate::properties::CascadeDeclaration::Concrete(declaration),
+                     CascadePriority::new(
+                         CascadeLevel::same_tree_author_normal(),
+                         LayerOrder::root(),
+--- a/servo/components/style/native_provider_completion.rs
++++ b/servo/components/style/native_provider_completion.rs
+@@ -11,6 +11,7 @@
+ use servo_arc::Arc;
+ use std::collections::HashMap;
+ 
++#[derive(Clone)]
+ pub(crate) struct PendingProperty {
+     pub(crate) root: SampledAnimationProperty<Arc<KeyframeEndpoint>>,
+     pub(crate) computations: Vec<Arc<KeyframeEndpoint>>,
+@@ -57,7 +58,7 @@
+             Err(Demand::Provider(name)) => return Evaluation::Need(name),
+             Err(Demand::Error(error)) => {
+                 return Evaluation::Error(NativeFailure::Endpoint(error));
+-            }
++            },
+         };
+         values.insert(key, value);
+         effects.push(local_effects);
+@@ -76,3 +77,41 @@
+     };
+     Evaluation::Complete { value, effects }
+ }
++
++pub(crate) enum AdmittedCustomProperty {
++    Ordinary(crate::properties::CustomDeclaration),
++    Animated(PendingProperty),
++}
++
++pub(crate) struct CollectedCustomProperties {
++    winners: Vec<(Name, AdmittedCustomProperty)>,
++}
++
++pub(crate) type AdmittedNativeWinners<C> =
++    WinningProviders<C, Name, Option<ComputedValue>, AdmittedCustomProperty>;
++
++impl CollectedCustomProperties {
++    pub(crate) fn from_admitted(winners: Vec<(Name, AdmittedCustomProperty)>) -> Self {
++        Self { winners }
++    }
++
++    pub(crate) fn into_owner<C>(
++        self,
++        context: C,
++        already_computed: HashMap<Name, Option<ComputedValue>>,
++    ) -> Result<AdmittedNativeWinners<C>, Name> {
++        let mut owner = WinningProviders::new(context, already_computed);
++        for (name, winner) in self.winners {
++            if owner
++                .admit(
++                    name.clone(),
++                    crate::winning_provider_completion::Winner::Pending(winner),
++                )
++                .is_err()
++            {
++                return Err(name);
++            }
++        }
++        Ok(owner)
++    }
++}
