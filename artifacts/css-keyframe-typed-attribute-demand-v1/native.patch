@@ -1,0 +1,803 @@
+--- a/layout/style/test/gtest/TestKeyframePresentation.cpp
++++ b/layout/style/test/gtest/TestKeyframePresentation.cpp
+@@ -458,10 +458,18 @@
+   auto* styleSet = mDocument->GetPresShell()->StyleSet();
+   const nsCString name("--demand-consumer");
+   ASSERT_NO_FATAL_FAILURE(RegisterEndpointNumber(styleSet, name));
++  const nsCString lengthName("--demand-length");
++  PropertyDefinition lengthDefinition;
++  lengthDefinition.mName = lengthName;
++  lengthDefinition.mSyntax.AssignLiteral("<length>");
++  lengthDefinition.mInherits = false;
++  lengthDefinition.mInitialValue.Construct().AssignLiteral("10px");
+   ErrorResult error;
++  styleSet->RegisterProperty(lengthDefinition, error);
++  ASSERT_EQ(NS_OK, error.StealNSResult());
+   target->SetAttr(
+       nsGkAtoms::style,
+-      u"--provider: 20; --ready: 20; --wrong: red; --demand-consumer: 99"_ns,
++      u"font-size: 20px; --provider: 20; --ready: 20; --wrong: red; --demand-consumer: 99"_ns,
+       error);
+   ASSERT_EQ(NS_OK, error.StealNSResult());
+   target->SetAttr(kNameSpaceID_None, nsGkAtoms::data, u"40"_ns, true);
+@@ -475,6 +483,9 @@
+     Status status;
+     const char* expected;
+     const char* demanded;
++    const char* attribute = "40";
++    bool pendingFontSize = false;
++    bool length = false;
+   } cases[] = {
+       {"var(--provider, 5)", "--provider", Status::Provider, nullptr,
+        "provider"},
+@@ -489,15 +500,42 @@
+        "10", ""},
+       {"calc(var(--provider) + var(--missing))", "--provider", Status::Provider,
+        nullptr, "provider"},
+-      {"attr(data type(<number>))", "--provider", Status::AttributePreparation,
+-       nullptr, ""},
++      {"attr(data type(<number>))", "--provider", Status::Resolved, "40", ""},
+       {"attr(data type(<number>))", "", Status::Resolved, "40", ""},
++      {"var(--ready, attr(data type(<number>)))", "--provider",
++       Status::Resolved, "20", "", "var(--provider)"},
++      {"var(--missing, attr(data type(<number>)))", "--provider",
++       Status::Provider, nullptr, "provider", "var(--provider)"},
++      {"attr(data type(<number>))", "--provider", Status::Provider, nullptr,
++       "provider", "var(--provider)"},
++      {"attr(data type(<number>))", "--unrelated", Status::Resolved, "20", "",
++       "var(--ready, var(--provider))"},
++      {"attr(data type(<number>), 7)", "--provider", Status::Provider, nullptr,
++       "provider", "var(--provider)"},
++      {"attr(data type(<number>), 7)", "--unrelated", Status::Resolved, "7", "",
++       "var(--missing)"},
++      {"attr(data type(<number>), 7)", "--unrelated", Status::Resolved, "7", "",
++       nullptr},
++      {"attr(data type(<number>))", "--unrelated", Status::Resolved, "10", "",
++       nullptr},
++      {"attr(data type(<number>))", "--provider", Status::Provider, nullptr,
++       "provider", "attr(title type(<number>))"},
++      {"attr(data type(<number>), 7)", "--unrelated", Status::Resolved, "7", "",
++       "attr(data type(<number>), 9)"},
++      {"attr(data type(<length>))", "--unrelated", Status::Prioritary, nullptr,
++       "font-size", "2em", true, true},
++      {"attr(data type(<length>))", "--unrelated", Status::Resolved, "40px", "",
++       "2em", false, true},
+       {"var(--provider)", "", Status::Resolved, "20", ""},
+   };
+   for (const auto& test : cases) {
++    target->SetAttr(kNameSpaceID_None, nsGkAtoms::data, u"40"_ns, true);
++    target->SetAttr(kNameSpaceID_None, nsGkAtoms::title, u"var(--provider)"_ns,
++                    true);
++    const nsCString& testName = test.length ? lengthName : name;
+     nsTArray<Keyframe> keyframes;
+     ASSERT_NO_FATAL_FAILURE(
+-        AppendCustomEndpoint(mDocument, keyframes, name, test.input, 0));
++        AppendCustomEndpoint(mDocument, keyframes, testName, test.input, 0));
+     bool attributes = false;
+     auto values = styleSet->GetComputedKeyframeValuesFor(keyframes, target, {},
+                                                          providers, attributes);
+@@ -505,19 +543,26 @@
+     ASSERT_EQ(1u, values[0].Length());
+     RefPtr<StyleKeyframeEndpoint> endpoint = values[0][0].mEndpoint;
+     ASSERT_TRUE(endpoint);
++    if (test.attribute) {
++      target->SetAttr(kNameSpaceID_None, nsGkAtoms::data,
++                      NS_ConvertUTF8toUTF16(test.attribute), true);
++    } else {
++      target->UnsetAttr(kNameSpaceID_None, nsGkAtoms::data, true);
++    }
+     const nsCString pending(test.pending);
+     nsAutoCString demanded;
+     auto status = Status::Unsupported;
+     RefPtr<StyleAnimationValue> value =
+         Servo_KeyframeEndpoint_ResolvePendingForTesting(
+             endpoint, target, PseudoStyleType::NotPseudo, providers,
+-            styleSet->RawData(), &pending, &demanded, &status, &attributes)
++            styleSet->RawData(), &pending, test.pendingFontSize, &demanded,
++            &status, &attributes)
+             .Consume();
+     EXPECT_EQ(test.status, status) << test.input;
+     EXPECT_STREQ(test.demanded, demanded.get()) << test.input;
+     if (test.expected) {
+       ASSERT_TRUE(value);
+-      auto property = CSSPropertyId::FromCustomProperty(name);
++      auto property = CSSPropertyId::FromCustomProperty(testName);
+       nsAutoCString serialized;
+       Servo_AnimationValue_Serialize(value, &property, styleSet->RawData(),
+                                      &serialized);
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1639,6 +1639,7 @@
+         context,
+         attribute_tracker,
+         None,
++        None,
+     );
+     debug_assert!(result.is_ok());
+ }
+@@ -1651,6 +1652,7 @@
+     context: &mut computed::Context,
+     attribute_tracker: &mut AttributeTracker,
+     pending: Option<&std::collections::HashSet<Name>>,
++    pending_prioritary: Option<&crate::properties::PrioritaryPropertyIdSet>,
+ ) -> Result<(), SubstitutionDemand> {
+     let is_var = namespace.is_none();
+     let registration = stylist.get_custom_property_registration(name);
+@@ -1755,6 +1757,30 @@
+         }
+     }
+ 
++    if let Some(pending_prioritary) = pending_prioritary {
++        if is_var && !registration.is_universal() && !pending_prioritary.is_empty() {
++            let mut parser = Parser::new(&substitution.css);
++            let resolved = VariableValue::parse(&mut parser, None, url_data)
++                .map_err(|_| SubstitutionDemand::ContextPreparation)?;
++            let is_root = context.is_root_element();
++            let references = crate::properties::cascade::find_non_custom_references(
++                registration,
++                &resolved,
++                is_root,
++            );
++            let mut demand = None;
++            references.for_each_non_custom(is_root, |reference| {
++                if demand.is_none() {
++                    demand =
++                        first_pending_prioritary(reference.to_prioritary_id(), pending_prioritary);
++                }
++            });
++            if let Some(id) = demand {
++                return Err(SubstitutionDemand::Prioritary(id));
++            }
++        }
++    }
++
+     match namespace {
+         None => {
+             let value = match substitution.into_value(
+@@ -1911,7 +1937,33 @@
+ 
+ pub(crate) enum SubstitutionDemand {
+     Provider(Name),
+-    AttributePreparation,
++    Attribute {
++        name: Name,
++        data: AttributeData,
++        url_data: UrlExtraData,
++    },
++    Prioritary(PrioritaryPropertyId),
++    ContextPreparation,
++}
++
++pub(crate) fn first_pending_prioritary(
++    id: PrioritaryPropertyId,
++    pending: &crate::properties::PrioritaryPropertyIdSet,
++) -> Option<PrioritaryPropertyId> {
++    let mut required = *id.dependencies();
++    required.insert(id);
++    loop {
++        let before = required;
++        for dependency in before.iter() {
++            for nested in dependency.dependencies().iter() {
++                required.insert(nested);
++            }
++        }
++        if required == before {
++            break;
++        }
++    }
++    required.iter().find(|id| pending.contains(*id))
+ }
+ 
+ enum SubstitutionError {
+@@ -2105,12 +2157,16 @@
+         },
+         // https://drafts.csswg.org/css-values-5/#attr-substitution
+         SubstitutionFunctionKind::Attr => {
+-            if pending.is_some_and(|names| !names.is_empty())
+-                && matches!(reference.attribute_data.kind, AttributeType::Type(_))
+-            {
+-                return Err(SubstitutionError::Demand(
+-                    SubstitutionDemand::AttributePreparation,
+-                ));
++            if pending.is_some() && reference.is_attr_with_type() {
++                if let Some(namespace) = reference.attribute_data.namespace() {
++                    if !substitution_functions.contains_attr(&reference.name, namespace) {
++                        return Err(SubstitutionError::Demand(SubstitutionDemand::Attribute {
++                            name: reference.name.clone(),
++                            data: reference.attribute_data.clone(),
++                            url_data: url_data.clone(),
++                        }));
++                    }
++                }
+             }
+ 
+             let namespace = match reference.attribute_data.namespace {
+--- a/servo/components/style/keyframe_endpoint.rs
++++ b/servo/components/style/keyframe_endpoint.rs
+@@ -186,17 +186,35 @@
+ 
+ pub enum EndpointDemand {
+     Provider(crate::custom_properties::Name),
+-    AttributePreparation,
++    Prioritary(crate::properties::PrioritaryPropertyId),
++    ContextPreparation,
+     Unsupported(EndpointResolutionStatus),
+ }
+ 
+ impl KeyframeEndpoint {
+     pub fn resolve_registered_with_pending(
++        &self,
++        stylist: &crate::stylist::Stylist,
++        context: crate::values::computed::Context,
++        attribute_tracker: &mut crate::dom::AttributeTracker,
++        pending: &std::collections::HashSet<crate::custom_properties::Name>,
++    ) -> Result<crate::properties::animated_properties::AnimationValue, EndpointDemand> {
++        self.resolve_registered_with_pending_context(
++            stylist,
++            context,
++            attribute_tracker,
++            pending,
++            &crate::properties::PrioritaryPropertyIdSet::default(),
++        )
++    }
++
++    pub fn resolve_registered_with_pending_context(
+         &self,
+         stylist: &crate::stylist::Stylist,
+         mut context: crate::values::computed::Context,
+         attribute_tracker: &mut crate::dom::AttributeTracker,
+         pending: &std::collections::HashSet<crate::custom_properties::Name>,
++        pending_prioritary: &crate::properties::PrioritaryPropertyIdSet,
+     ) -> Result<crate::properties::animated_properties::AnimationValue, EndpointDemand> {
+         use crate::custom_properties::{
+             SubstitutionDemand, substitute_references_with_pending_and_apply,
+@@ -205,7 +223,7 @@
+         use crate::properties::animated_properties::AnimationValue;
+         use crate::properties_and_values::value::CustomAnimatedValue;
+ 
+-        if pending.is_empty() {
++        if pending.is_empty() && pending_prioritary.is_empty() {
+             return self
+                 .resolve_registered(stylist, context, attribute_tracker)
+                 .map_err(EndpointDemand::Unsupported);
+@@ -236,19 +254,39 @@
+                 .resolve_registered(stylist, context, attribute_tracker)
+                 .map_err(EndpointDemand::Unsupported);
+         };
+-        substitute_references_with_pending_and_apply(
+-            name,
+-            None,
+-            tokens,
+-            stylist,
+-            &mut context,
+-            attribute_tracker,
+-            Some(pending),
+-        )
+-        .map_err(|demand| match demand {
++        context.builder.substitution_functions.attributes.clear();
++        let external_demand = |demand| match demand {
+             SubstitutionDemand::Provider(name) => EndpointDemand::Provider(name),
+-            SubstitutionDemand::AttributePreparation => EndpointDemand::AttributePreparation,
+-        })?;
++            SubstitutionDemand::Prioritary(id) => EndpointDemand::Prioritary(id),
++            SubstitutionDemand::Attribute { .. } | SubstitutionDemand::ContextPreparation => {
++                EndpointDemand::ContextPreparation
++            },
++        };
++        loop {
++            match substitute_references_with_pending_and_apply(
++                name,
++                None,
++                tokens,
++                stylist,
++                &mut context,
++                attribute_tracker,
++                Some(pending),
++                Some(pending_prioritary),
++            ) {
++                Ok(()) => break,
++                Err(SubstitutionDemand::Attribute {
++                    name,
++                    data,
++                    url_data,
++                }) => {
++                    crate::properties::KeyframeCustomPropertiesBuilder::resolve_requested_attribute(
++                        stylist, &mut context, &name, &data, &url_data,
++                        attribute_tracker, pending, pending_prioritary,
++                    ).map_err(external_demand)?;
++                },
++                Err(demand) => return Err(external_demand(demand)),
++            }
++        }
+         let value = context.builder.custom_properties().get(registration, name);
+         Ok(AnimationValue::Custom(CustomAnimatedValue::from_computed(
+             name, value,
+@@ -276,6 +314,7 @@
+ pub enum EndpointDemandStatus {
+     Resolved,
+     Provider,
+-    AttributePreparation,
++    Prioritary,
++    ContextPreparation,
+     Unsupported,
+ }
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -9,10 +9,12 @@
+ use crate::computed_value_flags::ComputedValueFlags;
+ use crate::context::TreeCountingCaches;
+ use crate::custom_properties::{
+-    ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
+-    ReferenceFlags, References, SingleNonCustomReference, SubstitutionFunctionKind, VariableValue,
++    AttributeData, ComputedCustomProperties, ComputedSubstitutionFunctions, Name,
++    NonCustomReferenceMap, ReferenceFlags, References, SingleNonCustomReference,
++    SubstitutionDemand, SubstitutionFunctionKind, VariableValue,
+     get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
+     remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
++    substitute_references_with_pending_and_apply,
+ };
+ use crate::dom::{AttributeTracker, DummyElementContext, ElementContext, TElement};
+ #[cfg(feature = "gecko")]
+@@ -790,7 +792,7 @@
+ }
+ 
+ /// Only registered (typed) properties emit a non-custom edge, from their own value.
+-fn find_non_custom_references(
++pub(crate) fn find_non_custom_references(
+     registration: &PropertyDescriptors,
+     value: &VariableValue,
+     is_root_element: bool,
+@@ -876,6 +878,46 @@
+     ) {
+         self.cascade
+             .update_attributes_map(context, value, attribute_tracker);
++    }
++
++    pub(crate) fn resolve_requested_attribute(
++        stylist: &'a Stylist,
++        context: &mut computed::Context,
++        name: &Name,
++        data: &AttributeData,
++        url_data: &UrlExtraData,
++        attribute_tracker: &mut AttributeTracker,
++        pending: &std::collections::HashSet<Name>,
++        pending_prioritary: &PrioritaryPropertyIdSet,
++    ) -> Result<(), SubstitutionDemand> {
++        let Some(namespace) = data.namespace() else {
++            return Ok(());
++        };
++        match get_attr_value_for_cycle_resolution(name, data, url_data, attribute_tracker) {
++            Ok(value) => context
++                .builder
++                .substitution_functions
++                .insert_attr(name, namespace, value),
++            Err(()) => context
++                .builder
++                .substitution_functions
++                .remove_attr(name, namespace),
++        }
++        let mut seen = SeenSubstitutionFunctions::default();
++        seen.attr.entry(namespace).or_default().insert(name);
++        let mut cascade = Cascade::new_for_custom_properties_only(stylist);
++        substitute_all_with_pending(
++            &seen,
++            &NonCustomPropertyReferences::default(),
++            stylist,
++            context,
++            &mut cascade,
++            &Declarations::default(),
++            &mut ShorthandsWithPropertyReferencesCache::default(),
++            attribute_tracker,
++            Some(pending),
++            pending_prioritary,
++        )
+     }
+ 
+     /// Resolve only prepared attributes; preserve the current custom-provider snapshot.
+@@ -2307,6 +2349,33 @@
+     shorthand_cache: &mut ShorthandsWithPropertyReferencesCache,
+     attr_tracker: &mut AttributeTracker,
+ ) {
++    let result = substitute_all_with_pending(
++        seen,
++        references_from_non_custom_properties,
++        stylist,
++        computed_context,
++        cascade,
++        decls,
++        shorthand_cache,
++        attr_tracker,
++        None,
++        &PrioritaryPropertyIdSet::default(),
++    );
++    debug_assert!(result.is_ok());
++}
++
++fn substitute_all_with_pending(
++    seen: &SeenSubstitutionFunctions,
++    references_from_non_custom_properties: &NonCustomPropertyReferences,
++    stylist: &Stylist,
++    computed_context: &mut computed::Context,
++    cascade: &mut Cascade,
++    decls: &Declarations,
++    shorthand_cache: &mut ShorthandsWithPropertyReferencesCache,
++    attr_tracker: &mut AttributeTracker,
++    pending: Option<&std::collections::HashSet<Name>>,
++    pending_prioritary: &PrioritaryPropertyIdSet,
++) -> Result<(), SubstitutionDemand> {
+     // The cycle dependencies removal in this function is a variant
+     // of Tarjan's algorithm. It is mostly based on the pseudo-code
+     // listed in
+@@ -2386,6 +2455,8 @@
+         decls: &'a Declarations<'d>,
+         /// Shorthand cache, needed to apply prioritary properties.
+         cache: &'a mut ShorthandsWithPropertyReferencesCache,
++        pending: Option<&'a std::collections::HashSet<Name>>,
++        pending_prioritary: &'a PrioritaryPropertyIdSet,
+     }
+ 
+     impl<'a, 'b: 'a, 'c, 'd> Context<'a, 'b, 'c, 'd> {
+@@ -2440,7 +2511,12 @@
+             &mut self,
+             id: PrioritaryPropertyId,
+             attr_tracker: &mut AttributeTracker,
+-        ) {
++        ) -> Result<(), SubstitutionDemand> {
++            if let Some(dependency) =
++                crate::custom_properties::first_pending_prioritary(id, self.pending_prioritary)
++            {
++                return Err(SubstitutionDemand::Prioritary(dependency));
++            }
+             self.cascade.ensure_prioritary_property(
+                 self.computed_context,
+                 self.decls,
+@@ -2448,6 +2524,7 @@
+                 attr_tracker,
+                 id,
+             );
++            Ok(())
+         }
+     }
+ 
+@@ -2473,7 +2550,7 @@
+         self_ref: &mut bool,
+         attribute_tracker: &mut AttributeTracker,
+         non_custom_references: &mut ReferenceFlags,
+-    ) {
++    ) -> Result<(), SubstitutionDemand> {
+         // FIXME: Maybe avoid visiting the same var twice if not needed?
+         let mut refs_stack = SmallVec::<[&References; 5]>::new();
+         refs_stack.push(root);
+@@ -2508,15 +2585,19 @@
+                         }
+                         continue;
+                     };
+-                    if !context.map().contains_attr(&next.name, namespace)
+-                        && let Ok(val) = get_attr_value_for_cycle_resolution(
++                    if !context.map().contains_attr(&next.name, namespace) {
++                        match get_attr_value_for_cycle_resolution(
+                             &next.name,
+                             &next.attribute_data,
+                             url_data,
+                             attribute_tracker,
+-                        )
+-                    {
+-                        context.map_mut().insert_attr(&next.name, namespace, val);
++                        ) {
++                            Ok(val) => context.map_mut().insert_attr(&next.name, namespace, val),
++                            Err(()) if context.pending.is_some() => {
++                                context.map_mut().remove_attr(&next.name, namespace);
++                            },
++                            Err(()) => {},
++                        }
+                     }
+                     VarType::Attr(next.name.clone(), namespace.clone())
+                 } else {
+@@ -2531,7 +2612,7 @@
+                     lowlink,
+                     self_ref,
+                     attribute_tracker,
+-                );
++                )?;
+ 
+                 // Now that the primary reference has been resolved, classify it to
+                 // decide whether its fallback is used.
+@@ -2577,6 +2658,7 @@
+                 }
+             }
+         }
++        Ok(())
+     }
+ 
+     /// Traverse a single dependency `var` of the variable at order index `index`, updating its
+@@ -2589,12 +2671,12 @@
+         lowlink: &mut usize,
+         self_ref: &mut bool,
+         attr_tracker: &mut AttributeTracker,
+-    ) {
+-        let next_index = match traverse(var, non_custom_references, context, attr_tracker) {
++    ) -> Result<(), SubstitutionDemand> {
++        let next_index = match traverse(var, non_custom_references, context, attr_tracker)? {
+             Some(index) => index,
+             // There is nothing to do if the next variable has been
+             // fully resolved at this point.
+-            None => return,
++            None => return Ok(()),
+         };
+         let next_info = &context.var_info[next_index];
+         if next_index > index {
+@@ -2609,6 +2691,7 @@
+             // in the stack, so we are at the same component.
+             *lowlink = cmp::min(*lowlink, next_index);
+         }
++        Ok(())
+     }
+ 
+     /// This function combines the traversal for cycle removal and value
+@@ -2634,7 +2717,12 @@
+         references_from_non_custom_properties: &NonCustomPropertyReferences,
+         context: &mut Context<'a, 'b, 'c, 'd>,
+         attribute_tracker: &mut AttributeTracker,
+-    ) -> Option<usize> {
++    ) -> Result<Option<usize>, SubstitutionDemand> {
++        if let VarType::Custom(name) = &var {
++            if context.pending.is_some_and(|names| names.contains(name)) {
++                return Err(SubstitutionDemand::Provider(name.clone()));
++            }
++        }
+         // Some shortcut checks.
+         // The non-custom (font/line-height/color-scheme) dependencies of this value, carried out
+         // of the match so we can create the corresponding nodes once we've pushed this variable.
+@@ -2647,15 +2735,26 @@
+                     let registration = context.stylist.get_custom_property_registration(name);
+                     (
+                         registration,
+-                        map.get_var(registration, name)?.as_universal()?,
++                        match map
++                            .get_var(registration, name)
++                            .and_then(|value| value.as_universal())
++                        {
++                            Some(value) => value,
++                            None => return Ok(None),
++                        },
+                         SubstitutionFunctionKind::Var,
+                     )
+                 } else {
+                     // `attr()` is always treated as unregistered.
+                     (
+                         PropertyDescriptors::unregistered(),
+-                        map.get_attr(name, var.namespace().unwrap())?
+-                            .as_universal()?,
++                        match map
++                            .get_attr(name, var.namespace().unwrap())
++                            .and_then(|value| value.as_universal())
++                        {
++                            Some(value) => value,
++                            None => return Ok(None),
++                        },
+                         SubstitutionFunctionKind::Attr,
+                     )
+                 };
+@@ -2679,16 +2778,18 @@
+                         // turned out not to. Note that if this was already computed we would've
+                         // bailed out in the as_universal() check.
+                         let value = value.clone();
+-                        substitute_references_if_needed_and_apply(
++                        substitute_references_with_pending_and_apply(
+                             name,
+                             var.namespace(),
+                             &value,
+                             context.stylist,
+                             context.computed_context,
+                             attribute_tracker,
+-                        );
++                            context.pending,
++                            Some(context.pending_prioritary),
++                        )?;
+                     }
+-                    return None;
++                    return Ok(None);
+                 }
+ 
+                 // Has this variable been visited?
+@@ -2703,7 +2804,7 @@
+                 };
+                 match index_map.entry_ref(name) {
+                     EntryRef::Occupied(entry) => {
+-                        return Some(*entry.get());
++                        return Ok(Some(*entry.get()));
+                     },
+                     EntryRef::Vacant(entry) => {
+                         entry.insert(context.count);
+@@ -2716,7 +2817,7 @@
+             VarType::NonCustom(ref non_custom) => {
+                 let entry = &mut context.non_custom_index_map[*non_custom];
+                 if let Some(v) = entry {
+-                    return Some(*v);
++                    return Ok(Some(*v));
+                 }
+                 *entry = Some(context.count);
+                 None
+@@ -2758,14 +2859,18 @@
+                 &mut self_ref,
+                 attribute_tracker,
+                 &mut value_non_custom_refs,
+-            );
++            )?;
+ 
+             // ... Then the non-custom properties this value depends on (font-size, line-height,
+             // color-scheme), as computed by `find_non_custom_references` above.
+             let is_root = context.computed_context.is_root_element();
+             if registered && !value_non_custom_refs.is_empty() {
++                let mut demand = Ok(());
+                 value_non_custom_refs.for_each_non_custom(is_root, |r| {
+-                    visit_link(
++                    if demand.is_err() {
++                        return;
++                    }
++                    demand = visit_link(
+                         VarType::NonCustom(r),
+                         index,
+                         references_from_non_custom_properties,
+@@ -2775,6 +2880,7 @@
+                         attribute_tracker,
+                     );
+                 });
++                demand?;
+             }
+         } else if let VarType::NonCustom(non_custom) = var {
+             // line-height's resolution depends on font-size's, so its node has a graph edge to the
+@@ -2795,7 +2901,7 @@
+                     &mut lowlink,
+                     &mut self_ref,
+                     attribute_tracker,
+-                );
++                )?;
+             }
+             let entry = &references_from_non_custom_properties[non_custom];
+             if let Some(values) = entry.as_ref() {
+@@ -2820,7 +2926,7 @@
+                         &mut self_ref,
+                         attribute_tracker,
+                         &mut Default::default(),
+-                    );
++                    )?;
+                 }
+             }
+         }
+@@ -2832,7 +2938,7 @@
+             //
+             // This cannot be removed from the map here, because otherwise the shortcut check at the
+             // beginning of this function would return the wrong value.
+-            return Some(index);
++            return Ok(Some(index));
+         }
+ 
+         // This is the root of a strong-connected component.
+@@ -2863,7 +2969,7 @@
+         }
+ 
+         if in_loop {
+-            return None;
++            return Ok(None);
+         }
+ 
+         // Not in a loop, apply the value.
+@@ -2872,22 +2978,25 @@
+                 if let Some(ref v) = value {
+                     // We know we're not in a loop now, perform substitution.
+                     // TODO(emilio): Merge with the cycle detection loop instead?
+-                    substitute_references_if_needed_and_apply(
++                    substitute_references_with_pending_and_apply(
+                         name,
+                         var.namespace(),
+                         v,
+                         context.stylist,
+                         context.computed_context,
+                         attribute_tracker,
+-                    );
++                        context.pending,
++                        Some(context.pending_prioritary),
++                    )?;
+                 }
+             },
+             VarType::NonCustom(non_custom) => {
+-                context.apply_prioritary_property(non_custom.to_prioritary_id(), attribute_tracker);
++                context
++                    .apply_prioritary_property(non_custom.to_prioritary_id(), attribute_tracker)?;
+             },
+         }
+         // All resolved, so return the signal value.
+-        None
++        Ok(None)
+     }
+ 
+     let mut context = Context {
+@@ -2901,6 +3010,8 @@
+         cascade: &mut *cascade,
+         decls,
+         cache: &mut *shorthand_cache,
++        pending,
++        pending_prioritary,
+     };
+     let mut first = true;
+     let mut run_one = |var: VarType| {
+@@ -2913,7 +3024,8 @@
+             references_from_non_custom_properties,
+             &mut context,
+             attr_tracker,
+-        );
++        )
++        .map(|_| ())
+     };
+     // Note that `seen` doesn't contain names inherited from our parent, but
+     // those can't have variable references (since we inherit the computed
+@@ -2922,13 +3034,14 @@
+         if !has_refs {
+             continue;
+         }
+-        run_one(VarType::Custom((*var).clone()));
++        run_one(VarType::Custom((*var).clone()))?;
+     }
+     // Traverse potentially untraversed chained references from `attr(type())` in non-custom
+     // properties.
+     for (namespace, attributes) in &seen.attr {
+         for attr in attributes {
+-            run_one(VarType::Attr((*attr).clone(), (*namespace).clone()));
+-        }
+-    }
++            run_one(VarType::Attr((*attr).clone(), (*namespace).clone()))?;
++        }
++    }
++    Ok(())
+ }
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -7851,6 +7851,7 @@
+     providers: &ComputedValues,
+     raw_data: &PerDocumentStyleData,
+     pending_name: &nsACString,
++    pending_font_size: bool,
+     demanded_name: &mut nsACString,
+     status: &mut style::keyframe_endpoint::EndpointDemandStatus,
+     references_attributes: &mut bool,
+@@ -7869,6 +7870,10 @@
+         pending.insert(Atom::from(name));
+     }
+     demanded_name.assign("");
++    let mut pending_prioritary = style::properties::PrioritaryPropertyIdSet::default();
++    if pending_font_size {
++        pending_prioritary.insert(style::properties::PrioritaryPropertyId::FontSize);
++    }
+ 
+     let data = raw_data.borrow();
+     let element = GeckoElement(element);
+@@ -7900,8 +7905,13 @@
+             None,
+         );
+     let mut tracker = AttributeTracker::new(&element);
+-    let result =
+-        endpoint.resolve_registered_with_pending(&data.stylist, context, &mut tracker, &pending);
++    let result = endpoint.resolve_registered_with_pending_context(
++        &data.stylist,
++        context,
++        &mut tracker,
++        &pending,
++        &pending_prioritary,
++    );
+     *references_attributes = tracker.references.is_some();
+     match result {
+         Ok(value) => {
+@@ -7914,7 +7924,11 @@
+                     demanded_name.assign(name.as_str());
+                     EndpointDemandStatus::Provider
+                 },
+-                EndpointDemand::AttributePreparation => EndpointDemandStatus::AttributePreparation,
++                EndpointDemand::Prioritary(id) => {
++                    demanded_name.assign(id.to_longhand().name());
++                    EndpointDemandStatus::Prioritary
++                },
++                EndpointDemand::ContextPreparation => EndpointDemandStatus::ContextPreparation,
+                 EndpointDemand::Unsupported(_) => EndpointDemandStatus::Unsupported,
+             };
+             Strong::null()
