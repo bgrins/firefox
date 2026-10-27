@@ -2,7 +2,7 @@
 
 Fix 136, contained counter append invalidation, is committed as `37bc9b06f034c191be50aa4949b072bbf7d5a64e` after research `7cc4b9b3f524117870d19fff665843fc876d495d`. The original/candidate/original/candidate comparison gives 12 PASS + 12 FAIL / 24 PASS / 12 PASS + 12 FAIL / 24 PASS. All 64 quote subtests and eight existing counter regressions remain passing. Three builds and WPT lint pass. Tentative P3 visual correctness. Source audit and browser reproduction found the issue; the separate Lean model corroborates conditional delivery laws (14 audits, 12 examples, five rejected false claims). No clean-upstream build, security, measured performance or universal native-refinement claim. The original outer tool handle was lost; archived child exits and a fresh final-state verification supply the completion evidence.
 
-The signed animation research now includes owned provider completion, demand-aware endpoint substitution and typed-attribute/context demands with 22 proposed real-resolver calls. Native integration remains unfinished and the new proposal code is not compiled or enabled. The versioned fallback-cycle trace confirms ordinary Stylo already skips unused fallback edges. The canonical Lean coverage counts are unchanged.
+The typed-demand prototype now passes its full native build, 20 native tests including 22 new real-resolver calls, and four ordinary WPTs (253 PASS, three existing expected FAIL; no unexpected results). Production pending-provider integration remains unfinished and disabled. The versioned var-fallback trace does not cover the newly observed attribute and unit dependency failures. Canonical Lean coverage counts are unchanged.
 
 Fix 135, contained quote append invalidation, is committed as `0d27cb839f013f214973215cd0a8ce8a87c4b780` after research `d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4`. The candidate/original/candidate comparison gives 64 PASS / 52 PASS + 12 FAIL / 64 PASS, with all 18 existing regressions unchanged (15 PASS and three expected FAIL). Tentative P3 visual correctness. Discovery came from source audit and browser reproduction; conditional Lean models corroborate scope/dependency laws, not universal native correctness. No clean-upstream build, security or measured performance claim. The adjacent counter append issue is tracked separately as fix 136.
 
@@ -27,15 +27,19 @@ Fix 121 now includes its validated one-block expectation correction. The signed 
 
 ## Latest verified work
 
-The callable current-provider resolver passed the normal and GTest builds and all 19 native tests; normal pending recipe production remains disabled. The 113-case metadata comparison preserved all 110 PASS and three expected FAIL observations, changing only the fix 121 expectation. The canonical library is signed at `162b20fb7c53a0ab89b20875a965baee98fb66bb` and its full check passes 11,840 audits, 12,438 cases, 173 expected-false cases and 2,155 source fingerprints. Ten audits transfer from reviewed steps research, with no new discovery, normative coverage or native-refinement credit.
+The callable typed-demand resolver passed all 20 selected GTests across four suites. Four ordinary substitution WPTs produced 256 subtests (253 PASS and three existing expected FAIL), four OK harness endings and no unexpected results. Source/resource/metadata and root/nested preservation checks passed. See [validation checkpoint](../css-demand-and-cycle-validation-20261027-v1/REPORT.md).
 
-Next: Compile the typed-attribute demand proposal and execute its 22 real-resolver calls plus existing native tests, then integrate winning pending animation providers through the real cascade and dependency scheduler. Preserve current-base, cycle-policy, dependency-publication and memory-reporting obligations.
+Both attribute-cycle leads reproduce in release Firefox 158 and local Nightly 160: five raw-nested disagreements with eight controls, and seven used bare/unit fallback disagreements with six controls. A registered-number comparison shows seven shared discrepancies and one additional local prototype control failure. These are repair targets, not accepted fixes.
+
+The signed substitution-completion model has 17 audits, 16 kernel examples and six rejected false claims, independently replayed. It proves already-settled outcomes stable under coherent completion, not native scheduler confluence or full CSS semantics. The canonical library remains at `162b20fb7c53a0ab89b20875a965baee98fb66bb` with previously verified 11,840 audits, 12,438 cases, 173 expected-false cases and 2,155 source fingerprints; this turn did not rerun or expand those counts.
 
 ## Execution order
 
-1. Keep quote fix 135 and counter fix 136 independently reviewable with their preceding research and exact comparison evidence.
-2. Continue the full animation pending-provider integration through winning cascade gates; do not replace scheduling with preselected provider snapshots.
-3. Preserve Bloom milestones 1–6 and scoped specification correspondence; keep accepted fixes and their research separately reviewable.
+1. Validate and commit a minimal used bare/unit attribute fallback cycle repair with its WPT and preceding evidence. Preserve quote fix 135 and counter fix 136 separately.
+2. Repair raw nested attribute false cycles after explicit review of the existing WPT oracle.
+3. Complete actual winning pending-provider collection and joint ordinary/animated/prioritary resolution, preserving current-base freshness, cycle policy, isolated endpoint contexts, effect publication and memory reporting. The single-collector and disposable-context proposals remain uncompiled.
+4. Resolve registered-number false dependencies while retaining real numeric math operands; distinguish the additional local prototype failure from release defects.
+5. Preserve Bloom milestones 1–6 and scoped specification correspondence; keep accepted fixes standalone and all work local.
 
 ## Historical record
 
