@@ -1,0 +1,175 @@
+{
+  "changes": {
+    "CssSemantics.lean": {
+      "before": "b4b33cbdd25da18877d8815f9b38245c85404a11c624eeac3a9d457149265373",
+      "after": "663318868e98f70595190a80d58a3c578bb331036273474d48139a04edb90e97"
+    },
+    "tests/Audit.lean": {
+      "before": "69f7fe47d3d7f64209c69cf8f72f535edf8627074555dc62b1f2e1c782c9c90d",
+      "after": "c0fb346a3aa8ba98c04ead0c144eed5256d786019c023ed0f5d3a0827f8acb14"
+    },
+    "tests/RunExamples.lean": {
+      "before": "a4a6896f9253f75e4155dddb4efaa92917663d22d0d8b700c6263fe3d12bf9c1",
+      "after": "e9915cf8dea299ee09273b46f704fba98c32673ea53500d1228d49872d6471d5"
+    },
+    "check.py": {
+      "before": "c949a2298c75bf7705a1117ef5fdc60370bc6bcad063690e471ad428feeef325",
+      "after": "6eebbc2192773bc605a9b699245061b406d9b3ea82b648384d6859b12ce2d4ee"
+    },
+    "coverage.json": {
+      "before": "5edbd2b6f8cdd5bd8a2d4e00f2b166ee5d757c8f104d4a4b5682529fa490dd19",
+      "after": "ee038c286cc6170f769e39fa3416e7ba0b5e7c15b98b089838d8e003674ecd82"
+    },
+    "README.md": {
+      "before": "441bd805015f2c0c26c5a936d33b6298cf1db42777d2ce9e74c42fcbb7638b83",
+      "after": "58ba9965cc0295d65bf278cc4bf2e8d4abc2bebc0ce6c8d0100c8145a10cc759"
+    },
+    "ARTIFACT.md": {
+      "before": "b4f236ee2c51e19709cacfeb095c0e1641cd24e4a84e435c66581bea2e67306e",
+      "after": "95444026018dc6c41cf26253fef63195a6cce3ac7e8bfc3ccdea8d0f08e00149"
+    },
+    "research/coverage-map.md": {
+      "before": "38dbcf6b2fad0d07e17ae10a40eccbde373f5136807b594548c576a23fa4792d",
+      "after": "59f4b8d10007437f376a67481335d162478d4568a09b3965b232c421619dd79a"
+    },
+    "CssSemantics/GuardedNames.lean": {
+      "before": null,
+      "after": "d483a93dee4e46812cfc5de42e678c0926c17acc56db9ac7f14b7da181e6e491"
+    },
+    "CssSemantics/GuardedNamesExamples.lean": {
+      "before": null,
+      "after": "8f8c6d31f3de3587e21548b9568787ee0d91c2b8f2c43e8aa693a9dc7e99e0e9"
+    }
+  },
+  "audits": [
+    "#print axioms CssSemantics.GuardedNames.parse_exact",
+    "#print axioms CssSemantics.GuardedNames.static_semantics",
+    "#print axioms CssSemantics.GuardedNames.name_state",
+    "#print axioms CssSemantics.GuardedNames.invalid_name_state",
+    "#print axioms CssSemantics.GuardedNames.fallback_only_after_lookup",
+    "#print axioms CssSemantics.GuardedNames.fallback_threads_state",
+    "#print axioms CssSemantics.GuardedNames.evaluate_preserves",
+    "#print axioms CssSemantics.GuardedNames.remove_length_lt",
+    "#print axioms CssSemantics.GuardedNames.embed_lookup",
+    "#print axioms CssSemantics.GuardedNames.embed_remove",
+    "#print axioms CssSemantics.GuardedNames.embedded_resolve",
+    "#print axioms CssSemantics.GuardedNames.resolve_marks",
+    "#print axioms CssSemantics.GuardedNames.fresh_marks",
+    "#print axioms CssSemantics.GuardedNames.Examples.valid_result",
+    "#print axioms CssSemantics.GuardedNames.Examples.missing_result",
+    "#print axioms CssSemantics.GuardedNames.Examples.invalid_result",
+    "#print axioms CssSemantics.GuardedNames.Examples.empty_name_result",
+    "#print axioms CssSemantics.GuardedNames.Examples.self_cycle_result",
+    "#print axioms CssSemantics.GuardedNames.Examples.name_cycle_result",
+    "#print axioms CssSemantics.GuardedNames.Examples.empty_value_result",
+    "#print axioms CssSemantics.GuardedNames.Examples.inner_mark_survives",
+    "#print axioms CssSemantics.GuardedNames.Examples.later_substitution_runs",
+    "#print axioms CssSemantics.GuardedNames.Examples.multiple_name_result",
+    "#print axioms CssSemantics.GuardedNames.Examples.missing_name_result",
+    "#print axioms CssSemantics.GuardedNames.Examples.nested_name_result"
+  ],
+  "cases": [
+    [
+      "computed name valid dynamic target",
+      true
+    ],
+    [
+      "computed name missing target fallback",
+      true
+    ],
+    [
+      "computed name invalid name fallback",
+      true
+    ],
+    [
+      "computed name empty name fallback",
+      true
+    ],
+    [
+      "computed name self cycle owner invalid",
+      true
+    ],
+    [
+      "computed name name computation cycle owner invalid",
+      true
+    ],
+    [
+      "computed name empty target suppresses fallback",
+      true
+    ],
+    [
+      "computed name name marks survive inner fallback",
+      true
+    ],
+    [
+      "computed name append continues after failure",
+      true
+    ],
+    [
+      "computed name multiple name tokens invalid",
+      true
+    ],
+    [
+      "computed name missing name provider fallback",
+      true
+    ],
+    [
+      "computed name nested name evaluation",
+      true
+    ],
+    [
+      "computed name reject wrong valid-target value",
+      false
+    ],
+    [
+      "computed name reject lost caller marks",
+      false
+    ],
+    [
+      "computed name reject cycle rescue",
+      false
+    ]
+  ],
+  "claims": [
+    "run valid = (some [.text \"10px\"], [])",
+    "run missing = (some [.text \"20px\"], [])",
+    "run invalid = (some [.text \"20px\"], [])",
+    "run emptyName = (some [.text \"20px\"], [])",
+    "run selfCycle = (none, [])",
+    "run nameCycle = (none, [])",
+    "run emptyValue = (some [], [])",
+    "inner = (some [.text \"20px\"], [\"--x\"])",
+    "afterFailure = (none, [\"--later\"])",
+    "run multipleName = (some [.text \"20px\"], [])",
+    "run missingName = (some [.text \"20px\"], [])",
+    "run nestedName = (some [.text \"10px\"], [])",
+    "run valid = (some [.text \"20px\"], [])",
+    "inner = (some [.text \"20px\"], [])",
+    "run nameCycle = (some [.text \"20px\"], [])"
+  ],
+  "canonical_applied": false,
+  "canonical_execution": false,
+  "source_namespace": "ComputedNames",
+  "target_namespace": "CssSemantics.GuardedNames",
+  "base_report_sha256": "c7c248181b6bfeb252e5218dcd8676c2209c7c5d1b1bfa5d87247e016ce57cdb",
+  "existing": {
+    "audits": 11805,
+    "cases": 12409,
+    "sources": 2151,
+    "false": 167
+  },
+  "delta": {
+    "audits": 25,
+    "cases": 15,
+    "sources": 2,
+    "false": 3
+  },
+  "intended": {
+    "audits": 11830,
+    "cases": 12424,
+    "sources": 2153,
+    "false": 170
+  },
+  "new_theorem_credit": 0,
+  "normative_coverage_increment": 0
+}

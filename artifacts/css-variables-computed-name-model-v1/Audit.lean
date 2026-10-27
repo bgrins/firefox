@@ -1,0 +1,26 @@
+import Examples
+#print axioms ComputedNames.parse_exact
+#print axioms ComputedNames.static_semantics
+#print axioms ComputedNames.name_state
+#print axioms ComputedNames.invalid_name_state
+#print axioms ComputedNames.fallback_only_after_lookup
+#print axioms ComputedNames.fallback_threads_state
+#print axioms ComputedNames.evaluate_preserves
+#print axioms ComputedNames.remove_length_lt
+#print axioms ComputedNames.embed_lookup
+#print axioms ComputedNames.embed_remove
+#print axioms ComputedNames.embedded_resolve
+#print axioms ComputedNames.resolve_marks
+#print axioms ComputedNames.fresh_marks
+#print axioms ComputedNames.Examples.valid_result
+#print axioms ComputedNames.Examples.missing_result
+#print axioms ComputedNames.Examples.invalid_result
+#print axioms ComputedNames.Examples.empty_name_result
+#print axioms ComputedNames.Examples.self_cycle_result
+#print axioms ComputedNames.Examples.name_cycle_result
+#print axioms ComputedNames.Examples.empty_value_result
+#print axioms ComputedNames.Examples.inner_mark_survives
+#print axioms ComputedNames.Examples.later_substitution_runs
+#print axioms ComputedNames.Examples.multiple_name_result
+#print axioms ComputedNames.Examples.missing_name_result
+#print axioms ComputedNames.Examples.nested_name_result

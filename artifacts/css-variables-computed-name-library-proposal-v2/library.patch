@@ -1,0 +1,485 @@
+--- a/CssSemantics.lean
++++ b/CssSemantics.lean
+@@ -2003,3 +2003,6 @@
+ 
+ import CssSemantics.ImplementationSupport.KeyframeEndpointIndices
+ import CssSemantics.ImplementationSupport.KeyframeEndpointIndicesExamples
++
++import CssSemantics.GuardedNames
++import CssSemantics.GuardedNamesExamples
+--- a/tests/Audit.lean
++++ b/tests/Audit.lean
+@@ -11822,3 +11822,29 @@
+ #print axioms CssSemantics.ImplementationSupport.KeyframeEndpointIndices.at_append_left
+ #print axioms CssSemantics.ImplementationSupport.KeyframeEndpointIndices.at_append_shift
+ #print axioms CssSemantics.ImplementationSupport.KeyframeEndpointIndices.at_bound
++
++#print axioms CssSemantics.GuardedNames.parse_exact
++#print axioms CssSemantics.GuardedNames.static_semantics
++#print axioms CssSemantics.GuardedNames.name_state
++#print axioms CssSemantics.GuardedNames.invalid_name_state
++#print axioms CssSemantics.GuardedNames.fallback_only_after_lookup
++#print axioms CssSemantics.GuardedNames.fallback_threads_state
++#print axioms CssSemantics.GuardedNames.evaluate_preserves
++#print axioms CssSemantics.GuardedNames.remove_length_lt
++#print axioms CssSemantics.GuardedNames.embed_lookup
++#print axioms CssSemantics.GuardedNames.embed_remove
++#print axioms CssSemantics.GuardedNames.embedded_resolve
++#print axioms CssSemantics.GuardedNames.resolve_marks
++#print axioms CssSemantics.GuardedNames.fresh_marks
++#print axioms CssSemantics.GuardedNames.Examples.valid_result
++#print axioms CssSemantics.GuardedNames.Examples.missing_result
++#print axioms CssSemantics.GuardedNames.Examples.invalid_result
++#print axioms CssSemantics.GuardedNames.Examples.empty_name_result
++#print axioms CssSemantics.GuardedNames.Examples.self_cycle_result
++#print axioms CssSemantics.GuardedNames.Examples.name_cycle_result
++#print axioms CssSemantics.GuardedNames.Examples.empty_value_result
++#print axioms CssSemantics.GuardedNames.Examples.inner_mark_survives
++#print axioms CssSemantics.GuardedNames.Examples.later_substitution_runs
++#print axioms CssSemantics.GuardedNames.Examples.multiple_name_result
++#print axioms CssSemantics.GuardedNames.Examples.missing_name_result
++#print axioms CssSemantics.GuardedNames.Examples.nested_name_result
+--- a/tests/RunExamples.lean
++++ b/tests/RunExamples.lean
+@@ -866,3 +866,6 @@
+ 
+   for (name, accepted) in CssSemantics.ImplementationSupport.KeyframeEndpointIndices.checks do
+     IO.println s!"PASS {name}: {accepted}"
++
++  for (name, accepted) in CssSemantics.GuardedNames.Examples.checks do
++    IO.println s!"PASS {name}: {accepted}"
+--- a/check.py
++++ b/check.py
+@@ -12435,6 +12435,21 @@
+     ('endpoint index reject output ordinal', False),
+     ('endpoint index reject compressed skipped block', False),
+     ('endpoint index reject unbounded increment', False),
++    ('computed name valid dynamic target', True),
++    ('computed name missing target fallback', True),
++    ('computed name invalid name fallback', True),
++    ('computed name empty name fallback', True),
++    ('computed name self cycle owner invalid', True),
++    ('computed name name computation cycle owner invalid', True),
++    ('computed name empty target suppresses fallback', True),
++    ('computed name name marks survive inner fallback', True),
++    ('computed name append continues after failure', True),
++    ('computed name multiple name tokens invalid', True),
++    ('computed name missing name provider fallback', True),
++    ('computed name nested name evaluation', True),
++    ('computed name reject wrong valid-target value', False),
++    ('computed name reject lost caller marks', False),
++    ('computed name reject cycle rescue', False),
+ ]
+ 
+ 
+--- a/coverage.json
++++ b/coverage.json
+@@ -338,6 +338,24 @@
+       "date": "2026-08-24",
+       "retrieved": "2026-10-24",
+       "role": "Four traditional finite Round strategies on supplied exact scalar inputs; partial scope, manual mapping"
++    },
++    {
++      "id": "variables1-ed-20261009-current-location",
++      "url": "https://drafts.csswg.org/css-variables-1/#replace-a-var-function",
++      "status": "Editor Draft",
++      "date": "2026-10-09",
++      "retrieved": "2026-10-27",
++      "sha256": "2bf819fe5fc0f4e92ff1fbda8a1d7c6ece5bba4e5ad9f5c3c173ac57667b0313",
++      "role": "normalized substituted property-name adapter; full HTML hash supplied by root primary snapshot"
++    },
++    {
++      "id": "values5-ed-20261027",
++      "url": "https://drafts.csswg.org/css-values-5/#substitute-arbitrary-substitution-function",
++      "status": "Editor Draft",
++      "date": "2026-10-27",
++      "retrieved": "2026-10-27",
++      "sha256": "f00cecca006eeef6e529fcb565d2b00ae8cc36c65ee6f15d5265cad70df15a2b",
++      "role": "guarded state and fallback sequencing; full HTML hash supplied by root primary snapshot"
+     }
+   ],
+   "features": [
+@@ -15672,6 +15690,34 @@
+         "Seven supplied probe inputs use the finite core; the eighth infinite-step control supplies its separate negative-zero result.",
+         "Eleven previously reviewed declarations are registered once; one is validity bookkeeping and one an application corollary. No new research theorem credit."
+       ]
++    },
++    {
++      "id": "variables-computed-name-normalized-adapter",
++      "status": "checked_fragment",
++      "modules": [
++        "GuardedNames.lean",
++        "GuardedNamesExamples.lean"
++      ],
++      "specifications": [
++        "variables1-ed-20261009-current-location",
++        "values5-ed-20261027"
++      ],
++      "theorems": [
++        "CssSemantics.GuardedNames.embedded_resolve",
++        "CssSemantics.GuardedNames.evaluate_preserves",
++        "CssSemantics.GuardedNames.resolve_marks",
++        "CssSemantics.GuardedNames.fresh_marks",
++        "CssSemantics.GuardedNames.name_state",
++        "CssSemantics.GuardedNames.invalid_name_state",
++        "CssSemantics.GuardedNames.fallback_only_after_lookup",
++        "CssSemantics.GuardedNames.fallback_threads_state"
++      ],
++      "limits": [
++        "Normalized ordinary variable syntax with a supplied exact name-token parsing contract; no raw CSS parser, escaping, whitespace normalization, spread, arbitrary functions, registration or taint correspondence.",
++        "Generic solver accepts a parser projection; NameAdapter exactness relates it only to the caller-supplied accepts predicate. CSS interpretation must separately justify that predicate.",
++        "Finite declarations, supplied completion and fully computed inherited base; full value/state embedding preserves the existing static-expression guarded solver. No cross-request cache, animation-provider or animated-SCC result.",
++        "Source proof transfer from independently replayed standalone research; no new theorem-discovery or numeric normative coverage credit. Registered status is proposed until canonical application and full checking succeed."
++      ]
+     }
+   ],
+   "next_packages": [
+--- a/README.md
++++ b/README.md
+@@ -4656,3 +4656,6 @@
+ 
+ 
+ Endpoint source indices (`ImplementationSupport.KeyframeEndpointIndices`) transfer the reviewed finite-block prefix/recovery and conditional machine-bound model. Empty input blocks retain slots, and skipped outputs do not shift source declaration indices. Fourteen existing audits (eight primary lemmas, three helpers and three refutations) and eight executable cases (three deliberately false) are implementation support only, with zero new proof-discovery credit or normative CSS coverage. Stable prioritized traversal, immutable declarations, successful bounded storage and source correspondence are premises; input-block count has a separate machine bound from declaration count. The archived descriptor-v2 mapping and transfer accounting are recorded in `css-keyframe-endpoint-index-library-proposal-v1`; allocator behavior, native publication/lifetime, provider correctness and CSS semantics are not proved.
++
++
++Computed property-name support (`GuardedNames`, `GuardedNamesExamples`) preserves the old guarded solver through a full value/state embedding. Its name parser remains a supplied normalized-token adapter, with no raw CSS/native correspondence claim. The 25 transferred audits and 15 executable controls add no proof-discovery or numeric normative coverage credit. Full assumptions and exclusions are recorded in ARTIFACT.md; exact transfer/preimages are in `css-variables-computed-name-library-proposal-v2`. Existing fixed-name profile claims remain unchanged.
+--- a/ARTIFACT.md
++++ b/ARTIFACT.md
+@@ -414,3 +414,6 @@
+ 
+ 
+ Endpoint source indices (`ImplementationSupport.KeyframeEndpointIndices`) transfer the reviewed finite-block prefix/recovery and conditional machine-bound model. Empty input blocks retain slots, and skipped outputs do not shift source declaration indices. Fourteen existing audits (eight primary lemmas, three helpers and three refutations) and eight executable cases (three deliberately false) are implementation support only, with zero new proof-discovery credit or normative CSS coverage. Stable prioritized traversal, immutable declarations, successful bounded storage and source correspondence are premises; input-block count has a separate machine bound from declaration count. The archived descriptor-v2 mapping and transfer accounting are recorded in `css-keyframe-endpoint-index-library-proposal-v1`; allocator behavior, native publication/lifetime, provider correctness and CSS semantics are not proved.
++
++
++Computed property-name arguments (`GuardedNames`, `GuardedNamesExamples`) extend the existing guarded expression profile with normalized name-expression evaluation before target lookup. The static embedding preserves the complete value/mark-state result of `GuardedCompletion.resolve`; the old snapshot and guarded profiles and their audits remain unchanged. Name-evaluation marks survive decoding, lookup and fallback. The parser is supplied under `NameAdapter` exactness against a caller-defined acceptance relation; identifying that relation with raw CSS custom-property-name parsing is a separate unproved boundary. No escape/token parser, spread, registration, taint, native cache, active animation provider or animated-SCC correspondence is claimed. Twenty-five already-replayed standalone statements are transferred once, with fifteen executable controls (twelve true and three intentionally false). This is a normalized conditional profile, not a new full CSS feature or proof-discovery credit. See `css-variables-computed-name-library-proposal-v1` for source/preimage mappings and pending integration validation. Earlier profile exclusions remain accurate for those fixed-name modules; this additional adapter does not silently broaden their theorems.
+--- a/research/coverage-map.md
++++ b/research/coverage-map.md
+@@ -677,3 +677,6 @@
+ 
+ 
+ Endpoint source indices (`ImplementationSupport.KeyframeEndpointIndices`) transfer the reviewed finite-block prefix/recovery and conditional machine-bound model. Empty input blocks retain slots, and skipped outputs do not shift source declaration indices. Fourteen existing audits (eight primary lemmas, three helpers and three refutations) and eight executable cases (three deliberately false) are implementation support only, with zero new proof-discovery credit or normative CSS coverage. Stable prioritized traversal, immutable declarations, successful bounded storage and source correspondence are premises; input-block count has a separate machine bound from declaration count. The archived descriptor-v2 mapping and transfer accounting are recorded in `css-keyframe-endpoint-index-library-proposal-v1`; allocator behavior, native publication/lifetime, provider correctness and CSS semantics are not proved.
++
++
++Computed property-name support (`GuardedNames`, `GuardedNamesExamples`) preserves the old guarded solver through a full value/state embedding. Its name parser remains a supplied normalized-token adapter, with no raw CSS/native correspondence claim. The 25 transferred audits and 15 executable controls add no proof-discovery or numeric normative coverage credit. Full assumptions and exclusions are recorded in ARTIFACT.md; exact transfer/preimages are in `css-variables-computed-name-library-proposal-v2`. Existing fixed-name profile claims remain unchanged.
+--- /dev/null
++++ b/CssSemantics/GuardedNames.lean
+@@ -0,0 +1,229 @@
++import CssSemantics.GuardedCompletion
++
++namespace CssSemantics.GuardedNames
++open CssSemantics
++variable {State Token : Type}
++
++structure NameAdapter (Token : Type) where
++  parse : List Token → Option String
++  accepts : List Token → String → Prop
++  exact : ∀ tokens name, parse tokens = some name ↔ accepts tokens name
++
++inductive Expr (Token : Type) where
++  | static : VariableExpr Token → Expr Token
++  | append : Expr Token → Expr Token → Expr Token
++  | reference : Expr Token → Expr Token
++  | fallback : Expr Token → Expr Token → Expr Token
++
++def lookupName (parse : List Token → Option String)
++    (resolve : State → String → Option (List Token) × State)
++    (result : Option (List Token) × State) : Option (List Token) × State :=
++  match result.1.bind parse with
++  | none => (none, result.2)
++  | some name => resolve result.2 name
++
++def evaluate (parse : List Token → Option String)
++    (resolve : State → String → Option (List Token) × State)
++    (state : State) : Expr Token → Option (List Token) × State
++  | .static expression => GuardedExpr.evaluate resolve state expression
++  | .append left right =>
++      let first := evaluate parse resolve state left
++      let second := evaluate parse resolve first.2 right
++      (GuardedExpr.combine first.1 second.1, second.2)
++  | .reference expression => lookupName parse resolve (evaluate parse resolve state expression)
++  | .fallback expression fallback =>
++      let primary := lookupName parse resolve (evaluate parse resolve state expression)
++      match primary.1 with
++      | some value => (some value, primary.2)
++      | none => evaluate parse resolve primary.2 fallback
++
++theorem parse_exact (adapter : NameAdapter Token) (tokens : List Token) (name : String) :
++    adapter.parse tokens = some name ↔ adapter.accepts tokens name := adapter.exact tokens name
++
++theorem static_semantics (parse : List Token → Option String)
++    (resolve : State → String → Option (List Token) × State) (state : State)
++    (expression : VariableExpr Token) :
++    evaluate parse resolve state (.static expression) = GuardedExpr.evaluate resolve state expression := rfl
++
++theorem name_state (parse : List Token → Option String)
++    (resolve : State → String → Option (List Token) × State) (tokens : List Token)
++    (state : State) (name : String) (found : parse tokens = some name) :
++    lookupName parse resolve (some tokens, state) = resolve state name := by
++  simp [lookupName, found]
++
++theorem invalid_name_state (parse : List Token → Option String)
++    (resolve : State → String → Option (List Token) × State) (tokens : List Token)
++    (state : State) (invalid : parse tokens = none) :
++    lookupName parse resolve (some tokens, state) = (none, state) := by
++  simp [lookupName, invalid]
++
++theorem fallback_only_after_lookup (parse : List Token → Option String)
++    (resolve : State → String → Option (List Token) × State) (state finish : State)
++    (expression fallback : Expr Token) (tokens : List Token)
++    (primary : lookupName parse resolve (evaluate parse resolve state expression) = (some tokens, finish)) :
++    evaluate parse resolve state (.fallback expression fallback) = (some tokens, finish) := by
++  simp [evaluate, primary]
++
++theorem fallback_threads_state (parse : List Token → Option String)
++    (resolve : State → String → Option (List Token) × State) (state finish : State)
++    (expression fallback : Expr Token)
++    (primary : lookupName parse resolve (evaluate parse resolve state expression) = (none, finish)) :
++    evaluate parse resolve state (.fallback expression fallback) = evaluate parse resolve finish fallback := by
++  simp [evaluate, primary]
++
++theorem evaluate_preserves (parse : List Token → Option String)
++    (resolve : State → String → Option (List Token) × State)
++    (invariant : State → Prop)
++    (preserves : ∀ state name, invariant state → invariant (resolve state name).2)
++    (expression : Expr Token) (state : State) (h : invariant state) :
++    invariant (evaluate parse resolve state expression).2 := by
++  have lookup_preserves : ∀ result : Option (List Token) × State,
++      invariant result.2 → invariant (lookupName parse resolve result).2 := by
++    intro result hr
++    unfold lookupName
++    split
++    · exact hr
++    · exact preserves _ _ hr
++  induction expression generalizing state with
++  | static expression => exact @GuardedExpr.evaluate_preserves State Token resolve invariant preserves expression state h
++  | append left right ihLeft ihRight => exact ihRight _ (ihLeft state h)
++  | reference expression ih => exact lookup_preserves _ (ih state h)
++  | fallback expression fallback ihName ihFallback =>
++    have hp := lookup_preserves _ (ihName state h)
++    simp only [evaluate]
++    split
++    · exact hp
++    · exact ihFallback _ hp
++
++def remove (entries : List (String × Expr Token)) (name : String) :=
++  entries.filter fun entry => decide (entry.1 ≠ name)
++
++theorem remove_length_lt (entries : List (String × Expr Token))
++    (found : entries.lookup name = some expression) :
++    (remove entries name).length < entries.length := by
++  induction entries with
++  | nil => simp at found
++  | cons entry rest ih =>
++    rcases entry with ⟨key, value⟩
++    by_cases same : key = name
++    · subst key
++      simp only [remove, List.filter_cons, ne_eq, not_true_eq_false, decide_false,
++        Bool.false_eq_true, ↓reduceIte, List.length_cons]
++      exact Nat.lt_succ_of_le (List.length_filter_le _ _)
++    · have unequal : (name == key) = false := beq_eq_false_iff_ne.mpr (Ne.symm same)
++      simp [List.lookup_cons, unequal] at found
++      simpa [remove, same] using Nat.succ_lt_succ (ih found)
++
++def resolve (parse : List Token → Option String)
++    (complete : String → Option (List Token) → Option (List Token))
++    (base : String → Option (List Token)) (remaining : List (String × Expr Token))
++    (active marked : List String) (name : String) : Option (List Token) × List String :=
++  if name ∈ active then (none, GuardedState.markCycle active marked name)
++  else match _found : remaining.lookup name with
++    | none => (base name, marked)
++    | some expression =>
++      let result := evaluate parse
++        (fun marks target => resolve parse complete base (remove remaining name)
++          (name :: active) marks target) marked expression
++      (if name ∈ result.2 then none else complete name result.1, GuardedState.pop name result.2)
++termination_by remaining.length
++  decreasing_by exact remove_length_lt remaining _found
++
++def embed (entries : List (String × VariableExpr Token)) : List (String × Expr Token) :=
++  entries.map fun (name, expression) => (name, .static expression)
++
++theorem embed_lookup (entries : List (String × VariableExpr Token)) (name : String) :
++    (embed entries).lookup name = (entries.lookup name).map Expr.static := by
++  induction entries with
++  | nil => rfl
++  | cons entry rest ih =>
++    rcases entry with ⟨key, value⟩
++    simp only [embed, List.map_cons, List.lookup_cons]
++    split <;> simp_all [embed]
++
++theorem embed_remove (entries : List (String × VariableExpr Token)) (name : String) :
++    remove (embed entries) name = embed (GuardedSolver.remove entries name) := by
++  induction entries with
++  | nil => rfl
++  | cons entry rest ih =>
++    rcases entry with ⟨key, value⟩
++    by_cases h : key = name <;> simp_all [remove, embed, GuardedSolver.remove]
++
++theorem embedded_resolve (parse : List Token → Option String)
++    (complete : String → Option (List Token) → Option (List Token))
++    (base : String → Option (List Token)) (entries : List (String × VariableExpr Token))
++    (active marked : List String) (name : String) :
++    resolve parse complete base (embed entries) active marked name =
++      GuardedCompletion.resolve complete base entries active marked name := by
++  rw [resolve, GuardedCompletion.resolve]
++  by_cases repeated : name ∈ active
++  · simp [repeated]
++  · simp only [repeated, ↓reduceIte]
++    have lookup := embed_lookup entries name
++    generalize hlookup : (embed entries).lookup name = result
++    rw [hlookup] at lookup
++    rw [lookup]
++    cases found : entries.lookup name with
++    | none => rfl
++    | some expression =>
++      simp only [Option.map_some, evaluate, embed_remove]
++      have callbacks : (fun marks target => resolve parse complete base
++          (embed (GuardedSolver.remove entries name)) (name :: active) marks target) =
++          (fun marks target => GuardedCompletion.resolve complete base
++          (GuardedSolver.remove entries name) (name :: active) marks target) := by
++        funext marks target
++        exact embedded_resolve parse complete base (GuardedSolver.remove entries name)
++          (name :: active) marks target
++      rw [callbacks]
++termination_by entries.length
++  decreasing_by exact GuardedSolver.remove_length_lt entries found
++
++theorem resolve_marks (parse : List Token → Option String)
++    (complete : String → Option (List Token) → Option (List Token))
++    (base : String → Option (List Token)) (remaining : List (String × Expr Token))
++    (active marked : List String) (name : String)
++    (contained : ∀ mark, mark ∈ marked → mark ∈ active) :
++    (∀ mark, mark ∈ (resolve parse complete base remaining active marked name).2 → mark ∈ active) ∧
++    (∀ mark, mark ∈ marked → mark ∈ (resolve parse complete base remaining active marked name).2) := by
++  rw [resolve]
++  by_cases repeated : name ∈ active
++  · simp only [repeated, ↓reduceIte]
++    exact ⟨GuardedState.markCycle_subset active marked name contained,
++      GuardedState.markCycle_preserves active marked name⟩
++  · simp only [repeated, ↓reduceIte]
++    cases found : remaining.lookup name with
++    | none => exact ⟨contained, fun _ h => h⟩
++    | some expression =>
++      let invariant := fun marks : List String =>
++        (∀ mark, mark ∈ marks → mark ∈ name :: active) ∧
++        (∀ mark, mark ∈ marked → mark ∈ marks)
++      have preservation : ∀ marks target, invariant marks →
++          invariant (resolve parse complete base (remove remaining name) (name :: active) marks target).2 := by
++        intro marks target h
++        have next := resolve_marks parse complete base (remove remaining name) (name :: active) marks target h.1
++        exact ⟨next.1, fun mark old => next.2 mark (h.2 mark old)⟩
++      have initial : invariant marked :=
++        ⟨fun mark h => List.mem_cons_of_mem _ (contained mark h), fun _ h => h⟩
++      have final := evaluate_preserves parse _ invariant preservation expression marked initial
++      constructor
++      · exact GuardedState.pop_subset_tail name active _ final.1
++      · intro mark old
++        apply (GuardedState.mem_pop name mark _).mpr
++        refine ⟨final.2 mark old, ?_⟩
++        intro equal
++        exact repeated (equal ▸ contained mark old)
++termination_by remaining.length
++  decreasing_by exact remove_length_lt remaining found
++
++theorem fresh_marks (parse : List Token → Option String)
++    (complete : String → Option (List Token) → Option (List Token))
++    (base : String → Option (List Token)) (entries : List (String × Expr Token))
++    (name : String) : (resolve parse complete base entries [] [] name).2 = [] := by
++  have contained := (resolve_marks parse complete base entries [] [] name (fun _ h => h)).1
++  cases h : (resolve parse complete base entries [] [] name).2 with
++  | nil => rfl
++  | cons head rest =>
++    have impossible := contained head (by rw [h]; exact List.mem_cons_self)
++    exact False.elim (List.not_mem_nil impossible)
++
++end CssSemantics.GuardedNames
+--- /dev/null
++++ b/CssSemantics/GuardedNamesExamples.lean
+@@ -0,0 +1,87 @@
++import CssSemantics.GuardedNames
++namespace CssSemantics.GuardedNames.Examples
++open CssSemantics
++inductive Token where
++  | name : String → Token
++  | text : String → Token
++  deriving DecidableEq, Repr
++
++def parse : List Token → Option String
++  | [.name name] => some name
++  | _ => none
++
++def adapter : NameAdapter Token where
++  parse := parse
++  accepts := fun tokens name => tokens = [.name name]
++  exact := by
++    intro tokens name
++    cases tokens with
++    | nil => simp [parse]
++    | cons head tail =>
++      cases head <;> cases tail <;> simp [parse]
++
++def lit (text : String) : Expr Token := .static (.literal [.text text])
++def name (text : String) : Expr Token := .static (.literal [.name text])
++def ref (text : String) : Expr Token := .static (.reference text)
++def dyn (fallback : Expr Token) : Expr Token := .fallback (ref "--name") fallback
++def complete (_ : String) (value : Option (List Token)) := value
++def base (_ : String) : Option (List Token) := none
++def run (entries : List (String × Expr Token)) := resolve parse complete base entries [] [] "--x"
++
++def valid := [("--name", name "--ok"), ("--ok", lit "10px"),
++  ("--x", dyn (ref "--x"))]
++def missing := [("--name", name "--absent"), ("--x", dyn (lit "20px"))]
++def invalid := [("--name", lit "10px"), ("--x", dyn (lit "20px"))]
++def emptyName := [("--name", .static (.literal [])), ("--x", dyn (lit "20px"))]
++def selfCycle := [("--name", name "--x"), ("--x", dyn (lit "20px"))]
++def nameCycle := [("--name", ref "--x"), ("--x", dyn (lit "20px"))]
++def emptyValue := [("--name", name "--ok"), ("--ok", .static (.literal [])),
++  ("--x", dyn (ref "--x"))]
++
++theorem valid_result : run valid = (some [.text "10px"], []) := by decide +kernel
++theorem missing_result : run missing = (some [.text "20px"], []) := by decide +kernel
++theorem invalid_result : run invalid = (some [.text "20px"], []) := by decide +kernel
++theorem empty_name_result : run emptyName = (some [.text "20px"], []) := by decide +kernel
++theorem self_cycle_result : run selfCycle = (none, []) := by decide +kernel
++theorem name_cycle_result : run nameCycle = (none, []) := by decide +kernel
++theorem empty_value_result : run emptyValue = (some [], []) := by decide +kernel
++
++def inner := evaluate parse
++  (fun marked target => resolve parse complete base [("--name", ref "--x")]
++    ["--x"] marked target) [] (dyn (lit "20px"))
++theorem inner_mark_survives : inner = (some [.text "20px"], ["--x"]) := by decide +kernel
++
++def afterFailure := evaluate parse
++  (fun state target => ((none : Option (List Token)), state ++ [target]))
++  [] (.append (.reference (lit "bad")) (ref "--later"))
++theorem later_substitution_runs : afterFailure = (none, ["--later"]) := by decide +kernel
++def multipleName := [("--name", .static (.literal [.name "--ok", .name "--other"])),
++  ("--ok", lit "10px"), ("--x", dyn (lit "20px"))]
++theorem multiple_name_result : run multipleName = (some [.text "20px"], []) := by decide +kernel
++
++def missingName := [("--x", dyn (lit "20px"))]
++theorem missing_name_result : run missingName = (some [.text "20px"], []) := by decide +kernel
++
++def nestedName := [("--first", name "--name"), ("--name", name "--ok"),
++  ("--ok", lit "10px"), ("--x", .reference (.reference (ref "--first")))]
++theorem nested_name_result : run nestedName = (some [.text "10px"], []) := by decide +kernel
++
++def checks : List (String × Bool) := [
++  ("computed name valid dynamic target", decide (run valid = (some [.text "10px"], []))),
++  ("computed name missing target fallback", decide (run missing = (some [.text "20px"], []))),
++  ("computed name invalid name fallback", decide (run invalid = (some [.text "20px"], []))),
++  ("computed name empty name fallback", decide (run emptyName = (some [.text "20px"], []))),
++  ("computed name self cycle owner invalid", decide (run selfCycle = (none, []))),
++  ("computed name name computation cycle owner invalid", decide (run nameCycle = (none, []))),
++  ("computed name empty target suppresses fallback", decide (run emptyValue = (some [], []))),
++  ("computed name name marks survive inner fallback", decide (inner = (some [.text "20px"], ["--x"]))),
++  ("computed name append continues after failure", decide (afterFailure = (none, ["--later"]))),
++  ("computed name multiple name tokens invalid", decide (run multipleName = (some [.text "20px"], []))),
++  ("computed name missing name provider fallback", decide (run missingName = (some [.text "20px"], []))),
++  ("computed name nested name evaluation", decide (run nestedName = (some [.text "10px"], []))),
++  ("computed name reject wrong valid-target value", decide (run valid = (some [.text "20px"], []))),
++  ("computed name reject lost caller marks", decide (inner = (some [.text "20px"], []))),
++  ("computed name reject cycle rescue", decide (run nameCycle = (some [.text "20px"], [])))
++]
++
++end CssSemantics.GuardedNames.Examples
