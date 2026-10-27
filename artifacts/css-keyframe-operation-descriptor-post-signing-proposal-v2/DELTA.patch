@@ -1,0 +1,11 @@
+--- v1/epoch.py
++++ v2/epoch.py
+@@ -59,7 +59,7 @@
+     native = {p for p in h.git(root, env, 'diff', '--name-only').decode().splitlines()
+               if not p.startswith('artifacts/')}
+     assert native == set(epoch['modified_native_paths'])
+-    untracked = {p for p in h.git(root, env, 'ls-files', '--others', '--exclude-standard').decode().splitlines()
++    untracked = {p for p in h.git(root, env, 'ls-files', '--others', '--exclude-standard', '--', 'layout', 'dom', 'servo', 'mfbt').decode().splitlines()
+                  if not p.startswith('artifacts/')}
+     assert untracked == set(epoch['untracked_native'])
+     after = h.index_state(root, env)

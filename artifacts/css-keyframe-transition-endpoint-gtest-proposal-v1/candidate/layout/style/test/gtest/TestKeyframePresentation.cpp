@@ -1,0 +1,254 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "gtest/gtest.h"
+#include "mozilla/ComputedStyle.h"
+#include "mozilla/ErrorResult.h"
+#include "mozilla/Keyframe.h"
+#include "mozilla/PresShell.h"
+#include "mozilla/PresShellInlines.h"
+#include "mozilla/ServoBindings.h"
+#include "mozilla/ServoStyleSet.h"
+#include "mozilla/StyleAnimationValue.h"
+#include "mozilla/TimingParams.h"
+#include "mozilla/dom/KeyframeEffect.h"
+#include "mozilla/dom/Document.h"
+#include "mozilla/dom/Element.h"
+#include "nsComputedDOMStyle.h"
+#include "nsContentUtils.h"
+#include "nsGkAtoms.h"
+#include "nsIAppShellService.h"
+#include "nsIBaseWindow.h"
+#include "nsIDocShell.h"
+#include "nsIDocumentViewer.h"
+#include "nsIWindowlessBrowser.h"
+#include "nsServiceManagerUtils.h"
+#include "nsString.h"
+#include "nsStyleStruct.h"
+#include "nsThreadUtils.h"
+
+using namespace mozilla;
+using namespace mozilla::dom;
+
+namespace {
+
+class KeyframePresentation : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    ASSERT_TRUE(NS_IsMainThread());
+    ASSERT_TRUE(nsContentUtils::IsSafeToRunScript());
+    nsCOMPtr<nsIAppShellService> appShell =
+        do_GetService("@mozilla.org/appshell/appShellService;1");
+    ASSERT_TRUE(appShell);
+    ASSERT_EQ(NS_OK, appShell->CreateWindowlessBrowser(
+                         false, 0, getter_AddRefs(mBrowser)));
+    ASSERT_TRUE(mBrowser);
+
+    nsCOMPtr<nsIDocShell> docShell;
+    ASSERT_EQ(NS_OK, mBrowser->GetDocShell(getter_AddRefs(docShell)));
+    ASSERT_TRUE(docShell);
+    nsCOMPtr<nsIBaseWindow> window = do_QueryInterface(docShell);
+    ASSERT_TRUE(window);
+    ASSERT_EQ(NS_OK, window->SetPositionAndSize(0, 0, 320, 240, 0));
+    nsCOMPtr<nsIDocumentViewer> viewer;
+    ASSERT_EQ(NS_OK, docShell->GetDocViewer(getter_AddRefs(viewer)));
+    ASSERT_TRUE(viewer);
+    ASSERT_EQ(NS_OK, viewer->Show());
+    ASSERT_EQ(NS_OK, mBrowser->GetDocument(getter_AddRefs(mDocument)));
+    ASSERT_TRUE(mDocument);
+
+    RefPtr<PresShell> shell = mDocument->GetPresShell();
+    ASSERT_TRUE(shell);
+    ASSERT_TRUE(shell->GetPresContext());
+    if (!shell->DidInitialize()) {
+      ASSERT_EQ(NS_OK, shell->Initialize());
+    }
+    ASSERT_TRUE(shell->DidInitialize());
+    ASSERT_EQ(shell.get(), mDocument->GetPresShell());
+  }
+
+  void TearDown() override {
+    if (mBrowser) {
+      EXPECT_TRUE(nsContentUtils::IsSafeToRunScript());
+      EXPECT_EQ(NS_OK, mBrowser->Close());
+      mBrowser = nullptr;
+    }
+    if (mDocument) {
+      EXPECT_EQ(nullptr, mDocument->GetPresShell());
+      mDocument = nullptr;
+    }
+  }
+
+  nsCOMPtr<nsIWindowlessBrowser> mBrowser;
+  RefPtr<Document> mDocument;
+};
+
+TEST_F(KeyframePresentation, LiteralOpacity) {
+  RefPtr<Element> target = mDocument->GetHtmlChildElement(nsGkAtoms::body);
+  ASSERT_TRUE(target);
+  ErrorResult error;
+  target->SetAttr(nsGkAtoms::style, u"opacity: 0.375"_ns, error);
+  ASSERT_EQ(NS_OK, error.StealNSResult());
+  RefPtr<const ComputedStyle> style =
+      nsComputedDOMStyle::GetComputedStyle(target);
+  ASSERT_TRUE(style);
+  ASSERT_FLOAT_EQ(0.375f, style->StyleEffects()->mOpacity);
+
+  RefPtr<StyleLockedDeclarationBlock> block =
+      Servo_DeclarationBlock_CreateEmpty().Consume();
+  ASSERT_TRUE(block);
+  const nsCString value("0.625");
+  ASSERT_TRUE(Servo_DeclarationBlock_SetPropertyById(
+      block, eCSSProperty_opacity, &value, false,
+      mDocument->DefaultStyleAttrURLData(), StyleParsingMode::DEFAULT,
+      eCompatibility_FullStandards, nullptr, StyleCssRuleType::Style, {}));
+  nsTArray<Keyframe> keyframes;
+  auto& keyframe = *keyframes.AppendElement();
+  keyframe.mComputedOffset = 0.0;
+  keyframe.mPropertyValues.AppendElement(
+      PropertyValuePair(CSSPropertyId(eCSSProperty_opacity), std::move(block)));
+  RefPtr<PresShell> shell = mDocument->GetPresShell();
+  ASSERT_TRUE(shell);
+  ASSERT_TRUE(shell->StyleSet());
+  bool referencesAttributes = true;
+  auto values = shell->StyleSet()->GetComputedKeyframeValuesFor(
+      keyframes, target, {}, style, referencesAttributes);
+  ASSERT_EQ(1u, values.Length());
+  ASSERT_EQ(1u, values[0].Length());
+  ASSERT_EQ(CSSPropertyId(eCSSProperty_opacity), values[0][0].mProperty);
+  ASSERT_FALSE(values[0][0].mValue.IsNull());
+  EXPECT_FLOAT_EQ(0.625f, values[0][0].mValue.GetOpacity());
+  EXPECT_FALSE(referencesAttributes);
+}
+
+extern "C" void Rust_CheckTransitionEndpoint(const StyleKeyframeEndpoint*,
+                                             float, size_t);
+
+class InspectableKeyframeEffect final : public KeyframeEffect {
+ public:
+  using KeyframeEffect::KeyframeEffect;
+  const nsTArray<Keyframe>& InputKeyframes() const { return mKeyframes; }
+
+ private:
+  ~InspectableKeyframeEffect() override = default;
+};
+
+static void AppendOpacityKeyframe(Document* aDocument,
+                                  nsTArray<Keyframe>& aKeyframes,
+                                  const char* aValue, double aOffset) {
+  RefPtr<StyleLockedDeclarationBlock> block =
+      Servo_DeclarationBlock_CreateEmpty().Consume();
+  ASSERT_TRUE(block);
+  const nsCString value(aValue);
+  ASSERT_TRUE(Servo_DeclarationBlock_SetPropertyById(
+      block, eCSSProperty_opacity, &value, false,
+      aDocument->DefaultStyleAttrURLData(), StyleParsingMode::DEFAULT,
+      eCompatibility_FullStandards, nullptr, StyleCssRuleType::Style, {}));
+  auto& keyframe = *aKeyframes.AppendElement();
+  keyframe.mOffset = Some(Keyframe::OffsetType::PercentageOffset(aOffset));
+  keyframe.mPropertyValues.AppendElement(
+      PropertyValuePair(CSSPropertyId(eCSSProperty_opacity), std::move(block)));
+}
+
+TEST_F(KeyframePresentation, TransitionConcreteEndpoint) {
+  RefPtr<Element> target = mDocument->GetHtmlChildElement(nsGkAtoms::body);
+  ASSERT_TRUE(target);
+  ErrorResult error;
+  target->SetAttr(nsGkAtoms::style, u"opacity: 0.1"_ns, error);
+  ASSERT_EQ(NS_OK, error.StealNSResult());
+  RefPtr<const ComputedStyle> style =
+      nsComputedDOMStyle::GetComputedStyle(target);
+  ASSERT_TRUE(style);
+  ASSERT_FLOAT_EQ(0.1f, style->StyleEffects()->mOpacity);
+
+  nsTArray<Keyframe> keyframes;
+  ASSERT_NO_FATAL_FAILURE(
+      AppendOpacityKeyframe(mDocument, keyframes, "0.2", 0));
+  ASSERT_NO_FATAL_FAILURE(
+      AppendOpacityKeyframe(mDocument, keyframes, "0.8", 1));
+  RefPtr<InspectableKeyframeEffect> effect = new InspectableKeyframeEffect(
+      mDocument, OwningAnimationTarget(target, {}), TimingParams{},
+      KeyframeEffectParams{});
+  effect->SetKeyframes(std::move(keyframes), style, nullptr, nullptr);
+  ASSERT_EQ(1u, effect->Properties().Length());
+  ASSERT_EQ(1u, effect->Properties()[0].mSegments.Length());
+  const auto& before = effect->Properties()[0].mSegments[0];
+  ASSERT_FLOAT_EQ(0.2f, before.mFromValue.GetOpacity());
+  ASSERT_FLOAT_EQ(0.8f, before.mToValue.GetOpacity());
+  RefPtr<StyleKeyframeEndpoint> oldFrom = before.mFromEndpoint;
+  RefPtr<StyleKeyframeEndpoint> oldTo = before.mToEndpoint;
+  RefPtr<StyleAnimationValue> oldToValue = before.mToValue.mServo;
+  ASSERT_TRUE(oldFrom);
+  ASSERT_TRUE(oldTo);
+  Rust_CheckTransitionEndpoint(oldFrom, 0.2f, 0);
+  Rust_CheckTransitionEndpoint(oldTo, 0.8f, 1);
+  ASSERT_FALSE(::testing::Test::HasFailure());
+
+  RefPtr<StyleAnimationValue> replacement =
+      Servo_AnimationValue_Opacity(0.4f).Consume();
+  ASSERT_TRUE(replacement);
+  effect->ReplaceTransitionStartValue(AnimationValue(replacement));
+  const auto& current = effect->Properties()[0].mSegments[0];
+  ASSERT_FALSE(current.mFromValue.IsNull());
+  EXPECT_FLOAT_EQ(0.4f, current.mFromValue.GetOpacity());
+  EXPECT_EQ(nullptr, current.mFromEndpoint);
+  EXPECT_EQ(oldTo.get(), current.mToEndpoint.get());
+  EXPECT_EQ(oldToValue.get(), current.mToValue.mServo.get());
+  EXPECT_FLOAT_EQ(0.8f, current.mToValue.GetOpacity());
+  EXPECT_FLOAT_EQ(0.f, current.mFromKey);
+  EXPECT_FLOAT_EQ(1.f, current.mToKey);
+
+  RefPtr<PresShell> shell = mDocument->GetPresShell();
+  ASSERT_TRUE(shell);
+  bool referencesAttributes = true;
+  auto recomputed = shell->StyleSet()->GetComputedKeyframeValuesFor(
+      effect->InputKeyframes(), target, {}, style, referencesAttributes);
+  ASSERT_EQ(2u, recomputed.Length());
+  ASSERT_EQ(1u, recomputed[0].Length());
+  ASSERT_EQ(1u, recomputed[1].Length());
+  EXPECT_FLOAT_EQ(0.4f, recomputed[0][0].mValue.GetOpacity());
+  EXPECT_FLOAT_EQ(0.8f, recomputed[1][0].mValue.GetOpacity());
+  EXPECT_FALSE(referencesAttributes);
+
+  RefPtr<StyleAnimationValue> underlying =
+      Servo_AnimationValue_Opacity(0.1f).Consume();
+  RefPtr<StyleAnimationValue> concrete =
+      Servo_ComposeAnimationSegment(&current, underlying, nullptr,
+                                    IterationCompositeOperation::Replace, 0.5,
+                                    0)
+          .Consume();
+  ASSERT_TRUE(concrete);
+  EXPECT_FLOAT_EQ(0.6f, AnimationValue(concrete).GetOpacity());
+
+  nsTArray<Keyframe> implicitKeyframes;
+  ASSERT_NO_FATAL_FAILURE(
+      AppendOpacityKeyframe(mDocument, implicitKeyframes, "0.8", 1));
+  RefPtr<InspectableKeyframeEffect> implicitEffect =
+      new InspectableKeyframeEffect(mDocument,
+                                    OwningAnimationTarget(target, {}),
+                                    TimingParams{}, KeyframeEffectParams{});
+  implicitEffect->SetKeyframes(std::move(implicitKeyframes), style, nullptr,
+                               nullptr);
+  ASSERT_EQ(1u, implicitEffect->Properties().Length());
+  ASSERT_EQ(1u, implicitEffect->Properties()[0].mSegments.Length());
+  const auto& implicit = implicitEffect->Properties()[0].mSegments[0];
+  ASSERT_TRUE(implicit.mFromValue.IsNull());
+  ASSERT_FALSE(implicit.mFromEndpoint);
+  ASSERT_FALSE(implicit.mToValue.IsNull());
+  RefPtr<StyleAnimationValue> composedImplicit =
+      Servo_ComposeAnimationSegment(&implicit, underlying, nullptr,
+                                    IterationCompositeOperation::Replace, 0.5,
+                                    0)
+          .Consume();
+  ASSERT_TRUE(composedImplicit);
+  EXPECT_FLOAT_EQ(0.45f, AnimationValue(composedImplicit).GetOpacity());
+  EXPECT_NE(AnimationValue(concrete).GetOpacity(),
+            AnimationValue(composedImplicit).GetOpacity());
+
+  effect = nullptr;
+  Rust_CheckTransitionEndpoint(oldFrom, 0.2f, 0);
+  Rust_CheckTransitionEndpoint(oldTo, 0.8f, 1);
+}
+
+}  // namespace

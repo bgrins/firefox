@@ -1,0 +1,257 @@
+--- a/layout/style/test/gtest/TestAnimationOperationArena.cpp
++++ b/layout/style/test/gtest/TestAnimationOperationArena.cpp
+@@ -150,3 +150,25 @@
+ {
+   Rust_AnimationRuleSample_OwnerLayout();
+ }
++
++extern "C" void Rust_KeyframeEndpoint_OwnedSourceAssociation(URLExtraData*,
++                                                            URLExtraData*);
++
++TEST(KeyframeEndpoint, OwnedSourceAssociation)
++{
++  auto left = CreateArenaURLData();
++  auto right = CreateArenaURLData();
++  ASSERT_NE(left.get(), right.get());
++  Rust_KeyframeEndpoint_OwnedSourceAssociation(left, right);
++}
++
++extern "C" void Rust_AnimationRuleSample_MetadataBulk(URLExtraData*,
++                                                      URLExtraData*);
++
++TEST(AnimationRuleSample, MetadataBulk)
++{
++  auto left = CreateArenaURLData();
++  auto right = CreateArenaURLData();
++  ASSERT_NE(left.get(), right.get());
++  Rust_AnimationRuleSample_MetadataBulk(left, right);
++}
+--- /dev/null
++++ b/layout/style/test/gtest/rust/descriptor_bulk_cases.rs
+@@ -0,0 +1,217 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
++
++use crate::deferred_animation_operations::{AnimationOperationArena, SegmentOperands};
++use crate::gecko_bindings::bindings::{CompositeOperation as C, IterationCompositeOperation as I};
++use crate::gecko_bindings::structs::URLExtraData;
++use crate::properties::{animated_properties::AnimationValue as V, PropertyDeclaration};
++use servo_arc::Arc;
++use std::convert::Infallible;
++use std::ffi::{c_void, CString};
++use std::os::raw::c_char;
++use style::animation_rule_sample::{AnimationOperationSample, SampledEndpoint, SampledSegment};
++use style::custom_properties::Name;
++use style::keyframe_endpoint::{KeyframeEndpoint, KeyframeEndpointContext};
++use style::properties::{LonghandId, OwnedPropertyDeclarationId};
++use style::properties_and_values::value::{
++    ComputedValue, ComputedValueComponent, CustomAnimatedValue, ValueInner,
++};
++use style::stylesheets::UrlExtraData;
++
++extern "C" {
++    fn GTest_CompareAnimationSegment(
++        label: *const c_char,
++        from: *mut c_void,
++        to: *mut c_void,
++        underlying: *mut c_void,
++        last: *mut c_void,
++        from_composite: C,
++        to_composite: C,
++        iteration: I,
++        count: u64,
++        progress: f64,
++        same_offset: bool,
++        expected: *const c_void,
++    );
++}
++
++fn number(name: &Name, tainted: bool, url: &UrlExtraData) -> V {
++    let mut value = ComputedValue::new(
++        ValueInner::Component(ComputedValueComponent::Number(2.)),
++        url.clone(),
++    );
++    value.attr_tainted = tainted;
++    V::Custom(CustomAnimatedValue::from_computed(name, Some(&value)))
++}
++
++fn compare_native(label: &str, from: &V, to: &V, progress: f64, expected: &V) {
++    let from = Arc::new(from.clone());
++    let to = Arc::new(to.clone());
++    let label = CString::new(label).unwrap();
++    unsafe {
++        GTest_CompareAnimationSegment(
++            label.as_ptr(),
++            &*from as *const V as *mut c_void,
++            &*to as *const V as *mut c_void,
++            std::ptr::null_mut(),
++            std::ptr::null_mut(),
++            C::Replace,
++            C::Replace,
++            I::Replace,
++            0,
++            progress,
++            false,
++            expected as *const V as *const c_void,
++        );
++    }
++}
++
++#[no_mangle]
++pub unsafe extern "C" fn Rust_KeyframeEndpoint_OwnedSourceAssociation(
++    left: *mut URLExtraData,
++    right: *mut URLExtraData,
++) {
++    assert!(!left.is_null() && !right.is_null() && left != right);
++    let left = UrlExtraData::new(left);
++    let right = UrlExtraData::new(right);
++    let name = Name::from("descriptor-owned-number");
++    let property = OwnedPropertyDeclarationId::Custom(name.clone());
++    let endpoint = {
++        let declarations = vec![
++            number(&name, false, &left).uncompute(),
++            V::Opacity(0.5).uncompute(),
++            number(&name, true, &right).uncompute(),
++        ];
++        let context = Arc::new(KeyframeEndpointContext::new(7, declarations));
++        KeyframeEndpoint::new(context.clone(), 2, property.clone())
++    };
++    assert_eq!(endpoint.context().keyframe_index(), 7);
++    assert_eq!(endpoint.context().declarations().len(), 3);
++    assert_eq!(endpoint.declaration_index(), 2);
++    assert_eq!(endpoint.property(), &property);
++    assert!(std::ptr::eq(
++        endpoint.declaration(),
++        &endpoint.context().declarations()[2]
++    ));
++    let PropertyDeclaration::Custom(declaration) = endpoint.declaration() else {
++        crate::host_failure("descriptor lost its custom source".into());
++        return;
++    };
++    assert_eq!(declaration.name, name);
++    let crate::properties::CustomDeclarationValue::Parsed(parsed) = &declaration.value else {
++        crate::host_failure("descriptor changed its parsed source".into());
++        return;
++    };
++    assert!(parsed.attr_tainted);
++    let tokens = parsed.to_variable_value();
++    assert_eq!(tokens.css, "2");
++    assert_eq!(tokens.url_data.ptr(), right.ptr());
++    assert_ne!(tokens.url_data.ptr(), left.ptr());
++    let empty = KeyframeEndpointContext::new(8, Vec::new());
++    assert_eq!(empty.keyframe_index(), 8);
++    assert!(empty.declarations().is_empty());
++}
++
++#[no_mangle]
++pub unsafe extern "C" fn Rust_AnimationRuleSample_MetadataBulk(
++    left: *mut URLExtraData,
++    right: *mut URLExtraData,
++) {
++    assert!(!left.is_null() && !right.is_null() && left != right);
++    let left = UrlExtraData::new(left);
++    let right = UrlExtraData::new(right);
++    let a = Name::from("bulk-owned-a");
++    let b = Name::from("bulk-owned-b");
++    let inputs = [
++        number(&a, true, &left),
++        number(&a, false, &right),
++        number(&b, false, &right),
++        number(&b, false, &left),
++    ];
++    let mut arena = AnimationOperationArena::<Infallible>::new();
++    let ids: Vec<_> = inputs.iter().cloned().map(|v| arena.value(v)).collect();
++    let pairs = [(0, 1), (2, 3), (0, 3)];
++    let roots: Vec<_> = pairs
++        .iter()
++        .map(|&(from, to)| {
++            arena
++                .compose_segment(
++                    SegmentOperands {
++                        from: Some(ids[from]),
++                        to: Some(ids[to]),
++                        from_composite: C::Replace,
++                        to_composite: C::Replace,
++                        same_offset: false,
++                    },
++                    None,
++                    None,
++                    I::Replace,
++                    0,
++                    0.75,
++                    0.75,
++                )
++                .unwrap()
++                .unwrap()
++        })
++        .collect();
++    let order = [1, 2, 0, 1];
++    let requested: Vec<_> = order.iter().map(|&index| roots[index]).collect();
++    let values = arena.resolve_concrete_roots(&requested).unwrap();
++    assert_eq!(values.len(), order.len());
++    for (position, (&index, value)) in order.iter().zip(&values).enumerate() {
++        let (from, to) = pairs[index];
++        compare_native(
++            &format!("metadata bulk ordered root {position}"),
++            &inputs[from],
++            &inputs[to],
++            0.75,
++            value,
++        );
++    }
++
++    let properties = [
++        OwnedPropertyDeclarationId::Custom(a),
++        OwnedPropertyDeclarationId::Custom(b),
++        OwnedPropertyDeclarationId::Longhand(LonghandId::Opacity),
++    ];
++    let from = [inputs[0].clone(), inputs[2].clone(), V::Opacity(2.)];
++    let to = [inputs[1].clone(), inputs[3].clone(), V::Opacity(2.)];
++    let mut sample = AnimationOperationSample::<Infallible>::with_capacity(3);
++    for index in [2, 0, 1] {
++        assert!(sample.compose_segment(
++            properties[index].clone(),
++            SampledSegment {
++                from: Some(SampledEndpoint::Value(from[index].clone())),
++                to: Some(SampledEndpoint::Value(to[index].clone())),
++                from_composite: C::Replace,
++                to_composite: C::Replace,
++                same_offset: false,
++                last: None,
++                iteration_composite: I::Replace,
++                current_iteration: 0,
++            },
++            || panic!("complete replace needs no base"),
++            || (0.75, 0.75),
++        ));
++    }
++    let materialized = sample.freeze().into_concrete_values();
++    assert_eq!(materialized.len(), properties.len());
++    let mut seen = [false; 3];
++    for (property, value) in materialized {
++        let Some(index) = properties.iter().position(|p| p == &property) else {
++            crate::host_failure("unexpected materialized property".into());
++            return;
++        };
++        assert!(!seen[index]);
++        seen[index] = true;
++        compare_native(
++            &format!("metadata bulk property {index}"),
++            &from[index],
++            &to[index],
++            0.75,
++            &value,
++        );
++    }
++    assert!(seen.into_iter().all(|seen| seen));
++}
+--- a/layout/style/test/gtest/rust/lib.rs
++++ b/layout/style/test/gtest/rust/lib.rs
+@@ -99,3 +99,6 @@
+ 
+ #[cfg(feature = "gecko-gtest")]
+ mod owner_cases;
++
++#[cfg(feature = "gecko-gtest")]
++mod descriptor_bulk_cases;

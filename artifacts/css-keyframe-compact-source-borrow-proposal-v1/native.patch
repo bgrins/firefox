@@ -1,0 +1,436 @@
+--- a/layout/style/test/gtest/rust/owner_cases.rs
++++ b/layout/style/test/gtest/rust/owner_cases.rs
+@@ -9,7 +9,7 @@
+ use style::properties::animated_properties::AnimationValue;
+ use style::properties::declaration_block::AnimationRuleSample;
+ use style::properties::{LonghandId, OwnedPropertyDeclarationId, PropertyDeclarationBlock};
+-use style::rule_tree::StyleSource;
++use style::rule_tree::{StyleSource, StyleSourceBorrow};
+ use style::shared_lock::{Locked, SharedRwLock};
+ 
+ fn sample(lock: &SharedRwLock) -> Option<StyleSource> {
+@@ -94,4 +94,14 @@
+         align_of::<Option<Block>>()
+     );
+     assert_eq!(size_of::<StyleSource>(), size_of::<usize>());
++    assert_eq!(size_of::<StyleSourceBorrow<'static>>(), size_of::<usize>());
++    assert_eq!(
++        size_of::<Option<StyleSourceBorrow<'static>>>(),
++        size_of::<usize>()
++    );
++    #[cfg(target_pointer_width = "64")]
++    assert_eq!(
++        size_of::<style::applicable_declarations::ApplicableDeclarationBlock<'static>>(),
++        32
++    );
+ }
+--- a/servo/components/servo_arc/lib.rs
++++ b/servo/components/servo_arc/lib.rs
+@@ -1066,6 +1066,118 @@
+     Second(ArcBorrow<'a, B>),
+ }
+ 
++/// A pointer-sized, non-owning borrow of either Arc allocation.
++///
++/// ```compile_fail
++/// use servo_arc::{Arc, ArcUnionBorrowPtr};
++/// let borrowed = {
++///     let owner = Arc::new(1u8);
++///     ArcUnionBorrowPtr::<u8, u16>::from_first(owner.borrow_arc())
++/// };
++/// let _ = borrowed.borrow();
++/// ```
++///
++/// ```compile_fail
++/// use servo_arc::{Arc, ArcUnion, ArcUnionBorrowPtr};
++/// let borrowed = {
++///     let owner = ArcUnion::<u8, u16>::from_second(Arc::new(2));
++///     ArcUnionBorrowPtr::from_union(&owner)
++/// };
++/// let _ = borrowed.borrow();
++/// ```
++///
++/// ```compile_fail
++/// use servo_arc::{Arc, ArcUnionBorrowPtr};
++/// use std::rc::Rc;
++/// let owner = Arc::new(Rc::new(()));
++/// let borrowed = ArcUnionBorrowPtr::<Rc<()>, u8>::from_first(owner.borrow_arc());
++/// std::thread::scope(|scope| {
++///     scope.spawn(move || { let _ = borrowed.borrow(); });
++/// });
++/// ```
++#[repr(transparent)]
++pub struct ArcUnionBorrowPtr<'a, A: 'a, B: 'a> {
++    p: ptr::NonNull<()>,
++    marker: PhantomData<&'a ArcUnion<A, B>>,
++}
++
++// The borrow can only expose the same shared allocations as ArcUnion.
++unsafe impl<A: Sync + Send, B: Sync + Send> Send for ArcUnionBorrowPtr<'_, A, B> {}
++unsafe impl<A: Sync + Send, B: Sync + Send> Sync for ArcUnionBorrowPtr<'_, A, B> {}
++
++impl<A, B> Copy for ArcUnionBorrowPtr<'_, A, B> {}
++
++impl<A, B> Clone for ArcUnionBorrowPtr<'_, A, B> {
++    fn clone(&self) -> Self {
++        *self
++    }
++}
++
++impl<'a, A, B> ArcUnionBorrowPtr<'a, A, B> {
++    #[inline]
++    pub fn from_union(owner: &'a ArcUnion<A, B>) -> Self {
++        Self {
++            p: owner.p,
++            marker: PhantomData,
++        }
++    }
++
++    #[inline]
++    pub fn from_first(value: ArcBorrow<'a, A>) -> Self {
++        // ArcBorrow guarantees allocation provenance; the transient never drops.
++        let arc = unsafe { mem::ManuallyDrop::new(Arc::from_raw(value.get())) };
++        Self {
++            p: arc.p.cast(),
++            marker: PhantomData,
++        }
++    }
++
++    #[inline]
++    pub fn from_second(value: ArcBorrow<'a, B>) -> Self {
++        // ArcInner's atomic counter guarantees a free low bit, even for align-1 B.
++        let arc = unsafe { mem::ManuallyDrop::new(Arc::from_raw(value.get())) };
++        Self {
++            p: arc.p.cast::<()>().map_addr(|address| address | 1),
++            marker: PhantomData,
++        }
++    }
++
++    #[inline]
++    pub fn ptr_eq(this: &Self, other: &Self) -> bool {
++        this.p == other.p
++    }
++
++    #[inline]
++    pub fn borrow(self) -> ArcUnionBorrow<'a, A, B> {
++        if self.p.as_ptr().addr() & 1 == 0 {
++            let allocation = self.p.cast::<ArcInner<A>>();
++            // The private constructors retain an Arc-backed borrow for 'a.
++            ArcUnionBorrow::First(unsafe { ArcBorrow::from_ref(&allocation.as_ref().data) })
++        } else {
++            let allocation = self
++                .p
++                .map_addr(|address| std::num::NonZeroUsize::new(address.get() & !1).unwrap())
++                .cast::<ArcInner<B>>();
++            // Removing only the tag preserves the original allocation provenance.
++            ArcUnionBorrow::Second(unsafe { ArcBorrow::from_ref(&allocation.as_ref().data) })
++        }
++    }
++
++    #[inline]
++    pub fn to_owned(self) -> ArcUnion<A, B> {
++        match self.borrow() {
++            ArcUnionBorrow::First(value) => ArcUnion::from_first(value.clone_arc()),
++            ArcUnionBorrow::Second(value) => ArcUnion::from_second(value.clone_arc()),
++        }
++    }
++}
++
++impl<A: fmt::Debug, B: fmt::Debug> fmt::Debug for ArcUnionBorrowPtr<'_, A, B> {
++    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
++        fmt::Debug::fmt(&self.borrow(), f)
++    }
++}
++
+ impl<A, B> ArcUnion<A, B> {
+     unsafe fn new(ptr: *mut ()) -> Self {
+         ArcUnion {
+@@ -1224,3 +1336,115 @@
+         assert_eq!(canary.load(Acquire), 1);
+     }
+ }
++
++#[cfg(test)]
++mod compact_borrow_tests {
++    use super::{Arc, ArcUnion, ArcUnionBorrow, ArcUnionBorrowPtr};
++    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
++
++    #[test]
++    fn pointer_layout_and_tag_identity() {
++        type Borrow<'a> = ArcUnionBorrowPtr<'a, u8, u8>;
++        assert_eq!(std::mem::size_of::<Borrow>(), std::mem::size_of::<usize>());
++        assert_eq!(
++            std::mem::size_of::<Option<Borrow>>(),
++            std::mem::size_of::<usize>()
++        );
++        assert!(!std::mem::needs_drop::<Borrow>());
++        assert!(std::mem::align_of::<super::ArcInner<u8>>() >= 2);
++        let owner = Arc::new(7u8);
++        let first = Borrow::from_first(owner.borrow_arc());
++        let second = Borrow::from_second(owner.borrow_arc());
++        assert!(!Borrow::ptr_eq(&first, &second));
++        assert!(matches!(first.borrow(), ArcUnionBorrow::First(value) if *value == 7));
++        assert!(matches!(second.borrow(), ArcUnionBorrow::Second(value) if *value == 7));
++        assert_eq!(owner.inner().count.load(Relaxed), 1);
++        let copy = second;
++        let cloned = copy.clone();
++        assert!(Borrow::ptr_eq(&second, &cloned));
++        assert_eq!(owner.inner().count.load(Relaxed), 1);
++        let retained = cloned.to_owned();
++        assert_eq!(owner.inner().count.load(Relaxed), 2);
++        assert!(Borrow::ptr_eq(&second, &Borrow::from_union(&retained)));
++        drop(retained);
++        assert_eq!(owner.inner().count.load(Relaxed), 1);
++    }
++
++    #[test]
++    fn borrowed_views_do_not_drop_and_owned_conversion_retains() {
++        struct Probe(std::sync::Arc<AtomicUsize>);
++        impl Drop for Probe {
++            fn drop(&mut self) {
++                self.0.fetch_add(1, Relaxed);
++            }
++        }
++        for second in [false, true] {
++            let drops = std::sync::Arc::new(AtomicUsize::new(0));
++            let owner = Arc::new(Probe(drops.clone()));
++            let retained;
++            {
++                let borrowed = if second {
++                    ArcUnionBorrowPtr::<Probe, Probe>::from_second(owner.borrow_arc())
++                } else {
++                    ArcUnionBorrowPtr::<Probe, Probe>::from_first(owner.borrow_arc())
++                };
++                let copy = borrowed;
++                assert_eq!(owner.inner().count.load(Relaxed), 1);
++                retained = copy.to_owned();
++                assert!(ArcUnionBorrowPtr::ptr_eq(
++                    &borrowed,
++                    &ArcUnionBorrowPtr::from_union(&retained),
++                ));
++            }
++            assert_eq!(drops.load(Relaxed), 0);
++            drop(owner);
++            assert_eq!(drops.load(Relaxed), 0);
++            drop(retained);
++            assert_eq!(drops.load(Relaxed), 1);
++        }
++    }
++
++    #[test]
++    fn zero_sized_and_high_alignment_payloads() {
++        #[repr(align(128))]
++        struct Aligned(u8);
++        let zero = Arc::new(());
++        let aligned = Arc::new(Aligned(9));
++        let first = ArcUnionBorrowPtr::<(), Aligned>::from_first(zero.borrow_arc());
++        let second = ArcUnionBorrowPtr::<(), Aligned>::from_second(aligned.borrow_arc());
++        assert!(matches!(first.borrow(), ArcUnionBorrow::First(value) if *value == ()));
++        assert!(matches!(second.borrow(), ArcUnionBorrow::Second(value) if value.0 == 9));
++        assert_eq!(zero.inner().count.load(Relaxed), 1);
++        assert_eq!(aligned.inner().count.load(Relaxed), 1);
++        let retained = second.to_owned();
++        drop(aligned);
++        assert!(matches!(retained.borrow(), ArcUnionBorrow::Second(value) if value.0 == 9));
++    }
++
++    #[test]
++    fn static_arc_count_is_unchanged() {
++        static INNER: super::ArcInner<u8> = super::ArcInner {
++            count: AtomicUsize::new(super::STATIC_REFCOUNT),
++            #[cfg(feature = "track_alloc_size")]
++            alloc_size: std::mem::size_of::<super::ArcInner<u8>>(),
++            data: 11,
++        };
++        // This is the same permanent ArcInner storage contract as Arc::new_static.
++        let arc = unsafe { super::ArcBorrow::from_ref(&INNER.data) };
++        let borrowed = ArcUnionBorrowPtr::<u8, u8>::from_second(arc);
++        let retained = borrowed.to_owned();
++        assert!(matches!(retained.borrow(), ArcUnionBorrow::Second(value) if *value == 11));
++        drop(retained);
++        assert_eq!(INNER.count.load(Relaxed), super::STATIC_REFCOUNT);
++    }
++
++    #[test]
++    fn equal_payloads_keep_distinct_allocation_identity() {
++        let first = ArcUnion::<u8, u16>::from_first(Arc::new(1));
++        let other = ArcUnion::<u8, u16>::from_first(Arc::new(1));
++        let a = ArcUnionBorrowPtr::from_union(&first);
++        let b = ArcUnionBorrowPtr::from_union(&other);
++        assert!(!ArcUnionBorrowPtr::ptr_eq(&a, &b));
++        assert!(ArcUnion::ptr_eq(&first, &a.to_owned()));
++    }
++}
+--- a/servo/components/style/properties/declaration_block.rs
++++ b/servo/components/style/properties/declaration_block.rs
+@@ -27,7 +27,6 @@
+ use crate::rule_tree::RuleCascadeFlags;
+ use crate::selector_map::PrecomputedHashSet;
+ use crate::selector_parser::SelectorImpl;
+-use crate::shared_lock::Locked;
+ use crate::stylesheets::container_rule::ContainerSizeQuery;
+ use crate::stylesheets::{CssRuleType, Origin, UrlExtraData};
+ use crate::stylist::Stylist;
+--- a/servo/components/style/rule_tree/source.rs
++++ b/servo/components/style/rule_tree/source.rs
+@@ -4,12 +4,11 @@
+ 
+ #![deny(unsafe_code)]
+ 
+-use crate::derives::*;
+ use crate::properties::PropertyDeclarationBlock;
+ use crate::shared_lock::{Locked, SharedRwLockReadGuard};
+ use servo_arc::{Arc, ArcBorrow};
+ #[cfg(feature = "gecko")]
+-use servo_arc::{ArcUnion, ArcUnionBorrow};
++use servo_arc::{ArcUnion, ArcUnionBorrow, ArcUnionBorrowPtr};
+ use std::io::Write;
+ use std::ptr;
+ 
+@@ -30,14 +29,26 @@
+     [(); std::mem::size_of::<Option<StyleSource>>()];
+ 
+ /// A source borrowed while collecting applicable declarations.
+-#[derive(Clone, Copy, Debug, MallocSizeOf)]
+-pub enum StyleSourceBorrow<'a> {
+-    /// A borrowed concrete declaration block.
+-    Declarations(ArcBorrow<'a, Locked<PropertyDeclarationBlock>>),
+-    /// A borrowed immutable animation sample.
+-    #[cfg(feature = "gecko")]
+-    Animation(ArcBorrow<'a, crate::animation_rule_sample::AnimationRuleSource>),
+-}
++#[cfg(feature = "gecko")]
++#[derive(Clone, Copy, Debug)]
++pub struct StyleSourceBorrow<'a>(
++    ArcUnionBorrowPtr<
++        'a,
++        Locked<PropertyDeclarationBlock>,
++        crate::animation_rule_sample::AnimationRuleSource,
++    >,
++);
++
++#[cfg(not(feature = "gecko"))]
++#[derive(Clone, Copy, Debug)]
++pub struct StyleSourceBorrow<'a>(ArcBorrow<'a, Locked<PropertyDeclarationBlock>>);
++
++const _: [(); std::mem::size_of::<ArcBorrow<'static, Locked<PropertyDeclarationBlock>>>()] =
++    [(); std::mem::size_of::<StyleSourceBorrow<'static>>()];
++const _: [(); std::mem::size_of::<Option<ArcBorrow<'static, Locked<PropertyDeclarationBlock>>>>()] =
++    [(); std::mem::size_of::<Option<StyleSourceBorrow<'static>>>()];
++
++malloc_size_of::malloc_size_of_is_0!(StyleSourceBorrow<'_>);
+ 
+ /// Declarations and their optional sampled owner, borrowed for one cascade.
+ #[derive(Clone, Copy)]
+@@ -88,12 +99,13 @@
+ 
+ impl<'a> PartialEq for StyleSourceBorrow<'a> {
+     fn eq(&self, other: &Self) -> bool {
+-        match (self, other) {
+-            (Self::Declarations(a), Self::Declarations(b)) => ArcBorrow::ptr_eq(a, b),
+-            #[cfg(feature = "gecko")]
+-            (Self::Animation(a), Self::Animation(b)) => ArcBorrow::ptr_eq(a, b),
+-            #[cfg(feature = "gecko")]
+-            _ => false,
++        #[cfg(feature = "gecko")]
++        {
++            ArcUnionBorrowPtr::ptr_eq(&self.0, &other.0)
++        }
++        #[cfg(not(feature = "gecko"))]
++        {
++            ArcBorrow::ptr_eq(&self.0, &other.0)
+         }
+     }
+ }
+@@ -102,25 +114,41 @@
+     /// Borrow a concrete declaration block.
+     #[inline]
+     pub fn from_declarations(decls: ArcBorrow<'a, Locked<PropertyDeclarationBlock>>) -> Self {
+-        Self::Declarations(decls)
++        #[cfg(feature = "gecko")]
++        {
++            Self(ArcUnionBorrowPtr::from_first(decls))
++        }
++        #[cfg(not(feature = "gecko"))]
++        {
++            Self(decls)
++        }
+     }
+ 
+     /// Retain the actual source owner in the rule tree.
+     #[inline]
+     pub fn to_owned(&self) -> StyleSource {
+-        match self {
+-            Self::Declarations(decls) => StyleSource::from_declarations(decls.clone_arc()),
+-            #[cfg(feature = "gecko")]
+-            Self::Animation(rule) => StyleSource::from_animation(rule.clone_arc()),
++        #[cfg(feature = "gecko")]
++        {
++            StyleSource(self.0.to_owned())
++        }
++        #[cfg(not(feature = "gecko"))]
++        {
++            StyleSource::from_declarations(self.0.clone_arc())
+         }
+     }
+ 
+     #[inline]
+     pub(super) fn key(&self) -> ptr::NonNull<()> {
+-        match self {
+-            Self::Declarations(decls) => ptr::NonNull::from(decls.get()).cast(),
+-            #[cfg(feature = "gecko")]
+-            Self::Animation(rule) => ptr::NonNull::from(rule.get()).cast(),
++        #[cfg(feature = "gecko")]
++        {
++            match self.0.borrow() {
++                ArcUnionBorrow::First(decls) => ptr::NonNull::from(decls.get()).cast(),
++                ArcUnionBorrow::Second(rule) => ptr::NonNull::from(rule.get()).cast(),
++            }
++        }
++        #[cfg(not(feature = "gecko"))]
++        {
++            ptr::NonNull::from(self.0.get()).cast()
+         }
+     }
+ 
+@@ -130,10 +158,16 @@
+     where
+         'a: 'b,
+     {
+-        match self {
+-            Self::Declarations(decls) => decls.get().read_with(guard),
+-            #[cfg(feature = "gecko")]
+-            Self::Animation(rule) => rule.get().declarations().read_with(guard),
++        #[cfg(feature = "gecko")]
++        {
++            match self.0.borrow() {
++                ArcUnionBorrow::First(decls) => decls.get().read_with(guard),
++                ArcUnionBorrow::Second(rule) => rule.get().declarations().read_with(guard),
++            }
++        }
++        #[cfg(not(feature = "gecko"))]
++        {
++            self.0.get().read_with(guard)
+         }
+     }
+ }
+@@ -149,14 +183,11 @@
+     pub fn borrow(&self) -> StyleSourceBorrow<'_> {
+         #[cfg(feature = "gecko")]
+         {
+-            match self.0.borrow() {
+-                ArcUnionBorrow::First(block) => StyleSourceBorrow::Declarations(block),
+-                ArcUnionBorrow::Second(sample) => StyleSourceBorrow::Animation(sample),
+-            }
+-        }
+-        #[cfg(not(feature = "gecko"))]
+-        {
+-            StyleSourceBorrow::Declarations(self.0.borrow_arc())
++            StyleSourceBorrow(ArcUnionBorrowPtr::from_union(&self.0))
++        }
++        #[cfg(not(feature = "gecko"))]
++        {
++            StyleSourceBorrow(self.0.borrow_arc())
+         }
+     }
+ 

@@ -1,0 +1,1383 @@
+--- a/layout/style/test/gtest/TestAnimationOperationArena.cpp
++++ b/layout/style/test/gtest/TestAnimationOperationArena.cpp
+@@ -129,3 +129,46 @@
+ {
+   Rust_AnimationRuleSample_InvalidRoots();
+ }
++
++extern "C" void Rust_AnimationRuleSample_OwnerIdentity();
++
++TEST(AnimationRuleSample, OwnerIdentity)
++{
++  Rust_AnimationRuleSample_OwnerIdentity();
++}
++
++extern "C" void Rust_AnimationRuleSample_OwnerLifetime();
++
++TEST(AnimationRuleSample, OwnerLifetime)
++{
++  Rust_AnimationRuleSample_OwnerLifetime();
++}
++
++extern "C" void Rust_AnimationRuleSample_OwnerLayout();
++
++TEST(AnimationRuleSample, OwnerLayout)
++{
++  Rust_AnimationRuleSample_OwnerLayout();
++}
++
++extern "C" void Rust_KeyframeEndpoint_OwnedSourceAssociation(URLExtraData*,
++                                                            URLExtraData*);
++
++TEST(KeyframeEndpoint, OwnedSourceAssociation)
++{
++  auto left = CreateArenaURLData();
++  auto right = CreateArenaURLData();
++  ASSERT_NE(left.get(), right.get());
++  Rust_KeyframeEndpoint_OwnedSourceAssociation(left, right);
++}
++
++extern "C" void Rust_AnimationRuleSample_MetadataBulk(URLExtraData*,
++                                                      URLExtraData*);
++
++TEST(AnimationRuleSample, MetadataBulk)
++{
++  auto left = CreateArenaURLData();
++  auto right = CreateArenaURLData();
++  ASSERT_NE(left.get(), right.get());
++  Rust_AnimationRuleSample_MetadataBulk(left, right);
++}
+--- /dev/null
++++ b/layout/style/test/gtest/rust/descriptor_bulk_cases.rs
+@@ -0,0 +1,217 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
++
++use crate::deferred_animation_operations::{AnimationOperationArena, SegmentOperands};
++use crate::gecko_bindings::bindings::{CompositeOperation as C, IterationCompositeOperation as I};
++use crate::gecko_bindings::structs::URLExtraData;
++use crate::properties::{animated_properties::AnimationValue as V, PropertyDeclaration};
++use servo_arc::Arc;
++use std::convert::Infallible;
++use std::ffi::{c_void, CString};
++use std::os::raw::c_char;
++use style::animation_rule_sample::{AnimationOperationSample, SampledEndpoint, SampledSegment};
++use style::custom_properties::Name;
++use style::keyframe_endpoint::{KeyframeEndpoint, KeyframeEndpointContext};
++use style::properties::{LonghandId, OwnedPropertyDeclarationId};
++use style::properties_and_values::value::{
++    ComputedValue, ComputedValueComponent, CustomAnimatedValue, ValueInner,
++};
++use style::stylesheets::UrlExtraData;
++
++extern "C" {
++    fn GTest_CompareAnimationSegment(
++        label: *const c_char,
++        from: *mut c_void,
++        to: *mut c_void,
++        underlying: *mut c_void,
++        last: *mut c_void,
++        from_composite: C,
++        to_composite: C,
++        iteration: I,
++        count: u64,
++        progress: f64,
++        same_offset: bool,
++        expected: *const c_void,
++    );
++}
++
++fn number(name: &Name, tainted: bool, url: &UrlExtraData) -> V {
++    let mut value = ComputedValue::new(
++        ValueInner::Component(ComputedValueComponent::Number(2.)),
++        url.clone(),
++    );
++    value.attr_tainted = tainted;
++    V::Custom(CustomAnimatedValue::from_computed(name, Some(&value)))
++}
++
++fn compare_native(label: &str, from: &V, to: &V, progress: f64, expected: &V) {
++    let from = Arc::new(from.clone());
++    let to = Arc::new(to.clone());
++    let label = CString::new(label).unwrap();
++    unsafe {
++        GTest_CompareAnimationSegment(
++            label.as_ptr(),
++            &*from as *const V as *mut c_void,
++            &*to as *const V as *mut c_void,
++            std::ptr::null_mut(),
++            std::ptr::null_mut(),
++            C::Replace,
++            C::Replace,
++            I::Replace,
++            0,
++            progress,
++            false,
++            expected as *const V as *const c_void,
++        );
++    }
++}
++
++#[no_mangle]
++pub unsafe extern "C" fn Rust_KeyframeEndpoint_OwnedSourceAssociation(
++    left: *mut URLExtraData,
++    right: *mut URLExtraData,
++) {
++    assert!(!left.is_null() && !right.is_null() && left != right);
++    let left = UrlExtraData::new(left);
++    let right = UrlExtraData::new(right);
++    let name = Name::from("descriptor-owned-number");
++    let property = OwnedPropertyDeclarationId::Custom(name.clone());
++    let endpoint = {
++        let declarations = vec![
++            number(&name, false, &left).uncompute(),
++            V::Opacity(0.5).uncompute(),
++            number(&name, true, &right).uncompute(),
++        ];
++        let context = Arc::new(KeyframeEndpointContext::new(7, declarations));
++        KeyframeEndpoint::new(context.clone(), 2, property.clone())
++    };
++    assert_eq!(endpoint.context().keyframe_index(), 7);
++    assert_eq!(endpoint.context().declarations().len(), 3);
++    assert_eq!(endpoint.declaration_index(), 2);
++    assert_eq!(endpoint.property(), &property);
++    assert!(std::ptr::eq(
++        endpoint.declaration(),
++        &endpoint.context().declarations()[2]
++    ));
++    let PropertyDeclaration::Custom(declaration) = endpoint.declaration() else {
++        crate::host_failure("descriptor lost its custom source".into());
++        return;
++    };
++    assert_eq!(declaration.name, name);
++    let crate::properties::CustomDeclarationValue::Parsed(parsed) = &declaration.value else {
++        crate::host_failure("descriptor changed its parsed source".into());
++        return;
++    };
++    assert!(parsed.attr_tainted);
++    let tokens = parsed.to_variable_value();
++    assert_eq!(tokens.css, "2");
++    assert_eq!(tokens.url_data.ptr(), right.ptr());
++    assert_ne!(tokens.url_data.ptr(), left.ptr());
++    let empty = KeyframeEndpointContext::new(8, Vec::new());
++    assert_eq!(empty.keyframe_index(), 8);
++    assert!(empty.declarations().is_empty());
++}
++
++#[no_mangle]
++pub unsafe extern "C" fn Rust_AnimationRuleSample_MetadataBulk(
++    left: *mut URLExtraData,
++    right: *mut URLExtraData,
++) {
++    assert!(!left.is_null() && !right.is_null() && left != right);
++    let left = UrlExtraData::new(left);
++    let right = UrlExtraData::new(right);
++    let a = Name::from("bulk-owned-a");
++    let b = Name::from("bulk-owned-b");
++    let inputs = [
++        number(&a, true, &left),
++        number(&a, false, &right),
++        number(&b, false, &right),
++        number(&b, false, &left),
++    ];
++    let mut arena = AnimationOperationArena::<Infallible>::new();
++    let ids: Vec<_> = inputs.iter().cloned().map(|v| arena.value(v)).collect();
++    let pairs = [(0, 1), (2, 3), (0, 3)];
++    let roots: Vec<_> = pairs
++        .iter()
++        .map(|&(from, to)| {
++            arena
++                .compose_segment(
++                    SegmentOperands {
++                        from: Some(ids[from]),
++                        to: Some(ids[to]),
++                        from_composite: C::Replace,
++                        to_composite: C::Replace,
++                        same_offset: false,
++                    },
++                    None,
++                    None,
++                    I::Replace,
++                    0,
++                    0.75,
++                    0.75,
++                )
++                .unwrap()
++                .unwrap()
++        })
++        .collect();
++    let order = [1, 2, 0, 1];
++    let requested: Vec<_> = order.iter().map(|&index| roots[index]).collect();
++    let values = arena.resolve_concrete_roots(&requested).unwrap();
++    assert_eq!(values.len(), order.len());
++    for (position, (&index, value)) in order.iter().zip(&values).enumerate() {
++        let (from, to) = pairs[index];
++        compare_native(
++            &format!("metadata bulk ordered root {position}"),
++            &inputs[from],
++            &inputs[to],
++            0.75,
++            value,
++        );
++    }
++
++    let properties = [
++        OwnedPropertyDeclarationId::Custom(a),
++        OwnedPropertyDeclarationId::Custom(b),
++        OwnedPropertyDeclarationId::Longhand(LonghandId::Opacity),
++    ];
++    let from = [inputs[0].clone(), inputs[2].clone(), V::Opacity(2.)];
++    let to = [inputs[1].clone(), inputs[3].clone(), V::Opacity(2.)];
++    let mut sample = AnimationOperationSample::<Infallible>::with_capacity(3);
++    for index in [2, 0, 1] {
++        assert!(sample.compose_segment(
++            properties[index].clone(),
++            SampledSegment {
++                from: Some(SampledEndpoint::Value(from[index].clone())),
++                to: Some(SampledEndpoint::Value(to[index].clone())),
++                from_composite: C::Replace,
++                to_composite: C::Replace,
++                same_offset: false,
++                last: None,
++                iteration_composite: I::Replace,
++                current_iteration: 0,
++            },
++            || panic!("complete replace needs no base"),
++            || (0.75, 0.75),
++        ));
++    }
++    let materialized = sample.freeze().into_concrete_values();
++    assert_eq!(materialized.len(), properties.len());
++    let mut seen = [false; 3];
++    for (property, value) in materialized {
++        let Some(index) = properties.iter().position(|p| p == &property) else {
++            crate::host_failure("unexpected materialized property".into());
++            return;
++        };
++        assert!(!seen[index]);
++        seen[index] = true;
++        compare_native(
++            &format!("metadata bulk property {index}"),
++            &from[index],
++            &to[index],
++            0.75,
++            &value,
++        );
++    }
++    assert!(seen.into_iter().all(|seen| seen));
++}
+--- a/layout/style/test/gtest/rust/lib.rs
++++ b/layout/style/test/gtest/rust/lib.rs
+@@ -99,3 +99,9 @@
+ 
+ #[cfg(feature = "gecko-gtest")]
+ mod endpoint_transition_cases;
++
++#[cfg(feature = "gecko-gtest")]
++mod owner_cases;
++
++#[cfg(feature = "gecko-gtest")]
++mod descriptor_bulk_cases;
+--- /dev/null
++++ b/layout/style/test/gtest/rust/owner_cases.rs
+@@ -0,0 +1,97 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
++
++use servo_arc::Arc;
++use std::mem::{align_of, size_of};
++use style::animation_rule_sample::{SampledEndpoint, SampledSegment};
++use style::gecko_bindings::bindings::{CompositeOperation, IterationCompositeOperation};
++use style::properties::animated_properties::AnimationValue;
++use style::properties::declaration_block::AnimationRuleSample;
++use style::properties::{LonghandId, OwnedPropertyDeclarationId, PropertyDeclarationBlock};
++use style::rule_tree::StyleSource;
++use style::shared_lock::{Locked, SharedRwLock};
++
++fn sample(lock: &SharedRwLock) -> Option<StyleSource> {
++    let mut sample = AnimationRuleSample::with_capacity(1);
++    let inserted = sample.compose_segment(
++        OwnedPropertyDeclarationId::Longhand(LonghandId::Opacity),
++        SampledSegment {
++            from: Some(SampledEndpoint::Value(AnimationValue::Opacity(0.2))),
++            to: Some(SampledEndpoint::Value(AnimationValue::Opacity(0.6))),
++            from_composite: CompositeOperation::Replace,
++            to_composite: CompositeOperation::Replace,
++            same_offset: false,
++            last: None,
++            iteration_composite: IterationCompositeOperation::Replace,
++            current_iteration: 0,
++        },
++        || None,
++        || (0.5, 0.5),
++    );
++    inserted.then(|| sample.into_rule_source(lock))
++}
++
++#[no_mangle]
++pub extern "C" fn Rust_AnimationRuleSample_OwnerIdentity() {
++    let lock = SharedRwLock::new();
++    let source = sample(&lock);
++    let other = sample(&lock);
++    assert!(source.is_some() && other.is_some());
++    let source = source.unwrap();
++    let other = other.unwrap();
++    let cloned = source.clone();
++    let retained = source.borrow().to_owned();
++    let concrete = StyleSource::from_declarations(source.clone_declarations());
++    assert_eq!(source, cloned);
++    assert_eq!(source, retained);
++    assert_eq!(source.borrow(), retained.borrow());
++    assert_ne!(source, other);
++    assert_ne!(source, concrete);
++    assert_ne!(source.borrow(), concrete.borrow());
++    assert_eq!(concrete, concrete.borrow().to_owned());
++    assert!(source.is_animation_sample());
++    assert!(!concrete.is_animation_sample());
++    assert!(std::ptr::eq(source.get(), concrete.get()));
++    drop(source);
++    drop(cloned);
++    assert_eq!(retained.read(&lock.read()).declarations().len(), 1);
++}
++
++#[no_mangle]
++pub extern "C" fn Rust_AnimationRuleSample_OwnerLifetime() {
++    let lock = SharedRwLock::new();
++    let source = sample(&lock);
++    assert!(source.is_some());
++    let source = source.unwrap();
++    let guard = lock.read();
++    let view = source.declaration_source(&guard);
++    assert!(std::ptr::eq(view.declarations(), source.read(&guard)));
++    assert!(view.animation().is_some());
++    let property = view
++        .animation()
++        .unwrap()
++        .property(&OwnedPropertyDeclarationId::Longhand(LonghandId::Opacity));
++    assert!(property.is_some());
++    let property = property.unwrap();
++    let block = source.clone_declarations();
++    drop(guard);
++    drop(source);
++    let value = property.resolve(|never| -> Result<AnimationValue, ()> { match *never {} });
++    assert!(value.is_ok());
++    assert!(matches!(value.unwrap(), AnimationValue::Opacity(v) if (v - 0.4).abs() < 0.000001));
++    assert_eq!(block.read_with(&lock.read()).declarations().len(), 1);
++}
++
++#[no_mangle]
++pub extern "C" fn Rust_AnimationRuleSample_OwnerLayout() {
++    type Block = Arc<Locked<PropertyDeclarationBlock>>;
++    assert_eq!(size_of::<StyleSource>(), size_of::<Block>());
++    assert_eq!(align_of::<StyleSource>(), align_of::<Block>());
++    assert_eq!(size_of::<Option<StyleSource>>(), size_of::<Option<Block>>());
++    assert_eq!(
++        align_of::<Option<StyleSource>>(),
++        align_of::<Option<Block>>()
++    );
++    assert_eq!(size_of::<StyleSource>(), size_of::<usize>());
++}
+--- a/servo/components/style/animation_rule_sample.rs
++++ b/servo/components/style/animation_rule_sample.rs
+@@ -172,14 +172,23 @@
+ }
+ 
+ impl FrozenAnimationRule<std::convert::Infallible> {
+-    /// Materialize all concrete roots with one sample-local cache, in property-table order.
+-    pub fn into_concrete_values(self) -> Vec<(OwnedPropertyDeclarationId, AnimationValue)> {
+-        let (properties, roots): (Vec<_>, Vec<_>) = self.roots.into_iter().unzip();
++    /// Materialize all concrete roots without discarding their owner.
++    pub fn concrete_values(&self) -> Vec<(OwnedPropertyDeclarationId, AnimationValue)> {
++        let (properties, roots): (Vec<_>, Vec<_>) = self
++            .roots
++            .iter()
++            .map(|(property, root)| (property.clone(), *root))
++            .unzip();
+         let values = self
+             .arena
+             .resolve_concrete_roots(&roots)
+             .expect("all roots belong to the frozen arena");
+         properties.into_iter().zip(values).collect()
++    }
++
++    /// Materialize concrete roots and release the sampled rule.
++    pub fn into_concrete_values(self) -> Vec<(OwnedPropertyDeclarationId, AnimationValue)> {
++        self.concrete_values()
+     }
+ }
+ 
+@@ -216,6 +225,57 @@
+             Err(ResolveError::Endpoint(error)) => Err(error),
+             Err(ResolveError::InvalidNode) => unreachable!("root belongs to the frozen arena"),
+         }
++    }
++}
++
++/// A concrete normal-animation rule retaining its sampled operation identities.
++pub struct AnimationRuleSource {
++    sample: FrozenAnimationRule<std::convert::Infallible>,
++    declarations:
++        servo_arc::Arc<crate::shared_lock::Locked<crate::properties::PropertyDeclarationBlock>>,
++}
++
++impl AnimationRuleSource {
++    pub(crate) fn new(
++        sample: FrozenAnimationRule<std::convert::Infallible>,
++        declarations: servo_arc::Arc<
++            crate::shared_lock::Locked<crate::properties::PropertyDeclarationBlock>,
++        >,
++    ) -> Self {
++        Self {
++            sample,
++            declarations,
++        }
++    }
++
++    /// The concrete declarations materialized from this sample.
++    pub fn declarations(
++        &self,
++    ) -> &servo_arc::Arc<crate::shared_lock::Locked<crate::properties::PropertyDeclarationBlock>>
++    {
++        &self.declarations
++    }
++
++    /// Retain the selected property root independently of this rule.
++    pub fn property(
++        &self,
++        property: &OwnedPropertyDeclarationId,
++    ) -> Option<SampledAnimationProperty<std::convert::Infallible>> {
++        self.sample.get(property)
++    }
++
++    /// Whether this sample owns a root for the declaration.
++    pub fn contains(&self, property: crate::properties::PropertyDeclarationId) -> bool {
++        self.sample.roots.contains_key(&property.to_owned())
++    }
++}
++
++impl std::fmt::Debug for AnimationRuleSource {
++    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
++        formatter
++            .debug_struct("AnimationRuleSource")
++            .field("properties", &self.sample.len())
++            .finish()
+     }
+ }
+ 
+--- a/servo/components/style/dom.rs
++++ b/servo/components/style/dom.rs
+@@ -14,6 +14,7 @@
+ use crate::data::{ElementData, ElementDataMut, ElementDataRef};
+ use crate::device::Device;
+ use crate::properties::{AnimationDeclarations, ComputedValues, PropertyDeclarationBlock};
++use crate::rule_tree::StyleSource;
+ use crate::selector_map::PrecomputedHashMap;
+ use crate::selector_parser::{AttrValue, Lang, PseudoElement, RestyleDamage, SelectorImpl};
+ use crate::shared_lock::{Locked, SharedRwLock};
+@@ -513,9 +514,21 @@
+         }
+ 
+         AnimationDeclarations {
+-            animations: self.animation_rule(context),
+-            transitions: self.transition_rule(context),
+-        }
++            animations: self.animation_rule_source(context),
++            transitions: self.transition_rule_source(context),
++        }
++    }
++
++    /// Get the owned animation source used by the rule tree.
++    fn animation_rule_source(&self, context: &SharedStyleContext) -> Option<StyleSource> {
++        self.animation_rule(context)
++            .map(StyleSource::from_declarations)
++    }
++
++    /// Get the owned transition source used by the rule tree.
++    fn transition_rule_source(&self, context: &SharedStyleContext) -> Option<StyleSource> {
++        self.transition_rule(context)
++            .map(StyleSource::from_declarations)
+     }
+ 
+     /// Get this element's animation rule.
+--- a/servo/components/style/gecko/wrapper.rs
++++ b/servo/components/style/gecko/wrapper.rs
+@@ -56,8 +56,7 @@
+ use crate::properties::{
+     ComputedValues, Importance, OwnedPropertyDeclarationId, PropertyDeclaration,
+     PropertyDeclarationBlock, PropertyDeclarationId, PropertyDeclarationIdSet,
+-    animated_properties::AnimationValue,
+-    declaration_block::AnimationRuleSample,
++    animated_properties::AnimationValue, declaration_block::AnimationRuleSample,
+ };
+ use crate::rule_tree::CascadeLevel as ServoCascadeLevel;
+ use crate::rule_tree::CascadeOrigin as ServoCascadeOrigin;
+@@ -986,10 +985,7 @@
+     gecko_flags
+ }
+ 
+-fn get_animation_rule(
+-    element: &GeckoElement,
+-    cascade_level: CascadeLevel,
+-) -> Option<Arc<Locked<PropertyDeclarationBlock>>> {
++fn get_animation_rule(element: &GeckoElement, cascade_level: CascadeLevel) -> Option<StyleSource> {
+     // There's a very rough correlation between the number of effects
+     // (animations) on an element and the number of properties it is likely to
+     // animate, so we use that as an initial guess for the size of the
+@@ -1001,9 +997,7 @@
+     );
+     if unsafe { Gecko_GetAnimationRule(element.0, cascade_level, &mut animation_values) } {
+         let shared_lock = &GLOBAL_STYLE_DATA.shared_lock;
+-        Some(Arc::new(shared_lock.wrap(
+-            animation_values.into_declaration_block(),
+-        )))
++        Some(animation_values.into_rule_source(shared_lock))
+     } else {
+         None
+     }
+@@ -1228,6 +1222,10 @@
+         &self,
+         _: &SharedStyleContext,
+     ) -> Option<Arc<Locked<PropertyDeclarationBlock>>> {
++        get_animation_rule(self, CascadeLevel::Animations).map(|source| source.clone_declarations())
++    }
++
++    fn animation_rule_source(&self, _: &SharedStyleContext) -> Option<StyleSource> {
+         get_animation_rule(self, CascadeLevel::Animations)
+     }
+ 
+@@ -1235,6 +1233,11 @@
+         &self,
+         _: &SharedStyleContext,
+     ) -> Option<Arc<Locked<PropertyDeclarationBlock>>> {
++        get_animation_rule(self, CascadeLevel::Transitions)
++            .map(|source| source.clone_declarations())
++    }
++
++    fn transition_rule_source(&self, _: &SharedStyleContext) -> Option<StyleSource> {
+         get_animation_rule(self, CascadeLevel::Transitions)
+     }
+ 
+--- a/servo/components/style/matching.rs
++++ b/servo/components/style/matching.rs
+@@ -18,13 +18,11 @@
+ use crate::dom::TNode;
+ use crate::invalidation::element::restyle_hints::RestyleHint;
+ use crate::properties::ComputedValues;
+-use crate::properties::PropertyDeclarationBlock;
+ use crate::properties::longhands::display::computed_value::T as Display;
+ #[cfg(feature = "servo")]
+ use crate::rule_tree::RuleCascadeFlags;
+-use crate::rule_tree::{CascadeLevel, CascadeOrigin, StrongRuleNode};
++use crate::rule_tree::{CascadeLevel, CascadeOrigin, StrongRuleNode, StyleSourceBorrow};
+ use crate::selector_parser::{PseudoElement, RestyleDamage};
+-use crate::shared_lock::Locked;
+ use crate::style_resolver::StyleResolverForElement;
+ use crate::style_resolver::{PseudoElementResolution, ResolvedElementStyles};
+ use crate::stylesheets::layer_rule::LayerOrder;
+@@ -32,7 +30,7 @@
+ use crate::traversal_flags::TraversalFlags;
+ use crate::values::generics::animation::GenericAnimationTimeline;
+ use crate::values::specified::animation::Scroller;
+-use servo_arc::{Arc, ArcBorrow};
++use servo_arc::Arc;
+ 
+ /// Represents the result of comparing an element's old and new style.
+ #[derive(Debug)]
+@@ -73,7 +71,7 @@
+         context: &SharedStyleContext,
+         level: CascadeLevel,
+         layer_order: LayerOrder,
+-        pdb: Option<ArcBorrow<Locked<PropertyDeclarationBlock>>>,
++        source: Option<StyleSourceBorrow>,
+         path: &mut StrongRuleNode,
+     ) -> bool {
+         let stylist = &context.stylist;
+@@ -83,7 +81,7 @@
+         let new_node = stylist.rule_tree().update_rule_at_level(
+             level,
+             layer_order,
+-            pdb,
++            source,
+             path,
+             guards,
+             &mut important_rules_changed,
+@@ -123,7 +121,9 @@
+         if !context.shared.traversal_flags.for_animation_only() {
+             let mut result = false;
+             if replacements.contains(RestyleHint::RESTYLE_STYLE_ATTRIBUTE) {
+-                let style_attribute = self.style_attribute();
++                let style_attribute = self
++                    .style_attribute()
++                    .map(StyleSourceBorrow::from_declarations);
+                 result |= Self::replace_single_rule_node(
+                     context.shared,
+                     CascadeLevel::same_tree_author_normal(),
+@@ -155,7 +155,8 @@
+                     context.shared,
+                     CascadeLevel::new(CascadeOrigin::SMILOverride),
+                     LayerOrder::root(),
+-                    self.smil_override(),
++                    self.smil_override()
++                        .map(StyleSourceBorrow::from_declarations),
+                     primary_rules,
+                 );
+             }
+@@ -165,9 +166,9 @@
+                     context.shared,
+                     CascadeLevel::new(CascadeOrigin::Transitions),
+                     LayerOrder::root(),
+-                    self.transition_rule(context.shared)
++                    self.transition_rule_source(context.shared)
+                         .as_ref()
+-                        .map(|a| a.borrow_arc()),
++                        .map(|a| a.borrow()),
+                     primary_rules,
+                 );
+             }
+@@ -177,9 +178,9 @@
+                     context.shared,
+                     CascadeLevel::new(CascadeOrigin::Animations),
+                     LayerOrder::root(),
+-                    self.animation_rule(context.shared)
++                    self.animation_rule_source(context.shared)
+                         .as_ref()
+-                        .map(|a| a.borrow_arc()),
++                        .map(|a| a.borrow()),
+                     primary_rules,
+                 );
+             }
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -27,7 +27,9 @@
+ use crate::properties_and_values::rule::Descriptors as PropertyDescriptors;
+ use crate::properties_and_values::value::ComputedValue as ComputedRegisteredValue;
+ use crate::rule_cache::{RuleCache, RuleCacheConditions};
+-use crate::rule_tree::{CascadeLevel, CascadeOrigin, RuleCascadeFlags, StrongRuleNode};
++use crate::rule_tree::{
++    CascadeLevel, CascadeOrigin, DeclarationSource, RuleCascadeFlags, StrongRuleNode,
++};
+ use crate::selector_map::{PrecomputedHashMap, PrecomputedHashSet};
+ use crate::selector_parser::PseudoElement;
+ use crate::shared_lock::StylesheetGuards;
+@@ -123,7 +125,7 @@
+     current_rule_node: Option<&'a StrongRuleNode>,
+     // Per rule state.
+     declarations: DeclarationImportanceIterator<'a>,
+-    source: Option<&'a PropertyDeclarationBlock>,
++    source: Option<DeclarationSource<'a>>,
+     priority: CascadePriority,
+ }
+ 
+@@ -154,11 +156,14 @@
+     fn update_for_node(&mut self, node: &'a StrongRuleNode) {
+         self.priority = node.cascade_priority();
+         let guard = self.priority.cascade_level().origin().guard(self.guards);
+-        self.source = node.style_source().map(|source| source.read(guard));
+-        self.declarations = self.source.map_or_else(
+-            DeclarationImportanceIterator::default,
+-            PropertyDeclarationBlock::declaration_importance_iter,
+-        );
++        self.source = node
++            .style_source()
++            .map(|source| source.declaration_source(guard));
++        self.declarations = self
++            .source
++            .map_or_else(DeclarationImportanceIterator::default, |source| {
++                source.declarations().declaration_importance_iter()
++            });
+     }
+ }
+ 
+@@ -166,7 +171,7 @@
+     type Item = (
+         &'a PropertyDeclaration,
+         CascadePriority,
+-        &'a PropertyDeclarationBlock,
++        DeclarationSource<'a>,
+     );
+ 
+     #[inline]
+@@ -260,7 +265,7 @@
+         Item = (
+             &'decls PropertyDeclaration,
+             CascadePriority,
+-            &'decls PropertyDeclarationBlock,
++            DeclarationSource<'decls>,
+         ),
+     >,
+     declarations: &mut Declarations<'decls>,
+@@ -270,11 +275,11 @@
+     for (declaration, priority, source) in iter {
+         if let PropertyDeclaration::Custom(ref declaration) = *declaration {
+             if let Some((ref mut cascade, ref mut context)) = custom {
+-                cascade.cascade_custom_property(context, declaration, priority);
++                cascade.cascade_custom_property(context, declaration, priority, Some(source));
+             }
+         } else {
+             let id = declaration.id().as_longhand().unwrap();
+-            declarations.note_declaration(declaration, priority, source, id);
++            declarations.note_declaration(declaration, priority, source.declarations(), id);
+             if Cascade::might_have_non_custom_or_attr_dependency(id, declaration)
+                 && let Some((ref mut cascade, ref mut context)) = custom
+             {
+@@ -315,7 +320,7 @@
+         Item = (
+             &'decls PropertyDeclaration,
+             CascadePriority,
+-            &'decls PropertyDeclarationBlock,
++            DeclarationSource<'decls>,
+         ),
+     >,
+ {
+@@ -848,7 +853,7 @@
+         priority: CascadePriority,
+     ) {
+         self.cascade
+-            .cascade_custom_property(context, declaration, priority);
++            .cascade_custom_property(context, declaration, priority, None);
+     }
+ 
+     /// Prepares typed attributes referenced by an ordinary keyframe declaration.
+@@ -1840,6 +1845,7 @@
+         context: &mut computed::Context,
+         declaration: &'a CustomDeclaration,
+         priority: CascadePriority,
++        _source: Option<DeclarationSource<'a>>,
+     ) {
+         let CustomDeclaration {
+             ref name,
+@@ -1860,6 +1866,11 @@
+             Entry::Occupied(..) => return,
+             Entry::Vacant(v) => v,
+         };
++
++        #[cfg(feature = "gecko")]
++        if let Some(rule) = _source.and_then(DeclarationSource::animation) {
++            debug_assert!(rule.contains(PropertyDeclarationId::Custom(name)));
++        }
+ 
+         let registration = self.stylist.get_custom_property_registration(name);
+         let initial_values = self.stylist.get_custom_property_initial_values();
+--- a/servo/components/style/properties/declaration_block.rs
++++ b/servo/components/style/properties/declaration_block.rs
+@@ -56,9 +56,9 @@
+ #[derive(Default)]
+ pub struct AnimationDeclarations {
+     /// Declarations for animations.
+-    pub animations: Option<Arc<Locked<PropertyDeclarationBlock>>>,
++    pub animations: Option<crate::rule_tree::StyleSource>,
+     /// Declarations for transitions.
+-    pub transitions: Option<Arc<Locked<PropertyDeclarationBlock>>>,
++    pub transitions: Option<crate::rule_tree::StyleSource>,
+ }
+ 
+ impl AnimationDeclarations {
+@@ -253,7 +253,27 @@
+ 
+     /// Materialize concrete-only roots; recipes are uninhabitable on this route.
+     pub fn into_declaration_block(self) -> PropertyDeclarationBlock {
+-        let values = self.operations.freeze().into_concrete_values();
++        Self::declarations_from_values(self.operations.freeze().into_concrete_values())
++    }
++
++    /// Retain the concrete sample and its declarations under one immutable rule owner.
++    pub fn into_rule_source(
++        self,
++        shared_lock: &crate::shared_lock::SharedRwLock,
++    ) -> crate::rule_tree::StyleSource {
++        let sample = self.operations.freeze();
++        let mut declarations = Self::declarations_from_values(sample.concrete_values());
++        declarations.immutable = AtomicBool::new(true);
++        let source = crate::animation_rule_sample::AnimationRuleSource::new(
++            sample,
++            Arc::new(shared_lock.wrap(declarations)),
++        );
++        crate::rule_tree::StyleSource::from_animation(Arc::new(source))
++    }
++
++    fn declarations_from_values(
++        values: Vec<(super::OwnedPropertyDeclarationId, AnimationValue)>,
++    ) -> PropertyDeclarationBlock {
+         let len = values.len();
+         let mut declarations = ThinVec::with_capacity(len);
+         let mut property_ids = PropertyDeclarationIdSet::default();
+--- a/servo/components/style/rule_cache.rs
++++ b/servo/components/style/rule_cache.rs
+@@ -165,6 +165,9 @@
+                 break;
+             }
+             if let Some(source) = node.style_source() {
++                if source.is_animation_sample() {
++                    break;
++                }
+                 let decls = source.get().read_with(cascade_level.guard(guards));
+                 if decls.contains_any_reset() {
+                     break;
+--- a/servo/components/style/rule_collector.rs
++++ b/servo/components/style/rule_collector.rs
+@@ -517,7 +517,7 @@
+         if let Some(ref anim) = self.animation_declarations.animations {
+             self.rules
+                 .push(ApplicableDeclarationBlock::from_declarations(
+-                    StyleSourceBorrow::from_declarations(anim.borrow_arc()),
++                    anim.borrow(),
+                     CascadeLevel::new(CascadeOrigin::Animations),
+                     LayerOrder::root(),
+                 ));
+@@ -528,7 +528,7 @@
+         if let Some(ref anim) = self.animation_declarations.transitions {
+             self.rules
+                 .push(ApplicableDeclarationBlock::from_declarations(
+-                    StyleSourceBorrow::from_declarations(anim.borrow_arc()),
++                    anim.borrow(),
+                     CascadeLevel::new(CascadeOrigin::Transitions),
+                     LayerOrder::root(),
+                 ));
+--- a/servo/components/style/rule_tree/mod.rs
++++ b/servo/components/style/rule_tree/mod.rs
+@@ -7,10 +7,9 @@
+ //! The rule tree.
+ 
+ use crate::applicable_declarations::{ApplicableDeclarationList, CascadePriority};
+-use crate::properties::{LonghandIdSet, PropertyDeclarationBlock};
+-use crate::shared_lock::{Locked, StylesheetGuards};
++use crate::properties::LonghandIdSet;
++use crate::shared_lock::StylesheetGuards;
+ use crate::stylesheets::layer_rule::LayerOrder;
+-use servo_arc::ArcBorrow;
+ use smallvec::SmallVec;
+ use std::io::{self, Write};
+ 
+@@ -22,7 +21,7 @@
+ 
+ pub use self::core::{RuleTree, StrongRuleNode};
+ pub use self::level::{CascadeLevel, CascadeOrigin, ShadowCascadeOrder};
+-pub use self::source::{StyleSource, StyleSourceBorrow};
++pub use self::source::{DeclarationSource, StyleSource, StyleSourceBorrow};
+ 
+ bitflags! {
+     /// Flags that are part of the cascade priority, and that we use to track
+@@ -224,7 +223,7 @@
+         &self,
+         level: CascadeLevel,
+         layer_order: LayerOrder,
+-        pdb: Option<ArcBorrow<Locked<PropertyDeclarationBlock>>>,
++        source: Option<StyleSourceBorrow>,
+         path: &StrongRuleNode,
+         guards: &StylesheetGuards,
+         important_rules_changed: &mut bool,
+@@ -257,21 +256,21 @@
+         if current.cascade_priority() == cascade_priority {
+             *important_rules_changed |= level.is_important();
+ 
+-            let current_decls = current.style_source().unwrap().get();
++            let current_source = current.style_source().unwrap().borrow();
+ 
+             // If the only rule at the level we're replacing is exactly the
+-            // same as `pdb`, we're done, and `path` is still valid.
+-            if let Some(ref pdb) = pdb {
++            // same as `source`, we're done, and `path` is still valid.
++            if let Some(source) = source {
+                 // If the only rule at the level we're replacing is exactly the
+-                // same as `pdb`, we're done, and `path` is still valid.
++                // same as `source`, we're done, and `path` is still valid.
+                 //
+                 // TODO(emilio): Another potential optimization is the one where
+-                // we can just replace the rule at that level for `pdb`, and
++                // we can just replace the rule at that level for `source`, and
+                 // then we don't need to re-create the children, and `path` is
+                 // also equally valid. This is less likely, and would require an
+                 // in-place mutation of the source, which is, at best, fiddly,
+                 // so let's skip it for now.
+-                let is_here_already = ArcBorrow::ptr_eq(pdb, &current_decls.borrow_arc());
++                let is_here_already = source == current_source;
+                 if is_here_already {
+                     debug!("Picking the fast path in rule replacement");
+                     return None;
+@@ -285,14 +284,13 @@
+         //
+         // These optimizations are likely to be important, because the levels where replacements
+         // apply (style and animations) tend to trigger pretty bad styling cases already.
+-        if let Some(pdb) = pdb {
+-            let source = StyleSourceBorrow::from_declarations(pdb);
++        if let Some(source) = source {
+             if level.is_important() {
+-                if pdb.read_with(level.guard(guards)).any_important() {
++                if source.read(level.guard(guards)).any_important() {
+                     current = current.ensure_child(self.root(), source, cascade_priority);
+                     *important_rules_changed = true;
+                 }
+-            } else if pdb.read_with(level.guard(guards)).any_normal() {
++            } else if source.read(level.guard(guards)).any_normal() {
+                 current = current.ensure_child(self.root(), source, cascade_priority);
+             }
+         }
+--- a/servo/components/style/rule_tree/source.rs
++++ b/servo/components/style/rule_tree/source.rs
+@@ -8,126 +8,331 @@
+ use crate::properties::PropertyDeclarationBlock;
+ use crate::shared_lock::{Locked, SharedRwLockReadGuard};
+ use servo_arc::{Arc, ArcBorrow};
++#[cfg(feature = "gecko")]
++use servo_arc::{ArcUnion, ArcUnionBorrow};
+ use std::io::Write;
+ use std::ptr;
+ 
+-/// A style source for the rule node. It is a declaration block that may come from either a style
+-/// rule or a standalone block like animations / transitions / smil / preshints / style attr...
+-///
+-/// Keeping the style rule around would provide more debugability, but also causes more
+-/// pointer-chasing in the common code-path, which is undesired. If needed, we could keep it around
+-/// in debug builds or something along those lines.
++/// An owned declaration source for a rule node.
++#[cfg(feature = "gecko")]
++#[derive(Clone, Debug)]
++pub struct StyleSource(
++    ArcUnion<Locked<PropertyDeclarationBlock>, crate::animation_rule_sample::AnimationRuleSource>,
++);
++
++#[cfg(not(feature = "gecko"))]
+ #[derive(Clone, Debug)]
+ pub struct StyleSource(Arc<Locked<PropertyDeclarationBlock>>);
+ 
+-/// A borrowed version of `StyleSource`.
+-///
+-/// This is what we use during selector matching, so that we only need to touch the refcount of
+-/// the declarations when we actually insert them in the rule tree.
++const _: [(); std::mem::size_of::<Arc<Locked<PropertyDeclarationBlock>>>()] =
++    [(); std::mem::size_of::<StyleSource>()];
++const _: [(); std::mem::size_of::<Option<Arc<Locked<PropertyDeclarationBlock>>>>()] =
++    [(); std::mem::size_of::<Option<StyleSource>>()];
++
++/// A source borrowed while collecting applicable declarations.
+ #[derive(Clone, Copy, Debug, MallocSizeOf)]
+-pub struct StyleSourceBorrow<'a>(ArcBorrow<'a, Locked<PropertyDeclarationBlock>>);
+-
+-// The declaration block is measured as part of the stylesheet (or as part of whatever object owns
+-// it, like the element for the style attribute).
++pub enum StyleSourceBorrow<'a> {
++    /// A borrowed concrete declaration block.
++    Declarations(ArcBorrow<'a, Locked<PropertyDeclarationBlock>>),
++    /// A borrowed immutable animation sample.
++    #[cfg(feature = "gecko")]
++    Animation(ArcBorrow<'a, crate::animation_rule_sample::AnimationRuleSource>),
++}
++
++/// Declarations and their optional sampled owner, borrowed for one cascade.
++#[derive(Clone, Copy)]
++pub struct DeclarationSource<'a> {
++    declarations: &'a PropertyDeclarationBlock,
++    #[cfg(feature = "gecko")]
++    animation: Option<&'a crate::animation_rule_sample::AnimationRuleSource>,
++}
++
++impl<'a> DeclarationSource<'a> {
++    /// A direct concrete declaration input, without a sampled owner.
++    pub fn from_declarations(declarations: &'a PropertyDeclarationBlock) -> Self {
++        Self {
++            declarations,
++            #[cfg(feature = "gecko")]
++            animation: None,
++        }
++    }
++
++    /// Concrete declarations, also retaining the existing block identity for revert handling.
++    pub fn declarations(self) -> &'a PropertyDeclarationBlock {
++        self.declarations
++    }
++
++    /// The owner of the concrete property roots, if this is an animation sample.
++    #[cfg(feature = "gecko")]
++    pub fn animation(self) -> Option<&'a crate::animation_rule_sample::AnimationRuleSource> {
++        self.animation
++    }
++}
++
++// Declaration blocks are measured by their owners. Animation sample reporting
++// needs a shared seen-pointer state for the retained arena and declaration block.
+ malloc_size_of::malloc_size_of_is_0!(StyleSource);
+ 
+ impl PartialEq for StyleSource {
+     fn eq(&self, other: &Self) -> bool {
+-        Arc::ptr_eq(&self.0, &other.0)
++        #[cfg(feature = "gecko")]
++        {
++            ArcUnion::ptr_eq(&self.0, &other.0)
++        }
++        #[cfg(not(feature = "gecko"))]
++        {
++            Arc::ptr_eq(&self.0, &other.0)
++        }
+     }
+ }
+ 
+ impl<'a> PartialEq for StyleSourceBorrow<'a> {
+     fn eq(&self, other: &Self) -> bool {
+-        ArcBorrow::ptr_eq(&self.0, &other.0)
++        match (self, other) {
++            (Self::Declarations(a), Self::Declarations(b)) => ArcBorrow::ptr_eq(a, b),
++            #[cfg(feature = "gecko")]
++            (Self::Animation(a), Self::Animation(b)) => ArcBorrow::ptr_eq(a, b),
++            #[cfg(feature = "gecko")]
++            _ => false,
++        }
+     }
+ }
+ 
+ impl<'a> StyleSourceBorrow<'a> {
+-    /// Creates a borrowed style source from a borrowed declaration block.
++    /// Borrow a concrete declaration block.
+     #[inline]
+     pub fn from_declarations(decls: ArcBorrow<'a, Locked<PropertyDeclarationBlock>>) -> Self {
+-        Self(decls)
+-    }
+-
+-    /// Creates an owned style source from this borrow, bumping the refcount.
++        Self::Declarations(decls)
++    }
++
++    /// Retain the actual source owner in the rule tree.
+     #[inline]
+     pub fn to_owned(&self) -> StyleSource {
+-        StyleSource(self.0.clone_arc())
++        match self {
++            Self::Declarations(decls) => StyleSource::from_declarations(decls.clone_arc()),
++            #[cfg(feature = "gecko")]
++            Self::Animation(rule) => StyleSource::from_animation(rule.clone_arc()),
++        }
+     }
+ 
+     #[inline]
+     pub(super) fn key(&self) -> ptr::NonNull<()> {
+-        ptr::NonNull::from(self.0.get()).cast()
+-    }
+-
+-    /// Read the style source guard, and obtain thus read access to the underlying property
+-    /// declaration block.
++        match self {
++            Self::Declarations(decls) => ptr::NonNull::from(decls.get()).cast(),
++            #[cfg(feature = "gecko")]
++            Self::Animation(rule) => ptr::NonNull::from(rule.get()).cast(),
++        }
++    }
++
++    /// Read this source's concrete declarations.
+     #[inline]
+     pub fn read<'b>(&self, guard: &'b SharedRwLockReadGuard) -> &'b PropertyDeclarationBlock
+     where
+         'a: 'b,
+     {
+-        self.0.get().read_with(guard)
++        match self {
++            Self::Declarations(decls) => decls.get().read_with(guard),
++            #[cfg(feature = "gecko")]
++            Self::Animation(rule) => rule.get().declarations().read_with(guard),
++        }
+     }
+ }
+ 
+ impl StyleSource {
+     #[inline]
+     pub(super) fn key(&self) -> ptr::NonNull<()> {
+-        ptr::NonNull::from(&*self.0).cast()
+-    }
+-
+-    /// Borrows this style source.
++        self.borrow().key()
++    }
++
++    /// Borrow the actual source owner.
+     #[inline]
+     pub fn borrow(&self) -> StyleSourceBorrow<'_> {
+-        StyleSourceBorrow(self.0.borrow_arc())
+-    }
+-
+-    /// Creates a StyleSource from a PropertyDeclarationBlock.
++        #[cfg(feature = "gecko")]
++        {
++            match self.0.borrow() {
++                ArcUnionBorrow::First(block) => StyleSourceBorrow::Declarations(block),
++                ArcUnionBorrow::Second(sample) => StyleSourceBorrow::Animation(sample),
++            }
++        }
++        #[cfg(not(feature = "gecko"))]
++        {
++            StyleSourceBorrow::Declarations(self.0.borrow_arc())
++        }
++    }
++
++    /// Create a source from a concrete declaration block.
+     #[inline]
+     pub fn from_declarations(decls: Arc<Locked<PropertyDeclarationBlock>>) -> Self {
+-        Self(decls)
++        #[cfg(feature = "gecko")]
++        {
++            Self(ArcUnion::from_first(decls))
++        }
++        #[cfg(not(feature = "gecko"))]
++        {
++            Self(decls)
++        }
++    }
++
++    /// Retain an immutable normal-animation sample.
++    #[cfg(feature = "gecko")]
++    pub fn from_animation(rule: Arc<crate::animation_rule_sample::AnimationRuleSource>) -> Self {
++        Self(ArcUnion::from_second(rule))
++    }
++
++    /// Whether rule-cache identity must retain a sampled owner.
++    pub fn is_animation_sample(&self) -> bool {
++        #[cfg(feature = "gecko")]
++        {
++            self.0.is_second()
++        }
++        #[cfg(not(feature = "gecko"))]
++        {
++            false
++        }
+     }
+ 
+     pub(super) fn dump<W: Write>(&self, guard: &SharedRwLockReadGuard, writer: &mut W) {
+         let _ = write!(writer, "  -> {:?}", self.read(guard).declarations());
+     }
+ 
+-    /// Read the style source guard, and obtain thus read access to the
+-    /// underlying property declaration block.
++    /// Read the source's concrete declarations.
+     #[inline]
+     pub fn read<'a>(&'a self, guard: &'a SharedRwLockReadGuard) -> &'a PropertyDeclarationBlock {
+-        self.0.read_with(guard)
+-    }
+-
+-    /// Returns the declaration block if applicable, otherwise None.
+-    #[inline]
+-    pub fn get(&self) -> &Arc<Locked<PropertyDeclarationBlock>> {
+-        &self.0
++        self.get().read_with(guard)
++    }
++
++    /// Read declarations while preserving their sampled owner for cascade admission.
++    pub fn declaration_source<'a>(
++        &'a self,
++        guard: &'a SharedRwLockReadGuard,
++    ) -> DeclarationSource<'a> {
++        DeclarationSource {
++            declarations: self.read(guard),
++            #[cfg(feature = "gecko")]
++            animation: match self.0.borrow() {
++                ArcUnionBorrow::Second(rule) => Some(rule.get()),
++                ArcUnionBorrow::First(_) => None,
++            },
++        }
++    }
++
++    /// The concrete block, including the materialized block of an animation sample.
++    #[inline]
++    pub fn get(&self) -> &Locked<PropertyDeclarationBlock> {
++        self.declarations().get()
++    }
++
++    /// Borrow the block's Arc without changing its ownership.
++    #[inline]
++    pub fn declarations(&self) -> ArcBorrow<'_, Locked<PropertyDeclarationBlock>> {
++        #[cfg(feature = "gecko")]
++        {
++            match self.0.borrow() {
++                ArcUnionBorrow::First(block) => block,
++                ArcUnionBorrow::Second(rule) => rule.get().declarations().borrow_arc(),
++            }
++        }
++        #[cfg(not(feature = "gecko"))]
++        {
++            self.0.borrow_arc()
++        }
++    }
++
++    /// Return an owned concrete block for compatibility callers.
++    #[inline]
++    pub fn clone_declarations(&self) -> Arc<Locked<PropertyDeclarationBlock>> {
++        self.declarations().clone_arc()
+     }
+ 
+     /// Marks this block as part of the rule tree.
+     #[inline]
+     pub fn mark_in_rule_tree(&self) {
+         use std::sync::atomic::Ordering;
+-        if self.0.is_static() {
+-            // For static pointers, it doesn't matter whether we might be in the rule tree or not,
+-            // because those are not mutable.
+-            return;
+-        }
+-        // SAFETY: We're only accessing a relaxed atomic inside the locked object, which we know
+-        // is alive. In theory, we could/should track that boolean outside of the
+-        // Locked<PropertyDeclarationBlock>, but that is kind of a PITA.
+-        #[allow(unsafe_code)]
+-        unsafe {
+-            // Load before storing: the flag is never cleared, so after the first mark every
+-            // store is redundant, and an unconditional store would still take the cache line
+-            // exclusive and invalidate it for every other thread reading this block.
+-            let immutable = &self.0.read_unchecked().immutable;
+-            if !immutable.load(Ordering::Relaxed) {
+-                immutable.store(true, Ordering::Relaxed);
++        self.declarations().with_arc(|block| {
++            if block.is_static() {
++                // Static blocks are already immutable.
++                return;
+             }
+-        }
+-    }
+-}
++            // SAFETY: The Arc keeps the block alive; only its relaxed atomic is accessed.
++            #[allow(unsafe_code)]
++            unsafe {
++                let immutable = &block.read_unchecked().immutable;
++                if !immutable.load(Ordering::Relaxed) {
++                    immutable.store(true, Ordering::Relaxed);
++                }
++            }
++        });
++    }
++}
++
++#[cfg(all(test, feature = "gecko"))]
++mod tests {
++    use super::*;
++    use crate::animation_rule_sample::{SampledEndpoint, SampledSegment};
++    use crate::gecko_bindings::bindings::{CompositeOperation, IterationCompositeOperation};
++    use crate::properties::animated_properties::AnimationValue;
++    use crate::properties::declaration_block::AnimationRuleSample;
++    use crate::properties::{LonghandId, OwnedPropertyDeclarationId};
++    use crate::shared_lock::SharedRwLock;
++
++    fn sampled_source(lock: &SharedRwLock) -> StyleSource {
++        let mut sample = AnimationRuleSample::with_capacity(1);
++        assert!(sample.compose_segment(
++            OwnedPropertyDeclarationId::Longhand(LonghandId::Opacity),
++            SampledSegment {
++                from: Some(SampledEndpoint::Value(AnimationValue::Opacity(0.2))),
++                to: Some(SampledEndpoint::Value(AnimationValue::Opacity(0.6))),
++                from_composite: CompositeOperation::Replace,
++                to_composite: CompositeOperation::Replace,
++                same_offset: false,
++                last: None,
++                iteration_composite: IterationCompositeOperation::Replace,
++                current_iteration: 0,
++            },
++            || panic!("replace needs no base"),
++            || (0.5, 0.5),
++        ));
++        sample.into_rule_source(lock)
++    }
++
++    #[test]
++    fn sample_identity_is_not_its_concrete_block_identity() {
++        let lock = SharedRwLock::new();
++        let source = sampled_source(&lock);
++        let retained = source.borrow().to_owned();
++        let concrete = StyleSource::from_declarations(source.clone_declarations());
++        let other_sample = sampled_source(&lock);
++        assert_eq!(source, retained);
++        assert_eq!(source.key(), retained.key());
++        assert_ne!(source, concrete);
++        assert_ne!(source.key(), concrete.key());
++        assert_ne!(source, other_sample);
++        assert!(source.is_animation_sample());
++        assert!(!concrete.is_animation_sample());
++        assert_eq!(concrete, concrete.borrow().to_owned());
++    }
++
++    #[test]
++    fn cascade_source_and_retained_property_share_the_sample() {
++        let lock = SharedRwLock::new();
++        let source = sampled_source(&lock);
++        let guard = lock.read();
++        let view = source.declaration_source(&guard);
++        assert!(std::ptr::eq(view.declarations(), source.read(&guard)));
++        assert_eq!(view.declarations().declarations().len(), 1);
++        let property = view
++            .animation()
++            .unwrap()
++            .property(&OwnedPropertyDeclarationId::Longhand(LonghandId::Opacity))
++            .unwrap();
++        drop(guard);
++        drop(source);
++        let value = property
++            .resolve(|never| -> Result<AnimationValue, ()> { match *never {} })
++            .unwrap();
++        match value {
++            AnimationValue::Opacity(value) => assert!((value - 0.4).abs() < 0.000001),
++            _ => panic!("wrong property"),
++        }
++    }
++}
+--- a/servo/components/style/servo/animation.rs
++++ b/servo/components/style/servo/animation.rs
+@@ -22,7 +22,9 @@
+     ComputedValues, Importance, LonghandId, PropertyDeclarationBlock, PropertyDeclarationId,
+     PropertyDeclarationIdSet,
+ };
+-use crate::rule_tree::{CascadeLevel, CascadeOrigin, RuleCascadeFlags};
++use crate::rule_tree::{
++    CascadeLevel, CascadeOrigin, RuleCascadeFlags, StyleSource, StyleSourceBorrow,
++};
+ use crate::selector_parser::PseudoElement;
+ use crate::shared_lock::{Locked, SharedRwLock};
+ use crate::style_resolver::StyleResolverForElement;
+@@ -248,7 +250,9 @@
+         let new_node = context.stylist.rule_tree().update_rule_at_level(
+             CascadeLevel::new(CascadeOrigin::Animations),
+             LayerOrder::root(),
+-            Some(locked_block.borrow_arc()),
++            Some(StyleSourceBorrow::from_declarations(
++                locked_block.borrow_arc(),
++            )),
+             &rule_node,
+             &context.guards,
+             &mut important_rules_changed,
+@@ -1735,8 +1739,8 @@
+                 Arc::new(shared_lock.wrap(block))
+             });
+         AnimationDeclarations {
+-            animations,
+-            transitions,
++            animations: animations.map(StyleSource::from_declarations),
++            transitions: transitions.map(StyleSource::from_declarations),
+         }
+     }
+ 
+--- a/servo/components/style/stylist.rs
++++ b/servo/components/style/stylist.rs
+@@ -1463,7 +1463,9 @@
+                 let new_rules = self.rule_tree.update_rule_at_level(
+                     CascadeLevel::new(CascadeOrigin::PositionFallback),
+                     LayerOrder::root(),
+-                    Some(fallback_block.borrow_arc()),
++                    Some(StyleSourceBorrow::from_declarations(
++                        fallback_block.borrow_arc(),
++                    )),
+                     rules,
+                     guards,
+                     &mut important_rules_changed,
+@@ -2058,7 +2060,7 @@
+                         LayerOrder::root(),
+                         RuleCascadeFlags::empty(),
+                     ),
+-                    block,
++                    crate::rule_tree::DeclarationSource::from_declarations(block),
+                 )
+             }),
+             Some(parent_style),
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -4995,7 +4995,7 @@
+         };
+ 
+         rules.push(MatchingDeclarationBlock {
+-            block: &**source.get(),
++            block: source.get(),
+             origin,
+         });
+     }

@@ -1,0 +1,13 @@
+--- previous/capture.py
++++ candidate/capture.py
+@@ -78,7 +78,9 @@
+     need(build['status'] == 'COMPLETE' and build['exit'] == 0 and build['terminal'], 'actual completed successful build')
+     compiled = read(ROOT / epoch['provenance']['compile_sources']['path'])
+     roles = dict(epoch['pins'])
+-    need(all(roles.get(n) == pin for n, pin in compiled.items()), 'compiled candidate sources')
++    need(compiled == read(HERE / 'EXPECTED-SOURCES.json'), 'reviewed prototype source inventory')
++    need(all(n in roles and roles[n] == pin for n, pin in compiled.items()), 'compiled candidate sources')
++    need(set(epoch['untracked_native']) == set(read(HERE / 'EXPECTED-UNTRACKED.json')), 'reviewed prototype additions')
+     need(set(read(HERE / 'REQUIRED-ROLES.json')) <= set(roles), 'retained selected resource closure')
+     need(set(epoch['untracked_native']) <= set(roles) and all(roles[n] for n in epoch['untracked_native']), 'pinned allowed native additions')
+     need(roles[FIXTURE] is None and roles['testing/web-platform/tests/config.json'] == sha(HERE / 'server-config.json'), 'fixture/config preimages')

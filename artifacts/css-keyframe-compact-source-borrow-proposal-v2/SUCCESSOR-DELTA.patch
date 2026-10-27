@@ -1,0 +1,17 @@
+--- v1/servo/components/servo_arc/lib.rs
++++ v2/servo/components/servo_arc/lib.rs
+@@ -1413,12 +1413,12 @@
+         let first = ArcUnionBorrowPtr::<(), Aligned>::from_first(zero.borrow_arc());
+         let second = ArcUnionBorrowPtr::<(), Aligned>::from_second(aligned.borrow_arc());
+         assert!(matches!(first.borrow(), ArcUnionBorrow::First(value) if *value == ()));
+-        assert!(matches!(second.borrow(), ArcUnionBorrow::Second(value) if value.0 == 9));
++        assert!(matches!(second.borrow(), ArcUnionBorrow::Second(value) if value.get().0 == 9));
+         assert_eq!(zero.inner().count.load(Relaxed), 1);
+         assert_eq!(aligned.inner().count.load(Relaxed), 1);
+         let retained = second.to_owned();
+         drop(aligned);
+-        assert!(matches!(retained.borrow(), ArcUnionBorrow::Second(value) if value.0 == 9));
++        assert!(matches!(retained.borrow(), ArcUnionBorrow::Second(value) if value.get().0 == 9));
+     }
+ 
+     #[test]
