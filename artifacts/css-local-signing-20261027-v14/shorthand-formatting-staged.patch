@@ -1,0 +1,616 @@
+diff --git a/artifacts/css-shorthand-cache-proof-v1/check.py b/artifacts/css-shorthand-cache-proof-v1/check.py
+index 7269ac710c3fc5b151301e9919432868c15bbda6..932c99ae729c9fd2e654fb2e1bfdf1854b3b9742 100644
+--- a/artifacts/css-shorthand-cache-proof-v1/check.py
++++ b/artifacts/css-shorthand-cache-proof-v1/check.py
+@@ -1,103 +1,235 @@
+-import hashlib,json,os,re,subprocess,sys
++import hashlib, json, os, re, subprocess, sys
+ from pathlib import Path
+ from discover_controls import MUTATIONS
+ import source_check
+ 
+-BASE=Path(__file__).resolve().parent
+-ROOT=BASE.parents[1]
+-LEAN=ROOT/'artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean'
+-NAMES=['populate_sound','lookup_sound','populated_lookup','hit_provenance','scan_refinement','fresh_scan_refinement','partial_rollback_counterexample','omitted_entry_counterexample']
+-EXPECTED=''.join("'ShorthandProvenance."+n+"' "+('does not depend on any axioms' if n.endswith('counterexample') else 'depends on axioms: [propext]')+'\n' for n in NAMES)
+-APP='Application type mismatch: The argument'
+-FALSE='Tactic `decide` proved that the proposition'
+-CONTROL_ERRORS={
+- 'UnguardedFirst':[('hit_provenance',APP),('hit_provenance',APP),('partial_rollback_counterexample',FALSE),('omitted_entry_counterexample',FALSE)],
+- 'UnguardedSecond':[('hit_provenance',APP),('omitted_entry_counterexample',FALSE)],
+- 'WrongStoredIdentity':[('populate_sound','Type mismatch'),('populated_lookup','unsolved goals'),('partial_rollback_counterexample',FALSE)],
++BASE = Path(__file__).resolve().parent
++ROOT = BASE.parents[1]
++LEAN = ROOT / "artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean"
++NAMES = [
++    "populate_sound",
++    "lookup_sound",
++    "populated_lookup",
++    "hit_provenance",
++    "scan_refinement",
++    "fresh_scan_refinement",
++    "partial_rollback_counterexample",
++    "omitted_entry_counterexample",
++]
++EXPECTED = "".join(
++    "'ShorthandProvenance."
++    + n
++    + "' "
++    + (
++        "does not depend on any axioms"
++        if n.endswith("counterexample")
++        else "depends on axioms: [propext]"
++    )
++    + "\n"
++    for n in NAMES
++)
++APP = "Application type mismatch: The argument"
++FALSE = "Tactic `decide` proved that the proposition"
++CONTROL_ERRORS = {
++    "UnguardedFirst": [
++        ("hit_provenance", APP),
++        ("hit_provenance", APP),
++        ("partial_rollback_counterexample", FALSE),
++        ("omitted_entry_counterexample", FALSE),
++    ],
++    "UnguardedSecond": [
++        ("hit_provenance", APP),
++        ("omitted_entry_counterexample", FALSE),
++    ],
++    "WrongStoredIdentity": [
++        ("populate_sound", "Type mismatch"),
++        ("populated_lookup", "unsolved goals"),
++        ("partial_rollback_counterexample", FALSE),
++    ],
+ }
+ 
+-def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
+ 
+-def positive(code,stdout,stderr):
+- if code!=0 or stdout!=EXPECTED or stderr:raise RuntimeError('Positive mismatch')
++def sha(path):
++    return hashlib.sha256(path.read_bytes()).hexdigest()
++
++
++def positive(code, stdout, stderr):
++    if code != 0 or stdout != EXPECTED or stderr:
++        raise RuntimeError("Positive mismatch")
++
++
++def negative(source, path, code, stdout, stderr, expected):
++    if code != 1 or stderr:
++        raise RuntimeError("Negative exit/stderr mismatch")
++    lines = source.splitlines()
++    declarations = [
++        (i, s)
++        for i, s in enumerate(lines, 1)
++        if re.match(r"^(theorem |def |#print|end )", s)
++    ]
++    spans = {}
++    for j, (start, s) in enumerate(declarations[:-1]):
++        if s.startswith("theorem "):
++            end = declarations[j + 1][0]
++            body = [i for i in range(start, end) if ":= by" in lines[i - 1]]
++            if not body:
++                raise RuntimeError("Missing theorem body")
++            spans[s.split()[1]] = (body[0], end)
++    headers = re.findall(r"^(.+):(\d+):\d+: error(?:\([^\n)]*\))?: (.*)$", stdout, re.M)
++    if len(re.findall(r"\berror(?:\([^\n)]*\))?:", stdout)) != len(headers):
++        raise RuntimeError("Unlocated error")
++    found = []
++    for filename, line, message in headers:
++        if filename != str(path):
++            raise RuntimeError("Foreign diagnostic")
++        owners = [n for n, (a, b) in spans.items() if a <= int(line) < b]
++        if len(owners) != 1:
++            raise RuntimeError("Outside theorem body")
++        found.append((owners[0], message))
++    if found != expected:
++        raise RuntimeError("Unexpected proof inventory: " + repr(found))
++    return found
+ 
+-def negative(source,path,code,stdout,stderr,expected):
+- if code!=1 or stderr:raise RuntimeError('Negative exit/stderr mismatch')
+- lines=source.splitlines()
+- declarations=[(i,s) for i,s in enumerate(lines,1) if re.match(r'^(theorem |def |#print|end )',s)]
+- spans={}
+- for j,(start,s) in enumerate(declarations[:-1]):
+-  if s.startswith('theorem '):
+-   end=declarations[j+1][0]
+-   body=[i for i in range(start,end) if ':= by' in lines[i-1]]
+-   if not body:raise RuntimeError('Missing theorem body')
+-   spans[s.split()[1]]=(body[0],end)
+- headers=re.findall(r'^(.+):(\d+):\d+: error(?:\([^\n)]*\))?: (.*)$',stdout,re.M)
+- if len(re.findall(r'\berror(?:\([^\n)]*\))?:',stdout))!=len(headers):raise RuntimeError('Unlocated error')
+- found=[]
+- for filename,line,message in headers:
+-  if filename!=str(path):raise RuntimeError('Foreign diagnostic')
+-  owners=[n for n,(a,b) in spans.items() if a<=int(line)<b]
+-  if len(owners)!=1:raise RuntimeError('Outside theorem body')
+-  found.append((owners[0],message))
+- if found!=expected:raise RuntimeError('Unexpected proof inventory: '+repr(found))
+- return found
+ 
+ def main():
+- if sys.flags.optimize:raise RuntimeError('Normal Python required')
+- out=Path(sys.argv[1]).resolve();out.mkdir()
+- model=(BASE/'Provenance.lean').read_text()
+- if re.search(r'\b(sorry|admit|axiom|unsafe)\b',model.replace('#print axioms','')):raise RuntimeError('Unchecked construct')
+- pins=[BASE/'Provenance.lean',BASE/'README.md',Path(__file__).resolve(),BASE/'discover_controls.py',BASE/'source_check.py',LEAN]+source_check.inputs()
+- before={str(p):sha(p) for p in pins}
+- binding,source_controls=source_check.run()
+- (out/'source-binding.json').write_text(json.dumps(binding,indent=2,sort_keys=True)+'\n')
+- calls=[]
+- def compile_case(name,text,good=False):
+-  d=out/name;d.mkdir();p=d/'Provenance.lean';p.write_text(text)
+-  env=os.environ.copy();env['LEAN_PATH']=str(d);env.pop('LEAN_SRC_PATH',None)
+-  command=[str(LEAN),'-DwarningAsError=true']
+-  if good:command+=['-o',str(d/'Provenance.olean')]
+-  command+=[str(p)]
+-  result=subprocess.run(command,cwd=d,env=env,capture_output=True,text=True)
+-  (d/'stdout').write_text(result.stdout);(d/'stderr').write_text(result.stderr)
+-  calls.append({'command':command,'cwd':str(d),'LEAN_PATH':str(d),'LEAN_SRC_PATH':None,'exit':result.returncode})
+-  return p,result
+- _,good=compile_case('positive',model,True)
+- positive(good.returncode,good.stdout,good.stderr)
+- controls={};samples={}
+- for name,errors in CONTROL_ERRORS.items():
+-  old,new=MUTATIONS[name]
+-  if model.count(old)!=1:raise RuntimeError('Mutation cardinality')
+-  text=model.replace(old,new);p,r=compile_case(name,text)
+-  controls[name]=negative(text,p,r.returncode,r.stdout,r.stderr,errors)
+-  samples[name]=(text,p,r,errors)
+- text,p,r,expected=samples['UnguardedFirst']
+- header=re.search(r'^(.+):(\d+):\d+: error: (.*)$',r.stdout,re.M).group(0)
+- bad={
+-  'exit-zero':(0,r.stdout,''),'exit-two':(2,r.stdout,''),'stderr':(1,r.stdout,'noise'),
+-  'empty':(1,'',''),'foreign-file':(1,r.stdout.replace(str(p),str(p)+'-other',1),''),
+-  'outside-body':(1,re.sub(r':\d+:\d+: error:',':1:1: error:',r.stdout,count=1),''),
+-  'extra-error':(1,r.stdout+'\n'+header+'\n',''),'unlocated':(1,r.stdout+'\nerror: tool failure\n',''),
+-  'tagged-extra-error':(1,r.stdout+'\n'+str(p)+':1:1: error(lean.synthInstanceFailed): bad type\n',''),
+-  'unknown-name':(1,r.stdout.replace('error: '+APP,'error: Unknown identifier bogus',1),''),
+-  'parse-error':(1,r.stdout.replace('error: '+APP,'error: unexpected token',1),''),
+- }
+- rejected=[]
+- for name,args in bad.items():
+-  try:negative(text,p,*args,expected)
+-  except RuntimeError:rejected.append(name)
+-  else:raise RuntimeError('Accepted negative corruption '+name)
+- for name,args in {'positive-exit':(1,good.stdout,''),'positive-stderr':(0,good.stdout,'noise'),'positive-axiom':(0,good.stdout.replace('[propext]','[sorryAx]',1),'')}.items():
+-  try:positive(*args)
+-  except RuntimeError:rejected.append(name)
+-  else:raise RuntimeError('Accepted positive corruption '+name)
+- if before!={str(p):sha(p) for p in pins}:raise RuntimeError('Inputs changed')
+- (out/'commands.json').write_text(json.dumps(calls,indent=2)+'\n')
+- report={'status':'pass','audits':NAMES,'controls':controls,'corruptions':rejected,'source_controls':source_controls,'inputs':before,
+-  'outputs':{str(p.relative_to(out)):sha(p) for p in out.rglob('*') if p.is_file()},
+-  'scope':'Tagged cache refinement for arbitrary finite eligible four-side scans, under source identity stability and fixed expansion environment. Manual source bridge, no Rust/parser/cascade eligibility refinement.'}
+- (out/'report.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+- print(json.dumps({'audits':len(NAMES),'controls':len(controls),'corruptions':len(rejected),'source_controls':len(source_controls)}))
++    if sys.flags.optimize:
++        raise RuntimeError("Normal Python required")
++    out = Path(sys.argv[1]).resolve()
++    out.mkdir()
++    model = (BASE / "Provenance.lean").read_text()
++    if re.search(r"\b(sorry|admit|axiom|unsafe)\b", model.replace("#print axioms", "")):
++        raise RuntimeError("Unchecked construct")
++    pins = [
++        BASE / "Provenance.lean",
++        BASE / "README.md",
++        Path(__file__).resolve(),
++        BASE / "discover_controls.py",
++        BASE / "source_check.py",
++        LEAN,
++    ] + source_check.inputs()
++    before = {str(p): sha(p) for p in pins}
++    binding, source_controls = source_check.run()
++    (out / "source-binding.json").write_text(
++        json.dumps(binding, indent=2, sort_keys=True) + "\n"
++    )
++    calls = []
++
++    def compile_case(name, text, good=False):
++        d = out / name
++        d.mkdir()
++        p = d / "Provenance.lean"
++        p.write_text(text)
++        env = os.environ.copy()
++        env["LEAN_PATH"] = str(d)
++        env.pop("LEAN_SRC_PATH", None)
++        command = [str(LEAN), "-DwarningAsError=true"]
++        if good:
++            command += ["-o", str(d / "Provenance.olean")]
++        command += [str(p)]
++        result = subprocess.run(command, cwd=d, env=env, capture_output=True, text=True)
++        (d / "stdout").write_text(result.stdout)
++        (d / "stderr").write_text(result.stderr)
++        calls.append({
++            "command": command,
++            "cwd": str(d),
++            "LEAN_PATH": str(d),
++            "LEAN_SRC_PATH": None,
++            "exit": result.returncode,
++        })
++        return p, result
++
++    _, good = compile_case("positive", model, True)
++    positive(good.returncode, good.stdout, good.stderr)
++    controls = {}
++    samples = {}
++    for name, errors in CONTROL_ERRORS.items():
++        old, new = MUTATIONS[name]
++        if model.count(old) != 1:
++            raise RuntimeError("Mutation cardinality")
++        text = model.replace(old, new)
++        p, r = compile_case(name, text)
++        controls[name] = negative(text, p, r.returncode, r.stdout, r.stderr, errors)
++        samples[name] = (text, p, r, errors)
++    text, p, r, expected = samples["UnguardedFirst"]
++    header = re.search(r"^(.+):(\d+):\d+: error: (.*)$", r.stdout, re.M).group(0)
++    bad = {
++        "exit-zero": (0, r.stdout, ""),
++        "exit-two": (2, r.stdout, ""),
++        "stderr": (1, r.stdout, "noise"),
++        "empty": (1, "", ""),
++        "foreign-file": (1, r.stdout.replace(str(p), str(p) + "-other", 1), ""),
++        "outside-body": (
++            1,
++            re.sub(r":\d+:\d+: error:", ":1:1: error:", r.stdout, count=1),
++            "",
++        ),
++        "extra-error": (1, r.stdout + "\n" + header + "\n", ""),
++        "unlocated": (1, r.stdout + "\nerror: tool failure\n", ""),
++        "tagged-extra-error": (
++            1,
++            r.stdout
++            + "\n"
++            + str(p)
++            + ":1:1: error(lean.synthInstanceFailed): bad type\n",
++            "",
++        ),
++        "unknown-name": (
++            1,
++            r.stdout.replace("error: " + APP, "error: Unknown identifier bogus", 1),
++            "",
++        ),
++        "parse-error": (
++            1,
++            r.stdout.replace("error: " + APP, "error: unexpected token", 1),
++            "",
++        ),
++    }
++    rejected = []
++    for name, args in bad.items():
++        try:
++            negative(text, p, *args, expected)
++        except RuntimeError:
++            rejected.append(name)
++        else:
++            raise RuntimeError("Accepted negative corruption " + name)
++    for name, args in {
++        "positive-exit": (1, good.stdout, ""),
++        "positive-stderr": (0, good.stdout, "noise"),
++        "positive-axiom": (0, good.stdout.replace("[propext]", "[sorryAx]", 1), ""),
++    }.items():
++        try:
++            positive(*args)
++        except RuntimeError:
++            rejected.append(name)
++        else:
++            raise RuntimeError("Accepted positive corruption " + name)
++    if before != {str(p): sha(p) for p in pins}:
++        raise RuntimeError("Inputs changed")
++    (out / "commands.json").write_text(json.dumps(calls, indent=2) + "\n")
++    report = {
++        "status": "pass",
++        "audits": NAMES,
++        "controls": controls,
++        "corruptions": rejected,
++        "source_controls": source_controls,
++        "inputs": before,
++        "outputs": {
++            str(p.relative_to(out)): sha(p) for p in out.rglob("*") if p.is_file()
++        },
++        "scope": "Tagged cache refinement for arbitrary finite eligible four-side scans, under source identity stability and fixed expansion environment. Manual source bridge, no Rust/parser/cascade eligibility refinement.",
++    }
++    (out / "report.json").write_text(
++        json.dumps(report, indent=2, sort_keys=True) + "\n"
++    )
++    print(
++        json.dumps({
++            "audits": len(NAMES),
++            "controls": len(controls),
++            "corruptions": len(rejected),
++            "source_controls": len(source_controls),
++        })
++    )
++
+ 
+-if __name__=='__main__':main()
++if __name__ == "__main__":
++    main()
+diff --git a/artifacts/css-shorthand-cache-proof-v1/discover_controls.py b/artifacts/css-shorthand-cache-proof-v1/discover_controls.py
+index 9e49a1c06b87b61f9a417625f90b897ba7fd6a04..6265481c6f1f2ccf05ee1f4e8d1800c23d70707f 100644
+--- a/artifacts/css-shorthand-cache-proof-v1/discover_controls.py
++++ b/artifacts/css-shorthand-cache-proof-v1/discover_controls.py
+@@ -1,20 +1,47 @@
+-import json,os,subprocess
++import json, os, subprocess
+ from pathlib import Path
+-BASE=Path(__file__).resolve().parent
+-LEAN=BASE.parents[1]/'artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean'
+-MUTATIONS={
+- 'UnguardedFirst':('match guardedLookup cache candidate.source candidate.side with','match unguardedLookup cache candidate.source candidate.side with'),
+- 'UnguardedSecond':('(guardedLookup populated candidate.source candidate.side, populated)','(unguardedLookup populated candidate.source candidate.side, populated)'),
+- 'WrongStoredIdentity':('some (source.identity, value)','some (source.shorthand, value)'),
++
++BASE = Path(__file__).resolve().parent
++LEAN = (
++    BASE.parents[1]
++    / "artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean"
++)
++MUTATIONS = {
++    "UnguardedFirst": (
++        "match guardedLookup cache candidate.source candidate.side with",
++        "match unguardedLookup cache candidate.source candidate.side with",
++    ),
++    "UnguardedSecond": (
++        "(guardedLookup populated candidate.source candidate.side, populated)",
++        "(unguardedLookup populated candidate.source candidate.side, populated)",
++    ),
++    "WrongStoredIdentity": (
++        "some (source.identity, value)",
++        "some (source.shorthand, value)",
++    ),
+ }
+-if __name__=='__main__':
+- out=BASE/'controls-discovery-v1';out.mkdir();model=(BASE/'Provenance.lean').read_text()
+- for name,(old,new) in MUTATIONS.items():
+-  if model.count(old)!=1:raise RuntimeError(name)
+-  d=out/name;d.mkdir();p=d/'Provenance.lean';p.write_text(model.replace(old,new))
+-  env=os.environ.copy();env['LEAN_PATH']=str(d);env.pop('LEAN_SRC_PATH',None)
+-  command=[str(LEAN),'-DwarningAsError=true',str(p)]
+-  r=subprocess.run(command,cwd=d,env=env,capture_output=True,text=True)
+-  (d/'stdout').write_text(r.stdout);(d/'stderr').write_text(r.stderr)
+-  (d/'command.json').write_text(json.dumps({'command':command,'cwd':str(d),'exit':r.returncode},indent=2)+'\n')
+-  print(name,r.returncode,r.stdout)
++if __name__ == "__main__":
++    out = BASE / "controls-discovery-v1"
++    out.mkdir()
++    model = (BASE / "Provenance.lean").read_text()
++    for name, (old, new) in MUTATIONS.items():
++        if model.count(old) != 1:
++            raise RuntimeError(name)
++        d = out / name
++        d.mkdir()
++        p = d / "Provenance.lean"
++        p.write_text(model.replace(old, new))
++        env = os.environ.copy()
++        env["LEAN_PATH"] = str(d)
++        env.pop("LEAN_SRC_PATH", None)
++        command = [str(LEAN), "-DwarningAsError=true", str(p)]
++        r = subprocess.run(command, cwd=d, env=env, capture_output=True, text=True)
++        (d / "stdout").write_text(r.stdout)
++        (d / "stderr").write_text(r.stderr)
++        (d / "command.json").write_text(
++            json.dumps(
++                {"command": command, "cwd": str(d), "exit": r.returncode}, indent=2
++            )
++            + "\n"
++        )
++        print(name, r.returncode, r.stdout)
+diff --git a/artifacts/css-shorthand-cache-proof-v1/freeze.py b/artifacts/css-shorthand-cache-proof-v1/freeze.py
+index 3ee4e1f9ae3a86a456914f1e9283998fa2915978..fafbcf13b8b33d6b059f5240e979de039f9635f0 100644
+--- a/artifacts/css-shorthand-cache-proof-v1/freeze.py
++++ b/artifacts/css-shorthand-cache-proof-v1/freeze.py
+@@ -1,25 +1,54 @@
+-import hashlib,json
++import hashlib, json
+ from pathlib import Path
+ import source_check
+-BASE=Path(__file__).resolve().parent
+-ROOT=BASE.parents[1]
+-def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+-report=json.loads((BASE/'check-v2/report.json').read_text())
+-if report['status']!='pass':raise RuntimeError('Gate not accepted')
+-for path,expected in report['inputs'].items():
+- if sha(Path(path))!=expected:raise RuntimeError('Gate input drift: '+path)
+-for path,expected in report['outputs'].items():
+- if sha(BASE/'check-v2'/path)!=expected:raise RuntimeError('Gate output drift: '+path)
++
++BASE = Path(__file__).resolve().parent
++ROOT = BASE.parents[1]
++
++
++def sha(p):
++    return hashlib.sha256(p.read_bytes()).hexdigest()
++
++
++report = json.loads((BASE / "check-v2/report.json").read_text())
++if report["status"] != "pass":
++    raise RuntimeError("Gate not accepted")
++for path, expected in report["inputs"].items():
++    if sha(Path(path)) != expected:
++        raise RuntimeError("Gate input drift: " + path)
++for path, expected in report["outputs"].items():
++    if sha(BASE / "check-v2" / path) != expected:
++        raise RuntimeError("Gate output drift: " + path)
+ source_check.run()
+-paths=set(Path(p) for p in report['inputs'])
+-paths.update(p for p in (BASE/'check-v2').rglob('*') if p.is_file())
+-paths.update(BASE/p for p in ['check-v2.log','REVIEW.md','freeze.py'])
+-record={'status':'accepted-local-gate','gate_session':37319,'gate_exit':0,'gate_report':'check-v2/report.json',
+- 'audits':report['audits'],'compiled_controls':list(report['controls']),'record_controls':report['corruptions'],
+- 'source_controls':report['source_controls'],'pins':{str(p.relative_to(ROOT)):sha(p) for p in sorted(paths)},
+- 'scope':report['scope'],'excluded_history':['Provenance-discovery-full-key.lean','development-v1.log','development-v2.log','development-v3.log','controls-discovery-v1','controls-discovery-v1.log','check-v1','check-v1.log']}
+-path=BASE/'PROOF-v1.json'
++paths = set(Path(p) for p in report["inputs"])
++paths.update(p for p in (BASE / "check-v2").rglob("*") if p.is_file())
++paths.update(BASE / p for p in ["check-v2.log", "REVIEW.md", "freeze.py"])
++record = {
++    "status": "accepted-local-gate",
++    "gate_session": 37319,
++    "gate_exit": 0,
++    "gate_report": "check-v2/report.json",
++    "audits": report["audits"],
++    "compiled_controls": list(report["controls"]),
++    "record_controls": report["corruptions"],
++    "source_controls": report["source_controls"],
++    "pins": {str(p.relative_to(ROOT)): sha(p) for p in sorted(paths)},
++    "scope": report["scope"],
++    "excluded_history": [
++        "Provenance-discovery-full-key.lean",
++        "development-v1.log",
++        "development-v2.log",
++        "development-v3.log",
++        "controls-discovery-v1",
++        "controls-discovery-v1.log",
++        "check-v1",
++        "check-v1.log",
++    ],
++}
++path = BASE / "PROOF-v1.json"
+ if path.exists():
+- if json.loads(path.read_text())!=record:raise RuntimeError('Frozen proof changed')
+-else:path.write_text(json.dumps(record,indent=2,sort_keys=True)+'\n')
+-print(json.dumps({'proof_sha256':sha(path),'pins':len(record['pins'])}))
++    if json.loads(path.read_text()) != record:
++        raise RuntimeError("Frozen proof changed")
++else:
++    path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
++print(json.dumps({"proof_sha256": sha(path), "pins": len(record["pins"])}))
+diff --git a/artifacts/css-shorthand-cache-proof-v1/materialize.py b/artifacts/css-shorthand-cache-proof-v1/materialize.py
+index 68cc4ab1704379f6a4f195adebd89f59507a18ee..24e389edf4c676a2d4774bc1b29cab0856256f7c 100644
+--- a/artifacts/css-shorthand-cache-proof-v1/materialize.py
++++ b/artifacts/css-shorthand-cache-proof-v1/materialize.py
+@@ -12,8 +12,11 @@ out.mkdir(parents=True, exist_ok=True)
+ record = json.loads((BASE / "SOURCE-v1.json").read_text())
+ for path, entry in record["files"].items():
+     for kind in ("old", "current"):
+-        data = (subprocess.check_output(["git", "show", f"{PARENT}:{path}"], cwd=ROOT)
+-                if kind == "old" else (ROOT / path).read_bytes())
++        data = (
++            subprocess.check_output(["git", "show", f"{PARENT}:{path}"], cwd=ROOT)
++            if kind == "old"
++            else (ROOT / path).read_bytes()
++        )
+         if hashlib.sha256(data).hexdigest() != entry[f"{kind}_sha256"]:
+             raise RuntimeError(f"Source identity mismatch: {kind} {path}")
+         target = out / entry[f"{kind}_snapshot"]
+diff --git a/artifacts/css-shorthand-cache-proof-v1/source_check.py b/artifacts/css-shorthand-cache-proof-v1/source_check.py
+index 608169d8f3c923e3edb071969588c054a8141b1c..f41eb9bdcd44c2f2349214ea0a3e9f57ae11ff31 100644
+--- a/artifacts/css-shorthand-cache-proof-v1/source_check.py
++++ b/artifacts/css-shorthand-cache-proof-v1/source_check.py
+@@ -1,49 +1,73 @@
+ from pathlib import Path
+-import hashlib,json
+-
+-BASE=Path(__file__).resolve().parent
+-ROOT=BASE.parents[1]
+-RECORD=BASE/'SOURCE-v1.json'
+-RECORD_SHA='6728c4c7e4152c6d80f795b0a26b4cc7327bf7c5d6d7d0e37cef24bf9782afa9'
+-SOURCE='servo/components/style/properties/mod.rs'
+-SNIPPETS={
+- 'owned-entry':'FxHashMap<(ShorthandId, LonghandId), (Arc<UnparsedValue>, PropertyDeclaration)>;',
+- 'owning-receiver':"impl VariableDeclaration {\n    fn substitute_variables<'cache>(",
+- 'source-binding':'let longhand_id = self.id;\n        let unparsed = &self.value;',
+- 'first-guard':'.is_some_and(|(source, _)| Arc::ptr_eq(source, unparsed))',
+- 'logical-tag':'(shorthand, longhand.to_physical(writing_mode)),\n                    (unparsed.clone(), declaration.clone()),',
+- 'ordinary-tag':'shorthand_cache.insert((shorthand, longhand), (unparsed.clone(), declaration));',
+- 'second-guard':'Some((source, decl)) if Arc::ptr_eq(source, unparsed) => Cow::Borrowed(decl),',
++import hashlib, json
++
++BASE = Path(__file__).resolve().parent
++ROOT = BASE.parents[1]
++RECORD = BASE / "SOURCE-v1.json"
++RECORD_SHA = "6728c4c7e4152c6d80f795b0a26b4cc7327bf7c5d6d7d0e37cef24bf9782afa9"
++SOURCE = "servo/components/style/properties/mod.rs"
++SNIPPETS = {
++    "owned-entry": "FxHashMap<(ShorthandId, LonghandId), (Arc<UnparsedValue>, PropertyDeclaration)>;",
++    "owning-receiver": "impl VariableDeclaration {\n    fn substitute_variables<'cache>(",
++    "source-binding": "let longhand_id = self.id;\n        let unparsed = &self.value;",
++    "first-guard": ".is_some_and(|(source, _)| Arc::ptr_eq(source, unparsed))",
++    "logical-tag": "(shorthand, longhand.to_physical(writing_mode)),\n                    (unparsed.clone(), declaration.clone()),",
++    "ordinary-tag": "shorthand_cache.insert((shorthand, longhand), (unparsed.clone(), declaration));",
++    "second-guard": "Some((source, decl)) if Arc::ptr_eq(source, unparsed) => Cow::Borrowed(decl),",
+ }
+ 
+-def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
++
++def sha(path):
++    return hashlib.sha256(path.read_bytes()).hexdigest()
++
+ 
+ def record():
+- if sha(RECORD)!=RECORD_SHA:raise RuntimeError('Source record drift')
+- return json.loads(RECORD.read_text())
++    if sha(RECORD) != RECORD_SHA:
++        raise RuntimeError("Source record drift")
++    return json.loads(RECORD.read_text())
++
+ 
+ def inputs():
+- r=record();result=[RECORD]
+- for path,entry in r['files'].items():
+-  result += [ROOT/path,BASE/entry['current_snapshot'],BASE/entry['old_snapshot']]
+- return result
++    r = record()
++    result = [RECORD]
++    for path, entry in r["files"].items():
++        result += [
++            ROOT / path,
++            BASE / entry["current_snapshot"],
++            BASE / entry["old_snapshot"],
++        ]
++    return result
++
+ 
+ def shape(source):
+- for name,snippet in SNIPPETS.items():
+-  if source.count(snippet)!=1:raise RuntimeError('Reviewed source shape drift: '+name)
+- if source.index(SNIPPETS['first-guard'])>=source.index(SNIPPETS['ordinary-tag']):raise RuntimeError('First lookup order')
+- if source.index(SNIPPETS['ordinary-tag'])>=source.index(SNIPPETS['second-guard']):raise RuntimeError('Second lookup order')
++    for name, snippet in SNIPPETS.items():
++        if source.count(snippet) != 1:
++            raise RuntimeError("Reviewed source shape drift: " + name)
++    if source.index(SNIPPETS["first-guard"]) >= source.index(SNIPPETS["ordinary-tag"]):
++        raise RuntimeError("First lookup order")
++    if source.index(SNIPPETS["ordinary-tag"]) >= source.index(SNIPPETS["second-guard"]):
++        raise RuntimeError("Second lookup order")
++
+ 
+ def run():
+- r=record()
+- for path,entry in r['files'].items():
+-  for p,h in [(ROOT/path,entry['current_sha256']),(BASE/entry['current_snapshot'],entry['current_sha256']),(BASE/entry['old_snapshot'],entry['old_sha256'])]:
+-   if sha(p)!=h:raise RuntimeError('Source drift: '+str(p))
+- source=(ROOT/SOURCE).read_text();shape(source)
+- rejected=[]
+- for name,snippet in SNIPPETS.items():
+-  bad=source.replace(snippet,'',1)
+-  try:shape(bad)
+-  except RuntimeError:rejected.append(name)
+-  else:raise RuntimeError('Accepted source mutation '+name)
+- return r,rejected
++    r = record()
++    for path, entry in r["files"].items():
++        for p, h in [
++            (ROOT / path, entry["current_sha256"]),
++            (BASE / entry["current_snapshot"], entry["current_sha256"]),
++            (BASE / entry["old_snapshot"], entry["old_sha256"]),
++        ]:
++            if sha(p) != h:
++                raise RuntimeError("Source drift: " + str(p))
++    source = (ROOT / SOURCE).read_text()
++    shape(source)
++    rejected = []
++    for name, snippet in SNIPPETS.items():
++        bad = source.replace(snippet, "", 1)
++        try:
++            shape(bad)
++        except RuntimeError:
++            rejected.append(name)
++        else:
++            raise RuntimeError("Accepted source mutation " + name)
++    return r, rejected
