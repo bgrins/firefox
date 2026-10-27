@@ -1,0 +1,117 @@
+--- landing/experiment.py
++++ float/experiment.py
+@@ -34,20 +34,26 @@
+ spec.loader.exec_module(wpt)
+ c=wpt.CONFIG
+ need(c.get('ready_for_preparation') is True, 'draft not ready for execution')
+-for n,h in inputs['prior_terminal_pins'].items():
+-    need(sha(ROOT/n)==h,'prior terminal receipt changed '+n)
++spec=importlib.util.spec_from_file_location('bindings',HERE/'bindings.py')
++bindings=importlib.util.module_from_spec(spec)
++spec.loader.exec_module(bindings)
++bindings.authenticate(inputs['external_pins'],ROOT)
++bindings.prerequisites()
++bindings.index_state(wpt)
++bindings.existing_tests(wpt)
+ before=wpt.snapshot()
+ need(before==inputs['before'],'prepared state changed')
+-need(len(wpt.git('diff','--cached','--name-only').splitlines())==inputs['expected_staged_paths']==c['expected_staged_paths']==0,'index not empty')
++need(len(wpt.git('diff','--cached','--name-only').splitlines())==inputs['expected_staged_paths']==c['expected_staged_paths']==925,'staged research count changed')
+ need(all(not (ROOT/n).exists() and not (ROOT/n).is_symlink() for n in c['must_be_absent']) and inputs['temporary_test_state']=={n:None for n in c['install']},'temporary tests must be absent')
+ need(wpt.pins(wpt.resource_paths(c['tests'],virtual=True),virtual=True)==inputs['resource_pins'],'test/resource/metadata changed')
+ original={n:(HERE/'prepared/original'/n).read_bytes() for n in c['sources']}
+ head={n:(HERE/'prepared/head'/n).read_bytes() for n in c['sources']}
++baseline={n:(HERE/c['baseline_sources'][n]).read_bytes() for n in c['sources']}
+ for n in c['sources']:
+     need((ROOT/n).read_bytes()==original[n] and wpt.git('show','HEAD:'+n)==head[n],'original/HEAD snapshot '+n)
+ GRID='layout/generic/nsGridContainerFrame.cpp'
+-phases=['baseline','column-only','block-only','grid-only','all-three']
+-need(list(c['phases'])==phases,'Exact five-phase roster')
++phases=['baseline','float-only']
++need(list(c['phases'])==phases,'Exact two-phase roster')
+ state={'status':'starting','accepted_native_repair':False,'phases':{}}
+ errors=[]
+ changed=False
+@@ -59,17 +65,16 @@
+ 
+ def sources_expected(selected):
+     for n in c['guard_sources']:
+-        expected=hashlib.sha256(selected.get(n,head[n])).hexdigest() if n in head else inputs['source_pins'][n]
++        expected=hashlib.sha256(selected.get(n,baseline[n])).hexdigest() if n in baseline else c['baseline_guard_pins'][n]
+         need(sha(ROOT/n)==expected,'phase source changed '+n)
+ 
+ def result_map(run):
+     return {(r['test'],r['subtest']):(r['status'],r.get('message')) for r in run['rows']}
+ 
+ baseline_rows=None
+-grid_id='/css/css-contain/content-visibility/hidden-grid-own-content-queries.html'
+-tracked_ids={'/'+str(Path(t).relative_to('testing/web-platform/tests')) for t in c['tracked_tests']}
+-hidden_names={n for n in c['expected_subtests'][grid_id] if ': hidden,' in n}
+-need(len(hidden_names)==4 and sum(map(len,c['expected_subtests'].values()))==79,'Grid/total roster')
++existing_ids={'/'+str(Path(t).relative_to('testing/web-platform/tests')) for t in c['existing_tests']}
++float_id='/css/css-contain/content-visibility/hidden-float-owner-queries.html'
++need(len(existing_ids)==9 and sum(map(len,c['expected_subtests'].values()))==95,'95-case roster')
+ oracles=json.loads((HERE/'EXPECTED-OUTCOMES.json').read_text())
+ need(list(oracles['phases'])==phases,'Expected phase roster')
+ 
+@@ -87,7 +92,7 @@
+             stream.write((HERE/source).read_bytes())
+     state['wpt_lint_exit']=wpt.command('wpt-lint',['./mach','lint','-l','wpt',*c['tests']])
+     need(state['wpt_lint_exit']==0,'WPT lint failed')
+-    for n,data in head.items():
++    for n,data in baseline.items():
+         changed=True
+         (ROOT/n).write_bytes(data)
+     for name in phases:
+@@ -118,33 +123,38 @@
+         record['status_counts']={status:sum(r['status']==status for r in run['rows']) for status in ['PASS','FAIL']}
+         record['failures']=[{'test':r['test'],'subtest':r['subtest'],'message':r.get('message')} for r in run['rows'] if r['status']=='FAIL']
+         rows=result_map(run)
+-        record['tracked_controls']={status:sum(key[0] in tracked_ids and value[0]==status for key,value in rows.items()) for status in ['PASS','FAIL']}
+-        record['grid_counts']={status:sum(key[0]==grid_id and value[0]==status for key,value in rows.items()) for status in ['PASS','FAIL']}
++        record['existing_controls']={status:sum(key[0] in existing_ids and value[0]==status for key,value in rows.items()) for status in ['PASS','FAIL']}
+         if baseline_rows is None:
+             baseline_rows=rows
+         record['changes_from_baseline']=[{'test':key[0],'subtest':key[1],
+             'before':baseline_rows[key],'after':rows[key]} for key in sorted(rows) if rows[key]!=baseline_rows[key]]
+         record['status_transitions']={label:sum(baseline_rows[k][0]+'->'+rows[k][0]==label for k in rows)
+                                       for label in ['PASS->PASS','PASS->FAIL','FAIL->PASS','FAIL->FAIL']}
+-        wpt.save('STATE.json',state)
+-        need(record['tracked_controls']=={'PASS':50,'FAIL':0},'tracked control failed '+name)
+-        if name=='baseline':
+-            need({key for key,value in rows.items() if key[0]==grid_id and value[0]=='FAIL'}
+-                 =={(grid_id,n) for n in hidden_names}, 'isolated Grid baseline differs')
+-            need(all('selected query: after-parent-width' in (rows[(grid_id,n)][1] or '') for n in hidden_names),
+-                 'Grid baseline failure stage differs')
+         expected={(r['test'],r['subtest']):r for r in oracles['phases'][name]}
+         need(set(rows)==set(expected),'Expected per-case roster differs')
+         discrepancies=[]
+         for key,value in rows.items():
+             oracle=expected[key]
+-            if value[0]!=oracle['status'] or ('message' in oracle and value[1]!=oracle['message']):
++            if list(value) not in oracle['allowed']:
+                 discrepancies.append({'test':key[0],'subtest':key[1],'actual':value,'expected':oracle})
+         record['expectation_discrepancies']=discrepancies
+-        wpt.save('STATE.json',state)
++        record['visible_float_controls']={status:sum(oracle['role']=='visible-float-control' and rows[key][0]==status
++            for key,oracle in expected.items()) for status in ['PASS','FAIL']}
++        record['nested_hidden_classification']=[{'test':key[0],'subtest':key[1],
++            'status':rows[key][0],'message':rows[key][1]} for key,oracle in expected.items()
++            if oracle['role']=='nested-hidden-open-baseline']
++        wpt.save('STATE.json',state)
++        if name=='baseline':
++            wpt.save('BASELINE-CLASSIFICATION.json',{'nested_hidden':record['nested_hidden_classification'],
++                'all_float_rows':[{'test':key[0],'subtest':key[1],'status':value[0],'message':value[1]}
++                                  for key,value in rows.items() if key[0] not in existing_ids],
++                'scope':'First WPT assertions; visible push placement does not prove native pushed-bit coverage'})
++        need(record['existing_controls']=={'PASS':79,'FAIL':0},'existing control failed '+name)
++        need(record['visible_float_controls']=={'PASS':10,'FAIL':0},'visible float control failed '+name)
+         need(not discrepancies,'Named outcome/diagnostic differs from expected '+name)
+-        need({k:v for k,v in rows.items() if k[0] in tracked_ids}
+-             =={k:v for k,v in baseline_rows.items() if k[0] in tracked_ids},'tracked controls changed')
++        need({k:v for k,v in rows.items() if k[0] in existing_ids}
++             =={k:v for k,v in baseline_rows.items() if k[0] in existing_ids},'existing controls changed')
++        need(record['status_transitions']['PASS->FAIL']==0,'new failure relative to baseline')
+         record['expected_outcomes_match']=True
+         wpt.save('STATE.json',state)
+ except BaseException as error:

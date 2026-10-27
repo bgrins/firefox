@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Visible float placement at a column boundary</title>
+<link rel="help" href="https://drafts.csswg.org/css-break-3/#possible-breaks">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+html { direction: ltr; writing-mode: horizontal-tb; }
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; width: 260px; height: 40px; column-count: 2; column-gap: 20px; column-fill: auto; }
+.spacer { height: 0; }
+.prefilled .spacer { height: 30px; }
+.floater { float: left; width: 20px; height: 10px; break-inside: avoid; }
+.tall .floater { height: 20px; }
+</style>
+<body>
+<script>
+"use strict";
+function rect(r) {
+  return [r.x, r.y, r.width, r.height];
+}
+for (const prefilled of [false, true]) {
+  for (const tall of [false, true]) {
+    test(t => {
+      const host = document.createElement("div");
+      host.className = `host${prefilled ? " prefilled" : ""}${tall ? " tall" : ""}`;
+      host.innerHTML = '<div class="spacer"></div><div class="floater"></div>';
+      document.body.append(host);
+      t.add_cleanup(() => host.remove());
+      const floater = host.querySelector(".floater");
+      const actual = rect(floater.getBoundingClientRect());
+      const fragments = [...floater.getClientRects()].map(rect);
+      const pushedHypothesis = prefilled && tall;
+      const expected = [pushedHypothesis ? 150 : 10,
+        prefilled && !pushedHypothesis ? 40 : 10, 20, tall ? 20 : 10];
+      assert_array_equals(rect(host.getBoundingClientRect()), [10, 10, 260, 40], "calibration: column bounds");
+      assert_equals(fragments.length, 1, "calibration: unsplit float");
+      assert_array_equals(actual, expected, "calibration: float placement hypothesis");
+    }, `Visible float push calibration: prefilled ${prefilled}, tall ${tall}`);
+  }
+}
+</script>

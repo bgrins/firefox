@@ -1,0 +1,42 @@
+--- a/hidden-float-owner-queries.html
++++ b/hidden-float-owner-queries.html
+@@ -13,20 +13,17 @@
+ .outer.narrow { width: 50px; }
+ .subject { width: 100%; height: 64px; font-size: 0; line-height: 0; }
+ .subject.hidden { content-visibility: hidden; }
+-.nested-owner { width: 100%; height: 32px; }
+ .float-root { float: left; width: 50%; height: 16px; }
+ .float-leaf { width: 100%; height: 8px; }
+ </style>
+ <body>
+ <script>
+ "use strict";
+-window.floatOwnerQueryResults = [];
+ function fixture(shape) {
+   const host = document.createElement("div");
+   host.className = "host";
+   const content = '<div class="float-root"><div class="float-leaf"></div></div>';
+-  const wrapped = shape === "inline-nested" ? `<span><span>${content}</span></span>` :
+-    shape === "nested-block" ? `<div class="nested-owner">${content}</div>` : content;
++  const wrapped = shape === "inline-nested" ? `<span><span>${content}</span></span>` : content;
+   host.innerHTML = `<div class="outer"><div class="subject">${wrapped}</div></div>`;
+   document.body.append(host);
+   return { host, outer: host.querySelector(".outer"), subject: host.querySelector(".subject"),
+@@ -36,7 +33,7 @@
+   const r = element.getBoundingClientRect();
+   return [r.x, r.y, r.width, r.height];
+ }
+-for (const shape of ["direct", "inline-nested", "nested-block"]) {
++for (const shape of ["direct", "inline-nested"]) {
+   for (const selected of ["root", "leaf"]) {
+     for (const hidden of [false, true]) {
+       test(t => {
+@@ -65,8 +62,6 @@
+             expected: [10, 10, stage === "change" || stage === "show" ? 25 : 50, selected === "leaf" ? 8 : 16],
+             expectedOuter: [10, 10, stage === "change" || stage === "show" ? 50 : 100, 64] });
+         }
+-        const name = `Hidden float owner: ${shape}, ${selected}, ${hidden ? "hidden" : "visible"}`;
+-        window.floatOwnerQueryResults.push({ name, rows });
+         for (const row of rows) {
+           assert_array_equals(row.outer, row.expectedOuter, `${row.stage}: outer-only flush calibration`);
+           assert_array_equals(row.visible, row.expected, `${row.stage}: fresh visible calibration`);

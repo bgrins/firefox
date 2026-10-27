@@ -1,0 +1,158 @@
+--- prior/experiment.py
++++ standalone/experiment.py
+@@ -40,6 +40,7 @@
+ bindings.authenticate(inputs['external_pins'],ROOT)
+ bindings.prerequisites()
+ bindings.index_state(wpt)
++need(bindings.restored_epoch(wpt)==inputs['binary_pins'],'prepared binary epoch changed')
+ bindings.existing_tests(wpt)
+ before=wpt.snapshot()
+ need(before==inputs['before'],'prepared state changed')
+@@ -51,7 +52,7 @@
+ baseline={n:(HERE/c['baseline_sources'][n]).read_bytes() for n in c['sources']}
+ for n in c['sources']:
+     need((ROOT/n).read_bytes()==original[n] and wpt.git('show','HEAD:'+n)==head[n],'original/HEAD snapshot '+n)
+-GRID='layout/generic/nsGridContainerFrame.cpp'
++BLOCK='layout/generic/nsBlockFrame.cpp'
+ phases=['baseline','float-only']
+ need(list(c['phases'])==phases,'Exact two-phase roster')
+ state={'status':'starting','accepted_native_repair':False,'phases':{}}
+@@ -62,6 +63,8 @@
+ def epoch():
+     now=wpt.snapshot()
+     need(all(now[n]==before[n] for n in ['head','index_diff_sha256','index_entries_sha256']),'HEAD/index changed')
++    bindings.existing_tests(wpt)
++    need(wpt.pins(list(inputs['resource_pins']))==inputs['resource_pins'],'test/resource/metadata changed')
+ 
+ def sources_expected(selected):
+     for n in c['guard_sources']:
+@@ -72,9 +75,8 @@
+     return {(r['test'],r['subtest']):(r['status'],r.get('message')) for r in run['rows']}
+ 
+ baseline_rows=None
+-existing_ids={'/'+str(Path(t).relative_to('testing/web-platform/tests')) for t in c['existing_tests']}
+-float_id='/css/css-contain/content-visibility/hidden-float-owner-queries.html'
+-need(len(existing_ids)==9 and sum(map(len,c['expected_subtests'].values()))==95,'95-case roster')
++need(set(c['run_tests'])==set(c['install']) and len(c['run_tests'])==2
++     and sum(map(len,c['expected_subtests'].values()))==12,'12-case roster')
+ oracles=json.loads((HERE/'EXPECTED-OUTCOMES.json').read_text())
+ need(list(oracles['phases'])==phases,'Expected phase roster')
+ 
+@@ -90,7 +92,7 @@
+         with (ROOT/target).open('xb') as stream:
+             installed.append(target)
+             stream.write((HERE/source).read_bytes())
+-    state['wpt_lint_exit']=wpt.command('wpt-lint',['./mach','lint','-l','wpt',*c['tests']])
++    state['wpt_lint_exit']=wpt.command('wpt-lint',['./mach','lint','-l','wpt',*c['run_tests']])
+     need(state['wpt_lint_exit']==0,'WPT lint failed')
+     for n,data in baseline.items():
+         changed=True
+@@ -98,8 +100,7 @@
+     for name in phases:
+         authenticate_payloads()
+         selected={path:(HERE/payload).read_bytes() for path,payload in c['phases'][name].items()}
+-        need(set(selected)=={GRID,'layout/base/PresShell.cpp','layout/generic/nsBlockFrame.cpp'},
+-             'Every phase must explicitly reset all three source roles')
++        need(set(selected)=={BLOCK},'Each phase must explicitly reset only the block source role')
+         for n,data in selected.items():
+             (ROOT/n).write_bytes(data)
+         epoch()
+@@ -115,7 +116,7 @@
+         sources_expected(selected)
+         state['status']='testing '+name
+         wpt.save('STATE.json',state)
+-        record['wpt']=wpt.test_run(name,c['tests'],inputs['resource_pins'])
++        record['wpt']=wpt.test_run(name,c['run_tests'],inputs['resource_pins'])
+         epoch()
+         sources_expected(selected)
+         authenticate_payloads()
+@@ -123,7 +124,6 @@
+         record['status_counts']={status:sum(r['status']==status for r in run['rows']) for status in ['PASS','FAIL']}
+         record['failures']=[{'test':r['test'],'subtest':r['subtest'],'message':r.get('message')} for r in run['rows'] if r['status']=='FAIL']
+         rows=result_map(run)
+-        record['existing_controls']={status:sum(key[0] in existing_ids and value[0]==status for key,value in rows.items()) for status in ['PASS','FAIL']}
+         if baseline_rows is None:
+             baseline_rows=rows
+         record['changes_from_baseline']=[{'test':key[0],'subtest':key[1],
+@@ -140,22 +140,70 @@
+         record['expectation_discrepancies']=discrepancies
+         record['visible_float_controls']={status:sum(oracle['role']=='visible-float-control' and rows[key][0]==status
+             for key,oracle in expected.items()) for status in ['PASS','FAIL']}
+-        record['nested_hidden_classification']=[{'test':key[0],'subtest':key[1],
+-            'status':rows[key][0],'message':rows[key][1]} for key,oracle in expected.items()
+-            if oracle['role']=='nested-hidden-open-baseline']
+         wpt.save('STATE.json',state)
+         if name=='baseline':
+-            wpt.save('BASELINE-CLASSIFICATION.json',{'nested_hidden':record['nested_hidden_classification'],
+-                'all_float_rows':[{'test':key[0],'subtest':key[1],'status':value[0],'message':value[1]}
+-                                  for key,value in rows.items() if key[0] not in existing_ids],
+-                'scope':'First WPT assertions; visible push placement does not prove native pushed-bit coverage'})
+-        need(record['existing_controls']=={'PASS':79,'FAIL':0},'existing control failed '+name)
+-        need(record['visible_float_controls']=={'PASS':10,'FAIL':0},'visible float control failed '+name)
++            wpt.save('BASELINE-CLASSIFICATION.json',{'all_float_rows':[
++                {'test':key[0],'subtest':key[1],'status':value[0],'message':value[1]}
++                for key,value in rows.items()],
++                'scope':'Final12 WPT on HEAD roles; visible push placement does not prove native pushed-bit coverage'})
++        need(record['visible_float_controls']=={'PASS':8,'FAIL':0},'visible float control failed '+name)
+         need(not discrepancies,'Named outcome/diagnostic differs from expected '+name)
+-        need({k:v for k,v in rows.items() if k[0] in existing_ids}
+-             =={k:v for k,v in baseline_rows.items() if k[0] in existing_ids},'existing controls changed')
++        need({k:rows[k] for k,o in expected.items() if o['role']=='visible-float-control'}
++             =={k:baseline_rows[k] for k,o in expected.items() if o['role']=='visible-float-control'},
++             'visible float controls changed')
+         need(record['status_transitions']['PASS->FAIL']==0,'new failure relative to baseline')
+         record['expected_outcomes_match']=True
++        wpt.save('STATE.json',state)
++        cost_root=ROOT/c['cost']['directory']
++        cost_output=HERE/(name+'-cost')
++        need(not cost_output.exists() and not cost_output.is_symlink(),'cost output must be absent')
++        need(sha(cost_root/'FILES.json')==c['cost']['manifest_sha256'],'cost manifest changed')
++        manifest=json.loads((cost_root/'FILES.json').read_text())
++        phase_pins={str((ROOT/n).resolve()):run['after'][n] for n in c['guard_sources']+wpt.BINARIES}
++        for n in ['probe.html','benchmark.js','CONFIG.json','run.py','validate.py','cleanup.py']:
++            phase_pins[str(cost_root/n)]=manifest[n]
++        epoch()
++        sources_expected(selected)
++        need(wpt.pins(wpt.BINARIES)=={n:run['after'][n] for n in wpt.BINARIES},
++             'binary changed after WPT before cost '+name)
++        state['status']='measuring '+name
++        record['cost']={'output':str(cost_output),'expected_pins':phase_pins}
++        wpt.save('STATE.json',state)
++        command=[sys.executable,'-I','-S','-B',str(cost_root/'run.py'),
++                 '--manifest-sha',c['cost']['manifest_sha256'],
++                 '--binary',str(ROOT/wpt.BINARIES[0]),'--output',str(cost_output),'--label',name]
++        for n in c['guard_sources']:
++            command.extend(['--pin',str(ROOT/n)])
++        record['cost']['exit']=wpt.command(name+'-cost-run',command)
++        for n in ['BEFORE.json','RESULT.json','SUMMARY.json']:
++            if (cost_output/n).is_file():
++                record['cost'][n+'_sha256']=sha(cost_output/n)
++        wpt.save('STATE.json',state)
++        need(record['cost']['exit']==0,'cost runner failed '+name)
++        result=json.loads((cost_output/'RESULT.json').read_text())
++        summary=json.loads((cost_output/'SUMMARY.json').read_text())
++        record['cost']['geometry']={n:summary[n] for n in
++            ['geometryMismatches','recoveryMismatchesByGroup','hotMismatchesByGroup',
++             'recoveryGeometryCorrect','cleanGeometryCorrect']}
++        wpt.save('STATE.json',state)
++        need(result['label']==name and result['before']==result['after']==phase_pins
++             and json.loads((cost_output/'BEFORE.json').read_text())==phase_pins,
++             'cost source/binary/fixture phase join failed '+name)
++        need(result['stable'] and result['terminal'] and result['noLiveGroup']
++             and result['profileRemoved'] and not result['cleanupErrors'] and not result['failure'],
++             'cost cleanup failed '+name)
++        need(summary['measuredRows']==60 and summary['queryReads']==1968000
++             and result['progressReceipts']==148,'cost exact workload differs')
++        epoch()
++        sources_expected(selected)
++        authenticate_payloads()
++        need(summary['cleanGeometryCorrect'] and not summary['hotMismatchesByGroup']
++             and not any('/visible/' in group for group in summary['recoveryMismatchesByGroup']),
++             'cost visible/clean control geometry failed '+name)
++        need(name=='baseline' or (summary['recoveryGeometryCorrect']
++             and not summary['recoveryMismatchesByGroup']),
++             'candidate cost recovery geometry failed')
++        record['cost']['phase_join_verified']=True
+         wpt.save('STATE.json',state)
+ except BaseException as error:
+     state['failure']={'type':type(error).__name__,'message':str(error)}

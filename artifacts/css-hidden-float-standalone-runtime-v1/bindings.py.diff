@@ -1,0 +1,36 @@
+--- prior/bindings.py
++++ standalone/bindings.py
+@@ -40,6 +40,33 @@
+     acceptance = json.loads((ROOT / "artifacts/css-hidden-query-landing-acceptance-v1/ACCEPTANCE.json").read_text())
+     need(acceptance["status"] == "ACCEPTED_BOUNDED_NATIVE_REPAIRS",
+          "three prerequisite repairs not accepted")
++    runtime = ROOT / "artifacts/css-hidden-float-runtime-v1"
++    state = json.loads((runtime / "STATE.json").read_text())
++    need(state["status"] == "terminal" and state["restored"]
++         and state["restore_build_exit"] == 0 and not state["recovery_errors"]
++         and "failure" not in state, "float comparison not restored")
++    need((runtime / "BEFORE.json").read_bytes() == (runtime / "FINAL.json").read_bytes(),
++         "float comparison restoration differs")
++    mathml = ROOT / "artifacts/css-hidden-mathml-fixture-check-v1"
++    state = json.loads((mathml / "STATE.json").read_text())
++    need(state["status"] == "terminal" and state["restored"]
++         and not state["cleanup_errors"] and "failure" not in state,
++         "MathML diagnostic not restored")
++    need((mathml / "BEFORE.json").read_bytes() == (mathml / "FINAL.json").read_bytes(),
++         "MathML diagnostic restoration differs")
++
++def restored_epoch(wpt):
++    runtime = ROOT / "artifacts/css-hidden-float-runtime-v1"
++    mathml = ROOT / "artifacts/css-hidden-mathml-fixture-check-v1"
++    expected = json.loads((runtime / "FINAL.json").read_text())
++    math_final = json.loads((mathml / "FINAL.json").read_text())
++    math_final["sources"] = {name: math_final["sources"][name]
++                             for name in wpt.CONFIG["guard_sources"]}
++    need(wpt.snapshot() == expected == math_final, "restored source/HEAD/index epoch changed")
++    binaries = json.loads((mathml / "INPUTS.json").read_text())["binaries"]
++    need(set(binaries) == set(wpt.BINARIES) and wpt.pins(wpt.BINARIES) == binaries,
++         "restored binary epoch changed")
++    return binaries
+ 
+ def index_state(wpt, verify_payloads=True):
+     expected = json.loads((HERE / "INDEX-EXPECTATIONS.json").read_text())

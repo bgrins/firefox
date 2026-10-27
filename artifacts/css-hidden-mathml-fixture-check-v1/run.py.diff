@@ -1,0 +1,246 @@
+--- float-fixture/run.py
++++ mathml-fixture/run.py
+@@ -1,107 +1,166 @@
+ import sys
+ if not sys.flags.isolated or not sys.flags.no_site or sys.flags.optimize:
+-    raise SystemExit('Require python3 -I -S without optimization')
++    raise SystemExit("Require python3 -I -S without optimization")
+ sys.dont_write_bytecode = True
+ import argparse
+ import hashlib
+ import importlib.util
+ import json
+ from pathlib import Path
++import stat
+ 
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+-parser = argparse.ArgumentParser()
+-parser.add_argument('--manifest-sha', required=True)
+-parser.add_argument('--execute', action='store_true')
+-args = parser.parse_args()
+-def need(ok, message):
++def need(ok, why):
+     if not ok:
+-        raise RuntimeError(message)
++        raise RuntimeError(why)
++
+ def sha(path):
+     return hashlib.sha256(path.read_bytes()).hexdigest()
+-need(args.execute, 'disabled: root must explicitly pass --execute after restoration and review')
+-need(sha(HERE / 'INPUT-FILES.json') == args.manifest_sha, 'manifest identity')
+-manifest = json.loads((HERE / 'INPUT-FILES.json').read_text())
+-for name, pin in manifest.items():
+-    need(not Path(name).is_absolute() and '..' not in Path(name).parts, 'unsafe path')
+-    need(sha(HERE / name) == pin, 'input changed ' + name)
+-need(not (HERE / 'BEFORE.json').exists(), 'already run')
+-spec = importlib.util.spec_from_file_location('fixture_wpt', HERE / 'run_wpt.py')
+-wpt = importlib.util.module_from_spec(spec)
+-spec.loader.exec_module(wpt)
++
++def load(name):
++    spec = importlib.util.spec_from_file_location(name, HERE / (name + ".py"))
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++def authenticate(pins, base):
++    for name, digest in pins.items():
++        need(not Path(name).is_absolute() and ".." not in Path(name).parts, "unsafe input path")
++        path = base / name
++        need(stat.S_ISREG(path.lstat().st_mode) and sha(path) == digest,
++             "input changed " + name)
++
++parser = argparse.ArgumentParser()
++parser.add_argument("--manifest-sha", required=True)
++parser.add_argument("--prior-state-sha", required=True)
++parser.add_argument("--prior-final-sha", required=True)
++parser.add_argument("--execute", action="store_true")
++args = parser.parse_args()
++need(args.execute, "root must explicitly execute after restoration and review")
++need(sha(HERE / "INPUT-FILES.json") == args.manifest_sha, "input manifest identity")
++manifest = json.loads((HERE / "INPUT-FILES.json").read_text())
++authenticate(manifest, HERE)
++need(not (HERE / "BEFORE.json").exists(), "already run")
++wpt = load("run_wpt")
+ c = wpt.CONFIG
+-need(len(c['install']) == 2 and set(c['tests']) == set(c['install'])
+-     and not c['sources'] and len(c['guard_sources']) == 28
+-     and sum(map(len, c['expected_subtests'].values())) == 16, 'fixture-only scope')
+-prior = ROOT / c['prior_runtime']
+-prior_state = json.loads((prior / 'STATE.json').read_text())
+-need(prior_state['status'] == 'terminal' and prior_state['restored'] is True
+-     and prior_state['restore_build_exit'] == 0 and prior_state['recovery_errors'] == [],
+-     'preceding experiment not restored')
++need(c.get("ready_for_execution") is True, "diagnostic draft remains disabled")
++authenticate(json.loads((HERE / "DEPENDENCIES.json").read_text()), ROOT)
++need(not c["sources"] and len(c["guard_sources"]) == 34
++     and len(c["prior_guard_sources"]) == 29 and len(c["mathml_source_pins"]) == 6
++     and set(c["guard_sources"]) == set(c["prior_guard_sources"]) | set(c["mathml_source_pins"])
++     and len(c["install"]) == 1 and c["tests"] == list(c["install"])
++     and sum(map(len, c["expected_subtests"].values())) == 8, "build-free diagnostic scope")
++prior = ROOT / c["prior_runtime"]
++need(sha(prior / "STATE.json") == args.prior_state_sha
++     and sha(prior / "FINAL.json") == args.prior_final_sha, "future terminal receipt pins differ")
++prior_state = json.loads((prior / "STATE.json").read_text())
++prior_final = json.loads((prior / "FINAL.json").read_text())
++prior_inputs = json.loads((prior / "INPUTS.json").read_text())
++need(prior_state["status"] == "terminal" and prior_state["restored"] is True
++     and prior_state["restore_build_exit"] == 0 and prior_state["recovery_errors"] == [],
++     "float campaign not successfully restored")
++need((prior / "BEFORE.json").read_bytes() == (prior / "FINAL.json").read_bytes()
++     and prior_final == prior_inputs["before"], "float original/final/prepared snapshot differs")
++index_check = load("index_check")
++index_check.index_state(wpt)
+ before = wpt.snapshot()
+-need(before == json.loads((prior / 'FINAL.json').read_text()), 'restored source/HEAD/index changed')
+-need(not wpt.git('diff', '--cached', '--name-only').strip(), 'index not empty')
+-need(all(not (ROOT / n).exists() and not (ROOT / n).is_symlink() for n in c['install']),
+-     'temporary tests not absent')
+-resources = wpt.pins(wpt.resource_paths(c['tests'], virtual=True), virtual=True)
++projection = dict(before)
++projection["sources"] = {name: before["sources"][name] for name in c["prior_guard_sources"]}
++need(projection == prior_final and before["head"] == c["expected_head"],
++     "live restored source/HEAD/index differs from float terminal")
++for name, digest in c["mathml_source_pins"].items():
++    need(before["sources"][name] == sha(HERE / "source" / name) == digest,
++         "MathML committed source role differs " + name)
++    need(hashlib.sha256(wpt.git("show", c["expected_head"] + ":" + name)).hexdigest() == digest,
++         "MathML committed blob differs " + name)
++tracked = wpt.git("ls-files", "--", *c["existing_tests"]).decode().splitlines()
++need(set(tracked) == set(c["tracked_tests"]) and len(tracked) == 5
++     and set(c["existing_tests"]) == set(c["tracked_tests"]) | set(c["accepted_untracked_tests"]),
++     "existing accepted-test ownership changed")
++need(wpt.pins(c["existing_tests"]) == c["existing_test_pins"], "existing accepted WPT changed")
++need(all(not (ROOT / n).exists() and not (ROOT / n).is_symlink() for n in c["must_be_absent"]),
++     "MathML or float temporary test is present")
++resources = json.loads((HERE / "RESOURCE-EXPECTATIONS.json").read_text())
++need(set(wpt.resource_paths(c["tests"], virtual=True)) <= set(resources),
++     "unbound MathML test dependency")
++need(wpt.pins(list(resources), virtual=True) == resources,
++     "historical support/metadata or preserved accepted-test resource changed")
+ binaries = wpt.pins(wpt.BINARIES)
+-wpt.save('BEFORE.json', before)
+-wpt.save('INPUTS.json', {'resources': resources, 'binaries': binaries,
+-                       'prior_state_sha256': sha(prior / 'STATE.json'),
+-                       'prior_final_sha256': sha(prior / 'FINAL.json'),
+-                       'input_manifest_sha256': args.manifest_sha,
+-                       'scope': 'Restored working build with preserved native prototypes; fixture diagnostic only'})
++need(all(value is not None for value in binaries.values()), "missing restored browser binary")
++wpt.save("BEFORE.json", before)
++wpt.save("INPUTS.json", {"resources": resources, "binaries": binaries,
++    "prior_state_sha256": args.prior_state_sha, "prior_final_sha256": args.prior_final_sha,
++    "prior_before_sha256": sha(prior / "BEFORE.json"),
++    "prior_failure": prior_state.get("failure"), "input_manifest_sha256": args.manifest_sha,
++    "scope": "Restored unsigned working build with accepted overlays and older prototypes; diagnostic only"})
+ installed = []
+ errors = []
+-state = {'status': 'starting', 'native_accepted': False, 'native_sources_written': False}
++state = {"status": "starting", "native_accepted": False, "native_sources_written": False}
++
++def recovery_save(name, value):
++    try:
++        wpt.save(name, value)
++    except BaseException as error:
++        errors.append({"operation": "save " + name, "error": repr(error)})
++
+ try:
+-    for target, source in c['install'].items():
+-        with (ROOT / target).open('xb') as stream:
++    for target, source in c["install"].items():
++        with (ROOT / target).open("xb") as stream:
+             installed.append(target)
+             stream.write((HERE / source).read_bytes())
+-    state['lint_exit'] = wpt.command('wpt-lint', ['./mach', 'lint', '-l', 'wpt', *c['tests']])
+-    need(state['lint_exit'] == 0, 'WPT lint failed')
+-    state['status'] = 'testing'
+-    wpt.save('STATE.json', state)
+-    state['wpt'] = wpt.test_run('fixtures', c['tests'], resources)
+-    run = json.loads((HERE / 'fixtures/RUN.json').read_text())
+-    state['counts'] = {status: sum(r['status'] == status for r in run['rows']) for status in ['PASS', 'FAIL']}
+-    state['failures'] = [{k: r.get(k) for k in ['test', 'subtest', 'message']}
+-                         for r in run['rows'] if r['status'] == 'FAIL']
++    state["lint_exit"] = wpt.command("wpt-lint", ["./mach", "lint", "-l", "wpt", *c["tests"]])
++    need(state["lint_exit"] == 0, "WPT lint failed")
++    need(wpt.snapshot() == before and wpt.pins(wpt.BINARIES) == binaries
++         and wpt.pins(list(resources)) == resources, "lint changed guarded inputs")
++    state["status"] = "testing"
++    wpt.save("STATE.json", state)
++    state["wpt"] = wpt.test_run("fixtures", c["tests"], resources)
++    run = json.loads((HERE / "fixtures/RUN.json").read_text())
++    state["counts"] = {status: sum(r["status"] == status for r in run["rows"])
++                       for status in ["PASS", "FAIL"]}
++    cases = {r["name"]: r for r in json.loads((HERE / "CASES.json").read_text())}
+     classifications = []
+-    for row in run['rows']:
+-        message = row.get('message') or ''
+-        if row['test'].endswith('/visible-float-push-calibration.html'):
+-            family = 'visible-push-calibration'
+-        elif row['subtest'].endswith(', visible'):
+-            family = 'main-visible-control'
+-        elif row['status'] == 'FAIL' and 'calibration' in message.lower():
+-            family = 'main-hidden-calibration-failure'
+-        else:
+-            family = 'main-hidden-query'
+-        stage = next((stage for stage in ['warm', 'hide', 'change', 'show', 'restore']
+-                      if stage + ':' in message), None)
+-        classifications.append({'test': row['test'], 'subtest': row['subtest'],
+-                                'status': row['status'], 'family': family,
+-                                'first_reported_failure_stage': stage, 'message': row.get('message')})
+-    wpt.save('CLASSIFICATION.json', classifications)
+-    state['classification_scope'] = 'First reported assertion only; no native pushed-bit or complete per-stage raw-window claim'
+-
++    for row in run["rows"]:
++        case = cases[row["subtest"]]
++        message = row.get("message") or ""
++        calibration = row["status"] == "FAIL" and "calibration" in message.lower()
++        family = ("calibration-failure" if calibration else
++                  "feature-support-failure" if row["status"] == "FAIL" and "assert_implements" in message else
++                  "visible-control" if not case["hidden"] else
++                  "root-block-hidden-interaction" if case["owner"] == "root-block" else
++                  "internal-hidden-query-hypothesis")
++        stage = next((name for name in ["warm", "hide", "mutate", "show", "restore"]
++                      if name + ":" in message), None)
++        classifications.append({"test": row["test"], "subtest": row["subtest"],
++            "status": row["status"], "family": family, "owner": case["owner"],
++            "query": case["query"], "hidden": case["hidden"],
++            "first_reported_failure_stage": stage, "message": row.get("message")})
++    wpt.save("CLASSIFICATION.json", classifications)
++    state["failures"] = [r for r in classifications if r["status"] == "FAIL"]
++    state["calibration_failures"] = sum(r["family"] == "calibration-failure" for r in classifications)
++    state["classification_scope"] = "First reported assertion only; calibration failures are fixture diagnosis, not accepted bugs; native branch and dirty-state attribution remain open"
+ except BaseException as error:
+-    state['failure'] = repr(error)
++    state["failure"] = repr(error)
+ finally:
+     for target in installed:
+         try:
+             (ROOT / target).unlink()
+         except BaseException as error:
+-            errors.append({'target': target, 'error': repr(error)})
+-    final = wpt.snapshot()
+-    state['restored'] = (final == before and wpt.pins(wpt.BINARIES) == binaries
+-                         and all(not (ROOT / n).exists() and not (ROOT / n).is_symlink() for n in c['install'])
+-                         and wpt.pins(wpt.resource_paths(c['tests'], virtual=True), virtual=True) == resources)
+-    state['cleanup_errors'] = errors
+-    state['status'] = 'terminal'
+-    wpt.save('FINAL.json', final)
+-    wpt.save('STATE.json', state)
++            errors.append({"operation": "remove " + target, "error": repr(error)})
++    state["restored"] = False
++    try:
++        final = wpt.snapshot()
++        state["restored"] = (final == before and wpt.pins(wpt.BINARIES) == binaries
++            and all(not (ROOT / n).exists() and not (ROOT / n).is_symlink() for n in c["must_be_absent"])
++            and wpt.pins(list(resources), virtual=True) == resources
++            and sha(prior / "STATE.json") == args.prior_state_sha
++            and sha(prior / "FINAL.json") == args.prior_final_sha)
++        recovery_save("FINAL.json", final)
++    except BaseException as error:
++        errors.append({"operation": "final snapshot", "error": repr(error)})
++    state["cleanup_errors"] = errors
++    state["status"] = "terminal"
++    recovery_save("STATE.json", state)
+ print(json.dumps(state, indent=2))
+-need('failure' not in state and not errors and state['restored'], 'diagnostic or restoration failed')
++need("failure" not in state and not errors and state["restored"], "diagnostic or restoration failed")

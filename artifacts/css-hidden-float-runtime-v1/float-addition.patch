@@ -1,0 +1,17 @@
+--- a/layout/generic/nsBlockFrame.cpp
++++ b/layout/generic/nsBlockFrame.cpp
+@@ -3500,6 +3500,14 @@
+ }
+ 
+ bool nsBlockFrame::ReflowDirtyLines(BlockReflowState& aState) {
++  if (HidesContentForLayout() && !HasAnyStateBits(NS_FRAME_OWNS_ANON_BOXES)) {
++    for (nsIFrame* child : GetChildList(FrameChildListID::Float)) {
++      if (!child->HasAnyStateBits(NS_FRAME_IS_PUSHED_OUT_OF_FLOW)) {
++        child->MarkSubtreeDirty();
++      }
++    }
++  }
++
+   bool keepGoing = true;
+   bool foundAnyClears = aState.mTrailingClearFromPIF != UsedClear::None;
+   bool willReflowAgain = false;
