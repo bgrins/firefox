@@ -4250,14 +4250,14 @@ pub unsafe extern "C" fn Servo_CounterStyleRule_IsInRange(
         let in_range = range.0.iter().any(|r| {
             if let CounterBound::Integer(start) = &r.start {
                 // The value is enforced to be resolvable at parse time
-                if start.get().unwrap() > ordinal {
+                if start.resolve().unwrap() > ordinal {
                     return false;
                 }
             }
 
             if let CounterBound::Integer(end) = &r.end {
                 // The value is enforced to be resolvable at parse time
-                if end.get().unwrap() < ordinal {
+                if end.resolve().unwrap() < ordinal {
                     return false;
                 }
             }

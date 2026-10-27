@@ -1,0 +1,58 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Calculated counter range parsing and serialization</title>
+<link rel="help" href="https://drafts.csswg.org/css-counter-styles-3/#counter-style-range">
+<link rel="help" href="https://drafts.csswg.org/css-counter-styles-3/#the-csscounterstylerule-interface">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-serialize">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function makeRule(t, range) {
+  const style = document.createElement("style");
+  style.textContent = `@counter-style tested { system: cyclic; symbols: "A"; range: ${range}; }`;
+  document.head.append(style);
+  t.add_cleanup(() => style.remove());
+  assert_equals(style.sheet.cssRules.length, 1, "counter style rule parsed");
+  return style.sheet.cssRules[0];
+}
+
+const valid = [
+  ["auto", "auto"],
+  ["infinite infinite", "infinite infinite"],
+  ["1 3", "1 3"],
+  ["calc(1) calc(3)", "calc(1) calc(3)"],
+  ["calc(1) 3", "calc(1) 3"],
+  ["1 calc(3)", "1 calc(3)"],
+  ["calc(1) infinite", "calc(1) infinite"],
+  ["infinite calc(3)", "infinite calc(3)"],
+  ["calc(1 + 1) calc(4 - 1)", "calc(2) calc(3)"],
+  ["calc(1) calc(1), calc(3) calc(3)", "calc(1) calc(1), calc(3) calc(3)"]
+];
+for (const [value, expected] of valid) {
+  test(t => {
+    const rule = makeRule(t, value);
+    assert_equals(rule.range, expected, "parsed specified range");
+    rule.range = "1 3";
+    assert_equals(rule.range, "1 3", "literal reset");
+  }, `Stylesheet calculated range: ${value}`);
+  test(t => {
+    const rule = makeRule(t, "7 9");
+    rule.range = value;
+    assert_equals(rule.range, expected, "assigned specified range");
+    rule.range = "1 3";
+    assert_equals(rule.range, "1 3", "literal reset");
+  }, `CSSOM calculated range: ${value}`);
+}
+for (const value of ["4 2", "calc(4) calc(2)", "calc(4) 2", "4 calc(2)"]) {
+  test(t => {
+    const rule = makeRule(t, value);
+    assert_equals(rule.range, "", "descending range rejected");
+  }, `Stylesheet descending range: ${value}`);
+  test(t => {
+    const rule = makeRule(t, "7 9");
+    rule.range = value;
+    assert_equals(rule.range, "7 9", "invalid assignment preserves old range");
+  }, `CSSOM descending range: ${value}`);
+}
+</script>

@@ -591,11 +591,7 @@ impl Parse for CounterRanges {
             let start = parse_bound(context, input)?;
             let end = parse_bound(context, input)?;
             if let (CounterBound::Integer(s), CounterBound::Integer(e)) = (&start, &end) {
-                // Rejects calc expressions that cannot be resolved at parse time,
-                // since @counter-style descriptors require concrete values.
-                let s = s.resolve();
-                let e = e.resolve();
-                if s.is_none() || e.is_none() || s.unwrap() > e.unwrap() {
+                if s.resolve().unwrap() > e.resolve().unwrap() {
                     return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
                 }
             }
@@ -608,6 +604,10 @@ impl Parse for CounterRanges {
 
 fn parse_bound(context: &ParserContext, input: &mut Parser) -> Result<CounterBound, ParseError> {
     if let Ok(integer) = input.try_parse(|input| Integer::parse(context, input)) {
+        // Reject expressions that require computed-value context.
+        if integer.resolve().is_none() {
+            return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+        }
         return Ok(CounterBound::Integer(integer));
     }
     input.expect_ident_matching("infinite")?;
