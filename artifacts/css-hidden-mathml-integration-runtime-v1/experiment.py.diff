@@ -1,0 +1,99 @@
+--- isolated/experiment.py
++++ integration/experiment.py
+@@ -53,8 +53,8 @@
+ for n in c['sources']:
+     need((ROOT/n).read_bytes()==original[n] and wpt.git('show','HEAD:'+n)==head[n],'original/HEAD snapshot '+n)
+ MATH='layout/mathml/nsMathMLContainerFrame.cpp'
+-phases=['baseline','mathml-only']
+-need(list(c['phases'])==phases,'Exact two-phase roster')
++phases=['integration']
++need(list(c['phases'])==phases,'Exact one-phase integration roster')
+ state={'status':'starting','accepted_native_repair':False,'phases':{}}
+ errors=[]
+ changed=False
+@@ -71,14 +71,10 @@
+         expected=hashlib.sha256(selected.get(n,baseline[n])).hexdigest() if n in baseline else c['baseline_guard_pins'][n]
+         need(sha(ROOT/n)==expected,'phase source changed '+n)
+ 
+-def result_map(run):
+-    return {(r['test'],r['subtest']):(r['status'],r.get('message')) for r in run['rows']}
+-
+-baseline_rows=None
+-need(set(c['run_tests'])==set(c['install']) and len(c['run_tests'])==1
+-     and sum(map(len,c['expected_subtests'].values()))==4,'4-case roster')
+-oracles=json.loads((HERE/'EXPECTED-OUTCOMES.json').read_text())
+-need(list(oracles['phases'])==phases,'Expected phase roster')
++known_ids = {'/' + str(Path(t).relative_to('testing/web-platform/tests')) for t in c['known_tests']}
++need(len(c['run_tests']) == 18 and set(c['run_tests']) == set(c['tests'])
++     and len(known_ids) == 10 and sum(map(len,c['expected_subtests'].values())) == 87,
++     'exact integration roster')
+ 
+ def recovery_save(name,value):
+     try:
+@@ -92,16 +88,14 @@
+         with (ROOT/target).open('xb') as stream:
+             installed.append(target)
+             stream.write((HERE/source).read_bytes())
+-    state['wpt_lint_exit']=wpt.command('wpt-lint',['./mach','lint','-l','wpt',*c['run_tests']])
++    state['wpt_lint_exit']=wpt.command('wpt-lint',['./mach','lint','-l','wpt',*c['install']])
+     need(state['wpt_lint_exit']==0,'WPT lint failed')
+-    for n,data in baseline.items():
+-        changed=True
+-        (ROOT/n).write_bytes(data)
+     for name in phases:
+         authenticate_payloads()
+         selected={path:(HERE/payload).read_bytes() for path,payload in c['phases'][name].items()}
+         need(set(selected)=={MATH},'Each phase must explicitly reset only the MathML source role')
+         for n,data in selected.items():
++            changed=True
+             (ROOT/n).write_bytes(data)
+         epoch()
+         sources_expected(selected)
+@@ -121,37 +115,17 @@
+         sources_expected(selected)
+         authenticate_payloads()
+         run=json.loads((HERE/name/'RUN.json').read_text())
+-        record['status_counts']={status:sum(r['status']==status for r in run['rows']) for status in ['PASS','FAIL']}
+-        record['failures']=[{'test':r['test'],'subtest':r['subtest'],'message':r.get('message')} for r in run['rows'] if r['status']=='FAIL']
+-        rows=result_map(run)
+-        if baseline_rows is None:
+-            baseline_rows=rows
+-        record['changes_from_baseline']=[{'test':key[0],'subtest':key[1],
+-            'before':baseline_rows[key],'after':rows[key]} for key in sorted(rows) if rows[key]!=baseline_rows[key]]
+-        record['status_transitions']={label:sum(baseline_rows[k][0]+'->'+rows[k][0]==label for k in rows)
+-                                      for label in ['PASS->PASS','PASS->FAIL','FAIL->PASS','FAIL->FAIL']}
+-        expected={(r['test'],r['subtest']):r for r in oracles['phases'][name]}
+-        need(set(rows)==set(expected),'Expected per-case roster differs')
+-        discrepancies=[]
+-        for key,value in rows.items():
+-            oracle=expected[key]
+-            if list(value) not in oracle['allowed']:
+-                discrepancies.append({'test':key[0],'subtest':key[1],'actual':value,'expected':oracle})
+-        record['expectation_discrepancies']=discrepancies
+-        record['visible_mathml_controls']={status:sum(oracle['role']=='visible-mathml-control' and rows[key][0]==status
+-            for key,oracle in expected.items()) for status in ['PASS','FAIL']}
++        record['status_counts']={status:sum(r['status']==status for r in run['rows'])
++            for status in sorted({r['status'] for r in run['rows']})}
++        known=[r for r in run['rows'] if r['test'] in known_ids]
++        record['known_control_counts']={status:sum(r['status']==status for r in known) for status in ['PASS','FAIL']}
++        record['regression_rows']=[r for r in run['rows'] if r['test'] not in known_ids]
++        record['unexpected']=run['unexpected']
+         wpt.save('STATE.json',state)
+-        if name=='baseline':
+-            wpt.save('BASELINE-CLASSIFICATION.json',{'all_mathml_rows':[
+-                {'test':key[0],'subtest':key[1],'status':value[0],'message':value[1]}
+-                for key,value in rows.items()],
+-                'scope':'Final4 WPT on HEAD roles; internal MathML early return only, root-block behavior excluded'})
+-        need(record['visible_mathml_controls']=={'PASS':2,'FAIL':0},'visible MathML control failed '+name)
+-        need(not discrepancies,'Named outcome/diagnostic differs from expected '+name)
+-        need({k:rows[k] for k,o in expected.items() if o['role']=='visible-mathml-control'}
+-             =={k:baseline_rows[k] for k,o in expected.items() if o['role']=='visible-mathml-control'},
+-             'visible MathML controls changed')
+-        need(record['status_transitions']['PASS->FAIL']==0,'new failure relative to baseline')
++        need(len(known)==87 and record['known_control_counts']=={'PASS':87,'FAIL':0},
++             'known integration control failed')
++        need(record['wpt']['exit']==0 and len(run['ends'])==18 and not record['unexpected'],
++             'standard WPT unexpected outcome or incomplete harness')
+         record['expected_outcomes_match']=True
+         wpt.save('STATE.json',state)
+ except BaseException as error:

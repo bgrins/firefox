@@ -1,0 +1,22 @@
+--- v3/run.py
++++ v4/run.py
+@@ -190,8 +190,18 @@
+         wpt.save('STATE.json', state)
+         record['lint_exit'] = wpt.command(phase + '-wpt-lint',
+             ['./mach', 'lint', '-l', 'wpt', *c['tests']])
++        exception = c['marked_lint_exception']
++        record['lint_exception_applied'] = (
++            phase == 'marked' and record['lint_exit'] == exception['exit'] == 1
++            and owned_test_hash == exception['fixture_sha256']
++            and sha(HERE / exception['expected_output']) == exception['expected_output_sha256']
++            and (HERE / (phase + '-wpt-lint.log')).read_bytes()
++                == (HERE / exception['expected_output']).read_bytes())
++        record['lint_policy'] = ('exact diagnostic CONSOLE exception'
++            if record['lint_exception_applied'] else 'unchanged control requires lint exit zero')
+         wpt.save('STATE.json', state)
+-        need(record['lint_exit'] == 0, 'scoped WPT lint failed ' + phase)
++        need((phase == 'control' and record['lint_exit'] == 0)
++             or record['lint_exception_applied'], 'scoped WPT lint policy failed ' + phase)
+         epoch(c['instrumented_source_pins'])
+         need(wpt.pins(list(phase_resources)) == phase_resources, 'lint changed phase resources')
+         need(wpt.pins(wpt.BINARIES) == instrumented_binaries, 'lint changed binaries')

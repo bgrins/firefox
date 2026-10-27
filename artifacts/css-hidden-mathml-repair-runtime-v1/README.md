@@ -1,0 +1,1 @@
+Root-reviewed execution copy of disabled css-hidden-mathml-runtime-v1. Four final internal-owner WPT cases compare HEAD against only the one-line MathML repair. Preparation validates prior terminal restoration and preserves25 source originals; experiment restores them and rebuilds in finally. No native acceptance. Await independent controller review before preparation.

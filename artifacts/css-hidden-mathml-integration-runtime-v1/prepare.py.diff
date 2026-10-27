@@ -1,0 +1,76 @@
+--- isolated/prepare.py
++++ integration/prepare.py
+@@ -46,19 +46,22 @@
+ before = wpt.snapshot()
+ need(before["head"] == args.expected_head == c["expected_head"] == index["head"],
+      "HEAD differs from the reviewed unsigned baseline")
+-need(len(c["sources"]) == len(set(c["sources"])) == 25
++need(len(c["sources"]) == len(set(c["sources"])) == 1
+      and len(c["guard_sources"]) == len(set(c["guard_sources"])) == 34,
+      "source roster")
+ need(before["sources"] == c["original_source_pins"], "installed working source roles changed")
+ need(all(before[k] == index[k] for k in ["head", "index_diff_sha256", "index_entries_sha256"]),
+      "prepared index epoch differs")
+ need(len(c["install"]) == 1 and len(c["existing_tests"]) == 9
+-     and set(c["install"]).isdisjoint(c["existing_tests"])
+-     and set(c["tests"]) == set(c["install"]) | set(c["existing_tests"]),
++     and len(c["regression_tests"]) == 8 and len(c["tests"]) == 18
++     and set(c["install"]).isdisjoint(c["existing_tests"] + c["regression_tests"])
++     and set(c["existing_tests"]).isdisjoint(c["regression_tests"])
++     and set(c["tests"]) == set(c["install"]) | set(c["existing_tests"]) | set(c["regression_tests"]),
+      "test ownership partition")
+-need(sum(map(len, c["expected_subtests"].values())) == c["expected_total_subtests"] == 4
+-     and set(c["run_tests"]) == set(c["install"])
+-     and len(c["run_tests"]) == len(c["expected_subtests"]) == 1, "exact 4-case roster")
++need(sum(map(len, c["expected_subtests"].values())) == c["expected_total_subtests"] == 87
++     and set(c["run_tests"]) == set(c["tests"])
++     and set(c["known_tests"]) == set(c["install"]) | set(c["existing_tests"])
++     and len(c["expected_subtests"]) == 10, "87 known cases plus eight standard WPT files")
+ need(all(not (ROOT / n).exists() and not (ROOT / n).is_symlink() for n in c["must_be_absent"]),
+      "old or new temporary test exists")
+ need(set(c["head_sources"]) == set(c["baseline_sources"]) == set(c["sources"]),
+@@ -69,26 +72,23 @@
+     need(head == (HERE / c["head_sources"][name]).read_bytes(), "reviewed HEAD body differs " + name)
+     if head != (HERE / c["baseline_sources"][name]).read_bytes():
+         changed.append(name)
+-need(not changed, "standalone baseline must equal HEAD for all25 normalized sources")
+-for name in c["guard_sources"]:
+-    need(sha(HERE / "selected/head" / name) == c["baseline_guard_pins"][name]
+-         and wpt.git("show", "HEAD:" + name) == (HERE / "selected/head" / name).read_bytes(),
+-         "HEAD guard role differs " + name)
+-for name in set(c["guard_sources"]) - set(c["sources"]):
+-    need(wpt.git("show", "HEAD:" + name) == (ROOT / name).read_bytes()
+-         == (HERE / "selected/head" / name).read_bytes(), "unwritten guard differs " + name)
++need(not changed, "original MathML body must equal saved HEAD")
++need(set(c["sources"]) == {"layout/mathml/nsMathMLContainerFrame.cpp"}
++     and c["baseline_guard_pins"] == c["original_source_pins"],
++     "integration must preserve working source roles")
+ resources = wpt.resource_paths(c["tests"], virtual=True)
+ resource_pins = wpt.pins(resources, virtual=True)
+ historical = json.loads((ROOT / "artifacts/css-hidden-mathml-fixture-check-v1/RESOURCE-EXPECTATIONS.json").read_text())
+-proposal = ROOT / "artifacts/css-hidden-mathml-repair-proposal-v2"
++proposal = ROOT / "artifacts/css-hidden-mathml-query-draft-v1"
+ for name, payload in c["install"].items():
+     need((HERE / payload).read_bytes() == (proposal / Path(name).name).read_bytes(),
+-         "final proposed WPT differs " + name)
++         "original eight-case fixture differs " + name)
+     historical[name] = sha(HERE / payload)
+ historical.update(c["supporting_source_pins"])
++historical.update(json.loads((HERE / "RESOURCE-ADDITIONS.json").read_text()))
+ need(resource_pins == historical
+      == json.loads((HERE / "RESOURCE-EXPECTATIONS.json").read_text()),
+-     "historical resources/final WPT/untouched support changed")
++     "historical resources/original fixture/untouched support changed")
+ need(all(resource_pins[n] is not None for n in c["tests"] + c["support_paths"]),
+      "missing test/support")
+ prepared = HERE / "prepared"
+@@ -113,6 +113,6 @@
+           "payload_pins": payloads, "external_pins": json.loads((HERE / "REFERENCES.json").read_text())}
+ (HERE / "INPUTS.json").write_text(json.dumps(inputs, indent=2) + "\n")
+ print(json.dumps({"status": "PREPARED_NOT_RUN", "head": before["head"],
+-                  "INPUTS_sha256": sha(HERE / "INPUTS.json"), "sources_to_restore": 25,
+-                  "source_guards": 34, "read_only_tests": 9, "temporary_tests": 1,
+-                  "subtests": 4, "staged_research_paths": 925}, indent=2))
++                  "INPUTS_sha256": sha(HERE / "INPUTS.json"), "sources_to_restore": 1,
++                  "source_guards": 34, "read_only_tests": 17, "temporary_tests": 1,
++                  "known_subtests": 87, "files": 18, "staged_research_paths": 925}, indent=2))

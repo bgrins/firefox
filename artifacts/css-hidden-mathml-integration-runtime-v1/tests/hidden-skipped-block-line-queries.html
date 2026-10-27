@@ -1,0 +1,141 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hidden skipped block lines preserve descendant query readiness</title>
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getboundingclientrect">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+html { direction: ltr; writing-mode: horizontal-tb; }
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; }
+.outer { width: 100px; height: 64px; }
+.outer.narrow { width: 50px; }
+.subject { position: relative; width: 100%; height: 64px; font-size: 0; line-height: 0; }
+.subject.hidden { content-visibility: hidden; }
+.block-item, .block-inner { width: 100%; height: 32px; }
+.block-item.narrow { width: 50%; }
+.block-leaf { width: 50%; height: 16px; }
+.inline-child { display: inline-block; vertical-align: top; width: 50%; height: 16px; }
+.inline-leaf { width: 100%; height: 8px; }
+table { table-layout: fixed; width: 100%; height: 32px; border-spacing: 0; border: 0; padding: 0; margin: 0; }
+table.narrow { width: 50%; }
+td { border: 0; padding: 0; height: 32px; }
+</style>
+<body>
+<script>
+"use strict";
+const cases = [
+  { "name": "Hidden skipped block query: outer-width, item",
+    "kind": "block", "route": "outer-width", "selector": ".block-item",
+    "before": [10, 10, 100, 32], "changed": [10, 10, 50.0, 32], "rescue": false },
+  { "name": "Hidden skipped block query: outer-width, inner",
+    "kind": "block", "route": "outer-width", "selector": ".block-inner",
+    "before": [10, 10, 100, 32], "changed": [10, 10, 50.0, 32], "rescue": false },
+  { "name": "Hidden skipped block query: outer-width, leaf",
+    "kind": "block", "route": "outer-width", "selector": ".block-leaf",
+    "before": [10, 10, 50, 16], "changed": [10, 10, 25.0, 16], "rescue": false },
+  { "name": "Hidden skipped block query: item-width, item",
+    "kind": "block", "route": "item-width", "selector": ".block-item",
+    "before": [10, 10, 100, 32], "changed": [10, 10, 50.0, 32], "rescue": false },
+  { "name": "Hidden skipped block query: item-width, inner",
+    "kind": "block", "route": "item-width", "selector": ".block-inner",
+    "before": [10, 10, 100, 32], "changed": [10, 10, 50.0, 32], "rescue": false },
+  { "name": "Hidden skipped block query: item-width, leaf",
+    "kind": "block", "route": "item-width", "selector": ".block-leaf",
+    "before": [10, 10, 50, 16], "changed": [10, 10, 25.0, 16], "rescue": false },
+  { "name": "Hidden skipped inline line query: first",
+    "kind": "inline", "route": "outer-width", "selector": ".first",
+    "before": [10, 10, 50, 16], "changed": [10, 10, 25, 16], "rescue": false },
+  { "name": "Hidden skipped inline line query: second",
+    "kind": "inline", "route": "outer-width", "selector": ".second",
+    "before": [60, 10, 50, 16], "changed": [35, 10, 25, 16], "rescue": false },
+  { "name": "Hidden skipped inline line query: first-leaf",
+    "kind": "inline", "route": "outer-width", "selector": ".first-leaf",
+    "before": [10, 10, 50, 8], "changed": [10, 10, 25, 8], "rescue": false },
+  { "name": "Hidden skipped inline line query: second-leaf",
+    "kind": "inline", "route": "outer-width", "selector": ".second-leaf",
+    "before": [60, 10, 50, 8], "changed": [35, 10, 25, 8], "rescue": false },
+  { "name": "Hidden table-first rescue query: outer-width, col",
+    "kind": "table", "route": "outer-width", "selector": "col",
+    "before": [10, 10, 50, 32], "changed": [10, 10, 25, 32], "rescue": true },
+  { "name": "Hidden table-first rescue query: outer-width, td",
+    "kind": "table", "route": "outer-width", "selector": "td",
+    "before": [10, 10, 50, 32], "changed": [10, 10, 25, 32], "rescue": true },
+  { "name": "Hidden table-first rescue query: table-width, col",
+    "kind": "table", "route": "table-width", "selector": "col",
+    "before": [10, 10, 50, 32], "changed": [10, 10, 25, 32], "rescue": true },
+  { "name": "Hidden table-first rescue query: table-width, td",
+    "kind": "table", "route": "table-width", "selector": "td",
+    "before": [10, 10, 50, 32], "changed": [10, 10, 25, 32], "rescue": true }
+];
+const content = {
+  block: '<div class="block-item"><div class="block-inner"><div class="block-leaf"></div></div></div>',
+  inline: '<div class="inline-child first"><div class="inline-leaf first-leaf"></div></div><div class="inline-child second"><div class="inline-leaf second-leaf"></div></div>',
+  table: '<div class="block-item"><table><colgroup><col><col></colgroup><tbody><tr><td></td><td></td></tr></tbody></table></div>'
+};
+function fixture(c) {
+  const host = document.createElement("div");
+  host.className = "host";
+  host.innerHTML = `<div class="outer"><div class="subject ${c.kind}">${content[c.kind]}</div></div>`;
+  document.body.append(host);
+  return {
+    host,
+    outer: host.querySelector(".outer"),
+    subject: host.querySelector(".subject"),
+    item: host.querySelector(".block-item"),
+    table: host.querySelector("table"),
+    target: host.querySelector(c.selector)
+  };
+}
+function rect(element) {
+  const r = element.getBoundingClientRect();
+  return [r.x, r.y, r.width, r.height];
+}
+function mutate(f, route, changed) {
+  const owner = route === "outer-width" ? f.outer : route === "item-width" ? f.item : f.table;
+  owner.classList.toggle("narrow", changed);
+}
+for (const c of cases) {
+  test(t => {
+    assert_implements(CSS.supports("content-visibility", "hidden"));
+    const target = fixture(c);
+    const peer = fixture(c);
+    t.add_cleanup(() => { target.host.remove(); peer.host.remove(); });
+    const rows = [];
+    for (const stage of ["warm", "hide", "change", "restore", "show"]) {
+      if (stage === "hide") target.subject.classList.add("hidden");
+      if (stage === "change" || stage === "restore") {
+        mutate(target, c.route, stage === "change");
+        mutate(peer, c.route, stage === "change");
+      }
+      if (stage === "show") target.subject.classList.remove("hidden");
+      const changed = stage === "change";
+      const outer = rect(target.outer);
+      const rescue = c.rescue ? rect(target.table) : null;
+      const first = rect(target.target);
+      const repeat = rect(target.target);
+      const visible = rect(peer.target);
+      const visibleTable = c.rescue ? rect(peer.table) : null;
+      rows.push({stage, outer, rescue, first, repeat, visible, visibleTable,
+                 expected: changed ? c.changed : c.before,
+                 expectedOuter: [10, 10, changed && c.route === "outer-width" ? 50 : 100, 64],
+                 expectedTable: c.rescue ? [10, 10, changed ? 50 : 100, 32] : null});
+    }
+    for (const row of rows) {
+      assert_array_equals(row.visible, row.expected, `${row.stage}: independent visible calibration`);
+      assert_array_equals(row.outer, row.expectedOuter, `${row.stage}: outer-only flush calibration`);
+      if (c.rescue) {
+        assert_array_equals(row.visibleTable, row.expectedTable, `${row.stage}: visible table calibration`);
+      }
+    }
+    for (const row of rows) {
+      if (c.rescue) {
+        assert_array_equals(row.rescue, row.expectedTable, `${row.stage}: table-first query`);
+      }
+      assert_array_equals(row.first, row.expected, `${row.stage}: first selected query`);
+      assert_array_equals(row.repeat, row.expected, `${row.stage}: repeat selected query`);
+    }
+  }, c.name);
+}
+</script>

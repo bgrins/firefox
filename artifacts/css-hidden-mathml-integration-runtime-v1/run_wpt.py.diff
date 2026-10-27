@@ -1,0 +1,31 @@
+--- isolated/run_wpt.py
++++ integration/run_wpt.py
+@@ -116,15 +116,24 @@
+     events = [json.loads(line) for line in (directory / 'raw.json').read_text().splitlines()]
+     rows = [r for r in events if r.get('action') == 'test_status']
+     ends = [r for r in events if r.get('action') == 'test_end']
++    starts = [r for r in events if r.get('action') == 'test_start']
++    unexpected = [r for r in rows + ends if r['status'] != r.get('expected', r['status'])
++                  and r['status'] not in r.get('known_intermittent', [])]
+     expected = {'/' + str(Path(t).relative_to('testing/web-platform/tests')) for t in tests}
+-    complete = (code in (0,1) and len(ends) == len(tests) and {r['test'] for r in ends} == expected
++    complete = (code == 0 and not unexpected and len(starts) == len(tests)
++                and {r['test'] for r in starts} == expected and len(ends) == len(tests) and {r['test'] for r in ends} == expected
+                 and len({(r['test'],r['subtest']) for r in rows}) == len(rows)
+-                and all(r['test'] in expected and r['status'] in ('PASS','FAIL') for r in rows)
++                and all(r['test'] in expected and r['status'] in ('PASS','FAIL','TIMEOUT','NOTRUN','PRECONDITION_FAILED') for r in rows)
+                 and all(r['status'] == 'OK' for r in ends)
+                 and sum(r.get('action') == 'suite_end' for r in events) == 1)
+     for test in expected:
+-        complete = complete and [r['subtest'] for r in rows if r['test'] == test] == CONFIG['expected_subtests'][test]
+-    result = {'exit':code,'complete':complete,'before':before,'after':pins(paths),'rows':rows,'ends':ends}
++        selected = [r for r in rows if r['test'] == test]
++        if test in CONFIG['expected_subtests']:
++            complete = (complete and [r['subtest'] for r in selected] == CONFIG['expected_subtests'][test]
++                        and all(r['status'] == 'PASS' for r in selected))
++        else:
++            complete = complete and bool(selected)
++    result = {'exit':code,'complete':complete,'before':before,'after':pins(paths),'rows':rows,'ends':ends,'starts':starts,'unexpected':unexpected}
+     (directory/'RUN.json').write_text(json.dumps(result,indent=2)+'\n')
+     need(complete and before == result['after'], 'complete exact roster/stable pins')
+     faults=calibration_failures(rows)

@@ -1,0 +1,13 @@
+# Independent rectangle observation source review
+
+**PASS for the scoped abstract observation model.** Independently replayed the sealed capsule (FILES SHA256 9669113fef1864f472fb3f7dcbd9efa48336c76bb68efd77da61aabe6f14338e): all five modules compile, all eleven local theorem audits allow only propext/Quot.sound or no axioms, and both negative claims are rejected explicitly as false by kernel decide. The replay exited zero. Existing import sources remain unchanged and temporary compiler products were removed.
+
+The two review findings are corrected. successful_state ties the returned world to the actual conditional provider result, while successful_observation ties the emitted value to resolution in that returned world. marked.eligible is now computed from the marked Subtree witness; marked_eq invokes the existing clear-path theorem, so the positive first/repeat result uses derived admission rather than an independent manually true bit.
+
+Query/history erasure preserves the entire world, target identities and Option success/failure; only observations/logs change. Mutation, admission and force never consume the log, making the unrestricted non-injective erasure law valid. The existing TransitionMachine runner is reused. Deletion after forcing gives no successful abstract observation and terminates the history; no post-failure state or rollback is claimed.
+
+The positional witnesses are substantive. Both observed rectangles have dimensions40×16, but stale70,25 differs from reference30,10. The size-only provider clears eligibility just like the reference provider, yet both first and repeated observations remain wrong. The pre-force reader ends with the corrected world while returning stale geometry. These examples rule out the two erroneous abstract contracts; they do not verify Gecko's coordinate calculations.
+
+The accepted scope remains narrow: the reference provider's ancestor correction is stipulated, target identity/lifetime is an external correspondence obligation, the physical-to-Hidden.Size adapter is horizontal-only, and full Hidden.Frame/cache equivalence is not asserted. Aggregate offsets do not identify a native y-position setter. Fragments, transforms, scrolling, rounding, scheduling and complete CSSOM geometry remain outside the model. Capsule binding authenticates the retained c3 observation; empirical source/runtime evidence and kernel propositions remain distinct.
+
+Only this review artifact and its isolated Lean replay outputs were written. No native source, browser, native build or Git/index mutation occurred. The prior sealed design review remains unchanged.

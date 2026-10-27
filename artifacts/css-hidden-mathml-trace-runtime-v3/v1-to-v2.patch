@@ -1,0 +1,26 @@
+--- v1/run.py
++++ v2/run.py
+@@ -100,6 +100,9 @@
+ need(before['head'] == c['expected_head'], 'HEAD changed')
+ need(set(c['original_source_pins']) == set(c['instrumented_source_pins']) == set(c['sources']), 'five source roles')
+ need(all(before['sources'][n] == h for n, h in c['original_source_pins'].items()), 'working original source changed')
++need(len(c['mathml_source_pins']) == 6
++     and all(before['sources'][n] == h for n, h in c['mathml_source_pins'].items()),
++     'original MathML8 source binding changed')
+ need(wpt.pins(list(c['supporting_source_pins'])) == c['supporting_source_pins'], 'constructor/API source changed')
+ prior = (ROOT / args.restored_float_runtime).resolve()
+ need(ROOT / 'artifacts' in prior.parents and prior != HERE, 'prior receipt must be a separate artifact directory')
+@@ -185,6 +188,13 @@
+             'source_pins': wpt.pins(c['guard_sources']), 'binary_role': 'instrumented build',
+             'binary_pins': instrumented_binaries, 'test_sha256': owned_test_hash}
+         wpt.save('STATE.json', state)
++        record['lint_exit'] = wpt.command(phase + '-wpt-lint',
++            ['./mach', 'lint', '-l', 'wpt', *c['tests']])
++        wpt.save('STATE.json', state)
++        need(record['lint_exit'] == 0, 'scoped WPT lint failed ' + phase)
++        epoch(c['instrumented_source_pins'])
++        need(wpt.pins(list(phase_resources)) == phase_resources, 'lint changed phase resources')
++        need(wpt.pins(wpt.BINARIES) == instrumented_binaries, 'lint changed binaries')
+         record['wpt'] = wpt.test_run(phase, c['tests'], phase_resources)
+         run = json.loads((HERE / phase / 'RUN.json').read_text())
+         rows = {(r['test'], r['subtest']): (r['status'], r.get('message')) for r in run['rows']}

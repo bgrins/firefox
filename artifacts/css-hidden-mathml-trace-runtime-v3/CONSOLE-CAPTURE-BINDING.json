@@ -1,0 +1,95 @@
+{
+  "head": "90e7c8a3c46c5e84ec0bfffc239e52ea72b2085e",
+  "bindings": [
+    {
+      "path": "testing/web-platform/tests/tools/wptrunner/wptrunner/browsers/firefox.py",
+      "commit": "90e7c8a3c46c5e84ec0bfffc239e52ea72b2085e",
+      "sha256": "44d106e125c0012b8b7cd4afb34d89c68ca4187f43fdf5ff8518da80cffcd54e",
+      "current_equals_head": true,
+      "excerpts": [
+        {
+          "term": "if self.debug_test:\n            prefs[\"devtools.console.stdout.content\"]",
+          "text": "abled for all input sources.\n            prefs[\"remote.events.async.wheel.enabled\"] = True\n\n        if self.debug_test:\n            prefs[\"devtools.console.stdout.content\"] = True\n\n        return prefs\n\n    def _setup_ssl(self, profile):\n        \"\"\"Create a certificate database to use in the test profile. This is configured\n        to trust the CA Certificate that has signed the web-platform.test server\n        certificate.\"\"\"\n        if self.certutil_binary is None:\n            self.logger.info(\"--certutil-binary not supplied; Firefox will not check certificates\")\n            return\n\n        self.logger.info(\"Setting up ssl\")\n\n        # Make sure the certutil libraries from the source tree are loaded when using a\n        # local copy of ce"
+        },
+        {
+          "term": "preferences.add(self.extra_prefs, cast=True)",
+          "text": "e values provided via the command line\n        # need to be casted to the appropriate type.\n        preferences.add(self.extra_prefs, cast=True)\n\n        return preferences()\n\n    def _load_user_prefs(self, preferences):\n        pref_paths = []\n\n        profiles = os.path.join(self.prefs_root, 'profiles.json')\n        if os.path.isfile(profiles):\n            with open(profiles) as fh:\n                for name in json.load(fh)['web-platform-tests']:\n                    if self.browser_channel in (None, 'nightly'):\n                        pref_paths.append(os.path.join(self.prefs_root, name, 'user.js'))\n                    elif name != 'unittest-features':\n                        pref_paths.append(os.path.join(self.prefs_root, name, 'user.js'"
+        },
+        {
+          "term": "def _get_required_prefs(self):",
+          "text": "\n            else:\n                self.logger.warning(f\"Failed to find prefs file in {path}\")\n\n    def _get_required_prefs(self):\n        return {\n            \"fission.autostart\": not self.disable_fission,\n            \"network.dns.localDomains\": \",\".join(self.config.domains_set),\n        }\n\n    def _get_default_prefs(self):\n        \"\"\"Preferences that are applied to the profile of a test run.\n\n        These are not visible to \"run_info_extras\", which only sees preferences\n        given via \"--setpref\", so a run info flag does not reflect them.\n        \"\"\"\n        prefs = {\n            \"dom.file.createInChild\": True,\n            \"places.history.enabled\": False,\n        }\n\n        if self.test_type in (\"reftest\", \"print-reftest\"):\n          "
+        },
+        {
+          "term": "def _load_user_prefs(self, preferences):",
+          "text": "riate type.\n        preferences.add(self.extra_prefs, cast=True)\n\n        return preferences()\n\n    def _load_user_prefs(self, preferences):\n        pref_paths = []\n\n        profiles = os.path.join(self.prefs_root, 'profiles.json')\n        if os.path.isfile(profiles):\n            with open(profiles) as fh:\n                for name in json.load(fh)['web-platform-tests']:\n                    if self.browser_channel in (None, 'nightly'):\n                        pref_paths.append(os.path.join(self.prefs_root, name, 'user.js'))\n                    elif name != 'unittest-features':\n                        pref_paths.append(os.path.join(self.prefs_root, name, 'user.js'))\n        else:\n            self.logger.warning(f\"Failed to load profiles from "
+        }
+      ]
+    },
+    {
+      "path": "testing/web-platform/tests/tools/wptrunner/wptrunner/wptcommandline.py",
+      "commit": "90e7c8a3c46c5e84ec0bfffc239e52ea72b2085e",
+      "sha256": "d88530cd36b745a2740430c7891d22d03482c10449f6c42d70114e7a2d2ebff8",
+      "current_equals_head": true,
+      "excerpts": [
+        {
+          "term": "gecko_group.add_argument(\"--setpref\"",
+          "text": "cialpowers-path\",\n                             help=\"Path to specialPowers extension xpi file\")\n    gecko_group.add_argument(\"--setpref\", dest=\"extra_prefs\", action='append',\n                             default=[], metavar=\"PREF=VALUE\",\n                             help=\"Defines an extra user preference (overrides those in prefs_root)\")\n    gecko_group.add_argument(\"--reftest-internal\", action=\"store_true\",\n                             default=None, help=\"Enable reftest runner implemented inside Marionette\")\n    gecko_group.add_argument(\"--reftest-external\", dest=\"reftest_internal\", action=\"store_false\",\n                             help=\"Disable reftest runner implemented inside Marionette\")\n    gecko_group.add_argument(\"--reftest-screens"
+        },
+        {
+          "term": "kwargs['extra_prefs'] = [tuple(prefarg.split",
+          "text": "rences via --setpref must be in key=value format\", file=sys.stderr)\n            sys.exit(1)\n        kwargs['extra_prefs'] = [tuple(prefarg.split('=', 1)) for prefarg in\n                                 kwargs['extra_prefs']]\n\n    if kwargs[\"reftest_internal\"] is None:\n        kwargs[\"reftest_internal\"] = True\n\n    if kwargs[\"reftest_screenshot\"] is None:\n        kwargs[\"reftest_screenshot\"] = \"unexpected\" if not kwargs[\"debug_test\"] else \"always\"\n\n    if kwargs[\"preload_browser\"] is None:\n        # Default to preloading a gecko instance if we're only running a single process\n        kwargs[\"preload_browser\"] = kwargs[\"processes\"] == 1\n\n    if kwargs[\"tags\"] and kwargs[\"exclude_tags\"]:\n        contradictory = set(kwargs[\"tags\"]) & set(kwargs"
+        }
+      ]
+    },
+    {
+      "path": "testing/profiles/profiles.json",
+      "commit": "90e7c8a3c46c5e84ec0bfffc239e52ea72b2085e",
+      "sha256": "0a402bd731b9740c5750e8d9bc250f62ba97e42c2268d988fbaa1dfec5b04eab",
+      "current_equals_head": true,
+      "excerpts": [
+        {
+          "term": "\"web-platform-tests\"",
+          "text": "ttest-required\",\n    \"unittest-features\",\n    \"valgrind\"\n  ],\n  \"xpcshell\": [\"base\", \"xpcshell\"],\n  \"web-platform-tests\": [\n    \"base\",\n    \"common\",\n    \"unittest-required\",\n    \"unittest-features\",\n    \"web-platform\"\n  ]\n}\n"
+        }
+      ]
+    }
+  ],
+  "wpt_profile_files": [
+    {
+      "path": "testing/profiles/base/user.js",
+      "sha256": "81563a0bd651a139286d61b4623ed16e290d4884f8d45113d2c63f8bf7c3365c",
+      "current_equals_head": true,
+      "content_stdout_pref_lines": []
+    },
+    {
+      "path": "testing/profiles/common/user.js",
+      "sha256": "161648c7678e6ef8008f448435959afdf55d5c97fa544ec1134b50dc8e899d53",
+      "current_equals_head": true,
+      "content_stdout_pref_lines": []
+    },
+    {
+      "path": "testing/profiles/unittest-required/user.js",
+      "sha256": "1f0eeb6423559ee0d35e27f403f1d3fb41ddf6a704437b7cd5b1f6c33094d598",
+      "current_equals_head": true,
+      "content_stdout_pref_lines": []
+    },
+    {
+      "path": "testing/profiles/unittest-features/user.js",
+      "sha256": "73f7c530d1ca92e3f831c0215a1c4f3ff66225dd904c24fff7d65a05736287f9",
+      "current_equals_head": true,
+      "content_stdout_pref_lines": []
+    },
+    {
+      "path": "testing/profiles/web-platform/user.js",
+      "sha256": "e5a86e58238239b1c6f17509b6134bf09c76aea592500e160948e426f8c743b8",
+      "current_equals_head": true,
+      "content_stdout_pref_lines": []
+    }
+  ],
+  "root_help_evidence": {
+    "path": "artifacts/css-mathml-trace-wpt-help.txt",
+    "sha256": "384e5c9e7d10c9a5287bb2ece87e4f5d358b5364411c9c7c31974f8f282d8b7a",
+    "root_reported_exit": 0
+  },
+  "conclusion": "Local runner only adds content stdout under debug_test; selected WPT profiles do not set it. Explicit setpref is accepted and extra preferences are cast and merged after defaults."
+}

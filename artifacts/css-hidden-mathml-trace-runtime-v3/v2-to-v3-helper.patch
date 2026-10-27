@@ -1,0 +1,10 @@
+--- v2/run_wpt.py
++++ v3/run_wpt.py
+@@ -107,6 +107,7 @@
+         target.parent.mkdir(parents=True, exist_ok=True)
+         target.write_bytes((ROOT / name).read_bytes())
+     code = command(kind + '-wpt', ['./mach', 'wpt', '--headless', '--processes=1',
++                   '--setpref', 'devtools.console.stdout.content=true',
+                    '--log-raw=' + str(directory / 'raw.json'), *tests])
+     events = [json.loads(line) for line in (directory / 'raw.json').read_text().splitlines()]
+     rows = [r for r in events if r.get('action') == 'test_status']

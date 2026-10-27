@@ -1,0 +1,13 @@
+import MathMLRectObservation
+
+#print axioms CssSemantics.ProviderObservation.successful_observation
+#print axioms CssSemantics.ProviderObservation.successful_state
+#print axioms CssSemantics.ProviderObservation.query_erase
+#print axioms CssSemantics.ProviderObservation.advance_erase
+#print axioms CssSemantics.ProviderObservation.history_erase
+#print axioms MathMLRectObservation.marked_eq
+#print axioms MathMLRectObservation.equal_sizes_different_positions
+#print axioms MathMLRectObservation.whole_provider_first_repeat
+#print axioms MathMLRectObservation.size_only_clears_readiness_but_keeps_wrong_position
+#print axioms MathMLRectObservation.pre_force_read_has_updated_world_but_old_observation
+#print axioms MathMLRectObservation.deleted_target_has_no_successful_history

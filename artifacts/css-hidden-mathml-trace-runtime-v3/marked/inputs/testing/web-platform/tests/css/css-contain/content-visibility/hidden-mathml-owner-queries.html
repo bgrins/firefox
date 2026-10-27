@@ -1,0 +1,161 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MathML queries after a hidden RTL owner's length width changes</title>
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
+<link rel="help" href="https://drafts.csswg.org/cssom-view/#dom-element-getboundingclientrect">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; }
+.host { position: absolute; left: 10px; top: 10px; width: 200px; height: 64px; }
+.math-root { display: block; width: 200px; height: 40px; margin: 0; border: 0; padding: 0; direction: ltr; text-align: start; }
+.owner { width: 100px; height: 40px; direction: rtl; }
+.owner.narrow { width: 60px; }
+.owner.hidden { content-visibility: hidden; }
+mrow, mspace { margin: 0; border: 0; padding: 0; }
+</style>
+<body>
+<script>
+"use strict";
+const cases = [
+  {
+    "owner": "internal-mrow",
+    "query": "mrow",
+    "hidden": false,
+    "name": "MathML hidden query: internal-mrow, mrow-first, visible"
+  },
+  {
+    "owner": "internal-mrow",
+    "query": "mrow",
+    "hidden": true,
+    "name": "MathML hidden query: internal-mrow, mrow-first, hidden"
+  },
+  {
+    "owner": "internal-mrow",
+    "query": "mspace",
+    "hidden": false,
+    "name": "MathML hidden query: internal-mrow, mspace-first, visible"
+  },
+  {
+    "owner": "internal-mrow",
+    "query": "mspace",
+    "hidden": true,
+    "name": "MathML hidden query: internal-mrow, mspace-first, hidden"
+  },
+  {
+    "owner": "root-block",
+    "query": "mrow",
+    "hidden": false,
+    "name": "MathML hidden query: root-block, mrow-first, visible"
+  },
+  {
+    "owner": "root-block",
+    "query": "mrow",
+    "hidden": true,
+    "name": "MathML hidden query: root-block, mrow-first, hidden"
+  },
+  {
+    "owner": "root-block",
+    "query": "mspace",
+    "hidden": false,
+    "name": "MathML hidden query: root-block, mspace-first, visible"
+  },
+  {
+    "owner": "root-block",
+    "query": "mspace",
+    "hidden": true,
+    "name": "MathML hidden query: root-block, mspace-first, hidden"
+  }
+];
+window.hiddenMathMLQueryResults = [];
+const mathNS = "http://www.w3.org/1998/Math/MathML";
+function fixture(c, prefix) {
+  const host = document.createElement("div");
+  host.className = "host";
+  const math = document.createElementNS(mathNS, "math");
+  math.setAttribute("display", "block");
+  math.setAttribute("class", "math-root");
+  const owner = c.owner === "root-block" ? math : document.createElementNS(mathNS, "mrow");
+  owner.classList.add("owner");
+  const row = document.createElementNS(mathNS, "mrow");
+  const space = document.createElementNS(mathNS, "mspace");
+  space.setAttribute("width", "40px");
+  space.setAttribute("height", "16px");
+  space.setAttribute("depth", "0px");
+  row.append(space);
+  owner.append(row);
+  if (owner !== math) math.append(owner);
+  host.append(math);
+  host.id = `${prefix}-host`;
+  math.id = `${prefix}-root`;
+  owner.id = `${prefix}-owner`;
+  row.id = `${prefix}-mrow`;
+  space.id = `${prefix}-mspace`;
+  document.body.append(host);
+  return {host, owner, target: c.query === "mrow" ? row : space};
+}
+function rect(element) {
+  const r = element.getBoundingClientRect();
+  return [r.x, r.y, r.width, r.height];
+}
+function tracePhase(value) {
+  document.documentElement.setAttribute("title", value);
+  console.log(`HMQ_PHASE ${value}`);
+}
+for (const [index, c] of cases.entries()) {
+  test(t => {
+    assert_implements(CSS.supports("content-visibility", "hidden"));
+    tracePhase(`c${index}:setup`);
+    const target = fixture(c, `mathml-trace-c${index}-target`);
+    const peer = fixture(c, `mathml-trace-c${index}-peer`);
+    t.add_cleanup(() => { target.host.remove(); peer.host.remove(); });
+    const result = {name: c.name, rows: []};
+    window.hiddenMathMLQueryResults.push(result);
+    for (const stage of ["warm", "hide", "mutate", "show", "restore"]) {
+      tracePhase(`c${index}:${stage}:mutation`);
+      if (stage === "hide" && c.hidden) target.owner.classList.add("hidden");
+      if (stage === "mutate") {
+        target.owner.classList.add("narrow");
+        peer.owner.classList.add("narrow");
+      }
+      if (stage === "show") target.owner.classList.remove("hidden");
+      if (stage === "restore") {
+        target.owner.classList.remove("narrow");
+        peer.owner.classList.remove("narrow");
+      }
+      tracePhase(`c${index}:${stage}:outer`);
+      const outer = rect(target.host);
+      tracePhase(`c${index}:${stage}:first`);
+      const first = rect(target.target);
+      tracePhase(`c${index}:${stage}:repeat`);
+      const repeat = rect(target.target);
+      tracePhase(`c${index}:${stage}:visible`);
+      const visible = rect(peer.target);
+      tracePhase(`c${index}:${stage}:visibleOwner`);
+      const visibleOwner = rect(peer.owner);
+      result.rows.push({stage, outer, first, repeat, visible, visibleOwner,
+                        ownerWidth: stage === "mutate" || stage === "show" ? 60 : 100});
+    }
+    tracePhase(`c${index}:assertions`);
+    console.log(`HMQ_RESULT ${JSON.stringify({index, ...result})}`);
+    for (const row of result.rows) {
+      assert_array_equals(row.outer, [10, 10, 200, 64], `${row.stage}: calibration: outside HTML wrapper`);
+      assert_array_equals(row.visible.slice(2), [40, 16], `${row.stage}: calibration: visible selected MathML size`);
+      assert_array_equals(row.visibleOwner.slice(2), [row.ownerWidth, 40], `${row.stage}: calibration: explicit owner length size`);
+      assert_equals(row.visible[0] - row.visibleOwner[0], row.ownerWidth - 40,
+                    `${row.stage}: calibration: RTL child placement`);
+    }
+    assert_equals(result.rows[2].visible[0] - result.rows[0].visible[0], -40,
+                  "mutate: calibration: visible child moves by owner width delta");
+    for (const row of result.rows.filter(row => ["warm", "show", "restore"].includes(row.stage))) {
+      assert_array_equals(row.first, row.visible, `${row.stage}: calibration: visible target first query`);
+      assert_array_equals(row.repeat, row.visible, `${row.stage}: calibration: visible target repeat query`);
+    }
+    for (const row of result.rows.filter(row => ["hide", "mutate"].includes(row.stage))) {
+      const label = c.hidden ? "selected query" : "calibration: visible control";
+      assert_array_equals(row.first, row.visible, `${row.stage}: ${label}: first`);
+      assert_array_equals(row.repeat, row.visible, `${row.stage}: ${label}: repeat`);
+    }
+  }, c.name);
+}
+</script>

@@ -1,0 +1,9 @@
+# Isolated MathML runtime review
+
+Independent recount confirms **2 PASS / 2 FAIL → 4 PASS**, with exactly the two hidden internal-mrow cases repaired and both visible controls retained. Each phase has four unique ordered raw subtests and one OK file end. Failure messages match the predeclared first-assertion oracle exactly; they do not separately enumerate later baseline assertions.
+
+The 243-payload runtime manifest authenticates. Each phase joins all 34 source guards, nine supporting source files, captured test/resource inputs and two pre/post-stable binary hashes. All 25 normalized sources use saved HEAD bodies in the baseline. The sole nonbinary phase delta is the one MarkSubtreeDirty call in nsMathMLContainerFrame::Reflow. Accepted block/column/Grid overlays and older prototypes are absent in both tested phases. The final four-case HTML is unchanged between phases and matches the standalone landing proposal.
+
+Historical restoration authenticates: BEFORE, FINAL and INPUTS.before agree, all 25 original source copies match, the sealed root receipt confirms 34 live guards, exact 925 staged payloads/index preservation, resource/test checks and temporary-test removal at completion. Both phase builds and restoration exited zero. The restore log contains a resource-monitor KeyError alongside its successful-build marker; this is retained as a log limitation. Restored binaries are pinned by the root receipt. This review does not assert the current live tree or binaries after subsequent work.
+
+This passes the isolated comparison gate. It establishes the two observed repairs without the accepted block repair; the broader original eight-case/integration controls remain a separate gate. It is not a universal MathML provider, frame-lifetime or coordinate-space proof, and does not itself change native acceptance status. No browser, build, compiler, native source or Git/index write was performed.

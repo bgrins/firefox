@@ -1,0 +1,72 @@
+--- float-standalone/bindings.py
++++ mathml/bindings.py
+@@ -22,50 +22,28 @@
+              "payload changed " + name)
+ 
+ def prerequisites():
+-    references = json.loads((HERE / "REFERENCES.json").read_text())
+-    authenticate(references, ROOT)
+-    runtime = ROOT / "artifacts/css-hidden-query-landing-runtime-v1"
+-    state = json.loads((runtime / "STATE.json").read_text())
+-    need(state["status"] == "terminal" and state["restored"]
+-         and state["restore_build_exit"] == 0 and not state["recovery_errors"]
+-         and "failure" not in state, "prior campaign not restored")
+-    need((runtime / "BEFORE.json").read_bytes() == (runtime / "FINAL.json").read_bytes(),
+-         "prior historical restoration differs")
+-    installed = ROOT / "artifacts/css-hidden-query-installed-v1"
+-    result = json.loads((installed / "RESULT.json").read_text())
+-    build = json.loads((installed / "BUILD.json").read_text())
+-    need(result["status"] == "PASS" and result["pass"] == 79 and result["fail"] == 0
+-         and result["before"] == result["after"] and build["exit"] == 0
+-         and build["source_and_resource_pins_stable"], "installed integration gate")
+-    acceptance = json.loads((ROOT / "artifacts/css-hidden-query-landing-acceptance-v1/ACCEPTANCE.json").read_text())
+-    need(acceptance["status"] == "ACCEPTED_BOUNDED_NATIVE_REPAIRS",
+-         "three prerequisite repairs not accepted")
+-    runtime = ROOT / "artifacts/css-hidden-float-runtime-v1"
+-    state = json.loads((runtime / "STATE.json").read_text())
+-    need(state["status"] == "terminal" and state["restored"]
+-         and state["restore_build_exit"] == 0 and not state["recovery_errors"]
+-         and "failure" not in state, "float comparison not restored")
+-    need((runtime / "BEFORE.json").read_bytes() == (runtime / "FINAL.json").read_bytes(),
+-         "float comparison restoration differs")
+-    mathml = ROOT / "artifacts/css-hidden-mathml-fixture-check-v1"
+-    state = json.loads((mathml / "STATE.json").read_text())
+-    need(state["status"] == "terminal" and state["restored"]
+-         and not state["cleanup_errors"] and "failure" not in state,
+-         "MathML diagnostic not restored")
+-    need((mathml / "BEFORE.json").read_bytes() == (mathml / "FINAL.json").read_bytes(),
+-         "MathML diagnostic restoration differs")
++    authenticate(json.loads((HERE / "REFERENCES.json").read_text()), ROOT)
++    for directory in ["artifacts/css-hidden-float-standalone-runtime-v1",
++                      "artifacts/css-hidden-mathml-trace-runtime-v3"]:
++        runtime = ROOT / directory
++        state = json.loads((runtime / "STATE.json").read_text())
++        need(state["status"] == "terminal" and state["restored"]
++             and state["restore_build_exit"] == 0 and not state["recovery_errors"]
++             and "failure" not in state, "prior campaign not restored " + directory)
++        need((runtime / "BEFORE.json").read_bytes() == (runtime / "FINAL.json").read_bytes(),
++             "prior historical restoration differs " + directory)
+ 
+ def restored_epoch(wpt):
+-    runtime = ROOT / "artifacts/css-hidden-float-runtime-v1"
+-    mathml = ROOT / "artifacts/css-hidden-mathml-fixture-check-v1"
+-    expected = json.loads((runtime / "FINAL.json").read_text())
+-    math_final = json.loads((mathml / "FINAL.json").read_text())
+-    math_final["sources"] = {name: math_final["sources"][name]
+-                             for name in wpt.CONFIG["guard_sources"]}
+-    need(wpt.snapshot() == expected == math_final, "restored source/HEAD/index epoch changed")
+-    binaries = json.loads((mathml / "INPUTS.json").read_text())["binaries"]
++    trace = ROOT / "artifacts/css-hidden-mathml-trace-runtime-v3"
++    expected = json.loads((trace / "FINAL.json").read_text())
++    now = wpt.snapshot()
++    need(now == expected, "restored trace source/HEAD/index epoch changed")
++    prior = json.loads((ROOT / "artifacts/css-hidden-float-standalone-runtime-v1/FINAL.json").read_text())
++    projection = {**now, "sources": {name: now["sources"][name] for name in prior["sources"]}}
++    need(projection == prior, "restored 29-source original roles differ")
++    binaries = json.loads((trace / "STATE.json").read_text())["restored_binary_pins"]
+     need(set(binaries) == set(wpt.BINARIES) and wpt.pins(wpt.BINARIES) == binaries,
+-         "restored binary epoch changed")
++         "restored uninstrumented binary epoch changed")
+     return binaries
+ 
+ def index_state(wpt, verify_payloads=True):

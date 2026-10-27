@@ -1,0 +1,1 @@
+Root-reviewed v4 trace wrapper. Run only after runtime-v2 terminal restoration. Original control requires lint0; marked diagnostic accepts only exact retained console-lint errors, records the exception, and is never a landing WPT. Five traced sources are restored and rebuilt in finally. No native repair.

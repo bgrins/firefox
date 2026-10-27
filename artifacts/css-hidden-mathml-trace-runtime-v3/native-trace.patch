@@ -1,0 +1,227 @@
+--- a/layout/generic/nsIFrame.h
++++ b/layout/generic/nsIFrame.h
+@@ -2795,6 +2795,10 @@
+    */
+   void MarkSubtreeDirty();
+ 
++  void TraceHiddenMathML(const char* aEvent,
++                         const mozilla::ReflowOutput* aOutput = nullptr,
++                         nscoord aX = 0, nscoord aY = 0) const;
++
+   void MarkPrincipalChildrenDirty();
+ 
+   /**
+--- a/layout/generic/nsIFrame.cpp
++++ b/layout/generic/nsIFrame.cpp
+@@ -5,6 +5,10 @@
+ /* base class of all rendering objects */
+ 
+ #include "nsIFrame.h"
++
++#include <cstdio>
++
++#include "mozilla/dom/Document.h"
+ 
+ #include <stdarg.h>
+ 
+@@ -6605,6 +6609,53 @@
+   }
+ }
+ 
++void nsIFrame::TraceHiddenMathML(const char* aEvent,
++                                const ReflowOutput* aOutput,
++                                nscoord aX, nscoord aY) const {
++  const auto* content = GetContent();
++  if (!content || !content->IsElement()) {
++    return;
++  }
++  const auto* element = content->AsElement();
++  nsAutoString id;
++  element->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
++  if (!StringBeginsWith(id, u"mathml-trace-"_ns)) {
++    return;
++  }
++  nsAutoString phase;
++  if (const auto* root = content->OwnerDoc()->GetRootElement()) {
++    root->GetAttr(kNameSpaceID_None, nsGkAtoms::title, phase);
++  }
++  const auto* parent = GetInFlowParent();
++  const auto* kid = PrincipalChildList().FirstChild();
++  const auto rect = GetRect();
++  std::fprintf(stderr,
++      "HMQ_NATIVE event=%s phase=%s id=%s frame=%p parent=%p inflow=%p "
++      "class=%u type=%u primary=%d dirty=%d dirtyChildren=%d subtree=%d "
++      "inReflow=%d firstReflow=%d hides=%d hiddenParent=%d forcing=%d "
++      "parentForcing=%d kid=%p kidDirty=%d kidSubtree=%d "
++      "rect=%d,%d,%d,%d output=%d size=%d,%d ascent=%d bm=%d,%d,%d "
++      "args=%d,%d\n",
++      aEvent, NS_ConvertUTF16toUTF8(phase).get(), NS_ConvertUTF16toUTF8(id).get(),
++      static_cast<const void*>(this), static_cast<const void*>(GetParent()),
++      static_cast<const void*>(parent), unsigned(GetClassID()), unsigned(Type()),
++      element->GetPrimaryFrame() == this,
++      HasAnyStateBits(NS_FRAME_IS_DIRTY),
++      HasAnyStateBits(NS_FRAME_HAS_DIRTY_CHILDREN), IsSubtreeDirty(),
++      HasAnyStateBits(NS_FRAME_IN_REFLOW), HasAnyStateBits(NS_FRAME_FIRST_REFLOW),
++      HidesContentForLayout(), IsHiddenByContentVisibilityOfInFlowParentForLayout(),
++      PresShell()->IsForcingLayoutForHiddenContent(this),
++      parent && PresShell()->IsForcingLayoutForHiddenContent(parent),
++      static_cast<const void*>(kid), kid && kid->HasAnyStateBits(NS_FRAME_IS_DIRTY),
++      kid && kid->IsSubtreeDirty(), rect.x, rect.y, rect.width, rect.height,
++      bool(aOutput), aOutput ? aOutput->Width() : 0,
++      aOutput ? aOutput->Height() : 0,
++      aOutput ? aOutput->BlockStartAscent() : 0,
++      aOutput ? aOutput->mBoundingMetrics.width : 0,
++      aOutput ? aOutput->mBoundingMetrics.ascent : 0,
++      aOutput ? aOutput->mBoundingMetrics.descent : 0, aX, aY);
++}
++
+ void nsIFrame::MarkSubtreeDirty() {
+   if (HasAnyStateBits(NS_FRAME_IS_DIRTY)) {
+     return;
+@@ -7820,9 +7871,11 @@
+ void nsIFrame::DidReflow(nsPresContext* aPresContext,
+                          const ReflowInput* aReflowInput) {
+   NS_FRAME_TRACE(NS_FRAME_TRACE_CALLS, ("nsIFrame::DidReflow"));
++  TraceHiddenMathML("did-enter");
+ 
+   if (IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
+     RemoveStateBits(NS_FRAME_IN_REFLOW);
++    TraceHiddenMathML("did-hidden-return");
+     return;
+   }
+ 
+@@ -7830,6 +7883,7 @@
+ 
+   RemoveStateBits(NS_FRAME_IN_REFLOW | NS_FRAME_FIRST_REFLOW |
+                   NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN);
++  TraceHiddenMathML("did-cleared");
+ 
+   // Clear bits that were used in ReflowInput::InitResizeFlags (see
+   // comment there for why we can't clear it there).
+--- a/layout/mathml/nsMathMLContainerFrame.cpp
++++ b/layout/mathml/nsMathMLContainerFrame.cpp
+@@ -49,6 +49,7 @@
+ void nsMathMLContainerFrame::SaveReflowAndBoundingMetricsFor(
+     nsIFrame* aFrame, const ReflowOutput& aReflowOutput,
+     const nsBoundingMetrics& aBoundingMetrics) {
++  aFrame->TraceHiddenMathML("cache-output", &aReflowOutput);
+   ReflowOutput* reflowOutput = new ReflowOutput(aReflowOutput);
+   reflowOutput->mBoundingMetrics = aBoundingMetrics;
+   aFrame->SetProperty(HTMLReflowOutputProperty(), reflowOutput);
+@@ -165,6 +166,7 @@
+     MOZ_ASSERT(!aFlags.contains(PlaceFlag::DoNotAdjustForWidthAndHeight));
+     auto width = *aSizes.width;
+     auto oldWidth = aReflowOutput.Width();
++    TraceHiddenMathML("adjust-before", &aReflowOutput, width, oldWidth);
+     if (IsMathContentBoxHorizontallyCentered()) {
+       shiftX = (width - oldWidth) / 2;
+     } else if (GetWritingMode().IsBidiRTL()) {
+@@ -182,6 +184,7 @@
+     auto height = *aSizes.height;
+     aReflowOutput.Height() = height;
+   }
++  TraceHiddenMathML("adjust-after", &aReflowOutput, shiftX);
+   return shiftX;
+ }
+ 
+@@ -829,7 +832,9 @@
+                                     ReflowOutput& aDesiredSize,
+                                     const ReflowInput& aReflowInput,
+                                     nsReflowStatus& aStatus) {
++  TraceHiddenMathML("math-enter", &aDesiredSize);
+   if (IsHiddenByContentVisibilityOfInFlowParentForLayout()) {
++    TraceHiddenMathML("math-hidden-return", &aDesiredSize);
+     return;
+   }
+ 
+@@ -851,10 +856,13 @@
+     WritingMode wm = childFrame->GetWritingMode();
+     LogicalSize availSize = aReflowInput.ComputedSize(wm);
+     availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
++    childFrame->TraceHiddenMathML("before-input", &childDesiredSize);
+     ReflowInput childReflowInput(aPresContext, aReflowInput, childFrame,
+                                  availSize);
++    childFrame->TraceHiddenMathML("after-input", &childDesiredSize);
+     ReflowChild(childFrame, aPresContext, childDesiredSize, childReflowInput,
+                 childStatus);
++    childFrame->TraceHiddenMathML("after-child-reflow", &childDesiredSize);
+     // NS_ASSERTION(childStatus.IsComplete(), "bad status");
+     SaveReflowAndBoundingMetricsFor(childFrame, childDesiredSize,
+                                     childDesiredSize.mBoundingMetrics);
+@@ -916,6 +924,7 @@
+   /////////////
+   // Place children now by re-adjusting the origins to align the baselines
+   FinalizeReflow(drawTarget, aDesiredSize);
++  TraceHiddenMathML("math-finalized", &aDesiredSize);
+ }
+ 
+ static nscoord AddInterFrameSpacingToSize(ReflowOutput& aDesiredSize,
+@@ -1310,6 +1319,7 @@
+   while (child.Frame()) {
+     nscoord dx = aOffsetX + child.X() + child.Margin().left;
+     nscoord dy = aBaseline - child.Ascent();
++    child.Frame()->TraceHiddenMathML("place-child", &child.GetReflowOutput(), dx, dy);
+     FinishReflowChild(child.Frame(), PresContext(), child.GetReflowOutput(),
+                       nullptr, dx, dy, ReflowChildFlags::Default);
+     ++child;
+--- a/layout/generic/nsContainerFrame.cpp
++++ b/layout/generic/nsContainerFrame.cpp
+@@ -819,6 +819,7 @@
+              "only the logical version supports ApplyRelativePositioning "
+              "since ApplyRelativePositioning requires the container size");
+ 
++  aKidFrame->TraceHiddenMathML("publish-before", &aDesiredSize, aX, aY);
+   nsPoint pos(aX, aY);
+   nsSize size(aDesiredSize.PhysicalSize());
+ 
+@@ -829,6 +830,7 @@
+     aKidFrame->SetSize(size);
+   }
+ 
++  aKidFrame->TraceHiddenMathML("publish-after", &aDesiredSize, aX, aY);
+   aKidFrame->DidReflow(aPresContext, aReflowInput);
+ }
+ 
+--- a/layout/base/PresShell.cpp
++++ b/layout/base/PresShell.cpp
+@@ -13105,12 +13105,14 @@
+   if (!aFrame) {
+     return;
+   }
++  aFrame->TraceHiddenMathML("query-enter");
+   if (!aFrame->IsSubtreeDirty()) {
+     nsIFrame* provider = aFrame;
+     if (provider->IsTableColFrame()) {
+       provider = provider->GetParent();
+     }
+     if (!provider || !provider->IsTableColGroupFrame()) {
++      aFrame->TraceHiddenMathML("query-clean-reject");
+       return;
+     }
+     provider = provider->GetParent();
+@@ -13119,12 +13121,14 @@
+     }
+   }
+ 
++  aFrame->TraceHiddenMathML("query-admitted");
+   nsIFrame* topmostFrameWithContentHidden = nullptr;
+   for (nsIFrame* cur = aFrame->GetInFlowParent(); cur;
+        cur = cur->GetInFlowParent()) {
+     if (cur->HidesContent()) {
+       topmostFrameWithContentHidden = cur;
+       mHiddenContentInForcedLayout.Insert(cur->GetContent());
++      cur->TraceHiddenMathML("query-hidden-ancestor");
+     }
+   }
+ 
+@@ -13134,8 +13138,10 @@
+ 
+   // Queue and immediately flush a reflow for this node.
+   MOZ_ASSERT(topmostFrameWithContentHidden);
++  topmostFrameWithContentHidden->TraceHiddenMathML("query-before-schedule");
+   FrameNeedsReflow(topmostFrameWithContentHidden, IntrinsicDirty::None,
+                    NS_FRAME_IS_DIRTY);
++  topmostFrameWithContentHidden->TraceHiddenMathML("query-after-schedule");
+ }
+ 
+ void PresShell::EnsureReflowIfFrameHasHiddenContent(nsIFrame* aFrame) {

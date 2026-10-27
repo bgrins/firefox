@@ -1,0 +1,49 @@
+>>>  781: void nsMathMLContainerFrame::ReflowChild(nsIFrame* aChildFrame,
+     782:                                          nsPresContext* aPresContext,
+     783:                                          ReflowOutput& aDesiredSize,
+     784:                                          const ReflowInput& aReflowInput,
+     785:                                          nsReflowStatus& aStatus) {
+     786:   // Having foreign/hybrid children, e.g., from html markups, is not defined by
+     787:   // the MathML spec. But it can happen in practice, e.g., <html:img> allows us
+     788:   // to do some cool demos... or we may have a child that is an nsInlineFrame
+     789:   // from a generated content such as :before { content: open-quote } or
+     790:   // :after { content: close-quote }. Unfortunately, the other frames out-there
+     791:   // may expect their own invariants that are not met when we mix things.
+     792:   // Hence we do not claim their support, but we will nevertheless attempt to
+     793:   // keep them in the flow, if we can get their desired size. We observed that
+     794:   // most frames may be reflowed generically, but nsInlineFrames need extra
+     795:   // care.
+     796: 
+     797:   NS_ASSERTION(!aChildFrame->IsInlineFrameOrSubclass(),
+     798:                "Inline frames should be wrapped in blocks");
+     799: 
+     800:   nsContainerFrame::ReflowChild(aChildFrame, aPresContext, aDesiredSize,
+     801:                                 aReflowInput, 0, 0,
+     802:                                 ReflowChildFlags::NoMoveFrame, aStatus);
+     803: 
+     804:   if (aDesiredSize.BlockStartAscent() == ReflowOutput::ASK_FOR_BASELINE) {
+     805:     // This will be suitable for inline frames, which are wrapped in a block.
+     806:     nscoord ascent;
+     807:     WritingMode wm = aDesiredSize.GetWritingMode();
+     808:     if (!nsLayoutUtils::GetLastLineBaseline(wm, aChildFrame, &ascent)) {
+     809:       // We don't expect any other block children so just place the frame on
+     810:       // the baseline instead of going through DidReflow() and
+     811:       // GetBaseline().  This is what nsIFrame::GetBaseline() will do anyway.
+     812:       aDesiredSize.SetBlockStartAscent(aDesiredSize.BSize(wm));
+     813:     } else {
+     814:       aDesiredSize.SetBlockStartAscent(ascent);
+     815:     }
+     816:   }
+     817:   if (IsForeignChild(aChildFrame)) {
+     818:     // use ComputeTightBounds API as aDesiredSize.mBoundingMetrics is not set.
+     819:     nsRect r = aChildFrame->ComputeTightBounds(
+     820:         aReflowInput.mRenderingContext->GetDrawTarget());
+     821:     aDesiredSize.mBoundingMetrics.leftBearing = r.x;
+     822:     aDesiredSize.mBoundingMetrics.rightBearing = r.XMost();
+     823:     aDesiredSize.mBoundingMetrics.ascent =
+     824:         aDesiredSize.BlockStartAscent() - r.y;
+     825:     aDesiredSize.mBoundingMetrics.descent =
+     826:         r.YMost() - aDesiredSize.BlockStartAscent();
+     827:     aDesiredSize.mBoundingMetrics.width = aDesiredSize.Width();
+     828:   }
+     829: }

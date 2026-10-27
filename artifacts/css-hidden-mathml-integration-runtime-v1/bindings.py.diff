@@ -1,0 +1,69 @@
+--- isolated/bindings.py
++++ integration/bindings.py
+@@ -22,28 +22,35 @@
+              "payload changed " + name)
+ 
+ def prerequisites():
+-    authenticate(json.loads((HERE / "REFERENCES.json").read_text()), ROOT)
+-    for directory in ["artifacts/css-hidden-float-standalone-runtime-v1",
+-                      "artifacts/css-hidden-mathml-trace-runtime-v3"]:
+-        runtime = ROOT / directory
+-        state = json.loads((runtime / "STATE.json").read_text())
+-        need(state["status"] == "terminal" and state["restored"]
+-             and state["restore_build_exit"] == 0 and not state["recovery_errors"]
+-             and "failure" not in state, "prior campaign not restored " + directory)
+-        need((runtime / "BEFORE.json").read_bytes() == (runtime / "FINAL.json").read_bytes(),
+-             "prior historical restoration differs " + directory)
++    references = json.loads((HERE / "REFERENCES.json").read_text())
++    prior = "artifacts/css-hidden-mathml-repair-runtime-v1"
++    need(all(prior + "/" + name in references
++             for name in ["FILES.json", "STATE.json", "BEFORE.json", "FINAL.json", "ROOT-FINAL-CHECK.json"]),
++         "actual terminal repair pins not supplied")
++    authenticate(references, ROOT)
++    runtime = ROOT / prior
++    state = json.loads((runtime / "STATE.json").read_text())
++    need(state["status"] == "terminal" and state["restored"]
++         and state["restore_build_exit"] == 0 and not state["recovery_errors"]
++         and "failure" not in state, "isolated repair campaign not restored")
++    need((runtime / "BEFORE.json").read_bytes() == (runtime / "FINAL.json").read_bytes(),
++         "isolated repair restoration differs")
++    for phase, counts in [("baseline", {"PASS": 2, "FAIL": 2}),
++                          ("mathml-only", {"PASS": 4, "FAIL": 0})]:
++        need(state["phases"][phase]["status_counts"] == counts
++             and state["phases"][phase]["expected_outcomes_match"],
++             "isolated repair correctness gate " + phase)
+ 
+ def restored_epoch(wpt):
+-    trace = ROOT / "artifacts/css-hidden-mathml-trace-runtime-v3"
+-    expected = json.loads((trace / "FINAL.json").read_text())
+-    now = wpt.snapshot()
+-    need(now == expected, "restored trace source/HEAD/index epoch changed")
+-    prior = json.loads((ROOT / "artifacts/css-hidden-float-standalone-runtime-v1/FINAL.json").read_text())
+-    projection = {**now, "sources": {name: now["sources"][name] for name in prior["sources"]}}
+-    need(projection == prior, "restored 29-source original roles differ")
+-    binaries = json.loads((trace / "STATE.json").read_text())["restored_binary_pins"]
++    prior = ROOT / "artifacts/css-hidden-mathml-repair-runtime-v1"
++    expected = json.loads((prior / "FINAL.json").read_text())
++    need(wpt.snapshot() == expected, "restored repair source/HEAD/index epoch changed")
++    receipt = json.loads((prior / "ROOT-FINAL-CHECK.json").read_text())
++    need(receipt["state_sha256"] == sha(prior / "STATE.json")
++         and receipt["final_sha256"] == sha(prior / "FINAL.json"), "root restoration receipt differs")
++    binaries = receipt["restored_binary_pins"]
+     need(set(binaries) == set(wpt.BINARIES) and wpt.pins(wpt.BINARIES) == binaries,
+-         "restored uninstrumented binary epoch changed")
++         "actual rebuilt binary epoch changed")
+     return binaries
+ 
+ def index_state(wpt, verify_payloads=True):
+@@ -94,3 +101,11 @@
+         if name in c["tracked_tests"]:
+             need(wpt.git("show", "HEAD:" + name) == (ROOT / name).read_bytes(),
+                  "tracked test HEAD role changed " + name)
++
++    regression_tracked = wpt.git("ls-files", "--", *c["regression_tests"]).decode().splitlines()
++    need(set(regression_tracked) == set(c["regression_tests"]) and len(regression_tracked) == 8,
++         "regression tracked-file roster changed")
++    for name, pin in c["regression_test_pins"].items():
++        need(stat.S_ISREG((ROOT / name).lstat().st_mode) and sha(ROOT / name) == pin
++             and hashlib.sha256(wpt.git("show", "HEAD:" + name)).hexdigest() == pin,
++             "read-only regression test changed " + name)
