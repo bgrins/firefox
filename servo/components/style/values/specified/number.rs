@@ -482,7 +482,7 @@ impl Integer {
             Unpacked::Inline((), v) => v,
             Unpacked::Boxed(calc) => {
                 let value = calc.as_number()?.get();
-                (value + 0.5).floor() as CSSInteger
+                (f64::from(value) + 0.5).floor() as CSSInteger
             },
         })
     }
@@ -579,7 +579,7 @@ impl ToComputedValue for Integer {
                     },
                 });
                 let clamped = crate::values::normalize(value).min(f32::MAX).max(f32::MIN);
-                (clamped + 0.5).floor() as i32
+                (f64::from(clamped) + 0.5).floor() as i32
             },
         }
     }

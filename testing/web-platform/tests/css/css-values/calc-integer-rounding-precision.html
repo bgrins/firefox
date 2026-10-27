@@ -1,0 +1,83 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Integer math rounding preserves exact integers and half neighbors</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#integers">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#numeric-functions">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const cases = [
+  ["8388609", "8388609"],
+  ["-8388609", "-8388609"],
+  ["calc(8388609)", "8388609"],
+  ["calc(-8388609)", "-8388609"],
+  ["calc(8388608 + 1)", "8388609"],
+  ["calc(-8388608 - 1)", "-8388609"],
+  ["calc(0.4999999701976776123046875)", "0"],
+  ["calc(0.5)", "1"],
+  ["calc(0.500000059604644775390625)", "1"],
+  ["calc(-0.500000059604644775390625)", "-1"],
+  ["calc(-0.5)", "0"],
+  ["calc(-0.4999999701976776123046875)", "0"],
+  ["calc(1.5)", "2"],
+  ["calc(-1.5)", "-1"],
+  ["calc(2147483647)", "2147483647"],
+  ["calc(-2147483648)", "-2147483648"],
+];
+for (const property of ["z-index", "order"]) {
+  for (const [specified, expected] of cases) {
+    test(t => {
+      const element = document.createElement("div");
+      document.body.append(element);
+      t.add_cleanup(() => element.remove());
+      element.style.setProperty(property, expected);
+      assert_equals(getComputedStyle(element).getPropertyValue(property), expected,
+                    "literal reference calibration");
+      element.style.removeProperty(property);
+      element.style.setProperty(property, specified);
+      assert_not_equals(element.style.getPropertyValue(property), "", "declaration accepted");
+      const first = getComputedStyle(element).getPropertyValue(property);
+      const repeat = getComputedStyle(element).getPropertyValue(property);
+      assert_equals(first, expected, "first rounded integer");
+      assert_equals(repeat, expected, "repeat rounded integer");
+    }, `${property}: ${specified} rounds to ${expected}`);
+  }
+  test(t => {
+    const element = document.createElement("div");
+    document.body.append(element);
+    t.add_cleanup(() => element.remove());
+    element.style.setProperty(property, "calc(8388608 + sign(1em - 16px))");
+    assert_not_equals(element.style.getPropertyValue(property), "", "context declaration accepted");
+    for (const [fontSize, expected] of [[16, "8388608"], [32, "8388609"], [16, "8388608"]]) {
+      element.style.fontSize = `${fontSize}px`;
+      assert_equals(getComputedStyle(element).fontSize, `${fontSize}px`, "font calibration");
+      const first = getComputedStyle(element).getPropertyValue(property);
+      const repeat = getComputedStyle(element).getPropertyValue(property);
+      assert_equals(first, expected, `first rounded integer at ${fontSize}px`);
+      assert_equals(repeat, expected, `repeat rounded integer at ${fontSize}px`);
+    }
+  }, `${property}: context-dependent integer changes with font size`);
+}
+for (const [specified, expected] of [
+  ["steps(8388609)", "steps(8388609)"],
+  ["steps(calc(8388609))", "steps(8388609)"],
+  ["steps(calc(1.5))", "steps(2)"],
+]) {
+  test(t => {
+    const element = document.createElement("div");
+    document.body.append(element);
+    t.add_cleanup(() => element.remove());
+    element.style.animationTimingFunction = expected;
+    assert_equals(getComputedStyle(element).animationTimingFunction, expected,
+                  "literal steps calibration");
+    element.style.animationTimingFunction = "";
+    element.style.animationTimingFunction = specified;
+    assert_not_equals(element.style.animationTimingFunction, "", "steps declaration accepted");
+    const first = getComputedStyle(element).animationTimingFunction;
+    const repeat = getComputedStyle(element).animationTimingFunction;
+    assert_equals(first, expected, "first rounded steps");
+    assert_equals(repeat, expected, "repeat rounded steps");
+  }, `animation-timing-function: ${specified} computes to ${expected}`);
+}
+</script>
