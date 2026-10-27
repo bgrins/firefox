@@ -1,0 +1,29 @@
+--- raw-partial-v1/check.py
++++ raw-partial-v2/check.py
+@@ -15,14 +15,14 @@
+ 
+ ROOT = Path(__file__).resolve().parents[2]
+ HERE = Path(__file__).resolve().parent
+-PROPOSAL = ROOT / 'artifacts/css-attr-raw-nested-repair-v1'
+-PARENT = 'cc636a8068e3a8a49b5643d065650d675d0a4e76'
++PROPOSAL = ROOT / 'artifacts/css-attr-raw-nested-repair-v2'
++PARENT = 'bb88e8e6b31de9b832e896110e39504d68020c71'
+ PREREQUISITE = 'aa3f0588538800300df20a2f7de40ce8ac2ffec1'
+ CASCADE = 'servo/components/style/properties/cascade.rs'
+ HELPER = 'servo/components/style/custom_properties.rs'
+ EXISTING_WPT = 'testing/web-platform/tests/css/css-values/attr-cycle.html'
+ WPT = 'testing/web-platform/tests/css/css-values/attr-raw-nested-cycle.html'
+-WPT_SHA = '1bdb97be472700e499e7abc27bf38a7249fbcd14d6b45a366ba5500fb3f7bf46'
++WPT_SHA = 'e62be068c0a82b5670e99b9d31d5c2142a86d8fde843fc968c64be07b3e51a42'
+ SIGNERS = 'artifacts/css-local-signing-20261027-v1/allowed-signers'
+ ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+ GIT = ['git', '--no-optional-locks', '-c', 'core.fsmonitor=false']
+@@ -84,7 +84,7 @@
+ def staged_plan(env, parent):
+     assert git('rev-parse', 'HEAD').decode().strip() == parent
+     assert not git('diff', '--cached', '--name-only')
+-    assert sha(PROPOSAL / 'FILES.json') == '0f3b2b6d970fc0a5ffca89190d97726b8eacdd121f574b14a2b5e735a1828866'
++    assert sha(PROPOSAL / 'FILES.json') == '3ec8cab27096244ce30b8cbaea3af19f73c542a5658f9d9b9fbe9c396fd6ba79'
+     manifest = read(PROPOSAL / 'FILES.json')
+     for name, pin in manifest.get('files', manifest).items():
+         assert sha(PROPOSAL / name) == (pin['sha256'] if isinstance(pin, dict) else pin), name

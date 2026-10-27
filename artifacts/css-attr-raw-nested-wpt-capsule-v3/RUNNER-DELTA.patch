@@ -1,0 +1,84 @@
+--- v2/assess.py
++++ v3/assess.py
+@@ -96,5 +96,5 @@
+             "unexpected": unexpected, "infrastructure_faults": faults,
+             "regression_signature": regression, "comparison_errors": comparison_errors,
+             "comparison_gate_passed": original is not None and not errors and not comparison_errors,
+-            "subtest_cardinality_policy": "Exact 66 target and 329 regression identities in both phases; regression outcome/expectation/intermittent signatures must match",
+-            "oracle_caveat": "Both phases use the same explicitly corrected attr-cycle oracle and new raw-nested fixture; two historical oracle changes are documented in the sealed proposal. Existing metadata is unchanged."}
++            "subtest_cardinality_policy": "Exact 73 target and 329 regression identities in both phases; regression outcome/expectation/intermittent signatures must match",
++            "oracle_caveat": "Both phases use the same explicitly corrected attr-cycle oracle and new raw-nested fixture; three historical oracle changes are documented in the sealed proposal. Existing metadata is unchanged."}
+--- v2/test_assess.py
++++ v3/test_assess.py
+@@ -78,6 +78,14 @@
+ reject("all-types regression status changed", changed)
+ reject("all-types page missing", [e for e in valid if e.get("test") != all_types])
+ 
++eof_names = [item["id"] for item in json.loads((root / "artifacts/css-attr-raw-nested-repair-v2/EOF-CONTROLS.json").read_text())]
++raw_target = "/css/css-values/attr-raw-nested-cycle.html"
++for name in eof_names:
++    reject("missing EOF/control assertion: " + name, [e for e in valid if not (e.get("test") == raw_target and e.get("subtest") == name)])
++    changed = copy.deepcopy(valid)
++    row = next(e for e in changed if e.get("test") == raw_target and e.get("subtest") == name)
++    row.update(status="FAIL", expected="PASS")
++    reject("failing EOF/control assertion: " + name, changed, 1)
+ reject("missing reftest completion", [e for e in valid if not (e.get("test") == reftest and e.get("action") == "test_end")])
+ reject("missing suite completion", valid[:-1])
+ changed = copy.deepcopy(valid)
+--- v2/verify_capture.py
++++ v3/verify_capture.py
+@@ -5,8 +5,8 @@
+ 
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+-PRIOR = ROOT / "artifacts/css-attr-raw-nested-wpt-capsule-v1"
+-PROPOSAL = ROOT / "artifacts/css-attr-raw-nested-repair-v1"
++PRIOR = ROOT / "artifacts/css-attr-raw-nested-wpt-capsule-v2"
++PROPOSAL = ROOT / "artifacts/css-attr-raw-nested-repair-v2"
+ read = lambda path: json.loads(path.read_text())
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ policy = read(HERE / "POLICY.json")
+@@ -19,7 +19,7 @@
+         assert not path.is_symlink() and sha(path) == item["sha256"], name
+         captured = HERE / item["capture"]
+         assert sha(captured) == item["sha256"] and captured.stat().st_size == item["bytes"], name
+-    if name in old_pins:
++    if name in old_pins and name not in {"testing/web-platform/tests" + t for t in policy["target_subtests"]}:
+         assert item == old_pins[name], name
+ for name, pin in read(HERE / "REFERENCES.json").items():
+     assert sha(ROOT / name) == pin, name
+@@ -37,21 +37,29 @@
+ unchanged = []
+ for name, kind in read(PRIOR / "SELECTED.json").items():
+     current, previous = entry(manifest, name, kind), entry(old_manifest, name, kind)
+-    assert current == previous, name
+-    unchanged.append(name)
++    if name in policy["target_subtests"]:
++        assert current[0] != previous[0] and current[1:] == previous[1:], name
++    else:
++        assert current == previous, name
++        unchanged.append(name)
+ for name in policy["target_subtests"]:
+     captured = HERE / ("capture/testing/web-platform/tests" + name)
+     assert captured.read_bytes() == (PROPOSAL / ("candidate/testing/web-platform/tests" + name)).read_bytes()
+-assert sum(map(len, policy["target_subtests"].values())) == 66
++assert sum(map(len, policy["target_subtests"].values())) == 73
+ assert sum(map(len, policy["regression_subtests"].values())) == 329
+ assert set(policy["target_subtests"]).isdisjoint(policy["regression_subtests"])
+ assert set(policy["target_subtests"]) | set(policy["regression_subtests"]) == {t for t,k in policy["tests"].items() if k == "testharness"}
++assert (HERE / "run.py").read_bytes() == (PRIOR / "run.py").read_bytes()
++assert policy["source_roles"] == read(PRIOR / "POLICY.json")["source_roles"]
++for item in read(HERE / "NATIVE-EQUIVALENCE.json")["snapshots"].values():
++    assert sha(ROOT / item["v1"]) == sha(ROOT / item["v2"]) == item["sha256"]
+ for name in ("run.py", "assess.py", "test_assess.py", "test_application_metadata.py", "generate_manifest.py", "verify_manifest.py", "verify_capture.py"):
+     ast.parse((HERE / name).read_text(), filename=name)
+ print(json.dumps({"capture_and_origins_authenticated": True,
+                   "source_roles": len(pins), "present_roles": 28, "absent_roles": 50,
+                   "all_helpers_authenticated": True, "unchanged_manifest_entries": unchanged,
+-                  "all_predecessor_selected_manifest_entries_unchanged": True,
++                  "all14_regression_manifest_entries_unchanged": True,
++                  "two_target_manifest_entries_only_content_digest_changed": True,
+                   "target_pages_exact_proposal_bytes": True,
+-                  "target_subtests": 66, "regression_subtests": 329,
++                  "target_subtests": 73, "regression_subtests": 329,
+                   "python_syntax": True, "browser_executed": False}, indent=2))

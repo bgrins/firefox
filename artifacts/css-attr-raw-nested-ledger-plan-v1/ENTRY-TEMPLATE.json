@@ -1,0 +1,59 @@
+{
+  "fix": 138,
+  "repair": "raw-nested-attribute-context-cycles",
+  "title": "Avoid substitution cycles through non-type attribute contents",
+  "status": "DRAFT_NOT_ACCEPTED",
+  "group": "Attributes and custom properties",
+  "native_commit": null,
+  "research_commit": null,
+  "companion_commit": null,
+  "native_paths": [
+    "servo/components/style/properties/cascade.rs",
+    "testing/web-platform/tests/css/css-values/attr-cycle.html",
+    "testing/web-platform/tests/css/css-values/attr-raw-nested-cycle.html"
+  ],
+  "prerequisites": [
+    {
+      "fix": 137,
+      "native_commit": "aa3f0588538800300df20a2f7de40ce8ac2ffec1",
+      "reason": "Uses non_type_primary_is_valid and used-fallback dependency traversal; not independently applicable before fix137."
+    }
+  ],
+  "patch": {
+    "path": "artifacts/css-attr-raw-nested-repair-v2/fix.patch",
+    "sha256": "8468fc40cb9b754655d7f5a8ef554a598f6dc21b360073d09ee52075513e3137"
+  },
+  "capsule": {
+    "path": "artifacts/css-attr-raw-nested-wpt-capsule-v3/FILES.json",
+    "sha256": "46eee2d63d2d063f4fdf5f1b48fb8dd9baf2e9d809511d7f46da3819f46caff5"
+  },
+  "phase_order": null,
+  "phase_counts": null,
+  "landing_cases": 73,
+  "new_fixture_cases": 36,
+  "existing_target_cases": 37,
+  "observed_repairs": null,
+  "unchanged_landing_controls": null,
+  "existing_regressions": null,
+  "terminal_review": null,
+  "acceptance": null,
+  "commit_verification": null,
+  "research_commit_verification": null,
+  "comparison_runtime": null,
+  "reviewer_group": "#firefox-style-system-reviewers",
+  "commit_subject": "No bug - Avoid substitution cycles through non-type attribute contents. r?#firefox-style-system-reviewers",
+  "triage": "Tentative P3 CSS correctness; no demonstrated security or measured performance impact.",
+  "discovery": "Source/spec audit and controlled browser reproduction during verification work; not a proof-discovered bug.",
+  "formal_attribution": "The separate normalized guard model supports raw-versus-typed context laws. CSS tokenization, EOF parser recovery, namespaces, invalidation and native correspondence remain outside that proof boundary. No new canonical Lean coverage or universal native-refinement result.",
+  "canonical_lean_coverage_increment": 0,
+  "limits": [
+    "Requires signed used-fallback fix137; do not squash or hide that prerequisite.",
+    "Exactly three reviewed oracle corrections in existing attr-cycle.html, including EOF function recovery; unchanged metadata. These are explicit assertion changes, not expected-FAIL waivers.",
+    "Earlier 66-target comparison failed because attr-cycle28 changed PASS to FAIL. Its evidence remains historical; only a fresh complete 73-target comparison may support this candidate.",
+    "EOF correction and seven parser-boundary controls add no separate native bug count; native Rust postimages remain byte-identical to repair-v1.",
+    "Shared experimental branch validation does not establish a clean-upstream build/browser result."
+  ],
+  "candidate_source_installed": null,
+  "browser_binary_contains_fix": null,
+  "signature_verified": null
+}
