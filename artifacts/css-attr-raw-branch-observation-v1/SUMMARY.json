@@ -1,0 +1,130 @@
+{
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:160.0) Gecko/20100101 Firefox/160.0",
+  "typedSupported": true,
+  "rows": [
+    {
+      "id": "raw-literal",
+      "declaration": "attr(data-foo)",
+      "foo": "hello",
+      "expected": "\"hello\"",
+      "calibration": true,
+      "observed": "\"hello\"",
+      "repeat": "\"hello\""
+    },
+    {
+      "id": "typed-literal",
+      "declaration": "attr(data-foo type(*), abc)",
+      "foo": "hello",
+      "expected": "hello",
+      "calibration": true,
+      "observed": "hello",
+      "repeat": "hello"
+    },
+    {
+      "id": "typed-self-bare",
+      "declaration": "attr(data-foo type(*), abc)",
+      "foo": "attr(data-foo)",
+      "expected": "\"attr(data-foo)\"",
+      "observed": "abc",
+      "repeat": "abc"
+    },
+    {
+      "id": "typed-self-raw",
+      "declaration": "attr(data-foo type(*), abc)",
+      "foo": "attr(data-foo raw-string)",
+      "expected": "\"attr(data-foo raw-string)\"",
+      "observed": "abc",
+      "repeat": "abc"
+    },
+    {
+      "id": "genuine-typed-self",
+      "declaration": "attr(data-foo type(*), abc)",
+      "foo": "attr(data-foo type(*))",
+      "expected": "abc",
+      "calibration": true,
+      "observed": "abc",
+      "repeat": "abc"
+    },
+    {
+      "id": "nested-bare",
+      "declaration": "attr(data-foo type(*), abc)",
+      "foo": "attr(data-bar type(*), fallback)",
+      "bar": "attr(data-foo) attr(data-bar)",
+      "expected": "\"attr(data-bar type(*), fallback)\" \"attr(data-foo) attr(data-bar)\"",
+      "observed": "abc",
+      "repeat": "abc"
+    },
+    {
+      "id": "nested-raw",
+      "declaration": "attr(data-foo type(*), abc)",
+      "foo": "attr(data-bar type(*), fallback)",
+      "bar": "attr(data-foo raw-string) attr(data-bar raw-string)",
+      "expected": "\"attr(data-bar type(*), fallback)\" \"attr(data-foo raw-string) attr(data-bar raw-string)\"",
+      "observed": "abc",
+      "repeat": "abc"
+    },
+    {
+      "id": "bare-other",
+      "declaration": "attr(data-foo type(*), abc)",
+      "foo": "attr(data-bar)",
+      "bar": "hello",
+      "expected": "\"hello\"",
+      "calibration": true,
+      "observed": "\"hello\"",
+      "repeat": "\"hello\""
+    },
+    {
+      "id": "typed-string-self-bare",
+      "declaration": "attr(data-foo type(<string>), abc)",
+      "foo": "attr(data-foo)",
+      "expected": "\"attr(data-foo)\"",
+      "observed": "abc",
+      "repeat": "abc"
+    },
+    {
+      "id": "bare-missing",
+      "declaration": "attr(data-foo type(*), abc)",
+      "foo": "attr(data-missing)",
+      "expected": "\"\"",
+      "calibration": true,
+      "observed": "\"\"",
+      "repeat": "\"\""
+    },
+    {
+      "id": "taken-bare-fallback-cycle",
+      "declaration": "attr(data-foo type(*), abc)",
+      "foo": "attr(data-missing, attr(data-foo type(*)))",
+      "expected": "abc",
+      "calibration": true,
+      "observed": "abc",
+      "repeat": "abc"
+    },
+    {
+      "id": "unused-bare-fallback-cycle",
+      "declaration": "attr(data-foo type(*), abc)",
+      "foo": "attr(data-bar, attr(data-foo type(*)))",
+      "bar": "hello",
+      "expected": "\"hello\"",
+      "calibration": true,
+      "observed": "\"hello\"",
+      "repeat": "\"hello\""
+    },
+    {
+      "id": "quoted-function-control",
+      "declaration": "attr(data-foo type(*), abc)",
+      "foo": "\"attr(data-foo)\" \"attr(data-bar)\"",
+      "expected": "\"attr(data-foo)\" \"attr(data-bar)\"",
+      "calibration": true,
+      "observed": "\"attr(data-foo)\" \"attr(data-bar)\"",
+      "repeat": "\"attr(data-foo)\" \"attr(data-bar)\""
+    }
+  ],
+  "differences": [
+    "typed-self-bare",
+    "typed-self-raw",
+    "nested-bare",
+    "nested-raw",
+    "typed-string-self-bare"
+  ],
+  "calibration_failures": []
+}

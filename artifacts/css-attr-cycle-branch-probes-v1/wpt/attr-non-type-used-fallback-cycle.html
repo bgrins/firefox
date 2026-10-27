@@ -1,0 +1,48 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Used non-type attribute fallbacks participate in substitution cycles</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#attr-substitution">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#guarded">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>body { color: black; }</style>
+<body>
+<script>
+const cases = [
+  {id: "missing-bare-self", declarations: [["--x", "attr(data-missing, var(--x, red))"]], expected: "", expectedColor: "rgb(0, 128, 0)"},
+  {id: "missing-raw-self", declarations: [["--x", "attr(data-missing raw-string, var(--x, red))"]], expected: "", expectedColor: "rgb(0, 128, 0)"},
+  {id: "invalid-number-self", foo: "nope", declarations: [["--x", "attr(data-foo number, var(--x, red))"]], expected: "", expectedColor: "rgb(0, 128, 0)"},
+  {id: "invalid-unit-self", foo: "nope", declarations: [["--x", "attr(data-foo px, var(--x, red))"]], expected: "", expectedColor: "rgb(0, 128, 0)"},
+  {id: "missing-unit-self", declarations: [["--x", "attr(data-missing px, var(--x, red))"]], expected: "", expectedColor: "rgb(0, 128, 0)"},
+  {id: "missing-bare-mutual", declarations: [["--x", "attr(data-missing, var(--y, red))"], ["--y", "var(--x, blue)"]], expected: "", expectedColor: "rgb(0, 128, 0)"},
+  {id: "missing-bare-mutual-reordered", declarations: [["--y", "var(--x, blue)"], ["--x", "attr(data-missing, var(--y, red))"]], expected: "", expectedColor: "rgb(0, 128, 0)"},
+  {id: "direct-var-self", declarations: [["--x", "var(--x, red)"]], expected: "", expectedColor: "rgb(0, 128, 0)", calibration: true},
+  {id: "missing-typed-self", declarations: [["--x", "attr(data-missing type(*), var(--x, red))"]], expected: "", expectedColor: "rgb(0, 128, 0)", calibration: true},
+  {id: "missing-bare-acyclic", declarations: [["--x", "attr(data-missing, red)"]], expected: "red", expectedColor: "rgb(255, 0, 0)", calibration: true},
+  {id: "missing-bare-ready-provider", declarations: [["--x", "attr(data-missing, var(--ready, red))"], ["--ready", "blue"]], expected: "blue", expectedColor: "rgb(0, 0, 255)", calibration: true},
+  {id: "present-bare-unused-self", foo: "red", declarations: [["--x", "attr(data-foo, var(--x, blue))"]], expected: '"red"', expectedColor: "rgb(0, 0, 0)", calibration: true},
+  {id: "valid-number-unused-self", foo: "5", declarations: [["--x", "attr(data-foo number, var(--x, red))"]], expected: "5", expectedColor: "rgb(0, 0, 0)", calibration: true},
+];
+
+for (const item of cases) {
+  test(t => {
+    const target = document.createElement("div");
+    t.add_cleanup(() => target.remove());
+    if (item.foo !== undefined) {
+      target.setAttribute("data-foo", item.foo);
+    }
+    for (const [name, value] of item.declarations) {
+      target.style.setProperty(name, value);
+      assert_not_equals(target.style.getPropertyValue(name), "", "Declaration parsed");
+    }
+    target.style.color = "var(--x, green)";
+    document.body.append(target);
+    const computed = getComputedStyle(target);
+    assert_equals(computed.getPropertyValue("--x").trim(), item.expected, "Custom property");
+    assert_equals(computed.color, item.expectedColor, "Consuming property");
+    if (item.id.startsWith("missing-bare-mutual")) {
+      assert_equals(computed.getPropertyValue("--y").trim(), "", "Other cycle participant");
+    }
+  }, item.id);
+}
+</script>
