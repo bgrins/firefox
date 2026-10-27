@@ -1,0 +1,7 @@
+Fix116 installed and verified on the existing working stack. Installer session39391 and independent root-check session64491 both exited0. Build and WPT lint exited0. Raw results contain exactly101 unique PASS subtests and12 OK harness completions, with the expected roster and no classified infrastructure faults. The new24-case hidden-embedding test runs with77 prior cases.
+
+Root verified all56 source guards,347 resource entries and405 final source/resource/binary roles live, with33 modified native paths and unchanged HEAD/index (925 staged paths). Eight prior installed test identities remain intact; the new fixture brings the installed identity set to nine. The five source changes match the accepted overlay exactly and preserve114 target/source conversion policy and115 absolute factors. Temporary source files are absent. The accepted overlay and new WPT intentionally remain installed.
+
+Installed Firefox SHA256:6de2923a561bd235fc8721c6cfc239f4b4aeb18f4df9138d67a6d541e21d420f; XUL:80de23246c6cf6731491281690a46e4760d1af32414ea67276f354b98cbd34b1. This replaces the previous restored build identity. Compiler/build warnings are retained in the log; this is not a warning-free build claim.
+
+This integration validates the accepted116 patch on the preserved mixed working stack. It does not establish pristine-upstream behavior, all embedding histories, native lifetime refinement, performance bounds or security impact. The isolated52-case comparison remains the repair-specific evidence. Signing remains pending.

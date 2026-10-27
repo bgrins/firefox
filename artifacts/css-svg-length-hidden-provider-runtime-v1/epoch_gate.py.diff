@@ -1,0 +1,67 @@
+--- artifacts/css-svg-length-viewport-browser-v2/epoch_gate.py
++++ artifacts/css-svg-length-hidden-provider-browser-v1/epoch_gate.py
+@@ -8,22 +8,22 @@
+     need(state["status"] == "terminal" and state["installed"] is True
+          and state["restored"] is False and state["build_exit"] == state["lint_exit"] == 0
+          and state["recovery_errors"] == [] and "failure" not in state
+-         and state["subtests"] == {"PASS":16,"FAIL":0} and state["files_ok"] == 2, "successful installed115")
+-    need(receipt["status"] == "INSTALLED_VERIFIED" and receipt["fix"] == 115 and receipt["exit"] == 0
++         and state["subtests"] == {"PASS":25,"FAIL":0} and state["files_ok"] == 3, "successful expanded114 installation")
++    need(receipt["status"] == "INSTALLED_VERIFIED" and receipt["fix"] == 114 and receipt["exit"] == 0
+          and receipt["state_sha256"] == sha(epoch / "STATE.json")
+          and receipt["final_sha256"] == sha(epoch / "FINAL.json")
+          and receipt["final_pins_sha256"] == sha(epoch / "FINAL-PINS.json")
+          and receipt["installed_binary_pins"] == state["installed_binary_pins"] == installation["binary_pins"]
+-         and receipt["subtests"] == state["subtests"] and receipt["files_ok"] == 2, "actual installation receipt")
++         and receipt["subtests"] == state["subtests"] and receipt["files_ok"] == 3, "actual installation receipt")
+     need(len(expected["sources"]) == len(c["guard_sources"]) == receipt["source_count"] == 53
+-         and len(pins) == receipt["pin_count"] == 383 and receipt["staged_paths"] == 925
++         and len(pins) == receipt["pin_count"] == 392 and receipt["staged_paths"] == 925
+          and receipt["native_modified_paths"] == 30, "actual installed scope")
+     before = read(epoch / "BEFORE.json")
+     need(installation["before"] == before and installation["after"] == expected
+          and all(expected[k] == before[k] for k in ("head", "index_diff_sha256", "index_entries_sha256"))
+          and expected["sources"] == {**before["sources"], **installation["installed_source_pins"]},
+          "only accepted native output installed")
+-    need(set(installation["installed_source_pins"]) == {"dom/svg/SVGLength.cpp"}
++    need(set(installation["installed_source_pins"]) == {"dom/svg/DOMSVGLength.cpp"}
+          and installation["installed_source_pins"] == c["candidate_pins"]
+          and installation["original_source_pins"] == {n:before["sources"][n] for n in c["candidate_pins"]},
+          "exact original and candidate native roles")
+@@ -34,31 +34,28 @@
+     acceptance = ROOT / c["acceptance"]
+     authenticate(read(acceptance.parent / "FILES.json"), acceptance.parent)
+     need(sha(acceptance) == c["acceptance_sha256"] == state["acceptance_sha256"] == installation["acceptance_sha256"],
+-         "accepted factor repair")
++         "accepted expanded context repair")
+     accepted = read(acceptance)
+-    need(accepted["status"] == "SCOPED_ACCEPTED" and accepted["fix"] == 115
++    need(accepted["status"] == "SCOPED_ACCEPTED" and accepted["fix"] == 114
+          and sha(ROOT / accepted["patch"]["path"]) == accepted["patch"]["sha256"], "exact accepted patch")
+     previous = ROOT / c["epoch"]
+     need(sha(previous / "FILES.json") == c["epoch_manifest_sha256"], "previous comparison seal")
+     authenticate(read(previous / "FILES.json"), previous)
+     need(read(previous / "FINAL.json") == before, "restored source predecessor")
+     installed_tests = {**c["installed_tests"], **installation["owned_tests"]}
+-    need(len(c["installed_tests"]) == 5 and len(installation["owned_tests"]) == 2
++    need(len(c["installed_tests"]) == 7 and len(installation["owned_tests"]) == 1
+          and not set(c["installed_tests"]) & set(installation["owned_tests"])
+          and set(c["install"]) == set(installation["owned_tests"])
+-         and installed_tests == receipt["installed_tests"] and len(installed_tests) == 7, "seven installed identities")
++         and installed_tests == receipt["installed_tests"] and len(installed_tests) == 8, "eight installed identities")
+     need(pins == {**read(epoch / "RESOURCES.json"), **expected["sources"],
+                   **{n:v["sha256"] for n,v in installation["owned_tests"].items()}, **state["installed_binary_pins"]}
+          and all(pins[n] == v["sha256"] for n,v in installed_tests.items()), "complete installed roles")
+     for name, item in read(ROOT / settings["proposal"] / "SOURCE-PINS.json").items():
+         if name.startswith("artifacts/"):
+             need(name.endswith("candidate/dom/svg/DOMSVGLength.cpp") and sha(ROOT / name) == item["sha256"],
+-                 "accepted114 source role")
++                 "expanded114 source role")
+             name = "dom/svg/DOMSVGLength.cpp"
+         digest = item["sha256"]
+-        if name in installation["installed_source_pins"]:
+-            need(digest == installation["original_source_pins"][name], "audit original factor source")
+-            digest = installation["installed_source_pins"][name]
+         need(name not in pins or pins[name] == digest, "source audit conflicts with installed role")
+         pins[name] = digest
+     c["modified_native_paths"] = sorted(set(c["modified_native_paths"]) | set(c["candidate_pins"]))

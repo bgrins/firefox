@@ -1,0 +1,97 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hidden iframe viewport fallback diagnostic</title>
+<link rel="help" href="https://svgwg.org/svg2-draft/types.html#InterfaceSVGLength">
+<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+.host { width: 240px; height: 120px; padding: 0; border: 0; }
+.host.resized { width: 460px; height: 260px; }
+.host.hidden { content-visibility: hidden; }
+iframe { display: block; padding: 0; border: 0; }
+.host iframe { width: 100%; height: 100%; }
+</style>
+<body>
+<script>
+"use strict";
+async function makeFrame(t, unit, mode) {
+  const host = document.createElement("div");
+  if (mode !== "default") host.className = mode === "resized" ? "host resized" : "host";
+  const frame = document.createElement("iframe");
+  const loaded = new Promise(resolve => { frame.onload = resolve; });
+  frame.srcdoc = `<!doctype html><style>html,body{margin:0;overflow:hidden}</style>
+    <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+    <text id="target" x="10${unit}">x</text></svg>`;
+  host.append(frame);
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  await loaded;
+  const doc = frame.contentDocument;
+  return {host, frame, doc, length: doc.getElementById("target").x.baseVal.getItem(0)};
+}
+function dimensions(item) {
+  const rect = item.frame.getBoundingClientRect();
+  return [rect.width, rect.height, item.doc.documentElement.clientWidth,
+    item.doc.documentElement.clientHeight];
+}
+function valueFor(unit, width, height) {
+  return unit === "vw" ? width / 10 : unit === "vh" ? height / 10 : 10;
+}
+const histories = ["visible-resize", "hidden-only", "hidden-resize"];
+const cases = ["vw", "vh"].flatMap(unit => histories.map(history => ({unit, history})));
+cases.push({unit: "px", history: "hidden-only"}, {unit: "px", history: "hidden-resize"});
+for (const {unit, history} of cases) {
+  promise_test(async t => {
+    const hidden = history !== "visible-resize";
+    const resized = history !== "hidden-only";
+    const size = resized ? [460, 260] : [240, 120];
+    const expected = valueFor(unit, ...size);
+    const subject = await makeFrame(t, unit, "initial");
+    const twin = await makeFrame(t, unit, resized ? "resized" : "initial");
+    const fallback = await makeFrame(t, unit, "default");
+    const twinSize = dimensions(twin);
+    const twinValue = twin.length.value;
+    const fallbackSize = dimensions(fallback);
+    const fallbackValue = fallback.length.value;
+    const initialSize = dimensions(subject);
+    const parsed = subject.length.valueAsString;
+    const warmed = subject.length.value;
+    subject.host.classList.toggle("hidden", hidden);
+    const hiddenStyle = getComputedStyle(subject.host).contentVisibility;
+    const preResize = subject.host.getBoundingClientRect();
+    const preResizeSize = [preResize.width, preResize.height];
+    if (resized) subject.host.classList.add("resized");
+    const first = subject.length.value;
+    const repeat = subject.length.value;
+    const hostRect = subject.host.getBoundingClientRect();
+    const hostSize = [hostRect.width, hostRect.height];
+    const postQuerySize = dimensions(subject);
+    const postQueryValue = subject.length.value;
+    subject.host.classList.remove("hidden");
+    const revealSize = dimensions(subject);
+    const revealValue = subject.length.value;
+    subject.host.classList.remove("resized");
+    const resetSize = dimensions(subject);
+    const resetValue = subject.length.value;
+    const snapshot = {unit, history, initialSize, warmed, fallbackSize, fallbackValue,
+      preResizeSize, first, repeat, hostSize, postQuerySize, postQueryValue,
+      revealSize, revealValue, resetSize, resetValue};
+    assert_array_equals(twinSize, [...size, ...size], "visible twin dimensions calibration");
+    assert_equals(twinValue, expected, "visible twin value calibration");
+    assert_array_equals(fallbackSize, [300, 150, 300, 150], "default iframe dimensions calibration");
+    assert_equals(fallbackValue, valueFor(unit, 300, 150), "default iframe value calibration");
+    assert_array_equals(initialSize, [240, 120, 240, 120], "initial dimensions calibration");
+    assert_equals(parsed, `10${unit}`, "parsed source calibration");
+    assert_equals(warmed, valueFor(unit, 240, 120), "warmed value calibration");
+    assert_equals(hiddenStyle, hidden ? "hidden" : "visible", "visibility style calibration");
+    assert_array_equals(preResizeSize, [240, 120], "pre-resize host calibration");
+    assert_array_equals(hostSize, size, "current host calibration");
+    assert_array_equals(revealSize, [...size, ...size], "reveal dimensions calibration");
+    assert_equals(revealValue, expected, "reveal value calibration");
+    assert_array_equals(resetSize, [240, 120, 240, 120], "reset dimensions calibration");
+    assert_equals(resetValue, valueFor(unit, 240, 120), "reset value calibration");
+    assert_equals(first, expected, `current viewport hypothesis; snapshot=${JSON.stringify(snapshot)}`);
+  }, `${unit}: ${history} independent iframe history`);
+}
+</script>

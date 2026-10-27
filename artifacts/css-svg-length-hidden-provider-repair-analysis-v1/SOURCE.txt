@@ -1,0 +1,117 @@
+dom/svg/DOMSVGLength.cpp :: void DOMSVGLength::FlushIfNeeded(
+void DOMSVGLength::FlushIfNeeded(uint16_t aTargetUnit) {
+  auto MaybeFlush = [aTargetUnit](uint16_t aUnitType, SVGElement* aSVGElement) {
+    FlushType flushType;
+    if (SVGLength::IsPercentageUnit(aUnitType) ||
+        SVGLength::IsPercentageUnit(aTargetUnit)) {
+      flushType = FlushType::Layout;
+    } else if (!SVGLength::IsAbsoluteUnit(aUnitType) ||
+               SVGLength::IsFontRelativeUnit(aTargetUnit)) {
+      flushType = FlushType::Style;
+    } else {
+      return;
+    }
+    if (auto* currentDoc = aSVGElement->GetComposedDoc()) {
+      currentDoc->FlushPendingNotifications(flushType);
+    }
+  };
+
+  if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+    if (mIsAnimValItem) {
+      MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetAnimUnitType(), svg);
+    } else {
+      MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetBaseUnitType(), svg);
+    }
+  }
+  if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {
+    MaybeFlush(InternalItem().GetUnit(), lengthList->Element());
+  }
+}
+
+#ifdef DEBUG
+bool DOMSVGLength::IndexIsValid() {
+  nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner);
+  SVGAnimatedLengthList* alist =
+      lengthList->Element()->GetAnimatedLengthList(mAttrEnum);
+  return (mIsAnimValItem && mListIndex < alist->GetAnimValue().Length()) ||
+         (!mIsAnimValItem && mListIndex < alist->GetBaseValue().Length());
+}
+
+dom/base/Document.h :: bool StyleOrLayoutObservablyDependsOnParentDocumentLayout()
+  bool StyleOrLayoutObservablyDependsOnParentDocumentLayout() const {
+    return GetInProcessParentDocument() &&
+           GetDocGroup() == GetInProcessParentDocument()->GetDocGroup();
+  }
+
+layout/base/PresShell.cpp :: void PresShell::UpdateHiddenContentInForcedLayout(
+void PresShell::UpdateHiddenContentInForcedLayout(nsIFrame* aFrame) {
+  if (!aFrame) {
+    return;
+  }
+  if (!aFrame->IsSubtreeDirty()) {
+    nsIFrame* provider = aFrame;
+    if (provider->IsTableColFrame()) {
+      provider = provider->GetParent();
+    }
+    if (!provider || !provider->IsTableColGroupFrame()) {
+      return;
+    }
+    provider = provider->GetParent();
+    if (!provider || !provider->IsTableFrame() || !provider->IsSubtreeDirty()) {
+      return;
+    }
+  }
+
+  nsIFrame* topmostFrameWithContentHidden = nullptr;
+  for (nsIFrame* cur = aFrame->GetInFlowParent(); cur;
+       cur = cur->GetInFlowParent()) {
+    if (cur->HidesContent()) {
+      topmostFrameWithContentHidden = cur;
+      mHiddenContentInForcedLayout.Insert(cur->GetContent());
+    }
+  }
+
+  if (mHiddenContentInForcedLayout.IsEmpty()) {
+    return;
+  }
+
+  // Queue and immediately flush a reflow for this node.
+  MOZ_ASSERT(topmostFrameWithContentHidden);
+  FrameNeedsReflow(topmostFrameWithContentHidden, IntrinsicDirty::None,
+                   NS_FRAME_IS_DIRTY);
+}
+
+void PresShell::EnsureReflowIfFrameHasHiddenContent(nsIFrame* aFrame) {
+  MOZ_ASSERT(mHiddenContentInForcedLayout.IsEmpty());
+
+  UpdateHiddenContentInForcedLayout(aFrame);
+  ReflowForHiddenContentIfNeeded();
+}
+
+layout/generic/nsIFrameInlines.h :: nsContainerFrame* nsIFrame::GetInFlowParent()
+nsContainerFrame* nsIFrame::GetInFlowParent() const {
+  if (HasAnyStateBits(NS_FRAME_OUT_OF_FLOW)) {
+    nsIFrame* ph =
+        FirstContinuation()->GetProperty(nsIFrame::PlaceholderFrameProperty());
+    return ph->GetParent();
+  }
+
+  return GetParent();
+}
+
+
+dom/svg/SVGAnimatedLength.cpp :: CSSSize SVGElementMetrics::GetCSSViewportSize()
+CSSSize SVGElementMetrics::GetCSSViewportSize() const {
+  if (!mSVGElement) {
+    return {0.0f, 0.0f};
+  }
+  nsPresContext* context = nsContentUtils::GetContextForContent(mSVGElement);
+  if (!context) {
+    return {0.0f, 0.0f};
+  }
+  return GetCSSViewportSizeFromContext(context);
+}
+
+float SVGElementMetrics::GetLineHeight(Type aType) const {
+  return SVGContentUtils::GetLineHeight(GetElementForType(aType));
+}

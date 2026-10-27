@@ -1,0 +1,164 @@
+layout/base/LayoutConstants.h :: inline constexpr CSSIntCoord kFallbackIntrinsicWidthInPixels
+inline constexpr CSSIntCoord kFallbackIntrinsicWidthInPixels(300);
+inline constexpr CSSIntCoord kFallbackIntrinsicHeightInPixels(150);
+inline constexpr CSSIntSize kFallbackIntrinsicSizeInPixels(
+    kFallbackIntrinsicWidthInPixels, kFallbackIntrinsicHeightInPixels);
+
+inline constexpr nscoord kFallbackIntrinsicWidth =
+    kFallbackIntrinsicWidthInPixels * AppUnitsPerCSSPixel();
+inline constexpr nscoord kFallbackIntrinsicHeight =
+    kFallbackIntrinsicHeightInPixels * AppUnitsPerCSSPixel();
+inline constexpr nsSize kFallbackIntrinsicSize(kFallbackIntrinsicWidth,
+                                               kFallbackIntrinsicHeight);
+
+/**
+ * This is used in some nsLayoutUtils functions.
+
+layout/style/nsStyleStruct.cpp :: const auto containmentDiff =
+  const auto containmentDiff =
+      mEffectiveContainment ^ aNewData.mEffectiveContainment;
+  if (containmentDiff) {
+    if (containmentDiff & StyleContain::STYLE) {
+      // Style containment affects counters so we need to re-frame.
+      return nsChangeHint_ReconstructFrame;
+    }
+    if (containmentDiff & (StyleContain::PAINT | StyleContain::LAYOUT)) {
+      // Paint and layout containment boxes are absolutely/fixed positioning
+      // containers.
+      hint |= nsChangeHint_UpdateContainingBlock;
+    }
+    // The other container types only need a reflow.
+    hint |= nsChangeHint_AllReflowHints | nsChangeHint_RepaintFrame;
+  }
+  if (mPosition != aNewData.mPosition) {
+
+servo/components/style/style_adjuster.rs :: match content_visibility {
+        match content_visibility {
+            ContentVisibility::Visible => {},
+            // `content-visibility:auto` also applies size containment when content
+            // is not relevant (and therefore skipped). This is checked in
+            // nsIFrame::GetContainSizeAxes.
+            ContentVisibility::Auto => {
+                new_contain.insert(Contain::LAYOUT | Contain::PAINT | Contain::STYLE)
+            },
+            ContentVisibility::Hidden => new_contain
+                .insert(Contain::LAYOUT | Contain::PAINT | Contain::SIZE | Contain::STYLE),
+        }
+        if container_type.intersects(ContainerType::INLINE_SIZE) {
+            // https://drafts.csswg.org/css-contain-3/#valdef-container-type-inline-size:
+            //     Applies layout containment, style containment, and inline-size
+            //     containment to the principal box.
+
+layout/generic/nsSubDocumentFrame.cpp :: LayoutDeviceIntSize nsSubDocumentFrame::GetInitialSubdocumentSize()
+LayoutDeviceIntSize nsSubDocumentFrame::GetInitialSubdocumentSize() const {
+  if (RefPtr<nsFrameLoader> frameloader = FrameLoader()) {
+    for (const auto& detachedShell : frameloader->GetDetachedSubdocs()) {
+      if (RefPtr<mozilla::PresShell> ps = do_QueryReferent(detachedShell)) {
+        if (nsPresContext* pc = ps->GetPresContext()) {
+          return LayoutDeviceIntSize::FromAppUnitsRounded(
+              pc->GetVisibleArea().Size(), pc->AppUnitsPerDevPixel());
+        }
+      }
+    }
+  }
+  return LayoutDeviceIntSize::FromAppUnitsRounded(
+      kFallbackIntrinsicSize, PresContext()->AppUnitsPerDevPixel());
+}
+
+LayoutDeviceIntSize nsSubDocumentFrame::GetSubdocumentSize() const {
+  if (HasAnyStateBits(NS_FRAME_FIRST_REFLOW)) {
+    return GetInitialSubdocumentSize();
+  }
+  return LayoutDeviceIntSize::FromAppUnitsRounded(
+      GetDestRect().Size(), PresContext()->AppUnitsPerDevPixel());
+}
+
+static void WrapBackgroundColorInOwnLayer(nsDisplayListBuilder* aBuilder,
+
+layout/generic/nsSubDocumentFrame.cpp :: void nsSubDocumentFrame::ShowViewer()
+void nsSubDocumentFrame::ShowViewer() {
+  if (mCallingShow) {
+    return;
+  }
+
+  RefPtr<nsFrameLoader> frameloader = FrameLoader();
+  if (!frameloader || frameloader->IsDead()) {
+    return;
+  }
+
+  if (!frameloader->IsRemoteFrame() && !PresContext()->IsDynamic()) {
+    // We let the printing code take care of loading the document and
+    // initializing the shell.
+  } else {
+    AutoWeakFrame weakThis(this);
+    mCallingShow = true;
+    bool didCreateDoc = frameloader->Show(this);
+    if (!weakThis.IsAlive()) {
+      return;
+    }
+    mCallingShow = false;
+    mDidCreateDoc = didCreateDoc;
+    if (!HasAnyStateBits(NS_FRAME_FIRST_REFLOW)) {
+      frameloader->UpdatePositionAndSize(this);
+    }
+    if (!weakThis.IsAlive()) {
+      return;
+    }
+    UpdateEmbeddedBrowsingContextDependentData();
+    InvalidateFrame();
+  }
+}
+
+Document* nsSubDocumentFrame::GetExtantSubdocument() {
+  nsIDocShell* ds = GetExtantDocShell();
+  return ds ? ds->GetExtantDocument() : nullptr;
+
+dom/base/nsFrameLoader.cpp :: bool nsFrameLoader::Show(nsSubDocumentFrame* aFrame)
+bool nsFrameLoader::Show(nsSubDocumentFrame* aFrame) {
+  if (mInShow) {
+    return false;
+  }
+  mInShow = true;
+
+  auto resetInShow = mozilla::MakeScopeExit([&] { mInShow = false; });
+  if (IsRemoteFrame()) {
+    return ShowRemoteFrame(aFrame);
+  }
+  const LayoutDeviceIntSize size = aFrame->GetInitialSubdocumentSize();
+
+  nsresult rv = MaybeCreateDocShell();
+  if (NS_FAILED(rv)) {
+    return false;
+  }
+  nsDocShell* ds = GetDocShell();
+  MOZ_ASSERT(ds, "MaybeCreateDocShell succeeded, but null docShell");
+  if (!ds) {
+    return false;
+  }
+
+  ds->SetScrollbarPreference(GetScrollbarPreference(mOwnerContent));
+  const bool marginsChanged =
+      ds->UpdateFrameMargins(GetMarginAttributes(mOwnerContent));
+
+  // If we already have a pres shell (which can happen with <object> / <embed>)
+  // then hook it up to the frame.
+  if (PresShell* presShell = ds->GetPresShell()) {
+    // Ensure root scroll frame is reflowed in case margins have changed.
+    if (marginsChanged) {
+      if (nsIFrame* rootScrollContainerFrame =
+              presShell->GetRootScrollContainerFrame()) {
+        presShell->FrameNeedsReflow(rootScrollContainerFrame,
+                                    IntrinsicDirty::None, NS_FRAME_IS_DIRTY);
+      }
+    }
+    aFrame->EnsureEmbeddingPresShell(presShell);
+  }
+
+  RefPtr<nsDocShell> baseWindow = GetDocShell();
+  MOZ_ASSERT(ds == baseWindow, "How did the docshell change?");
+  baseWindow->InitWindow(nullptr, 0, 0, size.width, size.height, nullptr,
+                         nullptr);
+  baseWindow->SetVisibility(true);
+  NS_ENSURE_TRUE(GetDocShell(), false);
+
+  // Trigger editor re-initialization if midas is turned on in the sub-document.

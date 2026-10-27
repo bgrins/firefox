@@ -1,0 +1,175 @@
+--- a/dom/base/FlushType.h
++++ b/dom/base/FlushType.h
+@@ -62,6 +62,7 @@
+   FlushType mFlushType;
+   bool mFlushAnimations;
+   bool mUpdateRelevancy;
++  bool mFlushHiddenEmbeddingFrames = false;
+ };
+ 
+ }  // namespace mozilla
+--- a/dom/base/Document.cpp
++++ b/dom/base/Document.cpp
+@@ -12024,8 +12024,12 @@
+   // But if it's not safe to flush ourselves, then don't flush the parent, since
+   // that can cause things like resizes of our frame's widget, which we can't
+   // handle while flushing is unsafe.
+-  if (StyleOrLayoutObservablyDependsOnParentDocumentLayout() &&
+-      mParentDocument->MayStartLayout() && IsSafeToFlush()) {
++  auto canFlushParent = [this] {
++    return StyleOrLayoutObservablyDependsOnParentDocumentLayout() &&
++           mParentDocument->MayStartLayout() && IsSafeToFlush();
++  };
++  if (canFlushParent()) {
++    RefPtr<Document> parentDocument = mParentDocument;
+     ChangesToFlush parentFlush = aFlush;
+     if (flushType >= FlushType::Style) {
+       // Since media queries mean that a size change of our container can affect
+@@ -12034,7 +12038,14 @@
+       // determine the correct style.
+       parentFlush.mFlushType = std::max(FlushType::Layout, flushType);
+     }
+-    mParentDocument->FlushPendingNotifications(parentFlush);
++    parentDocument->FlushPendingNotifications(parentFlush);
++    if (aFlush.mFlushHiddenEmbeddingFrames &&
++        mParentDocument == parentDocument && canFlushParent()) {
++      RefPtr<Element> embedder = GetEmbedderElement();
++      if (embedder && embedder->GetComposedDoc() == parentDocument) {
++        embedder->GetPrimaryFrame(FlushType::Layout);
++      }
++    }
+   }
+ 
+   if (RefPtr<PresShell> presShell = GetPresShell()) {
+--- a/dom/svg/SVGLength.h
++++ b/dom/svg/SVGLength.h
+@@ -121,6 +121,8 @@
+ 
+   static bool IsFontRelativeUnit(uint16_t aUnit);
+ 
++  static bool IsViewportRelativeUnit(uint16_t aUnit);
++
+   static float GetAbsUnitsPerAbsUnit(uint16_t aUnits, uint16_t aPerUnit);
+ 
+   static nsCSSUnit SpecifiedUnitTypeToCSSUnit(uint16_t aSpecifiedUnit);
+--- a/dom/svg/SVGLength.cpp
++++ b/dom/svg/SVGLength.cpp
+@@ -35,6 +35,10 @@
+ constexpr uint16_t SVG_LENGTHTYPE_VH = 23;
+ constexpr uint16_t SVG_LENGTHTYPE_VMIN = 24;
+ constexpr uint16_t SVG_LENGTHTYPE_VMAX = 25;
++
++bool SVGLength::IsViewportRelativeUnit(uint16_t aUnit) {
++  return aUnit >= SVG_LENGTHTYPE_VW && aUnit <= SVG_LENGTHTYPE_VMAX;
++}
+ 
+ void SVGLength::GetValueAsString(nsAString& aValue) const {
+   nsTextFormatter::ssprintf(aValue, u"%g", (double)mValue);
+--- a/dom/svg/DOMSVGLength.cpp
++++ b/dom/svg/DOMSVGLength.cpp
+@@ -489,7 +489,11 @@
+       return;
+     }
+     if (auto* currentDoc = aSVGElement->GetComposedDoc()) {
+-      currentDoc->FlushPendingNotifications(flushType);
++      ChangesToFlush flush(flushType, flushType >= FlushType::Style,
++                           flushType >= FlushType::Layout);
++      flush.mFlushHiddenEmbeddingFrames =
++          SVGLength::IsViewportRelativeUnit(aUnitType);
++      currentDoc->FlushPendingNotifications(flush);
+     }
+   };
+ 
+--- /dev/null
++++ b/testing/web-platform/tests/svg/types/scripted/SVGLength-hidden-embedding-viewport.html
+@@ -0,0 +1,90 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>SVG viewport lengths in hidden same-origin iframes</title>
++<link rel="help" href="https://svgwg.org/svg2-draft/types.html#InterfaceSVGLength">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#viewport-relative-lengths">
++<link rel="help" href="https://drafts.csswg.org/css-contain-2/#content-visibility">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++.host { width: 240px; height: 120px; border: 0; padding: 0; }
++.host.resized { width: 460px; height: 260px; }
++.host.hidden { content-visibility: hidden; }
++iframe { display: block; width: 100%; height: 100%; border: 0; padding: 0; }
++</style>
++<body>
++<script>
++"use strict";
++async function makeSubject(t, unit, depth) {
++  const host = document.createElement("div");
++  host.className = "host";
++  document.body.append(host);
++  t.add_cleanup(() => host.remove());
++  const frames = [];
++  let container = host;
++  for (let level = 0; level < depth; ++level) {
++    const frame = container.ownerDocument.createElement("iframe");
++    const loaded = new Promise(resolve => { frame.onload = resolve; });
++    frame.srcdoc = `<!doctype html><style>
++      html,body{margin:0;width:100%;height:100%;overflow:hidden}
++      iframe{display:block;width:100%;height:100%;border:0;padding:0}
++      </style><body>` + (level + 1 === depth ?
++      `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
++        <text id="target" x="10${unit}">x</text></svg>` : "");
++    container.append(frame);
++    await loaded;
++    frames.push(frame);
++    container = frame.contentDocument.body;
++  }
++  return {host, frames,
++    length: container.querySelector("#target").x.baseVal.getItem(0)};
++}
++function checkSizes(frames, width, height, stage) {
++  for (const frame of frames) {
++    const rect = frame.getBoundingClientRect();
++    const root = frame.contentDocument.documentElement;
++    assert_array_equals([rect.width, rect.height, root.clientWidth, root.clientHeight],
++      [width, height, width, height], stage);
++  }
++}
++for (const depth of [1, 2]) {
++  for (const unit of ["vw", "vh"]) {
++    for (const method of ["value", "convertToSpecifiedUnits"]) {
++      for (const history of ["visible-resize", "hidden-only", "hidden-resize"]) {
++        promise_test(async t => {
++          const {host, frames, length} = await makeSubject(t, unit, depth);
++          const hidden = history !== "visible-resize";
++          const resized = history !== "hidden-only";
++          const width = resized ? 460 : 240;
++          const height = resized ? 260 : 120;
++          const expected = (unit === "vw" ? width : height) / 10;
++          checkSizes(frames, 240, 120, "initial iframe dimensions");
++          assert_equals(length.valueAsString, `10${unit}`, "parsed source");
++          assert_equals(length.value, unit === "vw" ? 24 : 12, "initial length");
++          host.classList.toggle("hidden", hidden);
++          assert_equals(getComputedStyle(host).contentVisibility,
++            hidden ? "hidden" : "visible", "host visibility");
++          const hostRect = host.getBoundingClientRect();
++          assert_array_equals([hostRect.width, hostRect.height], [240, 120],
++            "host dimensions after visibility change");
++          if (resized) {
++            host.classList.add("resized");
++          }
++          if (method === "convertToSpecifiedUnits") {
++            length.convertToSpecifiedUnits(SVGLength.SVG_LENGTHTYPE_PX);
++          }
++          const first = method === "value" ? length.value : length.valueInSpecifiedUnits;
++          const repeat = method === "value" ? length.value : length.valueInSpecifiedUnits;
++          host.classList.remove("hidden");
++          checkSizes(frames, width, height, "revealed iframe dimensions");
++          if (method === "convertToSpecifiedUnits") {
++            assert_equals(length.unitType, SVGLength.SVG_LENGTHTYPE_PX, "destination unit");
++          }
++          assert_equals(first, expected, "first viewport-dependent value");
++          assert_equals(repeat, expected, "repeated viewport-dependent value");
++        }, `${depth} iframe levels: ${unit} ${method} ${history}`);
++      }
++    }
++  }
++}
++</script>

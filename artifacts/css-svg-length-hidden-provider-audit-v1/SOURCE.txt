@@ -1,0 +1,202 @@
+dom/base/Document.cpp :: void Document::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
+void Document::FlushPendingNotifications(mozilla::ChangesToFlush aFlush) {
+  FlushType flushType = aFlush.mFlushType;
+
+  RefPtr<Document> documentOnStack = this;
+
+  if (flushType < FlushType::Style) {
+    // Nothing to do here
+    return;
+  }
+
+  // We need to flush the sink if this is a layout-related flush, to make sure
+  // that layout is started as needed.  But we can skip that part if we have no
+  // presshell or if it's already done an initial reflow.
+  if (mPresShell && !mPresShell->DidInitialize() && (mParser || mWeakSink)) {
+    nsCOMPtr<nsIContentSink> sink;
+    if (mParser) {
+      sink = mParser->GetContentSink();
+    } else {
+      sink = do_QueryReferent(mWeakSink);
+      if (!sink) {
+        mWeakSink = nullptr;
+      }
+    }
+    // Determine if it is safe to flush the sink notifications
+    // by determining if it safe to flush all the presshells.
+    if (sink && IsSafeToFlush()) {
+      sink->FlushPendingNotifications(flushType);
+    }
+  }
+
+  // Should we be flushing pending binding constructors in here?
+
+  // If we have a parent we must flush the parent too to ensure that our
+  // container is reflowed if its size was changed.
+  //
+  // We do it only if the subdocument and the parent can observe each other
+  // synchronously (that is, if we're not cross-origin), to avoid work that is
+  // not observable, and if the parent document has finished loading all its
+  // render-blocking stylesheets and may start laying out the document, to avoid
+  // unnecessary flashes of unstyled content on the parent document. Note that
+  // this last bit means that size-dependent media queries in this document may
+  // produce incorrect results temporarily.
+  //
+  // But if it's not safe to flush ourselves, then don't flush the parent, since
+  // that can cause things like resizes of our frame's widget, which we can't
+  // handle while flushing is unsafe.
+  if (StyleOrLayoutObservablyDependsOnParentDocumentLayout() &&
+      mParentDocument->MayStartLayout() && IsSafeToFlush()) {
+    ChangesToFlush parentFlush = aFlush;
+    if (flushType >= FlushType::Style) {
+      // Since media queries mean that a size change of our container can affect
+      // style, we need to promote a style flush on ourself to a layout flush on
+      // our parent, since we need our container to be the correct size to
+      // determine the correct style.
+      parentFlush.mFlushType = std::max(FlushType::Layout, flushType);
+    }
+    mParentDocument->FlushPendingNotifications(parentFlush);
+  }
+
+  if (RefPtr<PresShell> presShell = GetPresShell()) {
+    presShell->FlushPendingNotifications(aFlush);
+  }
+}
+
+dom/base/nsContentUtils.cpp :: PresShell* nsContentUtils::GetPresShellForContent
+PresShell* nsContentUtils::GetPresShellForContent(const nsIContent* aContent) {
+  Document* doc = aContent->GetComposedDoc();
+  if (!doc) {
+    return nullptr;
+  }
+  return doc->GetPresShell();
+}
+
+dom/base/nsContentUtils.cpp :: nsPresContext* nsContentUtils::GetContextForContent
+nsPresContext* nsContentUtils::GetContextForContent(
+    const nsIContent* aContent) {
+  PresShell* presShell = GetPresShellForContent(aContent);
+  if (!presShell) {
+    return nullptr;
+  }
+  return presShell->GetPresContext();
+}
+
+dom/svg/SVGAnimatedLength.cpp :: CSSSize UserSpaceMetrics::GetCSSViewportSizeFromContext
+CSSSize UserSpaceMetrics::GetCSSViewportSizeFromContext(
+    const nsPresContext* aContext) {
+  return CSSPixel::FromAppUnits(aContext->GetSizeForViewportUnits());
+}
+
+dom/svg/SVGAnimatedLength.cpp :: CSSSize SVGElementMetrics::GetCSSViewportSize()
+CSSSize SVGElementMetrics::GetCSSViewportSize() const {
+  if (!mSVGElement) {
+    return {0.0f, 0.0f};
+  }
+  nsPresContext* context = nsContentUtils::GetContextForContent(mSVGElement);
+  if (!context) {
+    return {0.0f, 0.0f};
+  }
+  return GetCSSViewportSizeFromContext(context);
+}
+
+layout/base/nsPresContext.cpp :: void nsPresContext::SetVisibleArea
+void nsPresContext::SetVisibleArea(const nsRect& aRect) {
+  if (!aRect.IsEqualEdges(mVisibleArea)) {
+    mVisibleArea = aRect;
+    mSizeForViewportUnits = mVisibleArea.Size();
+    AdjustSizeForViewportUnits();
+    // Visible area does not affect media queries when paginated.
+    if (!IsRootPaginatedDocument()) {
+      MediaFeatureValuesChanged(
+          {mozilla::MediaFeatureChangeReason::ViewportChange},
+          MediaFeatureChangePropagation::JustThisDocument);
+    }
+
+    UpdateInnerSizeSpoofedForRFP();
+  }
+}
+
+layout/generic/nsSubDocumentFrame.cpp :: bool nsSubDocumentFrame::ReflowFinished()
+bool nsSubDocumentFrame::ReflowFinished() {
+  mPostedReflowCallback = false;
+  nsFrameLoader* fl = FrameLoader();
+  if (!fl) {
+    return false;
+  }
+  if (fl->IsRemoteFrame() && fl->HasRemoteBrowserBeenSized()) {
+    // For remote frames we don't need to update the size and position instantly
+    // (but we should try to do so if we haven't shown it yet).
+    return false;
+  }
+  RefPtr{fl}->UpdatePositionAndSize(this);
+  return false;
+}
+
+dom/base/nsFrameLoader.cpp :: nsresult nsFrameLoader::UpdatePositionAndSize
+nsresult nsFrameLoader::UpdatePositionAndSize(nsSubDocumentFrame* aFrame) {
+  const auto size = aFrame->GetSubdocumentSize();
+  mLazySize = size;
+
+  if (IsRemoteFrame()) {
+    if (mRemoteBrowser) {
+      // If we were not able to show remote frame before, we should probably
+      // retry now to send correct showInfo.
+      if (!mRemoteBrowserShown) {
+        ShowRemoteFrame(aFrame);
+      }
+      LayoutDeviceIntRect dimensions;
+      MOZ_TRY(GetWindowDimensions(dimensions));
+      mRemoteBrowser->UpdateDimensions(dimensions, size);
+      mRemoteBrowserSized = true;
+    }
+    return NS_OK;
+  }
+  nsCOMPtr<nsIBaseWindow> baseWindow = GetDocShell(IgnoreErrors());
+  if (!baseWindow) {
+    return NS_OK;
+  }
+  int32_t x = 0;
+  int32_t y = 0;
+
+  AutoWeakFrame weakFrame(aFrame);
+  baseWindow->GetPosition(&x, &y);
+
+  if (!weakFrame.IsAlive()) {
+    // GetPosition() killed us
+    return NS_OK;
+  }
+  baseWindow->SetPositionAndSize(x, y, size.width, size.height,
+                                 nsIBaseWindow::eDelayResize);
+  return NS_OK;
+}
+
+artifacts/css-svg-length-context-refresh-expanded-v2/candidate/dom/svg/DOMSVGLength.cpp
+void DOMSVGLength::FlushIfNeeded(uint16_t aTargetUnit) {
+  auto MaybeFlush = [aTargetUnit](uint16_t aUnitType, SVGElement* aSVGElement) {
+    FlushType flushType;
+    if (SVGLength::IsPercentageUnit(aUnitType) ||
+        SVGLength::IsPercentageUnit(aTargetUnit)) {
+      flushType = FlushType::Layout;
+    } else if (!SVGLength::IsAbsoluteUnit(aUnitType) ||
+               SVGLength::IsFontRelativeUnit(aTargetUnit)) {
+      flushType = FlushType::Style;
+    } else {
+      return;
+    }
+    if (auto* currentDoc = aSVGElement->GetComposedDoc()) {
+      currentDoc->FlushPendingNotifications(flushType);
+    }
+  };
+
+  if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+    if (mIsAnimValItem) {
+      MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetAnimUnitType(), svg);
+    } else {
+      MaybeFlush(svg->GetAnimatedLength(mAttrEnum)->GetBaseUnitType(), svg);
+    }
+  }
+  if (nsCOMPtr<DOMSVGLengthList> lengthList = do_QueryInterface(mOwner)) {
+    MaybeFlush(InternalItem().GetUnit(), lengthList->Element());
+  }
+}

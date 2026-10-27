@@ -1,0 +1,9 @@
+# Fix116 installation result review
+
+GO: the accepted installed-overlay variant passed its 101-case integration with 12 OK harness ends, lint/build exit0 and no recovery or browser cleanup errors. All 35 sealed runtime payloads authenticated. Raw rows independently match the exact configured unique roster: new24, accepted11425, accepted11516, prior113matrix8 and28 existing controls. This review does not count these integration passes as new independent reproduction.
+
+The acceptance, five candidate bodies, installation before/after, test-phase before/after, final405-pin map and root receipt join exactly. Only the five intended sources changed among56 guards; the recorded native inventory grows30→33, with HEAD and both index fingerprints unchanged (925 staged paths). The eight prior installed test identities are preserved and the new24-case WPT supplies the ninth. All six installed source/test bodies and nine actual test inodes were checked read-only. Root's authenticated terminal receipt supplies the broad live index/resource/native-diff verification; this review did not duplicate large binary hashing.
+
+The new installed binary hashes are firefox6de2923a561bd235fc8721c6cfc239f4b4aeb18f4df9138d67a6d541e21d420f and XUL80de23246c6cf6731491281690a46e4760d1af32414ea67276f354b98cbd34b1. They match the successful WPT phase, installation and final/root receipts. Earlier comparison binaries are historical. Accepted114 source/target policy and115 factors remain in the exact reviewed overlay.
+
+This is independent result/preservation review; I authored the native proposal, whose separate source review is already retained. No additional native correctness, reentrancy, performance, security or clean-upstream runtime claim follows. No source/index mutation, signing, browser or build was performed here. Queue binding may proceed with actual signed parents still unresolved.

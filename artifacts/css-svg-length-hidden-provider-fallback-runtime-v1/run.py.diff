@@ -1,0 +1,38 @@
+--- artifacts/css-svg-length-hidden-provider-browser-v1/run.py
++++ artifacts/css-svg-length-hidden-provider-fallback-browser-v1/run.py
+@@ -52,10 +52,10 @@
+ authenticate(read(review_path), review_path.parent)
+ need(all(isinstance(settings[n], str) and settings[n] for n in ("epoch", "epoch_manifest_sha256", "root_receipt_sha256")), "unbound epoch")
+ need(not any((HERE / n).exists() or (HERE / n).is_symlink() for n in
+-             ("STATE.json", "BEFORE.json", "FINAL.json", "SUMMARY.json", "PRIOR-EXPERIMENT.json", "wpt-hidden-provider")), "already started")
++             ("STATE.json", "BEFORE.json", "FINAL.json", "SUMMARY.json", "PRIOR-EXPERIMENT.json", "wpt-hidden-fallback")), "already started")
+ proposal = ROOT / settings["proposal"]
+ authenticate(read(proposal / "FILES.json"), proposal)
+-need((HERE / "fixture.html").read_bytes() == (proposal / "probe.html").read_bytes(), "exact sealed four-test fixture")
++need((HERE / "fixture.html").read_bytes() == (proposal / "probe.html").read_bytes(), "exact sealed eight-test fixture")
+ epoch = ROOT / settings["epoch"]
+ need(sha(epoch / "FILES.json") == settings["epoch_manifest_sha256"], "actual comparison seal")
+ authenticate(read(epoch / "FILES.json"), epoch)
+@@ -103,7 +103,7 @@
+ wpt.save("PRIOR-EXPERIMENT.json", {"epoch": settings["epoch"], "state": prior_state, "root_receipt": receipt,
+                                  "installed_build_used": True, "expanded114_acceptance_required": True})
+ state = {"status": "starting", "complete": False, "preserved": False, "native_changes": False,
+-         "source_role": "installed expanded114 plus115 and mixed prototypes; hidden iframe provider diagnostic",
++         "source_role": "installed expanded114 plus115 and mixed prototypes; independent hidden iframe fallback histories diagnostic",
+          "prior_experiment_failed": "failure" in prior_state}
+ owned_identity = None
+ fixture = (HERE / "fixture.html").read_bytes()
+@@ -118,11 +118,11 @@
+     c["tests"] = [owned_test]
+     c["expected_subtests"] = {settings["test_id"]: settings["names"]}
+     phase_pins = {**pins, owned_test: hashlib.sha256(fixture).hexdigest()}
+-    result = tests.run(wpt, "hidden-provider", phase_pins)
++    result = tests.run(wpt, "hidden-fallback", phase_pins)
+     classifier = load("hidden_provider_classifier", HERE / "classify.py")
+     summary = classifier.classify(result["rows"], settings["names"], need)
+     wpt.save("SUMMARY.json", summary)
+-    state.update(complete=True, calibrated=4, counts=summary["counts"])
++    state.update(complete=True, calibrated=8, counts=summary["counts"])
+ except BaseException as error:
+     state["failure"] = {"type": type(error).__name__, "message": str(error)}
+ finally:

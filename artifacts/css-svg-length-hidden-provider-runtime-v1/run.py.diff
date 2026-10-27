@@ -1,0 +1,85 @@
+--- artifacts/css-svg-length-viewport-browser-v2/run.py
++++ artifacts/css-svg-length-hidden-provider-browser-v1/run.py
+@@ -3,8 +3,6 @@
+     raise SystemExit("Require python3 -I -S without optimization")
+ sys.dont_write_bytecode = True
+ import os
+-import re
+-import math
+ import hashlib
+ import importlib.util
+ import json
+@@ -47,12 +45,17 @@
+ authenticate(draft, HERE)
+ authenticate(refs, ROOT)
+ need(settings["ready_for_execution"] is True, "disabled draft")
++review = settings["final_review"]
++need(isinstance(review, dict) and set(review) == {"path", "sha256"}, "unbound independent review")
++review_path = ROOT / review["path"]
++need(sha(review_path) == review["sha256"], "independent review seal")
++authenticate(read(review_path), review_path.parent)
+ need(all(isinstance(settings[n], str) and settings[n] for n in ("epoch", "epoch_manifest_sha256", "root_receipt_sha256")), "unbound epoch")
+ need(not any((HERE / n).exists() or (HERE / n).is_symlink() for n in
+-             ("STATE.json", "BEFORE.json", "FINAL.json", "SUMMARY.json", "PRIOR-EXPERIMENT.json", "wpt-viewport")), "already started")
++             ("STATE.json", "BEFORE.json", "FINAL.json", "SUMMARY.json", "PRIOR-EXPERIMENT.json", "wpt-hidden-provider")), "already started")
+ proposal = ROOT / settings["proposal"]
+ authenticate(read(proposal / "FILES.json"), proposal)
+-need((HERE / "fixture.html").read_bytes() == (proposal / "probe.html").read_bytes(), "exact sealed ten-test fixture")
++need((HERE / "fixture.html").read_bytes() == (proposal / "probe.html").read_bytes(), "exact sealed four-test fixture")
+ epoch = ROOT / settings["epoch"]
+ need(sha(epoch / "FILES.json") == settings["epoch_manifest_sha256"], "actual comparison seal")
+ authenticate(read(epoch / "FILES.json"), epoch)
+@@ -89,7 +92,7 @@
+     for name, item in installed_tests.items():
+         s = (ROOT / name).lstat()
+         need(stat.S_ISREG(s.st_mode) and [s.st_dev, s.st_ino] == item["identity"]
+-             and sha(ROOT / name) == item["sha256"], "installed seven-test inode/hash")
++             and sha(ROOT / name) == item["sha256"], "installed eight-test inode/hash")
+     need(not wpt.git("ls-files", "--", *installed_tests).strip(), "installed tests became tracked")
+ 
+ 
+@@ -98,9 +101,9 @@
+ need(not wpt.git("ls-files", "--", owned_test).strip(), "owned test tracked")
+ wpt.save("BEFORE.json", {"snapshot": expected, "pins": pins})
+ wpt.save("PRIOR-EXPERIMENT.json", {"epoch": settings["epoch"], "state": prior_state, "root_receipt": receipt,
+-                                 "installed_build_used": True, "factor_acceptance_required": True})
++                                 "installed_build_used": True, "expanded114_acceptance_required": True})
+ state = {"status": "starting", "complete": False, "preserved": False, "native_changes": False,
+-         "source_role": "installed115 plus accepted114 and mixed prototypes; viewport source freshness diagnostic",
++         "source_role": "installed expanded114 plus115 and mixed prototypes; hidden iframe provider diagnostic",
+          "prior_experiment_failed": "failure" in prior_state}
+ owned_identity = None
+ fixture = (HERE / "fixture.html").read_bytes()
+@@ -115,28 +118,11 @@
+     c["tests"] = [owned_test]
+     c["expected_subtests"] = {settings["test_id"]: settings["names"]}
+     phase_pins = {**pins, owned_test: hashlib.sha256(fixture).hexdigest()}
+-    result = tests.run(wpt, "viewport", phase_pins)
+-    need(len(result["rows"]) == 10, "ten exact rows")
+-    mismatches = []
+-    for row in result["rows"]:
+-        if row["status"] == "FAIL":
+-            match = re.fullmatch(r"assert_approx_equals: first value after iframe resize expected (.+) \+/- (.+) but got (.+)", row.get("message") or "")
+-            need(match is not None, "calibration or later assertion failure: " + row["subtest"])
+-            expected_factor, tolerance, observed = map(float, match.groups())
+-            unit = row["subtest"].split(":", 1)[0]
+-            need(unit != "px" and expected_factor == read(proposal / "EXPECTED.json")["expected_current"][unit]
+-                 and tolerance == 0.001, "viewport expected factor and px controls")
+-            need(all(math.isfinite(v) for v in (expected_factor, tolerance, observed))
+-                 and tolerance > 0 and abs(observed - expected_factor) > tolerance,
+-                 "finite out-of-tolerance first read")
+-            mismatches.append({"subtest":row["subtest"], "value":observed,
+-                               "expected":expected_factor, "message":row["message"]})
+-    summary = {"calibrated":10, "counts":{s:sum(r["status"] == s for r in result["rows"]) for s in ("PASS","FAIL")},
+-               "first_read_mismatches":mismatches, "rows":result["rows"],
+-               "failed_first_assertion_stops_repeat_and_post_layout_assertions":True,
+-               "native_flush_branch_observed":False, "accepted_bug":False}
++    result = tests.run(wpt, "hidden-provider", phase_pins)
++    classifier = load("hidden_provider_classifier", HERE / "classify.py")
++    summary = classifier.classify(result["rows"], settings["names"], need)
+     wpt.save("SUMMARY.json", summary)
+-    state.update(complete=True, calibrated=10, counts=summary["counts"])
++    state.update(complete=True, calibrated=4, counts=summary["counts"])
+ except BaseException as error:
+     state["failure"] = {"type": type(error).__name__, "message": str(error)}
+ finally:

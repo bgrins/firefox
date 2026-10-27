@@ -1,0 +1,101 @@
+--- a/dom/base/FlushType.h
++++ b/dom/base/FlushType.h
+@@ -62,6 +62,7 @@
+   FlushType mFlushType;
+   bool mFlushAnimations;
+   bool mUpdateRelevancy;
++  bool mFlushHiddenEmbeddingFrames = false;
+ };
+ 
+ }  // namespace mozilla
+--- a/dom/base/Document.cpp
++++ b/dom/base/Document.cpp
+@@ -12024,8 +12024,12 @@
+   // But if it's not safe to flush ourselves, then don't flush the parent, since
+   // that can cause things like resizes of our frame's widget, which we can't
+   // handle while flushing is unsafe.
+-  if (StyleOrLayoutObservablyDependsOnParentDocumentLayout() &&
+-      mParentDocument->MayStartLayout() && IsSafeToFlush()) {
++  auto canFlushParent = [this] {
++    return StyleOrLayoutObservablyDependsOnParentDocumentLayout() &&
++           mParentDocument->MayStartLayout() && IsSafeToFlush();
++  };
++  if (canFlushParent()) {
++    RefPtr<Document> parentDocument = mParentDocument;
+     ChangesToFlush parentFlush = aFlush;
+     if (flushType >= FlushType::Style) {
+       // Since media queries mean that a size change of our container can affect
+@@ -12034,7 +12038,14 @@
+       // determine the correct style.
+       parentFlush.mFlushType = std::max(FlushType::Layout, flushType);
+     }
+-    mParentDocument->FlushPendingNotifications(parentFlush);
++    parentDocument->FlushPendingNotifications(parentFlush);
++    if (aFlush.mFlushHiddenEmbeddingFrames &&
++        mParentDocument == parentDocument && canFlushParent()) {
++      RefPtr<Element> embedder = GetEmbedderElement();
++      if (embedder && embedder->GetComposedDoc() == parentDocument) {
++        embedder->GetPrimaryFrame(FlushType::Layout);
++      }
++    }
+   }
+ 
+   if (RefPtr<PresShell> presShell = GetPresShell()) {
+--- a/dom/svg/SVGLength.h
++++ b/dom/svg/SVGLength.h
+@@ -121,6 +121,8 @@
+ 
+   static bool IsFontRelativeUnit(uint16_t aUnit);
+ 
++  static bool IsViewportRelativeUnit(uint16_t aUnit);
++
+   static float GetAbsUnitsPerAbsUnit(uint16_t aUnits, uint16_t aPerUnit);
+ 
+   static nsCSSUnit SpecifiedUnitTypeToCSSUnit(uint16_t aSpecifiedUnit);
+--- a/dom/svg/SVGLength.cpp
++++ b/dom/svg/SVGLength.cpp
+@@ -35,6 +35,10 @@
+ constexpr uint16_t SVG_LENGTHTYPE_VH = 23;
+ constexpr uint16_t SVG_LENGTHTYPE_VMIN = 24;
+ constexpr uint16_t SVG_LENGTHTYPE_VMAX = 25;
++
++bool SVGLength::IsViewportRelativeUnit(uint16_t aUnit) {
++  return aUnit >= SVG_LENGTHTYPE_VW && aUnit <= SVG_LENGTHTYPE_VMAX;
++}
+ 
+ void SVGLength::GetValueAsString(nsAString& aValue) const {
+   nsTextFormatter::ssprintf(aValue, u"%g", (double)mValue);
+--- a/dom/svg/DOMSVGLength.cpp
++++ b/dom/svg/DOMSVGLength.cpp
+@@ -377,6 +377,10 @@
+     return;
+   }
+ 
++  if (SVGLength::IsViewportRelativeUnit(ToSVGLength().GetUnit())) {
++    FlushIfNeeded();
++  }
++
+   if (nsCOMPtr<SVGElement> svg = do_QueryInterface(mOwner)) {
+     svg->GetAnimatedLength(mAttrEnum)->ConvertToSpecifiedUnits(aUnit, svg, aRv);
+     return;
+@@ -476,13 +480,18 @@
+     FlushType flushType;
+     if (SVGLength::IsPercentageUnit(aUnitType)) {
+       flushType = FlushType::Layout;
+-    } else if (SVGLength::IsFontRelativeUnit(aUnitType)) {
++    } else if (SVGLength::IsFontRelativeUnit(aUnitType) ||
++               SVGLength::IsViewportRelativeUnit(aUnitType)) {
+       flushType = FlushType::Style;
+     } else {
+       return;
+     }
+     if (auto* currentDoc = aSVGElement->GetComposedDoc()) {
+-      currentDoc->FlushPendingNotifications(flushType);
++      ChangesToFlush flush(flushType, flushType >= FlushType::Style,
++                           flushType >= FlushType::Layout);
++      flush.mFlushHiddenEmbeddingFrames =
++          SVGLength::IsViewportRelativeUnit(aUnitType);
++      currentDoc->FlushPendingNotifications(flush);
+     }
+   };
+ 

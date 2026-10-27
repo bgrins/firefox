@@ -1,0 +1,96 @@
+--- artifacts/css-svg-length-readiness-install-runtime-v1/run.py
++++ artifacts/css-svg-hidden-embedder-install-v1/run.py
+@@ -47,19 +47,20 @@
+          for n in ('wpt-candidate', 'BEFORE.json', 'STATE.json', 'original')), 'already started/output collision')
+ acceptance = ROOT / c['acceptance']
+ need(sha(acceptance) == c['acceptance_sha256'] and read(acceptance) == c['acceptance_receipt'], 'exact acceptance')
+-need(c['acceptance_receipt']['status'] == 'SCOPED_ACCEPTED' and c['acceptance_receipt']['fix'] == 114
+-     and c['acceptance_receipt']['landing_cases'] == 25, 'expanded114 scoped acceptance required')
++need(c['acceptance_receipt']['status'] == 'SCOPED_ACCEPTED'
++     and c['acceptance_receipt']['landing_cases'] == 24, 'hidden embedder scoped acceptance required')
+ proposal = ROOT / c['proposal']
+ authenticate(read(proposal / 'FILES.json'), proposal)
+-original_pins = {'dom/svg/DOMSVGLength.cpp': sha(ROOT / c['original_source_artifact'])}
+-candidate_pins = {'dom/svg/DOMSVGLength.cpp': sha(proposal / 'candidate/dom/svg/DOMSVGLength.cpp')}
+-accepted_patch = c['acceptance_receipt'].get('patch')
+-accepted_hash = (accepted_patch.get('sha256') if isinstance(accepted_patch, dict)
+-                 else c['acceptance_receipt'].get('native_patch_sha256'))
+-need(accepted_hash == sha(proposal / 'standalone.patch'), 'accepted exact expanded five-path patch')
++proposal_pins = read(proposal / 'SOURCE-PINS.json')
++original_pins = {n: p['installed_sha256'] for n, p in proposal_pins.items()}
++candidate_pins = {n: p['installed_candidate_sha256'] for n, p in proposal_pins.items()}
++need(original_pins == c['original_source_pins'], 'exact original overlay roles')
++need(c['acceptance_receipt']['native_patch_sha256'] == sha(proposal / 'standalone.patch')
++     and c['acceptance_receipt']['installed_overlay_sha256'] == sha(proposal / 'installed-overlay.patch'),
++     'accepted standalone and installed-overlay patches')
+ wpt = load('install_wpt', ROOT / c['helpers'] / 'run_wpt.py')
+ bindings = load('install_bindings', ROOT / c['helpers'] / 'bindings.py')
+-tests = load('install_tests', ROOT / 'artifacts/css-svg-length-readiness-comparison-v1/tests.py')
++tests = load('install_tests', HERE / 'tests.py')
+ wpt.HERE, wpt.CONFIG = HERE, c
+ wpt.ENV.update(MOZ_DISABLE_SAFE_MODE_KEY='1', MOZ_DISABLE_UPDATE_PROCESSING='1')
+ wpt.ENV.pop('MOZ_SAFE_MODE_RESTART', None)
+@@ -82,7 +83,7 @@
+                    **epoch['restored_binary_pins']}, 'complete restored role map')
+ prior_config = read(previous / 'CONFIG.json')
+ need(prior_config['epoch_receipt']['installed_tests'] == c['installed_tests']
+-     and len(c['installed_tests']) == 7, 'seven installed test identities transferred from comparison')
++     and len(c['installed_tests']) == 8, 'eight installed test identities transferred from comparison')
+ bindings.index_state(wpt)
+ before = wpt.snapshot()
+ need(before == prior_final and before['head'] == c['head']
+@@ -94,21 +95,22 @@
+ owned_tests = list(c['install'])
+ need(len(owned_tests) == 1 and sorted(c['sources']) == natives
+      and set(c['tests']) == {'testing/web-platform/tests'+n for n in c['main_tests']}
+-     and len(c['expected_subtests']) == 3 and sum(map(len, c['expected_subtests'].values())) == 25
+-     and len(c['guard_sources']) == 53 and len(natives) == 1, 'integration scope')
+-need(all(before['sources'][n] == h for n, h in original_pins.items()), 'installed114 source has unrelated working changes')
++     and len(c['expected_subtests']) == 12 and sum(map(len, c['expected_subtests'].values())) == 101
++     and len(c['guard_sources']) == 56 and len(natives) == 5, 'integration scope')
++need(all(before['sources'][n] == h for n, h in original_pins.items()), 'original overlay source has unrelated working changes')
+ fixtures = {n: (HERE / c['install'][n]).read_bytes() for n in owned_tests}
+-need(all(body == (proposal / c['proposal_test_files'][n]).read_bytes() for n, body in fixtures.items()), 'exact final fixtures')
++fixture_proposal = ROOT / c['fixture_proposal']
++need(all(body == (fixture_proposal / c['proposal_test_files'][n]).read_bytes() for n, body in fixtures.items()), 'exact final fixtures')
+ for name, proposal_file in c['proposal_test_files'].items():
+     if name not in fixtures:
+-        need(name in c['existing_test_pins'] and sha(proposal / proposal_file) == c['existing_test_pins'][name], 'existing main test remains exact')
+-need(before['sources']['dom/svg/DOMSVGLength.h'] == sha(proposal / 'candidate/dom/svg/DOMSVGLength.h'), 'installed114 header already matches')
++        need(name in c['existing_test_pins'] and sha(fixture_proposal / proposal_file) == c['existing_test_pins'][name], 'existing main test remains exact')
++need(before['sources']['dom/svg/DOMSVGLength.h'] == c['source_pins']['dom/svg/DOMSVGLength.h'], 'preserved installed114 header')
+ candidate = {n: (ROOT / c['candidate_sources'][n]).read_bytes() for n in natives}
+ need({n: hashlib.sha256(b).hexdigest() for n, b in candidate.items()} == c['candidate_pins'] == candidate_pins, 'exact candidate')
+ original = {n: (ROOT / n).read_bytes() for n in natives}
+ need(all(not (ROOT / n).exists() and not (ROOT / n).is_symlink()
+          and not wpt.git('ls-files', '--', n) for n in owned_tests), 'owned WPTs absent/untracked')
+-temps = [(ROOT / n).with_name('.' + Path(n).name + '.svg-readiness-install.tmp') for n in natives]
++temps = [(ROOT / n).with_name('.' + Path(n).name + '.svg-hidden-embedder-install.tmp') for n in natives]
+ need(all(not p.exists() and not p.is_symlink() for p in temps), 'source temporary exists')
+ 
+ def modified_native():
+@@ -175,7 +177,7 @@
+     need(stat.S_ISREG(info.st_mode) and identity in owned_sources[name], 'unknown native edit: ' + name)
+     if data == current:
+         return
+-    temp = path.with_name('.' + path.name + '.svg-readiness-install.tmp')
++    temp = path.with_name('.' + path.name + '.svg-hidden-embedder-install.tmp')
+     temporary_identity = None
+     try:
+         with temp.open('xb') as stream:
+@@ -218,13 +220,13 @@
+     state['status'] = 'testing'
+     wpt.save('STATE.json', state)
+     result = tests.run(wpt, 'candidate', phase_resources)
+-    need(len(result['rows']) == 25 and all(row['status'] == 'PASS' for row in result['rows']), 'own25 integration')
++    need(len(result['rows']) == 101 and all(row['status'] == 'PASS' for row in result['rows']), 'all101 integration')
+     need(all(result['before'][n] == h for n, h in state['installed_binary_pins'].items()), 'built binary/test join')
+     final = verify_installed()
+     need(wpt.pins(wpt.BINARIES) == state['installed_binary_pins'], 'binary drift')
+     wpt.save('FINAL.json', final)
+     wpt.save('FINAL-PINS.json', {**phase_resources, **state['installed_binary_pins']})
+-    state.update(status='terminal', installed=True, subtests={'PASS': 25, 'FAIL': 0}, files_ok=3)
++    state.update(status='terminal', installed=True, subtests={'PASS': 101, 'FAIL': 0}, files_ok=12)
+     wpt.save('INSTALLATION.json', {'before': before, 'after': final,
+         'original_source_pins': original_pins, 'installed_source_pins': candidate_pins,
+         'owned_tests': {n: {'sha256': hashlib.sha256(fixtures[n]).hexdigest(),
