@@ -1,0 +1,41 @@
+--- descriptor-capture/capture.py
++++ owner-capture/capture.py
+@@ -63,7 +63,7 @@
+     for name, pin in read(HERE / 'REFERENCES.json').items():
+         need(sha(ROOT / name) == pin, 'reference ' + name)
+     need(read(HERE / 'ROOT-ACTIVATION.json') == {'inputs_sha256': sha(HERE / 'INPUTS.json'),
+-         'status': 'ANIMATION_RULE_SAMPLE_CAPTURE_ROOT_GO'}, 'root reviewed activation')
++         'status': 'COMPACT_OWNER_BROWSER_COMPARISON_ROOT_GO'}, 'root reviewed activation')
+     h = load('epoch_helpers', ROOT / 'artifacts/css-keyframe-commit-styles-implicit-clean-comparison-v1/compare.py')
+     tests = load('owned_wpt_tests', ROOT / 'artifacts/css-keyframe-commit-styles-clean-wpt-preparation-v4/tests.py')
+     ports = load('reviewed_ports', ROOT / 'artifacts/css-keyframe-commit-styles-clean-cost-capture-v3/capture.py')
+@@ -72,15 +72,21 @@
+     binding = inputs['execution_epoch']
+     need(isinstance(binding, dict) and sha(ROOT / binding['path']) == binding['sha256'], 'actual execution epoch')
+     epoch = read(ROOT / binding['path'])
+-    for ref in epoch['provenance'].values():
+-        need(sha(ROOT / ref['path']) == ref['sha256'], 'actual build/source provenance')
+-    build = read(ROOT / epoch['provenance']['build']['path'])
+-    need(build['status'] == 'COMPLETE' and build['exit'] == 0 and build['terminal'], 'actual completed successful build')
+-    compiled = read(ROOT / epoch['provenance']['compile_sources']['path'])
++    owner = load('owner_epoch', HERE / 'owner_epoch.py')
++    owner_ref = inputs['owner_runtime_manifest']
++    need(isinstance(owner_ref, dict), 'actual completed owner runtime')
++    manifest = ROOT / owner_ref['path']
++    need(manifest.name == 'FILES.json' and sha(manifest) == owner_ref['sha256'], 'sealed owner runtime')
++    source_maps = {}
++    for key in ('reviewed_sources', 'expected_applied'):
++        ref = inputs[key]
++        need(isinstance(ref, dict) and sha(ROOT / ref['path']) == ref['sha256'], 'reviewed source binding ' + key)
++        source_maps[key] = read(ROOT / ref['path'])
++    need(set(read(HERE / 'REQUIRED-SOURCE-PATHS.json')) <= set(source_maps['reviewed_sources']), 'retained source closure')
++    compiled = owner.admit(epoch, manifest, source_maps['reviewed_sources'],
++                           read(ROOT / 'artifacts/css-keyframe-animation-rule-owner-host-combined-v2/GTEST-SELECTION.json'),
++                           source_maps['expected_applied'])
+     roles = dict(epoch['pins'])
+-    need(compiled == read(HERE / 'EXPECTED-SOURCES.json'), 'reviewed prototype source inventory')
+-    need(all(n in roles and roles[n] == pin for n, pin in compiled.items()), 'compiled candidate sources')
+-    need(set(epoch['untracked_native']) == set(read(HERE / 'EXPECTED-UNTRACKED.json')), 'reviewed prototype additions')
+     need(set(read(HERE / 'REQUIRED-ROLES.json')) <= set(roles), 'retained selected resource closure')
+     need(set(epoch['untracked_native']) <= set(roles) and all(roles[n] for n in epoch['untracked_native']), 'pinned allowed native additions')
+     need(roles[FIXTURE] is None and roles['testing/web-platform/tests/config.json'] == sha(HERE / 'server-config.json'), 'fixture/config preimages')

@@ -1,0 +1,251 @@
+--- v1/capture.py
++++ v2/capture.py
+@@ -85,7 +85,7 @@
+     need(set(read(HERE / 'REQUIRED-SOURCE-PATHS.json')) <= set(source_maps['reviewed_sources']), 'retained source closure')
+     compiled = owner.admit(epoch, manifest, source_maps['reviewed_sources'],
+                            read(ROOT / 'artifacts/css-keyframe-animation-rule-owner-host-combined-v2/GTEST-SELECTION.json'),
+-                           source_maps['expected_applied'])
++                           source_maps['expected_applied'], read(HERE / 'OWNER-PRODUCER.json'))
+     roles = dict(epoch['pins'])
+     need(set(read(HERE / 'REQUIRED-ROLES.json')) <= set(roles), 'retained selected resource closure')
+     need(set(epoch['untracked_native']) <= set(roles) and all(roles[n] for n in epoch['untracked_native']), 'pinned allowed native additions')
+--- v1/owner_epoch.py
++++ v2/owner_epoch.py
+@@ -9,7 +9,7 @@
+         raise RuntimeError(message)
+ 
+ 
+-def admit(epoch, manifest_path, reviewed, selection, applied_expected):
++def admit(epoch, manifest_path, reviewed, selection, applied_expected, producer):
+     directory = manifest_path.parent
+     root = directory.parents[1]
+     manifest = json.loads(manifest_path.read_text())
+@@ -19,20 +19,55 @@
+         need(hashlib.sha256(body).hexdigest() == manifest[name], 'owner payload ' + name)
+         return body.decode() if text else json.loads(body)
+ 
++    def external(ref):
++        body = (root / ref['path']).read_bytes()
++        need(hashlib.sha256(body).hexdigest() == ref['sha256'], 'owner prerequisite ' + ref['path'])
++        return json.loads(body)
++
++    need(hashlib.sha256(payload('run.py', text=True).encode()).hexdigest() == producer['producer_sha256'], 'reviewed owner producer')
++    terminal = payload('ROOT-EXECUTION.json')
++    need(type(terminal.get('session')) is int and terminal['session'] > 0
++         and terminal.get('outer_exit') == 0
++         and all(isinstance(terminal.get(k), str) and terminal[k] for k in ('launch', 'terminal')),
++         'actual successful owner terminal')
+     source = payload('SOURCE-EPOCH.json')
++    need(source == external(producer['source_epoch']), 'actual passed unit source epoch')
++    unit = external(producer['unit_result'])
++    need(unit['status'] == 'UNIT_AND_DOC_TESTS_PASS' and unit['preservation'] is True
++         and unit['diagnostics'] == {'E0597': 2, 'E0277': 2}, 'passed unit prerequisite')
+     current = payload('CURRENT-EPOCH.json')
+     applied = payload('APPLIED.json')
+-    need(applied == applied_expected, 'exact reviewed owner application')
++    need(applied == applied_expected == external(producer['applied']), 'exact reviewed owner application')
++    need(len(applied['postimages']) == 18 and len(applied['preserved']) == 10
++         and not set(applied['postimages']) & set(applied['preserved']), 'composed 18 sources and 10 retained guards')
+     execution = payload('EXECUTION.json')
+     binaries = payload('BINARIES.json')
+     result = payload('RESULT.json')
+     need(epoch == current, 'exact actual owner completion epoch')
+     need([r['phase'] for r in execution] == ['metadata', 'export', 'binaries', 'gtest'], 'all owner phases')
++    previous_finish = None
+     for record in execution:
+         name = record['phase']
+         need(record['exit'] == 0 and record == payload(name + '-EXECUTION.json'), 'successful owner phase ' + name)
+-        need(record['log_sha256'] == manifest[name + '.log'], 'owner phase log ' + name)
+-    need(result['status'] == 'COMPACT_OWNER_BUILD_AND_17_TESTS_PASS' and result['preservation'] is True, 'owner terminal result')
++        command = payload(name + '-COMMAND.json')
++        need(command['command'] == producer['commands'][name], 'actual owner command ' + name)
++        need(type(command.get('started')) in (int, float) and type(record.get('finished')) in (int, float)
++             and command['started'] <= record['finished']
++             and (previous_finish is None or previous_finish <= command['started']), 'ordered owner phases ' + name)
++        previous_finish = record['finished']
++        log_body = payload(name + '.log', text=True)
++        need(record['log_sha256'] == hashlib.sha256(log_body.encode()).hexdigest(), 'owner phase log ' + name)
++    need(result['status'] == 'COMPACT_OWNER_BUILD_AND_17_TESTS_PASS' and result['preservation'] is True
++         and result['source_composition'] == 'owner17_plus_corrected_borrow4_equals_18', 'owner terminal result')
++    before, preservation = payload('BEFORE.json'), payload('PRESERVATION.json')
++    semantic = lambda state: {k: state[k] for k in ('head', 'entries', 'cached_diff', 'working_diff')}
++    for receipt in (before, preservation):
++        need(receipt['current_raw_stable_during_check'] is True
++             and receipt['working_sources_binaries_research_preserved'] is True, 'owner preservation success')
++        need(semantic(receipt['index']) == source['semantic_index']
++             and receipt['index']['raw_index'] == source['raw_index_observation']['current'], 'owner main index preservation')
++        need(semantic(receipt['nested_index']) == source['nested_semantic_index'], 'owner nested index preservation')
++    need(before['index'] == preservation['index'] and before['nested_index'] == preservation['nested_index'], 'full owner index interval')
+     log = payload('gtest.log', text=True)
+     events = re.findall(r'TEST_(START|END): ([^\r\n]+)', log)
+     need(len(events) == 34 and [list(e) for e in events] == result['events'], 'actual GTest event join')
+--- v1/check.py
++++ v2/check.py
+@@ -67,16 +67,21 @@
+     pass
+ else:
+     raise AssertionError('duplicate admitted')
+-reviewed = read(OLD / 'EXPECTED-SOURCES.json') | read(OWNER / 'POSTIMAGES.json') | read(OWNER / 'PRESERVED-SOURCE-PINS.json')
+-assert set(read(HERE / 'REQUIRED-SOURCE-PATHS.json')) == set(reviewed)
+-applied = {'postimages': read(OWNER / 'POSTIMAGES.json'), 'preserved': read(OWNER / 'PRESERVED-SOURCE-PINS.json'), 'native_patch_sha256': digest(OWNER / 'native.patch')}
++producer = read(HERE / 'OWNER-PRODUCER.json')
++applied = read(ROOT / producer['applied']['path'])
++reviewed = read(OLD / 'EXPECTED-SOURCES.json') | applied['postimages'] | applied['preserved']
++assert set(read(HERE / 'REQUIRED-SOURCE-PATHS.json')) <= set(reviewed)
++assert len(applied['postimages']) == 18
+ selection = read(OWNER / 'GTEST-SELECTION.json')
+ binary_names = ['objdir-full.noindex/dist/Nightly.app/Contents/MacOS/firefox',
+                 'objdir-full.noindex/dist/Nightly.app/Contents/MacOS/XUL',
+                 'objdir-full.noindex/dist/Nightly.app/Contents/MacOS/gtest/XUL',
+                 'objdir-full.noindex/dist/bin/gtest/XUL']
+ source_epoch = {'pins': reviewed | {p: '1' * 64 for p in binary_names},
+-                'provenance': {}, 'modified_native_paths': list(applied['postimages']), 'untracked_native': []}
++                'provenance': {}, 'modified_native_paths': list(applied['postimages']), 'untracked_native': [],
++                'semantic_index': dict(head='a', entries='b', cached_diff='c', working_diff='d'),
++                'nested_semantic_index': dict(head='e', entries='f', cached_diff='g', working_diff='h'),
++                'raw_index_observation': {'current': 'i'}}
+ events = [event for name in selection['names'] for event in [('START', name), ('END', 'PASS')]]
+ gtest = ''.join('TEST_' + kind + ': ' + value + '\n' for kind, value in events)
+ gtest += 'Ran 17 test(s) from 4 test suite(s) (0 disabled), with 0 failure(s).\n'
+@@ -86,22 +91,44 @@
+     runtime.mkdir(parents=True)
+ 
+     def write_case(fault=None):
++        test_producer = copy.deepcopy(producer)
+         payloads = {'SOURCE-EPOCH.json': copy.deepcopy(source_epoch), 'APPLIED.json': copy.deepcopy(applied),
+                     'BINARIES.json': {'before': {p: '1' * 64 for p in binary_names}, 'after': {p: '2' * 64 for p in binary_names}},
+                     'gtest.log': gtest,
+-                    'RESULT.json': {'status': 'COMPACT_OWNER_BUILD_AND_17_TESTS_PASS', 'preservation': True, 'events': [list(e) for e in events]}}
++                    'RESULT.json': {'status': 'COMPACT_OWNER_BUILD_AND_17_TESTS_PASS', 'source_composition': 'owner17_plus_corrected_borrow4_equals_18', 'preservation': True, 'events': [list(e) for e in events]},
++                    'run.py': (ROOT / 'artifacts/css-keyframe-owner-runtime-v2/run.py').read_text(),
++                    'ROOT-EXECUTION.json': {'session': 1, 'launch': 'synthetic', 'terminal': 'synthetic', 'outer_exit': 0},
++                    'BEFORE.json': {'current_raw_stable_during_check': True, 'working_sources_binaries_research_preserved': True,
++                        'index': source_epoch['semantic_index'] | {'raw_index': 'i'},
++                        'nested_index': source_epoch['nested_semantic_index'] | {'raw_index': 'j'}}}
++        payloads['PRESERVATION.json'] = copy.deepcopy(payloads['BEFORE.json'])
+         execution = []
+-        for phase in ['metadata', 'export', 'binaries', 'gtest']:
++        for step, phase in enumerate(['metadata', 'export', 'binaries', 'gtest']):
+             log = payloads.setdefault(phase + '.log', 'synthetic ' + phase)
+-            record = {'phase': phase, 'exit': 0, 'finished': 1, 'log_sha256': hashlib.sha256(log.encode()).hexdigest()}
++            record = {'phase': phase, 'exit': 0, 'finished': step + 1, 'log_sha256': hashlib.sha256(log.encode()).hexdigest()}
+             execution.append(record)
+             payloads[phase + '-EXECUTION.json'] = record
++            payloads[phase + '-COMMAND.json'] = {'command': producer['commands'][phase], 'started': step}
+         payloads['EXECUTION.json'] = execution
+         current = copy.deepcopy(source_epoch)
+         current['pins'].update(payloads['BINARIES.json']['after'])
+         dump = lambda value: json.dumps(value, sort_keys=True) + '\n'
+         current['provenance']['compact_owner_execution'] = {'path': 'artifacts/run/EXECUTION.json', 'sha256': hashlib.sha256(dump(execution).encode()).hexdigest()}
+         payloads['CURRENT-EPOCH.json'] = current
++        for key, value in [('source_epoch', source_epoch), ('applied', applied),
++                           ('unit_result', {'status': 'UNIT_AND_DOC_TESTS_PASS', 'preservation': True, 'diagnostics': {'E0597': 2, 'E0277': 2}})]:
++            relative = 'artifacts/unit/' + key + '.json'
++            path = Path(directory) / relative
++            path.parent.mkdir(parents=True, exist_ok=True)
++            path.write_text(dump(value))
++            test_producer[key] = {'path': relative, 'sha256': digest(path)}
++        if fault == 'terminal': payloads['ROOT-EXECUTION.json']['outer_exit'] = 1
++        if fault == 'preservation': payloads['PRESERVATION.json']['working_sources_binaries_research_preserved'] = False
++        if fault == 'nested_raw': payloads['PRESERVATION.json']['nested_index']['raw_index'] = 'changed'
++        if fault == 'command': payloads['export-COMMAND.json']['command'] = ['wrong']
++        if fault == 'producer': payloads['run.py'] += '\n# changed\n'
++        if fault == 'log': payloads['binaries.log'] += 'changed'
++        if fault == 'composition': payloads['APPLIED.json']['postimages'].pop('servo/components/servo_arc/lib.rs')
+         if fault == 'phase': execution[2]['exit'] = 2
+         if fault == 'test': payloads['gtest.log'] = gtest.replace(selection['names'][0], 'Missing.Test')
+         if fault == 'binary': current['pins'][binary_names[0]] = '3' * 64
+@@ -115,24 +142,14 @@
+             manifest[name] = digest(runtime / name)
+         path = runtime / 'FILES.json'
+         path.write_text(dump(manifest))
+-        return current, path
++        return current, path, test_producer
+ 
+-    current, manifest = write_case()
+-    assert o.admit(current, manifest, reviewed, selection, applied) == {p: source_epoch['pins'][p] for p in sorted(reviewed)}
+-    original_reviewed, original_applied, original_source = reviewed, applied, source_epoch
+-    reviewed = reviewed | {'servo/components/servo_arc/lib.rs': '5' * 64}
+-    applied = copy.deepcopy(applied)
+-    applied['postimages']['servo/components/servo_arc/lib.rs'] = '5' * 64
+-    source_epoch = copy.deepcopy(source_epoch)
+-    source_epoch['pins'].update(reviewed)
+-    source_epoch['modified_native_paths'].append('servo/components/servo_arc/lib.rs')
+-    current, manifest = write_case()
+-    assert o.admit(current, manifest, reviewed, selection, applied)['servo/components/servo_arc/lib.rs'] == '5' * 64
+-    reviewed, applied, source_epoch = original_reviewed, original_applied, original_source
+-    for fault in ['phase', 'test', 'binary', 'source', 'applied', 'inventory']:
+-        current, manifest = write_case(fault)
++    current, manifest, test_producer = write_case()
++    assert o.admit(current, manifest, reviewed, selection, applied, test_producer) == {p: source_epoch['pins'][p] for p in sorted(reviewed)}
++    for fault in ['phase', 'test', 'binary', 'source', 'applied', 'inventory', 'terminal', 'preservation', 'nested_raw', 'command', 'producer', 'log', 'composition']:
++        current, manifest, test_producer = write_case(fault)
+         try:
+-            o.admit(current, manifest, reviewed, selection, applied)
++            o.admit(current, manifest, reviewed, selection, applied, test_producer)
+         except RuntimeError:
+             negative_count += 1
+         else:
+@@ -140,6 +157,6 @@
+ print(json.dumps({'status': 'COMPACT_OWNER_BROWSER_PREPARATION_STATIC_PASS', 'rows': 166,
+                   'files': 13, 'crashes': 2, 'historical_outcomes': {'PASS': 162, 'FAIL': 4},
+                   'required_source_paths': len(reviewed), 'owner_admission_inert_negatives': negative_count,
+-                  'additional_reviewed_source_admitted_inertly': True,
++                  'exact_composed_source_count': 18,
+                   'capture_preservation_and_finally_unchanged': True,
+                   'actual_owner_runtime_bound': False, 'live_operations': False}, indent=2))
+--- v1/INPUTS.json
++++ v2/INPUTS.json
+@@ -5,14 +5,15 @@
+   "reviewed_sources": null,
+   "expected_applied": null,
+   "local_pins": {
+-    "capture.py": "8944ee8f2693d34b005698dda2aca59e75a82ce89028d65336f8e596b5c57c66",
+-    "owner_epoch.py": "b7797cfc1c394314bce8c132480a32bc9c1dcc17ab933a3aad987be5fe89d4c9",
++    "capture.py": "2e2dc586e042678dcff26d8fcd56e770bba52530a4d725ebe5921e4c302aeadd",
++    "owner_epoch.py": "d5242674c5a77ab315cf728fc09ae4c63aaa8a7236ca7243d8338d3fbe612b46",
+     "classify.py": "f4cc8e1a115ac7efba1a7138fc7205f56c334838429c36962367a9d007a1355f",
+     "CONFIG.json": "3edbee2a9a2bb2c7f650c42e879f5227850b4c9c62c271448c4d33f9ecadfafd",
+     "BASELINE-ROWS.json": "bc91efd16075f5b33345d407674ec20b8699e4d512aba0aa3f0d0827adbdccf4",
+     "REQUIRED-ROLES.json": "aef86518b41386e8f63386b20fee097dd1e213a136c60bbee4c5d056d3db3dda",
+     "server-config.json": "1d17678f7fa75ed532cddda0435cf161198f0572c09059de01e2e6bc22de7f7e",
+     "REQUIRED-SOURCE-PATHS.json": "a16f6c18239d7c3148b90b38a1757e74726234f20251628c6a0e8d08c9828506",
+-    "REFERENCES.json": "d3c4f50306e0e2300770464d8e2e18c45714e9253533687949078602d657b973"
++    "REFERENCES.json": "a3298acd6c4bfa2d5750277064f267182d1d5c3ecdcb76f427bbbd167f4bf088",
++    "OWNER-PRODUCER.json": "957ec5e788ac3ce3c9faace0e3c526a64abff81da8abd40a5f755917a3cefe42"
+   }
+ }
+--- v1/REFERENCES.json
++++ v2/REFERENCES.json
+@@ -8,5 +8,11 @@
+   "artifacts/css-keyframe-operation-descriptor-capture-runtime-v1/FILES.json": "594f7bdcde679712c813db5784d7e09fbf0cb796049c4de64b5e97bb06b8861f",
+   "artifacts/css-keyframe-operation-descriptor-capture-terminal-review-v1/FILES.json": "93ba8266338583e3fa22b4006f1fd050d99c9b09af70a235e23563e3ffdfdf3a",
+   "artifacts/css-keyframe-animation-rule-owner-host-combined-v2/FILES.json": "c06f256f9765fe37ee0abc239b31822034b1f50226b7f41c32e664cebeed2945",
+-  "artifacts/css-keyframe-animation-rule-owner-host-combined-v2/GTEST-SELECTION.json": "3ee1bdbfa2ce50908b2b1e5f1553cd25cabd9268bf9fdac978c6456205d57a2c"
++  "artifacts/css-keyframe-animation-rule-owner-host-combined-v2/GTEST-SELECTION.json": "3ee1bdbfa2ce50908b2b1e5f1553cd25cabd9268bf9fdac978c6456205d57a2c",
++  "artifacts/css-keyframe-compact-owner-browser-comparison-v1/DRAFT-FILES.json": "793e17fd4b12055dfb2a8895e6a48db10ca1d5c29390e1896a888b462c3b6b72",
++  "artifacts/css-keyframe-owner-runtime-v2/run.py": "2c480bc2032ed3bcbf0bbbf4d4d5c940a20c2432349212f5518b3711663820fe",
++  "artifacts/css-keyframe-compact-borrow-unit-runtime-v3/CURRENT-EPOCH.json": "2ab41d77388f134e0a7df8d011a635ac923f7dfc07ba1246d510736ccf04a068",
++  "artifacts/css-keyframe-compact-borrow-unit-runtime-v3/RESULT.json": "5fceb16be1dcdd5be05b9c17cb84c9f8795c715b8359eec5fd58e586953ef5d6",
++  "artifacts/css-keyframe-compact-borrow-unit-runtime-v1/APPLIED.json": "43366f7a01397df0cfde76699b91584b39a8632a13dc3e9c911c30d1b1ce7d0f",
++  "artifacts/css-keyframe-operation-descriptor-post-signing-proposal-v2/epoch.py": "5dc90cfa2f3d57da28c107620aae7fc265aaad4c25a6ce02970ebb1aa32c444e"
+ }
+--- v1/README.md
++++ v2/README.md
+@@ -6,10 +6,14 @@
+ 
+ The former fixed 21-source and 12-untracked assumptions are removed. `REQUIRED-SOURCE-PATHS.json` retains the union of prior prototype, owner and preservation source paths, without fixing obsolete candidate values. Two initially null bindings supply the newly reviewed source map and exact expected APPLIED receipt for the successful composed successor. They may add `servo_arc` or other explicitly reviewed correction paths. All application postimages/preserved guards must match that reviewed map and the actual source epoch. Runtime `guard_sources` additionally includes every final modified and scoped-untracked native path. Expected deletions remain explicit null-valued keys. No old HEAD, source-count maximum, native-diff count, identity count, staging count or research-payload count is hardcoded.
+ 
+-`owner_epoch.py` admits the completed owner-runtime schema: a sealed FILES manifest, metadata/export/binaries/gtest phases all exiting zero, matching individual execution records and retained log digests, seventeen named passing GTests with their exact summary, and a successful RESULT. It joins APPLIED, four before/after binaries and the GTest app copy, and the exact SOURCE-EPOCH to CURRENT-EPOCH transition. The capture epoch must equal that completed CURRENT-EPOCH. Historical `provenance.build` and `provenance.compile_sources` are not used as evidence of current compilation. Compiler log digests are joined through the manifest; this adapter does not independently interpret compiler diagnostics.
++`owner_epoch.py` admits the completed owner-runtime schema: a sealed FILES manifest, metadata/export/binaries/gtest phases all exiting zero, matching individual execution records and retained log digests, seventeen named passing GTests with their exact summary, and a successful RESULT. It joins APPLIED, four before/after binaries and the GTest app copy, and the exact SOURCE-EPOCH to CURRENT-EPOCH transition. V2 additionally requires the authentic successful ROOT-EXECUTION, BEFORE/PRESERVATION records, the exact reviewed run.py body, four COMMAND records with ordered start/finish times, and hashes the actual four retained phase logs. The source epoch and composed 18-source/10-guard APPLIED receipt must match the actual unit-runtime prerequisites pinned in OWNER-PRODUCER.json. The capture epoch must equal that completed CURRENT-EPOCH. Historical `provenance.build` and `provenance.compile_sources` are not used as evidence of current compilation. Compiler log digests are joined through the manifest; this adapter does not independently interpret compiler diagnostics.
+ 
+ The first owner attempt, session 61523, failed compilation at the ApplicableDeclarationBlock size assertion and ran no GTests. It cannot pass this admission gate even though its CURRENT-EPOCH file exists. No successful replacement build or correction body is invented here. The proposed compact-borrow correction must be reviewed and its actual composed postimages supplied before activation. If the successor producer changes receipt schema, adapt and review this admission code explicitly; do not fabricate compatible successful receipts or rename the failed attempt.
+ 
+ After actual successor success and root review, make a fresh runtime copy and fill four path/hash references in INPUTS: `execution_epoch` (actual completed CURRENT-EPOCH), `owner_runtime_manifest` (sealed FILES), `reviewed_sources` (approved composed source map), and `expected_applied` (approved exact application receipt). The latter maps are review inputs, not proof that a build ran; actual runtime records independently supply that gate. Keep pinned source/data bodies unchanged and set ready true. Root supplies ROOT-ACTIVATION with the resulting inputs hash and status `COMPACT_OWNER_BROWSER_COMPARISON_ROOT_GO`, then alone invokes `python3 -I -S -B <runtime>/capture.py --run`. Any later ledger, source, HEAD or epoch changes require an explicit reanchor/review rather than relabeling an old CURRENT-EPOCH.
+ 
+-Static replay: `python3 -I -S -B artifacts/css-keyframe-compact-owner-browser-comparison-v1/check.py`. It authenticates prior packages and actual archived rows, confirms unchanged science/config/cleanup, tests outcome changes, and checks synthetic owner admission with six rejected corruptions and one added-source case. Synthetic records are only checker tests, never execution evidence. Scratch is removed. No live source/index/process checks, browser, build or compiler ran. Both the corrected owner result and browser result remain unbound.
++Static replay: `python3 -I -S -B artifacts/css-keyframe-compact-owner-browser-comparison-v1/check.py`. It authenticates prior packages and actual archived rows, confirms unchanged science/config/cleanup, tests outcome changes, and checks synthetic owner admission with thirteen rejected corruptions and the exact eighteen-source composition. Synthetic records are only checker tests, never execution evidence. Scratch is removed. No live source/index/process checks, browser, build or compiler ran. Both the corrected owner result and browser result remain unbound.
++
++V2 is bound to the actual source of owner-runtime-v2/run.py, not to a predicted successful outcome. That producer performs no new source application: its APPLIED receipt repeats the prior unit-v1 owner/borrow composition, and SOURCE-EPOCH is the passed unit-v3 epoch after the signed checkpoint. The successful outer receipt must contain a positive integer session, nonempty launch/terminal receipts and outer_exit 0. The success manifest and CURRENT-EPOCH inputs remain null. A failed build that writes CURRENT-EPOCH or preserves state cannot satisfy these gates. Root must seal the authentic terminal records before activation.
++
++The new runtime's normal build is still active at preparation time; no GTest, browser or future success is inferred. If the actual producer or output schema changes, this pinned admission must be revised explicitly. The initial signed HEAD/nested HEAD are inherited through the authenticated source epoch rather than hardcoded into the generic preservation loop. The same owner 17-test selection and browser 166-row science remain unchanged.
