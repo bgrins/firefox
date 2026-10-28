@@ -1,0 +1,37 @@
+--- css-registered-provider-expanded-observation-v3/run.py
++++ css-registered-provider-expanded-observation-v4/run.py
+@@ -61,7 +61,7 @@
+ def require_compiled_transition(epoch, role):
+     transition = epoch.get("registered_number_transition")
+     need(isinstance(transition, dict) and transition.get("role") == role and
+-         transition.get("variant") == "registered-provider-default-v4" and transition.get("compiled") is True,
++         transition.get("variant") == "registered-provider-default-v5" and transition.get("compiled") is True,
+          "phase requires matching successful provider-default compilation")
+ 
+ 
+@@ -119,6 +119,8 @@
+     original, baseline_path = None, None
+     baseline = load("baseline_observation", HERE / "baseline.py")
+     adopted = baseline.validate(ROOT, HERE, policy, SimpleNamespace(**globals()))
++    observations = load("historical_observations", HERE / "observations.py")
++    historical = observations.validate(ROOT, HERE, policy, SimpleNamespace(**globals()))
+     for name, pin in read(HERE / "REFERENCES.json").items():
+         need(sha(ROOT / name) == pin, "helper/source binding: " + name)
+     for name, pin in policy["source_roles"][role].items():
+@@ -263,6 +265,7 @@
+             if adopted is not None:
+                 need(baseline.validate(ROOT, HERE, policy, SimpleNamespace(**globals())) == adopted, "baseline evidence changed")
+             need(bindings.validate_phase(ROOT, HERE, policy, epoch, SimpleNamespace(**globals())) == phase_binding, "phase binding changed")
++            need(observations.validate(ROOT, HERE, policy, SimpleNamespace(**globals())) == historical, "historical observations changed")
+             authenticate(HERE, sys.argv[1])
+             save(out / "POST.json", post)
+         except BaseException as exc:
+@@ -280,6 +283,8 @@
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)
++        compared = observations.compare(assessment, historical)
++        save(out / "COMPARISON.json", compared)
+     except BaseException as exc:
+         error = error or repr(exc)
+     passed = (error is None and post_error is None and cleanup.get("owned_group_absent")

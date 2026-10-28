@@ -1,0 +1,9 @@
+# Continuation checkpoint
+
+The provider candidate experiment and installed-release registration experiment are complete, independently reviewed, and preserved. The candidate fixes 20 assertions but changes four color observations, so no new fix is accepted. Release Firefox reproduces 41 failing admission assertions across 68 cases, with 27 passing controls; this is not a count of independent bugs. The selected-independence Lean model checks 22 declarations and rejects six false claims under its documented abstraction.
+
+COMPLETED-SELECTION.json authenticates the additional completed research to commit after the existing v26 signing sequence. It does not modify that sequence's four frozen selections or the staged first group. The v26 unbound final checkpoint text and synchronizer now accurately acknowledge the completed candidate run. Signing remains unavailable after two 1Password errors; no unsigned fallback was used.
+
+Current next work is in ../stylo-bloom-tools/PROVIDER-PLAN-20261028.md. The inactive seven-path prototype still needs native compilation and a selected-AST handoff into initial caching. Research into erased numeric dependencies and equal branches is running separately; unresolved cases must not be silently accepted or rejected. The ordinary invalid-default color behavior and recursive readiness contract remain distinct obligations.
+
+Both browser wrappers finished, their owned process groups and temporary profiles were removed, and the Lean replay removed its owned scratch. The active compiled objdir is retained for subsequent comparisons. Two v4 Rust source edits remain uncommitted but match their preserved candidate snapshots exactly; 36 research files remain staged; all original pending signing payloads are intact. Accepted fixes remain 138; all work remains local.

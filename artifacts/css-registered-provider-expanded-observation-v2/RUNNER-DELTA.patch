@@ -1,0 +1,42 @@
+--- baseline/run.py
++++ candidate/run.py
+@@ -61,8 +61,8 @@
+ def require_compiled_transition(epoch, role):
+     transition = epoch.get("registered_number_transition")
+     need(isinstance(transition, dict) and transition.get("role") == role and
+-         transition.get("variant") == "zoom-standalone-v1" and transition.get("compiled") is True,
+-         "phase requires matching successful standalone zoom compilation")
++         transition.get("variant") == "registered-provider-default-v4" and transition.get("compiled") is True,
++         "phase requires matching successful provider-default compilation")
+ 
+ 
+ def application_target(path):
+@@ -116,7 +116,9 @@
+     phase_binding = bindings.validate_phase(ROOT, HERE, policy, epoch, SimpleNamespace(**globals()))
+     need(epoch["semantic_index"]["head"] == policy["frozen_head"], "epoch HEAD differs from frozen comparison HEAD")
+     app_metadata = application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+-    original, baseline_path, adopted = None, None, None
++    original, baseline_path = None, None
++    baseline = load("baseline_observation", HERE / "baseline.py")
++    adopted = baseline.validate(ROOT, HERE, policy, SimpleNamespace(**globals()))
+     for name, pin in read(HERE / "REFERENCES.json").items():
+         need(sha(ROOT / name) == pin, "helper/source binding: " + name)
+     for name, pin in policy["source_roles"][role].items():
+@@ -259,7 +261,7 @@
+             for name, pin in read(HERE / "REFERENCES.json").items():
+                 need(sha(ROOT / name) == pin, "helper/source changed: " + name)
+             if adopted is not None:
+-                need(adoption.validate(ROOT, HERE, baseline_path, sys.argv[7], policy, SimpleNamespace(**globals())) == adopted, "adopted original changed")
++                need(baseline.validate(ROOT, HERE, policy, SimpleNamespace(**globals())) == adopted, "baseline evidence changed")
+             need(bindings.validate_phase(ROOT, HERE, policy, epoch, SimpleNamespace(**globals())) == phase_binding, "phase binding changed")
+             authenticate(HERE, sys.argv[1])
+             save(out / "POST.json", post)
+@@ -274,7 +276,7 @@
+                           epoch_sha256=sys.argv[4], native_sources=policy["source_roles"][role], original_adoption=adopted,
+                           capsule_directory=str(HERE.relative_to(ROOT)), experiment_sha256=sha(HERE / "EXPERIMENT.json"),
+                           observation_only=True, subtest_cardinality_policy=policy["cardinality_description"],
+-                          oracle_caveat="Accepted zoom139 baseline; prior668 plus separate107 provider/admission observations, no new native acceptance; color initial admission conditional",
++                          oracle_caveat="Provider repair candidate observations against exact775 baseline; no automatic acceptance; review full color snapshots even when FAIL persists",
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)

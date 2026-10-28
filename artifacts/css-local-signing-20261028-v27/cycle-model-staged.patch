@@ -1,0 +1,1583 @@
+diff --git a/artifacts/css-registered-provider-default-review-v1/FILES.json b/artifacts/css-registered-provider-default-review-v1/FILES.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..d0b20ca8c6920e0094b74ed6b39851245cb3bcb9
+--- /dev/null
++++ b/artifacts/css-registered-provider-default-review-v1/FILES.json
+@@ -0,0 +1,10 @@
++{
++  "REFERENCES.json": {
++    "sha256": "d9f6d65459422bb0fe71ead36343006b0ddcfef42ac3603fe05ba8a9201cf262",
++    "size": 1316
++  },
++  "REPORT.md": {
++    "sha256": "40c4b1c4a98eff57f0fa35a6c659bfcc184c60656bd04861308eeea3185e2c62",
++    "size": 4298
++  }
++}
+diff --git a/artifacts/css-registered-provider-default-review-v1/REFERENCES.json b/artifacts/css-registered-provider-default-review-v1/REFERENCES.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..440c75ec51abe5e636d3a230df8923220dec2dfc
+--- /dev/null
++++ b/artifacts/css-registered-provider-default-review-v1/REFERENCES.json
+@@ -0,0 +1,10 @@
++{
++  "artifacts/css-registered-provider-default-expansion-v1/FILES.json": "7abc3dd3f16dd723f7dec4380b44aba9bf536e2603a14922712fdfea38f47d02",
++  "artifacts/css-registered-provider-default-expansion-v1/registered-pending-provider-errors.html": "297c0322397d59d8060edd625757e61549d07235414eca382ba675dba3364c2f",
++  "artifacts/css-registered-provider-default-expansion-v1/registered-initial-color-context.html": "beba576ed6c2ab26152aefa6e081f34661b2b7b53c635f1201ddfdd15b27d722",
++  "artifacts/css-registered-provider-default-expansion-v1/SPEC-TRACE.md": "69362d1619cd0b840cdbf1ae076cf4c5cda230f5bdc1bc385d076e9416b64345",
++  "artifacts/css-registered-pending-invalid-provider-repair-v2/candidate/servo/components/style/custom_properties.rs": "65139b91e599ee458e2ac81520314c2ee3fcc1c5d3d50219f3de4d0d26655557",
++  "artifacts/css-registered-pending-invalid-provider-repair-v2/candidate/servo/components/style/properties/cascade.rs": "ed33abfa092ac42e55a1d9880fe941f5a1f42efd224d185643cf995b4e4e36a1",
++  "artifacts/css-registered-pending-invalid-provider-repair-v2/base/servo/components/style/custom_properties.rs": "8a4adc903e7d88e218ee087cbe44cc3548df70fac9353dd923d5c32de2c458f9",
++  "artifacts/css-registered-provider-cycle-default-model-v1/FILES.json": "0d1d5dd3a262ef67ec1743685400aedf6d057e41905994ea6d59e5743d887647"
++}
+diff --git a/artifacts/css-registered-provider-default-review-v1/REPORT.md b/artifacts/css-registered-provider-default-review-v1/REPORT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..c5e44c58290c940b0b555d8ae6eb03a4ae73590e
+--- /dev/null
++++ b/artifacts/css-registered-provider-default-review-v1/REPORT.md
+@@ -0,0 +1,20 @@
++The scoped-cycle-bit proposal is not ready for native testing as a preservation-only repair. Its fallback descendants can change even when it skips new defaulting on a cycle-touching frame. This is a concrete source-level counterexample; no browser execution or native proof was performed.
++
++Use registered A/B/C with A initial vertical-rl and B/C initial vertical-lr:
++
++    A: var(B, var(C)); B: var(A); C: var(--missing)
++    writing-mode: var(A, horizontal-tb)
++
++On recursive A reentry, the draft sets encountered_cycle and returns no primary. B fails. A then evaluates C in its fallback. C temporarily isolates the previous cycle bit; its missing-reference error is locally acyclic, so the new registered default supplies vertical-lr. Restoring the bit does not undo that changed result. A's cycle-touching success returns the raw vertical-lr substitution, although its marked substitution must be invalid and its own computed default vertical-rl. The outer resolver may later repair A's stored value, which does not itself repair an earlier ordinary-property application. The selected ordering must still be established by browser observations.
++
++The implementation owner independently found the same flaw and is preparing explicit participant marks. Required narrow control: both declaration orders of this fallback-crossing cycle, asserting A/B own initials and nonparticipant C's default, plus the outside writing-mode result. This is sufficient to exercise the newly identified branch; no additional broad framework is needed.
++
++The existing Lean model applies directly at the boundary: marked_survives_fallback requires preserved marks and a final participant check. A boolean saying some descendant encountered a cycle is neither the participant set nor a final poison check. The model does not establish the native caller ordering or resolver correspondence.
++
++Fixture review: the 32 expansion error cases have no concrete setup/oracle blocker. Missing var/env/typed attr, rejected typed attr, inherited versus reset defaults, root fallback to initial, substituted inherit/unset and invalid trailing keyword are isolated from the known logical-unit scheduling question by using a separate fixed 1lh request. The self/mutual cases use distinct initials; the successful primary excludes its unused self fallback. Fresh iframe registrations and collected-before-assertion mutation snapshots are appropriate.
++
++The four color cases must remain calibration observations. Their unconditional registration verdict in the archived trace is too strong: Properties API section 3 connects @property to equivalent registerProperty() behavior, while the latter rejects computationally dependent initials. The descriptor section alone only states a grammar requirement. Therefore current text does not conclusively establish acceptance of light-dark() as an @property initial. Conditional on admission, selecting the color from color-scheme is clear; failure of the independent initial calibration is not a pending-provider regression. The test owner agreed to correct the trace in a successor without rewriting the archive.
++
++Cached-default source boundary: inherited nonroot values are cloned from the actual inherited style; root/reset values use the existing Stylist initial cache. The cache is constructed using AllowComputationallyDependent::No and its computation flags are applied at cascade setup. That avoids the prior draft's early-context recomputation. It does not prove future support for contextual @property initials. CSS-wide inherited/reset handling retains the existing parent/cache split and INHERITS_RESET_STYLE effect. No additional concrete default-selection bug was found in this bounded read.
++
++Evidence: artifact reads f92462, da8337, eb62f4, 00d71d, 7b720d all exited 0. Searchfox lookup get_custom_property_initial_values_flags (938faf/0) found both the Stylist accessor and cascade add_flags call. The installed CLI does not support --permalink (eae614/2), so this report names symbols rather than inventing a revision URL. Current primary Properties API was reread 2026-10-27 at https://drafts.css-houdini.org/css-properties-values-api-1/; Values5 guard/default chain is pinned by the referenced model's SPEC-TRACE. No live source, build, browser, Git/index or epoch was touched.
+diff --git a/artifacts/css-registered-provider-default-review-v2/FILES.json b/artifacts/css-registered-provider-default-review-v2/FILES.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..65e04fc3f20b40f5f25d41a1d9007d3e9a89507e
+--- /dev/null
++++ b/artifacts/css-registered-provider-default-review-v2/FILES.json
+@@ -0,0 +1,10 @@
++{
++  "REFERENCES.json": {
++    "sha256": "8a0856b2f6fb8e7b3e7c4623531764af00c9673e2d5a49956328c059a652e75e",
++    "size": 1253
++  },
++  "REPORT.md": {
++    "sha256": "ed0c38731c18bc717fafc00ff05c66c8e56c670212b30ef70dd3b3a344191782",
++    "size": 2455
++  }
++}
+diff --git a/artifacts/css-registered-provider-default-review-v2/REFERENCES.json b/artifacts/css-registered-provider-default-review-v2/REFERENCES.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..e6969bebf4e57141a47acd0cce847b83da79b99b
+--- /dev/null
++++ b/artifacts/css-registered-provider-default-review-v2/REFERENCES.json
+@@ -0,0 +1,10 @@
++{
++  "artifacts/css-registered-pending-invalid-provider-repair-v3/FILES.json": "4c2971f7b351a0dac72594ca17b2ff2271998cd5327937d1577f3e9edbecbd78",
++  "artifacts/css-registered-pending-invalid-provider-repair-v3/native.patch": "67094183842ee2677d8c210de5518e08a1dfb72e434dc7c4152d6b3ceabf10ae",
++  "artifacts/css-registered-pending-invalid-provider-repair-v3/candidate/servo/components/style/custom_properties.rs": "ab9f49f3b9ee445c3c47680c2dc263c26d991181c09afa8f3ed880fa18e9581f",
++  "artifacts/css-registered-pending-invalid-provider-repair-v3/candidate/servo/components/style/properties/cascade.rs": "2b90f1076fed1803250214b41577dff55b31c84bef7feee27bcdd8da9448d6a6",
++  "artifacts/css-registered-provider-default-expansion-v2/FILES.json": "dcd97e40084fe633e5ba36f35a0fddf131d3f4ae165ff843933411fe634f62f9",
++  "artifacts/css-registered-provider-default-expansion-v2/registered-pending-provider-errors.html": "77e9ce40834df909695278c09fa90120912366a6502c68898c9aa23959401294",
++  "artifacts/css-registered-provider-default-expansion-v2/SPEC-TRACE.md": "c11653bfb8d173a7ddd3e07e4e448433be7b298d3bae8319ccb1779e0e92130e",
++  "artifacts/css-registered-provider-default-review-v1/FILES.json": "c718495f74fd96b8f0c32ec9a0d05db8d7b86e89942febe1f02f5383b619216f"
++}
+diff --git a/artifacts/css-registered-provider-default-review-v2/REPORT.md b/artifacts/css-registered-provider-default-review-v2/REPORT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..3552430da250b29b676d3d876e8dc8d6887b6a7d
+--- /dev/null
++++ b/artifacts/css-registered-provider-default-review-v2/REPORT.md
+@@ -0,0 +1,11 @@
++Bounded semantic review of the participant-mark successor is clear. The v1 review remains a record of the concrete scoped-bit blocker; this report does not rewrite that finding.
++
++V3 marks the active stack suffix beginning at the reentered custom-property name. Marks survive fallback evaluation. Each marked provider takes its own invalid/default outcome on unwind, regardless of a nested substitution's success. A nonparticipant prefix or fallback provider is not marked merely because it consumed a cyclic participant. Normal custom-property application seeds and checks its own name too, preventing a root expression from applying additional operations to its own returned default.
++
++These changes close the exact source-level A=var(B,var(C)), B=var(A), C=var(missing) leak identified in review. General missing/grammar default selection still clones the parent for inherited nonroot properties or the Stylist initial cache for root/reset cases. CSS-wide selection retains its existing parent/cache and effect behavior. The unrelated cascade import reorder has been removed; that file only gains the Stylist argument at its invalidation call.
++
++The sealed expanded fixture now contains the A/B/C case in both orders, asserts each participant's own initial, checks C's nonparticipant default, and checks the outside writing-mode consumer. Its existing missing-var, root/inherit/unset and selected-cycle controls remain appropriate. The color initial-admission trace is now INCONCLUSIVE and its four calibration rows remain separately attributed; no unconditional light-dark registration claim is made.
++
++No further concrete semantic blocker was found in this bounded source/fixture review. This is permission to proceed to the already planned compile and focused comparison, not acceptance of an unbuilt repair. The stack tracks custom-property names; this review does not prove equivalence with all attribute/relative-unit cycles or the outer resolver's SCC machinery. Actual early application, stored values, inheritance mutations and existing cycle regressions need the planned browser evidence. The Lean model supplies a normalized participant/default invariant, not extracted Rust verification.
++
++Read evidence: V3 substantive delta 7576eb/0; final incidental-import removal b84215/0; expanded fixture delta 984032/0. Final source/fixture references below bind the sealed packages. No native, browser, build, Git/index or epoch mutation was performed.
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/Admission.lean b/artifacts/css-registered-provider-fallback-cycle-witness-v1/Admission.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ba5dc72b268022f3379d07267920465c46cf89a
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/Admission.lean
+@@ -0,0 +1,234 @@
++namespace RegisteredNumber
++
++inductive Unit where
++  | px | em
++  deriving DecidableEq, Repr
++
++inductive Dim where
++  | number | length
++  deriving DecidableEq, Repr
++
++inductive Raw where
++  | number (n : Nat)
++  | length (unit : Unit) (n : Nat)
++  | quotient (left right : Raw)
++  | sum (left right : Raw)
++  deriving DecidableEq, Repr
++
++def quotientDim : Dim → Dim → Option Dim
++  | .number, .number => some .number
++  | .length, .length => some .number
++  | .length, .number => some .length
++  | .number, .length => none
++
++def infer : Raw → Option Dim
++  | .number _ => some .number
++  | .length _ _ => some .length
++  | .quotient a b => do quotientDim (← infer a) (← infer b)
++  | .sum a b => do
++      let da ← infer a
++      let db ← infer b
++      if da = db then some da else none
++
++def needsFont : Raw → Bool
++  | .number _ => false
++  | .length u _ => u == .em
++  | .quotient a b | .sum a b => needsFont a || needsFont b
++
++structure Admitted where
++  raw : Raw
++  valid : infer raw = some .number
++
++def admit (raw : Raw) : Option Admitted :=
++  if h : infer raw = some .number then some ⟨raw, h⟩ else none
++
++inductive Provider where
++  | ready (raw : Raw)
++  | invalid
++  | pending
++  deriving DecidableEq, Repr
++
++inductive Expr where
++  | value (raw : Raw)
++  | reference (key : Nat) (fallback : Expr)
++  deriving DecidableEq, Repr
++
++inductive Selected where
++  | value (raw : Raw)
++  | demand (key : Nat)
++  deriving DecidableEq, Repr
++
++def select (env : Nat → Provider) : Expr → Selected
++  | .value raw => .value raw
++  | .reference k fallback =>
++      match env k with
++      | .ready raw => .value raw
++      | .invalid => select env fallback
++      | .pending => .demand k
++
++inductive Plan where
++  | invalid
++  | ready (raw : Raw) (font : Bool)
++  | demand (key : Nat)
++  deriving DecidableEq, Repr
++
++def planRaw (raw : Raw) : Plan :=
++  match admit raw with
++  | none => .invalid
++  | some admitted => .ready admitted.raw (needsFont admitted.raw)
++
++def plan (env : Nat → Provider) (expr : Expr) : Plan :=
++  match select env expr with
++  | .value raw => planRaw raw
++  | .demand k => .demand k
++
++def scheduledFont : Plan → Bool
++  | .ready _ font => font
++  | _ => false
++
++def eagerFlags : Expr → Bool
++  | .value raw => needsFont raw
++  | .reference _ fallback => eagerFlags fallback
++
++def hasReference : Expr → Bool
++  | .value _ => false
++  | .reference _ _ => true
++
++def seedMutation (env : Nat → Provider) (e : Expr) : Bool :=
++  eagerFlags e || scheduledFont (plan env e)
++
++def visitorMutation (env : Nat → Provider) (e : Expr) : Bool :=
++  (hasReference e && eagerFlags e) || scheduledFont (plan env e)
++
++def typeMaskMutation (_env : Nat → Provider) (_e : Expr) : Bool := false
++
++def selectedTokenMutation (env : Nat → Provider) (e : Expr) : Bool :=
++  match select env e with
++  | .value raw => needsFont raw
++  | .demand _ => false
++
++theorem admit_sound {r : Raw} {a : Admitted} (h : admit r = some a) :
++    a.raw = r ∧ infer r = some .number := by
++  unfold admit at h
++  split at h
++  next good => cases h; exact ⟨rfl, good⟩
++  next => contradiction
++
++theorem admit_complete (r : Raw) (h : infer r = some .number) :
++    ∃ a, admit r = some a ∧ a.raw = r := by
++  exact ⟨⟨r, h⟩, by simp [admit, h], rfl⟩
++
++theorem rejected_has_no_schedule (r : Raw) (h : infer r ≠ some .number) :
++    planRaw r = .invalid ∧ scheduledFont (planRaw r) = false := by
++  simp [planRaw, admit, h, scheduledFont]
++
++theorem admitted_schedule_exact (r : Raw) (h : infer r = some .number) :
++    planRaw r = .ready r (needsFont r) := by
++  simp [planRaw, admit, h]
++
++theorem ready_requires_admission {r out : Raw} {font : Bool}
++    (h : planRaw r = .ready out font) :
++    out = r ∧ infer r = some .number ∧ font = needsFont r := by
++  by_cases good : infer r = some .number
++  · simp [planRaw, admit, good] at h
++    exact ⟨h.1.symm, good, h.2.symm⟩
++  · simp [planRaw, admit, good] at h
++
++theorem ready_excludes_fallback (env : Nat → Provider) (k : Nat) (r : Raw)
++    (fallback : Expr) (h : env k = .ready r) :
++    plan env (.reference k fallback) = planRaw r := by
++  simp [plan, select, h]
++
++theorem fallback_replacement_invariant (env : Nat → Provider) (k : Nat) (r : Raw)
++    (a b : Expr) (h : env k = .ready r) :
++    plan env (.reference k a) = plan env (.reference k b) := by
++  simp [ready_excludes_fallback env k r _ h]
++
++theorem invalid_uses_fallback (env : Nat → Provider) (k : Nat)
++    (fallback : Expr) (h : env k = .invalid) :
++    plan env (.reference k fallback) = plan env fallback := by
++  simp [plan, select, h]
++
++theorem pending_is_not_invalid (env : Nat → Provider) (k : Nat)
++    (fallback : Expr) (h : env k = .pending) :
++    plan env (.reference k fallback) = .demand k := by
++  simp [plan, select, h]
++
++theorem wrong_type_ready_does_not_retry (env : Nat → Provider) (k : Nat)
++    (r : Raw) (fallback : Expr) (h : env k = .ready r)
++    (bad : infer r ≠ some .number) :
++    plan env (.reference k fallback) = .invalid := by
++  rw [ready_excludes_fallback env k r fallback h]
++  exact (rejected_has_no_schedule r bad).1
++
++theorem selection_refinement (a b : Nat → Provider) (x y : Expr)
++    (h : select a x = select b y) : plan a x = plan b y := by
++  simp only [plan, h]
++
++theorem bare_length_rejected (u : Unit) (n : Nat) :
++    planRaw (.length u n) = .invalid := by
++  simp [planRaw, admit, infer]
++
++theorem length_ratio_admitted (u v : Unit) (n d : Nat) :
++    planRaw (.quotient (.length u n) (.length v d)) =
++      .ready (.quotient (.length u n) (.length v d)) ((u == .em) || (v == .em)) := by
++  simp [planRaw, admit, infer, quotientDim, needsFont]
++
++theorem relative_ratio_requires_font (n d : Nat) :
++    scheduledFont (planRaw (.quotient (.length .em n) (.length .px d))) = true := by
++  simp [length_ratio_admitted, scheduledFont]
++
++theorem selected_invalid_length_no_context (env : Nat → Provider)
++    (e : Expr) (u : Unit) (n : Nat) (h : select env e = .value (.length u n)) :
++    plan env e = .invalid := by
++  simp [plan, h, bare_length_rejected]
++
++def eval (font : Nat) : Raw → Nat
++  | .number n => n
++  | .length .px n => n
++  | .length .em n => n * font
++  | .quotient a b => eval font a / eval font b
++  | .sum a b => eval font a + eval font b
++
++theorem no_font_leaves_is_context_independent (r : Raw) (a b : Nat)
++    (h : needsFont r = false) : eval a r = eval b r := by
++  induction r with
++  | number n => rfl
++  | length u n => cases u <;> simp_all [needsFont, eval]
++  | quotient x y hx hy =>
++      simp only [needsFont, Bool.or_eq_false_iff] at h
++      simp [eval, hx h.1, hy h.2]
++  | sum x y hx hy =>
++      simp only [needsFont, Bool.or_eq_false_iff] at h
++      simp [eval, hx h.1, hy h.2]
++
++theorem numeric_ratio_uses_current_font (font : Nat) :
++    eval font (.quotient (.length .em 1) (.length .px 1)) = font := by
++  simp [eval]
++
++inductive CycleDecision where
++  | invalidate | defer | retain
++  deriving DecidableEq, Repr
++
++def withCyclePolicy (policy : Plan → CycleDecision) (p : Plan) : Bool × CycleDecision :=
++  (scheduledFont p, policy p)
++
++theorem scheduling_independent_of_cycle_policy
++    (a b : Plan → CycleDecision) (p : Plan) :
++    (withCyclePolicy a p).1 = (withCyclePolicy b p).1 := rfl
++
++theorem seed_false_edge_general (env : Nat → Provider) (n : Nat) :
++    seedMutation env (.value (.length .em n)) = true ∧
++    scheduledFont (plan env (.value (.length .em n))) = false := by
++  simp [seedMutation, eagerFlags, needsFont, plan, select, bare_length_rejected, scheduledFont]
++
++theorem visitor_false_edge_general (env : Nat → Provider) (k n : Nat)
++    (fallback : Expr) (ready : env k = .ready (.number n))
++    (flagged : eagerFlags fallback = true) :
++    visitorMutation env (.reference k fallback) = true ∧
++    scheduledFont (plan env (.reference k fallback)) = false := by
++  simp [visitorMutation, hasReference, eagerFlags, flagged,
++    ready_excludes_fallback env k (.number n) fallback ready,
++    planRaw, admit, infer, needsFont, scheduledFont]
++
++end RegisteredNumber
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/Audit.lean b/artifacts/css-registered-provider-fallback-cycle-witness-v1/Audit.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..8ffb9ffde84eadd0461bd48d5720251bdc1174bc
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/Audit.lean
+@@ -0,0 +1,8 @@
++import Witness
++#print axioms FallbackCycleWitness.baseline_consumer_fallback
++#print axioms FallbackCycleWitness.scoped_bit_leaks_c_default
++#print axioms FallbackCycleWitness.participant_marks_select_a_default
++#print axioms FallbackCycleWitness.exact_participants_exclude_c
++#print axioms FallbackCycleWitness.scoped_bit_does_not_preserve_baseline
++#print axioms FallbackCycleWitness.scoped_bit_does_not_implement_participants
++#print axioms FallbackCycleWitness.missing_provider_alone_defaults
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/Defaults.lean b/artifacts/css-registered-provider-fallback-cycle-witness-v1/Defaults.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..21f5ea5c415b3eb9d1238f114557c04f44d1f470
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/Defaults.lean
+@@ -0,0 +1,188 @@
++import GuardCycle
++import Admission
++
++namespace ProviderDefaults
++open AttributeGuard (Key State participants)
++
++inductive Outcome where
++  | value (n : Nat)
++  | missing | rejected | pending
++  deriving DecidableEq, Repr
++
++inductive Classified where
++  | value (n : Nat)
++  | missing | rejected | cyclic | pending
++  deriving DecidableEq, Repr
++
++structure Result where
++  outcome : Outcome
++  state : State
++  deriving DecidableEq, Repr
++
++def classify (key : Key) (r : Result) : Classified :=
++  if key ∈ r.state.poisoned then .cyclic else
++  match r.outcome with
++  | .value n => .value n
++  | .missing => .missing
++  | .rejected => .rejected
++  | .pending => .pending
++
++def defaultAfter (initial : Nat) : Classified → Outcome
++  | .value n => .value n
++  | .missing | .rejected | .cyclic => .value initial
++  | .pending => .pending
++
++def publish (initial : Nat) (key : Key) (r : Result) : Result :=
++  ⟨defaultAfter initial (classify key r), r.state⟩
++
++def fallback (r : Result) (next : State → Result) : Result :=
++  match r.outcome with
++  | .missing => next r.state
++  | _ => r
++
++def guarded (markCycles : Bool) (initial : Nat) (key : Key) (s : State)
++    (body : State → Result) : Result :=
++  if key ∈ s.active then
++    if markCycles then
++      ⟨.missing, { s with poisoned := participants key s.active ++ s.poisoned }⟩
++    else ⟨.value initial, s⟩
++  else
++    let r := body { s with active := key :: s.active }
++    let done := publish initial key r
++    { done with state := { done.state with active := s.active } }
++
++inductive Expr where
++  | literal (n : Nat)
++  | missing | reject
++  | ref (name : Nat) (otherwise : Expr)
++  | plusOne (e : Expr)
++  deriving DecidableEq, Repr
++
++structure Environment where
++  initial : Nat → Nat
++  body : Nat → Expr
++
++def evaluate (markCycles : Bool) (env : Environment) : Nat → Expr → State → Result
++  | 0, _, s => ⟨.pending, s⟩
++  | fuel + 1, expr, s =>
++    match expr with
++    | .literal n => ⟨.value n, s⟩
++    | .missing => ⟨.missing, s⟩
++    | .reject => ⟨.rejected, s⟩
++    | .ref name otherwise =>
++      fallback (guarded markCycles (env.initial name) (.property name) s
++        (evaluate markCycles env fuel (env.body name)))
++        (evaluate markCycles env fuel otherwise)
++    | .plusOne e =>
++      let r := evaluate markCycles env fuel e s
++      match r.outcome with
++      | .value n => { r with outcome := .value (n + 1) }
++      | _ => r
++
++def property (markCycles : Bool) (env : Environment) (fuel name : Nat) : Result :=
++  guarded markCycles (env.initial name) (.property name) {}
++    (evaluate markCycles env fuel (env.body name))
++
++theorem marked_classifies_cyclic (key : Key) (r : Result)
++    (h : key ∈ r.state.poisoned) : classify key r = .cyclic := by
++  simp [classify, h]
++
++theorem marked_defaults (initial : Nat) (key : Key) (r : Result)
++    (h : key ∈ r.state.poisoned) :
++    (publish initial key r).outcome = .value initial := by
++  simp [publish, marked_classifies_cyclic key r h, defaultAfter]
++
++theorem publication_preserves_participants (initial : Nat) (key : Key) (r : Result) :
++    (publish initial key r).state.poisoned = r.state.poisoned := rfl
++
++theorem all_marked_participants_default (defaults : Key → Nat) (r : Result) :
++    ∀ key ∈ r.state.poisoned,
++      (publish (defaults key) key r).outcome = .value (defaults key) := by
++  intro key marked
++  exact marked_defaults (defaults key) key r marked
++
++theorem reentry_marks_exact_cycle (initial : Nat) (key : Key) (front suffix : List Key)
++    (s : State) (body : State → Result) (fresh : key ∉ front)
++    (stack : s.active = front ++ key :: suffix) :
++    (guarded true initial key s body).state.poisoned =
++      (front ++ [key]) ++ s.poisoned := by
++  simp [guarded, stack, AttributeGuard.participants_exact key front suffix fresh]
++
++theorem unmarked_ready_retained (initial n : Nat) (key : Key) (s : State)
++    (clear : key ∉ s.poisoned) :
++    (publish initial key ⟨.value n, s⟩).outcome = .value n := by
++  simp [publish, classify, clear, defaultAfter]
++
++theorem pending_not_defaulted (initial : Nat) (key : Key) (s : State)
++    (clear : key ∉ s.poisoned) :
++    (publish initial key ⟨.pending, s⟩).outcome = .pending := by
++  simp [publish, classify, clear, defaultAfter]
++
++theorem missing_uses_fallback (s : State) (next : State → Result) :
++    fallback ⟨.missing, s⟩ next = next s := rfl
++
++theorem rejected_does_not_retry (s : State) (next : State → Result) :
++    fallback ⟨.rejected, s⟩ next = ⟨.rejected, s⟩ := rfl
++
++theorem computed_default_excludes_fallback (n : Nat) (s : State)
++    (next : State → Result) : fallback ⟨.value n, s⟩ next = ⟨.value n, s⟩ := rfl
++
++theorem marked_survives_fallback (initial : Nat) (key : Key) (s : State)
++    (next : State → Result) (marked : key ∈ s.poisoned)
++    (preserves : ∀ key ∈ s.poisoned, key ∈ (next s).state.poisoned) :
++    (publish initial key (fallback ⟨.missing, s⟩ next)).outcome = .value initial := by
++  exact marked_defaults initial key (next s) (preserves key marked)
++
++def mutualEnv : Environment :=
++  ⟨fun n => if n = 0 then 3 else if n = 1 then 7 else 13,
++   fun n => if n = 0 then .ref 1 (.literal 11)
++     else if n = 1 then .plusOne (.ref 0 (.literal 11))
++     else .ref 1 (.literal 17)⟩
++
++def self : Environment :=
++  ⟨fun _ => 3, fun _ => .plusOne (.ref 0 (.literal 11))⟩
++
++def rejection : Environment :=
++  ⟨fun n => if n = 0 then 3 else 7,
++   fun n => if n = 0 then .reject else .ref 0 (.literal 11)⟩
++
++theorem mutual_participants_default :
++    (property true mutualEnv 12 0).outcome = .value 3 ∧
++    (property true mutualEnv 12 1).outcome = .value 7 := by decide +kernel
++
++theorem nonparticipant_uses_final_default :
++    (property true mutualEnv 12 2).outcome = .value 7 ∧
++    Key.property 2 ∉ (property true mutualEnv 12 2).state.poisoned := by decide +kernel
++
++theorem early_default_hides_mutual_cycle :
++    (property false mutualEnv 12 0).outcome = .value 4 ∧
++    (property false mutualEnv 12 0).state.poisoned = [] := by decide +kernel
++
++theorem self_fallback_cannot_rescue :
++    (property true self 12 0).outcome = .value 3 ∧
++    (property false self 12 0).outcome = .value 4 := by decide +kernel
++
++theorem rejected_provider_publishes_default :
++    (property true rejection 12 1).outcome = .value 3 := by decide +kernel
++
++def plainMutual : Environment :=
++  ⟨mutualEnv.initial,
++   fun n => if n = 0 then .ref 1 (.literal 11)
++     else if n = 1 then .ref 0 (.literal 11)
++     else .ref 1 (.literal 17)⟩
++
++theorem keyword_mutual_each_own_default :
++    (property true plainMutual 12 0).outcome = .value 3 ∧
++    (property true plainMutual 12 1).outcome = .value 7 ∧
++    (property true plainMutual 12 2).outcome = .value 7 := by decide +kernel
++
++theorem missing_fallback_control :
++    fallback ⟨.missing, {}⟩ (fun s => ⟨.value 11, s⟩) = ⟨.value 11, {}⟩ := rfl
++
++theorem prior_admission_boundary (env : Nat → RegisteredNumber.Provider) (k : Nat)
++    (r : RegisteredNumber.Raw) (otherwise : RegisteredNumber.Expr)
++    (ready : env k = .ready r) (bad : RegisteredNumber.infer r ≠ some .number) :
++    RegisteredNumber.plan env (.reference k otherwise) = .invalid :=
++  RegisteredNumber.wrong_type_ready_does_not_retry env k r otherwise ready bad
++
++end ProviderDefaults
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/EXECUTION.json b/artifacts/css-registered-provider-fallback-cycle-witness-v1/EXECUTION.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..12fb90d7d777225dce686f3204cdc3cee40e54b5
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/EXECUTION.json
+@@ -0,0 +1,22 @@
++{
++  "successful_session": 71874,
++  "launch": "ab8390",
++  "terminal": "7b7a13",
++  "exit": 0,
++  "declarations": 7,
++  "decisive_false_claims": 3,
++  "owned_scratch_removed": true,
++  "axioms": [
++    "propext",
++    "Quot.sound"
++  ],
++  "draft_failure": {
++    "session": 66169,
++    "terminal": "5db82b",
++    "exit": 1,
++    "reason": "primary ScopedResult type annotation required"
++  },
++  "source_discovery_preceded_model": true,
++  "native_refinement": false,
++  "browser_executed": false
++}
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/FILES.json b/artifacts/css-registered-provider-fallback-cycle-witness-v1/FILES.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..b2ff2576b89b7e04c299c054e947b4b898a01059
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/FILES.json
+@@ -0,0 +1,118 @@
++{
++  "Admission.lean": {
++    "sha256": "110911a893fe23d73dea50a24b5042fb145c225118f753de5615120fedad5e28",
++    "size": 7900
++  },
++  "Audit.lean": {
++    "sha256": "06d5dd08b79dedc68a0b02aa4675b10f49b60c1322de3d58c771b422971b32f7",
++    "size": 491
++  },
++  "Defaults.lean": {
++    "sha256": "817fcff2435c8f90599e36e0d8161699b070730c63c80df54ee76f7c1390c826",
++    "size": 7241
++  },
++  "EXECUTION.json": {
++    "sha256": "0d8dcdc54db237f3b171bb475fa6284e8c9a6a7940d72d88f1fefed7669fb04b",
++    "size": 481
++  },
++  "GuardCycle.lean": {
++    "sha256": "acb746648a6367346850cc8bc9b79d4c5ad68d0c74a4ffc4fcc37ab2bf89bbb6",
++    "size": 8186
++  },
++  "INPUTS.json": {
++    "sha256": "23d07526897c1109b2c15eb8d0cfa6cda7439a7aba209b1ef0e259865f2103d9",
++    "size": 1265
++  },
++  "README.md": {
++    "sha256": "7dc259c73a6e68b5c2899c6a80bf33c3e756bd548c16e8b25c7bb561175e00dd",
++    "size": 2978
++  },
++  "REFERENCES.json": {
++    "sha256": "e8f7e55531fef20c863eeaed8754020aab4768e53d6c3a6890740245e928eeda",
++    "size": 611
++  },
++  "REVIEW-STATUS.json": {
++    "sha256": "22dee2525be37086dc6cf17e1dd2655dd3a9c10aa59069f99ee53604ddfeb188",
++    "size": 462
++  },
++  "Witness.lean": {
++    "sha256": "2f4a0dd6b5e046e9fffce3117cb54624f084f29e0bdc638bb72a691b132e581d",
++    "size": 2839
++  },
++  "replay.py": {
++    "sha256": "e9d7f01ac4a1283eea43c411e4a7c7b2f4066a395ae715f88bc0983381f3067a",
++    "size": 4526
++  },
++  "validation/Admission.log": {
++    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++    "size": 0
++  },
++  "validation/Defaults.log": {
++    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++    "size": 0
++  },
++  "validation/GuardCycle.log": {
++    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++    "size": 0
++  },
++  "validation/Witness.log": {
++    "sha256": "f01650befaad60e82e75340f767033fc9a32b76e6b8556733886723488c8702b",
++    "size": 8028
++  },
++  "validation/version.log": {
++    "sha256": "06dac795e3a83abe1b556342ba68992a46b3992e7d3f888fa4a59eb65a2f4fe6",
++    "size": 110
++  },
++  "validation-complete/Admission.log": {
++    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++    "size": 0
++  },
++  "validation-complete/CHECK.json": {
++    "sha256": "935f61c3a404e7e3556adbdeaeb10e13d0147b5eb9e5f0660c13650a5a077065",
++    "size": 4133
++  },
++  "validation-complete/Defaults.log": {
++    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++    "size": 0
++  },
++  "validation-complete/GuardCycle.log": {
++    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++    "size": 0
++  },
++  "validation-complete/Witness.log": {
++    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++    "size": 0
++  },
++  "validation-complete/audit.log": {
++    "sha256": "623776ccb4c16c3fa2e3f5598f3200ebbe26e8335686a279417ade0a68c260be",
++    "size": 655
++  },
++  "validation-complete/c-is-cycle-participant.lean": {
++    "sha256": "d9b2421191a6a91fdc15c3a90a1cde9b707628c98107e6dd592dd1179851de2a",
++    "size": 141
++  },
++  "validation-complete/c-is-cycle-participant.log": {
++    "sha256": "0d5cffb71d3b05deb2c6f66daa3b06f4f1735089298b2e935db42a5f1a606c11",
++    "size": 145
++  },
++  "validation-complete/scoped-preserves-baseline.lean": {
++    "sha256": "b41167a0335bdce543ebf7ae540fb2c9136dcd32c9217c0a408fa53df3c582f2",
++    "size": 115
++  },
++  "validation-complete/scoped-preserves-baseline.log": {
++    "sha256": "7ce4e59b9d9c11ce8ebd232450662ebdd449f9a150ca835a458c69548fb60b7a",
++    "size": 119
++  },
++  "validation-complete/scoped-retains-a-default.lean": {
++    "sha256": "58d35ee0ad38089d7247a079275e3069ebf670a47b92087d64a19cd549693259",
++    "size": 106
++  },
++  "validation-complete/scoped-retains-a-default.log": {
++    "sha256": "009e0571d2627e963fbc6250a8b6d31375d2045459db01727e13da81fb75c401",
++    "size": 134
++  },
++  "validation-complete/version.log": {
++    "sha256": "06dac795e3a83abe1b556342ba68992a46b3992e7d3f888fa4a59eb65a2f4fe6",
++    "size": 110
++  }
++}
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/GuardCycle.lean b/artifacts/css-registered-provider-fallback-cycle-witness-v1/GuardCycle.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..d18f1ac340c3625c44aeb400ff5555d9f9b8b3f9
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/GuardCycle.lean
+@@ -0,0 +1,213 @@
++import Init
++
++namespace AttributeGuard
++
++inductive Key where
++  | property (name : Nat)
++  | attribute (name : Nat)
++  deriving DecidableEq, Repr
++
++inductive Token where
++  | atom (value : Nat)
++  | string (text : List Nat)
++  | number (value : Nat)
++  deriving DecidableEq, Repr
++
++inductive Expr where
++  | literal (tokens : List Token)
++  | invalid
++  | variable (name : Nat) (fallback : Expr)
++  | raw (name : Nat) (fallback : Expr)
++  | primitive (name : Nat) (fallback : Expr)
++  | typed (name : Nat) (fallback : Expr)
++  | append (left right : Expr)
++  deriving DecidableEq, Repr
++
++structure Attribute where
++  text : List Nat
++  expression : Expr
++  primitive : Option (List Token)
++
++structure Environment where
++  properties : Nat → Expr
++  attributes : Nat → Option Attribute
++  accepts : Nat → List Token → Bool
++
++structure State where
++  active : List Key := []
++  poisoned : List Key := []
++  guardTrace : List Key := []
++  deriving DecidableEq, Repr
++
++inductive Outcome where
++  | value (tokens : List Token)
++  | invalid
++  | exhausted
++  deriving DecidableEq, Repr
++
++structure Result where
++  outcome : Outcome
++  state : State
++  deriving DecidableEq, Repr
++
++structure Policy where
++  finalCheck : Bool := true
++  rawRecurses : Bool := false
++  deriving DecidableEq, Repr
++
++def participants (key : Key) : List Key → List Key
++  | [] => []
++  | current :: rest => current :: if current = key then [] else participants key rest
++
++def finish (checked : Bool) (key : Key) (outcome : Outcome) (state : State) : Outcome :=
++  if checked && decide (key ∈ state.poisoned) then .invalid else outcome
++
++def guarded (policy : Policy) (key : Key) (state : State)
++    (body : State → Result) : Result :=
++  let traced := { state with guardTrace := state.guardTrace ++ [key] }
++  if key ∈ state.active then
++    ⟨.invalid, { traced with poisoned := participants key state.active ++ state.poisoned }⟩
++  else
++    let result := body { traced with active := key :: state.active }
++    ⟨finish policy.finalCheck key result.outcome result.state,
++      { result.state with active := state.active }⟩
++
++def orElse (primary : Result) (fallback : State → Result) : Result :=
++  match primary.outcome with
++  | .invalid => fallback primary.state
++  | _ => primary
++
++def parseTyped (accepts : List Token → Bool) (result : Result) : Result :=
++  match result.outcome with
++  | .value tokens => if accepts tokens then result else ⟨.invalid, result.state⟩
++  | _ => result
++
++def evaluate (policy : Policy) (env : Environment) : Nat → Expr → State → Result
++  | 0, _, state => ⟨.exhausted, state⟩
++  | fuel + 1, expr, state =>
++    match expr with
++    | .literal tokens => ⟨.value tokens, state⟩
++    | .invalid => ⟨.invalid, state⟩
++    | .variable name fallback =>
++      orElse (guarded policy (.property name) state
++        (evaluate policy env fuel (env.properties name)))
++        (evaluate policy env fuel fallback)
++    | .raw name fallback =>
++      match env.attributes name with
++      | none => evaluate policy env fuel fallback state
++      | some attr =>
++        if policy.rawRecurses then
++          orElse (guarded policy (.attribute name) state
++            (evaluate policy env fuel attr.expression))
++            (evaluate policy env fuel fallback)
++        else ⟨.value [.string attr.text], state⟩
++    | .primitive name fallback =>
++      match env.attributes name with
++      | none => evaluate policy env fuel fallback state
++      | some attr =>
++        match attr.primitive with
++        | none => evaluate policy env fuel fallback state
++        | some tokens => ⟨.value tokens, state⟩
++    | .typed name fallback =>
++      match env.attributes name with
++      | none => evaluate policy env fuel fallback state
++      | some attr =>
++        orElse (parseTyped (env.accepts name)
++          (guarded policy (.attribute name) state
++            (evaluate policy env fuel attr.expression)))
++          (evaluate policy env fuel fallback)
++    | .append left right =>
++      let first := evaluate policy env fuel left state
++      match first.outcome with
++      | .value tokens =>
++        let second := evaluate policy env fuel right first.state
++        match second.outcome with
++        | .value more => ⟨.value (tokens ++ more), second.state⟩
++        | _ => second
++      | _ => first
++
++def property (policy : Policy) (env : Environment) (fuel name : Nat)
++    (state : State := {}) : Result :=
++  guarded policy (.property name) state (evaluate policy env fuel (env.properties name))
++
++theorem participants_exact (key : Key) (front suffix : List Key)
++    (fresh : key ∉ front) :
++    participants key (front ++ key :: suffix) = front ++ [key] := by
++  induction front with
++  | nil => simp [participants]
++  | cons first rest ih =>
++    have different : first ≠ key := by
++      intro equal
++      apply fresh
++      simp [equal]
++    have absent : key ∉ rest := by
++      intro present
++      exact fresh (List.mem_cons_of_mem first present)
++    simp [participants, different, ih absent]
++
++theorem finish_poisoned (key : Key) (value : Outcome) (state : State)
++    (marked : key ∈ state.poisoned) : finish true key value state = .invalid := by
++  simp [finish, marked]
++
++theorem finish_unpoisoned (key : Key) (value : Outcome) (state : State)
++    (clear : key ∉ state.poisoned) : finish true key value state = value := by
++  simp [finish, clear]
++
++theorem guard_marks_exact_cycle (key : Key) (front suffix : List Key)
++    (state : State) (body : State → Result) (fresh : key ∉ front)
++    (stack : state.active = front ++ key :: suffix) :
++    (guarded {} key state body).state.poisoned =
++      (front ++ [key]) ++ state.poisoned := by
++  simp [guarded, stack, participants_exact key front suffix fresh]
++
++theorem guard_reentry_invalid (policy : Policy) (key : Key) (state : State)
++    (body : State → Result) (active : key ∈ state.active) :
++    (guarded policy key state body).outcome = .invalid := by
++  simp [guarded, active]
++
++theorem guard_final_check (key : Key) (state : State) (body : State → Result)
++    (fresh : key ∉ state.active)
++    (marked : key ∈ (body { state with active := key :: state.active, guardTrace := state.guardTrace ++ [key] }).state.poisoned) :
++    (guarded {} key state body).outcome = .invalid := by
++  simp [guarded, fresh, finish, marked]
++
++theorem guard_restores_stack (policy : Policy) (key : Key) (state : State)
++    (body : State → Result) : (guarded policy key state body).state.active = state.active := by
++  simp only [guarded]
++  split <;> rfl
++
++theorem value_excludes_fallback (tokens : List Token) (state : State)
++    (fallback : State → Result) :
++    orElse ⟨.value tokens, state⟩ fallback = ⟨.value tokens, state⟩ := rfl
++
++theorem exhaustion_not_invalid (state : State) (fallback : State → Result) :
++    orElse ⟨.exhausted, state⟩ fallback = ⟨.exhausted, state⟩ := rfl
++
++theorem present_raw_is_literal (env : Environment) (fuel name : Nat)
++    (attr : Attribute) (fallback : Expr) (state : State)
++    (present : env.attributes name = some attr) :
++    evaluate {} env (fuel + 1) (.raw name fallback) state =
++      ⟨.value [.string attr.text], state⟩ := by
++  simp [evaluate, present]
++
++theorem valid_primitive_ignores_expression (env : Environment) (fuel name : Nat)
++    (attr : Attribute) (fallback : Expr) (tokens : List Token) (state : State)
++    (present : env.attributes name = some attr) (valid : attr.primitive = some tokens) :
++    evaluate {} env (fuel + 1) (.primitive name fallback) state =
++      ⟨.value tokens, state⟩ := by
++  simp [evaluate, present, valid]
++
++theorem missing_raw_uses_fallback (env : Environment) (fuel name : Nat)
++    (fallback : Expr) (state : State) (missing : env.attributes name = none) :
++    evaluate {} env (fuel + 1) (.raw name fallback) state =
++      evaluate {} env fuel fallback state := by
++  simp [evaluate, missing]
++
++theorem invalid_primitive_uses_fallback (env : Environment) (fuel name : Nat)
++    (attr : Attribute) (fallback : Expr) (state : State)
++    (present : env.attributes name = some attr) (invalid : attr.primitive = none) :
++    evaluate {} env (fuel + 1) (.primitive name fallback) state =
++      evaluate {} env fuel fallback state := by
++  simp [evaluate, present, invalid]
++
++end AttributeGuard
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/INPUTS.json b/artifacts/css-registered-provider-fallback-cycle-witness-v1/INPUTS.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..dbbbc89420502331397f4285dd530cff9ab3b4c9
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/INPUTS.json
+@@ -0,0 +1,23 @@
++{
++  "compiler": "artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
++  "compiler_sha256": "d1d9c26a539f54fe839d2aa7760bf1ac1dd76a30b26e2c9684bebf2900038fcf",
++  "imports": {
++    "artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/lib/lean/Init.olean": "137c0ff34edc8306c34a5761d2541200050040f6af517d2dd00321b2f2201535"
++  },
++  "sources": {
++    "GuardCycle.lean": "acb746648a6367346850cc8bc9b79d4c5ad68d0c74a4ffc4fcc37ab2bf89bbb6",
++    "Admission.lean": "110911a893fe23d73dea50a24b5042fb145c225118f753de5615120fedad5e28",
++    "Defaults.lean": "817fcff2435c8f90599e36e0d8161699b070730c63c80df54ee76f7c1390c826",
++    "Witness.lean": "2f4a0dd6b5e046e9fffce3117cb54624f084f29e0bdc638bb72a691b132e581d",
++    "Audit.lean": "06d5dd08b79dedc68a0b02aa4675b10f49b60c1322de3d58c771b422971b32f7"
++  },
++  "audited_names": [
++    "FallbackCycleWitness.baseline_consumer_fallback",
++    "FallbackCycleWitness.scoped_bit_leaks_c_default",
++    "FallbackCycleWitness.participant_marks_select_a_default",
++    "FallbackCycleWitness.exact_participants_exclude_c",
++    "FallbackCycleWitness.scoped_bit_does_not_preserve_baseline",
++    "FallbackCycleWitness.scoped_bit_does_not_implement_participants",
++    "FallbackCycleWitness.missing_provider_alone_defaults"
++  ]
++}
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/README.md b/artifacts/css-registered-provider-fallback-cycle-witness-v1/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..3abce498a380df4672e1132040e222e7dac7ac1d
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/README.md
+@@ -0,0 +1,21 @@
++This is the exact fallback-crossing counterexample found during source review of the scoped-cycle-bit provider proposal. Seven declarations pass Lean's kernel; three false claims are decisively rejected. The model reuses the previous outcome/default and guard models unchanged.
++
++The normalized case is A=var(B,var(C)), B=var(A), C=var(missing). A's own initial is encoded as 3 (vertical-rl); B/C initials are 7 (vertical-lr); the outside consumer fallback is 11 (horizontal-tb).
++
++| Evaluator | Outside consumer result | Meaning |
++|---|---|---|
++| Original recursive path, no new missing-provider default | 11 | Consumer fallback |
++| Scoped-bit draft plus new acyclic registered defaults | 7 | C's default escapes through cyclic A |
++| Participant-mark evaluator | 3 | A retains its own invalidation/default |
++
++The scoped bit remains true in the incorrect result. It records that a cycle happened but cannot repair a value changed by a fallback descendant. The participant evaluator marks exactly B/A, not C. The missing C case in isolation still defaults correctly to 7; the defect concerns composition with the cycle.
++
++Witness.lean is the small new model. scopedEvaluate mirrors the draft's save/reset/restore-OR cycle flag, success bypass on cycle-touched frames, and local missing-result defaulting. The no-default variant isolates the prior branch behavior. The existing participant evaluator provides the comparison. Fuel is sufficient for this finite trace; exhaustion remains pending, not CSS invalidity. The missing leaf abstracts a failed reference to an absent unregistered property; it is not a registered property's missing declaration.
++
++The source review found this candidate defect first; Lean then checked the normalized counterexample. This is not automatic discovery from Rust, a proof of native equivalence, or evidence that a release binary follows this path. The actual partially resolved map, call order, registration lookup, full parser, inheritance, attributes, contextual-unit graph, taint and caching remain correspondence obligations. All atoms here are already admitted noninheriting registration values. Native V3 is a separately reviewed participant-mark proposal, not proven by this executable model. No accepted bug or canonical coverage credit is claimed.
++
++Replay with an absent absolute output directory:
++
++    python3 -I -S -B artifacts/css-registered-provider-fallback-cycle-witness-v1/replay.py --output /private/tmp/provider-fallback-witness-output
++
++The retained output contains raw logs and the audit. Temporary compiler/module scratch is removed automatically. INPUTS pins the compiler and all imported/copied sources; REFERENCES binds the exact v2 body reviewed. Audited axioms are propext and, for scoped recursion proofs, Quot.sound. No custom axiom, sorry, native_decide or browser execution is used. validation-complete is successful; the earlier validation log is a corrected missing type annotation, not a successful negative control.
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/REFERENCES.json b/artifacts/css-registered-provider-fallback-cycle-witness-v1/REFERENCES.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..29e70344c1d945700de546f9f6e4f6edea2c3ee3
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/REFERENCES.json
+@@ -0,0 +1,6 @@
++{
++  "artifacts/css-registered-provider-cycle-default-model-v1/FILES.json": "0d1d5dd3a262ef67ec1743685400aedf6d057e41905994ea6d59e5743d887647",
++  "artifacts/css-registered-provider-cycle-default-model-v1/Defaults.lean": "817fcff2435c8f90599e36e0d8161699b070730c63c80df54ee76f7c1390c826",
++  "artifacts/css-registered-provider-default-review-v1/FILES.json": "c718495f74fd96b8f0c32ec9a0d05db8d7b86e89942febe1f02f5383b619216f",
++  "artifacts/css-registered-pending-invalid-provider-repair-v2/candidate/servo/components/style/custom_properties.rs": "65139b91e599ee458e2ac81520314c2ee3fcc1c5d3d50219f3de4d0d26655557"
++}
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/REVIEW-STATUS.json b/artifacts/css-registered-provider-fallback-cycle-witness-v1/REVIEW-STATUS.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..601fdb426d313584bea0d54fcf6f6a6b5dbc1d96
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/REVIEW-STATUS.json
+@@ -0,0 +1,10 @@
++{
++  "status": "BOUNDED_INDEPENDENT_READ_CLEAR",
++  "kernel_execution": "validation-complete/CHECK.json",
++  "source_and_log_authentication": "6ee948/0",
++  "reviewer": "/root/typed_demand_review",
++  "review_receipt": "834104/0",
++  "independent_lean_replay": false,
++  "finding": "Scoped-bit composition and normalized missing/fuel boundary match stated source counterexample; exact model list order is not native equivalence.",
++  "native_correctness_claim": false
++}
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/Witness.lean b/artifacts/css-registered-provider-fallback-cycle-witness-v1/Witness.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..987bb12abbfc93a1a3caf7d15cb8dddbb2185cc9
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/Witness.lean
+@@ -0,0 +1,76 @@
++import Defaults
++
++namespace FallbackCycleWitness
++open ProviderDefaults
++
++structure ScopedState where
++  names : List Nat := []
++  cycle : Bool := false
++  deriving DecidableEq, Repr
++
++structure ScopedResult where
++  outcome : Outcome
++  state : ScopedState
++  deriving DecidableEq, Repr
++
++def environment : Environment :=
++  ⟨fun n => if n = 0 then 3 else 7,
++   fun n => if n = 0 then .ref 1 (.ref 2 .missing)
++     else if n = 1 then .ref 0 .missing else .missing⟩
++
++def scopedEvaluate (defaultFailures : Bool) : Nat → Expr → ScopedState → ScopedResult
++  | 0, _, s => ⟨.pending, s⟩
++  | fuel + 1, expr, s =>
++    match expr with
++    | .literal n => ⟨.value n, s⟩
++    | .missing => ⟨.missing, s⟩
++    | .reject => ⟨.rejected, s⟩
++    | .plusOne e =>
++      let r := scopedEvaluate defaultFailures fuel e s
++      match r.outcome with
++      | .value n => { r with outcome := .value (n + 1) }
++      | _ => r
++    | .ref name otherwise =>
++      let primary : ScopedResult :=
++        if name ∈ s.names then
++          ⟨.missing, { s with cycle := true }⟩
++        else
++          let r := scopedEvaluate defaultFailures fuel (environment.body name)
++            { names := s.names ++ [name], cycle := false }
++          let output := if r.state.cycle then r.outcome else
++            match r.outcome with
++            | .missing | .rejected =>
++              if defaultFailures then .value (environment.initial name) else r.outcome
++            | _ => r.outcome
++          ⟨output, { names := s.names, cycle := r.state.cycle || s.cycle }⟩
++      match primary.outcome with
++      | .missing => scopedEvaluate defaultFailures fuel otherwise primary.state
++      | _ => primary
++
++def consumer : Expr := .ref 0 (.literal 11)
++def oldResult := scopedEvaluate false 16 consumer {}
++def scopedResult := scopedEvaluate true 16 consumer {}
++def participantResult := evaluate true environment 16 consumer {}
++
++theorem baseline_consumer_fallback : oldResult.outcome = .value 11 := by decide +kernel
++
++theorem scoped_bit_leaks_c_default :
++    scopedResult.outcome = .value 7 ∧ scopedResult.state.cycle = true := by decide +kernel
++
++theorem participant_marks_select_a_default :
++    participantResult.outcome = .value 3 := by decide +kernel
++
++theorem exact_participants_exclude_c :
++    participantResult.state.poisoned = [.property 1, .property 0] := by decide +kernel
++
++theorem scoped_bit_does_not_preserve_baseline :
++    scopedResult.outcome ≠ oldResult.outcome := by decide +kernel
++
++theorem scoped_bit_does_not_implement_participants :
++    scopedResult.outcome ≠ participantResult.outcome := by decide +kernel
++
++theorem missing_provider_alone_defaults :
++    (scopedEvaluate true 16 (.ref 2 (.literal 11)) {}).outcome = .value 7 ∧
++    (scopedEvaluate true 16 (.ref 2 (.literal 11)) {}).state.cycle = false := by decide +kernel
++
++end FallbackCycleWitness
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/replay.py b/artifacts/css-registered-provider-fallback-cycle-witness-v1/replay.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8db10b1fc0a80a8dd7f5ad42f7fae30342302bb6
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/replay.py
+@@ -0,0 +1,91 @@
++import argparse
++import hashlib
++import json
++import os
++from pathlib import Path
++import re
++import shutil
++import subprocess
++import tempfile
++
++HERE = Path(__file__).resolve().parent
++ROOT = HERE.parents[1]
++sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
++
++
++def decisive(code, log):
++    return code == 1 and re.fullmatch(
++        r"False\.lean:\d+:\d+: error: Tactic `decide` proved that the proposition\n[\s\S]+\nis false\n?", log
++    ) is not None and log.count('error:') == 1 and not any(
++        word in log for word in ('warning:', 'failed to reduce', 'Reduction got stuck', 'sorry', 'failed to synthesize'))
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument('--output', type=Path, required=True)
++    output = parser.parse_args().output
++    assert output.is_absolute() and not output.exists()
++    inputs = json.loads((HERE / 'INPUTS.json').read_text())
++    compiler = ROOT / inputs['compiler']
++    assert sha(compiler) == inputs['compiler_sha256']
++    for name, digest in inputs['sources'].items():
++        assert sha(HERE / name) == digest
++        assert not re.search(r'\b(sorry|axiom|native_decide)\b', (HERE / name).read_text())
++    for name, digest in inputs['imports'].items():
++        assert sha(ROOT / name) == digest
++    for name, digest in json.loads((HERE / 'REFERENCES.json').read_text()).items():
++        assert sha(ROOT / name) == digest
++    output.mkdir()
++    records = []
++    with tempfile.TemporaryDirectory(prefix='provider-fallback-cycle-', dir='/private/tmp') as temporary:
++        scratch = Path(temporary)
++        for name in inputs['sources']:
++            shutil.copyfile(HERE / name, scratch / name)
++        env = dict(os.environ, LEAN_PATH=temporary, LEAN_NUM_THREADS='1')
++        def run(name, args, negative=False):
++            result = subprocess.run([str(compiler), '-j1', *args], cwd=scratch, env=env,
++                                    capture_output=True, text=True, timeout=45)
++            log = result.stdout + result.stderr
++            (output / (name + '.log')).write_text(log)
++            records.append(dict(name=name, command=[str(compiler), '-j1', *args],
++                                exit=result.returncode, log_sha256=sha(output / (name + '.log'))))
++            assert decisive(result.returncode, log) if negative else (
++                result.returncode == 0 and 'warning:' not in log and 'sorryAx' not in log), log
++            return log
++        version = run('version', ['--version']).strip()
++        for module in ('GuardCycle', 'Admission', 'Defaults', 'Witness'):
++            run(module, ['-o', module + '.olean', module + '.lean'])
++        audit = run('audit', ['Audit.lean'])
++        axioms = {}
++        for line in audit.splitlines():
++            match = re.fullmatch(r"'([^']+)' (?:depends on axioms: \[([^]]*)\]|does not depend on any axioms)", line)
++            assert match, line
++            assert match[1] not in axioms
++            axioms[match[1]] = match[2].split(', ') if match[2] else []
++            assert set(axioms[match[1]]) <= {'propext', 'Quot.sound', 'Classical.choice'}
++        assert set(axioms) == set(inputs['audited_names'])
++        claims = {
++            'scoped-preserves-baseline': 'scopedResult.outcome = oldResult.outcome',
++            'scoped-retains-a-default': 'scopedResult.outcome = .value 3',
++            'c-is-cycle-participant': 'AttributeGuard.Key.property 2 ∈ participantResult.state.poisoned',
++        }
++        for name, claim in claims.items():
++            source = 'import Witness\nopen FallbackCycleWitness\nexample : ' + claim + ' := by\n  decide +kernel\n'
++            (scratch / 'False.lean').write_text(source)
++            (output / (name + '.lean')).write_text(source)
++            run(name, ['False.lean'], True)
++        good = (output / 'scoped-preserves-baseline.log').read_text()
++        assert not decisive(0, good)
++        assert not decisive(1, good + 'False.lean:1:1: error: unrelated\n')
++        assert not decisive(1, 'False.lean:1:1: error: Unknown identifier `false`\n')
++    assert not scratch.exists()
++    check = dict(status='FALLBACK_CYCLE_WITNESS_PASS', compiler=version,
++                 axioms=axioms, records=records, owned_scratch_removed=True,
++                 audited_declarations=len(axioms), rejected_false_claims=len(claims), native_refinement=False,
++                 canonical_coverage_credit=0, accepted_bug_credit=0)
++    (output / 'CHECK.json').write_text(json.dumps(check, indent=2) + '\n')
++    print(json.dumps(check))
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/Admission.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/Admission.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/CHECK.json b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/CHECK.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..74a5fcec58b7ad51debc405de8e81a0a5a489438
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/CHECK.json
+@@ -0,0 +1,138 @@
++{
++  "status": "FALLBACK_CYCLE_WITNESS_PASS",
++  "compiler": "Lean (version 4.35.0-rc4, arm64-apple-darwin24.6.0, commit c29b6dda4f7c20e3eeaa717c4e565663c5cfa364, Release)",
++  "axioms": {
++    "FallbackCycleWitness.baseline_consumer_fallback": [
++      "propext",
++      "Quot.sound"
++    ],
++    "FallbackCycleWitness.scoped_bit_leaks_c_default": [
++      "propext",
++      "Quot.sound"
++    ],
++    "FallbackCycleWitness.participant_marks_select_a_default": [
++      "propext"
++    ],
++    "FallbackCycleWitness.exact_participants_exclude_c": [
++      "propext"
++    ],
++    "FallbackCycleWitness.scoped_bit_does_not_preserve_baseline": [
++      "propext",
++      "Quot.sound"
++    ],
++    "FallbackCycleWitness.scoped_bit_does_not_implement_participants": [
++      "propext",
++      "Quot.sound"
++    ],
++    "FallbackCycleWitness.missing_provider_alone_defaults": [
++      "propext",
++      "Quot.sound"
++    ]
++  },
++  "records": [
++    {
++      "name": "version",
++      "command": [
++        "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
++        "-j1",
++        "--version"
++      ],
++      "exit": 0,
++      "log_sha256": "06dac795e3a83abe1b556342ba68992a46b3992e7d3f888fa4a59eb65a2f4fe6"
++    },
++    {
++      "name": "GuardCycle",
++      "command": [
++        "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
++        "-j1",
++        "-o",
++        "GuardCycle.olean",
++        "GuardCycle.lean"
++      ],
++      "exit": 0,
++      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++    },
++    {
++      "name": "Admission",
++      "command": [
++        "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
++        "-j1",
++        "-o",
++        "Admission.olean",
++        "Admission.lean"
++      ],
++      "exit": 0,
++      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++    },
++    {
++      "name": "Defaults",
++      "command": [
++        "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
++        "-j1",
++        "-o",
++        "Defaults.olean",
++        "Defaults.lean"
++      ],
++      "exit": 0,
++      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++    },
++    {
++      "name": "Witness",
++      "command": [
++        "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
++        "-j1",
++        "-o",
++        "Witness.olean",
++        "Witness.lean"
++      ],
++      "exit": 0,
++      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++    },
++    {
++      "name": "audit",
++      "command": [
++        "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
++        "-j1",
++        "Audit.lean"
++      ],
++      "exit": 0,
++      "log_sha256": "623776ccb4c16c3fa2e3f5598f3200ebbe26e8335686a279417ade0a68c260be"
++    },
++    {
++      "name": "scoped-preserves-baseline",
++      "command": [
++        "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
++        "-j1",
++        "False.lean"
++      ],
++      "exit": 1,
++      "log_sha256": "7ce4e59b9d9c11ce8ebd232450662ebdd449f9a150ca835a458c69548fb60b7a"
++    },
++    {
++      "name": "scoped-retains-a-default",
++      "command": [
++        "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
++        "-j1",
++        "False.lean"
++      ],
++      "exit": 1,
++      "log_sha256": "009e0571d2627e963fbc6250a8b6d31375d2045459db01727e13da81fb75c401"
++    },
++    {
++      "name": "c-is-cycle-participant",
++      "command": [
++        "/Users/bgrins/code/firefox/artifacts/stylo-bloom-tools/lean-4.35.0-rc4-darwin_aarch64/bin/lean",
++        "-j1",
++        "False.lean"
++      ],
++      "exit": 1,
++      "log_sha256": "0d5cffb71d3b05deb2c6f66daa3b06f4f1735089298b2e935db42a5f1a606c11"
++    }
++  ],
++  "owned_scratch_removed": true,
++  "audited_declarations": 7,
++  "rejected_false_claims": 3,
++  "native_refinement": false,
++  "canonical_coverage_credit": 0,
++  "accepted_bug_credit": 0
++}
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/Defaults.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/Defaults.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/GuardCycle.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/GuardCycle.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/Witness.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/Witness.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/audit.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/audit.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..ffe1db643add942122bde2ef3b3a38ae274307f9
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/audit.log
+@@ -0,0 +1,7 @@
++'FallbackCycleWitness.baseline_consumer_fallback' depends on axioms: [propext, Quot.sound]
++'FallbackCycleWitness.scoped_bit_leaks_c_default' depends on axioms: [propext, Quot.sound]
++'FallbackCycleWitness.participant_marks_select_a_default' depends on axioms: [propext]
++'FallbackCycleWitness.exact_participants_exclude_c' depends on axioms: [propext]
++'FallbackCycleWitness.scoped_bit_does_not_preserve_baseline' depends on axioms: [propext, Quot.sound]
++'FallbackCycleWitness.scoped_bit_does_not_implement_participants' depends on axioms: [propext, Quot.sound]
++'FallbackCycleWitness.missing_provider_alone_defaults' depends on axioms: [propext, Quot.sound]
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/c-is-cycle-participant.lean b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/c-is-cycle-participant.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..d26eb049569c28ec0a4cac31032b05226be82030
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/c-is-cycle-participant.lean
+@@ -0,0 +1,4 @@
++import Witness
++open FallbackCycleWitness
++example : AttributeGuard.Key.property 2 ∈ participantResult.state.poisoned := by
++  decide +kernel
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/c-is-cycle-participant.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/c-is-cycle-participant.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b8c7ccf5d51acb1e4bab72d373d5500d65abd4
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/c-is-cycle-participant.log
+@@ -0,0 +1,3 @@
++False.lean:4:2: error: Tactic `decide` proved that the proposition
++  AttributeGuard.Key.property 2 ∈ participantResult.state.poisoned
++is false
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/scoped-preserves-baseline.lean b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/scoped-preserves-baseline.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..c090de3a67eed80b8bbbe69e69c8da9f4519fda8
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/scoped-preserves-baseline.lean
+@@ -0,0 +1,4 @@
++import Witness
++open FallbackCycleWitness
++example : scopedResult.outcome = oldResult.outcome := by
++  decide +kernel
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/scoped-preserves-baseline.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/scoped-preserves-baseline.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..f65085415276f3247c77c8fd3563ad38b5ec73da
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/scoped-preserves-baseline.log
+@@ -0,0 +1,3 @@
++False.lean:4:2: error: Tactic `decide` proved that the proposition
++  scopedResult.outcome = oldResult.outcome
++is false
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/scoped-retains-a-default.lean b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/scoped-retains-a-default.lean
+new file mode 100644
+index 0000000000000000000000000000000000000000..ba2c459557dd992ff0a9fa668a0d7536044f0423
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/scoped-retains-a-default.lean
+@@ -0,0 +1,4 @@
++import Witness
++open FallbackCycleWitness
++example : scopedResult.outcome = .value 3 := by
++  decide +kernel
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/scoped-retains-a-default.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/scoped-retains-a-default.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..4dadfcaec21f837fd6ed84abdf053598423c2ed0
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/scoped-retains-a-default.log
+@@ -0,0 +1,3 @@
++False.lean:4:2: error: Tactic `decide` proved that the proposition
++  scopedResult.outcome = ProviderDefaults.Outcome.value 3
++is false
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/version.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/version.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..468744c93d3254cc543ed3a8ae05e1829fa64207
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation-complete/version.log
+@@ -0,0 +1 @@
++Lean (version 4.35.0-rc4, arm64-apple-darwin24.6.0, commit c29b6dda4f7c20e3eeaa717c4e565663c5cfa364, Release)
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation/Admission.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation/Admission.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation/Defaults.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation/Defaults.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation/GuardCycle.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation/GuardCycle.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation/Witness.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation/Witness.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..7a69f287583099f25c5b95ee6c6161da54c124ee
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation/Witness.log
+@@ -0,0 +1,139 @@
++Witness.lean:36:10: error: Invalid `⟨...⟩` notation: The expected type of this term could not be determined
++Witness.lean:45:10: error: Invalid `⟨...⟩` notation: The expected type of this term could not be determined
++Witness.lean:46:12: error(lean.invalidField): Invalid field notation: Type of
++  primary
++is not known; cannot resolve field `outcome`
++
++Hint: Consider replacing the field projection with a call to one of the following:
++  • `AttributeGuard.Result.outcome`
++  • `ScopedResult.outcome`
++  • `Result.outcome`
++Witness.lean:46:12: error(lean.invalidField): Invalid field notation: Type of
++  primary
++is not known; cannot resolve field `outcome`
++
++Hint: Consider replacing the field projection with a call to one of the following:
++  • `AttributeGuard.Result.outcome`
++  • `ScopedResult.outcome`
++  • `Result.outcome`
++Witness.lean:47:8: error(lean.invalidDottedIdent): Invalid dotted identifier notation: The expected type of `.missing` could not be determined
++
++Hint: Using one of these would be unambiguous:
++  [apply] `Lean.Syntax.missing`
++  [apply] `Classified.missing`
++  [apply] `Expr.missing`
++  [apply] `Outcome.missing`
++  [apply] `Lean.Try.Config.missing`
++Witness.lean:55:73: error: Tactic `decide` failed to reduce
++  @decide (oldResult.outcome = Outcome.value 11) (instDecidableEqOutcome oldResult.outcome (Outcome.value 11))
++to `true` or `false`.
++
++Reduction got stuck at
++  match oldResult.outcome, Outcome.value 11 with
++  | Outcome.value a, Outcome.value b => if h : a = b then h ▸ isTrue ⋯ else isFalse ⋯
++  | Outcome.value n, Outcome.missing => isFalse ⋯
++  | Outcome.value n, Outcome.rejected => isFalse ⋯
++  | Outcome.value n, Outcome.pending => isFalse ⋯
++  | Outcome.missing, Outcome.value n => isFalse ⋯
++  | Outcome.missing, Outcome.missing => isTrue ⋯
++  | Outcome.missing, Outcome.rejected => isFalse instDecidableEqOutcome.decEq._proof_7
++  | Outcome.missing, Outcome.pending => isFalse instDecidableEqOutcome.decEq._proof_8
++  | Outcome.rejected, Outcome.value n => isFalse ⋯
++  | Outcome.rejected, Outcome.missing => isFalse instDecidableEqOutcome.decEq._proof_10
++  | Outcome.rejected, Outcome.rejected => isTrue ⋯
++  | Outcome.rejected, Outcome.pending => isFalse instDecidableEqOutcome.decEq._proof_11
++  | Outcome.pending, Outcome.value n => isFalse ⋯
++  | Outcome.pending, Outcome.missing => isFalse instDecidableEqOutcome.decEq._proof_13
++  | Outcome.pending, Outcome.rejected => isFalse instDecidableEqOutcome.decEq._proof_14
++  | Outcome.pending, Outcome.pending => isTrue ⋯
++Witness.lean:58:76: error: Tactic `decide` failed to reduce
++  @decide (scopedResult.outcome = Outcome.value 7 ∧ scopedResult.state.cycle = true) instDecidableAnd
++to `true` or `false`.
++
++Reduction got stuck at
++  match scopedResult.outcome, Outcome.value 7 with
++  | Outcome.value a, Outcome.value b => if h : a = b then h ▸ isTrue ⋯ else isFalse ⋯
++  | Outcome.value n, Outcome.missing => isFalse ⋯
++  | Outcome.value n, Outcome.rejected => isFalse ⋯
++  | Outcome.value n, Outcome.pending => isFalse ⋯
++  | Outcome.missing, Outcome.value n => isFalse ⋯
++  | Outcome.missing, Outcome.missing => isTrue ⋯
++  | Outcome.missing, Outcome.rejected => isFalse instDecidableEqOutcome.decEq._proof_7
++  | Outcome.missing, Outcome.pending => isFalse instDecidableEqOutcome.decEq._proof_8
++  | Outcome.rejected, Outcome.value n => isFalse ⋯
++  | Outcome.rejected, Outcome.missing => isFalse instDecidableEqOutcome.decEq._proof_10
++  | Outcome.rejected, Outcome.rejected => isTrue ⋯
++  | Outcome.rejected, Outcome.pending => isFalse instDecidableEqOutcome.decEq._proof_11
++  | Outcome.pending, Outcome.value n => isFalse ⋯
++  | Outcome.pending, Outcome.missing => isFalse instDecidableEqOutcome.decEq._proof_13
++  | Outcome.pending, Outcome.rejected => isFalse instDecidableEqOutcome.decEq._proof_14
++  | Outcome.pending, Outcome.pending => isTrue ⋯
++Witness.lean:67:51: error: Tactic `decide` failed to reduce
++  @decide (scopedResult.outcome ≠ oldResult.outcome) instDecidableNot
++to `true` or `false`.
++
++Reduction got stuck at
++  match scopedResult.outcome, oldResult.outcome with
++  | Outcome.value a, Outcome.value b => if h : a = b then h ▸ isTrue ⋯ else isFalse ⋯
++  | Outcome.value n, Outcome.missing => isFalse ⋯
++  | Outcome.value n, Outcome.rejected => isFalse ⋯
++  | Outcome.value n, Outcome.pending => isFalse ⋯
++  | Outcome.missing, Outcome.value n => isFalse ⋯
++  | Outcome.missing, Outcome.missing => isTrue ⋯
++  | Outcome.missing, Outcome.rejected => isFalse instDecidableEqOutcome.decEq._proof_7
++  | Outcome.missing, Outcome.pending => isFalse instDecidableEqOutcome.decEq._proof_8
++  | Outcome.rejected, Outcome.value n => isFalse ⋯
++  | Outcome.rejected, Outcome.missing => isFalse instDecidableEqOutcome.decEq._proof_10
++  | Outcome.rejected, Outcome.rejected => isTrue ⋯
++  | Outcome.rejected, Outcome.pending => isFalse instDecidableEqOutcome.decEq._proof_11
++  | Outcome.pending, Outcome.value n => isFalse ⋯
++  | Outcome.pending, Outcome.missing => isFalse instDecidableEqOutcome.decEq._proof_13
++  | Outcome.pending, Outcome.rejected => isFalse instDecidableEqOutcome.decEq._proof_14
++  | Outcome.pending, Outcome.pending => isTrue ⋯
++Witness.lean:70:59: error: Tactic `decide` failed to reduce
++  @decide (scopedResult.outcome ≠ participantResult.outcome) instDecidableNot
++to `true` or `false`.
++
++Reduction got stuck at
++  match scopedResult.outcome, participantResult.outcome with
++  | Outcome.value a, Outcome.value b => if h : a = b then h ▸ isTrue ⋯ else isFalse ⋯
++  | Outcome.value n, Outcome.missing => isFalse ⋯
++  | Outcome.value n, Outcome.rejected => isFalse ⋯
++  | Outcome.value n, Outcome.pending => isFalse ⋯
++  | Outcome.missing, Outcome.value n => isFalse ⋯
++  | Outcome.missing, Outcome.missing => isTrue ⋯
++  | Outcome.missing, Outcome.rejected => isFalse instDecidableEqOutcome.decEq._proof_7
++  | Outcome.missing, Outcome.pending => isFalse instDecidableEqOutcome.decEq._proof_8
++  | Outcome.rejected, Outcome.value n => isFalse ⋯
++  | Outcome.rejected, Outcome.missing => isFalse instDecidableEqOutcome.decEq._proof_10
++  | Outcome.rejected, Outcome.rejected => isTrue ⋯
++  | Outcome.rejected, Outcome.pending => isFalse instDecidableEqOutcome.decEq._proof_11
++  | Outcome.pending, Outcome.value n => isFalse ⋯
++  | Outcome.pending, Outcome.missing => isFalse instDecidableEqOutcome.decEq._proof_13
++  | Outcome.pending, Outcome.rejected => isFalse instDecidableEqOutcome.decEq._proof_14
++  | Outcome.pending, Outcome.pending => isTrue ⋯
++Witness.lean:74:81: error: Tactic `decide` failed to reduce
++  @decide
++    ((scopedEvaluate true 16 (Expr.ref 2 (Expr.literal 11)) { }).outcome = Outcome.value 7 ∧
++      (scopedEvaluate true 16 (Expr.ref 2 (Expr.literal 11)) { }).state.cycle = false)
++    instDecidableAnd
++to `true` or `false`.
++
++Reduction got stuck at
++  match (scopedEvaluate true 16 (Expr.ref 2 (Expr.literal 11)) { }).outcome, Outcome.value 7 with
++  | Outcome.value a, Outcome.value b => if h : a = b then h ▸ isTrue ⋯ else isFalse ⋯
++  | Outcome.value n, Outcome.missing => isFalse ⋯
++  | Outcome.value n, Outcome.rejected => isFalse ⋯
++  | Outcome.value n, Outcome.pending => isFalse ⋯
++  | Outcome.missing, Outcome.value n => isFalse ⋯
++  | Outcome.missing, Outcome.missing => isTrue ⋯
++  | Outcome.missing, Outcome.rejected => isFalse instDecidableEqOutcome.decEq._proof_7
++  | Outcome.missing, Outcome.pending => isFalse instDecidableEqOutcome.decEq._proof_8
++  | Outcome.rejected, Outcome.value n => isFalse ⋯
++  | Outcome.rejected, Outcome.missing => isFalse instDecidableEqOutcome.decEq._proof_10
++  | Outcome.rejected, Outcome.rejected => isTrue ⋯
++  | Outcome.rejected, Outcome.pending => isFalse instDecidableEqOutcome.decEq._proof_11
++  | Outcome.pending, Outcome.value n => isFalse ⋯
++  | Outcome.pending, Outcome.missing => isFalse instDecidableEqOutcome.decEq._proof_13
++  | Outcome.pending, Outcome.rejected => isFalse instDecidableEqOutcome.decEq._proof_14
++  | Outcome.pending, Outcome.pending => isTrue ⋯
+diff --git a/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation/version.log b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation/version.log
+new file mode 100644
+index 0000000000000000000000000000000000000000..468744c93d3254cc543ed3a8ae05e1829fa64207
+--- /dev/null
++++ b/artifacts/css-registered-provider-fallback-cycle-witness-v1/validation/version.log
+@@ -0,0 +1 @@
++Lean (version 4.35.0-rc4, arm64-apple-darwin24.6.0, commit c29b6dda4f7c20e3eeaa717c4e565663c5cfa364, Release)
