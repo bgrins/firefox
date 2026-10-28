@@ -1,0 +1,3 @@
+Fix 141 resolves contextual leaves in unitless line-height. The final installed browser passes all 34 WPT subtests, repairing seven original failures; 22 regression signatures and six harness endings remain unchanged. The standalone payload contains one Rust file and two WPT pages. After its verified signed commit, the branch has 140 accepted fixes and 141 tracked fixes, with held fix 120 excluded from acceptance. The accompanying Lean model is conditional and post-discovery; canonical CSS-library coverage is unchanged.
+
+Held provider experiment remains unchanged and unaccepted. Earlier binary/restoration receipts are historical; preserve the accepted line-height overlay in future restoration.

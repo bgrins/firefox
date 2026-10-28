@@ -1,5 +1,10 @@
 # CSS and Stylo verification plan
 
+Fix 141 resolves contextual leaves in unitless line-height. The final installed browser passes all 34 WPT subtests, repairing seven original failures; 22 regression signatures and six harness endings remain unchanged. The standalone payload contains one Rust file and two WPT pages. After its verified signed commit, the branch has 140 accepted fixes and 141 tracked fixes, with held fix 120 excluded from acceptance. The accompanying Lean model is conditional and post-discovery; canonical CSS-library coverage is unchanged.
+
+Earlier entries retain their historical state.
+
+
 Fix 140 is committed as `c13f212eb28476eb31940f62299c4b4a3ae8750e` after verification research `e4ba214e3286b7a2307795c2c1f72c07706a528d`. Page-selector matching and specificity now use the matching name and pseudo-classes on the same selector. The paired 24-print-test run changes 10 failures to passes and preserves 14 passing controls/regressions. The standalone commit contains two Rust files and three WPT/reference pairs. Six scoped Lean claims and two false controls support the bucket-filtering argument; no native-refinement or canonical CSS coverage increment is claimed. Accepted fixes: 139; tracked: 140; held fix 120 remains excluded.
 
 Earlier checkpoints below retain their historical counts and pending states.

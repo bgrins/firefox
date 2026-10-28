@@ -1,5 +1,12 @@
 # CSS/Stylo continuation roadmap
 
+Fix 141 resolves contextual leaves in unitless line-height. The final installed browser passes all 34 WPT subtests, repairing seven original failures; 22 regression signatures and six harness endings remain unchanged. The standalone payload contains one Rust file and two WPT pages. After its verified signed commit, the branch has 140 accepted fixes and 141 tracked fixes, with held fix 120 excluded from acceptance. The accompanying Lean model is conditional and post-discovery; canonical CSS-library coverage is unchanged.
+
+Next: typecheck corrected random-counter source v4, then run its 46 targeted WPT subtests against an authenticated original. Preserve the accepted line-height, zoom and page-selector fixes when rebasing experiments. Continue provider readiness/SCC work and the remaining Bloom/CSS verification milestones; provider work and held fix 120 remain unaccepted. Keep each future native fix with its necessary WPT in a standalone commit, with research preceding it. All work stays local.
+
+Earlier roadmap checkpoints are retained below as history; their unresolved work remains in scope.
+
+
 Fix 140 is committed as `c13f212eb28476eb31940f62299c4b4a3ae8750e` after verification research `e4ba214e3286b7a2307795c2c1f72c07706a528d`. Page-selector matching and specificity now use the matching name and pseudo-classes on the same selector. The paired 24-print-test run changes 10 failures to passes and preserves 14 passing controls/regressions. The standalone commit contains two Rust files and three WPT/reference pairs. Six scoped Lean claims and two false controls support the bucket-filtering argument; no native-refinement or canonical CSS coverage increment is claimed. Accepted fixes: 139; tracked: 140; held fix 120 remains excluded.
 
 1. Next browser investigation: registered random syntax backtracking. The sealed v2 probe has 15 cases and 45 snapshots, including literal-initial ordinary declarations. Run against the local Nightly with support checks. Failed alternatives consume a counter outside cssparser rollback in the source; browser confirmation and any repair remain pending. Simple reparsing does not establish random-key churn.
