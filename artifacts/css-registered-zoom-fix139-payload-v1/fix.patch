@@ -1,0 +1,986 @@
+--- a/servo/components/style/properties_and_values/value.rs
++++ b/servo/components/style/properties_and_values/value.rs
+@@ -179,7 +179,7 @@
+ 
+ /// A struct for a single specified registered custom property value that includes its original URL
+ /// data so the value can be uncomputed later.
+-#[derive(Clone, Debug, MallocSizeOf, ToCss, ToComputedValue, ToResolvedValue, ToShmem, ToTyped)]
++#[derive(Clone, Debug, MallocSizeOf, ToCss, ToResolvedValue, ToShmem, ToTyped)]
+ #[typed(todo_derive_fields)]
+ pub struct Value<Component> {
+     /// The registered custom property value.
+@@ -191,6 +191,28 @@
+     /// Flag indicating whether this value is tainted by an attr().
+     #[css(skip)]
+     pub attr_tainted: bool,
++}
++
++impl<Component: ToComputedValue> ToComputedValue for Value<Component> {
++    type ComputedValue = Value<Component::ComputedValue>;
++
++    #[inline]
++    fn to_computed_value(&self, context: &computed::Context) -> Self::ComputedValue {
++        context.with_registered_value(|context| Value {
++            v: self.v.to_computed_value(context),
++            url_data: self.url_data.to_computed_value(context),
++            attr_tainted: self.attr_tainted.to_computed_value(context),
++        })
++    }
++
++    #[inline]
++    fn from_computed_value(computed: &Self::ComputedValue) -> Self {
++        Self {
++            v: ToComputedValue::from_computed_value(&computed.v),
++            url_data: ToComputedValue::from_computed_value(&computed.url_data),
++            attr_tainted: ToComputedValue::from_computed_value(&computed.attr_tainted),
++        }
++    }
+ }
+ 
+ impl<Component: PartialEq> PartialEq for Value<Component> {
+--- a/servo/components/style/queries/feature_expression.rs
++++ b/servo/components/style/queries/feature_expression.rs
+@@ -1060,18 +1060,28 @@
+                     visited_set,
+                 )
+             },
+-            QueryExpressionValue::Length(v) => {
+-                Some(Component::Length(v.to_computed_value(context)))
+-            },
+-            QueryExpressionValue::Float(v) => Some(Component::Number(v.to_computed_value(context))),
+-            QueryExpressionValue::Resolution(v) => {
+-                Some(Component::Resolution(v.to_computed_value(context)))
+-            },
+-            QueryExpressionValue::Percentage(v) => {
+-                Some(Component::Percentage(v.to_computed_value(context)))
+-            },
+-            QueryExpressionValue::Angle(v) => Some(Component::Angle(v.to_computed_value(context))),
+-            QueryExpressionValue::Time(v) => Some(Component::Time(v.to_computed_value(context))),
++            QueryExpressionValue::Length(v) => Some(Component::Length(
++                context.with_registered_value(|context| v.to_computed_value(context)),
++            )),
++            QueryExpressionValue::Float(v) => Some(Component::Number(
++                context.with_registered_value(|context| v.to_computed_value(context)),
++            )),
++            QueryExpressionValue::Resolution(v) => Some(Component::Resolution(
++                context.with_registered_value(|context| v.to_computed_value(context)),
++            )),
++            QueryExpressionValue::Percentage(v) => Some(Component::Percentage(
++                context.with_registered_value(|context| v.to_computed_value(context)),
++            )),
++            QueryExpressionValue::Angle(v) => {
++                Some(Component::Angle(context.with_registered_value(|context| {
++                    v.to_computed_value(context)
++                })))
++            },
++            QueryExpressionValue::Time(v) => {
++                Some(Component::Time(context.with_registered_value(|context| {
++                    v.to_computed_value(context)
++                })))
++            },
+             // It's unclear to me what CSS-wide keywords would mean in a style-range query;
+             // for now, at least, they'll just fail to resolve.
+             QueryExpressionValue::Keyword(_) => None,
+--- a/servo/components/style/stylesheets/container_rule.rs
++++ b/servo/components/style/stylesheets/container_rule.rs
+@@ -20,7 +20,7 @@
+ };
+ use crate::stylesheets::{CssRules, CustomMediaEvaluator};
+ use crate::stylist::Stylist;
+-use crate::values::computed::{CSSPixelLength, ContainerType, Context, Ratio};
++use crate::values::computed::{CSSPixelLength, ContainerType, Context, Ratio, Zoom};
+ use crate::values::specified::ContainerName;
+ use crate::{LocalName, derives::*};
+ use app_units::Au;
+@@ -535,11 +535,20 @@
+ /// element's writing mode.
+ #[derive(Copy, Clone, Default)]
+ pub struct ContainerSizeQueryResult {
+-    width: Option<Au>,
+-    height: Option<Au>,
++    width: Option<(Au, Zoom)>,
++    height: Option<(Au, Zoom)>,
+ }
+ 
+ impl ContainerSizeQueryResult {
++    fn resolve_size((size, zoom): (Au, Zoom), context: &Context) -> f64 {
++        let size = size.to_f64_px();
++        if context.in_registered_value() && !zoom.is_one() && zoom.value() != 0.0 {
++            size / f64::from(zoom.value())
++        } else {
++            size
++        }
++    }
++
+     fn get_viewport_size(context: &Context) -> Size2D<Au> {
+         use crate::values::specified::ViewportVariant;
+         context.viewport_size_for_viewport_unit_resolution(ViewportVariant::Small)
+@@ -553,19 +562,19 @@
+     }
+ 
+     /// Get the inline-size of the query container.
+-    pub fn get_container_inline_size(&self, context: &Context) -> Au {
++    pub fn get_container_inline_size(&self, context: &Context) -> f64 {
+         if context.builder.writing_mode.is_horizontal() {
+             if let Some(w) = self.width {
+-                return w;
++                return Self::resolve_size(w, context);
+             }
+         } else if let Some(h) = self.height {
+-            return h;
+-        }
+-        Self::get_logical_viewport_size(context).inline
++            return Self::resolve_size(h, context);
++        }
++        Self::get_logical_viewport_size(context).inline.to_f64_px()
+     }
+ 
+     /// Get the block-size of the query container.
+-    pub fn get_container_block_size(&self, context: &Context) -> Au {
++    pub fn get_container_block_size(&self, context: &Context) -> f64 {
+         if context.builder.writing_mode.is_horizontal() {
+             self.get_container_height(context)
+         } else {
+@@ -574,19 +583,19 @@
+     }
+ 
+     /// Get the width of the query container.
+-    pub fn get_container_width(&self, context: &Context) -> Au {
++    pub fn get_container_width(&self, context: &Context) -> f64 {
+         if let Some(w) = self.width {
+-            return w;
+-        }
+-        Self::get_viewport_size(context).width
++            return Self::resolve_size(w, context);
++        }
++        Self::get_viewport_size(context).width.to_f64_px()
+     }
+ 
+     /// Get the height of the query container.
+-    pub fn get_container_height(&self, context: &Context) -> Au {
++    pub fn get_container_height(&self, context: &Context) -> f64 {
+         if let Some(h) = self.height {
+-            return h;
+-        }
+-        Self::get_viewport_size(context).height
++            return Self::resolve_size(h, context);
++        }
++        Self::get_viewport_size(context).height.to_f64_px()
+     }
+ 
+     // Merge the result of a subsequent lookup, preferring the initial result.
+@@ -648,19 +657,19 @@
+         let size = e.query_container_size(box_style.get_display());
+         if container_type.intersects(ContainerType::SIZE) {
+             TraversalResult::Done(ContainerSizeQueryResult {
+-                width: size.width,
+-                height: size.height,
++                width: size.width.map(|v| (v, style.effective_zoom)),
++                height: size.height.map(|v| (v, style.effective_zoom)),
+             })
+         } else if container_type.intersects(ContainerType::INLINE_SIZE) {
+             if wm.is_horizontal() {
+                 TraversalResult::Done(ContainerSizeQueryResult {
+-                    width: size.width,
++                    width: size.width.map(|v| (v, style.effective_zoom)),
+                     height: None,
+                 })
+             } else {
+                 TraversalResult::Done(ContainerSizeQueryResult {
+                     width: None,
+-                    height: size.height,
++                    height: size.height.map(|v| (v, style.effective_zoom)),
+                 })
+             }
+         } else {
+--- a/servo/components/style/values/computed/length.rs
++++ b/servo/components/style/values/computed/length.rs
+@@ -130,6 +130,12 @@
+     type ResolvedValue = Self;
+ 
+     fn to_resolved_value(self, context: &ResolvedContext) -> Self::ResolvedValue {
++        if matches!(
++            context.for_property,
++            crate::properties::PropertyId::Custom(_)
++        ) {
++            return self;
++        }
+         Self(context.style.effective_zoom.unzoom(self.0))
+     }
+ 
+--- a/servo/components/style/values/computed/length_percentage.rs
++++ b/servo/components/style/values/computed/length_percentage.rs
+@@ -82,7 +82,11 @@
+     type ResolvedValue = Self;
+ 
+     fn to_resolved_value(self, context: &ResolvedContext) -> Self::ResolvedValue {
+-        if context.style.effective_zoom.is_one() {
++        if matches!(
++            context.for_property,
++            crate::properties::PropertyId::Custom(_)
++        ) || context.style.effective_zoom.is_one()
++        {
+             return self;
+         }
+         self.map_lengths(|l| l.to_resolved_value(context))
+--- a/servo/components/style/values/computed/mod.rs
++++ b/servo/components/style/values/computed/mod.rs
+@@ -41,7 +41,7 @@
+ use rand::{Rng, SeedableRng};
+ use rustc_hash::FxHasher;
+ use servo_arc::Arc;
+-use std::cell::RefCell;
++use std::cell::{Cell, RefCell};
+ use std::cmp;
+ use std::f32;
+ use std::hash::{Hash, Hasher};
+@@ -216,6 +216,8 @@
+     /// Whether or not we are computing the container query condition.
+     pub in_container_query: bool,
+ 
++    in_registered_value: Cell<bool>,
++
+     /// The quirks mode of this context.
+     pub quirks_mode: QuirksMode,
+ 
+@@ -259,6 +261,28 @@
+ }
+ 
+ impl<'a> Context<'a> {
++    /// Whether a registered value is being computed in canonical units.
++    pub fn in_registered_value(&self) -> bool {
++        self.in_registered_value.get()
++    }
++
++    /// Compute a registered value, restoring the previous scope on exit.
++    pub fn with_registered_value<R>(&self, f: impl FnOnce(&Self) -> R) -> R {
++        struct Reset<'a>(&'a Cell<bool>, bool);
++
++        impl Drop for Reset<'_> {
++            fn drop(&mut self) {
++                self.0.set(self.1);
++            }
++        }
++
++        let _reset = Reset(
++            &self.in_registered_value,
++            self.in_registered_value.replace(true),
++        );
++        f(self)
++    }
++
+     /// Lazily evaluate the container size query, returning the result.
+     pub fn get_container_size_query(&self) -> ContainerSizeQueryResult {
+         let mut resolved = self.container_size_query.borrow_mut();
+@@ -286,6 +310,7 @@
+             rule_cache_conditions: RefCell::new(&mut conditions),
+             scope: CascadeLevel::same_tree_author_normal(),
+             included_cascade_flags: RuleCascadeFlags::empty(),
++            in_registered_value: Cell::new(false),
+             container_size_query: RefCell::new(ContainerSizeQuery::none()),
+             element_context: &DummyElementContext {},
+             tree_counting_caches: RefCell::new(&mut tree_counting_caches),
+@@ -328,6 +353,7 @@
+             rule_cache_conditions: RefCell::new(&mut conditions),
+             scope: CascadeLevel::same_tree_author_normal(),
+             included_cascade_flags: RuleCascadeFlags::empty(),
++            in_registered_value: Cell::new(false),
+             container_size_query: RefCell::new(container_size_query),
+             element_context,
+             tree_counting_caches: RefCell::new(&mut tree_counting_caches),
+@@ -364,6 +390,7 @@
+             rule_cache_conditions: RefCell::new(rule_cache_conditions),
+             scope: CascadeLevel::same_tree_author_normal(),
+             included_cascade_flags,
++            in_registered_value: Cell::new(false),
+             container_size_query: RefCell::new(container_size_query),
+             element_context,
+             tree_counting_caches: RefCell::new(tree_counting_caches),
+@@ -392,6 +419,7 @@
+             rule_cache_conditions: RefCell::new(rule_cache_conditions),
+             scope: CascadeLevel::same_tree_author_normal(),
+             included_cascade_flags: RuleCascadeFlags::empty(),
++            in_registered_value: Cell::new(false),
+             container_size_query: RefCell::new(container_size_query),
+             element_context,
+             tree_counting_caches: RefCell::new(tree_counting_caches),
+@@ -419,6 +447,7 @@
+             rule_cache_conditions: RefCell::new(rule_cache_conditions),
+             scope: CascadeLevel::same_tree_author_normal(),
+             included_cascade_flags: RuleCascadeFlags::empty(),
++            in_registered_value: Cell::new(false),
+             container_size_query: RefCell::new(ContainerSizeQuery::none()),
+             element_context: &DummyElementContext {},
+             tree_counting_caches: RefCell::new(tree_counting_caches),
+--- a/servo/components/style/values/specified/length.rs
++++ b/servo/components/style/values/specified/length.rs
+@@ -949,7 +949,11 @@
+                 }
+             },
+         };
+-        let length = context.builder.effective_zoom.zoom(length.0 as f32);
++        let length = if context.in_registered_value() {
++            length.0 as f32
++        } else {
++            context.builder.effective_zoom.zoom(length.0 as f32)
++        };
+ 
+         let trunc_scaled =
+             ((length as f64 * factor as f64 / 100.).trunc() / AU_PER_PX as f64) as f32;
+@@ -973,11 +977,11 @@
+             LengthUnit::Cqh => size.get_container_height(context),
+             LengthUnit::Cqi => size.get_container_inline_size(context),
+             LengthUnit::Cqb => size.get_container_block_size(context),
+-            LengthUnit::Cqmin => cmp::min(
++            LengthUnit::Cqmin => f64::min(
+                 size.get_container_inline_size(context),
+                 size.get_container_block_size(context),
+             ),
+-            LengthUnit::Cqmax => cmp::max(
++            LengthUnit::Cqmax => f64::max(
+                 size.get_container_inline_size(context),
+                 size.get_container_block_size(context),
+             ),
+@@ -985,7 +989,7 @@
+                 unreachable!("container_relative_to_computed_value: not a container-relative unit")
+             },
+         };
+-        CSSPixelLength::new((container_length.to_f64_px() * factor as f64 / 100.0) as f32)
++        CSSPixelLength::new((container_length * factor as f64 / 100.0) as f32)
+     }
+ 
+     /// Computes a ServoCharacterWidth length against a reference font size.
+@@ -1025,11 +1029,19 @@
+         line_height_base: LineHeightBase,
+     ) -> CSSPixelLength {
+         if let Some(px) = self.to_px_if_absolute() {
++            if context.in_registered_value() {
++                return CSSPixelLength::new(px);
++            }
+             return CSSPixelLength::new(px).zoom(context.builder.effective_zoom);
+         }
+         let unit = self.length_unit();
+         if unit.is_font_relative() {
+-            return self.font_relative_to_computed_value(context, base_size, line_height_base);
++            let value = self.font_relative_to_computed_value(context, base_size, line_height_base);
++            return if context.in_registered_value() {
++                CSSPixelLength::new(context.builder.effective_zoom.unzoom(value.px()))
++            } else {
++                value
++            };
+         }
+         if unit.is_viewport_percentage() {
+             return self.viewport_percentage_to_computed_value(context);
+@@ -1038,13 +1050,18 @@
+             return self.container_relative_to_computed_value(context);
+         }
+         debug_assert_eq!(unit, LengthUnit::ServoCharacterWidth);
+-        self.servo_character_width_to_computed_value(
++        let value = self.servo_character_width_to_computed_value(
+             context
+                 .style()
+                 .get_font()
+                 .slow_clone_font_size()
+                 .computed_size(),
+-        )
++        );
++        if context.in_registered_value() {
++            CSSPixelLength::new(context.builder.effective_zoom.unzoom(value.px()))
++        } else {
++            value
++        }
+     }
+ }
+ 
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-length-zoom.html
+@@ -0,0 +1,70 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Registered lengths remain unscaled when CSS zoom changes</title>
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
++<link rel="help" href="https://drafts.csswg.org/css-viewport/#zoom-om">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#invalid-substitution">
++<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#defaulting-keywords">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++let sequence = 0;
++const cases = [
++  {name: "literal", value: "5px", expected: 5},
++  {name: "selected primary", value: "var(--ready)", expected: 5},
++  {name: "unused relative fallback", value: "var(--ready, 1em)", expected: 5},
++  {name: "selected absolute fallback", value: "var(--missing, 7px)", expected: 7},
++  {name: "invalid relative fallback", value: "var(--missing, 1em red)", expected: 10},
++  {name: "wrong primary", value: "var(--wrong, 1em)", expected: 10},
++  {name: "invalid declaration", value: "1em red", expected: 10},
++  {name: "initial keyword", value: "initial", expected: 10},
++  {name: "substituted initial keyword", value: "var(--missing, initial)", expected: 10},
++  {name: "inherit keyword", value: "inherit", expected: 20},
++  {name: "substituted inherit keyword", value: "var(--missing, inherit)", expected: 20},
++  {name: "unset non-inherited property", value: "unset", expected: 10},
++  {name: "unset inherited property", value: "unset", inherits: true, expected: 20},
++];
++
++for (const item of cases) {
++  for (const parentZoom of [1, 2]) {
++    test(t => {
++      const name = `--length-zoom-${sequence++}`;
++      CSS.registerProperty({name, syntax: "<length>", inherits: !!item.inherits,
++                            initialValue: "10px"});
++      const parent = document.createElement("div");
++      parent.style.cssText = `zoom:${parentZoom};font-size:19px;line-height:23px;${name}:20px`;
++      const target = document.createElement("div");
++      target.style.cssText = `--ready:5px;--wrong:red;${name}:${item.value};
++        font-size:20px;box-sizing:content-box;border:0;padding:0;
++        width:var(${name});height:10px`;
++      parent.append(target);
++      document.body.append(parent);
++      t.add_cleanup(() => parent.remove());
++
++      const snapshots = [];
++      for (const zoom of [1, 2, 0.5, 1]) {
++        target.style.zoom = zoom;
++        const style = getComputedStyle(target);
++        const value = style.getPropertyValue(name).trim();
++        const width = style.width;
++        const rect = target.getBoundingClientRect();
++        snapshots.push({zoom, value, width, physicalWidth: rect.width,
++                        physicalHeight: rect.height});
++      }
++      for (const snapshot of snapshots) {
++        const label = `zoom ${snapshot.zoom}: ${JSON.stringify(snapshot)}`;
++        assert_equals(snapshot.value, `${item.expected}px`, `${label}, registered value`);
++        assert_equals(snapshot.width, `${item.expected}px`, `${label}, consuming width`);
++        assert_approx_equals(snapshot.physicalWidth,
++                             item.expected * parentZoom * snapshot.zoom,
++                             0.02, `${label}, scaled width`);
++        assert_approx_equals(snapshot.physicalHeight,
++                             10 * parentZoom * snapshot.zoom,
++                             0.02, `${label}, independent scaled height`);
++      }
++    }, `Registered length: ${item.name}, ancestor zoom ${parentZoom}`);
++  }
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-compound-zoom.html
+@@ -0,0 +1,87 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>CSS zoom preserves registered compound values</title>
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
++<link rel="help" href="https://drafts.csswg.org/css-viewport/#zoom-om">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++let sequence = 0;
++const cases = [
++  {name: "length-percentage", syntax: "<length-percentage>", initial: "0px",
++   value: "calc(5px + 25%)", property: "width"},
++  {name: "space-separated lengths", syntax: "<length>+", initial: "0px",
++   value: "5px 7px", property: "margin", read: ["marginTop", "marginRight"]},
++  {name: "comma-separated lengths", syntax: "<length>#", initial: "0px",
++   value: "5px, 7px", property: "backgroundPosition"},
++  {name: "length alternative", syntax: "<length> | <number>", initial: "0px",
++   value: "5px", property: "width"},
++  {name: "translation", syntax: "<transform-function>", initial: "translateX(0px)",
++   value: "translate(5px, 7px)", property: "transform"},
++  {name: "transform list", syntax: "<transform-list>", initial: "translateX(0px)",
++   value: "translate(5px, 7px) translateZ(3px) rotate(15deg)", property: "transform"},
++  {name: "matrix", syntax: "<transform-function>", initial: "translateX(0px)",
++   value: "matrix(1, 0, 0, 1, 5, 7)", property: "transform"},
++  {name: "linear gradient", syntax: "<image>", initial: "linear-gradient(red, blue)",
++   value: "linear-gradient(to right, red 5px, blue 15px)", property: "backgroundImage"},
++  {name: "radial gradient", syntax: "<image>", initial: "linear-gradient(red, blue)",
++   value: "radial-gradient(circle 5px at 7px 9px, red 0px, blue 5px)", property: "backgroundImage"},
++];
++
++for (const item of cases) {
++  for (const deferred of [false, true]) {
++    test(t => {
++      const name = `--compound-zoom-${sequence++}`;
++      CSS.registerProperty({name, syntax: item.syntax, inherits: false,
++                            initialValue: item.initial});
++      const parent = document.createElement("div");
++      parent.style.cssText = "position:relative;width:200px;height:100px;font-size:20px";
++      const target = document.createElement("div");
++      const reference = document.createElement("div");
++      const initial = document.createElement("div");
++      for (const element of [target, reference, initial]) {
++        element.style.cssText = "position:absolute;left:0;top:0;width:40px;height:30px;border:0;padding:0";
++        parent.append(element);
++      }
++      target.style.setProperty("--ready", item.value);
++      target.style.setProperty(name, deferred ? "var(--ready, 1em)" : item.value);
++      if (item.property) {
++        target.style[item.property] = `var(${name})`;
++        reference.style[item.property] = item.value;
++        assert_not_equals(reference.style[item.property], "",
++                          "the ordinary control accepts the supplied literal");
++      }
++      document.body.append(parent);
++      t.add_cleanup(() => parent.remove());
++
++      const canonical = getComputedStyle(target).getPropertyValue(name).trim();
++      assert_not_equals(canonical, "", "the registered value is present");
++      const computedInitial = getComputedStyle(initial).getPropertyValue(name).trim();
++      assert_not_equals(canonical, computedInitial,
++                        "the selected value was admitted instead of defaulting");
++      for (const zoom of [1, 2, 0.5, 1]) {
++        target.style.zoom = zoom;
++        reference.style.zoom = zoom;
++        const style = getComputedStyle(target);
++        const control = getComputedStyle(reference);
++        assert_equals(style.getPropertyValue(name).trim(), canonical,
++                      `registered value at zoom ${zoom}`);
++        for (const property of item.read || (item.property ? [item.property] : [])) {
++          assert_equals(style[property], control[property],
++                        `${property} agrees with direct CSS at zoom ${zoom}`);
++        }
++        if (item.property === "width" || item.property === "transform") {
++          const actual = target.getBoundingClientRect();
++          const expected = reference.getBoundingClientRect();
++          for (const dimension of ["x", "y", "width", "height"]) {
++            assert_approx_equals(actual[dimension], expected[dimension], 0.02,
++                                 `${dimension} agrees with direct CSS at zoom ${zoom}`);
++          }
++        }
++      }
++    }, `Registered ${item.name}, ${deferred ? "substituted" : "direct"} value`);
++  }
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-relative-length-zoom.html
+@@ -0,0 +1,68 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Registered font-relative lengths remain canonical under zoom</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
++<link rel="help" href="https://drafts.csswg.org/css-viewport/#zoom-om">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++let sequence = 0;
++const cases = [
++  {unit: "em", expected: [40, 60]},
++  {unit: "lh", expected: [48, 72]},
++  {unit: "rem", expected: [80, 100]},
++  {unit: "rlh", expected: [120, 140]},
++];
++for (const item of cases) {
++  for (const deferred of [false, true]) {
++    test(t => {
++      const root = document.documentElement;
++      const originalRootStyle = root.getAttribute("style");
++      t.add_cleanup(() => {
++        if (originalRootStyle === null) {
++          root.removeAttribute("style");
++        } else {
++          root.setAttribute("style", originalRootStyle);
++        }
++      });
++      const name = `--relative-zoom-${sequence++}`;
++      CSS.registerProperty({name, syntax: "<length>", inherits: false,
++                            initialValue: "1px"});
++      const parent = document.createElement("div");
++      parent.style.cssText = "zoom:2;width:400px";
++      const target = document.createElement("div");
++      target.style.cssText = `--ready:2${item.unit};${name}:${deferred ? "var(--ready, 3px)" : `2${item.unit}`};
++        width:var(${name});height:10px;box-sizing:content-box;border:0;padding:0`;
++      parent.append(target);
++      document.body.append(parent);
++      t.add_cleanup(() => parent.remove());
++      const snapshots = [];
++      for (let step = 0; step < 2; step++) {
++        root.style.fontSize = `${[40, 50][step]}px`;
++        root.style.lineHeight = `${[60, 70][step]}px`;
++        target.style.fontSize = `${[20, 30][step]}px`;
++        target.style.lineHeight = `${[24, 36][step]}px`;
++        for (const zoom of [1, 2, 0.5, 1]) {
++          target.style.zoom = zoom;
++          const style = getComputedStyle(target);
++          snapshots.push({step, zoom, value: style.getPropertyValue(name).trim(),
++                          fontSize: style.fontSize, lineHeight: style.lineHeight,
++                          width: style.width, physicalWidth: target.getBoundingClientRect().width});
++        }
++      }
++      for (const snapshot of snapshots) {
++        const label = JSON.stringify(snapshot);
++        assert_equals(snapshot.fontSize, `${[20, 30][snapshot.step]}px`, label);
++        assert_equals(snapshot.lineHeight, `${[24, 36][snapshot.step]}px`, label);
++        const expected = item.expected[snapshot.step];
++        assert_equals(snapshot.value, `${expected}px`, `${label}, registered value`);
++        assert_equals(snapshot.width, `${expected}px`, `${label}, consuming width`);
++        assert_approx_equals(snapshot.physicalWidth, expected * 2 * snapshot.zoom,
++                             0.02, `${label}, scaled width`);
++      }
++    }, `Registered relative length: ${item.unit}, ${deferred ? "substituted" : "direct"}, font mutation`);
++  }
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-style-range-zoom.html
+@@ -0,0 +1,61 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Registered length style ranges compare canonical values under zoom</title>
++<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#style-container">
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
++<link rel="help" href="https://drafts.csswg.org/css-viewport/#zoom-om">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++let sequence = 0;
++for (const deferred of [false, true]) {
++  for (const ancestorZoom of [1, 2]) {
++    test(t => {
++      const id = sequence++;
++      const name = `--range-length-${id}`;
++      const containerName = `range-container-${id}`;
++      const targetId = `range-target-${id}`;
++      CSS.registerProperty({name, syntax: "<length>", inherits: false,
++                            initialValue: "1px"});
++      const ancestor = document.createElement("div");
++      ancestor.style.zoom = ancestorZoom;
++      const container = document.createElement("div");
++      container.style.cssText = `container-name:${containerName};font-size:20px;
++        --ready:5px;--range-control:5px;${name}:${deferred ? "var(--ready, 1em)" : "5px"}`;
++      const target = document.createElement("div");
++      target.id = targetId;
++      container.append(target);
++      ancestor.append(container);
++      const stylesheet = document.createElement("style");
++      const queries = [
++        ["control", "--range-control = 5px", "yes"],
++        ["equal", `${name} = 5px`, "yes"],
++        ["greater", `${name} > 4px`, "yes"],
++        ["less", `${name} < 6px`, "yes"],
++        ["false-less", `${name} < 4px`, "no"],
++        ["false-greater", `${name} > 6px`, "no"],
++      ];
++      stylesheet.textContent = `#${targetId} { ${queries.map(([key]) => `--${key}:no`).join(";")} }` +
++        queries.map(([key, condition]) =>
++          `@container ${containerName} style(${condition}) { #${targetId} { --${key}:yes } }`).join("\n");
++      document.head.append(stylesheet);
++      document.body.append(ancestor);
++      t.add_cleanup(() => { ancestor.remove(); stylesheet.remove(); });
++      const snapshots = [];
++      for (const zoom of [1, 2, 0.5, 1]) {
++        container.style.zoom = zoom;
++        const style = getComputedStyle(target);
++        snapshots.push({zoom, values: Object.fromEntries(queries.map(([key]) =>
++          [key, style.getPropertyValue(`--${key}`).trim()]))});
++      }
++      for (const snapshot of snapshots) {
++        for (const [key, , expected] of queries) {
++          assert_equals(snapshot.values[key], expected,
++                        `${key}, zoom ${snapshot.zoom}: ${JSON.stringify(snapshot.values)}`);
++        }
++      }
++    }, `Registered length style range: ${deferred ? "substituted" : "direct"}, ancestor zoom ${ancestorZoom}`);
++  }
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-animation-length-zoom.html
+@@ -0,0 +1,73 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Animated registered lengths remain canonical under zoom</title>
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#animation-behavior-of-custom-properties">
++<link rel="help" href="https://drafts.csswg.org/css-viewport/#zoom-om">
++<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-animation-commitstyles">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++let sequence = 0;
++const cases = [
++  {name: "absolute", from: "10px", to: "30px", value: () => 20},
++  {name: "font relative", from: "1em", to: "3em", value: fontSize => 2 * fontSize},
++  {name: "selected absolute substitution", from: "var(--from, 1em)",
++   to: "var(--to, 3em)", value: () => 20},
++];
++
++for (const item of cases) {
++  for (const parentZoom of [1, 2]) {
++    test(t => {
++      const name = `--animation-length-zoom-${sequence++}`;
++      CSS.registerProperty({name, syntax: "<length>", inherits: false,
++                            initialValue: "7px"});
++      const parent = document.createElement("div");
++      parent.style.cssText = `zoom:${parentZoom};width:400px`;
++      const target = document.createElement("div");
++      target.style.cssText = `--from:10px;--to:30px;font-size:20px;
++        width:var(${name});height:10px;border:0;padding:0;box-sizing:content-box`;
++      parent.append(target);
++      document.body.append(parent);
++      t.add_cleanup(() => parent.remove());
++      const animation = target.animate({[name]: [item.from, item.to]},
++                                       {duration: 1000, fill: "both"});
++      animation.pause();
++      animation.currentTime = 500;
++      t.add_cleanup(() => animation.cancel());
++      assert_equals(animation.currentTime, 500, "Paused current time");
++      assert_equals(animation.effect.getComputedTiming().progress, 0.5, "Midpoint progress");
++      const snapshots = [];
++      function capture(fontSize, zoom, phase) {
++        const style = getComputedStyle(target);
++        const rect = target.getBoundingClientRect();
++        snapshots.push({fontSize, zoom, phase,
++          value: style.getPropertyValue(name).trim(), width: style.width,
++          computedFontSize: style.fontSize,
++          physicalWidth: rect.width, physicalHeight: rect.height});
++      }
++      for (const fontSize of [20, 30]) {
++        target.style.fontSize = `${fontSize}px`;
++        for (const zoom of [1, 2, 0.5, 1.5, 1]) {
++          target.style.zoom = zoom;
++          capture(fontSize, zoom, "animation");
++        }
++      }
++      animation.commitStyles();
++      animation.cancel();
++      capture(30, 1, "committed");
++      for (const snapshot of snapshots) {
++        const detail = JSON.stringify({snapshot, snapshots});
++        const expected = item.value(snapshot.fontSize);
++        assert_equals(snapshot.computedFontSize, `${snapshot.fontSize}px`, detail);
++        assert_equals(snapshot.value, `${expected}px`, `Registered value: ${detail}`);
++        assert_equals(snapshot.width, `${expected}px`, `Consuming width: ${detail}`);
++        assert_approx_equals(snapshot.physicalWidth,
++          expected * parentZoom * snapshot.zoom, 0.02, `Scaled width: ${detail}`);
++        assert_approx_equals(snapshot.physicalHeight,
++          10 * parentZoom * snapshot.zoom, 0.02, `Independent scaled height: ${detail}`);
++      }
++    }, `Animated registered length: ${item.name}, ancestor zoom ${parentZoom}`);
++  }
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-numeric-style-range-zoom.html
+@@ -0,0 +1,68 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Numeric style ranges use the same units as registered values under zoom</title>
++<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#style-container">
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>html { overflow: hidden; }</style>
++<body>
++<script>
++let sequence = 0;
++for (const [syntax, unit] of [["number", ""], ["angle", "deg"],
++                              ["time", "s"], ["resolution", "dppx"]]) {
++  for (const deferred of [false, true]) {
++    test(t => {
++      const id = sequence++;
++      const name = `--numeric-range-${id}`;
++      const containerName = `numeric-range-container-${id}`;
++      const targetId = `numeric-range-target-${id}`;
++      const factor = 4875 / (innerWidth * 60);
++      const expression = `calc(${factor}vw / 1px${unit ? ` * 1${unit}` : ""})`;
++      CSS.registerProperty({name, syntax: `<${syntax}>`, inherits: false,
++                            initialValue: `999${unit}`});
++      const container = document.createElement("div");
++      container.style.containerName = containerName;
++      container.style.setProperty("--ready", expression);
++      container.style.setProperty(name, deferred ? "var(--ready, 1em)" : expression);
++      container.style.setProperty("--range-control", "5");
++      const initial = document.createElement("div");
++      const target = document.createElement("div");
++      target.id = targetId;
++      container.append(target);
++      const stylesheet = document.createElement("style");
++      stylesheet.textContent = `
++        #${targetId} { --equal:no; --control:no; --false:no; }
++        @container ${containerName} style(--range-control = 5) {
++          #${targetId} { --control:yes; }
++        }
++        @container ${containerName} style(${name} = ${expression}) {
++          #${targetId} { --equal:yes; }
++        }
++        @container ${containerName} style(${name} > 999${unit}) {
++          #${targetId} { --false:yes; }
++        }`;
++      document.head.append(stylesheet);
++      document.body.append(container, initial);
++      t.add_cleanup(() => { container.remove(); initial.remove(); stylesheet.remove(); });
++      const initialValue = getComputedStyle(initial).getPropertyValue(name).trim();
++      const snapshots = [];
++      for (const zoom of [1, 2, 0.5, 1]) {
++        container.style.zoom = zoom;
++        const value = getComputedStyle(container).getPropertyValue(name).trim();
++        const style = getComputedStyle(target);
++        snapshots.push({zoom, value, equal:style.getPropertyValue("--equal").trim(),
++          control:style.getPropertyValue("--control").trim(),
++          falseQuery:style.getPropertyValue("--false").trim()});
++      }
++      for (const snapshot of snapshots) {
++        const detail = `${expression}: ${JSON.stringify(snapshot)}`;
++        assert_not_equals(snapshot.value, initialValue, `Grammar admission: ${detail}`);
++        assert_equals(snapshot.control, "yes", `Style range support: ${detail}`);
++        assert_equals(snapshot.falseQuery, "no", `False range: ${detail}`);
++        assert_equals(snapshot.equal, "yes", `Identical expression equality: ${detail}`);
++      }
++    }, `Numeric style range zoom: ${syntax}, ${deferred ? "substituted" : "direct"}`);
++  }
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-container-length-target-zoom.html
+@@ -0,0 +1,144 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Registered container lengths with unzoomed source containers</title>
++<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#container-lengths">
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
++<link rel="help" href="https://drafts.csswg.org/css-viewport/#zoom-om">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++let sequence = 0;
++const families = [
++  {name: "size container", units: ["cqw", "cqh"], states: [
++    {width: 200, height: 120}, {width: 300, height: 150}, {width: 200, height: 120}
++  ]},
++  {name: "per-axis containers", units: ["cqw", "cqh", "cqmin", "cqmax"], states: [
++    {width: 200, height: 180}, {width: 140, height: 220}, {width: 200, height: 180}
++  ]},
++  {name: "small viewport fallback", units: ["cqw", "cqh"], states: [
++    {width: 320, height: 180}
++  ]}
++];
++
++for (const family of families) {
++  for (const unit of family.units) {
++    for (const substituted of [false, true]) {
++      test(t => {
++        const frame = document.createElement("iframe");
++        frame.style.cssText = "width:320px;height:180px;border:0;padding:0;zoom:1";
++        document.body.append(frame);
++        t.add_cleanup(() => frame.remove());
++        const win = frame.contentWindow;
++        const doc = win.document;
++        const style = doc.createElement("style");
++        style.textContent = `html, body { margin:0; padding:0; zoom:1;
++          writing-mode:horizontal-tb; overflow:hidden; }
++          .source { position:relative; padding:0; border:0; margin:0;
++            box-sizing:content-box; zoom:1; writing-mode:horizontal-tb; }
++          .target { position:absolute; left:0; top:0; height:10px;
++            margin:0; padding:0; border:0; box-sizing:content-box;
++            min-width:0; max-width:none; writing-mode:horizontal-tb; }`;
++        doc.head.append(style);
++        const outer = doc.createElement("div");
++        const inner = doc.createElement("div");
++        outer.className = inner.className = "source";
++        outer.style.cssText = "width:320px;height:180px";
++        inner.style.cssText = "width:200px;height:120px";
++        if (family.name === "size container") {
++          inner.style.containerType = "size";
++        } else if (family.name === "per-axis containers") {
++          outer.style.containerType = "size";
++          inner.style.containerType = "inline-size";
++        }
++        outer.append(inner);
++        doc.body.append(outer);
++        const id = sequence++;
++        const name = `--container-target-zoom-${id}`;
++        const ready = `--container-target-ready-${id}`;
++        win.CSS.registerProperty({name, syntax:"<length>", inherits:false,
++                                  initialValue:"7px"});
++        const target = doc.createElement("div");
++        const literal = doc.createElement("div");
++        const viewportControl = doc.createElement("div");
++        for (const element of [target, literal, viewportControl]) {
++          element.className = "target";
++          inner.append(element);
++        }
++        target.style.setProperty(ready, `100${unit}`);
++        target.style.setProperty(name, substituted ? `var(${ready}, 7px)` : `100${unit}`);
++        target.style.width = `var(${name})`;
++        viewportControl.style.width = unit === "cqw" ? "100svw" : "100svh";
++        const snapshots = [];
++        for (const state of family.states) {
++          if (family.name === "size container") {
++            inner.style.width = `${state.width}px`;
++            inner.style.height = `${state.height}px`;
++          } else if (family.name === "per-axis containers") {
++            inner.style.width = `${state.width}px`;
++            outer.style.height = `${state.height}px`;
++          }
++          const expected = unit === "cqw" ? state.width : unit === "cqh" ? state.height :
++            unit === "cqmin" ? Math.min(state.width, state.height) : Math.max(state.width, state.height);
++          literal.style.width = `${expected}px`;
++          for (const zoom of [1, 2, 0.5, 1]) {
++            for (const element of [target, literal, viewportControl]) {
++              element.style.zoom = zoom;
++            }
++            const computed = win.getComputedStyle(target);
++            const control = win.getComputedStyle(literal);
++            const sourceState = [outer, inner].map(element => {
++              const computedSource = win.getComputedStyle(element);
++              const rect = element.getBoundingClientRect();
++              return {width:computedSource.width, height:computedSource.height,
++                zoom:computedSource.zoom, writingMode:computedSource.writingMode,
++                containerType:computedSource.containerType,
++                rectWidth:rect.width, rectHeight:rect.height};
++            });
++            snapshots.push({state, expected, zoom,
++              value:computed.getPropertyValue(name).trim(), width:computed.width,
++              rectWidth:target.getBoundingClientRect().width,
++              rectHeight:target.getBoundingClientRect().height,
++              literalWidth:control.width, literalRectWidth:literal.getBoundingClientRect().width,
++              viewportWidth:win.getComputedStyle(viewportControl).width,
++              viewportRectWidth:viewportControl.getBoundingClientRect().width,
++              viewport:[win.innerWidth,win.innerHeight], sources:sourceState});
++          }
++        }
++        const detail = JSON.stringify(snapshots);
++        for (const snapshot of snapshots) {
++          const {expected, zoom, state} = snapshot;
++          assert_array_equals(snapshot.viewport, [320,180], detail);
++          for (const source of snapshot.sources) {
++            assert_equals(source.zoom, "1", `Unzoomed source: ${detail}`);
++            assert_equals(source.writingMode, "horizontal-tb", detail);
++            assert_approx_equals(source.rectWidth, parseFloat(source.width), 0.02, detail);
++            assert_approx_equals(source.rectHeight, parseFloat(source.height), 0.02, detail);
++          }
++          if (family.name === "size container") {
++            assert_equals(snapshot.sources[1].containerType, "size", detail);
++            assert_equals(snapshot.sources[1].width, `${state.width}px`, detail);
++            assert_equals(snapshot.sources[1].height, `${state.height}px`, detail);
++          } else if (family.name === "per-axis containers") {
++            assert_equals(snapshot.sources[0].containerType, "size", detail);
++            assert_equals(snapshot.sources[1].containerType, "inline-size", detail);
++            assert_equals(snapshot.sources[1].width, `${state.width}px`, detail);
++            assert_equals(snapshot.sources[0].height, `${state.height}px`, detail);
++          } else {
++            assert_true(snapshot.sources.every(source => source.containerType === "normal"), detail);
++            assert_equals(snapshot.viewportWidth, `${expected}px`, `Small viewport control: ${detail}`);
++            assert_approx_equals(snapshot.viewportRectWidth, expected * zoom, 0.02, detail);
++          }
++          assert_equals(snapshot.literalWidth, `${expected}px`, `Literal control: ${detail}`);
++          assert_approx_equals(snapshot.literalRectWidth, expected * zoom, 0.02, detail);
++          assert_equals(snapshot.value, `${expected}px`, `Canonical registered value: ${detail}`);
++          assert_equals(snapshot.width, `${expected}px`, `Consuming width: ${detail}`);
++          assert_approx_equals(snapshot.rectWidth, expected * zoom, 0.02, detail);
++          assert_approx_equals(snapshot.rectHeight, 10 * zoom, 0.02, detail);
++        }
++      }, `Registered container target zoom: ${family.name}, ${unit}, ${substituted ? "substituted" : "direct"}`);
++    }
++  }
++}
++</script>

@@ -1,0 +1,46 @@
+--- mixed/registered-writing-mode-provider-readiness.html
++++ lh-only/registered-writing-mode-provider-readiness-lh-only.html
+@@ -1,6 +1,6 @@
+ <!doctype html>
+ <meta charset="utf-8">
+-<title>Writing-mode waits for registered provider defaulting</title>
++<title>Writing-mode provider readiness with line-height-only lengths</title>
+ <link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
+ <link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
+ <link rel="help" href="https://drafts.csswg.org/css-values-4/#viewport-relative-lengths">
+@@ -48,7 +48,7 @@
+           provider = `var(${missingName}, vertical-rl)`;
+         }
+         const declarations = [`${modeName}:${provider}`,
+-          `${lengthName}:calc(1lh + 100vi)`];
++          `${lengthName}:1lh`];
+         if (declarationOrder === "length first") {
+           declarations.reverse();
+         }
+@@ -58,7 +58,7 @@
+           "vertical-rl" : `var(${modeName})`;
+         target.style.width = `var(${lengthName})`;
+         ordinary.style.writingMode = "vertical-rl";
+-        ordinary.style.width = "calc(1lh + 100vi)";
++        ordinary.style.width = "1lh";
+         doc.body.append(target, ordinary);
+         const snapshots = [];
+         for (const lineHeight of [40, 60, 40]) {
+@@ -85,7 +85,7 @@
+         }
+         const detail = JSON.stringify(snapshots);
+         for (const snapshot of snapshots) {
+-          const expected = `${snapshot.lineHeight + 180}px`;
++          const expected = `${snapshot.lineHeight}px`;
+           assert_array_equals(snapshot.viewport, [320,180], detail);
+           assert_equals(snapshot.providerValue, "vertical-rl", `Registered provider: ${detail}`);
+           assert_equals(snapshot.writingMode, "vertical-rl", `Computed provider substitution: ${detail}`);
+@@ -93,7 +93,7 @@
+           assert_equals(snapshot.ordinaryWidth, expected, `Literal calibration: ${detail}`);
+           assert_equals(snapshot.value, expected, `Registered logical length: ${detail}`);
+           assert_equals(snapshot.width, expected, `Consumer: ${detail}`);
+-          assert_equals(snapshot.rectWidth, snapshot.lineHeight + 180, detail);
++          assert_equals(snapshot.rectWidth, snapshot.lineHeight, detail);
+         }
+       }, `Writing-mode registered provider readiness: ${kind}, ${declarationOrder}, ${queryOrder}`);
+     }

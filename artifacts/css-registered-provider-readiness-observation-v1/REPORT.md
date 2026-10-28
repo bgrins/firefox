@@ -1,0 +1,13 @@
+# Registered provider readiness observation
+
+Two isolated headless WPT runs reproduced the same two failing invalid-provider cases. The mixed-length run completed 32 named tests: all 16 container controls passed, and readiness had 14 passes and two failures. The line-height-only reduction completed 16 readiness tests with the same 14 passes and two failures. Both runs passed source, binary, index, metadata and nested-repository preservation checks; their browser groups and temporary profiles were removed.
+
+In each failing case the registered provider computes to vertical-rl, while writing-mode remains horizontal-tb. With calc(1lh + 100vi), measured custom and consuming widths are 360/380/360px, versus the independent literal control's 220/240/220px. Replacing both length expressions by 1lh preserves the wrong writing-mode while all lengths become the correct 40/60/40px. This separates the provider-consumer mismatch from logical viewport conversion. The deliberately unused provider fallback still contains 1vi; the reduction does not remove that separate dependency trigger.
+
+The failures occur for the provider-first declaration order with both CSSOM query orders, using property-name instances 8 and 9. The other two invalid-provider cases pass. These observations do not prove a particular native hash-map traversal order or exhaustive schedule coverage.
+
+The source audit identified premature registered-provider consumption; the Lean model then checked an acyclic abstract schedule with stale writing-mode publication and a sufficient readiness/cache condition. Browser results match its predicted observable signature. The model is not a proof about Rust execution, and neither run instruments the native schedule. Discovery attribution is source analysis plus formal modeling followed by browser reproduction, not automatic verification of the native implementation.
+
+Both runs used the unchanged seven-file zoom candidate, with the admission overlay parked. The two provider-resolution source files match the committed baseline. No original-without-zoom browser comparison, production repair, new accepted fix, or canonical CSS-model coverage is claimed. The separate source analysis explains why A2's per-node admission preparation leaves the early recursive substitution route open; that still requires runtime validation when A2 is tested.
+
+OBSERVATIONS.json contains the exact captured failure snapshots. REFERENCES.json binds the raw results, completed process receipts, preservation evidence, test fixtures and model. Next repair the actual admission/publication boundary while preserving real cycles and unused-fallback semantics, then compare the same tests before and after the native change.

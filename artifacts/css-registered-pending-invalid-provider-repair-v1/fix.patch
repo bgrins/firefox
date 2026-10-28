@@ -1,0 +1,447 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1612,45 +1612,94 @@
+ }
+ 
+ /// See https://drafts.csswg.org/css-variables-2/#invalid-at-computed-value-time
++fn invalid_at_computed_value_time_value(
++    name: &Name,
++    registration: &PropertyDescriptors,
++    context: &computed::Context,
++) -> Option<ComputedRegisteredValue> {
++    if registration.is_universal() {
++        return None;
++    }
++    if registration.inherits() && !context.builder.is_root_element {
++        return context
++            .builder
++            .inherited_style
++            .custom_properties()
++            .get(registration, name)
++            .cloned();
++    }
++    let initial_value = registration.initial_value.as_ref()?;
++    compute_value(
++        &initial_value.css,
++        &initial_value.url_data,
++        registration,
++        context,
++        AttrTaint::default(),
++        Some(PropertyIdRef::from(name)),
++    )
++    .ok()
++}
++
++fn substituted_css_wide_keyword_value(
++    name: &Name,
++    keyword: CSSWideKeyword,
++    registration: &PropertyDescriptors,
++    stylist: &Stylist,
++    context: &computed::Context,
++) -> Option<ComputedRegisteredValue> {
++    // TODO: It's unclear what this should do for revert / revert-layer, see
++    // https://github.com/w3c/csswg-drafts/issues/9131. For now treating as unset
++    // seems fine?
++    match (keyword, registration.inherits(), context.is_root_element()) {
++        (CSSWideKeyword::Initial, _, _)
++        | (CSSWideKeyword::Revert, false, _)
++        | (CSSWideKeyword::RevertLayer, false, _)
++        | (CSSWideKeyword::RevertRule, false, _)
++        | (CSSWideKeyword::Unset, false, _)
++        | (CSSWideKeyword::Revert, true, true)
++        | (CSSWideKeyword::RevertLayer, true, true)
++        | (CSSWideKeyword::RevertRule, true, true)
++        | (CSSWideKeyword::Unset, true, true)
++        | (CSSWideKeyword::Inherit, _, true) => stylist
++            .get_custom_property_initial_values()
++            .get(registration, name)
++            .cloned(),
++        (CSSWideKeyword::Revert, true, false)
++        | (CSSWideKeyword::RevertLayer, true, false)
++        | (CSSWideKeyword::RevertRule, true, false)
++        | (CSSWideKeyword::Inherit, _, false)
++        | (CSSWideKeyword::Unset, true, false) => {
++            if !registration.inherits() {
++                context
++                    .style()
++                    .add_flags(ComputedValueFlags::INHERITS_RESET_STYLE);
++            }
++            context
++                .builder
++                .inherited_style
++                .custom_properties()
++                .get(registration, name)
++                .cloned()
++        },
++    }
++}
++
+ pub fn handle_invalid_at_computed_value_time(
+     name: &Name,
+     registration: &PropertyDescriptors,
+     context: &mut computed::Context,
+ ) {
+-    if !registration.is_universal() {
+-        // For the root element, inherited maps are empty. We should just
+-        // use the initial value if any, rather than removing the name.
+-        if registration.inherits() && !context.builder.is_root_element {
+-            let inherited = context.builder.inherited_style.custom_properties();
+-            if let Some(value) = inherited.get(registration, name) {
+-                context.builder.substitution_functions.insert_var(
+-                    registration,
+-                    name,
+-                    value.clone(),
+-                );
+-                return;
+-            }
+-        } else if let Some(ref initial_value) = registration.initial_value
+-            && let Ok(initial_value) = compute_value(
+-                &initial_value.css,
+-                &initial_value.url_data,
+-                registration,
+-                context,
+-                AttrTaint::default(),
+-                Some(PropertyIdRef::from(name)),
+-            )
+-        {
+-            context
+-                .builder
+-                .substitution_functions
+-                .insert_var(registration, name, initial_value);
+-            return;
+-        }
+-    }
+-    context
+-        .builder
+-        .substitution_functions
+-        .remove_var(registration, name);
++    if let Some(value) = invalid_at_computed_value_time_value(name, registration, context) {
++        context
++            .builder
++            .substitution_functions
++            .insert_var(registration, name, value);
++    } else {
++        context
++            .builder
++            .substitution_functions
++            .remove_var(registration, name);
++    }
+ }
+ 
+ /// Replace `var()`, `env()`, and `attr()` functions in a pre-existing variable value.
+@@ -1699,62 +1748,33 @@
+     };
+ 
+     // If variable fallback results in a wide keyword, deal with it now.
+-    let inherited = context.builder.inherited_style.custom_properties();
+     if is_var {
+-        let css = &substitution.css;
+         let css_wide_kw = {
+-            let mut input = Parser::new(css);
++            let mut input = Parser::new(&substitution.css);
+             input.try_parse(CSSWideKeyword::parse)
+         };
+-
+-        if let Ok(kw) = css_wide_kw {
+-            // TODO: It's unclear what this should do for revert / revert-layer, see
+-            // https://github.com/w3c/csswg-drafts/issues/9131. For now treating as unset
+-            // seems fine?
+-            match (kw, registration.inherits(), context.is_root_element()) {
+-                (CSSWideKeyword::Initial, _, _)
+-                | (CSSWideKeyword::Revert, false, _)
+-                | (CSSWideKeyword::RevertLayer, false, _)
+-                | (CSSWideKeyword::RevertRule, false, _)
+-                | (CSSWideKeyword::Unset, false, _)
+-                | (CSSWideKeyword::Revert, true, true)
+-                | (CSSWideKeyword::RevertLayer, true, true)
+-                | (CSSWideKeyword::RevertRule, true, true)
+-                | (CSSWideKeyword::Unset, true, true)
+-                | (CSSWideKeyword::Inherit, _, true) => {
+-                    remove_and_insert_initial_value(
+-                        name,
+-                        registration,
+-                        stylist.get_custom_property_initial_values(),
+-                        &mut context.builder.substitution_functions,
+-                    );
+-                },
+-                (CSSWideKeyword::Revert, true, false)
+-                | (CSSWideKeyword::RevertLayer, true, false)
+-                | (CSSWideKeyword::RevertRule, true, false)
+-                | (CSSWideKeyword::Inherit, _, false)
+-                | (CSSWideKeyword::Unset, true, false) => {
+-                    if !registration.inherits() {
+-                        context
+-                            .style()
+-                            .add_flags(ComputedValueFlags::INHERITS_RESET_STYLE);
+-                    }
+-                    match inherited.get(registration, name) {
+-                        Some(value) => {
+-                            context.builder.substitution_functions.insert_var(
+-                                registration,
+-                                name,
+-                                value.clone(),
+-                            );
+-                        },
+-                        None => {
+-                            context
+-                                .builder
+-                                .substitution_functions
+-                                .remove_var(registration, name);
+-                        },
+-                    };
+-                },
++        if let Ok(keyword) = css_wide_kw {
++            let uses_initial = context.is_root_element()
++                || keyword == CSSWideKeyword::Initial
++                || (keyword != CSSWideKeyword::Inherit && !registration.inherits());
++            if uses_initial {
++                context
++                    .builder
++                    .substitution_functions
++                    .remove_var(registration, name);
++            }
++            if let Some(value) =
++                substituted_css_wide_keyword_value(name, keyword, registration, stylist, context)
++            {
++                context
++                    .builder
++                    .substitution_functions
++                    .insert_var(registration, name, value);
++            } else if !uses_initial {
++                context
++                    .builder
++                    .substitution_functions
++                    .remove_var(registration, name);
+             }
+             return;
+         }
+@@ -1796,6 +1816,11 @@
+     }
+ }
+ 
++enum RegisteredSubstitutionDefault {
++    NotDefaulted,
++    Defaulted(Option<ComputedRegisteredValue>),
++}
++
+ #[derive(Default, Debug)]
+ struct Substitution<'a> {
+     css: Cow<'a, str>,
+@@ -1805,6 +1830,57 @@
+ }
+ 
+ impl<'a> Substitution<'a> {
++    fn registered_default(
++        &self,
++        name: &Name,
++        registration: &PropertyDescriptors,
++        url_data: &UrlExtraData,
++        stylist: &Stylist,
++        context: &computed::Context,
++    ) -> RegisteredSubstitutionDefault {
++        let Some(syntax) = registration.syntax.as_ref() else {
++            return RegisteredSubstitutionDefault::NotDefaulted;
++        };
++        if syntax.is_universal() {
++            return RegisteredSubstitutionDefault::NotDefaulted;
++        }
++        let mut parser = Parser::new(&self.css);
++        if let Ok(keyword) = parser.try_parse(CSSWideKeyword::parse) {
++            return RegisteredSubstitutionDefault::Defaulted(substituted_css_wide_keyword_value(
++                name,
++                keyword,
++                registration,
++                stylist,
++                context,
++            ));
++        }
++        let taint = if self.attr_tainted {
++            AttrTaint::new_fully_tainted(self.css.len())
++        } else {
++            AttrTaint::default()
++        };
++        let mut parser = Parser::new(&self.css);
++        if SpecifiedRegisteredValue::parse(
++            &mut parser,
++            syntax,
++            url_data,
++            None,
++            AllowComputationallyDependent::Yes,
++            taint,
++            Some(PropertyIdRef::from(name)),
++        )
++        .is_err()
++        {
++            RegisteredSubstitutionDefault::Defaulted(invalid_at_computed_value_time_value(
++                name,
++                registration,
++                context,
++            ))
++        } else {
++            RegisteredSubstitutionDefault::NotDefaulted
++        }
++    }
++
+     fn from_value(v: VariableValue, attr_tainted: bool) -> Self {
+         Substitution {
+             css: v.css.into(),
+@@ -2060,7 +2136,24 @@
+                             match result {
+                                 Ok(mut substitution) => {
+                                     substitution.attr_tainted |= v.attr_tainted;
+-                                    Some(substitution)
++                                    match substitution.registered_default(
++                                        &reference.name,
++                                        registration,
++                                        &u.url_data,
++                                        stylist,
++                                        computed_context,
++                                    ) {
++                                        RegisteredSubstitutionDefault::Defaulted(value) => value
++                                            .map(|value| {
++                                                Substitution::from_value(
++                                                    value.to_variable_value(),
++                                                    value.attr_tainted,
++                                                )
++                                            }),
++                                        RegisteredSubstitutionDefault::NotDefaulted => {
++                                            Some(substitution)
++                                        },
++                                    }
+                                 },
+                                 // The primary couldn't be resolved (invalid); use the fallback.
+                                 Err(()) => None,
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-pending-provider-defaults.html
+@@ -0,0 +1,131 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Registered pending provider defaults during prioritary computation</title>
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#viewport-relative-lengths">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++const variants = [
++  {name:"base", unit:"vi", inherits:false},
++  {name:"unused lh", unit:"lh", inherits:false},
++  {name:"inherited invalid", unit:"lh", inherits:true},
++  {name:"inherit reset", unit:"lh", inherits:false, keyword:"inherit"},
++  {name:"unset reset", unit:"lh", inherits:false, keyword:"unset"},
++  {name:"unset inherited", unit:"lh", inherits:true, keyword:"unset"},
++  {name:"revert reset", unit:"lh", inherits:false, keyword:"revert"},
++  {name:"revert inherited", unit:"lh", inherits:true, keyword:"revert"},
++  {name:"valid contextual provider", unit:"lh", inherits:false, valid:true}
++];
++for (const variant of variants) {
++let sequence = variant.name === "base" ? 0 : 8;
++for (const kind of ["literal writing-mode", "literal registered provider", "invalid registered provider", "used keyword fallback"]) {
++  for (const declarationOrder of ["provider first", "length first"]) {
++    for (const queryOrder of ["provider first", "length first"]) {
++      if (variant.name !== "base" &&
++          (kind !== "invalid registered provider" || declarationOrder !== "provider first")) {
++        continue;
++      }
++      test(t => {
++        const frame = document.createElement("iframe");
++        frame.width = "320";
++        frame.height = "180";
++        frame.style.border = "0";
++        document.body.append(frame);
++        t.add_cleanup(() => frame.remove());
++        const win = frame.contentWindow;
++        const doc = win.document;
++        const style = doc.createElement("style");
++        style.textContent = `html { overflow:hidden; writing-mode:horizontal-tb; }
++          body { margin:0; }
++          .target { position:absolute; left:0; top:0; height:10px; padding:0;
++            border:0; margin:0; min-width:0; max-width:none; font-size:20px; }`;
++        doc.head.append(style);
++        const id = sequence++;
++        const modeName = `--provider-readiness-mode-${id}`;
++        const lengthName = `--provider-readiness-length-${id}`;
++        const readyName = `--provider-readiness-ready-${id}`;
++        const missingName = `--provider-readiness-missing-${id}`;
++        win.CSS.registerProperty({name:modeName,
++          syntax:"<length> | horizontal-tb | vertical-rl | vertical-lr", inherits:variant.inherits,
++          initialValue:"vertical-rl"});
++        win.CSS.registerProperty({name:lengthName, syntax:"<length>",
++          inherits:false, initialValue:"7px"});
++        doc.body.style.setProperty(modeName, "vertical-lr");
++        const target = doc.createElement("div");
++        target.className = "target";
++        const ordinary = doc.createElement("div");
++        ordinary.className = "target";
++        let provider = "vertical-rl";
++        if (kind === "invalid registered provider") {
++          provider = variant.keyword ? `var(${missingName}, ${variant.keyword})` :
++            `var(${readyName}, 1${variant.unit})`;
++        } else if (kind === "used keyword fallback") {
++          provider = `var(${missingName}, vertical-rl)`;
++        }
++        const declarations = [`${modeName}:${provider}`,
++          `${lengthName}:1lh`];
++        if (declarationOrder === "length first") {
++          declarations.reverse();
++        }
++        target.style.cssText = declarations.join(";");
++        target.style.setProperty(readyName, variant.valid ? "1lh" : "bogus");
++        target.style.writingMode = kind === "literal writing-mode" ?
++          "vertical-rl" : `var(${modeName})`;
++        target.style.width = `var(${lengthName})`;
++        const expectedMode = variant.valid ? "horizontal-tb" :
++          variant.keyword === "inherit" || variant.inherits ? "vertical-lr" : "vertical-rl";
++        ordinary.style.writingMode = expectedMode;
++        ordinary.style.width = "1lh";
++        doc.body.append(target, ordinary);
++        const snapshots = [];
++        for (const lineHeight of [40, 60, 40]) {
++          target.style.lineHeight = `${lineHeight}px`;
++          ordinary.style.lineHeight = `${lineHeight}px`;
++          const computed = win.getComputedStyle(target);
++          let providerValue, value, writingMode;
++          if (queryOrder === "provider first") {
++            providerValue = computed.getPropertyValue(modeName).trim();
++            writingMode = computed.writingMode;
++            value = computed.getPropertyValue(lengthName).trim();
++          } else {
++            value = computed.getPropertyValue(lengthName).trim();
++            writingMode = computed.writingMode;
++            providerValue = computed.getPropertyValue(modeName).trim();
++          }
++          snapshots.push({lineHeight, providerValue, value, writingMode,
++            width:computed.width, actualLineHeight:computed.lineHeight,
++            ordinaryWidth:win.getComputedStyle(ordinary).width,
++            rectWidth:target.getBoundingClientRect().width,
++            viewport:[win.innerWidth,win.innerHeight],
++            specifiedProvider:target.style.getPropertyValue(modeName),
++            specifiedWritingMode:target.style.writingMode});
++        }
++        const detail = JSON.stringify(snapshots);
++        for (const snapshot of snapshots) {
++          const expected = `${snapshot.lineHeight}px`;
++          assert_array_equals(snapshot.viewport, [320,180], detail);
++          if (variant.keyword === "revert") {
++            assert_true(["vertical-rl", "vertical-lr"].includes(snapshot.providerValue), detail);
++            assert_equals(snapshot.writingMode, snapshot.providerValue,
++              `Computed provider substitution: ${detail}`);
++          } else {
++            assert_equals(snapshot.providerValue, variant.valid ? expected : expectedMode,
++              `Registered provider: ${detail}`);
++            assert_equals(snapshot.writingMode, expectedMode,
++              `Computed provider substitution: ${detail}`);
++          }
++          assert_equals(snapshot.actualLineHeight, `${snapshot.lineHeight}px`, detail);
++          assert_equals(snapshot.ordinaryWidth, expected, `Literal calibration: ${detail}`);
++          assert_equals(snapshot.value, expected, `Registered logical length: ${detail}`);
++          assert_equals(snapshot.width, expected, `Consumer: ${detail}`);
++          assert_equals(snapshot.rectWidth, snapshot.lineHeight, detail);
++        }
++      }, `Pending registered default: ${variant.name}, ${kind}, ${declarationOrder}, ${queryOrder}`);
++    }
++  }
++}
++}
++</script>

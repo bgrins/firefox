@@ -1,0 +1,29 @@
+--- artifacts/css-registered-staged-observation-wpt-v1/run.py
++++ artifacts/css-registered-staged-observation-wpt-v2/run.py
+@@ -131,7 +131,7 @@
+                MOZ_HEADLESS="1", MOZ_SKIP_PATH_PERFORMANCE_CHECK="1",
+                MOZ_DISABLE_SAFE_MODE_KEY="1", MOZ_DISABLE_UPDATE_PROCESSING="1")
+     h = load("ordinary_preservation", ROOT / policy["helpers"]["preservation"])
+-    guard = load("staged_preservation", HERE / "staged_guard.py")
++    guard = load("ordinary_epoch", ROOT / policy["helpers"]["epoch"])
+     checks = load("ordinary_checks", ROOT / policy["helpers"]["checks"])
+     control = load("ordinary_control", ROOT / policy["helpers"]["control"])
+     parser = load("ordinary_assessment", HERE / "assess.py")
+@@ -274,7 +274,7 @@
+                           epoch_sha256=sys.argv[4], native_sources=policy["source_roles"][role], original_adoption=adopted,
+                           capsule_directory=str(HERE.relative_to(ROOT)), experiment_sha256=sha(HERE / "EXPERIMENT.json"),
+                           observation_only=True, subtest_cardinality_policy=policy["cardinality_description"],
+-                          oracle_caveat="Current compiled zoom7 observations with exact pending staged research preserved; no causal pair or native acceptance",
++                          oracle_caveat="Current compiled zoom7 observations with clean staging and authenticated artifact-only HEAD succession; no causal pair or native acceptance",
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)
+@@ -286,7 +286,7 @@
+     result = {"exit": code, "execution_error": error, "preservation_error": post_error,
+               "phase": phase, "observation_gate_passed": bool(passed),
+               "comparison_gate_passed": False,
+-              "native_fix_acceptance": False, "pending_research_staging_preserved": bool(post_error is None),
++              "native_fix_acceptance": False, "clean_staging_preserved": bool(post_error is None),
+               "original_adoption": adopted, "observation_only": True,
+               "complete_comparison": bool(compared and compared["complete"]),
+               "comparison_summary": compared["summary"] if compared else None}
