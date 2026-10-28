@@ -1,0 +1,23 @@
+--- v1/epoch.py
++++ v2/epoch.py
+@@ -1,6 +1,3 @@
+-import json
+-import hashlib
+-from pathlib import Path
+ import copy
+ import stat
+ 
+@@ -58,12 +55,7 @@
+     for path, identity in epoch['installed_identities'].items():
+         info = (root / path).lstat()
+         assert stat.S_ISREG(info.st_mode) and [info.st_dev, info.st_ino] == identity
+-    staging = json.loads((Path(__file__).resolve().parent / 'STAGING.json').read_text())
+-    assert sorted(h.git(root, env, 'diff', '--cached', '--name-only').decode().splitlines()) == staging['staged_files']
+-    assert hashlib.sha256(h.git(root, env, 'diff', '--cached', '--binary', '--full-index', epoch['semantic_index']['head'])).hexdigest() == staging['staged_patch_sha256']
+-    assert epoch['staged_working'] == staging['staged_working']
+-    assert all(p.startswith('artifacts/') for p in staging['staged_files'])
+-    assert all(hashlib.sha256(h.git(root, env, 'show', ':' + p)).hexdigest() == pin for p, pin in staging['staged_working'].items())
++    assert not h.git(root, env, 'diff', '--cached', '--name-only')
+     native = {p for p in h.git(root, env, 'diff', '--name-only').decode().splitlines()
+               if not p.startswith('artifacts/')}
+     assert native == set(epoch['modified_native_paths'])

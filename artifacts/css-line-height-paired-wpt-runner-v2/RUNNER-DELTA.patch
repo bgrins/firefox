@@ -1,0 +1,41 @@
+--- v1/run.py
++++ v2/run.py
+@@ -88,6 +88,19 @@
+             "identity": [identity.st_dev, identity.st_ino],
+             "sha256": hashlib.sha256(data).hexdigest(),
+             "browser_build_id": build_id, "revision": epoch_head}
++
++
++def augment_assessment(assessment, *, phase, capsule_sha, epoch_sha, policy,
++                       capsule_directory, experiment_sha, execution_preserved):
++    role = phase.split("-", 1)[0]
++    provenance = dict(phase=phase, capsule_manifest_sha256=capsule_sha,
++                      epoch_sha256=epoch_sha, native_sources=policy["source_roles"][role],
++                      original_binding=policy["original_binding"],
++                      capsule_directory=capsule_directory, experiment_sha256=experiment_sha,
++                      observation_only=policy["original_binding"] is None,
++                      execution_preserved=execution_preserved)
++    need(not set(assessment).intersection(provenance), "publication must not replace assessed fields")
++    return dict(assessment, **provenance)
+ 
+ 
+ def main():
+@@ -260,13 +273,11 @@
+         need(raw.is_file() and not raw.is_symlink() and raw.stat().st_size <= 128 * 1024 * 1024, "missing/oversized raw log")
+         events = [json.loads(line) for line in raw.read_text().splitlines()]
+         assessment = parser.assess(events, code, policy, checks, original=original, run_binding=app_metadata)
+-        assessment.update(phase=phase, capsule_manifest_sha256=sys.argv[1],
+-                          epoch_sha256=sys.argv[4], native_sources=policy["source_roles"][role], original_binding=policy["original_binding"],
+-                          capsule_directory=str(HERE.relative_to(ROOT)), experiment_sha256=sha(HERE / "EXPERIMENT.json"),
+-                          observation_only=original is None, subtest_cardinality_policy=policy["cardinality_description"],
+-                          oracle_caveat="Contextual leaf evaluation with preserved percentage/inherited-lh behavior; existing flaky regression signatures remain strict.",
+-                          execution_preserved=bool(error is None and post_error is None and
+-                              cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
++        assessment = augment_assessment(assessment, phase=phase, capsule_sha=sys.argv[1],
++            epoch_sha=sys.argv[4], policy=policy, capsule_directory=str(HERE.relative_to(ROOT)),
++            experiment_sha=sha(HERE / "EXPERIMENT.json"), execution_preserved=bool(
++                error is None and post_error is None and cleanup.get("owned_group_absent") and
++                cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)
+         save(out / "COMPARISON.json", {"comparison_gate_passed": assessment["comparison_gate_passed"], "errors": assessment["comparison_errors"], "native_fix_acceptance": False})
+     except BaseException as exc:

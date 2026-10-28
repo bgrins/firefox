@@ -1,0 +1,41 @@
+--- a/run.py
++++ b/run.py
+@@ -37,8 +37,7 @@
+ ownership = load('pair_ownership', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ builder = load('pair_builder', ROOT / 'artifacts/css-registered-number-native-runtime-v1/phase.py')
+ control = load('pair_control', ROOT / 'artifacts/css-registered-number-native-runtime-v1/process_control.py')
+-guard = load('pair_staged_guard', HERE / 'epoch.py')
+-projection = load('pair_projection', HERE / 'projection.py')
++guard = state.a
+ bundle = load('pair_bundle', HERE / 'bundle.py')
+ wpt_cleanup = load('pair_wpt_cleanup', HERE / 'wpt_cleanup.py')
+ ownership.authenticate(HERE, sys.argv[2])
+@@ -52,7 +51,10 @@
+ original = json.loads(controls['CURRENT-EPOCH.json'])
+ assert original['semantic_index']['head'] == policy['head']
+ observed = state.h.index_state(ROOT, ENV)
+-epoch = projection.derive(original, observed, state.h.git(ROOT, ENV, 'ls-files', '--stage', '-z'), read(HERE / 'STAGING.json'))
++assert original['staged_working'] == {}
++assert state.h.semantic_index(observed) == original['semantic_index']
++assert observed['raw_index'] == original['raw_index_observation']['current']
++epoch = copy.deepcopy(original)
+ source = policy['source_path']
+ base = (ROOT / policy['source_package'] / 'base' / source).read_bytes()
+ candidate = (ROOT / policy['source_package'] / 'candidate' / source).read_bytes()
+@@ -67,7 +69,7 @@
+ epoch['counts']['staged_payloads'] = len(epoch['staged_working'])
+ before = guard.verify_current(state.h, ROOT, ENV, epoch)
+ assert sorted(state.h.git(ROOT, ENV, 'diff', '--name-only').decode().splitlines()) == sorted(epoch['modified_native_paths'])
+-assert before['nested_index'] == read(ROOT / 'artifacts/css-local-signing-20261028-v33/BEFORE.json')['nested_index']
++assert before['nested_index'] == read(ROOT / 'artifacts/css-local-signing-20261028-v34/BEFORE.json')['nested_index']
+ flags = {n: state.h.git(path, ENV, 'ls-files', '-v', '-z') for n, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]}
+ control_claims = {n: ownership.claim(ROOT, str((runtime / n).relative_to(ROOT)), hashlib.sha256(body).hexdigest()) for n, body in controls.items()}
+ wpt_claims = {n: ownership.claim(ROOT, n, r['sha256'], r['identity']) for n, r in policy['installed_wpt'].items()}
+@@ -258,6 +260,6 @@
+     shutil.rmtree(backups)
+ state.save(output / 'BACKUP-CLEANUP.json', {'removed': cleanup_backups and not backups.exists(), 'verified_original_restoration': True, 'owned_backup_bytes': backup_size, 'inventory_sha256': sha(output / 'BACKUPS.json'), 'retained_after_experiment_failure': not cleanup_backups})
+ lock.unlink()
+-state.save(output / 'RESULT.json', {'success': error is None and not publication_errors and set(phase_results) == {'original', 'candidate'}, 'error': error, 'publication_errors': publication_errors, 'phase_results': phase_results, 'restoration_verified': True, 'runtime_controls_unchanged': True, 'staged165_preserved': True, 'backups_removed_after_verification': not backups.exists(), 'native_fix_acceptance': False})
++state.save(output / 'RESULT.json', {'success': error is None and not publication_errors and set(phase_results) == {'original', 'candidate'}, 'error': error, 'publication_errors': publication_errors, 'phase_results': phase_results, 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'backups_removed_after_verification': not backups.exists(), 'native_fix_acceptance': False})
+ assert error is None and not publication_errors, error
+ print('Paired linked-browser experiment completed and original source/application restored', flush=True)

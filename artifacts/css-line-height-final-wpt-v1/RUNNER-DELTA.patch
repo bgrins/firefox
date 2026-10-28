@@ -1,0 +1,18 @@
+--- paired-v2/run.py
++++ final-v1/run.py
+@@ -104,13 +104,13 @@
+ 
+ 
+ def main():
+-    need(len(sys.argv) == 6, "Usage: run.py CAPSULE_SHA original-1|candidate-1 EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT")
++    need(len(sys.argv) == 6, "Usage: run.py CAPSULE_SHA candidate-1 EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT")
+     authenticate(HERE, sys.argv[1])
+     policy = read(HERE / "POLICY.json")
+     bindings = load("line_height_bindings", HERE / "bindings.py")
+     need(policy.get("execution_enabled") is True, "disabled pending successful phase build bindings")
+     phase = sys.argv[2]
+-    need(phase in ("original-1", "candidate-1"), "phase label")
++    need(phase == "candidate-1", "phase label")
+ 
+     role = phase.split("-", 1)[0]
+     need(len(sys.argv) == 6, "observation arguments")

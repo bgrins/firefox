@@ -1,0 +1,9 @@
+Conditional post-restoration raw-index observation refresh, bound to the completed second paired experiment.
+
+Root confirmed owner session 89595 terminal 630ffd/0. The policy binds 24 exact terminal evidence files, including OUTER and the successful restored RESULT. The saved projection replay passed c5ae9c/0. No live-state verification or canonical write was performed by the preparing agent. The script requires both phase process cleanup records, owner restoration, unchanged saved CURRENT/ROLE/OWNED, exact POST replay against actual source/binary/research/nested state, and empty staging. If an early failed phase lacks these records, this narrow script cannot execute; separate reviewed recovery evidence is required.
+
+The sole canonical change is raw_index_observation.current. The original semantic index and every other canonical field remain byte-derived from the authenticated preimage. Drift cause remains unknown. If raw bytes did not change, no canonical write occurs. A new owned artifact directory records the old epoch, observations and receipt. ROLE/OWNED and source/index/binaries are never written. Owned CURRENT write failures restore its exact old bytes; uncertain rollback retains the transition lock. Full flags/state are checked before and after publication.
+
+This refresh does not certify the experimental fix or imply a rebuild of the restored original binary. Root must keep builds, browsers, signing and source transitions stopped throughout. Expected invocation after binding is isolated Python run.py EXPECTED_CANONICAL_EPOCH_SHA CAPSULE_MANIFEST_SHA. Execution is root-owned after the final enabled capsule seal.
+
+Pure projection controls: 4ced0d/0, two positives and six rejects. Syntax: f92697/0; final controls e0658c/0. Root binding review 965dc2 found no blocker. These tests do not execute main, inspect live state, or write runtime controls.

@@ -1,0 +1,77 @@
+--- v1/check_original.py
++++ v2/check_original.py
+@@ -14,6 +14,7 @@
+     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+ b=load('binding_under_test',HERE/'bindings.py')
+ a=load('assessment_under_test',HERE/'assess.py')
++runner=load('publication_under_test',HERE/'run.py')
+ fixed=json.loads((HERE/'POLICY.json').read_text())
+ checks=load('checks_under_test',ROOT/fixed['helpers']['checks'])
+ read=lambda p:json.loads(p.read_text())
+@@ -27,6 +28,7 @@
+     def save(path,value):
+         path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(value))
+     save(here/'POLICY.json',fixed);save(here/'FILES.json',{})
++    shutil.copyfile(HERE/'SIGNING-BASELINE-EPOCH.json',here/'SIGNING-BASELINE-EPOCH.json')
+     shutil.copyfile(HERE/'assess.py',here/'assess.py')
+     checkpath=root/fixed['helpers']['checks'];checkpath.parent.mkdir(parents=True);shutil.copyfile(ROOT/fixed['helpers']['checks'],checkpath)
+     owner=root/fixed['owner_runtime'];old=owner/'original-wpt';old.mkdir(parents=True)
+@@ -41,11 +43,12 @@
+     epochs={};policies={}
+     for role in ['original','candidate']:
+         build=owner/(role+'-build')
+-        epoch={'semantic_index':copy.deepcopy(read(HERE / 'SAVED-SEMANTIC-INDEX.json')),
+-               'reversible_line_height_phase':dict(role=role,build_directory=str(build.relative_to(root)),source_package_manifest=fixed['source_package_manifest'],owner_runtime=fixed['owner_runtime']),
+-               'pins':dict(fixed['source_roles'][role],**{n:('a' if role=='original' else 'b')*64 for n in fixed['normal_binaries']}),
+-               'staged_working':{'artifacts/frozen':'same'},'nested_semantic_index':{},'untracked_native':{},'installed_identities':{},'committed_research_working_payloads':{},
+-               'modified_native_paths':[] if role=='original' else list(fixed['source_roles'][role])}
++        epoch=copy.deepcopy(read(HERE/'SIGNING-BASELINE-EPOCH.json'))
++        epoch['reversible_line_height_phase']=dict(role=role,build_directory=str(build.relative_to(root)),source_package_manifest=fixed['source_package_manifest'],owner_runtime=fixed['owner_runtime'])
++        epoch['pins'].update(fixed['source_roles'][role])
++        epoch['pins'].update({n:('a' if role=='original' else 'b')*64 for n in fixed['normal_binaries']})
++        epoch['installed_identities']['servo/components/style/values/specified/font.rs']=[1,2]
++        if role=='candidate':epoch['modified_native_paths'].append('servo/components/style/values/specified/font.rs')
+         save(build/'EPOCH.json',epoch)
+         save(build/'RESULT.json',dict(command_success=True,preservation_verified=True,source_role=role,error=None,owned_processes={},publication_errors=[],browser_build_performed=True))
+         save(build/'build-RESULT.json',dict(exit=0,error=None,stop_reason=None,cleanup_errors=[],owned_group_absent=True));save(build/'COMMAND.json',{})
+@@ -54,7 +57,21 @@
+             q=b.bind_policy(root,here,fixed,epoch,sha(build/'EPOCH.json'),'original-1',h)
+             save(old/'POLICY.json',q);shutil.copyfile(build/'EPOCH.json',old/'EPOCH.json')
+             assessment=a.assess(events,1,q,checks,run_binding=meta)
+-            assessment.update(capsule_manifest_sha256=sha(here/'FILES.json'),epoch_sha256=q['epoch_sha256'],native_sources=fixed['source_roles']['original'],execution_preserved=True)
++            assessed = copy.deepcopy(assessment)
++            assessment = runner.augment_assessment(assessment, phase='original-1',
++                capsule_sha=sha(here/'FILES.json'), epoch_sha=q['epoch_sha256'], policy=q,
++                capsule_directory=str(here.relative_to(root)), experiment_sha='e'*64,
++                execution_preserved=True)
++            assert all(assessment[k] == v for k, v in assessed.items())
++            collision = dict(assessed, phase='untrusted')
++            try:
++                runner.augment_assessment(collision, phase='original-1', capsule_sha='a'*64,
++                    epoch_sha='b'*64, policy=q, capsule_directory='artifacts/capsule',
++                    experiment_sha='e'*64, execution_preserved=True)
++            except RuntimeError:
++                rejected.append('publication field collision')
++            else:
++                raise AssertionError('publication replaced assessed field')
+             save(old/'ASSESSMENT.json',assessment);save(old/'RESULT.json',dict(exit=1,observation_gate_passed=True,execution_error=None,preservation_error=None))
+             for name in ['PRE.json','POST.json']:save(old/name,{'unchanged':True})
+             for name in ['APPLICATION-METADATA.json','APPLICATION-METADATA-POST.json']:save(old/name,meta)
+@@ -63,7 +80,8 @@
+     q=b.bind_policy(root,here,fixed,epochs['candidate'],sha(owner/'candidate-build/EPOCH.json'),'candidate-1',h)
+     b.validate_original(root,here,q,h)
+     originals={p:p.read_bytes() for p in old.iterdir() if p.is_file()}
+-    mutations=[('changed raw diagnostic','raw.jsonl',lambda s:s.replace('"message": "fixed"','"message": "changed"',1)),
++    mutations=[('changed published caveat','ASSESSMENT.json',lambda s:s.replace('Contextual line-height targets; original failures are observations, not infrastructure failures.','changed annotation')),
++               ('changed raw diagnostic','raw.jsonl',lambda s:s.replace('"message": "fixed"','"message": "changed"',1)),
+                ('false preservation','ASSESSMENT.json',lambda s:s.replace('"execution_preserved": true','"execution_preserved": false')),
+                ('cleanup incomplete','CLEANUP.json',lambda s:s.replace('"owned_group_absent": true','"owned_group_absent": false')),
+                ('altered source role','ASSESSMENT.json',lambda s:s.replace(next(iter(fixed['source_roles']['original'].values())),'f'*64)),
+@@ -87,6 +105,6 @@
+         else:raise AssertionError(field)
+     save(candidate_epoch_path, epochs['candidate'])
+ receipt=dict(positive=1,rejected=rejected,browser_executed=False,live_state_queried=False,scratch_removed=True,
+-             semantic_schema_source='SAVED-SEMANTIC-INDEX.json extracted from pinned v33 PRE-CURRENT-EPOCH.json')
++             semantic_schema_source='SAVED-SEMANTIC-INDEX.json extracted from SIGNING-BASELINE-EPOCH.json at signed HEAD19ec304f')
+ (HERE/'ORIGINAL-CONTROLS.json').write_text(json.dumps(receipt,indent=2)+'\n')
+ print(json.dumps(dict(positive=1,rejected=len(rejected))))

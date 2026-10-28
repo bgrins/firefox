@@ -1,0 +1,27 @@
+--- v1/bindings.py
++++ v2/bindings.py
+@@ -41,6 +41,24 @@
+     h.need(h.read(root / policy['build_epoch']) == epoch, 'build/observation epoch equality')
+     h.need(epoch['semantic_index']['head'] == policy['frozen_head'], 'frozen HEAD')
+     role = policy['phase'].split('-', 1)[0]
++    baseline = h.read(here / 'SIGNING-BASELINE-EPOCH.json')
++    h.need(baseline['semantic_index']['head'] == policy['frozen_head'], 'signed baseline HEAD')
++    h.need(epoch['staged_working'] == baseline['staged_working'] == {}, 'clean signing state')
++    allowed = {'servo/components/style/values/specified/font.rs'} | set(policy['rebuilt_binaries'])
++    stable = lambda e: {n: v for n, v in e['pins'].items() if n not in allowed}
++    h.need(stable(epoch) == stable(baseline), 'unrelated signed baseline pins changed')
++    for name in ('nested_semantic_index', 'untracked_native', 'committed_research_working_payloads'):
++        h.need(epoch[name] == baseline[name], 'signed baseline ' + name)
++    for name in ('head', 'entries', 'cached_diff'):
++        h.need(epoch['semantic_index'][name] == baseline['semantic_index'][name], 'signed baseline index ' + name)
++    font = 'servo/components/style/values/specified/font.rs'
++    h.need({n: v for n, v in epoch['installed_identities'].items() if n != font} ==
++           {n: v for n, v in baseline['installed_identities'].items() if n != font} and
++           set(epoch['installed_identities']) == set(baseline['installed_identities']) | {font}, 'signed baseline identities')
++    h.need(set(epoch['modified_native_paths']) == set(baseline['modified_native_paths']) |
++           ({font} if role == 'candidate' else set()), 'font-only signed baseline source scope')
++    if role == 'original':
++        h.need(epoch['semantic_index']['working_diff'] == baseline['semantic_index']['working_diff'], 'original working diff')
+     marker = epoch['reversible_line_height_phase']
+     h.need(marker['role'] == role and marker['source_package_manifest'] == policy['source_package_manifest'], 'phase marker')
+     for name, digest in policy['build_evidence'].items():

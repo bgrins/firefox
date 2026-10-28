@@ -1,0 +1,113 @@
+import copy
+import importlib.util
+import json
+import os
+import signal
+import sys
+import time
+from pathlib import Path
+
+assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+sys.dont_write_bytecode = True
+PACKAGE = Path(__file__).resolve().parent
+ROOT = PACKAGE.parents[1]
+policy = json.loads((PACKAGE / 'POLICY.json').read_bytes())
+assert policy['build_enabled'] is True
+HERE = ROOT / policy['runtime_output']
+RUNTIME = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+spec = importlib.util.spec_from_file_location('fallback_state', RUNTIME / 'state.py')
+s = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(s)
+ROOT = s.ROOT
+OBJ = ROOT / 'objdir-full.noindex'
+env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', MOZCONFIG=str(ROOT / 'mozconfig'),
+           MOZ_OBJDIR=str(OBJ), MOZ_HEADLESS='1', MOZ_SKIP_PATH_PERFORMANCE_CHECK='1',
+           PYTHONDONTWRITEBYTECODE='1')
+assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'CC', 'CXX', 'RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'CARGO_TARGET_DIR', 'RUSTC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER', 'MOZ_ARTIFACT_BUILDS', 'MOZ_CONFIGURE_OPTIONS', 'MOZ_PROFILE'))
+label, expected_epoch, manifest = sys.argv[1:]
+assert s.sha(RUNTIME / "CURRENT-EPOCH.json") == expected_epoch
+assert '/' not in label
+epoch = s.read(RUNTIME / 'CURRENT-EPOCH.json')
+assert epoch['line_height_transition']['role'] == 'candidate' and not epoch['line_height_transition']['compiled']
+assert epoch['semantic_index']['head'] == policy['head']
+assert label == policy['build_label']
+role = {'role': 'candidate', 'variant': 'line-height-contextual-leaves'}
+owner = s.load('page_build_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+owner.authenticate(PACKAGE, manifest)
+policy = s.read(PACKAGE / 'POLICY.json')
+assert epoch['line_height_transition']['manifest_sha256'] == manifest
+assert epoch['pins'][policy['source']['path']] == policy['source']['candidate_sha256']
+for name, record in policy['tests'].items(): assert epoch['pins'][name] == record['sha256']
+assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs', policy['source']['path']])
+assert epoch['staged_working'] == {} and epoch['line_height_transition']['accepted'] is False
+for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+control_claims = {n:owner.claim(ROOT,str((RUNTIME/n).relative_to(ROOT)),s.sha(RUNTIME/n)) for n in ['ROLE.json','OWNED.json']}
+owner.quiescent(RUNTIME)
+owner.quiescent(HERE)
+epoch_claim = owner.claim(ROOT, str((RUNTIME / 'CURRENT-EPOCH.json').relative_to(ROOT)), expected_epoch)
+before = s.a.verify_current(s.h, ROOT, env, epoch)
+directory = HERE / label
+directory.mkdir()
+s.save(directory / 'PRE.json', before)
+command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'build', 'binaries', '-j2']
+owner.authenticate(ROOT / policy['pair_capsule'], policy['pair_capsule_sha256'])
+metadata = s.load('promotion_metadata', policy['pair_capsule'] + '/run.py')
+s.save(directory / 'APPLICATION-METADATA-PRE.json', metadata.application_metadata(ROOT / policy['application_ini'], policy['head']))
+builder = s.load('fallback_builder', str((RUNTIME / 'phase.py').relative_to(ROOT)))
+control = s.load('fallback_control', str((RUNTIME / 'process_control.py').relative_to(ROOT)))
+flags = {name: s.h.git(ROOT / name, env, 'ls-files', '-v', '-z') for name in ('.', 'artifacts/css-spec-lean')}
+state, publication_errors = {}, []
+stopped = [False]
+def stop(signum, frame):
+    stopped[0] = True
+for sig in (signal.SIGTERM, signal.SIGINT):
+    signal.signal(sig, stop)
+deadline = time.monotonic() + 1800
+error = None
+try:
+    owner.authenticate(PACKAGE, manifest)
+    owner.claim(ROOT, epoch_claim['path'], epoch_claim['owned_sha256'], epoch_claim['identity'])
+    for item in control_claims.values(): owner.claim(ROOT,item['path'],item['owned_sha256'],item['identity'])
+    assert s.a.verify_current(s.h, ROOT, env, epoch) == before
+    owner.quiescent(HERE)
+    owner.quiescent(RUNTIME)
+    s.save(directory / 'COMMAND.json', {'command': command, 'pid': os.getpid(), 'source_role': role['role']})
+    builder.run(ROOT, OBJ, directory, env, lambda: stopped[0] or time.monotonic() >= deadline,
+                state, control, command, publication_errors)
+except BaseException as exc:
+    error = repr(exc)
+try:
+    assert not state, 'Owned build group remains; do not mutate sources'
+    current = copy.deepcopy(epoch)
+    for name in policy['rebuilt_binaries']:
+        assert name in current['pins']
+        current['pins'][name] = s.h.fingerprint(ROOT, name)
+    index = s.h.index_state(ROOT, env)
+    assert s.h.semantic_index(index) == epoch['semantic_index']
+    current['raw_index_observation']['current'] = index['raw_index']
+    after = s.a.verify_current(s.h, ROOT, env, current)
+    assert all(s.h.git(ROOT / name, env, 'ls-files', '-v', '-z') == body for name, body in flags.items())
+    inner_path = directory / 'build-RESULT.json'
+    inner = s.read(inner_path) if inner_path.is_file() else None
+    success = error is None and not publication_errors and inner is not None
+    if success:
+        assert inner['exit'] == 0 and inner['error'] is None and inner['stop_reason'] is None
+        assert inner['owned_group_absent'] and not inner['cleanup_errors']
+    current['line_height_transition'] = dict(epoch['line_height_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
+    owner.authenticate(PACKAGE, manifest)
+    for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+    for item in control_claims.values(): owner.claim(ROOT,item['path'],item['owned_sha256'],item['identity'])
+    s.save(directory / 'APPLICATION-METADATA.json', metadata.application_metadata(ROOT / policy['application_ini'], policy['head']))
+    s.save(directory / 'POST.json', after)
+    s.save(directory / 'EPOCH.json', current)
+    owner.write_owned(ROOT, epoch_claim, owner.encoded(current))
+    role['built'] = success
+    role['last_build'] = label
+    s.save(directory / 'ROLE.json', role)
+    s.save(directory / 'RESULT.json', {'command_success': success, 'error': error, 'publication_errors': publication_errors,
+                                     'owned_processes': state, 'source_role': role['role'], 'preservation_verified': True, 'browser_build_performed':inner is not None, 'accepted':False})
+    print(label, 'success' if success else error, flush=True)
+    assert success
+except BaseException as exc:
+    s.save(directory / 'PUBLICATION-FAILURE.json', {'error':repr(exc), 'manual_recovery_required':True, 'owned_processes':state, 'binary_rollback_attempted':False})
+    raise
