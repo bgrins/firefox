@@ -1,3 +1,13 @@
+Current priority after the Round finite-arithmetic experiment (2026-10-28)
+
+The finite-only candidate remains unaccepted: five target failures became passes, but the known both-infinite target still fails. All 678 control subtest signatures and nine page ends were unchanged. Both builds succeeded and original source/app/control state was restored. Preserve the unchanged all-targets-pass gate.
+
+Reuse the exact old three-line guard through special-knowledge-repair-v3, with its 19 WPT subtests and the corrected ordinary repeat-admission audit, preserving accepted NaN-priority fix 125. Build and validate that structural repair with controls, then return to finite Round arithmetic with distinct WPT ownership. Do not repeat completed broad research. The new 22-claim model overlaps prior remainder/cell proofs and adds no unique or canonical coverage credit.
+
+See artifacts/css-local-signing-20261028-v40/ROADMAP.md for scope and remaining gates. Accepted fixes remain 142, tracked entries 143, with held entry 120 excluded. All prior roadmap history follows unchanged.
+
+---
+
 # Current continuation after linear easing guard 143
 
 The narrow both-position guard has a standalone signed source/WPT entry in the accompanying checkpoint. It eliminates one reproduced content-process crash while preserving the existing contextual-easing rejection policy. Continue the full held relative-stepped/easing consumer work; first carry the deferred Round quotient arithmetic prerequisite through its own validated source change. The separate Round baseline records four known discrepancies among 34 snapshots; its candidate remains uninstalled and unaccepted. Preserve accepted 141/142/143, the held provider prototype, selected-demand/SCC requirements and complete context/invalidation semantics. Do not narrow supported syntax or treat unknown context as empty readiness.
