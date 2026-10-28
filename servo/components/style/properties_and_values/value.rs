@@ -179,7 +179,7 @@ impl<Component: ToCss> ToCss for ComponentList<Component> {
 
 /// A struct for a single specified registered custom property value that includes its original URL
 /// data so the value can be uncomputed later.
-#[derive(Clone, Debug, MallocSizeOf, ToCss, ToComputedValue, ToResolvedValue, ToShmem, ToTyped)]
+#[derive(Clone, Debug, MallocSizeOf, ToCss, ToResolvedValue, ToShmem, ToTyped)]
 #[typed(todo_derive_fields)]
 pub struct Value<Component> {
     /// The registered custom property value.
@@ -191,6 +191,28 @@ pub struct Value<Component> {
     /// Flag indicating whether this value is tainted by an attr().
     #[css(skip)]
     pub attr_tainted: bool,
+}
+
+impl<Component: ToComputedValue> ToComputedValue for Value<Component> {
+    type ComputedValue = Value<Component::ComputedValue>;
+
+    #[inline]
+    fn to_computed_value(&self, context: &computed::Context) -> Self::ComputedValue {
+        context.with_registered_value(|context| Value {
+            v: self.v.to_computed_value(context),
+            url_data: self.url_data.to_computed_value(context),
+            attr_tainted: self.attr_tainted.to_computed_value(context),
+        })
+    }
+
+    #[inline]
+    fn from_computed_value(computed: &Self::ComputedValue) -> Self {
+        Self {
+            v: ToComputedValue::from_computed_value(&computed.v),
+            url_data: ToComputedValue::from_computed_value(&computed.url_data),
+            attr_tainted: ToComputedValue::from_computed_value(&computed.attr_tainted),
+        }
+    }
 }
 
 impl<Component: PartialEq> PartialEq for Value<Component> {

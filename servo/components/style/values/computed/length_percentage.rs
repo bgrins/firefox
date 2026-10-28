@@ -82,7 +82,11 @@ impl ToResolvedValue for LengthPercentage {
     type ResolvedValue = Self;
 
     fn to_resolved_value(self, context: &ResolvedContext) -> Self::ResolvedValue {
-        if context.style.effective_zoom.is_one() {
+        if matches!(
+            context.for_property,
+            crate::properties::PropertyId::Custom(_)
+        ) || context.style.effective_zoom.is_one()
+        {
             return self;
         }
         self.map_lengths(|l| l.to_resolved_value(context))

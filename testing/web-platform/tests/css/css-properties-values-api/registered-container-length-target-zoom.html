@@ -1,0 +1,144 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered container lengths with unzoomed source containers</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#container-lengths">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
+<link rel="help" href="https://drafts.csswg.org/css-viewport/#zoom-om">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let sequence = 0;
+const families = [
+  {name: "size container", units: ["cqw", "cqh"], states: [
+    {width: 200, height: 120}, {width: 300, height: 150}, {width: 200, height: 120}
+  ]},
+  {name: "per-axis containers", units: ["cqw", "cqh", "cqmin", "cqmax"], states: [
+    {width: 200, height: 180}, {width: 140, height: 220}, {width: 200, height: 180}
+  ]},
+  {name: "small viewport fallback", units: ["cqw", "cqh"], states: [
+    {width: 320, height: 180}
+  ]}
+];
+
+for (const family of families) {
+  for (const unit of family.units) {
+    for (const substituted of [false, true]) {
+      test(t => {
+        const frame = document.createElement("iframe");
+        frame.style.cssText = "width:320px;height:180px;border:0;padding:0;zoom:1";
+        document.body.append(frame);
+        t.add_cleanup(() => frame.remove());
+        const win = frame.contentWindow;
+        const doc = win.document;
+        const style = doc.createElement("style");
+        style.textContent = `html, body { margin:0; padding:0; zoom:1;
+          writing-mode:horizontal-tb; overflow:hidden; }
+          .source { position:relative; padding:0; border:0; margin:0;
+            box-sizing:content-box; zoom:1; writing-mode:horizontal-tb; }
+          .target { position:absolute; left:0; top:0; height:10px;
+            margin:0; padding:0; border:0; box-sizing:content-box;
+            min-width:0; max-width:none; writing-mode:horizontal-tb; }`;
+        doc.head.append(style);
+        const outer = doc.createElement("div");
+        const inner = doc.createElement("div");
+        outer.className = inner.className = "source";
+        outer.style.cssText = "width:320px;height:180px";
+        inner.style.cssText = "width:200px;height:120px";
+        if (family.name === "size container") {
+          inner.style.containerType = "size";
+        } else if (family.name === "per-axis containers") {
+          outer.style.containerType = "size";
+          inner.style.containerType = "inline-size";
+        }
+        outer.append(inner);
+        doc.body.append(outer);
+        const id = sequence++;
+        const name = `--container-target-zoom-${id}`;
+        const ready = `--container-target-ready-${id}`;
+        win.CSS.registerProperty({name, syntax:"<length>", inherits:false,
+                                  initialValue:"7px"});
+        const target = doc.createElement("div");
+        const literal = doc.createElement("div");
+        const viewportControl = doc.createElement("div");
+        for (const element of [target, literal, viewportControl]) {
+          element.className = "target";
+          inner.append(element);
+        }
+        target.style.setProperty(ready, `100${unit}`);
+        target.style.setProperty(name, substituted ? `var(${ready}, 7px)` : `100${unit}`);
+        target.style.width = `var(${name})`;
+        viewportControl.style.width = unit === "cqw" ? "100svw" : "100svh";
+        const snapshots = [];
+        for (const state of family.states) {
+          if (family.name === "size container") {
+            inner.style.width = `${state.width}px`;
+            inner.style.height = `${state.height}px`;
+          } else if (family.name === "per-axis containers") {
+            inner.style.width = `${state.width}px`;
+            outer.style.height = `${state.height}px`;
+          }
+          const expected = unit === "cqw" ? state.width : unit === "cqh" ? state.height :
+            unit === "cqmin" ? Math.min(state.width, state.height) : Math.max(state.width, state.height);
+          literal.style.width = `${expected}px`;
+          for (const zoom of [1, 2, 0.5, 1]) {
+            for (const element of [target, literal, viewportControl]) {
+              element.style.zoom = zoom;
+            }
+            const computed = win.getComputedStyle(target);
+            const control = win.getComputedStyle(literal);
+            const sourceState = [outer, inner].map(element => {
+              const computedSource = win.getComputedStyle(element);
+              const rect = element.getBoundingClientRect();
+              return {width:computedSource.width, height:computedSource.height,
+                zoom:computedSource.zoom, writingMode:computedSource.writingMode,
+                containerType:computedSource.containerType,
+                rectWidth:rect.width, rectHeight:rect.height};
+            });
+            snapshots.push({state, expected, zoom,
+              value:computed.getPropertyValue(name).trim(), width:computed.width,
+              rectWidth:target.getBoundingClientRect().width,
+              rectHeight:target.getBoundingClientRect().height,
+              literalWidth:control.width, literalRectWidth:literal.getBoundingClientRect().width,
+              viewportWidth:win.getComputedStyle(viewportControl).width,
+              viewportRectWidth:viewportControl.getBoundingClientRect().width,
+              viewport:[win.innerWidth,win.innerHeight], sources:sourceState});
+          }
+        }
+        const detail = JSON.stringify(snapshots);
+        for (const snapshot of snapshots) {
+          const {expected, zoom, state} = snapshot;
+          assert_array_equals(snapshot.viewport, [320,180], detail);
+          for (const source of snapshot.sources) {
+            assert_equals(source.zoom, "1", `Unzoomed source: ${detail}`);
+            assert_equals(source.writingMode, "horizontal-tb", detail);
+            assert_approx_equals(source.rectWidth, parseFloat(source.width), 0.02, detail);
+            assert_approx_equals(source.rectHeight, parseFloat(source.height), 0.02, detail);
+          }
+          if (family.name === "size container") {
+            assert_equals(snapshot.sources[1].containerType, "size", detail);
+            assert_equals(snapshot.sources[1].width, `${state.width}px`, detail);
+            assert_equals(snapshot.sources[1].height, `${state.height}px`, detail);
+          } else if (family.name === "per-axis containers") {
+            assert_equals(snapshot.sources[0].containerType, "size", detail);
+            assert_equals(snapshot.sources[1].containerType, "inline-size", detail);
+            assert_equals(snapshot.sources[1].width, `${state.width}px`, detail);
+            assert_equals(snapshot.sources[0].height, `${state.height}px`, detail);
+          } else {
+            assert_true(snapshot.sources.every(source => source.containerType === "normal"), detail);
+            assert_equals(snapshot.viewportWidth, `${expected}px`, `Small viewport control: ${detail}`);
+            assert_approx_equals(snapshot.viewportRectWidth, expected * zoom, 0.02, detail);
+          }
+          assert_equals(snapshot.literalWidth, `${expected}px`, `Literal control: ${detail}`);
+          assert_approx_equals(snapshot.literalRectWidth, expected * zoom, 0.02, detail);
+          assert_equals(snapshot.value, `${expected}px`, `Canonical registered value: ${detail}`);
+          assert_equals(snapshot.width, `${expected}px`, `Consuming width: ${detail}`);
+          assert_approx_equals(snapshot.rectWidth, expected * zoom, 0.02, detail);
+          assert_approx_equals(snapshot.rectHeight, 10 * zoom, 0.02, detail);
+        }
+      }, `Registered container target zoom: ${family.name}, ${unit}, ${substituted ? "substituted" : "direct"}`);
+    }
+  }
+}
+</script>

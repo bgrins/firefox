@@ -20,7 +20,7 @@ use crate::shared_lock::{
 };
 use crate::stylesheets::{CssRules, CustomMediaEvaluator};
 use crate::stylist::Stylist;
-use crate::values::computed::{CSSPixelLength, ContainerType, Context, Ratio};
+use crate::values::computed::{CSSPixelLength, ContainerType, Context, Ratio, Zoom};
 use crate::values::specified::ContainerName;
 use crate::{LocalName, derives::*};
 use app_units::Au;
@@ -535,11 +535,20 @@ pub static CONTAINER_FEATURES: [QueryFeatureDescription; 6] = [
 /// element's writing mode.
 #[derive(Copy, Clone, Default)]
 pub struct ContainerSizeQueryResult {
-    width: Option<Au>,
-    height: Option<Au>,
+    width: Option<(Au, Zoom)>,
+    height: Option<(Au, Zoom)>,
 }
 
 impl ContainerSizeQueryResult {
+    fn resolve_size((size, zoom): (Au, Zoom), context: &Context) -> f64 {
+        let size = size.to_f64_px();
+        if context.in_registered_value() && !zoom.is_one() && zoom.value() != 0.0 {
+            size / f64::from(zoom.value())
+        } else {
+            size
+        }
+    }
+
     fn get_viewport_size(context: &Context) -> Size2D<Au> {
         use crate::values::specified::ViewportVariant;
         context.viewport_size_for_viewport_unit_resolution(ViewportVariant::Small)
@@ -553,19 +562,19 @@ impl ContainerSizeQueryResult {
     }
 
     /// Get the inline-size of the query container.
-    pub fn get_container_inline_size(&self, context: &Context) -> Au {
+    pub fn get_container_inline_size(&self, context: &Context) -> f64 {
         if context.builder.writing_mode.is_horizontal() {
             if let Some(w) = self.width {
-                return w;
+                return Self::resolve_size(w, context);
             }
         } else if let Some(h) = self.height {
-            return h;
+            return Self::resolve_size(h, context);
         }
-        Self::get_logical_viewport_size(context).inline
+        Self::get_logical_viewport_size(context).inline.to_f64_px()
     }
 
     /// Get the block-size of the query container.
-    pub fn get_container_block_size(&self, context: &Context) -> Au {
+    pub fn get_container_block_size(&self, context: &Context) -> f64 {
         if context.builder.writing_mode.is_horizontal() {
             self.get_container_height(context)
         } else {
@@ -574,19 +583,19 @@ impl ContainerSizeQueryResult {
     }
 
     /// Get the width of the query container.
-    pub fn get_container_width(&self, context: &Context) -> Au {
+    pub fn get_container_width(&self, context: &Context) -> f64 {
         if let Some(w) = self.width {
-            return w;
+            return Self::resolve_size(w, context);
         }
-        Self::get_viewport_size(context).width
+        Self::get_viewport_size(context).width.to_f64_px()
     }
 
     /// Get the height of the query container.
-    pub fn get_container_height(&self, context: &Context) -> Au {
+    pub fn get_container_height(&self, context: &Context) -> f64 {
         if let Some(h) = self.height {
-            return h;
+            return Self::resolve_size(h, context);
         }
-        Self::get_viewport_size(context).height
+        Self::get_viewport_size(context).height.to_f64_px()
     }
 
     // Merge the result of a subsequent lookup, preferring the initial result.
@@ -648,19 +657,19 @@ impl<'a> ContainerSizeQuery<'a> {
         let size = e.query_container_size(box_style.get_display());
         if container_type.intersects(ContainerType::SIZE) {
             TraversalResult::Done(ContainerSizeQueryResult {
-                width: size.width,
-                height: size.height,
+                width: size.width.map(|v| (v, style.effective_zoom)),
+                height: size.height.map(|v| (v, style.effective_zoom)),
             })
         } else if container_type.intersects(ContainerType::INLINE_SIZE) {
             if wm.is_horizontal() {
                 TraversalResult::Done(ContainerSizeQueryResult {
-                    width: size.width,
+                    width: size.width.map(|v| (v, style.effective_zoom)),
                     height: None,
                 })
             } else {
                 TraversalResult::Done(ContainerSizeQueryResult {
                     width: None,
-                    height: size.height,
+                    height: size.height.map(|v| (v, style.effective_zoom)),
                 })
             }
         } else {

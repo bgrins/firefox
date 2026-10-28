@@ -1060,18 +1060,28 @@ impl QueryStyleRange {
                     visited_set,
                 )
             },
-            QueryExpressionValue::Length(v) => {
-                Some(Component::Length(v.to_computed_value(context)))
+            QueryExpressionValue::Length(v) => Some(Component::Length(
+                context.with_registered_value(|context| v.to_computed_value(context)),
+            )),
+            QueryExpressionValue::Float(v) => Some(Component::Number(
+                context.with_registered_value(|context| v.to_computed_value(context)),
+            )),
+            QueryExpressionValue::Resolution(v) => Some(Component::Resolution(
+                context.with_registered_value(|context| v.to_computed_value(context)),
+            )),
+            QueryExpressionValue::Percentage(v) => Some(Component::Percentage(
+                context.with_registered_value(|context| v.to_computed_value(context)),
+            )),
+            QueryExpressionValue::Angle(v) => {
+                Some(Component::Angle(context.with_registered_value(|context| {
+                    v.to_computed_value(context)
+                })))
             },
-            QueryExpressionValue::Float(v) => Some(Component::Number(v.to_computed_value(context))),
-            QueryExpressionValue::Resolution(v) => {
-                Some(Component::Resolution(v.to_computed_value(context)))
+            QueryExpressionValue::Time(v) => {
+                Some(Component::Time(context.with_registered_value(|context| {
+                    v.to_computed_value(context)
+                })))
             },
-            QueryExpressionValue::Percentage(v) => {
-                Some(Component::Percentage(v.to_computed_value(context)))
-            },
-            QueryExpressionValue::Angle(v) => Some(Component::Angle(v.to_computed_value(context))),
-            QueryExpressionValue::Time(v) => Some(Component::Time(v.to_computed_value(context))),
             // It's unclear to me what CSS-wide keywords would mean in a style-range query;
             // for now, at least, they'll just fail to resolve.
             QueryExpressionValue::Keyword(_) => None,

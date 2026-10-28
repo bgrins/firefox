@@ -130,6 +130,12 @@ impl ToResolvedValue for CSSPixelLength {
     type ResolvedValue = Self;
 
     fn to_resolved_value(self, context: &ResolvedContext) -> Self::ResolvedValue {
+        if matches!(
+            context.for_property,
+            crate::properties::PropertyId::Custom(_)
+        ) {
+            return self;
+        }
         Self(context.style.effective_zoom.unzoom(self.0))
     }
 

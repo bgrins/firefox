@@ -41,7 +41,7 @@ use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use rustc_hash::FxHasher;
 use servo_arc::Arc;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::cmp;
 use std::f32;
 use std::hash::{Hash, Hasher};
@@ -216,6 +216,8 @@ pub struct Context<'a> {
     /// Whether or not we are computing the container query condition.
     pub in_container_query: bool,
 
+    in_registered_value: Cell<bool>,
+
     /// The quirks mode of this context.
     pub quirks_mode: QuirksMode,
 
@@ -259,6 +261,28 @@ pub struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
+    /// Whether a registered value is being computed in canonical units.
+    pub fn in_registered_value(&self) -> bool {
+        self.in_registered_value.get()
+    }
+
+    /// Compute a registered value, restoring the previous scope on exit.
+    pub fn with_registered_value<R>(&self, f: impl FnOnce(&Self) -> R) -> R {
+        struct Reset<'a>(&'a Cell<bool>, bool);
+
+        impl Drop for Reset<'_> {
+            fn drop(&mut self) {
+                self.0.set(self.1);
+            }
+        }
+
+        let _reset = Reset(
+            &self.in_registered_value,
+            self.in_registered_value.replace(true),
+        );
+        f(self)
+    }
+
     /// Lazily evaluate the container size query, returning the result.
     pub fn get_container_size_query(&self) -> ContainerSizeQueryResult {
         let mut resolved = self.container_size_query.borrow_mut();
@@ -286,6 +310,7 @@ impl<'a> Context<'a> {
             rule_cache_conditions: RefCell::new(&mut conditions),
             scope: CascadeLevel::same_tree_author_normal(),
             included_cascade_flags: RuleCascadeFlags::empty(),
+            in_registered_value: Cell::new(false),
             container_size_query: RefCell::new(ContainerSizeQuery::none()),
             element_context: &DummyElementContext {},
             tree_counting_caches: RefCell::new(&mut tree_counting_caches),
@@ -328,6 +353,7 @@ impl<'a> Context<'a> {
             rule_cache_conditions: RefCell::new(&mut conditions),
             scope: CascadeLevel::same_tree_author_normal(),
             included_cascade_flags: RuleCascadeFlags::empty(),
+            in_registered_value: Cell::new(false),
             container_size_query: RefCell::new(container_size_query),
             element_context,
             tree_counting_caches: RefCell::new(&mut tree_counting_caches),
@@ -364,6 +390,7 @@ impl<'a> Context<'a> {
             rule_cache_conditions: RefCell::new(rule_cache_conditions),
             scope: CascadeLevel::same_tree_author_normal(),
             included_cascade_flags,
+            in_registered_value: Cell::new(false),
             container_size_query: RefCell::new(container_size_query),
             element_context,
             tree_counting_caches: RefCell::new(tree_counting_caches),
@@ -392,6 +419,7 @@ impl<'a> Context<'a> {
             rule_cache_conditions: RefCell::new(rule_cache_conditions),
             scope: CascadeLevel::same_tree_author_normal(),
             included_cascade_flags: RuleCascadeFlags::empty(),
+            in_registered_value: Cell::new(false),
             container_size_query: RefCell::new(container_size_query),
             element_context,
             tree_counting_caches: RefCell::new(tree_counting_caches),
@@ -419,6 +447,7 @@ impl<'a> Context<'a> {
             rule_cache_conditions: RefCell::new(rule_cache_conditions),
             scope: CascadeLevel::same_tree_author_normal(),
             included_cascade_flags: RuleCascadeFlags::empty(),
+            in_registered_value: Cell::new(false),
             container_size_query: RefCell::new(ContainerSizeQuery::none()),
             element_context: &DummyElementContext {},
             tree_counting_caches: RefCell::new(tree_counting_caches),

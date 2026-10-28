@@ -949,7 +949,11 @@ impl NoCalcLength {
                 }
             },
         };
-        let length = context.builder.effective_zoom.zoom(length.0 as f32);
+        let length = if context.in_registered_value() {
+            length.0 as f32
+        } else {
+            context.builder.effective_zoom.zoom(length.0 as f32)
+        };
 
         let trunc_scaled =
             ((length as f64 * factor as f64 / 100.).trunc() / AU_PER_PX as f64) as f32;
@@ -973,11 +977,11 @@ impl NoCalcLength {
             LengthUnit::Cqh => size.get_container_height(context),
             LengthUnit::Cqi => size.get_container_inline_size(context),
             LengthUnit::Cqb => size.get_container_block_size(context),
-            LengthUnit::Cqmin => cmp::min(
+            LengthUnit::Cqmin => f64::min(
                 size.get_container_inline_size(context),
                 size.get_container_block_size(context),
             ),
-            LengthUnit::Cqmax => cmp::max(
+            LengthUnit::Cqmax => f64::max(
                 size.get_container_inline_size(context),
                 size.get_container_block_size(context),
             ),
@@ -985,7 +989,7 @@ impl NoCalcLength {
                 unreachable!("container_relative_to_computed_value: not a container-relative unit")
             },
         };
-        CSSPixelLength::new((container_length.to_f64_px() * factor as f64 / 100.0) as f32)
+        CSSPixelLength::new((container_length * factor as f64 / 100.0) as f32)
     }
 
     /// Computes a ServoCharacterWidth length against a reference font size.
@@ -1025,11 +1029,19 @@ impl NoCalcLength {
         line_height_base: LineHeightBase,
     ) -> CSSPixelLength {
         if let Some(px) = self.to_px_if_absolute() {
+            if context.in_registered_value() {
+                return CSSPixelLength::new(px);
+            }
             return CSSPixelLength::new(px).zoom(context.builder.effective_zoom);
         }
         let unit = self.length_unit();
         if unit.is_font_relative() {
-            return self.font_relative_to_computed_value(context, base_size, line_height_base);
+            let value = self.font_relative_to_computed_value(context, base_size, line_height_base);
+            return if context.in_registered_value() {
+                CSSPixelLength::new(context.builder.effective_zoom.unzoom(value.px()))
+            } else {
+                value
+            };
         }
         if unit.is_viewport_percentage() {
             return self.viewport_percentage_to_computed_value(context);
@@ -1038,13 +1050,18 @@ impl NoCalcLength {
             return self.container_relative_to_computed_value(context);
         }
         debug_assert_eq!(unit, LengthUnit::ServoCharacterWidth);
-        self.servo_character_width_to_computed_value(
+        let value = self.servo_character_width_to_computed_value(
             context
                 .style()
                 .get_font()
                 .slow_clone_font_size()
                 .computed_size(),
-        )
+        );
+        if context.in_registered_value() {
+            CSSPixelLength::new(context.builder.effective_zoom.unzoom(value.px()))
+        } else {
+            value
+        }
     }
 }
 
