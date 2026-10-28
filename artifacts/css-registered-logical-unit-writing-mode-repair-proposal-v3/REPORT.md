@@ -1,0 +1,13 @@
+# Writing-mode proposal v3
+
+Fixes a panic in the unactivated v2 research proposal: the bitflags iterator visits definitions in declaration order. Because WRITING_MODE was declared after NON_ROOT_DEPENDENCIES, a mixed FONT_UNITS|LH_UNITS|WRITING_MODE value (261) emitted the composite 261 after singletons 1 and 4. The existing `for_each_non_custom` match rejects composites with unreachable!().
+
+The only native delta from v2 moves WRITING_MODE (still 1<<8) before composite constants. No flag value, graph edge, selected-admission behavior, native path count or other source logic changes. V2 remains immutable and held. This is a defect found in an unlanded experimental patch, not an additional existing Firefox bug or accepted fix.
+
+The narrow Rust probe compiles the actual checkout bitflags crate, with hashes for its sources, and copies the exact v2/v3 flag definitions and for_each_non_custom method bodies. Only derive macros unrelated to iteration are omitted and the method's output enum is supplied locally. It reproduces the v2 mask 261 panic; v3 emits 1,4,256. Every one of 512 defined-bit masks in the non-root context yields exactly the expected contextual singleton list. This is real bitflags execution, not a model of its iterator; it is not a Stylo build or a Rust refinement proof. All rustc outputs lived in a removed temporary directory, without a Cargo target directory. replay_probe.py repeats the probe with source-hash guards and owned cleanup.
+
+The prior 28 WPT registrations remain unchanged. A new eight-test page combines em/lh with vi/cqi in both writing modes, recording all 20→30→20 font/line-height mutation snapshots before assertions. The ordinary mixed-unit control calibrates the expected physical size; registered CSSOM, consuming width and rect must match. The lh combinations exercise the problematic FONT|LH|WM mask; em combinations preserve the simpler two-bit case. Test callbacks are unexecuted.
+
+The fixed-lh synthetic SCC correction from v2 remains intact. Genuine vi/if cycle policy and early application of variable-bearing writing-mode through broad prioritary dependencies remain unresolved, exactly as documented by v2. This source proposal is not accepted, activated or independently validated as landable. It retains the original committed HEAD 6eb538c23bcf3dde9c7631a1c826cba4de562462 base, independent of held A/zoom overlays.
+
+Validation: actual Rust probe ec92b3→1a20e6/0; Rustfmt edition2024 d9ac0c/0; exact six-path patch forward/reverse/reapply at fuzz 0 plus 36 unique JS registrations and syntax 04e138/0. New canonical WPT path is absent in the pinned HEAD. No live native/WPT/index/HEAD/epoch/browser/shared build mutation occurred.

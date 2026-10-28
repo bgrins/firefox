@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Unused and invalid logical lengths do not block registered writing-mode values</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let sequence = 0;
+for (const unit of ["cqi", "vi"]) {
+  for (const kind of ["unused fallback", "invalid grammar"]) {
+    test(t => {
+      const id = sequence++;
+      const name = `--writing-mode-admission-${id}`;
+      const initialValue = kind === "unused fallback" ? "vertical-rl" : "horizontal-tb";
+      CSS.registerProperty({name, syntax:"<length> | horizontal-tb | vertical-rl",
+                            inherits:false, initialValue});
+      const parent = document.createElement("div");
+      parent.style.cssText = "writing-mode:vertical-rl;container-type:size;width:320px;height:180px";
+      const target = document.createElement("div");
+      target.style.setProperty("--ready", "horizontal-tb");
+      target.style.setProperty(name, kind === "unused fallback" ?
+        `var(--ready, 1${unit})` : `1${unit} invalid`);
+      target.style.writingMode = `var(${name})`;
+      parent.append(target);
+      document.body.append(parent);
+      t.add_cleanup(() => parent.remove());
+      const style = getComputedStyle(target);
+      const value = style.getPropertyValue(name).trim();
+      const writingMode = style.writingMode;
+      const detail = JSON.stringify({value, writingMode});
+      assert_equals(value, "horizontal-tb", `Registered admission/defaulting: ${detail}`);
+      assert_equals(writingMode, "horizontal-tb", `No false writing-mode cycle: ${detail}`);
+    }, `Registered writing-mode admission: ${unit}, ${kind}`);
+  }
+}
+</script>

@@ -1,0 +1,17 @@
+# Draft v20 signing checkpoint
+
+The preparer has not executed init, staging, signing, finish, ledger updates or epoch mutations. Root independently completed driver initialization (52282, terminal487ce2/0); signing is the next action. Root owns execution only after all three new browser observations are terminal and their process cleanup has been checked.
+
+Research precedes validation, then checkpoint. The unchanged v19 commit.py retains nine dirty native sources and full nested/index preservation. Finish authenticates the same v3 proposal/build2, all 50 parked prototypes, 140 recovery pins, and the same 74 unfinished untracked project files. Only the two roadmap ledgers are updated. Accepted fixes remain 137; no formal coverage count changes.
+
+The prior 56-test zoom comparison and successful build are already signed. Finish allows reuse only of exact prior CHECKPOINT-INPUTS evidence pins (plus the exact proposal manifest), and checks those bodies against the previous signed HEAD instead of trying to commit unchanged files again. New container/broad/focused evidence must appear in the new selected validation paths. It verifies actual terminal cleanup, source/epoch identity, full pre/post preservation, test cardinalities and outcomes. Focused 14-test failures are recorded as observations and are not silently turned into passes.
+
+The completed broad comparison passes 104 A assertions, 446 regression assertions and six reftests; all 16 held failures retain their original signatures. The completed container observation is evidence, not a normative numeric verdict. Fresh spec tracing remains INCONCLUSIVE at the published size-query coordinate read. The revised writing-mode proposal removes the artificial LH-to-WM edge but remains unexecuted with early-application/genuine-cycle policy limits. No candidate is accepted or published.
+
+Before execution, add newly sealed focused 14-test runner/animationv2/reviews and the completed focused runtime to the selections, reauthenticate every payload, and finalize CHECKPOINT-INPUTS.json from actual evidence. Its draft remains disabled and retains PENDING where work is unfinished. Finalize all evidence pins for RESULT/ASSESSMENT/CLEANUP/PRE/POST/EPOCH for each WPT run and RESULT/CLEANUP/PRE/POST/EPOCH for the container run. Fill the truthful summary from the focused outcome. Do not select shared runtime CURRENT-EPOCH/ROLE/OWNED, browser binaries, active output, or unrelated artifacts.
+
+Finish archives the prior registered-number research state before replacing its obsolete held-for-zoom status with current experimental validation. The original zoom regression and old sign observations remain in history. Frozen runner HEAD bindings become historical after signing and need explicit successors. Existing candidate source bodies remain dirty and parked prototypes remain parked. Original-HEAD standalone validation remains outstanding.
+
+Final evidence: all six animation and eight numeric style-query tests passed with complete preserved execution. Selections/configuration now bind all completed runs; frozen for root review and signing. The writing-mode v2 panic review is being sealed separately and must not delay this completed checkpoint.
+
+Late checkpoint research: the independent v2 review and the corrected v3 writing-mode proposal are authenticated through LATE-RESEARCH.json. V3 reproduces the old panic and checks all 512 masks with the actual bitflags crate, and prepares 36 browser tests; full Stylo compilation/browser execution and independent v3 review remain pending.

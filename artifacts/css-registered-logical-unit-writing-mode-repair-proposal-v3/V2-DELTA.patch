@@ -1,0 +1,84 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -535,6 +535,8 @@
+         const ROOT_LH_UNITS = 1 << 3;
+         /// The value depends on the used color-scheme (e.g. a registered `<color>` property).
+         const COLOR_SCHEME = 1 << 4;
++        /// Logical lengths depend on the element's writing mode.
++        const WRITING_MODE = 1 << 8;
+         /// All dependencies not depending on the root element.
+         const NON_ROOT_DEPENDENCIES = Self::FONT_UNITS.0 | Self::LH_UNITS.0 | Self::WRITING_MODE.0;
+         /// All dependencies depending on the root element.
+@@ -547,8 +549,6 @@
+         const ENV = 1 << 6;
+         /// At least one var() reference.
+         const VAR = 1 << 7;
+-        /// Logical lengths depend on the element's writing mode.
+-        const WRITING_MODE = 1 << 8;
+     }
+ }
+ 
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-writing-mode-mixed-units.html
+@@ -0,0 +1,61 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Registered lengths combine font-relative and logical units</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#relative-lengths">
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++let sequence = 0;
++for (const fontUnit of ["em", "lh"]) {
++  for (const logicalUnit of ["vi", "cqi"]) {
++    for (const writingMode of ["horizontal-tb", "vertical-rl"]) {
++      test(t => {
++        const name = `--writing-mode-mixed-${sequence++}`;
++        CSS.registerProperty({name, syntax: "<length>", inherits: false,
++                              initialValue: "7px"});
++        const parent = document.createElement("div");
++        parent.style.cssText = "container-type:size;writing-mode:horizontal-tb;width:320px;height:180px";
++        const target = document.createElement("div");
++        const ordinary = document.createElement("div");
++        const value = `calc(1${fontUnit} + 100${logicalUnit})`;
++        for (const node of [target, ordinary]) {
++          node.style.cssText = `writing-mode:${writingMode};font-size:20px;line-height:40px;
++            height:5px;padding:0;border:0;box-sizing:content-box`;
++        }
++        target.style.setProperty(name, value);
++        target.style.width = `var(${name})`;
++        ordinary.style.width = value;
++        parent.append(target, ordinary);
++        document.body.append(parent);
++        t.add_cleanup(() => parent.remove());
++        const snapshots = [];
++        for (const fontSize of [20, 30, 20]) {
++          for (const node of [target, ordinary]) {
++            node.style.fontSize = `${fontSize}px`;
++            node.style.lineHeight = `${fontSize * 2}px`;
++          }
++          const horizontal = writingMode === "horizontal-tb";
++          const logicalSize = logicalUnit === "vi" ?
++            (horizontal ? innerWidth : innerHeight) : (horizontal ? 320 : 180);
++          const expected = logicalSize + fontSize * (fontUnit === "lh" ? 2 : 1);
++          const computed = getComputedStyle(target);
++          snapshots.push({fontSize, expected, value: computed.getPropertyValue(name).trim(),
++            width: computed.width, ordinaryWidth: getComputedStyle(ordinary).width,
++            writingMode: computed.writingMode, rectWidth: target.getBoundingClientRect().width});
++        }
++        const detail = JSON.stringify(snapshots);
++        for (const snapshot of snapshots) {
++          const expected = `${snapshot.expected}px`;
++          assert_equals(snapshot.writingMode, writingMode, detail);
++          assert_equals(snapshot.ordinaryWidth, expected, `Ordinary mixed-unit calibration: ${detail}`);
++          assert_equals(snapshot.value, expected, `Registered mixed units: ${detail}`);
++          assert_equals(snapshot.width, expected, `Mixed-unit consumer: ${detail}`);
++          assert_approx_equals(snapshot.rectWidth, snapshot.expected, 0.02, detail);
++        }
++      }, `Registered mixed writing-mode units: ${fontUnit}+${logicalUnit}, ${writingMode}`);
++    }
++  }
++}
++</script>
