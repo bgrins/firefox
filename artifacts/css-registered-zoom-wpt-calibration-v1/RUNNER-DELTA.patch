@@ -1,0 +1,162 @@
+--- wpt-capsule-v5/run.py
++++ zoom-calibration/run.py
+@@ -98,46 +98,31 @@
+ 
+ 
+ def main():
+-    need(len(sys.argv) in (6, 8), "Usage: run.py CAPSULE_SHA PHASE EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT [ORIGINAL_ASSESSMENT ORIGINAL_SHA]")
++    need(len(sys.argv) == 5, "Usage: run.py PACKAGE_SHA EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT")
+     authenticate(HERE, sys.argv[1])
+     policy = read(HERE / "POLICY.json")
+-    succession = load("signed_head_succession", HERE / "succession.py")
+-    succession_receipt = succession.validate(ROOT, HERE, policy, SimpleNamespace(**globals()))
+-    phase = sys.argv[2]
+-    need(re.fullmatch(r"(original|candidate)-[1-9][0-9]*", phase), "phase label")
+-    role = phase.split("-")[0]
+-    need(len(sys.argv) == (6 if role == "original" else 8), "original/candidate baseline arguments")
+-    epoch_path = Path(sys.argv[3])
++    phase = "admission-only-1"
++    epoch_path = Path(sys.argv[2])
+     need(epoch_path.is_absolute() and not epoch_path.is_symlink(), "absolute regular epoch")
+-    need(sha(epoch_path) == sys.argv[4], "externally supplied epoch digest")
++    need(sha(epoch_path) == sys.argv[3] == policy["epoch_sha256"], "exact externally supplied epoch")
+     epoch = read(epoch_path)
+-    require_compiled_transition(epoch, role)
+-    need(epoch["semantic_index"]["head"] == policy["frozen_head"], "epoch HEAD differs from frozen comparison HEAD")
+-    app_metadata = application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+-    original, baseline_path, adopted = None, None, None
+-    if role == "candidate":
+-        baseline_path = Path(sys.argv[6])
+-        need(baseline_path.is_absolute() and not baseline_path.is_symlink() and
+-             sha(baseline_path) == sys.argv[7], "externally supplied original assessment")
+-        original = read(baseline_path)
+-        if original.get("capsule_manifest_sha256") != sys.argv[1]:
+-            adoption = load("original_adoption", HERE / "adoption.py")
+-            adopted = adoption.validate(ROOT, HERE, baseline_path, sys.argv[7], policy, SimpleNamespace(**globals()))
+-        need(original["complete"] and original["execution_preserved"] and
+-             original["phase"].startswith("original-") and
+-             (original["capsule_manifest_sha256"] == sys.argv[1] or adopted is not None) and
+-             original["native_sources"] == policy["source_roles"]["original"], "matching complete original")
+-        need(original["run_binding"]["revision"] == epoch["semantic_index"]["head"] or
+-             (adopted is not None and original["run_binding"]["revision"] == policy["original_frozen_head"] and epoch["semantic_index"]["head"] == policy["frozen_head"]),
+-             "original/candidate epoch HEAD must be frozen")
++    require_compiled_transition(epoch, "candidate")
++    need(epoch["registered_number_transition"].get("accepted") is False and
++         epoch["registered_number_transition"].get("last_phase") == "head-candidate-build-2",
++         "unaccepted admission-only build2 required")
++    need(epoch["semantic_index"]["head"] == policy["frozen_head"], "frozen HEAD")
++    need(sha(ROOT / policy["build_result"]) == policy["build_result_sha256"], "build2 receipt")
++    build = read(ROOT / policy["build_result"])
++    need(build["command_success"] and build["preservation_verified"] and not build["owned_processes"] and not build["publication_errors"], "successful preserved build2")
++    app_metadata = application_metadata(ROOT / policy["application_ini"], policy["frozen_head"])
+     for name, pin in read(HERE / "REFERENCES.json").items():
+         need(sha(ROOT / name) == pin, "helper/source binding: " + name)
+-    for name, pin in policy["source_roles"][role].items():
++    for name, pin in policy["native_sources"].items():
+         need(sha(ROOT / name) == pin and epoch["pins"].get(name) == pin, "phase native source binding: " + name)
+-    out = Path(sys.argv[5])
++    out = Path(sys.argv[4])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "output must be absent")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-number-wpt-runtime-"), "owned artifact output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-zoom-wpt-calibration-runtime-"), "owned artifact output")
+     need(all(not os.environ.get(k) for k in policy["forbidden_environment"]), "unexpected build/git/profile environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+@@ -147,7 +132,7 @@
+     guard = load("ordinary_epoch", ROOT / policy["helpers"]["epoch"])
+     checks = load("ordinary_checks", ROOT / policy["helpers"]["checks"])
+     control = load("ordinary_control", ROOT / policy["helpers"]["control"])
+-    parser = load("ordinary_assessment", HERE / "assess.py")
++    parser = load("ordinary_assessment", ROOT / policy["base_assessor"])
+     before = guard.verify_current(h, ROOT, env, epoch)
+     flags = {name: hashlib.sha256(h.git(ROOT / name, env, "ls-files", "-v", "-z")).hexdigest()
+              for name in (".", "artifacts/css-spec-lean")}
+@@ -165,12 +150,8 @@
+     need({n: fingerprint_resource(n) for n in resource_pins} == resource_pins, "source/resource/metadata inputs")
+     binary_pins = {name: h.fingerprint(ROOT, name) for name in policy["normal_binaries"]}
+     need(all(pin and epoch["pins"][name] == pin for name, pin in binary_pins.items()), "normal built binary bindings")
+-    if role == "candidate":
+-        need(binary_pins == succession_receipt["candidate_binaries"], "candidate build2 binaries changed after signing")
++    need(binary_pins == policy["candidate_binaries"], "exact admission-only build2 binaries")
+     out.mkdir()
+-    save(out / "HEAD-SUCCESSION.json", succession_receipt)
+-    if adopted is not None:
+-        save(out / "ORIGINAL-ADOPTION.json", adopted)
+     save(out / "EPOCH.json", epoch)
+     save(out / "PRE.json", before)
+     save(out / "INDEX-FLAGS.json", flags)
+@@ -212,7 +193,7 @@
+               for p in top.rglob("*") if p.is_file() and "tools" not in p.relative_to(top).parts}
+     copied["wptrunner.ini"] = sha(config_path)
+     save(out / "OWNED-INPUT-PINS.json", copied)
+-    tmp = Path(tempfile.mkdtemp(prefix="css-attr-raw-wpt-", dir="/private/tmp"))
++    tmp = Path(tempfile.mkdtemp(prefix="css-registered-zoom-calibration-", dir="/private/tmp"))
+     tmp_identity = (tmp.stat().st_dev, tmp.stat().st_ino)
+     env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+     raw = out / "raw.jsonl"
+@@ -223,9 +204,8 @@
+                "--prefs-root=" + str(ROOT / "testing/profiles"), "--log-raw=" + str(raw),
+                *["--include=" + test for test in policy["tests"]]]
+     save(out / "COMMAND.json", {"command": command, "temporary_root": str(tmp), "timeout_seconds": 600,
+-                                "wrapper_manifest_sha256": sys.argv[1], "epoch_sha256": sys.argv[4], "epoch_path": str(epoch_path), "phase": phase,
+-                                "original_assessment": str(baseline_path) if baseline_path else None,
+-                                "original_assessment_sha256": sys.argv[7] if baseline_path else None})
++                                "wrapper_manifest_sha256": sys.argv[1], "epoch_sha256": sys.argv[3], "epoch_path": str(epoch_path), "phase": phase,
++                                "source_role": policy["source_role"], "observation_only": True})
+     process, code, error, cleanup, post_error = None, None, None, None, None
+     stopped = [False]
+     def stop(signum, frame):
+@@ -260,9 +240,7 @@
+             need(post == before, "root/nested preservation")
+             need(flags == {name: hashlib.sha256(h.git(ROOT / name, env, "ls-files", "-v", "-z")).hexdigest()
+                            for name in flags}, "index flags changed")
+-            need(sha(epoch_path) == sys.argv[4], "externally bound epoch changed")
+-            if baseline_path is not None:
+-                need(sha(baseline_path) == sys.argv[7], "original assessment changed")
++            need(sha(epoch_path) == sys.argv[3], "externally bound epoch changed")
+             need({n: fingerprint_resource(n) for n in resource_pins} == resource_pins, "resources changed")
+             post_app_metadata = application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+             save(out / "APPLICATION-METADATA-POST.json", post_app_metadata)
+@@ -272,9 +250,6 @@
+                  (tests_root / "tools").resolve() == ROOT / "testing/web-platform/tests/tools", "owned tools link changed")
+             for name, pin in read(HERE / "REFERENCES.json").items():
+                 need(sha(ROOT / name) == pin, "helper/source changed: " + name)
+-            if adopted is not None:
+-                need(adoption.validate(ROOT, HERE, baseline_path, sys.argv[7], policy, SimpleNamespace(**globals())) == adopted, "adopted original changed")
+-            need(succession.validate(ROOT, HERE, policy, SimpleNamespace(**globals())) == succession_receipt, "signed succession changed")
+             authenticate(HERE, sys.argv[1])
+             save(out / "POST.json", post)
+         except BaseException as exc:
+@@ -283,9 +258,12 @@
+     try:
+         need(raw.is_file() and not raw.is_symlink() and raw.stat().st_size <= 128 * 1024 * 1024, "missing/oversized raw log")
+         events = [json.loads(line) for line in raw.read_text().splitlines()]
+-        assessment = parser.assess(events, code, policy, checks, original, app_metadata)
++        assessment = parser.assess(events, code, policy, checks, original=None, run_binding=app_metadata)
+         assessment.update(phase=phase, capsule_manifest_sha256=sys.argv[1],
+-                          epoch_sha256=sys.argv[4], native_sources=policy["source_roles"][role], original_adoption=adopted,
++                          epoch_sha256=sys.argv[3], native_sources=policy["native_sources"],
++                          source_role=policy["source_role"], observation_only=True,
++                          subtest_cardinality_policy="Exact 56 calibration identities across four pages; PASS and FAIL are complete observations",
++                          oracle_caveat="Unexecuted draft calibration on admission-only candidate; failures are observations, not accepted fixes",
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)
+@@ -293,12 +271,11 @@
+         error = error or repr(exc)
+     passed = (error is None and post_error is None and cleanup.get("owned_group_absent")
+               and cleanup.get("temporary_root_removed") and assessment and assessment["complete"]
+-              and (role == "original" or assessment["comparison_gate_passed"]))
++              and assessment["execution_preserved"])
+     result = {"exit": code, "execution_error": error, "preservation_error": post_error,
+-              "phase": phase, "observation_gate_passed": bool(passed),
+-              "comparison_gate_passed": bool(passed and role == "candidate"),
+-              "native_fix_acceptance": False, "explicit_corrected_oracle_in_both_phases": True,
+-              "original_adoption": adopted}
++              "phase": phase, "source_role": policy["source_role"],
++              "observation_gate_passed": bool(passed), "comparison_gate_passed": False,
++              "native_fix_acceptance": False, "observation_only": True}
+     save(out / "RESULT.json", result)
+     print(json.dumps(result, indent=2))
+     return 0 if passed else 1
