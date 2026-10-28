@@ -1,0 +1,147 @@
+--- artifacts/css-linear-second-position-final-wpt-v1/bindings.py
++++ artifacts/css-round-special-knowledge-final-wpt-v1/bindings.py
+@@ -4,7 +4,7 @@
+ import os
+ from pathlib import Path
+ 
+-SOURCE = 'servo/components/style/values/specified/easing.rs'
++SOURCE = 'servo/components/style/values/generics/calc.rs'
+ 
+ def old_bindings_inventory(runtime, h):
+     files = {str(p.relative_to(runtime)): h.sha(p) for p in runtime.rglob('*') if p.is_file() and not p.is_symlink()}
+@@ -24,21 +24,21 @@
+     q['original_binding'] = {'capsule': q['pair_capsule'], 'capsule_sha256': q['pair_capsule_sha256'],
+                              'runtime': q['paired_runtime'],
+                              'runtime_manifest_sha256': q['paired_manifest_sha256'],
+-                             'provenance': 'authenticated separate original baseline and target CRASH; not a fresh final-capsule run'}
++                             'provenance': 'authenticated original from successful restored pair; not a fresh final-capsule run'}
+     return q
+ 
+ 
+ def project_promotion(epoch, baseline, policy, ownership, h):
+     tests = policy['installed_tests']
+     h.need(set(ownership) == {SOURCE} | set(tests), 'exact installed ownership roster')
+-    h.need(ownership[SOURCE]['identity'] == policy['original_source_identity'], 'original easing inode retained')
+-    marker = epoch['linear_guard_transition']
++    h.need(ownership[SOURCE]['identity'] == policy['original_source_identity'], 'original generic calc inode retained')
++    marker = epoch['round_special_knowledge_transition']
+     h.need(marker == {'role': 'candidate', 'compiled': True, 'accepted': False,
+                      'manifest_sha256': policy['promotion_manifest_sha256'],
+                      'source_sha256': policy['source_roles']['candidate'][SOURCE],
+-                     'last_phase': 'candidate-build-1', 'variant': 'linear-both-position-guard'}, 'compiled promotion marker')
++                     'last_phase': 'candidate-build-1', 'variant': 'round-infinite-step-knowledge'}, 'compiled promotion marker')
+     h.need(epoch['staged_working'] == baseline['staged_working'] == {}, 'empty staging')
+-    h.need(epoch['modified_native_paths'] == sorted(baseline['modified_native_paths'] + [SOURCE]), 'only easing source added')
++    h.need(epoch['modified_native_paths'] == sorted(baseline['modified_native_paths'] + [SOURCE]), 'only generic calc source added')
+     allowed_pins = {SOURCE} | set(tests) | set(policy['rebuilt_binaries'])
+     h.need(set(epoch['pins']) == set(baseline['pins']) | {SOURCE} | set(tests), 'exact new pin roster')
+     h.need(set(epoch['installed_identities']) == set(baseline['installed_identities']) | {SOURCE} | set(tests), 'exact new identity roster')
+@@ -49,7 +49,7 @@
+     h.need(epoch['counts'] == dict(baseline['counts'], roles=len(epoch['pins']),
+            installed_identities=len(epoch['installed_identities']), native_modified_paths=len(epoch['modified_native_paths'])), 'exact promotion counts')
+     normalized = copy.deepcopy(epoch)
+-    del normalized['linear_guard_transition']
++    del normalized['round_special_knowledge_transition']
+     for name in allowed_pins:
+         if name in baseline['pins']:
+             normalized['pins'][name] = baseline['pins'][name]
+@@ -92,10 +92,10 @@
+     for name in policy['rebuilt_binaries']:
+         normalized['pins'][name] = installed['pins'][name]
+     normalized['raw_index_observation']['current'] = installed['raw_index_observation']['current']
+-    normalized['linear_guard_transition'] = installed['linear_guard_transition']
+-    expected_install = dict(epoch['linear_guard_transition'], compiled=False, last_phase='install')
++    normalized['round_special_knowledge_transition'] = installed['round_special_knowledge_transition']
++    expected_install = dict(epoch['round_special_knowledge_transition'], compiled=False, last_phase='install')
+     del expected_install['variant']
+-    h.need(installed['linear_guard_transition'] == expected_install and normalized == installed, 'only build binaries/raw/compiled marker changed')
++    h.need(installed['round_special_knowledge_transition'] == expected_install and normalized == installed, 'only build binaries/raw/compiled marker changed')
+     result = h.read(root / policy['build_result'])
+     h.need(result['command_success'] is True and result['preservation_verified'] is True and
+            result['source_role'] == 'candidate' and result['browser_build_performed'] is True and
+@@ -109,7 +109,7 @@
+            not install['accepted'] and not install['compiled'] and
+            set(install['files']) == {SOURCE} | set(policy['installed_tests']), 'preserved exact installation')
+     h.need(install['epoch_sha256'] == h.sha(root / policy['owner_runtime'] / 'INSTALLED-EPOCH.json'), 'installed epoch join')
+-    return {'role': 'candidate', 'build_evidence': policy['build_evidence'], 'marker': epoch['linear_guard_transition'],
++    return {'role': 'candidate', 'build_evidence': policy['build_evidence'], 'marker': epoch['round_special_knowledge_transition'],
+             'native_sources': policy['source_roles']['candidate'], 'binaries': policy['phase_binaries']}
+ 
+ 
+@@ -119,7 +119,7 @@
+     helper = h.load('promotion_working_diff', root / policy['helpers']['preservation'])
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+     h.need(hashlib.sha256(helper.git(root, env, 'diff', '--binary', '--', '.', ':(exclude)' + SOURCE)).hexdigest() ==
+-           baseline['semantic_index']['working_diff'], 'easing-only live working delta')
++           baseline['semantic_index']['working_diff'], 'generic-calc-only live working delta')
+     h.need(sorted(helper.git(root, env, 'diff', '--name-only').decode().splitlines()) == epoch['modified_native_paths'], 'exact live native paths')
+     metadata = h.application_metadata(root / policy['application_ini'], policy['frozen_head'])
+     h.need(metadata == h.read(root / policy['build_directory'] / 'APPLICATION-METADATA.json'), 'actual compiled application metadata')
+@@ -133,11 +133,11 @@
+     h.authenticate(pair, policy['paired_manifest_sha256'])
+     manifest = h.read(pair / 'FILES.json')
+     files, links = old_bindings_inventory(pair, h)
+-    h.need(files == {**{n: v['sha256'] for n, v in manifest.items()},
++    h.need(files == {**manifest,
+                      'FILES.json': policy['paired_manifest_sha256']}, 'exact paired regular inventory')
+     expected_links = {label + '/tests/tools': str(root / 'testing/web-platform/tests/tools')
+-                      for label in ('original-baseline-wpt', 'original-crash-wpt', 'candidate-wpt')}
+-    h.need(links == h.read(pair / 'SYMLINKS.json') == expected_links, 'exact three paired tools links')
++                      for label in ('original-wpt', 'candidate-wpt')}
++    h.need(links == h.read(pair / 'SYMLINKS.json') == expected_links, 'exact two paired tools links')
+     result = h.read(pair / 'RESULT.json')
+     h.need(result['success'] and result['restoration_verified'] and result['runtime_controls_unchanged'] and
+            result['empty_staging_preserved'] and result['backups_removed_after_verification'] and
+@@ -147,11 +147,11 @@
+         h.need((here / name).read_bytes() == (old / name).read_bytes(), 'unchanged experiment: ' + name)
+     current_policy = h.read(here / 'POLICY.json')
+     old_fixed = h.read(old / 'POLICY.json')
+-    for key in ('tests', 'phase_tests', 'target_subtests', 'calibration_subtests', 'regression_subtests',
++    for key in ('tests', 'target_subtests', 'regression_subtests',
+                 'source_roles', 'rebuilt_binaries', 'source_package_manifest', 'frozen_head'):
+         h.need(current_policy[key] == old_fixed[key], 'exact historical roster/source binding: ' + key)
+-    old_run = h.load('linear_historical_runner', old / 'run.py')
+-    old_bindings = h.load('linear_historical_bindings', old / 'bindings.py')
++    old_run = h.load('round_historical_runner', old / 'run.py')
++    old_bindings = h.load('round_historical_bindings', old / 'bindings.py')
+     candidate = pair / 'candidate-wpt'
+     candidate_policy = h.read(candidate / 'POLICY.json')
+     original = old_bindings.validate_original(root, old, candidate_policy, old_run)
+@@ -161,10 +161,10 @@
+     normalized = copy.deepcopy(baseline)
+     normalized['raw_index_observation']['current'] = canonical['raw_index_observation']['current']
+     h.need(normalized == canonical, 'promotion baseline differs only by authenticated raw observation')
+-    original_epoch = h.read(pair / 'original-baseline-wpt/EPOCH.json')
++    original_epoch = h.read(pair / 'original-wpt/EPOCH.json')
+     h.need(original_epoch['installed_identities'][SOURCE] == policy['original_source_identity'], 'original source identity')
+     normalized = copy.deepcopy(original_epoch)
+-    marker = normalized.pop('reversible_linear_guard_phase')
++    marker = normalized.pop('reversible_round_special_knowledge_phase')
+     h.need(marker['role'] == 'original' and marker['source_package_manifest'] == policy['source_package_manifest'] and
+            marker['owner_runtime'] == policy['paired_runtime'], 'historical original marker')
+     h.need(normalized['pins'][SOURCE] == policy['source_roles']['original'][SOURCE], 'historical original source')
+@@ -179,12 +179,12 @@
+     normalized['counts']['roles'] = len(normalized['pins'])
+     normalized['counts']['installed_identities'] = len(normalized['installed_identities'])
+     h.need(normalized == canonical, 'historical original context/source projection')
+-    parser = h.load('linear_historical_assessor', old / 'assess.py')
+-    checks = h.load('linear_historical_checks', root / policy['helpers']['checks'])
++    parser = h.load('round_historical_assessor', old / 'assess.py')
++    checks = h.load('round_historical_checks', root / policy['helpers']['checks'])
+     events = [json.loads(line) for line in (candidate / 'raw.jsonl').read_text().splitlines()]
+     saved = h.read(candidate / 'ASSESSMENT.json')
+     child_result = h.read(candidate / 'RESULT.json')
+-    h.need(child_result['phase_gate_passed'] and child_result['comparison_gate_passed'] and
++    h.need(child_result['observation_gate_passed'] and child_result['comparison_gate_passed'] and
+            child_result['execution_error'] is None and child_result['preservation_error'] is None and
+            saved['execution_preserved'], 'paired candidate preservation/gate')
+     h.need(h.read(candidate / 'PRE.json') == h.read(candidate / 'POST.json'), 'paired candidate state')
+@@ -203,7 +203,7 @@
+ 
+ def validate_final_assessment(root, here, policy, assessment, h):
+     h.need(assessment['complete'] and assessment['comparison_gate_passed'], 'final complete comparison')
+-    parser = h.load('linear_final_signature', here / 'assess.py')
++    parser = h.load('round_final_signature', here / 'assess.py')
+     prior = h.read(root / policy['paired_runtime'] / 'candidate-wpt/ASSESSMENT.json')
+     signature = lambda a: sorted([parser.signature(e) for e in a['rows'] + a['ends']],
+                                 key=lambda e: (e['test'], e['kind'], e['subtest'] or ''))

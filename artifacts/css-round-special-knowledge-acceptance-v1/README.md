@@ -1,0 +1,1 @@
+Root-approved acceptance144, pending exact standalone signed native commit and ledger publication. Checkpoint/readout postimage counts apply after the verified commit. Actual evidence pins and accepted125/shared-branch limitations remain explicit; no commit hash is anticipated.
