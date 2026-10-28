@@ -1,0 +1,45 @@
+--- line-height/build.py
++++ counter/build.py
+@@ -28,18 +28,19 @@
+ assert s.sha(RUNTIME / "CURRENT-EPOCH.json") == expected_epoch
+ assert '/' not in label
+ epoch = s.read(RUNTIME / 'CURRENT-EPOCH.json')
+-assert epoch['line_height_transition']['role'] == 'candidate' and not epoch['line_height_transition']['compiled']
++assert epoch['random_counter_transition']['role'] == 'candidate' and not epoch['random_counter_transition']['compiled']
+ assert epoch['semantic_index']['head'] == policy['head']
+ assert label == policy['build_label']
+-role = {'role': 'candidate', 'variant': 'line-height-contextual-leaves'}
++role = {'role': 'candidate', 'variant': 'random-parser-counter-rollback'}
+ owner = s.load('page_build_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ owner.authenticate(PACKAGE, manifest)
+ policy = s.read(PACKAGE / 'POLICY.json')
+-assert epoch['line_height_transition']['manifest_sha256'] == manifest
+-assert epoch['pins'][policy['source']['path']] == policy['source']['candidate_sha256']
++assert epoch['random_counter_transition']['manifest_sha256'] == manifest
++for name, record in policy['sources'].items(): assert epoch['pins'][name] == record['candidate_sha256']
+ for name, record in policy['tests'].items(): assert epoch['pins'][name] == record['sha256']
+-assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs', policy['source']['path']])
+-assert epoch['staged_working'] == {} and epoch['line_height_transition']['accepted'] is False
++assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs', *policy['sources']])
++assert not os.path.lexists(ROOT / policy['retired_test'])
++assert epoch['staged_working'] == {} and epoch['random_counter_transition']['accepted'] is False
+ for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+ control_claims = {n:owner.claim(ROOT,str((RUNTIME/n).relative_to(ROOT)),s.sha(RUNTIME/n)) for n in ['ROLE.json','OWNED.json']}
+ owner.quiescent(RUNTIME)
+@@ -85,6 +86,7 @@
+     index = s.h.index_state(ROOT, env)
+     assert s.h.semantic_index(index) == epoch['semantic_index']
+     current['raw_index_observation']['current'] = index['raw_index']
++    assert not os.path.lexists(ROOT / policy['retired_test'])
+     after = s.a.verify_current(s.h, ROOT, env, current)
+     assert all(s.h.git(ROOT / name, env, 'ls-files', '-v', '-z') == body for name, body in flags.items())
+     inner_path = directory / 'build-RESULT.json'
+@@ -93,7 +95,7 @@
+     if success:
+         assert inner['exit'] == 0 and inner['error'] is None and inner['stop_reason'] is None
+         assert inner['owned_group_absent'] and not inner['cleanup_errors']
+-    current['line_height_transition'] = dict(epoch['line_height_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
++    current['random_counter_transition'] = dict(epoch['random_counter_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
+     owner.authenticate(PACKAGE, manifest)
+     for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+     for item in control_claims.values(): owner.claim(ROOT,item['path'],item['owned_sha256'],item['identity'])

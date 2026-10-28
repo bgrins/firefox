@@ -1,0 +1,211 @@
+--- line-height/install.py
++++ counter/install.py
+@@ -48,41 +48,58 @@
+     before = s.a.verify_current(s.h, ROOT, ENV, epoch)
+     flags = {n: s.h.git(ROOT / n, ENV, 'ls-files', '-v', '-z') for n in ('.', 'artifacts/css-spec-lean')}
+     control_claims = {n: h.claim(ROOT, str((RUNTIME / n).relative_to(ROOT)), h.digest(body)) for n, body in controls.items()}
+-    record = policy['source']
+-    name = record['path']
+-    assert name == 'servo/components/style/values/specified/font.rs'
+-    base, desired = [h.body(ROOT / record[k]) for k in ('base_capture', 'candidate_capture')]
+-    assert h.digest(base) == record['base_sha256'] and h.digest(desired) == record['candidate_sha256']
+-    assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == record['base_sha256']
+-    source_claim = h.claim(ROOT, name, record['base_sha256'])
+-    assert epoch['pins'].get(name, record['base_sha256']) == record['base_sha256']
+-    assert epoch['installed_identities'].get(name, source_claim['identity']) == source_claim['identity']
+     owned = json.loads(controls['OWNED.json'])
+-    if name in owned:
+-        assert owned[name] == source_claim
+-    tests, parents = {}, {}
+-    assert set(policy['tests']) == {
+-        'testing/web-platform/tests/css/css-values/line-height-contextual-number.tentative.html',
+-        'testing/web-platform/tests/css/css-inline/line-height-tree-counting.html',
+-    }
+-    for test, item in policy['tests'].items():
+-        tests[test] = h.body(ROOT / item['capture'])
+-        assert h.digest(tests[test]) == item['sha256']
+-        assert not os.path.lexists(ROOT / test) and test not in epoch['pins'] and test not in owned
+-        assert not s.h.git(ROOT, ENV, 'ls-files', '--stage', '--', test)
+-        assert not s.h.git(ROOT, ENV, 'ls-tree', policy['head'], '--', test)
+-        parents[test] = create.parent_pins(ROOT, ROOT / test)
++    assert h.digest(controls['OWNED.json']) == policy['owned_sha256']
++    assert h.digest(controls['ROLE.json']) == policy['role_sha256']
++    for name, digest in policy['accepted_line_height'].items():
++        assert epoch['pins'][name] == digest
++        h.claim(ROOT, name, digest, epoch['installed_identities'][name])
++    source_claims, bases, desired = {}, {}, {}
++    for name, record in policy['sources'].items():
++        bases[name], desired[name] = [h.body(ROOT / record[k]) for k in ('base_capture', 'candidate_capture')]
++        assert h.digest(bases[name]) == record['base_sha256'] and h.digest(desired[name]) == record['candidate_sha256']
++        assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == record['base_sha256']
++        item = h.claim(ROOT, name, record['base_sha256'])
++        assert epoch['pins'].get(name, record['base_sha256']) == record['base_sha256']
++        assert epoch['installed_identities'].get(name, item['identity']) == item['identity']
++        if name in owned:
++            assert owned[name] == item
++        source_claims[name] = item
++    overwritten, created_test, retired = [policy[k] for k in ('overwritten_test','created_test','retired_test')]
++    assert set(policy['tests']) == {overwritten, created_test}
++    assert set(policy['existing_tests']) == {overwritten, retired}
++    assert policy['existing_tests'] == h.read(ROOT/'artifacts/css-random-counter-wpt-install-v1/INSTALLED.json')
++    existing, original_tests, tests, parents = {}, {}, {}, {}
++    for name in (overwritten, created_test, retired):
++        assert name not in epoch['pins'] and name not in epoch['installed_identities'] and name not in owned
++        assert name not in epoch['untracked_native'] and name not in epoch['committed_research_working_payloads']
++        assert not s.h.git(ROOT, ENV, 'ls-files', '--stage', '--', name)
++        assert not s.h.git(ROOT, ENV, 'ls-tree', policy['head'], '--', name)
++        parents[name] = create.parent_pins(ROOT, ROOT / name)
++    for name, item in policy['existing_tests'].items():
++        existing[name] = h.claim(ROOT, name, item['sha256'], item['identity'])
++        original_tests[name] = h.body(ROOT / name)
++        assert h.digest(original_tests[name]) == item['sha256']
++        assert h.body(ROOT / item['source']) == original_tests[name]
++    assert not os.path.lexists(ROOT / created_test)
++    for name, item in policy['tests'].items():
++        tests[name] = h.body(ROOT / item['capture'])
++        assert h.digest(tests[name]) == item['sha256']
+     output = ROOT / policy['runtime_output']
+     assert output.parent == ROOT / 'artifacts' and not os.path.lexists(output)
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not os.path.lexists(lock)
+-    changed, created, lock_claim, release = False, {}, None, False
++    changed, created, lock_claim, release = [], {}, None, False
++    test_changed, retirement = False, None
+ 
+     def claims():
+         for n, item in control_claims.items():
+             h.claim(ROOT, item['path'], item['owned_sha256'], item['identity'])
+             assert h.body(RUNTIME / n) == controls[n]
+-        h.claim(ROOT, name, source_claim['owned_sha256'], source_claim['identity'])
++        for item in source_claims.values():
++            h.claim(ROOT, item['path'], item['owned_sha256'], item['identity'])
++        for item in existing.values():
++            h.claim(ROOT, item['path'], item['owned_sha256'], item['identity'])
+ 
+     try:
+         blocked = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
+@@ -95,39 +112,59 @@
+             (output / ('PRE-' + n)).write_bytes(body)
+         h.save(output / 'PRE.json', before)
+         h.save(output / 'EVIDENCE.json', evidence_binding)
+-        h.save(output / 'SOURCE-OWNERSHIP.json', source_claim)
++        h.save(output / 'SOURCE-OWNERSHIP.json', source_claims)
++        h.save(output / 'EXISTING-TEST-OWNERSHIP.json', existing)
+         assert s.a.verify_current(s.h, ROOT, ENV, epoch) == before
+         claims()
+         assert evidence.verify(ROOT, policy, epoch, h) == evidence_binding
+         claims()
+-        changed = True
+-        h.write_owned(ROOT, source_claim, desired)
+         current = copy.deepcopy(epoch)
+-        current['pins'][name] = record['candidate_sha256']
+-        current['installed_identities'][name] = source_claim['identity']
+-        owned[name] = source_claim
+-        for test, body in tests.items():
+-            blocked = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
+-            try:
+-                created[test] = create.create_owned(h, ROOT, test, parents[test])
+-            finally:
+-                signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
+-            h.save(output / ('CREATED-' + str(len(created)) + '.json'), created)
+-            h.write_owned(ROOT, created[test], body)
+-            h.save(output / ('WRITTEN-' + str(len(created)) + '.json'), created)
+-            current = create.updated_epoch(current, test, created[test], h.digest(body))
+-            owned[test] = created[test]
++        for name, item in source_claims.items():
++            changed.append(name)
++            h.write_owned(ROOT, item, desired[name])
++            current['pins'][name] = policy['sources'][name]['candidate_sha256']
++            current['installed_identities'][name] = item['identity']
++            owned[name] = item
++        test_changed = True
++        h.write_owned(ROOT, existing[overwritten], tests[overwritten])
++        current = create.updated_epoch(current, overwritten, existing[overwritten], h.digest(tests[overwritten]))
++        owned[overwritten] = existing[overwritten]
++        blocked = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
++        try:
++            created[created_test] = create.create_owned(h, ROOT, created_test, parents[created_test])
++        finally:
++            signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
++        h.save(output / 'CREATED.json', created)
++        h.write_owned(ROOT, created[created_test], tests[created_test])
++        current = create.updated_epoch(current, created_test, created[created_test], h.digest(tests[created_test]))
++        owned[created_test] = created[created_test]
++        archived = output / 'RETIRED-WPT.html'
++        assert not os.path.lexists(archived)
++        item = existing[retired]
++        h.claim(ROOT, retired, item['owned_sha256'], item['identity'])
++        assert create.parent_pins(ROOT, ROOT / retired) == parents[retired]
++        blocked = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
++        try:
++            os.rename(ROOT / retired, archived)
++            retirement = {'original_path':retired,'archived_path':str(archived.relative_to(ROOT)),
++                          'claim':dict(item,path=str(archived.relative_to(ROOT)))}
++        finally:
++            signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
++        h.claim(ROOT, retirement['archived_path'], item['owned_sha256'], item['identity'])
++        h.save(output / 'RETIREMENT.json', retirement)
+         index = s.h.index_state(ROOT, ENV)
+         semantic = s.h.semantic_index(index)
+         assert {k:v for k,v in semantic.items() if k != 'working_diff'} == {k:v for k,v in epoch['semantic_index'].items() if k != 'working_diff'}
+         current['semantic_index'] = semantic
+         current['raw_index_observation']['current'] = index['raw_index']
+-        current['modified_native_paths'] = sorted([held, name])
+-        current['counts']['native_modified_paths'] = 2
++        current['modified_native_paths'] = sorted([held, *source_claims])
++        current['counts']['native_modified_paths'] = len(current['modified_native_paths'])
+         current['counts']['roles'] = len(current['pins'])
+         current['counts']['installed_identities'] = len(current['installed_identities'])
+-        current['line_height_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
+-            'manifest_sha256':manifest, 'source_sha256':record['candidate_sha256'], 'last_phase':'install'}
++        current['random_counter_transition'] = {'role':'candidate', 'variant':'random-parser-counter-rollback', 'compiled':False, 'accepted':False,
++            'manifest_sha256':manifest, 'source_sha256':{n:r['candidate_sha256'] for n,r in policy['sources'].items()}, 'last_phase':'install'}
++        assert not os.path.lexists(ROOT / retired)
++        h.claim(ROOT, retirement['archived_path'], item['owned_sha256'], item['identity'])
+         after = s.a.verify_current(s.h, ROOT, ENV, current)
+         assert after['nested_index'] == before['nested_index']
+         assert all(s.h.git(ROOT / n, ENV, 'ls-files', '-v', '-z') == body for n, body in flags.items())
+@@ -140,11 +177,11 @@
+             signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
+         assert s.a.verify_current(s.h, ROOT, ENV, current) == after
+         assert h.body(RUNTIME / 'ROLE.json') == controls['ROLE.json']
+-        h.save(output / 'OWNERSHIP.json', {name:source_claim, **created})
++        h.save(output / 'OWNERSHIP.json', {**source_claims, overwritten:existing[overwritten], **created})
+         h.save(output / 'INSTALLED-EPOCH.json', current)
+         h.save(output / 'POST.json', after)
+         h.save(output / 'INSTALL-RESULT.json', {'installed':True, 'compiled':False, 'accepted':False,
+-            'preservation_verified':True, 'files':[name, *tests],
++            'preservation_verified':True, 'files':[*source_claims, *tests], 'retired_path':retired,
+             'held_provider_preserved':True, 'epoch_sha256':h.digest(h.body(RUNTIME / 'CURRENT-EPOCH.json'))})
+         release = True
+     except BaseException as error:
+@@ -154,8 +191,18 @@
+                 h.claim(ROOT, test, item['owned_sha256'], item['identity'])
+                 assert create.parent_pins(ROOT, ROOT / test) == parents[test]
+                 (ROOT / test).unlink()
+-            if changed:
+-                h.write_owned(ROOT, source_claim, base)
++            if retirement is not None:
++                item = retirement['claim']
++                h.claim(ROOT, item['path'], item['owned_sha256'], item['identity'])
++                assert not os.path.lexists(ROOT / retired)
++                assert create.parent_pins(ROOT, ROOT / retired) == parents[retired]
++                os.rename(ROOT / item['path'], ROOT / retired)
++            if test_changed:
++                h.write_owned(ROOT, existing[overwritten], original_tests[overwritten])
++            for name in reversed(changed):
++                h.write_owned(ROOT, source_claims[name], bases[name])
++            for name, item in existing.items():
++                h.claim(ROOT, name, h.digest(original_tests[name]), item['identity'])
+             restored = copy.deepcopy(epoch)
+             index = s.h.index_state(ROOT, ENV)
+             assert s.h.semantic_index(index) == epoch['semantic_index']
+@@ -176,7 +223,7 @@
+             failures.append(repr(rollback))
+         if output.exists():
+             h.save(output / 'FAILURE.json', {'error':repr(error), 'rollback_errors':failures,
+-                'manual_recovery_required':bool(failures), 'source_owner':source_claim, 'created':created})
++                'manual_recovery_required':bool(failures), 'source_owners':source_claims, 'created':created, 'retirement':retirement})
+         raise
+     finally:
+         if release and lock_claim is not None:

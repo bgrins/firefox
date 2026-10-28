@@ -1,0 +1,31 @@
+--- line-height/evidence.py
++++ counter/evidence.py
+@@ -41,12 +41,16 @@
+     assert candidate_result['execution_error'] is None and candidate_result['preservation_error'] is None
+     assert saved['complete'] and saved['execution_preserved'] and saved['comparison_gate_passed']
+     assert saved['capsule_manifest_sha256'] == policy['pair_capsule_sha256']
+-    assert saved['native_sources'] == {policy['source']['path']: policy['source']['candidate_sha256']}
++    assert saved['native_sources'] == {name:record['candidate_sha256'] for name,record in policy['sources'].items()}
+     events = [json.loads(line) for line in (candidate / 'raw.jsonl').read_text().splitlines()]
+     replay = parser.assess(events, candidate_result['exit'], candidate_policy, checks,
+                           original=original, run_binding=h.read(candidate / 'APPLICATION-METADATA.json'))
+-    assert all(saved.get(k) == v for k, v in json.loads(json.dumps(replay)).items())
+-    assert replay['comparison_gate_passed'] and replay['observed_subtest_count'] == 34
++    replay = runner.augment_assessment(json.loads(json.dumps(replay)), phase='candidate-1',
++        capsule_sha=policy['pair_capsule_sha256'], epoch_sha=h.digest((candidate/'EPOCH.json').read_bytes()),
++        policy=candidate_policy, capsule_directory=policy['pair_capsule'],
++        experiment_sha=h.digest((capsule/'EXPERIMENT.json').read_bytes()), execution_preserved=True)
++    assert json.loads(json.dumps(replay)) == saved
++    assert replay['comparison_gate_passed'] and replay['observed_subtest_count'] == 553
+     for role in ('original', 'candidate'):
+         directory = pair / (role + '-wpt')
+         cleanup = h.read(directory / 'CLEANUP.json')
+@@ -55,7 +59,7 @@
+         h.group_absent(h.read(directory / 'PROCESS.json')['pgid'])
+         for name in ('build-PROCESS.json', 'WAKE-PROCESS.json'):
+             h.group_absent(h.read(pair / (role + '-build') / name)['pgid'])
+-        for name, item in policy['tests'].items():
++        for name, item in policy['paired_tests'].items():
+             relative = name.removeprefix('testing/web-platform/tests/')
+             assert h.digest((directory / 'tests' / relative).read_bytes()) == item['sha256']
+     return {'pair_manifest_sha256': policy['paired_manifest_sha256'],

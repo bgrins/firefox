@@ -1,0 +1,14 @@
+--- v3/random-typed-parse-rollback.html
++++ v4/random-typed-parse-rollback.html
+@@ -55,7 +55,10 @@
+   const [target, reference] = pair(t, "line-height",
+     "random(property-index-scoped, 1, 3)", "random(ua-line-height-1, 1, 3)");
+   assert_equals(target.style.lineHeight, reference.style.lineHeight, "Specified random key");
+-}, "A successful number line-height parse keeps specified random index one");
++  const expected = getComputedStyle(reference).lineHeight;
++  assert_greater_than_equal(parseFloat(expected), 10, "Reference resolves against the font size");
++  assert_equals(getComputedStyle(target).lineHeight, expected, "Computed value");
++}, "A successful number line-height parse keeps random index one");
+ 
+ const controlCases = [
+   ["opacity", "random(--typed-rollback-control, 0, 1)",
