@@ -1,0 +1,11 @@
+# Separate initial-admission and context-policy boundary
+
+The general cached policy is not conditioned on a keyword/type whitelist. It does not add an initial-registration admission fix.
+
+The current JS registerProperty algorithm rejects computationally dependent initials: https://drafts.css-houdini.org/css-properties-values-api-1/#register-a-custom-property . The definition excludes element-property information changeable by CSS. Current @property descriptor text no longer explicitly repeats the restriction after optional-descriptor edits. Do not dismiss a changed CSS-rule color observation as an illegal JS registration. CSSWG issue12735 discusses light-dark/system initials, while issue13628 separately requests relaxing independence. Equal light-dark branches can be independent; symbolic currentcolor must be assessed by its computed representation, not blanket-rejected.
+
+Signed v2 source captures show validate_initial_value using AllowComputationallyDependent::No, but that mode is not an audited proof of independence. Color parsing does not gate system/light-dark/color-mix branches on it; image parsing can contain those colors. Color computation needs context for light-dark/system values, unlike retained symbolic currentcolor. Logical viewport/container initial lengths also warrant admission investigation. These source leads are separate from an accepted registration bug; actual diagnostic controls are root-owned.
+
+Ordinary early writing-mode/font grammars do not accept colors as valid modes/lengths. An early if(style(--c ...)) route was not established for this implementation: current upstream Searchfox searches found no CSS if() support, only container style-query handling. Search absence is not exhaustive reachability proof. Currentcolor and light-dark(none,none) positives must remain supported.
+
+Changing normal invalid defaults from element-context recomputation to cached initials can change currently admitted context-dependent initial values. Record those deltas explicitly. Cache consistency alone does not prove spec equivalence; unresolved CSS-rule legality/context policy blocks acceptance if the expanded observations change. Native experimentation is authorized to answer that question, not to waive it. General provider defaulting and registration-admission correctness remain distinct obligations.

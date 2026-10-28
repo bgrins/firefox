@@ -1,0 +1,180 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1715,6 +1715,10 @@
+     }
+ 
+     let url_data = &value.url_data;
++    let mut state = SubstitutionState::default();
++    if is_var {
++        state.names.push(name);
++    }
+     let substitution = substitute_internal(
+         value,
+         Some(PropertyIdRef::from(name)),
+@@ -1722,9 +1726,14 @@
+         stylist,
+         context,
+         attribute_tracker,
+-        &mut SubstitutionState::default(),
++        &mut state,
+         None,
+     );
++    let substitution = if is_var && state.cyclic_names.contains(&name) {
++        Err(())
++    } else {
++        substitution
++    };
+ 
+     let Ok(substitution) = substitution else {
+         if is_var {
+@@ -1810,7 +1819,7 @@
+ #[derive(Default)]
+ struct SubstitutionState<'a> {
+     names: SmallVec<[&'a Name; 8]>,
+-    encountered_cycle: bool,
++    cyclic_names: SmallVec<[&'a Name; 8]>,
+ }
+ 
+ enum RegisteredSubstitutionDefault {
+@@ -2114,13 +2123,18 @@
+                 // may not have gotten to this variable yet).
+                 Some(v) => match v.as_universal() {
+                     Some(u) if u.has_references() => {
+-                        if seen.names.contains(&&reference.name) {
+-                            seen.encountered_cycle = true;
++                        if let Some(index) =
++                            seen.names.iter().position(|name| *name == &reference.name)
++                        {
++                            for name in &seen.names[index..] {
++                                if !seen.cyclic_names.contains(name) {
++                                    seen.cyclic_names.push(*name);
++                                }
++                            }
+                             // Cycle: the primary is guaranteed-invalid, so fall through to the
+                             // fallback (if any), like any other invalid primary.
+                             None
+                         } else {
+-                            let previous_cycle = std::mem::take(&mut seen.encountered_cycle);
+                             seen.names.push(&reference.name);
+                             let result = substitute_internal(
+                                 u,
+@@ -2133,49 +2147,60 @@
+                                 /* attr_taint */ None,
+                             );
+                             seen.names.pop();
+-                            let encountered_cycle = seen.encountered_cycle;
+-                            seen.encountered_cycle |= previous_cycle;
+-                            match result {
+-                                Ok(mut substitution) => {
+-                                    substitution.attr_tainted |= v.attr_tainted;
+-                                    if encountered_cycle {
+-                                        return Ok(substitution);
+-                                    }
+-                                    match substitution.registered_default(
+-                                        &reference.name,
+-                                        registration,
+-                                        &u.url_data,
+-                                        stylist,
+-                                        computed_context,
+-                                    ) {
+-                                        RegisteredSubstitutionDefault::Defaulted(value) => value
+-                                            .map(|value| {
+-                                                Substitution::from_value(
+-                                                    value.to_variable_value(),
+-                                                    value.attr_tainted,
+-                                                )
+-                                            }),
+-                                        RegisteredSubstitutionDefault::NotDefaulted => {
+-                                            Some(substitution)
+-                                        },
+-                                    }
+-                                },
+-                                Err(()) if !encountered_cycle && !registration.is_universal() => {
+-                                    invalid_at_computed_value_time_value(
+-                                        &reference.name,
+-                                        registration,
+-                                        stylist,
+-                                        computed_context,
++                            if seen.cyclic_names.contains(&&reference.name) {
++                                invalid_at_computed_value_time_value(
++                                    &reference.name,
++                                    registration,
++                                    stylist,
++                                    computed_context,
++                                )
++                                .map(|value| {
++                                    Substitution::from_value(
++                                        value.to_variable_value(),
++                                        value.attr_tainted,
+                                     )
+-                                    .map(|value| {
+-                                        Substitution::from_value(
+-                                            value.to_variable_value(),
+-                                            value.attr_tainted,
++                                })
++                            } else {
++                                match result {
++                                    Ok(mut substitution) => {
++                                        substitution.attr_tainted |= v.attr_tainted;
++                                        match substitution.registered_default(
++                                            &reference.name,
++                                            registration,
++                                            &u.url_data,
++                                            stylist,
++                                            computed_context,
++                                        ) {
++                                            RegisteredSubstitutionDefault::Defaulted(value) => {
++                                                value.map(|value| {
++                                                    Substitution::from_value(
++                                                        value.to_variable_value(),
++                                                        value.attr_tainted,
++                                                    )
++                                                })
++                                            },
++                                            RegisteredSubstitutionDefault::NotDefaulted => {
++                                                Some(substitution)
++                                            },
++                                        }
++                                    },
++                                    Err(()) if !registration.is_universal() => {
++                                        invalid_at_computed_value_time_value(
++                                            &reference.name,
++                                            registration,
++                                            stylist,
++                                            computed_context,
+                                         )
+-                                    })
+-                                },
+-                                // The primary couldn't be resolved (invalid); use the fallback.
+-                                Err(()) => None,
++                                        .map(|value| {
++                                            Substitution::from_value(
++                                                value.to_variable_value(),
++                                                value.attr_tainted,
++                                            )
++                                        })
++                                    },
++                                    // The primary couldn't be resolved (invalid); use the fallback.
++                                    Err(()) => None,
++                                }
+                             }
+                         }
+                     },
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -4,6 +4,7 @@
+ 
+ //! The main cascading algorithm of the style system.
+ 
++use crate::{FxHashMap, Namespace};
+ use crate::applicable_declarations::{CascadePriority, RevertKind};
+ use crate::color::AbsoluteColor;
+ use crate::computed_value_flags::ComputedValueFlags;
+@@ -41,7 +42,6 @@
+ use crate::values::specified::length::FontBaseSize;
+ use crate::values::specified::position::PositionTryFallbacksTryTactic;
+ use crate::values::{computed, specified};
+-use crate::{FxHashMap, Namespace};
+ use hashbrown::hash_map::{Entry, EntryRef};
+ use selectors::matching::ElementSelectorFlags;
+ use servo_arc::Arc;
