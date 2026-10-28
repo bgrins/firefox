@@ -6,6 +6,7 @@
 //!
 //! [page]: https://drafts.csswg.org/css2/page.html#page-box
 
+use crate::Atom;
 use crate::derives::*;
 use crate::parser::{Parse, ParserContext};
 use crate::properties::PropertyDeclarationBlock;
@@ -305,23 +306,29 @@ impl PageRule {
             + self.block.read_with(guard).size_of(ops)
             + self.selectors.size_of(ops)
     }
-    /// Computes the specificity of this page rule when matched with flags.
+    /// Computes the specificity of this page rule within a name bucket and flags.
     ///
     /// Computing this value has linear-complexity with the size of the
     /// selectors, so the caller should usually call this once and cache the
     /// result.
     ///
-    /// Returns None if the flags do not match this page rule.
+    /// Returns None if no selector in the name bucket matches the flags.
     ///
     /// The return type is ordered by page-rule specificity.
-    pub fn match_specificity(&self, flags: PagePseudoClassFlags) -> Option<u32> {
+    pub fn match_specificity(&self, name: &Atom, flags: PagePseudoClassFlags) -> Option<u32> {
         if self.selectors.is_empty() {
             // A page-rule with no selectors matches all pages, but with the
             // lowest possible specificity.
             return Some(selector_specificity(0, 0, false));
         }
         let mut specificity = None;
-        for s in self.selectors.0.iter().map(|s| s.match_specificity(flags)) {
+        for s in self
+            .selectors
+            .0
+            .iter()
+            .filter(|s| &s.name.0 == name)
+            .map(|s| s.match_specificity(flags))
+        {
             specificity = s.max(specificity);
         }
         specificity

@@ -2370,7 +2370,7 @@ impl PageRuleMap {
         };
         for data in rules.iter() {
             let rule = data.rule.read_with(level.guard(guards));
-            let specificity = match rule.match_specificity(pseudos) {
+            let specificity = match rule.match_specificity(name, pseudos) {
                 Some(specificity) => specificity,
                 None => continue,
             };
