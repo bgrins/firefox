@@ -1,0 +1,9 @@
+# Manual source correspondence
+
+The source and proposal manifests in REFERENCES.json bind the current guard and inactive replacement. `input_start` / `input_end` map to the two Position arguments. `None` maps to absent; `Some(p)` with `p.resolve().is_some()` maps to known; `Some(p)` with `p.resolve().is_none()` maps to deferred. This classification abstracts result values completely.
+
+The old `input_start.as_ref().or(input_end.as_ref())` selects the first present item; its rejection predicate produces oldGuard. It never inspects the second item when the first is present. The proposal's `input_start.iter().chain(input_end.iter()).any(|p| p.resolve().is_none())` rejects if either supplied item is deferred; negating that rejection produces fixedGuard. `allPresentResolve` independently states that each non-absent input is known. The known/deferred witness is the source-shaped failure: the first check succeeds but the second supplied value cannot be converted context-free.
+
+The later native `to_percentage()` delegates to `resolve()` in the pinned Percentage implementation. Under stable classification, fixed_guard_exact is therefore the intended prerequisite for both subsequent unwraps. This mapping is manual, not a verified translation of Option iterators, closures, parser state or Rust execution. The model does not assert that guarding alone implements contextual easing; the inactive native change preserves current rejection of deferred positions. No general parsing or specification completeness follows.
+
+Pinned browser files distinguish the direct controlled invocation from the earlier MCP timeout. Only direct-release observation/log/cleanup files are referenced here. A timeout alone would not justify a content-crash claim. The root owns those executions; this model merely records their separate provenance.

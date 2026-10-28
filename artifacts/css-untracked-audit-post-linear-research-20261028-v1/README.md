@@ -1,0 +1,5 @@
+Fresh read-only untracked audit at signed HEAD082ab2a7d9e6576bf12e2958821d4d0e606fe620 after the easing typecheck and explicit raw-index refresh, before v38 signing.
+
+There are563 root untracked paths:68 project prototypes/tests and495 unrelated paths. The set matches the prior post-promotion audit except for the two accepted fix142 WPT files becoming tracked. All68 remaining project hashes and device/inode identities match that audit. All75 committed recovery body pins and saved working copies match current files. The nested CSS repository has only its existing untracked .DS_Store. Two inventory reads agree. Unrelated contents were not read.
+
+Actual audit c8bc23/0; root independently reported d115cc/0 with the same path/body/identity result. This package performs no cleanup, source/index change, commit or acceptance. The existing historical audit remains unchanged. The read-only audit.py replay authenticates this exact recorded HEAD and inventory; after signing changes HEAD, a new audit binding is needed rather than relabeling this result.

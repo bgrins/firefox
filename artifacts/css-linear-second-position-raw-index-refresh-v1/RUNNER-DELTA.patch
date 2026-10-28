@@ -1,0 +1,20 @@
+--- grid-refresh/run.py
++++ linear-refresh/run.py
+@@ -50,7 +50,7 @@
+ canonical = json.loads(controls['CURRENT-EPOCH.json'])
+ assert canonical['semantic_index']['head'] == policy['head']
+ outer = read(evidence/'ROOT-TERMINAL.json')
+-assert outer['exit_code'] == 0 and outer['configured_check_passed'] and outer['source_restored']
++assert outer['exit_code'] == 0 and outer['session'] == 26756 and outer['terminal'] == '8607e7'
+ result = read(evidence/'RESULT.json')
+ assert result['success'] and result['error'] is None and result['publication_errors'] == []
+ assert result['preservation_verified'] and result['source_restored'] and result['owned_processes'] == {}
+@@ -82,7 +82,7 @@
+     state.save(output/'RESULT.json',{'updated':False,'reason':'Raw index unchanged; no canonical write','preservation_verified':True})
+     sys.exit(0)
+ with lock.open('x') as stream:
+-    stream.write(json.dumps({'pid':os.getpid(),'operation':'counter typecheck raw index observation refresh'})+'\n')
++    stream.write(json.dumps({'pid':os.getpid(),'operation':'linear typecheck raw index observation refresh'})+'\n')
+ lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+ 
+ 

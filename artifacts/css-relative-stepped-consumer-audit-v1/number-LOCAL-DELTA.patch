@@ -1,0 +1,22 @@
+--- Searchfox/values/specified/number.rs
++++ current-capture/values/specified/number.rs
+@@ -481,8 +481,8 @@
+         Some(match self.0.unpack() {
+             Unpacked::Inline((), v) => v,
+             Unpacked::Boxed(calc) => {
+-                let value = calc.as_number()?.get();
+-                (value + 0.5).floor() as CSSInteger
++                let value = calc.clamping_mode.clamp(calc.as_number()?.get());
++                (f64::from(value) + 0.5).floor() as CSSInteger
+             },
+         })
+     }
+@@ -579,7 +579,7 @@
+                     },
+                 });
+                 let clamped = crate::values::normalize(value).min(f32::MAX).max(f32::MIN);
+-                (clamped + 0.5).floor() as i32
++                (f64::from(clamped) + 0.5).floor() as i32
+             },
+         }
+     }

@@ -1,0 +1,5 @@
+Official primary source: [CSS Values 4 simplification](https://drafts.csswg.org/css-values-4/#calc-simplification), [computation](https://drafts.csswg.org/css-values-4/#calc-computed-value), and [stepped functions](https://drafts.csswg.org/css-values-4/#round-func), read 2026-10-28 (displayed draft date 24 August 2026).
+
+Parsing calls simplification. Numeric leaves convert when their basis is available. For non-arithmetic operator nodes, child values must contain enough information to evaluate the operation. Basis-dependent percentages generally block this step; raw percentages can be treated differently. Later computed/used-value simplification supplies more information. This supports deferral, but does not establish the native trait implementation or consumer pipeline.
+
+Verdict: **REACHED**, conditional on actual basis knowledge, for stepped-function evaluation after child conversion. **INCONCLUSIVE** for native completeness/acceptance: the conditional Lean schedule does not establish that conversion, and scalar/consumer obligations remain.

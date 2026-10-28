@@ -1,0 +1,13 @@
+>>>  585:     pub(crate) fn try_op<O>(&self, other: &Self, op: O) -> Result<Self, ()>
+     586:     where
+     587:         O: Fn(f32, f32) -> f32,
+     588:     {
+     589:         // For absolute lengths, normalize both to px and produce a px result.
+     590:         if let (Some(a), Some(b)) = (self.to_px_if_absolute(), other.to_px_if_absolute()) {
+     591:             return Ok(Self::new(LengthUnit::Px, op(a, b)));
+     592:         }
+     593:         if self.unit != other.unit {
+     594:             return Err(());
+     595:         }
+     596:         Ok(Self::new(self.unit, op(self.value, other.value)))
+     597:     }

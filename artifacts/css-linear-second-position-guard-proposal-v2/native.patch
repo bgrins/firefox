@@ -1,0 +1,24 @@
+--- a/servo/components/style/values/specified/easing.rs
++++ b/servo/components/style/values/specified/easing.rs
+@@ -122,15 +122,16 @@
+                     Some(v) => v,
+                     None => return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError)),
+                 };
+-                if matches!(input_start.as_ref().or(input_end.as_ref()), Some(p) if p.resolve().is_none()) {
++                if input_start
++                    .iter()
++                    .chain(input_end.iter())
++                    .any(|p| p.resolve().is_none())
++                {
+                     return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+                 }
+ 
+                 let has_input_start = input_start.is_some();
+-                builder.push(
+-                    output,
+-                    input_start.map(|v| v.to_percentage().unwrap()),
+-                );
++                builder.push(output, input_start.map(|v| v.to_percentage().unwrap()));
+                 num_specified_stops += 1;
+                 if input_end.is_some() {
+                     debug_assert!(has_input_start, "Input end valid but not input start?");

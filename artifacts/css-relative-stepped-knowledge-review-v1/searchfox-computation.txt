@@ -1,0 +1,48 @@
+>>>  151:     pub fn to_computed_value(
+     152:         &self,
+     153:         context: Option<&computed::Context>,
+     154:         origin_color: Option<&AbsoluteColor>,
+     155:     ) -> Result<Self, ()> {
+     156:         Ok(match self {
+     157:             Self::Length(l) => {
+     158:                 let px = match context {
+     159:                     Some(context) => l
+     160:                         .to_computed_value_for_math(
+     161:                             context,
+     162:                             FontBaseSize::CurrentStyle,
+     163:                             LineHeightBase::CurrentStyle,
+     164:                         )
+     165:                         .px(),
+     166:                     None => l.to_computed_pixel_length_without_context()?,
+     167:                 };
+     168:                 Self::Length(NoCalcLength::from_px(px))
+     169:             },
+     170:             Self::TreeCountingFunction(f) => match context {
+     171:                 Some(context) => {
+     172:                     Self::Number(NoCalcNumber::new(f.to_computed_value(context) as f32))
+     173:                 },
+     174:                 None => return Err(()),
+     175:             },
+     176:             Self::RandomKey(key) => match context {
+     177:                 Some(context) => Self::Number(NoCalcNumber::new(*key.to_computed_value(context))),
+     178:                 None => return Err(()),
+     179:             },
+     180:             Self::ColorComponent(channel_keyword) => {
+     181:                 let channel_value = origin_color
+     182:                     .and_then(|c| c.get_component_by_channel_keyword(*channel_keyword).ok());
+     183:                 match channel_value {
+     184:                     Some(value) => Self::Number(NoCalcNumber::new(value.unwrap_or(0.0))),
+     185:                     // If the color needs to get resolved later (there's no absolute origin color),
+     186:                     // or the channel is invalid, we still keep the channel keyword around.
+     187:                     None => Self::ColorComponent(*channel_keyword),
+     188:                 }
+     189:             },
+     190:             // The remaining leaves are already absolute (and thus
+     191:             // context-independent).
+     192:             Self::Angle(..)
+     193:             | Self::Time(..)
+     194:             | Self::Resolution(..)
+     195:             | Self::Percentage(..)
+     196:             | Self::Number(..) => self.clone(),
+     197:         })
+     198:     }

@@ -1,0 +1,13 @@
+# Relative stepped operations and consumer diagnostic
+
+Load observe.js and invoke `await observeRelativeSteppedConsumers()` in an owned browser page. The function creates and removes its own iframes. It does not set preferences or claim build identity; the root runner must capture browser identity and preservation independently. Nothing in this package launches a browser.
+
+The first function is byte-identical to the sealed18-case probe:54 samples across mod/rem/round and division/cancellation/zero-product controls with em/rem/cqw bases10→0→10. The appended function adds13 cases and39 samples: each stepped operation feeds z-index, steps(), cubic-bezier() and linear(); a separate sign-only z-index control distinguishes zero from NaN propagation. All CSS declarations remain assigned while font size changes. Width/rect/font, specified/computed values, support results and pixel/literal/fixed-pixel controls remain raw.
+
+For the nine easing cases, each state also samples fresh WAAPI effect easing and keyframe easing with target/resolved-pixel/literal inputs. Animation objects are paused at750ms of1000ms, then cancelled and removed. These fresh objects do not establish invalidation across font mutations. CSS animation sampling does retain its target declaration across those mutations. An API rejection or support failure is a diagnostic result, never a passing repair.
+
+The ordinary integer oracle is2/0/2; sign-only is2/1/2. All easing samples remain observational pending the contextual admission/evaluation policy. The zero-state steps(1,end) reference calibrates the branch's positive-count math-clamping behavior, without declaring that all contextual easing should have been admitted. The supported pixel controls make admission regressions visible even if the native operation fix repairs width.
+
+Source/browser evidence discovered the arithmetic issue before the existing formal witness. This package adds no fix count, proof increment, native change or acceptance. It preserves accepted142. The conservative source proposal is not standalone-ready while it can expose unresolved operands to current easing guards; do not remove those guards without complete consumer computation and invalidation work.
+
+Static validation: node syntax39a264; exact original body prefix and source/reference hashes checked in CHECK.json. Independent bounded review960fc0 found no setup/oracle blocker. No browser execution by author or reviewer. Preparation0a1d8f failed network DNS and left empty capture placeholders; retry1299a0 fetched official HTML and Searchfox successfully. Empty failed grid-search output was removed before sealing. No grid implementation claim relies on that failed lookup.

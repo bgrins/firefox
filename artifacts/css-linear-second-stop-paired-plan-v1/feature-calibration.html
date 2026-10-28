@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Linear endpoint experiment feature calibration</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const [name, expression, expected] of [
+  ["tree counting", "calc(sibling-index() * 1px)", [1, 1]],
+  ["typed relative division", "calc((1em / 1px) * 1px)", [10, 20]],
+]) {
+  test(t => {
+    const host = document.createElement("div");
+    const target = document.createElement("div");
+    host.append(target);
+    document.body.append(host);
+    t.add_cleanup(() => host.remove());
+    target.style.width = expression;
+    const observed = [];
+    for (const font of [10, 20]) {
+      target.style.fontSize = `${font}px`;
+      observed.push(getComputedStyle(target).width);
+    }
+    assert_true(CSS.supports("width", expression), "Feature grammar supported");
+    assert_not_equals(target.style.width, "", "Feature declaration admitted");
+    assert_array_equals(observed, expected.map(x => `${x}px`), "Computed feature calibration");
+  }, `Feature calibration: ${name}`);
+}
+</script>

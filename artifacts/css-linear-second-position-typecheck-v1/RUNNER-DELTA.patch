@@ -1,0 +1,27 @@
+--- grid-v4/run.py
++++ linear-v1/run.py
+@@ -40,7 +40,7 @@
+ for package, pin in policy['packages'].items():
+     ownership.authenticate(ROOT / package, pin)
+ roles = read(HERE / 'SOURCE-ROLES.json')
+-assert len(roles) == 4
++assert set(roles) == {'servo/components/style/values/specified/easing.rs'}
+ base = {n: (ROOT / r['base']).read_bytes() for n, r in roles.items()}
+ candidate = {n: (ROOT / r['candidate']).read_bytes() for n, r in roles.items()}
+ assert all(hashlib.sha256(base[n]).hexdigest() == r['base_sha256'] and hashlib.sha256(candidate[n]).hexdigest() == r['candidate_sha256'] for n, r in roles.items())
+@@ -55,6 +55,8 @@
+ assert original == read(ROOT / policy['canonical_epoch'])
+ assert original['accepted_line_height'] == policy['accepted_line_height']
+ assert original['line_height_transition']['compiled'] and original['line_height_transition']['accepted']
++assert original['accepted_random_counter'] == policy['accepted_random_counter']
++assert original['random_counter_transition']['compiled'] and original['random_counter_transition']['accepted']
+ assert original['modified_native_paths'] == ['servo/components/style/custom_properties.rs']
+ for n, r in roles.items():
+     assert hashlib.sha256(state.h.git(ROOT, ENV, 'show', policy['head'] + ':' + n)).hexdigest() == r['base_sha256']
+@@ -147,5 +149,5 @@
+ assert (lock.stat().st_dev, lock.stat().st_ino) == lock_identity
+ lock.unlink()
+ state.save(output / 'RESULT.json', {'success': error is None and not publication_errors, 'error': error, 'publication_errors': publication_errors, 'source_restored': True, 'preservation_verified': True, 'empty_staging_preserved': True, 'nested_index_and_flags_preserved': True, 'runtime_controls_unchanged': True, 'browser_build_performed': False, 'browser_tests_performed': False, 'new_target_directory_created': False, 'owned_processes': owned})
+-print('Configured Rust typecheck completed; four sources restored and empty staging preserved', flush=True)
++print('Configured Rust typecheck completed; one source restored and empty staging preserved', flush=True)
+ assert error is None and not publication_errors, error

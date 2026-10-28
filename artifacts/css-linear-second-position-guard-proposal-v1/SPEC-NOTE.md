@@ -1,0 +1,3 @@
+The current CSS Easing 2 linear() grammar permits up to two percentage positions per comma-separated stop. Both positions therefore enter the native parser. This fixture asserts parser completion and subsequent literal recovery, not contextual easing admission or output. An acceptance-equivalence assertion between a one-position and two-position input is deliberately omitted: it is unnecessary for the unchecked-unwrapping regression and would add an unsupported contextual policy oracle. The help link targets the primary specification document; no unverified fragment is asserted.
+
+Primary document read on 2026-10-28: https://drafts.csswg.org/css-easing-2/ (Editor’s Draft 23 February 2026), section 2.1. No speculative security classification is inferred.
