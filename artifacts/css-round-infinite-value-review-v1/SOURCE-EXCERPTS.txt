@@ -1,0 +1,148 @@
+Round simplification
+            Self::Round {
+                strategy,
+                ref mut value,
+                ref mut step,
+            } => {
+                if value_or_stop!(step.is_zero_leaf()) {
+                    value_or_stop!(value.coerce_to_value(f32::NAN));
+                    replace_self_with!(&mut **value);
+                    return SimplificationResult::Simplified;
+                }
+
+                if value_or_stop!(value.is_infinite_leaf())
+                    && value_or_stop!(step.is_infinite_leaf())
+                {
+                    value_or_stop!(value.coerce_to_value(f32::NAN));
+                    replace_self_with!(&mut **value);
+                    return SimplificationResult::Simplified;
+                }
+
+                if value_or_stop!(value.is_infinite_leaf()) {
+                    replace_self_with!(&mut **value);
+                    return SimplificationResult::Simplified;
+                }
+
+                if value_or_stop!(step.is_infinite_leaf()) {
+                    if value.as_leaf().is_none() {
+                        return SimplificationResult::Unchanged;
+                    }
+                    match strategy {
+                        RoundingStrategy::Nearest | RoundingStrategy::ToZero => {
+                            let zero = if value_or_stop!(value.is_negative_leaf()) {
+                                -0.0
+                            } else {
+                                0.0
+                            };
+                            value_or_stop!(value.coerce_to_value(zero));
+                            replace_self_with!(&mut **value);
+                            return SimplificationResult::Simplified;
+                        },
+                        RoundingStrategy::Up => {
+                            if !value_or_stop!(value.is_negative_leaf())
+                                && !value_or_stop!(value.is_zero_leaf())
+                            {
+                                value_or_stop!(value.coerce_to_value(f32::INFINITY));
+                                replace_self_with!(&mut **value);
+                                return SimplificationResult::Simplified;
+                            } else if !value_or_stop!(value.is_negative_leaf())
+                                && value_or_stop!(value.is_zero_leaf())
+                            {
+                                replace_self_with!(&mut **value);
+                                return SimplificationResult::Simplified;
+                            } else {
+                                value_or_stop!(value.coerce_to_value(-0.0));
+                                replace_self_with!(&mut **value);
+                                return SimplificationResult::Simplified;
+                            }
+                        },
+                        RoundingStrategy::Down => {
+                            if value_or_stop!(value.is_negative_leaf())
+                                && !value_or_stop!(value.is_zero_leaf())
+                            {
+                                value_or_stop!(value.coerce_to_value(-f32::INFINITY));
+                                replace_self_with!(&mut **value);
+                                return SimplificationResult::Simplified;
+                            } else if value_or_stop!(value.is_negative_leaf())
+                                && value_or_stop!(value.is_zero_leaf())
+                            {
+                                replace_self_with!(&mut **value);
+                                return SimplificationResult::Simplified;
+                            } else {
+                                value_or_stop!(value.coerce_to_value(0.0));
+                                replace_self_with!(&mut **value);
+                                return SimplificationResult::Simplified;
+                            }
+                        },
+                    }
+                }
+
+
+
+Leaf predicates
+    fn is_negative_leaf(&self) -> Result<bool, ()> {
+        Ok(match *self {
+            Self::Leaf(ref l) => l.is_negative()?,
+            _ => false,
+        })
+    }
+
+    fn is_zero_leaf(&self) -> Result<bool, ()> {
+        Ok(match *self {
+            Self::Leaf(ref l) => l.is_zero()?,
+            _ => false,
+        })
+    }
+
+    fn is_infinite_leaf(&self) -> Result<bool, ()> {
+        Ok(match *self {
+            Self::Leaf(ref l) => l.is_infinite()?,
+            _ => false,
+        })
+    }
+
+
+
+Leaf value access
+    fn unitless_value(&self) -> Option<f32> {
+        Some(match *self {
+            Self::Length(ref l) => l.unitless_value(),
+            Self::Percentage(ref p) => p.get(),
+            Self::Number(ref n) => n.value(),
+            Self::Resolution(ref r) => r.dppx(),
+            Self::Angle(ref a) => a.degrees(),
+            Self::Time(ref t) => t.seconds(),
+            Self::RandomKey(ref k) => {
+                return match &**k {
+                    RandomKey::Fixed(number) => number.resolve(),
+                    RandomKey::CacheKey(_) => None,
+                };
+            },
+            Self::ColorComponent(_) | Self::TreeCountingFunction(_) => return None,
+        })
+    }
+
+    fn canonical_value(&self) -> Option<f32> {
+        Some(match *self {
+            Self::Length(ref l) => l.to_px_if_absolute()?,
+            Self::Percentage(ref p) => match p.hint {
+                // Percentages that are relative to some other value (indicated by a
+                // percent hint other than "percent") cannot yet resolve to a numeric
+                // value, as the percentage's basis is not available.
+                Optional::Some(NumericBaseType::Percent) => p.get(),
+                _ => return None,
+            },
+            Self::Number(ref n) => n.value(),
+            Self::Resolution(ref r) => r.dppx(),
+            Self::Angle(ref a) => a.degrees(),
+            Self::Time(ref t) => t.seconds(),
+            Self::RandomKey(ref k) => {
+                return match &**k {
+                    RandomKey::Fixed(number) => number.resolve(),
+                    RandomKey::CacheKey(_) => None,
+                };
+            },
+            Self::ColorComponent(_) | Self::TreeCountingFunction(_) => return None,
+        })
+    }
+

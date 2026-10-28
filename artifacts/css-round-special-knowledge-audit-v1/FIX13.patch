@@ -1,0 +1,74 @@
+commit 708b914901eeb7a2d348855c2efcf099e6003317
+Author:     Brian Grinstead <briangrinstead@gmail.com>
+AuthorDate: Sun Oct 18 08:14:21 2026 -0700
+Commit:     Brian Grinstead <briangrinstead@gmail.com>
+CommitDate: Sun Oct 18 08:14:21 2026 -0700
+
+    No bug - Preserve zero signs when simplifying round with infinite steps. r?#firefox-style-system-reviewers
+
+diff --git a/servo/components/style/values/generics/calc.rs b/servo/components/style/values/generics/calc.rs
+index 4140d3543baf..331828de6597 100644
+--- a/servo/components/style/values/generics/calc.rs
++++ b/servo/components/style/values/generics/calc.rs
+@@ -1958,7 +1958,12 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                 if value_or_stop!(step.is_infinite_leaf()) {
+                     match strategy {
+                         RoundingStrategy::Nearest | RoundingStrategy::ToZero => {
+-                            value_or_stop!(value.coerce_to_value(0.0));
++                            let zero = if value_or_stop!(value.is_negative_leaf()) {
++                                -0.0
++                            } else {
++                                0.0
++                            };
++                            value_or_stop!(value.coerce_to_value(zero));
+                             replace_self_with!(&mut **value);
+                             return SimplificationResult::Simplified;
+                         },
+@@ -1975,7 +1980,7 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
+                                 replace_self_with!(&mut **value);
+                                 return SimplificationResult::Simplified;
+                             } else {
+-                                value_or_stop!(value.coerce_to_value(0.0));
++                                value_or_stop!(value.coerce_to_value(-0.0));
+                                 replace_self_with!(&mut **value);
+                                 return SimplificationResult::Simplified;
+                             }
+diff --git a/testing/web-platform/tests/css/css-values/round-infinite-step-relative-length.html b/testing/web-platform/tests/css/css-values/round-infinite-step-relative-length.html
+new file mode 100644
+index 000000000000..08d80efe7c42
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-values/round-infinite-step-relative-length.html
+@@ -0,0 +1,33 @@
++<!doctype html>
++<title>round() preserves zero signs with relative lengths and infinite steps</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#round-infinities">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#sign-funcs">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++for (const unit of ["em", "px"]) {
++  for (const strategy of ["nearest", "to-zero", "up", "down"]) {
++    for (const step of ["infinity", "-infinity"]) {
++      for (const [input, expected] of [
++        [`-1${unit}`, "0"],
++        [`(-1 * 0${unit})`, "0"],
++        [`0${unit}`, "1"],
++        [`1${unit}`, "1"],
++      ]) {
++        const expression = `clamp(0, 1 / sign(round(${strategy}, ${input}, ${step} * 1px)), 1)`;
++        test(t => {
++          const target = document.createElement("div");
++          target.style.fontSize = "16px";
++          target.style.opacity = expression;
++          document.body.append(target);
++          t.add_cleanup(() => target.remove());
++          assert_not_equals(target.style.opacity, "", "The expression parses");
++          assert_equals(getComputedStyle(target).opacity, expected);
++        }, expression);
++      }
++    }
++  }
++}
++</script>

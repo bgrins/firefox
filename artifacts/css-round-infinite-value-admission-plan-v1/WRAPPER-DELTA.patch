@@ -1,0 +1,13 @@
+--- artifacts/css-round-infinite-value-repair-v1/validation/round-infinite-value-admission.html
++++ artifacts/css-round-infinite-value-admission-plan-v1/fixture/baseline.html
+@@ -68,7 +68,9 @@
+ let observation;
+ function getObservation() {
+   if (!observation) {
+-    observation = observeRoundInfiniteValueAdmission().then(result => {
++    observation = observeRoundInfiniteValueAdmission().then(async result => {
++      const response = await fetch("record.py", {method: "POST", body: JSON.stringify(result)});
++      assert_equals(response.status, 200, "Save complete admission observation");
+       document.getElementById("observation").textContent = JSON.stringify(result);
+       return result;
+     });

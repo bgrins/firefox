@@ -1,0 +1,23 @@
+# Infinite value with unresolved Round step
+
+This is a held, uncompiled research candidate. Six added Rust lines restrict the known-infinite-value shortcut to a step whose canonical value is established. Unknown steps retain Round; known nonfinite or zero steps produce NaN; known finite nonzero steps retain the infinite value. The accepted144 infinite-step guard and accepted145 finite arithmetic remain unchanged. No live source, index, epoch, build or browser was modified by this package.
+
+Syntactic leaf knowledge is insufficient: Length(1em) has coefficient1 but no context-independent canonical value. A zero font basis changes its actual step to zero. A literal NaN step must also not be discarded. Earlier simplification can already handle that literal route, so source-branch reasoning alone is not proof of an observed NaN bug.
+
+Root's actual current-app baseline (css-round-infinite-value-baseline-runtime-1, session87645 terminalff8cfe/0) reported24 tests/72 calibrated snapshots:16PASS8FAIL. Only relative-leaf-step cases failed at font0; literal NaN cases passed. This is root-reported execution, not execution by this artifact author. NaN is a preservation/defensive case, not another local repair count. Prior system-browser results remain separately attributed.
+
+## Tests and admission hold
+
+The proposed numeric WPT contains32 tests: four strategies, both infinite value signs, and four families. Square-root steps exercise NaN/zero/finite states; reciprocal steps finite/infinite states; relative leaves zero-basis recovery; literal classes cover NaN, signed infinity, zero and signed finite steps. Targets retain their expressions through font changes. Each test captures every phase before assertions and calibrates fonts, relative inputs, literal results, finite steps and repeated getters. Unsupported declarations fail rather than skip.
+
+The separate admission-observation.js and validation/round-infinite-value-admission.html retain eight constant-result consumer declarations. Their step 2+sign(1em-16px) is always positive finite at the tested fonts. The mathematical Round result is constant infinity, so all eight declarations must remain accepted and match literal controls. Direct contextual declarations are recorded separately without an admission expectation. The wrapper embeds the exact observer and retains full JSON before assertions; a private execution harness may POST that JSON before resolving the shared observation promise.
+
+**Release-unsafe observation: execute the admission probe/wrapper only in the pinned local app containing accepted143.** Its direct contextual linear second-position control is known to crash unpatched system Firefox158. It is intentionally retained, not skipped. Root has not yet executed this admission probe at preparation time.
+
+Captured easing source has context-free resolve gates for steps, bezier and linear values and stores scalar outputs. Old simplification erases the step, allowing constant-result admission; this candidate preserves an unresolved AST and may newly reject valid declarations at those gates. Therefore this six-line candidate is not acceptance-ready. Configured compilation and paired numeric/admission validation remain required. Any confirmed admission regression requires a coherent consumer representation/context/invalidation repair; no type whitelist, syntax special case, weakened control, or deliberately incorrect fold is proposed. A separately scoped scalar NaN fix would not complete this unknown-step objective.
+
+## Evidence limits
+
+SOURCE-PINS authenticates four local bodies against signed HEAD70c3349f. Searchfox discovery, exact private forward/reverse transport and changed-hunk formatting are recorded separately. The numeric32 and admission8 names were enumerated without executing callbacks; genuine manifests classify both as ordinary testharness pages; scoped lint passed. Counter independently reviewed the six-line candidate, numeric fixture and observer (f9621b/8890ff), with explicit admission hold. Root reviewed source and numeric fixture48e9d5. The existing four-law checker was replayed by counter; no new proof or coverage count is allocated here. No native compilation, candidate browser result, security severity, new fix ID, full grammar closure or clean-upstream landing claim is made.
+
+Counter narrowly reviewed the admission wrapper cf9857/0: exact embedded observer, complete32 capture, eight constant-result comparisons and direct-context separation. Its assertions compare computed serialization, not animation sampling or grid geometry. DOM storage alone does not export records into ordinary WPT raw events; the execution runner must save the JSON separately before assertions.

@@ -1,0 +1,40 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Round infinite-value current-app observation</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="observation.js"></script>
+<script>
+const observation = observeRoundInfiniteValueKnowledge().then(async result => {
+  const response = await fetch("record.py", {method: "POST", body: JSON.stringify(result)});
+  assert_equals(response.status, 200, "Save complete calibrated observation");
+  return result;
+});
+for (const mode of ["nearest", "up", "down", "to-zero"]) {
+  for (const sign of [1, -1]) {
+    for (const kind of ["nan-step", "relative-leaf-step", "fixed-finite-step"]) {
+      promise_test(async () => {
+        const result = await observation;
+        assert_equals(result.caseCount, 24);
+        assert_equals(result.snapshotCount, 72);
+        const rows = result.snapshots.filter(row => row.mode === mode && row.sign === sign && row.kind === kind);
+        assert_equals(rows.length, 3);
+        for (const [phase, row] of rows.entries()) {
+          assert_equals(row.phase, phase);
+          assert_equals(row.font, [8, 0, 8][phase]);
+          assert_true(row.supported);
+          assert_not_equals(row.specified, "");
+          assert_equals(row.actual, row.repeated);
+          assert_equals(row.inputCalibration.font, `${row.font}px`);
+          assert_equals(row.inputCalibration.width, `${row.font}px`);
+          assert_true(row.inputCalibration.nanSupported);
+          assert_not_equals(row.inputCalibration.nanSpecified, "");
+          assert_equals(Number(row.inputCalibration.nanEncoding), 0);
+          assert_equals(Number(row.literal), row.expected);
+        }
+        assert_array_equals(rows.map(row => Number(row.actual)), rows.map(row => row.expected), JSON.stringify(rows));
+      }, `${kind} ${mode} ${sign}`);
+    }
+  }
+}
+</script>

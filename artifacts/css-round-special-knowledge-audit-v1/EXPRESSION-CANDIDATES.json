@@ -1,0 +1,169 @@
+{
+  "browser_executed": false,
+  "fixture_authored": false,
+  "frozen_15_case_diagnostic_unchanged": true,
+  "rows": [
+    {
+      "name": "known NaN value with infinite step",
+      "expression": "calc(0.5 + 0.25 * round(nearest, NaN, infinity))",
+      "fonts": [
+        16
+      ],
+      "expected": [
+        0
+      ],
+      "source_prediction": [
+        0.5
+      ],
+      "scope": "runtime/simplifier NaN priority; standalone scalar"
+    },
+    {
+      "name": "known infinite value with NaN step",
+      "expression": "round(up, infinity, NaN)",
+      "fonts": [
+        16
+      ],
+      "expected": [
+        0
+      ],
+      "source_prediction": [
+        1
+      ],
+      "scope": "runtime/simplifier NaN priority; standalone scalar"
+    },
+    {
+      "name": "unknown step becomes zero",
+      "expression": "round(up, infinity, sign(1em - 16px))",
+      "fonts": [
+        16,
+        32,
+        16
+      ],
+      "expected": [
+        0,
+        1,
+        0
+      ],
+      "source_prediction": [
+        1,
+        1,
+        1
+      ],
+      "scope": "non-leaf step discarded"
+    },
+    {
+      "name": "unknown step becomes infinity or NaN",
+      "expression": "round(up, infinity, infinity * sign(1em - 16px))",
+      "fonts": [
+        32,
+        16,
+        32
+      ],
+      "expected": [
+        0,
+        0,
+        0
+      ],
+      "source_prediction": [
+        1,
+        1,
+        1
+      ],
+      "scope": "non-leaf step plus latent runtime NaN-step branch"
+    },
+    {
+      "name": "contextual NaN value",
+      "expression": "calc(0.5 + 0.25 * round(nearest, infinity * sign(1em - 16px), infinity))",
+      "fonts": [
+        16
+      ],
+      "expected": [
+        0
+      ],
+      "source_prediction": [
+        0.5
+      ],
+      "scope": "non-leaf value coercion; deferral alone still reaches runtime NaN gap"
+    },
+    {
+      "name": "finite relative value collapses to zero",
+      "expression": "calc(0.5 + 0.25 * sign(round(up, 1em, infinity * 1px)))",
+      "fonts": [
+        16,
+        0,
+        16
+      ],
+      "expected": [
+        0.75,
+        0.5,
+        0.75
+      ],
+      "source_prediction": [
+        0.75,
+        0.75,
+        0.75
+      ],
+      "scope": "raw coefficient is not actual zero knowledge"
+    },
+    {
+      "name": "finite relative step collapses to zero",
+      "expression": "calc(0.5 + 0.25 * sign(round(up, infinity * 1px, 1em)))",
+      "fonts": [
+        16,
+        0,
+        16
+      ],
+      "expected": [
+        0.75,
+        0,
+        0.75
+      ],
+      "source_prediction": [
+        0.75,
+        0.75,
+        0.75
+      ],
+      "scope": "leaf step nonzero coefficient not proof of nonzero resolved step"
+    },
+    {
+      "name": "infinite relative value becomes NaN",
+      "expression": "calc(0.5 + 0.25 * sign(round(up, infinity * 1em, 1px)))",
+      "fonts": [
+        16,
+        0,
+        16
+      ],
+      "expected": [
+        0.75,
+        0,
+        0.75
+      ],
+      "source_prediction": [
+        0.75,
+        0.75,
+        0.75
+      ],
+      "scope": "infinity times zero basis"
+    },
+    {
+      "name": "infinite relative step becomes NaN",
+      "expression": "calc(0.5 + 0.25 * sign(round(up, 1px, infinity * 1em)))",
+      "fonts": [
+        16,
+        0,
+        16
+      ],
+      "expected": [
+        0.75,
+        0,
+        0.75
+      ],
+      "source_prediction": [
+        0.75,
+        0.75,
+        0.75
+      ],
+      "scope": "infinity coefficient is not resolved infinite-step knowledge"
+    }
+  ]
+}

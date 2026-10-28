@@ -1,0 +1,104 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Round infinite value constant-result admission</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#round-infinities">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<pre id="observation"></pre>
+<script>
+async function observeRoundInfiniteValueAdmission() {
+  const frame = document.createElement("iframe");
+  frame.srcdoc = "<!doctype html><html><body></body></html>";
+  const loaded = new Promise(resolve => frame.addEventListener("load", resolve, {once: true}));
+  document.documentElement.append(frame);
+  try {
+    await loaded;
+    const doc = frame.contentDocument, win = frame.contentWindow;
+    const sign = "sign(round(up, infinity, calc(2 + sign(1em - 16px))))";
+    const direct = "sign(1em - 16px)";
+    const cases = [
+      ["integer", "z-index", `calc(1 + ${sign})`, "2", `calc(1 + ${direct})`],
+      ["ordinary-repeat", "grid-template-columns", `repeat(calc(2 + ${sign}), 1px)`, "repeat(3, 1px)", `repeat(calc(2 + ${direct}), 1px)`],
+      ["subgrid-repeat", "grid-template-columns", `subgrid repeat(calc(2 + ${sign}), [x])`, "subgrid repeat(3, [x])", `subgrid repeat(calc(2 + ${direct}), [x])`],
+      ["steps", "animation-timing-function", `steps(calc(2 + ${sign}), end)`, "steps(3, end)", `steps(calc(2 + ${direct}), end)`],
+      ["bezier", "animation-timing-function", `cubic-bezier(calc(${sign}), 0, 1, 1)`, "cubic-bezier(1, 0, 1, 1)", `cubic-bezier(calc(${direct}), 0, 1, 1)`],
+      ["linear-output", "animation-timing-function", `linear(0, calc(${sign}))`, "linear(0, 1)", `linear(0, calc(${direct}))`],
+      ["linear-second-position", "animation-timing-function", `linear(0 0% calc(${sign} * 1%), 1)`, "linear(0 0% 1%, 1)", `linear(0 0% calc(${direct} * 1%), 1)`],
+      ["time", "animation-duration", `calc(1s * (1 + ${sign}))`, "2s", `calc(1s * (1 + ${direct}))`],
+    ];
+    const make = () => { const e = doc.createElement("div"); doc.body.append(e); return e; };
+    const records = cases.map(([id, property, authored, literal, unresolved]) => {
+      const target = make(), reference = make(), contextual = make();
+      target.style.setProperty(property, authored);
+      reference.style.setProperty(property, literal);
+      contextual.style.setProperty(property, unresolved);
+      return {id, property, authored, literal, unresolved, target, reference, contextual};
+    });
+    const calibration = make();
+    calibration.style.opacity = "calc(0.5 + 0.25 * sign(1em - 16px))";
+    calibration.style.marginLeft = "calc(1em - 16px)";
+    const snapshots = [];
+    for (const [phase, font] of [8, 16, 32, 8].entries()) {
+      doc.body.style.fontSize = `${font}px`;
+      const input = {font: win.getComputedStyle(calibration).fontSize,
+        signEncoding: win.getComputedStyle(calibration).opacity,
+        difference: win.getComputedStyle(calibration).marginLeft};
+      for (const r of records) {
+        snapshots.push({id: r.id, property: r.property, phase, font, input,
+          authored: r.authored, supported: win.CSS.supports(r.property, r.authored),
+          specified: r.target.style.getPropertyValue(r.property),
+          computed: win.getComputedStyle(r.target).getPropertyValue(r.property),
+          repeated: win.getComputedStyle(r.target).getPropertyValue(r.property),
+          literal: r.literal, literalSupported: win.CSS.supports(r.property, r.literal),
+          literalSpecified: r.reference.style.getPropertyValue(r.property),
+          literalComputed: win.getComputedStyle(r.reference).getPropertyValue(r.property),
+          directContext: r.unresolved, directSupported: win.CSS.supports(r.property, r.unresolved),
+          directSpecified: r.contextual.style.getPropertyValue(r.property),
+          directComputed: win.getComputedStyle(r.contextual).getPropertyValue(r.property)});
+      }
+    }
+    return JSON.parse(JSON.stringify({userAgent: navigator.userAgent, caseCount: records.length,
+      snapshotCount: snapshots.length, admissionPolicyObservationOnly: true,
+      nativeFixAccepted: false, snapshots}));
+  } finally {
+    frame.remove();
+  }
+}
+
+let observation;
+function getObservation() {
+  if (!observation) {
+    observation = observeRoundInfiniteValueAdmission().then(async result => {
+      const response = await fetch("record.py", {method: "POST", body: JSON.stringify(result)});
+      assert_equals(response.status, 200, "Save complete admission observation");
+      document.getElementById("observation").textContent = JSON.stringify(result);
+      return result;
+    });
+  }
+  return observation;
+}
+for (const id of ["integer", "ordinary-repeat", "subgrid-repeat", "steps", "bezier",
+                  "linear-output", "linear-second-position", "time"]) {
+  promise_test(async () => {
+    const result = await getObservation();
+    assert_equals(result.caseCount, 8, "Complete case census");
+    assert_equals(result.snapshotCount, 32, "Complete snapshot census");
+    const rows = result.snapshots.filter(row => row.id === id);
+    assert_equals(rows.length, 4, "All lifecycle phases retained");
+    for (const [phase, row] of rows.entries()) {
+      const font = [8, 16, 32, 8][phase];
+      assert_equals(row.phase, phase, "Phase identity");
+      assert_equals(row.input.font, `${font}px`, "Font calibration");
+      assert_equals(row.input.difference, `${font - 16}px`, "Relative input calibration");
+      assert_equals(Number(row.input.signEncoding), [.25, .5, .75, .25][phase],
+                    "Sign calibration");
+      assert_true(row.literalSupported, "Literal control supported");
+      assert_not_equals(row.literalSpecified, "", "Literal control assigned");
+      assert_true(row.supported, "Constant-result declaration supported");
+      assert_not_equals(row.specified, "", "Constant-result declaration assigned");
+      assert_equals(row.computed, row.literalComputed, "Constant result matches literal");
+      assert_equals(row.repeated, row.computed, "Stable computed getter");
+    }
+  }, `Round infinite value constant-result admission: ${id}`);
+}
+</script>

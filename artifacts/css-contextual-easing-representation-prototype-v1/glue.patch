@@ -1,0 +1,14 @@
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -5239,7 +5239,10 @@
+         return false;
+     };
+ 
+-    *output = specified.to_computed_value_without_context();
++    let Some(computed) = specified.try_to_computed_value_without_context() else {
++        return false;
++    };
++    *output = computed;
+     true
+ }
+ 

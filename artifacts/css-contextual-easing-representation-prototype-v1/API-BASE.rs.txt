@@ -1,0 +1,13 @@
+pub extern "C" fn Servo_ParseEasing(
+    easing: &nsACString,
+    output: &mut ComputedTimingFunction,
+) -> bool {
+    use style::properties::longhands::transition_timing_function;
+
+    let Ok(specified) = parse_for!(easing, transition_timing_function::single_value::parse) else {
+        return false;
+    };
+
+    *output = specified.to_computed_value_without_context();
+    true
+}

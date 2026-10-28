@@ -1,3 +1,28 @@
+## Current priority: contextual infinite-value rounding and consumer admission
+
+The current local app preserves literal-NaN rounding. Its 24-case numeric baseline
+completed 16 PASS and 8 FAIL across 72 calibrated snapshots; only a relative
+`1em` step resolving to zero failed. The separate admission baseline passed all
+eight constant-result cases across 32 calibrated snapshots. Direct contextual
+values remain rejected by four easing consumers. These local results differ
+from the retained Firefox 158 system-browser observations.
+
+The archived numeric proposal is held, uncompiled and unexecuted. Its admission
+regression is predicted from source, not observed in a candidate run. Next compile and rebase the contextual consumer representation against the
+existing keyframe/dependency handoff, migrate infallible callers, and validate
+admission/readiness before opening parser guards or attempting native promotion. The completed inactive representation
+groundwork is archived here; integration, compilation and browser validation
+remain unfinished. Preserve the accepted finite Round repair (145), infinite-step
+guard (144), and latest generic source `df7e6932`; never restore older source
+snapshots over them. The shared provider prototype remains held.
+
+There are still 144 accepted fixes and 145 tracked IDs, with 120 excluded. No fix
+146 is allocated and no formal coverage is added. Completed observations,
+limitations and next steps are summarized in
+`artifacts/css-local-signing-20261028-v43/README.md`.
+
+---
+
 Current continuation after validated finite Round repair 145
 
 Fix 145 preserves finite multiples when resolving round(), including normal finite operands whose quotient overflows. The standalone payload is one generic calc source file and one 21-subtest WPT. The complete paired 738-subtest experiment passed all 26 targets with 13 repairs; all 712 controls and 12 endings were preserved. Final installed execution completed 737 subtests: 727 PASS and ten preserved existing FAIL, with all 25 targets PASS. Four exposure cases remain validation-only. The sole omitted historical both-infinite row passed in both paired phases and was removed by authenticated one-line fixture projection; no failed gate was waived. After the verified signed native commit, accepted repairs total 144 across tracked IDs through 145, excluding held 120. Historical fix 144 source and native-commit pins remain unchanged; the new current source explicitly supersedes its full-file pin. No semantic prerequisite on accepted125/126/128/144 or clean-upstream execution is claimed. The held provider remains unchanged and unaccepted. Existing arithmetic/model checks and the four bounded overflow witness facts add no canonical Lean coverage or universal IEEE/native refinement claim.

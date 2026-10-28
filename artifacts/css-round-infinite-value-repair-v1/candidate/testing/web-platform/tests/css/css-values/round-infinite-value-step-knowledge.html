@@ -1,0 +1,85 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Round with infinite value retains step classification until computation</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#round-infinities">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const modes = ["nearest", "up", "down", "to-zero"];
+const encode = expression => `calc(0.5 + 0.25 * sign(${expression}))`;
+const families = [
+  {name: "sqrt contextual step", fonts: [8, 16, 32, 8],
+   steps: ["sqrt(sign(1em - 16px))"], invalid: font => font <= 16},
+  {name: "reciprocal contextual step", fonts: [8, 16, 32, 8],
+   steps: ["calc(1 / sign(1em - 16px))"], invalid: font => font === 16},
+  {name: "relative leaf step", fonts: [8, 0, 8],
+   steps: ["1em"], length: true, invalid: font => font === 0},
+  {name: "literal step classes", fonts: [16],
+   steps: ["NaN", "0", "infinity", "-infinity", "1", "-1"],
+   invalid: (font, step) => !["1", "-1"].includes(step)},
+];
+for (const mode of modes) {
+  for (const direction of [1, -1]) {
+    for (const family of families) {
+      test(t => {
+        const make = () => {
+          const element = document.createElement("div");
+          document.body.append(element);
+          t.add_cleanup(() => element.remove());
+          return element;
+        };
+        const calibration = make();
+        calibration.style.width = "1em";
+        calibration.style.opacity = encode("sign(1em - 16px)");
+        const nan = make();
+        nan.style.opacity = encode("NaN");
+        const value = `${direction === 1 ? "infinity" : "-infinity"}${family.length ? " * 1px" : ""}`;
+        const records = family.steps.map(step => {
+          const target = make(), literal = make(), finite = make();
+          target.style.opacity = encode(`round(${mode}, ${value}, ${step})`);
+          finite.style.opacity = encode(`round(${mode}, ${value}, ${family.length ? "8px" : "1"})`);
+          assert_not_equals(target.style.opacity, "", "target admitted");
+          assert_not_equals(finite.style.opacity, "", "finite-step control admitted");
+          return {step, target, literal, finite};
+        });
+        assert_not_equals(calibration.style.opacity, "", "sign calibration admitted");
+        assert_not_equals(nan.style.opacity, "", "NaN calibration admitted");
+        const snapshots = [];
+        for (const font of family.fonts) {
+          calibration.style.fontSize = `${font}px`;
+          for (const row of records) {
+            row.target.style.fontSize = row.finite.style.fontSize = `${font}px`;
+            const expected = family.invalid(font, row.step) ? 0 : 0.5 + 0.25 * direction;
+            row.literal.style.opacity = String(expected);
+            snapshots.push({
+              font, step: row.step, expected,
+              targetFont: getComputedStyle(row.target).fontSize,
+              calibrationFont: getComputedStyle(calibration).fontSize,
+              unit: getComputedStyle(calibration).width,
+              sign: Number(getComputedStyle(calibration).opacity),
+              nan: Number(getComputedStyle(nan).opacity),
+              literal: Number(getComputedStyle(row.literal).opacity),
+              finite: Number(getComputedStyle(row.finite).opacity),
+              first: Number(getComputedStyle(row.target).opacity),
+              repeat: Number(getComputedStyle(row.target).opacity),
+            });
+          }
+        }
+        for (const row of snapshots) {
+          const label = `font ${row.font}, step ${row.step}`;
+          assert_equals(row.targetFont, `${row.font}px`, `target font: ${label}`);
+          assert_equals(row.calibrationFont, `${row.font}px`, `calibration font: ${label}`);
+          assert_equals(row.unit, `${row.font}px`, `relative unit: ${label}`);
+          assert_equals(row.sign, 0.5 + 0.25 * Math.sign(row.font - 16), `sign: ${label}`);
+          assert_equals(row.nan, 0, `NaN encoding: ${label}`);
+          assert_equals(row.literal, row.expected, `literal: ${label}`);
+          assert_equals(row.finite, 0.5 + 0.25 * direction, `finite-step control: ${label}`);
+          assert_equals(row.first, row.repeat, `stable read: ${label}`);
+          assert_equals(row.first, row.expected, `resolved step classification: ${label}`);
+        }
+      }, `Round infinite value: ${mode}, ${direction === 1 ? "positive" : "negative"}, ${family.name}`);
+    }
+  }
+}
+</script>

@@ -1,0 +1,313 @@
+--- a/servo/components/style/values/specified/easing.rs
++++ b/servo/components/style/values/specified/easing.rs
+@@ -3,20 +3,125 @@
+  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+ 
+ //! Specified types for CSS Easing functions.
++use crate::derives::*;
+ use crate::parser::{Parse, ParserContext};
+ use crate::piecewise_linear::{PiecewiseLinearFunction, PiecewiseLinearFunctionBuilder};
+ use crate::values::computed::easing::TimingFunction as ComputedTimingFunction;
+ use crate::values::computed::{Context, ToComputedValue};
+ use crate::values::generics::easing::TimingFunction as GenericTimingFunction;
+ use crate::values::generics::easing::{StepPosition, TimingKeyword};
+-use crate::values::specified::percentage::ToPercentage;
+ use crate::values::specified::{AnimationName, Integer, Number, Percentage};
+ use cssparser::{Delimiter, Parser, Token, match_ignore_ascii_case};
+ use selectors::parser::SelectorParseErrorKind;
+-use style_traits::{ParseError, StyleParseErrorKind};
++use std::fmt::{self, Write};
++use style_traits::{CssWriter, ParseError, StyleParseErrorKind, ToCss};
+ 
+ /// A specified timing function.
+-pub type TimingFunction = GenericTimingFunction<Integer, Number, PiecewiseLinearFunction>;
++pub type TimingFunction = GenericTimingFunction<Integer, Number, LinearFunction>;
++
++/// An authored linear stop retained until contextual computation.
++#[derive(
++    Clone, Debug, MallocSizeOf, PartialEq, SpecifiedValueInfo, ToShmem, Serialize, Deserialize,
++)]
++#[repr(C)]
++pub struct LinearStop {
++    output: Number,
++    input_start: Option<Percentage>,
++    input_end: Option<Percentage>,
++}
++
++/// Specified linear stops or their context-independent canonical representation.
++#[derive(
++    Clone, Debug, MallocSizeOf, PartialEq, SpecifiedValueInfo, ToShmem, Serialize, Deserialize,
++)]
++#[repr(u8, C)]
++pub enum LinearFunction {
++    /// A function whose stop values have already resolved.
++    Resolved(PiecewiseLinearFunction),
++    /// Stops that still need the owning element's computation context.
++    Contextual(crate::OwnedSlice<LinearStop>),
++}
++
++impl LinearFunction {
++    fn from_stops(stops: Vec<LinearStop>) -> Self {
++        let specified = Self::Contextual(stops.into());
++        match specified.try_to_computed_value_without_context() {
++            Some(computed) => Self::Resolved(computed),
++            None => specified,
++        }
++    }
++
++    fn try_to_computed_value_without_context(&self) -> Option<PiecewiseLinearFunction> {
++        let stops = match self {
++            Self::Resolved(computed) => return Some(computed.clone()),
++            Self::Contextual(stops) => stops,
++        };
++        let mut builder = PiecewiseLinearFunctionBuilder::default();
++        for stop in stops.iter() {
++            let output = stop.output.resolve()?;
++            let input_start = match &stop.input_start {
++                Some(value) => Some(value.resolve()?),
++                None => None,
++            };
++            builder.push(output, input_start);
++            if let Some(value) = &stop.input_end {
++                builder.push(output, Some(value.resolve()?));
++            }
++        }
++        Some(builder.build())
++    }
++}
++
++impl ToComputedValue for LinearFunction {
++    type ComputedValue = PiecewiseLinearFunction;
++
++    fn to_computed_value(&self, context: &Context) -> Self::ComputedValue {
++        let stops = match self {
++            Self::Resolved(computed) => return computed.clone(),
++            Self::Contextual(stops) => stops,
++        };
++        let mut builder = PiecewiseLinearFunctionBuilder::default();
++        for stop in stops.iter() {
++            let output = stop.output.to_computed_value(context);
++            let input_start = stop
++                .input_start
++                .as_ref()
++                .map(|v| v.to_computed_value(context).0);
++            builder.push(output, input_start);
++            if let Some(value) = &stop.input_end {
++                builder.push(output, Some(value.to_computed_value(context).0));
++            }
++        }
++        builder.build()
++    }
++
++    fn from_computed_value(computed: &Self::ComputedValue) -> Self {
++        Self::Resolved(computed.clone())
++    }
++}
++
++impl ToCss for LinearFunction {
++    fn to_css<W>(&self, dest: &mut CssWriter<W>) -> fmt::Result
++    where
++        W: fmt::Write,
++    {
++        let stops = match self {
++            Self::Resolved(computed) => return computed.to_css(dest),
++            Self::Contextual(stops) => stops,
++        };
++        for (index, stop) in stops.iter().enumerate() {
++            if index != 0 {
++                dest.write_str(", ")?;
++            }
++            stop.output.to_css(dest)?;
++            for value in stop.input_start.iter().chain(stop.input_end.iter()) {
++                dest.write_char(' ')?;
++                value.to_css(dest)?;
++            }
++        }
++        Ok(())
++    }
++}
+ 
+ impl Parse for TimingFunction {
+     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
+@@ -100,12 +205,10 @@
+         context: &ParserContext,
+         input: &mut Parser,
+     ) -> Result<Self, ParseError> {
+-        let mut builder = PiecewiseLinearFunctionBuilder::default();
+-        let mut num_specified_stops = 0;
++        let mut stops = Vec::new();
+         // Closely follows `parse_comma_separated`, but can generate multiple entries for one comma-separated entry.
+         loop {
+             input.parse_until_before(Delimiter::Comma, |i| {
+-                let builder = &mut builder;
+                 let mut input_start = i.try_parse(|i| Percentage::parse(context, i)).ok();
+                 let mut input_end = i.try_parse(|i| Percentage::parse(context, i)).ok();
+ 
+@@ -118,10 +221,9 @@
+ 
+                 // TODO(Bug 2037743) - Enable calc()-expressions that can only be resolved at
+                 // computed value time (due to relative lengths, sibling-index(), etc.).
+-                let output = match output.resolve() {
+-                    Some(v) => v,
+-                    None => return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError)),
+-                };
++                if output.resolve().is_none() {
++                    return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
++                }
+                 if input_start
+                     .iter()
+                     .chain(input_end.iter())
+@@ -130,13 +232,11 @@
+                     return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+                 }
+ 
+-                let has_input_start = input_start.is_some();
+-                builder.push(output, input_start.map(|v| v.to_percentage().unwrap()));
+-                num_specified_stops += 1;
+-                if input_end.is_some() {
+-                    debug_assert!(has_input_start, "Input end valid but not input start?");
+-                    builder.push(output, input_end.map(|v| v.to_percentage().unwrap()));
+-                }
++                stops.push(LinearStop {
++                    output,
++                    input_start,
++                    input_end,
++                });
+ 
+                 Ok(())
+             })?;
+@@ -149,11 +249,13 @@
+         }
+         // By spec, specifying only a single stop makes the function invalid, even if that single entry may generate
+         // two entries.
+-        if num_specified_stops < 2 {
++        if stops.len() < 2 {
+             return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+         }
+ 
+-        Ok(GenericTimingFunction::LinearFunction(builder.build()))
++        Ok(GenericTimingFunction::LinearFunction(
++            LinearFunction::from_stops(stops),
++        ))
+     }
+ 
+     /// Returns true if the name matches any keyword.
+@@ -169,16 +271,12 @@
+     }
+ }
+ 
+-// We need this for converting the specified TimingFunction into computed TimingFunction without
+-// Context (for some FFIs in glue.rs). In fact, we don't really need Context to get the computed
+-// value of TimingFunction.
+ impl TimingFunction {
+-    /// Generate the ComputedTimingFunction without Context.
+-    pub fn to_computed_value_without_context(&self) -> ComputedTimingFunction {
+-        match &self {
++    /// Compute a timing function only when its inputs are context independent.
++    pub fn try_to_computed_value_without_context(&self) -> Option<ComputedTimingFunction> {
++        Some(match self {
+             GenericTimingFunction::Steps(steps, pos) => {
+-                // Resolvable value was enforced at parse time
+-                let count = steps.resolve().unwrap();
++                let count = steps.resolve()?;
+                 let count = if *pos == StepPosition::JumpNone && steps.get().is_none() {
+                     count.max(2)
+                 } else {
+@@ -187,27 +285,58 @@
+                 GenericTimingFunction::Steps(count, *pos)
+             },
+             GenericTimingFunction::CubicBezier { x1, y1, x2, y2 } => {
+-                // Resolvable value was enforced at parse time
+                 GenericTimingFunction::CubicBezier {
+-                    x1: x1.resolve().unwrap().clamp(0.0, 1.0),
+-                    y1: y1.resolve().unwrap(),
+-                    x2: x2.resolve().unwrap().clamp(0.0, 1.0),
+-                    y2: y2.resolve().unwrap(),
++                    x1: x1.resolve()?.clamp(0.0, 1.0),
++                    y1: y1.resolve()?,
++                    x2: x2.resolve()?.clamp(0.0, 1.0),
++                    y2: y2.resolve()?,
+                 }
+             },
+             GenericTimingFunction::Keyword(keyword) => GenericTimingFunction::Keyword(*keyword),
+             GenericTimingFunction::LinearFunction(function) => {
+-                // Resolvable value was enforced at parse time
+-                GenericTimingFunction::LinearFunction(function.clone())
+-            },
+-        }
++                GenericTimingFunction::LinearFunction(
++                    function.try_to_computed_value_without_context()?,
++                )
++            },
++        })
++    }
++
++    /// Convert under the retained parser's context-free invariant.
++    pub fn to_computed_value_without_context(&self) -> ComputedTimingFunction {
++        self.try_to_computed_value_without_context()
++            .expect("Parser admitted an unresolved timing function")
+     }
+ }
+ 
+ impl ToComputedValue for TimingFunction {
+     type ComputedValue = ComputedTimingFunction;
+-    fn to_computed_value(&self, _: &Context) -> Self::ComputedValue {
+-        self.to_computed_value_without_context()
++    fn to_computed_value(&self, context: &Context) -> Self::ComputedValue {
++        if let Some(computed) = self.try_to_computed_value_without_context() {
++            return computed;
++        }
++        match self {
++            GenericTimingFunction::Steps(steps, pos) => {
++                let count = steps.to_computed_value(context);
++                let count = if *pos == StepPosition::JumpNone && steps.get().is_none() {
++                    count.max(2)
++                } else {
++                    count
++                };
++                GenericTimingFunction::Steps(count, *pos)
++            },
++            GenericTimingFunction::CubicBezier { x1, y1, x2, y2 } => {
++                GenericTimingFunction::CubicBezier {
++                    x1: x1.to_computed_value(context).clamp(0.0, 1.0),
++                    y1: y1.to_computed_value(context),
++                    x2: x2.to_computed_value(context).clamp(0.0, 1.0),
++                    y2: y2.to_computed_value(context),
++                }
++            },
++            GenericTimingFunction::Keyword(keyword) => GenericTimingFunction::Keyword(*keyword),
++            GenericTimingFunction::LinearFunction(function) => {
++                GenericTimingFunction::LinearFunction(function.to_computed_value(context))
++            },
++        }
+     }
+ 
+     fn from_computed_value(computed: &Self::ComputedValue) -> Self {
+@@ -221,8 +350,8 @@
+             },
+             ComputedTimingFunction::Keyword(keyword) => GenericTimingFunction::Keyword(*keyword),
+             ComputedTimingFunction::LinearFunction(function) => {
+-                GenericTimingFunction::LinearFunction(function.clone())
+-            },
+-        }
+-    }
+-}
++                GenericTimingFunction::LinearFunction(LinearFunction::from_computed_value(function))
++            },
++        }
++    }
++}
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -5239,7 +5239,10 @@
+         return false;
+     };
+ 
+-    *output = specified.to_computed_value_without_context();
++    let Some(computed) = specified.try_to_computed_value_without_context() else {
++        return false;
++    };
++    *output = computed;
+     true
+ }
+ 

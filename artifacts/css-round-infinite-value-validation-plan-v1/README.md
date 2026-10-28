@@ -1,0 +1,5 @@
+Enabled root-owned current-app baseline only. Run `python3 -I -S -B artifacts/css-round-infinite-value-validation-plan-v1/run_baseline.py <FILES_SHA>`. It uses the pinned current local Nightly through an isolated Mach WPT process, private config/test root and owned temporary profile. It does not touch the shared MCP session, native source, canonical tests/configuration or app binaries, and makes no app backup.
+
+The exact frozen observation function provides24 grouped WPT cases and72 snapshots. Known mismatches are observations, not a comparison gate. Complete raw JSON is saved before WPT assertions; exact identities, phases8/0/8, independent expected values and direct calibrations are checked. Before/after compact source/app/control and root/nested semantic-index snapshots must match; only the owned output subtree is excluded from untracked inventory. Root must keep an exclusive execution window.
+
+The paired candidate plan remains disabled and unbound. No browser execution or native acceptance is claimed by this preparation. Referenced immutable epochs/helper trees are not copied.
