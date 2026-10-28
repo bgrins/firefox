@@ -1,0 +1,494 @@
+diff --git a/servo/components/style/custom_properties.rs b/servo/components/style/custom_properties.rs
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -24,10 +24,8 @@
+ use crate::stylesheets::UrlExtraData;
+ use crate::stylesheets::container_rule::AttrReferenceSet;
+ use crate::stylist::Stylist;
+-use crate::typed_om::{
+-    ToTyped, TypedValue, UnparsedSegment, UnparsedValue, VariableReferenceValue,
+-};
+-use crate::values::computed;
++use crate::typed_om::{ToTyped, TypedValue, UnparsedSegment, UnparsedValue, VariableReferenceValue};
++use crate::values::computed::{self, ToComputedValue};
+ use crate::values::generics::calc::SortKey as AttrUnit;
+ use crate::values::specified::{NoCalcLength, ParsedNamespace};
+ use crate::{Atom, LocalName, Namespace, Prefix, derives::*};
+@@ -1675,6 +1673,235 @@
+     debug_assert!(result.is_ok());
+ }
+ 
++fn apply_substituted_css_wide_keyword(
++    name: &Name,
++    kw: CSSWideKeyword,
++    registration: &PropertyDescriptors,
++    stylist: &Stylist,
++    context: &mut computed::Context,
++) {
++    let inherited = context.builder.inherited_style.custom_properties();
++    // TODO: It's unclear what this should do for revert / revert-layer, see
++    // https://github.com/w3c/csswg-drafts/issues/9131. For now treating as unset
++    // seems fine?
++    match (kw, registration.inherits(), context.is_root_element()) {
++        (CSSWideKeyword::Initial, _, _)
++        | (CSSWideKeyword::Revert, false, _)
++        | (CSSWideKeyword::RevertLayer, false, _)
++        | (CSSWideKeyword::RevertRule, false, _)
++        | (CSSWideKeyword::Unset, false, _)
++        | (CSSWideKeyword::Revert, true, true)
++        | (CSSWideKeyword::RevertLayer, true, true)
++        | (CSSWideKeyword::RevertRule, true, true)
++        | (CSSWideKeyword::Unset, true, true)
++        | (CSSWideKeyword::Inherit, _, true) => {
++            remove_and_insert_initial_value(
++                name,
++                registration,
++                stylist.get_custom_property_initial_values(),
++                &mut context.builder.substitution_functions,
++            );
++        },
++        (CSSWideKeyword::Revert, true, false)
++        | (CSSWideKeyword::RevertLayer, true, false)
++        | (CSSWideKeyword::RevertRule, true, false)
++        | (CSSWideKeyword::Inherit, _, false)
++        | (CSSWideKeyword::Unset, true, false) => {
++            if !registration.inherits() {
++                context
++                    .style()
++                    .add_flags(ComputedValueFlags::INHERITS_RESET_STYLE);
++            }
++            match inherited.get(registration, name) {
++                Some(value) => {
++                    context.builder.substitution_functions.insert_var(
++                        registration,
++                        name,
++                        value.clone(),
++                    );
++                },
++                None => {
++                    context
++                        .builder
++                        .substitution_functions
++                        .remove_var(registration, name);
++                },
++            };
++        },
++    }
++}
++
++fn intrinsic_registered_references(registration: &PropertyDescriptors) -> ReferenceFlags {
++    use crate::properties_and_values::syntax::data_type::DependentDataTypes;
++    if registration.syntax.as_ref().is_some_and(|syntax| {
++        syntax
++            .dependent_types()
++            .intersects(DependentDataTypes::COLOR)
++    }) {
++        ReferenceFlags::COLOR_SCHEME
++    } else {
++        ReferenceFlags::empty()
++    }
++}
++
++pub(crate) enum PreparedRegisteredValue {
++    Invalid,
++    CssWide(CSSWideKeyword),
++    Value {
++        specified: SpecifiedRegisteredValue,
++        attr_tainted: bool,
++        references: Option<ReferenceFlags>,
++        conservative_references: ReferenceFlags,
++    },
++}
++
++impl PreparedRegisteredValue {
++    pub(crate) fn references(&self, registration: &PropertyDescriptors) -> Option<ReferenceFlags> {
++        match self {
++            Self::Invalid => Some(intrinsic_registered_references(registration)),
++            Self::CssWide(_) => Some(ReferenceFlags::empty()),
++            Self::Value { references, .. } => *references,
++        }
++    }
++
++    pub(crate) fn apply(
++        self,
++        name: &Name,
++        stylist: &Stylist,
++        context: &mut computed::Context,
++        pending_prioritary: Option<&crate::properties::PrioritaryPropertyIdSet>,
++    ) -> Result<(), SubstitutionDemand> {
++        let registration = stylist.get_custom_property_registration(name);
++        if let Some(pending) = pending_prioritary {
++            let references = match &self {
++                Self::Invalid => intrinsic_registered_references(registration),
++                Self::CssWide(_) => ReferenceFlags::empty(),
++                Self::Value {
++                    references,
++                    conservative_references,
++                    ..
++                } => references.map_or(*conservative_references, |references| {
++                    references & *conservative_references
++                }),
++            };
++            let mut demand = None;
++            references.for_each_non_custom(context.is_root_element(), |reference| {
++                if demand.is_none() {
++                    demand = first_pending_prioritary(reference.to_prioritary_id(), pending);
++                }
++            });
++            if let Some(id) = demand {
++                return Err(SubstitutionDemand::Prioritary(id));
++            }
++        }
++        match self {
++            Self::Invalid => handle_invalid_at_computed_value_time(name, registration, context),
++            Self::CssWide(kw) => {
++                apply_substituted_css_wide_keyword(name, kw, registration, stylist, context);
++            },
++            Self::Value {
++                specified,
++                attr_tainted,
++                ..
++            } => {
++                let mut value = specified.to_computed_value(context);
++                value.attr_tainted |= attr_tainted;
++                context
++                    .builder
++                    .substitution_functions
++                    .insert_var(registration, name, value);
++            },
++        }
++        Ok(())
++    }
++}
++
++fn prepare_registered_substitution(
++    name: &Name,
++    substitution: Substitution,
++    registration: &PropertyDescriptors,
++    url_data: &UrlExtraData,
++    is_root_element: bool,
++) -> Result<PreparedRegisteredValue, SubstitutionDemand> {
++    debug_assert!(!registration.is_universal());
++    let mut parser = Parser::new(&substitution.css);
++    if let Ok(kw) = parser.try_parse(CSSWideKeyword::parse) {
++        return Ok(PreparedRegisteredValue::CssWide(kw));
++    }
++    let taint = if substitution.attr_tainted {
++        AttrTaint::new_fully_tainted(substitution.css.len())
++    } else {
++        AttrTaint::default()
++    };
++    let mut parser = Parser::new(&substitution.css);
++    let specified = match SpecifiedRegisteredValue::parse(
++        &mut parser,
++        registration.syntax.as_ref().unwrap(),
++        url_data,
++        None,
++        AllowComputationallyDependent::Yes,
++        taint,
++        Some(PropertyIdRef::from(name)),
++    ) {
++        Ok(value) => value,
++        Err(_) => return Ok(PreparedRegisteredValue::Invalid),
++    };
++    let intrinsic_references = intrinsic_registered_references(registration);
++    let mut parser = Parser::new(&substitution.css);
++    let resolved = VariableValue::parse(&mut parser, None, url_data)
++        .map_err(|_| SubstitutionDemand::ContextPreparation)?;
++    let conservative_references = crate::properties::cascade::find_non_custom_references(
++        registration,
++        &resolved,
++        is_root_element,
++    );
++    let references = Some(
++        specified
++            .context_references()
++            .unwrap_or(resolved.references.flags)
++            | intrinsic_references,
++    );
++    Ok(PreparedRegisteredValue::Value {
++        specified,
++        attr_tainted: substitution.attr_tainted,
++        references,
++        conservative_references,
++    })
++}
++
++/// Requires all selected providers to have left their graph components.
++pub(crate) fn prepare_registered_value(
++    name: &Name,
++    value: &Arc<VariableValue>,
++    stylist: &Stylist,
++    context: &computed::Context,
++    attribute_tracker: &mut AttributeTracker,
++    pending: Option<&std::collections::HashSet<Name>>,
++) -> Result<PreparedRegisteredValue, SubstitutionDemand> {
++    let substitution = match substitute_internal(
++        value,
++        Some(PropertyIdRef::from(name)),
++        &context.builder.substitution_functions,
++        stylist,
++        context,
++        attribute_tracker,
++        &mut SmallVec::new(),
++        None,
++        pending,
++    ) {
++        Ok(value) => value,
++        Err(SubstitutionError::Demand(demand)) => return Err(demand),
++        Err(SubstitutionError::Invalid) => return Ok(PreparedRegisteredValue::Invalid),
++    };
++    prepare_registered_substitution(
++        name,
++        substitution,
++        stylist.get_custom_property_registration(name),
++        &value.url_data,
++        context.is_root_element(),
++    )
++}
++
+ pub(crate) fn substitute_references_with_pending_and_apply(
+     name: &Name,
+     namespace: Option<&Namespace>,
+@@ -1726,89 +1953,23 @@
+         },
+     };
+ 
++    if is_var && !registration.is_universal() {
++        let prepared = prepare_registered_substitution(
++            name,
++            substitution,
++            registration,
++            url_data,
++            context.is_root_element(),
++        )?;
++        return prepared.apply(name, stylist, context, pending_prioritary);
++    }
++
+     // If variable fallback results in a wide keyword, deal with it now.
+-    let inherited = context.builder.inherited_style.custom_properties();
+     if is_var {
+-        let css = &substitution.css;
+-        let css_wide_kw = {
+-            let mut input = Parser::new(css);
+-            input.try_parse(CSSWideKeyword::parse)
+-        };
+-
+-        if let Ok(kw) = css_wide_kw {
+-            // TODO: It's unclear what this should do for revert / revert-layer, see
+-            // https://github.com/w3c/csswg-drafts/issues/9131. For now treating as unset
+-            // seems fine?
+-            match (kw, registration.inherits(), context.is_root_element()) {
+-                (CSSWideKeyword::Initial, _, _)
+-                | (CSSWideKeyword::Revert, false, _)
+-                | (CSSWideKeyword::RevertLayer, false, _)
+-                | (CSSWideKeyword::RevertRule, false, _)
+-                | (CSSWideKeyword::Unset, false, _)
+-                | (CSSWideKeyword::Revert, true, true)
+-                | (CSSWideKeyword::RevertLayer, true, true)
+-                | (CSSWideKeyword::RevertRule, true, true)
+-                | (CSSWideKeyword::Unset, true, true)
+-                | (CSSWideKeyword::Inherit, _, true) => {
+-                    remove_and_insert_initial_value(
+-                        name,
+-                        registration,
+-                        stylist.get_custom_property_initial_values(),
+-                        &mut context.builder.substitution_functions,
+-                    );
+-                },
+-                (CSSWideKeyword::Revert, true, false)
+-                | (CSSWideKeyword::RevertLayer, true, false)
+-                | (CSSWideKeyword::RevertRule, true, false)
+-                | (CSSWideKeyword::Inherit, _, false)
+-                | (CSSWideKeyword::Unset, true, false) => {
+-                    if !registration.inherits() {
+-                        context
+-                            .style()
+-                            .add_flags(ComputedValueFlags::INHERITS_RESET_STYLE);
+-                    }
+-                    match inherited.get(registration, name) {
+-                        Some(value) => {
+-                            context.builder.substitution_functions.insert_var(
+-                                registration,
+-                                name,
+-                                value.clone(),
+-                            );
+-                        },
+-                        None => {
+-                            context
+-                                .builder
+-                                .substitution_functions
+-                                .remove_var(registration, name);
+-                        },
+-                    };
+-                },
+-            }
++        let mut input = Parser::new(&substitution.css);
++        if let Ok(kw) = input.try_parse(CSSWideKeyword::parse) {
++            apply_substituted_css_wide_keyword(name, kw, registration, stylist, context);
+             return Ok(());
+-        }
+-    }
+-
+-    if let Some(pending_prioritary) = pending_prioritary {
+-        if is_var && !registration.is_universal() && !pending_prioritary.is_empty() {
+-            let mut parser = Parser::new(&substitution.css);
+-            let resolved = VariableValue::parse(&mut parser, None, url_data)
+-                .map_err(|_| SubstitutionDemand::ContextPreparation)?;
+-            let is_root = context.is_root_element();
+-            let references = crate::properties::cascade::find_non_custom_references(
+-                registration,
+-                &resolved,
+-                is_root,
+-            );
+-            let mut demand = None;
+-            references.for_each_non_custom(is_root, |reference| {
+-                if demand.is_none() {
+-                    demand =
+-                        first_pending_prioritary(reference.to_prioritary_id(), pending_prioritary);
+-                }
+-            });
+-            if let Some(id) = demand {
+-                return Err(SubstitutionDemand::Prioritary(id));
+-            }
+         }
+     }
+ 
+diff --git a/servo/components/style/properties/cascade.rs b/servo/components/style/properties/cascade.rs
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -13,8 +13,8 @@
+     NonCustomReferenceMap, ReferenceFlags, References, SingleNonCustomReference,
+     SubstitutionDemand, SubstitutionFunctionKind, VariableValue,
+     get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
+-    remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
+-    substitute_references_with_pending_and_apply,
++    prepare_registered_value, remove_and_insert_initial_value,
++    substitute_references_if_needed_and_apply, substitute_references_with_pending_and_apply,
+ };
+ use crate::dom::{AttributeTracker, DummyElementContext, ElementContext, TElement};
+ #[cfg(feature = "gecko")]
+@@ -2476,6 +2476,20 @@
+             &mut self.computed_context.builder.substitution_functions
+         }
+ 
++        fn is_open(&self, var: &VarType) -> bool {
++            let index = match var {
++                VarType::Custom(name) => self.index_map.var.get(name).copied(),
++                VarType::Attr(name, namespace) => self
++                    .index_map
++                    .attr
++                    .get(namespace)
++                    .and_then(|names| names.get(name))
++                    .copied(),
++                VarType::NonCustom(reference) => self.non_custom_index_map[*reference],
++            };
++            index.is_some_and(|index| self.var_info[index].var.is_some())
++        }
++
+         /// Marks a given `name` as being in a loop.
+         fn handle_loop(&mut self, name: &VarType) {
+             match name {
+@@ -2538,6 +2552,7 @@
+     /// dependencies) that only exist through an unused fallback don't count.
+     ///
+     /// We need to bubble up non custom references from unregistered properties.
++    /// The result excludes any primary still on the component stack.
+     fn visit_value_references<'a, 'b, 'c, 'd>(
+         root: &References,
+         url_data: &UrlExtraData,
+@@ -2549,8 +2564,9 @@
+         self_ref: &mut bool,
+         attribute_tracker: &mut AttributeTracker,
+         non_custom_references: &mut ReferenceFlags,
+-    ) -> Result<(), SubstitutionDemand> {
++    ) -> Result<bool, SubstitutionDemand> {
+         // FIXME: Maybe avoid visiting the same var twice if not needed?
++        let mut settled = true;
+         let mut refs_stack = SmallVec::<[&References; 5]>::new();
+         refs_stack.push(root);
+         while let Some(refs) = refs_stack.pop() {
+@@ -2608,7 +2624,7 @@
+                 };
+ 
+                 visit_link(
+-                    next_var,
++                    next_var.clone(),
+                     index,
+                     references_from_non_custom_properties,
+                     context,
+@@ -2616,6 +2632,7 @@
+                     self_ref,
+                     attribute_tracker,
+                 )?;
++                settled &= !context.is_open(&next_var);
+ 
+                 // Now that the primary reference has been resolved, classify it to
+                 // decide whether its fallback is used.
+@@ -2661,7 +2678,7 @@
+                 }
+             }
+         }
+-        Ok(())
++        Ok(settled)
+     }
+ 
+     /// Traverse a single dependency `var` of the variable at order index `index`, updating its
+@@ -2837,6 +2854,7 @@
+         });
+         context.stack.push(index);
+ 
++        let mut prepared_value = None;
+         let mut self_ref = false;
+         let mut lowlink = index;
+         if let Some(v) = value.as_ref() {
+@@ -2850,7 +2868,7 @@
+                 VarType::NonCustom(_) => unreachable!(),
+             };
+             // Visit the references in this value...
+-            visit_value_references(
++            let providers_settled = visit_value_references(
+                 &v.references,
+                 &v.url_data,
+                 property_id,
+@@ -2862,6 +2880,24 @@
+                 attribute_tracker,
+                 &mut value_non_custom_refs,
+             )?;
++
++            if providers_settled && let VarType::Custom(name) = &var {
++                let registration = context.stylist.get_custom_property_registration(name);
++                if !registration.is_universal() {
++                    let prepared = prepare_registered_value(
++                        name,
++                        v,
++                        context.stylist,
++                        context.computed_context,
++                        attribute_tracker,
++                        context.pending,
++                    )?;
++                    if let Some(references) = prepared.references(registration) {
++                        value_non_custom_refs &= references;
++                    }
++                    prepared_value = Some(prepared);
++                }
++            }
+ 
+             // ... Then the non-custom properties this value depends on (font-size, line-height,
+             // color-scheme), as computed by `find_non_custom_references` above.
+@@ -2976,7 +3012,14 @@
+         // Not in a loop, apply the value.
+         match var {
+             VarType::Custom(ref name) | VarType::Attr(ref name, _) => {
+-                if let Some(ref v) = value {
++                if let Some(prepared) = prepared_value {
++                    prepared.apply(
++                        name,
++                        context.stylist,
++                        context.computed_context,
++                        Some(context.pending_prioritary),
++                    )?;
++                } else if let Some(ref v) = value {
+                     // We know we're not in a loop now, perform substitution.
+                     // TODO(emilio): Merge with the cycle detection loop instead?
+                     substitute_references_with_pending_and_apply(
