@@ -1,0 +1,57 @@
+--- artifacts/css-registered-number-wpt-capsule-v5/run.py
++++ artifacts/css-registered-zoom-broad-wpt-v1/run.py
+@@ -61,8 +61,8 @@
+ def require_compiled_transition(epoch, role):
+     transition = epoch.get("registered_number_transition")
+     need(isinstance(transition, dict) and transition.get("role") == role and
+-         transition.get("variant") == "committed-head" and transition.get("compiled") is True,
+-         "phase requires matching successful committed-head registered-number compilation")
++         transition.get("variant") == ("committed-head" if role == "original" else "zoom-normalization-v3") and transition.get("compiled") is True,
++         "phase requires matching successful original or zoom-normalization-v3 compilation")
+ 
+ 
+ def application_target(path):
+@@ -98,20 +98,22 @@
+ 
+ 
+ def main():
+-    need(len(sys.argv) in (6, 8), "Usage: run.py CAPSULE_SHA PHASE EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT [ORIGINAL_ASSESSMENT ORIGINAL_SHA]")
++    need(len(sys.argv) == 8, "Usage: run.py CAPSULE_SHA PHASE EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT [ORIGINAL_ASSESSMENT ORIGINAL_SHA]")
+     authenticate(HERE, sys.argv[1])
+     policy = read(HERE / "POLICY.json")
+     succession = load("signed_head_succession", HERE / "succession.py")
+     succession_receipt = succession.validate(ROOT, HERE, policy, SimpleNamespace(**globals()))
+     phase = sys.argv[2]
+-    need(re.fullmatch(r"(original|candidate)-[1-9][0-9]*", phase), "phase label")
++    need(re.fullmatch(r"candidate-[1-9][0-9]*", phase), "candidate-only phase label")
+     role = phase.split("-")[0]
+     need(len(sys.argv) == (6 if role == "original" else 8), "original/candidate baseline arguments")
+     epoch_path = Path(sys.argv[3])
+     need(epoch_path.is_absolute() and not epoch_path.is_symlink(), "absolute regular epoch")
+-    need(sha(epoch_path) == sys.argv[4], "externally supplied epoch digest")
++    need(sha(epoch_path) == sys.argv[4] == succession_receipt["current_epoch_sha256"], "externally supplied epoch digest")
+     epoch = read(epoch_path)
+     require_compiled_transition(epoch, role)
++    need(epoch["registered_number_transition"].get("accepted") is False and
++         epoch["registered_number_transition"].get("last_phase") == "zoom-normalization-build-2", "unaccepted compiled zoom build2")
+     need(epoch["semantic_index"]["head"] == policy["frozen_head"], "epoch HEAD differs from frozen comparison HEAD")
+     app_metadata = application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+     original, baseline_path, adopted = None, None, None
+@@ -137,7 +139,7 @@
+     out = Path(sys.argv[5])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "output must be absent")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-number-wpt-runtime-"), "owned artifact output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-zoom-broad-wpt-runtime-"), "owned artifact output")
+     need(all(not os.environ.get(k) for k in policy["forbidden_environment"]), "unexpected build/git/profile environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+@@ -212,7 +214,7 @@
+               for p in top.rglob("*") if p.is_file() and "tools" not in p.relative_to(top).parts}
+     copied["wptrunner.ini"] = sha(config_path)
+     save(out / "OWNED-INPUT-PINS.json", copied)
+-    tmp = Path(tempfile.mkdtemp(prefix="css-attr-raw-wpt-", dir="/private/tmp"))
++    tmp = Path(tempfile.mkdtemp(prefix="css-registered-zoom-broad-wpt-", dir="/private/tmp"))
+     tmp_identity = (tmp.stat().st_dev, tmp.stat().st_ino)
+     env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+     raw = out / "raw.jsonl"

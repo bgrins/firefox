@@ -1,0 +1,11 @@
+# Additional zoom observations
+
+Runs exactly two isolated WPT pages: six paused registered-length animation cases and eight numeric style-query equality cases. Uses the current compiled, unaccepted nine-file zoom-normalization-v3/build2 candidate at HEAD 6eb538c23bcf3dde9c7631a1c826cba4de562462 and epoch 95570065ed676ce40b548a86c3c4c148c03a39066d7922c733725f12e1c79ade.
+
+The sealed calibration-v2 lifecycle is reused with only exact candidate role/phase/output labels and preceding application metadata binding changed. The adapter authenticates the sealed broad-WPT package and calls its existing fifteen-commit signed succession validator with the original broad policy. Its own policy is derived exactly from sealed lifecycle fields, current nine-source/build/binary provenance, and the two sealed fixtures. The completed broad run is pinned as provenance; its outcomes and roster are not reused as the fourteen new outcomes.
+
+Canonical test and expectation paths remain absent. Captured pages, harness resources and ancestor metadata form an owned WPT root with a genuine generated manifest. Normal WPT preferences, fresh profiles, exact raw identities, BuildID/HEAD, source/resource pins, full epoch/index/nested preservation and owned process/temp cleanup remain enforced before and after execution. Any completed PASS or FAIL is an observation; missing tests, page errors, crashes, timeouts and preservation failures reject the run. There is no native fix acceptance or comparison gate.
+
+Validation: genuine two-entry Manifest API generation/roundtrip 34d36e/0; pure assessor two positive and 26 negative controls ab88cd/0; actual saved signed succession plus 11 policy mutation rejects c760b1→9eb8b4/0; final actual signed succession/completed broad provenance and fourteen exact JS registrations af65cd→3ee791/0. Test callbacks and browser execution have not run during preparation. All temporary validation outputs were removed. No full live epoch verification or shared runtime mutation occurred during preparation.
+
+Root invokes `python3 -I -S -B run.py PACKAGE_SHA ABSOLUTE_EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT`. Output must be a new `artifacts/css-registered-zoom-extra-wpt-runtime-*` directory. Run only when earlier browser/build processes are terminal.

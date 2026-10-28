@@ -1,0 +1,76 @@
+--- artifacts/css-registered-zoom-wpt-calibration-v2/run.py
++++ run.py
+@@ -61,8 +61,8 @@
+ def require_compiled_transition(epoch, role):
+     transition = epoch.get("registered_number_transition")
+     need(isinstance(transition, dict) and transition.get("role") == role and
+-         transition.get("variant") == "committed-head" and transition.get("compiled") is True,
+-         "phase requires matching successful committed-head registered-number compilation")
++         transition.get("variant") == "zoom-normalization-v3" and transition.get("compiled") is True,
++         "phase requires matching successful experimental zoom-normalization-v3 compilation")
+ 
+ 
+ def application_target(path):
+@@ -103,20 +103,21 @@
+     policy = read(HERE / "POLICY.json")
+     succession = load("calibration_successor", HERE / "succession.py")
+     succession_receipt = succession.validate(ROOT, HERE, policy, SimpleNamespace(**globals()))
+-    phase = "admission-only-1"
++    phase = "zoom-extra-1"
+     epoch_path = Path(sys.argv[2])
+     need(epoch_path.is_absolute() and not epoch_path.is_symlink(), "absolute regular epoch")
+     need(sha(epoch_path) == sys.argv[3] == policy["epoch_sha256"], "exact externally supplied epoch")
+     epoch = read(epoch_path)
+     require_compiled_transition(epoch, "candidate")
+     need(epoch["registered_number_transition"].get("accepted") is False and
+-         epoch["registered_number_transition"].get("last_phase") == "head-candidate-build-2",
+-         "unaccepted admission-only build2 required")
++         epoch["registered_number_transition"].get("last_phase") == "zoom-normalization-build-2",
++         "unaccepted zoom-normalization build2 required")
+     need(epoch["semantic_index"]["head"] == policy["frozen_head"], "frozen HEAD")
+     need(sha(ROOT / policy["build_result"]) == policy["build_result_sha256"], "build2 receipt")
+     build = read(ROOT / policy["build_result"])
+     need(build["command_success"] and build["preservation_verified"] and not build["owned_processes"] and not build["publication_errors"], "successful preserved build2")
+     app_metadata = application_metadata(ROOT / policy["application_ini"], policy["frozen_head"])
++    need(app_metadata == succession_receipt["preceding_run_binding"], "same application metadata as completed broad run")
+     for name, pin in read(HERE / "REFERENCES.json").items():
+         need(sha(ROOT / name) == pin, "helper/source binding: " + name)
+     for name, pin in policy["native_sources"].items():
+@@ -124,7 +125,7 @@
+     out = Path(sys.argv[4])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "output must be absent")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-zoom-wpt-calibration-runtime-"), "owned artifact output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-zoom-extra-wpt-runtime-"), "owned artifact output")
+     need(all(not os.environ.get(k) for k in policy["forbidden_environment"]), "unexpected build/git/profile environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+@@ -152,7 +153,7 @@
+     need({n: fingerprint_resource(n) for n in resource_pins} == resource_pins, "source/resource/metadata inputs")
+     binary_pins = {name: h.fingerprint(ROOT, name) for name in policy["normal_binaries"]}
+     need(all(pin and epoch["pins"][name] == pin for name, pin in binary_pins.items()), "normal built binary bindings")
+-    need(binary_pins == policy["candidate_binaries"], "exact admission-only build2 binaries")
++    need(binary_pins == policy["candidate_binaries"], "exact experimental zoom-normalization build2 binaries")
+     out.mkdir()
+     save(out / "HEAD-SUCCESSION.json", succession_receipt)
+     save(out / "EPOCH.json", epoch)
+@@ -196,7 +197,7 @@
+               for p in top.rglob("*") if p.is_file() and "tools" not in p.relative_to(top).parts}
+     copied["wptrunner.ini"] = sha(config_path)
+     save(out / "OWNED-INPUT-PINS.json", copied)
+-    tmp = Path(tempfile.mkdtemp(prefix="css-registered-zoom-calibration-", dir="/private/tmp"))
++    tmp = Path(tempfile.mkdtemp(prefix="css-registered-zoom-extra-", dir="/private/tmp"))
+     tmp_identity = (tmp.stat().st_dev, tmp.stat().st_ino)
+     env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+     raw = out / "raw.jsonl"
+@@ -266,8 +267,8 @@
+         assessment.update(phase=phase, capsule_manifest_sha256=sys.argv[1],
+                           epoch_sha256=sys.argv[3], native_sources=policy["native_sources"],
+                           source_role=policy["source_role"], observation_only=True,
+-                          subtest_cardinality_policy="Exact 56 calibration identities across four pages; PASS and FAIL are complete observations",
+-                          oracle_caveat="Unexecuted draft calibration on admission-only candidate; failures are observations, not accepted fixes",
++                          subtest_cardinality_policy="Exact 14 observation identities across two pages; PASS and FAIL are complete observations",
++                          oracle_caveat="Animation and numeric style-query observations on experimental normalization candidate; failures are not accepted fixes",
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)

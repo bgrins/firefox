@@ -1,0 +1,54 @@
+--- container-observation-v2/run.py
++++ container-observation-v3/run.py
+@@ -54,6 +54,8 @@
+     need = lambda value, message: None if value else fail(message)
+     authenticate(wrapper_path, expected_wrapper)
+     helper = load("pinned_wpt_runner", wrapper_path / "run.py")
++    succession = helper.load("observer_successor", HERE / "succession.py")
++    succession_receipt = succession.validate(ROOT, HERE, policy, helper)
+     phase = sys.argv[2]
+     need(re.fullmatch(r"zoom-normalization-[1-9][0-9]*", phase), "phase")
+     role = "candidate"
+@@ -75,13 +77,13 @@
+     need(transition.get("accepted") is False and transition.get("last_phase") == "zoom-normalization-build-2", "unaccepted zoom-normalization build2")
+     need(normative["complete"] and normative["execution_preserved"] and normative["phase"] == "zoom-normalization-1" and normative["source_role"] == "zoom-normalization-v3" and normative["observation_only"] is True,
+          "matching complete preserved calibration phase")
+-    need(normative["epoch_sha256"] == sys.argv[4] and normative["capsule_manifest_sha256"] == expected_wrapper,
++    need(normative["epoch_sha256"] == policy["calibration_epoch_sha256"] and normative["capsule_manifest_sha256"] == expected_wrapper,
+          "calibration phase capsule/epoch")
+     need(normative["native_sources"] == policy["source_roles"][role], "normative source role")
+     for name, expected in policy["source_roles"][role].items():
+         need(helper.sha(ROOT / name) == expected and epoch["pins"].get(name) == expected, "native source: " + name)
+     metadata = helper.application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+-    need(metadata == normative["run_binding"], "same application metadata as calibration phase")
++    succession.validate_metadata(metadata, normative["run_binding"], succession_receipt, need)
+     out = Path(sys.argv[7])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "absent output")
+     out = out.resolve()
+@@ -102,6 +104,8 @@
+     need(all(value and epoch["pins"].get(name) == value for name, value in binaries.items()), "built binary epoch")
+     need(binaries == policy["candidate_binaries"], "exact build2 binary pins")
+     out.mkdir()
++    helper.save(out / "HEAD-SUCCESSION.json", succession_receipt)
++    helper.save(out / "CALIBRATION-APPLICATION-METADATA.json", normative["run_binding"])
+     helper.save(out / "BASELINE-BINDING.json", {"directory":policy["baseline_directory"], "pins":helper.read(HERE / "BASELINE-PINS.json"), "phase":original["phase"]})
+     for name, value in (("EPOCH.json", epoch), ("PRE.json", before), ("INDEX-FLAGS.json", flags),
+                         ("NORMAL-BINARIES.json", binaries), ("APPLICATION-METADATA.json", metadata)):
+@@ -207,6 +211,7 @@
+             for name, expected in helper.read(HERE / "REFERENCES.json").items():
+                 need(helper.sha(ROOT / name) == expected, "reference changed: " + name)
+             need(baseline.validate(ROOT, HERE, policy, helper, validation) == original, "saved baseline changed")
++            need(succession.validate(ROOT, HERE, policy, helper) == succession_receipt, "signed succession changed")
+             helper.save(out / "POST.json", post)
+         except BaseException as exc:
+             post_error = repr(exc)
+@@ -222,7 +227,8 @@
+     result = {"complete": bool(preserved and summary), "execution_preserved": bool(preserved),
+               "phase": phase, "manifest_sha256": sys.argv[1], "epoch_sha256": sys.argv[4],
+               "normative_assessment_sha256": sys.argv[6], "normative_phase": normative["phase"], "native_sources": policy["source_roles"][role],
+-              "application_metadata": metadata, "normal_binaries": binaries, "summary": summary, "comparison": comparison,
++              "application_metadata": metadata, "calibration_application_metadata": normative["run_binding"],
++              "signed_head_succession": succession_receipt, "normal_binaries": binaries, "summary": summary, "comparison": comparison,
+               "browser_exit": process.returncode if process else None, "natural_exit_before_cleanup": natural_exit,
+               "termination_requested_for_owned_cleanup": process is not None, "error": error, "preservation_error": post_error,
+               "profile_configuration": "fresh default profile; WPT preferences are not imported",

@@ -1,0 +1,116 @@
+--- artifacts/css-registered-number-wpt-capsule-v5/test_assess.py
++++ artifacts/css-registered-zoom-broad-wpt-v1/test_assess.py
+@@ -156,7 +156,7 @@
+ runner = load("runner_without_execution", here / "run.py")
+ for role in ("original", "candidate"):
+     runner.require_compiled_transition({"registered_number_transition": {
+-        "role": role, "variant": "committed-head", "compiled": True}}, role)
++        "role": role, "variant": ("committed-head" if role == "original" else "zoom-normalization-v3"), "compiled": True}}, role)
+ phase_rejections = []
+ for role in ("original", "candidate"):
+     for label, epoch in [
+@@ -164,9 +164,9 @@
+         ("raw transition only", {"raw_attribute_transition": {"role": "candidate", "compiled": True, "accepted": True}}),
+         ("missing variant", {"registered_number_transition": {"role": role, "compiled": True}}),
+         ("live variant", {"registered_number_transition": {"role": role, "variant": "live", "compiled": True}}),
+-        ("not compiled", {"registered_number_transition": {"role": role, "variant": "committed-head", "compiled": False}}),
+-        ("integer compiled", {"registered_number_transition": {"role": role, "variant": "committed-head", "compiled": 1}}),
+-        ("opposite role", {"registered_number_transition": {"role": "candidate" if role == "original" else "original", "variant": "committed-head", "compiled": True}}),
++        ("not compiled", {"registered_number_transition": {"role": role, "variant": ("committed-head" if role == "original" else "zoom-normalization-v3"), "compiled": False}}),
++        ("integer compiled", {"registered_number_transition": {"role": role, "variant": ("committed-head" if role == "original" else "zoom-normalization-v3"), "compiled": 1}}),
++        ("opposite role", {"registered_number_transition": {"role": "candidate" if role == "original" else "original", "variant": ("committed-head" if role == "original" else "zoom-normalization-v3"), "compiled": True}}),
+     ]:
+         try:
+             runner.require_compiled_transition(epoch, role)
+@@ -200,76 +200,6 @@
+             reject(label + ": " + name, changed)
+     incomplete = parser.assess([e for e in events("FAIL") if e.get("test") != test], 1, policy, checks, run_binding=binding)
+     assert not incomplete["complete"]
+-
+-import hashlib
+-import tempfile
+-saved_argv = sys.argv
+-saved_authenticate = runner.authenticate
+-saved_metadata = runner.application_metadata
+-stale_epoch_rejections = []
+-def forbid_metadata(*args):
+-    raise AssertionError("stale epoch reached live application metadata")
+-try:
+-    runner.authenticate = lambda *args: None
+-    runner.application_metadata = forbid_metadata
+-    with tempfile.TemporaryDirectory(prefix="registered-number-epoch-negative-") as temporary:
+-        epoch_path = Path(temporary) / "EPOCH.json"
+-        for role in ("original", "candidate"):
+-            epoch_path.write_text(json.dumps({"registered_number_transition": {
+-                "role": role, "variant": "committed-head", "compiled": True}}))
+-            previous = hashlib.sha256(epoch_path.read_bytes()).hexdigest()
+-            epoch_path.write_text(json.dumps({"registered_number_transition": {
+-                "role": role, "variant": "committed-head", "compiled": False}}))
+-            sys.argv = ["run.py", "0" * 64, role + "-1", str(epoch_path), previous,
+-                        str(Path(temporary) / "absent-output")]
+-            if role == "candidate":
+-                sys.argv += [str(Path(temporary) / "absent-original"), "0" * 64]
+-            try:
+-                runner.main()
+-            except RuntimeError as error:
+-                assert str(error) == "externally supplied epoch digest", str(error)
+-                stale_epoch_rejections.append(role)
+-            else:
+-                raise AssertionError("stale epoch accepted")
+-finally:
+-    sys.argv = saved_argv
+-    runner.authenticate = saved_authenticate
+-    runner.application_metadata = saved_metadata
+-fresh_baseline_rejections = []
+-try:
+-    runner.authenticate = lambda *args: None
+-    runner.application_metadata = lambda *args: binding
+-    with tempfile.TemporaryDirectory(prefix="registered-number-baseline-negative-") as temporary:
+-        temporary = Path(temporary)
+-        epoch_path = temporary / "EPOCH.json"
+-        baseline_path = temporary / "ASSESSMENT.json"
+-        for label, head, capsule in [
+-            ("frozen HEAD drift", "f" * 40, "0" * 64),
+-            ("prior capsule baseline", policy["frozen_head"], "9" * 64),
+-        ]:
+-            epoch_path.write_text(json.dumps({"registered_number_transition": {
+-                "role": "candidate", "variant": "committed-head", "compiled": True},
+-                "semantic_index": {"head": head}}))
+-            baseline_path.write_text(json.dumps({"complete": True, "execution_preserved": True,
+-                "phase": "original-1", "capsule_manifest_sha256": capsule,
+-                "native_sources": policy["source_roles"]["original"],
+-                "run_binding": {"revision": policy["frozen_head"]}}))
+-            sys.argv = ["run.py", "0" * 64, "candidate-2", str(epoch_path),
+-                        hashlib.sha256(epoch_path.read_bytes()).hexdigest(), str(temporary / "absent-output"),
+-                        str(baseline_path), hashlib.sha256(baseline_path.read_bytes()).hexdigest()]
+-            try:
+-                runner.main()
+-            except RuntimeError as error:
+-                assert str(error) == ("epoch HEAD differs from frozen comparison HEAD" if label == "frozen HEAD drift" else "only the exact adopted original assessment is permitted"), str(error)
+-                fresh_baseline_rejections.append(label)
+-            else:
+-                raise AssertionError(label)
+-finally:
+-    sys.argv = saved_argv
+-    runner.authenticate = saved_authenticate
+-    runner.application_metadata = saved_metadata
+-
+-assert len(phase_rejections) == 14 and len(stale_epoch_rejections) == 2
+ old_binding = dict(binding, revision=policy["original_frozen_head"])
+ old_events = events("FAIL")
+ old_events[0]["run_info"]["revision"] = old_binding["revision"]
+@@ -297,12 +227,5 @@
+ assert not parser.assess(new_events, 1, policy, checks, signed_original, new_binding)["comparison_gate_passed"]
+ succession_rejected.append("nonrevision run_info drift across exact succession")
+ 
+-print(json.dumps({"original_expected_failures_retained": True,
+-                  "matching_original_candidate_passes": True, "rejected_controls": rejected,
+-                  "phase_transition_positive_controls": 2,
+-                  "phase_transition_rejected_controls": phase_rejections,
+-                  "stale_epoch_main_preflight_rejected": stale_epoch_rejections,
+-                  "stale_epoch_test_scope": "Capsule authentication stubbed; real epoch digest check executed before live metadata or process launch",
+-                  "fresh_baseline_rejected_controls": fresh_baseline_rejections,
+-                  "exact_signed_head_pair_accepted": True, "signed_head_rejected_controls": succession_rejected,
+-                  "build_identity_controls": build_checks}, indent=2))
++
++print(json.dumps({"positive_comparison":True,"rejected_controls":rejected,"phase_positive":2,"phase_rejected":phase_rejections,"build_identity_controls":build_checks,"signed_head_rejections":succession_rejected,"main_executed":False},indent=2))

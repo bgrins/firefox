@@ -1,0 +1,17 @@
+--- artifacts/css-registered-number-wpt-capsule-v5/adoption.py
++++ artifacts/css-registered-zoom-broad-wpt-v1/adoption.py
+@@ -7,12 +7,12 @@
+     if "original_frozen_head" in result:
+         result["frozen_head"] = result.pop("original_frozen_head")
+     result["source_roles"] = {"original": policy["source_roles"]["original"]}
++    result["unchanged_native_sources"] = dict(result["unchanged_native_sources"])
++    result["unchanged_native_sources"]["servo/components/style/properties_and_values/value.rs"] = "1958c2f5eeea07042063ab50ca3b2d75ea80daf3f14afc81838c644b3adf04c4"
+     return result
+ 
+ 
+ def validate(root, here, baseline_path, baseline_sha, policy, helper):
+-    succession = helper.load("adoption_head_succession", here / "succession.py")
+-    succession.validate(root, here, policy, helper)
+     receipt = helper.read(here / "ADOPTED-ORIGINAL.json")
+     previous = root / receipt["predecessor"]
+     runtime = root / receipt["runtime"]

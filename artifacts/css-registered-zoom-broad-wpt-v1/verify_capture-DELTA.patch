@@ -1,0 +1,37 @@
+--- artifacts/css-registered-number-wpt-capsule-v5/verify_capture.py
++++ artifacts/css-registered-zoom-broad-wpt-v1/verify_capture.py
+@@ -64,18 +64,21 @@
+ assert policy["tests"] == selected
+ assert policy["target_subtests"] == targets and policy["regression_subtests"] == regressions
+ assert policy["held_subtests"] == held
+-assert policy["frozen_head"] == "b7583cb3a5908bc26deaf5bedab242c4c8fd8633"
++assert policy["frozen_head"] == "6eb538c23bcf3dde9c7631a1c826cba4de562462"
+ assert policy["original_frozen_head"] == "e2839ec561c1e19de963bd0d56f46f4c067685d0"
+ for name in held:
+     assert (FIXTURE / ("held/testing/web-platform/tests" + name)).read_bytes() == (HERE / ("capture/testing/web-platform/tests" + name)).read_bytes()
+ roles = read(HERE / "SOURCE-ROLE-CAPTURES.json")
+-assert roles == read(ROOT / "artifacts/css-registered-admission-preparation-head-proposal-v3/COMBINED-SOURCE-ROLES.json")
++expected_roles = read(ROOT / "artifacts/css-registered-admission-preparation-head-proposal-v3/COMBINED-SOURCE-ROLES.json")
++zoom_roles = read(ROOT / "artifacts/css-registered-zoom-normalization-proposal-v3/SOURCE-ROLES.json")
++expected_roles["candidate"].update({name:{"capture":item["candidate"],"sha256":item["candidate_sha256"]} for name,item in zoom_roles.items()})
++assert roles == expected_roles
+ for phase, source_role in (("original", "base"), ("candidate", "candidate")):
+     assert policy["source_roles"][phase] == {name: item["sha256"] for name, item in roles[source_role].items()}
+     for name, item in roles[source_role].items():
+         assert sha(ROOT / item["capture"]) == item["sha256"], name
+-assert len(policy["source_roles"]["original"]) == len(policy["source_roles"]["candidate"]) == 2
+-assert len(policy["unchanged_native_sources"]) == 6
++assert len(policy["source_roles"]["original"]) == 2 and len(policy["source_roles"]["candidate"]) == 9
++assert len(policy["unchanged_native_sources"]) == 5
+ assert not (set(policy["unchanged_native_sources"]) & set(policy["runtime_inputs"]))
+ for name, pin in policy["unchanged_native_sources"].items():
+     capture = ROOT / "artifacts/css-registered-value-collector-proposal-v1/base" / name
+@@ -98,6 +101,6 @@
+                   "prior_402_actual_names_exact": True,
+                   "prior_21_regression_manifest_entries_identical": True,
+                   "all_fixture_payloads_bound": True,
+-                  "reviewed_clean_head_two_file_roles_bound": True,
+-                  "six_unused_collector_sources_pinned_unchanged": True,
++                  "reviewed_original_two_and_candidate_nine_file_roles_bound": True,
++                  "five_unused_collector_sources_pinned_unchanged": True,
+                   "observation_excluded": True, "browser_executed": False}, indent=2))

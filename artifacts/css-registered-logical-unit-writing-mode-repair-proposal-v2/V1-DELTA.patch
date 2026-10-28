@@ -1,0 +1,111 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -2688,8 +2688,8 @@
+                 });
+             }
+         } else if let VarType::NonCustom(non_custom) = var {
+-            // line-height's resolution depends on font-size and writing-mode, so its node has graph
+-            // edges to both. This is needed for cycle detection (not just application order, which
++            // line-height's resolution depends on font-size's, so its node has a graph edge to the
++            // font-size node. This is needed for cycle detection (not just application order, which
+             // `prioritary_property_dependencies(LineHeight)` handles): it puts the line-height node
+             // in the same strongly-connected component as a font-size<->custom cycle, so the node
+             // doesn't apply line-height (and, transitively, font-size) before that cycle is
+@@ -2698,20 +2698,15 @@
+             // TODO(emilio): I think the right fix for this is
+             // s/SingleNonCustomReference/PrioritaryPropertyId in VarType::NonCustom.
+             if non_custom == SingleNonCustomReference::LhUnits {
+-                for dependency in [
+-                    SingleNonCustomReference::FontUnits,
+-                    SingleNonCustomReference::WritingMode,
+-                ] {
+-                    visit_link(
+-                        VarType::NonCustom(dependency),
+-                        index,
+-                        references_from_non_custom_properties,
+-                        context,
+-                        &mut lowlink,
+-                        &mut self_ref,
+-                        attribute_tracker,
+-                    );
+-                }
++                visit_link(
++                    VarType::NonCustom(SingleNonCustomReference::FontUnits),
++                    index,
++                    references_from_non_custom_properties,
++                    context,
++                    &mut lowlink,
++                    &mut self_ref,
++                    attribute_tracker,
++                );
+             }
+             let entry = &references_from_non_custom_properties[non_custom];
+             if let Some(values) = entry.as_ref() {
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-writing-mode-fixed-line-height.html
+@@ -0,0 +1,65 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Fixed line-height is independent of a variable writing-mode consumer</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#lh">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#property-replacement">
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#dependency-cycles">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++let sequence = 0;
++for (const parentMode of ["horizontal-tb", "vertical-rl"]) {
++  for (const declarationOrder of ["provider first", "consumer first"]) {
++    for (const queryOrder of ["provider first", "consumer first"]) {
++      test(t => {
++        const name = `--fixed-lh-writing-mode-${sequence++}`;
++        CSS.registerProperty({name, syntax: "<length>", inherits: false,
++                              initialValue: "17px"});
++        const parent = document.createElement("div");
++        parent.style.cssText = `writing-mode:${parentMode};font-size:16px`;
++        const target = document.createElement("div");
++        const declarations = [`${name}:1lh`, `writing-mode:var(${name})`];
++        if (declarationOrder === "consumer first") {
++          declarations.reverse();
++        }
++        target.style.cssText = `font-size:16px;${declarations.join(";")}`;
++        const control = document.createElement("div");
++        control.style.cssText = "font-size:16px";
++        control.style.writingMode = `var(${name})`;
++        parent.append(target, control);
++        document.body.append(parent);
++        t.add_cleanup(() => parent.remove());
++        const snapshots = [];
++        for (const size of [40, 60, 40]) {
++          target.style.lineHeight = `${size}px`;
++          control.style.lineHeight = `${size}px`;
++          control.style.setProperty(name, `${size}px`);
++          const style = getComputedStyle(target);
++          let value, writingMode;
++          if (queryOrder === "provider first") {
++            value = style.getPropertyValue(name).trim();
++            writingMode = style.writingMode;
++          } else {
++            writingMode = style.writingMode;
++            value = style.getPropertyValue(name).trim();
++          }
++          const controlStyle = getComputedStyle(control);
++          snapshots.push({size, value, writingMode, lineHeight: style.lineHeight,
++            controlValue: controlStyle.getPropertyValue(name).trim(),
++            controlMode: controlStyle.writingMode});
++        }
++        const detail = JSON.stringify(snapshots);
++        for (const snapshot of snapshots) {
++          const expected = `${snapshot.size}px`;
++          assert_equals(snapshot.controlValue, expected, `Literal calibration: ${detail}`);
++          assert_equals(snapshot.controlMode, parentMode, `Invalid consumer calibration: ${detail}`);
++          assert_equals(snapshot.lineHeight, expected, `Independent line-height: ${detail}`);
++          assert_equals(snapshot.value, expected, `No synthetic writing-mode cycle: ${detail}`);
++          assert_equals(snapshot.writingMode, parentMode, `Invalid consumer inherits: ${detail}`);
++        }
++      }, `Fixed line-height writing-mode independence: ${parentMode}, ${declarationOrder}, ${queryOrder}`);
++    }
++  }
++}
++</script>

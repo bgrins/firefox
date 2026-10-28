@@ -1,0 +1,12 @@
+import Quantization
+
+#print axioms ZoomQuantization.raw_denominator_positive
+#print axioms ZoomQuantization.error_is_signed_remainder
+#print axioms ZoomQuantization.normalized_error_bound
+#print axioms ZoomQuantization.exact_iff_no_remainder
+#print axioms ZoomQuantization.nonnegative_error_for_nonnegative_length
+#print axioms ZoomQuantization.quantization_preserves_sign_symmetry
+#print axioms ZoomQuantization.error_preserves_sign_symmetry
+#print axioms ZoomQuantization.fractional_witness
+#print axioms ZoomQuantization.half_zoom_witness
+#print axioms ZoomQuantization.quantization_does_not_commute_with_zoom

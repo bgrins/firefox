@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Numeric style ranges use the same units as registered values under zoom</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#style-container">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>html { overflow: hidden; }</style>
+<body>
+<script>
+let sequence = 0;
+for (const [syntax, unit] of [["number", ""], ["angle", "deg"],
+                              ["time", "s"], ["resolution", "dppx"]]) {
+  for (const deferred of [false, true]) {
+    test(t => {
+      const id = sequence++;
+      const name = `--numeric-range-${id}`;
+      const containerName = `numeric-range-container-${id}`;
+      const targetId = `numeric-range-target-${id}`;
+      const factor = 4875 / (innerWidth * 60);
+      const expression = `calc(${factor}vw / 1px${unit ? ` * 1${unit}` : ""})`;
+      CSS.registerProperty({name, syntax: `<${syntax}>`, inherits: false,
+                            initialValue: `999${unit}`});
+      const container = document.createElement("div");
+      container.style.containerName = containerName;
+      container.style.setProperty("--ready", expression);
+      container.style.setProperty(name, deferred ? "var(--ready, 1em)" : expression);
+      container.style.setProperty("--range-control", "5");
+      const initial = document.createElement("div");
+      const target = document.createElement("div");
+      target.id = targetId;
+      container.append(target);
+      const stylesheet = document.createElement("style");
+      stylesheet.textContent = `
+        #${targetId} { --equal:no; --control:no; --false:no; }
+        @container ${containerName} style(--range-control = 5) {
+          #${targetId} { --control:yes; }
+        }
+        @container ${containerName} style(${name} = ${expression}) {
+          #${targetId} { --equal:yes; }
+        }
+        @container ${containerName} style(${name} > 999${unit}) {
+          #${targetId} { --false:yes; }
+        }`;
+      document.head.append(stylesheet);
+      document.body.append(container, initial);
+      t.add_cleanup(() => { container.remove(); initial.remove(); stylesheet.remove(); });
+      const initialValue = getComputedStyle(initial).getPropertyValue(name).trim();
+      const snapshots = [];
+      for (const zoom of [1, 2, 0.5, 1]) {
+        container.style.zoom = zoom;
+        const value = getComputedStyle(container).getPropertyValue(name).trim();
+        const style = getComputedStyle(target);
+        snapshots.push({zoom, value, equal:style.getPropertyValue("--equal").trim(),
+          control:style.getPropertyValue("--control").trim(),
+          falseQuery:style.getPropertyValue("--false").trim()});
+      }
+      for (const snapshot of snapshots) {
+        const detail = `${expression}: ${JSON.stringify(snapshot)}`;
+        assert_not_equals(snapshot.value, initialValue, `Grammar admission: ${detail}`);
+        assert_equals(snapshot.control, "yes", `Style range support: ${detail}`);
+        assert_equals(snapshot.falseQuery, "no", `False range: ${detail}`);
+        assert_equals(snapshot.equal, "yes", `Identical expression equality: ${detail}`);
+      }
+    }, `Numeric style range zoom: ${syntax}, ${deferred ? "substituted" : "direct"}`);
+  }
+}
+</script>
