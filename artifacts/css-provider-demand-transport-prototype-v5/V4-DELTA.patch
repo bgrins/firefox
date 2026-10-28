@@ -1,0 +1,19 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -3227,6 +3227,16 @@
+         context: &mut Context<'a, 'b, 'c, 'd>,
+         attribute_tracker: &mut AttributeTracker,
+     ) -> Result<Option<usize>, custom_properties::SubstitutionDemand> {
++        if let VarType::Custom(name) = &var {
++            if context.completion.is_some() && context.graph.invalidated_pending.contains(name) {
++                context.apply_invalid_default(
++                    name,
++                    references_from_non_custom_properties,
++                    attribute_tracker,
++                )?;
++                return Ok(None);
++            }
++        }
+         if let VarType::Custom(name) = &var {
+             if context.completion.is_some()
+                 && context.cascade.deferred_registered.contains_key(name)
