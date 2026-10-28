@@ -1,0 +1,40 @@
+--- disabled-staged/build.py
++++ post-signing/build.py
+@@ -21,10 +21,9 @@
+ spec.loader.exec_module(s)
+ ownership = s.load('build_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ ownership.authenticate(CAPSULE, manifest)
+-ownership.authenticate(ROOT / policy['staged_capsule'], policy['staged_capsule_sha256'])
+ for name, pin in json.loads((CAPSULE / 'REFERENCES.json').read_text()).items():
+     assert s.sha(ROOT / name) == pin
+-s.a = s.load('build_staged_guard', policy['staged_capsule'] + '/epoch.py')
++succession = s.load('provider_build_succession', str((CAPSULE / 'succession.py').relative_to(ROOT)))
+ OBJ = ROOT / 'objdir-full.noindex'
+ env = dict(os.environ, GIT_OPTIONAL_LOCKS='0', MOZCONFIG=str(ROOT / 'mozconfig'),
+            MOZ_OBJDIR=str(OBJ), MOZ_HEADLESS='1', MOZ_SKIP_PATH_PERFORMANCE_CHECK='1',
+@@ -43,12 +42,15 @@
+ assert settings['source_pins'] and settings['source_pins'] == {n: epoch['pins'][n] for n in epoch['modified_native_paths']}
+ assert epoch['semantic_index']['head'] == policy['head']
+ transition = ROOT / settings['transition_output']
+-assert (transition / 'EPOCH.json').read_bytes() == controls['CURRENT-EPOCH.json']
++succession.validate(ROOT, CAPSULE, policy, epoch, s.h, env)
+ installed = json.loads((transition / 'RESULT.json').read_text())
+ assert installed['installed'] and installed['preservation_verified']
+ assert installed['compiled'] is False and installed['accepted'] is False
+ assert installed['native_changes'] == 2 and installed['modified_native_paths'] == 1 and installed['staged_paths'] == 36
+-assert installed['epoch_sha256'] == expected_epoch
++assert installed['epoch_sha256'] == settings['transition_epoch_sha256']
++assert epoch['staged_working'] == {}
++assert ownership.digest(controls['ROLE.json']) == settings['role_sha256']
++assert ownership.digest(controls['OWNED.json']) == settings['owned_sha256']
+ claims = {n: ownership.claim(ROOT, str((HERE/n).relative_to(ROOT)), ownership.digest(body)) for n, body in controls.items()}
+ ownership.quiescent(HERE)
+ assert not os.path.lexists(HERE / 'SOURCE-TRANSITION.lock')
+@@ -71,6 +73,7 @@
+     signal.signal(sig, stop)
+ deadline = time.monotonic() + 1800
+ ownership.authenticate(CAPSULE, manifest)
++succession.validate(ROOT, CAPSULE, policy, epoch, s.h, env)
+ assert s.a.verify_current(s.h, ROOT, env, epoch) == before
+ assert all(s.h.git(ROOT / name, env, 'ls-files', '-v', '-z') == body for name, body in flags.items())
+ for item in claims.values():

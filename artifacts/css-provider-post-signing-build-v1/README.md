@@ -1,0 +1,9 @@
+# Post-signing provider build
+
+This successor compiles the installed partial-v5 experiment with the existing guarded binary build phase and ordinary empty-index epoch verifier. The six signed v27 commits are checked against actual parent/tree/path sets and SSH signatures. Exact saved epoch reconstruction permits the authenticated research metadata changes and removal of the 36 staged entries; source bodies, binaries, ownership identities, nested state and untracked companions are unchanged from the original f9576f transition epoch before building.
+
+The input HEAD is 38d46563aea00f9c575cc78d9f5c7865a9a256cb and epoch 0d959daf7806b0052e8e616817b01a0cad92435b6058259952874d2d943ee327. Only custom_properties.rs is dirty; cascade.rs is restored to its committed body. Historical ROLE pairing/build fields and historical browser metadata are retained as provenance, not claims about current compilation. Output provider-default-candidate-build-3 must be absent.
+
+The command is mach build binaries -j2 with existing disk/time limits and owned process cleanup. Immediate input/control checks precede launch; COMMAND is written after final quiescence. Only four existing binary pins may refresh afterward. Source/index/nested preservation must pass before compiled status publication. Failed commands remain compiled=false; publication failures record manual recovery without restoring stale binary hashes. No native source, Git index, ledger or acceptance changes are performed by this adapter.
+
+Preparation: saved signing projection, ten corruption controls, reference authentication and syntax. Full live guard and signature checks execute only when root runs the build. The same 775 observations and eight conditional contextual-weight controls remain required after compilation; no acceptance or formal-coverage credit is inferred.

@@ -1,0 +1,310 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered numeric values discard rejected and unused dependencies</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#property-replacement">
+<link rel="help" href="https://drafts.csswg.org/css-variables-1/#replace-a-var-function">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+@property --n { syntax: "<number>"; inherits: false; initial-value: 3; }
+@property --provider { syntax: "<number>"; inherits: false; initial-value: 7; }
+</style>
+<body>
+<script>
+const cases = [
+  {"id": "probe: direct-number", "css": "--n:5", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-no-fallback", "css": "--ready:5;--n:var(--ready)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-number-fallback", "css": "--ready:5;--n:var(--ready,2)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-px-fallback", "css": "--ready:5;--n:var(--ready,1px)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-em-fallback", "css": "--ready:5;--n:var(--ready,1em)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-lh-fallback", "css": "--ready:5;--n:var(--ready,1lh)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-ex-fallback", "css": "--ready:5;--n:var(--ready,1ex)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: ready-nested-em-fallback", "css": "--ready:5;--n:var(--ready,var(--missing,1em))", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: missing-number-fallback", "css": "--n:var(--missing,5)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: missing-em-fallback", "css": "--n:var(--missing,1em)", "parent": "", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "probe: wrong-primary-unused-em", "css": "--wrong:red;--n:var(--wrong,1em)", "parent": "", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "probe: direct-invalid-em", "css": "--n:1em", "parent": "", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "probe: inherited-ready-unused-em", "css": "--n:var(--ready,1em)", "parent": "--ready:5", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "probe: provider-contained-unused-em", "css": "--ready:5;--middle:var(--ready,1em);--n:var(--middle)", "parent": "", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "normative: literal-number", "css": "--n:5", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "normative: direct-invalid-length", "css": "--n:1em", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "normative: valid-primary-unused-length", "css": "--ready:5;--n:var(--ready, 1em)", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "normative: used-invalid-length-fallback", "css": "--n:var(--missing, 1em)", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "normative: wrong-type-ready-primary", "css": "--ready:red;--n:var(--ready, 1em)", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "normative: provider-introduced-numeric-length-division", "css": "--math:calc(1em / 1px);--n:var(--math);font-size:20px;width:calc(var(--n) * 1px)", "expected": {"--n": "20", "font-size": "20px", "width": "20px"}, "mutation": {"set": {"font-size": "30px"}, "expected": {"--n": "30", "font-size": "30px", "width": "30px"}}, "fontSize": "20px"},
+  {"id": "normative: unused-valid-numeric-math-fallback", "css": "--ready:5;--n:var(--ready, calc(1em / 1px))", "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "selected-var-self-cycle", "css": "--n:var(--n,7)", "attributes": {}, "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "selected-var-mutual-cycle", "css": "--n:var(--loop,7);--loop:var(--n,9)", "attributes": {}, "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "selected-typed-attribute-property-cycle", "css": "--n:attr(data-value type(*),7)", "attributes": {"data-value": "var(--n,9)"}, "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "selected-typed-attribute-only-cycle", "css": "--n:attr(data-value type(*),7)", "attributes": {"data-value": "attr(data-value type(*))"}, "expected": {"--n": "7", "font-size": "7px"}},
+  {"id": "wrong-var-primary-does-not-retry-number-fallback", "css": "--ready:red;--n:var(--ready,7)", "attributes": {}, "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "wrong-typed-attribute-primary-does-not-retry-number-fallback", "css": "--n:attr(data-value type(*),7)", "attributes": {"data-value": "red"}, "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "typed-attribute-number-grammar-rejection-uses-fallback", "css": "--n:attr(data-value type(<number>),7)", "attributes": {"data-value": "red"}, "expected": {"--n": "7", "font-size": "7px"}},
+  {"id": "typed-attribute-ready-primary-excludes-length-fallback", "css": "--n:attr(data-value type(*),1em)", "attributes": {"data-value": "5"}, "expected": {"--n": "5", "font-size": "5px"}},
+  {"id": "css-wide: direct initial", "css": "--n:initial", "parent": "--n:11;--provider:11", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "css-wide: direct inherit", "css": "--n:inherit", "parent": "--n:11;--provider:11", "expected": {"--n": "11", "font-size": "11px"}},
+  {"id": "css-wide: direct unset", "css": "--n:unset", "parent": "--n:11;--provider:11", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "css-wide: direct inherit extra", "css": "--n:inherit extra", "parent": "--n:11;--provider:11", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "css-wide: selected-fallback initial", "css": "--n:var(--missing,initial)", "parent": "--n:11;--provider:11", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "css-wide: selected-fallback inherit", "css": "--n:var(--missing,inherit)", "parent": "--n:11;--provider:11", "expected": {"--n": "11", "font-size": "11px"}},
+  {"id": "css-wide: selected-fallback unset", "css": "--n:var(--missing,unset)", "parent": "--n:11;--provider:11", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "css-wide: selected-fallback inherit extra", "css": "--n:var(--missing,inherit extra)", "parent": "--n:11;--provider:11", "expected": {"--n": "3", "font-size": "3px"}},
+  {"id": "css-wide: registered-provider initial", "css": "--provider:initial;--n:var(--provider)", "parent": "--n:11;--provider:11", "expected": {"--n": "7", "font-size": "7px"}},
+  {"id": "css-wide: registered-provider inherit", "css": "--provider:inherit;--n:var(--provider)", "parent": "--n:11;--provider:11", "expected": {"--n": "11", "font-size": "11px"}},
+  {"id": "css-wide: registered-provider unset", "css": "--provider:unset;--n:var(--provider)", "parent": "--n:11;--provider:11", "expected": {"--n": "7", "font-size": "7px"}},
+  {"id": "css-wide: registered-provider inherit extra", "css": "--provider:inherit extra;--n:var(--provider)", "parent": "--n:11;--provider:11", "expected": {"--n": "7", "font-size": "7px"}},
+];
+
+function makeTarget(t, css, parentCSS = "", attributes = {}, fontSize = "calc(var(--n)*1px)") {
+  const parent = document.createElement("div");
+  parent.style.cssText = "font-size:19px;line-height:23px;" + parentCSS;
+  const target = document.createElement("div");
+  target.style.cssText = css + ";font-size:" + fontSize;
+  for (const [name, value] of Object.entries(attributes)) {
+    target.setAttribute(name, value);
+  }
+  parent.append(target);
+  document.body.append(parent);
+  t.add_cleanup(() => parent.remove());
+  return target;
+}
+
+function check(target, expected) {
+  const computed = getComputedStyle(target);
+  for (const [property, value] of Object.entries(expected)) {
+    assert_equals(computed.getPropertyValue(property).trim(), value, property);
+  }
+}
+
+for (const item of cases) {
+  test(t => {
+    const target = makeTarget(t, item.css, item.parent, item.attributes, item.fontSize);
+    check(target, item.expected);
+    if (item.mutation) {
+      for (const [property, value] of Object.entries(item.mutation.set)) {
+        target.style.setProperty(property, value);
+      }
+      check(target, item.mutation.expected);
+    }
+  }, item.id);
+}
+
+for (const order of ["provider-first", "consumer-first"]) {
+  for (const query of ["number-first", "font-first"]) {
+    test(t => {
+      const css = order === "provider-first"
+        ? "--ready:5;--n:var(--ready,1em)"
+        : "--n:var(--ready,1em);--ready:5";
+      const target = makeTarget(t, css);
+      const computed = getComputedStyle(target);
+      if (query === "number-first") {
+        assert_equals(computed.getPropertyValue("--n").trim(), "5");
+        assert_equals(computed.fontSize, "5px");
+      } else {
+        assert_equals(computed.fontSize, "5px");
+        assert_equals(computed.getPropertyValue("--n").trim(), "5");
+      }
+    }, `Provider order: ${order}, ${query}`);
+  }
+}
+
+for (const fallback of ["7", "1em"]) {
+  test(t => {
+    const target = makeTarget(t, `--n:var(--ready,${fallback})`);
+    const missing = fallback === "7" ? "7" : "3";
+    for (const [value, expected] of [[null, missing], ["5", "5"], ["red", "3"], [null, missing]]) {
+      if (value === null) {
+        target.style.removeProperty("--ready");
+      } else {
+        target.style.setProperty("--ready", value);
+      }
+      check(target, {"--n": expected, "font-size": expected + "px"});
+    }
+  }, `Provider mutation with ${fallback} fallback`);
+}
+
+test(t => {
+  const target = makeTarget(t, "--n:attr(data-value type(*),7)");
+  for (const [value, expected] of [[null, "7"], ["5", "5"], ["red", "3"], ["var(--n,9)", "3"], ["5", "5"], [null, "7"]]) {
+    if (value === null) {
+      target.removeAttribute("data-value");
+    } else {
+      target.setAttribute("data-value", value);
+    }
+    check(target, {"--n": expected, "font-size": expected + "px"});
+  }
+}, "Typed attribute mutation clears stale values and cycle state");
+
+for (const mode of ["direct", "selected-fallback", "registered-provider"]) {
+  test(t => {
+    const css = mode === "direct" ? "--n:inherit"
+      : mode === "selected-fallback" ? "--n:var(--missing,inherit)"
+      : "--provider:inherit;--n:var(--provider)";
+    const target = makeTarget(t, css);
+    for (const value of ["11", "13", "11"]) {
+      target.parentElement.style.setProperty("--n", value);
+      target.parentElement.style.setProperty("--provider", value);
+      check(target, {"--n": value, "font-size": value + "px"});
+    }
+  }, `CSS-wide inheritance follows parent mutation: ${mode}`);
+}
+
+function setRootMetrics(t) {
+  const root = document.documentElement;
+  const previous = root.getAttribute("style");
+  t.add_cleanup(() => {
+    if (previous === null) {
+      root.removeAttribute("style");
+    } else {
+      root.setAttribute("style", previous);
+    }
+  });
+  root.style.fontSize = "20px";
+  root.style.lineHeight = "40px";
+  return root;
+}
+
+
+
+test(t => {
+  const root = setRootMetrics(t);
+  const target = makeTarget(t, "--n:calc(1rem / 1px);width:calc(var(--n)*1px)", "", {}, "20px");
+  for (const value of [20, 25]) {
+    root.style.fontSize = value + "px";
+    check(target, {"--n": String(value), "font-size": "20px", "width": value + "px"});
+  }
+}, "Admitted number follows root font-size mutation on a non-root element");
+
+test(t => {
+  const root = setRootMetrics(t);
+  const target = makeTarget(t, "--n:calc(1rlh / 1px);width:calc(var(--n)*1px)", "", {}, "20px");
+  for (const value of [40, 50]) {
+    root.style.lineHeight = value + "px";
+    check(target, {"--n": String(value), "font-size": "20px", "width": value + "px"});
+  }
+}, "Admitted number follows root line-height mutation on a non-root element");
+
+
+
+test(t => {
+  const target = makeTarget(t, "--n:calc(100vw / 1px);width:calc(var(--n)*1px)", "", {}, "20px");
+  const reference = document.createElement("div");
+  reference.style.width = "100vw";
+  target.parentElement.append(reference);
+  const expected = parseFloat(getComputedStyle(reference).width);
+  const computed = getComputedStyle(target);
+  assert_greater_than(expected, 3, "independent viewport calibration exceeds the registered initial value");
+  assert_approx_equals(Number(computed.getPropertyValue("--n")), expected, 0.02, "viewport registered number");
+  assert_approx_equals(parseFloat(computed.width), expected, 0.02, "viewport number consumer");
+  assert_equals(computed.fontSize, "20px");
+}, "Admitted viewport number agrees with an independent ordinary length");
+
+test(t => {
+  const target = makeTarget(t, "--n:calc(100cqw / 1px);width:calc(var(--n)*1px)",
+    "container-type:inline-size;writing-mode:horizontal-tb;width:400px", {}, "20px");
+  const container = target.parentElement;
+  const reference = document.createElement("div");
+  reference.style.width = "100cqw";
+  container.append(reference);
+  for (const value of [400, 500]) {
+    container.style.width = value + "px";
+    assert_equals(getComputedStyle(reference).width, value + "px", "independent container calibration");
+    check(target, {"--n": String(value), "font-size": "20px", "width": value + "px"});
+  }
+}, "Admitted container number follows an independent container-size mutation");
+const breadthCases = [
+  {"id":"number:direct:literal","group":"number","kind":"direct","mode":"literal","syntax":"<number>","registrations":[{"name":"--breadth-x-0","syntax":"<number>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-0","number":null},"declarations":"--breadth-ready-0:5;--breadth-x-0:5","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-0)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px"}}],"requiresCalibration":[]},
+  {"id":"number:direct:ready-unused","group":"number","kind":"direct","mode":"ready-unused","syntax":"<number>","registrations":[{"name":"--breadth-x-1","syntax":"<number>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-1","number":null},"declarations":"--breadth-ready-1:5;--breadth-x-1:var(--breadth-ready-1,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-1)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px"}}],"requiresCalibration":["number:direct:literal"]},
+  {"id":"number:direct:selected-invalid","group":"number","kind":"direct","mode":"selected-invalid","syntax":"<number>","registrations":[{"name":"--breadth-x-2","syntax":"<number>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-2","number":null},"declarations":"--breadth-ready-2:5;--breadth-x-2:var(--breadth-missing-2,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-2)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"3","fontSize":"3px"}}],"requiresCalibration":["number:direct:literal"]},
+  {"id":"integer:direct:literal","group":"integer","kind":"direct","mode":"literal","syntax":"<integer>","registrations":[{"name":"--breadth-x-3","syntax":"<integer>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-3","number":null},"declarations":"--breadth-ready-3:5;--breadth-x-3:5","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-3)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px"}}],"requiresCalibration":[]},
+  {"id":"integer:direct:ready-unused","group":"integer","kind":"direct","mode":"ready-unused","syntax":"<integer>","registrations":[{"name":"--breadth-x-4","syntax":"<integer>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-4","number":null},"declarations":"--breadth-ready-4:5;--breadth-x-4:var(--breadth-ready-4,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-4)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px"}}],"requiresCalibration":["integer:direct:literal"]},
+  {"id":"integer:direct:selected-invalid","group":"integer","kind":"direct","mode":"selected-invalid","syntax":"<integer>","registrations":[{"name":"--breadth-x-5","syntax":"<integer>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-5","number":null},"declarations":"--breadth-ready-5:5;--breadth-x-5:var(--breadth-missing-5,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-5)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"3","fontSize":"3px"}}],"requiresCalibration":["integer:direct:literal"]},
+  {"id":"angle:direct:literal","group":"angle","kind":"direct","mode":"literal","syntax":"<angle>","registrations":[{"name":"--breadth-x-6","syntax":"<angle>","inherits":false,"initialValue":"3deg"}],"names":{"value":"--breadth-x-6","number":null},"declarations":"--breadth-ready-6:5deg;--breadth-x-6:5deg","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-6) / 1deg * 1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5deg","fontSize":"5px"}}],"requiresCalibration":[]},
+  {"id":"angle:direct:ready-unused","group":"angle","kind":"direct","mode":"ready-unused","syntax":"<angle>","registrations":[{"name":"--breadth-x-7","syntax":"<angle>","inherits":false,"initialValue":"3deg"}],"names":{"value":"--breadth-x-7","number":null},"declarations":"--breadth-ready-7:5deg;--breadth-x-7:var(--breadth-ready-7,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-7) / 1deg * 1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5deg","fontSize":"5px"}}],"requiresCalibration":["angle:direct:literal"]},
+  {"id":"angle:direct:selected-invalid","group":"angle","kind":"direct","mode":"selected-invalid","syntax":"<angle>","registrations":[{"name":"--breadth-x-8","syntax":"<angle>","inherits":false,"initialValue":"3deg"}],"names":{"value":"--breadth-x-8","number":null},"declarations":"--breadth-ready-8:5deg;--breadth-x-8:var(--breadth-missing-8,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-8) / 1deg * 1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"3deg","fontSize":"3px"}}],"requiresCalibration":["angle:direct:literal"]},
+  {"id":"time:direct:literal","group":"time","kind":"direct","mode":"literal","syntax":"<time>","registrations":[{"name":"--breadth-x-9","syntax":"<time>","inherits":false,"initialValue":"3s"}],"names":{"value":"--breadth-x-9","number":null},"declarations":"--breadth-ready-9:5s;--breadth-x-9:5s","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-9) / 1s * 1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5s","fontSize":"5px"}}],"requiresCalibration":[]},
+  {"id":"time:direct:ready-unused","group":"time","kind":"direct","mode":"ready-unused","syntax":"<time>","registrations":[{"name":"--breadth-x-10","syntax":"<time>","inherits":false,"initialValue":"3s"}],"names":{"value":"--breadth-x-10","number":null},"declarations":"--breadth-ready-10:5s;--breadth-x-10:var(--breadth-ready-10,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-10) / 1s * 1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5s","fontSize":"5px"}}],"requiresCalibration":["time:direct:literal"]},
+  {"id":"time:direct:selected-invalid","group":"time","kind":"direct","mode":"selected-invalid","syntax":"<time>","registrations":[{"name":"--breadth-x-11","syntax":"<time>","inherits":false,"initialValue":"3s"}],"names":{"value":"--breadth-x-11","number":null},"declarations":"--breadth-ready-11:5s;--breadth-x-11:var(--breadth-missing-11,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-11) / 1s * 1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"3s","fontSize":"3px"}}],"requiresCalibration":["time:direct:literal"]},
+  {"id":"resolution:direct:literal","group":"resolution","kind":"direct","mode":"literal","syntax":"<resolution>","registrations":[{"name":"--breadth-x-12","syntax":"<resolution>","inherits":false,"initialValue":"3dppx"}],"names":{"value":"--breadth-x-12","number":null},"declarations":"--breadth-ready-12:5dppx;--breadth-x-12:5dppx","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-12) / 1dppx * 1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5dppx","fontSize":"5px"}}],"requiresCalibration":[]},
+  {"id":"resolution:direct:ready-unused","group":"resolution","kind":"direct","mode":"ready-unused","syntax":"<resolution>","registrations":[{"name":"--breadth-x-13","syntax":"<resolution>","inherits":false,"initialValue":"3dppx"}],"names":{"value":"--breadth-x-13","number":null},"declarations":"--breadth-ready-13:5dppx;--breadth-x-13:var(--breadth-ready-13,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-13) / 1dppx * 1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5dppx","fontSize":"5px"}}],"requiresCalibration":["resolution:direct:literal"]},
+  {"id":"resolution:direct:selected-invalid","group":"resolution","kind":"direct","mode":"selected-invalid","syntax":"<resolution>","registrations":[{"name":"--breadth-x-14","syntax":"<resolution>","inherits":false,"initialValue":"3dppx"}],"names":{"value":"--breadth-x-14","number":null},"declarations":"--breadth-ready-14:5dppx;--breadth-x-14:var(--breadth-missing-14,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-14) / 1dppx * 1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"3dppx","fontSize":"3px"}}],"requiresCalibration":["resolution:direct:literal"]},
+  {"id":"percentage:direct:literal","group":"percentage","kind":"direct","mode":"literal","syntax":"<percentage>","registrations":[{"name":"--breadth-x-15","syntax":"<percentage>","inherits":false,"initialValue":"3%"}],"names":{"value":"--breadth-x-15","number":null},"declarations":"--breadth-ready-15:5%;--breadth-x-15:5%","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"var(--breadth-x-15)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5%","fontSize":"5px"}}],"requiresCalibration":[]},
+  {"id":"percentage:direct:ready-unused","group":"percentage","kind":"direct","mode":"ready-unused","syntax":"<percentage>","registrations":[{"name":"--breadth-x-16","syntax":"<percentage>","inherits":false,"initialValue":"3%"}],"names":{"value":"--breadth-x-16","number":null},"declarations":"--breadth-ready-16:5%;--breadth-x-16:var(--breadth-ready-16,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"var(--breadth-x-16)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5%","fontSize":"5px"}}],"requiresCalibration":["percentage:direct:literal"]},
+  {"id":"percentage:direct:selected-invalid","group":"percentage","kind":"direct","mode":"selected-invalid","syntax":"<percentage>","registrations":[{"name":"--breadth-x-17","syntax":"<percentage>","inherits":false,"initialValue":"3%"}],"names":{"value":"--breadth-x-17","number":null},"declarations":"--breadth-ready-17:5%;--breadth-x-17:var(--breadth-missing-17,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"var(--breadth-x-17)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"3%","fontSize":"3px"}}],"requiresCalibration":["percentage:direct:literal"]},
+  {"id":"number-or-angle:direct:literal","group":"number-or-angle","kind":"direct","mode":"literal","syntax":"<number> | <angle>","registrations":[{"name":"--breadth-x-18","syntax":"<number> | <angle>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-18","number":null},"declarations":"--breadth-ready-18:5;--breadth-x-18:5","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-18)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px"}}],"requiresCalibration":[]},
+  {"id":"number-or-angle:direct:ready-unused","group":"number-or-angle","kind":"direct","mode":"ready-unused","syntax":"<number> | <angle>","registrations":[{"name":"--breadth-x-19","syntax":"<number> | <angle>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-19","number":null},"declarations":"--breadth-ready-19:5;--breadth-x-19:var(--breadth-ready-19,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-19)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px"}}],"requiresCalibration":["number-or-angle:direct:literal"]},
+  {"id":"number-or-angle:direct:selected-invalid","group":"number-or-angle","kind":"direct","mode":"selected-invalid","syntax":"<number> | <angle>","registrations":[{"name":"--breadth-x-20","syntax":"<number> | <angle>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-20","number":null},"declarations":"--breadth-ready-20:5;--breadth-x-20:var(--breadth-missing-20,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-20)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"3","fontSize":"3px"}}],"requiresCalibration":["number-or-angle:direct:literal"]},
+  {"id":"angle-or-number:direct:literal","group":"angle-or-number","kind":"direct","mode":"literal","syntax":"<angle> | <number>","registrations":[{"name":"--breadth-x-21","syntax":"<angle> | <number>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-21","number":null},"declarations":"--breadth-ready-21:5;--breadth-x-21:5","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-21)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px"}}],"requiresCalibration":[]},
+  {"id":"angle-or-number:direct:ready-unused","group":"angle-or-number","kind":"direct","mode":"ready-unused","syntax":"<angle> | <number>","registrations":[{"name":"--breadth-x-22","syntax":"<angle> | <number>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-22","number":null},"declarations":"--breadth-ready-22:5;--breadth-x-22:var(--breadth-ready-22,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-22)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px"}}],"requiresCalibration":["angle-or-number:direct:literal"]},
+  {"id":"angle-or-number:direct:selected-invalid","group":"angle-or-number","kind":"direct","mode":"selected-invalid","syntax":"<angle> | <number>","registrations":[{"name":"--breadth-x-23","syntax":"<angle> | <number>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-23","number":null},"declarations":"--breadth-ready-23:5;--breadth-x-23:var(--breadth-missing-23,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-23)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"3","fontSize":"3px"}}],"requiresCalibration":["angle-or-number:direct:literal"]},
+  {"id":"number-space-list:direct:literal","group":"number-space-list","kind":"direct","mode":"literal","syntax":"<number>+","registrations":[{"name":"--breadth-x-24","syntax":"<number>+","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-24","number":null},"declarations":"--breadth-ready-24:5;--breadth-x-24:5","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-24)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px"}}],"requiresCalibration":[]},
+  {"id":"number-space-list:direct:ready-unused","group":"number-space-list","kind":"direct","mode":"ready-unused","syntax":"<number>+","registrations":[{"name":"--breadth-x-25","syntax":"<number>+","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-25","number":null},"declarations":"--breadth-ready-25:5;--breadth-x-25:var(--breadth-ready-25,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-25)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px"}}],"requiresCalibration":["number-space-list:direct:literal"]},
+  {"id":"number-space-list:direct:selected-invalid","group":"number-space-list","kind":"direct","mode":"selected-invalid","syntax":"<number>+","registrations":[{"name":"--breadth-x-26","syntax":"<number>+","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-26","number":null},"declarations":"--breadth-ready-26:5;--breadth-x-26:var(--breadth-missing-26,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-26)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"3","fontSize":"3px"}}],"requiresCalibration":["number-space-list:direct:literal"]},
+  {"id":"number-comma-list:direct:literal","group":"number-comma-list","kind":"direct","mode":"literal","syntax":"<number>#","registrations":[{"name":"--breadth-x-27","syntax":"<number>#","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-27","number":null},"declarations":"--breadth-ready-27:5;--breadth-x-27:5","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-27)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px"}}],"requiresCalibration":[]},
+  {"id":"number-comma-list:direct:ready-unused","group":"number-comma-list","kind":"direct","mode":"ready-unused","syntax":"<number>#","registrations":[{"name":"--breadth-x-28","syntax":"<number>#","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-28","number":null},"declarations":"--breadth-ready-28:5;--breadth-x-28:var(--breadth-ready-28,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-28)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px"}}],"requiresCalibration":["number-comma-list:direct:literal"]},
+  {"id":"number-comma-list:direct:selected-invalid","group":"number-comma-list","kind":"direct","mode":"selected-invalid","syntax":"<number>#","registrations":[{"name":"--breadth-x-29","syntax":"<number>#","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-29","number":null},"declarations":"--breadth-ready-29:5;--breadth-x-29:var(--breadth-missing-29,1em)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-x-29)*1px)","width":"auto","snapshots":[{"label":"initial","set":{},"expected":{"value":"3","fontSize":"3px"}}],"requiresCalibration":["number-comma-list:direct:literal"]},
+  {"id":"number:provider:literal","group":"number","kind":"provider","mode":"literal","syntax":"<number>","registrations":[{"name":"--breadth-x-30","syntax":"<number>","inherits":false,"initialValue":"3"},{"name":"--breadth-n-30","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-30","number":"--breadth-n-30"},"declarations":"--breadth-ready-30:5;--breadth-x-30:5;--breadth-n-30:var(--breadth-x-30)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-30)*1px)","width":"calc(var(--breadth-n-30)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px","number":"5","width":"5px"}}],"requiresCalibration":[]},
+  {"id":"number:provider:ready-unused","group":"number","kind":"provider","mode":"ready-unused","syntax":"<number>","registrations":[{"name":"--breadth-x-31","syntax":"<number>","inherits":false,"initialValue":"3"},{"name":"--breadth-n-31","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-31","number":"--breadth-n-31"},"declarations":"--breadth-ready-31:5;--breadth-x-31:var(--breadth-ready-31,1em);--breadth-n-31:var(--breadth-x-31)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-31)*1px)","width":"calc(var(--breadth-n-31)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px","number":"5","width":"5px"}}],"requiresCalibration":["number:provider:literal"]},
+  {"id":"number:provider:selected-invalid","group":"number","kind":"provider","mode":"selected-invalid","syntax":"<number>","registrations":[{"name":"--breadth-x-32","syntax":"<number>","inherits":false,"initialValue":"3"},{"name":"--breadth-n-32","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-32","number":"--breadth-n-32"},"declarations":"--breadth-ready-32:5;--breadth-x-32:var(--breadth-missing-32,1em);--breadth-n-32:var(--breadth-x-32)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-32)*1px)","width":"calc(var(--breadth-n-32)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"3","fontSize":"3px","number":"3","width":"3px"}}],"requiresCalibration":["number:provider:literal"]},
+  {"id":"integer:provider:literal","group":"integer","kind":"provider","mode":"literal","syntax":"<integer>","registrations":[{"name":"--breadth-x-33","syntax":"<integer>","inherits":false,"initialValue":"3"},{"name":"--breadth-n-33","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-33","number":"--breadth-n-33"},"declarations":"--breadth-ready-33:5;--breadth-x-33:5;--breadth-n-33:var(--breadth-x-33)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-33)*1px)","width":"calc(var(--breadth-n-33)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px","number":"5","width":"5px"}}],"requiresCalibration":[]},
+  {"id":"integer:provider:ready-unused","group":"integer","kind":"provider","mode":"ready-unused","syntax":"<integer>","registrations":[{"name":"--breadth-x-34","syntax":"<integer>","inherits":false,"initialValue":"3"},{"name":"--breadth-n-34","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-34","number":"--breadth-n-34"},"declarations":"--breadth-ready-34:5;--breadth-x-34:var(--breadth-ready-34,1em);--breadth-n-34:var(--breadth-x-34)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-34)*1px)","width":"calc(var(--breadth-n-34)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"5","fontSize":"5px","number":"5","width":"5px"}}],"requiresCalibration":["integer:provider:literal"]},
+  {"id":"integer:provider:selected-invalid","group":"integer","kind":"provider","mode":"selected-invalid","syntax":"<integer>","registrations":[{"name":"--breadth-x-35","syntax":"<integer>","inherits":false,"initialValue":"3"},{"name":"--breadth-n-35","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-35","number":"--breadth-n-35"},"declarations":"--breadth-ready-35:5;--breadth-x-35:var(--breadth-missing-35,1em);--breadth-n-35:var(--breadth-x-35)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-35)*1px)","width":"calc(var(--breadth-n-35)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"3","fontSize":"3px","number":"3","width":"3px"}}],"requiresCalibration":["integer:provider:literal"]},
+  {"id":"angle:provider:literal","group":"angle","kind":"provider","mode":"literal","syntax":"<angle>","registrations":[{"name":"--breadth-x-36","syntax":"<angle>","inherits":false,"initialValue":"3deg"},{"name":"--breadth-n-36","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-36","number":"--breadth-n-36"},"declarations":"--breadth-ready-36:5deg;--breadth-x-36:5deg;--breadth-n-36:calc(var(--breadth-x-36) / 1deg)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-36)*1px)","width":"calc(var(--breadth-n-36)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"5deg","fontSize":"5px","number":"5","width":"5px"}}],"requiresCalibration":[]},
+  {"id":"angle:provider:ready-unused","group":"angle","kind":"provider","mode":"ready-unused","syntax":"<angle>","registrations":[{"name":"--breadth-x-37","syntax":"<angle>","inherits":false,"initialValue":"3deg"},{"name":"--breadth-n-37","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-37","number":"--breadth-n-37"},"declarations":"--breadth-ready-37:5deg;--breadth-x-37:var(--breadth-ready-37,1em);--breadth-n-37:calc(var(--breadth-x-37) / 1deg)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-37)*1px)","width":"calc(var(--breadth-n-37)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"5deg","fontSize":"5px","number":"5","width":"5px"}}],"requiresCalibration":["angle:provider:literal"]},
+  {"id":"angle:provider:selected-invalid","group":"angle","kind":"provider","mode":"selected-invalid","syntax":"<angle>","registrations":[{"name":"--breadth-x-38","syntax":"<angle>","inherits":false,"initialValue":"3deg"},{"name":"--breadth-n-38","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-38","number":"--breadth-n-38"},"declarations":"--breadth-ready-38:5deg;--breadth-x-38:var(--breadth-missing-38,1em);--breadth-n-38:calc(var(--breadth-x-38) / 1deg)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-38)*1px)","width":"calc(var(--breadth-n-38)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"3deg","fontSize":"3px","number":"3","width":"3px"}}],"requiresCalibration":["angle:provider:literal"]},
+  {"id":"time:provider:literal","group":"time","kind":"provider","mode":"literal","syntax":"<time>","registrations":[{"name":"--breadth-x-39","syntax":"<time>","inherits":false,"initialValue":"3s"},{"name":"--breadth-n-39","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-39","number":"--breadth-n-39"},"declarations":"--breadth-ready-39:5s;--breadth-x-39:5s;--breadth-n-39:calc(var(--breadth-x-39) / 1s)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-39)*1px)","width":"calc(var(--breadth-n-39)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"5s","fontSize":"5px","number":"5","width":"5px"}}],"requiresCalibration":[]},
+  {"id":"time:provider:ready-unused","group":"time","kind":"provider","mode":"ready-unused","syntax":"<time>","registrations":[{"name":"--breadth-x-40","syntax":"<time>","inherits":false,"initialValue":"3s"},{"name":"--breadth-n-40","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-40","number":"--breadth-n-40"},"declarations":"--breadth-ready-40:5s;--breadth-x-40:var(--breadth-ready-40,1em);--breadth-n-40:calc(var(--breadth-x-40) / 1s)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-40)*1px)","width":"calc(var(--breadth-n-40)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"5s","fontSize":"5px","number":"5","width":"5px"}}],"requiresCalibration":["time:provider:literal"]},
+  {"id":"time:provider:selected-invalid","group":"time","kind":"provider","mode":"selected-invalid","syntax":"<time>","registrations":[{"name":"--breadth-x-41","syntax":"<time>","inherits":false,"initialValue":"3s"},{"name":"--breadth-n-41","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-41","number":"--breadth-n-41"},"declarations":"--breadth-ready-41:5s;--breadth-x-41:var(--breadth-missing-41,1em);--breadth-n-41:calc(var(--breadth-x-41) / 1s)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-41)*1px)","width":"calc(var(--breadth-n-41)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"3s","fontSize":"3px","number":"3","width":"3px"}}],"requiresCalibration":["time:provider:literal"]},
+  {"id":"resolution:provider:literal","group":"resolution","kind":"provider","mode":"literal","syntax":"<resolution>","registrations":[{"name":"--breadth-x-42","syntax":"<resolution>","inherits":false,"initialValue":"3dppx"},{"name":"--breadth-n-42","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-42","number":"--breadth-n-42"},"declarations":"--breadth-ready-42:5dppx;--breadth-x-42:5dppx;--breadth-n-42:calc(var(--breadth-x-42) / 1dppx)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-42)*1px)","width":"calc(var(--breadth-n-42)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"5dppx","fontSize":"5px","number":"5","width":"5px"}}],"requiresCalibration":[]},
+  {"id":"resolution:provider:ready-unused","group":"resolution","kind":"provider","mode":"ready-unused","syntax":"<resolution>","registrations":[{"name":"--breadth-x-43","syntax":"<resolution>","inherits":false,"initialValue":"3dppx"},{"name":"--breadth-n-43","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-43","number":"--breadth-n-43"},"declarations":"--breadth-ready-43:5dppx;--breadth-x-43:var(--breadth-ready-43,1em);--breadth-n-43:calc(var(--breadth-x-43) / 1dppx)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-43)*1px)","width":"calc(var(--breadth-n-43)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"5dppx","fontSize":"5px","number":"5","width":"5px"}}],"requiresCalibration":["resolution:provider:literal"]},
+  {"id":"resolution:provider:selected-invalid","group":"resolution","kind":"provider","mode":"selected-invalid","syntax":"<resolution>","registrations":[{"name":"--breadth-x-44","syntax":"<resolution>","inherits":false,"initialValue":"3dppx"},{"name":"--breadth-n-44","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-44","number":"--breadth-n-44"},"declarations":"--breadth-ready-44:5dppx;--breadth-x-44:var(--breadth-missing-44,1em);--breadth-n-44:calc(var(--breadth-x-44) / 1dppx)","parent":"font-size:100px;line-height:23px;width:200px","fontSize":"calc(var(--breadth-n-44)*1px)","width":"calc(var(--breadth-n-44)*1px)","snapshots":[{"label":"initial","set":{},"expected":{"value":"3dppx","fontSize":"3px","number":"3","width":"3px"}}],"requiresCalibration":["resolution:provider:literal"]}
+];
+
+for (const item of breadthCases) {
+  test(t => {
+    for (const registration of item.registrations) CSS.registerProperty(registration);
+    const parent = document.createElement("div");
+    parent.style.cssText = item.parent;
+    const target = document.createElement("div");
+    target.style.cssText = item.declarations + ";font-size:" + item.fontSize + ";width:" + item.width;
+    parent.append(target);
+    document.body.append(parent);
+    t.add_cleanup(() => parent.remove());
+    for (const step of item.snapshots) {
+      for (const [property, value] of Object.entries(step.set)) target.style.setProperty(property, value);
+      const computed = getComputedStyle(target);
+      const actual = {
+        value:computed.getPropertyValue(item.names.value).trim(),
+        number:item.names.number ? computed.getPropertyValue(item.names.number).trim() : null,
+        fontSize:computed.fontSize,
+        width:computed.width
+      };
+      for (const [property, expected] of Object.entries(step.expected)) {
+        assert_equals(actual[property], expected, step.label + ": " + property);
+      }
+    }
+  }, "Registered numeric breadth: " + item.id);
+}
+
+for (const [syntax, separator, suffix] of [["<number>+", " ", "space"], ["<number>#", ", ", "comma"]]) {
+  for (const mode of ["literal-members", "whole-list-rejection"]) {
+    test(t => {
+      const name = `--numeric-list-${suffix}-${mode}`;
+      CSS.registerProperty({name, syntax, inherits:false, initialValue:"3"});
+      const parent = document.createElement("div");
+      parent.style.cssText = "font-size:19px;line-height:23px;width:200px";
+      const target = document.createElement("div");
+      const value = "2" + separator + (mode === "literal-members" ? "5" : "1em");
+      target.style.cssText = `${name}:${value};font-size:20px`;
+      parent.append(target);
+      document.body.append(parent);
+      t.add_cleanup(() => parent.remove());
+      const computed = getComputedStyle(target);
+      const values = computed.getPropertyValue(name).trim().split(/\s*,\s*|\s+/).map(Number);
+      assert_array_equals(values, mode === "literal-members" ? [2, 5] : [3], "complete computed list");
+      assert_equals(computed.fontSize, "20px");
+    }, `Registered numeric list: ${syntax}, ${mode}`);
+  }
+}
+</script>

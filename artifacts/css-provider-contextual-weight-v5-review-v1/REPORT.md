@@ -1,0 +1,5 @@
+The unchanged eight-case experiment completes with4PASS/4FAIL. All length-first cases pass. All provider-first cases fail at consumer/provider equality:12 exported snapshots show provider and direct/literal controls200→300→200 while font-weight remains800. Support/registration and fixed-initial calibrations pass.
+
+Raw assessor and complete-message historical comparison replay exactly; no fixture, metadata or test-name change was introduced by the publication-only successor. Saved source/binary/epoch identity, PRE=POST, application metadata and cleanup agree. Wrapperexit0/WPTexit1 are both recorded. The four PASS cases do not export their complete snapshot fields; no claim of24 captured WPT snapshots is made.
+
+This demonstrates the remaining recursive cached-default behavior under the conditional contextual-initial policy. It does not establish normative admission of those @property initials, native acceptance, or a causal comparison with the separate MCP browser/profile. Any full24 localMCP capture is additional evidence with its own provenance.

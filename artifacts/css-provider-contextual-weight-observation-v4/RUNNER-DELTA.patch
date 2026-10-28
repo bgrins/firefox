@@ -1,0 +1,11 @@
+--- artifacts/css-provider-contextual-weight-observation-v3/run.py
++++ artifacts/css-provider-contextual-weight-observation-v4/run.py
+@@ -293,7 +293,7 @@
+               "native_fix_acceptance": False, "exact_staging_preserved": bool(post_error is None),
+               "original_adoption": adopted, "observation_only": True,
+               "complete_comparison": bool(compared and compared["complete"]),
+-              "comparison_summary": compared["summary"] if compared else None}
++              "comparison_summary": [{k: v for k, v in item.items() if k != "changes"} for item in compared["comparisons"]] if compared else None}
+     save(out / "RESULT.json", result)
+     print(json.dumps(result, indent=2))
+     return 0 if passed else 1

@@ -1,0 +1,25 @@
+Illustrative interface only; names and ownership shapes are proposals, not compiled Rust.
+
+SubstitutionError = Invalid | Demand(SubstitutionDemand)
+SubstitutionDemand = Provider(Name) | Attribute(owned key/data/url)
+                   | Prioritary(PrioritaryPropertyId)
+                   | InitialContext { provider: Name, required: ContextRequirements }
+
+ProviderState = Pending | Resolving | CycleParticipant | Ready(ComputedOrInvalid)
+PrioritaryState = Pending | Applying | Ready
+
+RegisteredPlan = Inherited(ComputedRegisteredValue, PendingEffects)
+               | Initial(OwnedSpecifiedValue, UrlExtraData, ContextRequirements, PendingEffects)
+               | Selected(OwnedSpecifiedValue, AttrTaint, ContextRequirements, PendingEffects)
+               | UniversalInvalid
+
+prepare_registered_default(...) -> RegisteredPlan
+finish_registered_default(plan, ready_target_context) -> ComputedOrInvalid
+substitute_with_readiness(..., ReadinessView) -> Result<OwnedSubstitution, SubstitutionError>
+apply_one_longhand(...) -> Result<ApplicationOutcome, SubstitutionDemand>
+ensure_prioritary_property(...) -> Result<(), SubstitutionDemand>
+
+On Demand: release borrowed substitution state; retain selected declaration, provider/cycle
+classification and pending effects; owner settles demanded work and retries. Demand cannot
+enter the Invalid arm or commit a ready/cached result. A scheduler-only backedge requires a
+separate progress/policy decision, never an implicit conversion to CSS invalidity.
