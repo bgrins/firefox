@@ -1,0 +1,118 @@
+--- artifacts/css-registered-zoom-standalone-wpt-v2/run.py
++++ artifacts/css-registered-staged-observation-wpt-v1/run.py
+@@ -98,15 +98,15 @@
+ 
+ 
+ def main():
+-    need(len(sys.argv) in (6, 8), "Usage: run.py CAPSULE_SHA PHASE EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT [ORIGINAL_ASSESSMENT ORIGINAL_SHA]")
++    need(len(sys.argv) == 6, "Usage: run.py CAPSULE_SHA observation-1 EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT")
+     authenticate(HERE, sys.argv[1])
+     policy = read(HERE / "POLICY.json")
+     need(policy.get("execution_enabled") is True, "disabled pending successful phase build bindings")
+     phase = sys.argv[2]
+-    need(re.fullmatch(r"(original|candidate)-[1-9][0-9]*", phase), "phase label")
++    need(phase == "observation-1", "phase label")
+     need(phase == policy["phase"], "exact bound phase")
+-    role = phase.split("-")[0]
+-    need(len(sys.argv) == (6 if role == "original" else 8), "original/candidate baseline arguments")
++    role = "candidate"
++    need(len(sys.argv) == 6, "observation arguments")
+     epoch_path = Path(sys.argv[3])
+     need(epoch_path.is_absolute() and not epoch_path.is_symlink(), "absolute regular epoch")
+     need(sha(epoch_path) == sys.argv[4] == policy["epoch_sha256"], "externally supplied epoch digest")
+@@ -117,19 +117,6 @@
+     need(epoch["semantic_index"]["head"] == policy["frozen_head"], "epoch HEAD differs from frozen comparison HEAD")
+     app_metadata = application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+     original, baseline_path, adopted = None, None, None
+-    if role == "candidate":
+-        baseline_path = Path(sys.argv[6])
+-        need(baseline_path.is_absolute() and not baseline_path.is_symlink() and
+-             sha(baseline_path) == sys.argv[7], "externally supplied original assessment")
+-        original = read(baseline_path)
+-        if original.get("capsule_manifest_sha256") != sys.argv[1]:
+-            adoption = load("original_adoption", HERE / "adoption.py")
+-            adopted = adoption.validate(ROOT, HERE, baseline_path, sys.argv[7], policy, SimpleNamespace(**globals()))
+-        need(original["complete"] and original["execution_preserved"] and
+-             original["phase"].startswith("original-") and
+-             (original["capsule_manifest_sha256"] == sys.argv[1] or adopted is not None) and
+-             original["native_sources"] == policy["source_roles"]["original"], "matching complete original")
+-        need(original["run_binding"]["revision"] == epoch["semantic_index"]["head"], "paired HEAD unchanged")
+     for name, pin in read(HERE / "REFERENCES.json").items():
+         need(sha(ROOT / name) == pin, "helper/source binding: " + name)
+     for name, pin in policy["source_roles"][role].items():
+@@ -137,20 +124,17 @@
+     out = Path(sys.argv[5])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "output must be absent")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-zoom-standalone-wpt-runtime-"), "owned artifact output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-staged-observation-wpt-runtime-"), "owned artifact output")
+     need(all(not os.environ.get(k) for k in policy["forbidden_environment"]), "unexpected build/git/profile environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+                MOZ_HEADLESS="1", MOZ_SKIP_PATH_PERFORMANCE_CHECK="1",
+                MOZ_DISABLE_SAFE_MODE_KEY="1", MOZ_DISABLE_UPDATE_PROCESSING="1")
+     h = load("ordinary_preservation", ROOT / policy["helpers"]["preservation"])
+-    guard = load("ordinary_epoch", ROOT / policy["helpers"]["epoch"])
++    guard = load("staged_preservation", HERE / "staged_guard.py")
+     checks = load("ordinary_checks", ROOT / policy["helpers"]["checks"])
+     control = load("ordinary_control", ROOT / policy["helpers"]["control"])
+     parser = load("ordinary_assessment", HERE / "assess.py")
+-    history = load("historical_combined", HERE / "history.py")
+-    historical = history.validate(ROOT, HERE, SimpleNamespace(**globals()))
+-    comparison = load("standalone_comparison", HERE / "compare.py")
+     before = guard.verify_current(h, ROOT, env, epoch)
+     flags = {name: hashlib.sha256(h.git(ROOT / name, env, "ls-files", "-v", "-z")).hexdigest()
+              for name in (".", "artifacts/css-spec-lean")}
+@@ -171,7 +155,6 @@
+     need(binary_pins == policy["phase_binaries"], "exact phase build binaries")
+     out.mkdir()
+     save(out / "PHASE-BINDING.json", phase_binding)
+-    save(out / "HISTORICAL-PROVENANCE.json", historical["provenance"])
+     if adopted is not None:
+         save(out / "ORIGINAL-ADOPTION.json", adopted)
+     save(out / "EPOCH.json", epoch)
+@@ -215,7 +198,7 @@
+               for p in top.rglob("*") if p.is_file() and "tools" not in p.relative_to(top).parts}
+     copied["wptrunner.ini"] = sha(config_path)
+     save(out / "OWNED-INPUT-PINS.json", copied)
+-    tmp = Path(tempfile.mkdtemp(prefix="css-zoom-standalone-wpt-", dir="/private/tmp"))
++    tmp = Path(tempfile.mkdtemp(prefix="css-staged-observation-wpt-", dir="/private/tmp"))
+     tmp_identity = (tmp.stat().st_dev, tmp.stat().st_ino)
+     env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+     raw = out / "raw.jsonl"
+@@ -278,7 +261,6 @@
+             if adopted is not None:
+                 need(adoption.validate(ROOT, HERE, baseline_path, sys.argv[7], policy, SimpleNamespace(**globals())) == adopted, "adopted original changed")
+             need(bindings.validate_phase(ROOT, HERE, policy, epoch, SimpleNamespace(**globals())) == phase_binding, "phase binding changed")
+-            need(history.validate(ROOT, HERE, SimpleNamespace(**globals())) == historical, "historical evidence changed")
+             authenticate(HERE, sys.argv[1])
+             save(out / "POST.json", post)
+         except BaseException as exc:
+@@ -291,22 +273,20 @@
+         assessment.update(phase=phase, capsule_manifest_sha256=sys.argv[1],
+                           epoch_sha256=sys.argv[4], native_sources=policy["source_roles"][role], original_adoption=adopted,
+                           capsule_directory=str(HERE.relative_to(ROOT)), experiment_sha256=sha(HERE / "EXPERIMENT.json"),
+-                          observation_only=True, subtest_cardinality_policy="Exact 636 identities across 23 harness pages plus six reftests",
+-                          oracle_caveat="Standalone source0 versus zoom7; failures are observations, historical combined9 is attribution evidence",
++                          observation_only=True, subtest_cardinality_policy=policy["cardinality_description"],
++                          oracle_caveat="Current compiled zoom7 observations with exact pending staged research preserved; no causal pair or native acceptance",
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)
+-        compared = comparison.compare(original, assessment, read(HERE / "EXPERIMENT.json"), historical)
+-        save(out / "COMPARISON.json", compared)
+     except BaseException as exc:
+         error = error or repr(exc)
+     passed = (error is None and post_error is None and cleanup.get("owned_group_absent")
+               and cleanup.get("temporary_root_removed") and assessment and assessment["complete"]
+-              and (role == "original" or compared["broad_regression_gate_passed"]))
++              )
+     result = {"exit": code, "execution_error": error, "preservation_error": post_error,
+               "phase": phase, "observation_gate_passed": bool(passed),
+-              "comparison_gate_passed": bool(passed and role == "candidate"),
+-              "native_fix_acceptance": False, "identical_fixture_inputs_in_both_phases": True,
++              "comparison_gate_passed": False,
++              "native_fix_acceptance": False, "pending_research_staging_preserved": bool(post_error is None),
+               "original_adoption": adopted, "observation_only": True,
+               "complete_comparison": bool(compared and compared["complete"]),
+               "comparison_summary": compared["summary"] if compared else None}

@@ -1,0 +1,12 @@
+import Readiness
+#print axioms WritingModeReadiness.edge_rank
+#print axioms WritingModeReadiness.path_rank
+#print axioms WritingModeReadiness.acyclic
+#print axioms WritingModeReadiness.invalid_provider_defaults
+#print axioms WritingModeReadiness.bad_order
+#print axioms WritingModeReadiness.good_order
+#print axioms WritingModeReadiness.ready_and_coherent_suffices
+#print axioms WritingModeReadiness.acyclicity_does_not_force_readiness
+#print axioms WritingModeReadiness.guarded_pending_does_not_publish
+#print axioms WritingModeReadiness.guarded_fresh_ready_correct
+#print axioms WritingModeReadiness.finite_rank_certificate
