@@ -1,0 +1,18 @@
+This capsule runs genuine WPT with the same sealed A/B fixture in a fresh original/candidate comparison. Its two native source roles bind the sealed admission HEAD proposal v2. Six collector source files are separately bound to unchanged original bytes.
+
+The 104 A assertions must all pass on the candidate. The 16 held B assertions must preserve their full status, expectation, intermittent fields and message, including both mutation snapshots when failing. The 446 existing regression assertions and six reftests must preserve their status/expectation/intermittent signatures. Unchanged baseline failures remain visible observations, not successful regression assertions. The held page is research only and is never part of the A landable patch.
+
+Held FAIL messages must contain parseable observed= JSON with two nonempty snapshots. Exact message comparison rejects changed values even when both phases report FAIL. PASS cases do not redundantly emit observations; their asserted values are fixed by the identical fixture, including the inverse-number tolerance. This is bounded behavioral preservation, not a proof that every internal graph edge or unasserted observable is unchanged. Existing regression messages are not compared.
+
+Both phases require registered_number_transition.role matching the phase, variant committed-head, and compiled exactly true. HEAD is frozen to e2839ec561c1e19de963bd0d56f46f4c067685d0. Each phase binds its supplied epoch digest, exact native sources and built normal-browser binaries. Six unused collector files are pinned to original bytes before and after each phase; they are not modified or credited to A. The original must come from this capsule, be complete and preserved, and have the same HEAD. The previous 58-test baseline cannot satisfy the candidate gate.
+
+The runner retains owned ephemeral WPT roots, genuine regenerated subset manifest, unchanged reference resources and metadata, real reftests, WPT profile preferences, source/resource/index/nested-tree preservation, phase application.ini symlink/content/identity/BuildID checks, and owned process/profile cleanup. Only independently bound BuildID differences may vary between phases; arbitrary run_info drift is rejected. No live WPT fixture or metadata is installed. Live target/held paths must be absent throughout the comparison.
+
+Run with Python isolation, an externally supplied capsule digest and current epoch digest. Outputs must be new absent directories. Use original-2 and candidate-2 (or higher unused phase numbers); v2 used original-1 already. Candidate also takes the original ASSESSMENT.json and its externally supplied SHA256.
+
+    python3 -I -S -B artifacts/css-registered-number-wpt-capsule-v3/run.py CAPSULE_SHA original-2 ABSOLUTE_EPOCH_PATH EPOCH_SHA ABSENT_ORIGINAL_OUTPUT
+    python3 -I -S -B artifacts/css-registered-number-wpt-capsule-v3/run.py CAPSULE_SHA candidate-2 ABSOLUTE_EPOCH_PATH EPOCH_SHA ABSENT_CANDIDATE_OUTPUT ABSOLUTE_ORIGINAL_ASSESSMENT ORIGINAL_ASSESSMENT_SHA
+
+The original wrapper may return zero after a complete preserved run with expected observed WPT failures. The candidate wrapper may return zero with unchanged held failures if all A assertions pass and the comparison gates pass. Raw WPT exit status remains separately recorded. Neither wrapper result alone accepts a native fix.
+
+Excluded: disputed self-font numeric division, the failed percentage-to-number calibration, and the separate pending 76-test scheduling page. Their source evidence remains in fixture-v3. This capsule does not resolve those independent questions. No browser, build, native test, Git, epoch or live-source changes were made while constructing it.

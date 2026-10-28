@@ -1,0 +1,7 @@
+# Registered admission and zoom observations
+
+Records 16 cases and 32 snapshots for registered lengths while target zoom changes from 1 to 2. Literal, unused-fallback, rejected grammar, and CSS-wide cases have fixed-font and self-font consumers. Computed values, specified declarations, registration errors and physical geometry are retained. Cases are observation-only: changes require interpretation, since repairing false cycles can intentionally change self-font results.
+
+The runner is the sealed sign observer with only its owned output prefix changed to css-registered-admission-zoom-runtime-. Policy binds the same two native roles, six unchanged collector files, frozen HEAD, compiled epoch, WPT capsule and browser metadata. The captured reporter and validator come from the sealed zoom-cases package. Fresh default profile, owned cleanup and full preservation limitations are identical to the sign observer. Run only after the corresponding completed preserved WPT phase. Invocation arguments are identical to that observer, with this directory and output prefix. A complete result does not imply conformance or native acceptance; setup errors remain explicit data.
+
+Synthetic validator controls cover all observed value/geometry fields, registration errors and malformed captures. No browser was run during preparation. Candidate changes must be reviewed alongside the literal and CSS-wide controls; neither blanket equality nor blanket acceptance of changes is an adequate zoom oracle.

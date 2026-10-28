@@ -1,0 +1,158 @@
+--- capsule-v2/test_assess.py
++++ capsule-v3/test_assess.py
+@@ -16,8 +16,9 @@
+ policy = json.loads((here / "POLICY.json").read_text())
+ checks = load("preservation_checks", root / policy["helpers"]["checks"])
+ targets = policy["target_subtests"]
++held = policy["held_subtests"]
+ fixture = next(iter(targets))
+-regression = next(t for t, kind in policy["tests"].items() if t not in targets and kind == "testharness")
++regression = next(t for t, kind in policy["tests"].items() if t in policy["regression_subtests"] and kind == "testharness")
+ reftest = next(t for t, kind in policy["tests"].items() if kind == "reftest")
+ binding = {"path": "/probe/application.ini", "resolved": "/probe/build/application.ini",
+            "sha256": "0" * 64, "identity": [1, 2],
+@@ -29,12 +30,14 @@
+     for name, kind in policy["tests"].items():
+         result.append({"action": "test_start", "test": name})
+         if kind == "testharness":
+-            names = targets[name] if name in targets else policy["regression_subtests"][name]
++            names = {**targets, **held, **policy["regression_subtests"]}[name]
+             for subtest in names:
+                 row = {"action": "test_status", "test": name, "subtest": subtest,
+                        "status": candidate_status if name in targets else "PASS"}
+                 if name in targets and candidate_status == "FAIL":
+                     row["expected"] = "PASS"
++                if name in held:
++                    row.update(status="FAIL", expected="PASS", message='assert_equals: observed=[{"value":"19","fontSize":"20px"},{"value":"19","fontSize":"30px"}] expected "20" but got "19"')
+                 if name == regression:
+                     row.update(status="FAIL", expected="PASS", known_intermittent=["FAIL"])
+                 result.append(row)
+@@ -45,9 +48,9 @@
+ original = parser.assess(events("FAIL"), 1, policy, checks, run_binding=binding)
+ assert original["complete"] and original["unexpected"] and not original["comparison_gate_passed"]
+ valid = events("PASS")
+-assert parser.assess(valid, 0, policy, checks, original, binding)["comparison_gate_passed"]
++assert parser.assess(valid, 1, policy, checks, original, binding)["comparison_gate_passed"]
+ rejected = []
+-def reject(label, changed, code=0):
++def reject(label, changed, code=1):
+     assessment = parser.assess(changed, code, policy, checks, original, binding)
+     assert not assessment["comparison_gate_passed"], label
+     rejected.append({"case": label, "errors": assessment["errors"],
+@@ -120,7 +123,7 @@
+ new_binding = dict(binding, browser_build_id="20261028120000", sha256="1" * 64)
+ new_events = copy.deepcopy(valid)
+ new_events[0]["run_info"]["browser_build_id"] = new_binding["browser_build_id"]
+-assert parser.assess(new_events, 0, policy, checks, original, new_binding)["comparison_gate_passed"]
++assert parser.assess(new_events, 1, policy, checks, original, new_binding)["comparison_gate_passed"]
+ build_checks.append("independently bound BuildID difference accepted")
+ for label, stream, bound, baseline in [
+     ("changed BuildID with old metadata", new_events, binding, original),
+@@ -128,27 +131,27 @@
+     ("metadata digest absent", valid, dict(binding, sha256=None), original),
+     ("original binding absent", valid, binding, dict(original, run_binding=None)),
+ ]:
+-    result = parser.assess(stream, 0, policy, checks, baseline, bound)
++    result = parser.assess(stream, 1, policy, checks, baseline, bound)
+     assert not result["comparison_gate_passed"], label
+     build_checks.append(label + " rejected")
+ missing_id = copy.deepcopy(valid)
+ del missing_id[0]["run_info"]["browser_build_id"]
+-assert not parser.assess(missing_id, 0, policy, checks, original, binding)["comparison_gate_passed"]
++assert not parser.assess(missing_id, 1, policy, checks, original, binding)["comparison_gate_passed"]
+ build_checks.append("missing actual BuildID rejected")
+ wrong_revision = copy.deepcopy(valid)
+ wrong_revision[0]["run_info"]["revision"] = "b" * 40
+-assert not parser.assess(wrong_revision, 0, policy, checks, original, binding)["comparison_gate_passed"]
++assert not parser.assess(wrong_revision, 1, policy, checks, original, binding)["comparison_gate_passed"]
+ build_checks.append("actual revision mismatches epoch rejected")
+ changed_epoch = dict(binding, revision="b" * 40)
+-assert not parser.assess(wrong_revision, 0, policy, checks, original, changed_epoch)["comparison_gate_passed"]
++assert not parser.assess(wrong_revision, 1, policy, checks, original, changed_epoch)["comparison_gate_passed"]
+ build_checks.append("individually bound but changed epoch HEAD rejected")
+ extra_field = copy.deepcopy(valid)
+ extra_field[0]["run_info"]["unexpected_field"] = True
+-assert not parser.assess(extra_field, 0, policy, checks, original, binding)["comparison_gate_passed"]
++assert not parser.assess(extra_field, 1, policy, checks, original, binding)["comparison_gate_passed"]
+ build_checks.append("new arbitrary run_info field rejected")
+ changed_changeset = copy.deepcopy(valid)
+ changed_changeset[0]["run_info"]["browser_changeset"] = "b" * 40
+-assert not parser.assess(changed_changeset, 0, policy, checks, original, binding)["comparison_gate_passed"]
++assert not parser.assess(changed_changeset, 1, policy, checks, original, binding)["comparison_gate_passed"]
+ build_checks.append("browser_changeset drift rejected")
+ runner = load("runner_without_execution", here / "run.py")
+ for role in ("original", "candidate"):
+@@ -177,6 +180,26 @@
+     row = next(e for e in changed if e.get("test") == fixture and e.get("subtest") == name)
+     row.update(status="FAIL", expected="PASS")
+     reject("failing registered-number assertion: " + name, changed, 1)
++
++
++for test, names in held.items():
++    reject("missing held page", [e for e in valid if e.get("test") != test])
++    for name in names:
++        reject("missing held assertion: " + name, [e for e in valid if not (e.get("test") == test and e.get("subtest") == name)])
++        for label, mutate in [
++            ("changed first value same FAIL", lambda row: row.update(message=row["message"].replace('"value":"19"', '"value":"18"', 1))),
++            ("changed second snapshot same FAIL", lambda row: row.update(message=row["message"].replace('"fontSize":"30px"', '"fontSize":"31px"'))),
++            ("missing observation message", lambda row: row.pop("message")),
++            ("truncated observations", lambda row: row.update(message='observed=[{"value":"19"}]')),
++            ("malformed observations", lambda row: row.update(message='observed=broken')),
++            ("changed FAIL to PASS", lambda row: row.update(status="PASS")),
++        ]:
++            changed = copy.deepcopy(valid)
++            row = next(e for e in changed if e.get("test") == test and e.get("subtest") == name)
++            mutate(row)
++            reject(label + ": " + name, changed)
++    incomplete = parser.assess([e for e in events("FAIL") if e.get("test") != test], 1, policy, checks, run_binding=binding)
++    assert not incomplete["complete"]
+ 
+ import hashlib
+ import tempfile
+@@ -212,6 +235,40 @@
+     sys.argv = saved_argv
+     runner.authenticate = saved_authenticate
+     runner.application_metadata = saved_metadata
++fresh_baseline_rejections = []
++try:
++    runner.authenticate = lambda *args: None
++    runner.application_metadata = lambda *args: binding
++    with tempfile.TemporaryDirectory(prefix="registered-number-baseline-negative-") as temporary:
++        temporary = Path(temporary)
++        epoch_path = temporary / "EPOCH.json"
++        baseline_path = temporary / "ASSESSMENT.json"
++        for label, head, capsule in [
++            ("frozen HEAD drift", "f" * 40, "0" * 64),
++            ("prior capsule baseline", policy["frozen_head"], "9" * 64),
++        ]:
++            epoch_path.write_text(json.dumps({"registered_number_transition": {
++                "role": "candidate", "variant": "committed-head", "compiled": True},
++                "semantic_index": {"head": head}}))
++            baseline_path.write_text(json.dumps({"complete": True, "execution_preserved": True,
++                "phase": "original-1", "capsule_manifest_sha256": capsule,
++                "native_sources": policy["source_roles"]["original"],
++                "run_binding": {"revision": policy["frozen_head"]}}))
++            sys.argv = ["run.py", "0" * 64, "candidate-2", str(epoch_path),
++                        hashlib.sha256(epoch_path.read_bytes()).hexdigest(), str(temporary / "absent-output"),
++                        str(baseline_path), hashlib.sha256(baseline_path.read_bytes()).hexdigest()]
++            try:
++                runner.main()
++            except RuntimeError as error:
++                assert str(error) == ("epoch HEAD differs from frozen comparison HEAD" if label == "frozen HEAD drift" else "matching complete original"), str(error)
++                fresh_baseline_rejections.append(label)
++            else:
++                raise AssertionError(label)
++finally:
++    sys.argv = saved_argv
++    runner.authenticate = saved_authenticate
++    runner.application_metadata = saved_metadata
++
+ assert len(phase_rejections) == 14 and len(stale_epoch_rejections) == 2
+ print(json.dumps({"original_expected_failures_retained": True,
+                   "matching_original_candidate_passes": True, "rejected_controls": rejected,
+@@ -219,4 +276,5 @@
+                   "phase_transition_rejected_controls": phase_rejections,
+                   "stale_epoch_main_preflight_rejected": stale_epoch_rejections,
+                   "stale_epoch_test_scope": "Capsule authentication stubbed; real epoch digest check executed before live metadata or process launch",
++                  "fresh_baseline_rejected_controls": fresh_baseline_rejections,
+                   "build_identity_controls": build_checks}, indent=2))

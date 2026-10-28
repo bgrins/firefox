@@ -1,0 +1,46 @@
+--- v3/transition.py
++++ v4/transition.py
+@@ -246,6 +246,26 @@
+     need(digest(data) == expected == digest(head_data), "live/HEAD successor: " + name)
+ 
+ 
++
++
++def verify_pending_validation(root, policy, planned_pins, epoch):
++    package = root / policy["packages"]["pending_validation"]["path"]
++    validator = read(package / "POLICY.json")
++    sources = read(package / "SOURCE-PINS.json")
++    roster = read(package / "ROSTER.json")
++    need(roster == read(root / policy["packages"]["pending_tests"]["path"] / "ROSTER.json"),
++         "pending validator matches the sealed overlay roster")
++    need(validator["frozen_head"] == policy["paired_head"], "pending validator frozen HEAD")
++    need(validator["unchanged_native_sources"] == policy["unchanged_native_sources"],
++         "pending validator unchanged collector roles")
++    need(len(sources) == validator["expected_source_pins"] == 20, "pending validator source inventory")
++    need(len(roster["candidate_gtests"]) == len(set(roster["candidate_gtests"])) ==
++         validator["expected_gtests"] == 22, "pending validator exact roster")
++    need(validator["expected_source_pending_calls"] == 34 and not validator["standalone_native_acceptance"],
++         "pending validator scope")
++    for name, pin in sources.items():
++        need(pin == planned_pins.get(name, epoch["pins"].get(name)), "pending validator planned source: " + name)
++    return policy["packages"]["pending_validation"]["manifest_sha256"]
+ 
+ def require_enabled_mode(policy, mode):
+     need(mode in policy["modes"], "transition mode")
+@@ -310,6 +330,7 @@
+     head_pins, prior_pins, next_pins = expected_sources(policy, mode, restoration, head_roles, live_roles, pending_roles)
+     owned_bytes = body(runtime / "OWNED.json")
+     existing_owned = json.loads(owned_bytes)
++    validation_manifest = verify_pending_validation(ROOT, policy, next_pins, epoch) if mode == "pending-tests" else None
+     expected_owned = set(restoration["paths"])
+     need(set(existing_owned) == expected_owned, "current ownership inventory")
+     state = load_state(runtime)
+@@ -446,7 +467,7 @@
+             claim(ROOT, name, item["owned_sha256"], item["identity"])
+         save(out / "RESULT.json", {"completed": True, "mode": mode, "written_sources": touched,
+             "owned_source_paths": len(native_owned), "epoch_sha256": sha(epoch_path), "compiled": False,
+-            "accepted": False, "wpt_comparison_gate": wpt_result.get("comparison_gate_passed", wpt_result.get("wpt_comparison_gate")), "preservation_verified": True})
++            "accepted": False, "pending_validation_manifest_sha256": validation_manifest, "wpt_comparison_gate": wpt_result.get("comparison_gate_passed", wpt_result.get("wpt_comparison_gate")), "preservation_verified": True})
+         print((out / "RESULT.json").read_text(), flush=True)
+     except BaseException as error:
+         rollback_errors = []

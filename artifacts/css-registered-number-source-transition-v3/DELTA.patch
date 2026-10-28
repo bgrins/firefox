@@ -1,0 +1,185 @@
+--- v2/transition.py
++++ v3/transition.py
+@@ -140,7 +140,7 @@
+     group_absent(read(wpt / "PROCESS.json")["pgid"])
+ 
+ 
+-def source_roles(root, package, count=3, filename="COMBINED-SOURCE-ROLES.json"):
++def source_roles(root, package, count=2, filename="COMBINED-SOURCE-ROLES.json"):
+     roles = read(root / package / filename)
+     need(set(roles) == {"base", "candidate"}, "source roles")
+     need(set(roles["base"]) == set(roles["candidate"]) and len(roles["base"]) == count, "exact source paths")
+@@ -154,7 +154,6 @@
+ def expected_sources(policy, mode, restoration, head_roles, live_roles, pending_roles):
+     need(mode in policy["modes"], "known transition mode")
+     original = {name: pin["head_original"] for name, pin in restoration["paths"].items()}
+-    original[policy["new_owned_path"]] = head_roles["base"][policy["new_owned_path"]]["sha256"]
+     for name, pin in head_roles["base"].items():
+         need(original[name] == pin["sha256"], "head role agrees with restoration")
+     head_candidate = dict(original)
+@@ -209,26 +208,36 @@
+     names = set(config["paths"])
+     need(names == {"artifacts/stylo-bloom-tools/CURRENT-COMMITS.json",
+                    "artifacts/stylo-bloom-tools/PLAN-OF-RECORD.md"}, "exact authorized ledger successors")
+-    signing = root / relative(config["signing_directory"])
+-    update = read(signing / "ROADMAP-UPDATE.json")
+-    selection = read(signing / "checkpoint-selection.json")
+-    receipt = read(signing / "checkpoint-receipt.json")
+-    final = read(signing / "FINAL-CHECK.json")
+-    need(set(update["before"]) == set(update["after"]) == names, "exact roadmap change inventory")
+-    need(receipt["commit"] == final["head"] == final["commits"]["checkpoint"] == policy["paired_head"]
+-         and receipt["signature_verified"] and final["signatures_verified"], "signed successor checkpoint")
+-    need(receipt["working_bodies_and_nested_index_preserved"] and final["unfinished_prototypes_preserved"],
+-         "checkpoint preservation evidence")
+-    need(set(selection["files"]) == set(selection["source_pins"]) == set(receipt["files"]),
+-         "checkpoint selected receipt inventory")
+-    for name in config["committed_provenance"]:
+-        need(selection["source_pins"].get(name) == policy["references"][name] == sha(root / relative(name)),
+-             "committed successor provenance: " + name)
+-    for name in names:
+-        need(update["before"][name] == source_pins[name] == sha(signing / "ledger-preimages" / Path(name).name),
+-             "successor original matches v8: " + name)
+-        need(selection["source_pins"].get(name) == update["after"][name], "checkpoint successor pin: " + name)
+-    return update["after"]
++    chain = config["checkpoints"]
++    need(len(chain) == 2 and chain[-1]["head"] == policy["paired_head"], "fixed signing successor chain")
++    previous = {name: source_pins[name] for name in names}
++    previous_update = None
++    for checkpoint in chain:
++        signing = root / relative(checkpoint["signing_directory"])
++        update = read(signing / "ROADMAP-UPDATE.json")
++        selection = read(signing / "checkpoint-selection.json")
++        receipt = read(signing / "checkpoint-receipt.json")
++        final = read(signing / "FINAL-CHECK.json")
++        need(set(update["before"]) == set(update["after"]) == names, "exact roadmap change inventory")
++        need(update["before"] == previous, "continuous authorized ledger chain")
++        if previous_update is not None:
++            need(update["prior_authorized_ledger_update"] == previous_update, "explicit prior roadmap link")
++        need(receipt["commit"] == final["head"] == final["commits"]["checkpoint"] == checkpoint["head"]
++             and receipt["signature_verified"] and final["signatures_verified"], "signed successor checkpoint")
++        need(receipt["working_bodies_and_nested_index_preserved"] and final["unfinished_prototypes_preserved"],
++             "checkpoint preservation evidence")
++        need(set(selection["files"]) == set(selection["source_pins"]) == set(receipt["files"]),
++             "checkpoint selected receipt inventory")
++        for name in checkpoint["committed_provenance"]:
++            need(selection["source_pins"].get(name) == policy["references"][name] == sha(root / relative(name)),
++                 "committed successor provenance: " + name)
++        for name in names:
++            need(update["before"][name] == sha(signing / "ledger-preimages" / Path(name).name),
++                 "successor committed preimage: " + name)
++            need(selection["source_pins"].get(name) == update["after"][name], "checkpoint successor pin: " + name)
++        previous = update["after"]
++        previous_update = checkpoint["signing_directory"] + "/ROADMAP-UPDATE.json"
++    return previous
+ 
+ 
+ def verify_successor(name, expected, data, epoch, policy, head_data):
+@@ -236,13 +245,18 @@
+     need(pins and all(pin == expected for pin in pins), "current epoch successor pin: " + name)
+     need(digest(data) == expected == digest(head_data), "live/HEAD successor: " + name)
+ 
++
++
++def require_enabled_mode(policy, mode):
++    need(mode in policy["modes"], "transition mode")
++    need(mode != "pending-tests" or policy["pending_overlay_enabled"], policy["pending_overlay_hold"])
+ 
+ def main():
+     need(len(sys.argv) == 7, "Usage: transition.py TOOL_SHA MODE EPOCH_SHA ABS_EVIDENCE_DIR EVIDENCE_RESULT_SHA LABEL")
+     tool_sha, mode, epoch_sha, evidence_name, result_sha, label = sys.argv[1:]
+     authenticate(HERE, tool_sha)
+     policy = read(HERE / "POLICY.json")
+-    need(mode in policy["modes"], "transition mode")
++    require_enabled_mode(policy, mode)
+     need(bool(re.fullmatch(mode + r"-[1-9][0-9]*", label)), "unique mode label")
+     need(all(not os.environ.get(k) for k in policy["forbidden_env"]), "unexpected build/git environment")
+     for name, pin in policy["references"].items():
+@@ -297,13 +311,19 @@
+     owned_bytes = body(runtime / "OWNED.json")
+     existing_owned = json.loads(owned_bytes)
+     expected_owned = set(restoration["paths"])
+-    if mode != "head-candidate":
+-        expected_owned.add(policy["new_owned_path"])
+     need(set(existing_owned) == expected_owned, "current ownership inventory")
+     state = load_state(runtime)
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1")
+     before = state.a.verify_current(state.h, ROOT, env, epoch)
+     flags = {n: state.h.git(ROOT / n, env, "ls-files", "-v", "-z") for n in [".", "artifacts/css-spec-lean"]}
++    collector_roles = read(ROOT / "artifacts/css-registered-value-collector-proposal-v1/SOURCE-ROLES.json")
++    need(policy["unchanged_native_sources"] == {name: pin["original"] for name, pin in collector_roles.items()}
++         and len(collector_roles) == 6, "exact unchanged collector source roles")
++    unchanged = {}
++    for name, expected in policy["unchanged_native_sources"].items():
++        need(name not in prior_pins, "unchanged source is not an owned mutation path")
++        need(digest(state.h.git(ROOT, env, "show", "HEAD:" + name)) == expected, "unchanged HEAD source")
++        unchanged[name] = claim(ROOT, name, expected)
+     native_owned, originals, desired = {}, {}, {}
+     for name, expected in prior_pins.items():
+         need(epoch["pins"].get(name) == expected, "current source epoch pin: " + name)
+@@ -328,17 +348,17 @@
+     need({n: digest(v) for n, v in desired.items()} == next_pins, "all desired bodies authenticated")
+     snapshot = ROOT / policy["packages"]["snapshot"]["path"]
+     source_pins = read(snapshot / "SOURCE-PINS.json")
++    need(len(source_pins) == 140, "complete v8 recovery inventory")
+     successors = authorized_successors(ROOT, policy, source_pins)
+-    for name in policy["authorized_successors"]["committed_provenance"]:
+-        need(digest(state.h.git(ROOT, env, "show", "HEAD:" + name)) == policy["references"][name],
+-             "HEAD successor provenance: " + name)
++    for checkpoint in policy["authorized_successors"]["checkpoints"]:
++        for name in checkpoint["committed_provenance"]:
++            need(digest(state.h.git(ROOT, env, "show", "HEAD:" + name)) == policy["references"][name],
++                 "HEAD successor provenance: " + name)
+     for name, pin in source_pins.items():
+         source = runtime / "prototype-original" / name if name in restoration["paths"] else ROOT / name
+         if name in successors:
+             verify_successor(name, successors[name], body(source), epoch, policy,
+                              state.h.git(ROOT, env, "show", "HEAD:" + name))
+-        elif name == policy["new_owned_path"]:
+-            need(pin == head_pins[name], "preserved originally-clean value.rs")
+         else:
+             need(sha(source) == pin, "preserved unfinished source: " + name)
+     prior_modified = sorted(n for n in prior_pins if prior_pins[n] != head_pins[n])
+@@ -361,6 +381,7 @@
+     try:
+         out.mkdir()
+         save(out / "PRE.json", before)
++        save(out / "UNCHANGED-SOURCES.json", unchanged)
+         save(out / "PRE-OWNED.json", existing_owned)
+         save(out / "PRE-ROLE.json", role)
+         save(out / "PRE-EPOCH.json", epoch)
+@@ -373,6 +394,8 @@
+         for name, item in control_owned.items():
+             claim(ROOT, name, digest(control_bytes[name]), item["identity"])
+         need(state.a.verify_current(state.h, ROOT, env, epoch) == before, "preservation changed before owned writes")
++        for name, item in unchanged.items():
++            claim(ROOT, name, item["owned_sha256"], item["identity"])
+         for name in sorted(native_owned):
+             if prior_pins[name] == next_pins[name]:
+                 continue
+@@ -406,6 +429,8 @@
+         after = state.a.verify_current(state.h, ROOT, env, current)
+         need(all(state.h.git(ROOT / n, env, "ls-files", "-v", "-z") == value for n, value in flags.items()), "root/nested index flags")
+         need(after["nested_index"] == before["nested_index"], "nested index unchanged")
++        for name, item in unchanged.items():
++            claim(ROOT, name, item["owned_sha256"], item["identity"])
+         save(out / "POST.json", after)
+         save(out / "EPOCH.json", current)
+         new_role = {"role": route["to_role"], "variant": route["to_variant"], "built": False,
+@@ -417,6 +442,8 @@
+             changed_controls.append(name)
+             write_owned(ROOT, control_owned[name], data)
+         need(state.a.verify_current(state.h, ROOT, env, current) == after, "final preservation")
++        for name, item in unchanged.items():
++            claim(ROOT, name, item["owned_sha256"], item["identity"])
+         save(out / "RESULT.json", {"completed": True, "mode": mode, "written_sources": touched,
+             "owned_source_paths": len(native_owned), "epoch_sha256": sha(epoch_path), "compiled": False,
+             "accepted": False, "wpt_comparison_gate": wpt_result.get("comparison_gate_passed", wpt_result.get("wpt_comparison_gate")), "preservation_verified": True})
+@@ -435,6 +462,8 @@
+                 rollback_errors.append(name + ": " + repr(exc))
+         try:
+             need(state.a.verify_current(state.h, ROOT, env, epoch) == before, "restored preservation snapshot")
++            for name, item in unchanged.items():
++                claim(ROOT, name, item["owned_sha256"], item["identity"])
+             need(all(state.h.git(ROOT / n, env, "ls-files", "-v", "-z") == value for n, value in flags.items()),
+                  "restored root/nested index flags")
+         except BaseException as exc:

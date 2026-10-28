@@ -1,0 +1,50 @@
+--- v1/run.py
++++ v2/run.py
+@@ -61,14 +61,14 @@
+ epoch_path = RUNTIME / 'CURRENT-EPOCH.json'
+ assert sha(epoch_path) == epoch_sha
+ epoch = read(epoch_path)
+-transition = epoch['registered_number_transition']
+-assert transition['role'] == 'candidate'
+-assert transition['variant'] == 'prototype-overlay'
+-assert transition['compiled'] is True
+-for name, pin in read(HERE / 'SOURCE-PINS.json').items():
+-    assert sha(ROOT / name) == pin and epoch['pins'].get(name) == pin, name
++policy = read(HERE / 'POLICY.json')
++bindings = load('number_pending_bindings', HERE / 'bindings.py')
++bindings.require_transition(epoch, policy)
++sources = read(HERE / 'SOURCE-PINS.json')
+ state_helper = load('number_state', RUNTIME / 'state.py')
+ h, guard = state_helper.h, state_helper.a
++bindings.verify_sources(epoch, policy, sources, lambda name: h.fingerprint(ROOT, name))
++source_identities = bindings.identities(ROOT, sources.keys() | policy['unchanged_native_sources'].keys())
+ builder = load('number_builder', RUNTIME / 'phase.py')
+ control = load('number_control', RUNTIME / 'process_control.py')
+ parser = load('number_gtest_assess', HERE / 'assess.py')
+@@ -81,12 +81,17 @@
+ command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'gtest',
+            ':'.join(roster), '--jobs=1']
+ save(directory / 'PRE.json', before)
++save(directory / 'SOURCE-IDENTITIES.json', source_identities)
+ save(directory / 'COMMAND.json', {'command': command, 'pid': os.getpid(),
+      'epoch_sha256': epoch_sha, 'capsule_sha256': manifest_sha})
+ inflight = copy.deepcopy(epoch)
+ inflight['registered_number_transition']['compiled'] = False
+ inflight['registered_number_gtest'] = {'label': label, 'status': 'IN_FLIGHT', 'success': False}
+ save(directory / 'IN-FLIGHT-EPOCH.json', inflight)
++assert sha(epoch_path) == epoch_sha
++assert guard.verify_current(h, ROOT, ENV, epoch) == before
++bindings.verify_sources(epoch, policy, sources, lambda name: h.fingerprint(ROOT, name))
++assert bindings.identities(ROOT, source_identities) == source_identities
+ epoch_path.write_text(json.dumps(inflight, indent=2, sort_keys=True) + '\n')
+ inflight_sha = sha(epoch_path)
+ owned, publication_errors = {}, []
+@@ -127,6 +132,8 @@
+            for name, value in flags.items())
+ assert sha(epoch_path) == inflight_sha
+ authenticate()
++bindings.verify_sources(current, policy, sources, lambda name: h.fingerprint(ROOT, name))
++assert bindings.identities(ROOT, source_identities) == source_identities
+ success = error is None and not publication_errors and assessment is not None
+ current['registered_number_transition']['compiled'] = success
+ current['registered_number_gtest'] = {

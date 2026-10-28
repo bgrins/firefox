@@ -1,0 +1,7 @@
+# Pending overlay compatibility and hold
+
+The historical one-file pending overlay remains a plausible regression fixture for selected-token A on the preserved prototype. Its nine admission rows ask for existing Invalid/initial, unused fallback, pending provider and CSS-wide behavior; the three retained math calls exercise scheduling breadth already present in that prototype. A v2 preserves that existing pending prefilter and only intersects selected obligations after actual grammar admission. No public bridge API or C++ fixture signature changed.
+
+This is static compatibility, not compiled or executed evidence. The old validation runner binds the previous number-only native candidate, so its source-pin gate must reject the new custom_properties/cascade hashes. The expanded A repair also needs its own nonnumeric browser regressions. Accordingly `pending-tests` is held in POLICY.json and rejected before runtime state is read or mutated. The old overlay is authenticated for recovery inventory only. Re-enable installation in a new immutable controller only after a validation capsule is rebound to the exact selected-token prototype sources; do not modify this sealed policy to bypass the hold.
+
+The HEAD candidate and prototype-live restoration modes remain independently available. After prototype restoration the tool publishes compiled=false; it does not apply the historical C++ overlay or claim a GTest result. The 22 tests/34 resolver calls are source inventory, not executed counts.

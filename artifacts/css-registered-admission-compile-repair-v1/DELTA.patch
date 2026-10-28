@@ -1,0 +1,63 @@
+--- source-transition-v3/transition.py
++++ compile-repair/transition.py
+@@ -163,7 +163,12 @@
+     for name, pin in pending_roles["base"].items():
+         need(prototype_candidate[name] == pin["sha256"], "pending test original matches preserved prototype")
+     if mode == "head-candidate":
+-        before, after = dict(original), head_candidate
++        previous = source_roles(ROOT, policy["packages"]["previous_head"]["path"])
++        before = dict(original)
++        before.update({name: pin["sha256"] for name, pin in previous["candidate"].items()})
++        after = head_candidate
++        need([name for name in before if before[name] != after[name]] ==
++             ["servo/components/style/custom_properties.rs"], "exact lifetime repair path")
+     elif mode == "prototype-live":
+         before, after = head_candidate, prototype_candidate
+     else:
+@@ -275,8 +280,9 @@
+     transition = epoch["registered_number_transition"]
+     for field, expected in [("role", route["from_role"]), ("variant", route["from_variant"])]:
+         need(role[field] == transition[field] == expected, "current source role: " + field)
+-    need(role["built"] is (mode != "pending-tests") and transition["compiled"] is (mode != "pending-tests")
+-         and not transition["accepted"], "required unaccepted compilation state")
++    need(not role["built"] and not transition["compiled"] and not transition["accepted"],
++         "failed candidate must remain uncompiled and unaccepted")
++    need(epoch_sha == policy["failed_epoch_sha256"], "exact failed-build epoch")
+     evidence = Path(evidence_name)
+     need(evidence.is_absolute() and not evidence.is_symlink(), "absolute evidence directory")
+     head_roles = source_roles(ROOT, policy["packages"]["head"]["path"])
+@@ -301,10 +307,18 @@
+         need(epoch["prototype_overlay_state"]["installed"], "prototype must be installed")
+         quiescent(runtime)
+     else:
+-        need(evidence.parent == ROOT / "artifacts" and
+-             evidence.name.startswith("css-registered-number-wpt-runtime-"), "owned WPT directory")
+-        wpt_result = verify_wpt(policy, mode, evidence, result_sha, epoch, epoch_sha, head_roles)
+-        quiescent(runtime, role, evidence)
++        need(evidence == runtime / "head-candidate-build-1", "exact failed build")
++        need(sha(evidence / "RESULT.json") == result_sha == policy["failed_result_sha256"], "failed build result")
++        failed = read(evidence / "RESULT.json")
++        need(not failed["command_success"] and failed["preservation_verified"] and
++             failed["owned_processes"] == {} and not failed["publication_errors"], "preserved failed build")
++        need(read(evidence / "EPOCH.json") == epoch and role["last_build"] == evidence.name and
++             transition["last_phase"] == evidence.name, "failed build source epoch")
++        for directory, files in policy["terminal_processes"].items():
++            for name in files:
++                group_absent(read(ROOT / directory / name)["pgid"])
++        wpt_result = {"comparison_gate_passed": False, "failed_build_evidence": str(evidence)}
++        quiescent(runtime)
+     restoration = read(runtime / "RESTORATION-PLAN.json")
+     need(restoration["head"] == policy["captured_native_head"], "restoration provenance")
+     head_pins, prior_pins, next_pins = expected_sources(policy, mode, restoration, head_roles, live_roles, pending_roles)
+@@ -388,7 +402,10 @@
+         save(out / "PLAN.json", {"mode": mode, "epoch_sha256": epoch_sha, "tool_manifest_sha256": tool_sha,
+                                   "paired_head": policy["paired_head"], "evidence_result": str(evidence / "RESULT.json"),
+                                   "evidence_result_sha256": result_sha, "before": prior_pins, "after": next_pins})
+-        quiescent(runtime) if mode == "pending-tests" else quiescent(runtime, role, evidence)
++        quiescent(runtime)
++        for directory, files in policy["terminal_processes"].items():
++            for name in files:
++                group_absent(read(ROOT / directory / name)["pgid"])
+         need(sha(epoch_path) == epoch_sha, "epoch changed before owned writes")
+         need(sha(evidence / "RESULT.json") == result_sha, "evidence changed before owned writes")
+         for name, item in control_owned.items():

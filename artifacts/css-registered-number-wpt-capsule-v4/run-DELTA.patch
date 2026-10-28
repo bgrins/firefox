@@ -1,0 +1,68 @@
+--- capsule-v3/run.py
++++ capsule-v4/run.py
+@@ -17,6 +17,7 @@
+ import subprocess
+ import tempfile
+ import time
++from types import SimpleNamespace
+ 
+ HERE = Path(__file__).resolve().parent
+ ROOT = HERE.parents[1]
+@@ -111,15 +112,18 @@
+     require_compiled_transition(epoch, role)
+     need(epoch["semantic_index"]["head"] == policy["frozen_head"], "epoch HEAD differs from frozen comparison HEAD")
+     app_metadata = application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+-    original, baseline_path = None, None
++    original, baseline_path, adopted = None, None, None
+     if role == "candidate":
+         baseline_path = Path(sys.argv[6])
+         need(baseline_path.is_absolute() and not baseline_path.is_symlink() and
+              sha(baseline_path) == sys.argv[7], "externally supplied original assessment")
+         original = read(baseline_path)
++        if original.get("capsule_manifest_sha256") != sys.argv[1]:
++            adoption = load("original_adoption", HERE / "adoption.py")
++            adopted = adoption.validate(ROOT, HERE, baseline_path, sys.argv[7], policy, SimpleNamespace(**globals()))
+         need(original["complete"] and original["execution_preserved"] and
+              original["phase"].startswith("original-") and
+-             original["capsule_manifest_sha256"] == sys.argv[1] and
++             (original["capsule_manifest_sha256"] == sys.argv[1] or adopted is not None) and
+              original["native_sources"] == policy["source_roles"]["original"], "matching complete original")
+         need(original["run_binding"]["revision"] == epoch["semantic_index"]["head"],
+              "original/candidate epoch HEAD must be frozen")
+@@ -159,6 +163,8 @@
+     binary_pins = {name: h.fingerprint(ROOT, name) for name in policy["normal_binaries"]}
+     need(all(pin and epoch["pins"][name] == pin for name, pin in binary_pins.items()), "normal built binary bindings")
+     out.mkdir()
++    if adopted is not None:
++        save(out / "ORIGINAL-ADOPTION.json", adopted)
+     save(out / "EPOCH.json", epoch)
+     save(out / "PRE.json", before)
+     save(out / "INDEX-FLAGS.json", flags)
+@@ -260,6 +266,8 @@
+                  (tests_root / "tools").resolve() == ROOT / "testing/web-platform/tests/tools", "owned tools link changed")
+             for name, pin in read(HERE / "REFERENCES.json").items():
+                 need(sha(ROOT / name) == pin, "helper/source changed: " + name)
++            if adopted is not None:
++                need(adoption.validate(ROOT, HERE, baseline_path, sys.argv[7], policy, SimpleNamespace(**globals())) == adopted, "adopted original changed")
+             authenticate(HERE, sys.argv[1])
+             save(out / "POST.json", post)
+         except BaseException as exc:
+@@ -270,7 +278,7 @@
+         events = [json.loads(line) for line in raw.read_text().splitlines()]
+         assessment = parser.assess(events, code, policy, checks, original, app_metadata)
+         assessment.update(phase=phase, capsule_manifest_sha256=sys.argv[1],
+-                          epoch_sha256=sys.argv[4], native_sources=policy["source_roles"][role],
++                          epoch_sha256=sys.argv[4], native_sources=policy["source_roles"][role], original_adoption=adopted,
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)
+@@ -282,7 +290,8 @@
+     result = {"exit": code, "execution_error": error, "preservation_error": post_error,
+               "phase": phase, "observation_gate_passed": bool(passed),
+               "comparison_gate_passed": bool(passed and role == "candidate"),
+-              "native_fix_acceptance": False, "explicit_corrected_oracle_in_both_phases": True}
++              "native_fix_acceptance": False, "explicit_corrected_oracle_in_both_phases": True,
++              "original_adoption": adopted}
+     save(out / "RESULT.json", result)
+     print(json.dumps(result, indent=2))
+     return 0 if passed else 1

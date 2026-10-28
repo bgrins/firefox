@@ -1,0 +1,18 @@
+--- capsule-v2/run.py
++++ capsule-v3/run.py
+@@ -109,6 +109,7 @@
+     need(sha(epoch_path) == sys.argv[4], "externally supplied epoch digest")
+     epoch = read(epoch_path)
+     require_compiled_transition(epoch, role)
++    need(epoch["semantic_index"]["head"] == policy["frozen_head"], "epoch HEAD differs from frozen comparison HEAD")
+     app_metadata = application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+     original, baseline_path = None, None
+     if role == "candidate":
+@@ -147,6 +148,7 @@
+     resource_pins = {item["origin"]: item.get("sha256") for item in source_pins.values()}
+     fingerprint_resource = lambda name: resource_fingerprint(h, ROOT, name, policy["application_ini"])
+     resource_pins.update(policy["live_oracle_sources"])
++    resource_pins.update(policy["unchanged_native_sources"])
+     resource_pins.update({name: fingerprint_resource(name) for name in policy["runtime_inputs"]})
+     for directory in policy["profile_directories"]:
+         for path in sorted((ROOT / directory).rglob("*")):

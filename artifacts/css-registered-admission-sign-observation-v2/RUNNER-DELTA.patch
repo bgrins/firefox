@@ -1,0 +1,48 @@
+--- observation-v1/run.py
++++ observation-v2/run.py
+@@ -77,13 +77,16 @@
+         need(helper.sha(ROOT / name) == expected and epoch["pins"].get(name) == expected, "native source: " + name)
+     metadata = helper.application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+     need(metadata == normative["run_binding"], "same application metadata as normative phase")
+-    original, original_path = None, None
++    original, original_path, adopted = None, None, None
+     if role == "candidate":
+         original_path = Path(sys.argv[8])
+         need(original_path.is_absolute() and not original_path.is_symlink() and helper.sha(original_path) == sys.argv[9], "original result binding")
+         original = helper.read(original_path)
++        if original.get("manifest_sha256") != sys.argv[1]:
++            adoption = load("observer_adoption", HERE / "adoption.py")
++            adopted = adoption.validate(ROOT, HERE, original_path, sys.argv[9], policy, helper)
+         need(original["complete"] and original["execution_preserved"] and original["phase"].startswith("original-"), "complete original observation")
+-        need(original["manifest_sha256"] == sys.argv[1] and original["native_sources"] == policy["source_roles"]["original"], "same observation capsule and original source role")
++        need((original["manifest_sha256"] == sys.argv[1] or adopted is not None) and original["native_sources"] == policy["source_roles"]["original"], "same observation capsule and original source role")
+         need(original["application_metadata"]["revision"] == metadata["revision"], "frozen original/candidate HEAD")
+     out = Path(sys.argv[7])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "absent output")
+@@ -102,6 +105,8 @@
+     binaries = {name: h.fingerprint(ROOT, name) for name in policy["normal_binaries"]}
+     need(all(value and epoch["pins"].get(name) == value for name, value in binaries.items()), "built binary epoch")
+     out.mkdir()
++    if adopted is not None:
++        helper.save(out / "ORIGINAL-ADOPTION.json", adopted)
+     for name, value in (("EPOCH.json", epoch), ("PRE.json", before), ("INDEX-FLAGS.json", flags),
+                         ("NORMAL-BINARIES.json", binaries), ("APPLICATION-METADATA.json", metadata)):
+         helper.save(out / name, value)
+@@ -207,6 +212,8 @@
+                 need(helper.sha(ROOT / name) == expected, "WPT reference changed: " + name)
+             for name, expected in helper.read(HERE / "REFERENCES.json").items():
+                 need(helper.sha(ROOT / name) == expected, "reference changed: " + name)
++            if adopted is not None:
++                need(adoption.validate(ROOT, HERE, original_path, sys.argv[9], policy, helper) == adopted, "adopted observation changed")
+             helper.save(out / "POST.json", post)
+         except BaseException as exc:
+             post_error = repr(exc)
+@@ -227,7 +234,7 @@
+               "browser_exit": process.returncode if process else None, "natural_exit_before_cleanup": natural_exit,
+               "termination_requested_for_owned_cleanup": process is not None, "error": error, "preservation_error": post_error,
+               "profile_configuration": "fresh default profile; WPT preferences are not imported",
+-              "normative_verdict": "not evaluated", "native_fix_acceptance": False}
++              "normative_verdict": "not evaluated", "native_fix_acceptance": False, "original_adoption": adopted}
+     helper.save(out / "RESULT.json", result)
+     print(json.dumps(result, indent=2))
+     return 0 if result["complete"] else 1

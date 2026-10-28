@@ -1,0 +1,144 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered numeric context scheduling observations</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>@property --n { syntax: "<number>"; inherits: false; initial-value: 3; }</style>
+<body>
+<script>
+function makeTarget(t, css, parentCSS = "", attributes = {}, fontSize = "calc(var(--n)*1px)") {
+  const parent = document.createElement("div");
+  parent.style.cssText = "font-size:19px;line-height:23px;" + parentCSS;
+  const target = document.createElement("div");
+  target.style.cssText = css + ";font-size:" + fontSize;
+  for (const [name, value] of Object.entries(attributes)) {
+    target.setAttribute(name, value);
+  }
+  parent.append(target);
+  document.body.append(parent);
+  t.add_cleanup(() => parent.remove());
+  return target;
+}
+
+function check(target, expected) {
+  const computed = getComputedStyle(target);
+  for (const [property, value] of Object.entries(expected)) {
+    assert_equals(computed.getPropertyValue(property).trim(), value, property);
+  }
+}
+
+
+function snapshot(target, names) {
+  const style = getComputedStyle(target);
+  return Object.fromEntries(names.map(name => [name, style.getPropertyValue(name).trim()]));
+}
+
+test(t => {
+  const target = makeTarget(t, "--n:calc(1em / 1px);font-size:20px;width:calc(var(--n) * 1px)", "", {}, "20px");
+  const actual = [];
+  for (const size of [20, 30]) {
+    target.style.fontSize = size + "px";
+    actual.push(snapshot(target, ["--n", "font-size", "width"]));
+  }
+  const detail = "observed=" + JSON.stringify(actual);
+  for (let i = 0; i < actual.length; ++i) {
+    const size = [20, 30][i];
+    assert_equals(actual[i]["--n"], String(size), detail);
+    assert_equals(actual[i]["font-size"], size + "px", detail);
+    assert_equals(actual[i].width, size + "px", detail);
+  }
+}, "normative: noncyclic-numeric-length-division");
+
+test(t => {
+  const target = makeTarget(t, "--n:calc(1lh / 1px);line-height:40px;width:calc(var(--n)*1px)", "", {}, "20px");
+  const actual = [];
+  for (const value of [40, 50]) {
+    target.style.lineHeight = value + "px";
+    actual.push(snapshot(target, ["--n", "font-size", "line-height", "width"]));
+  }
+  const detail = "observed=" + JSON.stringify(actual);
+  for (let i = 0; i < actual.length; ++i) {
+    const value = [40, 50][i];
+    assert_equals(actual[i]["--n"], String(value), detail);
+    assert_equals(actual[i]["font-size"], "20px", detail);
+    assert_equals(actual[i]["line-height"], value + "px", detail);
+    assert_equals(actual[i].width, value + "px", detail);
+  }
+}, "Admitted number follows current line-height mutation");
+
+test(t => {
+  const target = makeTarget(t, "--n:calc(1px / 1em);width:calc(var(--n)*1000px)", "", {}, "20px");
+  const actual = [];
+  for (const size of [20, 25]) {
+    target.style.fontSize = size + "px";
+    actual.push(snapshot(target, ["--n", "font-size", "width"]));
+  }
+  const detail = "observed=" + JSON.stringify(actual);
+  for (let i = 0; i < actual.length; ++i) {
+    assert_approx_equals(Number(actual[i]["--n"]), [0.05, 0.04][i], 0.000001, detail);
+    assert_equals(actual[i]["font-size"], ["20px", "25px"][i], detail);
+    assert_equals(actual[i].width, ["50px", "40px"][i], detail);
+  }
+}, "Admitted inverse number follows current font-size mutation");
+
+const breadthCases = [
+  {"id":"number:math-control:math","group":"number","kind":"math-control","mode":"math","syntax":"<number>","registrations":[{"name":"--breadth-x-48","syntax":"<number>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-48","number":null},"declarations":"--breadth-ready-48:5;--breadth-x-48:calc(1em / 1px)","parent":"font-size:19px;line-height:23px;width:200px","fontSize":"20px","width":"auto","snapshots":[{"label":"20px-context","set":{"font-size":"20px"},"expected":{"value":"20","fontSize":"20px"}},{"label":"30px-context","set":{"font-size":"30px"},"expected":{"value":"30","fontSize":"30px"}}],"requiresCalibration":["number:direct:literal"]},
+  {"id":"integer:math-control:math","group":"integer","kind":"math-control","mode":"math","syntax":"<integer>","registrations":[{"name":"--breadth-x-49","syntax":"<integer>","inherits":false,"initialValue":"3"}],"names":{"value":"--breadth-x-49","number":null},"declarations":"--breadth-ready-49:5;--breadth-x-49:calc(1em / 1px)","parent":"font-size:19px;line-height:23px;width:200px","fontSize":"20px","width":"auto","snapshots":[{"label":"20px-context","set":{"font-size":"20px"},"expected":{"value":"20","fontSize":"20px"}},{"label":"30px-context","set":{"font-size":"30px"},"expected":{"value":"30","fontSize":"30px"}}],"requiresCalibration":["integer:direct:literal"]},
+  {"id":"angle:math-control:math","group":"angle","kind":"math-control","mode":"math","syntax":"<angle>","registrations":[{"name":"--breadth-x-50","syntax":"<angle>","inherits":false,"initialValue":"3deg"}],"names":{"value":"--breadth-x-50","number":null},"declarations":"--breadth-ready-50:5deg;--breadth-x-50:calc(1em / 1px * 1deg)","parent":"font-size:19px;line-height:23px;width:200px","fontSize":"20px","width":"auto","snapshots":[{"label":"20px-context","set":{"font-size":"20px"},"expected":{"value":"20deg","fontSize":"20px"}},{"label":"30px-context","set":{"font-size":"30px"},"expected":{"value":"30deg","fontSize":"30px"}}],"requiresCalibration":["angle:direct:literal"]},
+  {"id":"time:math-control:math","group":"time","kind":"math-control","mode":"math","syntax":"<time>","registrations":[{"name":"--breadth-x-51","syntax":"<time>","inherits":false,"initialValue":"3s"}],"names":{"value":"--breadth-x-51","number":null},"declarations":"--breadth-ready-51:5s;--breadth-x-51:calc(1em / 1px * 1s)","parent":"font-size:19px;line-height:23px;width:200px","fontSize":"20px","width":"auto","snapshots":[{"label":"20px-context","set":{"font-size":"20px"},"expected":{"value":"20s","fontSize":"20px"}},{"label":"30px-context","set":{"font-size":"30px"},"expected":{"value":"30s","fontSize":"30px"}}],"requiresCalibration":["time:direct:literal"]},
+  {"id":"resolution:math-control:math","group":"resolution","kind":"math-control","mode":"math","syntax":"<resolution>","registrations":[{"name":"--breadth-x-52","syntax":"<resolution>","inherits":false,"initialValue":"3dppx"}],"names":{"value":"--breadth-x-52","number":null},"declarations":"--breadth-ready-52:5dppx;--breadth-x-52:calc(1em / 1px * 1dppx)","parent":"font-size:19px;line-height:23px;width:200px","fontSize":"20px","width":"auto","snapshots":[{"label":"20px-context","set":{"font-size":"20px"},"expected":{"value":"20dppx","fontSize":"20px"}},{"label":"30px-context","set":{"font-size":"30px"},"expected":{"value":"30dppx","fontSize":"30px"}}],"requiresCalibration":["resolution:direct:literal"]},
+  {"id":"percentage:math-control:math","group":"percentage","kind":"math-control","mode":"math","syntax":"<percentage>","registrations":[{"name":"--breadth-x-53","syntax":"<percentage>","inherits":false,"initialValue":"3%"}],"names":{"value":"--breadth-x-53","number":null},"declarations":"--breadth-ready-53:5%;--breadth-x-53:calc(1em / 1px * 1%)","parent":"font-size:19px;line-height:23px;width:200px","fontSize":"20px","width":"auto","snapshots":[{"label":"20px-context","set":{"font-size":"20px"},"expected":{"value":"20%","fontSize":"20px"}},{"label":"30px-context","set":{"font-size":"30px"},"expected":{"value":"30%","fontSize":"30px"}}],"requiresCalibration":["percentage:direct:literal"]},
+  {"id":"number:provider-math:math","group":"number","kind":"provider-math","mode":"math","syntax":"<number>","registrations":[{"name":"--breadth-x-54","syntax":"<number>","inherits":false,"initialValue":"3"},{"name":"--breadth-n-54","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-54","number":"--breadth-n-54"},"declarations":"--breadth-ready-54:5;--breadth-x-54:calc(1em / 1px);--breadth-n-54:var(--breadth-x-54)","parent":"font-size:19px;line-height:23px;width:200px","fontSize":"20px","width":"calc(var(--breadth-n-54)*1px)","snapshots":[{"label":"20px-context","set":{"font-size":"20px"},"expected":{"value":"20","fontSize":"20px","number":"20","width":"20px"}},{"label":"30px-context","set":{"font-size":"30px"},"expected":{"value":"30","fontSize":"30px","number":"30","width":"30px"}}],"requiresCalibration":["number:provider:literal","number:math-control:math"]},
+  {"id":"integer:provider-math:math","group":"integer","kind":"provider-math","mode":"math","syntax":"<integer>","registrations":[{"name":"--breadth-x-55","syntax":"<integer>","inherits":false,"initialValue":"3"},{"name":"--breadth-n-55","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-55","number":"--breadth-n-55"},"declarations":"--breadth-ready-55:5;--breadth-x-55:calc(1em / 1px);--breadth-n-55:var(--breadth-x-55)","parent":"font-size:19px;line-height:23px;width:200px","fontSize":"20px","width":"calc(var(--breadth-n-55)*1px)","snapshots":[{"label":"20px-context","set":{"font-size":"20px"},"expected":{"value":"20","fontSize":"20px","number":"20","width":"20px"}},{"label":"30px-context","set":{"font-size":"30px"},"expected":{"value":"30","fontSize":"30px","number":"30","width":"30px"}}],"requiresCalibration":["integer:provider:literal","integer:math-control:math"]},
+  {"id":"angle:provider-math:math","group":"angle","kind":"provider-math","mode":"math","syntax":"<angle>","registrations":[{"name":"--breadth-x-56","syntax":"<angle>","inherits":false,"initialValue":"3deg"},{"name":"--breadth-n-56","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-56","number":"--breadth-n-56"},"declarations":"--breadth-ready-56:5deg;--breadth-x-56:calc(1em / 1px * 1deg);--breadth-n-56:calc(var(--breadth-x-56) / 1deg)","parent":"font-size:19px;line-height:23px;width:200px","fontSize":"20px","width":"calc(var(--breadth-n-56)*1px)","snapshots":[{"label":"20px-context","set":{"font-size":"20px"},"expected":{"value":"20deg","fontSize":"20px","number":"20","width":"20px"}},{"label":"30px-context","set":{"font-size":"30px"},"expected":{"value":"30deg","fontSize":"30px","number":"30","width":"30px"}}],"requiresCalibration":["angle:provider:literal","angle:math-control:math"]},
+  {"id":"time:provider-math:math","group":"time","kind":"provider-math","mode":"math","syntax":"<time>","registrations":[{"name":"--breadth-x-57","syntax":"<time>","inherits":false,"initialValue":"3s"},{"name":"--breadth-n-57","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-57","number":"--breadth-n-57"},"declarations":"--breadth-ready-57:5s;--breadth-x-57:calc(1em / 1px * 1s);--breadth-n-57:calc(var(--breadth-x-57) / 1s)","parent":"font-size:19px;line-height:23px;width:200px","fontSize":"20px","width":"calc(var(--breadth-n-57)*1px)","snapshots":[{"label":"20px-context","set":{"font-size":"20px"},"expected":{"value":"20s","fontSize":"20px","number":"20","width":"20px"}},{"label":"30px-context","set":{"font-size":"30px"},"expected":{"value":"30s","fontSize":"30px","number":"30","width":"30px"}}],"requiresCalibration":["time:provider:literal","time:math-control:math"]},
+  {"id":"resolution:provider-math:math","group":"resolution","kind":"provider-math","mode":"math","syntax":"<resolution>","registrations":[{"name":"--breadth-x-58","syntax":"<resolution>","inherits":false,"initialValue":"3dppx"},{"name":"--breadth-n-58","syntax":"<number>","inherits":false,"initialValue":"7"}],"names":{"value":"--breadth-x-58","number":"--breadth-n-58"},"declarations":"--breadth-ready-58:5dppx;--breadth-x-58:calc(1em / 1px * 1dppx);--breadth-n-58:calc(var(--breadth-x-58) / 1dppx)","parent":"font-size:19px;line-height:23px;width:200px","fontSize":"20px","width":"calc(var(--breadth-n-58)*1px)","snapshots":[{"label":"20px-context","set":{"font-size":"20px"},"expected":{"value":"20dppx","fontSize":"20px","number":"20","width":"20px"}},{"label":"30px-context","set":{"font-size":"30px"},"expected":{"value":"30dppx","fontSize":"30px","number":"30","width":"30px"}}],"requiresCalibration":["resolution:provider:literal","resolution:math-control:math"]}
+];
+for (const item of breadthCases) {
+  test(t => {
+    for (const registration of item.registrations) CSS.registerProperty(registration);
+    const parent = document.createElement("div");
+    parent.style.cssText = item.parent;
+    const target = document.createElement("div");
+    target.style.cssText = item.declarations + ";font-size:" + item.fontSize + ";width:" + item.width;
+    parent.append(target);
+    document.body.append(parent);
+    t.add_cleanup(() => parent.remove());
+    const observations = [];
+    for (const step of item.snapshots) {
+      for (const [property, value] of Object.entries(step.set)) target.style.setProperty(property, value);
+      const computed = getComputedStyle(target);
+      observations.push({value:computed.getPropertyValue(item.names.value).trim(),
+        number:item.names.number ? computed.getPropertyValue(item.names.number).trim() : null,
+        fontSize:computed.fontSize, width:computed.width});
+    }
+    const detail = "observed=" + JSON.stringify(observations);
+    for (let i = 0; i < observations.length; ++i) {
+      for (const [property, expected] of Object.entries(item.snapshots[i].expected)) {
+        assert_equals(observations[i][property], expected, detail + ": " + item.snapshots[i].label + ": " + property);
+      }
+    }
+  }, "Registered numeric breadth: " + item.id);
+}
+
+for (const [syntax, separator, suffix] of [["<number>+", " ", "space"], ["<number>#", ", ", "comma"]]) {
+  test(t => {
+    const name = `--numeric-list-${suffix}-later-member-math`;
+    CSS.registerProperty({name, syntax, inherits:false, initialValue:"3"});
+    const target = makeTarget(t, name + ":2" + separator + "calc(1em / 1px)", "", {}, "20px");
+    const observations = [];
+    for (const fontSize of [20, 30]) {
+      target.style.fontSize = fontSize + "px";
+      observations.push(snapshot(target, [name, "font-size"]));
+    }
+    const detail = "observed=" + JSON.stringify(observations);
+    for (let i = 0; i < observations.length; ++i) {
+      const values = observations[i][name].split(/\s*,\s*|\s+/).map(Number);
+      assert_array_equals(values, [2, [20, 30][i]], detail);
+      assert_equals(observations[i]["font-size"], ["20px", "30px"][i], detail);
+    }
+  }, `Registered numeric list: ${syntax}, later-member-math`);
+}
+</script>

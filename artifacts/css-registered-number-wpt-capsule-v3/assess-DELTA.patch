@@ -1,0 +1,68 @@
+--- capsule-v2/assess.py
++++ capsule-v3/assess.py
+@@ -1,4 +1,5 @@
+ from collections import Counter
++import json
+ 
+ 
+ def signature(event):
+@@ -24,6 +25,7 @@
+ def assess(events, code, policy, checks, original=None, run_binding=None):
+     tests = policy["tests"]
+     targets = policy["target_subtests"]
++    held = policy["held_subtests"]
+     rows = [e for e in events if e.get("action") == "test_status"]
+     starts = [e for e in events if e.get("action") == "test_start"]
+     ends = [e for e in events if e.get("action") == "test_end"]
+@@ -51,7 +53,7 @@
+         if end.get("status") not in allowed:
+             errors.append("non-completed test end: " + str(end.get("test")))
+     candidate = [r for r in rows if r.get("test") in targets]
+-    for test, expected in dict(policy["regression_subtests"], **targets).items():
++    for test, expected in dict(policy["regression_subtests"], **targets, **held).items():
+         if Counter(r.get("subtest") for r in rows if r.get("test") == test) != Counter(expected):
+             errors.append("fixture identities/cardinality differ: " + test)
+     run_info = suites[0].get("run_info") if len(suites) == 1 else None
+@@ -67,12 +69,30 @@
+     unexpected = [e for e in rows + ends
+                   if e["status"] != e.get("expected", e["status"])
+                   and e["status"] not in e.get("known_intermittent", [])]
+-    regression = [signature(e) for e in rows + ends if e.get("test") not in targets]
++    held_signature = []
++    for event in rows + ends:
++        if event.get("test") not in held:
++            continue
++        item = signature(event)
++        item.update(message=event.get("message"), message_field_present="message" in event)
++        held_signature.append(item)
++        if event.get("action") == "test_status" and event.get("status") == "FAIL":
++            try:
++                message = event["message"]
++                observations, _ = json.JSONDecoder().raw_decode(message.split("observed=", 1)[1])
++                if not isinstance(observations, list) or len(observations) != 2 or not all(isinstance(item, dict) and item for item in observations):
++                    raise ValueError("two nonempty snapshots required")
++            except (KeyError, IndexError, TypeError, ValueError):
++                errors.append("held failure lacks complete mutation observation: " + event["subtest"])
++    held_signature.sort(key=lambda e: (e["test"], e["kind"], e["subtest"] or ""))
++    regression = [signature(e) for e in rows + ends if e.get("test") not in targets and e.get("test") not in held]
+     regression.sort(key=lambda e: (e["test"], e["kind"], e["subtest"] or ""))
+     comparison_errors = []
+     if original is not None:
+         if not original.get("complete"):
+             comparison_errors.append("original observation incomplete")
++        if held_signature != original.get("held_signature"):
++            comparison_errors.append("held scheduling observations/status/messages changed")
+         if regression != original.get("regression_signature"):
+             comparison_errors.append("regression identities/status/expectations/intermittents changed")
+         if not bound_run_info(original.get("run_info"), original.get("run_binding")):
+@@ -94,7 +114,7 @@
+                         "completion": [e["status"] for e in ends if e["test"] == test]}
+                          for test, kind in tests.items()},
+             "unexpected": unexpected, "infrastructure_faults": faults,
+-            "regression_signature": regression, "comparison_errors": comparison_errors,
++            "regression_signature": regression, "held_signature": held_signature, "comparison_errors": comparison_errors,
+             "comparison_gate_passed": original is not None and not errors and not comparison_errors,
+-            "subtest_cardinality_policy": "Exact 58 target and 446 regression identities in both phases; regression outcome/expectation/intermittent signatures must match",
+-            "oracle_caveat": "Both phases use the same sealed registered-number fixture. All prior raw attribute fixtures and metadata are unchanged regressions; self-font numeric division remains observation-only outside this manifest."}
++            "subtest_cardinality_policy": "Exact 104 A target, 16 held B, and 446 regression identities; B statuses/messages and regression signatures must match",
++            "oracle_caveat": "Both phases use the same sealed A/B fixture; held B failures are observations, not A acceptance failures. All prior raw attribute fixtures and metadata are unchanged regressions; self-font numeric division remains observation-only outside this manifest."}

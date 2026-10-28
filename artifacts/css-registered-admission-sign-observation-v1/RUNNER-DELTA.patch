@@ -1,0 +1,39 @@
+--- self-font/run.py
++++ sign/run.py
+@@ -64,6 +64,9 @@
+     for path, expected in ((epoch_path, sys.argv[4]), (normative_path, sys.argv[6])):
+         need(path.is_absolute() and path.is_file() and not path.is_symlink() and helper.sha(path) == expected, "external evidence binding")
+     epoch, normative = helper.read(epoch_path), helper.read(normative_path)
++    need(epoch["semantic_index"]["head"] == policy["frozen_head"], "frozen HEAD")
++    for name, expected in policy["fixed_native_sources"].items():
++        need(helper.sha(ROOT / name) == expected, "fixed native source: " + name)
+     helper.require_compiled_transition(epoch, role)
+     need(normative["complete"] and normative["execution_preserved"] and normative["phase"].startswith(role + "-"),
+          "matching complete preserved normative phase")
+@@ -85,7 +88,7 @@
+     out = Path(sys.argv[7])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "absent output")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-number-self-font-runtime-"), "owned output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-admission-sign-runtime-"), "owned output")
+     need(all(not os.environ.get(name) for name in policy["forbidden_environment"]), "unexpected environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1", MOZ_HEADLESS="1",
+                MOZ_DISABLE_SAFE_MODE_KEY="1", MOZ_DISABLE_UPDATE_PROCESSING="1")
+@@ -115,7 +118,7 @@
+ 
+         def do_GET(self):
+             route = {base: ("report.html", "text/html"), base + "report.js": ("report.js", "text/javascript"),
+-                     base + "observation-only.html": ("observation-only.html", "text/html")}
++                     }
+             if self.path not in route:
+                 self.send_error(404)
+                 return
+@@ -195,6 +198,8 @@
+             need({name: h.fingerprint(ROOT, name) for name in binaries} == binaries, "binaries changed")
+             post_metadata = helper.application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+             need(post_metadata == metadata, "application metadata changed")
++            for name, expected in policy["fixed_native_sources"].items():
++                need(helper.sha(ROOT / name) == expected, "fixed native source changed: " + name)
+             helper.save(out / "APPLICATION-METADATA-POST.json", post_metadata)
+             helper.authenticate(HERE, sys.argv[1])
+             helper.authenticate(wrapper_path, expected_wrapper)
