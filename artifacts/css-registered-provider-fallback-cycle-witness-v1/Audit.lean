@@ -1,0 +1,8 @@
+import Witness
+#print axioms FallbackCycleWitness.baseline_consumer_fallback
+#print axioms FallbackCycleWitness.scoped_bit_leaks_c_default
+#print axioms FallbackCycleWitness.participant_marks_select_a_default
+#print axioms FallbackCycleWitness.exact_participants_exclude_c
+#print axioms FallbackCycleWitness.scoped_bit_does_not_preserve_baseline
+#print axioms FallbackCycleWitness.scoped_bit_does_not_implement_participants
+#print axioms FallbackCycleWitness.missing_provider_alone_defaults
