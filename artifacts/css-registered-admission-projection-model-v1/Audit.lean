@@ -1,0 +1,7 @@
+import Projection
+#print axioms AdmissionProjection.exactly_agreed
+#print axioms AdmissionProjection.no_added_bit
+#print axioms AdmissionProjection.empty_stays_empty
+#print axioms AdmissionProjection.positive_path_preserved
+#print axioms AdmissionProjection.restricted_cycle_was_original
+#print axioms AdmissionProjection.added_loop_counterexample

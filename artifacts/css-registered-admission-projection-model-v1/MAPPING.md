@@ -1,0 +1,9 @@
+# Manual native mapping
+
+REFERENCES.json pins the four candidate source bodies from the head/live admission preparation proposals, plus the sealed generalized collector. SOURCE-CHECK.json records exact equality of each `find_non_custom_references` function with its own captured original. This is a source-text check, not a compiled behavior proof.
+
+Both captured `traverse` implementations use `value_non_custom_refs &= references` only after `providers_settled` and non-universal registration eligibility. Model `old` is the contextual flag mask accumulated at that exact statement; `requested` is the mask returned by `PreparedRegisteredValue::references(registration)`. If references is None, native code keeps the old mask unchanged. The no-addition contract therefore holds for that local mask update under the ordinary semantics of bitwise AND, including zero old flags. It does not say that the earlier accumulation equals a baseline run's accumulation.
+
+The live `PreparedRegisteredValue::apply` uses `references & conservative_references` for a prepared Value, or keeps the conservative mask when references is None. This second intersection also satisfies the bit law. Invalid and CSS-wide handling are distinct branches; the local Value projection theorem does not certify their computation or scheduler behavior. Intrinsic COLOR_SCHEME can appear in the requested mask but cannot survive AND unless it already occurs in the old mask.
+
+For the graph theorem, `original` is a fixed relation and `allowed` is a fixed edge predicate. `restrict original allowed` corresponds to retaining a subset of those original edges. There is no executable extraction from Rust graph state here. In particular, the theorem does not equate graphs across changes in provider/fallback/attribute selection, registration defaulting, AST admission, or execution order. B's missing direct numeric scheduling is outside this proof.
