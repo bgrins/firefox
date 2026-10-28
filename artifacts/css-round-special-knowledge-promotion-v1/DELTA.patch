@@ -1,0 +1,78 @@
+--- artifacts/css-round-context-quotient-promotion-v1/install.py
++++ artifacts/css-round-special-knowledge-promotion-v1/install.py
+@@ -74,7 +74,7 @@
+     if name in owned:
+         assert owned[name] == source_claim
+     tests, parents = {}, {}
+-    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-values/round-context-quotient-precision.html', 'testing/web-platform/tests/css/css-values/round-context-relative-multiple.html'}
++    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-values/round-deferred-infinite-step.html'}
+     for test, item in policy['tests'].items():
+         tests[test] = h.body(ROOT / item['capture'])
+         assert h.digest(tests[test]) == item['sha256']
+@@ -138,7 +138,7 @@
+         current['counts']['native_modified_paths'] = 2
+         current['counts']['roles'] = len(current['pins'])
+         current['counts']['installed_identities'] = len(current['installed_identities'])
+-        current['round_quotient_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
++        current['round_special_knowledge_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
+             'manifest_sha256':manifest, 'source_sha256':record['candidate_sha256'], 'last_phase':'install'}
+         after = s.a.verify_current(s.h, ROOT, ENV, current)
+         assert after['nested_index'] == before['nested_index']
+--- artifacts/css-round-context-quotient-promotion-v1/build.py
++++ artifacts/css-round-special-knowledge-promotion-v1/build.py
+@@ -28,22 +28,22 @@
+ assert s.sha(RUNTIME / "CURRENT-EPOCH.json") == expected_epoch
+ assert '/' not in label
+ epoch = s.read(RUNTIME / 'CURRENT-EPOCH.json')
+-assert epoch['round_quotient_transition']['role'] == 'candidate' and not epoch['round_quotient_transition']['compiled']
++assert epoch['round_special_knowledge_transition']['role'] == 'candidate' and not epoch['round_special_knowledge_transition']['compiled']
+ assert epoch['semantic_index']['head'] == policy['head']
+ for marker in ('accepted_line_height', 'accepted_random_counter', 'accepted_linear_guard'):
+     assert epoch[marker] == policy[marker]
+ for name, record in policy['preserved_accepted_payload'].items():
+     assert epoch['pins'][name] == record['sha256'] and epoch['installed_identities'][name] == record['identity']
+ assert label == policy['build_label']
+-role = {'role': 'candidate', 'variant': 'round-context-quotient'}
++role = {'role': 'candidate', 'variant': 'round-infinite-step-knowledge'}
+ owner = s.load('page_build_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ owner.authenticate(PACKAGE, manifest)
+ policy = s.read(PACKAGE / 'POLICY.json')
+-assert epoch['round_quotient_transition']['manifest_sha256'] == manifest
++assert epoch['round_special_knowledge_transition']['manifest_sha256'] == manifest
+ assert epoch['pins'][policy['source']['path']] == policy['source']['candidate_sha256']
+ for name, record in policy['tests'].items(): assert epoch['pins'][name] == record['sha256']
+ assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs', policy['source']['path']])
+-assert epoch['staged_working'] == {} and epoch['round_quotient_transition']['accepted'] is False
++assert epoch['staged_working'] == {} and epoch['round_special_knowledge_transition']['accepted'] is False
+ for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+ control_claims = {n:owner.claim(ROOT,str((RUNTIME/n).relative_to(ROOT)),s.sha(RUNTIME/n)) for n in ['ROLE.json','OWNED.json']}
+ owner.quiescent(RUNTIME)
+@@ -57,7 +57,7 @@
+ owner.authenticate(ROOT / policy['pair_capsule'], policy['pair_capsule_sha256'])
+ metadata = s.load('promotion_metadata', policy['pair_capsule'] + '/run.py')
+ s.save(directory / 'APPLICATION-METADATA-PRE.json', metadata.application_metadata(ROOT / policy['application_ini'], policy['head']))
+-builder = s.load('fallback_builder', str((RUNTIME / 'phase.py').relative_to(ROOT)))
++builder = s.load('fallback_builder', str((PACKAGE / 'phase.py').relative_to(ROOT)))
+ control = s.load('fallback_control', str((RUNTIME / 'process_control.py').relative_to(ROOT)))
+ flags = {name: s.h.git(ROOT / name, env, 'ls-files', '-v', '-z') for name in ('.', 'artifacts/css-spec-lean')}
+ state, publication_errors = {}, []
+@@ -97,7 +97,7 @@
+     if success:
+         assert inner['exit'] == 0 and inner['error'] is None and inner['stop_reason'] is None
+         assert inner['owned_group_absent'] and not inner['cleanup_errors']
+-    current['round_quotient_transition'] = dict(epoch['round_quotient_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
++    current['round_special_knowledge_transition'] = dict(epoch['round_special_knowledge_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
+     owner.authenticate(PACKAGE, manifest)
+     for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+     for item in control_claims.values(): owner.claim(ROOT,item['path'],item['owned_sha256'],item['identity'])
+--- artifacts/css-round-context-quotient-promotion-v1/evidence.py
++++ artifacts/css-round-special-knowledge-promotion-v1/evidence.py
+@@ -49,7 +49,7 @@
+         epoch_sha=candidate_policy['epoch_sha256'], policy=candidate_policy,
+         capsule_directory=policy['pair_capsule'], experiment_sha=h.digest((capsule / 'EXPERIMENT.json').read_bytes()), execution_preserved=True)
+     assert json.loads(json.dumps(replay)) == saved
+-    assert replay['comparison_gate_passed'] and replay['observed_subtest_count'] == 696
++    assert replay['comparison_gate_passed'] and replay['observed_subtest_count'] == 712
+     assert set(result['phase_results']) == {'original-1', 'candidate-1'}
+     phases = [('original-1', 'original-wpt'), ('candidate-1', 'candidate-wpt')]
+     for phase, label in phases:

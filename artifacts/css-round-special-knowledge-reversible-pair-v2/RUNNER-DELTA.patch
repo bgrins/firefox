@@ -1,0 +1,80 @@
+--- artifacts/css-round-special-knowledge-reversible-pair-v1/run.py
++++ artifacts/css-round-special-knowledge-reversible-pair-v2/run.py
+@@ -10,6 +10,7 @@
+ import subprocess
+ import sys
+ import time
++import traceback
+ 
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ sys.dont_write_bytecode = True
+@@ -35,7 +36,7 @@
+ 
+ state = load('round_special_pair_state', ROOT / 'artifacts/css-registered-number-native-runtime-v1/state.py')
+ ownership = load('round_special_pair_ownership', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+-builder = load('round_special_pair_builder', ROOT / 'artifacts/css-registered-number-native-runtime-v1/phase.py')
++builder = load('round_special_pair_builder', HERE / 'phase.py')
+ control = load('round_special_pair_control', ROOT / 'artifacts/css-registered-number-native-runtime-v1/process_control.py')
+ guard = state.a
+ bundle = load('round_special_pair_bundle', HERE / 'bundle.py')
+@@ -111,7 +112,7 @@
+ assert (app / 'Contents/Resources/application.ini').resolve() == ROOT / 'objdir-full.noindex/build/application.ini'
+ backup_size = sum(r['size'] for r in app_before.values() if r['kind'] == 'file') + sum(r['size'] for r in extra_before.values())
+ free = lambda: os.statvfs(ROOT).f_bavail * os.statvfs(ROOT).f_frsize
+-assert free() - backup_size >= 35 * 1024**3
++assert free() - backup_size >= 30 * 1024**3
+ output = ROOT / policy['runtime_output']
+ assert output.parent == ROOT / 'artifacts' and not output.exists() and not output.is_symlink()
+ bundle.parents(ROOT, output)
+@@ -139,7 +140,7 @@
+ extra_mapping = bundle.backup(ROOT, extra_before, backups / 'extra')
+ backup_snapshot = bundle.scan(backups)
+ state.save(output / 'BACKUPS.json', {'app': app_mapping, 'extra': extra_mapping, 'bytes': backup_size, 'owned_inventory': backup_snapshot})
+-assert free() >= 35 * 1024**3
++assert free() >= 30 * 1024**3
+ assert bundle.scan(app) == app_before and {n: bundle.entry(ROOT / n) for n in extra_before} == extra_before
+ assert guard.verify_current(state.h, ROOT, ENV, epoch) == before
+ cancelled = [False]
+@@ -152,6 +153,7 @@
+ active_wpt = None
+ active_role = None
+ active_process = None
++active_phase = None
+ wpt_cleanup_receipt = None
+ phase_results = {}
+ with lock.open('x') as stream:
+@@ -192,6 +194,7 @@
+ 
+ try:
+     for role in ('original', 'candidate'):
++        active_phase = role + '-build'
+         assert not cancelled[0]
+         unchanged_controls()
+         if role == 'candidate':
+@@ -201,6 +204,7 @@
+         directory.mkdir()
+         command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'build', 'binaries', '-j2']
+         state.save(directory / 'COMMAND.json', {'command': command, 'source_role': role, 'source_sha256': {source: sha(ROOT / source) for source in policy['source_roles']}, 'owner_manifest': sys.argv[2]})
++        state.save(directory / 'PREFLIGHT.json', {'source_role': role, 'free_bytes': free(), 'start_floor_bytes': 30 * 1024**3, 'running_stop_bytes': 15 * 1024**3, 'owned_backup_bytes': backup_size, 'phase_helper_sha256': sha(HERE / 'phase.py')})
+         deadline = time.monotonic() + policy['timeout_seconds']
+         builder.run(ROOT, ROOT / 'objdir-full.noindex', directory, ENV, lambda: cancelled[0] or time.monotonic() >= deadline, owned, control, command, publication_errors)
+         assert not owned and not publication_errors
+@@ -208,6 +212,7 @@
+         state.save(directory / 'EPOCH.json', current)
+         state.save(directory / 'RESULT.json', {'command_success': True, 'preservation_verified': True, 'source_role': role, 'owned_processes': {}, 'error': None, 'publication_errors': [], 'browser_build_performed': True})
+         for phase in policy['wpt_phases'][role]:
++            active_phase = phase['name']
+             active_wpt = output / phase['output']
+             active_role = phase['name']
+             active_process = None
+@@ -241,6 +246,10 @@
+             unchanged_controls()
+ except BaseException as exc:
+     error = repr(exc)
++    try:
++        state.save(output / 'FAILURE-TRACEBACK.json', {'error': error, 'active_phase': active_phase, 'traceback': traceback.format_exc()})
++    except BaseException as record_error:
++        publication_errors.append('Failure traceback publication: ' + repr(record_error))
+ finally:
+     if active_wpt is not None:
+         try:

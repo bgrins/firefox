@@ -1,0 +1,69 @@
+--- artifacts/css-round-special-knowledge-pair-raw-index-refresh-v1/run.py
++++ artifacts/css-round-special-knowledge-pair-raw-index-refresh-v2/run.py
+@@ -30,7 +30,7 @@
+ state = load('refresh_state', ROOT / 'artifacts/css-registered-number-native-runtime-v1/state.py')
+ owner = load('refresh_owner', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ projection = load('refresh_projection', HERE / 'projection.py')
+-assert policy['source_roles'] == read(ROOT/'artifacts/css-round-special-knowledge-reversible-pair-v1/POLICY.json')['source_roles']
++assert policy['source_roles'] == read(ROOT/'artifacts/css-round-special-knowledge-reversible-pair-v2/POLICY.json')['source_roles']
+ owner.authenticate(HERE, sys.argv[2])
+ evidence = ROOT / policy['paired_runtime']
+ assert set(policy['evidence_pins']) == set(policy['required_evidence'])
+@@ -51,15 +51,15 @@
+ canonical = json.loads(controls['CURRENT-EPOCH.json'])
+ assert canonical['semantic_index']['head'] == policy['head']
+ outer = read(evidence/'ROOT-TERMINAL.json')
+-assert outer['exit'] == 1
+-assert set(read(evidence/'RESULT.json')['phase_results']) == {'original-1'}
++assert outer['exit'] == 0
++assert set(read(evidence/'RESULT.json')['phase_results']) == {'original-1', 'candidate-1'}
+ result = read(evidence/'RESULT.json')
+-assert result['success'] is False and result['error'] == 'AssertionError()' and result['publication_errors'] == []
+-assert result['backups_removed_after_verification'] is False
++assert result['success'] is True and result['error'] is None and result['publication_errors'] == []
++assert result['backups_removed_after_verification'] is True
+ assert result['restoration_verified'] and result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+ assert read(evidence/'RESTORATION.json')['errors'] == []
+ assert read(evidence/'RESTORATION.json')['owned_processes'] == {}
+-for phase, label in [('original-1','original-wpt')]:
++for phase, label in [('original-1','original-wpt'),('candidate-1','candidate-wpt')]:
+     assert result['phase_results'][phase]['wrapper_exit'] == 0
+     assessment = read(evidence/label/'ASSESSMENT.json')
+     assert result['phase_results'][phase]['assessment_sha256'] == sha(evidence/label/'ASSESSMENT.json')
+@@ -67,24 +67,18 @@
+     wpt_result = read(evidence/label/'RESULT.json')
+     assert wpt_result['execution_error'] is None and wpt_result['preservation_error'] is None
+     assert wpt_result['observation_gate_passed']
++    if phase == 'candidate-1':
++        assert wpt_result['comparison_gate_passed'] and assessment['comparison_gate_passed']
+     assert read(evidence/(phase+'-WRAPPER-CLEANUP.json'))['restoration_safe']
+     cleanup = read(evidence/(label+'/CLEANUP.json'))
+     assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+     owner.group_absent(read(evidence/(label+'/PROCESS.json'))['pgid'])
+-for role in ('original',):
++for role in ('original','candidate'):
+     assert read(evidence/(role+'-build')/'build-RESULT.json')['exit'] == 0
+     for name in ('build','wake'):
+         assert read(evidence/(role+'-build')/(name+'-GROUP-CLEANUP.json'))['owned_group_absent']
+     for name in ('build-PROCESS.json','WAKE-PROCESS.json'):
+         owner.group_absent(read(evidence/(role+'-build')/name)['pgid'])
+-candidate = evidence/'candidate-build'
+-assert candidate.is_dir() and not candidate.is_symlink()
+-assert {p.name for p in candidate.iterdir()} == {'COMMAND.json'}
+-command = read(candidate/'COMMAND.json')
+-assert command['owner_manifest'] == policy['owner_manifest'] and command['source_role'] == 'candidate'
+-assert command['source_sha256'] == policy['candidate_source_sha256']
+-assert command['command'] == ['/Users/bgrins/venvs/firefox/bin/python','./mach','build','binaries','-j2']
+-assert not os.path.lexists(evidence/'candidate-wpt')
+ pre = read(evidence/'PRE-OBSERVATION-EPOCH.json')
+ post = read(evidence/'POST-OBSERVATION-EPOCH.json')
+ raw = read(evidence/'RAW-INDEX-OBSERVATION.json')
+@@ -103,7 +97,7 @@
+     state.save(output/'RESULT.json',{'updated':False,'reason':'Raw index unchanged; no canonical write','preservation_verified':True})
+     sys.exit(0)
+ with lock.open('x') as stream:
+-    stream.write(json.dumps({'pid':os.getpid(),'operation':'prelaunch-stopped Round infinite-step pair raw index observation refresh'})+'\n')
++    stream.write(json.dumps({'pid':os.getpid(),'operation':'Successful Round infinite-step pair raw index observation refresh'})+'\n')
+ lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+ 
+ 

@@ -1,0 +1,9 @@
+# Incremental Round build disk budget
+
+The bounded metadata inventory of existing artifacts/css*-runtime* directories found only the currently failed special-knowledge pair above250MB allocated:1,035,599,872 bytes, mostly its separately owned backups. No other confidently obsolete >1GB runtime output was found. The walk did not follow symlinks and excluded tools and .lake; it did not inspect protected current objdir, performance apps, or unrelated trees. Root/signer own the current verified-restoration backup cleanup. No deletion is proposed here.
+
+Seven saved nearby linked-build disk logs show maximum sampled first-to-minimum draw1,543,806,976 bytes (1.438GiB). The current original build starts37,641,048,064, bottoms36,565,069,824, and ends37,566,701,568 bytes available: about1.002GiB peak draw and74MB net decrease. Prior quotient candidate succeeds with a minimum33.834GiB. Measurements are volume-wide one-second samples, not exclusive compiler allocation accounting or a future peak guarantee. The saved log does not establish that the original build alone permanently consumed2GiB.
+
+The shared helper requires35GiB before launch but stops a running build only below15GiB. Thus35 is a conservative admission policy, not a demonstrated minimum runtime reserve. For this same incremental single-Rust-file build with -j2, an explicitly reviewed successor using30GiB prelaunch, unchanged15GiB monitored stop, backup subtraction and all cleanup/restoration checks is a reasonable bounded policy choice. Its15GiB margin exceeds the largest sampled draw by over10x. This is not a guarantee for a clean/full build or unbounded external writers. All owner and builder admission checks must agree; changing only the outer check would repeat the failure.
+
+No threshold, helper, source, index or runtime file was modified. Root decides policy and execution. Inventory read45ad3f and disk/source readbd52fe completed; no process/browser/build actions occurred.

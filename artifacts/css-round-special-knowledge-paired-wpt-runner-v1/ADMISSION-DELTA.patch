@@ -1,0 +1,22 @@
+--- historical-policy5
++++ nonlanding-admission-control5
+@@ -6,8 +6,8 @@
+ <script>
+ for (const [name, value, expected] of [
+   ["unchanged discarded unknown step", "repeat(round(up, infinity, sign(1em - 16px)), 1px)", true],
+-  ["retained unknown value", "repeat(round(up, sign(1em - 16px), infinity), 1px)", false],
+-  ["retained unknown product value", "repeat(round(up, infinity * sign(1em - 16px), infinity), 1px)", false],
++  ["retained unknown value", "repeat(round(up, sign(1em - 16px), infinity), 1px)", true],
++  ["retained unknown product value", "repeat(round(up, infinity * sign(1em - 16px), infinity), 1px)", true],
+   ["resolved absolute sign", "repeat(calc(2 + round(to-zero, sign(1px), infinity)), 1px)", true],
+   ["invalid dimensional integer", "repeat(round(up, 1px, 1px), 1px)", false],
+ ]) {
+@@ -19,7 +19,7 @@
+     assert_equals(admitted, supports, "supports and setter agree");
+     assert_equals(CSS.supports("grid-template-columns", value), supports, "stable admission");
+     assert_equals(admitted, expected,
+-      `source-predicted implementation policy; snapshot=${JSON.stringify({value, supports, serialized: style.gridTemplateColumns})}`);
++      "observed implementation admission policy");
+   }, `Round integer policy: ${name}`);
+ }
+ </script>

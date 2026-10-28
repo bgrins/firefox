@@ -1,0 +1,9 @@
+# Infinite-step Round test-only successor
+
+The native candidate, original base, and three-line native patch are byte-identical to sealed v3. The old 19 tests remain an exact script prefix. Four additional tests, one per existing rounding strategy, keep a single finite contextual-value declaration while the same element changes font 8→16→32→8. Every phase is captured before assertions; explicit font, mixed-unit sign, literal output and repeated-read controls remain independent.
+
+The outer .5+.25*sign encoding distinguishes negative infinity, zero, positive infinity and outer NaN. Expected nearest/to-zero is [.5,.5,.5,.5], up [.5,.5,.75,.5], down [.25,.5,.5,.25]. These add finite negative/zero/positive value and recovery coverage missing from the historical infinite/NaN cases. No newer line-width strategy, signed-zero observation, unknown-step fix, or leaf-basis fix is claimed.
+
+The actual committed cb7c0340 generic source object equals the original b9a base. Static registration yields 23 exact names; a genuine WPT Manifest roundtrip classifies the page as testharness (e21521). Scoped lint of the byte-identical captured page and nine controls passes in a private standalone WPT root (210e97); scratch was removed. Earlier preparation attempts lacked lint.ignore, then inherited the outer artifacts ignore rule; runner logs retain both, without modifying any landing source. No test callback/browser/compiler was run. Native transport/format evidence remains explicitly inherited from v3, not rerun.
+
+Counter reviewed the four-test delta (1b46b2/0) and found no concrete oracle/setup issue. The known narrow guard remains experimental, depends on the already accepted runtime NaN-priority behavior, and changes no earlier infinite-value/unknown-step route. Runtime comparison and acceptance are pending.

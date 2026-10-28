@@ -1,0 +1,29 @@
+--- prior/bindings.py
++++ candidate/bindings.py
+@@ -10,7 +10,7 @@
+ 
+ 
+ def bind_policy(root, here, fixed, epoch, epoch_sha, phase, h):
+-    marker = epoch['reversible_round_quotient_phase']
++    marker = epoch['reversible_round_special_knowledge_phase']
+     role = phase.split('-', 1)[0]
+     h.need(set(marker) == {'role', 'build_directory', 'source_package_manifest', 'owner_runtime'}, 'phase marker fields')
+     h.need(marker['role'] == role and marker['source_package_manifest'] == fixed['source_package_manifest'], 'phase source role')
+@@ -47,7 +47,7 @@
+     sources = set(policy['source_roles'][role])
+     allowed = sources | set(policy['rebuilt_binaries'])
+     normalized = json.loads(json.dumps(epoch))
+-    normalized.pop('reversible_round_quotient_phase')
++    normalized.pop('reversible_round_special_knowledge_phase')
+     h.need(set(epoch['pins']) == set(baseline['pins']) | sources, 'exact phase source pin roster')
+     h.need(set(epoch['installed_identities']) == set(baseline['installed_identities']) | sources, 'exact phase identity roster')
+     for name in allowed:
+@@ -70,7 +70,7 @@
+         h.need(epoch['semantic_index']['working_diff'] == baseline['semantic_index']['working_diff'], 'original working diff')
+     normalized['semantic_index']['working_diff'] = baseline['semantic_index']['working_diff']
+     h.need(normalized == baseline, 'unrelated signed context or accepted source changed')
+-    marker = epoch['reversible_round_quotient_phase']
++    marker = epoch['reversible_round_special_knowledge_phase']
+     h.need(marker['role'] == role and marker['source_package_manifest'] == policy['source_package_manifest'], 'phase marker')
+     for name, digest in policy['build_evidence'].items():
+         h.need(h.sha(root / name) == digest, 'build evidence: ' + name)

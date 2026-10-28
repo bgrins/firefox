@@ -1,0 +1,22 @@
+--- artifacts/css-round-special-knowledge-promotion-v1/install.py
++++ artifacts/css-round-special-knowledge-promotion-v2/install.py
+@@ -78,7 +78,8 @@
+     for test, item in policy['tests'].items():
+         tests[test] = h.body(ROOT / item['capture'])
+         assert h.digest(tests[test]) == item['sha256']
+-        assert not os.path.lexists(ROOT / test) and test not in epoch['pins'] and test not in owned
++        assert not os.path.lexists(ROOT / test) and epoch['pins'].get(test) is None
++        assert test not in epoch['installed_identities'] and test not in owned
+         assert not s.h.git(ROOT, ENV, 'ls-files', '--stage', '--', test)
+         assert not s.h.git(ROOT, ENV, 'ls-tree', policy['head'], '--', test)
+         parents[test] = create.parent_pins(ROOT, ROOT / test)
+@@ -127,6 +128,9 @@
+             h.save(output / ('CREATED-' + str(len(created)) + '.json'), created)
+             h.write_owned(ROOT, created[test], body)
+             h.save(output / ('WRITTEN-' + str(len(created)) + '.json'), created)
++            if test in current['pins']:
++                assert current['pins'][test] is None
++                del current['pins'][test]
+             current = create.updated_epoch(current, test, created[test], h.digest(body))
+             owned[test] = created[test]
+         index = s.h.index_state(ROOT, ENV)

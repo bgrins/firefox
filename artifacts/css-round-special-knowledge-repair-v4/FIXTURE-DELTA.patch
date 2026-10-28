@@ -1,0 +1,42 @@
+--- v3/testing/web-platform/tests/css/css-values/round-deferred-infinite-step.html
++++ v4/testing/web-platform/tests/css/css-values/round-deferred-infinite-step.html
+@@ -46,4 +46,39 @@
+     assert_not_equals(style.gridTemplateColumns, "", "context-free integer setter admission");
+   }, `context-free integer admission: ${expression}`);
+ }
++for (const [strategy, expected] of [
++  ["nearest", [0.5, 0.5, 0.5, 0.5]],
++  ["up", [0.5, 0.5, 0.75, 0.5]],
++  ["down", [0.25, 0.5, 0.5, 0.25]],
++  ["to-zero", [0.5, 0.5, 0.5, 0.5]],
++]) {
++  test(t => {
++    const target = document.createElement("div");
++    const sign = document.createElement("div");
++    const literal = document.createElement("div");
++    target.style.opacity = `calc(0.5 + 0.25 * sign(round(${strategy}, sign(1em - 16px), infinity)))`;
++    sign.style.opacity = "calc(0.5 + 0.25 * sign(1em - 16px))";
++    document.body.append(target, sign, literal);
++    t.add_cleanup(() => { target.remove(); sign.remove(); literal.remove(); });
++    const snapshots = [8, 16, 32, 8].map((font, i) => {
++      target.style.fontSize = sign.style.fontSize = `${font}px`;
++      literal.style.opacity = `${expected[i]}`;
++      return {
++        font: getComputedStyle(target).fontSize,
++        sign: Number(getComputedStyle(sign).opacity),
++        value: Number(getComputedStyle(target).opacity),
++        repeat: Number(getComputedStyle(target).opacity),
++        literal: Number(getComputedStyle(literal).opacity),
++      };
++    });
++    assert_not_equals(target.style.opacity, "", "contextual expression admission");
++    for (const [i, snapshot] of snapshots.entries()) {
++      assert_equals(snapshot.font, `${[8, 16, 32, 8][i]}px`, `font phase ${i}`);
++      assert_equals(snapshot.sign, [0.25, 0.5, 0.75, 0.25][i], `sign phase ${i}`);
++      assert_equals(snapshot.literal, expected[i], `literal phase ${i}`);
++      assert_equals(snapshot.repeat, snapshot.value, `stable phase ${i}`);
++      assert_equals(snapshot.value, expected[i], `finite contextual result phase ${i}`);
++    }
++  }, `infinite step: ${strategy}, finite value and font mutation recovery`);
++}
+ </script>

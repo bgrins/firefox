@@ -1,0 +1,43 @@
+--- v2/run.py
++++ v3/run.py
+@@ -87,11 +87,6 @@
+     authenticate()
+     policy = read(HERE / 'POLICY.json')
+     assert policy['execution_enabled'] is True
+-    recovery = ROOT / policy['recovery']
+-    assert read(recovery / 'ROOT-TERMINAL.json')['exit'] == 0
+-    result = read(recovery / 'RESULT.json')
+-    assert result['success'] and result['unused_backup_removed'] and result['source_application_controls_preserved']
+-    assert result['build_or_browser_ran'] is False
+     assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES'))
+     inventory = ROOT / policy['inventory']
+     for name, pin in read(inventory / 'FILES.json')['files'].items():
+@@ -99,8 +94,8 @@
+     selected = read(inventory / 'CANDIDATES.json')
+     receipts = read(HERE / 'RETAINED-RECEIPTS.json')
+     assert receipts == {r['retain_receipt']['path']: {k:v for k,v in r['retain_receipt'].items() if k != 'path'} for r in selected}
+-    assert len(selected) == policy['expected_bundles'] == 52
+-    assert sum(len(r['files']) for r in selected) == policy['expected_files'] == 156
++    assert len(selected) == policy['expected_bundles'] == 17
++    assert sum(len(r['files']) for r in selected) == policy['expected_files'] == 51
+     names = [r['path'] for r in selected]
+     assert len(set(names)) == len(names)
+     assert not any(a != b and a.startswith(b + '/') for a in names for b in names)
+@@ -125,6 +120,8 @@
+         for record in selected:
+             item = record['retain_executable']
+             regular(safe_path(item['path']), item)
++            for source in record['retain_sources']:
++                regular(safe_path(source['path']), source)
+         for name, record in receipts.items():
+             path = safe_path(name)
+             regular(path, record)
+@@ -183,7 +180,7 @@
+         raise
+     finally:
+         save('RESULT.json', {'success': error is None and preserved, 'error': error, 'removed_files': removed, 'preservation_verified': preserved, 'partial_removal_requires_review': bool(error and removed), 'rollback_available': False, 'allocated_bytes_estimate': policy['allocated_bytes_estimate'], 'free_bytes_after': os.statvfs(ROOT).f_bavail * os.statvfs(ROOT).f_frsize, 'native_or_control_writes': False})
+-    print('Removed exactly52 obsolete symbol bundles; executables, receipts, source, controls and indexes preserved')
++    print('Removed exactly17 obsolete symbol bundles; executables, receipts, source, controls and indexes preserved')
+ 
+ 
+ if __name__ == '__main__':
