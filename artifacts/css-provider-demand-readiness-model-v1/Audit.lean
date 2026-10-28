@@ -1,0 +1,14 @@
+import Demand
+#print axioms ProviderDemand.unknown_blocks
+#print axioms ProviderDemand.complete_ready_context_matches_final
+#print axioms ProviderDemand.actual_dependencies_complete
+#print axioms ProviderDemand.suspend_retains_frame_and_committed_effects
+#print axioms ProviderDemand.closed_frame_cannot_suspend
+#print axioms ProviderDemand.published_once
+#print axioms ProviderDemand.stale_generation_cannot_publish
+#print axioms ProviderDemand.applying_masks_cached_value
+#print axioms ProviderDemand.consumer_matches_finalized_provider
+#print axioms ProviderDemand.enum_reset_loses_owner
+#print axioms ProviderDemand.retried_effects_must_not_accumulate
+#print axioms ProviderDemand.scheduling_edge_creates_spurious_two_cycle
+#print axioms ProviderDemand.empty_requirements_can_be_incomplete
