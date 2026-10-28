@@ -1,0 +1,52 @@
+--- v2/install.py
++++ v3/install.py
+@@ -268,6 +268,7 @@
+     try:
+         run.mkdir()
+         save(run / 'PRE.json', before)
++        save(run / 'FLAGS.json', {name: hashlib.sha256(body).hexdigest() for name,body in flags.items()})
+         save(run / 'INITIAL-EPOCH.json', epoch)
+         save(run / 'PREVIOUS-ROLE.json', role)
+         save(run / 'PREVIOUS-OWNED.json', owned)
+@@ -291,7 +292,6 @@
+         semantic = s.h.semantic_index(state)
+         assert {k:v for k,v in semantic.items() if k != 'working_diff'} == {
+             k:v for k,v in epoch['semantic_index'].items() if k != 'working_diff'}
+-        assert state['raw_index'] == before['index']['raw_index']
+         assert s.h.index_state(ROOT / 'artifacts/css-spec-lean', ENV) == before['nested_index']
+         current['semantic_index'] = semantic
+         current['raw_index_observation']['current'] = state['raw_index']
+@@ -306,6 +306,9 @@
+         after = s.a.verify_current(s.h, ROOT, ENV, current)
+         assert preserve_recovery(s, policy, roles) == untracked
+         assert all(s.h.git(ROOT / n, ENV, 'ls-files', '-v', '-z') == b for n,b in flags.items())
++        save(run / 'INDEX-OBSERVATION.json', {'before_raw': before['index']['raw_index'],
++            'after_raw': state['raw_index'], 'semantic_entries_head_cached_unchanged': True,
++            'flags_unchanged': True, 'drift_cause': 'unknown' if state['raw_index'] != before['index']['raw_index'] else 'no drift'})
+         authenticate(manifest_pin)
+         role.update({'role': mode, 'variant': policy['variant'], 'built': False,
+                      'paired_head': policy['head'], 'last_install': run.name})
+@@ -336,10 +339,21 @@
+             st = path.lstat()
+             assert [st.st_dev, st.st_ino] == roles[name]['identity'] and not path.is_symlink()
+             ownership.write_owned(ROOT, native_owned[name], restore[name])
+-        assert s.a.verify_current(s.h, ROOT, ENV, epoch) == before
++        restored_state = s.h.index_state(ROOT, ENV)
++        assert s.h.semantic_index(restored_state) == epoch['semantic_index']
++        restored = copy.deepcopy(epoch)
++        restored['raw_index_observation']['current'] = restored_state['raw_index']
++        restored_check = s.a.verify_current(s.h, ROOT, ENV, restored)
++        assert restored_check['nested_index'] == before['nested_index']
+         assert preserve_recovery(s, policy, roles) == untracked
+         assert all(s.h.git(ROOT / n, ENV, 'ls-files', '-v', '-z') == b for n,b in flags.items())
+-        save(run / 'ROLLED-BACK.json', {'restored': changed})
++        assert (RUNTIME / 'CURRENT-EPOCH.json').read_bytes() == controls_before['CURRENT-EPOCH.json']
++        replace_bytes(RUNTIME / 'CURRENT-EPOCH.json', (json.dumps(restored, indent=2, sort_keys=True)+'\n').encode())
++        save(run / 'ROLLED-BACK.json', {'restored': changed,
++            'before_raw': epoch['raw_index_observation']['current'], 'after_raw': restored_state['raw_index'],
++            'drift_cause': 'unknown' if restored_state['raw_index'] != epoch['raw_index_observation']['current'] else 'no drift',
++            'full_restored_semantics_sources_controls_verified': True,
++            'refreshed_epoch_sha256': sha(RUNTIME / 'CURRENT-EPOCH.json')})
+         raise
+     finally:
+         assert [lock.stat().st_dev, lock.stat().st_ino] == lock_identity

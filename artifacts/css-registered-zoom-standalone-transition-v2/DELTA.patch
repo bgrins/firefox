@@ -1,0 +1,215 @@
+--- v1/install.py
++++ v2/install.py
+@@ -5,6 +5,7 @@
+ import os
+ from pathlib import Path
+ import shutil
++import signal
+ import subprocess
+ import sys
+ import tempfile
+@@ -118,7 +119,7 @@
+             assert sha(ROOT / name) == pins['head_original']
+     recovery = read(ROOT / 'artifacts/css-unfinished-work-checkpoint-20261027-v8/SOURCE-PINS.json')
+     assert len(recovery) == policy['recovery_count']
+-    ledger = read(ROOT / 'artifacts/css-local-signing-20261027-v20/ROADMAP-UPDATE.json')['after']
++    ledger = read(ROOT / 'artifacts/css-local-signing-20261027-v21/ROADMAP-UPDATE.json')['after']
+     for name, pin in recovery.items():
+         if name in ledger:
+             assert sha(ROOT / name) == ledger[name]
+@@ -133,6 +134,73 @@
+     return untracked
+ 
+ 
++def ownership_helper():
++    spec = importlib.util.spec_from_file_location('owned_transition', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++def process_census_clear(text, own_pid):
++    rows = {}
++    for line in text.splitlines():
++        parts = line.strip().split(None, 3)
++        assert len(parts) == 4
++        pid, parent, group = map(int, parts[:3])
++        assert pid not in rows
++        rows[pid] = (parent, group, parts[3])
++    assert own_pid in rows
++    ancestors = set()
++    cursor = own_pid
++    while cursor in rows and cursor not in ancestors:
++        ancestors.add(cursor)
++        cursor = rows[cursor][0]
++    blocked = []
++    for pid, (_, _, command) in rows.items():
++        if pid in ancestors:
++            continue
++        if (str(ROOT / 'objdir-full.noindex') in command or
++            './mach build' in command or './mach wpt' in command or
++            'mach test' in command or 'mach gtest' in command):
++            blocked.append([pid, command])
++    assert not blocked, ('active build/browser/test process', blocked)
++
++
++def quiescent(ownership, role):
++    ownership.quiescent(RUNTIME)
++    build = RUNTIME / role['last_build']
++    result = read(build / 'RESULT.json')
++    assert result['command_success'] and result['preservation_verified']
++    assert result['owned_processes'] == {} and result['publication_errors'] == []
++    for name in ['build-PROCESS.json', 'WAKE-PROCESS.json']:
++        ownership.group_absent(read(build / name)['pgid'])
++    for name in read(HERE / 'QUIESCENCE-PINS.json'):
++        if name.endswith('/PROCESS.json'):
++            ownership.group_absent(read(ROOT / name)['pgid'])
++        elif name.endswith('/CLEANUP.json'):
++            assert read(ROOT / name)['owned_group_absent']
++        elif name.endswith('/RESULT.json'):
++            result = read(ROOT / name)
++            if name.startswith('artifacts/css-registered-container-zoom-runtime-'):
++                assert result['complete'] and result['execution_preserved']
++            else:
++                assert result['observation_gate_passed'] and result['execution_error'] is None
++                assert result['preservation_error'] is None
++                assessment = read((ROOT / name).with_name('ASSESSMENT.json'))
++                assert assessment['complete'] and assessment['execution_preserved']
++    census = subprocess.run(['ps', '-axo', 'pid=,ppid=,pgid=,command='],
++                            check=True, capture_output=True, text=True).stdout
++    process_census_clear(census, os.getpid())
++
++
++def prewrite_guard(ownership, controls, native, manifest_pin):
++    authenticate(manifest_pin)
++    for name, item in controls.items():
++        ownership.claim(ROOT, item['path'], item['owned_sha256'], item['identity'])
++    for name, item in native.items():
++        ownership.claim(ROOT, name, item['owned_sha256'], item['identity'])
++
++
+ def main():
+     assert read(HERE / 'POLICY.json')['execution_enabled'] is True, 'Disabled checkpoint; successor review required'
+     mode, manifest_pin, epoch_pin = sys.argv[1:]
+@@ -145,13 +213,17 @@
+     s = importlib.util.module_from_spec(spec)
+     spec.loader.exec_module(s)
+     policy, roles = read(HERE / 'POLICY.json'), read(HERE / 'SOURCE-ROLES.json')
++    ownership = ownership_helper()
+     controls_before = {name: (RUNTIME / name).read_bytes()
+                        for name in ['ROLE.json', 'OWNED.json', 'CURRENT-EPOCH.json']}
++    controls_owned = {name: ownership.claim(ROOT, str((RUNTIME / name).relative_to(ROOT)),
++                      hashlib.sha256(data).hexdigest()) for name,data in controls_before.items()}
+     epoch_bytes = controls_before['CURRENT-EPOCH.json']
+     assert hashlib.sha256(epoch_bytes).hexdigest() == epoch_pin
+     epoch, role, owned = [json.loads(controls_before[n]) for n in
+                            ['CURRENT-EPOCH.json', 'ROLE.json', 'OWNED.json']]
+     check_state(policy, roles, epoch, role, owned, mode, epoch_pin)
++    quiescent(ownership, role)
+     before = s.a.verify_current(s.h, ROOT, ENV, epoch)
+     assert s.h.git(ROOT, ENV, 'symbolic-ref', 'HEAD').decode().strip() == 'refs/heads/stylo-bloom-verification-2'
+     flags = {name: s.h.git(ROOT / name, ENV, 'ls-files', '-v', '-z')
+@@ -170,6 +242,7 @@
+     selected = roles if mode == 'original' else {k: v for k, v in roles.items() if 'candidate' in v}
+     target_key = 'original' if mode == 'original' else 'candidate'
+     source_key = 'prototype' if mode == 'original' else 'original'
++    native_owned, desired, restore = {}, {}, {}
+     for name, record in roles.items():
+         path = ROOT / name
+         st = path.lstat()
+@@ -177,26 +250,39 @@
+         assert [st.st_dev, st.st_ino] == record['identity']
+         assert sha(path) == record[source_key + '_sha256']
+         assert hashlib.sha256(s.h.git(ROOT, ENV, 'show', 'HEAD:' + name)).hexdigest() == record['original_sha256']
++        native_owned[name] = ownership.claim(ROOT, name, record[source_key + '_sha256'], record['identity'])
+         for key in ['original', 'prototype'] + (['candidate'] if 'candidate' in record else []):
+-            assert sha(ROOT / record[key]) == record[key + '_sha256']
++            data = ownership.body(ROOT / record[key])
++            assert hashlib.sha256(data).hexdigest() == record[key + '_sha256']
++            if key == source_key:
++                restore[name] = data
++            if name in selected and key == target_key:
++                desired[name] = data
+     run = RUNTIME / policy['baseline_install' if mode == 'original' else 'candidate_install']
+-    run.mkdir()
+-    save(run / 'PRE.json', before)
+-    save(run / 'INITIAL-EPOCH.json', epoch)
+-    save(run / 'PREVIOUS-ROLE.json', role)
+-    save(run / 'PREVIOUS-OWNED.json', owned)
+-    save(run / 'SOURCE-ROLES.json', roles)
++    lock = RUNTIME / 'SOURCE-TRANSITION.lock'
++    with lock.open('x') as stream:
++        json.dump({'pid': os.getpid(), 'mode': mode, 'epoch_sha256': epoch_pin}, stream)
++    lock_identity = [lock.stat().st_dev, lock.stat().st_ino]
+     changed, controls_after = [], {}
+     current = copy.deepcopy(epoch)
+     try:
+-        assert s.h.index_state(ROOT, ENV) == before['index']
++        run.mkdir()
++        save(run / 'PRE.json', before)
++        save(run / 'INITIAL-EPOCH.json', epoch)
++        save(run / 'PREVIOUS-ROLE.json', role)
++        save(run / 'PREVIOUS-OWNED.json', owned)
++        save(run / 'SOURCE-ROLES.json', roles)
++        assert s.a.verify_current(s.h, ROOT, ENV, epoch) == before
++        prewrite_guard(ownership, controls_owned, native_owned, manifest_pin)
++        quiescent(ownership, role)
++        prewrite_guard(ownership, controls_owned, native_owned, manifest_pin)
+         for name, record in selected.items():
+             path = ROOT / name
+             st = path.lstat()
+             assert [st.st_dev, st.st_ino] == record['identity'] and not path.is_symlink()
+             assert sha(path) == record[source_key + '_sha256']
+             changed.append(name)
+-            path.write_bytes((ROOT / record[target_key]).read_bytes())
++            ownership.write_owned(ROOT, native_owned[name], desired[name])
+             for key in ['pins', 'staged_working', 'committed_research_working_payloads']:
+                 if name in current[key]:
+                     current[key][name] = s.h.fingerprint(ROOT, name)
+@@ -227,8 +313,13 @@
+                           'OWNED.json': (json.dumps(owned, indent=2, sort_keys=True)+'\n').encode(),
+                           'CURRENT-EPOCH.json': (json.dumps(current, indent=2, sort_keys=True)+'\n').encode()}
+         for name, data in controls_after.items():
+-            assert (RUNTIME / name).read_bytes() == controls_before[name]
+-            replace_bytes(RUNTIME / name, data)
++            ownership.claim(ROOT, controls_owned[name]['path'], controls_owned[name]['owned_sha256'], controls_owned[name]['identity'])
++            previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
++            try:
++                replace_bytes(RUNTIME / name, data)
++                controls_owned[name] = ownership.claim(ROOT, controls_owned[name]['path'], hashlib.sha256(data).hexdigest())
++            finally:
++                signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+         assert all((RUNTIME / n).read_bytes() == b for n,b in controls_after.items())
+         save(run / 'POST.json', after)
+         save(run / 'EPOCH.json', current)
+@@ -238,21 +329,27 @@
+              'existing_work_preserved': True, 'epoch_sha256': sha(RUNTIME / 'CURRENT-EPOCH.json')})
+     except BaseException:
+         for name, data in controls_before.items():
+-            assert (RUNTIME / name).read_bytes() in [data, controls_after.get(name)]
++            ownership.claim(ROOT, controls_owned[name]['path'], controls_owned[name]['owned_sha256'], controls_owned[name]['identity'])
+             replace_bytes(RUNTIME / name, data)
+         for name in reversed(changed):
+             path = ROOT / name
+             st = path.lstat()
+             assert [st.st_dev, st.st_ino] == roles[name]['identity'] and not path.is_symlink()
+-            assert sha(path) in [roles[name][source_key+'_sha256'], roles[name][target_key+'_sha256']]
+-            path.write_bytes((ROOT / roles[name][source_key]).read_bytes())
++            ownership.write_owned(ROOT, native_owned[name], restore[name])
+         assert s.a.verify_current(s.h, ROOT, ENV, epoch) == before
+         assert preserve_recovery(s, policy, roles) == untracked
+         assert all(s.h.git(ROOT / n, ENV, 'ls-files', '-v', '-z') == b for n,b in flags.items())
+         save(run / 'ROLLED-BACK.json', {'restored': changed})
+         raise
++    finally:
++        assert [lock.stat().st_dev, lock.stat().st_ino] == lock_identity
++        lock.unlink()
+     print((run / 'RESULT.json').read_text(), flush=True)
+ 
+ 
+ if __name__ == '__main__':
++    def interrupted(signum, frame):
++        raise RuntimeError('Interrupted transition: ' + str(signum))
++    signal.signal(signal.SIGTERM, interrupted)
++    signal.signal(signal.SIGINT, interrupted)
+     main()
