@@ -1,5 +1,10 @@
 # CSS and Stylo verification plan
 
+Fix 142 restores random indices when speculative CSS parsing fails, including registered syntax alternatives, typed math finalizers and the enclosing grid shorthand. The final installed browser passes all 46 targeted WPT assertions; 507 regression signatures and seven harness endings remain unchanged. The paired run repairs 18 failures. The standalone payload contains four Rust files and two WPT pages. After its verified signed commit, the branch has 141 accepted fixes and 142 tracked fixes, with held fix 120 excluded. The seven-claim Lean witness is conditional and post-discovery; canonical CSS-library coverage is unchanged.
+
+Earlier entries retain their historical state.
+
+
 Fix 141 resolves contextual leaves in unitless line-height. The final installed browser passes all 34 WPT subtests, repairing seven original failures; 22 regression signatures and six harness endings remain unchanged. The standalone payload contains one Rust file and two WPT pages. After its verified signed commit, the branch has 140 accepted fixes and 141 tracked fixes, with held fix 120 excluded from acceptance. The accompanying Lean model is conditional and post-discovery; canonical CSS-library coverage is unchanged.
 
 Earlier entries retain their historical state.

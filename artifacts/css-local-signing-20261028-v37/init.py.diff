@@ -1,0 +1,19 @@
+--- v35/init.py
++++ v37/init.py
+@@ -19,10 +19,13 @@
+ assert sha(runtime/'CURRENT-EPOCH.json') == inputs['initial_epoch']
+ epoch = json.loads(controls['CURRENT-EPOCH.json'])
+ assert epoch['semantic_index']['head'] == inputs['initial_head']
+-assert epoch['line_height_transition']['role'] == 'candidate'
+-assert epoch['line_height_transition']['compiled'] and not epoch['line_height_transition']['accepted']
+-assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs','servo/components/style/values/specified/font.rs'])
++assert epoch['random_counter_transition']['role'] == 'candidate'
++assert epoch['random_counter_transition']['compiled'] and not epoch['random_counter_transition']['accepted']
++assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs',*inputs['native_source_paths']])
+ assert epoch['staged_working'] == {}
++assert epoch['accepted_line_height']['fix'] == 141
++assert epoch['accepted_line_height']['files'] == inputs['preserved_line_height_files']
++assert not os.path.lexists(ROOT/inputs['retired_path'])
+ assert not (runtime/'SOURCE-TRANSITION.lock').exists()
+ for n,b in controls.items():
+     with (HERE/('PRE-'+n)).open('xb') as stream: stream.write(b)

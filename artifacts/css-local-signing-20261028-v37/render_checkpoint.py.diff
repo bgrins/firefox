@@ -1,0 +1,46 @@
+--- v35/render_checkpoint.py
++++ v37/render_checkpoint.py
+@@ -32,20 +32,21 @@
+ assert accepted['fix'] == inputs['fix']
+ assert accepted['payload_sha256'] == sha(HERE/'native-selection.json')
+ assert accepted['promoted_build_passed'] and accepted['promoted_wpt_passed'] and accepted['wpt_lint_passed']
+-assert accepted['target_pass'] == 12 and accepted['regressions_unchanged'] == 22 and accepted['ends_unchanged'] == 6
++assert accepted['target_pass'] == 46 and accepted['regressions_unchanged'] == 507 and accepted['ends_unchanged'] == 7
+ assert accepted['evidence_pins'] == inputs['evidence_pins'] and inputs['evidence_pins']
+ for name,pin in inputs['evidence_pins'].items():
+     assert sha(ROOT/name) == pin
+ signing = ROOT/inputs['signing_directory']
+ receipt = read(signing/inputs['native_receipt'])
+ assert receipt['signature_verified'] and receipt['working_bodies_and_nested_index_preserved']
+-assert sorted(receipt['files']) == payload['files'] and len(payload['files']) == 3
++assert sorted(receipt['files']) == payload['files'] and len(payload['files']) == 6
+ commit = receipt['commit']
+ assert git('rev-parse','HEAD').decode().strip() == commit
+ assert git('rev-parse',commit+'^').decode().strip() == receipt['parent']
+ assert git('rev-parse',commit+'^{tree}').decode().strip() == receipt['tree']
+ assert sorted(git('diff-tree','--no-commit-id','--name-only','-r',commit).decode().splitlines()) == payload['files']
+ assert not git('diff','--cached','--name-only')
++assert not os.path.lexists(ROOT/inputs['retired_path'])
+ for name,pin in payload['source_pins'].items():
+     assert sha(ROOT/name) == pin == hashlib.sha256(git('show',commit+':'+name)).hexdigest()
+     assert inputs['evidence_pins'].get(name) == pin
+@@ -57,7 +58,7 @@
+     assert hashlib.sha256(b).hexdigest() == inputs['ledger_preimages'][n]
+     assert b == git('show',commit+':'+n)
+ ledger = json.loads(old[paths[0]])
+-assert ledger['committed_native_fixes'] == 139
++assert ledger['committed_native_fixes'] == inputs['previous_accepted_fixes'] == 140
+ assert not any(v.get('fix') == inputs['fix'] for v in ledger['new_queue'])
+ assert inputs['fix'] == max(v['fix'] for v in ledger['new_queue'] if isinstance(v.get('fix'),int)) + 1
+ entry = copy.deepcopy(accepted['ledger_entry'])
+@@ -77,8 +78,8 @@
+     subprocess.run(['git','-c','gpg.ssh.allowedSignersFile='+str(ROOT/'artifacts/css-local-signing-20261027-v1/allowed-signers'),'verify-commit',prior['commit']],cwd=ROOT,env=env,check=True)
+ entry.update(native_commit=commit,research_commit=research_receipt['commit'],validation_commit=validation_receipt['commit'],companion_commit=validation_receipt['commit'],signature_verified=True,status='COMMITTED_NATIVE_WPT',commit_verification={'path':str((signing/inputs['native_receipt']).relative_to(ROOT)),'sha256':sha(signing/inputs['native_receipt'])})
+ ledger['new_queue'].append(entry)
+-ledger['committed_native_fixes'] = 140
+-ledger['latest_line_height_fix'] = entry
++ledger['committed_native_fixes'] = inputs['previous_accepted_fixes'] + 1
++ledger['latest_random_counter_fix'] = entry
+ summary = accepted['approved_checkpoint_summary']
+ assert isinstance(summary,str) and summary.strip()
+ title,rest = old[paths[1]].decode().split('\n',1)
