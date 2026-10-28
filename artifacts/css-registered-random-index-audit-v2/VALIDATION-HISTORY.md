@@ -1,0 +1,1 @@
+The initial model preparation failed because `prefix` is a reserved Lean token and empty guard-message expectations did not match the deliberately false controls. The identifier was renamed and false claims moved to separate files whose compiler failures are checked by replay.py. No initial failed run was represented as successful. Final evidence is validation/CHECK.json.

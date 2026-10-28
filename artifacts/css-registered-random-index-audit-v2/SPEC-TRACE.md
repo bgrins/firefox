@@ -1,0 +1,10 @@
+# Selected-value index trace
+
+Verdict: REACHED for the selected parsed-value index requirement, conditional on support and successful ordinary typed declaration admission. The source predicts a violation; browser observation remains pending. Initial-value admission and parser-context naming are additionally calibrated, rather than assumed for every random form.
+
+1. [Values5 parsing a syntax](https://drafts.csswg.org/css-values-5/#parse-syntax) chooses the first matching alternative and returns its parsed values. Rejected parser attempts are not added to that value.
+2. [Random simplification](https://drafts.csswg.org/css-values-5/#random-simplify) replaces property-index-scoped with a property/index identifier. Its one-based index follows random functions in the parsed value before canonicalization. Thus a single selected random function has index1 regardless of how many failed implementation alternatives were tried.
+3. [Random cache names](https://drafts.csswg.org/css-values-5/#random-caching) combine the name with element/document identity as applicable. Matching names and identities share a base. The probe supplies the same explicit property/index name, document, no element scoping, bounds and absent step through an ordinary opacity reference. It does not require different keys to produce different numbers.
+4. [JS registration](https://drafts.css-houdini.org/css-properties-values-api/#the-registerproperty-function) parses the initial by the supplied syntax, rejects parsing/independence failures and stores the parsed result. The four decl-* controls use nonzero Number literals, which reject Length/Angle alternatives without encountering random; the random expression is assigned afterward to the ordinary declaration.
+
+All linked fragments were checked against the captured HTML IDs. FETCH.json binds both exact documents. The initial-only variants retain diagnostic value, but the ordinary declaration controls are the narrower evidence route. Auto/element-scoped rejection does not establish rejection of all named, fixed or property-index random forms. No normative distinct-sample assertion is used.
