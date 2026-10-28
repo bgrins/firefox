@@ -1,0 +1,1 @@
+Independent root replay of the sealed contextual line-height model: six declarations accepted, three false claims rejected, scratch removed. Scope and limitations remain those of css-line-height-contextual-model-v1; no native-refinement or canonical coverage claim.

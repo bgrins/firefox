@@ -1,0 +1,19 @@
+# Contextual line-height leaf mapping
+
+This standalone Lean model checks the proposed mapper boundary, not Firefox. Its six audited declarations preserve the percentage/inherited-lh special bases, resolve random/tree inputs, establish leaf correspondence with an explicit reference interpretation, and lift that correspondence through every finite expression in a small unary/binary language. Two concrete witnesses expose old unresolved cloning and the danger of replacing the special mapper entirely with generic current-line-height conversion. Three separate false controls must fail kernel checking. The final axiom audit uses only Lean’s standard propext and Quot.sound; no sorry, custom axiom or native-decision axiom is admitted.
+
+Context inputs are assumptions. randomBase is already the correct selected-key base; siblingIndex/count are already the correct current tree values. The model proves neither their production nor scheduling, readiness, effects, scope, invalidation or caching. emBasis is an abstract resolved one-em length, separate from the usedFont used for unitless line-height; it does not assume text scaling, CSS zoom or used/computed font values coincide. In the concrete unzoomed witnesses both are10. Percentages are restricted to nonnegative integer multiples of100%; percentage1 means100%, not1%. Other percentages, root/container/viewport units, symbolic color channels and unknown native leaves are outside the domain.
+
+The evaluator accepts arbitrary pure deterministic unary/binary operation functions. Expression equality says that replacing the leaf mapper preserves the reference result in this modeled language, including successful results; it does not guarantee that every expression is well typed or succeeds. It is not an exhaustive CalcNode visitor/arity proof. Native floating arithmetic, signed zero, NaN, infinities, rounding, clamps, font metrics and random-number distribution are not verified. The concrete Nat operations use only a valid cached random base0 in range1..3 and exact40/10 or70/10 ratios. They do not justify natural-number division as a general CSS numeric model.
+
+oldCloningMap models the combined result of cloning an unresolved RandomKey/TreeCounting leaf and then failing to obtain a canonical numeric value. It does not claim that the native mapper itself returns Err. usedHeight's failure→0 branch compresses the observed native error→NaN→normalization path; the exact floating implementation is not formalized. The inherited-lh witness uses distinct inherited/current bases40/70 to demonstrate a preservation requirement, not to claim that this exact native Context state occurred in the browser.
+
+Source and browser discovery preceded this proof. Root's local Nightly calibration and later12-body harness run are separate evidence; the Lean model did not discover or execute them. No accepted bug count or canonical CSS specification coverage is added. Native correspondence is manual and bounded by MAPPING.md.
+
+Replay from repository root with an absent output directory:
+
+```
+python3 -I -S -B artifacts/css-line-height-contextual-model-v1/replay.py /private/tmp/line-height-model-replay-unique
+```
+
+The driver pins Lean4.35.0-rc4, compiles in private temporary scratch, audits all six declarations, verifies each false file fails because its proposition is false, and removes scratch. It refuses to overwrite output. The final successful receipt is validation-valid-base/CHECK.json. The earlier successful model with one shared em/used-font field and its exact source are retained under validation and preparation solely as development history; the final version separates those assumptions. Both earlier successful preparations used cached-base1, outside the actual [0,1) domain; review caught this and the authoritative witness uses valid base0. Their source/false-control and receipts remain under preparation and validation-separated-bases solely as historical evidence.

@@ -1,0 +1,148 @@
+--- a/servo/components/style/values/specified/font.rs
++++ b/servo/components/style/values/specified/font.rs
+@@ -2016,15 +2016,15 @@
+ 
+ /// Maps a line-height calc leaf into a resolved leaf. Percentages are replaced
+ /// with equivalent `em` lengths, and all lengths are resolved to absolute lengths.
+-fn map_line_height_leaf(context: &Context, leaf: &Leaf) -> Leaf {
++fn map_line_height_leaf(context: &Context, leaf: &Leaf) -> Result<Leaf, ()> {
+     let length = match leaf {
+         Leaf::Percentage(p) => NoCalcLength::from_em(p.get()),
+         Leaf::Length(l) => *l,
+-        _ => return leaf.clone(),
++        _ => return leaf.to_computed_value(Some(context), None),
+     };
+-    Leaf::Length(NoCalcLength::from_px(
++    Ok(Leaf::Length(NoCalcLength::from_px(
+         resolve_line_height_length(context, length).px(),
+-    ))
++    )))
+ }
+ 
+ impl ToComputedValue for LineHeight {
+@@ -2040,7 +2040,7 @@
+                     Some(calc) => {
+                         let resolved = calc
+                             .node
+-                            .resolve_map(|leaf| Ok(map_line_height_leaf(context, leaf)));
++                            .resolve_map(|leaf| map_line_height_leaf(context, leaf));
+                         let value = match resolved {
+                             Ok(Leaf::Number(n)) => n.get(),
+                             _ => {
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-inline/line-height-tree-counting.html
+@@ -0,0 +1,48 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Tree-counting functions in unitless line-height</title>
++<link rel="help" href="https://drafts.csswg.org/css-inline-3/#line-height-property">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#tree-counting">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<div id="container"></div>
++<script>
++for (const kind of ["sibling-index", "sibling-count"]) {
++  test(t => {
++    const numberValue = `${kind}()`;
++    const lengthValue = `calc(${kind}() * 1em)`;
++    assert_true(CSS.supports("line-height", numberValue), "unitless expression is supported");
++    assert_true(CSS.supports("line-height", lengthValue), "length control is supported");
++    const snapshots = [];
++    for (const value of [numberValue, lengthValue]) {
++      const holder = document.createElement("div");
++      holder.style.cssText = "font:10px monospace;line-height:40px";
++      holder.append(document.createElement("div"));
++      const target = document.createElement("div");
++      target.style.lineHeight = value;
++      target.textContent = "x";
++      holder.append(target);
++      document.getElementById("container").append(holder);
++      t.add_cleanup(() => holder.remove());
++      const measure = () => ({
++        lineHeight: getComputedStyle(target).lineHeight,
++        height: target.getBoundingClientRect().height,
++      });
++      const states = [measure()];
++      const added = document.createElement("div");
++      holder.prepend(added);
++      states.push(measure());
++      added.remove();
++      states.push(measure());
++      snapshots.push(states);
++    }
++    for (const index of [1, 0]) {
++      const label = index === 1 ? "length control" : "unitless value";
++      assert_array_equals(snapshots[index].map(s => s.lineHeight),
++        ["20px", "30px", "20px"], `${label} resolves and invalidates`);
++      assert_array_equals(snapshots[index].map(s => s.height),
++        [20, 30, 20], `${label} determines the line box height`);
++    }
++  }, `${kind} resolves and invalidates unitless line-height`);
++}
++</script>
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-values/line-height-contextual-number.tentative.html
+@@ -0,0 +1,63 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Contextual leaves in unitless line-height calculations</title>
++<link rel="help" href="https://drafts.csswg.org/css-inline-3/#line-height-property">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#randomness">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#random-caching">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<div id="container"></div>
++<script>
++function makeBox(parent, value) {
++  const box = document.createElement("div");
++  box.style.cssText = "font-family:monospace;margin:0;padding:0;border:0";
++  box.style.lineHeight = value;
++  box.textContent = "x";
++  parent.append(box);
++  return box;
++}
++
++const cases = [
++  ["literal", "2", "2em"],
++  ["calc literal", "calc(2)", "2em"],
++  ["fixed random", "random(fixed .25, 1, 3)", "1.5em"],
++  ["named random", "random(--line-number, 1, 3)", "random(--line-number, 1em, 3em)"],
++  ["stepped named random", "random(--line-stepped, 1, 3, 1)", "random(--line-stepped, 1em, 3em, 1em)"],
++  ["named random in a sum", "calc(1 + random(--line-sum, 1, 3, 1))", "calc(1em + random(--line-sum, 1em, 3em, 1em))"],
++  ["named random length ratio", "calc(random(--line-ratio, 1em, 3em) / 1em)", "random(--line-ratio, 1em, 3em)"],
++  ["nested fixed random key", "random(fixed random(--line-nested, 0, 1), 1, 3)", "random(fixed random(--line-nested, 0, 1), 1em, 3em)"],
++  ["percentage ratio", "calc(100% / 1em)", "1em"],
++  ["inherited line-height ratio", "calc(1lh / 1em)", "40px"],
++];
++
++for (const [name, value, referenceValue] of cases) {
++  test(t => {
++    assert_true(CSS.supports("line-height", value), "unitless expression is supported");
++    assert_true(CSS.supports("line-height", referenceValue), "length reference is supported");
++    const holder = document.createElement("div");
++    holder.style.lineHeight = "40px";
++    document.getElementById("container").append(holder);
++    t.add_cleanup(() => holder.remove());
++    const target = makeBox(holder, value);
++    const reference = makeBox(holder, referenceValue);
++    const snapshots = [];
++    for (const size of [10, 20, 10]) {
++      target.style.fontSize = reference.style.fontSize = `${size}px`;
++      snapshots.push({
++        actual: parseFloat(getComputedStyle(target).lineHeight),
++        expected: parseFloat(getComputedStyle(reference).lineHeight),
++        height: target.getBoundingClientRect().height,
++        referenceHeight: reference.getBoundingClientRect().height,
++      });
++    }
++    for (const snapshot of snapshots) {
++      assert_true(snapshot.expected >= 10, "positive reference calibration");
++      assert_approx_equals(snapshot.actual, snapshot.expected, 1 / 60 + 0.001,
++        "unitless line-height matches the same-key length value");
++      assert_approx_equals(snapshot.height, snapshot.referenceHeight, 1 / 60 + 0.001,
++        "line box height matches the length control");
++    }
++  }, `${name} resolves before unitless line-height is used`);
++}
++
++</script>
