@@ -1,0 +1,3 @@
+Actual two-path finite Round installation and linked build completed successfully. Installation session 84312 ended f64fb5/0; build session 53644 ended 51fd71/0, with inner compiler exit 0 and clean owned-process cleanup. Source df7e and the 21-case landing WPT are installed. The declared current-source supersession preserves historical accepted144 metadata and all other accepted bodies.
+
+This manifest is an explicit build-evidence snapshot, not a closed-world directory claim. A later candidate-wpt child is separately inventoried and may be added without changing these listed payloads. Final WPT and acceptance are not claimed by this build snapshot.
