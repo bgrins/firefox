@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered color initials follow the element color scheme</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#initial-value-descriptor">
+<link rel="help" href="https://drafts.csswg.org/css-color-5/#light-dark">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const source of ["grammar invalid", "missing reference"]) {
+  for (const order of ["provider first", "length first"]) {
+    test(t => {
+      const frame = document.createElement("iframe");
+      document.body.append(frame);
+      t.add_cleanup(() => frame.remove());
+      const win = frame.contentWindow;
+      const doc = win.document;
+      const style = doc.createElement("style");
+      style.textContent = `@property --initial-context-color {
+        syntax:"<color>"; inherits:false; initial-value:light-dark(red,blue);
+      }
+      @property --initial-context-length {
+        syntax:"<length>"; inherits:false; initial-value:7px;
+      }`;
+      doc.head.append(style);
+      const target = doc.createElement("div");
+      const initial = doc.createElement("div");
+      const direct = doc.createElement("div");
+      doc.body.append(target,initial,direct);
+      const value = source === "grammar invalid" ? "var(--bad, 1lh)" : "var(--missing)";
+      const declarations = [["--initial-context-color",value],["--initial-context-length","1lh"]];
+      if (order === "length first") {
+        declarations.reverse();
+      }
+      for (const [name,css] of declarations) {
+        target.style.setProperty(name,css);
+      }
+      target.style.setProperty("--bad","bogus");
+      target.style.color = "var(--initial-context-color, lime)";
+      target.style.writingMode = "var(--initial-context-color)";
+      initial.style.color = "var(--initial-context-color, lime)";
+      direct.style.color = "light-dark(red,blue)";
+      target.style.width = "var(--initial-context-length)";
+      const snapshots = [];
+      for (const [scheme,height] of [["light",40],["dark",60],["light",40]]) {
+        for (const el of [target,initial,direct]) {
+          el.style.colorScheme = scheme;
+          el.style.lineHeight = `${height}px`;
+        }
+        const cs = win.getComputedStyle(target);
+        const first = order === "provider first" ? cs.getPropertyValue("--initial-context-color") : cs.width;
+        snapshots.push({scheme,height,first,value:cs.getPropertyValue("--initial-context-color").trim(),
+          color:cs.color,width:cs.width,writingMode:cs.writingMode,initial:win.getComputedStyle(initial).color,
+          initialValue:win.getComputedStyle(initial).getPropertyValue("--initial-context-color").trim(),
+          direct:win.getComputedStyle(direct).color});
+      }
+      const detail = JSON.stringify(snapshots);
+      for (const row of snapshots) {
+        const expected = row.scheme === "light" ? "rgb(255, 0, 0)" : "rgb(0, 0, 255)";
+        assert_equals(row.direct,expected,`Settled literal: ${detail}`);
+        assert_equals(row.initial,expected,`Registered initial calibration: ${detail}`);
+        assert_equals(row.value,row.initialValue,`Provider default: ${detail}`);
+        assert_equals(row.color,expected,`Consumer: ${detail}`);
+        assert_equals(row.writingMode,"horizontal-tb",`Invalid ordinary consumer: ${detail}`);
+        assert_equals(row.width,`${row.height}px`,`Length: ${detail}`);
+      }
+    }, `Registered initial color context: ${source}, ${order}`);
+  }
+}
+</script>

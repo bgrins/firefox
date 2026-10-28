@@ -1,0 +1,100 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered provider defaults after substitution failure</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#substitution-context">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const scenarios = [
+  "missing var with consumer fallback", "missing var without consumer fallback",
+  "missing env", "missing typed attr", "invalid typed attr", "inherited missing var",
+  "root inherited missing var", "root reset missing var", "inherit reset",
+  "unset inherited", "trailing CSS-wide junk", "self cycle", "self cycle with fallback",
+  "mutual cycle", "mutual cycle with fallback", "unused self fallback"
+];
+for (const scenario of scenarios) {
+  for (const order of ["provider first", "length first"]) {
+    test(t => {
+      const frame = document.createElement("iframe");
+      frame.width = "320";
+      frame.height = "180";
+      document.body.append(frame);
+      t.add_cleanup(() => frame.remove());
+      const win = frame.contentWindow;
+      const doc = win.document;
+      const mode = "--provider-readiness-mode-8";
+      const length = "--provider-readiness-length-8";
+      const other = "--provider-readiness-other-8";
+      const ready = "--provider-readiness-ready-8";
+      const missing = "--provider-readiness-missing-8";
+      const inherits = scenario.includes("inherited");
+      const root = scenario.startsWith("root ");
+      const syntax = "<length> | horizontal-tb | vertical-rl | vertical-lr";
+      win.CSS.registerProperty({name:mode, syntax, inherits, initialValue:"vertical-rl"});
+      win.CSS.registerProperty({name:other, syntax, inherits:false, initialValue:"vertical-lr"});
+      win.CSS.registerProperty({name:length, syntax:"<length>", inherits:false, initialValue:"7px"});
+      doc.documentElement.style.writingMode = "horizontal-tb";
+      doc.body.style.setProperty(mode, "vertical-lr");
+      const target = root ? doc.documentElement : doc.createElement("div");
+      if (!root) {
+        doc.body.append(target);
+      }
+      let provider = `var(${missing})`;
+      let otherValue = "vertical-lr";
+      let expected = inherits && !root ? "vertical-lr" : "vertical-rl";
+      switch (scenario) {
+        case "missing env": provider = "env(provider-readiness-definitely-unknown)"; break;
+        case "missing typed attr": provider = "attr(data-mode type(<custom-ident>))"; break;
+        case "invalid typed attr":
+          target.setAttribute("data-mode", "123");
+          provider = "attr(data-mode type(<custom-ident>))";
+          break;
+        case "inherit reset": provider = `var(${missing}, inherit)`; expected = "vertical-lr"; break;
+        case "unset inherited": provider = `var(${missing}, unset)`; break;
+        case "trailing CSS-wide junk": provider = `var(${missing}, inherit extra)`; break;
+        case "self cycle": provider = `var(${mode})`; break;
+        case "self cycle with fallback": provider = `var(${mode}, horizontal-tb)`; break;
+        case "mutual cycle": provider = `var(${other})`; otherValue = `var(${mode})`; break;
+        case "mutual cycle with fallback":
+          provider = `var(${other}, horizontal-tb)`;
+          otherValue = `var(${mode}, horizontal-tb)`;
+          break;
+        case "unused self fallback": provider = `var(${ready}, var(${mode}))`; break;
+      }
+      const declarations = [[mode,provider], [length,"1lh"]];
+      if (order === "length first") {
+        declarations.reverse();
+      }
+      for (const [name,value] of declarations) {
+        target.style.setProperty(name,value);
+      }
+      target.style.setProperty(other,otherValue);
+      target.style.setProperty(ready,"vertical-rl");
+      target.style.writingMode = scenario === "missing var without consumer fallback" ?
+        `var(${mode})` : `var(${mode}, horizontal-tb)`;
+      target.style.width = `var(${length})`;
+      const snapshots = [];
+      for (const lineHeight of [40,60,40]) {
+        target.style.lineHeight = `${lineHeight}px`;
+        const cs = win.getComputedStyle(target);
+        const first = order === "provider first" ? cs.getPropertyValue(mode) : cs.getPropertyValue(length);
+        snapshots.push({lineHeight,first,provider:cs.getPropertyValue(mode).trim(),
+          other:cs.getPropertyValue(other).trim(),writingMode:cs.writingMode,
+          length:cs.getPropertyValue(length).trim(),width:cs.width});
+      }
+      const detail = JSON.stringify(snapshots);
+      for (const row of snapshots) {
+        assert_equals(row.provider,expected,`Provider: ${detail}`);
+        assert_equals(row.writingMode,expected,`Consumer: ${detail}`);
+        assert_equals(row.length,`${row.lineHeight}px`,`Length: ${detail}`);
+        assert_equals(row.width,`${row.lineHeight}px`,`Width: ${detail}`);
+        if (scenario.startsWith("mutual cycle")) {
+          assert_equals(row.other,"vertical-lr",`All cycle participants default: ${detail}`);
+        }
+      }
+    }, `Registered provider error: ${scenario}, ${order}`);
+  }
+}
+</script>
