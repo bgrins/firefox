@@ -1,0 +1,11 @@
+# Configured grid rollback typecheck after accepted line-height141
+
+This successor binds signed HEAD fd4b301f80b0aaed9f198a978f00ab2e99300147 and canonical epoch aa9971532448b359ba737333838420e1ccab758826eda792018ec3be9f9d04aa. It temporarily installs exactly the corrected four-source rollback proposal v4: parser.rs, properties_and_values/value.rs, values/specified/calc.rs and properties/shorthands.rs. Actual `git show HEAD:path` hashes match all four captured base bodies; execution repeats those checks.
+
+The accepted font.rs body d7c1b958… and both committed line-height WPTs are excluded from the overlay and explicitly claimed by their current hashes and identities before and after the check. Their compiled/accepted epoch marker remains unchanged. The held custom-properties source, original random WPTs, accepted binaries, updated OWNED control, root/nested index and flags, research payloads and every other canonical pin remain guarded. This does not restore any pre-line-height snapshot.
+
+The existing configured offline Cargo check uses two jobs and the current objdir target directory. No browser linking, browser execution, new target directory, runtime publication, accepted count change or new fix acceptance occurs. Only the four owned source bodies are restored. A failed restoration retains its lock and recovery evidence. Raw Git index stat changes can be observed only with identical semantic state; they are recorded rather than published to canonical CURRENT.
+
+Preparation ran saved-data projection controls, Python syntax/source-pin checks, and read-only HEAD blob checks. It did not run main, a live preservation guard, Cargo, or source installation. Root owns the exclusive execution window. The sealed v1/v2 wrappers and rejected source v3 remain immutable historical evidence. This package targets the corrected source v4 and makes no native compilation claim before its actual result.
+
+Enabled after bounded independent review bc43d3/0. Invocation for root: `python3 -I -S -B artifacts/css-random-grid-typecheck-v3/run.py aa9971532448b359ba737333838420e1ccab758826eda792018ec3be9f9d04aa`. Root first authenticates FILES.json. Current HEAD or canonical/source/control changes require a newly reviewed binding.

@@ -1,0 +1,89 @@
+--- line-height-paired-v2/bindings.py
++++ random-counter-paired-v1/bindings.py
+@@ -10,7 +10,7 @@
+ 
+ 
+ def bind_policy(root, here, fixed, epoch, epoch_sha, phase, h):
+-    marker = epoch['reversible_line_height_phase']
++    marker = epoch['reversible_random_counter_phase']
+     role = phase.split('-', 1)[0]
+     h.need(set(marker) == {'role', 'build_directory', 'source_package_manifest', 'owner_runtime'}, 'phase marker fields')
+     h.need(marker['role'] == role and marker['source_package_manifest'] == fixed['source_package_manifest'], 'phase source role')
+@@ -44,22 +44,33 @@
+     baseline = h.read(here / 'SIGNING-BASELINE-EPOCH.json')
+     h.need(baseline['semantic_index']['head'] == policy['frozen_head'], 'signed baseline HEAD')
+     h.need(epoch['staged_working'] == baseline['staged_working'] == {}, 'clean signing state')
+-    allowed = {'servo/components/style/values/specified/font.rs'} | set(policy['rebuilt_binaries'])
+-    stable = lambda e: {n: v for n, v in e['pins'].items() if n not in allowed}
+-    h.need(stable(epoch) == stable(baseline), 'unrelated signed baseline pins changed')
+-    for name in ('nested_semantic_index', 'untracked_native', 'committed_research_working_payloads'):
+-        h.need(epoch[name] == baseline[name], 'signed baseline ' + name)
+-    for name in ('head', 'entries', 'cached_diff'):
+-        h.need(epoch['semantic_index'][name] == baseline['semantic_index'][name], 'signed baseline index ' + name)
+-    font = 'servo/components/style/values/specified/font.rs'
+-    h.need({n: v for n, v in epoch['installed_identities'].items() if n != font} ==
+-           {n: v for n, v in baseline['installed_identities'].items() if n != font} and
+-           set(epoch['installed_identities']) == set(baseline['installed_identities']) | {font}, 'signed baseline identities')
+-    h.need(set(epoch['modified_native_paths']) == set(baseline['modified_native_paths']) |
+-           ({font} if role == 'candidate' else set()), 'font-only signed baseline source scope')
++    sources = set(policy['source_roles'][role])
++    allowed = sources | set(policy['rebuilt_binaries'])
++    normalized = json.loads(json.dumps(epoch))
++    normalized.pop('reversible_random_counter_phase')
++    h.need(set(epoch['pins']) == set(baseline['pins']) | sources, 'exact phase source pin roster')
++    h.need(set(epoch['installed_identities']) == set(baseline['installed_identities']) | sources, 'exact phase identity roster')
++    for name in allowed:
++        if name in baseline['pins']:
++            normalized['pins'][name] = baseline['pins'][name]
++        else:
++            del normalized['pins'][name]
++    for name in sources:
++        if name in baseline['installed_identities']:
++            h.need(normalized['installed_identities'][name] == baseline['installed_identities'][name], 'existing source identity')
++        else:
++            del normalized['installed_identities'][name]
++    expected_native = set(baseline['modified_native_paths']) | (sources if role == 'candidate' else set())
++    h.need(set(epoch['modified_native_paths']) == expected_native, 'four-source phase scope')
++    h.need(epoch['counts'] == dict(baseline['counts'], roles=len(epoch['pins']), installed_identities=len(epoch['installed_identities']), native_modified_paths=len(expected_native)), 'exact local phase counts')
++    normalized['modified_native_paths'] = baseline['modified_native_paths']
++    normalized['counts'] = baseline['counts']
++    normalized['raw_index_observation']['current'] = baseline['raw_index_observation']['current']
+     if role == 'original':
+         h.need(epoch['semantic_index']['working_diff'] == baseline['semantic_index']['working_diff'], 'original working diff')
+-    marker = epoch['reversible_line_height_phase']
++    normalized['semantic_index']['working_diff'] = baseline['semantic_index']['working_diff']
++    h.need(normalized == baseline, 'unrelated signed context or accepted source changed')
++    marker = epoch['reversible_random_counter_phase']
+     h.need(marker['role'] == role and marker['source_package_manifest'] == policy['source_package_manifest'], 'phase marker')
+     for name, digest in policy['build_evidence'].items():
+         h.need(h.sha(root / name) == digest, 'build evidence: ' + name)
+@@ -110,7 +121,7 @@
+     cleanup = h.read(runtime / 'CLEANUP.json')
+     h.need(cleanup['owned_group_absent'] and cleanup['temporary_root_removed'], 'original cleanup')
+     current = h.read(root / policy['build_epoch'])
+-    allowed = {'servo/components/style/values/specified/font.rs'} | set(policy['rebuilt_binaries'])
++    allowed = set(policy['source_roles']['original']) | set(policy['rebuilt_binaries'])
+     stable = lambda e: {n: v for n, v in e['pins'].items() if n not in allowed}
+     h.need(stable(current) == stable(original_epoch), 'unrelated phase inputs changed')
+     for name in ('staged_working', 'nested_semantic_index', 'untracked_native', 'installed_identities',
+@@ -118,12 +129,16 @@
+         h.need(current[name] == original_epoch[name], 'paired preserved ' + name)
+     for name in ('head', 'entries', 'cached_diff'):
+         h.need(current['semantic_index'][name] == original_epoch['semantic_index'][name], 'paired index ' + name)
+-    h.need(set(current['modified_native_paths']) == set(original_epoch['modified_native_paths']) | {'servo/components/style/values/specified/font.rs'}, 'font-only changed native scope')
+-    parser = h.load('line_height_original_assessor', here / 'assess.py')
+-    checks = h.load('line_height_original_checks', root / policy['helpers']['checks'])
++    h.need(set(current['modified_native_paths']) == set(original_epoch['modified_native_paths']) | set(policy['source_roles']['candidate']), 'four-source changed native scope')
++    parser = h.load('random_counter_original_assessor', here / 'assess.py')
++    checks = h.load('random_counter_original_checks', root / policy['helpers']['checks'])
+     events = [json.loads(line) for line in (runtime / 'raw.jsonl').read_text().splitlines()]
+     replay = parser.assess(events, result['exit'], original_policy, checks, run_binding=metadata)
+     replay = json.loads(json.dumps(replay))
+-    h.need(all(saved.get(k) == v for k, v in replay.items()), 'original raw replay')
++    publisher = h.load('random_counter_original_publisher', here / 'run.py')
++    replay = publisher.augment_assessment(replay, phase='original-1', capsule_sha=binding['capsule_sha256'],
++        epoch_sha=original_policy['epoch_sha256'], policy=original_policy,
++        capsule_directory=binding['capsule'], experiment_sha=h.sha(here / 'EXPERIMENT.json'), execution_preserved=True)
++    h.need(json.loads(json.dumps(replay)) == saved, 'full original raw/publication replay')
+     h.need(saved['run_binding']['revision'] == policy['frozen_head'], 'original frozen revision')
+     return saved

@@ -1,0 +1,48 @@
+--- v1/run.py
++++ v2/run.py
+@@ -35,7 +35,7 @@
+ ownership = load('typecheck_ownership', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ builder = load('typecheck_builder', ROOT / 'artifacts/css-registered-number-native-runtime-v1/phase.py')
+ control = load('typecheck_process', ROOT / 'artifacts/css-registered-number-native-runtime-v1/process_control.py')
+-guard = load('typecheck_staged_guard', HERE / 'epoch.py')
++guard = load('typecheck_empty_index_guard', HERE / 'epoch.py')
+ projection = load('typecheck_projection', HERE / 'projection.py')
+ for package, pin in policy['packages'].items():
+     ownership.authenticate(ROOT / package, pin)
+@@ -51,11 +51,11 @@
+ assert hashlib.sha256(controls['OWNED.json']).hexdigest() == policy['owned_sha256']
+ original = json.loads(controls['CURRENT-EPOCH.json'])
+ assert original['semantic_index']['head'] == policy['head']
+-staging = read(HERE / 'STAGING.json')
++assert sha(ROOT / policy['canonical_epoch']) == policy['canonical_epoch_sha256']
++assert original == read(ROOT / policy['canonical_epoch'])
+ observed = state.h.index_state(ROOT, ENV)
+-epoch = projection.derive(original, observed, state.h.git(ROOT, ENV, 'ls-files', '--stage', '-z'), staging)
++epoch = projection.derive(original, observed)
+ before = guard.verify_current(state.h, ROOT, ENV, epoch)
+-assert before['nested_index'] == read(ROOT / 'artifacts/css-local-signing-20261028-v33/BEFORE.json')['nested_index']
+ flags = {n: state.h.git(path, ENV, 'ls-files', '-v', '-z') for n, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]}
+ claims = {n: ownership.claim(ROOT, n, r['base_sha256']) for n, r in roles.items()}
+ wpt_claims = {n: ownership.claim(ROOT, n, r['sha256'], r['identity']) for n, r in policy['installed_wpt'].items()}
+@@ -106,7 +106,7 @@
+         ownership.write_owned(ROOT, claims[n], candidate[n])
+     state.save(output / 'INSTALLED.json', {n: sha(ROOT / n) for n in roles})
+     assert all(sha(ROOT / n) == r['candidate_sha256'] for n, r in roles.items())
+-    assert state.h.git(ROOT, ENV, 'diff', '--cached', '--binary', '--full-index', policy['head']) == (ROOT / 'artifacts/css-local-signing-20261028-v33/random-staged.patch').read_bytes()
++    assert not state.h.git(ROOT, ENV, 'diff', '--cached', '--binary', '--full-index', policy['head'])
+     deadline = time.monotonic() + policy['timeout_seconds']
+     builder.run(Path(command.working_directory), Path(obj), output, env, lambda: cancelled[0] or time.monotonic() >= deadline, owned, control, argv, publication_errors)
+ except BaseException as exc:
+@@ -136,9 +136,9 @@
+ assert all(sha(ROOT / n) == r['base_sha256'] for n, r in roles.items())
+ state.save(output / 'POST.json', after)
+ state.save(output / 'POST-OBSERVATION-EPOCH.json', post_epoch)
+-state.save(output / 'RAW-INDEX-OBSERVATION.json', {'before': observed['raw_index'], 'after': after_index['raw_index'], 'changed': observed['raw_index'] != after_index['raw_index'], 'semantic_index_unchanged': True, 'runtime_epoch_updated': False, 'signing_resume_requires_fresh_guard': True})
++state.save(output / 'RAW-INDEX-OBSERVATION.json', {'canonical_epoch_raw': original['raw_index_observation']['current'], 'before': observed['raw_index'], 'after': after_index['raw_index'], 'changed': observed['raw_index'] != after_index['raw_index'], 'semantic_index_unchanged': True, 'runtime_epoch_updated': False, 'signing_resume_requires_fresh_guard': True})
+ assert (lock.stat().st_dev, lock.stat().st_ino) == lock_identity
+ lock.unlink()
+-state.save(output / 'RESULT.json', {'success': error is None and not publication_errors, 'error': error, 'publication_errors': publication_errors, 'source_restored': True, 'preservation_verified': True, 'staged165_preserved': True, 'nested_index_and_flags_preserved': True, 'runtime_controls_unchanged': True, 'browser_build_performed': False, 'browser_tests_performed': False, 'new_target_directory_created': False, 'owned_processes': owned})
+-print('Configured Rust typecheck completed; four sources restored and staged research preserved', flush=True)
++state.save(output / 'RESULT.json', {'success': error is None and not publication_errors, 'error': error, 'publication_errors': publication_errors, 'source_restored': True, 'preservation_verified': True, 'empty_staging_preserved': True, 'nested_index_and_flags_preserved': True, 'runtime_controls_unchanged': True, 'browser_build_performed': False, 'browser_tests_performed': False, 'new_target_directory_created': False, 'owned_processes': owned})
++print('Configured Rust typecheck completed; four sources restored and empty staging preserved', flush=True)
+ assert error is None and not publication_errors, error

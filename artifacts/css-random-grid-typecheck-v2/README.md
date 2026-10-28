@@ -1,0 +1,11 @@
+# Disabled grid typecheck after the signed checkpoint
+
+This successor binds corrected four-source rollback proposal v4 to signed HEAD19ec304f1e043ff66e2fdf7c19e73c5ce3cc4ed4 and canonical epoch349bcd04cd155ef603886a1e08c30fa639bf5a73d69901664bab5059b889ee6a. The completed v34 checkpoint records empty staging and restored original page/provider binaries. The old staged165 typecheck capsule remains immutable historical evidence.
+
+Execution is disabled. Root owns the priority line-height pair and must verify its terminal source/application restoration before reviewing a separately enabled successor. This package neither invokes a live guard nor installs source or runs Cargo. The configured Rust check targets only parser.rs, properties_and_values/value.rs, values/specified/calc.rs and properties/shorthands.rs. It does not include the line-height font.rs repair.
+
+The source-claim, buffered install, exclusive lock, compiler process ownership and reverse restoration logic are unchanged. The runner now authenticates the exact signed canonical epoch and uses the existing empty-index epoch verifier. It removes the old staged165 projection and staged patch check. A small observation-only projection permits raw index stat changes only when every semantic index field is exactly unchanged and staging is empty; full working/source/binary/identity/nested checks still precede writes and follow restoration. It records canonical, initial-observed and final raw-index digests without publishing CURRENT, ROLE, OWNED or signing state.
+
+Source and package pins are exact; no source-only finding substitutes for configured native compilation. The existing Cargo specification/composition, offline check, two jobs, process cleanup and disk floors are inherited. No new target directory or browser linking is requested. A failed restoration retains ownership evidence and lock rather than claiming success. Historical v3's wrong helper receiver remains rejected; this check is for the corrected v4.
+
+The current project plan keeps139 accepted fixes and held120 excluded. This preparation adds no acceptance or canonical proof coverage. The relevant prior source/body/model/browser evidence remains separately pinned. ROOT must re-review bindings if HEAD, canonical epoch or sources change before the future execution window.

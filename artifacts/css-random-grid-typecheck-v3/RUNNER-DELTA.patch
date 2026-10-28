@@ -1,0 +1,39 @@
+--- v2/run.py
++++ v3/run.py
+@@ -53,11 +53,18 @@
+ assert original['semantic_index']['head'] == policy['head']
+ assert sha(ROOT / policy['canonical_epoch']) == policy['canonical_epoch_sha256']
+ assert original == read(ROOT / policy['canonical_epoch'])
++assert original['accepted_line_height'] == policy['accepted_line_height']
++assert original['line_height_transition']['compiled'] and original['line_height_transition']['accepted']
++assert original['modified_native_paths'] == ['servo/components/style/custom_properties.rs']
++for n, r in roles.items():
++    assert hashlib.sha256(state.h.git(ROOT, ENV, 'show', policy['head'] + ':' + n)).hexdigest() == r['base_sha256']
+ observed = state.h.index_state(ROOT, ENV)
+ epoch = projection.derive(original, observed)
+ before = guard.verify_current(state.h, ROOT, ENV, epoch)
+ flags = {n: state.h.git(path, ENV, 'ls-files', '-v', '-z') for n, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]}
+ claims = {n: ownership.claim(ROOT, n, r['base_sha256']) for n, r in roles.items()}
++accepted_claims = {n: ownership.claim(ROOT, n, r['sha256'], r['identity']) for n, r in policy['preserved_accepted_payload'].items()}
++assert not set(roles).intersection(accepted_claims)
+ wpt_claims = {n: ownership.claim(ROOT, n, r['sha256'], r['identity']) for n, r in policy['installed_wpt'].items()}
+ for n, r in policy['installed_wpt'].items():
+     assert sha(ROOT / r['source']) == r['sha256']
+@@ -81,7 +88,7 @@
+ assert os.statvfs(ROOT).f_bavail * os.statvfs(ROOT).f_frsize >= 35 * 1024**3
+ ownership.quiescent(runtime)
+ assert guard.verify_current(state.h, ROOT, ENV, epoch) == before
+-for claim in list(claims.values()) + list(wpt_claims.values()) + list(control_claims.values()):
++for claim in list(claims.values()) + list(wpt_claims.values()) + list(accepted_claims.values()) + list(control_claims.values()):
+     ownership.claim(ROOT, claim['path'], claim['owned_sha256'], claim['identity'])
+ assert all((runtime / n).read_bytes() == body for n, body in controls.items())
+ output.mkdir()
+@@ -131,7 +138,7 @@
+ assert after['nested_index'] == before['nested_index']
+ for n, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]:
+     assert state.h.git(path, ENV, 'ls-files', '-v', '-z') == flags[n]
+-for claim in list(claims.values()) + list(wpt_claims.values()) + list(control_claims.values()):
++for claim in list(claims.values()) + list(wpt_claims.values()) + list(accepted_claims.values()) + list(control_claims.values()):
+     ownership.claim(ROOT, claim['path'], claim['owned_sha256'], claim['identity'])
+ assert all(sha(ROOT / n) == r['base_sha256'] for n, r in roles.items())
+ state.save(output / 'POST.json', after)
