@@ -1,0 +1,101 @@
+--- artifacts/css-registered-provider-release-observation-v1/bindings.py
++++ artifacts/css-registered-provider-release-observation-v2/bindings.py
+@@ -1,6 +1,38 @@
+ import os
+ from pathlib import Path
+ import stat
++import subprocess
++
++
++def validate_successors(root, here, policy, epoch, helper):
++    record = helper.read(here / "SUCCESSION.json")
++    helper.need(record["after_head"] == policy["frozen_head"], "successor target HEAD")
++    helper.need(helper.sha(root / record["before_epoch"]) == record["before_epoch_sha256"], "initial checkpoint epoch")
++    before = helper.read(root / record["before_epoch"])
++    helper.need(before["semantic_index"]["head"] == record["before_head"], "prior observation HEAD")
++    for key in ["registered_number_transition", "modified_native_paths", "installed_identities", "nested_semantic_index", "untracked_native"]:
++        helper.need(before[key] == epoch[key], "preserved workspace field: " + key)
++    nonartifact = lambda e: {n: p for n, p in e["pins"].items() if not n.startswith("artifacts/")}
++    helper.need(nonartifact(before) == nonartifact(epoch), "unchanged harness/native/binary pins")
++    env = dict(os.environ, GIT_OPTIONAL_LOCKS="0")
++    def git(*args):
++        return subprocess.check_output(["git", "--no-optional-locks", "-c", "core.fsmonitor=false", *args], cwd=root, env=env)
++    parent = record["before_head"]
++    helper.need(len(record["commits"]) == 3, "three checkpoint successors")
++    for item in record["commits"]:
++        helper.need(helper.sha(root / item["path"]) == item["sha256"], "successor receipt bytes")
++        receipt = helper.read(root / item["path"])
++        helper.need(receipt["signature_verified"] and all(receipt[k] == item[k] for k in ["commit", "parent", "tree", "files"]), "receipt binding")
++        commit = item["commit"]
++        helper.need(item["parent"] == parent and git("rev-list", "--parents", "-n", "1", commit).decode().split() == [commit, parent], "actual successor parent")
++        helper.need(git("rev-parse", commit + "^{tree}").decode().strip() == item["tree"], "actual successor tree")
++        paths = git("diff", "--name-only", parent, commit).decode().splitlines()
++        helper.need(sorted(paths) == sorted(item["files"]) and all(n.startswith("artifacts/") and n != "artifacts/css-spec-lean" and not n.startswith("artifacts/css-spec-lean/") for n in paths), "exact artifact-only successor")
++        checked = subprocess.run(["git", "--no-optional-locks", "-c", "gpg.ssh.allowedSignersFile=" + str(root / "artifacts/css-local-signing-20261027-v1/allowed-signers"), "verify-commit", commit], cwd=root, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
++        helper.need(checked.returncode == 0, "actual successor signature")
++        parent = commit
++    helper.need(parent == policy["frozen_head"], "successor chain complete")
++    return [item["commit"] for item in record["commits"]]
+ 
+ 
+ def external_inventory(path, helper):
+@@ -34,8 +66,9 @@
+     helper.need(policy["source_roles"] == {"candidate": {}}, "no local-source attribution to release binary")
+     helper.need(policy["held_subtests"] == policy["regression_subtests"] == {}, "release results are observations")
+     helper.need(len(policy["tests"]) == 2 and sum(map(len, policy["target_subtests"].values())) == 32, "exact original32 roster")
+-    checkpoint = root / "artifacts/css-local-signing-20261027-v24/CURRENT-EPOCH.json"
++    checkpoint = root / "artifacts/css-local-signing-20261027-v25/CURRENT-EPOCH.json"
+     helper.need(helper.sha(checkpoint) == policy["epoch_sha256"] and helper.read(checkpoint) == epoch, "signed accepted workspace epoch")
++    successors = validate_successors(root, here, policy, epoch, helper)
+     app = Path("/Applications/Firefox.app")
+     inventory = helper.read(here / "EXTERNAL-APPLICATION.json")
+     helper.need(external_inventory(app, helper) == inventory, "external application bytes and identities")
+@@ -49,5 +82,6 @@
+             "external_browser": {"application": str(app), **policy["release_metadata"],
+                                  "binaries": policy["phase_binaries"],
+                                  "application_inventory_sha256": helper.sha(here / "EXTERNAL-APPLICATION.json")},
++            "signed_artifact_successors": successors,
+             "repository_sources_built_browser": False, "native_fix_acceptance": False,
+             "browser_metadata_rewritten": False}
+--- artifacts/css-registered-provider-release-observation-v1/POLICY.json
++++ artifacts/css-registered-provider-release-observation-v2/POLICY.json
+@@ -2,8 +2,8 @@
+   "application_ini": "/Applications/Firefox.app/Contents/Resources/application.ini",
+   "browser_source_attribution": "Installed Firefox release; current repository revision describes only the harness",
+   "cardinality_description": "Exact 32 assertions across the unchanged mixed16 and lh-only16 provider-readiness fixtures; all outcomes observational",
+-  "epoch_sha256": "cc46cc1e6599ed18d051cd39afb8d0c66f8a46fa0d45f092a2f9882a882ce12a",
+-  "execution_enabled": true,
++  "epoch_sha256": "e217c07f258532130bc286bd5944f9f0c2805ad794803f636ac84d44f36bbd72",
++  "execution_enabled": false,
+   "forbidden_environment": [
+     "GIT_DIR",
+     "GIT_WORK_TREE",
+@@ -19,7 +19,7 @@
+     "MOZ_PROFILE",
+     "MOZ_SAFE_MODE_RESTART"
+   ],
+-  "frozen_head": "9cf5fd68e562947cdafdebfb62796acd6971d0f3",
++  "frozen_head": "9abc806ef333f4cf9567ba28c3243ab9d9bc26e8",
+   "held_subtests": {},
+   "helpers": {
+     "checks": "artifacts/css-accepted-119-121-122-install-runtime-v1/tests.py",
+--- artifacts/css-registered-provider-release-observation-v1/EXPERIMENT.json
++++ artifacts/css-registered-provider-release-observation-v2/EXPERIMENT.json
+@@ -1,5 +1,5 @@
+ {
+-  "frozen_head": "9cf5fd68e562947cdafdebfb62796acd6971d0f3",
++  "frozen_head": "9abc806ef333f4cf9567ba28c3243ab9d9bc26e8",
+   "held_subtests": {},
+   "release_metadata": {
+     "browser_build_id": "20261007201254",
+--- artifacts/css-registered-provider-release-observation-v1/check.py
++++ artifacts/css-registered-provider-release-observation-v2/check.py
+@@ -18,7 +18,7 @@
+ helper = load("run")
+ bindings = load("bindings")
+ policy = helper.read(HERE / "POLICY.json")
+-epoch = helper.read(ROOT / "artifacts/css-local-signing-20261027-v24/CURRENT-EPOCH.json")
++epoch = helper.read(ROOT / "artifacts/css-local-signing-20261027-v25/CURRENT-EPOCH.json")
+ for path in HERE.glob("*.py"):
+     ast.parse(path.read_text())
+ for name, item in helper.read(HERE / "SOURCE-PINS.json").items():

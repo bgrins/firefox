@@ -1,0 +1,71 @@
+--- v1/registered-pending-provider-errors.html
++++ v2/registered-pending-provider-errors.html
+@@ -12,7 +12,7 @@
+   "missing env", "missing typed attr", "invalid typed attr", "inherited missing var",
+   "root inherited missing var", "root reset missing var", "inherit reset",
+   "unset inherited", "trailing CSS-wide junk", "self cycle", "self cycle with fallback",
+-  "mutual cycle", "mutual cycle with fallback", "unused self fallback"
++  "mutual cycle", "mutual cycle with fallback", "cycle with defaulted fallback provider", "unused self fallback"
+ ];
+ for (const scenario of scenarios) {
+   for (const order of ["provider first", "length first"]) {
+@@ -28,12 +28,16 @@
+       const length = "--provider-readiness-length-8";
+       const other = "--provider-readiness-other-8";
+       const ready = "--provider-readiness-ready-8";
++      const third = "--provider-readiness-third-8";
+       const missing = "--provider-readiness-missing-8";
+       const inherits = scenario.includes("inherited");
+       const root = scenario.startsWith("root ");
+       const syntax = "<length> | horizontal-tb | vertical-rl | vertical-lr";
+       win.CSS.registerProperty({name:mode, syntax, inherits, initialValue:"vertical-rl"});
+       win.CSS.registerProperty({name:other, syntax, inherits:false, initialValue:"vertical-lr"});
++      if (scenario === "cycle with defaulted fallback provider") {
++        win.CSS.registerProperty({name:third, syntax, inherits:false, initialValue:"vertical-lr"});
++      }
+       win.CSS.registerProperty({name:length, syntax:"<length>", inherits:false, initialValue:"7px"});
+       doc.documentElement.style.writingMode = "horizontal-tb";
+       doc.body.style.setProperty(mode, "vertical-lr");
+@@ -61,6 +65,10 @@
+           provider = `var(${other}, horizontal-tb)`;
+           otherValue = `var(${mode}, horizontal-tb)`;
+           break;
++        case "cycle with defaulted fallback provider":
++          provider = `var(${other}, var(${third}))`;
++          otherValue = `var(${mode})`;
++          break;
+         case "unused self fallback": provider = `var(${ready}, var(${mode}))`; break;
+       }
+       const declarations = [[mode,provider], [length,"1lh"]];
+@@ -71,6 +79,9 @@
+         target.style.setProperty(name,value);
+       }
+       target.style.setProperty(other,otherValue);
++      if (scenario === "cycle with defaulted fallback provider") {
++        target.style.setProperty(third,`var(${missing})`);
++      }
+       target.style.setProperty(ready,"vertical-rl");
+       target.style.writingMode = scenario === "missing var without consumer fallback" ?
+         `var(${mode})` : `var(${mode}, horizontal-tb)`;
+@@ -81,7 +92,7 @@
+         const cs = win.getComputedStyle(target);
+         const first = order === "provider first" ? cs.getPropertyValue(mode) : cs.getPropertyValue(length);
+         snapshots.push({lineHeight,first,provider:cs.getPropertyValue(mode).trim(),
+-          other:cs.getPropertyValue(other).trim(),writingMode:cs.writingMode,
++          other:cs.getPropertyValue(other).trim(),third:cs.getPropertyValue(third).trim(),writingMode:cs.writingMode,
+           length:cs.getPropertyValue(length).trim(),width:cs.width});
+       }
+       const detail = JSON.stringify(snapshots);
+@@ -90,8 +101,11 @@
+         assert_equals(row.writingMode,expected,`Consumer: ${detail}`);
+         assert_equals(row.length,`${row.lineHeight}px`,`Length: ${detail}`);
+         assert_equals(row.width,`${row.lineHeight}px`,`Width: ${detail}`);
+-        if (scenario.startsWith("mutual cycle")) {
++        if (scenario.startsWith("mutual cycle") || scenario === "cycle with defaulted fallback provider") {
+           assert_equals(row.other,"vertical-lr",`All cycle participants default: ${detail}`);
++          if (scenario === "cycle with defaulted fallback provider") {
++            assert_equals(row.third,"vertical-lr",`Nonparticipant default: ${detail}`);
++          }
+         }
+       }
+     }, `Registered provider error: ${scenario}, ${order}`);
