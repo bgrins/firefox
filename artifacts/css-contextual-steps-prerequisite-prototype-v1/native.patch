@@ -1,0 +1,89 @@
+--- a/servo/components/style/values/specified/easing.rs
++++ b/servo/components/style/values/specified/easing.rs
+@@ -168,16 +168,12 @@
+     }
+ }
+ 
+-// We need this for converting the specified TimingFunction into computed TimingFunction without
+-// Context (for some FFIs in glue.rs). In fact, we don't really need Context to get the computed
+-// value of TimingFunction.
+ impl TimingFunction {
+-    /// Generate the ComputedTimingFunction without Context.
+-    pub fn to_computed_value_without_context(&self) -> ComputedTimingFunction {
+-        match &self {
++    /// Compute a timing function when its inputs do not need an element context.
++    pub fn try_to_computed_value_without_context(&self) -> Option<ComputedTimingFunction> {
++        Some(match self {
+             GenericTimingFunction::Steps(steps, pos) => {
+-                // Resolvable value was enforced at parse time
+-                let count = steps.resolve().unwrap();
++                let count = steps.resolve()?;
+                 let count = if *pos == StepPosition::JumpNone && steps.get().is_none() {
+                     count.max(2)
+                 } else {
+@@ -186,27 +182,42 @@
+                 GenericTimingFunction::Steps(count, *pos)
+             },
+             GenericTimingFunction::CubicBezier { x1, y1, x2, y2 } => {
+-                // Resolvable value was enforced at parse time
+                 GenericTimingFunction::CubicBezier {
+-                    x1: x1.resolve().unwrap().clamp(0.0, 1.0),
+-                    y1: y1.resolve().unwrap(),
+-                    x2: x2.resolve().unwrap().clamp(0.0, 1.0),
+-                    y2: y2.resolve().unwrap(),
++                    x1: x1.resolve()?.clamp(0.0, 1.0),
++                    y1: y1.resolve()?,
++                    x2: x2.resolve()?.clamp(0.0, 1.0),
++                    y2: y2.resolve()?,
+                 }
+             },
+             GenericTimingFunction::Keyword(keyword) => GenericTimingFunction::Keyword(*keyword),
+             GenericTimingFunction::LinearFunction(function) => {
+-                // Resolvable value was enforced at parse time
+                 GenericTimingFunction::LinearFunction(function.clone())
+             },
+-        }
++        })
++    }
++
++    /// Generate the computed value under the current parser's context-free invariant.
++    pub fn to_computed_value_without_context(&self) -> ComputedTimingFunction {
++        self.try_to_computed_value_without_context()
++            .expect("Parser admitted an unresolved timing function")
+     }
+ }
+ 
+ impl ToComputedValue for TimingFunction {
+     type ComputedValue = ComputedTimingFunction;
+-    fn to_computed_value(&self, _: &Context) -> Self::ComputedValue {
+-        self.to_computed_value_without_context()
++    fn to_computed_value(&self, context: &Context) -> Self::ComputedValue {
++        match self {
++            GenericTimingFunction::Steps(steps, pos) => {
++                let count = steps.to_computed_value(context);
++                let count = if *pos == StepPosition::JumpNone && steps.get().is_none() {
++                    count.max(2)
++                } else {
++                    count
++                };
++                GenericTimingFunction::Steps(count, *pos)
++            },
++            _ => self.to_computed_value_without_context(),
++        }
+     }
+ 
+     fn from_computed_value(computed: &Self::ComputedValue) -> Self {
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -5239,7 +5239,10 @@
+         return false;
+     };
+ 
+-    *output = specified.to_computed_value_without_context();
++    let Some(computed) = specified.try_to_computed_value_without_context() else {
++        return false;
++    };
++    *output = computed;
+     true
+ }
+ 

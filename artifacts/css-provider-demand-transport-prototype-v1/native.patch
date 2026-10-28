@@ -1,0 +1,426 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1611,7 +1611,6 @@
+     Ok(ComputedRegisteredValue::universal(Arc::new(value)))
+ }
+ 
+-/// See https://drafts.csswg.org/css-variables-2/#invalid-at-computed-value-time
+ fn invalid_at_computed_value_time_value(
+     name: &Name,
+     registration: &PropertyDescriptors,
+@@ -1673,6 +1672,7 @@
+     }
+ }
+ 
++/// See https://drafts.csswg.org/css-variables-2/#invalid-at-computed-value-time
+ pub fn handle_invalid_at_computed_value_time(
+     name: &Name,
+     registration: &PropertyDescriptors,
+@@ -1749,9 +1749,10 @@
+         attribute_tracker,
+         &mut state,
+         None,
++        None,
+     );
+     let substitution = if is_var && state.cyclic_names.contains(&name) {
+-        Err(())
++        Err(SubstitutionError::Invalid)
+     } else {
+         substitution
+     };
+@@ -1844,6 +1845,216 @@
+     cyclic_names: SmallVec<[&'a Name; 8]>,
+ }
+ 
++pub(crate) enum SubstitutionDemand {
++    Provider(Name),
++    Attribute {
++        name: Name,
++        data: AttributeData,
++        url_data: UrlExtraData,
++    },
++    Prioritary(PrioritaryPropertyId),
++    InitialContext(Name),
++}
++
++pub(crate) enum SubstitutionError {
++    Invalid,
++    Demand(SubstitutionDemand),
++}
++
++impl From<()> for SubstitutionError {
++    fn from(_: ()) -> Self {
++        Self::Invalid
++    }
++}
++
++pub(crate) trait SubstitutionReadiness {
++    fn provider_pending(&self, name: &Name) -> bool;
++    fn attribute_pending(&self, name: &Name, data: &AttributeData) -> bool;
++    fn prioritary_ready(&self, id: PrioritaryPropertyId) -> bool;
++}
++
++#[derive(Clone, Copy, PartialEq)]
++pub(crate) enum PrioritaryApplicationState {
++    Pending,
++    Applying,
++    Ready,
++}
++
++impl PrioritaryApplicationState {
++    pub(crate) fn begin(&mut self) -> bool {
++        if *self != Self::Pending {
++            return false;
++        }
++        *self = Self::Applying;
++        true
++    }
++
++    pub(crate) fn complete(&mut self) {
++        assert!(*self == Self::Applying);
++        *self = Self::Ready;
++    }
++
++    pub(crate) fn suspend(&mut self) {
++        assert!(*self == Self::Applying);
++        *self = Self::Pending;
++    }
++}
++
++pub(crate) enum ProviderCycleClassification {
++    Pending,
++    Acyclic,
++    InvalidatedParticipant,
++}
++
++pub(crate) enum RegisteredDefaultReason {
++    Invalid,
++    CssWide(CSSWideKeyword),
++}
++
++enum RegisteredDefaultSource {
++    Invalid,
++    Copied(Option<ComputedRegisteredValue>),
++    Initial { css: String, url_data: UrlExtraData },
++}
++
++#[derive(Clone, Copy)]
++pub(crate) enum RegisteredContextRequirements {
++    Unknown,
++    Known(crate::properties::PrioritaryPropertyIdSet),
++}
++
++pub(crate) struct PreparedRegisteredDefault {
++    name: Name,
++    source: RegisteredDefaultSource,
++    inherits_reset_style: bool,
++    pub(crate) requirements: RegisteredContextRequirements,
++}
++
++pub(crate) struct ComputedRegisteredDefault {
++    pub(crate) value: Option<ComputedRegisteredValue>,
++    pub(crate) inherits_reset_style: bool,
++}
++
++pub(crate) fn prepare_registered_default(
++    name: &Name,
++    reason: RegisteredDefaultReason,
++    registration: &PropertyDescriptors,
++    stylist: &Stylist,
++    context: &computed::Context,
++) -> PreparedRegisteredDefault {
++    let inherited = match reason {
++        RegisteredDefaultReason::Invalid => {
++            if registration.is_universal() {
++                return PreparedRegisteredDefault {
++                    name: name.clone(),
++                    source: RegisteredDefaultSource::Invalid,
++                    inherits_reset_style: false,
++                    requirements: RegisteredContextRequirements::Known(Default::default()),
++                };
++            }
++            registration.inherits() && !context.is_root_element()
++        },
++        RegisteredDefaultReason::CssWide(keyword) => {
++            !context.is_root_element()
++                && keyword != CSSWideKeyword::Initial
++                && (keyword == CSSWideKeyword::Inherit || registration.inherits())
++        },
++    };
++    let source = if inherited {
++        RegisteredDefaultSource::Copied(
++            context
++                .builder
++                .inherited_style
++                .custom_properties()
++                .get(registration, name)
++                .cloned(),
++        )
++    } else if registration.is_universal() {
++        RegisteredDefaultSource::Copied(
++            stylist
++                .get_custom_property_initial_values()
++                .get(registration, name)
++                .cloned(),
++        )
++    } else if let Some(initial) = registration.initial_value.as_ref() {
++        RegisteredDefaultSource::Initial {
++            css: initial.css.to_string(),
++            url_data: initial.url_data.clone(),
++        }
++    } else {
++        RegisteredDefaultSource::Invalid
++    };
++    let requirements = if matches!(source, RegisteredDefaultSource::Initial { .. }) {
++        RegisteredContextRequirements::Unknown
++    } else {
++        RegisteredContextRequirements::Known(Default::default())
++    };
++    PreparedRegisteredDefault {
++        name: name.clone(),
++        source,
++        inherits_reset_style: inherited && !registration.inherits(),
++        requirements,
++    }
++}
++
++impl PreparedRegisteredDefault {
++    pub(crate) fn initial_input(&self) -> Option<(&str, &UrlExtraData)> {
++        match &self.source {
++            RegisteredDefaultSource::Initial { css, url_data } => Some((css, url_data)),
++            _ => None,
++        }
++    }
++
++    pub(crate) fn try_compute(
++        &self,
++        classification: ProviderCycleClassification,
++        registration: &PropertyDescriptors,
++        context: &computed::Context,
++        readiness: &dyn SubstitutionReadiness,
++    ) -> Result<ComputedRegisteredDefault, SubstitutionDemand> {
++        if matches!(classification, ProviderCycleClassification::Pending) {
++            return Err(SubstitutionDemand::Provider(self.name.clone()));
++        }
++        let mut required = match self.requirements {
++            RegisteredContextRequirements::Unknown => {
++                return Err(SubstitutionDemand::InitialContext(self.name.clone()));
++            },
++            RegisteredContextRequirements::Known(required) => required,
++        };
++        loop {
++            let previous = required;
++            for id in previous.iter() {
++                for dependency in id.dependencies().iter() {
++                    required.insert(dependency);
++                }
++            }
++            if previous == required {
++                break;
++            }
++        }
++        if let Some(id) = required.iter().find(|id| !readiness.prioritary_ready(*id)) {
++            return Err(SubstitutionDemand::Prioritary(id));
++        }
++        let value = match &self.source {
++            RegisteredDefaultSource::Invalid => None,
++            RegisteredDefaultSource::Copied(value) => value.clone(),
++            RegisteredDefaultSource::Initial { css, url_data } => compute_value(
++                css,
++                url_data,
++                registration,
++                context,
++                AttrTaint::default(),
++                Some(PropertyIdRef::from(&self.name)),
++            )
++            .ok(),
++        };
++        Ok(ComputedRegisteredDefault {
++            value,
++            inherits_reset_style: self.inherits_reset_style,
++        })
++    }
++}
++
+ enum RegisteredSubstitutionDefault {
+     NotDefaulted,
+     Defaulted(Option<ComputedRegisteredValue>),
+@@ -2032,8 +2243,9 @@
+     references: &'a [SubstitutionFunctionReference],
+     attribute_tracker: &mut AttributeTracker,
+     seen: &mut SubstitutionState<'a>,
++    readiness: Option<&dyn SubstitutionReadiness>,
+     mut attr_taint: Option<&mut AttrTaint>,
+-) -> Result<Substitution<'a>, ()> {
++) -> Result<Substitution<'a>, SubstitutionError> {
+     if start == end {
+         // Empty string. Easy.
+         return Ok(Substitution::default());
+@@ -2074,6 +2286,7 @@
+             computed_context,
+             attribute_tracker,
+             seen,
++            readiness,
+         )?;
+ 
+         // Optimize the property: var(--...) case to avoid allocating at all.
+@@ -2124,7 +2337,8 @@
+     computed_context: &computed::Context,
+     attribute_tracker: &mut AttributeTracker,
+     seen: &mut SubstitutionState<'a>,
+-) -> Result<Substitution<'a>, ()> {
++    readiness: Option<&dyn SubstitutionReadiness>,
++) -> Result<Substitution<'a>, SubstitutionError> {
+     let simple_attr_subst = |s: &str| {
+         Some(Substitution::new(
+             Cow::Owned(quoted_css_string(s)),
+@@ -2136,6 +2350,11 @@
+     let substitution: Option<_> = match reference.substitution_kind {
+         SubstitutionFunctionKind::Var => {
+             let registration = stylist.get_custom_property_registration(&reference.name);
++            if readiness.is_some_and(|ready| ready.provider_pending(&reference.name)) {
++                return Err(SubstitutionError::Demand(SubstitutionDemand::Provider(
++                    reference.name.clone(),
++                )));
++            }
+             match substitution_functions.get_var(registration, &reference.name) {
+                 None => None,
+                 // If the referenced value is itself still unresolved (i.e. it has references), we
+@@ -2144,6 +2363,11 @@
+                 // recursively, guarding against cycles (which the resolver will also remove, but it
+                 // may not have gotten to this variable yet).
+                 Some(v) => match v.as_universal() {
++                    Some(_) if readiness.is_some() && !registration.is_universal() => {
++                        return Err(SubstitutionError::Demand(SubstitutionDemand::Provider(
++                            reference.name.clone(),
++                        )));
++                    },
+                     Some(u) if u.has_references() => {
+                         if let Some(index) =
+                             seen.names.iter().position(|name| *name == &reference.name)
+@@ -2166,6 +2390,7 @@
+                                 computed_context,
+                                 attribute_tracker,
+                                 seen,
++                                readiness,
+                                 /* attr_taint */ None,
+                             );
+                             seen.names.pop();
+@@ -2206,7 +2431,10 @@
+                                             },
+                                         }
+                                     },
+-                                    Err(()) if !registration.is_universal() => {
++                                    Err(error @ SubstitutionError::Demand(_)) => return Err(error),
++                                    Err(SubstitutionError::Invalid)
++                                        if !registration.is_universal() =>
++                                    {
+                                         invalid_at_computed_value_time_value(
+                                             &reference.name,
+                                             registration,
+@@ -2221,7 +2449,7 @@
+                                         })
+                                     },
+                                     // The primary couldn't be resolved (invalid); use the fallback.
+-                                    Err(()) => None,
++                                    Err(SubstitutionError::Invalid) => None,
+                                 }
+                             }
+                         }
+@@ -2242,6 +2470,21 @@
+         },
+         // https://drafts.csswg.org/css-values-5/#attr-substitution
+         SubstitutionFunctionKind::Attr => {
++            if reference.is_attr_with_type()
++                && matches!(
++                    &reference.attribute_data.namespace,
++                    ParsedNamespace::Known(_)
++                )
++                && readiness.is_some_and(|ready| {
++                    ready.attribute_pending(&reference.name, &reference.attribute_data)
++                })
++            {
++                return Err(SubstitutionError::Demand(SubstitutionDemand::Attribute {
++                    name: reference.name.clone(),
++                    data: reference.attribute_data.clone(),
++                    url_data: url_data.clone(),
++                }));
++            }
+             let namespace = match reference.attribute_data.namespace {
+                 ParsedNamespace::Known(ref ns) => Some(ns),
+                 ParsedNamespace::Unknown => None,
+@@ -2327,7 +2570,7 @@
+     }
+ 
+     let Some(ref fallback) = reference.fallback else {
+-        return Err(());
++        return Err(SubstitutionError::Invalid);
+     };
+ 
+     do_substitute_chunk(
+@@ -2344,6 +2587,7 @@
+         &fallback.references.refs,
+         attribute_tracker,
+         seen,
++        readiness,
+         /* attr_taint */ None,
+     )
+ }
+@@ -2357,8 +2601,9 @@
+     computed_context: &computed::Context,
+     attribute_tracker: &mut AttributeTracker,
+     seen: &mut SubstitutionState<'a>,
++    readiness: Option<&dyn SubstitutionReadiness>,
+     attr_taint: Option<&mut AttrTaint>,
+-) -> Result<Substitution<'a>, ()> {
++) -> Result<Substitution<'a>, SubstitutionError> {
+     do_substitute_chunk(
+         &variable_value.css,
+         /* start = */ 0,
+@@ -2373,6 +2618,7 @@
+         &variable_value.references.refs,
+         attribute_tracker,
+         seen,
++        readiness,
+         attr_taint,
+     )
+ }
+@@ -2386,6 +2632,30 @@
+     computed_context: &computed::Context,
+     attribute_tracker: &mut AttributeTracker,
+ ) -> Result<SubstitutionResult<'a>, ()> {
++    substitute_with_readiness(
++        variable_value,
++        property_id,
++        substitution_functions,
++        stylist,
++        computed_context,
++        attribute_tracker,
++        None,
++    )
++    .map_err(|error| match error {
++        SubstitutionError::Invalid => (),
++        SubstitutionError::Demand(_) => unreachable!("Demand without a readiness view"),
++    })
++}
++
++pub(crate) fn substitute_with_readiness<'a>(
++    variable_value: &'a VariableValue,
++    property_id: Option<PropertyIdRef>,
++    substitution_functions: &'a ComputedSubstitutionFunctions,
++    stylist: &Stylist,
++    computed_context: &computed::Context,
++    attribute_tracker: &mut AttributeTracker,
++    readiness: Option<&dyn SubstitutionReadiness>,
++) -> Result<SubstitutionResult<'a>, SubstitutionError> {
+     debug_assert!(variable_value.has_references());
+     let mut attr_taint = AttrTaint::default();
+     let v = substitute_internal(
+@@ -2396,6 +2666,7 @@
+         computed_context,
+         attribute_tracker,
+         &mut SubstitutionState::default(),
++        readiness,
+         Some(&mut attr_taint),
+     )?;
+     Ok(SubstitutionResult {
