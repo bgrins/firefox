@@ -1,0 +1,22 @@
+--- v2/bindings.py
++++ v3/bindings.py
+@@ -25,6 +25,12 @@
+         transition = built.get("page_selector_transition", {})
+         h.need(transition.get("role") == "candidate" and transition.get("compiled") is True and
+                transition.get("accepted") is False, "compiled page-selector candidate")
++        h.need(transition.get("variant") == "page-selector-name-filter" and
++               transition.get("last_phase") == "candidate-build-1", "exact page build variant/label")
++        actual = h.read(root / bound["actual_build_result"])
++        h.need(bound["actual_build_result"] in bound["evidence_pins"] and actual["exit"] == 0 and
++               actual["error"] is None and actual["cleanup_errors"] == [] and actual["owned_group_absent"],
++               "actual native build exit and cleanup")
+         h.need(epoch.get("page_selector_transition") == transition, "candidate transition continuity")
+     else:
+         transition = built["registered_number_transition"]
+@@ -104,5 +110,6 @@
+     events = [json.loads(line) for line in (directory / "raw.jsonl").read_text().splitlines()]
+     replayed = parser.assess(events, result["exit"], policy, None, original=None,
+                              run_binding=h.read(directory / "APPLICATION-METADATA.json"))
++    replayed = json.loads(json.dumps(replayed))
+     h.need(all(saved.get(key) == value for key, value in replayed.items()), "original raw assessment replay")
+     return saved

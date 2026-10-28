@@ -1,0 +1,17 @@
+--- v1/bindings.py
++++ v2/bindings.py
+@@ -43,6 +43,14 @@
+     chain = bound["signed_artifact_succession"]
+     for receipt in chain:
+         commit = receipt["commit"]
++        if "receipt_path" in receipt:
++            path = root / receipt["receipt_path"]
++            h.need(h.sha(path) == receipt["receipt_sha256"], "signed receipt digest")
++            signed = h.read(path)
++            h.need(signed["signature_verified"] and signed["working_bodies_and_nested_index_preserved"] and
++                   signed["commit"] == commit and signed["parent"] == receipt["parent"] and
++                   signed["tree"] == receipt["tree"] and set(signed["files"]) == set(receipt["paths"]),
++                   "signed receipt fields")
+         h.need(receipt["parent"] == old and git("rev-parse", commit + "^").decode().strip() == old,
+                "signed successor parent")
+         h.need(git("rev-parse", commit + "^{tree}").decode().strip() == receipt["tree"], "signed successor tree")

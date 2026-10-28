@@ -1,0 +1,141 @@
+--- reviewed-weight-v4/run.py
++++ page-print-v1/run.py
+@@ -57,12 +57,6 @@
+         digest = item["sha256"] if isinstance(item, dict) else item
+         need(stat.S_ISREG(path.lstat().st_mode) and sha(path) == digest, "payload: " + name)
+ 
+-
+-def require_compiled_transition(epoch, role):
+-    transition = epoch.get("registered_number_transition")
+-    need(isinstance(transition, dict) and transition.get("role") == role and
+-         transition.get("variant") == "registered-provider-default-v5" and transition.get("compiled") is True,
+-         "phase requires matching successful provider-default compilation")
+ 
+ 
+ def application_target(path):
+@@ -98,28 +92,30 @@
+ 
+ 
+ def main():
+-    need(len(sys.argv) == 6, "Usage: run.py CAPSULE_SHA observation-1 EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT")
++    need(len(sys.argv) == 6, "Usage: run.py CAPSULE_SHA original-1|candidate-1 EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT")
+     authenticate(HERE, sys.argv[1])
+     policy = read(HERE / "POLICY.json")
+     need(policy.get("execution_enabled") is True, "disabled pending successful phase build bindings")
+     phase = sys.argv[2]
+-    need(phase == "observation-1", "phase label")
+-    need(phase == policy["phase"], "exact bound phase")
+-    role = "candidate"
++    need(phase in ("original-1", "candidate-1"), "phase label")
++    role = phase.split("-")[0]
++    policy["active_phase"] = phase
++    bound = read(HERE / "PHASE-BINDINGS.json")[phase]
++    need(isinstance(bound, dict), "phase binding not supplied")
++    policy["epoch_sha256"] = bound["epoch_sha256"]
++    policy["phase_binaries"] = bound["binary_pins"]
+     need(len(sys.argv) == 6, "observation arguments")
+     epoch_path = Path(sys.argv[3])
+     need(epoch_path.is_absolute() and not epoch_path.is_symlink(), "absolute regular epoch")
+     need(sha(epoch_path) == sys.argv[4] == policy["epoch_sha256"], "externally supplied epoch digest")
+     epoch = read(epoch_path)
+-    require_compiled_transition(epoch, role)
+     bindings = load("standalone_bindings", HERE / "bindings.py")
+     phase_binding = bindings.validate_phase(ROOT, HERE, policy, epoch, SimpleNamespace(**globals()))
+     need(epoch["semantic_index"]["head"] == policy["frozen_head"], "epoch HEAD differs from frozen comparison HEAD")
+     app_metadata = application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+     original, baseline_path = None, None
+     adopted = None
+-    observations = load("historical_observations", HERE / "observations.py")
+-    historical = observations.validate(ROOT, HERE, policy, SimpleNamespace(**globals()))
++    original = bindings.original_assessment(ROOT, HERE, policy, bound, SimpleNamespace(**globals()))
+     for name, pin in read(HERE / "REFERENCES.json").items():
+         need(sha(ROOT / name) == pin, "helper/source binding: " + name)
+     for name, pin in policy["source_roles"][role].items():
+@@ -127,7 +123,7 @@
+     out = Path(sys.argv[5])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "output must be absent")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-provider-contextual-weight-observation-runtime-"), "owned artifact output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-page-selector-print-runtime-"), "owned artifact output")
+     need(all(not os.environ.get(k) for k in policy["forbidden_environment"]), "unexpected build/git/profile environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+@@ -201,17 +197,18 @@
+               for p in top.rglob("*") if p.is_file() and "tools" not in p.relative_to(top).parts}
+     copied["wptrunner.ini"] = sha(config_path)
+     save(out / "OWNED-INPUT-PINS.json", copied)
+-    tmp = Path(tempfile.mkdtemp(prefix="css-provider-weight-wpt-", dir="/private/tmp"))
++    tmp = Path(tempfile.mkdtemp(prefix="css-page-selector-print-", dir="/private/tmp"))
+     tmp_identity = (tmp.stat().st_dev, tmp.stat().st_ino)
+     env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+     raw = out / "raw.jsonl"
+     command = [PYTHON, "./mach", "wpt", "--headless", "--processes=1",
+                "--no-manifest-update", "--no-manifest-download",
++               "--test-types=print-reftest", "--reftest-screenshot=always",
+                "--binary=" + str(ROOT / policy["normal_binaries"][0]),
+                "--config=" + str(config_path), "--run-info=" + str(ROOT / "objdir-full.noindex"),
+                "--prefs-root=" + str(ROOT / "testing/profiles"), "--log-raw=" + str(raw),
+                *["--include=" + test for test in policy["tests"]]]
+-    save(out / "COMMAND.json", {"command": command, "temporary_root": str(tmp), "timeout_seconds": 600,
++    save(out / "COMMAND.json", {"command": command, "temporary_root": str(tmp), "timeout_seconds": policy["timeout_seconds"],
+                                 "wrapper_manifest_sha256": sys.argv[1], "epoch_sha256": sys.argv[4], "epoch_path": str(epoch_path), "phase": phase,
+                                 "original_assessment": str(baseline_path) if baseline_path else None,
+                                 "original_assessment_sha256": sys.argv[7] if baseline_path else None})
+@@ -226,7 +223,7 @@
+             process = subprocess.Popen(command, cwd=ROOT, env=env, stdout=log,
+                                        stderr=subprocess.STDOUT, start_new_session=True)
+             save(out / "PROCESS.json", {"pid": process.pid, "pgid": process.pid})
+-            deadline = time.monotonic() + 600
++            deadline = time.monotonic() + policy["timeout_seconds"]
+             while process.poll() is None:
+                 need(not stopped[0] and time.monotonic() < deadline, "cancelled or WPT deadline exceeded")
+                 time.sleep(0.2)
+@@ -262,7 +259,7 @@
+             for name, pin in read(HERE / "REFERENCES.json").items():
+                 need(sha(ROOT / name) == pin, "helper/source changed: " + name)
+             need(bindings.validate_phase(ROOT, HERE, policy, epoch, SimpleNamespace(**globals())) == phase_binding, "phase binding changed")
+-            need(observations.validate(ROOT, HERE, policy, SimpleNamespace(**globals())) == historical, "historical observations changed")
++            need(bindings.original_assessment(ROOT, HERE, policy, bound, SimpleNamespace(**globals())) == original, "original evidence changed")
+             authenticate(HERE, sys.argv[1])
+             save(out / "POST.json", post)
+         except BaseException as exc:
+@@ -271,16 +268,16 @@
+     try:
+         need(raw.is_file() and not raw.is_symlink() and raw.stat().st_size <= 128 * 1024 * 1024, "missing/oversized raw log")
+         events = [json.loads(line) for line in raw.read_text().splitlines()]
+-        assessment = parser.assess(events, code, policy, checks, original=None, run_binding=app_metadata)
++        assessment = parser.assess(events, code, policy, checks, original=original, run_binding=app_metadata)
+         assessment.update(phase=phase, capsule_manifest_sha256=sys.argv[1],
+                           epoch_sha256=sys.argv[4], native_sources=policy["source_roles"][role], original_adoption=adopted,
+                           capsule_directory=str(HERE.relative_to(ROOT)), experiment_sha256=sha(HERE / "EXPERIMENT.json"),
+-                          observation_only=True, subtest_cardinality_policy=policy["cardinality_description"],
+-                          oracle_caveat="Conditional contextual registered initial under partial ordinary-restoration provider v5; preserve all24 snapshots; admission policy unresolved; no automatic native acceptance",
++                          observation_only=(role == "original"),
++                          oracle_caveat="Print matching and specificity; screenshots cover saved comparison images, not a separate proof of every PDF page",
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)
+-        compared = observations.compare(assessment, historical, policy)
++        compared = parser.compare(assessment, original, policy)
+         save(out / "COMPARISON.json", compared)
+     except BaseException as exc:
+         error = error or repr(exc)
+@@ -289,14 +286,14 @@
+               )
+     result = {"exit": code, "execution_error": error, "preservation_error": post_error,
+               "phase": phase, "observation_gate_passed": bool(passed),
+-              "comparison_gate_passed": False,
++              "comparison_gate_passed": bool(passed and role == "candidate" and compared and compared["complete"]),
+               "native_fix_acceptance": False, "exact_staging_preserved": bool(post_error is None),
+-              "original_adoption": adopted, "observation_only": True,
++              "original_adoption": adopted, "observation_only": role == "original",
+               "complete_comparison": bool(compared and compared["complete"]),
+-              "comparison_summary": [{k: v for k, v in item.items() if k != "changes"} for item in compared["comparisons"]] if compared else None}
++              "comparison_summary": compared}
+     save(out / "RESULT.json", result)
+     print(json.dumps(result, indent=2))
+-    return 0 if passed else 1
++    return 0 if passed and (role == "original" or compared and compared["complete"]) else 1
+ 
+ 
+ if __name__ == "__main__":

@@ -1,0 +1,176 @@
+diff --git a/servo/components/style/stylesheets/page_rule.rs b/servo/components/style/stylesheets/page_rule.rs
+index bb64217ad263..f48564d00b54 100644
+--- a/servo/components/style/stylesheets/page_rule.rs
++++ b/servo/components/style/stylesheets/page_rule.rs
+@@ -6,6 +6,7 @@
+ //!
+ //! [page]: https://drafts.csswg.org/css2/page.html#page-box
+ 
++use crate::Atom;
+ use crate::derives::*;
+ use crate::parser::{Parse, ParserContext};
+ use crate::properties::PropertyDeclarationBlock;
+@@ -305,23 +306,29 @@ impl PageRule {
+             + self.block.read_with(guard).size_of(ops)
+             + self.selectors.size_of(ops)
+     }
+-    /// Computes the specificity of this page rule when matched with flags.
++    /// Computes the specificity of this page rule within a name bucket and flags.
+     ///
+     /// Computing this value has linear-complexity with the size of the
+     /// selectors, so the caller should usually call this once and cache the
+     /// result.
+     ///
+-    /// Returns None if the flags do not match this page rule.
++    /// Returns None if no selector in the name bucket matches the flags.
+     ///
+     /// The return type is ordered by page-rule specificity.
+-    pub fn match_specificity(&self, flags: PagePseudoClassFlags) -> Option<u32> {
++    pub fn match_specificity(&self, name: &Atom, flags: PagePseudoClassFlags) -> Option<u32> {
+         if self.selectors.is_empty() {
+             // A page-rule with no selectors matches all pages, but with the
+             // lowest possible specificity.
+             return Some(selector_specificity(0, 0, false));
+         }
+         let mut specificity = None;
+-        for s in self.selectors.0.iter().map(|s| s.match_specificity(flags)) {
++        for s in self
++            .selectors
++            .0
++            .iter()
++            .filter(|s| &s.name.0 == name)
++            .map(|s| s.match_specificity(flags))
++        {
+             specificity = s.max(specificity);
+         }
+         specificity
+diff --git a/servo/components/style/stylist.rs b/servo/components/style/stylist.rs
+index 8fbf17d186ed..3d0cc7f66a09 100644
+--- a/servo/components/style/stylist.rs
++++ b/servo/components/style/stylist.rs
+@@ -2370,7 +2370,7 @@ impl PageRuleMap {
+         };
+         for data in rules.iter() {
+             let rule = data.rule.read_with(level.guard(guards));
+-            let specificity = match rule.match_specificity(pseudos) {
++            let specificity = match rule.match_specificity(name, pseudos) {
+                 Some(specificity) => specificity,
+                 None => continue,
+             };
+diff --git a/testing/web-platform/tests/css/css-page/page-selector-list-name-applicability-print.html b/testing/web-platform/tests/css/css-page/page-selector-list-name-applicability-print.html
+new file mode 100644
+index 000000000000..6a7e8252e05b
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-page/page-selector-list-name-applicability-print.html
+@@ -0,0 +1,17 @@
++<!DOCTYPE html>
++<meta charset="utf-8">
++<link rel="help" href="https://drafts.csswg.org/css-page-3/#page-selectors">
++<link rel="help" href="https://drafts.csswg.org/css-page-3/#cascading-and-page-context">
++<title>Page selector list requires a matching name and pseudo on one member</title>
++<link rel="match" href="page-selector-list-name-applicability-ref.html">
++<meta name="reftest-pages" content="1-2">
++<style>
++@page { size: 5in 3in; margin: 0; }
++html { print-color-adjust: exact; }
++body { margin: 0; }
++.mark { width: 20px; height: 20px; background: green; }
++@page alpha:first, beta { margin-top: 96px; }
++body { page: alpha; }
++.next { break-before: page; }
++</style>
++<div class="mark"></div><div class="mark next"></div>
+diff --git a/testing/web-platform/tests/css/css-page/page-selector-list-name-applicability-ref.html b/testing/web-platform/tests/css/css-page/page-selector-list-name-applicability-ref.html
+new file mode 100644
+index 000000000000..1700b38fb362
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-page/page-selector-list-name-applicability-ref.html
+@@ -0,0 +1,10 @@
++<!DOCTYPE html>
++<style>
++@page { size: 5in 3in; margin: 0; }
++html { print-color-adjust: exact; }
++body { margin: 0; }
++.mark { width: 20px; height: 20px; background: green; }
++@page :first { margin-top: 96px; }
++.next { break-before: page; }
++</style>
++<div class="mark"></div><div class="mark next"></div>
+diff --git a/testing/web-platform/tests/css/css-page/page-selector-list-name-specificity-print.html b/testing/web-platform/tests/css/css-page/page-selector-list-name-specificity-print.html
+new file mode 100644
+index 000000000000..eee1ecb43ead
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-page/page-selector-list-name-specificity-print.html
+@@ -0,0 +1,17 @@
++<!DOCTYPE html>
++<meta charset="utf-8">
++<link rel="help" href="https://drafts.csswg.org/css-page-3/#page-selectors">
++<link rel="help" href="https://drafts.csswg.org/css-page-3/#cascading-and-page-context">
++<title>Unmatched named selector cannot increase page rule specificity</title>
++<link rel="match" href="page-selector-list-name-zero-margin-ref.html">
++<meta name="reftest-pages" content="1">
++<style>
++@page { size: 5in 3in; margin: 0; }
++html { print-color-adjust: exact; }
++body { margin: 0; }
++.mark { width: 20px; height: 20px; background: green; }
++@page alpha, beta:first { margin-top: 96px; }
++@page alpha { margin-top: 0; }
++body { page: alpha; }
++</style>
++<div class="mark"></div>
+diff --git a/testing/web-platform/tests/css/css-page/page-selector-list-name-zero-margin-ref.html b/testing/web-platform/tests/css/css-page/page-selector-list-name-zero-margin-ref.html
+new file mode 100644
+index 000000000000..691061128116
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-page/page-selector-list-name-zero-margin-ref.html
+@@ -0,0 +1,8 @@
++<!DOCTYPE html>
++<style>
++@page { size: 5in 3in; margin: 0; }
++html { print-color-adjust: exact; }
++body { margin: 0; }
++.mark { width: 20px; height: 20px; background: green; }
++</style>
++<div class="mark"></div>
+diff --git a/testing/web-platform/tests/css/css-page/page-selector-list-name-control-unnamed-mixed-print.html b/testing/web-platform/tests/css/css-page/page-selector-list-name-control-unnamed-mixed-print.html
+new file mode 100644
+index 000000000000..2118e1ade6ba
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-page/page-selector-list-name-control-unnamed-mixed-print.html
+@@ -0,0 +1,18 @@
++<!DOCTYPE html>
++<meta charset="utf-8">
++<title>Page selector name: unnamed-mixed</title>
++<link rel="help" href="https://drafts.csswg.org/css-page-3/#page-selectors">
++<link rel="help" href="https://drafts.csswg.org/css-page-3/#cascading-and-page-context">
++<link rel="match" href="page-selector-list-name-controls-ref.html">
++<meta name="reftest-pages" content="1-2">
++<style>
++@page { size: 5in 3in; margin: 0; }
++html { print-color-adjust: exact; }
++body { margin: 0; }
++.mark { width: 20px; height: 20px; background: green; }
++.next { break-before: page; }
++body { page: alpha; }
++@page beta, :first { margin-top: 96px; }
++@page :first { margin-top: 0; }
++</style>
++<div class="mark"></div><div class="mark next"></div>
+diff --git a/testing/web-platform/tests/css/css-page/page-selector-list-name-controls-ref.html b/testing/web-platform/tests/css/css-page/page-selector-list-name-controls-ref.html
+new file mode 100644
+index 000000000000..c58012767053
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-page/page-selector-list-name-controls-ref.html
+@@ -0,0 +1,11 @@
++<!DOCTYPE html>
++<meta charset="utf-8">
++<title>Two pages with zero margins</title>
++<style>
++@page { size: 5in 3in; margin: 0; }
++html { print-color-adjust: exact; }
++body { margin: 0; }
++.mark { width: 20px; height: 20px; background: green; }
++.next { break-before: page; }
++</style>
++<div class="mark"></div><div class="mark next"></div>
