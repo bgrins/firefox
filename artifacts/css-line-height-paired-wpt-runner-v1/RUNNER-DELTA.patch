@@ -1,0 +1,63 @@
+--- old/run.py
++++ new/run.py
+@@ -94,17 +94,18 @@
+     need(len(sys.argv) == 6, "Usage: run.py CAPSULE_SHA original-1|candidate-1 EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT")
+     authenticate(HERE, sys.argv[1])
+     policy = read(HERE / "POLICY.json")
++    bindings = load("line_height_bindings", HERE / "bindings.py")
+     need(policy.get("execution_enabled") is True, "disabled pending successful phase build bindings")
+     phase = sys.argv[2]
+     need(phase in ("original-1", "candidate-1"), "phase label")
+-    need(phase == policy["phase"], "exact bound phase")
++
+     role = phase.split("-", 1)[0]
+     need(len(sys.argv) == 6, "observation arguments")
+     epoch_path = Path(sys.argv[3])
+     need(epoch_path.is_absolute() and not epoch_path.is_symlink(), "absolute regular epoch")
+-    need(sha(epoch_path) == sys.argv[4] == policy["epoch_sha256"], "externally supplied epoch digest")
++    need(sha(epoch_path) == sys.argv[4], "externally supplied epoch digest")
+     epoch = read(epoch_path)
+-    bindings = load("standalone_bindings", HERE / "bindings.py")
++    policy = bindings.bind_policy(ROOT, HERE, policy, epoch, sys.argv[4], phase, SimpleNamespace(**globals()))
+     phase_binding = bindings.validate_phase(ROOT, HERE, policy, epoch, SimpleNamespace(**globals()))
+     need(epoch["semantic_index"]["head"] == policy["frozen_head"], "epoch HEAD differs from frozen comparison HEAD")
+     app_metadata = application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+@@ -116,7 +117,7 @@
+     out = Path(sys.argv[5])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "output must be absent")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-random-index-wpt-runtime-"), "owned artifact output")
++    need(out == ROOT / policy["owner_runtime"] / (role + "-wpt"), "exact owned phase output")
+     need(all(not os.environ.get(k) for k in policy["forbidden_environment"]), "unexpected build/git/profile environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+@@ -147,9 +148,10 @@
+     need(binary_pins == policy["phase_binaries"], "exact phase build binaries")
+     out.mkdir()
+     save(out / "PHASE-BINDING.json", phase_binding)
++    save(out / "POLICY.json", policy)
+     if original is not None:
+         save(out / "ORIGINAL-BINDING.json", policy["original_binding"])
+-    save(out / "EPOCH.json", epoch)
++    (out / "EPOCH.json").write_bytes(epoch_path.read_bytes())
+     save(out / "PRE.json", before)
+     save(out / "INDEX-FLAGS.json", flags)
+     save(out / "INPUT-PINS.json", resource_pins)
+@@ -190,7 +192,7 @@
+               for p in top.rglob("*") if p.is_file() and "tools" not in p.relative_to(top).parts}
+     copied["wptrunner.ini"] = sha(config_path)
+     save(out / "OWNED-INPUT-PINS.json", copied)
+-    tmp = Path(tempfile.mkdtemp(prefix="css-random-index-wpt-", dir="/private/tmp"))
++    tmp = Path(tempfile.mkdtemp(prefix="css-line-height-wpt-", dir="/private/tmp"))
+     tmp_identity = (tmp.stat().st_dev, tmp.stat().st_ino)
+     env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+     raw = out / "raw.jsonl"
+@@ -262,7 +264,7 @@
+                           epoch_sha256=sys.argv[4], native_sources=policy["source_roles"][role], original_binding=policy["original_binding"],
+                           capsule_directory=str(HERE.relative_to(ROOT)), experiment_sha256=sha(HERE / "EXPERIMENT.json"),
+                           observation_only=original is None, subtest_cardinality_policy=policy["cardinality_description"],
+-                          oracle_caveat="Same selected random cache keys; no claim that distinct keys must produce distinct samples.",
++                          oracle_caveat="Contextual leaf evaluation with preserved percentage/inherited-lh behavior; existing flaky regression signatures remain strict.",
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)

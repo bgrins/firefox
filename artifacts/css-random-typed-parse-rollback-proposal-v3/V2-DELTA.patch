@@ -1,0 +1,14 @@
+--- a/servo/components/style/properties/shorthands.rs
++++ b/servo/components/style/properties/shorthands.rs
+@@ -4064,9 +4064,9 @@
+             }
+         }
+ 
+-        if let Ok((rows, cols, areas)) =
++        if let Ok((rows, cols, areas)) = context.with_random_index_rollback(|| {
+             input.try_parse(|i| super::grid_template::parse_grid_template(context, i))
+-        {
++        }) {
+             temp_rows = rows;
+             temp_cols = cols;
+             temp_areas = areas;

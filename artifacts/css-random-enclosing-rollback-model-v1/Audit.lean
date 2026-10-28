@@ -1,0 +1,8 @@
+import Enclosing
+#print axioms RandomIndex.Enclosing.successful_chunks_advance
+#print axioms RandomIndex.Enclosing.each_typed_guard_commits
+#print axioms RandomIndex.Enclosing.typed_only_keeps_outer_failure_offset
+#print axioms RandomIndex.Enclosing.outer_guard_preserves_prior_counter
+#print axioms RandomIndex.Enclosing.accepted_outer_keeps_all_keys
+#print axioms RandomIndex.Enclosing.positive_consumption_changes_selected_state
+#print axioms RandomIndex.Enclosing.observed_grid_offsets

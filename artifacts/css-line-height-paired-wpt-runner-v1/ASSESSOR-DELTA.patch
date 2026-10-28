@@ -1,0 +1,17 @@
+--- old/assess.py
++++ new/assess.py
+@@ -86,7 +86,7 @@
+             except (KeyError, IndexError, TypeError, ValueError):
+                 errors.append("held failure lacks complete mutation observation: " + event["subtest"])
+     held_signature.sort(key=lambda e: (e["test"], e["kind"], e["subtest"] or ""))
+-    regression = [signature(e) for e in rows + ends if e.get("test") not in targets and e.get("test") not in held]
++    regression = [signature(e) for e in rows + ends if (e.get("action") == "test_end" or e.get("test") not in targets) and e.get("test") not in held]
+     regression.sort(key=lambda e: (e["test"], e["kind"], e["subtest"] or ""))
+     comparison_errors = []
+     if original is not None:
+@@ -120,4 +120,4 @@
+             "regression_signature": regression, "held_signature": held_signature, "comparison_errors": comparison_errors,
+             "comparison_gate_passed": original is not None and not errors and not comparison_errors,
+             "subtest_cardinality_policy": policy["cardinality_description"],
+-            "oracle_caveat": "Same-key comparisons; completed original failures are observations, not infrastructure failures."}
++            "oracle_caveat": "Contextual line-height targets; original failures are observations, not infrastructure failures."}

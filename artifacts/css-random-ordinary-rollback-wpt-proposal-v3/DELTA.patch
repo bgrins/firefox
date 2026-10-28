@@ -1,0 +1,44 @@
+--- a/testing/web-platform/tests/css/css-values/random-typed-parse-rollback.html
++++ b/testing/web-platform/tests/css/css-values/random-typed-parse-rollback.html
+@@ -101,3 +101,41 @@
+   }, `${name} preserves random indexes across typed alternatives`);
+ }
+ </script>
++<script>
++const gridCases = [
++  ["rows before auto-flow", k => `random(${k(1)}, 10px, 20px) / auto-flow 100px`, "indexed"],
++  ["two rows before auto-flow", k => `random(${k(1)}, 10px, 20px) random(${k(2)}, 30px, 40px) / auto-flow 100px`, "indexed"],
++  ["both axes with auto-flow", k => `random(${k(1)}, 10px, 20px) / auto-flow random(${k(2)}, 30px, 40px)`, "indexed"],
++  ["explicit template", k => `random(${k(1)}, 10px, 20px) / 100px`, "indexed"],
++  ["auto-flow first", k => `auto-flow random(${k(1)}, 10px, 20px) / 100px`, "indexed"],
++  ["named grid", k => `random(${k(1)}, 10px, 20px) / auto-flow 100px`, "named"],
++  ["fixed grid", k => `random(${k(1)}, 10px, 20px) / auto-flow 100px`, "fixed"],
++];
++
++for (const [name, expression, kind] of gridCases) {
++  test(t => {
++    const key = kind === "named" ? "--grid-caller-control" :
++      kind === "fixed" ? "fixed 0.25" : "property-index-scoped";
++    const actual = expression(() => key);
++    const expected = expression(index => kind === "indexed" ? `ua-grid-${index}` : key);
++    const elements = pair(t, "grid", actual, expected);
++    for (const element of elements) {
++      element.style.display = "grid";
++      element.style.width = "200px";
++      element.style.justifyContent = "start";
++      element.style.alignContent = "start";
++      element.append(document.createElement("div"));
++    }
++    const properties = ["grid-template-rows", "grid-template-columns", "grid-auto-rows",
++      "grid-auto-columns", "grid-auto-flow"];
++    const specified = elements.map(element => properties.map(property =>
++      element.style.getPropertyValue(property)));
++    const computed = elements.map(element => {
++      const style = getComputedStyle(element);
++      return properties.map(property => style.getPropertyValue(property));
++    });
++    assert_array_equals(specified[0], specified[1], "Specified grid longhands use the expected random indexes");
++    assert_array_equals(computed[0], computed[1], "Computed grid longhands match the same-key reference");
++  }, `${name} preserves random indexes across the grid-template alternative`);
++}
++</script>
