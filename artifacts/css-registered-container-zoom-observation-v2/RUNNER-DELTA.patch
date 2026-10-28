@@ -1,0 +1,95 @@
+--- container-observation-v1/run.py
++++ container-observation-v2/run.py
+@@ -47,13 +47,15 @@
+         raise SystemExit("Usage: run.py MANIFEST_SHA PHASE EPOCH_PATH EPOCH_SHA CALIBRATION_ASSESSMENT CALIBRATION_SHA ABSENT_OUTPUT")
+     authenticate(HERE, sys.argv[1])
+     policy = json.loads((HERE / "POLICY.json").read_text())
++    if policy.get("execution_enabled") is not True:
++        fail("observer disabled pending exact candidate calibration assessment")
+     wrapper_path = ROOT / policy["wpt_capsule"]
+     expected_wrapper = policy["wpt_capsule_manifest_sha256"]
+     need = lambda value, message: None if value else fail(message)
+     authenticate(wrapper_path, expected_wrapper)
+     helper = load("pinned_wpt_runner", wrapper_path / "run.py")
+     phase = sys.argv[2]
+-    need(re.fullmatch(r"admission-only-[1-9][0-9]*", phase), "phase")
++    need(re.fullmatch(r"zoom-normalization-[1-9][0-9]*", phase), "phase")
+     role = "candidate"
+     for name, expected in helper.read(HERE / "REFERENCES.json").items():
+         need(helper.sha(ROOT / name) == expected, "reference: " + name)
+@@ -62,6 +64,7 @@
+     epoch_path, normative_path = Path(sys.argv[3]), Path(sys.argv[5])
+     for path, expected in ((epoch_path, sys.argv[4]), (normative_path, sys.argv[6])):
+         need(path.is_absolute() and path.is_file() and not path.is_symlink() and helper.sha(path) == expected, "external evidence binding")
++    need(normative_path == ROOT / policy["calibration_assessment"] and sys.argv[6] == policy["calibration_assessment_sha256"], "exact candidate calibration assessment")
+     epoch, normative = helper.read(epoch_path), helper.read(normative_path)
+     need(sys.argv[4] == policy["epoch_sha256"], "exact epoch")
+     need(epoch["semantic_index"]["head"] == policy["frozen_head"], "frozen HEAD")
+@@ -69,8 +72,8 @@
+         need(helper.sha(ROOT / name) == expected, "fixed native source: " + name)
+     helper.require_compiled_transition(epoch, role)
+     transition = epoch["registered_number_transition"]
+-    need(transition.get("accepted") is False and transition.get("last_phase") == "head-candidate-build-2", "unaccepted admission-only build2")
+-    need(normative["complete"] and normative["execution_preserved"] and normative["phase"] == "admission-only-1" and normative["source_role"] == "admission-only-v3-build2" and normative["observation_only"] is True,
++    need(transition.get("accepted") is False and transition.get("last_phase") == "zoom-normalization-build-2", "unaccepted zoom-normalization build2")
++    need(normative["complete"] and normative["execution_preserved"] and normative["phase"] == "zoom-normalization-1" and normative["source_role"] == "zoom-normalization-v3" and normative["observation_only"] is True,
+          "matching complete preserved calibration phase")
+     need(normative["epoch_sha256"] == sys.argv[4] and normative["capsule_manifest_sha256"] == expected_wrapper,
+          "calibration phase capsule/epoch")
+@@ -90,6 +93,8 @@
+     guard = helper.load("epoch_guard", ROOT / policy["helpers"]["epoch"])
+     control = helper.load("process_control", ROOT / policy["helpers"]["control"])
+     validation = helper.load("observation_validation", HERE / "validate.py")
++    baseline = helper.load("observer_baseline", HERE / "baseline.py")
++    original = baseline.validate(ROOT, HERE, policy, helper, validation)
+     before = guard.verify_current(h, ROOT, env, epoch)
+     flags = {name: hashlib.sha256(h.git(ROOT / name, env, "ls-files", "-v", "-z")).hexdigest()
+              for name in (".", "artifacts/css-spec-lean")}
+@@ -97,6 +102,7 @@
+     need(all(value and epoch["pins"].get(name) == value for name, value in binaries.items()), "built binary epoch")
+     need(binaries == policy["candidate_binaries"], "exact build2 binary pins")
+     out.mkdir()
++    helper.save(out / "BASELINE-BINDING.json", {"directory":policy["baseline_directory"], "pins":helper.read(HERE / "BASELINE-PINS.json"), "phase":original["phase"]})
+     for name, value in (("EPOCH.json", epoch), ("PRE.json", before), ("INDEX-FLAGS.json", flags),
+                         ("NORMAL-BINARIES.json", binaries), ("APPLICATION-METADATA.json", metadata)):
+         helper.save(out / name, value)
+@@ -149,7 +155,7 @@
+     command = [str(ROOT / policy["normal_binaries"][0]), "-headless", "-no-remote", "-profile", str(profile), origin + base + "?submit=1"]
+     helper.save(out / "COMMAND.json", {"command": command, "phase": phase, "epoch_path": str(epoch_path),
+                 "epoch_sha256": sys.argv[4], "normative_assessment": str(normative_path), "normative_sha256": sys.argv[6],
+-                "manifest_sha256": sys.argv[1], "source_role": "admission-only-v3-build2", "observation_only": True})
++                "manifest_sha256": sys.argv[1], "source_role": "zoom-normalization-v3", "observation_only": True})
+     stopped = [False]
+     def stop(signum, frame):
+         stopped[0] = True
+@@ -200,25 +206,27 @@
+                 need(helper.sha(ROOT / name) == expected, "WPT reference changed: " + name)
+             for name, expected in helper.read(HERE / "REFERENCES.json").items():
+                 need(helper.sha(ROOT / name) == expected, "reference changed: " + name)
++            need(baseline.validate(ROOT, HERE, policy, helper, validation) == original, "saved baseline changed")
+             helper.save(out / "POST.json", post)
+         except BaseException as exc:
+             post_error = repr(exc)
+     helper.save(out / "RAW.json", {"payloads": rows, "network_errors": network_errors})
+-    summary = None
++    summary, comparison = None, None
+     try:
+         need(len(rows) == 1 and not network_errors, "single complete observation payload")
+         summary = validation.summarize(rows[0])
++        comparison = baseline.compare(original["summary"], summary, validation)
+     except BaseException as exc:
+         error = error or repr(exc)
+     preserved = error is None and post_error is None and cleanup.get("owned_group_absent") and cleanup.get("profile_removed") and cleanup.get("server_thread_stopped")
+     result = {"complete": bool(preserved and summary), "execution_preserved": bool(preserved),
+               "phase": phase, "manifest_sha256": sys.argv[1], "epoch_sha256": sys.argv[4],
+               "normative_assessment_sha256": sys.argv[6], "normative_phase": normative["phase"], "native_sources": policy["source_roles"][role],
+-              "application_metadata": metadata, "normal_binaries": binaries, "summary": summary, "comparison": None,
++              "application_metadata": metadata, "normal_binaries": binaries, "summary": summary, "comparison": comparison,
+               "browser_exit": process.returncode if process else None, "natural_exit_before_cleanup": natural_exit,
+               "termination_requested_for_owned_cleanup": process is not None, "error": error, "preservation_error": post_error,
+               "profile_configuration": "fresh default profile; WPT preferences are not imported",
+-              "normative_verdict": "not evaluated", "native_fix_acceptance": False, "source_role": "admission-only-v3-build2", "observation_only": True}
++              "normative_verdict": "not evaluated", "native_fix_acceptance": False, "source_role": "zoom-normalization-v3", "observation_only": True}
+     helper.save(out / "RESULT.json", result)
+     print(json.dumps(result, indent=2))
+     return 0 if result["complete"] else 1

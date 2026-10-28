@@ -1,0 +1,116 @@
+{
+  "status": "DESIGN_ONLY_UNEXECUTED",
+  "registration": {
+    "syntax": "per case",
+    "inherits": false,
+    "initialValue": "17px",
+    "unique_name_per_case": true,
+    "errors": "record verbatim; never treat rejected registration as a dependency bug"
+  },
+  "global_environment_fields": [
+    "navigator.userAgent",
+    "devicePixelRatio",
+    "innerWidth",
+    "innerHeight",
+    "document.documentElement.clientWidth",
+    "document.documentElement.clientHeight",
+    "visualViewport.width",
+    "visualViewport.height",
+    "visualViewport.scale",
+    "root computed zoom and writing-mode"
+  ],
+  "base_styles": {
+    "box-sizing": "content-box",
+    "border": "0",
+    "padding": "0",
+    "margin": "0",
+    "font-size": "16px",
+    "line-height": "20px",
+    "transform": "none",
+    "min-width": "0",
+    "max-width": "none",
+    "height": "10px"
+  },
+  "layout": "fresh isolated stage; explicit ancestor dimensions; each pair is siblings in identical ancestry; targets absolutely positioned so their intrinsic widths do not determine container dimensions; clip stage overflow without transforming or zooming it",
+  "variants": {
+    "ordinary": "width:EXPRESSION",
+    "registered-direct": "--unique:EXPRESSION; width:var(--unique)",
+    "registered-ready-unused-fallback": "--ready:EXPRESSION; --unique:var(--ready,1em); width:var(--unique)",
+    "ordinary-fallback-control": "width:fallbackControl"
+  },
+  "query_order": [
+    "document viewport fields",
+    "every ancestor outer-to-inner: specified cssText; computed zoom,width,height,inline-size,block-size,container-type,writing-mode; client/offset dimensions; bounding rect",
+    "targets in declared variant order: specified cssText; custom value (registered variants only), computed width,height,zoom,font-size,line-height,writing-mode; client/offset dimensions; bounding rect"
+  ],
+  "rounding": "keep CSSOM strings and raw numeric DOMRect values; do not infer equality from rounded offset/client values",
+  "settle": "after style construction or mutation, two animation frames then measurements; record the phase, no performance timing verdict",
+  "alternate_query_order": "optional second fresh DOM pass in reversed target order, preserving and labeling both raw results",
+  "mutations": [
+    {
+      "id": "target-zoom-cycle",
+      "baseCase": "core/cqw/parent-2/target-1",
+      "steps": [
+        {
+          "targetZoom": 1
+        },
+        {
+          "targetZoom": 2
+        },
+        {
+          "targetZoom": 0.5
+        },
+        {
+          "targetZoom": 1
+        }
+      ]
+    },
+    {
+      "id": "parent-zoom-cycle",
+      "baseCase": "core/cqw/parent-1/target-2",
+      "steps": [
+        {
+          "parentZoom": 1
+        },
+        {
+          "parentZoom": 2
+        },
+        {
+          "parentZoom": 1
+        }
+      ]
+    },
+    {
+      "id": "container-size-cycle",
+      "baseCase": "core/cqw/parent-2/target-2",
+      "steps": [
+        {
+          "containerWidth": "200px"
+        },
+        {
+          "containerWidth": "300px"
+        },
+        {
+          "containerWidth": "200px"
+        }
+      ]
+    }
+  ],
+  "pass_gate": "only completeness/setup validation; no cross-zoom cqw expected numeric values",
+  "reported_comparisons": "raw paired ordinary/registered values and deltas only; no automatic spec violation or acceptance classification",
+  "browser_launched": false,
+  "runner_implemented": false,
+  "ancestor_base_styles": {
+    "position": "relative",
+    "box-sizing": "content-box",
+    "border": "0",
+    "padding": "0",
+    "margin": "0",
+    "transform": "none"
+  },
+  "target_position": {
+    "position": "absolute",
+    "left": "0",
+    "top": "0"
+  }
+}

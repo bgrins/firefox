@@ -1,0 +1,13 @@
+DISABLED DRAFT pending the exact preserved candidate56 calibration assessment. Do not run until execution_enabled and the assessment digest are finalized and FILES.json is sealed.
+
+This is the same diagnostic page and protocol as observer-v1:42 scenarios/94 initial target observations, plus3 existing-node mutation sequences/30 target observations. report.html, report.js, validate.py, CASES.json and PROTOCOL.json are byte-identical to v1 and authenticated again during runtime. No new cases or numeric expectations are introduced.
+
+The candidate role is experimental zoom-normalization-v3, compiled unaccepted zoom-normalization-build-2 at frozen HEAD1c7870c6d36d002b1c785ec2a6251ddc4ca2a040 and epochfaf21c60edee0f5d7b7f7d7fe3e0533a636e6e6f12da26feb70d1808902fe6fc. Nine native source pins and exact browser binaries match the sealed WPT comparison-v3. The runner must consume the exact complete preserved candidate assessment from that capsule before it launches.
+
+The original is the immutable admission-only observer-v1 result dfb8920f58104dbc01a6f325c48b17bd905442d315b63404e7b24db0973278b8. Eleven saved evidence files are pinned, metadata/source/binary/epoch provenance is checked, cleanup and pre/post preservation are required, and raw values are replayed with the unchanged validator. Old events retain their original phase/capsule/epoch. The original and candidate share the same frozen HEAD; they intentionally use different binaries/native bodies/epochs.
+
+The reviewed owned-profile/server/process lifecycle and pre/post source/resource/index/nested/application checks remain. Candidate and original both use fresh default browser profiles, not WPT preference configuration. Failure to collect a complete preserved capture fails the runner; differing CSS values do not. RESULT compares full original/candidate rows and mutation sequences and retains raw observations. Those differences are not automatically normative defects or improvements.
+
+The proposed canonical per-container coordinate rule remains an explicit inference. Ordinary Firefox container units already have bug1894104, so ordinary/registered parity is diagnostic, not a required numerical oracle. Logical-axis scheduling is a separate concern. Native fix acceptance remains false.
+
+Root owns browser execution; the preparer has run only static checks and replayed saved evidence. The original shape controls pass318 malformed-capture negatives, and the successor additionally checks identical comparison and detection of a changed custom value. No live native/WPT/Git/index/epoch/build state is modified by preparing this package.
