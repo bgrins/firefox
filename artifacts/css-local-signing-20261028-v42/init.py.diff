@@ -1,0 +1,34 @@
+--- artifacts/css-local-signing-20261028-v41/init.py
++++ artifacts/css-local-signing-20261028-v42/init.py
+@@ -19,15 +19,27 @@
+ assert sha(runtime/'CURRENT-EPOCH.json') == inputs['initial_epoch']
+ epoch = json.loads(controls['CURRENT-EPOCH.json'])
+ assert epoch['semantic_index']['head'] == inputs['initial_head']
+-assert epoch['round_special_knowledge_transition']['role'] == 'candidate'
+-assert epoch['round_special_knowledge_transition']['compiled'] and not epoch['round_special_knowledge_transition']['accepted']
++assert epoch['round_context_quotient_transition']['role'] == 'candidate'
++assert epoch['round_context_quotient_transition']['compiled'] and not epoch['round_context_quotient_transition']['accepted']
+ assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs',*inputs['native_source_paths']])
+ assert epoch['staged_working'] == {}
+ for marker, expected in inputs['preserved_accepted_markers'].items(): assert epoch[marker] == expected
++superseded=inputs['accepted_source_supersession']
++assert superseded['fix']==144 and superseded['path']=='servo/components/style/values/generics/calc.rs'
++assert epoch['round_context_quotient_transition']['supersedes_source_pin']==superseded
++assert inputs['preserved_accepted_markers']['accepted_round_special_knowledge']['files'][superseded['path']]==superseded['sha256']
++historical_commit=inputs['preserved_accepted_markers']['accepted_round_special_knowledge']['native_commit']
++for revision in (historical_commit,inputs['initial_head']):
++    body=subprocess.check_output(['git','show',revision+':'+superseded['path']],cwd=ROOT,env=dict(os.environ,GIT_OPTIONAL_LOCKS='0'))
++    assert hashlib.sha256(body).hexdigest()==superseded['sha256']
++for marker, expected in inputs['preserved_accepted_transitions'].items(): assert epoch[marker]==expected
++native_pins=json.loads((HERE/'native-selection.json').read_bytes())['source_pins']
++assert set(native_pins).intersection(inputs['preserved_accepted_payload'])=={superseded['path']}
+ for path, item in inputs['preserved_accepted_payload'].items():
++    expected=native_pins[path] if path==superseded['path'] else item['sha256']
+     st=(ROOT/path).lstat()
+-    assert [st.st_dev,st.st_ino] == item['identity'] and sha(ROOT/path) == item['sha256']
+-    assert epoch['pins'][path] == item['sha256'] and epoch['installed_identities'][path] == item['identity']
++    assert [st.st_dev,st.st_ino] == item['identity'] and sha(ROOT/path) == expected
++    assert epoch['pins'][path] == expected and epoch['installed_identities'][path] == item['identity']
+ assert not os.path.lexists(ROOT/inputs['retired_path'])
+ assert not (runtime/'SOURCE-TRANSITION.lock').exists()
+ audit=json.loads((ROOT/inputs['untracked_audit']).read_bytes())

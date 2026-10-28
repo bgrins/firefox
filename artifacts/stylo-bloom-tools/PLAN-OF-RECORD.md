@@ -1,5 +1,10 @@
 # CSS and Stylo verification plan
 
+Fix 145 preserves finite multiples when resolving round(), including normal finite operands whose quotient overflows. The standalone payload is one generic calc source file and one 21-subtest WPT. The complete paired 738-subtest experiment passed all 26 targets with 13 repairs; all 712 controls and 12 endings were preserved. Final installed execution completed 737 subtests: 727 PASS and ten preserved existing FAIL, with all 25 targets PASS. Four exposure cases remain validation-only. The sole omitted historical both-infinite row passed in both paired phases and was removed by authenticated one-line fixture projection; no failed gate was waived. After the verified signed native commit, accepted repairs total 144 across tracked IDs through 145, excluding held 120. Historical fix 144 source and native-commit pins remain unchanged; the new current source explicitly supersedes its full-file pin. No semantic prerequisite on accepted125/126/128/144 or clean-upstream execution is claimed. The held provider remains unchanged and unaccepted. Existing arithmetic/model checks and the four bounded overflow witness facts add no canonical Lean coverage or universal IEEE/native refinement claim.
+
+Earlier entries retain their historical state.
+
+
 Fix 144 retains unresolved values in the literal-infinite-step Round simplifier. The three-line generic-calc guard and one necessary 23-subtest WPT form the standalone payload. The paired run repairs 19 target failures; all 23 targets pass, with 689 control signatures and 10 endings unchanged. Final installed execution completes 712 subtests: 702 PASS and 10 preserved existing FAIL. Accepted125 runtime NaN priority is required. After the verified signed native commit, accepted repairs total 143 across tracked IDs through 144, excluding held120. Accepted141/142/143 and the unchanged held provider remain preserved. Four existing classification lemmas are reused without new discovery, native refinement or canonical coverage credit. These are shared-branch builds, not clean-upstream applicability evidence.
 
 Earlier entries retain their historical state.

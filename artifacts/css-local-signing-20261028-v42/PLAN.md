@@ -1,0 +1,3 @@
+Execute init, research, validation, native-fix, finish sequentially; stop at any nonzero result. Final build, installed WPT lint and final737 replay have passed and root approved145. Inputs and selections will freeze before execution. The exact two-path native payload contains21 WPT subtests, while four exposure cases remain evidence only. No push is authorized by this workflow.
+
+After the signed checkpoint, investigate the already-recorded dual infinite-value/unknown-step boundary on latest df7e, preserving finite arithmetic and the infinite-step guard. Never restore old2da/b9a snapshots over accepted current source. Full contextual stepped/easing consumer and readiness/SCC work remains held.

@@ -1,0 +1,41 @@
+--- artifacts/css-local-signing-20261028-v41/render_checkpoint.py
++++ artifacts/css-local-signing-20261028-v42/render_checkpoint.py
+@@ -32,9 +32,9 @@
+ assert accepted['fix'] == inputs['fix']
+ assert accepted['payload_sha256'] == sha(HERE/'native-selection.json')
+ assert accepted['promoted_build_passed'] and accepted['promoted_wpt_passed'] and accepted['wpt_lint_passed']
+-assert accepted['target_pass'] == 23 and accepted['regressions_unchanged'] == 689
+-assert accepted['repaired_target_subtests'] == 19 and accepted['ends_unchanged'] == 10
+-assert accepted['accepted_dependencies'] == [125]
++assert accepted['target_pass'] == 25 and accepted['regressions_unchanged'] == 712
++assert accepted['repaired_target_subtests'] == 13 and accepted['ends_unchanged'] == 12
++assert accepted['accepted_dependencies'] == []
+ assert accepted['group'] == 'Parsing, tokens and CSS math'
+ assert accepted['evidence_pins'] == inputs['evidence_pins'] and inputs['evidence_pins']
+ for name,pin in inputs['evidence_pins'].items():
+@@ -61,7 +61,7 @@
+     assert hashlib.sha256(b).hexdigest() == inputs['ledger_preimages'][n]
+     assert b == git('show',commit+':'+n)
+ ledger = json.loads(old[paths[0]])
+-assert ledger['committed_native_fixes'] == inputs['previous_accepted_fixes'] == 142
++assert ledger['committed_native_fixes'] == inputs['previous_accepted_fixes'] == 143
+ assert not any(v.get('fix') == inputs['fix'] for v in ledger['new_queue'])
+ assert inputs['fix'] == max(v['fix'] for v in ledger['new_queue'] if isinstance(v.get('fix'),int)) + 1
+ entry = copy.deepcopy(accepted['ledger_entry'])
+@@ -82,14 +82,14 @@
+ entry.update(native_commit=commit,research_commit=research_receipt['commit'],validation_commit=validation_receipt['commit'],companion_commit=validation_receipt['commit'],signature_verified=True,status='COMMITTED_NATIVE_WPT',commit_verification={'path':str((signing/inputs['native_receipt']).relative_to(ROOT)),'sha256':sha(signing/inputs['native_receipt'])})
+ ledger['new_queue'].append(entry)
+ ledger['committed_native_fixes'] = inputs['previous_accepted_fixes'] + 1
+-ledger['latest_round_special_knowledge_fix'] = entry
++ledger['latest_round_context_quotient_fix'] = entry
+ summary = accepted['approved_checkpoint_summary']
+ assert isinstance(summary,str) and summary.strip()
+ assert accepted['approved_roadmap'].encode().endswith(old[paths[2]])
+ title,rest = old[paths[1]].decode().split('\n',1)
+ planned = {paths[0]:(json.dumps(ledger,indent=2)+'\n').encode(),paths[1]:(title+'\n\n'+summary+'\n\nEarlier entries retain their historical state.\n\n'+rest).encode(),paths[2]:accepted['approved_roadmap'].encode()}
+ bug_title,bug_history = old[paths[3]].decode().split('\n',1)
+-bug_entry = f"Fix {inputs['fix']}: {entry['title']}\n\nNative: `{commit}`. Research: `{research_receipt['commit']}`. Validation: `{validation_receipt['commit']}`. Exact two-path source/WPT payload; nineteen target failures repaired, all twenty-three targets PASS and six hundred eighty-nine control signatures preserved. Accepted125 is a prerequisite.\n\n"
++bug_entry = f"Fix {inputs['fix']}: {entry['title']}\n\nNative: `{commit}`. Research: `{research_receipt['commit']}`. Validation: `{validation_receipt['commit']}`. Exact two-path source/WPT payload; thirteen target failures repaired, all twenty-five validation targets PASS and seven hundred twelve control signatures preserved. The landing WPT contains twenty-one subtests; four exposure cases remain validation-only. Historical fix 144 source attribution remains unchanged; the current full-file source pin is explicitly superseded. No semantic prerequisite or independent upstream execution is claimed.\n\n"
+ planned[paths[3]] = (bug_title+'\n\n'+bug_entry+bug_history).encode()
+ output = HERE/'prepared-checkpoint'
+ assert not output.exists() and not output.is_symlink()

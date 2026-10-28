@@ -1,5 +1,10 @@
 # CSS verification bugfix commits
 
+Fix 145: Preserve finite multiples when resolving round()
+
+Native: `eb52086488112d1809062cf369f5e8feda6c2c38`. Research: `68c4b558957437fdad07a2685bd71fb76dc5fd4c`. Validation: `2fc2dbca7d5af460391e4c944cb11f5eea275977`. Exact two-path source/WPT payload; thirteen target failures repaired, all twenty-five validation targets PASS and seven hundred twelve control signatures preserved. The landing WPT contains twenty-one subtests; four exposure cases remain validation-only. Historical fix 144 source attribution remains unchanged; the current full-file source pin is explicitly superseded. No semantic prerequisite or independent upstream execution is claimed.
+
+
 Fix 144: Defer infinite-step rounding until the value is resolved
 
 Native: `c63be5163f2e0a05a27c6b022e9f388597f1c381`. Research: `a7c76027952c0d86a3cf133d4248095b3eb1048a`. Validation: `5edbaed4ff8afec083c8b283de6f5efeb4fdbd70`. Exact two-path source/WPT payload; nineteen target failures repaired, all twenty-three targets PASS and six hundred eighty-nine control signatures preserved. Accepted125 is a prerequisite.

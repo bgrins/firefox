@@ -1,0 +1,5 @@
+Root-approved signing preparation for finite Round fix 145. Separate research and validation commits precede the standalone generic calc plus 21-case WPT commit, then the receipt-derived ledger, primary roadmap, bug-commit record and complete-work table checkpoint. Root alone executes Git and canonical publication.
+
+Actual final737 has all25 targets PASS,13 repairs,712 unchanged control signatures and12 endings. Four exposure cases are validation-only. Historical full738 pair remains unchanged; only a named PASS row was removed from the landing fixture. Prior fix144 source2da/native-commit metadata stays historical and immutable while the declared current source becomes df7e. Other12 accepted bodies and held provider remain preserved.
+
+Fresh preparation census found564 untracked paths:68 prior project files with unchanged bytes/inodes, one new landing WPT,495 unchanged unrelated names. After native tracking the expected census returns to563. Committed recovery copies preserve the prior project files; their live copies remain untracked. No unrelated contents were read.
