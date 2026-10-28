@@ -1,0 +1,8 @@
+import ContainerAxes
+#print axioms ContainerAxes.selected_dimension_keeps_source_and_zoom
+#print axioms ContainerAxes.normalize_first
+#print axioms ContainerAxes.normalize_merge
+#print axioms ContainerAxes.recover_source_value
+#print axioms ContainerAxes.viewport_is_already_canonical
+#print axioms ContainerAxes.normalized_bounds
+#print axioms ContainerAxes.zero_guard_is_identity_scale

@@ -1,0 +1,95 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered logical lengths use the element's writing mode</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#container-lengths">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#viewport-relative-lengths">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let sequence = 0;
+for (const unit of ["cqi", "cqb", "vi", "vb"]) {
+  for (const deferred of [false, true]) {
+    for (const first of ["horizontal-tb", "vertical-rl"]) {
+      test(t => {
+        const frame = document.createElement("iframe");
+        frame.width = "320";
+        frame.height = "180";
+        frame.style.border = "0";
+        document.body.append(frame);
+        t.add_cleanup(() => frame.remove());
+        const win = frame.contentWindow;
+        const doc = win.document;
+        const style = doc.createElement("style");
+        style.textContent = `
+          html { overflow:hidden; writing-mode:horizontal-tb; }
+          body { margin:0; }
+          .outer { position:relative; width:320px; height:180px;
+            container-type:size; writing-mode:horizontal-tb; }
+          .inner { position:relative; width:200px; height:120px;
+            container-type:inline-size; writing-mode:vertical-rl; }
+          .target { position:absolute; left:0; top:0; height:10px;
+            border:0; padding:0; margin:0; min-width:0; max-width:none; }`;
+        doc.head.append(style);
+        const name = `--logical-length-${sequence++}`;
+        win.CSS.registerProperty({name, syntax:"<length>", inherits:false, initialValue:"17px"});
+        const outer = doc.createElement("div");
+        outer.className = "outer";
+        const inner = doc.createElement("div");
+        inner.className = "inner";
+        const target = doc.createElement("div");
+        const ordinary = doc.createElement("div");
+        const physical = doc.createElement("div");
+        for (const node of [target, ordinary, physical]) {
+          node.className = "target";
+          inner.append(node);
+        }
+        target.style.setProperty("--ready", `100${unit}`);
+        target.style.setProperty(name, deferred ? "var(--ready)" : `100${unit}`);
+        target.style.width = `var(${name})`;
+        ordinary.style.width = `100${unit}`;
+        outer.append(inner);
+        doc.body.append(outer);
+        const opposite = first === "horizontal-tb" ? "vertical-rl" : "horizontal-tb";
+        const snapshots = [];
+        for (const writingMode of [first, opposite, first]) {
+          for (const node of [target, ordinary, physical]) {
+            node.style.writingMode = writingMode;
+          }
+          const inline = unit === "cqi" || unit === "vi";
+          const horizontal = writingMode === "horizontal-tb";
+          const widthAxis = inline === horizontal;
+          const container = unit.startsWith("cq");
+          const physicalUnit = container ? (widthAxis ? "cqw" : "cqh") : (widthAxis ? "vw" : "vh");
+          physical.style.width = `100${physicalUnit}`;
+          const expected = widthAxis ? 320 : (container ? 120 : 180);
+          const computed = win.getComputedStyle(target);
+          snapshots.push({writingMode, expected,
+            actualWritingMode:computed.writingMode,
+            value:computed.getPropertyValue(name).trim(), width:computed.width,
+            ordinaryWidth:win.getComputedStyle(ordinary).width,
+            physicalWidth:win.getComputedStyle(physical).width,
+            rectWidth:target.getBoundingClientRect().width,
+            outerWidth:win.getComputedStyle(outer).width,
+            innerHeight:win.getComputedStyle(inner).height,
+            viewport:[win.innerWidth, win.innerHeight]});
+        }
+        const detail = JSON.stringify(snapshots);
+        for (const snapshot of snapshots) {
+          const expected = `${snapshot.expected}px`;
+          assert_array_equals(snapshot.viewport, [320, 180], `Fixed viewport: ${detail}`);
+          assert_equals(snapshot.outerWidth, "320px", `Outer size: ${detail}`);
+          assert_equals(snapshot.innerHeight, "120px", `Inner size: ${detail}`);
+          assert_equals(snapshot.actualWritingMode, snapshot.writingMode, `Own writing mode: ${detail}`);
+          assert_equals(snapshot.physicalWidth, expected, `Physical-unit control: ${detail}`);
+          assert_equals(snapshot.ordinaryWidth, expected, `Ordinary logical-unit control: ${detail}`);
+          assert_equals(snapshot.value, expected, `Registered computed value: ${detail}`);
+          assert_equals(snapshot.width, expected, `Registered substitution consumer: ${detail}`);
+          assert_equals(snapshot.rectWidth, snapshot.expected, `No-zoom geometry: ${detail}`);
+        }
+      }, `Registered ${unit} writing-mode mutation: ${deferred ? "substituted" : "direct"}, starts ${first}`);
+    }
+  }
+}
+</script>

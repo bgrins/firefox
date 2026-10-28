@@ -1,0 +1,7 @@
+# Final candidate calibration binding review
+
+Clear to seal the completed candidate comparison package after author documentation finalization. This supplements the disabled-draft logic review; it does not execute the runner or accept the native repair.
+
+Read2559e1/0 and independent saved-evidence authentication267166/0 verified every REFERENCES body, nine native source hashes joined to sealed proposal-v3 source roles and saved compiled unaccepted runtime epoch, and both binary hashes joined to that same epoch. The saved successful build2 result has preservation true, no owned processes, and no publication errors. The runner requires the supplied current epoch bytes/hash equal the exact saved build2 epoch (faf21c60edee0f5d7b7f7d7fe3e0533a636e6e6f12da26feb70d1808902fe6fc), variant zoom-normalization-v3, last phase zoom-normalization-build-2. This extra binding matters because generic successful RESULT.json bytes alone are identical across some builds.
+
+Previous exact 56-test baseline replay and complete observational comparison logic remain intact. The prior baseline provenance is preserved. This review used saved artifact evidence only; no live native/binary/Git/index/epoch queries or mutations, browser, build, main runner execution or additional accepted fix occurred. Final capsule FILES hash was not yet available at this read; exact reviewed source/policy/reference bodies are independently pinned here.

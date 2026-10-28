@@ -1,0 +1,150 @@
+--- zoom-observation-v3/run.py
++++ container-zoom-observation-v1/run.py
+@@ -43,8 +43,8 @@
+ 
+ 
+ def main():
+-    if len(sys.argv) not in (8, 10):
+-        raise SystemExit("Usage: run.py MANIFEST_SHA PHASE EPOCH_PATH EPOCH_SHA WPT_ASSESSMENT WPT_SHA ABSENT_OUTPUT [ORIGINAL_RESULT ORIGINAL_SHA]")
++    if len(sys.argv) != 8:
++        raise SystemExit("Usage: run.py MANIFEST_SHA PHASE EPOCH_PATH EPOCH_SHA CALIBRATION_ASSESSMENT CALIBRATION_SHA ABSENT_OUTPUT")
+     authenticate(HERE, sys.argv[1])
+     policy = json.loads((HERE / "POLICY.json").read_text())
+     wrapper_path = ROOT / policy["wpt_capsule"]
+@@ -53,9 +53,8 @@
+     authenticate(wrapper_path, expected_wrapper)
+     helper = load("pinned_wpt_runner", wrapper_path / "run.py")
+     phase = sys.argv[2]
+-    need(re.fullmatch(r"(original|candidate)-[1-9][0-9]*", phase), "phase")
+-    role = phase.split("-")[0]
+-    need(len(sys.argv) == (8 if role == "original" else 10), "phase arguments")
++    need(re.fullmatch(r"admission-only-[1-9][0-9]*", phase), "phase")
++    role = "candidate"
+     for name, expected in helper.read(HERE / "REFERENCES.json").items():
+         need(helper.sha(ROOT / name) == expected, "reference: " + name)
+     for name, expected in helper.read(wrapper_path / "REFERENCES.json").items():
+@@ -64,35 +63,26 @@
+     for path, expected in ((epoch_path, sys.argv[4]), (normative_path, sys.argv[6])):
+         need(path.is_absolute() and path.is_file() and not path.is_symlink() and helper.sha(path) == expected, "external evidence binding")
+     epoch, normative = helper.read(epoch_path), helper.read(normative_path)
++    need(sys.argv[4] == policy["epoch_sha256"], "exact epoch")
+     need(epoch["semantic_index"]["head"] == policy["frozen_head"], "frozen HEAD")
+     for name, expected in policy["fixed_native_sources"].items():
+         need(helper.sha(ROOT / name) == expected, "fixed native source: " + name)
+     helper.require_compiled_transition(epoch, role)
+-    need(normative["complete"] and normative["execution_preserved"] and normative["phase"].startswith(role + "-"),
+-         "matching complete preserved normative phase")
++    transition = epoch["registered_number_transition"]
++    need(transition.get("accepted") is False and transition.get("last_phase") == "head-candidate-build-2", "unaccepted admission-only build2")
++    need(normative["complete"] and normative["execution_preserved"] and normative["phase"] == "admission-only-1" and normative["source_role"] == "admission-only-v3-build2" and normative["observation_only"] is True,
++         "matching complete preserved calibration phase")
+     need(normative["epoch_sha256"] == sys.argv[4] and normative["capsule_manifest_sha256"] == expected_wrapper,
+-         "normative phase capsule/epoch")
++         "calibration phase capsule/epoch")
+     need(normative["native_sources"] == policy["source_roles"][role], "normative source role")
+     for name, expected in policy["source_roles"][role].items():
+         need(helper.sha(ROOT / name) == expected and epoch["pins"].get(name) == expected, "native source: " + name)
+     metadata = helper.application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+-    need(metadata == normative["run_binding"], "same application metadata as normative phase")
+-    original, original_path, adopted = None, None, None
+-    if role == "candidate":
+-        original_path = Path(sys.argv[8])
+-        need(original_path.is_absolute() and not original_path.is_symlink() and helper.sha(original_path) == sys.argv[9], "original result binding")
+-        original = helper.read(original_path)
+-        if original.get("manifest_sha256") != sys.argv[1]:
+-            adoption = load("observer_adoption", HERE / "adoption.py")
+-            adopted = adoption.validate(ROOT, HERE, original_path, sys.argv[9], policy, helper)
+-        need(original["complete"] and original["execution_preserved"] and original["phase"].startswith("original-"), "complete original observation")
+-        need((original["manifest_sha256"] == sys.argv[1] or adopted is not None) and original["native_sources"] == policy["source_roles"]["original"], "same observation capsule and original source role")
+-        need(original["application_metadata"]["revision"] == metadata["revision"] or
+-             (adopted is not None and original["application_metadata"]["revision"] == policy["original_frozen_head"] and metadata["revision"] == policy["frozen_head"]), "frozen original/candidate HEAD")
++    need(metadata == normative["run_binding"], "same application metadata as calibration phase")
+     out = Path(sys.argv[7])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "absent output")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-admission-zoom-runtime-"), "owned output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-container-zoom-runtime-"), "owned output")
+     need(all(not os.environ.get(name) for name in policy["forbidden_environment"]), "unexpected environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1", MOZ_HEADLESS="1",
+                MOZ_DISABLE_SAFE_MODE_KEY="1", MOZ_DISABLE_UPDATE_PROCESSING="1")
+@@ -105,9 +95,8 @@
+              for name in (".", "artifacts/css-spec-lean")}
+     binaries = {name: h.fingerprint(ROOT, name) for name in policy["normal_binaries"]}
+     need(all(value and epoch["pins"].get(name) == value for name, value in binaries.items()), "built binary epoch")
++    need(binaries == policy["candidate_binaries"], "exact build2 binary pins")
+     out.mkdir()
+-    if adopted is not None:
+-        helper.save(out / "ORIGINAL-ADOPTION.json", adopted)
+     for name, value in (("EPOCH.json", epoch), ("PRE.json", before), ("INDEX-FLAGS.json", flags),
+                         ("NORMAL-BINARIES.json", binaries), ("APPLICATION-METADATA.json", metadata)):
+         helper.save(out / name, value)
+@@ -125,10 +114,11 @@
+         def do_GET(self):
+             route = {base: ("report.html", "text/html"), base + "report.js": ("report.js", "text/javascript"),
+                      }
+-            if self.path not in route:
++            route_path = self.path.split("?", 1)[0]
++            if route_path not in route:
+                 self.send_error(404)
+                 return
+-            name, mime = route[self.path]
++            name, mime = route[route_path]
+             body = (HERE / name).read_bytes()
+             self.send_response(200)
+             self.send_header("Content-Type", mime + "; charset=utf-8")
+@@ -156,11 +146,10 @@
+     server.daemon_threads = True
+     origin = "http://127.0.0.1:" + str(server.server_port)
+     thread = threading.Thread(target=server.serve_forever, daemon=True)
+-    command = [str(ROOT / policy["normal_binaries"][0]), "-headless", "-no-remote", "-profile", str(profile), origin + base]
++    command = [str(ROOT / policy["normal_binaries"][0]), "-headless", "-no-remote", "-profile", str(profile), origin + base + "?submit=1"]
+     helper.save(out / "COMMAND.json", {"command": command, "phase": phase, "epoch_path": str(epoch_path),
+                 "epoch_sha256": sys.argv[4], "normative_assessment": str(normative_path), "normative_sha256": sys.argv[6],
+-                "original_result": str(original_path) if original_path else None,
+-                "original_sha256": sys.argv[9] if original_path else None, "manifest_sha256": sys.argv[1]})
++                "manifest_sha256": sys.argv[1], "source_role": "admission-only-v3-build2", "observation_only": True})
+     stopped = [False]
+     def stop(signum, frame):
+         stopped[0] = True
+@@ -199,8 +188,6 @@
+             need(flags == {name: hashlib.sha256(h.git(ROOT / name, env, "ls-files", "-v", "-z")).hexdigest() for name in flags}, "index flags")
+             for path, expected in ((epoch_path, sys.argv[4]), (normative_path, sys.argv[6])):
+                 need(helper.sha(path) == expected, "external evidence changed")
+-            if original_path:
+-                need(helper.sha(original_path) == sys.argv[9], "original result changed")
+             need({name: h.fingerprint(ROOT, name) for name in binaries} == binaries, "binaries changed")
+             post_metadata = helper.application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+             need(post_metadata == metadata, "application metadata changed")
+@@ -213,29 +200,25 @@
+                 need(helper.sha(ROOT / name) == expected, "WPT reference changed: " + name)
+             for name, expected in helper.read(HERE / "REFERENCES.json").items():
+                 need(helper.sha(ROOT / name) == expected, "reference changed: " + name)
+-            if adopted is not None:
+-                need(adoption.validate(ROOT, HERE, original_path, sys.argv[9], policy, helper) == adopted, "adopted observation changed")
+             helper.save(out / "POST.json", post)
+         except BaseException as exc:
+             post_error = repr(exc)
+     helper.save(out / "RAW.json", {"payloads": rows, "network_errors": network_errors})
+-    summary, comparison = None, None
++    summary = None
+     try:
+         need(len(rows) == 1 and not network_errors, "single complete observation payload")
+         summary = validation.summarize(rows[0])
+-        if original:
+-            comparison = validation.compare(original["summary"], summary)
+     except BaseException as exc:
+         error = error or repr(exc)
+     preserved = error is None and post_error is None and cleanup.get("owned_group_absent") and cleanup.get("profile_removed") and cleanup.get("server_thread_stopped")
+     result = {"complete": bool(preserved and summary), "execution_preserved": bool(preserved),
+               "phase": phase, "manifest_sha256": sys.argv[1], "epoch_sha256": sys.argv[4],
+               "normative_assessment_sha256": sys.argv[6], "normative_phase": normative["phase"], "native_sources": policy["source_roles"][role],
+-              "application_metadata": metadata, "normal_binaries": binaries, "summary": summary, "comparison": comparison,
++              "application_metadata": metadata, "normal_binaries": binaries, "summary": summary, "comparison": None,
+               "browser_exit": process.returncode if process else None, "natural_exit_before_cleanup": natural_exit,
+               "termination_requested_for_owned_cleanup": process is not None, "error": error, "preservation_error": post_error,
+               "profile_configuration": "fresh default profile; WPT preferences are not imported",
+-              "normative_verdict": "not evaluated", "native_fix_acceptance": False, "original_adoption": adopted}
++              "normative_verdict": "not evaluated", "native_fix_acceptance": False, "source_role": "admission-only-v3-build2", "observation_only": True}
+     helper.save(out / "RESULT.json", result)
+     print(json.dumps(result, indent=2))
+     return 0 if result["complete"] else 1

@@ -1,0 +1,7 @@
+# Candidate container observer logic review
+
+Bounded read-only review clear for the disabled draft. This does not approve missing candidate-calibration assessment pins or execution. Read46bfc7/0; no main/browser/build/live source/Git/index/epoch operation.
+
+The exact same report, validator, case roster and protocol are compared byte-for-byte with the authenticated original observer. Eleven pinned baseline files bind completed/preserved source/build/metadata/epoch provenance, cleanup, pre/post preservation, and the raw payload replay to the original summary. The inherited validator enforces ordered case identities and full shape; the candidate comparison retains the complete differing row/sequence objects. All 124 observations remain required. A differing environment field may count as a changed row, so changed_cases is observational, not an improvement count.
+
+Runner delta retains original lifecycle and adds pre/post baseline reauthentication, exact future candidate assessment path/digest, new compiled-role/source/binary guards and observational comparison. Native acceptance and normative verdict remain false/not evaluated. The default profile still does not import WPT preferences. Source-container coordinate interpretation remains an inference and ordinary bug1894104 is explicitly retained as a limit. The 318 shape-rejection controls and raw baseline replay were author-reported and not independently rerun here. Final assessment binding must be reviewed separately before package enablement.

@@ -1,0 +1,29 @@
+--- artifacts/css-registered-zoom-wpt-calibration-v2/run.py
++++ artifacts/css-registered-logical-unit-wpt-calibration-v1/run.py
+@@ -124,7 +124,7 @@
+     out = Path(sys.argv[4])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "output must be absent")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-zoom-wpt-calibration-runtime-"), "owned artifact output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-logical-unit-wpt-calibration-runtime-"), "owned artifact output")
+     need(all(not os.environ.get(k) for k in policy["forbidden_environment"]), "unexpected build/git/profile environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+@@ -196,7 +196,7 @@
+               for p in top.rglob("*") if p.is_file() and "tools" not in p.relative_to(top).parts}
+     copied["wptrunner.ini"] = sha(config_path)
+     save(out / "OWNED-INPUT-PINS.json", copied)
+-    tmp = Path(tempfile.mkdtemp(prefix="css-registered-zoom-calibration-", dir="/private/tmp"))
++    tmp = Path(tempfile.mkdtemp(prefix="css-registered-logical-unit-calibration-", dir="/private/tmp"))
+     tmp_identity = (tmp.stat().st_dev, tmp.stat().st_ino)
+     env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+     raw = out / "raw.jsonl"
+@@ -266,7 +266,7 @@
+         assessment.update(phase=phase, capsule_manifest_sha256=sys.argv[1],
+                           epoch_sha256=sys.argv[3], native_sources=policy["native_sources"],
+                           source_role=policy["source_role"], observation_only=True,
+-                          subtest_cardinality_policy="Exact 56 calibration identities across four pages; PASS and FAIL are complete observations",
++                          subtest_cardinality_policy="Exact 16 calibration identities across one page; PASS and FAIL are complete observations",
+                           oracle_caveat="Unexecuted draft calibration on admission-only candidate; failures are observations, not accepted fixes",
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))

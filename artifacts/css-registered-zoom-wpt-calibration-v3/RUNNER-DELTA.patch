@@ -1,0 +1,125 @@
+--- calibration-v2/run.py
++++ calibration-v3/run.py
+@@ -61,8 +61,8 @@
+ def require_compiled_transition(epoch, role):
+     transition = epoch.get("registered_number_transition")
+     need(isinstance(transition, dict) and transition.get("role") == role and
+-         transition.get("variant") == "committed-head" and transition.get("compiled") is True,
+-         "phase requires matching successful committed-head registered-number compilation")
++         transition.get("variant") == "zoom-normalization-v3" and transition.get("compiled") is True,
++         "phase requires matching successful experimental zoom-normalization-v3 compilation")
+ 
+ 
+ def application_target(path):
+@@ -101,21 +101,24 @@
+     need(len(sys.argv) == 5, "Usage: run.py PACKAGE_SHA EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT")
+     authenticate(HERE, sys.argv[1])
+     policy = read(HERE / "POLICY.json")
+-    succession = load("calibration_successor", HERE / "succession.py")
+-    succession_receipt = succession.validate(ROOT, HERE, policy, SimpleNamespace(**globals()))
+-    phase = "admission-only-1"
++    need(policy.get("execution_enabled") is True, "candidate package disabled pending exact successful build pins")
++    capture = ROOT / policy["capture_package"]
++    authenticate(capture, policy["capture_manifest_sha256"])
++    phase = policy["phase"]
+     epoch_path = Path(sys.argv[2])
+     need(epoch_path.is_absolute() and not epoch_path.is_symlink(), "absolute regular epoch")
+     need(sha(epoch_path) == sys.argv[3] == policy["epoch_sha256"], "exact externally supplied epoch")
+     epoch = read(epoch_path)
+     require_compiled_transition(epoch, "candidate")
+     need(epoch["registered_number_transition"].get("accepted") is False and
+-         epoch["registered_number_transition"].get("last_phase") == "head-candidate-build-2",
+-         "unaccepted admission-only build2 required")
++         epoch["registered_number_transition"].get("last_phase") == "zoom-normalization-build-2",
++         "unaccepted zoom-normalization build2 required")
+     need(epoch["semantic_index"]["head"] == policy["frozen_head"], "frozen HEAD")
+-    need(sha(ROOT / policy["build_result"]) == policy["build_result_sha256"], "build2 receipt")
++    need(sha(ROOT / policy["build_result"]) == policy["build_result_sha256"], "candidate build receipt")
++    need(sha(ROOT / policy["build_epoch"]) == policy["build_epoch_sha256"] == sys.argv[3], "successful build exact epoch binding")
++    need(read(ROOT / policy["build_epoch"]) == epoch, "saved successful build epoch and current epoch differ")
+     build = read(ROOT / policy["build_result"])
+-    need(build["command_success"] and build["preservation_verified"] and not build["owned_processes"] and not build["publication_errors"], "successful preserved build2")
++    need(build["command_success"] and build["preservation_verified"] and not build["owned_processes"] and not build["publication_errors"], "successful preserved candidate build")
+     app_metadata = application_metadata(ROOT / policy["application_ini"], policy["frozen_head"])
+     for name, pin in read(HERE / "REFERENCES.json").items():
+         need(sha(ROOT / name) == pin, "helper/source binding: " + name)
+@@ -135,6 +138,9 @@
+     checks = load("ordinary_checks", ROOT / policy["helpers"]["checks"])
+     control = load("ordinary_control", ROOT / policy["helpers"]["control"])
+     parser = load("ordinary_assessment", ROOT / policy["base_assessor"])
++    baseline = load("exact_baseline", HERE / "baseline.py")
++    comparison = load("phase_comparison", HERE / "compare.py")
++    original = baseline.validate(ROOT, HERE, policy, SimpleNamespace(**globals()), parser, checks)
+     before = guard.verify_current(h, ROOT, env, epoch)
+     flags = {name: hashlib.sha256(h.git(ROOT / name, env, "ls-files", "-v", "-z")).hexdigest()
+              for name in (".", "artifacts/css-spec-lean")}
+@@ -152,9 +158,9 @@
+     need({n: fingerprint_resource(n) for n in resource_pins} == resource_pins, "source/resource/metadata inputs")
+     binary_pins = {name: h.fingerprint(ROOT, name) for name in policy["normal_binaries"]}
+     need(all(pin and epoch["pins"][name] == pin for name, pin in binary_pins.items()), "normal built binary bindings")
+-    need(binary_pins == policy["candidate_binaries"], "exact admission-only build2 binaries")
++    need(binary_pins == policy["candidate_binaries"], "exact experimental candidate binaries")
+     out.mkdir()
+-    save(out / "HEAD-SUCCESSION.json", succession_receipt)
++    save(out / "BASELINE-BINDING.json", {"directory":policy["baseline_directory"], "pins":read(HERE / "BASELINE-PINS.json"), "capsule_manifest_sha256":policy["capture_manifest_sha256"], "phase":original["phase"]})
+     save(out / "EPOCH.json", epoch)
+     save(out / "PRE.json", before)
+     save(out / "INDEX-FLAGS.json", flags)
+@@ -172,13 +178,13 @@
+         relative = Path(name.removeprefix(prefix))
+         destination = (tests_root if relative.parts[0] == "tests" else metadata).joinpath(*relative.parts[1:])
+         destination.parent.mkdir(parents=True, exist_ok=True)
+-        destination.write_bytes((HERE / item["capture"]).read_bytes())
++        destination.write_bytes((capture / item["capture"]).read_bytes())
+         need(sha(destination) == item["sha256"], "copied input: " + name)
+     (tests_root / "tools").symlink_to(ROOT / "testing/web-platform/tests/tools", target_is_directory=True)
+     server = read(ROOT / "testing/web-platform/tests/config.json")
+     server["ports"] = {protocol: ["auto"] * count for protocol, count in policy["server_protocols"].items()}
+     save(tests_root / "config.json", server)
+-    save(metadata / "MANIFEST.json", read(HERE / "SUBSET-MANIFEST.json"))
++    save(metadata / "MANIFEST.json", read(capture / "SUBSET-MANIFEST.json"))
+     config = configparser.ConfigParser(interpolation=None)
+     config.read(ROOT / policy["wpt_config"])
+     for section in list(config.sections()):
+@@ -253,12 +259,12 @@
+                  (tests_root / "tools").resolve() == ROOT / "testing/web-platform/tests/tools", "owned tools link changed")
+             for name, pin in read(HERE / "REFERENCES.json").items():
+                 need(sha(ROOT / name) == pin, "helper/source changed: " + name)
+-            need(succession.validate(ROOT, HERE, policy, SimpleNamespace(**globals())) == succession_receipt, "signed succession changed")
++            need(baseline.validate(ROOT, HERE, policy, SimpleNamespace(**globals()), parser, checks) == original, "saved baseline changed")
+             authenticate(HERE, sys.argv[1])
+             save(out / "POST.json", post)
+         except BaseException as exc:
+             post_error = repr(exc)
+-    assessment = None
++    assessment, compared = None, None
+     try:
+         need(raw.is_file() and not raw.is_symlink() and raw.stat().st_size <= 128 * 1024 * 1024, "missing/oversized raw log")
+         events = [json.loads(line) for line in raw.read_text().splitlines()]
+@@ -267,19 +273,23 @@
+                           epoch_sha256=sys.argv[3], native_sources=policy["native_sources"],
+                           source_role=policy["source_role"], observation_only=True,
+                           subtest_cardinality_policy="Exact 56 calibration identities across four pages; PASS and FAIL are complete observations",
+-                          oracle_caveat="Unexecuted draft calibration on admission-only candidate; failures are observations, not accepted fixes",
++                          oracle_caveat="Experimental zoom candidate compared with exact admission-only baseline; failures and improvements are observations, not accepted fixes",
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)
++        compared = comparison.compare(original, assessment, policy)
++        save(out / "COMPARISON.json", compared)
+     except BaseException as exc:
+         error = error or repr(exc)
+     passed = (error is None and post_error is None and cleanup.get("owned_group_absent")
+               and cleanup.get("temporary_root_removed") and assessment and assessment["complete"]
+-              and assessment["execution_preserved"])
++              and assessment["execution_preserved"] and compared and compared["complete_comparison"])
+     result = {"exit": code, "execution_error": error, "preservation_error": post_error,
+               "phase": phase, "source_role": policy["source_role"],
+               "observation_gate_passed": bool(passed), "comparison_gate_passed": False,
+-              "native_fix_acceptance": False, "observation_only": True}
++              "native_fix_acceptance": False, "observation_only": True,
++              "comparison_counts": compared["counts"] if compared else None,
++              "complete_observational_comparison": bool(compared and compared["complete_comparison"])}
+     save(out / "RESULT.json", result)
+     print(json.dumps(result, indent=2))
+     return 0 if passed else 1

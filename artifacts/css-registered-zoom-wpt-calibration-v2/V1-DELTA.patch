@@ -1,0 +1,27 @@
+--- calibration-v1/run.py
++++ calibration-v2/run.py
+@@ -101,6 +101,8 @@
+     need(len(sys.argv) == 5, "Usage: run.py PACKAGE_SHA EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT")
+     authenticate(HERE, sys.argv[1])
+     policy = read(HERE / "POLICY.json")
++    succession = load("calibration_successor", HERE / "succession.py")
++    succession_receipt = succession.validate(ROOT, HERE, policy, SimpleNamespace(**globals()))
+     phase = "admission-only-1"
+     epoch_path = Path(sys.argv[2])
+     need(epoch_path.is_absolute() and not epoch_path.is_symlink(), "absolute regular epoch")
+@@ -152,6 +154,7 @@
+     need(all(pin and epoch["pins"][name] == pin for name, pin in binary_pins.items()), "normal built binary bindings")
+     need(binary_pins == policy["candidate_binaries"], "exact admission-only build2 binaries")
+     out.mkdir()
++    save(out / "HEAD-SUCCESSION.json", succession_receipt)
+     save(out / "EPOCH.json", epoch)
+     save(out / "PRE.json", before)
+     save(out / "INDEX-FLAGS.json", flags)
+@@ -250,6 +253,7 @@
+                  (tests_root / "tools").resolve() == ROOT / "testing/web-platform/tests/tools", "owned tools link changed")
+             for name, pin in read(HERE / "REFERENCES.json").items():
+                 need(sha(ROOT / name) == pin, "helper/source changed: " + name)
++            need(succession.validate(ROOT, HERE, policy, SimpleNamespace(**globals())) == succession_receipt, "signed succession changed")
+             authenticate(HERE, sys.argv[1])
+             save(out / "POST.json", post)
+         except BaseException as exc:

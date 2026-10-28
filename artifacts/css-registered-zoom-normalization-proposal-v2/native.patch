@@ -1,0 +1,422 @@
+diff --git a/servo/components/style/values/specified/length.rs b/servo/components/style/values/specified/length.rs
+--- a/servo/components/style/values/specified/length.rs
++++ b/servo/components/style/values/specified/length.rs
+@@ -949,7 +949,11 @@
+                 }
+             },
+         };
+-        let length = context.builder.effective_zoom.zoom(length.0 as f32);
++        let length = if context.in_registered_value() {
++            length.0 as f32
++        } else {
++            context.builder.effective_zoom.zoom(length.0 as f32)
++        };
+ 
+         let trunc_scaled =
+             ((length as f64 * factor as f64 / 100.).trunc() / AU_PER_PX as f64) as f32;
+@@ -973,11 +977,11 @@
+             LengthUnit::Cqh => size.get_container_height(context),
+             LengthUnit::Cqi => size.get_container_inline_size(context),
+             LengthUnit::Cqb => size.get_container_block_size(context),
+-            LengthUnit::Cqmin => cmp::min(
++            LengthUnit::Cqmin => f64::min(
+                 size.get_container_inline_size(context),
+                 size.get_container_block_size(context),
+             ),
+-            LengthUnit::Cqmax => cmp::max(
++            LengthUnit::Cqmax => f64::max(
+                 size.get_container_inline_size(context),
+                 size.get_container_block_size(context),
+             ),
+@@ -985,7 +989,7 @@
+                 unreachable!("container_relative_to_computed_value: not a container-relative unit")
+             },
+         };
+-        CSSPixelLength::new((container_length.to_f64_px() * factor as f64 / 100.0) as f32)
++        CSSPixelLength::new((container_length * factor as f64 / 100.0) as f32)
+     }
+ 
+     /// Computes a ServoCharacterWidth length against a reference font size.
+@@ -1025,11 +1029,19 @@
+         line_height_base: LineHeightBase,
+     ) -> CSSPixelLength {
+         if let Some(px) = self.to_px_if_absolute() {
++            if context.in_registered_value() {
++                return CSSPixelLength::new(px);
++            }
+             return CSSPixelLength::new(px).zoom(context.builder.effective_zoom);
+         }
+         let unit = self.length_unit();
+         if unit.is_font_relative() {
+-            return self.font_relative_to_computed_value(context, base_size, line_height_base);
++            let value = self.font_relative_to_computed_value(context, base_size, line_height_base);
++            return if context.in_registered_value() {
++                CSSPixelLength::new(context.builder.effective_zoom.unzoom(value.px()))
++            } else {
++                value
++            };
+         }
+         if unit.is_viewport_percentage() {
+             return self.viewport_percentage_to_computed_value(context);
+@@ -1038,13 +1050,18 @@
+             return self.container_relative_to_computed_value(context);
+         }
+         debug_assert_eq!(unit, LengthUnit::ServoCharacterWidth);
+-        self.servo_character_width_to_computed_value(
++        let value = self.servo_character_width_to_computed_value(
+             context
+                 .style()
+                 .get_font()
+                 .slow_clone_font_size()
+                 .computed_size(),
+-        )
++        );
++        if context.in_registered_value() {
++            CSSPixelLength::new(context.builder.effective_zoom.unzoom(value.px()))
++        } else {
++            value
++        }
+     }
+ }
+ 
+@@ -1983,7 +2000,7 @@
+         {
+             Ok(length) => return Ok(GenericMaxSize::LengthPercentage(length)),
+             Err(e) if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) => {
+-                return Err(e.into())
++                return Err(e.into());
+             },
+             Err(_) => (),
+         };
+@@ -2024,7 +2041,7 @@
+         match input.try_parse(|i| i.expect_ident_matching("auto")) {
+             Ok(_) => return Ok(Self::Auto),
+             Err(e) if !crate::pref!("layout.css.anchor-positioning.enabled", gecko = true) => {
+-                return Err(e.into())
++                return Err(e.into());
+             },
+             Err(_) => (),
+         };
+diff --git a/servo/components/style/values/computed/length.rs b/servo/components/style/values/computed/length.rs
+--- a/servo/components/style/values/computed/length.rs
++++ b/servo/components/style/values/computed/length.rs
+@@ -130,6 +130,9 @@
+     type ResolvedValue = Self;
+ 
+     fn to_resolved_value(self, context: &ResolvedContext) -> Self::ResolvedValue {
++        if context.for_property.is_custom() {
++            return self;
++        }
+         Self(context.style.effective_zoom.unzoom(self.0))
+     }
+ 
+diff --git a/servo/components/style/values/computed/length_percentage.rs b/servo/components/style/values/computed/length_percentage.rs
+--- a/servo/components/style/values/computed/length_percentage.rs
++++ b/servo/components/style/values/computed/length_percentage.rs
+@@ -82,7 +82,7 @@
+     type ResolvedValue = Self;
+ 
+     fn to_resolved_value(self, context: &ResolvedContext) -> Self::ResolvedValue {
+-        if context.style.effective_zoom.is_one() {
++        if context.for_property.is_custom() || context.style.effective_zoom.is_one() {
+             return self;
+         }
+         self.map_lengths(|l| l.to_resolved_value(context))
+@@ -823,8 +823,7 @@
+                 ComputedLeaf::Percentage(CalcPercentageLeaf::new(p.get(), p.hint))
+             },
+             Leaf::Length(l) => ComputedLeaf::Length({
+-                let result =
+-                    l.to_computed_value_for_math(context, base_size, line_height_base);
++                let result = l.to_computed_value_for_math(context, base_size, line_height_base);
+                 if l.should_zoom_text() {
+                     zoom_fn(result)
+                 } else {
+diff --git a/servo/components/style/queries/feature_expression.rs b/servo/components/style/queries/feature_expression.rs
+--- a/servo/components/style/queries/feature_expression.rs
++++ b/servo/components/style/queries/feature_expression.rs
+@@ -1060,18 +1060,28 @@
+                     visited_set,
+                 )
+             },
+-            QueryExpressionValue::Length(v) => {
+-                Some(Component::Length(v.to_computed_value(context)))
+-            },
+-            QueryExpressionValue::Float(v) => Some(Component::Number(v.to_computed_value(context))),
+-            QueryExpressionValue::Resolution(v) => {
+-                Some(Component::Resolution(v.to_computed_value(context)))
+-            },
+-            QueryExpressionValue::Percentage(v) => {
+-                Some(Component::Percentage(v.to_computed_value(context)))
+-            },
+-            QueryExpressionValue::Angle(v) => Some(Component::Angle(v.to_computed_value(context))),
+-            QueryExpressionValue::Time(v) => Some(Component::Time(v.to_computed_value(context))),
++            QueryExpressionValue::Length(v) => Some(Component::Length(
++                context.with_registered_value(|context| v.to_computed_value(context)),
++            )),
++            QueryExpressionValue::Float(v) => Some(Component::Number(
++                context.with_registered_value(|context| v.to_computed_value(context)),
++            )),
++            QueryExpressionValue::Resolution(v) => Some(Component::Resolution(
++                context.with_registered_value(|context| v.to_computed_value(context)),
++            )),
++            QueryExpressionValue::Percentage(v) => Some(Component::Percentage(
++                context.with_registered_value(|context| v.to_computed_value(context)),
++            )),
++            QueryExpressionValue::Angle(v) => {
++                Some(Component::Angle(context.with_registered_value(|context| {
++                    v.to_computed_value(context)
++                })))
++            },
++            QueryExpressionValue::Time(v) => {
++                Some(Component::Time(context.with_registered_value(|context| {
++                    v.to_computed_value(context)
++                })))
++            },
+             // It's unclear to me what CSS-wide keywords would mean in a style-range query;
+             // for now, at least, they'll just fail to resolve.
+             QueryExpressionValue::Keyword(_) => None,
+diff --git a/servo/components/style/properties_and_values/value.rs b/servo/components/style/properties_and_values/value.rs
+--- a/servo/components/style/properties_and_values/value.rs
++++ b/servo/components/style/properties_and_values/value.rs
+@@ -179,7 +179,7 @@
+ 
+ /// A struct for a single specified registered custom property value that includes its original URL
+ /// data so the value can be uncomputed later.
+-#[derive(Clone, Debug, MallocSizeOf, ToCss, ToComputedValue, ToResolvedValue, ToShmem, ToTyped)]
++#[derive(Clone, Debug, MallocSizeOf, ToCss, ToResolvedValue, ToShmem, ToTyped)]
+ #[typed(todo_derive_fields)]
+ pub struct Value<Component> {
+     /// The registered custom property value.
+@@ -191,6 +191,28 @@
+     /// Flag indicating whether this value is tainted by an attr().
+     #[css(skip)]
+     pub attr_tainted: bool,
++}
++
++impl<Component: ToComputedValue> ToComputedValue for Value<Component> {
++    type ComputedValue = Value<Component::ComputedValue>;
++
++    #[inline]
++    fn to_computed_value(&self, context: &computed::Context) -> Self::ComputedValue {
++        context.with_registered_value(|context| Value {
++            v: self.v.to_computed_value(context),
++            url_data: self.url_data.to_computed_value(context),
++            attr_tainted: self.attr_tainted.to_computed_value(context),
++        })
++    }
++
++    #[inline]
++    fn from_computed_value(computed: &Self::ComputedValue) -> Self {
++        Self {
++            v: ToComputedValue::from_computed_value(&computed.v),
++            url_data: ToComputedValue::from_computed_value(&computed.url_data),
++            attr_tainted: ToComputedValue::from_computed_value(&computed.attr_tainted),
++        }
++    }
+ }
+ 
+ impl<Component: PartialEq> PartialEq for Value<Component> {
+diff --git a/servo/components/style/values/computed/mod.rs b/servo/components/style/values/computed/mod.rs
+--- a/servo/components/style/values/computed/mod.rs
++++ b/servo/components/style/values/computed/mod.rs
+@@ -41,7 +41,7 @@
+ use rand::{Rng, SeedableRng};
+ use rustc_hash::FxHasher;
+ use servo_arc::Arc;
+-use std::cell::RefCell;
++use std::cell::{Cell, RefCell};
+ use std::cmp;
+ use std::f32;
+ use std::hash::{Hash, Hasher};
+@@ -216,6 +216,8 @@
+     /// Whether or not we are computing the container query condition.
+     pub in_container_query: bool,
+ 
++    in_registered_value: Cell<bool>,
++
+     /// The quirks mode of this context.
+     pub quirks_mode: QuirksMode,
+ 
+@@ -259,6 +261,28 @@
+ }
+ 
+ impl<'a> Context<'a> {
++    /// Whether a registered value is being computed in canonical units.
++    pub fn in_registered_value(&self) -> bool {
++        self.in_registered_value.get()
++    }
++
++    /// Compute a registered value, restoring the previous scope on exit.
++    pub fn with_registered_value<R>(&self, f: impl FnOnce(&Self) -> R) -> R {
++        struct Reset<'a>(&'a Cell<bool>, bool);
++
++        impl Drop for Reset<'_> {
++            fn drop(&mut self) {
++                self.0.set(self.1);
++            }
++        }
++
++        let _reset = Reset(
++            &self.in_registered_value,
++            self.in_registered_value.replace(true),
++        );
++        f(self)
++    }
++
+     /// Lazily evaluate the container size query, returning the result.
+     pub fn get_container_size_query(&self) -> ContainerSizeQueryResult {
+         let mut resolved = self.container_size_query.borrow_mut();
+@@ -286,6 +310,7 @@
+             rule_cache_conditions: RefCell::new(&mut conditions),
+             scope: CascadeLevel::same_tree_author_normal(),
+             included_cascade_flags: RuleCascadeFlags::empty(),
++            in_registered_value: Cell::new(false),
+             container_size_query: RefCell::new(ContainerSizeQuery::none()),
+             element_context: &DummyElementContext {},
+             tree_counting_caches: RefCell::new(&mut tree_counting_caches),
+@@ -328,6 +353,7 @@
+             rule_cache_conditions: RefCell::new(&mut conditions),
+             scope: CascadeLevel::same_tree_author_normal(),
+             included_cascade_flags: RuleCascadeFlags::empty(),
++            in_registered_value: Cell::new(false),
+             container_size_query: RefCell::new(container_size_query),
+             element_context,
+             tree_counting_caches: RefCell::new(&mut tree_counting_caches),
+@@ -364,6 +390,7 @@
+             rule_cache_conditions: RefCell::new(rule_cache_conditions),
+             scope: CascadeLevel::same_tree_author_normal(),
+             included_cascade_flags,
++            in_registered_value: Cell::new(false),
+             container_size_query: RefCell::new(container_size_query),
+             element_context,
+             tree_counting_caches: RefCell::new(tree_counting_caches),
+@@ -392,6 +419,7 @@
+             rule_cache_conditions: RefCell::new(rule_cache_conditions),
+             scope: CascadeLevel::same_tree_author_normal(),
+             included_cascade_flags: RuleCascadeFlags::empty(),
++            in_registered_value: Cell::new(false),
+             container_size_query: RefCell::new(container_size_query),
+             element_context,
+             tree_counting_caches: RefCell::new(tree_counting_caches),
+@@ -419,6 +447,7 @@
+             rule_cache_conditions: RefCell::new(rule_cache_conditions),
+             scope: CascadeLevel::same_tree_author_normal(),
+             included_cascade_flags: RuleCascadeFlags::empty(),
++            in_registered_value: Cell::new(false),
+             container_size_query: RefCell::new(ContainerSizeQuery::none()),
+             element_context: &DummyElementContext {},
+             tree_counting_caches: RefCell::new(tree_counting_caches),
+diff --git a/servo/components/style/stylesheets/container_rule.rs b/servo/components/style/stylesheets/container_rule.rs
+--- a/servo/components/style/stylesheets/container_rule.rs
++++ b/servo/components/style/stylesheets/container_rule.rs
+@@ -20,7 +20,7 @@
+ };
+ use crate::stylesheets::{CssRules, CustomMediaEvaluator};
+ use crate::stylist::Stylist;
+-use crate::values::computed::{CSSPixelLength, ContainerType, Context, Ratio};
++use crate::values::computed::{CSSPixelLength, ContainerType, Context, Ratio, Zoom};
+ use crate::values::specified::ContainerName;
+ use crate::{LocalName, derives::*};
+ use app_units::Au;
+@@ -535,11 +535,20 @@
+ /// element's writing mode.
+ #[derive(Copy, Clone, Default)]
+ pub struct ContainerSizeQueryResult {
+-    width: Option<Au>,
+-    height: Option<Au>,
++    width: Option<(Au, Zoom)>,
++    height: Option<(Au, Zoom)>,
+ }
+ 
+ impl ContainerSizeQueryResult {
++    fn resolve_size((size, zoom): (Au, Zoom), context: &Context) -> f64 {
++        let size = size.to_f64_px();
++        if context.in_registered_value() && !zoom.is_one() && zoom.value() != 0.0 {
++            size / f64::from(zoom.value())
++        } else {
++            size
++        }
++    }
++
+     fn get_viewport_size(context: &Context) -> Size2D<Au> {
+         use crate::values::specified::ViewportVariant;
+         context.viewport_size_for_viewport_unit_resolution(ViewportVariant::Small)
+@@ -553,19 +562,19 @@
+     }
+ 
+     /// Get the inline-size of the query container.
+-    pub fn get_container_inline_size(&self, context: &Context) -> Au {
++    pub fn get_container_inline_size(&self, context: &Context) -> f64 {
+         if context.builder.writing_mode.is_horizontal() {
+             if let Some(w) = self.width {
+-                return w;
++                return Self::resolve_size(w, context);
+             }
+         } else if let Some(h) = self.height {
+-            return h;
+-        }
+-        Self::get_logical_viewport_size(context).inline
++            return Self::resolve_size(h, context);
++        }
++        Self::get_logical_viewport_size(context).inline.to_f64_px()
+     }
+ 
+     /// Get the block-size of the query container.
+-    pub fn get_container_block_size(&self, context: &Context) -> Au {
++    pub fn get_container_block_size(&self, context: &Context) -> f64 {
+         if context.builder.writing_mode.is_horizontal() {
+             self.get_container_height(context)
+         } else {
+@@ -574,19 +583,19 @@
+     }
+ 
+     /// Get the width of the query container.
+-    pub fn get_container_width(&self, context: &Context) -> Au {
++    pub fn get_container_width(&self, context: &Context) -> f64 {
+         if let Some(w) = self.width {
+-            return w;
+-        }
+-        Self::get_viewport_size(context).width
++            return Self::resolve_size(w, context);
++        }
++        Self::get_viewport_size(context).width.to_f64_px()
+     }
+ 
+     /// Get the height of the query container.
+-    pub fn get_container_height(&self, context: &Context) -> Au {
++    pub fn get_container_height(&self, context: &Context) -> f64 {
+         if let Some(h) = self.height {
+-            return h;
+-        }
+-        Self::get_viewport_size(context).height
++            return Self::resolve_size(h, context);
++        }
++        Self::get_viewport_size(context).height.to_f64_px()
+     }
+ 
+     // Merge the result of a subsequent lookup, preferring the initial result.
+@@ -648,19 +657,19 @@
+         let size = e.query_container_size(box_style.get_display());
+         if container_type.intersects(ContainerType::SIZE) {
+             TraversalResult::Done(ContainerSizeQueryResult {
+-                width: size.width,
+-                height: size.height,
++                width: size.width.map(|v| (v, style.effective_zoom)),
++                height: size.height.map(|v| (v, style.effective_zoom)),
+             })
+         } else if container_type.intersects(ContainerType::INLINE_SIZE) {
+             if wm.is_horizontal() {
+                 TraversalResult::Done(ContainerSizeQueryResult {
+-                    width: size.width,
++                    width: size.width.map(|v| (v, style.effective_zoom)),
+                     height: None,
+                 })
+             } else {
+                 TraversalResult::Done(ContainerSizeQueryResult {
+                     width: None,
+-                    height: size.height,
++                    height: size.height.map(|v| (v, style.effective_zoom)),
+                 })
+             }
+         } else {
