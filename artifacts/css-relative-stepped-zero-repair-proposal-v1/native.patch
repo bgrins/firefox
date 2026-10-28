@@ -1,0 +1,40 @@
+--- a/servo/components/style/values/generics/calc.rs
++++ b/servo/components/style/values/generics/calc.rs
+@@ -1991,6 +1991,18 @@
+                 ref mut value,
+                 ref mut step,
+             } => {
++                if value
++                    .as_leaf()
++                    .and_then(|leaf| leaf.canonical_value())
++                    .is_none()
++                    || step
++                        .as_leaf()
++                        .and_then(|leaf| leaf.canonical_value())
++                        .is_none()
++                {
++                    return SimplificationResult::Unchanged;
++                }
++
+                 if value_or_stop!(step.is_zero_leaf()) {
+                     value_or_stop!(value.coerce_to_value(f32::NAN));
+                     replace_self_with!(&mut **value);
+@@ -2132,6 +2144,18 @@
+                 ref divisor,
+                 op,
+             } => {
++                if dividend
++                    .as_leaf()
++                    .and_then(|leaf| leaf.canonical_value())
++                    .is_none()
++                    || divisor
++                        .as_leaf()
++                        .and_then(|leaf| leaf.canonical_value())
++                        .is_none()
++                {
++                    return SimplificationResult::Unchanged;
++                }
++
+                 let mut result = value_or_stop!(dividend.try_op(divisor, |a, b| op.apply(a, b)));
+                 replace_self_with!(&mut result);
+                 SimplificationResult::Simplified

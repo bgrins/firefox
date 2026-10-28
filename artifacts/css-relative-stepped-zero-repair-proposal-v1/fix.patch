@@ -1,0 +1,145 @@
+--- a/servo/components/style/values/generics/calc.rs
++++ b/servo/components/style/values/generics/calc.rs
+@@ -1991,6 +1991,18 @@
+                 ref mut value,
+                 ref mut step,
+             } => {
++                if value
++                    .as_leaf()
++                    .and_then(|leaf| leaf.canonical_value())
++                    .is_none()
++                    || step
++                        .as_leaf()
++                        .and_then(|leaf| leaf.canonical_value())
++                        .is_none()
++                {
++                    return SimplificationResult::Unchanged;
++                }
++
+                 if value_or_stop!(step.is_zero_leaf()) {
+                     value_or_stop!(value.coerce_to_value(f32::NAN));
+                     replace_self_with!(&mut **value);
+@@ -2132,6 +2144,18 @@
+                 ref divisor,
+                 op,
+             } => {
++                if dividend
++                    .as_leaf()
++                    .and_then(|leaf| leaf.canonical_value())
++                    .is_none()
++                    || divisor
++                        .as_leaf()
++                        .and_then(|leaf| leaf.canonical_value())
++                        .is_none()
++                {
++                    return SimplificationResult::Unchanged;
++                }
++
+                 let mut result = value_or_stop!(dividend.try_op(divisor, |a, b| op.apply(a, b)));
+                 replace_self_with!(&mut result);
+                 SimplificationResult::Simplified
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-values/relative-stepped-zero-basis.html
+@@ -0,0 +1,102 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Relative stepped math preserves zero-basis singularities</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#round-infinities">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-ieee">
++<link rel="help" href="https://drafts.csswg.org/css-values-4/#simplify-a-calculation-tree">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++async function observeRelativeSteppedZero() {
++  const frame = document.createElement("iframe");
++  frame.style.cssText = "width:320px;height:180px;border:0";
++  document.body.append(frame);
++  try {
++    const doc = frame.contentDocument;
++    doc.open();
++    doc.write("<!doctype html><style>html,body{margin:0}#container{container-type:size;position:relative;height:100px}i{display:block;position:absolute;height:1px;min-width:0;max-width:none;padding:0;border:0;box-sizing:content-box}</style><div id=container></div>");
++    doc.close();
++    const container = doc.getElementById("container");
++    const operations = {
++      mod: unit => `calc(10px + mod(3${unit}, 2${unit}))`,
++      rem: unit => `calc(10px + rem(3${unit}, 2${unit}))`,
++      round: unit => `calc(10px + round(nearest, 3${unit}, 2${unit}))`,
++      division: unit => `calc(10px + (1${unit} / 1${unit}) * 1px)`,
++      cancellation: unit => `calc(10px + 1${unit} - 1${unit})`,
++      zeroProduct: unit => `calc(10px + 0 * 1${unit})`,
++    };
++    const pixelExpression = (operation, basis) => {
++      if (operation === "mod" || operation === "rem") {
++        return `calc(10px + ${operation}(${3 * basis}px, ${2 * basis}px))`;
++      }
++      if (operation === "round") {
++        return `calc(10px + round(nearest, ${3 * basis}px, ${2 * basis}px))`;
++      }
++      if (operation === "division") {
++        return `calc(10px + (${basis}px / ${basis}px) * 1px)`;
++      }
++      if (operation === "cancellation") return `calc(10px + ${basis}px - ${basis}px)`;
++      return `calc(10px + 0 * ${basis}px)`;
++    };
++    const rows = [];
++    for (const unit of ["em", "rem", "cqw"]) {
++      for (const [operation, expression] of Object.entries(operations)) {
++        const elements = Array.from({length: 5}, () => {
++          const element = doc.createElement("i");
++          container.append(element);
++          return element;
++        });
++        const [target, resolved, literal, absolute, calibration] = elements;
++        const specified = expression(unit);
++        target.style.width = specified;
++        absolute.style.width = expression("px");
++        calibration.style.width = `1${unit}`;
++        for (const basis of [10, 0, 10]) {
++          doc.documentElement.style.fontSize = `${unit === "rem" ? basis : 16}px`;
++          container.style.width = `${unit === "cqw" ? basis * 100 : 100}px`;
++          for (const element of elements) element.style.fontSize = `${unit === "em" ? basis : 16}px`;
++          const expected = operation === "cancellation" || operation === "zeroProduct" ? 10
++            : basis === 0 ? 0 : operation === "round" ? 10 + 4 * basis
++            : operation === "division" ? 11 : 10 + basis;
++          resolved.style.width = pixelExpression(operation, basis);
++          literal.style.width = `${expected}px`;
++          await new Promise(resolve => frame.contentWindow.requestAnimationFrame(() => frame.contentWindow.requestAnimationFrame(resolve)));
++          const read = element => ({specified: element.style.width, width: frame.contentWindow.getComputedStyle(element).width, rect: element.getBoundingClientRect().width});
++          rows.push({unit, operation, basis, expected, supported: frame.contentWindow.CSS.supports("width", specified), target: read(target), resolved: read(resolved), literal: read(literal), absolute: read(absolute), calibration: read(calibration), targetFont: frame.contentWindow.getComputedStyle(target).fontSize, rootFont: frame.contentWindow.getComputedStyle(doc.documentElement).fontSize, containerWidth: frame.contentWindow.getComputedStyle(container).width});
++        }
++        elements.forEach(element => element.remove());
++      }
++    }
++    return {rows, count: rows.length};
++  } finally {
++    frame.remove();
++  }
++}
++
++let measurements;
++for (const unit of ["em", "rem", "cqw"]) {
++  for (const operation of ["mod", "rem", "round", "division", "cancellation", "zeroProduct"]) {
++    promise_test(async () => {
++      measurements ||= observeRelativeSteppedZero();
++      const result = await measurements;
++      assert_equals(result.count, 54);
++      const rows = result.rows.filter(row => row.unit === unit && row.operation === operation);
++      assert_array_equals(rows.map(row => row.basis), [10, 0, 10]);
++      const absoluteExpected = operation === "round" ? 14
++        : operation === "cancellation" || operation === "zeroProduct" ? 10 : 11;
++      for (const row of rows) {
++        const label = `${operation}/${unit}, basis ${row.basis}`;
++        assert_true(row.supported, label + " syntax support");
++        assert_equals(row.calibration.width, `${row.basis}px`, label + " unit calibration");
++        assert_equals(row.calibration.rect, row.basis, label + " unit geometry");
++        assert_equals(row.resolved.width, `${row.expected}px`, label + " resolved-pixel calculation");
++        assert_equals(row.literal.width, `${row.expected}px`, label + " literal control");
++        assert_equals(row.absolute.width, `${absoluteExpected}px`, label + " absolute control");
++        assert_equals(row.target.width, `${row.expected}px`, label + " computed width");
++        assert_equals(row.target.rect, row.expected, label + " layout width");
++      }
++    }, `${operation} with ${unit} follows a 10, 0, 10 basis`);
++  }
++}
++</script>

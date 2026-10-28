@@ -1,0 +1,13 @@
+# Release observation: relative stepped operations at a zero basis
+
+The exact sealed probe ran in an owned data tab in explicitly selected /Applications/Firefox.app/Contents/MacOS/firefox, headless. MCP and UA report Firefox158. The configured application's pinned application.ini identifies build20261007201254, SourceStamp eb9a6e3a736802c8e080a76c44dc81f409d99d54 on mozilla-release. Launcher, XUL and application.ini hashes are unchanged afterward. navigator.buildID returned the privacy-masked20181001000000; it is not used as the real build identifier. This is a controlled MCP profile, not an attestation of every stock preference.
+
+54 raw rows cover mod/rem/round, division/cancellation/zero-product controls, three bases (em, rem, cqw) and10→0→10 transitions. Exactly nine target rows disagree: each stepped operation at each zero basis yields10px while the resolved-pixel and literal references yield0px. All45 other targets match. Every pixel/literal pair, actual-unit calibration and fixed-absolute control agrees. assess.py replays these exact counts and full operation/unit/phase ordering from raw.json.
+
+For example calc(10px + mod(3em, 2em)) serializes as calc(1em + 10px), then computes10px at font-size0. The equivalent zero-pixel operation retains NaN through the outer sum and computes0px. Round similarly folds to4em before the zero basis is known. This is one premature-evaluation workstream, not nine independent bugs.
+
+Exact release sources were fetched from Mozilla at the configured build SourceStamp. The CalcNode::ModRem and finite CalcNode::Round simplification branches call try_op; specified calc delegates Length operands to NoCalcLength::try_op, which operates on matching relative-unit coefficients. These captures support the source explanation for the observed fold. Current-branch source/spec and dedup evidence are in css-relative-stepped-zero-probe-v1; its prior accepted infinity/quotient repairs are distinct.
+
+The probe iframe was removed in finally, its tab was closed, and the server confirmed its owned Firefox instance was closed. MCP remains configured for the release binary/headless. An initial saveTo request was rejected by the server's output-path policy; the successful run saved to its permitted output directory and the exact JSON was copied here. No local native sources, index, build or browser binary were changed by this observation.
+
+No candidate repair ran and no fix is accepted. Operation-specific knowledge guards need complete early-branch and integer/easing consumer audits. A scoped Lean witness and standalone WPT/repair proposal are separate next work. This lead was found by source investigation and confirmed in the browser; it was not discovered by a Lean proof.
