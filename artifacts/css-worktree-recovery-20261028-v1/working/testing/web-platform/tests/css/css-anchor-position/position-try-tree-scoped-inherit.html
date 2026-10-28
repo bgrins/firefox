@@ -1,0 +1,85 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Inherited position-try references preserve their original tree scope</title>
+<link rel="help" href="https://drafts.csswg.org/css-shadow-1/#name-defining">
+<link rel="help" href="https://drafts.csswg.org/css-anchor-position-1/#position-try-fallbacks">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="fixtures"></div>
+<script>
+function fixture(t, mode, inherited) {
+  const container = document.createElement("div");
+  document.querySelector("#fixtures").append(container);
+  const outerStyle = document.createElement("style");
+  outerStyle.textContent = "@position-try --ownership-pick {left:0;width:13px}";
+  container.append(outerStyle);
+  t.add_cleanup(() => container.remove());
+  const host = document.createElement("div");
+  host.style.cssText = "display:block;position:relative;width:100px;height:100px";
+  container.append(host);
+  const root = host.attachShadow({mode:"open"});
+  const innerStyle = document.createElement("style");
+  innerStyle.textContent = "@position-try --ownership-pick {left:0;width:37px}";
+  root.append(innerStyle);
+  const target = document.createElement("div");
+  target.style.cssText = "position:absolute;left:200px;top:0;width:10px;height:10px;margin:0";
+  let expected, parent;
+  if (mode === "document to shadow") {
+    host.style.positionTryFallbacks = "--ownership-pick";
+    root.append(target);
+    parent = host;
+    expected = inherited ? "13px" : "37px";
+  } else if (mode === "host rule to shadow") {
+    innerStyle.textContent += " :host {position-try-fallbacks:--ownership-pick}";
+    root.append(target);
+    parent = host;
+    expected = "37px";
+  } else if (mode === "slot to document") {
+    const slot = document.createElement("slot");
+    slot.style.positionTryFallbacks = "--ownership-pick";
+    root.append(slot);
+    host.append(target);
+    parent = slot;
+    expected = inherited ? "37px" : "13px";
+  } else if (mode.endsWith("light descendant")) {
+    const slot = document.createElement("slot");
+    slot.style.positionTryFallbacks = "--ownership-pick";
+    root.append(slot);
+    parent = document.createElement("div");
+    parent.style.positionTryFallbacks = mode.startsWith("slot") ? "inherit" : "--ownership-pick";
+    host.append(parent);
+    parent.append(target);
+    expected = inherited && mode.startsWith("slot") ? "37px" : "13px";
+  } else {
+    parent = document.createElement("div");
+    parent.style.positionTryFallbacks = "--ownership-pick";
+    root.append(parent);
+    parent.append(target);
+    expected = "37px";
+  }
+  target.style.positionTryFallbacks = inherited ? "inherit" : "--ownership-pick";
+  const cs = getComputedStyle(target);
+  return {mode, inherited, expected, actual:cs.width, left:cs.left,
+    parentFallback:getComputedStyle(parent).positionTryFallbacks,
+    fallback:cs.positionTryFallbacks, containingWidth:host.getBoundingClientRect().width,
+    assignedToExpectedSlot:mode !== "slot to document" || target.assignedSlot === parent,
+    descendantTopology:!mode.endsWith("light descendant") ||
+      (parent.assignedSlot !== null && target.assignedSlot === null &&
+       target.shadowRoot === null && target.getRootNode() === document)};
+}
+for (const mode of ["document to shadow", "host rule to shadow", "slot to document", "same tree",
+                    "slot to light descendant", "document to light descendant"]) {
+  for (const inherited of [false, true]) {
+    test(t => {
+      const row = fixture(t, mode, inherited);
+      assert_equals(row.containingWidth, 100, "Containing block width");
+      assert_equals(row.parentFallback, "--ownership-pick", "Parent reference");
+      assert_equals(row.fallback, "--ownership-pick", "Target reference");
+      assert_true(row.assignedToExpectedSlot, "Expected assigned slot");
+      assert_true(row.descendantTopology, "Descendant has no local shadow or slot path");
+      assert_equals(row.left, "0px", "Fallback is used");
+      assert_equals(row.actual, row.expected, "Fallback definition belongs to the reference's original tree");
+    }, `${mode}, ${inherited ? "inherited" : "direct"} reference`);
+  }
+}
+</script>

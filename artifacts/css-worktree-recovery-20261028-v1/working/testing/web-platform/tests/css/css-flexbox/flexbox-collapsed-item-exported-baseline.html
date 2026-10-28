@@ -1,0 +1,83 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Collapsed flex items do not supply container baselines</title>
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#algo-visibility">
+<link rel="help" href="https://drafts.csswg.org/css-flexbox-1/#flex-baselines">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<style>
+body { margin: 0; font: 10px/20px monospace; }
+.host { display: flex; align-items: first baseline; }
+.host.last { align-items: last baseline; }
+.box {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 70px;
+  height: 100px;
+  flex: none;
+}
+.reverse .box { flex-direction: column-reverse; }
+.wrap .box { flex-wrap: wrap; height: 10px; }
+.wrap-reverse .box { flex-wrap: wrap-reverse; height: 10px; }
+.item { flex: none; width: 20px; height: 20px; }
+.collapsed { visibility: collapse; }
+.removed { display: none; }
+</style>
+<body>
+<script>
+function makeBox(pattern, reference) {
+  const box = document.createElement("div");
+  box.className = "box";
+  for (const kind of pattern) {
+    if (reference && kind === "c") continue;
+    const item = document.createElement("div");
+    item.className = `item${kind === "c" ? " collapsed" : ""}`;
+    item.textContent = "x";
+    box.append(item);
+  }
+  return box;
+}
+
+for (const wrap of ["nowrap", "wrap", "wrap-reverse"]) {
+  for (const reverse of [false, true]) {
+    for (const last of [false, true]) {
+      for (const [name, pattern] of [
+        ["all collapsed", "c"],
+        ["first collapsed", "cv"],
+        ["last collapsed", "vc"],
+        ["empty control", ""],
+        ["ordinary control", "v"],
+      ]) {
+        test(t => {
+          const host = document.createElement("div");
+          host.className = `host ${wrap}${last ? " last" : ""}${reverse ? " reverse" : ""}`;
+          const target = makeBox(pattern, false);
+          const reference = makeBox(pattern, true);
+          host.append(target, reference);
+          document.body.append(host);
+          t.add_cleanup(() => host.remove());
+          for (const box of [target, reference]) {
+            const rect = box.getBoundingClientRect();
+            assert_equals(rect.width, 70, "Fixed cross size");
+            assert_equals(rect.height, wrap === "nowrap" ? 100 : 10, "Fixed main size");
+          }
+          const difference = () => target.getBoundingClientRect().top -
+            reference.getBoundingClientRect().top;
+          const before = difference();
+          for (const child of target.querySelectorAll(".collapsed")) {
+            assert_equals(getComputedStyle(child).visibility, "collapse");
+            child.classList.add("removed");
+          }
+          assert_equals(difference(), 0, "Removing collapsed children matches the reference");
+          for (const child of target.querySelectorAll(".collapsed")) {
+            child.classList.remove("removed");
+          }
+          assert_equals(difference(), before, "Restoring collapsed children restores layout");
+          assert_equals(before, 0, "Collapsed children do not change the exported baseline");
+        }, `${reverse ? "column-reverse" : "column"}, ${last ? "last" : "first"} baseline, ${name}${wrap === "nowrap" ? "" : `, ${wrap}`}`);
+      }
+    }
+  }
+}
+</script>

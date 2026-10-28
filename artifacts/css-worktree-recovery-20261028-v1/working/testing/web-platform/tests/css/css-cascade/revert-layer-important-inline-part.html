@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Important inline layer rollback preserves outer part rules</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-layer">
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-rule">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const outer of [false, true]) {
+  for (const keyword of ["none", "revert-layer", "revert", "revert-rule"]) {
+    for (const ruleRollback of [false, true]) {
+      test(t => {
+        const host = document.createElement("div");
+        host.id = "rollback-host";
+        const sheet = document.createElement("style");
+        sheet.textContent = outer ? "#rollback-host::part(p) { margin-left:37px; --value:37px }" : "";
+        document.head.append(sheet);
+        const shadow = host.attachShadow({mode:"open"});
+        const local = document.createElement("style");
+        local.textContent = "#target { margin-left:5px; --value:5px }";
+        if (ruleRollback) local.textContent += "#target { margin-left:revert-rule !important; --value:revert-rule !important }";
+        const target = document.createElement("div");
+        target.id = "target";
+        target.setAttribute("part", "p");
+        if (keyword !== "none") {
+          target.style.setProperty("margin-left", keyword, "important");
+          target.style.setProperty("--value", keyword, "important");
+        }
+        shadow.append(local, target);
+        document.body.append(host);
+        t.add_cleanup(() => { host.remove(); sheet.remove(); });
+        const style = getComputedStyle(target);
+        const expected = keyword === "revert" ? "0px" : outer ? "37px" : "5px";
+        assert_equals(style.marginLeft, expected, "Longhand rollback");
+        assert_equals(style.getPropertyValue("--value").trim(), keyword === "revert" ? "" : expected, "Custom property rollback");
+      }, `Outer part rule ${outer}, inline ${keyword}, intervening rule rollback ${ruleRollback}`);
+    }
+  }
+}
+</script>

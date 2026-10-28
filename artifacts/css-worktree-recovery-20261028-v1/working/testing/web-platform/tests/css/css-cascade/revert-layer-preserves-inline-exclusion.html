@@ -1,0 +1,48 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Layer rollback preserves earlier inline style exclusions</title>
+<link rel="help" href="https://drafts.csswg.org/css-cascade-5/#revert-layer-keyword">
+<link rel="help" href="https://drafts.csswg.org/css-logical-1/#logical-property-group">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let serial = 0;
+for (const direction of ["ltr", "rtl"]) {
+  for (const outerImportant of [false, true]) {
+    for (const inlineValue of ["revert-layer", "revert-rule", "revert", "9px"]) {
+      for (const outerValue of ["revert-layer", "revert-rule", "11px", "none"]) {
+        test(t => {
+          assert_true(CSS.supports("margin-inline-start", inlineValue));
+          const host = document.createElement("div");
+          host.id = `rollback-host-${serial++}`;
+          const physical = direction === "ltr" ? "margin-left" : "margin-right";
+          const sheet = document.createElement("style");
+          if (outerValue !== "none") {
+            sheet.textContent = `#${host.id}::part(p) {
+              ${physical}:${outerValue}${outerImportant ? " !important" : ""}
+            }`;
+          }
+          const shadow = host.attachShadow({mode:"open"});
+          const local = document.createElement("style");
+          local.textContent = `#target { direction:${direction}; ${physical}:37px }`;
+          const target = document.createElement("div");
+          target.id = "target";
+          target.setAttribute("part", "p");
+          target.style.setProperty(physical, "5px");
+          target.style.setProperty("margin-inline-start", inlineValue, "important");
+          shadow.append(local, target);
+          document.body.append(sheet, host);
+          t.add_cleanup(() => { host.remove(); sheet.remove(); });
+          const expected = inlineValue === "revert" ? "0px" :
+            inlineValue === "9px" ? "9px" : outerValue === "11px" ? "11px" : "37px";
+          const computed = getComputedStyle(target);
+          assert_equals(computed.direction, direction);
+          assert_equals(computed.getPropertyValue(physical), expected);
+        }, `${direction}: inline ${inlineValue}, outer ${outerValue}, ` +
+           `${outerImportant ? "important" : "normal"}`);
+      }
+    }
+  }
+}
+</script>
