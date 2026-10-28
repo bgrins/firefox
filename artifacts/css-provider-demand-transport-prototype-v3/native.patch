@@ -1,0 +1,1046 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1611,7 +1611,6 @@
+     Ok(ComputedRegisteredValue::universal(Arc::new(value)))
+ }
+ 
+-/// See https://drafts.csswg.org/css-variables-2/#invalid-at-computed-value-time
+ fn invalid_at_computed_value_time_value(
+     name: &Name,
+     registration: &PropertyDescriptors,
+@@ -1673,6 +1672,7 @@
+     }
+ }
+ 
++/// See https://drafts.csswg.org/css-variables-2/#invalid-at-computed-value-time
+ pub fn handle_invalid_at_computed_value_time(
+     name: &Name,
+     registration: &PropertyDescriptors,
+@@ -1749,9 +1749,10 @@
+         attribute_tracker,
+         &mut state,
+         None,
++        None,
+     );
+     let substitution = if is_var && state.cyclic_names.contains(&name) {
+-        Err(())
++        Err(SubstitutionError::Invalid)
+     } else {
+         substitution
+     };
+@@ -1844,6 +1845,242 @@
+     cyclic_names: SmallVec<[&'a Name; 8]>,
+ }
+ 
++pub(crate) enum SubstitutionDemand {
++    Provider(Name),
++    Attribute {
++        name: Name,
++        data: AttributeData,
++        url_data: UrlExtraData,
++    },
++    Prioritary(PrioritaryPropertyId),
++    InitialContext(Name),
++}
++
++pub(crate) enum SubstitutionError {
++    Invalid,
++    Demand(SubstitutionDemand),
++}
++
++impl From<()> for SubstitutionError {
++    fn from(_: ()) -> Self {
++        Self::Invalid
++    }
++}
++
++pub(crate) trait SubstitutionReadiness {
++    fn provider_pending(&self, name: &Name) -> bool;
++    fn attribute_pending(&self, name: &Name, data: &AttributeData) -> bool;
++    fn prioritary_ready(&self, id: PrioritaryPropertyId) -> bool;
++    fn initial_context_ready(
++        &self,
++        _name: &Name,
++        _registration: &PropertyDescriptors,
++        _context: &computed::Context,
++    ) -> bool {
++        false
++    }
++}
++
++#[derive(Clone, Copy, PartialEq)]
++pub(crate) enum PrioritaryApplicationState {
++    Pending,
++    Applying,
++    Ready,
++}
++
++impl PrioritaryApplicationState {
++    pub(crate) fn begin(&mut self) -> bool {
++        if *self != Self::Pending {
++            return false;
++        }
++        *self = Self::Applying;
++        true
++    }
++
++    pub(crate) fn complete(&mut self) {
++        assert!(*self == Self::Applying);
++        *self = Self::Ready;
++    }
++
++    pub(crate) fn suspend(&mut self) {
++        assert!(*self == Self::Applying);
++        *self = Self::Pending;
++    }
++}
++
++pub(crate) enum ProviderCycleClassification {
++    Pending,
++    Acyclic,
++    InvalidatedParticipant,
++}
++
++pub(crate) enum RegisteredDefaultReason {
++    Invalid,
++    CssWide(CSSWideKeyword),
++}
++
++enum RegisteredDefaultSource {
++    Invalid,
++    Inherited,
++    Copied(Option<ComputedRegisteredValue>),
++    Initial { css: String, url_data: UrlExtraData },
++}
++
++#[derive(Clone, Copy)]
++pub(crate) enum RegisteredContextRequirements {
++    Unknown,
++    Known(crate::properties::PrioritaryPropertyIdSet),
++}
++
++pub(crate) struct PreparedRegisteredDefault<'registration> {
++    name: Name,
++    registration: &'registration PropertyDescriptors,
++    is_root: bool,
++    source: RegisteredDefaultSource,
++    inherits_reset_style: bool,
++    pub(crate) requirements: RegisteredContextRequirements,
++}
++
++pub(crate) struct ComputedRegisteredDefault {
++    pub(crate) value: Option<ComputedRegisteredValue>,
++    pub(crate) inherits_reset_style: bool,
++}
++
++pub(crate) fn prepare_registered_default<'registration>(
++    name: &Name,
++    reason: RegisteredDefaultReason,
++    classification: ProviderCycleClassification,
++    registration: &'registration PropertyDescriptors,
++    stylist: &Stylist,
++    context: &computed::Context,
++) -> Result<PreparedRegisteredDefault<'registration>, SubstitutionDemand> {
++    let reason = match classification {
++        ProviderCycleClassification::Pending => {
++            return Err(SubstitutionDemand::Provider(name.clone()));
++        },
++        ProviderCycleClassification::Acyclic => reason,
++        ProviderCycleClassification::InvalidatedParticipant => RegisteredDefaultReason::Invalid,
++    };
++    let inherited = match reason {
++        RegisteredDefaultReason::Invalid => {
++            if registration.is_universal() {
++                return Ok(PreparedRegisteredDefault {
++                    name: name.clone(),
++                    registration,
++                    is_root: context.is_root_element(),
++                    source: RegisteredDefaultSource::Invalid,
++                    inherits_reset_style: false,
++                    requirements: RegisteredContextRequirements::Known(Default::default()),
++                });
++            }
++            registration.inherits() && !context.is_root_element()
++        },
++        RegisteredDefaultReason::CssWide(keyword) => {
++            !context.is_root_element()
++                && keyword != CSSWideKeyword::Initial
++                && (keyword == CSSWideKeyword::Inherit || registration.inherits())
++        },
++    };
++    let source = if inherited {
++        RegisteredDefaultSource::Inherited
++    } else if registration.is_universal() {
++        RegisteredDefaultSource::Copied(
++            stylist
++                .get_custom_property_initial_values()
++                .get(registration, name)
++                .cloned(),
++        )
++    } else if let Some(initial) = registration.initial_value.as_ref() {
++        RegisteredDefaultSource::Initial {
++            css: initial.css.to_string(),
++            url_data: initial.url_data.clone(),
++        }
++    } else {
++        RegisteredDefaultSource::Invalid
++    };
++    let requirements = if matches!(source, RegisteredDefaultSource::Initial { .. }) {
++        RegisteredContextRequirements::Unknown
++    } else {
++        RegisteredContextRequirements::Known(Default::default())
++    };
++    Ok(PreparedRegisteredDefault {
++        name: name.clone(),
++        registration,
++        is_root: context.is_root_element(),
++        source,
++        inherits_reset_style: inherited && !registration.inherits(),
++        requirements,
++    })
++}
++
++impl PreparedRegisteredDefault<'_> {
++    pub(crate) fn initial_input(&self) -> Option<(&str, &UrlExtraData)> {
++        match &self.source {
++            RegisteredDefaultSource::Initial { css, url_data } => Some((css, url_data)),
++            _ => None,
++        }
++    }
++
++    pub(crate) fn try_compute(
++        &self,
++        context: &computed::Context,
++        readiness: &dyn SubstitutionReadiness,
++    ) -> Result<ComputedRegisteredDefault, SubstitutionDemand> {
++        if context.is_root_element() != self.is_root {
++            return Err(SubstitutionDemand::InitialContext(self.name.clone()));
++        }
++        let registration = self.registration;
++        let mut required = match self.requirements {
++            RegisteredContextRequirements::Unknown => {
++                return Err(SubstitutionDemand::InitialContext(self.name.clone()));
++            },
++            RegisteredContextRequirements::Known(required) => required,
++        };
++        loop {
++            let previous = required;
++            for id in previous.iter() {
++                for dependency in id.dependencies().iter() {
++                    required.insert(dependency);
++                }
++            }
++            if previous == required {
++                break;
++            }
++        }
++        if let Some(id) = required.iter().find(|id| !readiness.prioritary_ready(*id)) {
++            return Err(SubstitutionDemand::Prioritary(id));
++        }
++        if matches!(self.source, RegisteredDefaultSource::Initial { .. })
++            && !readiness.initial_context_ready(&self.name, registration, context)
++        {
++            return Err(SubstitutionDemand::InitialContext(self.name.clone()));
++        }
++        let value = match &self.source {
++            RegisteredDefaultSource::Invalid => None,
++            RegisteredDefaultSource::Inherited => context
++                .builder
++                .inherited_style
++                .custom_properties()
++                .get(registration, &self.name)
++                .cloned(),
++            RegisteredDefaultSource::Copied(value) => value.clone(),
++            RegisteredDefaultSource::Initial { css, url_data } => compute_value(
++                css,
++                url_data,
++                registration,
++                context,
++                AttrTaint::default(),
++                Some(PropertyIdRef::from(&self.name)),
++            )
++            .ok(),
++        };
++        Ok(ComputedRegisteredDefault {
++            value,
++            inherits_reset_style: self.inherits_reset_style,
++        })
++    }
++}
++
+ enum RegisteredSubstitutionDefault {
+     NotDefaulted,
+     Defaulted(Option<ComputedRegisteredValue>),
+@@ -2032,8 +2269,9 @@
+     references: &'a [SubstitutionFunctionReference],
+     attribute_tracker: &mut AttributeTracker,
+     seen: &mut SubstitutionState<'a>,
++    readiness: Option<&dyn SubstitutionReadiness>,
+     mut attr_taint: Option<&mut AttrTaint>,
+-) -> Result<Substitution<'a>, ()> {
++) -> Result<Substitution<'a>, SubstitutionError> {
+     if start == end {
+         // Empty string. Easy.
+         return Ok(Substitution::default());
+@@ -2074,6 +2312,7 @@
+             computed_context,
+             attribute_tracker,
+             seen,
++            readiness,
+         )?;
+ 
+         // Optimize the property: var(--...) case to avoid allocating at all.
+@@ -2124,7 +2363,8 @@
+     computed_context: &computed::Context,
+     attribute_tracker: &mut AttributeTracker,
+     seen: &mut SubstitutionState<'a>,
+-) -> Result<Substitution<'a>, ()> {
++    readiness: Option<&dyn SubstitutionReadiness>,
++) -> Result<Substitution<'a>, SubstitutionError> {
+     let simple_attr_subst = |s: &str| {
+         Some(Substitution::new(
+             Cow::Owned(quoted_css_string(s)),
+@@ -2136,6 +2376,11 @@
+     let substitution: Option<_> = match reference.substitution_kind {
+         SubstitutionFunctionKind::Var => {
+             let registration = stylist.get_custom_property_registration(&reference.name);
++            if readiness.is_some_and(|ready| ready.provider_pending(&reference.name)) {
++                return Err(SubstitutionError::Demand(SubstitutionDemand::Provider(
++                    reference.name.clone(),
++                )));
++            }
+             match substitution_functions.get_var(registration, &reference.name) {
+                 None => None,
+                 // If the referenced value is itself still unresolved (i.e. it has references), we
+@@ -2144,6 +2389,11 @@
+                 // recursively, guarding against cycles (which the resolver will also remove, but it
+                 // may not have gotten to this variable yet).
+                 Some(v) => match v.as_universal() {
++                    Some(_) if readiness.is_some() && !registration.is_universal() => {
++                        return Err(SubstitutionError::Demand(SubstitutionDemand::Provider(
++                            reference.name.clone(),
++                        )));
++                    },
+                     Some(u) if u.has_references() => {
+                         if let Some(index) =
+                             seen.names.iter().position(|name| *name == &reference.name)
+@@ -2166,6 +2416,7 @@
+                                 computed_context,
+                                 attribute_tracker,
+                                 seen,
++                                readiness,
+                                 /* attr_taint */ None,
+                             );
+                             seen.names.pop();
+@@ -2206,7 +2457,10 @@
+                                             },
+                                         }
+                                     },
+-                                    Err(()) if !registration.is_universal() => {
++                                    Err(error @ SubstitutionError::Demand(_)) => return Err(error),
++                                    Err(SubstitutionError::Invalid)
++                                        if !registration.is_universal() =>
++                                    {
+                                         invalid_at_computed_value_time_value(
+                                             &reference.name,
+                                             registration,
+@@ -2221,7 +2475,7 @@
+                                         })
+                                     },
+                                     // The primary couldn't be resolved (invalid); use the fallback.
+-                                    Err(()) => None,
++                                    Err(SubstitutionError::Invalid) => None,
+                                 }
+                             }
+                         }
+@@ -2242,6 +2496,21 @@
+         },
+         // https://drafts.csswg.org/css-values-5/#attr-substitution
+         SubstitutionFunctionKind::Attr => {
++            if reference.is_attr_with_type()
++                && matches!(
++                    &reference.attribute_data.namespace,
++                    ParsedNamespace::Known(_)
++                )
++                && readiness.is_some_and(|ready| {
++                    ready.attribute_pending(&reference.name, &reference.attribute_data)
++                })
++            {
++                return Err(SubstitutionError::Demand(SubstitutionDemand::Attribute {
++                    name: reference.name.clone(),
++                    data: reference.attribute_data.clone(),
++                    url_data: url_data.clone(),
++                }));
++            }
+             let namespace = match reference.attribute_data.namespace {
+                 ParsedNamespace::Known(ref ns) => Some(ns),
+                 ParsedNamespace::Unknown => None,
+@@ -2327,7 +2596,7 @@
+     }
+ 
+     let Some(ref fallback) = reference.fallback else {
+-        return Err(());
++        return Err(SubstitutionError::Invalid);
+     };
+ 
+     do_substitute_chunk(
+@@ -2344,6 +2613,7 @@
+         &fallback.references.refs,
+         attribute_tracker,
+         seen,
++        readiness,
+         /* attr_taint */ None,
+     )
+ }
+@@ -2357,8 +2627,9 @@
+     computed_context: &computed::Context,
+     attribute_tracker: &mut AttributeTracker,
+     seen: &mut SubstitutionState<'a>,
++    readiness: Option<&dyn SubstitutionReadiness>,
+     attr_taint: Option<&mut AttrTaint>,
+-) -> Result<Substitution<'a>, ()> {
++) -> Result<Substitution<'a>, SubstitutionError> {
+     do_substitute_chunk(
+         &variable_value.css,
+         /* start = */ 0,
+@@ -2373,6 +2644,7 @@
+         &variable_value.references.refs,
+         attribute_tracker,
+         seen,
++        readiness,
+         attr_taint,
+     )
+ }
+@@ -2386,6 +2658,30 @@
+     computed_context: &computed::Context,
+     attribute_tracker: &mut AttributeTracker,
+ ) -> Result<SubstitutionResult<'a>, ()> {
++    substitute_with_readiness(
++        variable_value,
++        property_id,
++        substitution_functions,
++        stylist,
++        computed_context,
++        attribute_tracker,
++        None,
++    )
++    .map_err(|error| match error {
++        SubstitutionError::Invalid => (),
++        SubstitutionError::Demand(_) => unreachable!("Demand without a readiness view"),
++    })
++}
++
++pub(crate) fn substitute_with_readiness<'a>(
++    variable_value: &'a VariableValue,
++    property_id: Option<PropertyIdRef>,
++    substitution_functions: &'a ComputedSubstitutionFunctions,
++    stylist: &Stylist,
++    computed_context: &computed::Context,
++    attribute_tracker: &mut AttributeTracker,
++    readiness: Option<&dyn SubstitutionReadiness>,
++) -> Result<SubstitutionResult<'a>, SubstitutionError> {
+     debug_assert!(variable_value.has_references());
+     let mut attr_taint = AttrTaint::default();
+     let v = substitute_internal(
+@@ -2396,6 +2692,7 @@
+         computed_context,
+         attribute_tracker,
+         &mut SubstitutionState::default(),
++        readiness,
+         Some(&mut attr_taint),
+     )?;
+     Ok(SubstitutionResult {
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -4,13 +4,12 @@
+ 
+ //! The main cascading algorithm of the style system.
+ 
+-use crate::{FxHashMap, Namespace};
+ use crate::applicable_declarations::{CascadePriority, RevertKind};
+ use crate::color::AbsoluteColor;
+ use crate::computed_value_flags::ComputedValueFlags;
+ use crate::context::TreeCountingCaches;
+ use crate::custom_properties::{
+-    ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
++    self, ComputedCustomProperties, ComputedSubstitutionFunctions, Name, NonCustomReferenceMap,
+     ReferenceFlags, References, SingleNonCustomReference, SubstitutionFunctionKind, VariableValue,
+     get_attr_value_for_cycle_resolution, handle_invalid_at_computed_value_time,
+     remove_and_insert_initial_value, substitute_references_if_needed_and_apply,
+@@ -42,6 +41,7 @@
+ use crate::values::specified::length::FontBaseSize;
+ use crate::values::specified::position::PositionTryFallbacksTryTactic;
+ use crate::values::{computed, specified};
++use crate::{FxHashMap, Namespace};
+ use hashbrown::hash_map::{Entry, EntryRef};
+ use selectors::matching::ElementSelectorFlags;
+ use servo_arc::Arc;
+@@ -823,6 +823,103 @@
+     references_from_non_custom_properties: NonCustomPropertyReferences,
+     /// Set of prioritary properties that have already been applied.
+     ensured_prioritary: PrioritaryPropertyIdSet,
++    applying_prioritary: PrioritaryPropertyIdSet,
++    suspended_prioritary: PrioritaryPropertyIdSet,
++}
++
++struct PrioritaryContinuation<'owner, 'style, 'context, 'decl, 'element> {
++    cascade: &'owner mut Cascade<'style>,
++    context: &'owner mut computed::Context<'context>,
++    declarations: &'owner Declarations<'decl>,
++    cache: &'owner mut ShorthandsWithPropertyReferencesCache,
++    attributes: &'owner mut AttributeTracker<'element>,
++    id: PrioritaryPropertyId,
++    complete: bool,
++    owns_suspension: bool,
++}
++
++impl<'owner, 'style, 'context, 'decl, 'element>
++    PrioritaryContinuation<'owner, 'style, 'context, 'decl, 'element>
++{
++    fn new(
++        cascade: &'owner mut Cascade<'style>,
++        context: &'owner mut computed::Context<'context>,
++        declarations: &'owner Declarations<'decl>,
++        cache: &'owner mut ShorthandsWithPropertyReferencesCache,
++        attributes: &'owner mut AttributeTracker<'element>,
++        id: PrioritaryPropertyId,
++    ) -> Result<Self, custom_properties::SubstitutionDemand> {
++        if cascade.applying_prioritary.contains(id) || cascade.suspended_prioritary.contains(id) {
++            return Err(custom_properties::SubstitutionDemand::Prioritary(id));
++        }
++        cascade.suspended_prioritary.insert(id);
++        Ok(Self {
++            cascade,
++            context,
++            declarations,
++            cache,
++            attributes,
++            id,
++            complete: false,
++            owns_suspension: true,
++        })
++    }
++
++    fn resume(
++        &mut self,
++        readiness: Option<&dyn custom_properties::SubstitutionReadiness>,
++    ) -> Result<(), custom_properties::SubstitutionDemand> {
++        if self.complete {
++            return Ok(());
++        }
++        assert!(self.owns_suspension);
++        self.cascade.suspended_prioritary.remove(self.id);
++        self.owns_suspension = false;
++        let result = self.cascade.try_ensure_prioritary_property(
++            self.context,
++            self.declarations,
++            self.cache,
++            self.attributes,
++            self.id,
++            readiness,
++        );
++        if result.is_ok() {
++            self.complete = true;
++        } else {
++            assert!(!self.cascade.suspended_prioritary.contains(self.id));
++            self.cascade.suspended_prioritary.insert(self.id);
++            self.owns_suspension = true;
++        }
++        result
++    }
++
++    fn with_dependency_owner<R>(
++        &mut self,
++        f: impl FnOnce(
++            &mut Cascade,
++            &mut computed::Context,
++            &Declarations,
++            &mut ShorthandsWithPropertyReferencesCache,
++            &mut AttributeTracker,
++        ) -> R,
++    ) -> R {
++        assert!(!self.complete && self.owns_suspension);
++        f(
++            self.cascade,
++            self.context,
++            self.declarations,
++            self.cache,
++            self.attributes,
++        )
++    }
++}
++
++impl Drop for PrioritaryContinuation<'_, '_, '_, '_, '_> {
++    fn drop(&mut self) {
++        if self.owns_suspension {
++            self.cascade.suspended_prioritary.remove(self.id);
++        }
++    }
+ }
+ 
+ impl<'a> Cascade<'a> {
+@@ -841,6 +938,8 @@
+             declarations_to_apply_unless_overridden: Default::default(),
+             may_have_custom_property_cycles: false,
+             ensured_prioritary: PrioritaryPropertyIdSet::default(),
++            applying_prioritary: PrioritaryPropertyIdSet::default(),
++            suspended_prioritary: PrioritaryPropertyIdSet::default(),
+             references_from_non_custom_properties: Default::default(),
+         }
+     }
+@@ -858,7 +957,26 @@
+             declarations_to_apply_unless_overridden: Default::default(),
+             may_have_custom_property_cycles: false,
+             ensured_prioritary: PrioritaryPropertyIdSet::default(),
++            applying_prioritary: PrioritaryPropertyIdSet::default(),
++            suspended_prioritary: PrioritaryPropertyIdSet::default(),
+             references_from_non_custom_properties: Default::default(),
++        }
++    }
++
++    fn note_variable_substitution(context: &mut computed::Context, id: LonghandId) {
++        if !id.inherited() {
++            context.rule_cache_conditions.borrow_mut().set_uncacheable();
++
++            // NOTE(emilio): We only really need to add the `display` /
++            // `content` flag if the CSS variable has not been specified on our
++            // declarations, but we don't have that information at this point,
++            // and it doesn't seem like an important enough optimization to
++            // warrant it.
++            if matches!(id, LonghandId::Display | LonghandId::Content) {
++                context
++                    .builder
++                    .add_flags(ComputedValueFlags::DISPLAY_OR_CONTENT_DEPEND_ON_INHERITED_STYLE);
++            }
+         }
+     }
+ 
+@@ -877,20 +995,7 @@
+             ref d => return Cow::Borrowed(d),
+         };
+ 
+-        if !declaration.id.inherited() {
+-            context.rule_cache_conditions.borrow_mut().set_uncacheable();
+-
+-            // NOTE(emilio): We only really need to add the `display` /
+-            // `content` flag if the CSS variable has not been specified on our
+-            // declarations, but we don't have that information at this point,
+-            // and it doesn't seem like an important enough optimization to
+-            // warrant it.
+-            if matches!(declaration.id, LonghandId::Display | LonghandId::Content) {
+-                context
+-                    .builder
+-                    .add_flags(ComputedValueFlags::DISPLAY_OR_CONTENT_DEPEND_ON_INHERITED_STYLE);
+-            }
+-        }
++        Self::note_variable_substitution(context, declaration.id);
+ 
+         debug_assert!(
+             context.builder.stylist.is_some(),
+@@ -951,6 +1056,95 @@
+         }
+     }
+ 
++    fn try_apply_prioritary_property(
++        &mut self,
++        context: &mut computed::Context,
++        decls: &Declarations,
++        cache: &mut ShorthandsWithPropertyReferencesCache,
++        id: PrioritaryPropertyId,
++        attribute_tracker: &mut AttributeTracker,
++        readiness: Option<&dyn custom_properties::SubstitutionReadiness>,
++    ) -> Result<(), custom_properties::SubstitutionDemand> {
++        let Some(readiness) = readiness else {
++            self.apply_one_prioritary_property(context, decls, cache, id, attribute_tracker);
++            return Ok(());
++        };
++        let longhand = id.to_longhand();
++        if self.seen.longhands.contains(longhand) {
++            return Ok(());
++        }
++        let mut index = decls.prioritary_positions[id as usize].most_important;
++        let mut staged_cache = cache.clone();
++        let mut staged_attributes = AttributeTracker {
++            context: attribute_tracker.context,
++            references: attribute_tracker.references.clone(),
++        };
++        let mut extra = self.declarations_to_apply_unless_overridden.clone();
++        let mut reverted = self.reverted.longhands.get(&longhand).copied();
++        let mut selected = SmallVec::<[(PropertyDeclaration, CascadePriority, bool); 2]>::new();
++        while index != DeclarationIndex::MAX {
++            let entry = decls.longhand_declarations[index as usize];
++            let eligible = (entry.priority.flags() - context.included_cascade_flags).is_empty()
++                && reverted.is_none_or(|(priority, kind)| {
++                    priority.allows_when_reverted(&entry.priority, kind)
++                });
++            if eligible {
++                let variable = matches!(entry.decl, PropertyDeclaration::WithVariables(_));
++                let mut resolved = match entry.decl {
++                    PropertyDeclaration::WithVariables(value) => Cow::Owned(
++                        value
++                            .substitute_variables_with_readiness(
++                                context.builder.substitution_functions(),
++                                self.stylist,
++                                context,
++                                &mut staged_cache,
++                                &mut staged_attributes,
++                                Some(readiness),
++                            )?
++                            .into_owned(),
++                    ),
++                    value => Cow::Borrowed(value),
++                };
++                if self.ignore_colors {
++                    tweak_when_ignoring_colors(
++                        context,
++                        longhand,
++                        entry.priority.cascade_level().origin(),
++                        &mut resolved,
++                        &mut extra,
++                    );
++                }
++                let revert = resolved
++                    .get_css_wide_keyword()
++                    .and_then(|keyword| keyword.revert_kind());
++                selected.push((resolved.into_owned(), entry.priority, variable));
++                if let Some(kind) = revert {
++                    reverted = Some((entry.priority, kind));
++                } else {
++                    break;
++                }
++            }
++            if entry.next_index == 0 {
++                break;
++            }
++            debug_assert!(entry.next_index > index);
++            index = entry.next_index;
++        }
++        *cache = staged_cache;
++        attribute_tracker.references = staged_attributes.references;
++        self.declarations_to_apply_unless_overridden = extra;
++        for (declaration, priority, variable) in selected {
++            if variable {
++                Self::note_variable_substitution(context, longhand);
++            }
++            self.apply_resolved_longhand(context, longhand, &declaration, priority);
++        }
++        if self.seen.longhands.contains(longhand) {
++            self.did_apply_prioritary_property(context, id);
++        }
++        Ok(())
++    }
++
+     /// Some prioritary properties need book-keeping, which this takes care of.
+     fn did_apply_prioritary_property(
+         &mut self,
+@@ -1131,6 +1325,17 @@
+                 &mut self.declarations_to_apply_unless_overridden,
+             );
+         }
++        self.apply_resolved_longhand(context, longhand_id, &declaration, priority);
++    }
++
++    fn apply_resolved_longhand(
++        &mut self,
++        context: &mut computed::Context,
++        longhand_id: LonghandId,
++        declaration: &PropertyDeclaration,
++        priority: CascadePriority,
++    ) {
++        let origin = priority.cascade_level().origin();
+         let can_skip_apply = match declaration.get_css_wide_keyword() {
+             Some(keyword) => {
+                 if let Some(revert_kind) = keyword.revert_kind() {
+@@ -1733,17 +1938,57 @@
+         attribute_tracker: &mut AttributeTracker,
+         id: PrioritaryPropertyId,
+     ) {
++        let mut continuation =
++            PrioritaryContinuation::new(self, context, decls, cache, attribute_tracker, id)
++                .unwrap_or_else(|_| {
++                    unreachable!("Reentrant prioritary owner without a readiness view")
++                });
++        continuation
++            .resume(None)
++            .unwrap_or_else(|_| unreachable!("Demand without a readiness view"));
++    }
++
++    fn try_ensure_prioritary_property(
++        &mut self,
++        context: &mut computed::Context,
++        decls: &Declarations,
++        cache: &mut ShorthandsWithPropertyReferencesCache,
++        attribute_tracker: &mut AttributeTracker,
++        id: PrioritaryPropertyId,
++        readiness: Option<&dyn custom_properties::SubstitutionReadiness>,
++    ) -> Result<(), custom_properties::SubstitutionDemand> {
+         if self.ensured_prioritary.contains(id) {
+-            return;
+-        }
+-        self.ensured_prioritary.insert(id);
+-        let deps = id.dependencies();
+-        if !self.ensured_prioritary.contains_all(deps) {
+-            for dep in deps.iter() {
+-                self.ensure_prioritary_property(context, decls, cache, attribute_tracker, dep);
+-            }
+-        }
+-        self.apply_one_prioritary_property(context, decls, cache, id, attribute_tracker);
++            return Ok(());
++        }
++        if self.applying_prioritary.contains(id) || self.suspended_prioritary.contains(id) {
++            return Err(custom_properties::SubstitutionDemand::Prioritary(id));
++        }
++        self.applying_prioritary.insert(id);
++        let result = (|| {
++            for dep in id.dependencies().iter() {
++                self.try_ensure_prioritary_property(
++                    context,
++                    decls,
++                    cache,
++                    attribute_tracker,
++                    dep,
++                    readiness,
++                )?;
++            }
++            self.try_apply_prioritary_property(
++                context,
++                decls,
++                cache,
++                id,
++                attribute_tracker,
++                readiness,
++            )
++        })();
++        self.applying_prioritary.remove(id);
++        if result.is_ok() {
++            self.ensured_prioritary.insert(id);
++        }
++        result
+     }
+ 
+     /// Cascade a given custom property declaration.
+@@ -2698,34 +2943,26 @@
+             return Some(index);
+         }
+ 
+-        // This is the root of a strong-connected component.
+-        let mut in_loop = self_ref;
+-        loop {
+-            let var_index = context
+-                .stack
+-                .pop()
+-                .expect("The current variable should still be in stack");
+-            let var_info = &mut context.var_info[var_index];
+-            // We should never visit the variable again, so it's safe to take the name away.
+-            let var_name = var_info
+-                .var
+-                .take()
+-                .expect("Variable should not be popped from stack twice");
+-            if var_index != index {
+-                // Anything here is in a loop which can traverse to the node we are handling, so
+-                // it's invalid at computed-value time.
+-                in_loop = true;
+-            }
+-            if in_loop {
++        // Keep an acyclic owner's Tarjan record live until application finishes.
++        let in_loop = self_ref || context.stack.last() != Some(&index);
++        if in_loop {
++            loop {
++                let var_index = context
++                    .stack
++                    .pop()
++                    .expect("The current variable should still be in stack");
++                let var_info = &mut context.var_info[var_index];
++                // We should never visit the variable again, so it's safe to take the name away.
++                let var_name = var_info
++                    .var
++                    .take()
++                    .expect("Variable should not be popped from stack twice");
+                 context.handle_loop(&var_name);
+-            }
+-            if var_index == index {
+-                debug_assert_eq!(var_name, var);
+-                break;
+-            }
+-        }
+-
+-        if in_loop {
++                if var_index == index {
++                    debug_assert_eq!(var_name, var);
++                    break;
++                }
++            }
+             return None;
+         }
+ 
+@@ -2749,6 +2986,8 @@
+                 context.apply_prioritary_property(non_custom.to_prioritary_id(), attribute_tracker);
+             },
+         }
++        assert_eq!(context.stack.pop(), Some(index));
++        assert_eq!(context.var_info[index].var.take(), Some(var));
+         // All resolved, so return the signal value.
+         None
+     }
+--- a/servo/components/style/properties/mod.rs
++++ b/servo/components/style/properties/mod.rs
+@@ -1591,7 +1591,10 @@
+ }
+ 
+ impl UnparsedValue {
+-    pub(crate) fn substitution_property_id(&self, longhand_id: LonghandId) -> PropertyIdRef<'static> {
++    pub(crate) fn substitution_property_id(
++        &self,
++        longhand_id: LonghandId,
++    ) -> PropertyIdRef<'static> {
+         PropertyIdRef::from(match self.from_shorthand {
+             Some(shorthand_id) => NonCustomPropertyId::from(shorthand_id),
+             None => NonCustomPropertyId::from(longhand_id),
+@@ -1639,6 +1642,26 @@
+         shorthand_cache: &'cache mut ShorthandsWithPropertyReferencesCache,
+         attribute_tracker: &mut AttributeTracker,
+     ) -> Cow<'cache, PropertyDeclaration> {
++        self.substitute_variables_with_readiness(
++            substitution_functions,
++            stylist,
++            computed_context,
++            shorthand_cache,
++            attribute_tracker,
++            None,
++        )
++        .unwrap_or_else(|_| unreachable!("Demand without a readiness view"))
++    }
++
++    fn substitute_variables_with_readiness<'cache>(
++        &self,
++        substitution_functions: &ComputedSubstitutionFunctions,
++        stylist: &Stylist,
++        computed_context: &computed::Context,
++        shorthand_cache: &'cache mut ShorthandsWithPropertyReferencesCache,
++        attribute_tracker: &mut AttributeTracker,
++        readiness: Option<&dyn custom_properties::SubstitutionReadiness>,
++    ) -> Result<Cow<'cache, PropertyDeclaration>, custom_properties::SubstitutionDemand> {
+         let longhand_id = self.id;
+         let unparsed = &self.value;
+         let invalid_at_computed_value_time = || {
+@@ -1655,10 +1678,12 @@
+             .invalid_non_custom_properties
+             .contains(longhand_id)
+         {
+-            return invalid_at_computed_value_time();
+-        }
+-
+-        if let Some(shorthand_id) = unparsed.from_shorthand {
++            return Ok(invalid_at_computed_value_time());
++        }
++
++        if readiness.is_none()
++            && let Some(shorthand_id) = unparsed.from_shorthand
++        {
+             let key = (shorthand_id, longhand_id);
+             if shorthand_cache
+                 .get(&key)
+@@ -1668,23 +1693,34 @@
+                 // doesn't like that, see:
+                 //
+                 // https://github.com/rust-lang/rust/issues/82146
+-                return Cow::Borrowed(&shorthand_cache[&key].1);
++                return Ok(Cow::Borrowed(&shorthand_cache[&key].1));
+             }
+         }
+ 
+         let property_id = unparsed.substitution_property_id(longhand_id);
+ 
+-        let SubstitutionResult { css, attr_taint } = match custom_properties::substitute(
+-            &unparsed.variable_value,
+-            Some(property_id),
+-            substitution_functions,
+-            stylist,
+-            computed_context,
+-            attribute_tracker,
+-        ) {
+-            Ok(css) => css,
+-            Err(..) => return invalid_at_computed_value_time(),
+-        };
++        let saved_attributes = readiness.map(|_| attribute_tracker.references.clone());
++        let SubstitutionResult { css, attr_taint } =
++            match custom_properties::substitute_with_readiness(
++                &unparsed.variable_value,
++                Some(property_id),
++                substitution_functions,
++                stylist,
++                computed_context,
++                attribute_tracker,
++                readiness,
++            ) {
++                Ok(css) => css,
++                Err(custom_properties::SubstitutionError::Invalid) => {
++                    return Ok(invalid_at_computed_value_time());
++                },
++                Err(custom_properties::SubstitutionError::Demand(demand)) => {
++                    if let Some(references) = saved_attributes {
++                        attribute_tracker.references = references;
++                    }
++                    return Err(demand);
++                },
++            };
+ 
+         // As of this writing, only the base URL is used for property
+         // values.
+@@ -1712,17 +1748,22 @@
+         input.skip_whitespace();
+ 
+         if let Ok(keyword) = input.try_parse(CSSWideKeyword::parse) {
+-            return Cow::Owned(PropertyDeclaration::css_wide_keyword(longhand_id, keyword));
++            return Ok(Cow::Owned(PropertyDeclaration::css_wide_keyword(
++                longhand_id,
++                keyword,
++            )));
+         }
+ 
+         let shorthand = match unparsed.from_shorthand {
+             None => {
+-                return match context.with_property_declaration(property_id, |context| {
+-                    input.parse_entirely(|input| longhand_id.parse_value(context, input))
+-                }) {
+-                    Ok(decl) => Cow::Owned(decl),
+-                    Err(..) => invalid_at_computed_value_time(),
+-                };
++                return Ok(
++                    match context.with_property_declaration(property_id, |context| {
++                        input.parse_entirely(|input| longhand_id.parse_value(context, input))
++                    }) {
++                        Ok(decl) => Cow::Owned(decl),
++                        Err(..) => invalid_at_computed_value_time(),
++                    },
++                );
+             },
+             Some(shorthand) => shorthand,
+         };
+@@ -1735,7 +1776,7 @@
+             })
+             .is_err()
+         {
+-            return invalid_at_computed_value_time();
++            return Ok(invalid_at_computed_value_time());
+         }
+ 
+         for declaration in decls.declarations.drain(..) {
+@@ -1751,7 +1792,7 @@
+         }
+ 
+         let key = (shorthand, longhand_id);
+-        match shorthand_cache.get(&key) {
++        Ok(match shorthand_cache.get(&key) {
+             Some((source, decl)) if Arc::ptr_eq(source, unparsed) => Cow::Borrowed(decl),
+             // NOTE: Under normal circumstances we should always have a value, but when prefs
+             // change we might hit this case. Consider something like `animation-timeline`, which
+@@ -1765,7 +1806,7 @@
+             // we haven't inserted in the cache. Computing to invalid / initial seems like the most
+             // sensible thing to do here.
+             _ => invalid_at_computed_value_time(),
+-        }
++        })
+     }
+ }
+ /// A parsed all-shorthand value.

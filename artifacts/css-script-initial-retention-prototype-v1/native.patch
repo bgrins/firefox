@@ -1,0 +1,128 @@
+--- a/servo/components/style/properties_and_values/registry.rs
++++ b/servo/components/style/properties_and_values/registry.rs
+@@ -5,6 +5,7 @@
+ //! Registered custom properties.
+ 
+ use super::rule::{Descriptors, PropertyRuleName};
++use super::value::SpecifiedValue as SpecifiedRegisteredValue;
+ use crate::Atom;
+ use crate::derives::*;
+ use crate::selector_map::PrecomputedHashMap;
+@@ -19,6 +20,8 @@
+     pub name: PropertyRuleName,
+     /// The actual information about the property.
+     pub descriptors: Descriptors,
++    /// The parsed initial value retained by a script registration.
++    pub validated_script_initial: Option<Box<SpecifiedRegisteredValue>>,
+     /// The url data that is used to parse and compute the registration's initial value. Note that
+     /// it's not the url data that should be used to parse other values. Other values should use
+     /// the data of the style sheet where they came from.
+--- a/servo/components/style/properties_and_values/rule.rs
++++ b/servo/components/style/properties_and_values/rule.rs
+@@ -19,6 +19,7 @@
+ use crate::parser::{Parse, ParserContext};
+ use crate::properties::PropertyIdRef;
+ use crate::shared_lock::{SharedRwLockReadGuard, ToCssWithGuard};
++use crate::values::computed::ToComputedValue;
+ use crate::values::{computed, serialize_atom_name};
+ use cssparser::{BasicParseErrorKind, ParseErrorKind, Parser, RuleBodyParser, SourceLocation};
+ use malloc_size_of::{MallocSizeOf, MallocSizeOfOps};
+@@ -133,6 +134,7 @@
+     Ok(PropertyRegistration {
+         name,
+         descriptors,
++        validated_script_initial: None,
+         url_data: context.url_data.clone(),
+         source_location,
+     })
+@@ -163,6 +165,10 @@
+ 
+         if self.descriptors.is_universal() {
+             return Ok(ComputedRegisteredValue::universal(Arc::clone(initial)));
++        }
++
++        if let Some(ref parsed) = self.validated_script_initial {
++            return Ok(parsed.as_ref().to_computed_value(computed_context));
+         }
+ 
+         let mut input = Parser::new(initial.css_text());
+@@ -190,12 +196,21 @@
+         syntax: &SyntaxDescriptor,
+         initial_value: Option<&SpecifiedValue>,
+     ) -> Result<(), PropertyRegistrationError> {
++        Self::parse_initial_value(property_id, syntax, initial_value).map(|_| ())
++    }
++
++    /// Parses an initial value using the registration's validation rules.
++    pub(crate) fn parse_initial_value(
++        property_id: PropertyIdRef,
++        syntax: &SyntaxDescriptor,
++        initial_value: Option<&SpecifiedValue>,
++    ) -> Result<Option<SpecifiedRegisteredValue>, PropertyRegistrationError> {
+         use crate::properties::CSSWideKeyword;
+         // If the value of the syntax descriptor is the universal syntax definition, then the
+         // initial-value descriptor is optional. If omitted, the initial value of the property is
+         // the guaranteed-invalid value.
+         if syntax.is_universal() && initial_value.is_none() {
+-            return Ok(());
++            return Ok(None);
+         }
+ 
+         // Otherwise, if the value of the syntax descriptor is not the universal syntax definition,
+@@ -229,11 +244,9 @@
+             /* attr_taint */ Default::default(),
+             Some(property_id),
+         ) {
+-            Ok(_) => {},
+-            Err(_) => return Err(PropertyRegistrationError::InvalidInitialValue),
+-        }
+-
+-        Ok(())
++            Ok(value) => Ok((!syntax.is_universal()).then_some(value)),
++            Err(_) => Err(PropertyRegistrationError::InvalidInitialValue),
++        }
+     }
+ }
+ 
+--- a/servo/components/style/stylist.rs
++++ b/servo/components/style/stylist.rs
+@@ -2178,19 +2178,22 @@
+             None => None,
+         };
+ 
+-        if let Err(error) = PropertyRegistration::validate_initial_value(
++        let validated_script_initial = match PropertyRegistration::parse_initial_value(
+             PropertyIdRef::from(&name),
+             &syntax,
+             initial_value.as_deref(),
+         ) {
+-            return match error {
+-                PropertyRegistrationError::InitialValueNotComputationallyIndependent => {
+-                    InitialValueNotComputationallyIndependent
+-                },
+-                PropertyRegistrationError::InvalidInitialValue => InvalidInitialValue,
+-                PropertyRegistrationError::NoInitialValue => NoInitialValue,
+-            };
+-        }
++            Ok(value) => value.map(Box::new),
++            Err(error) => {
++                return match error {
++                    PropertyRegistrationError::InitialValueNotComputationallyIndependent => {
++                        InitialValueNotComputationallyIndependent
++                    },
++                    PropertyRegistrationError::InvalidInitialValue => InvalidInitialValue,
++                    PropertyRegistrationError::NoInitialValue => NoInitialValue,
++                };
++            },
++        };
+ 
+         let property_registration = PropertyRegistration {
+             name: PropertyRuleName(name),
+@@ -2203,6 +2206,7 @@
+                 }),
+                 initial_value,
+             },
++            validated_script_initial,
+             url_data: url_data.clone(),
+             source_location: SourceLocation { line: 0, column: 0 },
+         };

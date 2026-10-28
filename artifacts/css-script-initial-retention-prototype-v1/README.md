@@ -1,0 +1,9 @@
+# Retain the selected script initial value
+
+Three-source preparatory native patch. Script registration retains the exact parsed nonuniversal specified value in an owned Box. Initial-map rebuilding computes that stored value through the existing outer registered-value conversion (including zoom). CSS-rule construction uses None and the existing reparsing path. Universal values preserve their raw-token shortcut. Name/duplicate and error ordering are unchanged. Existing shared validation drops its parsed result; no extra Box allocation is added to CSS-rule validation.
+
+This is not the JS computational-independence repair: the parser still uses AllowComputationallyDependent::No, including its existing admission deficiencies. Full ordinary syntax selection followed by complete independence validation remains necessary. Retention supplies the ownership/computation boundary that repair requires. A computed-value cache would be insufficient for allowed changing global inputs; each existing rebuild continues computing from the retained specified value.
+
+Exact forward/reverse/reapply transport and Rust parsing passed. Rustfmt uses servo/rustfmt.toml. An earlier formatting attempt used edition2021 and failed on existing let chains; its log is retained. The actual conversion uses parsed.as_ref() because Box itself implements ToComputedValue and would otherwise return a boxed computed value. Independent bounded source review is in css-script-initial-retention-review-v1. No browser or native compiler result is claimed by this prototype archive; execution evidence belongs to a separate runtime.
+
+Cargo validation preparation found this checkout's mach cargo check configuration sets continue_on_error:true. A later compiler run must preserve the actual Cargo exit code. Captured Searchfox build-command files differ from this checkout; local configured composition is the authoritative command source.

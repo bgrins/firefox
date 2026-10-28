@@ -1,0 +1,7 @@
+import Ownership
+#print axioms SuspensionOwnership.foreign_release_preserves
+#print axioms SuspensionOwnership.only_owner_can_clear
+#print axioms SuspensionOwnership.foreign_resume_demands
+#print axioms SuspensionOwnership.owning_resume_can_retry
+#print axioms SuspensionOwnership.unowned_clear_bypasses_marker
+#print axioms SuspensionOwnership.fresh_drop_preserves_outer
