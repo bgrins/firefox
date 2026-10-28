@@ -106,6 +106,19 @@ impl<'a> PropertyDeclarationContext<'a> {
         self.random_count.get()
     }
 
+    /// Restores random indexes when a speculative parse fails.
+    pub(crate) fn with_random_index_rollback<T, E>(
+        &self,
+        parse: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, E> {
+        let count = self.random_count.get();
+        let result = parse();
+        if result.is_err() {
+            self.random_count.set(count);
+        }
+        result
+    }
+
     /// Claims the next index for a random() function in this declaration. The
     /// index is 1-based and follows the order the functions appear in the
     /// parsed value.

@@ -1619,22 +1619,29 @@ impl CalcNode {
         function: MathFunction,
         allow_anchor: AllowAnchorPositioningFunctions,
     ) -> Result<CalcLengthPercentage, ParseError> {
-        let percentage_context = PercentageContext::allowed_with_hint(NumericBaseType::Length);
-        let additional_functions = match allow_anchor {
-            AllowAnchorPositioningFunctions::No => AdditionalFunctions::empty(),
-            AllowAnchorPositioningFunctions::AllowAnchorSize => AdditionalFunctions::ANCHOR_SIZE,
-            AllowAnchorPositioningFunctions::AllowAnchorAndAnchorSize => {
-                AdditionalFunctions::ANCHOR | AdditionalFunctions::ANCHOR_SIZE
-            },
-        };
-        let flags = CalcParseFlags {
-            additional_functions,
-            percentage_context,
-            ..Default::default()
-        };
-        Self::parse(context, input, function, flags)?
-            .into_length_or_percentage(clamping_mode)
-            .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+        context
+            .property_declaration_context
+            .with_random_index_rollback(|| {
+                let percentage_context =
+                    PercentageContext::allowed_with_hint(NumericBaseType::Length);
+                let additional_functions = match allow_anchor {
+                    AllowAnchorPositioningFunctions::No => AdditionalFunctions::empty(),
+                    AllowAnchorPositioningFunctions::AllowAnchorSize => {
+                        AdditionalFunctions::ANCHOR_SIZE
+                    },
+                    AllowAnchorPositioningFunctions::AllowAnchorAndAnchorSize => {
+                        AdditionalFunctions::ANCHOR | AdditionalFunctions::ANCHOR_SIZE
+                    },
+                };
+                let flags = CalcParseFlags {
+                    additional_functions,
+                    percentage_context,
+                    ..Default::default()
+                };
+                Self::parse(context, input, function, flags)?
+                    .into_length_or_percentage(clamping_mode)
+                    .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+            })
     }
 
     /// Convenience parsing function for percentages.
@@ -1644,16 +1651,20 @@ impl CalcNode {
         clamping_mode: AllowedNumericType,
         function: MathFunction,
     ) -> Result<CalcNumeric, ParseError> {
-        Self::parse(
-            context,
-            input,
-            function,
-            CalcParseFlags::new(PercentageContext::allowed_with_hint(
-                NumericBaseType::Percent,
-            )),
-        )?
-        .into_percentage(clamping_mode)
-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+        context
+            .property_declaration_context
+            .with_random_index_rollback(|| {
+                Self::parse(
+                    context,
+                    input,
+                    function,
+                    CalcParseFlags::new(PercentageContext::allowed_with_hint(
+                        NumericBaseType::Percent,
+                    )),
+                )?
+                .into_percentage(clamping_mode)
+                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+            })
     }
 
     /// Convenience parsing function for `<length>`.
@@ -1664,14 +1675,18 @@ impl CalcNode {
         function: MathFunction,
         percentage_context: PercentageContext,
     ) -> Result<CalcLengthPercentage, ParseError> {
-        Self::parse(
-            context,
-            input,
-            function,
-            CalcParseFlags::new(percentage_context),
-        )?
-        .into_length(clamping_mode)
-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+        context
+            .property_declaration_context
+            .with_random_index_rollback(|| {
+                Self::parse(
+                    context,
+                    input,
+                    function,
+                    CalcParseFlags::new(percentage_context),
+                )?
+                .into_length(clamping_mode)
+                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+            })
     }
 
     /// Convenience parsing function for `<number>`.
@@ -1682,14 +1697,18 @@ impl CalcNode {
         function: MathFunction,
         percentage_context: PercentageContext,
     ) -> Result<CalcNumeric, ParseError> {
-        Self::parse(
-            context,
-            input,
-            function,
-            CalcParseFlags::new(percentage_context),
-        )?
-        .into_number(clamping_mode)
-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+        context
+            .property_declaration_context
+            .with_random_index_rollback(|| {
+                Self::parse(
+                    context,
+                    input,
+                    function,
+                    CalcParseFlags::new(percentage_context),
+                )?
+                .into_number(clamping_mode)
+                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+            })
     }
 
     /// Convenience parsing function for `<angle>`.
@@ -1699,14 +1718,18 @@ impl CalcNode {
         function: MathFunction,
         percentage_context: PercentageContext,
     ) -> Result<CalcNumeric, ParseError> {
-        Self::parse(
-            context,
-            input,
-            function,
-            CalcParseFlags::new(percentage_context),
-        )?
-        .into_angle(AllowedNumericType::All)
-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+        context
+            .property_declaration_context
+            .with_random_index_rollback(|| {
+                Self::parse(
+                    context,
+                    input,
+                    function,
+                    CalcParseFlags::new(percentage_context),
+                )?
+                .into_angle(AllowedNumericType::All)
+                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+            })
     }
 
     /// Convenience parsing function for `<time>`.
@@ -1717,14 +1740,18 @@ impl CalcNode {
         function: MathFunction,
         percentage_context: PercentageContext,
     ) -> Result<CalcNumeric, ParseError> {
-        Self::parse(
-            context,
-            input,
-            function,
-            CalcParseFlags::new(percentage_context),
-        )?
-        .into_time(clamping_mode)
-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+        context
+            .property_declaration_context
+            .with_random_index_rollback(|| {
+                Self::parse(
+                    context,
+                    input,
+                    function,
+                    CalcParseFlags::new(percentage_context),
+                )?
+                .into_time(clamping_mode)
+                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+            })
     }
 
     /// Convenience parsing function for `<resolution>`.
@@ -1734,13 +1761,17 @@ impl CalcNode {
         function: MathFunction,
         percentage_context: PercentageContext,
     ) -> Result<CalcNumeric, ParseError> {
-        Self::parse(
-            context,
-            input,
-            function,
-            CalcParseFlags::new(percentage_context),
-        )?
-        .into_resolution()
-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+        context
+            .property_declaration_context
+            .with_random_index_rollback(|| {
+                Self::parse(
+                    context,
+                    input,
+                    function,
+                    CalcParseFlags::new(percentage_context),
+                )?
+                .into_resolution()
+                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+            })
     }
 }

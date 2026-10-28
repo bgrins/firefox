@@ -474,11 +474,15 @@ impl<'a> Parser<'a> {
 
         let mut parse_components = |context: &ParserContext| {
             for component in self.syntax.components.iter() {
-                let result = input.try_parse(|input| {
-                    input.parse_entirely(|input| {
-                        Self::parse_value(context, input, &component.unpremultiplied())
-                    })
-                });
+                let result = context
+                    .property_declaration_context
+                    .with_random_index_rollback(|| {
+                        input.try_parse(|input| {
+                            input.parse_entirely(|input| {
+                                Self::parse_value(context, input, &component.unpremultiplied())
+                            })
+                        })
+                    });
                 let Ok(values) = result else { continue };
                 self.output.extend(values);
                 *self.output_multiplier = component.multiplier();

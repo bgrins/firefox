@@ -4064,8 +4064,11 @@ pub mod grid {
             }
         }
 
-        if let Ok((rows, cols, areas)) =
-            input.try_parse(|i| super::grid_template::parse_grid_template(context, i))
+        if let Ok((rows, cols, areas)) = context
+            .property_declaration_context
+            .with_random_index_rollback(|| {
+                input.try_parse(|i| super::grid_template::parse_grid_template(context, i))
+            })
         {
             temp_rows = rows;
             temp_cols = cols;
