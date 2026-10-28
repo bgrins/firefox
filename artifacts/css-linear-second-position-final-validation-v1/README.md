@@ -1,0 +1,3 @@
+Scoped final validation of the linear easing guard. Rust formatting passes; the renamed WPT passes lint with zero errors or warnings. Source and WPT hashes are recorded in CHECK.json.
+
+The initial lint could not open Mach's external virtualenv lock. Retrying with the required access reached lint and identified that the old -crash.html suffix reserves crashtest classification. The landing filename is now linear-contextual-second-position.html; its contents are unchanged. Both unsuccessful attempts remain recorded. Browser results are recorded separately; these checks make no browser-success or native-acceptance claim.

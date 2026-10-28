@@ -1,0 +1,11 @@
+# Final linear endpoint guard review
+
+Independent saved-event replay is clear for root acceptance. The actual final run completed 48 subtests: six targets and two feature calibrations PASS, with forty regression signatures preserved, including twelve existing FAILs. All four page-ending signatures equal the paired candidate after the exact old-to-new target filename mapping. The six target rows and their ending are the only seven remapped identities; messages, status, expectation and intermittent-field presence are unchanged.
+
+The original isolated target crashed before completing any subtests. The paired baseline completed 42 assertions. This supports eliminating one reproduced content-process crash, not six completed FAIL-to-PASS repairs. The guard keeps the existing contextual-easing rejection policy; no new context support, security or memory-corruption claim follows.
+
+The exact final raw events reproduce the complete assessor output and actual publication augmentation. The sealed promotion archive contains 67 regular payloads and one explicitly recorded tools symlink. Historical baseline, crash and candidate publications replay unchanged. Final PRE equals POST, application metadata agrees before/after and with the actual linked build, all captured fixture/resource hashes agree, and saved cleanup confirms the owned process group and temporary root are absent. The successful final wrapper receipt is session75689/chunk4023ee/exit0.
+
+The actual build has inner exit0 and a successful preserved publisher. Its orchestration handle disappeared, so no outer build terminal receipt is asserted. The build epoch remains8490301e; the final2beac5dd epoch differs only by the exact WPT pin/identity key rename and recorded raw-index observation. The same test bytes/inode, native source, binaries, compiled marker and unrelated accepted context are preserved. The historical -crash.html path remains historical evidence; the final testharness page is linear-contextual-second-position.html.
+
+This review reads artifacts only and runs no browser, compiler, live source/process census or canonical control check. It does not assign a fix number or publish acceptance. Root separately approved143. Replay with `python3 -I -S -B artifacts/css-linear-second-position-final-review-v1/replay.py`.
