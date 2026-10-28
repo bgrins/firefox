@@ -2010,15 +2010,15 @@ fn resolve_line_height_length(context: &Context, length: NoCalcLength) -> CSSPix
 
 /// Maps a line-height calc leaf into a resolved leaf. Percentages are replaced
 /// with equivalent `em` lengths, and all lengths are resolved to absolute lengths.
-fn map_line_height_leaf(context: &Context, leaf: &Leaf) -> Leaf {
+fn map_line_height_leaf(context: &Context, leaf: &Leaf) -> Result<Leaf, ()> {
     let length = match leaf {
         Leaf::Percentage(p) => NoCalcLength::from_em(p.get()),
         Leaf::Length(l) => *l,
-        _ => return leaf.clone(),
+        _ => return leaf.to_computed_value(Some(context), None),
     };
-    Leaf::Length(NoCalcLength::from_px(
+    Ok(Leaf::Length(NoCalcLength::from_px(
         resolve_line_height_length(context, length).px(),
-    ))
+    )))
 }
 
 impl ToComputedValue for LineHeight {
@@ -2034,7 +2034,7 @@ impl ToComputedValue for LineHeight {
                     Some(calc) => {
                         let resolved = calc
                             .node
-                            .resolve_map(|leaf| Ok(map_line_height_leaf(context, leaf)));
+                            .resolve_map(|leaf| map_line_height_leaf(context, leaf));
                         let value = match resolved {
                             Ok(Leaf::Number(n)) => n.get(),
                             _ => {
