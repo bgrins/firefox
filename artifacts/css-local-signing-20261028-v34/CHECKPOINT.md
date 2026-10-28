@@ -1,0 +1,11 @@
+# Follow-on research checkpoint
+
+Accepted fixes remain 139 and tracked fixes 140, with withheld 120 excluded. This batch adds no accepted native fix, canonical coverage or ledger increment. The held provider source and restored original page/provider binary bodies remain unchanged.
+
+Random-index research now covers seven typed-finalizer boundaries and the enclosing grid-template alternative. Grid source-v3 is preserved as a rejected historical proposal with the wrong helper receiver; corrected source-v4 remains uncompiled. Separate contextual numeric line-height work retains its Lean model, twelve-test split and installed-release tree-function failures. A combined temporary four-source Cargo check passed and restored all sources; this is not independent validation of either candidate.
+
+The reversible experiment completed fresh original and font-only candidate linked builds. Original 34 WPT assertions completed 27 PASS and 7 FAIL. Candidate browser execution did not start: replay differed only in one descriptive oracle_caveat field. The raw failure and owner exit 1 remain unchanged. Full source/application/extra-output restoration and exact staged 165 preservation passed. Large backup payloads are excluded from research commits and remain separately owned. No paired candidate runtime acceptance is claimed.
+
+The previous failed signing attempts, successful exact staged retry and adoption/signature evidence are preserved here unless already committed identically, in which case CHECKPOINT-ARCHIVE records their exact pins. The v33 synchronization is the verified starting point. This batch synchronizes only the signed artifact-only successor chain; it does not invent new browser-build provenance.
+
+Next work is to align the paired runner's published/replayed descriptive label and test that actual augmentation path, then rerun candidate line-height 34 against the authenticated original observation. If all twelve targets pass and the 22 regression signatures remain exact, prepare the standalone native font fix plus its two WPT files for acceptance review. Separately, typecheck corrected counter source-v4 and execute its 46 targeted WPT assertions. Provider work remains unaccepted.
