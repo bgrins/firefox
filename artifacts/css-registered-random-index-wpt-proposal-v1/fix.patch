@@ -1,0 +1,116 @@
+--- a/servo/components/style/parser.rs
++++ b/servo/components/style/parser.rs
+@@ -104,6 +104,19 @@
+     /// The index of the current random() function in this declaration.
+     pub fn current_random_index(&self) -> i32 {
+         self.random_count.get()
++    }
++
++    /// Restores random indexes when a speculative parse fails.
++    pub(crate) fn with_random_index_rollback<T, E>(
++        &self,
++        parse: impl FnOnce() -> Result<T, E>,
++    ) -> Result<T, E> {
++        let count = self.random_count.get();
++        let result = parse();
++        if result.is_err() {
++            self.random_count.set(count);
++        }
++        result
+     }
+ 
+     /// Claims the next index for a random() function in this declaration. The
+--- a/servo/components/style/properties_and_values/value.rs
++++ b/servo/components/style/properties_and_values/value.rs
+@@ -474,11 +474,15 @@
+ 
+         let mut parse_components = |context: &ParserContext| {
+             for component in self.syntax.components.iter() {
+-                let result = input.try_parse(|input| {
+-                    input.parse_entirely(|input| {
+-                        Self::parse_value(context, input, &component.unpremultiplied())
+-                    })
+-                });
++                let result = context
++                    .property_declaration_context
++                    .with_random_index_rollback(|| {
++                        input.try_parse(|input| {
++                            input.parse_entirely(|input| {
++                                Self::parse_value(context, input, &component.unpremultiplied())
++                            })
++                        })
++                    });
+                 let Ok(values) = result else { continue };
+                 self.output.extend(values);
+                 *self.output_multiplier = component.multiplier();
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-properties-values-api/registered-random-alternative-indices.tentative.html
+@@ -0,0 +1,68 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Registered syntax alternatives preserve random function indexes</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#random-simplify">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#random-caching">
++<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api/#the-registerproperty-function">
++<meta name="assert" content="Rejected registered syntax alternatives do not change the indexes of random functions in the selected value.">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<div id="container"></div>
++<script>
++const cases = [
++  ["single", "<number>", 1, "indexed"],
++  ["number-first", "<number> | <length>", 1, "indexed"],
++  ["length-first", "<length> | <number>", 1, "indexed"],
++  ["two-failed", "<length> | <angle> | <number>", 1, "indexed"],
++  ["list", "<number>+", 2, "indexed"],
++  ["failed-list", "<length>+ | <number>+", 2, "indexed"],
++  ["trailing-list", "<number> | <number>+", 2, "indexed"],
++  ["fixed", "<length> | <number>", 1, "fixed"],
++  ["named", "<length> | <number>", 1, "named"],
++  ["property", "<length> | <number>", 1, "property"],
++];
++
++for (const mode of ["initial", "declaration"]) {
++  for (const [id, syntax, count, kind] of cases) {
++    test(t => {
++      const name = `--random-alternative-${mode}-${id}`;
++      const authorKey = `--shared-${mode}-${id}`;
++      const key = kind === "fixed" ? "fixed .25"
++        : kind === "named" ? authorKey
++        : kind === "property" ? "property-scoped" : "property-index-scoped";
++      const value = Array(count).fill(`random(${key}, 0, 1)`).join(" ");
++      assert_true(CSS.supports("opacity", `random(${key}, 0, 1)`), "random() syntax is supported");
++      const literal = count === 2 ? "0.25 0.75" : "0.25";
++      CSS.registerProperty({name, syntax, inherits: false, initialValue: mode === "initial" ? value : literal});
++      const holder = document.createElement("div");
++      document.getElementById("container").append(holder);
++      t.add_cleanup(() => holder.remove());
++      const target = document.createElement("div");
++      holder.append(target);
++      if (mode === "declaration") {
++        const initialTarget = document.createElement("div");
++        holder.append(initialTarget);
++        assert_equals(getComputedStyle(initialTarget).getPropertyValue(name).trim(), literal,
++          "literal registration initial is admitted");
++        target.style.setProperty(name, value);
++      }
++      const expected = Array.from({length: count}, (_, index) => {
++        if (kind === "fixed") return "0.25";
++        const explicitKey = kind === "named" ? authorKey
++          : kind === "property" ? `ua-${name}` : `ua-${name}-${index + 1}`;
++        const referenceValue = `random(${explicitKey}, 0, 1)`;
++        assert_true(CSS.supports("opacity", referenceValue), "explicit random cache key is supported");
++        const reference = document.createElement("div");
++        reference.style.opacity = referenceValue;
++        holder.append(reference);
++        return getComputedStyle(reference).opacity;
++      });
++      const actual = getComputedStyle(target).getPropertyValue(name).trim().split(/\s+/);
++      assert_equals(actual.length, count, "selected value has the expected number of members");
++      for (let index = 0; index < count; ++index) {
++        assert_true(actual[index] === expected[index], `member ${index + 1} uses the selected value's cache key`);
++      }
++    }, `${mode}: ${id} preserves selected random indexes`);
++  }
++}
++</script>

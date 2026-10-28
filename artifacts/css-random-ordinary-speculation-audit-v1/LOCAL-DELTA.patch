@@ -1,0 +1,84 @@
+--- upstream/parser.rs
++++ local/parser.rs
+@@ -6,8 +6,8 @@
+ 
+ use crate::context::QuirksMode;
++use crate::custom_properties::{AttrTaint, AttrTaintedRange};
+ use crate::error_reporting::{ContextualParseError, ParseErrorReporter};
+ use crate::properties::PropertyIdRef;
+ use crate::stylesheets::{CssRuleType, CssRuleTypes, Namespaces, Origin, UrlExtraData};
+-use crate::substitution::{AttrTaint, AttrTaintedRange};
+ use crate::use_counters::UseCounters;
+ use cssparser::{Parser, SourceLocation, UnicodeRange};
+@@ -245,5 +245,4 @@
+ 
+     /// Get the rule type, which assumes that one is available.
+-    #[inline]
+     pub fn rule_types(&self) -> CssRuleTypes {
+         self.nesting_context.rule_types
+--- upstream/values__specified__font.rs
++++ local/values__specified__font.rs
+@@ -1001,6 +1001,6 @@
+     #[inline]
+     pub fn quantize_font_size(size: CSSPixelLength) -> CSSPixelLength {
+-        // If the size is < 1024px and >= 0.1px, just snap to an integer number of appUnits.
+-        if size.px() < 1024.0 && size.px() >= 0.1 {
++        // If the size is < 1024px, just snap to an integer number of appUnits.
++        if size.px() < 1024.0 {
+             return CSSPixelLength::from(app_units::Au::from_f32_px(size.px()));
+         }
+@@ -1022,12 +1022,6 @@
+         let d = size.px() * SCALE_PLUS_ONE;
+         let t = d - size.px();
+-        let quantized = d - t;
+-        if quantized < 0.1 {
+-            // Don't snap tiny values.
+-            CSSPixelLength::new(quantized)
+-        } else {
+-            // Snap the quantized result to integer appUnits.
+-            CSSPixelLength::from(app_units::Au::from_f32_px(quantized))
+-        }
++        // Snap the result to integer appUnits.
++        CSSPixelLength::from(app_units::Au::from_f32_px(d - t))
+     }
+ }
+--- upstream/values__specified__calc.rs
++++ local/values__specified__calc.rs
+@@ -23,5 +23,5 @@
+     AnchorSideKeyword, GenericAnchorFunction, GenericAnchorSide, TreeScoped,
+ };
+-use crate::values::specified::length::NoCalcLength;
++use crate::values::specified::length::{FontBaseSize, LineHeightBase, NoCalcLength};
+ use crate::values::specified::random::RandomKey;
+ use crate::values::specified::{
+@@ -157,5 +157,11 @@
+             Self::Length(l) => {
+                 let px = match context {
+-                    Some(context) => l.to_computed_value(context).px(),
++                    Some(context) => l
++                        .to_computed_value_for_math(
++                            context,
++                            FontBaseSize::CurrentStyle,
++                            LineHeightBase::CurrentStyle,
++                        )
++                        .px(),
+                     None => l.to_computed_pixel_length_without_context()?,
+                 };
+--- upstream/values__specified__number.rs
++++ local/values__specified__number.rs
+@@ -482,6 +482,6 @@
+             Unpacked::Inline((), v) => v,
+             Unpacked::Boxed(calc) => {
+-                let value = calc.as_number()?.get();
+-                (value + 0.5).floor() as CSSInteger
++                let value = calc.clamping_mode.clamp(calc.as_number()?.get());
++                (f64::from(value) + 0.5).floor() as CSSInteger
+             },
+         })
+@@ -580,5 +580,5 @@
+                 });
+                 let clamped = crate::values::normalize(value).min(f32::MAX).max(f32::MIN);
+-                (clamped + 0.5).floor() as i32
++                (f64::from(clamped) + 0.5).floor() as i32
+             },
+         }

@@ -1,0 +1,15 @@
+# Random alternative counter WPT comparison (disabled draft)
+
+Five unchanged testharness pages provide 31 new selected-key assertions and 424 existing assertions (172 random computation, 246 registration syntax parsing, six registration API checks). Names are enumerated by executing only test-registration code and real shared helpers, without invoking test callbacks; the iframe load registration is invoked explicitly. Browser execution must produce exactly that roster. The genuine WPT manifest is generated using the checkout's manifest implementation. Captured ancestor metadata and headers are preserved.
+
+The original records complete PASS/FAIL results. The candidate must pass all 31 new assertions, retain exact existing status/expectation/intermittent/message signatures, and repair at least one original target failure. Any changed historical failure requires explicit review; the adapter never silently treats it as passing or drops it. Full raw events remain available. Same-key equality is the target oracle; no claim that distinct random keys must differ is added by this fixture. The unchanged existing random page retains its own probabilistic controls.
+
+The runner reuses the reviewed owned-process, private temporary directory, source/metadata/binary, index/nested-repository, application BuildID and cleanup guards. Each phase binds a fresh successful build epoch and both outer and inner build completion. Candidate provenance additionally freezes the exact original runtime inventory, raw replay and experiment/assessor/capture hashes. BuildID may differ only when independently bound to each phase; revision must remain the same. No acceptance or installation occurs here.
+
+Source roles, exact build marker and evidence are deliberately pending. Root is auditing broader ordinary-property counter rollback paths before adopting source pins and building the original. No browser, build, source, epoch, index or canonical WPT has been changed by this preparation. Do not execute this draft. Final immutable original/candidate packages will bind real completed build receipts.
+
+Preparation: five pages/455 named assertions; real manifest roundtrip passed; five positive and 25 negative assessment controls passed. These checks exercise assessment logic, not Firefox behavior or the pending phase binding.
+
+The fifth page is the exact sealed ordinary typed-parser fixture (11 assertions), including specified UA keys for ordinary number/percentage fallback paths and repeated members. Its numeric line-height control is specified-only; this experiment does not certify the separately observed computed-number behavior.
+
+Signing checkpoint: this is an explicitly disabled, unexecuted archive. Its historical b043 HEAD is retained honestly; future execution requires a new successor bound to the post-signing HEAD, adopted source roles and successful fresh build. Both new target pages now live under css-values and inherit its unchanged random preference metadata. The registered20 HTML is byte-identical to the reviewed predecessor; only its path changed.

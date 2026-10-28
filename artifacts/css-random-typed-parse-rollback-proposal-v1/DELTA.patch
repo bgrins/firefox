@@ -1,0 +1,60 @@
+--- a/servo/components/style/values/specified/calc.rs
++++ b/servo/components/style/values/specified/calc.rs
+@@ -1644,16 +1644,20 @@
+         clamping_mode: AllowedNumericType,
+         function: MathFunction,
+     ) -> Result<CalcNumeric, ParseError> {
+-        Self::parse(
+-            context,
+-            input,
+-            function,
+-            CalcParseFlags::new(PercentageContext::allowed_with_hint(
+-                NumericBaseType::Percent,
+-            )),
+-        )?
+-        .into_percentage(clamping_mode)
+-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++        context
++            .property_declaration_context
++            .with_random_index_rollback(|| {
++                Self::parse(
++                    context,
++                    input,
++                    function,
++                    CalcParseFlags::new(PercentageContext::allowed_with_hint(
++                        NumericBaseType::Percent,
++                    )),
++                )?
++                .into_percentage(clamping_mode)
++                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++            })
+     }
+ 
+     /// Convenience parsing function for `<length>`.
+@@ -1682,14 +1686,18 @@
+         function: MathFunction,
+         percentage_context: PercentageContext,
+     ) -> Result<CalcNumeric, ParseError> {
+-        Self::parse(
+-            context,
+-            input,
+-            function,
+-            CalcParseFlags::new(percentage_context),
+-        )?
+-        .into_number(clamping_mode)
+-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++        context
++            .property_declaration_context
++            .with_random_index_rollback(|| {
++                Self::parse(
++                    context,
++                    input,
++                    function,
++                    CalcParseFlags::new(percentage_context),
++                )?
++                .into_number(clamping_mode)
++                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++            })
+     }
+ 
+     /// Convenience parsing function for `<angle>`.

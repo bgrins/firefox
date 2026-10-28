@@ -1,0 +1,11 @@
+# Registered random-index observation
+
+Local Nightly160.0a1, build20261028101915, with layout.css.random.enabled already true; no feature preference was changed. Browser tooling was explicitly switched from its prior system Firefox158 configuration to the exact local binary. SESSION.json records actual launch, raw-result locations and owned-session closure.
+
+The wrapped original15-case probe produced45 snapshots:18 discrepancies across six cases,27 passing controls. The separate trailing-token extension produced48 snapshots:21 discrepancies across seven cases,27 passing controls. Each discrepant declaration exactly matches the predicted leaked explicit cache keys2/3 instead of its intended key1 (or keys1/2 for lists). Literal-initial cases isolate ordinary declaration parsing from random initial-admission policy. Initial, declared and control values are stable across all three phases; no reparse-driven key churn was observed.
+
+The first exact probe result exposed a tool-transport limitation: repeated references to the same array/object become empty duplicate fields in MCP serialization. Its raw primary values and references remain preserved in raw.json. The repeated observation wraps the unchanged sealed function result in a JSON roundtrip before transport; wrapped-raw.json retains independent copies of every expected field. Neither raw output was edited. The extension is independently recorded in trailing-raw.json.
+
+All probe-owned iframes and the tab were removed; the server-owned browser session was closed. Full root/nested/index/source preservation and actual launcher/XUL/application metadata identities and bytes were verified. Local application.ini lacks SourceStamp/SourceRepository, so no fabricated values are supplied; exact build provenance is in the saved epoch. The first metadata capture assumed those release fields and failed before writing a result.
+
+This is browser-confirmed source-first research, not an accepted fix. The proposed two-file counter rollback, standalone WPT and paired native validation remain separate work. The current local binary includes accepted page fix140 and an unrelated unaccepted provider prototype. No stock-release support, clean-upstream run, security impact or complete parser-state transaction is claimed.

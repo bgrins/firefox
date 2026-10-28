@@ -1,0 +1,9 @@
+# Ordinary random-index and line-height observations
+
+Exact local Nightly160.0a1 build20261028101915 was explicitly selected, with random() already enabled. Eight ordinary-property rows confirm wrong generated index2 for numeric opacity and length line-height; specified CSSOM and the same-document explicit key2 computed reference agree. Five remaining controls are numerically calibrated. The sixth, numeric line-height, preserves specified index1 but both target/reference compute0px, so computed equality is vacuous and is not counted as a calibrated numeric pass.
+
+A separate nine-row calibration confirms a distinct contextual-leaf issue: literal2/calc2 line-height yield20px and fixed-.25 random(1,3) yields15px at font-size10px, while nonconstant named/indexed numeric random expressions and a named length ratio yield0px and zero text-box height. Matching named/key1 length-valued references remain positive. This is separate from random-index rollback and needs its own independently landable repair. No new fix is accepted or assigned an identifier.
+
+Both owned browser sessions and all probe iframes/tabs were closed. Full source/index/epoch and exact launcher/XUL/application metadata byte/identity preservation passed. SESSION and CALIBRATION-SESSION retain actual local launch configuration and result paths. MCP reverted to default system Firefox configuration after prior closure, so each experiment explicitly selected the local binary before execution. Probe results are JSON-roundtripped before MCP transport to preserve duplicated object fields.
+
+This is source-first/browser-confirmed research. The ordinary counter and separate line-height hypotheses are being reviewed; no stock-release availability, security impact, native refinement, or complete parser-transaction claim is made.
