@@ -1,0 +1,5 @@
+import ZeroBasis
+#print axioms Atan2ZeroBasis.nonzero_basis_suffices
+#print axioms Atan2ZeroBasis.zero_basis_differs
+#print axioms Atan2ZeroBasis.folding_exact_iff
+#print axioms Atan2ZeroBasis.sampled_positive_context_is_insufficient

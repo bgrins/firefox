@@ -1,0 +1,88 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>atan2 resolves relative operands before folding</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#trig-infinities">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#calc-computed-value">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function element(t, parent = document.body) {
+  const result = document.createElement("div");
+  parent.append(result);
+  t.add_cleanup(() => result.remove());
+  return result;
+}
+function matrix(target) {
+  const m = new DOMMatrixReadOnly(getComputedStyle(target).transform);
+  return [m.a, m.b, m.c, m.d, m.e, m.f];
+}
+for (const [y,x] of [[1,1], [1,-1], [-1,1], [-1,-1]]) {
+  for (const offset of [0,10]) {
+    test(t => {
+      const target = element(t);
+      const reference = element(t);
+      const pixels = element(t);
+      for (const node of [target,reference,pixels]) {
+        node.style.cssText = "position:absolute;width:10px;height:10px;transform-origin:0 0;zoom:1";
+      }
+      target.style.transform = `rotate(calc(atan2(${y}em, ${x}em) + ${offset}deg))`;
+      const snapshots = [];
+      const token = n => Object.is(n,-0) ? "-0" : String(n);
+      for (const font of [10,0,10]) {
+        target.style.fontSize = `${font}px`;
+        const angle = Math.atan2(y*font,x*font)*180/Math.PI + offset;
+        reference.style.transform = `rotate(${angle}deg)`;
+        pixels.style.transform = `rotate(calc(atan2(${token(y*font)}px, ${token(x*font)}px) + ${offset}deg))`;
+        snapshots.push({font, computedFont:getComputedStyle(target).fontSize,
+          actual:matrix(target), reference:matrix(reference), pixels:matrix(pixels)});
+      }
+      const details = JSON.stringify(snapshots);
+      assert_not_equals(target.style.transform, "", details);
+      for (const row of snapshots) {
+        assert_equals(row.computedFont, `${row.font}px`, details);
+        assert_array_approx_equals(row.pixels,row.reference,0.00001,"Pixel control: "+details);
+        assert_array_approx_equals(row.actual,row.reference,0.00001,details);
+      }
+    }, `Relative atan2 quadrant ${y},${x} offset ${offset} tracks 10-to-zero-to-10 font`);
+  }
+}
+for (const consumer of ["steps", "subgrid", "z-index"]) {
+  for (const unit of ["em","px"]) {
+    test(t => {
+      const host = element(t);
+      host.style.cssText = "display:grid;grid-template-columns:repeat(8,20px);zoom:1";
+      const target = element(t,host);
+      const reference = element(t,host);
+      const count = `calc(1 + 2 * atan2(1${unit}, 1${unit}) / 45deg)`;
+      const property = consumer === "steps" ? "animation-timing-function" :
+        consumer === "subgrid" ? "grid-template-columns" : "z-index";
+      const value = n => consumer === "steps" ? `steps(${n}, start)` :
+        consumer === "subgrid" ? `subgrid repeat(${n}, [a])` : n;
+      for (const node of [target,reference]) {
+        node.style.cssText = "position:relative;height:1px";
+        if (consumer === "subgrid") {
+          node.style.display = "grid";
+          node.style.gridColumn = "1 / -1";
+        }
+      }
+      target.style.setProperty(property,value(count));
+      const snapshots = [];
+      for (const font of [10,0,10]) {
+        target.style.fontSize = `${font}px`;
+        reference.style.setProperty(property,value(String(unit === "em" && font === 0 ? 1 : 3)));
+        snapshots.push({font,computedFont:getComputedStyle(target).fontSize,
+          actual:getComputedStyle(target).getPropertyValue(property),
+          reference:getComputedStyle(reference).getPropertyValue(property)});
+      }
+      const details = JSON.stringify(snapshots);
+      assert_true(CSS.supports(property,value(count)),"Admission: "+details);
+      assert_not_equals(target.style.getPropertyValue(property),"",details);
+      for (const row of snapshots) {
+        assert_equals(row.computedFont,`${row.font}px`,details);
+        assert_equals(row.actual,row.reference,details);
+      }
+    }, `Relative atan2 preserves ${consumer} admission and computation for ${unit}`);
+  }
+}
+</script>

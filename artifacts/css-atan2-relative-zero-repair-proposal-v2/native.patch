@@ -1,0 +1,11 @@
+--- a/servo/components/style/values/generics/calc.rs
++++ b/servo/components/style/values/generics/calc.rs
+@@ -2398,7 +2398,7 @@
+             Self::Atan2(ref mut a, ref mut b) => {
+                 if let (CalcNode::Leaf(la), CalcNode::Leaf(lb)) = (&**a, &**b)
+                     && la.is_same_unit_as(lb)
+-                    && let (Some(a_val), Some(b_val)) = (la.unitless_value(), lb.unitless_value())
++                    && let (Some(a_val), Some(b_val)) = (la.canonical_value(), lb.canonical_value())
+                 {
+                     let mut result = Self::Leaf(L::new_angle_from_radians(a_val.atan2(b_val)));
+                     replace_self_with!(&mut result);
