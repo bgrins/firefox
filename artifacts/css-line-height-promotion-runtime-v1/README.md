@@ -1,0 +1,3 @@
+Owned promotion installed exactly the previously paired font.rs candidate and two sealed WPT files, preserving the held provider experiment. The actual linked candidate build completed successfully and its sources, binary hashes, metadata and epoch are captured. INSTALL-OUTER.json and candidate-build-1/OUTER.json record root execution. No process remains in the recorded owned groups.
+
+This archive captures install/build evidence only. Final promoted WPT validation and acceptance are separate later artifacts and were pending at sealing. The line-height transition remains unaccepted. Existing build/source/epoch records are unchanged; FILES contains all regular evidence and no binary payloads.

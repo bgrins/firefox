@@ -1,0 +1,63 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Contextual leaves in unitless line-height calculations</title>
+<link rel="help" href="https://drafts.csswg.org/css-inline-3/#line-height-property">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#randomness">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#random-caching">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="container"></div>
+<script>
+function makeBox(parent, value) {
+  const box = document.createElement("div");
+  box.style.cssText = "font-family:monospace;margin:0;padding:0;border:0";
+  box.style.lineHeight = value;
+  box.textContent = "x";
+  parent.append(box);
+  return box;
+}
+
+const cases = [
+  ["literal", "2", "2em"],
+  ["calc literal", "calc(2)", "2em"],
+  ["fixed random", "random(fixed .25, 1, 3)", "1.5em"],
+  ["named random", "random(--line-number, 1, 3)", "random(--line-number, 1em, 3em)"],
+  ["stepped named random", "random(--line-stepped, 1, 3, 1)", "random(--line-stepped, 1em, 3em, 1em)"],
+  ["named random in a sum", "calc(1 + random(--line-sum, 1, 3, 1))", "calc(1em + random(--line-sum, 1em, 3em, 1em))"],
+  ["named random length ratio", "calc(random(--line-ratio, 1em, 3em) / 1em)", "random(--line-ratio, 1em, 3em)"],
+  ["nested fixed random key", "random(fixed random(--line-nested, 0, 1), 1, 3)", "random(fixed random(--line-nested, 0, 1), 1em, 3em)"],
+  ["percentage ratio", "calc(100% / 1em)", "1em"],
+  ["inherited line-height ratio", "calc(1lh / 1em)", "40px"],
+];
+
+for (const [name, value, referenceValue] of cases) {
+  test(t => {
+    assert_true(CSS.supports("line-height", value), "unitless expression is supported");
+    assert_true(CSS.supports("line-height", referenceValue), "length reference is supported");
+    const holder = document.createElement("div");
+    holder.style.lineHeight = "40px";
+    document.getElementById("container").append(holder);
+    t.add_cleanup(() => holder.remove());
+    const target = makeBox(holder, value);
+    const reference = makeBox(holder, referenceValue);
+    const snapshots = [];
+    for (const size of [10, 20, 10]) {
+      target.style.fontSize = reference.style.fontSize = `${size}px`;
+      snapshots.push({
+        actual: parseFloat(getComputedStyle(target).lineHeight),
+        expected: parseFloat(getComputedStyle(reference).lineHeight),
+        height: target.getBoundingClientRect().height,
+        referenceHeight: reference.getBoundingClientRect().height,
+      });
+    }
+    for (const snapshot of snapshots) {
+      assert_true(snapshot.expected >= 10, "positive reference calibration");
+      assert_approx_equals(snapshot.actual, snapshot.expected, 1 / 60 + 0.001,
+        "unitless line-height matches the same-key length value");
+      assert_approx_equals(snapshot.height, snapshot.referenceHeight, 1 / 60 + 0.001,
+        "line box height matches the length control");
+    }
+  }, `${name} resolves before unitless line-height is used`);
+}
+
+</script>
