@@ -1,0 +1,106 @@
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-values/random-typed-parse-rollback.html
+@@ -0,0 +1,103 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Random function indexes survive rejected numeric parse alternatives</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#random-simplify">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#random-caching">
++<link rel="help" href="https://drafts.csswg.org/css-inline-3/#line-height-property">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++function pair(t, property, actual, expected) {
++  return [actual, expected].map(value => {
++    assert_true(CSS.supports(property, value), `${property} supports ${value}`);
++    const element = document.createElement("div");
++    element.style.fontSize = "10px";
++    element.style.setProperty(property, value);
++    document.body.append(element);
++    t.add_cleanup(() => element.remove());
++    return element;
++  });
++}
++
++const indexedCases = [
++  ["opacity", "random(property-index-scoped, 0, 1)",
++    "random(ua-opacity-1, 0, 1)",
++    "A rejected percentage parse does not increment a numeric opacity random index"],
++  ["line-height", "random(property-index-scoped, 10px, 90px)",
++    "random(ua-line-height-1, 10px, 90px)",
++    "A rejected number parse does not increment a length line-height random index"],
++  ["opacity", "random(property-index-scoped, 0%, 100%)",
++    "random(ua-opacity-1, 0%, 100%)",
++    "A successful percentage opacity parse keeps random index one"],
++  ["filter", "brightness(random(property-index-scoped, .25, .75)) contrast(random(property-index-scoped, .25, .75))",
++    "brightness(random(ua-filter-1, .25, .75)) contrast(random(ua-filter-2, .25, .75))",
++    "Rejected filter factor alternatives preserve earlier successful random indexes"],
++  ["border-image-slice", "random(property-index-scoped, 1, 20) random(property-index-scoped, 21, 40)",
++    "random(ua-border-image-slice-1, 1, 20) random(ua-border-image-slice-2, 21, 40)",
++    "Rejected border image slice alternatives preserve earlier successful random indexes"],
++  ["background-image", "conic-gradient(red random(property-index-scoped, 10deg, 90deg), blue)",
++    "conic-gradient(red random(ua-background-image-1, 10deg, 90deg), blue)",
++    "A rejected percentage parse does not increment a conic gradient angle random index"],
++];
++
++for (const [property, actual, expected, name] of indexedCases) {
++  test(t => {
++    const [target, reference] = pair(t, property, actual, expected);
++    assert_equals(target.style.getPropertyValue(property),
++      reference.style.getPropertyValue(property), "Specified random keys");
++    assert_equals(getComputedStyle(target).getPropertyValue(property),
++      getComputedStyle(reference).getPropertyValue(property), "Computed value");
++  }, name);
++}
++
++test(t => {
++  const [target, reference] = pair(t, "line-height",
++    "random(property-index-scoped, 1, 3)", "random(ua-line-height-1, 1, 3)");
++  assert_equals(target.style.lineHeight, reference.style.lineHeight, "Specified random key");
++}, "A successful number line-height parse keeps specified random index one");
++
++const controlCases = [
++  ["opacity", "random(--typed-rollback-control, 0, 1)",
++    "random(--typed-rollback-control, 0, 1)", "Named opacity random keys remain shared"],
++  ["line-height", "random(--typed-rollback-control, 10px, 90px)",
++    "random(--typed-rollback-control, 10px, 90px)", "Named length line-height random keys remain shared"],
++  ["opacity", "random(fixed .25, 0, 1)", "0.25", "Fixed opacity randomness remains unchanged"],
++  ["line-height", "random(fixed .25, 10px, 90px)", "30px", "Fixed length line-height randomness remains unchanged"],
++];
++
++for (const [property, actual, expected, name] of controlCases) {
++  test(t => {
++    const [target, reference] = pair(t, property, actual, expected);
++    assert_equals(getComputedStyle(target).getPropertyValue(property),
++      getComputedStyle(reference).getPropertyValue(property), "Computed value");
++  }, name);
++}
++</script>
++
++<script>
++const boundaryCases = [
++  ["radial percentage first", "background-image", key => `radial-gradient(random(${key}, 10%, 20%) 30%, red, blue)`, false],
++  ["radial explicit ellipse", "background-image", key => `radial-gradient(ellipse random(${key}, 10%, 20%) 30%, red, blue)`, false],
++  ["radial length first", "background-image", key => `radial-gradient(random(${key}, 10px, 20px) 30%, red, blue)`, false],
++  ["radial named percentage", "background-image", key => `radial-gradient(random(${key}, 10%, 20%) 30%, red, blue)`, true],
++  ["rotate vector first", "rotate", key => `random(${key}, 1, 2) 0 1 45deg`, false],
++  ["rotate angle first", "rotate", key => `45deg random(${key}, 1, 2) 0 1`, false],
++  ["rotate angle only", "rotate", key => `random(${key}, 10deg, 90deg)`, false],
++  ["rotate named vector", "rotate", key => `random(${key}, 1, 2) 0 1 45deg`, true],
++];
++
++for (const [name, property, expression, named] of boundaryCases) {
++  test(t => {
++    const key = named ? "--typed-boundary-control" : "property-index-scoped";
++    const referenceKey = named ? key : `ua-${property}-1`;
++    const [target, reference] = pair(t, property, expression(key), expression(referenceKey));
++    target.style.width = reference.style.width = "200px";
++    target.style.height = reference.style.height = "100px";
++    assert_equals(target.style.getPropertyValue(property),
++      reference.style.getPropertyValue(property), "Specified random key");
++    assert_equals(getComputedStyle(target).getPropertyValue(property),
++      getComputedStyle(reference).getPropertyValue(property), "Computed value");
++  }, `${name} preserves random indexes across typed alternatives`);
++}
++</script>

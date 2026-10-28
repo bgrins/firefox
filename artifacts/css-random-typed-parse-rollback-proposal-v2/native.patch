@@ -1,0 +1,260 @@
+--- a/servo/components/style/parser.rs
++++ b/servo/components/style/parser.rs
+@@ -104,6 +104,19 @@
+     /// The index of the current random() function in this declaration.
+     pub fn current_random_index(&self) -> i32 {
+         self.random_count.get()
++    }
++
++    /// Restores random indexes when a speculative parse fails.
++    pub(crate) fn with_random_index_rollback<T, E>(
++        &self,
++        parse: impl FnOnce() -> Result<T, E>,
++    ) -> Result<T, E> {
++        let count = self.random_count.get();
++        let result = parse();
++        if result.is_err() {
++            self.random_count.set(count);
++        }
++        result
+     }
+ 
+     /// Claims the next index for a random() function in this declaration. The
+--- a/servo/components/style/properties_and_values/value.rs
++++ b/servo/components/style/properties_and_values/value.rs
+@@ -474,11 +474,15 @@
+ 
+         let mut parse_components = |context: &ParserContext| {
+             for component in self.syntax.components.iter() {
+-                let result = input.try_parse(|input| {
+-                    input.parse_entirely(|input| {
+-                        Self::parse_value(context, input, &component.unpremultiplied())
+-                    })
+-                });
++                let result = context
++                    .property_declaration_context
++                    .with_random_index_rollback(|| {
++                        input.try_parse(|input| {
++                            input.parse_entirely(|input| {
++                                Self::parse_value(context, input, &component.unpremultiplied())
++                            })
++                        })
++                    });
+                 let Ok(values) = result else { continue };
+                 self.output.extend(values);
+                 *self.output_multiplier = component.multiplier();
+--- a/servo/components/style/values/specified/calc.rs
++++ b/servo/components/style/values/specified/calc.rs
+@@ -1619,22 +1619,29 @@
+         function: MathFunction,
+         allow_anchor: AllowAnchorPositioningFunctions,
+     ) -> Result<CalcLengthPercentage, ParseError> {
+-        let percentage_context = PercentageContext::allowed_with_hint(NumericBaseType::Length);
+-        let additional_functions = match allow_anchor {
+-            AllowAnchorPositioningFunctions::No => AdditionalFunctions::empty(),
+-            AllowAnchorPositioningFunctions::AllowAnchorSize => AdditionalFunctions::ANCHOR_SIZE,
+-            AllowAnchorPositioningFunctions::AllowAnchorAndAnchorSize => {
+-                AdditionalFunctions::ANCHOR | AdditionalFunctions::ANCHOR_SIZE
+-            },
+-        };
+-        let flags = CalcParseFlags {
+-            additional_functions,
+-            percentage_context,
+-            ..Default::default()
+-        };
+-        Self::parse(context, input, function, flags)?
+-            .into_length_or_percentage(clamping_mode)
+-            .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++        context
++            .property_declaration_context
++            .with_random_index_rollback(|| {
++                let percentage_context =
++                    PercentageContext::allowed_with_hint(NumericBaseType::Length);
++                let additional_functions = match allow_anchor {
++                    AllowAnchorPositioningFunctions::No => AdditionalFunctions::empty(),
++                    AllowAnchorPositioningFunctions::AllowAnchorSize => {
++                        AdditionalFunctions::ANCHOR_SIZE
++                    },
++                    AllowAnchorPositioningFunctions::AllowAnchorAndAnchorSize => {
++                        AdditionalFunctions::ANCHOR | AdditionalFunctions::ANCHOR_SIZE
++                    },
++                };
++                let flags = CalcParseFlags {
++                    additional_functions,
++                    percentage_context,
++                    ..Default::default()
++                };
++                Self::parse(context, input, function, flags)?
++                    .into_length_or_percentage(clamping_mode)
++                    .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++            })
+     }
+ 
+     /// Convenience parsing function for percentages.
+@@ -1644,16 +1651,20 @@
+         clamping_mode: AllowedNumericType,
+         function: MathFunction,
+     ) -> Result<CalcNumeric, ParseError> {
+-        Self::parse(
+-            context,
+-            input,
+-            function,
+-            CalcParseFlags::new(PercentageContext::allowed_with_hint(
+-                NumericBaseType::Percent,
+-            )),
+-        )?
+-        .into_percentage(clamping_mode)
+-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++        context
++            .property_declaration_context
++            .with_random_index_rollback(|| {
++                Self::parse(
++                    context,
++                    input,
++                    function,
++                    CalcParseFlags::new(PercentageContext::allowed_with_hint(
++                        NumericBaseType::Percent,
++                    )),
++                )?
++                .into_percentage(clamping_mode)
++                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++            })
+     }
+ 
+     /// Convenience parsing function for `<length>`.
+@@ -1664,14 +1675,18 @@
+         function: MathFunction,
+         percentage_context: PercentageContext,
+     ) -> Result<CalcLengthPercentage, ParseError> {
+-        Self::parse(
+-            context,
+-            input,
+-            function,
+-            CalcParseFlags::new(percentage_context),
+-        )?
+-        .into_length(clamping_mode)
+-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++        context
++            .property_declaration_context
++            .with_random_index_rollback(|| {
++                Self::parse(
++                    context,
++                    input,
++                    function,
++                    CalcParseFlags::new(percentage_context),
++                )?
++                .into_length(clamping_mode)
++                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++            })
+     }
+ 
+     /// Convenience parsing function for `<number>`.
+@@ -1682,14 +1697,18 @@
+         function: MathFunction,
+         percentage_context: PercentageContext,
+     ) -> Result<CalcNumeric, ParseError> {
+-        Self::parse(
+-            context,
+-            input,
+-            function,
+-            CalcParseFlags::new(percentage_context),
+-        )?
+-        .into_number(clamping_mode)
+-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++        context
++            .property_declaration_context
++            .with_random_index_rollback(|| {
++                Self::parse(
++                    context,
++                    input,
++                    function,
++                    CalcParseFlags::new(percentage_context),
++                )?
++                .into_number(clamping_mode)
++                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++            })
+     }
+ 
+     /// Convenience parsing function for `<angle>`.
+@@ -1699,14 +1718,18 @@
+         function: MathFunction,
+         percentage_context: PercentageContext,
+     ) -> Result<CalcNumeric, ParseError> {
+-        Self::parse(
+-            context,
+-            input,
+-            function,
+-            CalcParseFlags::new(percentage_context),
+-        )?
+-        .into_angle(AllowedNumericType::All)
+-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++        context
++            .property_declaration_context
++            .with_random_index_rollback(|| {
++                Self::parse(
++                    context,
++                    input,
++                    function,
++                    CalcParseFlags::new(percentage_context),
++                )?
++                .into_angle(AllowedNumericType::All)
++                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++            })
+     }
+ 
+     /// Convenience parsing function for `<time>`.
+@@ -1717,14 +1740,18 @@
+         function: MathFunction,
+         percentage_context: PercentageContext,
+     ) -> Result<CalcNumeric, ParseError> {
+-        Self::parse(
+-            context,
+-            input,
+-            function,
+-            CalcParseFlags::new(percentage_context),
+-        )?
+-        .into_time(clamping_mode)
+-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++        context
++            .property_declaration_context
++            .with_random_index_rollback(|| {
++                Self::parse(
++                    context,
++                    input,
++                    function,
++                    CalcParseFlags::new(percentage_context),
++                )?
++                .into_time(clamping_mode)
++                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++            })
+     }
+ 
+     /// Convenience parsing function for `<resolution>`.
+@@ -1734,13 +1761,17 @@
+         function: MathFunction,
+         percentage_context: PercentageContext,
+     ) -> Result<CalcNumeric, ParseError> {
+-        Self::parse(
+-            context,
+-            input,
+-            function,
+-            CalcParseFlags::new(percentage_context),
+-        )?
+-        .into_resolution()
+-        .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+-    }
+-}
++        context
++            .property_declaration_context
++            .with_random_index_rollback(|| {
++                Self::parse(
++                    context,
++                    input,
++                    function,
++                    CalcParseFlags::new(percentage_context),
++                )?
++                .into_resolution()
++                .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
++            })
++    }
++}

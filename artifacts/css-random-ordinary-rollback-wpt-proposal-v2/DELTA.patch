@@ -1,0 +1,33 @@
+--- v1/random-typed-parse-rollback.html
++++ v2/random-typed-parse-rollback.html
+@@ -74,3 +74,30 @@
+   }, name);
+ }
+ </script>
++
++<script>
++const boundaryCases = [
++  ["radial percentage first", "background-image", key => `radial-gradient(random(${key}, 10%, 20%) 30%, red, blue)`, false],
++  ["radial explicit ellipse", "background-image", key => `radial-gradient(ellipse random(${key}, 10%, 20%) 30%, red, blue)`, false],
++  ["radial length first", "background-image", key => `radial-gradient(random(${key}, 10px, 20px) 30%, red, blue)`, false],
++  ["radial named percentage", "background-image", key => `radial-gradient(random(${key}, 10%, 20%) 30%, red, blue)`, true],
++  ["rotate vector first", "rotate", key => `random(${key}, 1, 2) 0 1 45deg`, false],
++  ["rotate angle first", "rotate", key => `45deg random(${key}, 1, 2) 0 1`, false],
++  ["rotate angle only", "rotate", key => `random(${key}, 10deg, 90deg)`, false],
++  ["rotate named vector", "rotate", key => `random(${key}, 1, 2) 0 1 45deg`, true],
++];
++
++for (const [name, property, expression, named] of boundaryCases) {
++  test(t => {
++    const key = named ? "--typed-boundary-control" : "property-index-scoped";
++    const referenceKey = named ? key : `ua-${property}-1`;
++    const [target, reference] = pair(t, property, expression(key), expression(referenceKey));
++    target.style.width = reference.style.width = "200px";
++    target.style.height = reference.style.height = "100px";
++    assert_equals(target.style.getPropertyValue(property),
++      reference.style.getPropertyValue(property), "Specified random key");
++    assert_equals(getComputedStyle(target).getPropertyValue(property),
++      getComputedStyle(reference).getPropertyValue(property), "Computed value");
++  }, `${name} preserves random indexes across typed alternatives`);
++}
++</script>
