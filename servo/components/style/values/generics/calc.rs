@@ -1458,14 +1458,23 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
                         },
                     };
                 } else {
-                    let div = value / step;
-                    let lower_bound = div.floor() * step;
-                    let upper_bound = div.ceil() * step;
+                    let remainder = value % step;
+                    if remainder.is_zero() {
+                        return Ok((value, ty));
+                    }
+                    let wide_value = f64::from(value);
+                    let wide_step = f64::from(step);
+                    let toward_zero = (wide_value - f64::from(remainder)).copysign(wide_value);
+                    let (lower_bound, upper_bound) = if value.is_sign_negative() {
+                        (toward_zero - wide_step, toward_zero)
+                    } else {
+                        (toward_zero, toward_zero + wide_step)
+                    };
 
                     value = match strategy {
                         RoundingStrategy::Nearest => {
                             // In case of a tie, use the upper bound
-                            if value - lower_bound < upper_bound - value {
+                            if wide_value - lower_bound < upper_bound - wide_value {
                                 lower_bound
                             } else {
                                 upper_bound
@@ -1481,7 +1490,7 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
                                 upper_bound
                             }
                         },
-                    }
+                    } as f32;
                 }
 
                 Ok((value, ty))

@@ -1,0 +1,140 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Context-dependent round() preserves the selected multiple</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#round-func">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const step = "0.3333333432674407958984375";
+const cases = [
+  ["positive down", "down", 1, 0, step, 2 * Number(step)],
+  ["positive to-zero", "to-zero", 1, 0, step, 2 * Number(step)],
+  ["negative up", "up", -1, 1, step, 1 - 2 * Number(step)],
+  ["negative to-zero", "to-zero", -1, 1, step, 1 - 2 * Number(step)],
+  ["nearest positive control", "nearest", 1, 0, step, 1],
+  ["exact multiple down control", "down", 1, 0, "0.25", 1],
+];
+for (const [name, strategy, sign, offset, interval, expected] of cases) {
+  test(t => {
+    const target = document.createElement("div");
+    const reference = document.createElement("div");
+    const input = document.createElement("div");
+    document.body.append(target, reference, input);
+    t.add_cleanup(() => { target.remove(); reference.remove(); input.remove(); });
+    reference.style.opacity = String(expected);
+    assert_approx_equals(Number(getComputedStyle(reference).opacity), expected, 0.000001,
+                         "literal opacity calibration");
+    reference.style.opacity = "";
+    reference.style.opacity = `calc(${offset} + round(${strategy}, ${sign}, ${interval}))`;
+    assert_not_equals(reference.style.opacity, "", "constant expression accepted");
+    assert_approx_equals(Number(getComputedStyle(reference).opacity), expected, 0.000001,
+                         "constant round reference calibration");
+    target.style.opacity = `calc(${offset} + round(${strategy}, ${sign} * sign(1em - 16px), ${interval}))`;
+    input.style.opacity = "sign(1em - 16px)";
+    assert_not_equals(target.style.opacity, "", "context expression accepted");
+    assert_not_equals(input.style.opacity, "", "input expression accepted");
+    const observations = [];
+    for (const fontSize of [16, 32, 16]) {
+      target.style.fontSize = input.style.fontSize = `${fontSize}px`;
+      observations.push({
+        fontSize,
+        targetFont: getComputedStyle(target).fontSize,
+        inputFont: getComputedStyle(input).fontSize,
+        input: Number(getComputedStyle(input).opacity),
+        first: Number(getComputedStyle(target).opacity),
+        repeat: Number(getComputedStyle(target).opacity),
+      });
+    }
+    for (const row of observations) {
+      assert_equals(row.targetFont, `${row.fontSize}px`, "target font calibration");
+      assert_equals(row.inputFont, `${row.fontSize}px`, "input font calibration");
+      assert_equals(row.input, row.fontSize === 32 ? 1 : 0, "sign input calibration");
+      assert_true(Number.isFinite(row.first) && Number.isFinite(row.repeat), "finite opacity");
+      assert_equals(row.first, row.repeat, "repeat stable");
+    }
+    assert_equals(observations[0].first, offset, "initial zero-input control");
+    assert_equals(observations[2].first, offset, "restored zero-input control");
+    assert_approx_equals(observations[1].first, expected, 0.000001,
+                         "context-dependent rounded opacity");
+  }, name);
+}
+
+const preservationCases = [
+  ["negative upper zero", "calc(0.5 + 0.5 * sign(1 / round(up, -0.25 * sign(1em - 16px), 1)))", 0],
+  ["negative nearest zero", "calc(0.5 + 0.5 * sign(1 / round(nearest, -0.25 * sign(1em - 16px), 1)))", 0],
+  ["negative toward zero", "calc(0.5 + 0.5 * sign(1 / round(to-zero, -0.25 * sign(1em - 16px), 1)))", 0],
+  ["positive lower zero", "calc(0.5 + 0.5 * sign(1 / round(down, 0.25 * sign(1em - 16px), 1)))", 1],
+  ["negative step", `round(down, sign(1em - 16px), -${step})`, 2 * Number(step)],
+  ["zero step", "round(up, sign(1em - 16px), 0)", 0],
+  ["infinite value finite step", "round(down, infinity * sign(1em - 16px), 1)", 1],
+];
+for (const [name, expression, expected] of preservationCases) {
+  test(t => {
+    const target = document.createElement("div");
+    const input = document.createElement("div");
+    t.add_cleanup(() => { target.remove(); input.remove(); });
+    target.style.fontSize = input.style.fontSize = "32px";
+    target.style.opacity = expression;
+    input.style.opacity = "sign(1em - 16px)";
+    document.body.append(target, input);
+    assert_not_equals(target.style.opacity, "", "expression accepted");
+    assert_not_equals(input.style.opacity, "", "input expression accepted");
+    assert_equals(getComputedStyle(target).fontSize, "32px", "target font calibration");
+    assert_equals(getComputedStyle(input).fontSize, "32px", "input font calibration");
+    assert_equals(Number(getComputedStyle(input).opacity), 1, "resolved input calibration");
+    const first = Number(getComputedStyle(target).opacity);
+    const repeat = Number(getComputedStyle(target).opacity);
+    assert_true(Number.isFinite(first) && Number.isFinite(repeat), "finite opacity");
+    assert_equals(first, repeat, "stable opacity");
+    assert_approx_equals(first, expected, 0.000001, "preserved round boundary result");
+  }, name);
+}
+</script>
+<script>
+for (const strategy of ["nearest", "up", "down", "to-zero"]) {
+  for (const direction of [1, -1]) {
+    test(t => {
+      const target = document.createElement("div");
+      const input = document.createElement("div");
+      const literal = document.createElement("div");
+      const stepControl = document.createElement("div");
+      const elements = [target, input, literal, stepControl];
+      document.body.append(...elements);
+      t.add_cleanup(() => elements.forEach(element => element.remove()));
+      const operation = direction === 1 ? "-" : "+";
+      const value = direction === 1 ? "18446744073709551616" : "-18446744073709551616";
+      target.style.opacity = `sign(36893488147419103232 ${operation} round(${strategy}, ${value} * sign(1em - 16px), 5.42101086242752217003726400434970855712890625e-20))`;
+      input.style.opacity = "sign(1em - 16px)";
+      literal.style.opacity = `sign(36893488147419103232 ${operation} ${value})`;
+      stepControl.style.opacity = "sign(5.42101086242752217003726400434970855712890625e-20)";
+      for (const element of elements) {
+        assert_not_equals(element.style.opacity, "", "expression admitted");
+      }
+      const observations = [];
+      for (const fontSize of [16, 32, 16]) {
+        target.style.fontSize = input.style.fontSize = `${fontSize}px`;
+        observations.push({
+          fontSize,
+          targetFont: getComputedStyle(target).fontSize,
+          inputFont: getComputedStyle(input).fontSize,
+          input: Number(getComputedStyle(input).opacity),
+          literal: Number(getComputedStyle(literal).opacity),
+          step: Number(getComputedStyle(stepControl).opacity),
+          first: Number(getComputedStyle(target).opacity),
+          repeat: Number(getComputedStyle(target).opacity),
+        });
+      }
+      for (const row of observations) {
+        assert_equals(row.targetFont, `${row.fontSize}px`, "target font calibration");
+        assert_equals(row.inputFont, `${row.fontSize}px`, "input font calibration");
+        assert_equals(row.input, row.fontSize === 32 ? 1 : 0, "context input calibration");
+        assert_equals(row.literal, 1, "finite literal calibration");
+        assert_equals(row.step, 1, "positive finite step calibration");
+        assert_equals(row.first, row.repeat, "repeat stable");
+        assert_equals(row.first, 1, "finite result remains below comparison magnitude");
+      }
+    }, `Finite quotient overflow: ${strategy}, ${direction === 1 ? "positive" : "negative"}`);
+  }
+}
+</script>
