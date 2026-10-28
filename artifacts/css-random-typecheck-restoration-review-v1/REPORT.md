@@ -1,0 +1,11 @@
+# Owned temporary source restoration
+
+The disabled typecheck adapter preserves the prior recipe's mutable ownership claim. `write_owned` validates the regular file, parent path, expected device/inode and current digest before opening; it checks the opened descriptor again before truncation. The claim records the empty digest after truncation, then the exact written prefix. If writing or fsync raises and the observed bytes are a prefix of the candidate, the exception handler records that prefix's digest before propagating the error.
+
+The runner catches the error and restores every buffered base body in reverse order using those same claim objects. Files not yet modified retain their original claims; completed or partially written files have updated claims. Restoration never starts while an owned compiler group remains. Therefore, assuming the claimed inode remains owned and readable and the restoration write succeeds, a short write, a write exception after a candidate prefix, or an fsync error can be restored without treating the partial body as foreign.
+
+Unrecognized content, inode replacement, symlink substitution, unreadable state, or a failed restoration is not forcefully overwritten. Restoration errors retain the source-transition lock and prevent the final success record. A truncate failure before the empty claim update may also require manual recovery if the filesystem changed bytes despite the exception: the code promises fail-closed ownership, not guaranteed recovery from arbitrary I/O failure. Abrupt process death is likewise outside the Python finally guarantee.
+
+The new runner additionally keeps the lock through the post-restoration source/binary/staging/nested/identity verification, whereas the older contextual-steps recipe removed it before that verification. It does not publish runtime epoch changes.
+
+Five owned-scratch controls passed in execution 507dbd/0: short write, exception after prefix, fsync failure, rejection of foreign bytes, and rejection of same-byte replacement inode. The scratch directory was removed. No live source, index, runtime or signing file was written. This is an ownership/restoration review, not compiler or browser validation.
