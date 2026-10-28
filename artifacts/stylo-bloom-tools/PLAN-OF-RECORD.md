@@ -1,5 +1,7 @@
 # CSS and Stylo verification plan
 
+Fix 139, registered-value zoom normalization, is committed as `0f40801f1418318e51f81b4e273c758a9a24b3e4` after research `66cd18c62e7bcd65827e1ab8595f1007711acd0e`. The standalone source0/zoom7 comparison repairs56 of70 focused assertions;14 controls remain passing. The final cleaned native build passes all86 focused assertions, including16 bounded container cases. Broad566 subtest signatures are preserved; six passing reftest messages have a separate exact-port adjudication. Historical broad failures remain failures, not new passes. Source-container normalization follows CSSWG resolved intent; the explicit draft wording gap remains disclosed. The line-height-only provider-readiness discrepancy remains separate and unaccepted. No new canonical Lean coverage or native-refinement credit is claimed. Preserve this accepted seven-file overlay and its seven WPTs when rebasing the50 parked prototypes; original snapshots remain unchanged.
+
 Research checkpoint: the provider-readiness model has 11 audited declarations and two decisive false controls; it proves a conditional scheduling/cache witness, not native refinement or a browser reproduction. Sixteen container target-zoom tests are prepared with unzoomed source containers and remain unexecuted. The observation-runner preparation is archived disabled and requires a successor. Prior standalone seven-file browser findings, raw reftest comparison and separate port adjudication remain unchanged. The seven native edits remain unaccepted, the admission overlay remains parked, and the accepted-fix count stays 137. Further execution requires a runner bound to the new signed HEAD.
 
 Signing checkpoint: the committed-source original and seven-file standalone zoom candidate were built and tested with the same 29 WPT pages, 636 subtests and six reftests. Both executions preserved source, binary, index and metadata state. All 70 focused assertions pass, with 56 repairs and 14 unchanged passes; all 566 broad assertions are unchanged. The raw comparison remains false solely for six passed-reference diagnostic URL ports. A separately authenticated offline replay adjudicates the broad gate true after normalizing only those manifest-exact ports; raw evidence remains unchanged. The admission repair is not installed; its full nine-file combined state and all 50 parked prototypes remain preserved. Container coordinate specification gaps and separate writing-mode/provider readiness investigations remain open. No native fix is accepted; the count remains 137. Signing makes the fixed runner HEAD historical; a reviewed successor is required before further runtime execution.
@@ -25,23 +27,23 @@ The typed-demand prototype now passes its full native build, 20 native tests inc
 Fix 135, contained quote append invalidation, is committed as `0d27cb839f013f214973215cd0a8ce8a87c4b780` after research `d2e8f520eb1f1f66d69ad5568b092b9b05fdf9a4`. The candidate/original/candidate comparison gives 64 PASS / 52 PASS + 12 FAIL / 64 PASS, with all 18 existing regressions unchanged (15 PASS and three expected FAIL). Tentative P3 visual correctness. Discovery came from source audit and browser reproduction; conditional Lean models corroborate scope/dependency laws, not universal native correctness. No clean-upstream build, security or measured performance claim. The adjacent counter append issue is tracked separately as fix 136.
 
 
-**137 accepted fixes: 137 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
+**138 accepted fixes: 138 committed locally, 0 accepted pending, and 1 additional held repair excluded.**
 
 | Area | Committed | Accepted, pending |
 |---|---:|---:|
 | Selectors, Bloom filters and scoping | 10 | 0 |
 | Cascade, layers and shorthands | 6 | 0 |
 | Parsing, tokens and CSS math | 26 | 0 |
-| Attributes and custom properties | 18 | 0 |
+| Attributes and custom properties | 19 | 0 |
 | Animations, timelines and transitions | 16 | 0 |
 | Text and fonts | 15 | 0 |
 | Layout, sizing and positioning | 22 | 0 |
 | Container queries | 3 | 0 |
 | Colors, images, SVG and shapes | 8 | 0 |
 | CSSOM geometry and hidden layout | 13 | 0 |
-| **Total** | **137** | **0** |
+| **Total** | **138** | **0** |
 
-Fix 121 now includes its validated one-block expectation correction. The signed history rewrite preserves the final tree; current commit IDs below come from the [new rewrite receipt](../../artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json). Historical signing receipts retain their original IDs. All 137 accepted fixes remain committed; held repair 120 stays excluded.
+Fix 121 now includes its validated one-block expectation correction. The signed history rewrite preserves the final tree; current commit IDs below come from the [new rewrite receipt](../../artifacts/css-integer-stored-range-history-publication-runtime-v1/RESULT.json). Historical signing receipts retain their original IDs. All 138 accepted fixes remain committed; held repair 120 stays excluded.
 
 ## Latest verified work
 
