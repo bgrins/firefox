@@ -1,0 +1,62 @@
+--- v1/transition.py
++++ v2/transition.py
+@@ -202,6 +202,39 @@
+     state = importlib.util.module_from_spec(spec)
+     spec.loader.exec_module(state)
+     return state
++
++
++def authorized_successors(root, policy, source_pins):
++    config = policy["authorized_successors"]
++    names = set(config["paths"])
++    need(names == {"artifacts/stylo-bloom-tools/CURRENT-COMMITS.json",
++                   "artifacts/stylo-bloom-tools/PLAN-OF-RECORD.md"}, "exact authorized ledger successors")
++    signing = root / relative(config["signing_directory"])
++    update = read(signing / "ROADMAP-UPDATE.json")
++    selection = read(signing / "checkpoint-selection.json")
++    receipt = read(signing / "checkpoint-receipt.json")
++    final = read(signing / "FINAL-CHECK.json")
++    need(set(update["before"]) == set(update["after"]) == names, "exact roadmap change inventory")
++    need(receipt["commit"] == final["head"] == final["commits"]["checkpoint"] == policy["paired_head"]
++         and receipt["signature_verified"] and final["signatures_verified"], "signed successor checkpoint")
++    need(receipt["working_bodies_and_nested_index_preserved"] and final["unfinished_prototypes_preserved"],
++         "checkpoint preservation evidence")
++    need(set(selection["files"]) == set(selection["source_pins"]) == set(receipt["files"]),
++         "checkpoint selected receipt inventory")
++    for name in config["committed_provenance"]:
++        need(selection["source_pins"].get(name) == policy["references"][name] == sha(root / relative(name)),
++             "committed successor provenance: " + name)
++    for name in names:
++        need(update["before"][name] == source_pins[name] == sha(signing / "ledger-preimages" / Path(name).name),
++             "successor original matches v8: " + name)
++        need(selection["source_pins"].get(name) == update["after"][name], "checkpoint successor pin: " + name)
++    return update["after"]
++
++
++def verify_successor(name, expected, data, epoch, policy, head_data):
++    pins = [epoch[key][name] for key in policy["pin_maps"] if name in epoch[key]]
++    need(pins and all(pin == expected for pin in pins), "current epoch successor pin: " + name)
++    need(digest(data) == expected == digest(head_data), "live/HEAD successor: " + name)
+ 
+ 
+ def main():
+@@ -294,9 +327,17 @@
+         desired[name] = body(ROOT / pin["capture"])
+     need({n: digest(v) for n, v in desired.items()} == next_pins, "all desired bodies authenticated")
+     snapshot = ROOT / policy["packages"]["snapshot"]["path"]
+-    for name, pin in read(snapshot / "SOURCE-PINS.json").items():
++    source_pins = read(snapshot / "SOURCE-PINS.json")
++    successors = authorized_successors(ROOT, policy, source_pins)
++    for name in policy["authorized_successors"]["committed_provenance"]:
++        need(digest(state.h.git(ROOT, env, "show", "HEAD:" + name)) == policy["references"][name],
++             "HEAD successor provenance: " + name)
++    for name, pin in source_pins.items():
+         source = runtime / "prototype-original" / name if name in restoration["paths"] else ROOT / name
+-        if name == policy["new_owned_path"]:
++        if name in successors:
++            verify_successor(name, successors[name], body(source), epoch, policy,
++                             state.h.git(ROOT, env, "show", "HEAD:" + name))
++        elif name == policy["new_owned_path"]:
+             need(pin == head_pins[name], "preserved originally-clean value.rs")
+         else:
+             need(sha(source) == pin, "preserved unfinished source: " + name)

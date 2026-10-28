@@ -1,0 +1,406 @@
+[
+  {
+    "id": "probe: direct-number",
+    "css": "--n:5",
+    "parent": "",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "probe: ready-no-fallback",
+    "css": "--ready:5;--n:var(--ready)",
+    "parent": "",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "probe: ready-number-fallback",
+    "css": "--ready:5;--n:var(--ready,2)",
+    "parent": "",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "probe: ready-px-fallback",
+    "css": "--ready:5;--n:var(--ready,1px)",
+    "parent": "",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "probe: ready-em-fallback",
+    "css": "--ready:5;--n:var(--ready,1em)",
+    "parent": "",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "probe: ready-lh-fallback",
+    "css": "--ready:5;--n:var(--ready,1lh)",
+    "parent": "",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "probe: ready-ex-fallback",
+    "css": "--ready:5;--n:var(--ready,1ex)",
+    "parent": "",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "probe: ready-nested-em-fallback",
+    "css": "--ready:5;--n:var(--ready,var(--missing,1em))",
+    "parent": "",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "probe: missing-number-fallback",
+    "css": "--n:var(--missing,5)",
+    "parent": "",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "probe: missing-em-fallback",
+    "css": "--n:var(--missing,1em)",
+    "parent": "",
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "probe: wrong-primary-unused-em",
+    "css": "--wrong:red;--n:var(--wrong,1em)",
+    "parent": "",
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "probe: direct-invalid-em",
+    "css": "--n:1em",
+    "parent": "",
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "probe: inherited-ready-unused-em",
+    "css": "--n:var(--ready,1em)",
+    "parent": "--ready:5",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "probe: provider-contained-unused-em",
+    "css": "--ready:5;--middle:var(--ready,1em);--n:var(--middle)",
+    "parent": "",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "normative: literal-number",
+    "css": "--n:5",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "normative: direct-invalid-length",
+    "css": "--n:1em",
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "normative: valid-primary-unused-length",
+    "css": "--ready:5;--n:var(--ready, 1em)",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "normative: used-invalid-length-fallback",
+    "css": "--n:var(--missing, 1em)",
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "normative: wrong-type-ready-primary",
+    "css": "--ready:red;--n:var(--ready, 1em)",
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "normative: noncyclic-numeric-length-division",
+    "css": "--n:calc(1em / 1px);font-size:20px;width:calc(var(--n) * 1px)",
+    "expected": {
+      "--n": "20",
+      "font-size": "20px",
+      "width": "20px"
+    },
+    "mutation": {
+      "set": {
+        "font-size": "30px"
+      },
+      "expected": {
+        "--n": "30",
+        "font-size": "30px",
+        "width": "30px"
+      }
+    },
+    "fontSize": "20px"
+  },
+  {
+    "id": "normative: provider-introduced-numeric-length-division",
+    "css": "--math:calc(1em / 1px);--n:var(--math);font-size:20px;width:calc(var(--n) * 1px)",
+    "expected": {
+      "--n": "20",
+      "font-size": "20px",
+      "width": "20px"
+    },
+    "mutation": {
+      "set": {
+        "font-size": "30px"
+      },
+      "expected": {
+        "--n": "30",
+        "font-size": "30px",
+        "width": "30px"
+      }
+    },
+    "fontSize": "20px"
+  },
+  {
+    "id": "normative: unused-valid-numeric-math-fallback",
+    "css": "--ready:5;--n:var(--ready, calc(1em / 1px))",
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "selected-var-self-cycle",
+    "css": "--n:var(--n,7)",
+    "attributes": {},
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "selected-var-mutual-cycle",
+    "css": "--n:var(--loop,7);--loop:var(--n,9)",
+    "attributes": {},
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "selected-typed-attribute-property-cycle",
+    "css": "--n:attr(data-value type(*),7)",
+    "attributes": {
+      "data-value": "var(--n,9)"
+    },
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "selected-typed-attribute-only-cycle",
+    "css": "--n:attr(data-value type(*),7)",
+    "attributes": {
+      "data-value": "attr(data-value type(*))"
+    },
+    "expected": {
+      "--n": "7",
+      "font-size": "7px"
+    }
+  },
+  {
+    "id": "wrong-var-primary-does-not-retry-number-fallback",
+    "css": "--ready:red;--n:var(--ready,7)",
+    "attributes": {},
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "wrong-typed-attribute-primary-does-not-retry-number-fallback",
+    "css": "--n:attr(data-value type(*),7)",
+    "attributes": {
+      "data-value": "red"
+    },
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "typed-attribute-number-grammar-rejection-uses-fallback",
+    "css": "--n:attr(data-value type(<number>),7)",
+    "attributes": {
+      "data-value": "red"
+    },
+    "expected": {
+      "--n": "7",
+      "font-size": "7px"
+    }
+  },
+  {
+    "id": "typed-attribute-ready-primary-excludes-length-fallback",
+    "css": "--n:attr(data-value type(*),1em)",
+    "attributes": {
+      "data-value": "5"
+    },
+    "expected": {
+      "--n": "5",
+      "font-size": "5px"
+    }
+  },
+  {
+    "id": "css-wide: direct initial",
+    "css": "--n:initial",
+    "parent": "--n:11;--provider:11",
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "css-wide: direct inherit",
+    "css": "--n:inherit",
+    "parent": "--n:11;--provider:11",
+    "expected": {
+      "--n": "11",
+      "font-size": "11px"
+    }
+  },
+  {
+    "id": "css-wide: direct unset",
+    "css": "--n:unset",
+    "parent": "--n:11;--provider:11",
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "css-wide: direct inherit extra",
+    "css": "--n:inherit extra",
+    "parent": "--n:11;--provider:11",
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "css-wide: selected-fallback initial",
+    "css": "--n:var(--missing,initial)",
+    "parent": "--n:11;--provider:11",
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "css-wide: selected-fallback inherit",
+    "css": "--n:var(--missing,inherit)",
+    "parent": "--n:11;--provider:11",
+    "expected": {
+      "--n": "11",
+      "font-size": "11px"
+    }
+  },
+  {
+    "id": "css-wide: selected-fallback unset",
+    "css": "--n:var(--missing,unset)",
+    "parent": "--n:11;--provider:11",
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "css-wide: selected-fallback inherit extra",
+    "css": "--n:var(--missing,inherit extra)",
+    "parent": "--n:11;--provider:11",
+    "expected": {
+      "--n": "3",
+      "font-size": "3px"
+    }
+  },
+  {
+    "id": "css-wide: registered-provider initial",
+    "css": "--provider:initial;--n:var(--provider)",
+    "parent": "--n:11;--provider:11",
+    "expected": {
+      "--n": "7",
+      "font-size": "7px"
+    }
+  },
+  {
+    "id": "css-wide: registered-provider inherit",
+    "css": "--provider:inherit;--n:var(--provider)",
+    "parent": "--n:11;--provider:11",
+    "expected": {
+      "--n": "11",
+      "font-size": "11px"
+    }
+  },
+  {
+    "id": "css-wide: registered-provider unset",
+    "css": "--provider:unset;--n:var(--provider)",
+    "parent": "--n:11;--provider:11",
+    "expected": {
+      "--n": "7",
+      "font-size": "7px"
+    }
+  },
+  {
+    "id": "css-wide: registered-provider inherit extra",
+    "css": "--provider:inherit extra;--n:var(--provider)",
+    "parent": "--n:11;--provider:11",
+    "expected": {
+      "--n": "7",
+      "font-size": "7px"
+    }
+  }
+]

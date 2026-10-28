@@ -1,0 +1,14 @@
+# Noncyclic numeric AST controls
+
+Verdict: **REACHED** for the six added observable expectations. Primary drafts were read on 2026-10-27; the previous eight-case trace supplies the registration/admission/substitution chain. No cycle/defaulting extension is inferred.
+
+1. All six declarations divide lengths, yielding a dimensionless number admitted by the exact number registration. Computed math resolves relative dimensions with available element context. For an inverse ratio, 1px divided by an em at20px gives0.05; at25px it gives0.04. [Values4 type checking](https://drafts.csswg.org/css-values-4/#calc-type-checking), [computed value](https://drafts.csswg.org/css-values-4/#calc-computed-value).
+2. An lh uses the target's computed line-height; rem and rlh use root font-size and root line-height. Consequently the explicit40→50px target line-height gives40→50, root20→25px font gives20→25, and root40→50px line-height gives40→50. Targets are nonroot and keep font-size20px independent of the number. Root styles are restored after each test. [Values4 font-relative lengths](https://drafts.csswg.org/css-values-4/#font-relative-lengths).
+3. Viewport width units resolve against viewport dimensions. The100vw ratio must equal an ordinary100vw length expressed in pixels. A sibling calibration avoids assuming a fixed browser viewport;0.02px tolerance allows CSSOM/layout quantization. [Values4 viewport units](https://drafts.csswg.org/css-values-4/#viewport-relative-lengths).
+4. Container width units select the nearest eligible ancestor query container. The fixture provides an independent, horizontal inline-size container at400px then500px. Both100cqw and the dimensionless ratio therefore follow400→500. A sibling ordinary length independently checks that container selection. [Conditional Rules5 container units](https://drafts.csswg.org/css-conditional-5/#container-lengths).
+
+The registered value is computed under its admitted syntax before later var substitution into width. [Properties and ValuesAPI computation](https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values), [substitution](https://drafts.css-houdini.org/css-properties-values-api-1/#substitution).
+
+Viewport/container leaves are unsupported by the proposed native dependency collector and return None, requiring the conservative route. That is a source-level contract from the sealed proposal; the browser assertions verify observable values and invalidation, not the collector's exact internal result. The disputed self-font numeric cycle remains exclusively observation-only. No browser, native build or canonical Lean check ran here.
+
+The referenced Values4 and PropertiesAPI full snapshots are authenticated through the prior normative trace. Conditional Rules5 was read from the current primary rendering (WD27October2026); no fresh local HTML identity is claimed. webspec-index remains unavailable; this is a positive manual trace.

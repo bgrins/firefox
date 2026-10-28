@@ -1,0 +1,86 @@
+--- artifacts/css-registered-number-wpt-fixture-v1/candidate/testing/web-platform/tests/css/css-properties-values-api/registered-number-selected-dependencies.html
++++ artifacts/css-registered-number-wpt-fixture-v2/candidate/testing/web-platform/tests/css/css-properties-values-api/registered-number-selected-dependencies.html
+@@ -150,4 +150,83 @@
+     }
+   }, `CSS-wide inheritance follows parent mutation: ${mode}`);
+ }
++
++function setRootMetrics(t) {
++  const root = document.documentElement;
++  const previous = root.getAttribute("style");
++  t.add_cleanup(() => {
++    if (previous === null) {
++      root.removeAttribute("style");
++    } else {
++      root.setAttribute("style", previous);
++    }
++  });
++  root.style.fontSize = "20px";
++  root.style.lineHeight = "40px";
++  return root;
++}
++
++test(t => {
++  const target = makeTarget(t, "--n:calc(1lh / 1px);line-height:40px;width:calc(var(--n)*1px)", "", {}, "20px");
++  for (const value of [40, 50]) {
++    target.style.lineHeight = value + "px";
++    check(target, {"--n": String(value), "font-size": "20px", "line-height": value + "px", "width": value + "px"});
++  }
++}, "Admitted number follows current line-height mutation");
++
++test(t => {
++  const root = setRootMetrics(t);
++  const target = makeTarget(t, "--n:calc(1rem / 1px);width:calc(var(--n)*1px)", "", {}, "20px");
++  for (const value of [20, 25]) {
++    root.style.fontSize = value + "px";
++    check(target, {"--n": String(value), "font-size": "20px", "width": value + "px"});
++  }
++}, "Admitted number follows root font-size mutation on a non-root element");
++
++test(t => {
++  const root = setRootMetrics(t);
++  const target = makeTarget(t, "--n:calc(1rlh / 1px);width:calc(var(--n)*1px)", "", {}, "20px");
++  for (const value of [40, 50]) {
++    root.style.lineHeight = value + "px";
++    check(target, {"--n": String(value), "font-size": "20px", "width": value + "px"});
++  }
++}, "Admitted number follows root line-height mutation on a non-root element");
++
++test(t => {
++  const target = makeTarget(t, "--n:calc(1px / 1em);width:calc(var(--n)*1000px)", "", {}, "20px");
++  for (const [fontSize, expected] of [[20, 0.05], [25, 0.04]]) {
++    target.style.fontSize = fontSize + "px";
++    const computed = getComputedStyle(target);
++    assert_approx_equals(Number(computed.getPropertyValue("--n")), expected, 0.000001, "inverse registered number");
++    assert_equals(computed.fontSize, fontSize + "px");
++    assert_equals(computed.width, expected * 1000 + "px");
++  }
++}, "Admitted inverse number follows current font-size mutation");
++
++test(t => {
++  const target = makeTarget(t, "--n:calc(100vw / 1px);width:calc(var(--n)*1px)", "", {}, "20px");
++  const reference = document.createElement("div");
++  reference.style.width = "100vw";
++  target.parentElement.append(reference);
++  const expected = parseFloat(getComputedStyle(reference).width);
++  const computed = getComputedStyle(target);
++  assert_greater_than(expected, 3, "independent viewport calibration exceeds the registered initial value");
++  assert_approx_equals(Number(computed.getPropertyValue("--n")), expected, 0.02, "viewport registered number");
++  assert_approx_equals(parseFloat(computed.width), expected, 0.02, "viewport number consumer");
++  assert_equals(computed.fontSize, "20px");
++}, "Admitted viewport number agrees with an independent ordinary length");
++
++test(t => {
++  const target = makeTarget(t, "--n:calc(100cqw / 1px);width:calc(var(--n)*1px)",
++    "container-type:inline-size;writing-mode:horizontal-tb;width:400px", {}, "20px");
++  const container = target.parentElement;
++  const reference = document.createElement("div");
++  reference.style.width = "100cqw";
++  container.append(reference);
++  for (const value of [400, 500]) {
++    container.style.width = value + "px";
++    assert_equals(getComputedStyle(reference).width, value + "px", "independent container calibration");
++    check(target, {"--n": String(value), "font-size": "20px", "width": value + "px"});
++  }
++}, "Admitted container number follows an independent container-size mutation");
+ </script>
