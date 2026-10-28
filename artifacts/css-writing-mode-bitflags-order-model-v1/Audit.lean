@@ -1,0 +1,6 @@
+import Iteration
+#print axioms WritingModeFlags.historical_composite_witness
+#print axioms WritingModeFlags.corrected_witness
+#print axioms WritingModeFlags.every_defined_mask_exact
+#print axioms WritingModeFlags.corrected_order
+#print axioms WritingModeFlags.historical_order_fails
