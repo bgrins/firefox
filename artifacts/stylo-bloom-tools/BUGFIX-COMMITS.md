@@ -1,5 +1,10 @@
 # CSS verification bugfix commits
 
+Fix 144: Defer infinite-step rounding until the value is resolved
+
+Native: `c63be5163f2e0a05a27c6b022e9f388597f1c381`. Research: `a7c76027952c0d86a3cf133d4248095b3eb1048a`. Validation: `5edbaed4ff8afec083c8b283de6f5efeb4fdbd70`. Exact two-path source/WPT payload; nineteen target failures repaired, all twenty-three targets PASS and six hundred eighty-nine control signatures preserved. Accepted125 is a prerequisite.
+
+
 Fix 143: Guard both linear easing stop positions before conversion
 
 Native: `22f97187e9f062f76211c6c01b07cbc49e71232b`. Research: `b8af01d9c0883c938fe7fca52ec0d975741233c2`. Validation: `b9075f68c523ae285982982ad33ba43370a15ad5`. Exact two-path source/WPT payload; one original page crash eliminated, six target subtests completed with PASS.

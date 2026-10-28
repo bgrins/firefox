@@ -1,0 +1,92 @@
+--- v39/finish.py
++++ v41/finish.py
+@@ -31,8 +31,8 @@
+     return module
+ 
+ 
+-s=load('linear_guard_sign_state','artifacts/css-registered-number-native-runtime-v1/state.py')
+-o=load('linear_guard_sign_owner','artifacts/css-registered-number-source-transition-v4/transition.py')
++s=load('round_special_sign_state','artifacts/css-registered-number-native-runtime-v1/state.py')
++o=load('round_special_sign_owner','artifacts/css-registered-number-source-transition-v4/transition.py')
+ save=s.save
+ epoch=read(HERE/'CURRENT-EPOCH.json')
+ before=s.a.verify_current(s.h,ROOT,ENV,epoch)
+@@ -40,7 +40,7 @@
+ for marker, expected in inputs['preserved_accepted_markers'].items(): assert epoch[marker] == expected
+ for path, item in inputs['preserved_accepted_payload'].items(): o.claim(ROOT,path,item['sha256'],item['identity'])
+ assert not os.path.lexists(ROOT/inputs['retired_path'])
+-assert epoch['linear_guard_transition']['compiled'] and not epoch['linear_guard_transition']['accepted']
++assert epoch['round_special_knowledge_transition']['compiled'] and not epoch['round_special_knowledge_transition']['accepted']
+ controls={n:(RUNTIME/n).read_bytes() for n in ('CURRENT-EPOCH.json','ROLE.json','OWNED.json')}
+ assert all(b==(HERE/('PRE-'+n)).read_bytes() for n,b in controls.items())
+ assert sha(RUNTIME/'CURRENT-EPOCH.json')==inputs['initial_epoch']
+@@ -64,9 +64,13 @@
+ assert all(initial['pins'].get(n)==pin for n,pin in read(HERE/'native-selection.json')['source_pins'].items())
+ audit=read(ROOT/inputs['untracked_audit'])
+ landing_tests={n for n in read(HERE/'native-selection.json')['files'] if n.startswith('testing/web-platform/tests/')}
+-assert len(landing_tests)==1 and landing_tests.issubset(audit['paths'])
++initial_untracked=read(HERE/'INITIAL-UNTRACKED.json')
++assert initial_untracked['audit_sha256']==sha(ROOT/inputs['untracked_audit'])
++assert len(landing_tests)==1 and not landing_tests.intersection(audit['paths'])
++assert set(initial_untracked['paths'])==set(audit['paths'])|landing_tests
++assert initial_untracked['only_added']==sorted(landing_tests)
+ actual_untracked=set(s.h.git(ROOT,ENV,'ls-files','--others','--exclude-standard','-z').decode().rstrip('\0').split('\0'))
+-assert actual_untracked == set(audit['paths'])-landing_tests
++assert actual_untracked == set(initial_untracked['paths'])-landing_tests == set(audit['paths'])
+ project=[row for row in audit['project_files'] if row['path'] not in landing_tests]
+ expected_untracked=inputs['untracked_expected_after']
+ assert len(actual_untracked)==expected_untracked['root'] and len(project)==expected_untracked['project'] and audit['unrelated_count']==expected_untracked['unrelated']
+@@ -74,6 +78,12 @@
+ save(HERE/'UNTRACKED-CHECKPOINT.json',{'prior_audit_sha256':sha(ROOT/inputs['untracked_audit']),'root_untracked':len(actual_untracked),'project_untracked':len(project),'unrelated_untracked':audit['unrelated_count'],'only_removed_from_untracked':sorted(landing_tests),'remaining_project_bodies_and_identities_verified':True,'unrelated_contents_read':False})
+ readout=ROOT/inputs['readout_directory']
+ assert sha(readout/'render.py') == inputs['readout_renderer_sha256']
++if not (readout/'FILES.json').exists():
++    with (HERE/'readout-render.log').open('x') as log:
++        subprocess.run([sys.executable,'-I','-S','-B',str(readout/'render.py'),str(HERE.relative_to(ROOT))],cwd=ROOT,env=ENV,stdout=log,stderr=subprocess.STDOUT,check=True)
++    readout_files={str(p.relative_to(readout)):sha(p) for p in readout.rglob('*') if p.is_file() and not p.is_symlink()}
++    assert {'render.py','README.md','ACCEPTED-FIXES.json','COMMIT-CHECK.json','REFERENCES.json','CHECK.json'} <= set(readout_files)
++    save(readout/'FILES.json',readout_files)
+ readout_manifest=read(readout/'FILES.json')
+ for name,pin in readout_manifest.items():
+     assert not Path(name).is_absolute() and '..' not in Path(name).parts
+@@ -120,8 +130,8 @@
+     assert {k:v for k,v in semantic.items() if k!='working_diff'}=={k:v for k,v in epoch['semantic_index'].items() if k!='working_diff'}
+     current['semantic_index']=semantic
+     current['raw_index_observation']['current']=index['raw_index']
+-    current['linear_guard_transition']['accepted']=True
+-    current['accepted_linear_guard']={'fix':inputs['fix'],'native_commit':parent,'files':read(HERE/'native-selection.json')['source_pins'],'old_restoration_recipes_require_rebase':True}
++    current['round_special_knowledge_transition']['accepted']=True
++    current['accepted_round_special_knowledge']={'fix':inputs['fix'],'native_commit':parent,'files':read(HERE/'native-selection.json')['source_pins'],'old_restoration_recipes_require_rebase':True}
+     after=s.a.verify_current(s.h,ROOT,ENV,current)
+     assert after['nested_index']==before['nested_index']
+     assert all(s.h.git(ROOT/n,ENV,'ls-files','-v','-z')==body for n,body in flags.items())
+@@ -137,12 +147,12 @@
+     o.write_owned(ROOT,local_claim,o.encoded(restored))
+     raise
+ save(HERE/'ROADMAP-UPDATE.json',plan)
+-(HERE/'CHECKPOINT.md').write_text(read(ROOT/inputs['acceptance_path'])['approved_checkpoint_summary']+'\n\nHeld provider experiment remains unchanged and unaccepted. Earlier binary/restoration receipts are historical; preserve the accepted line-height, counter, and linear guard overlays in future restoration.\n')
++(HERE/'CHECKPOINT.md').write_text(read(ROOT/inputs['acceptance_path'])['approved_checkpoint_summary']+'\n\nHeld provider experiment remains unchanged and unaccepted. Earlier binary/restoration receipts are historical; preserve the accepted line-height, counter, linear guard, and Round special-knowledge overlays in future restoration.\n')
+ files=set(planned)
+ files.update(str((readout/name).relative_to(ROOT)) for name in readout_manifest)
+ files.add(str((readout/'FILES.json').relative_to(ROOT)))
+ files.update(inputs['prior_checkpoint_evidence'])
+-for n in ('commit.py','init.py','finish.py','render_checkpoint.py','INPUTS.json','native-selection.json','INITIAL-EPOCH.json','BEFORE.json','PRE-CURRENT-EPOCH.json','PRE-ROLE.json','PRE-OWNED.json','ROADMAP-UPDATE.json','CHECKPOINT.md','README.md','CHECK.json','PAYLOAD.json','INVENTORY.json','PLAN.md','PRIOR-CHECKPOINT-PINS.json','PENDING-NATIVE-PAYLOAD.json','UNTRACKED-CHECKPOINT.json','init.py.diff','finish.py.diff','render_checkpoint.py.diff','prepare_inventory.py'):
++for n in ('commit.py','init.py','finish.py','render_checkpoint.py','INPUTS.json','native-selection.json','INITIAL-EPOCH.json','INITIAL-UNTRACKED.json','BEFORE.json','PRE-CURRENT-EPOCH.json','PRE-ROLE.json','PRE-OWNED.json','ROADMAP-UPDATE.json','CHECKPOINT.md','README.md','CHECK.json','PAYLOAD.json','INVENTORY.json','PLAN.md','PRIOR-CHECKPOINT-PINS.json','PENDING-NATIVE-PAYLOAD.json','UNTRACKED-CHECKPOINT.json','init.py.diff','finish.py.diff','render_checkpoint.py.diff','prepare_inventory.py','PACKAGES.json','EXTRA-PINS.json','readout-render.log'):
+     files.add(str((HERE/n).relative_to(ROOT)))
+ for ident in receipts:
+     for suffix in ('-selection.json','-item.json','-receipt.json','-signature.log','-message.txt','-commit.log','-EPOCH.json'):
+@@ -156,7 +166,7 @@
+     (archived if existing.returncode==0 and existing.stdout==body else pins)[n]=hashlib.sha256(body).hexdigest()
+ save(HERE/'CHECKPOINT-ARCHIVE.json',{'already_committed_identical':archived,'parent':parent})
+ pins[str((HERE/'CHECKPOINT-ARCHIVE.json').relative_to(ROOT))]=sha(HERE/'CHECKPOINT-ARCHIVE.json')
+-save(HERE/'checkpoint-selection.json',{'id':'checkpoint','files':sorted(pins),'source_pins':pins,'message':'No bug - Record validated linear easing guard and CSS continuation checkpoint. r?#firefox-style-system-reviewers'})
++save(HERE/'checkpoint-selection.json',{'id':'checkpoint','files':sorted(pins),'source_pins':pins,'message':'No bug - Record validated Round infinite-step guard and CSS continuation checkpoint. r?#firefox-style-system-reviewers'})
+ with (HERE/'checkpoint-driver.log').open('x') as log:
+     subprocess.run([sys.executable,'-I','-S','-B',str(HERE/'commit.py'),str(HERE/'checkpoint-selection.json')],cwd=ROOT,env=ENV,stdout=log,stderr=subprocess.STDOUT,check=True)
+ final=read(HERE/'CURRENT-EPOCH.json');final_snapshot=s.a.verify_current(s.h,ROOT,ENV,final)
+@@ -181,4 +191,4 @@
+     save(HERE/'SYNCHRONIZATION-FAILURE.json',{'error':repr(error),'rollback_errors':failures,'manual_recovery_required':True,'signed_head':final['semantic_index']['head'],'note':'Signed commits remain; restored prior runtime epoch does not certify new HEAD.'})
+     raise
+ save(HERE/'FINAL-CHECK.json',{'head':final['semantic_index']['head'],'native_commit':parent,'accepted_fix':inputs['fix'],'accepted_fixes':inputs['previous_accepted_fixes']+1,'tracked':inputs['fix'],'tracked_fixes':inputs['fix'],'signature_chain_verified':True,'held_excluded':120,'native_dirty_paths':1,'provider_candidate_accepted':False,'runtime_epoch_synchronized':True,'untracked_root':len(actual_untracked),'untracked_project':len(project),'unrelated_untracked':audit['unrelated_count'],'current_epoch_sha256':sha(RUNTIME/'CURRENT-EPOCH.json')})
+-print('Signed standalone linear easing guard checkpoint; provider experiment remains held')
++print('Signed standalone Round infinite-step guard checkpoint; provider experiment remains held')

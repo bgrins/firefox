@@ -1,3 +1,11 @@
+# Current continuation after Round infinite-step knowledge guard 144
+
+Complete this local signing/readout checkpoint and stop at the handoff. The guard repairs the known unresolved-value/infinite-step boundary with accepted125 as a prerequisite. Preserve accepted141/142/143/144 and the held provider. All 23 targets pass; 19 baseline failures are repaired and 689 controls plus 10 endings remain exact. No formal coverage or discovery increment is claimed.
+
+In a later session, rebase the reviewed finite Round quotient arithmetic candidate onto the accepted special-knowledge guard, retaining its complete target gate and distinct necessary WPT ownership. Do not reuse a pre-guard source snapshot or weaken a failed all-target gate. The dual infinite-value/unknown-step branch and full contextual stepped/easing consumer contracts remain separate. Continue provider SCC/readiness and complete-context obligations without syntax narrowing or treating unknown requirements as empty.
+
+The checkpoint records 143 accepted repairs and 144 tracked IDs, with 120 held. All 68 remaining untracked project prototypes have signed recovery copies; 495 unrelated names remain untouched. This is not a clean working tree or exhaustive prototype validation. Earlier history follows byte-for-byte.
+
 Current priority after the Round finite-arithmetic experiment (2026-10-28)
 
 The finite-only candidate remains unaccepted: five target failures became passes, but the known both-infinite target still fails. All 678 control subtest signatures and nine page ends were unchanged. Both builds succeeded and original source/app/control state was restored. Preserve the unchanged all-targets-pass gate.

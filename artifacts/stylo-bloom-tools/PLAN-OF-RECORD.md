@@ -1,5 +1,10 @@
 # CSS and Stylo verification plan
 
+Fix 144 retains unresolved values in the literal-infinite-step Round simplifier. The three-line generic-calc guard and one necessary 23-subtest WPT form the standalone payload. The paired run repairs 19 target failures; all 23 targets pass, with 689 control signatures and 10 endings unchanged. Final installed execution completes 712 subtests: 702 PASS and 10 preserved existing FAIL. Accepted125 runtime NaN priority is required. After the verified signed native commit, accepted repairs total 143 across tracked IDs through 144, excluding held120. Accepted141/142/143 and the unchanged held provider remain preserved. Four existing classification lemmas are reused without new discovery, native refinement or canonical coverage credit. These are shared-branch builds, not clean-upstream applicability evidence.
+
+Earlier entries retain their historical state.
+
+
 Fix 143: the standalone linear easing guard checks both optional stop positions before conversion. One original content-process crash with zero completed target subtests is eliminated; all six target subtests and two feature calibrations pass. Forty existing regression signatures and three baseline ends are preserved, including twelve expected FAIL subtests. Final renamed WPT execution has 48 subtests (36 PASS, 12 expected FAIL) and four OK ends. The native commit contains only easing.rs and the necessary WPT. Accepted repairs are now 142 across tracked IDs through 143, excluding held 120. Accepted 141/142 and the unaccepted provider experiment remain preserved. The post-discovery four-claim model is conditional/manual correspondence, with no native-refinement or canonical-coverage increment. Historical paired manifests were explicitly assembled; the final renamed page was naturally classified and freshly executed.
 
 Earlier entries retain their historical state.

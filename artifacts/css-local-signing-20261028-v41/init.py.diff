@@ -1,0 +1,27 @@
+--- artifacts/css-local-signing-20261028-v39/init.py
++++ artifacts/css-local-signing-20261028-v41/init.py
+@@ -19,8 +19,8 @@
+ assert sha(runtime/'CURRENT-EPOCH.json') == inputs['initial_epoch']
+ epoch = json.loads(controls['CURRENT-EPOCH.json'])
+ assert epoch['semantic_index']['head'] == inputs['initial_head']
+-assert epoch['linear_guard_transition']['role'] == 'candidate'
+-assert epoch['linear_guard_transition']['compiled'] and not epoch['linear_guard_transition']['accepted']
++assert epoch['round_special_knowledge_transition']['role'] == 'candidate'
++assert epoch['round_special_knowledge_transition']['compiled'] and not epoch['round_special_knowledge_transition']['accepted']
+ assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs',*inputs['native_source_paths']])
+ assert epoch['staged_working'] == {}
+ for marker, expected in inputs['preserved_accepted_markers'].items(): assert epoch[marker] == expected
+@@ -30,6 +30,13 @@
+     assert epoch['pins'][path] == item['sha256'] and epoch['installed_identities'][path] == item['identity']
+ assert not os.path.lexists(ROOT/inputs['retired_path'])
+ assert not (runtime/'SOURCE-TRANSITION.lock').exists()
++audit=json.loads((ROOT/inputs['untracked_audit']).read_bytes())
++landing={p for p in json.loads((HERE/'native-selection.json').read_bytes())['files'] if p.startswith('testing/web-platform/tests/')}
++assert len(landing)==1 and not landing.intersection(audit['paths'])
++raw=subprocess.check_output(['git','--no-optional-locks','-c','core.fsmonitor=false','ls-files','--others','--exclude-standard','-z'],cwd=ROOT,env=dict(os.environ,GIT_OPTIONAL_LOCKS='0'))
++untracked=sorted(p.decode() for p in raw.split(b'\0') if p)
++assert set(untracked)==set(audit['paths'])|landing
++with (HERE/'INITIAL-UNTRACKED.json').open('x') as stream:json.dump({'paths':untracked,'audit_sha256':sha(ROOT/inputs['untracked_audit']),'only_added':sorted(landing)},stream,indent=2)
+ for n,b in controls.items():
+     with (HERE/('PRE-'+n)).open('xb') as stream: stream.write(b)
+ with (HERE/'init-driver.log').open('x') as log:
