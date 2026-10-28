@@ -1,0 +1,54 @@
+--- artifacts/css-registered-staged-observation-wpt-v3/run.py
++++ artifacts/css-registered-provider-release-observation-v1/run.py
+@@ -94,7 +94,11 @@
+             "symlink_target": os.readlink(path) if stat.S_ISLNK(entry.st_mode) else None,
+             "identity": [identity.st_dev, identity.st_ino],
+             "sha256": hashlib.sha256(data).hexdigest(),
+-            "browser_build_id": build_id, "revision": epoch_head}
++            "browser_build_id": build_id, "revision": epoch_head,
++            "version": parsed.get("App", "Version", fallback=None),
++            "source_repository": parsed.get("App", "SourceRepository", fallback=None),
++            "source_stamp": parsed.get("App", "SourceStamp", fallback=None),
++            "revision_role": "harness checkout; not browser source revision"}
+ 
+ 
+ def main():
+@@ -124,7 +128,7 @@
+     out = Path(sys.argv[5])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "output must be absent")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-staged-observation-wpt-runtime-"), "owned artifact output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-provider-release-observation-runtime-"), "owned artifact output")
+     need(all(not os.environ.get(k) for k in policy["forbidden_environment"]), "unexpected build/git/profile environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+@@ -151,7 +155,7 @@
+                 resource_pins[name] = fingerprint_resource(name)
+     need({n: fingerprint_resource(n) for n in resource_pins} == resource_pins, "source/resource/metadata inputs")
+     binary_pins = {name: h.fingerprint(ROOT, name) for name in policy["normal_binaries"]}
+-    need(all(pin and epoch["pins"][name] == pin for name, pin in binary_pins.items()), "normal built binary bindings")
++    need(all(binary_pins.values()), "installed release binary bindings")
+     need(binary_pins == policy["phase_binaries"], "exact phase build binaries")
+     out.mkdir()
+     save(out / "PHASE-BINDING.json", phase_binding)
+@@ -198,7 +202,7 @@
+               for p in top.rglob("*") if p.is_file() and "tools" not in p.relative_to(top).parts}
+     copied["wptrunner.ini"] = sha(config_path)
+     save(out / "OWNED-INPUT-PINS.json", copied)
+-    tmp = Path(tempfile.mkdtemp(prefix="css-staged-observation-wpt-", dir="/private/tmp"))
++    tmp = Path(tempfile.mkdtemp(prefix="css-provider-release-wpt-", dir="/private/tmp"))
+     tmp_identity = (tmp.stat().st_dev, tmp.stat().st_ino)
+     env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+     raw = out / "raw.jsonl"
+@@ -273,8 +277,10 @@
+         assessment.update(phase=phase, capsule_manifest_sha256=sys.argv[1],
+                           epoch_sha256=sys.argv[4], native_sources=policy["source_roles"][role], original_adoption=adopted,
+                           capsule_directory=str(HERE.relative_to(ROOT)), experiment_sha256=sha(HERE / "EXPERIMENT.json"),
++                          browser_source_attribution=policy["browser_source_attribution"],
++                          external_browser=phase_binding["external_browser"],
+                           observation_only=True, subtest_cardinality_policy=policy["cardinality_description"],
+-                          oracle_caveat="Current compiled zoom7 observations with clean staging and authenticated artifact-only HEAD succession; no causal pair or native acceptance",
++                          oracle_caveat="Installed Firefox release with current repository harness; browser SourceStamp is separate from run_info revision; observation only, no causal pair or acceptance",
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)

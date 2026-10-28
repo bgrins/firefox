@@ -1,0 +1,11 @@
+# Installed-release provider observations
+
+Runs the unchanged mixed16 and line-height-only16 provider-readiness fixtures against `/Applications/Firefox.app`. The executable metadata identifies Firefox 158.0, BuildID 20261007201254, release SourceStamp eb9a6e3a736802c8e080a76c44dc81f409d99d54. Current repository sources did not build this browser. The WPT run_info revision is the harness checkout and is checked separately from the external browser SourceStamp.
+
+This uses the current WPT harness, existing profile preferences and metadata. It is not a default-profile browser-tab experiment. Every completed PASS or FAIL is an observation; missing identities, incomplete lifecycle, crashes or preservation failures fail the wrapper. There is no original/candidate causal gate or native acceptance.
+
+The wrapper reuses the reviewed staged-observation-v3 lifecycle: private temporary profiles, ephemeral server ports, owned process-group cleanup, exact resource hashes, full root/nested epoch and index-flag preservation, raw logs and application metadata checks. The local accepted-build role is a workspace preservation condition, not browser provenance. The external application has a separate 110-entry byte/identity inventory checked before and after. No application files or metadata are rewritten. Update processing is disabled by the inherited environment; any application mutation fails preservation.
+
+Preparation: genuine two-page manifest roundtrip 9b9e8c/0; parser controls a84326/0 (two positives, 44 rejects); application identity controls ff13bb/0 (three positives, eight rejects, scratch removed); current saved epoch/external application binding and eight binding corruption controls 2d3426/0. The first copied parser check dbeec7/1 exposed its stale 16-count assertion; it was updated to 32 before the passing rerun. No browser or wrapper main execution occurred in preparation.
+
+Invoke with `python3 -I -S -B run.py CAPSULE_SHA observation-1 /Users/bgrins/code/firefox/artifacts/css-registered-number-native-runtime-v1/CURRENT-EPOCH.json cc46cc1e6599ed18d051cd39afb8d0c66f8a46fa0d45f092a2f9882a882ce12a /Users/bgrins/code/firefox/artifacts/css-registered-provider-release-observation-runtime-1`. Supply this directory's sealed FILES.json digest. Root owns execution and the outer tool receipt.

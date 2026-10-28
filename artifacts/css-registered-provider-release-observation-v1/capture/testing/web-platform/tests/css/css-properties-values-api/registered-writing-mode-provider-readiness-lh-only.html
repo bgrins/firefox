@@ -1,0 +1,102 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Writing-mode provider readiness with line-height-only lengths</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#viewport-relative-lengths">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let sequence = 0;
+for (const kind of ["literal writing-mode", "literal registered provider", "invalid registered provider", "used keyword fallback"]) {
+  for (const declarationOrder of ["provider first", "length first"]) {
+    for (const queryOrder of ["provider first", "length first"]) {
+      test(t => {
+        const frame = document.createElement("iframe");
+        frame.width = "320";
+        frame.height = "180";
+        frame.style.border = "0";
+        document.body.append(frame);
+        t.add_cleanup(() => frame.remove());
+        const win = frame.contentWindow;
+        const doc = win.document;
+        const style = doc.createElement("style");
+        style.textContent = `html { overflow:hidden; writing-mode:horizontal-tb; }
+          body { margin:0; }
+          .target { position:absolute; left:0; top:0; height:10px; padding:0;
+            border:0; margin:0; min-width:0; max-width:none; font-size:20px; }`;
+        doc.head.append(style);
+        const id = sequence++;
+        const modeName = `--provider-readiness-mode-${id}`;
+        const lengthName = `--provider-readiness-length-${id}`;
+        const readyName = `--provider-readiness-ready-${id}`;
+        const missingName = `--provider-readiness-missing-${id}`;
+        win.CSS.registerProperty({name:modeName,
+          syntax:"<length> | horizontal-tb | vertical-rl", inherits:false,
+          initialValue:"vertical-rl"});
+        win.CSS.registerProperty({name:lengthName, syntax:"<length>",
+          inherits:false, initialValue:"7px"});
+        const target = doc.createElement("div");
+        target.className = "target";
+        const ordinary = doc.createElement("div");
+        ordinary.className = "target";
+        let provider = "vertical-rl";
+        if (kind === "invalid registered provider") {
+          provider = `var(${readyName}, 1vi)`;
+        } else if (kind === "used keyword fallback") {
+          provider = `var(${missingName}, vertical-rl)`;
+        }
+        const declarations = [`${modeName}:${provider}`,
+          `${lengthName}:1lh`];
+        if (declarationOrder === "length first") {
+          declarations.reverse();
+        }
+        target.style.cssText = declarations.join(";");
+        target.style.setProperty(readyName, "bogus");
+        target.style.writingMode = kind === "literal writing-mode" ?
+          "vertical-rl" : `var(${modeName})`;
+        target.style.width = `var(${lengthName})`;
+        ordinary.style.writingMode = "vertical-rl";
+        ordinary.style.width = "1lh";
+        doc.body.append(target, ordinary);
+        const snapshots = [];
+        for (const lineHeight of [40, 60, 40]) {
+          target.style.lineHeight = `${lineHeight}px`;
+          ordinary.style.lineHeight = `${lineHeight}px`;
+          const computed = win.getComputedStyle(target);
+          let providerValue, value, writingMode;
+          if (queryOrder === "provider first") {
+            providerValue = computed.getPropertyValue(modeName).trim();
+            writingMode = computed.writingMode;
+            value = computed.getPropertyValue(lengthName).trim();
+          } else {
+            value = computed.getPropertyValue(lengthName).trim();
+            writingMode = computed.writingMode;
+            providerValue = computed.getPropertyValue(modeName).trim();
+          }
+          snapshots.push({lineHeight, providerValue, value, writingMode,
+            width:computed.width, actualLineHeight:computed.lineHeight,
+            ordinaryWidth:win.getComputedStyle(ordinary).width,
+            rectWidth:target.getBoundingClientRect().width,
+            viewport:[win.innerWidth,win.innerHeight],
+            specifiedProvider:target.style.getPropertyValue(modeName),
+            specifiedWritingMode:target.style.writingMode});
+        }
+        const detail = JSON.stringify(snapshots);
+        for (const snapshot of snapshots) {
+          const expected = `${snapshot.lineHeight}px`;
+          assert_array_equals(snapshot.viewport, [320,180], detail);
+          assert_equals(snapshot.providerValue, "vertical-rl", `Registered provider: ${detail}`);
+          assert_equals(snapshot.writingMode, "vertical-rl", `Computed provider substitution: ${detail}`);
+          assert_equals(snapshot.actualLineHeight, `${snapshot.lineHeight}px`, detail);
+          assert_equals(snapshot.ordinaryWidth, expected, `Literal calibration: ${detail}`);
+          assert_equals(snapshot.value, expected, `Registered logical length: ${detail}`);
+          assert_equals(snapshot.width, expected, `Consumer: ${detail}`);
+          assert_equals(snapshot.rectWidth, snapshot.lineHeight, detail);
+        }
+      }, `Writing-mode registered provider readiness: ${kind}, ${declarationOrder}, ${queryOrder}`);
+    }
+  }
+}
+</script>
