@@ -1,0 +1,150 @@
+--- artifacts/css-linear-second-position-final-wpt-v1/bindings.py
++++ artifacts/css-linear-second-position-final-wpt-v2/bindings.py
+@@ -80,20 +80,23 @@
+                  ('EPOCH.json', 'RESULT.json', 'build-RESULT.json', 'COMMAND.json', 'APPLICATION-METADATA.json')}
+     mandatory |= {policy['owner_runtime'] + '/' + n for n in ('OWNERSHIP.json', 'INSTALL-RESULT.json', 'INSTALLED-EPOCH.json')}
+     h.need(mandatory <= set(policy['build_evidence']), 'complete saved promotion evidence')
+-    h.need(h.sha(root / policy['build_epoch']) == policy['epoch_sha256'] and
+-           h.read(root / policy['build_epoch']) == epoch, 'exact build epoch')
++    h.need(h.sha(root / policy['build_epoch']) == policy['build_epoch_sha256'], 'exact historical build epoch')
++    built = h.read(root / policy['build_epoch'])
+     h.need(h.sha(here / 'PROMOTION-BASELINE-EPOCH.json') == policy['promotion_baseline_sha256'], 'promotion baseline digest')
+     baseline = h.read(here / 'PROMOTION-BASELINE-EPOCH.json')
+     h.need(epoch['semantic_index']['head'] == baseline['semantic_index']['head'] == policy['frozen_head'], 'frozen HEAD')
+     ownership = h.read(root / policy['owner_runtime'] / 'OWNERSHIP.json')
+-    project_promotion(epoch, baseline, policy, ownership, h)
++    build_policy = dict(policy, installed_tests={'testing/web-platform/tests' + policy['target_rename']['old']: policy['target_rename']['sha256']})
++    project_promotion(built, baseline, build_policy, ownership, h)
++    relocated_ownership = validate_rename(root, here, policy, epoch, built, ownership, h)
++    project_promotion(epoch, baseline, policy, relocated_ownership, h)
+     installed = h.read(root / policy['owner_runtime'] / 'INSTALLED-EPOCH.json')
+-    normalized = copy.deepcopy(epoch)
++    normalized = copy.deepcopy(built)
+     for name in policy['rebuilt_binaries']:
+         normalized['pins'][name] = installed['pins'][name]
+     normalized['raw_index_observation']['current'] = installed['raw_index_observation']['current']
+     normalized['linear_guard_transition'] = installed['linear_guard_transition']
+-    expected_install = dict(epoch['linear_guard_transition'], compiled=False, last_phase='install')
++    expected_install = dict(built['linear_guard_transition'], compiled=False, last_phase='install')
+     del expected_install['variant']
+     h.need(installed['linear_guard_transition'] == expected_install and normalized == installed, 'only build binaries/raw/compiled marker changed')
+     result = h.read(root / policy['build_result'])
+@@ -107,7 +110,7 @@
+     install = h.read(root / policy['owner_runtime'] / 'INSTALL-RESULT.json')
+     h.need(install['installed'] and install['preservation_verified'] and install['held_provider_preserved'] and
+            not install['accepted'] and not install['compiled'] and
+-           set(install['files']) == {SOURCE} | set(policy['installed_tests']), 'preserved exact installation')
++           set(install['files']) == {SOURCE} | set(build_policy['installed_tests']), 'preserved exact installation')
+     h.need(install['epoch_sha256'] == h.sha(root / policy['owner_runtime'] / 'INSTALLED-EPOCH.json'), 'installed epoch join')
+     return {'role': 'candidate', 'build_evidence': policy['build_evidence'], 'marker': epoch['linear_guard_transition'],
+             'native_sources': policy['source_roles']['candidate'], 'binaries': policy['phase_binaries']}
+@@ -116,6 +119,7 @@
+ def validate_phase(root, here, policy, epoch, h):
+     result = validate_saved_phase(root, here, policy, epoch, h)
+     baseline = h.read(here / 'PROMOTION-BASELINE-EPOCH.json')
++    h.need(not os.path.lexists(root / ('testing/web-platform/tests' + policy['target_rename']['old'])), 'old target path remains absent')
+     helper = h.load('promotion_working_diff', root / policy['helpers']['preservation'])
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+     h.need(hashlib.sha256(helper.git(root, env, 'diff', '--binary', '--', '.', ':(exclude)' + SOURCE)).hexdigest() ==
+@@ -143,13 +147,7 @@
+            result['empty_staging_preserved'] and result['backups_removed_after_verification'] and
+            result['error'] is None and result['publication_errors'] == [], 'successful restored pair')
+     h.need(h.read(pair / 'ROOT-TERMINAL.json')['exit'] == 0, 'paired outer terminal')
+-    for name in ('assess.py', 'SOURCE-PINS.json', 'EXPERIMENT.json', 'SUBSET-MANIFEST.json'):
+-        h.need((here / name).read_bytes() == (old / name).read_bytes(), 'unchanged experiment: ' + name)
+-    current_policy = h.read(here / 'POLICY.json')
+-    old_fixed = h.read(old / 'POLICY.json')
+-    for key in ('tests', 'phase_tests', 'target_subtests', 'calibration_subtests', 'regression_subtests',
+-                'source_roles', 'rebuilt_binaries', 'source_package_manifest', 'frozen_head'):
+-        h.need(current_policy[key] == old_fixed[key], 'exact historical roster/source binding: ' + key)
++    validate_renamed_inputs(root, here, policy, h)
+     old_run = h.load('linear_historical_runner', old / 'run.py')
+     old_bindings = h.load('linear_historical_bindings', old / 'bindings.py')
+     candidate = pair / 'candidate-wpt'
+@@ -207,4 +205,85 @@
+     prior = h.read(root / policy['paired_runtime'] / 'candidate-wpt/ASSESSMENT.json')
+     signature = lambda a: sorted([parser.signature(e) for e in a['rows'] + a['ends']],
+                                 key=lambda e: (e['test'], e['kind'], e['subtest'] or ''))
+-    h.need(signature(assessment) == signature(prior), 'all final subtest/ending signatures equal paired candidate')
++    expected = signature(prior)
++    rename = policy['target_rename']
++    mapped = 0
++    for event in expected:
++        if event['test'] == rename['old']:
++            event['test'] = rename['new']
++            mapped += 1
++    h.need(mapped == 7, 'exact six paired target rows plus one ending renamed')
++    expected.sort(key=lambda e: (e['test'], e['kind'], e['subtest'] or ''))
++    h.need(signature(assessment) == expected, 'final signatures equal paired candidate after exact target identity rename')
++
++
++def validate_renamed_inputs(root, here, policy, h):
++    old = root / policy['pair_capsule']
++    rename = policy['target_rename']
++    h.need(rename == {'old': '/css/css-easing/linear-contextual-second-position-crash.html',
++                      'new': '/css/css-easing/linear-contextual-second-position.html',
++                      'sha256': 'efd06917742f977112c20ace787c0fa02f3701e00639760d77ded4fe35f034b8'}, 'exact rename scope')
++    before, after = rename['old'], rename['new']
++    def renamed_keys(value):
++        if isinstance(value, dict):
++            return {(after if k == before else k): renamed_keys(v) for k, v in value.items()}
++        if isinstance(value, list):
++            return [renamed_keys(v) for v in value]
++        return value
++    fixed = h.read(old / 'POLICY.json')
++    current = h.read(here / 'POLICY.json')
++    for key in ('tests', 'phase_tests', 'target_subtests', 'calibration_subtests', 'regression_subtests',
++                'source_roles', 'rebuilt_binaries', 'source_package_manifest', 'frozen_head'):
++        h.need(current[key] == renamed_keys(fixed[key]), 'exact historical roster/source rename: ' + key)
++    h.need((here / 'assess.py').read_bytes() == (old / 'assess.py').read_bytes(), 'unchanged assessor')
++    h.need(h.read(here / 'EXPERIMENT.json') == renamed_keys(h.read(old / 'EXPERIMENT.json')), 'experiment rename only')
++    pins = h.read(old / 'SOURCE-PINS.json')
++    expected = {}
++    for name, record in pins.items():
++        updated = dict(record, capture=record['capture'].replace(before, after))
++        if record['origin'] == name:
++            updated['origin'] = name.replace(before, after)
++        expected[name.replace(before, after)] = updated
++        if record['exists']:
++            h.need((old / record['capture']).read_bytes() == (here / updated['capture']).read_bytes(), 'unchanged captured body: ' + name)
++    h.need(h.read(here / 'SOURCE-PINS.json') == expected, 'only target path and adjacent absent metadata renamed')
++    target = expected['testing/web-platform/tests' + after]
++    h.need(target['sha256'] == rename['sha256'] and h.sha(here / target['capture']) == rename['sha256'], 'exact target body')
++    manifest = copy.deepcopy(h.read(old / 'SUBSET-MANIFEST.json'))
++    entries = manifest['items']['testharness']['css']['css-easing']
++    entries[Path(after).name] = entries.pop(Path(before).name)
++    h.need(h.read(here / 'SUBSET-MANIFEST.json') == manifest, 'genuine final manifest differs by exact filename only')
++
++
++def validate_rename(root, here, policy, epoch, built, ownership, h):
++    h.authenticate(root / policy['rename_capsule'], policy['rename_manifest_sha256'])
++    directory = root / policy['rename_runtime']
++    mandatory = {str((directory / n).relative_to(root)) for n in ('EPOCH.json', 'OWNERSHIP.json', 'RESULT.json', 'POST.json', 'PRE-CURRENT-EPOCH.json', 'PRE-OWNED.json', 'PRE-ROLE.json')}
++    h.need(mandatory <= set(policy['rename_evidence']), 'complete rename evidence')
++    for name, digest in policy['rename_evidence'].items():
++        h.need(h.sha(root / name) == digest, 'rename evidence: ' + name)
++    h.need(h.read(directory / 'EPOCH.json') == epoch and h.sha(directory / 'EPOCH.json') == policy['epoch_sha256'], 'actual post-rename epoch')
++    h.need(h.read(directory / 'PRE-CURRENT-EPOCH.json') == built and
++           h.sha(directory / 'PRE-CURRENT-EPOCH.json') == policy['build_epoch_sha256'], 'rename starts from actual build epoch')
++    old = 'testing/web-platform/tests' + policy['target_rename']['old']
++    new = 'testing/web-platform/tests' + policy['target_rename']['new']
++    expected = copy.deepcopy(built)
++    for field in ('pins', 'installed_identities'):
++        h.need(old in expected[field] and new not in expected[field], 'rename original field: ' + field)
++        expected[field][new] = expected[field].pop(old)
++    expected['raw_index_observation']['current'] = epoch['raw_index_observation']['current']
++    h.need(epoch == expected, 'only target pin/identity keys and raw observation changed after build')
++    claim = dict(ownership[old], path=new)
++    h.need(h.read(directory / 'OWNERSHIP.json') == {new: claim}, 'same test bytes/inode relocated')
++    owners = h.read(directory / 'PRE-OWNED.json')
++    h.need(owners[old] == ownership[old] and new not in owners, 'original owned test claim')
++    owners[new] = dict(owners.pop(old), path=new)
++    runtime = root / 'artifacts/css-registered-number-native-runtime-v1'
++    h.need(h.read(runtime / 'OWNED.json') == owners, 'only owned test path changed')
++    h.need((directory / 'PRE-ROLE.json').read_bytes() == (runtime / 'ROLE.json').read_bytes(), 'role unchanged by rename')
++    result = h.read(directory / 'RESULT.json')
++    h.need(result['renamed'] and result['body_and_inode_preserved'] and result['native_and_binaries_unchanged'] and
++           result['preservation_verified'] and result['accepted'] is False and result['old_path'] == old and result['new_path'] == new and
++           result['build_epoch_sha256'] == policy['build_epoch_sha256'] and result['epoch_sha256'] == policy['epoch_sha256'], 'preserved rename result')
++    h.need(result['raw_observation_changed'] == (built['raw_index_observation']['current'] != epoch['raw_index_observation']['current']), 'exact raw rename observation')
++    return {SOURCE: ownership[SOURCE], new: claim}

@@ -1,0 +1,46 @@
+--- artifacts/css-random-counter-pair-raw-index-refresh-v1/run.py
++++ artifacts/css-linear-guard-pair-raw-index-refresh-v1/run.py
+@@ -30,7 +30,7 @@
+ state = load('refresh_state', ROOT / 'artifacts/css-registered-number-native-runtime-v1/state.py')
+ owner = load('refresh_owner', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ projection = load('refresh_projection', HERE / 'projection.py')
+-assert policy['source_roles'] == read(ROOT/'artifacts/css-random-counter-reversible-pair-v2/POLICY.json')['source_roles']
++assert policy['source_roles'] == read(ROOT/'artifacts/css-linear-second-position-reversible-pair-v2/POLICY.json')['source_roles']
+ owner.authenticate(HERE, sys.argv[2])
+ evidence = ROOT / policy['paired_runtime']
+ assert set(policy['evidence_pins']) == set(policy['required_evidence'])
+@@ -51,17 +51,20 @@
+ canonical = json.loads(controls['CURRENT-EPOCH.json'])
+ assert canonical['semantic_index']['head'] == policy['head']
+ outer = read(evidence/'ROOT-TERMINAL.json')
+-assert outer['exit_code'] == 0 and outer['source_application_restored']
+-assert set(read(evidence/'RESULT.json')['phase_results']) == {'original','candidate'}
++assert outer['exit'] == 0
++assert set(read(evidence/'RESULT.json')['phase_results']) == {'original-baseline-1','original-crash-1','candidate-1'}
+ result = read(evidence/'RESULT.json')
+ assert result['success'] and result['error'] is None and result['publication_errors'] == []
+ assert result['restoration_verified'] and result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+ assert read(evidence/'RESTORATION.json')['errors'] == []
+ assert read(evidence/'RESTORATION.json')['owned_processes'] == {}
++for phase, label in [('original-baseline-1','original-baseline-wpt'), ('original-crash-1','original-crash-wpt'), ('candidate-1','candidate-wpt')]:
++    assert result['phase_results'][phase]['wrapper_exit'] == 0
++    assert read(evidence/(phase+'-WRAPPER-CLEANUP.json'))['restoration_safe']
++    cleanup = read(evidence/(label+'/CLEANUP.json'))
++    assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
++    owner.group_absent(read(evidence/(label+'/PROCESS.json'))['pgid'])
+ for role in ('original','candidate'):
+-    assert read(evidence/(role+'-WRAPPER-CLEANUP.json'))['restoration_safe']
+-    assert read(evidence/(role+'-wpt/CLEANUP.json'))['owned_group_absent']
+-    owner.group_absent(read(evidence/(role+'-wpt/PROCESS.json'))['pgid'])
+     for name in ('build','wake'):
+         assert read(evidence/(role+'-build')/(name+'-GROUP-CLEANUP.json'))['owned_group_absent']
+     for name in ('build-PROCESS.json','WAKE-PROCESS.json'):
+@@ -84,7 +87,7 @@
+     state.save(output/'RESULT.json',{'updated':False,'reason':'Raw index unchanged; no canonical write','preservation_verified':True})
+     sys.exit(0)
+ with lock.open('x') as stream:
+-    stream.write(json.dumps({'pid':os.getpid(),'operation':'counter pair raw index observation refresh'})+'\n')
++    stream.write(json.dumps({'pid':os.getpid(),'operation':'linear guard pair raw index observation refresh'})+'\n')
+ lock_identity = (lock.stat().st_dev,lock.stat().st_ino)
+ 
+ 

@@ -1,0 +1,58 @@
+--- a/servo/components/style/values/specified/easing.rs
++++ b/servo/components/style/values/specified/easing.rs
+@@ -122,15 +122,16 @@
+                     Some(v) => v,
+                     None => return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError)),
+                 };
+-                if matches!(input_start.as_ref().or(input_end.as_ref()), Some(p) if p.resolve().is_none()) {
++                if input_start
++                    .iter()
++                    .chain(input_end.iter())
++                    .any(|p| p.resolve().is_none())
++                {
+                     return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+                 }
+ 
+                 let has_input_start = input_start.is_some();
+-                builder.push(
+-                    output,
+-                    input_start.map(|v| v.to_percentage().unwrap()),
+-                );
++                builder.push(output, input_start.map(|v| v.to_percentage().unwrap()));
+                 num_specified_stops += 1;
+                 if input_end.is_some() {
+                     debug_assert!(has_input_start, "Input end valid but not input start?");
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-easing/linear-contextual-second-position.html
+@@ -0,0 +1,31 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>linear() contextual input positions do not crash parsing</title>
++<link rel="help" href="https://drafts.csswg.org/css-easing-2/">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<script>
++const property = "animation-timing-function";
++for (const value of ["linear(0, 1)", "linear(0 0% 1%, 1)"]) {
++  test(() => {
++    const style = document.createElement("div").style;
++    style.setProperty(property, value);
++    assert_not_equals(style.getPropertyValue(property), "");
++  }, `Literal calibration: ${value}`);
++}
++for (const expression of ["sibling-index() * 1%", "(1em / 1px) * 1%"]) {
++  for (const prefix of ["", "0% "]) {
++    const value = `linear(0 ${prefix}calc(${expression}), 1)`;
++    test(() => {
++      const style = document.createElement("div").style;
++      style.setProperty(property, value);
++      style.removeProperty(property);
++      style.setProperty(property, "linear(0, 1)");
++      const reference = document.createElement("div").style;
++      reference.setProperty(property, "linear(0, 1)");
++      assert_not_equals(reference.getPropertyValue(property), "");
++      assert_equals(style.getPropertyValue(property), reference.getPropertyValue(property));
++    }, `Parsing completes and permits a subsequent declaration: ${value}`);
++  }
++}
++</script>

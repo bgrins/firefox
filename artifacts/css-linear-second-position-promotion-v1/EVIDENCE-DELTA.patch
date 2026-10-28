@@ -1,0 +1,39 @@
+--- artifacts/css-line-height-promotion-v1/evidence.py
++++ artifacts/css-linear-second-position-promotion-v1/evidence.py
+@@ -45,19 +45,28 @@
+     events = [json.loads(line) for line in (candidate / 'raw.jsonl').read_text().splitlines()]
+     replay = parser.assess(events, candidate_result['exit'], candidate_policy, checks,
+                           original=original, run_binding=h.read(candidate / 'APPLICATION-METADATA.json'))
+-    assert all(saved.get(k) == v for k, v in json.loads(json.dumps(replay)).items())
+-    assert replay['comparison_gate_passed'] and replay['observed_subtest_count'] == 34
+-    for role in ('original', 'candidate'):
+-        directory = pair / (role + '-wpt')
++    replay = runner.augment_assessment(replay, phase='candidate-1', capsule_sha=policy['pair_capsule_sha256'],
++        epoch_sha=candidate_policy['epoch_sha256'], policy=candidate_policy,
++        capsule_directory=policy['pair_capsule'], experiment_sha=h.digest((capsule / 'EXPERIMENT.json').read_bytes()), execution_preserved=True)
++    assert json.loads(json.dumps(replay)) == saved
++    assert replay['comparison_gate_passed'] and replay['phase_gate_passed'] and replay['observed_subtest_count'] == 48
++    assert set(result['phase_results']) == {'original-baseline-1', 'original-crash-1', 'candidate-1'}
++    phases = [('original-baseline-1', 'original-baseline-wpt'), ('original-crash-1', 'original-crash-wpt'), ('candidate-1', 'candidate-wpt')]
++    for phase, label in phases:
++        directory = pair / label
++        assert result['phase_results'][phase]['wrapper_exit'] == 0
++        assert result['phase_results'][phase]['assessment_sha256'] == h.digest((directory / 'ASSESSMENT.json').read_bytes())
+         cleanup = h.read(directory / 'CLEANUP.json')
+         assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+-        assert h.read(pair / (role + '-WRAPPER-CLEANUP.json'))['restoration_safe']
++        assert h.read(pair / (phase + '-WRAPPER-CLEANUP.json'))['restoration_safe']
+         h.group_absent(h.read(directory / 'PROCESS.json')['pgid'])
++        if phase != 'original-baseline-1':
++            for name, item in policy['tests'].items():
++                relative = name.removeprefix('testing/web-platform/tests/')
++                assert h.digest((directory / 'tests' / relative).read_bytes()) == item['sha256']
++    for role in ('original', 'candidate'):
+         for name in ('build-PROCESS.json', 'WAKE-PROCESS.json'):
+             h.group_absent(h.read(pair / (role + '-build') / name)['pgid'])
+-        for name, item in policy['tests'].items():
+-            relative = name.removeprefix('testing/web-platform/tests/')
+-            assert h.digest((directory / 'tests' / relative).read_bytes()) == item['sha256']
+     return {'pair_manifest_sha256': policy['paired_manifest_sha256'],
+             'pair_result_sha256': policy['paired_result_sha256'],
+             'comparison_gate_passed': True, 'accepted': False}

@@ -1,0 +1,9 @@
+# Linear endpoint browser comparison runner
+
+Three explicit modes share the same fixtures, profile inputs and source/build ownership checks. The original baseline requires all 40 regression subtests and two computed feature calibrations, with three normal endings. The original crash run selects only the six-case target page: it requires its CRASH ending and one matching process/minidump event during that test, preserving any passing prefix without claiming complete execution. Timeouts, unrelated crashes, wrong processes and additional infrastructure faults fail the gate. The candidate requires all 48 rows, six target passes, two calibration passes, four normal endings and unchanged baseline signatures.
+
+The candidate authenticates and replays both original raw results and their published assessments. The inherited process, temporary-profile, source, index, metadata and binary checks are retained. The known absent support/util.js resource is explicitly captured as absent; no other missing-resource or infrastructure exception is added. The calibration is experimental infrastructure, not part of the landing WPT.
+
+Root synthetic assessment controls pass four positive cases and reject fifteen corrupted observations (5cfb98/0). These are checker controls, not browser results. Bounded independent review cleared the runner and original-publication replay; actual execution remains pending. prepare.py records initial scaffolding and must not be rerun over the finalized runner.
+
+Run only through the reversible owner, with its phase-local successful build epoch and the externally supplied manifest digest. The standalone source/WPT proposal remains unaccepted until the actual browser comparison and remaining validation pass.

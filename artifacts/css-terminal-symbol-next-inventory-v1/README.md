@@ -1,0 +1,11 @@
+# Next bounded terminal-symbol inventory
+
+No cleanup execution is included or performed. This read-only inventory nominates52 further generated .dSYM bundles/156 regular files totaling1,220,141,056 allocated bytes (about1.136GiB). Every exact path comes from the previous owned-build inventory. All directory/member identities, sizes and modification times still match it; current member and retained executable hashes were recorded. No unexpected members or symlinks were found.
+
+The first six bundles are the two top-level stream outputs and four dictionary-stream-language outputs. The other46 lie beneath newline-caller-relocated-v1. Each of all52 has an exact completed clang++ -g command with exit0 and matching -o sibling executable in17 retained command/RECORDS files. BUILD-JOINS.json identifies each receipt/index/output. Where14 records additionally carry a generated-source hash, that hash was checked; elsewhere current source hashes are retention pins only and are not misrepresented as historical compiler attestations. All52 current .cpp inputs,52 executables,17 receipts and surrounding sources/logs remain retained.
+
+The old newline-v1 exclusion was based on a bounded RESULT.json lookup. Finer command records now establish terminal per-executable compilation. This does not reinterpret prior failed attempts or claim the entire outer checker succeeded. Four unmatched small consumer bundles remain excluded. Other unadjudicated products in the old inventory remain retained. No whole enclosing directory, source archive, compiler toolchain, objdir or canonical Lean output is nominated.
+
+This preparation occurred while root owned the reversible linked-browser experiment. It did not read or rehash the live build or current epoch, query processes or Git, or delete anything. Current epoch exclusion, tracked state, owning-area active-use checks and fresh identity/hash checks remain prerequisites for a later root-owned cleanup. The expected allocated amount is not a guarantee of APFS free-space recovery. Retain immediate-debugging needs if root identifies any; removing dSYM loses historical symbolication without rebuilding it.
+
+Evidence: completed-command joins737262/571de4; newline exact-output joins33ed9b; refreshed52-bundle identity/body/source capture44adb4. No browser/test/native acceptance follows from compiler receipts.

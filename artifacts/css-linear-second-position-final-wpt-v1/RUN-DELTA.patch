@@ -1,0 +1,23 @@
+--- artifacts/css-linear-second-stop-wpt-runner-v2/run.py
++++ artifacts/css-linear-second-position-final-wpt-v1/run.py
+@@ -104,10 +104,10 @@
+ 
+ 
+ def main():
+-    need(len(sys.argv) == 6, "Usage: run.py CAPSULE_SHA original-baseline-1|original-crash-1|candidate-1 EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT")
++    need(len(sys.argv) == 6, "Usage: run.py CAPSULE_SHA candidate-1 EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT")
+     authenticate(HERE, sys.argv[1])
+     policy = read(HERE / "POLICY.json")
+-    bindings = load("random_counter_bindings", HERE / "bindings.py")
++    bindings = load("linear_final_bindings", HERE / "bindings.py")
+     need(policy.get("execution_enabled") is True, "disabled pending successful phase build bindings")
+     phase = sys.argv[2]
+     need(phase in policy["phase_outputs"], "phase label")
+@@ -273,6 +273,7 @@
+         need(raw.is_file() and not raw.is_symlink() and raw.stat().st_size <= 128 * 1024 * 1024, "missing/oversized raw log")
+         events = [json.loads(line) for line in raw.read_text().splitlines()]
+         assessment = parser.assess(events, code, policy, checks, original=original, run_binding=app_metadata)
++        bindings.validate_final_assessment(ROOT, HERE, policy, assessment, SimpleNamespace(**globals()))
+         assessment = augment_assessment(assessment, phase=phase, capsule_sha=sys.argv[1],
+             epoch_sha=sys.argv[4], policy=policy, capsule_directory=str(HERE.relative_to(ROOT)),
+             experiment_sha=sha(HERE / "EXPERIMENT.json"), execution_preserved=bool(

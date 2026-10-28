@@ -1,0 +1,1 @@
+Exact standalone payload: easing.rs plus linear-contextual-second-position.html. The source and six-test body are byte-identical to proposal v2. Only the WPT filename changes to avoid the reserved crashtest suffix; prior failed lint and historical paired runs remain immutable. No new acceptance, rebuild, or final browser execution is asserted by this transport package.

@@ -1,0 +1,63 @@
+--- artifacts/css-line-height-promotion-v1/install.py
++++ artifacts/css-linear-second-position-promotion-v1/install.py
+@@ -41,8 +41,21 @@
+     assert h.digest(controls['CURRENT-EPOCH.json']) == epoch_digest
+     epoch = json.loads(controls['CURRENT-EPOCH.json'])
+     assert epoch['semantic_index']['head'] == policy['head'] and epoch['staged_working'] == {}
++    assert h.digest(controls['ROLE.json']) == policy['role_sha256']
++    assert h.digest(controls['OWNED.json']) == policy['owned_sha256']
+     held = 'servo/components/style/custom_properties.rs'
+     assert epoch['modified_native_paths'] == [held]
++    accepted_claims = {}
++    for marker, transition, fix in [('accepted_line_height', 'line_height_transition', 141), ('accepted_random_counter', 'random_counter_transition', 142)]:
++        assert epoch[marker] == policy[marker] and epoch[marker]['fix'] == fix
++        assert epoch[transition]['accepted'] is True and epoch[transition]['compiled'] is True
++        for name, pin in epoch[marker]['files'].items():
++            record = policy['preserved_accepted_payload'][name]
++            assert record['sha256'] == pin == epoch['pins'][name]
++            assert record['identity'] == epoch['installed_identities'][name]
++            assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == pin
++            accepted_claims[name] = h.claim(ROOT, name, pin, record['identity'])
++    assert len(accepted_claims) == 9
+     evidence_binding = evidence.verify(ROOT, policy, epoch, h)
+     h.quiescent(RUNTIME)
+     before = s.a.verify_current(s.h, ROOT, ENV, epoch)
+@@ -50,7 +63,7 @@
+     control_claims = {n: h.claim(ROOT, str((RUNTIME / n).relative_to(ROOT)), h.digest(body)) for n, body in controls.items()}
+     record = policy['source']
+     name = record['path']
+-    assert name == 'servo/components/style/values/specified/font.rs'
++    assert name == 'servo/components/style/values/specified/easing.rs'
+     base, desired = [h.body(ROOT / record[k]) for k in ('base_capture', 'candidate_capture')]
+     assert h.digest(base) == record['base_sha256'] and h.digest(desired) == record['candidate_sha256']
+     assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == record['base_sha256']
+@@ -61,10 +74,7 @@
+     if name in owned:
+         assert owned[name] == source_claim
+     tests, parents = {}, {}
+-    assert set(policy['tests']) == {
+-        'testing/web-platform/tests/css/css-values/line-height-contextual-number.tentative.html',
+-        'testing/web-platform/tests/css/css-inline/line-height-tree-counting.html',
+-    }
++    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-easing/linear-contextual-second-position-crash.html'}
+     for test, item in policy['tests'].items():
+         tests[test] = h.body(ROOT / item['capture'])
+         assert h.digest(tests[test]) == item['sha256']
+@@ -79,6 +89,8 @@
+     changed, created, lock_claim, release = False, {}, None, False
+ 
+     def claims():
++        for item in accepted_claims.values():
++            h.claim(ROOT, item['path'], item['owned_sha256'], item['identity'])
+         for n, item in control_claims.items():
+             h.claim(ROOT, item['path'], item['owned_sha256'], item['identity'])
+             assert h.body(RUNTIME / n) == controls[n]
+@@ -126,7 +138,7 @@
+         current['counts']['native_modified_paths'] = 2
+         current['counts']['roles'] = len(current['pins'])
+         current['counts']['installed_identities'] = len(current['installed_identities'])
+-        current['line_height_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
++        current['linear_guard_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
+             'manifest_sha256':manifest, 'source_sha256':record['candidate_sha256'], 'last_phase':'install'}
+         after = s.a.verify_current(s.h, ROOT, ENV, current)
+         assert after['nested_index'] == before['nested_index']

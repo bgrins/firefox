@@ -1,0 +1,168 @@
+--- counter-owner/run.py
++++ linear-owner/run.py
+@@ -33,13 +33,13 @@
+     return module
+ 
+ 
+-state = load('counter_pair_state', ROOT / 'artifacts/css-registered-number-native-runtime-v1/state.py')
+-ownership = load('counter_pair_ownership', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+-builder = load('counter_pair_builder', ROOT / 'artifacts/css-registered-number-native-runtime-v1/phase.py')
+-control = load('counter_pair_control', ROOT / 'artifacts/css-registered-number-native-runtime-v1/process_control.py')
++state = load('linear_pair_state', ROOT / 'artifacts/css-registered-number-native-runtime-v1/state.py')
++ownership = load('linear_pair_ownership', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
++builder = load('linear_pair_builder', ROOT / 'artifacts/css-registered-number-native-runtime-v1/phase.py')
++control = load('linear_pair_control', ROOT / 'artifacts/css-registered-number-native-runtime-v1/process_control.py')
+ guard = state.a
+-bundle = load('counter_pair_bundle', HERE / 'bundle.py')
+-wpt_cleanup = load('counter_pair_wpt_cleanup', HERE / 'wpt_cleanup.py')
++bundle = load('linear_pair_bundle', HERE / 'bundle.py')
++wpt_cleanup = load('linear_pair_wpt_cleanup', HERE / 'wpt_cleanup.py')
+ ownership.authenticate(HERE, sys.argv[2])
+ ownership.authenticate(ROOT / policy['source_package'], policy['source_manifest'])
+ ownership.authenticate(ROOT / policy['wpt_package'], policy['wpt_manifest'])
+@@ -64,12 +64,7 @@
+ assert state.h.semantic_index(observed) == original['semantic_index']
+ assert observed['raw_index'] == original['raw_index_observation']['current']
+ epoch = copy.deepcopy(original)
+-assert set(policy['source_roles']) == {
+-    'servo/components/style/parser.rs',
+-    'servo/components/style/properties/shorthands.rs',
+-    'servo/components/style/properties_and_values/value.rs',
+-    'servo/components/style/values/specified/calc.rs',
+-}
++assert set(policy['source_roles']) == {'servo/components/style/values/specified/easing.rs'}
+ assert original['modified_native_paths'] == ['servo/components/style/custom_properties.rs']
+ bases, candidates, source_claims = {}, {}, {}
+ for source, record in policy['source_roles'].items():
+@@ -82,18 +77,24 @@
+     source_claims[source] = ownership.claim(ROOT, source, record['base_sha256'], epoch['installed_identities'].get(source))
+     epoch['pins'][source] = record['base_sha256']
+     epoch['installed_identities'][source] = source_claims[source]['identity']
+-assert epoch['accepted_line_height']['fix'] == 141
+-assert epoch['accepted_line_height']['files'] == policy['accepted_line_height']
+-assert not set(policy['source_roles']).intersection(policy['accepted_line_height'])
+-assert epoch['line_height_transition']['accepted'] is True and epoch['line_height_transition']['compiled'] is True
+-for name, pin in policy['accepted_line_height'].items():
+-    assert epoch['pins'][name] == pin and sha(ROOT / name) == pin
++accepted_claims = {}
++for marker, transition, fix in [('accepted_line_height', 'line_height_transition', 141), ('accepted_random_counter', 'random_counter_transition', 142)]:
++    assert epoch[marker] == policy[marker] and epoch[marker]['fix'] == fix
++    assert epoch[transition]['accepted'] is True and epoch[transition]['compiled'] is True
++    assert not set(policy['source_roles']).intersection(epoch[marker]['files'])
++    for name, pin in epoch[marker]['files'].items():
++        record = policy['preserved_accepted_payload'][name]
++        assert record['sha256'] == pin == epoch['pins'][name]
++        assert record['identity'] == epoch['installed_identities'][name]
++        assert hashlib.sha256(state.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)).hexdigest() == pin
++        accepted_claims[name] = ownership.claim(ROOT, name, pin, record['identity'])
++assert len(accepted_claims) == 9
+ epoch['counts']['roles'] = len(epoch['pins'])
+ epoch['counts']['installed_identities'] = len(epoch['installed_identities'])
+ epoch['counts']['staged_payloads'] = len(epoch['staged_working'])
+ before = guard.verify_current(state.h, ROOT, ENV, epoch)
+ assert sorted(state.h.git(ROOT, ENV, 'diff', '--name-only').decode().splitlines()) == sorted(epoch['modified_native_paths'])
+-assert before['nested_index'] == read(ROOT / 'artifacts/css-local-signing-20261028-v36/BEFORE.json')['nested_index']
++assert before['nested_index'] == read(ROOT / 'artifacts/css-local-signing-20261028-v38/BEFORE.json')['nested_index']
+ flags = {n: state.h.git(path, ENV, 'ls-files', '-v', '-z') for n, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]}
+ control_claims = {n: ownership.claim(ROOT, str((runtime / n).relative_to(ROOT)), hashlib.sha256(body).hexdigest()) for n, body in controls.items()}
+ wpt_claims = {n: ownership.claim(ROOT, n, r['sha256'], r['identity']) for n, r in policy['installed_wpt'].items()}
+@@ -159,7 +160,7 @@
+ 
+ def unchanged_controls():
+     assert all((runtime / n).read_bytes() == body for n, body in controls.items())
+-    for claim in list(control_claims.values()) + list(wpt_claims.values()):
++    for claim in list(control_claims.values()) + list(wpt_claims.values()) + list(accepted_claims.values()):
+         ownership.claim(ROOT, claim['path'], claim['owned_sha256'], claim['identity'])
+ 
+ 
+@@ -180,7 +181,7 @@
+     assert all(index[k] == epoch['semantic_index'][k] for k in ('head', 'entries', 'cached_diff'))
+     local['semantic_index'] = state.h.semantic_index(index)
+     local['raw_index_observation']['current'] = index['raw_index']
+-    local['reversible_random_counter_phase'] = {'role': role, 'build_directory': str(directory.relative_to(ROOT)), 'source_package_manifest': policy['source_manifest'], 'owner_runtime': policy['runtime_output']}
++    local['reversible_linear_guard_phase'] = {'role': role, 'build_directory': str(directory.relative_to(ROOT)), 'source_package_manifest': policy['source_manifest'], 'owner_runtime': policy['runtime_output']}
+     guard.verify_current(state.h, ROOT, ENV, local)
+     for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]:
+         assert state.h.git(path, ENV, 'ls-files', '-v', '-z') == flags[name]
+@@ -205,34 +206,37 @@
+         current = local_epoch(role, directory)
+         state.save(directory / 'EPOCH.json', current)
+         state.save(directory / 'RESULT.json', {'command_success': True, 'preservation_verified': True, 'source_role': role, 'owned_processes': {}, 'error': None, 'publication_errors': [], 'browser_build_performed': True})
+-        active_wpt = output / (role + '-wpt')
+-        active_role = role
+-        active_process = None
+-        wpt_cleanup_receipt = None
+-        command = [sys.executable, '-I', '-S', '-B', str(ROOT / policy['wpt_package'] / 'run.py'), policy['wpt_manifest'], role + '-1', str(directory / 'EPOCH.json'), sha(directory / 'EPOCH.json'), str(active_wpt)]
+-        with (output / (role + '-wpt-driver.log')).open('x') as stream:
+-            process = subprocess.Popen(command, cwd=ROOT, env=ENV, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
+-            active_process = process
+-            owned['wpt_wrapper'] = process.pid
+-            try:
+-                deadline = time.monotonic() + 900
+-                while process.poll() is None:
+-                    assert not cancelled[0] and time.monotonic() < deadline, 'WPT wrapper cancelled or timed out'
+-                    time.sleep(0.2)
+-                code = process.wait()
+-            finally:
+-                wpt_cleanup_receipt = wpt_cleanup.finish(process, active_wpt, role, policy, control)
+-                if wpt_cleanup_receipt['restoration_safe']:
+-                    owned.pop('wpt_wrapper')
+-                state.save(output / (role + '-WRAPPER-CLEANUP.json'), wpt_cleanup_receipt)
+-        cleanup = read(active_wpt / 'CLEANUP.json')
+-        assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+-        ownership.group_absent(read(active_wpt / 'PROCESS.json')['pgid'])
+-        assessment = read(active_wpt / 'ASSESSMENT.json')
+-        phase_results[role] = {'wrapper_exit': code, 'assessment_sha256': sha(active_wpt / 'ASSESSMENT.json')}
+-        assert code == 0 and assessment['complete'] and assessment['execution_preserved']
+-        active_wpt = None
+-        unchanged_controls()
++        for phase in policy['wpt_phases'][role]:
++            active_wpt = output / phase['output']
++            active_role = phase['name']
++            active_process = None
++            wpt_cleanup_receipt = None
++            command = [sys.executable, '-I', '-S', '-B', str(ROOT / policy['wpt_package'] / 'run.py'), policy['wpt_manifest'], phase['name'], str(directory / 'EPOCH.json'), sha(directory / 'EPOCH.json'), str(active_wpt)]
++            with (output / (phase['name'] + '-driver.log')).open('x') as stream:
++                process = subprocess.Popen(command, cwd=ROOT, env=ENV, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
++                active_process = process
++                owned['wpt_wrapper'] = process.pid
++                try:
++                    deadline = time.monotonic() + 900
++                    while process.poll() is None:
++                        assert not cancelled[0] and time.monotonic() < deadline, 'WPT wrapper cancelled or timed out'
++                        time.sleep(0.2)
++                    code = process.wait()
++                finally:
++                    wpt_cleanup_receipt = wpt_cleanup.finish(process, active_wpt, active_role, policy, control)
++                    if wpt_cleanup_receipt['restoration_safe']:
++                        owned.pop('wpt_wrapper')
++                    state.save(output / (phase['name'] + '-WRAPPER-CLEANUP.json'), wpt_cleanup_receipt)
++            cleanup = read(active_wpt / 'CLEANUP.json')
++            assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
++            ownership.group_absent(read(active_wpt / 'PROCESS.json')['pgid'])
++            assessment = read(active_wpt / 'ASSESSMENT.json')
++            phase_results[phase['name']] = {'wrapper_exit': code, 'assessment_sha256': sha(active_wpt / 'ASSESSMENT.json')}
++            assert code == 0 and assessment['execution_preserved'] and assessment['phase_gate_passed']
++            if phase['name'] != 'original-crash-1':
++                assert assessment['complete']
++            active_wpt = None
++            unchanged_controls()
+ except BaseException as exc:
+     error = repr(exc)
+ finally:
+@@ -284,12 +288,12 @@
+ state.save(output / 'POST-OBSERVATION-EPOCH.json', post_epoch)
+ state.save(output / 'RAW-INDEX-OBSERVATION.json', {'before': observed['raw_index'], 'after': after_index['raw_index'], 'semantic_index_unchanged': True, 'cause': 'unknown' if observed['raw_index'] != after_index['raw_index'] else None, 'runtime_epoch_updated': False})
+ assert (lock.stat().st_dev, lock.stat().st_ino) == lock_identity
+-cleanup_backups = error is None and not publication_errors and set(phase_results) == {'original', 'candidate'}
++cleanup_backups = error is None and not publication_errors and set(phase_results) == {'original-baseline-1', 'original-crash-1', 'candidate-1'}
+ if cleanup_backups:
+     assert bundle.scan(backups) == backup_snapshot
+     shutil.rmtree(backups)
+ state.save(output / 'BACKUP-CLEANUP.json', {'removed': cleanup_backups and not backups.exists(), 'verified_original_restoration': True, 'owned_backup_bytes': backup_size, 'inventory_sha256': sha(output / 'BACKUPS.json'), 'retained_after_experiment_failure': not cleanup_backups})
+ lock.unlink()
+-state.save(output / 'RESULT.json', {'success': error is None and not publication_errors and set(phase_results) == {'original', 'candidate'}, 'error': error, 'publication_errors': publication_errors, 'phase_results': phase_results, 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'backups_removed_after_verification': not backups.exists(), 'native_fix_acceptance': False})
++state.save(output / 'RESULT.json', {'success': error is None and not publication_errors and set(phase_results) == {'original-baseline-1', 'original-crash-1', 'candidate-1'}, 'error': error, 'publication_errors': publication_errors, 'phase_results': phase_results, 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'backups_removed_after_verification': not backups.exists(), 'native_fix_acceptance': False})
+ assert error is None and not publication_errors, error
+-print('Paired random-counter linked-browser experiment completed and original source/application restored', flush=True)
++print('Paired linear guard linked-browser experiment completed and original source/application restored', flush=True)
