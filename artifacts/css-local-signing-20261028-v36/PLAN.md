@@ -1,0 +1,3 @@
+Research-only two-commit checkpoint after accepted line-height 141. First sign 82 explicit completed preparation files including the disabled unfinished reversible owner. Then checkpoint the branch work table, signing receipts and previous v35 final evidence. No native source/WPT or ledger edits and no acceptance increment. Canonical CURRENT updates only after both signed artifact-only commits verify; ROLE/OWNED and accepted line-height/page/zoom plus held provider remain unchanged.
+
+Current execution bindings become historical after signing. Rebind typecheck, paired runner and owner in reviewed successors before root execution. No compiler/browser run occurred in this checkpoint.
