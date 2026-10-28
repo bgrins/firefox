@@ -1,0 +1,226 @@
+{
+  "status": "PROPOSED_UNRUN_BROWSER_CONTROLS",
+  "inherits": false,
+  "requires": "genuine registration and typed-arithmetic calibration; do not classify unsupported calibration as dependency bug",
+  "cases": [
+    {
+      "id": "integer-unused-relative-fallback",
+      "syntax": "<integer>",
+      "initial": "3",
+      "parent": "font-size:100px",
+      "declarations": "--ready:5;--x:var(--ready,1em);font-size:calc(var(--x)*1px)",
+      "literal_calibration": "--x:5",
+      "selected_invalid": "--x:var(--missing,1em)",
+      "expected_value": "5",
+      "expected_font_size": "5px"
+    },
+    {
+      "id": "integer-noncyclic-math-mutation",
+      "syntax": "<integer>",
+      "initial": "3",
+      "parent": "font-size:19px;width:200px",
+      "declarations": "--x:calc(1em / 1px);font-size:20px",
+      "mutation": "font-size:30px",
+      "expected_values": [
+        "20",
+        "30"
+      ]
+    },
+    {
+      "id": "angle-unused-relative-fallback",
+      "syntax": "<angle>",
+      "initial": "3deg",
+      "parent": "font-size:100px",
+      "declarations": "--ready:5deg;--x:var(--ready,1em);font-size:calc(var(--x)/1deg*1px)",
+      "literal_calibration": "--x:5deg",
+      "selected_invalid": "--x:var(--missing,1em)",
+      "expected_value": "5deg",
+      "expected_font_size": "5px"
+    },
+    {
+      "id": "angle-noncyclic-math-mutation",
+      "syntax": "<angle>",
+      "initial": "3deg",
+      "parent": "font-size:19px;width:200px",
+      "declarations": "--x:calc(1em / 1px * 1deg);font-size:20px",
+      "mutation": "font-size:30px",
+      "expected_values": [
+        "20deg",
+        "30deg"
+      ]
+    },
+    {
+      "id": "time-unused-relative-fallback",
+      "syntax": "<time>",
+      "initial": "3s",
+      "parent": "font-size:100px",
+      "declarations": "--ready:5s;--x:var(--ready,1em);font-size:calc(var(--x)/1s*1px)",
+      "literal_calibration": "--x:5s",
+      "selected_invalid": "--x:var(--missing,1em)",
+      "expected_value": "5s",
+      "expected_font_size": "5px"
+    },
+    {
+      "id": "time-noncyclic-math-mutation",
+      "syntax": "<time>",
+      "initial": "3s",
+      "parent": "font-size:19px;width:200px",
+      "declarations": "--x:calc(1em / 1px * 1s);font-size:20px",
+      "mutation": "font-size:30px",
+      "expected_values": [
+        "20s",
+        "30s"
+      ]
+    },
+    {
+      "id": "resolution-unused-relative-fallback",
+      "syntax": "<resolution>",
+      "initial": "3dppx",
+      "parent": "font-size:100px",
+      "declarations": "--ready:5dppx;--x:var(--ready,1em);font-size:calc(var(--x)/1dppx*1px)",
+      "literal_calibration": "--x:5dppx",
+      "selected_invalid": "--x:var(--missing,1em)",
+      "expected_value": "5dppx",
+      "expected_font_size": "5px"
+    },
+    {
+      "id": "resolution-noncyclic-math-mutation",
+      "syntax": "<resolution>",
+      "initial": "3dppx",
+      "parent": "font-size:19px;width:200px",
+      "declarations": "--x:calc(1em / 1px * 1dppx);font-size:20px",
+      "mutation": "font-size:30px",
+      "expected_values": [
+        "20dppx",
+        "30dppx"
+      ]
+    },
+    {
+      "id": "percentage-unused-relative-fallback",
+      "syntax": "<percentage>",
+      "initial": "3%",
+      "parent": "font-size:100px",
+      "declarations": "--ready:5%;--x:var(--ready,1em);font-size:var(--x)",
+      "literal_calibration": "--x:5%",
+      "selected_invalid": "--x:var(--missing,1em)",
+      "expected_value": "5%",
+      "expected_font_size": "5px"
+    },
+    {
+      "id": "percentage-noncyclic-math-mutation",
+      "syntax": "<percentage>",
+      "initial": "3%",
+      "parent": "font-size:19px;width:200px",
+      "declarations": "--x:calc(1em / 1px * 1%);font-size:20px",
+      "mutation": "font-size:30px",
+      "expected_values": [
+        "20%",
+        "30%"
+      ]
+    },
+    {
+      "id": "unused-relative-fallback:<number> | <angle>",
+      "syntax": "<number> | <angle>",
+      "initial": "3",
+      "declarations": "--ready:5;--x:var(--ready,1em);font-size:calc(var(--x)*1px)",
+      "expected_value": "5",
+      "expected_font_size": "5px"
+    },
+    {
+      "id": "unused-relative-fallback:<angle> | <number>",
+      "syntax": "<angle> | <number>",
+      "initial": "3",
+      "declarations": "--ready:5;--x:var(--ready,1em);font-size:calc(var(--x)*1px)",
+      "expected_value": "5",
+      "expected_font_size": "5px"
+    },
+    {
+      "id": "unused-relative-fallback:<number>+",
+      "syntax": "<number>+",
+      "initial": "3",
+      "declarations": "--ready:5;--x:var(--ready,1em);font-size:calc(var(--x)*1px)",
+      "expected_value": "5",
+      "expected_font_size": "5px"
+    },
+    {
+      "id": "unused-relative-fallback:<number>#",
+      "syntax": "<number>#",
+      "initial": "3",
+      "declarations": "--ready:5;--x:var(--ready,1em);font-size:calc(var(--x)*1px)",
+      "expected_value": "5",
+      "expected_font_size": "5px"
+    },
+    {
+      "id": "later-list-member-math:<number>+",
+      "syntax": "<number>+",
+      "initial": "3",
+      "declarations": "--x:2 calc(1em / 1px);font-size:20px",
+      "mutation": "font-size:30px",
+      "expected_components": [
+        [
+          2,
+          20
+        ],
+        [
+          2,
+          30
+        ]
+      ]
+    },
+    {
+      "id": "later-list-member-math:<number>#",
+      "syntax": "<number>#",
+      "initial": "3",
+      "declarations": "--x:2, calc(1em / 1px);font-size:20px",
+      "mutation": "font-size:30px",
+      "expected_components": [
+        [
+          2,
+          20
+        ],
+        [
+          2,
+          30
+        ]
+      ]
+    },
+    {
+      "id": "integer-provider-to-number-consumer",
+      "registrations": [
+        {
+          "name": "--i",
+          "syntax": "<integer>",
+          "initial": "3"
+        },
+        {
+          "name": "--n",
+          "syntax": "<number>",
+          "initial": "7"
+        }
+      ],
+      "parent": "font-size:19px",
+      "declarations": "--i:calc(1em / 1px);--n:var(--i);font-size:20px;width:calc(var(--n)*1px)",
+      "mutation": "font-size:30px",
+      "expected_values": [
+        [
+          20,
+          20
+        ],
+        [
+          30,
+          30
+        ]
+      ],
+      "expected_widths": [
+        "20px",
+        "30px"
+      ]
+    }
+  ],
+  "additional_controls": [
+    "ready wrong-type primary red must not retry numeric fallback",
+    "whole-list grammar rejection must reject a partially valid list",
+    "angle/time/resolution/percentage provider to number may use calc(var(--provider)/1UNIT), with independent arithmetic calibration",
+    "no disputed self-font numeric expectation"
+  ]
+}
