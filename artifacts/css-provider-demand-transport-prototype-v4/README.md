@@ -1,0 +1,23 @@
+# Selected provider servicing prototype
+
+Status: source prototype awaiting typecheck and independent final review. It is not a complete provider fix or a browser-validated candidate. V3 passed a separate full configured Rust-graph typecheck; that result does not certify these new changes.
+
+The checked builder now collects every selected custom declaration without early target-context computation. Raw values enter the substitution map; parsed values and invalid/CSS-wide defaults remain owned deferred records. Revert selection stays in the declaration collector. The existing production constructor/build path still uses None completion. The new constructor plus try_build invokes Some completion through the real graph traversal and prioritary application code.
+
+The graph state is separated from application state so a suspended prioritary continuation can retain its consumer while the owner services provider, typed-attribute and prioritary requests. Provider servicing invokes traversal without inventing a semantic edge for a scheduling prerequisite. Requests into an open owner return an incomplete result rather than reading a stale cache, selecting fallback, or invalidating a fabricated cycle. Acyclic records retire after successful application. In strict mode, all SCC participants are classified before any registered default is computed; invalidated participants have separate pending/default-applying states.
+
+Full registered grammar admission precedes context readiness. The callback sees the actual selected SpecifiedValue, including lists, images, colors, transforms and numeric expressions; no syntax family is silently treated as context-free. Both a complete local prerequisite set and an external-context certificate are required. Unknown and an absent external certificate return InitialContext. Every default plan uses cycle classification at construction and retains its exact registration.
+
+Prepared provider values/default plans retain their admitted AST across context-demand retries. Context computation and publication happen only when ready. Attribute reads collected during preparation merge with completed dependency reads at publication rather than overwriting them. Substitution demands before admission still retry the selected substitution, because completing a selected provider can legitimately change its result. A selected parsed declaration is retained directly without a serialize/parse round trip.
+
+## Limits that prevent activation
+
+There is no production complete-context certificate producer. Ready prioritary bits are insufficient: font-set/parent/root metrics, viewport dimensions, per-axis containers, element/scope/tree state and random/cache identity need a justified stable owner scope. The callbacks default to Unknown/false. The source does not infer external readiness from computational independence or from a syntax whitelist. The existing selected-value independence visitor is a starting point for exhaustive footprint traversal, not a readiness certificate.
+
+The checked builder provides an executable path for native harness integration; ordinary browser cascade callers are not switched to it. Existing eager production semantics remain on the old path. In strict mode, an unresolved external context or a newly discovered open-owner request is an error for the entire attempt. The consumed builder cannot be resumed. The caller must discard the incomplete style context; this result is not a successful partial style and does not reconstruct a DFS program counter after unwinding. The synchronous successful servicing path keeps the real graph owner live. A general suspended traversal scheduler is still absent.
+
+Initial ASTs are retained within one plan, but currently parsed from the descriptor CSS when the plan is constructed. Cross-restyle/parser-generated initial identity requires integration with retained-initial storage; this package does not solve it. Deferred Parsed values rely on their producer's existing selected-registration and already-admitted representation contract. Unresolved universal Parsed inputs require dedicated validation before activation.
+
+Dependency effects produced during successful computation remain on the real target context. No speculative ToComputedValue call runs before certification. Completed prerequisite work may remain after a later demand, but an unsuccessful overall attempt must be discarded. The callback must preserve target/registration/scope identity and must not reinterpret a scheduling cycle as a CSS invalidating cycle.
+
+No native fix count, formal coverage credit, browser result or complete context-discovery claim is made.

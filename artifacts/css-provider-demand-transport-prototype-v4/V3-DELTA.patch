@@ -1,0 +1,1446 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -27,7 +27,7 @@
+ use crate::typed_om::{
+     ToTyped, TypedValue, UnparsedSegment, UnparsedValue, VariableReferenceValue,
+ };
+-use crate::values::computed;
++use crate::values::computed::{self, ToComputedValue};
+ use crate::values::generics::calc::SortKey as AttrUnit;
+ use crate::values::specified::{NoCalcLength, ParsedNamespace};
+ use crate::{Atom, LocalName, Namespace, Prefix, derives::*};
+@@ -1871,10 +1871,20 @@
+     fn provider_pending(&self, name: &Name) -> bool;
+     fn attribute_pending(&self, name: &Name, data: &AttributeData) -> bool;
+     fn prioritary_ready(&self, id: PrioritaryPropertyId) -> bool;
+-    fn initial_context_ready(
++    fn value_context_requirements(
+         &self,
+         _name: &Name,
+         _registration: &PropertyDescriptors,
++        _value: &SpecifiedRegisteredValue,
++        _context: &computed::Context,
++    ) -> RegisteredContextRequirements {
++        RegisteredContextRequirements::Unknown
++    }
++    fn value_context_ready(
++        &self,
++        _name: &Name,
++        _registration: &PropertyDescriptors,
++        _value: &SpecifiedRegisteredValue,
+         _context: &computed::Context,
+     ) -> bool {
+         false
+@@ -1914,6 +1924,7 @@
+     InvalidatedParticipant,
+ }
+ 
++#[derive(Clone, Copy)]
+ pub(crate) enum RegisteredDefaultReason {
+     Invalid,
+     CssWide(CSSWideKeyword),
+@@ -1923,7 +1934,9 @@
+     Invalid,
+     Inherited,
+     Copied(Option<ComputedRegisteredValue>),
+-    Initial { css: String, url_data: UrlExtraData },
++    Initial {
++        value: Option<SpecifiedRegisteredValue>,
++    },
+ }
+ 
+ #[derive(Clone, Copy)]
+@@ -1938,7 +1951,6 @@
+     is_root: bool,
+     source: RegisteredDefaultSource,
+     inherits_reset_style: bool,
+-    pub(crate) requirements: RegisteredContextRequirements,
+ }
+ 
+ pub(crate) struct ComputedRegisteredDefault {
+@@ -1970,7 +1982,6 @@
+                     is_root: context.is_root_element(),
+                     source: RegisteredDefaultSource::Invalid,
+                     inherits_reset_style: false,
+-                    requirements: RegisteredContextRequirements::Known(Default::default()),
+                 });
+             }
+             registration.inherits() && !context.is_root_element()
+@@ -1992,16 +2003,16 @@
+         )
+     } else if let Some(initial) = registration.initial_value.as_ref() {
+         RegisteredDefaultSource::Initial {
+-            css: initial.css.to_string(),
+-            url_data: initial.url_data.clone(),
++            value: parse_registered_value(
++                name,
++                &initial.css,
++                &initial.url_data,
++                registration,
++                AttrTaint::default(),
++            ),
+         }
+     } else {
+         RegisteredDefaultSource::Invalid
+-    };
+-    let requirements = if matches!(source, RegisteredDefaultSource::Initial { .. }) {
+-        RegisteredContextRequirements::Unknown
+-    } else {
+-        RegisteredContextRequirements::Known(Default::default())
+     };
+     Ok(PreparedRegisteredDefault {
+         name: name.clone(),
+@@ -2009,18 +2020,10 @@
+         is_root: context.is_root_element(),
+         source,
+         inherits_reset_style: inherited && !registration.inherits(),
+-        requirements,
+     })
+ }
+ 
+ impl PreparedRegisteredDefault<'_> {
+-    pub(crate) fn initial_input(&self) -> Option<(&str, &UrlExtraData)> {
+-        match &self.source {
+-            RegisteredDefaultSource::Initial { css, url_data } => Some((css, url_data)),
+-            _ => None,
+-        }
+-    }
+-
+     pub(crate) fn try_compute(
+         &self,
+         context: &computed::Context,
+@@ -2030,31 +2033,6 @@
+             return Err(SubstitutionDemand::InitialContext(self.name.clone()));
+         }
+         let registration = self.registration;
+-        let mut required = match self.requirements {
+-            RegisteredContextRequirements::Unknown => {
+-                return Err(SubstitutionDemand::InitialContext(self.name.clone()));
+-            },
+-            RegisteredContextRequirements::Known(required) => required,
+-        };
+-        loop {
+-            let previous = required;
+-            for id in previous.iter() {
+-                for dependency in id.dependencies().iter() {
+-                    required.insert(dependency);
+-                }
+-            }
+-            if previous == required {
+-                break;
+-            }
+-        }
+-        if let Some(id) = required.iter().find(|id| !readiness.prioritary_ready(*id)) {
+-            return Err(SubstitutionDemand::Prioritary(id));
+-        }
+-        if matches!(self.source, RegisteredDefaultSource::Initial { .. })
+-            && !readiness.initial_context_ready(&self.name, registration, context)
+-        {
+-            return Err(SubstitutionDemand::InitialContext(self.name.clone()));
+-        }
+         let value = match &self.source {
+             RegisteredDefaultSource::Invalid => None,
+             RegisteredDefaultSource::Inherited => context
+@@ -2064,21 +2042,278 @@
+                 .get(registration, &self.name)
+                 .cloned(),
+             RegisteredDefaultSource::Copied(value) => value.clone(),
+-            RegisteredDefaultSource::Initial { css, url_data } => compute_value(
+-                css,
+-                url_data,
+-                registration,
+-                context,
+-                AttrTaint::default(),
+-                Some(PropertyIdRef::from(&self.name)),
+-            )
+-            .ok(),
++            RegisteredDefaultSource::Initial { value, .. } => match value {
++                Some(value) => Some(try_compute_specified_with_readiness(
++                    &self.name,
++                    registration,
++                    value,
++                    context,
++                    readiness,
++                )?),
++                None => None,
++            },
+         };
+         Ok(ComputedRegisteredDefault {
+             value,
+             inherits_reset_style: self.inherits_reset_style,
+         })
+     }
++    pub(crate) fn try_apply(
++        &self,
++        context: &mut computed::Context,
++        readiness: &dyn SubstitutionReadiness,
++    ) -> Result<(), SubstitutionDemand> {
++        let result = self.try_compute(context, readiness)?;
++        if result.inherits_reset_style {
++            context
++                .style()
++                .add_flags(ComputedValueFlags::INHERITS_RESET_STYLE);
++        }
++        match result.value {
++            Some(value) => context.builder.substitution_functions.insert_var(
++                self.registration,
++                &self.name,
++                value,
++            ),
++            None => context
++                .builder
++                .substitution_functions
++                .remove_var(self.registration, &self.name),
++        }
++        Ok(())
++    }
++}
++
++fn parse_registered_value(
++    name: &Name,
++    css: &str,
++    url_data: &UrlExtraData,
++    registration: &PropertyDescriptors,
++    taint: AttrTaint,
++) -> Option<SpecifiedRegisteredValue> {
++    let syntax = registration.syntax.as_ref()?;
++    SpecifiedRegisteredValue::parse(
++        &mut Parser::new(css),
++        syntax,
++        url_data,
++        None,
++        AllowComputationallyDependent::Yes,
++        taint,
++        Some(PropertyIdRef::from(name)),
++    )
++    .ok()
++}
++
++pub(crate) fn try_compute_specified_with_readiness(
++    name: &Name,
++    registration: &PropertyDescriptors,
++    value: &SpecifiedRegisteredValue,
++    context: &computed::Context,
++    readiness: &dyn SubstitutionReadiness,
++) -> Result<ComputedRegisteredValue, SubstitutionDemand> {
++    let mut required =
++        match readiness.value_context_requirements(name, registration, &value, context) {
++            RegisteredContextRequirements::Unknown => {
++                return Err(SubstitutionDemand::InitialContext(name.clone()));
++            },
++            RegisteredContextRequirements::Known(required) => required,
++        };
++    loop {
++        let previous = required;
++        for id in previous.iter() {
++            for dependency in id.dependencies().iter() {
++                required.insert(dependency);
++            }
++        }
++        if previous == required {
++            break;
++        }
++    }
++    if let Some(id) = required.iter().find(|id| !readiness.prioritary_ready(*id)) {
++        return Err(SubstitutionDemand::Prioritary(id));
++    }
++    if !readiness.value_context_ready(name, registration, &value, context) {
++        return Err(SubstitutionDemand::InitialContext(name.clone()));
++    }
++    Ok(value.to_computed_value(context))
++}
++
++enum PreparedProviderInput<'registration> {
++    Typed(SpecifiedRegisteredValue, bool),
++    Default(PreparedRegisteredDefault<'registration>),
++    Resolved(Option<ComputedRegisteredValue>),
++}
++
++pub(crate) struct PreparedProvider<'registration> {
++    name: Name,
++    namespace: Option<Namespace>,
++    registration: &'registration PropertyDescriptors,
++    input: PreparedProviderInput<'registration>,
++    attributes: crate::dom::AttributeReferences,
++}
++
++impl PreparedProvider<'_> {
++    pub(crate) fn try_apply(
++        &self,
++        context: &mut computed::Context,
++        attributes: &mut AttributeTracker,
++        readiness: &dyn SubstitutionReadiness,
++    ) -> Result<(), SubstitutionDemand> {
++        let (value, inherits_reset) = match &self.input {
++            PreparedProviderInput::Typed(value, tainted) => {
++                let mut computed = try_compute_specified_with_readiness(
++                    &self.name,
++                    self.registration,
++                    value,
++                    context,
++                    readiness,
++                )?;
++                computed.attr_tainted |= *tainted;
++                (Some(computed), false)
++            },
++            PreparedProviderInput::Default(plan) => {
++                let computed = plan.try_compute(context, readiness)?;
++                (computed.value, computed.inherits_reset_style)
++            },
++            PreparedProviderInput::Resolved(value) => (value.clone(), false),
++        };
++        if inherits_reset {
++            context
++                .style()
++                .add_flags(ComputedValueFlags::INHERITS_RESET_STYLE);
++        }
++        match (&self.namespace, value) {
++            (None, Some(value)) => context.builder.substitution_functions.insert_var(
++                self.registration,
++                &self.name,
++                value,
++            ),
++            (None, None) => context
++                .builder
++                .substitution_functions
++                .remove_var(self.registration, &self.name),
++            (Some(namespace), Some(value)) => context
++                .builder
++                .substitution_functions
++                .insert_attr(&self.name, namespace, value),
++            (Some(namespace), None) => context
++                .builder
++                .substitution_functions
++                .remove_attr(&self.name, namespace),
++        }
++        if let Some(references) = self.attributes.as_ref() {
++            let target = attributes.references.get_or_insert_with(Default::default);
++            for (name, namespaces) in references.iter() {
++                let recorded = target.entry(name.clone()).or_default();
++                for namespace in namespaces {
++                    if !recorded.contains(namespace) {
++                        recorded.push(namespace.clone());
++                    }
++                }
++            }
++        }
++        Ok(())
++    }
++}
++
++pub(crate) fn prepare_provider<'registration>(
++    name: &Name,
++    namespace: Option<&Namespace>,
++    value: &Arc<VariableValue>,
++    stylist: &'registration Stylist,
++    context: &computed::Context,
++    attribute_tracker: &AttributeTracker,
++    readiness: &dyn SubstitutionReadiness,
++) -> Result<PreparedProvider<'registration>, SubstitutionDemand> {
++    let is_var = namespace.is_none();
++    let registration = stylist.get_custom_property_registration(name);
++    let mut attributes = AttributeTracker {
++        context: attribute_tracker.context,
++        references: attribute_tracker.references.clone(),
++    };
++    let mut state = SubstitutionState::default();
++    if is_var {
++        state.names.push(name);
++    }
++    let substitution = substitute_internal(
++        value,
++        Some(PropertyIdRef::from(name)),
++        &context.builder.substitution_functions,
++        stylist,
++        context,
++        &mut attributes,
++        &mut state,
++        Some(readiness),
++        None,
++    );
++    let poisoned = is_var && state.cyclic_names.contains(&name);
++    drop(state);
++    let substitution = match substitution {
++        Err(SubstitutionError::Demand(demand)) => return Err(demand),
++        _ if poisoned => return Err(SubstitutionDemand::Provider(name.clone())),
++        Ok(value) => Some(value),
++        Err(SubstitutionError::Invalid) => None,
++    };
++    let default = |reason| {
++        prepare_registered_default(
++            name,
++            reason,
++            ProviderCycleClassification::Acyclic,
++            registration,
++            stylist,
++            context,
++        )
++        .map(PreparedProviderInput::Default)
++    };
++    let input = match substitution {
++        None if is_var => default(RegisteredDefaultReason::Invalid)?,
++        None => PreparedProviderInput::Resolved(None),
++        Some(substitution) => {
++            let keyword = if is_var {
++                Parser::new(&substitution.css)
++                    .try_parse(CSSWideKeyword::parse)
++                    .ok()
++            } else {
++                None
++            };
++            if let Some(keyword) = keyword {
++                default(RegisteredDefaultReason::CssWide(keyword))?
++            } else if is_var && !registration.is_universal() {
++                let taint = if substitution.attr_tainted {
++                    AttrTaint::new_fully_tainted(substitution.css.len())
++                } else {
++                    AttrTaint::default()
++                };
++                match parse_registered_value(
++                    name,
++                    &substitution.css,
++                    &value.url_data,
++                    registration,
++                    taint,
++                ) {
++                    Some(value) => PreparedProviderInput::Typed(value, substitution.attr_tainted),
++                    None => default(RegisteredDefaultReason::Invalid)?,
++                }
++            } else {
++                let mut computed =
++                    ComputedRegisteredValue::universal(Arc::new(VariableValue::new_resolved(
++                        substitution.css.into_owned(),
++                        &value.url_data,
++                        substitution.first_token_type,
++                        substitution.last_token_type,
++                    )));
++                computed.attr_tainted |= substitution.attr_tainted;
++                PreparedProviderInput::Resolved(Some(computed))
++            }
++        },
++    };
++    Ok(PreparedProvider {
++        name: name.clone(),
++        namespace: namespace.cloned(),
++        registration,
++        input,
++        attributes: attributes.references,
++    })
+ }
+ 
+ enum RegisteredSubstitutionDefault {
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -772,6 +772,30 @@
+         }
+     }
+ 
++    pub(crate) fn new_with_completion(
++        stylist: &'a Stylist,
++        context: &mut computed::Context,
++        base: ComputedCustomProperties,
++        completion: &'a dyn custom_properties::SubstitutionReadiness,
++    ) -> Self {
++        let mut builder = Self::new(stylist, context, base);
++        builder.cascade.completion = Some(completion);
++        builder
++    }
++
++    pub(crate) fn try_build(
++        mut self,
++        context: &mut computed::Context,
++        attributes: &mut AttributeTracker,
++    ) -> Result<(), custom_properties::SubstitutionDemand> {
++        self.cascade.try_apply_custom_and_prioritary_properties(
++            context,
++            &self.decls,
++            &mut self.shorthand_cache,
++            attributes,
++        )
++    }
++
+     /// Cascades a single custom-property declaration from the keyframe.
+     pub fn cascade(
+         &mut self,
+@@ -800,6 +824,10 @@
+         context: &mut computed::Context,
+         attribute_tracker: &mut AttributeTracker,
+     ) {
++        assert!(
++            self.cascade.completion.is_none(),
++            "Use try_build for selected-demand completion"
++        );
+         self.cascade.apply_custom_and_prioritary_properties(
+             context,
+             &self.decls,
+@@ -809,9 +837,17 @@
+     }
+ }
+ 
++#[derive(Clone)]
++enum DeferredRegisteredDeclaration {
++    Parsed(Arc<crate::properties_and_values::value::SpecifiedValue>),
++    Default(custom_properties::RegisteredDefaultReason),
++}
++
+ type NonCustomPropertyReferences = NonCustomReferenceMap<Vec<(LonghandId, Arc<UnparsedValue>)>>;
+ 
+ pub(crate) struct Cascade<'a> {
++    completion: Option<&'a dyn custom_properties::SubstitutionReadiness>,
++    deferred_registered: PrecomputedHashMap<Name, DeferredRegisteredDeclaration>,
+     first_line_reparenting: FirstLineReparenting<'a>,
+     stylist: &'a Stylist,
+     ignore_colors: bool,
+@@ -929,6 +965,8 @@
+         ignore_colors: bool,
+     ) -> Self {
+         Self {
++            completion: None,
++            deferred_registered: Default::default(),
+             first_line_reparenting,
+             stylist,
+             ignore_colors,
+@@ -948,6 +986,8 @@
+     /// keyframes). The visited-style and position-try paths aren't reachable in this mode.
+     fn new_for_custom_properties_only(stylist: &'a Stylist) -> Self {
+         Self {
++            completion: None,
++            deferred_registered: Default::default(),
+             first_line_reparenting: FirstLineReparenting::No,
+             stylist,
+             ignore_colors: false,
+@@ -1929,6 +1969,31 @@
+         self.finish_cascade_custom_properties(context);
+     }
+ 
++    fn try_apply_custom_and_prioritary_properties(
++        &mut self,
++        context: &mut computed::Context,
++        decls: &Declarations,
++        cache: &mut ShorthandsWithPropertyReferencesCache,
++        attributes: &mut AttributeTracker,
++    ) -> Result<(), custom_properties::SubstitutionDemand> {
++        let completion = self.completion.expect("Selected-demand builder");
++        let seen = std::mem::take(&mut self.seen.custom);
++        let references = std::mem::take(&mut self.references_from_non_custom_properties);
++        substitute_all_with_completion(
++            &seen,
++            &references,
++            self.stylist,
++            context,
++            self,
++            decls,
++            cache,
++            attributes,
++            Some(completion),
++        )?;
++        self.finish_cascade_custom_properties(context);
++        Ok(())
++    }
++
+     /// Applies a prioritary property and the prioritary properties it depends on.
+     fn ensure_prioritary_property(
+         &mut self,
+@@ -2019,6 +2084,48 @@
+         };
+ 
+         let registration = self.stylist.get_custom_property_registration(name);
++        if self.completion.is_some() {
++            if let CustomDeclarationValue::CSSWideKeyword(keyword) = value {
++                if let Some(kind) = keyword.revert_kind() {
++                    self.reverted.custom.insert(name.clone(), (priority, kind));
++                    return;
++                }
++            }
++            entry.insert(true);
++            self.may_have_custom_property_cycles = true;
++            match value {
++                CustomDeclarationValue::Unparsed(value) => {
++                    context.builder.substitution_functions.insert_var(
++                        registration,
++                        name,
++                        ComputedRegisteredValue::universal(value.clone()),
++                    )
++                },
++                CustomDeclarationValue::Parsed(value) => {
++                    self.deferred_registered.insert(
++                        name.clone(),
++                        DeferredRegisteredDeclaration::Parsed(value.clone()),
++                    );
++                },
++                CustomDeclarationValue::GuaranteedInvalid => {
++                    self.deferred_registered.insert(
++                        name.clone(),
++                        DeferredRegisteredDeclaration::Default(
++                            custom_properties::RegisteredDefaultReason::Invalid,
++                        ),
++                    );
++                },
++                CustomDeclarationValue::CSSWideKeyword(keyword) => {
++                    self.deferred_registered.insert(
++                        name.clone(),
++                        DeferredRegisteredDeclaration::Default(
++                            custom_properties::RegisteredDefaultReason::CssWide(*keyword),
++                        ),
++                    );
++                },
++            }
++            return;
++        }
+         let initial_values = self.stylist.get_custom_property_initial_values();
+         if !Self::value_may_affect_style(context, name, registration, initial_values, value) {
+             entry.insert(false);
+@@ -2414,6 +2521,31 @@
+     shorthand_cache: &mut ShorthandsWithPropertyReferencesCache,
+     attr_tracker: &mut AttributeTracker,
+ ) {
++    substitute_all_with_completion(
++        seen,
++        references_from_non_custom_properties,
++        stylist,
++        computed_context,
++        cascade,
++        decls,
++        shorthand_cache,
++        attr_tracker,
++        None,
++    )
++    .unwrap_or_else(|_| unreachable!("Demand without context completion"));
++}
++
++fn substitute_all_with_completion(
++    seen: &SeenSubstitutionFunctions,
++    references_from_non_custom_properties: &NonCustomPropertyReferences,
++    stylist: &Stylist,
++    computed_context: &mut computed::Context,
++    cascade: &mut Cascade,
++    decls: &Declarations,
++    shorthand_cache: &mut ShorthandsWithPropertyReferencesCache,
++    attr_tracker: &mut AttributeTracker,
++    completion: Option<&dyn custom_properties::SubstitutionReadiness>,
++) -> Result<(), custom_properties::SubstitutionDemand> {
+     // The cycle dependencies removal in this function is a variant
+     // of Tarjan's algorithm. It is mostly based on the pseudo-code
+     // listed in
+@@ -2464,9 +2596,8 @@
+         }
+     }
+ 
+-    /// Context struct for traversing the variable graph, so that we can
+-    /// avoid referencing all the fields multiple times.
+-    struct Context<'a, 'b: 'a, 'c, 'd> {
++    #[derive(Default)]
++    struct GraphState {
+         /// Number of variables visited. This is used as the order index
+         /// when we visit a new unresolved variable.
+         count: usize,
+@@ -2479,6 +2610,99 @@
+         /// The stack of order index of visited variables. It contains
+         /// all unfinished strong connected components.
+         stack: SmallVec<[usize; 5]>,
++        invalidated_pending: PrecomputedHashSet<Name>,
++        default_applying: PrecomputedHashSet<Name>,
++    }
++
++    struct ReadinessSnapshot<'a> {
++        map: ComputedSubstitutionFunctions,
++        active: Vec<VarType>,
++        invalidated_pending: PrecomputedHashSet<Name>,
++        ready: PrioritaryPropertyIdSet,
++        stylist: &'a Stylist,
++        completion: &'a dyn custom_properties::SubstitutionReadiness,
++    }
++
++    impl<'a> ReadinessSnapshot<'a> {
++        fn new(
++            graph: &GraphState,
++            map: &ComputedSubstitutionFunctions,
++            ready: PrioritaryPropertyIdSet,
++            deferred: &PrecomputedHashMap<Name, DeferredRegisteredDeclaration>,
++            stylist: &'a Stylist,
++            completion: &'a dyn custom_properties::SubstitutionReadiness,
++        ) -> Self {
++            let mut pending = graph.invalidated_pending.clone();
++            pending.extend(deferred.keys().cloned());
++            Self {
++                map: map.clone(),
++                active: graph
++                    .var_info
++                    .iter()
++                    .filter_map(|info| info.var.clone())
++                    .collect(),
++                invalidated_pending: pending,
++                ready,
++                stylist,
++                completion,
++            }
++        }
++    }
++
++    impl custom_properties::SubstitutionReadiness for ReadinessSnapshot<'_> {
++        fn provider_pending(&self, name: &Name) -> bool {
++            if self.invalidated_pending.contains(name)
++                || self
++                    .active
++                    .iter()
++                    .any(|node| matches!(node, VarType::Custom(active) if active == name))
++            {
++                return true;
++            }
++            let registration = self.stylist.get_custom_property_registration(name);
++            self.map
++                .get_var(registration, name)
++                .and_then(|value| value.as_universal())
++                .is_some_and(|value| !registration.is_universal() || value.has_references())
++        }
++        fn attribute_pending(&self, name: &Name, data: &custom_properties::AttributeData) -> bool {
++            let Some(namespace) = data.namespace() else {
++                return false;
++            };
++            self.active.iter().any(|node| matches!(node, VarType::Attr(active, ns) if active == name && ns == namespace))
++                || !self.map.contains_attr(name, namespace)
++                || self.map.get_attr(name, namespace).and_then(|value| value.as_universal()).is_some_and(|value| value.has_references())
++        }
++        fn prioritary_ready(&self, id: PrioritaryPropertyId) -> bool {
++            self.ready.contains(id)
++        }
++        fn value_context_requirements(
++            &self,
++            name: &Name,
++            registration: &PropertyDescriptors,
++            value: &crate::properties_and_values::value::SpecifiedValue,
++            context: &computed::Context,
++        ) -> custom_properties::RegisteredContextRequirements {
++            self.completion
++                .value_context_requirements(name, registration, value, context)
++        }
++        fn value_context_ready(
++            &self,
++            name: &Name,
++            registration: &PropertyDescriptors,
++            value: &crate::properties_and_values::value::SpecifiedValue,
++            context: &computed::Context,
++        ) -> bool {
++            self.completion
++                .value_context_ready(name, registration, value, context)
++        }
++    }
++
++    /// Context struct for traversing the variable graph, so that we can
++    /// avoid referencing all the fields multiple times.
++    struct Context<'a, 'b: 'a, 'c, 'd> {
++        graph: &'a mut GraphState,
++        completion: Option<&'a dyn custom_properties::SubstitutionReadiness>,
+         /// The stylist is used to get registered properties, and to resolve the environment to
+         /// substitute `env()` variables.
+         stylist: &'a Stylist,
+@@ -2497,11 +2721,12 @@
+ 
+     impl<'a, 'b: 'a, 'c, 'd> Context<'a, 'b, 'c, 'd> {
+         fn reset(&mut self) {
+-            self.count = 0;
+-            self.index_map.clear();
+-            self.non_custom_index_map = Default::default();
+-            self.var_info.clear();
+-            self.stack.clear();
++            assert!(self.graph.invalidated_pending.is_empty());
++            self.graph.count = 0;
++            self.graph.index_map.clear();
++            self.graph.non_custom_index_map = Default::default();
++            self.graph.var_info.clear();
++            self.graph.stack.clear();
+         }
+ 
+         fn map(&self) -> &ComputedSubstitutionFunctions {
+@@ -2538,23 +2763,278 @@
+             }
+         }
+ 
+-        /// Applies a prioritary property (and its dependencies) while resolving custom properties.
+-        ///
+-        /// The in-progress map lives outside `computed_context` during traversal; we move it into
+-        /// `computed_context.builder.substitution_functions` so the prioritary declaration's `var()`
+-        /// references resolve against the custom properties resolved so far, then take it back out.
++        fn snapshot(&self) -> ReadinessSnapshot<'a> {
++            ReadinessSnapshot::new(
++                self.graph,
++                self.map(),
++                self.cascade.ensured_prioritary,
++                &self.cascade.deferred_registered,
++                self.stylist,
++                self.completion.expect("Readiness mode"),
++            )
++        }
++
++        fn service_demand(
++            &mut self,
++            demand: custom_properties::SubstitutionDemand,
++            references: &NonCustomPropertyReferences,
++            attributes: &mut AttributeTracker,
++        ) -> Result<(), custom_properties::SubstitutionDemand> {
++            use custom_properties::SubstitutionDemand;
++            let node = match &demand {
++                SubstitutionDemand::Provider(name) => {
++                    if self.graph.invalidated_pending.contains(name) {
++                        return self.apply_invalid_default(name, references, attributes);
++                    }
++                    if self.cascade.deferred_registered.contains_key(name) {
++                        return self.apply_deferred_registered(name, references, attributes);
++                    }
++                    VarType::Custom(name.clone())
++                },
++                SubstitutionDemand::Attribute {
++                    name,
++                    data,
++                    url_data,
++                } => {
++                    let Some(namespace) = data.namespace() else {
++                        return Err(demand);
++                    };
++                    if !self.map().contains_attr(name, namespace) {
++                        match get_attr_value_for_cycle_resolution(name, data, url_data, attributes)
++                        {
++                            Ok(value) => self.map_mut().insert_attr(name, namespace, value),
++                            Err(()) => self.map_mut().remove_attr(name, namespace),
++                        }
++                    }
++                    VarType::Attr(name.clone(), namespace.clone())
++                },
++                SubstitutionDemand::Prioritary(id) => {
++                    return self.apply_prioritary_property(*id, references, attributes);
++                },
++                SubstitutionDemand::InitialContext(_) => return Err(demand),
++            };
++            if self
++                .graph
++                .var_info
++                .iter()
++                .any(|info| info.var.as_ref() == Some(&node))
++            {
++                return Err(demand);
++            }
++            traverse(node, references, self, attributes)?;
++            let snapshot = self.snapshot();
++            use custom_properties::SubstitutionReadiness;
++            let pending = match &demand {
++                SubstitutionDemand::Provider(name) => snapshot.provider_pending(name),
++                SubstitutionDemand::Attribute { name, data, .. } => {
++                    snapshot.attribute_pending(name, data)
++                },
++                _ => unreachable!(),
++            };
++            if pending { Err(demand) } else { Ok(()) }
++        }
++
++        fn apply_deferred_registered(
++            &mut self,
++            name: &Name,
++            references: &NonCustomPropertyReferences,
++            attributes: &mut AttributeTracker,
++        ) -> Result<(), custom_properties::SubstitutionDemand> {
++            if !self.graph.default_applying.insert(name.clone()) {
++                return Err(custom_properties::SubstitutionDemand::Provider(
++                    name.clone(),
++                ));
++            }
++            let registration = self.stylist.get_custom_property_registration(name);
++            let selected = self
++                .cascade
++                .deferred_registered
++                .get(name)
++                .expect("Deferred owner")
++                .clone();
++            let plan = match &selected {
++                DeferredRegisteredDeclaration::Default(reason) => Some(
++                    custom_properties::prepare_registered_default(
++                        name,
++                        *reason,
++                        custom_properties::ProviderCycleClassification::Acyclic,
++                        registration,
++                        self.stylist,
++                        self.computed_context,
++                    )
++                    .unwrap_or_else(|_| unreachable!("Acyclic deferred declaration")),
++                ),
++                _ => None,
++            };
++            let result = (|| loop {
++                let readiness = self.snapshot();
++                let result = match &selected {
++                    DeferredRegisteredDeclaration::Parsed(value) => {
++                        custom_properties::try_compute_specified_with_readiness(
++                            name,
++                            registration,
++                            value,
++                            self.computed_context,
++                            &readiness,
++                        )
++                        .map(|value| {
++                            self.computed_context
++                                .builder
++                                .substitution_functions
++                                .insert_var(registration, name, value)
++                        })
++                    },
++                    DeferredRegisteredDeclaration::Default(_) => plan
++                        .as_ref()
++                        .unwrap()
++                        .try_apply(self.computed_context, &readiness),
++                };
++                match result {
++                    Ok(()) => break Ok(()),
++                    Err(demand) => self.service_demand(demand, references, attributes)?,
++                }
++            })();
++            self.graph.default_applying.remove(name);
++            if result.is_ok() {
++                self.cascade.deferred_registered.remove(name);
++            }
++            result
++        }
++
++        fn apply_invalid_default(
++            &mut self,
++            name: &Name,
++            references: &NonCustomPropertyReferences,
++            attributes: &mut AttributeTracker,
++        ) -> Result<(), custom_properties::SubstitutionDemand> {
++            if !self.graph.default_applying.insert(name.clone()) {
++                return Err(custom_properties::SubstitutionDemand::Provider(
++                    name.clone(),
++                ));
++            }
++            let plan = custom_properties::prepare_registered_default(
++                name,
++                custom_properties::RegisteredDefaultReason::Invalid,
++                custom_properties::ProviderCycleClassification::InvalidatedParticipant,
++                self.stylist.get_custom_property_registration(name),
++                self.stylist,
++                self.computed_context,
++            )
++            .unwrap_or_else(|_| unreachable!("Completed participant classification"));
++            let result = (|| loop {
++                let readiness = self.snapshot();
++                match plan.try_apply(self.computed_context, &readiness) {
++                    Ok(()) => break Ok(()),
++                    Err(demand) => self.service_demand(demand, references, attributes)?,
++                }
++            })();
++            self.graph.default_applying.remove(name);
++            if result.is_ok() {
++                self.graph.invalidated_pending.remove(name);
++            }
++            result
++        }
++
++        fn apply_custom_value(
++            &mut self,
++            name: &Name,
++            namespace: Option<&Namespace>,
++            value: &Arc<VariableValue>,
++            references: &NonCustomPropertyReferences,
++            attributes: &mut AttributeTracker,
++        ) -> Result<(), custom_properties::SubstitutionDemand> {
++            if self.completion.is_none() {
++                substitute_references_if_needed_and_apply(
++                    name,
++                    namespace,
++                    value,
++                    self.stylist,
++                    self.computed_context,
++                    attributes,
++                );
++                return Ok(());
++            }
++            let prepared = loop {
++                let readiness = self.snapshot();
++                match custom_properties::prepare_provider(
++                    name,
++                    namespace,
++                    value,
++                    self.stylist,
++                    self.computed_context,
++                    attributes,
++                    &readiness,
++                ) {
++                    Ok(prepared) => break prepared,
++                    Err(demand) => self.service_demand(demand, references, attributes)?,
++                }
++            };
++            loop {
++                let readiness = self.snapshot();
++                match prepared.try_apply(self.computed_context, attributes, &readiness) {
++                    Ok(()) => return Ok(()),
++                    Err(demand) => self.service_demand(demand, references, attributes)?,
++                }
++            }
++        }
++
+         fn apply_prioritary_property(
+             &mut self,
+             id: PrioritaryPropertyId,
+-            attr_tracker: &mut AttributeTracker,
+-        ) {
+-            self.cascade.ensure_prioritary_property(
++            references: &NonCustomPropertyReferences,
++            attributes: &mut AttributeTracker,
++        ) -> Result<(), custom_properties::SubstitutionDemand> {
++            if self.completion.is_none() {
++                self.cascade.ensure_prioritary_property(
++                    self.computed_context,
++                    self.decls,
++                    self.cache,
++                    attributes,
++                    id,
++                );
++                return Ok(());
++            }
++            let graph = &mut *self.graph;
++            let completion = self.completion;
++            let stylist = self.stylist;
++            let mut continuation = PrioritaryContinuation::new(
++                self.cascade,
+                 self.computed_context,
+                 self.decls,
+                 self.cache,
+-                attr_tracker,
++                attributes,
+                 id,
+-            );
++            )?;
++            loop {
++                let readiness =
++                    continuation.with_dependency_owner(|cascade, computed_context, _, _, _| {
++                        ReadinessSnapshot::new(
++                            graph,
++                            &computed_context.builder.substitution_functions,
++                            cascade.ensured_prioritary,
++                            &cascade.deferred_registered,
++                            stylist,
++                            completion.expect("Readiness mode"),
++                        )
++                    });
++                match continuation.resume(Some(&readiness)) {
++                    Ok(()) => return Ok(()),
++                    Err(demand) => continuation.with_dependency_owner(
++                        |cascade, computed_context, decls, cache, attributes| {
++                            Context {
++                                graph,
++                                completion,
++                                stylist,
++                                computed_context,
++                                cascade,
++                                decls,
++                                cache,
++                            }
++                            .service_demand(demand, references, attributes)
++                        },
++                    )?,
++                }
++            }
+         }
+     }
+ 
+@@ -2579,7 +3059,7 @@
+         self_ref: &mut bool,
+         attribute_tracker: &mut AttributeTracker,
+         non_custom_references: &mut ReferenceFlags,
+-    ) {
++    ) -> Result<(), custom_properties::SubstitutionDemand> {
+         // FIXME: Maybe avoid visiting the same var twice if not needed?
+         let mut refs_stack = SmallVec::<[&References; 5]>::new();
+         refs_stack.push(root);
+@@ -2641,7 +3121,7 @@
+                     lowlink,
+                     self_ref,
+                     attribute_tracker,
+-                );
++                )?;
+ 
+                 // Now that the primary reference has been resolved, classify it to
+                 // decide whether its fallback is used.
+@@ -2687,6 +3167,7 @@
+                 }
+             }
+         }
++        Ok(())
+     }
+ 
+     /// Traverse a single dependency `var` of the variable at order index `index`, updating its
+@@ -2699,14 +3180,14 @@
+         lowlink: &mut usize,
+         self_ref: &mut bool,
+         attr_tracker: &mut AttributeTracker,
+-    ) {
+-        let next_index = match traverse(var, non_custom_references, context, attr_tracker) {
++    ) -> Result<(), custom_properties::SubstitutionDemand> {
++        let next_index = match traverse(var, non_custom_references, context, attr_tracker)? {
+             Some(index) => index,
+             // There is nothing to do if the next variable has been
+             // fully resolved at this point.
+-            None => return,
++            None => return Ok(()),
+         };
+-        let next_info = &context.var_info[next_index];
++        let next_info = &context.graph.var_info[next_index];
+         if next_index > index {
+             // The next variable has a larger index than us, so it
+             // must be inserted in the recursive call above. We want
+@@ -2719,6 +3200,7 @@
+             // in the stack, so we are at the same component.
+             *lowlink = cmp::min(*lowlink, next_index);
+         }
++        Ok(())
+     }
+ 
+     /// This function combines the traversal for cycle removal and value
+@@ -2728,7 +3210,7 @@
+     ///
+     /// When it returns, the variable corresponds to the name would be
+     /// in one of the following states:
+-    /// * It is still in context.stack, which means it is part of an
++    /// * It is still in context.graph.stack, which means it is part of an
+     ///   potentially incomplete dependency circle.
+     /// * It has been removed from the map.  It can be either that the
+     ///   substitution failed, or it is inside a dependency circle.
+@@ -2744,7 +3226,19 @@
+         references_from_non_custom_properties: &NonCustomPropertyReferences,
+         context: &mut Context<'a, 'b, 'c, 'd>,
+         attribute_tracker: &mut AttributeTracker,
+-    ) -> Option<usize> {
++    ) -> Result<Option<usize>, custom_properties::SubstitutionDemand> {
++        if let VarType::Custom(name) = &var {
++            if context.completion.is_some()
++                && context.cascade.deferred_registered.contains_key(name)
++            {
++                context.apply_deferred_registered(
++                    name,
++                    references_from_non_custom_properties,
++                    attribute_tracker,
++                )?;
++                return Ok(None);
++            }
++        }
+         // Some shortcut checks.
+         // The non-custom (font/line-height/color-scheme) dependencies of this value, carried out
+         // of the match so we can create the corresponding nodes once we've pushed this variable.
+@@ -2757,15 +3251,26 @@
+                     let registration = context.stylist.get_custom_property_registration(name);
+                     (
+                         registration,
+-                        map.get_var(registration, name)?.as_universal()?,
++                        match map
++                            .get_var(registration, name)
++                            .and_then(|value| value.as_universal())
++                        {
++                            Some(value) => value,
++                            None => return Ok(None),
++                        },
+                         SubstitutionFunctionKind::Var,
+                     )
+                 } else {
+                     // `attr()` is always treated as unregistered.
+                     (
+                         PropertyDescriptors::unregistered(),
+-                        map.get_attr(name, var.namespace().unwrap())?
+-                            .as_universal()?,
++                        match map
++                            .get_attr(name, var.namespace().unwrap())
++                            .and_then(|value| value.as_universal())
++                        {
++                            Some(value) => value,
++                            None => return Ok(None),
++                        },
+                         SubstitutionFunctionKind::Attr,
+                     )
+                 };
+@@ -2778,7 +3283,7 @@
+                     .intersects(ReferenceFlags::ATTR | ReferenceFlags::VAR)
+                     || !value_non_custom_refs.is_empty();
+                 // Nothing to resolve.
+-                if !has_dependency {
++                if !has_dependency && context.completion.is_none() {
+                     debug_assert!(
+                         !value.references.flags.intersects(ReferenceFlags::ENV),
+                         "Should've been handled earlier"
+@@ -2789,23 +3294,23 @@
+                         // turned out not to. Note that if this was already computed we would've
+                         // bailed out in the as_universal() check.
+                         let value = value.clone();
+-                        substitute_references_if_needed_and_apply(
++                        context.apply_custom_value(
+                             name,
+                             var.namespace(),
+                             &value,
+-                            context.stylist,
+-                            context.computed_context,
++                            references_from_non_custom_properties,
+                             attribute_tracker,
+-                        );
++                        )?;
+                     }
+-                    return None;
++                    return Ok(None);
+                 }
+ 
+                 // Has this variable been visited?
+                 let index_map = if kind == SubstitutionFunctionKind::Var {
+-                    &mut context.index_map.var
++                    &mut context.graph.index_map.var
+                 } else {
+                     context
++                        .graph
+                         .index_map
+                         .attr
+                         .entry(var.namespace().unwrap().clone())
+@@ -2813,10 +3318,10 @@
+                 };
+                 match index_map.entry_ref(name) {
+                     EntryRef::Occupied(entry) => {
+-                        return Some(*entry.get());
++                        return Ok(Some(*entry.get()));
+                     },
+                     EntryRef::Vacant(entry) => {
+-                        entry.insert(context.count);
++                        entry.insert(context.graph.count);
+                     },
+                 }
+                 // Hold a strong reference to the value so that we don't
+@@ -2824,24 +3329,24 @@
+                 Some(value.clone())
+             },
+             VarType::NonCustom(ref non_custom) => {
+-                let entry = &mut context.non_custom_index_map[*non_custom];
++                let entry = &mut context.graph.non_custom_index_map[*non_custom];
+                 if let Some(v) = entry {
+-                    return Some(*v);
+-                }
+-                *entry = Some(context.count);
++                    return Ok(Some(*v));
++                }
++                *entry = Some(context.graph.count);
+                 None
+             },
+         };
+ 
+         // Add new entry to the information table.
+-        let index = context.count;
+-        context.count += 1;
+-        debug_assert_eq!(index, context.var_info.len());
+-        context.var_info.push(VarInfo {
++        let index = context.graph.count;
++        context.graph.count += 1;
++        debug_assert_eq!(index, context.graph.var_info.len());
++        context.graph.var_info.push(VarInfo {
+             var: Some(var.clone()),
+             lowlink: index,
+         });
+-        context.stack.push(index);
++        context.graph.stack.push(index);
+ 
+         let mut self_ref = false;
+         let mut lowlink = index;
+@@ -2867,14 +3372,18 @@
+                 &mut self_ref,
+                 attribute_tracker,
+                 &mut value_non_custom_refs,
+-            );
++            )?;
+ 
+             // ... Then the non-custom properties this value depends on (font-size, line-height,
+             // color-scheme), as computed by `find_non_custom_references` above.
+             let is_root = context.computed_context.is_root_element();
+             if registered && !value_non_custom_refs.is_empty() {
++                let mut result = Ok(());
+                 value_non_custom_refs.for_each_non_custom(is_root, |r| {
+-                    visit_link(
++                    if result.is_err() {
++                        return;
++                    }
++                    result = visit_link(
+                         VarType::NonCustom(r),
+                         index,
+                         references_from_non_custom_properties,
+@@ -2884,6 +3393,7 @@
+                         attribute_tracker,
+                     );
+                 });
++                result?;
+             }
+         } else if let VarType::NonCustom(non_custom) = var {
+             // line-height's resolution depends on font-size's, so its node has a graph edge to the
+@@ -2904,7 +3414,7 @@
+                     &mut lowlink,
+                     &mut self_ref,
+                     attribute_tracker,
+-                );
++                )?;
+             }
+             let entry = &references_from_non_custom_properties[non_custom];
+             if let Some(values) = entry.as_ref() {
+@@ -2928,42 +3438,67 @@
+                         &mut self_ref,
+                         attribute_tracker,
+                         &mut Default::default(),
+-                    );
+-                }
+-            }
+-        }
+-
+-        context.var_info[index].lowlink = lowlink;
++                    )?;
++                }
++            }
++        }
++
++        context.graph.var_info[index].lowlink = lowlink;
+         if lowlink != index {
+             // This variable is in a loop, but it is not the root of this strong connected
+             // component. We simply return for now, and the root would remove it from the map.
+             //
+             // This cannot be removed from the map here, because otherwise the shortcut check at the
+             // beginning of this function would return the wrong value.
+-            return Some(index);
++            return Ok(Some(index));
+         }
+ 
+         // Keep an acyclic owner's Tarjan record live until application finishes.
+-        let in_loop = self_ref || context.stack.last() != Some(&index);
++        let in_loop = self_ref || context.graph.stack.last() != Some(&index);
+         if in_loop {
++            let mut participants = Vec::new();
+             loop {
+                 let var_index = context
++                    .graph
+                     .stack
+                     .pop()
+                     .expect("The current variable should still be in stack");
+-                let var_info = &mut context.var_info[var_index];
++                let var_info = &mut context.graph.var_info[var_index];
+                 // We should never visit the variable again, so it's safe to take the name away.
+                 let var_name = var_info
+                     .var
+                     .take()
+                     .expect("Variable should not be popped from stack twice");
+-                context.handle_loop(&var_name);
++                if context.completion.is_some() {
++                    if let VarType::Custom(name) = &var_name {
++                        context.graph.invalidated_pending.insert(name.clone());
++                    }
++                    participants.push(var_name.clone());
++                } else {
++                    context.handle_loop(&var_name);
++                }
+                 if var_index == index {
+                     debug_assert_eq!(var_name, var);
+                     break;
+                 }
+             }
+-            return None;
++            for participant in &participants {
++                if !matches!(participant, VarType::Custom(_)) {
++                    context.handle_loop(participant);
++                }
++            }
++            for participant in participants {
++                if let VarType::Custom(name) = participant {
++                    if context.graph.invalidated_pending.contains(&name) {
++                        context.apply_invalid_default(
++                            &name,
++                            references_from_non_custom_properties,
++                            attribute_tracker,
++                        )?;
++                    }
++                }
++            }
++            return Ok(None);
+         }
+ 
+         // Not in a loop, apply the value.
+@@ -2972,32 +3507,33 @@
+                 if let Some(ref v) = value {
+                     // We know we're not in a loop now, perform substitution.
+                     // TODO(emilio): Merge with the cycle detection loop instead?
+-                    substitute_references_if_needed_and_apply(
++                    context.apply_custom_value(
+                         name,
+                         var.namespace(),
+                         v,
+-                        context.stylist,
+-                        context.computed_context,
++                        references_from_non_custom_properties,
+                         attribute_tracker,
+-                    );
++                    )?;
+                 }
+             },
+             VarType::NonCustom(non_custom) => {
+-                context.apply_prioritary_property(non_custom.to_prioritary_id(), attribute_tracker);
++                context.apply_prioritary_property(
++                    non_custom.to_prioritary_id(),
++                    references_from_non_custom_properties,
++                    attribute_tracker,
++                )?;
+             },
+         }
+-        assert_eq!(context.stack.pop(), Some(index));
+-        assert_eq!(context.var_info[index].var.take(), Some(var));
++        assert_eq!(context.graph.stack.pop(), Some(index));
++        assert_eq!(context.graph.var_info[index].var.take(), Some(var));
+         // All resolved, so return the signal value.
+-        None
+-    }
+-
++        Ok(None)
++    }
++
++    let mut graph = GraphState::default();
+     let mut context = Context {
+-        count: 0,
+-        index_map: OrderIndexMap::default(),
+-        non_custom_index_map: NonCustomReferenceMap::default(),
+-        stack: SmallVec::new(),
+-        var_info: SmallVec::new(),
++        graph: &mut graph,
++        completion,
+         stylist,
+         computed_context: &mut *computed_context,
+         cascade: &mut *cascade,
+@@ -3015,7 +3551,8 @@
+             references_from_non_custom_properties,
+             &mut context,
+             attr_tracker,
+-        );
++        )?;
++        Ok::<(), custom_properties::SubstitutionDemand>(())
+     };
+     // Note that `seen` doesn't contain names inherited from our parent, but
+     // those can't have variable references (since we inherit the computed
+@@ -3024,13 +3561,23 @@
+         if !has_refs {
+             continue;
+         }
+-        run_one(VarType::Custom((*var).clone()));
++        run_one(VarType::Custom((*var).clone()))?;
+     }
+     // Traverse potentially untraversed chained references from `attr(type())` in non-custom
+     // properties.
+     for (namespace, attributes) in &seen.attr {
+         for attr in attributes {
+-            run_one(VarType::Attr((*attr).clone(), (*namespace).clone()));
+-        }
+-    }
++            run_one(VarType::Attr((*attr).clone(), (*namespace).clone()))?;
++        }
++    }
++    if context.completion.is_some() && decls.has_prioritary_properties {
++        for id in PrioritaryPropertyId::each() {
++            context.apply_prioritary_property(
++                id,
++                references_from_non_custom_properties,
++                attr_tracker,
++            )?;
++        }
++    }
++    Ok(())
+ }
