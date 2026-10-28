@@ -1,0 +1,73 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Animated registered lengths remain canonical under zoom</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#animation-behavior-of-custom-properties">
+<link rel="help" href="https://drafts.csswg.org/css-viewport/#zoom-om">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-animation-commitstyles">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let sequence = 0;
+const cases = [
+  {name: "absolute", from: "10px", to: "30px", value: () => 20},
+  {name: "font relative", from: "1em", to: "3em", value: fontSize => 2 * fontSize},
+  {name: "selected absolute substitution", from: "var(--from, 1em)",
+   to: "var(--to, 3em)", value: () => 20},
+];
+
+for (const item of cases) {
+  for (const parentZoom of [1, 2]) {
+    test(t => {
+      const name = `--animation-length-zoom-${sequence++}`;
+      CSS.registerProperty({name, syntax: "<length>", inherits: false,
+                            initialValue: "7px"});
+      const parent = document.createElement("div");
+      parent.style.cssText = `zoom:${parentZoom};width:400px`;
+      const target = document.createElement("div");
+      target.style.cssText = `--from:10px;--to:30px;font-size:20px;
+        width:var(${name});height:10px;border:0;padding:0;box-sizing:content-box`;
+      parent.append(target);
+      document.body.append(parent);
+      t.add_cleanup(() => parent.remove());
+      const animation = target.animate({[name]: [item.from, item.to]},
+                                       {duration: 1000, fill: "both"});
+      animation.pause();
+      animation.currentTime = 500;
+      t.add_cleanup(() => animation.cancel());
+      assert_equals(animation.currentTime, 500, "Paused current time");
+      assert_equals(animation.effect.getComputedTiming().progress, 0.5, "Midpoint progress");
+      const snapshots = [];
+      function capture(fontSize, zoom, phase) {
+        const style = getComputedStyle(target);
+        const rect = target.getBoundingClientRect();
+        snapshots.push({fontSize, zoom, phase,
+          value: style.getPropertyValue(name).trim(), width: style.width,
+          computedFontSize: style.fontSize,
+          physicalWidth: rect.width, physicalHeight: rect.height});
+      }
+      for (const fontSize of [20, 30]) {
+        target.style.fontSize = `${fontSize}px`;
+        for (const zoom of [1, 2, 0.5, 1.5, 1]) {
+          target.style.zoom = zoom;
+          capture(fontSize, zoom, "animation");
+        }
+      }
+      animation.commitStyles();
+      animation.cancel();
+      capture(30, 1, "committed");
+      for (const snapshot of snapshots) {
+        const detail = JSON.stringify({snapshot, snapshots});
+        const expected = item.value(snapshot.fontSize);
+        assert_equals(snapshot.computedFontSize, `${snapshot.fontSize}px`, detail);
+        assert_equals(snapshot.value, `${expected}px`, `Registered value: ${detail}`);
+        assert_equals(snapshot.width, `${expected}px`, `Consuming width: ${detail}`);
+        assert_approx_equals(snapshot.physicalWidth,
+          expected * parentZoom * snapshot.zoom, 0.02, `Scaled width: ${detail}`);
+        assert_approx_equals(snapshot.physicalHeight,
+          10 * parentZoom * snapshot.zoom, 0.02, `Independent scaled height: ${detail}`);
+      }
+    }, `Animated registered length: ${item.name}, ancestor zoom ${parentZoom}`);
+  }
+}
+</script>

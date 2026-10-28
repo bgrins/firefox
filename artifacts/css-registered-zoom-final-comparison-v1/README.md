@@ -1,0 +1,11 @@
+# Final registered-value zoom test comparison
+
+The saved final run supports accepting the exact tested payload on test evidence: all86 focused assertions pass, and all668 full subtest signatures match the union of the previous636-assertion candidate run and current32-assertion container/provider run. All31 test completions match after the unchanged strict adjudicator normalizes only the HTTP ports in six manifest-exact passed-reference diagnostic messages. The raw differences and original logs remain intact.
+
+The final counts are603 PASS and65 FAIL. The65 failures are unchanged observations:63 in the broad suite and two provider-readiness failures. These are not new regressions or accepted fixes. This artifact recommends on test evidence; root separately reviews specification interpretation, source changes, triage and publication.
+
+The replay authenticates complete inventories for all three runs; replays each raw lifecycle with its sealed assessor; verifies copied fixture/resource/metadata bytes, complete preservation and cleanup, actual BuildID/revision and binary bindings; and joins the named compiled-build receipts and source identities. The final14 payload bodies—seven native files and seven WPT pages—join the final runtime epoch and successful WPT lint result. No current live source, Git/index, epoch or browser operation is queried or changed by this replay.
+
+Full signatures retain field presence as well as action, status, message, expected value and intermittent outcomes. The only normalizer is the already-reviewed canonical_message/normalize_pair implementation from css-registered-zoom-reftest-port-adjudication-v1; it is imported unchanged and authenticated. The comparison rejects missing/duplicate identities, changed PASS or FAIL messages, altered expected/intermittent fields, and reference status/host/scheme/operator/framing changes. One actual positive comparison and18 rejection controls pass.
+
+Root independently confirmed all668 signatures (44512a/0) and the31 completions with the same strict normalization (74c679/0). Those checks agree with this offline replay; they are not a code-review claim. No browser rerun, native acceptance mutation or canonical formal-coverage increment occurs here.
