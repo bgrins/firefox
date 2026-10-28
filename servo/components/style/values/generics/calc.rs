@@ -2011,6 +2011,9 @@ impl<L: CalcNodeLeaf> CalcNode<L> {
                 }
 
                 if value_or_stop!(step.is_infinite_leaf()) {
+                    if value.as_leaf().is_none() {
+                        return SimplificationResult::Unchanged;
+                    }
                     match strategy {
                         RoundingStrategy::Nearest | RoundingStrategy::ToZero => {
                             let zero = if value_or_stop!(value.is_negative_leaf()) {
