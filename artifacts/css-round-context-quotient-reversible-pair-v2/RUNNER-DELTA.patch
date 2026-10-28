@@ -1,0 +1,71 @@
+--- artifacts/css-round-special-knowledge-reversible-pair-v2/run.py
++++ artifacts/css-round-context-quotient-reversible-pair-v2/run.py
+@@ -34,13 +34,13 @@
+     return module
+ 
+ 
+-state = load('round_special_pair_state', ROOT / 'artifacts/css-registered-number-native-runtime-v1/state.py')
+-ownership = load('round_special_pair_ownership', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+-builder = load('round_special_pair_builder', HERE / 'phase.py')
+-control = load('round_special_pair_control', ROOT / 'artifacts/css-registered-number-native-runtime-v1/process_control.py')
++state = load('round_quotient_pair_state', ROOT / 'artifacts/css-registered-number-native-runtime-v1/state.py')
++ownership = load('round_quotient_pair_ownership', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
++builder = load('round_quotient_pair_builder', HERE / 'phase.py')
++control = load('round_quotient_pair_control', ROOT / 'artifacts/css-registered-number-native-runtime-v1/process_control.py')
+ guard = state.a
+-bundle = load('round_special_pair_bundle', HERE / 'bundle.py')
+-wpt_cleanup = load('round_special_pair_wpt_cleanup', HERE / 'wpt_cleanup.py')
++bundle = load('round_quotient_pair_bundle', HERE / 'bundle.py')
++wpt_cleanup = load('round_quotient_pair_wpt_cleanup', HERE / 'wpt_cleanup.py')
+ ownership.authenticate(HERE, sys.argv[2])
+ ownership.authenticate(ROOT / policy['source_package'], policy['source_manifest'])
+ ownership.authenticate(ROOT / policy['wpt_package'], policy['wpt_manifest'])
+@@ -74,23 +74,28 @@
+     epoch['pins'][source] = record['base_sha256']
+     epoch['installed_identities'][source] = source_claims[source]['identity']
+ accepted_claims = {}
+-for marker, transition, fix in [('accepted_line_height', 'line_height_transition', 141), ('accepted_random_counter', 'random_counter_transition', 142), ('accepted_linear_guard', 'linear_guard_transition', 143)]:
++for marker, transition, fix in [('accepted_line_height', 'line_height_transition', 141), ('accepted_random_counter', 'random_counter_transition', 142), ('accepted_linear_guard', 'linear_guard_transition', 143), ('accepted_round_special_knowledge', 'round_special_knowledge_transition', 144)]:
+     assert epoch[marker] == policy[marker] and epoch[marker]['fix'] == fix
+     assert epoch[transition]['accepted'] is True and epoch[transition]['compiled'] is True
+-    assert not set(policy['source_roles']).intersection(epoch[marker]['files'])
++    overlap = set(policy['source_roles']).intersection(epoch[marker]['files'])
++    assert overlap == (set(policy['source_roles']) if fix == 144 else set())
+     for name, pin in epoch[marker]['files'].items():
+         record = policy['preserved_accepted_payload'][name]
+         assert record['sha256'] == pin == epoch['pins'][name]
+         assert record['identity'] == epoch['installed_identities'][name]
+         assert hashlib.sha256(state.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)).hexdigest() == pin
+-        accepted_claims[name] = ownership.claim(ROOT, name, pin, record['identity'])
+-assert len(accepted_claims) == 11
++        if name in source_claims:
++            assert source_claims[name]['owned_sha256'] == pin and source_claims[name]['identity'] == record['identity']
++            accepted_claims[name] = source_claims[name]
++        else:
++            accepted_claims[name] = ownership.claim(ROOT, name, pin, record['identity'])
++assert len(accepted_claims) == 13
+ epoch['counts']['roles'] = len(epoch['pins'])
+ epoch['counts']['installed_identities'] = len(epoch['installed_identities'])
+ epoch['counts']['staged_payloads'] = len(epoch['staged_working'])
+ before = guard.verify_current(state.h, ROOT, ENV, epoch)
+ assert sorted(state.h.git(ROOT, ENV, 'diff', '--name-only').decode().splitlines()) == sorted(epoch['modified_native_paths'])
+-assert before['nested_index'] == read(ROOT / 'artifacts/css-local-signing-20261028-v40/BEFORE.json')['nested_index']
++assert before['nested_index'] == read(ROOT / 'artifacts/css-local-signing-20261028-v41/BEFORE.json')['nested_index']
+ flags = {n: state.h.git(path, ENV, 'ls-files', '-v', '-z') for n, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]}
+ control_claims = {n: ownership.claim(ROOT, str((runtime / n).relative_to(ROOT)), hashlib.sha256(body).hexdigest()) for n, body in controls.items()}
+ wpt_claims = {n: ownership.claim(ROOT, n, r['sha256'], r['identity']) for n, r in policy['installed_wpt'].items()}
+@@ -184,7 +189,7 @@
+     assert all(index[k] == epoch['semantic_index'][k] for k in ('head', 'entries', 'cached_diff'))
+     local['semantic_index'] = state.h.semantic_index(index)
+     local['raw_index_observation']['current'] = index['raw_index']
+-    local['reversible_round_special_knowledge_phase'] = {'role': role, 'build_directory': str(directory.relative_to(ROOT)), 'source_package_manifest': policy['source_manifest'], 'owner_runtime': policy['runtime_output']}
++    local['reversible_round_quotient_phase'] = {'role': role, 'build_directory': str(directory.relative_to(ROOT)), 'source_package_manifest': policy['source_manifest'], 'owner_runtime': policy['runtime_output']}
+     guard.verify_current(state.h, ROOT, ENV, local)
+     for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]:
+         assert state.h.git(path, ENV, 'ls-files', '-v', '-z') == flags[name]
+@@ -307,4 +312,4 @@
+ lock.unlink()
+ state.save(output / 'RESULT.json', {'success': error is None and not publication_errors and set(phase_results) == {'original-1', 'candidate-1'}, 'error': error, 'publication_errors': publication_errors, 'phase_results': phase_results, 'restoration_verified': True, 'runtime_controls_unchanged': True, 'empty_staging_preserved': True, 'backups_removed_after_verification': not backups.exists(), 'native_fix_acceptance': False})
+ assert error is None and not publication_errors, error
+-print('Paired Round infinite-step linked-browser experiment completed and original source/application restored', flush=True)
++print('Paired finite Round quotient linked-browser experiment completed and original source/application restored', flush=True)

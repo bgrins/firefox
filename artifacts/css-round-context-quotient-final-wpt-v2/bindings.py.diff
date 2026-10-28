@@ -1,0 +1,59 @@
+--- artifacts/css-round-special-knowledge-final-wpt-v1/bindings.py
++++ artifacts/css-round-context-quotient-final-wpt-v2/bindings.py
+@@ -32,11 +32,13 @@
+     tests = policy['installed_tests']
+     h.need(set(ownership) == {SOURCE} | set(tests), 'exact installed ownership roster')
+     h.need(ownership[SOURCE]['identity'] == policy['original_source_identity'], 'original generic calc inode retained')
+-    marker = epoch['round_special_knowledge_transition']
++    marker = epoch['round_context_quotient_transition']
+     h.need(marker == {'role': 'candidate', 'compiled': True, 'accepted': False,
+                      'manifest_sha256': policy['promotion_manifest_sha256'],
+                      'source_sha256': policy['source_roles']['candidate'][SOURCE],
+-                     'last_phase': 'candidate-build-1', 'variant': 'round-infinite-step-knowledge'}, 'compiled promotion marker')
++                     'last_phase': 'candidate-build-1', 'variant': 'round-finite-context-quotient',
++                     'supersedes_source_pin': {'fix': 144, 'path': SOURCE,
++                                              'sha256': policy['source_roles']['original'][SOURCE]}}, 'compiled promotion marker')
+     h.need(epoch['staged_working'] == baseline['staged_working'] == {}, 'empty staging')
+     h.need(epoch['modified_native_paths'] == sorted(baseline['modified_native_paths'] + [SOURCE]), 'only generic calc source added')
+     allowed_pins = {SOURCE} | set(tests) | set(policy['rebuilt_binaries'])
+@@ -49,7 +51,7 @@
+     h.need(epoch['counts'] == dict(baseline['counts'], roles=len(epoch['pins']),
+            installed_identities=len(epoch['installed_identities']), native_modified_paths=len(epoch['modified_native_paths'])), 'exact promotion counts')
+     normalized = copy.deepcopy(epoch)
+-    del normalized['round_special_knowledge_transition']
++    del normalized['round_context_quotient_transition']
+     for name in allowed_pins:
+         if name in baseline['pins']:
+             normalized['pins'][name] = baseline['pins'][name]
+@@ -92,10 +94,10 @@
+     for name in policy['rebuilt_binaries']:
+         normalized['pins'][name] = installed['pins'][name]
+     normalized['raw_index_observation']['current'] = installed['raw_index_observation']['current']
+-    normalized['round_special_knowledge_transition'] = installed['round_special_knowledge_transition']
+-    expected_install = dict(epoch['round_special_knowledge_transition'], compiled=False, last_phase='install')
++    normalized['round_context_quotient_transition'] = installed['round_context_quotient_transition']
++    expected_install = dict(epoch['round_context_quotient_transition'], compiled=False, last_phase='install')
+     del expected_install['variant']
+-    h.need(installed['round_special_knowledge_transition'] == expected_install and normalized == installed, 'only build binaries/raw/compiled marker changed')
++    h.need(installed['round_context_quotient_transition'] == expected_install and normalized == installed, 'only build binaries/raw/compiled marker changed')
+     result = h.read(root / policy['build_result'])
+     h.need(result['command_success'] is True and result['preservation_verified'] is True and
+            result['source_role'] == 'candidate' and result['browser_build_performed'] is True and
+@@ -109,7 +111,7 @@
+            not install['accepted'] and not install['compiled'] and
+            set(install['files']) == {SOURCE} | set(policy['installed_tests']), 'preserved exact installation')
+     h.need(install['epoch_sha256'] == h.sha(root / policy['owner_runtime'] / 'INSTALLED-EPOCH.json'), 'installed epoch join')
+-    return {'role': 'candidate', 'build_evidence': policy['build_evidence'], 'marker': epoch['round_special_knowledge_transition'],
++    return {'role': 'candidate', 'build_evidence': policy['build_evidence'], 'marker': epoch['round_context_quotient_transition'],
+             'native_sources': policy['source_roles']['candidate'], 'binaries': policy['phase_binaries']}
+ 
+ 
+@@ -164,7 +166,7 @@
+     original_epoch = h.read(pair / 'original-wpt/EPOCH.json')
+     h.need(original_epoch['installed_identities'][SOURCE] == policy['original_source_identity'], 'original source identity')
+     normalized = copy.deepcopy(original_epoch)
+-    marker = normalized.pop('reversible_round_special_knowledge_phase')
++    marker = normalized.pop('reversible_round_quotient_phase')
+     h.need(marker['role'] == 'original' and marker['source_package_manifest'] == policy['source_package_manifest'] and
+            marker['owner_runtime'] == policy['paired_runtime'], 'historical original marker')
+     h.need(normalized['pins'][SOURCE] == policy['source_roles']['original'][SOURCE], 'historical original source')

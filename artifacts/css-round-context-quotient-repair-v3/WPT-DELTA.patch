@@ -1,0 +1,53 @@
+--- v2/testing/web-platform/tests/css/css-values/round-context-quotient-precision.html
++++ v3/testing/web-platform/tests/css/css-values/round-context-quotient-precision.html
+@@ -92,3 +92,50 @@
+   }, name);
+ }
+ </script>
++<script>
++for (const strategy of ["nearest", "up", "down", "to-zero"]) {
++  for (const direction of [1, -1]) {
++    test(t => {
++      const target = document.createElement("div");
++      const input = document.createElement("div");
++      const literal = document.createElement("div");
++      const stepControl = document.createElement("div");
++      const elements = [target, input, literal, stepControl];
++      document.body.append(...elements);
++      t.add_cleanup(() => elements.forEach(element => element.remove()));
++      const operation = direction === 1 ? "-" : "+";
++      const value = direction === 1 ? "18446744073709551616" : "-18446744073709551616";
++      target.style.opacity = `sign(36893488147419103232 ${operation} round(${strategy}, ${value} * sign(1em - 16px), 5.42101086242752217003726400434970855712890625e-20))`;
++      input.style.opacity = "sign(1em - 16px)";
++      literal.style.opacity = `sign(36893488147419103232 ${operation} ${value})`;
++      stepControl.style.opacity = "sign(5.42101086242752217003726400434970855712890625e-20)";
++      for (const element of elements) {
++        assert_not_equals(element.style.opacity, "", "expression admitted");
++      }
++      const observations = [];
++      for (const fontSize of [16, 32, 16]) {
++        target.style.fontSize = input.style.fontSize = `${fontSize}px`;
++        observations.push({
++          fontSize,
++          targetFont: getComputedStyle(target).fontSize,
++          inputFont: getComputedStyle(input).fontSize,
++          input: Number(getComputedStyle(input).opacity),
++          literal: Number(getComputedStyle(literal).opacity),
++          step: Number(getComputedStyle(stepControl).opacity),
++          first: Number(getComputedStyle(target).opacity),
++          repeat: Number(getComputedStyle(target).opacity),
++        });
++      }
++      for (const row of observations) {
++        assert_equals(row.targetFont, `${row.fontSize}px`, "target font calibration");
++        assert_equals(row.inputFont, `${row.fontSize}px`, "input font calibration");
++        assert_equals(row.input, row.fontSize === 32 ? 1 : 0, "context input calibration");
++        assert_equals(row.literal, 1, "finite literal calibration");
++        assert_equals(row.step, 1, "positive finite step calibration");
++        assert_equals(row.first, row.repeat, "repeat stable");
++        assert_equals(row.first, 1, "finite result remains below comparison magnitude");
++      }
++    }, `Finite quotient overflow: ${strategy}, ${direction === 1 ? "positive" : "negative"}`);
++  }
++}
++</script>

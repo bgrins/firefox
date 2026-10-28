@@ -1,0 +1,21 @@
+# Finite Round repair on the accepted infinite-step guard
+
+The candidate applies the exact reviewed v2 finite-runtime arithmetic replacement to signed HEAD bbef4930ab65261f7aa539c4f46ccc84f3968bbb. The actual source and committed blob both hash to 2da120028b05d8741d3985a6415a3cf127fefc9e48cad700455600e7f1d41d28. The candidate is df7e69322b099aefed14dd6876a3e634ff4133f25161b99bd93bf8fc1f0c0e16. Accepted144's three-line infinite-step knowledge guard remains intact. Removing only that guard from the new base/candidate gives the exact old v2 base/candidate respectively. No other native change is introduced.
+
+The finite branch reconstructs adjacent multiples using the truncating remainder and binary64 intermediates, returns exact multiples unchanged, and casts the selected result once to binary32. Accepted125 NaN priority, accepted126 finite-zero simplification, accepted128 ModRem and accepted144's guard remain unchanged. Earlier parse-time rounding reconstruction and the held relative-unit deferral/consumer work are outside this repair.
+
+## Why the old pair failed
+
+The actual old pair completed both builds and all696 assertions, then failed its strict candidate gate. Five finite assertions changed FAIL to PASS: positive down/to-zero, negative up/to-zero, and negative step. The remaining `both infinite` assertion stayed FAIL (opacity1 versus expected0). Its separate defect is now accepted144. The historical RESULT remains unsuccessful; it is not relabeled or accepted retroactively. PRIOR-PAIR.json retains every old target row, messages, hashes and terminal result.
+
+## Minimal landing and complete validation
+
+The native payload is exactly generic calc plus the22-case `round-context-quotient-precision.html`. The `both infinite` assertion stays in that page as explicit preservation coverage for prerequisite144, with no additional repair credit. Zero/negative-zero/infinity/exact-multiple controls remain. All14 prior assertions remain an exact file prefix; no assertion is removed, weakened or renamed. Eight new tests exercise finite quotient overflow with normal inputs, all four strategies and both signs. Exact A=2^64 and B=2^-64 give the exact multiple A while the old binary32 quotient overflows at2^128. The observer compares the signed result with2*A, expecting opacity1; literals, positive step, actual font and mixed sign calibrate the route through16/32/16px, with all snapshots captured before assertions. OVERFLOW-ORACLE.json records exact-rational and binary32 input checks. These are prospective same-defect observations, not new bug counts.
+
+The unchanged four-case `round-context-relative-multiple.html` is validation-only: it covers the previously predicted future-deferral exposure, whose current baseline already passed. All18 prior targets and eight new overflow targets must PASS. Root selected all712 controls from the latest special-knowledge suite:678 older controls, accepted144's23, accepted linear6 and five nonlanding admission controls. The new pair therefore has738 assertions across12 pages, with exact full control and harness-ending signatures. Expected baseline failures are observations; no blanket expected-failure waiver is proposed. Root owns genuine manifest/lint, fresh original/candidate build and actual browser validation.
+
+## Evidence reused and limits
+
+The sealed v2 helper, independent arithmetic review and scoped Lean model are referenced, not rerun or credited as new coverage. The arithmetic review's binary32/binary64 argument is conditional; binary64 reconstructed bounds need not be exact at enormous quotients even when final binary32 results are correct. The model proves exact scaled-integer interval/strategy facts and a premature-quotient witness, not IEEE/Rust refinement. Neither supplies native compilation or browser acceptance of this rebase.
+
+The patch applies and reverses exactly in owned scratch; the rebased patch has no offsets or fuzz. Formatting private base/candidate copies confirms identical changed lines, preserving inherited unrelated formatting. Scratch was removed. No live native source, index, canonical epoch, browser or build was modified. This package is an uncompiled, unexecuted proposal pending the fresh paired validation. Restoration must use accepted144 source2da120, never the historical b9a base.

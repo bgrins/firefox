@@ -1,0 +1,54 @@
+--- artifacts/css-round-special-knowledge-promotion-v2/install.py
++++ artifacts/css-round-context-quotient-promotion-v2/install.py
+@@ -46,7 +46,7 @@
+     held = 'servo/components/style/custom_properties.rs'
+     assert epoch['modified_native_paths'] == [held]
+     accepted_claims = {}
+-    for marker, transition, fix in [('accepted_line_height', 'line_height_transition', 141), ('accepted_random_counter', 'random_counter_transition', 142), ('accepted_linear_guard', 'linear_guard_transition', 143)]:
++    for marker, transition, fix in [('accepted_line_height', 'line_height_transition', 141), ('accepted_random_counter', 'random_counter_transition', 142), ('accepted_linear_guard', 'linear_guard_transition', 143), ('accepted_round_special_knowledge', 'round_special_knowledge_transition', 144)]:
+         assert epoch[marker] == policy[marker] and epoch[marker]['fix'] == fix
+         assert epoch[transition]['accepted'] is True and epoch[transition]['compiled'] is True
+         for name, pin in epoch[marker]['files'].items():
+@@ -55,7 +55,7 @@
+             assert record['identity'] == epoch['installed_identities'][name]
+             assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == pin
+             accepted_claims[name] = h.claim(ROOT, name, pin, record['identity'])
+-    assert len(accepted_claims) == 11
++    assert len(accepted_claims) == 13
+     evidence_binding = evidence.verify(ROOT, policy, epoch, h)
+     h.quiescent(RUNTIME)
+     before = s.a.verify_current(s.h, ROOT, ENV, epoch)
+@@ -67,14 +67,17 @@
+     base, desired = [h.body(ROOT / record[k]) for k in ('base_capture', 'candidate_capture')]
+     assert h.digest(base) == record['base_sha256'] and h.digest(desired) == record['candidate_sha256']
+     assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == record['base_sha256']
+-    source_claim = h.claim(ROOT, name, record['base_sha256'])
++    source_claim = accepted_claims[name]
++    assert source_claim['owned_sha256'] == record['base_sha256']
++    assert policy['supersedes_source_pin'] == {'fix':144, 'path':name, 'sha256':record['base_sha256']}
++    assert epoch['accepted_round_special_knowledge']['files'][name] == record['base_sha256']
+     assert epoch['pins'].get(name, record['base_sha256']) == record['base_sha256']
+     assert epoch['installed_identities'].get(name, source_claim['identity']) == source_claim['identity']
+     owned = json.loads(controls['OWNED.json'])
+     if name in owned:
+         assert owned[name] == source_claim
+     tests, parents = {}, {}
+-    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-values/round-deferred-infinite-step.html'}
++    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-values/round-context-quotient-precision.html'}
+     for test, item in policy['tests'].items():
+         tests[test] = h.body(ROOT / item['capture'])
+         assert h.digest(tests[test]) == item['sha256']
+@@ -142,8 +145,11 @@
+         current['counts']['native_modified_paths'] = 2
+         current['counts']['roles'] = len(current['pins'])
+         current['counts']['installed_identities'] = len(current['installed_identities'])
+-        current['round_special_knowledge_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
+-            'manifest_sha256':manifest, 'source_sha256':record['candidate_sha256'], 'last_phase':'install'}
++        current['round_context_quotient_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
++            'manifest_sha256':manifest, 'source_sha256':record['candidate_sha256'], 'last_phase':'install',
++            'supersedes_source_pin':policy['supersedes_source_pin']}
++        assert current['accepted_round_special_knowledge'] == epoch['accepted_round_special_knowledge']
++        assert current['round_special_knowledge_transition'] == epoch['round_special_knowledge_transition']
+         after = s.a.verify_current(s.h, ROOT, ENV, current)
+         assert after['nested_index'] == before['nested_index']
+         assert all(s.h.git(ROOT / n, ENV, 'ls-files', '-v', '-z') == body for n, body in flags.items())

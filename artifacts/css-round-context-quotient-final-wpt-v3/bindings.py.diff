@@ -1,0 +1,95 @@
+--- artifacts/css-round-context-quotient-final-wpt-v2/bindings.py
++++ artifacts/css-round-context-quotient-final-wpt-v3/bindings.py
+@@ -5,6 +5,50 @@
+ from pathlib import Path
+ 
+ SOURCE = 'servo/components/style/values/generics/calc.rs'
++
++LANDING_TEST = '/css/css-values/round-context-quotient-precision.html'
++LANDING_PATH = 'testing/web-platform/tests' + LANDING_TEST
++OMITTED_SUBTEST = 'both infinite'
++REMOVED_LINE = b'  ["both infinite", "round(up, infinity * sign(1em - 16px), infinity)", 0],\n'
++OLD_BODY_SHA = '961eb87af1dfdb9da434d1e33c30526ad42b56e15b7121bbd8d7f3144d72555c'
++NEW_BODY_SHA = '4ad9d374e71f65433c1f28e9e663f1369e18f99cfafbea855bb5df98d466596d'
++
++
++def remaining_rows(assessment, h):
++    omitted = [e for e in assessment['rows'] if e.get('test') == LANDING_TEST and e.get('subtest') == OMITTED_SUBTEST]
++    h.need(len(omitted) == 1 and omitted[0]['action'] == 'test_status' and omitted[0]['status'] == 'PASS', 'unique omitted historical row must PASS')
++    return [e for e in assessment['rows'] if not (e.get('test') == LANDING_TEST and e.get('subtest') == OMITTED_SUBTEST)]
++
++
++def validate_landing_inputs(root, here, policy, old, h):
++    h.authenticate(root / policy['landing_package'], policy['landing_manifest_sha256'])
++    old_pins = h.read(old / 'SOURCE-PINS.json')
++    capture = old_pins[LANDING_PATH]['capture']
++    before = (old / capture).read_bytes()
++    after = (here / capture).read_bytes()
++    h.need(hashlib.sha256(before).hexdigest() == OLD_BODY_SHA and hashlib.sha256(after).hexdigest() == NEW_BODY_SHA, 'fixed old/new landing bodies')
++    h.need(before.count(REMOVED_LINE) == 1 and before.replace(REMOVED_LINE, b'', 1) == after, 'exact one unrelated assertion removed')
++    origin = policy['landing_package'] + '/candidate/' + LANDING_PATH
++    h.need((root / origin).read_bytes() == after and h.sha(root / policy['landing_package'] / 'candidate' / SOURCE) == policy['source_roles']['candidate'][SOURCE], 'landing package source and WPT')
++    expected_pins = copy.deepcopy(old_pins)
++    expected_pins[LANDING_PATH].update(bytes=len(after), sha256=NEW_BODY_SHA, origin=origin)
++    h.need(h.read(here / 'SOURCE-PINS.json') == expected_pins, 'only landing source record changed')
++    for name, item in expected_pins.items():
++        if item['exists']:
++            h.need(h.sha(here / item['capture']) == item['sha256'], 'captured input: ' + name)
++    expected_experiment = h.read(old / 'EXPERIMENT.json')
++    h.need(expected_experiment['expected_subtest_count'] == 738 and expected_experiment['target_subtests'][LANDING_TEST].count(OMITTED_SUBTEST) == 1, 'historical experiment roster')
++    expected_experiment['target_subtests'][LANDING_TEST].remove(OMITTED_SUBTEST)
++    expected_experiment['expected_subtest_count'] = 737
++    h.need(h.read(here / 'EXPERIMENT.json') == expected_experiment, 'exact final experiment projection')
++    h.need(policy['target_subtests'] == expected_experiment['target_subtests'] and policy['expected_subtest_count'] == 737, 'exact final target roster')
++    expected_manifest = h.read(old / 'SUBSET-MANIFEST.json')
++    leaf = expected_manifest['items']['testharness']['css']['css-values']['round-context-quotient-precision.html']
++    blob_hash = lambda body: hashlib.sha1(b'blob ' + str(len(body)).encode() + b'\0' + body).hexdigest()
++    h.need(leaf == [blob_hash(before), [None, {}]], 'original ordinary testharness manifest')
++    leaf[0] = blob_hash(after)
++    h.need(h.read(here / 'SUBSET-MANIFEST.json') == expected_manifest, 'only landing manifest body hash changed')
++
+ 
+ def old_bindings_inventory(runtime, h):
+     files = {str(p.relative_to(runtime)): h.sha(p) for p in runtime.rglob('*') if p.is_file() and not p.is_symlink()}
+@@ -24,7 +68,8 @@
+     q['original_binding'] = {'capsule': q['pair_capsule'], 'capsule_sha256': q['pair_capsule_sha256'],
+                              'runtime': q['paired_runtime'],
+                              'runtime_manifest_sha256': q['paired_manifest_sha256'],
+-                             'provenance': 'authenticated original from successful restored pair; not a fresh final-capsule run'}
++                             'provenance': 'authenticated original from successful restored pair; not a fresh final-capsule run',
++                             'landing_projection': {'test': LANDING_TEST, 'subtest': OMITTED_SUBTEST, 'required_original_and_candidate_status': 'PASS', 'old_count': 738, 'final_count': 737}}
+     return q
+ 
+ 
+@@ -145,11 +190,12 @@
+            result['empty_staging_preserved'] and result['backups_removed_after_verification'] and
+            result['error'] is None and result['publication_errors'] == [], 'successful restored pair')
+     h.need(h.read(pair / 'ROOT-TERMINAL.json')['exit'] == 0, 'paired outer terminal')
+-    for name in ('assess.py', 'SOURCE-PINS.json', 'EXPERIMENT.json', 'SUBSET-MANIFEST.json'):
++    validate_landing_inputs(root, here, policy, old, h)
++    for name in ('assess.py',):
+         h.need((here / name).read_bytes() == (old / name).read_bytes(), 'unchanged experiment: ' + name)
+     current_policy = h.read(here / 'POLICY.json')
+     old_fixed = h.read(old / 'POLICY.json')
+-    for key in ('tests', 'target_subtests', 'regression_subtests',
++    for key in ('tests', 'regression_subtests',
+                 'source_roles', 'rebuilt_binaries', 'source_package_manifest', 'frozen_head'):
+         h.need(current_policy[key] == old_fixed[key], 'exact historical roster/source binding: ' + key)
+     old_run = h.load('round_historical_runner', old / 'run.py')
+@@ -200,6 +246,8 @@
+         experiment_sha=h.sha(old / 'EXPERIMENT.json'), execution_preserved=True)
+     h.need(json.loads(json.dumps(replay)) == saved, 'complete paired candidate publication replay')
+     h.need(saved['complete'] and saved['comparison_gate_passed'], 'complete passing paired candidate comparison')
++    remaining_rows(original, h)
++    remaining_rows(saved, h)
+     return original
+ 
+ 
+@@ -209,4 +257,6 @@
+     prior = h.read(root / policy['paired_runtime'] / 'candidate-wpt/ASSESSMENT.json')
+     signature = lambda a: sorted([parser.signature(e) for e in a['rows'] + a['ends']],
+                                 key=lambda e: (e['test'], e['kind'], e['subtest'] or ''))
+-    h.need(signature(assessment) == signature(prior), 'all final subtest/ending signatures equal paired candidate')
++    projected = dict(prior, rows=remaining_rows(prior, h))
++    h.need(len(prior['rows']) == 738 and len(projected['rows']) == len(assessment['rows']) == 737, 'only one final assertion omitted')
++    h.need(signature(assessment) == signature(projected), 'all remaining final subtest/ending signatures equal paired candidate')

@@ -1,0 +1,5 @@
+Fresh finite Round paired experiment completed successfully. Root session 32976 (f4750c to f8b630, exit 0) ran both linked builds and both complete 738-subtest phases. Original: 715 PASS and 23 FAIL; candidate: 728 PASS and 10 pre-existing FAIL. All 26 targets passed in the candidate; 13 target failures were repaired, with all 712 control signatures and 12 page ends preserved.
+
+This immutable experiment uses the repair v3 22-case landing fixture plus four exposure cases. The redundant both-infinite row passed in both phases. A later landing-only fixture reduction must authenticate that exact omission; it does not modify this experiment or waive its completed gate. No native acceptance is recorded here.
+
+Original accepted source 2da120 and the original application were restored, all owned processes ended, and the verified 1,008,605,400-byte backup was removed. Canonical controls were unchanged. The raw Git index observation changed with identical semantic index; its cause is unknown and requires a separate guarded refresh. Regular payloads are inventoried explicitly; tools symlink targets are recorded without traversing them.

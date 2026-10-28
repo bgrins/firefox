@@ -1,0 +1,9 @@
+# Finite Round standalone landing payload
+
+This test-only successor preserves the exact v3 native candidate df7e6932 and its finite arithmetic replacement. The landing precision page drops exactly the legacy `both infinite` row; all21 remaining tests retain their complete bodies and names, including eight finite quotient-overflow tests. The four exposure tests remain byte-identical validation-only inputs. The minimal payload stays one Rust file plus one WPT.
+
+The removed row belongs to accepted144's separate infinite-step classification defect. Removing it avoids making the finite arithmetic landing test require that unrelated repair. It is not a waived failure: the actual completed738-assertion pair must remain authenticated and replayed in full, including all26 targets, and both original and candidate must have PASS for this exact row. Final validation explicitly projects just that one row out, retaining all25 targets,712 controls and12 harness endings (737 assertions). The final WPT body must equal the paired body with exactly the recorded line removed. No other message, status, expected field, identity or body change is permitted.
+
+Accepted125/126/128/144 remain shared-branch preservation controls, not established semantic prerequisites of the finite replacement. This does not claim an executed clean-upstream cherry-pick or independent upstream build: the native source is still based on the signed branch and prior source/transport/arithmetic/model limits remain as recorded in v3. No new scalar or formal coverage is credited. The old failed finite pair and the new successful full738 pair remain historical evidence with their original gates.
+
+No live source, browser, index or canonical epoch was changed. Root owns final installation, build, lint, real manifest and final737 execution before acceptance.

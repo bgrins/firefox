@@ -1,0 +1,3 @@
+Fresh finite Round comparison over accepted fix 144. This capsule is enabled for the root-owned reversible experiment after bounded review. It captures a genuinely generated 12-page testharness manifest and 738 subtests: 26 targets (22 landing precision tests and four validation-only relative-multiple cases), plus all 712 prior special-knowledge controls.
+
+Both original and candidate phases must complete. The candidate must pass every target and preserve all control and page-end signatures. No repaired count is assumed. Runtime, assessor, epoch, and binding code are byte-identical to the reviewed finite runner v1; fresh source, signed baseline, roster, and runtime paths are explicitly bound. Saved synthetic controls do not establish native or browser success.

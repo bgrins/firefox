@@ -1,0 +1,15 @@
+# Finite Round paired evidence and landing scope
+
+Independent full raw-to-assessor-to-publication replay passes for both738-subtest phases. Original:715 PASS/23 FAIL, targets13 PASS/13 FAIL. Candidate:728 PASS/10 existing FAIL, all26 targets PASS. All712 control signatures and twelve OK endings remain exact. The complete gate passed before any landing test change; both-infinite is explicitly PASS in both phases. Thirteen observed target repairs comprise five earlier finite arithmetic cases and eight quotient-overflow cases, within one arithmetic family.
+
+Both builds have successful linked receipts and phase-bound source/binary epochs. Application metadata and PRE/POST state are stable within each WPT phase. The owner reports successful restoration of original genericcalc2da120, unchanged runtime controls and empty staging, no owned processes, and verified backup removal. Root terminal32976/f4750c→f8b630/0 is saved. Outer raw index bytes changed with semantic state unchanged; cause remains unknown. No live guard, browser or build was executed by this reviewer.
+
+## Independent landing scope
+
+Recommend the root-approved immutable landing successor removing exactly the redundant both-infinite row. That assertion exercises accepted144's separate simplifier branch, which the finite patch does not alter. Preserve this entire successful26-target paired evidence and accepted144's23 independent controls. The final installed landing21 plus exposure4 suite should have737 subtests:25 targets and712 controls, with twelve endings. Historical projection must authenticate the exact one-line deletion, require the omitted row PASS in both old phases and compare every remaining signature without modification. No failing gate is waived and all thirteen finite repairs remain required.
+
+Source inspection of accepted125,126 and128 confirms that they are preservation controls, not source-level semantic prerequisites for this finite-only replacement and narrowed landing oracle. Fix125 changes special NaN priority;126 changes parse-time finite negative-zero reconstruction;128 changes ModRemOp. The finite candidate neither calls a new helper from them nor introduces new deferral into those branches. Accepted144 likewise ceases to be an imposed landing-test dependency after the redundant row is removed. This is source analysis, not a clean-upstream or independent cherry-pick execution claim. Existing accepted history and its source hashes must remain immutable while the new transition names the exact source overlay.
+
+The arithmetic review remains conditional on remainder and floating-point behavior. Existing model/oracle evidence is reused without new canonical coverage, native refinement or discovery credit. Separate stepped deferral, contextual easing, parse-time finite reconstruction and held provider behavior remain outside scope. Root owns acceptance after fresh installed-candidate validation.
+
+Replay: `python3 -I -S -B artifacts/css-round-context-quotient-paired-review-v1/replay.py`.

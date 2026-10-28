@@ -1,0 +1,37 @@
+--- artifacts/css-round-special-knowledge-promotion-v2/evidence.py
++++ artifacts/css-round-context-quotient-promotion-v2/evidence.py
+@@ -49,7 +49,7 @@
+         epoch_sha=candidate_policy['epoch_sha256'], policy=candidate_policy,
+         capsule_directory=policy['pair_capsule'], experiment_sha=h.digest((capsule / 'EXPERIMENT.json').read_bytes()), execution_preserved=True)
+     assert json.loads(json.dumps(replay)) == saved
+-    assert replay['comparison_gate_passed'] and replay['observed_subtest_count'] == 712
++    assert replay['comparison_gate_passed'] and replay['observed_subtest_count'] == 738
+     assert set(result['phase_results']) == {'original-1', 'candidate-1'}
+     phases = [('original-1', 'original-wpt'), ('candidate-1', 'candidate-wpt')]
+     for phase, label in phases:
+@@ -60,9 +60,24 @@
+         assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+         assert h.read(pair / (phase + '-WRAPPER-CLEANUP.json'))['restoration_safe']
+         h.group_absent(h.read(directory / 'PROCESS.json')['pgid'])
++        projection = policy['landing_projection']
++        assert projection['test'] == '/css/css-values/round-context-quotient-precision.html'
++        assert projection['subtest'] == 'both infinite'
++        assert projection['old_total'] == 738 and projection['new_total'] == 737
+         for name, item in policy['tests'].items():
+             relative = name.removeprefix('testing/web-platform/tests/')
+-            assert h.digest((directory / 'tests' / relative).read_bytes()) == item['sha256']
++            assert '/' + relative == projection['test']
++            historical = (directory / 'tests' / relative).read_bytes()
++            landing = (root / item['capture']).read_bytes()
++            removed = projection['removed_exact_line'].encode()
++            assert historical.count(removed) == 1
++            assert h.digest(historical) == projection['old_sha256']
++            assert h.digest(landing) == item['sha256'] == projection['new_sha256']
++            assert historical.replace(removed, b'', 1) == landing
++            phase_assessment = h.read(directory / 'ASSESSMENT.json')
++            omitted = [row for row in phase_assessment['rows']
++                       if row['test'] == projection['test'] and row['subtest'] == projection['subtest']]
++            assert len(omitted) == 1 and omitted[0]['status'] == 'PASS'
+     for role in ('original', 'candidate'):
+         for name in ('build-PROCESS.json', 'WAKE-PROCESS.json'):
+             h.group_absent(h.read(pair / (role + '-build') / name)['pgid'])

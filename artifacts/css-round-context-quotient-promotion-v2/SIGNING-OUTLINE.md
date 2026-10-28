@@ -1,0 +1,10 @@
+Conditional follow-on sequence
+
+1. Bind successful fresh original/candidate pair, full 738 replay, restoration and any separately verified raw-index refresh. Activate the reviewed two-path installation and linked build; preserve the held provider and all historical accepted markers.
+2. Run final 737 against the installed candidate and exact landing WPT. Require all 25 targets PASS, all 712 control signatures and 12 ends unchanged, successful lint, cleanup and state preservation. Derive the actual repaired count from observations.
+3. Only after explicit root acceptance, prepare research and validation commits before a standalone generic calc plus 21-case WPT commit. The four exposure cases remain research validation. No ID or count is allocated by this draft.
+4. Render ledger, roadmap and readout from actual signed receipts. A prospective accepted_round_context_quotient marker records the new current source and native commit. Keep accepted_round_special_knowledge and native commit c63be5163f2e historical, including its 2da source hash and unchanged WPT. A named supersedes_source_pin relation establishes the current source pin without changing the historical entry.
+5. Subsequent preservation guards must resolve this exact declared source overlap to the latest accepted source/body/HEAD, while authenticating fix 144 at its own native commit and preserving its WPT. They must not require the old full-file 2da hash to equal a later HEAD blob, nor accept arbitrary overlapping files. Existing restoration recipes require a new current-base binding.
+6. Publish the checkpoint and final canonical epoch only after signed-chain and full preservation checks. No push is included.
+
+The historical all-26-target pair remains unchanged. The final 25-target suite removes only the redundant both-infinite row after authenticating its PASS in both phases and exact one-line fixture projection. No source prerequisite is inferred from accepted125/126/128/144 control preservation; upstream independence has not been executed.

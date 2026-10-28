@@ -1,0 +1,45 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Deferred Round preserves the selected finite multiple</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#round-func">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const step = "0.3333333432674407958984375";
+for (const [mode, interval, control] of [["down", step, false], ["to-zero", step, false], ["nearest", step, true], ["down", "0.25", true]]) {
+  test(t => {
+    const target = document.createElement("div");
+    const reference = document.createElement("div");
+    const literal = document.createElement("div");
+    document.body.append(target, reference, literal);
+    t.add_cleanup(() => { target.remove(); reference.remove(); literal.remove(); });
+    const expression = `sign(round(${mode}, 1em, ${interval}em) - 0.8px)`;
+    target.style.opacity = expression;
+    const rows = [];
+    for (const font of [1, 0, 2, 1]) {
+      target.style.fontSize = `${font}px`;
+      const expected = font === 0 ? 0 : control ? 1 : font === 2 ? 1 : 0;
+      const resolved = `sign(round(${mode}, ${font}px, ${Number(interval) * font}px) - 0.8px)`;
+      reference.style.opacity = "";
+      reference.style.opacity = resolved;
+      literal.style.opacity = String(expected);
+      rows.push({font, expected, support: CSS.supports("opacity", expression), specified: target.style.opacity,
+        resolvedSpecified: reference.style.opacity, actualFont: getComputedStyle(target).fontSize,
+        actual: Number(getComputedStyle(target).opacity), repeat: Number(getComputedStyle(target).opacity),
+        resolved: Number(getComputedStyle(reference).opacity), literal: Number(getComputedStyle(literal).opacity)});
+    }
+    const diagnostic = JSON.stringify(rows);
+    for (const row of rows) {
+      assert_true(row.support, diagnostic);
+      assert_not_equals(row.specified, "", diagnostic);
+      assert_not_equals(row.resolvedSpecified, "", diagnostic);
+      assert_equals(row.actualFont, `${row.font}px`, diagnostic);
+      assert_equals(row.literal, row.expected, diagnostic);
+      assert_equals(row.resolved, row.expected, diagnostic);
+      assert_equals(row.repeat, row.actual, diagnostic);
+    }
+    for (const row of rows) assert_equals(row.actual, row.expected, diagnostic);
+  }, `${control ? "Control" : "Deferred multiple"}: ${mode} ${interval}`);
+}
+</script>

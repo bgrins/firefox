@@ -1,0 +1,1 @@
+Root executed the reviewed raw-index refresh in session 25529 (6d168e to f106f4, exit 0). The only published canonical field change was raw_index_observation.current; full preservation passed. The recorded raw-stat drift has unknown cause and unchanged semantic index. No native acceptance or binary/source update occurred.
