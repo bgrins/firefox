@@ -1,0 +1,25 @@
+# Corrected ordinary-repeat admission prediction
+
+The observed two policy differences do not establish a parse-guard regression. The original policy fixture mistakenly treated ordinary track-repeat admission as if it required context-free Integer::resolve. All five inputs use ordinary repeat(..., 1px). Their baseline supports outcomes are true / true / true / true / false; the fixture predicted false for the second and third. The three-line guard is source-predicted to preserve all five admission outcomes. It has not been run in a candidate browser.
+
+The completed baseline raw rows show supports/setter agreement and repeated support checks passed before the final policy expectation. The two failed final expectations serialize as `repeat(sign(infinity * 1em + infinity * 1px), 1px)` and `repeat(calc(infinity * sign(infinity * 1em + infinity * 1px)), 1px)`. OBSERVED-ROWS records the exact messages. Raw and RUN were read twice unchanged; the runtime was not yet sealed for this audit, so this is an observation snapshot, not terminal or restoration verification.
+
+## Exact parser distinction
+
+Installed RepeatCount::parse calls Integer::parse_positive. The math branch of parse_integer_with_clamping_mode stores a boxed CalcNumeric. CalcNode::parse_number / into_number simplify and validate the numeric type, retaining the AST; they do not require CalcNumeric::as_number or Integer::resolve to succeed. TrackRepeat::parse_with_repeat_type stores that count alongside the 1px track. This admits a context-dependent number.
+
+By contrast, subgrid NameRepeat::parse explicitly rejects Number(n) when n.resolve().is_none(), under its bug 2037744 TODO. The policy fixture does not take that branch. CSS.supports or a nonempty specified serialization therefore does not prove context-free resolution. Integer::to_computed_value has the separate context-bearing evaluation path; no assertion about actual computed track geometry follows from this detached diagnostic.
+
+## Old and proposed expression paths
+
+For sign(1em - 16px), mixed-unit Sum prevents leaf Sign folding. The old infinite-step Round branch sees a nonleaf value; is_negative_leaf and is_zero_leaf return false for a nonleaf, then coerce_to_value recursively replaces all leaf coefficients with positive infinity and removes Round. This explains both observed serializations, including the changed sign of the old -16px coefficient. The Product variant retains its Sign subtree and infinity factor. These coerced trees still contain em, so context-free resolve fails at the canonical_value leaf gate. Admission nevertheless succeeds through TrackRepeat.
+
+The proposed guard returns Unchanged for the nonleaf value before coercion. Round, Sign and Product retain number type, so ordinary TrackRepeat still admits them. Context-free resolution still fails for these two inputs, now on the original relative length. The analogous subgrid name-repeat inputs would thus remain rejected on this source chain, not change from accepted to rejected. That latter prediction is unrun and is not a normative endorsement of the implementation's contextual subgrid restriction.
+
+The first policy case uses a literal infinite value and unknown step: the earlier infinite-value branch still discards the step, untouched by this proposal. The absolute-sign and invalid-dimensional controls remain type/admission controls. The runtime-NaN addition acts in resolution, not this parser's type/storage admission path. Installed119 intermediate transport and installed118/121 integer rounding/clamping do not make ordinary parsing call resolve. Held120 is absent; no behavior under future120 installation is asserted.
+
+## Evidence and decision
+
+Four installed specified/generic grid, specified number and specified calc whole bodies were copied from the sealed119/121/122 installation candidate archive and exactly joined to the current installed123/124 FINAL source hashes. Historical HEAD90 bodies are retained separately to expose actual changes, never substituted for installed bodies. The generic calc original matches installed SHA63a9b384909ddd08ef254dce9ca438ce8357346171caa759064e814447653637. Searchfox discovery found the explicit grid resolve guard in NameRepeat; a second query failed DNS, after which exact known historical/archive bodies supplied the evidence. No working native files or index were read or modified.
+
+Correct the two policy predictions in a separately reviewed successor or classify their baseline outcome as recorded policy observation. Preserve the frozen failed fixture and raw messages. A future guard comparison should require ordinary admission to remain true for these two rows and inspect retained Round serialization; keep numerical semantics checks separate. There is no source-supported reason from these five inputs to block the three-line guard for admission regression. This is a scoped source argument, not universal preservation over every Integer consumer, not a candidate execution, and not a new normative bug or acceptance. The deliberately untouched infinite-value/unknown-step branch and basis-dependent leaf gates remain distinct unresolved issues.

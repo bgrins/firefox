@@ -1,0 +1,115 @@
+--- artifacts/css-line-height-prior-backup-cleanup-v1/run.py
++++ artifacts/css-round-quotient-backup-cleanup-v1/run.py
+@@ -26,22 +26,51 @@
+     assert sha(ROOT / name) == pin
+ state = load('cleanup_state', 'artifacts/css-registered-number-native-runtime-v1/state.py')
+ owner = load('cleanup_owner', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+-bundle = load('cleanup_bundle', 'artifacts/css-line-height-reversible-pair-v1/bundle.py')
++bundle = load('cleanup_bundle', 'artifacts/css-round-context-quotient-reversible-pair-v1/bundle.py')
+ owner.authenticate(HERE, sys.argv[2])
+ prior = ROOT / policy['prior_runtime']
+-owner.authenticate(prior, policy['prior_manifest'])
++def authenticate_evidence():
++    for name, digest in policy['evidence_pins'].items():
++        owner.claim(ROOT, str((prior/name).relative_to(ROOT)), digest)
++authenticate_evidence()
++assert read(prior/'ROOT-TERMINAL.json')['exit'] == 1
+ runtime = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+ controls = {n: (runtime/n).read_bytes() for n in ('CURRENT-EPOCH.json','ROLE.json','OWNED.json')}
+ assert sha(runtime/'CURRENT-EPOCH.json') == policy['epoch_sha256']
++control_claims = {n:owner.claim(ROOT,str((runtime/n).relative_to(ROOT)),hashlib.sha256(body).hexdigest()) for n,body in controls.items()}
++def check_controls():
++    for n,item in control_claims.items():
++        owner.claim(ROOT,item['path'],item['owned_sha256'],item['identity'])
++        assert (runtime/n).read_bytes() == controls[n]
+ epoch = json.loads(controls['CURRENT-EPOCH.json'])
+ assert epoch['semantic_index']['head'] == policy['head'] and epoch['staged_working'] == {}
+-assert not (runtime/'SOURCE-TRANSITION.lock').exists()
+-before = state.a.verify_current(state.h, ROOT, ENV, epoch)
++assert not os.path.lexists(runtime/'SOURCE-TRANSITION.lock')
++assert all((prior/('PRE-'+n)).read_bytes() == body for n,body in controls.items())
++projection = load('cleanup_projection', 'artifacts/css-round-quotient-pair-raw-index-refresh-v1/projection.py')
++observed = projection.derive(epoch, read(prior/'PRE-OBSERVATION-EPOCH.json'), read(prior/'POST-OBSERVATION-EPOCH.json'), read(prior/'RAW-INDEX-OBSERVATION.json'), policy['source_roles'])
++assert state.a.verify_current(state.h,ROOT,ENV,read(prior/'POST-OBSERVATION-EPOCH.json')) == read(prior/'POST.json')
++before = state.a.verify_current(state.h, ROOT, ENV, observed)
+ flags = {n: state.h.git(path,ENV,'ls-files','-v','-z') for n,path in [('root',ROOT),('nested',ROOT/'artifacts/css-spec-lean')]}
+ result = read(prior/'RESULT.json')
+-assert result['restoration_verified'] and result['runtime_controls_unchanged'] and result['staged165_preserved']
++assert result['restoration_verified'] and result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+ assert read(prior/'RESTORATION.json')['errors'] == [] and read(prior/'RESTORATION.json')['owned_processes'] == {}
+-assert read(prior/'candidate-WRAPPER-CLEANUP.json')['no_browser_launch_certified']
++assert result['success'] is False and result['error'] == 'AssertionError()' and result['publication_errors'] == []
++assert result['backups_removed_after_verification'] is False
++assert set(result['phase_results']) == {'original-1','candidate-1'}
++for role in ('original','candidate'):
++    phase = role+'-1'
++    wpt = prior/(role+'-wpt')
++    assessment = read(wpt/'ASSESSMENT.json')
++    assert assessment['complete'] and assessment['execution_preserved'] and assessment['errors'] == []
++    assert result['phase_results'][phase]['assessment_sha256'] == sha(wpt/'ASSESSMENT.json')
++    assert result['phase_results'][phase]['wrapper_exit'] == (0 if role == 'original' else 1)
++    if role == 'candidate':
++        assert assessment['comparison_errors'] == ['candidate target fixture still fails']
++    observation = read(wpt/'RESULT.json')
++    assert observation['observation_gate_passed'] and observation['execution_error'] is None and observation['preservation_error'] is None
++    assert read(prior/(phase+'-WRAPPER-CLEANUP.json'))['restoration_safe']
++    assert read(wpt/'CLEANUP.json')['owned_group_absent'] and read(wpt/'CLEANUP.json')['temporary_root_removed']
++    owner.group_absent(read(wpt/'PROCESS.json')['pgid'])
+ for role in ('original','candidate'):
+     directory = prior/(role+'-build')
+     assert read(directory/'build-RESULT.json')['exit'] == 0
+@@ -49,15 +78,13 @@
+     assert read(directory/'wake-GROUP-CLEANUP.json')['owned_group_absent']
+     for name in ('build-PROCESS.json','WAKE-PROCESS.json'):
+         owner.group_absent(read(directory/name)['pgid'])
+-assert read(prior/'original-wpt/CLEANUP.json')['owned_group_absent']
+-owner.group_absent(read(prior/'original-wpt/PROCESS.json')['pgid'])
+ app = ROOT/'objdir-full.noindex/dist/Nightly.app'
+ assert bundle.semantic(bundle.scan(app)) == bundle.semantic(read(prior/'APP-PRE.json'))
+ extras = read(prior/'EXTRA-PRE.json')
+ assert bundle.semantic({n:bundle.entry(ROOT/n) for n in extras}) == bundle.semantic(extras)
+-font = 'servo/components/style/values/specified/font.rs'
++source = 'servo/components/style/values/generics/calc.rs'
+ pre = read(prior/'PRE-OBSERVATION-EPOCH.json')
+-owner.claim(ROOT,font,pre['pins'][font],pre['installed_identities'][font])
++owner.claim(ROOT,source,pre['pins'][source],pre['installed_identities'][source])
+ backups = prior/'backups'
+ saved = read(prior/'BACKUPS.json')
+ assert bundle.scan(backups) == saved['owned_inventory']
+@@ -68,19 +95,27 @@
+ output.mkdir()
+ state.save(output/'PRE.json',before)
+ state.save(output/'OWNED-BACKUP-INVENTORY.json',saved)
+-assert state.a.verify_current(state.h,ROOT,ENV,epoch) == before
+-assert all((runtime/n).read_bytes() == body for n,body in controls.items())
++assert state.a.verify_current(state.h,ROOT,ENV,observed) == before
++check_controls()
+ assert bundle.scan(backups) == saved['owned_inventory']
+-assert not (runtime/'SOURCE-TRANSITION.lock').exists()
+-shutil.rmtree(backups)
+-assert not backups.exists() and not backups.is_symlink()
+-after = state.a.verify_current(state.h,ROOT,ENV,epoch)
++assert not os.path.lexists(runtime/'SOURCE-TRANSITION.lock')
++authenticate_evidence()
++assert bundle.semantic(bundle.scan(app)) == bundle.semantic(read(prior/'APP-PRE.json'))
++assert bundle.semantic({n:bundle.entry(ROOT/n) for n in extras}) == bundle.semantic(extras)
++owner.claim(ROOT,source,pre['pins'][source],pre['installed_identities'][source])
++try:
++    shutil.rmtree(backups)
++    assert not backups.exists() and not backups.is_symlink()
++except BaseException as error:
++    state.save(output/'FAILURE.json',{'error':repr(error),'partial_cleanup_possible':True,'attempted_directory':str(backups),'no_native_acceptance':True})
++    raise
++after = state.a.verify_current(state.h,ROOT,ENV,observed)
+ assert after == before
+-assert all((runtime/n).read_bytes() == body for n,body in controls.items())
++check_controls()
+ assert all(state.h.git(path,ENV,'ls-files','-v','-z') == flags[n] for n,path in [('root',ROOT),('nested',ROOT/'artifacts/css-spec-lean')])
+ assert bundle.semantic(bundle.scan(app)) == bundle.semantic(read(prior/'APP-PRE.json'))
+ assert bundle.semantic({n:bundle.entry(ROOT/n) for n in extras}) == bundle.semantic(extras)
+-owner.claim(ROOT,font,pre['pins'][font],pre['installed_identities'][font])
++owner.claim(ROOT,source,pre['pins'][source],pre['installed_identities'][source])
+ state.save(output/'POST.json',after)
+-state.save(output/'RESULT.json',{'removed_owned_backups':True,'removed_bytes':saved['bytes'],'backup_inventory_sha256':sha(prior/'BACKUPS.json'),'current_epoch_sha256':policy['epoch_sha256'],'preservation_verified':True,'app_source_native_index_runtime_unchanged':True,'prior_experiment_still_failed':True,'no_native_acceptance':True})
++state.save(output/'RESULT.json',{'removed_owned_backups':True,'removed_bytes':saved['bytes'],'backup_inventory_sha256':sha(prior/'BACKUPS.json'),'current_epoch_sha256':policy['epoch_sha256'],'canonical_epoch_published':False,'verified_observation_sha256':sha(prior/'POST-OBSERVATION-EPOCH.json'),'preservation_verified':True,'app_source_native_index_runtime_unchanged':True,'prior_experiment_still_failed':True,'no_native_acceptance':True})
+ print('Removed only authenticated obsolete bundle backups; current app/source/index/runtime preserved')

@@ -1,0 +1,25 @@
+# Infinite-step Round guard: current-base successor
+
+This inactive proposal rebases the existing three-line guard from css-round-special-knowledge-repair-v2 onto committed HEAD995e0d2df8d7439fbd1a38f6d6fc46af247034e1. It preserves the exact 19-case WPT bytes and names. This is a known open boundary, previously recorded in css-round-four-phase-terminal-review-v1, observed again during the current finite-quotient experiment. No new discovery or fix count is claimed.
+
+The two-path payload is generic calc.rs plus css/css-values/round-deferred-infinite-step.html. The separate runtime NaN-priority prerequisite is already present in this base (accepted125). This source does not include the currently experimental finite quotient arithmetic repair. No source, binary, index, canonical runtime, or browser was modified by this preparation.
+
+## Exact correction
+
+Only inside the literal-infinite-step simplification branch, a nonleaf value returns Unchanged before sign/zero classification or recursive coercion. All earlier shortcuts and all finite arithmetic remain byte-identical. The broader top-level Leaf+Leaf gate was considered and not produced: it would also change the separate infinite-value/unknown-step route, which can discard a contextual operand and has different admission obligations. No type whitelist or canonical-value gate is introduced.
+
+The known source cause is `is_negative_leaf`/`is_zero_leaf` returning false for nonleaves. Up then calls `coerce_to_value(INFINITY)`; its recursive `map` changes the leaves inside Product, Sum and Sign rather than resolving the composite value. The original mixed-unit sign expression therefore loses its enclosing Round before contextual computation. Number leaves retain infinity through specified leaf conversion; there is no earlier finite clamp causing this observation. Generic runtime Round already handles both resolved infinities, and accepted125 gives NaN priority. Keeping the unresolved Round reaches that existing implementation.
+
+## Current consumer joins
+
+CONSUMER-SOURCE-PINS captures actual immutable HEAD bodies for specified calc, number, and easing, rather than substituting the older admission audit for current source. Easing exactly matches the accepted143 body. The previous five-route ordinary-repeat audit remains explicitly scoped evidence, including its correction: ordinary repeat stores a contextual Integer; it does not require context-free resolve. Its original mistaken two rejection expectations are not reused as normative tests.
+
+Number and Integer retain boxed CalcNumeric and invoke its context-bearing resolve when computed. CalcNumeric maps leaves using the context, then resolves the tree. The retained Round adds no new storage or conversion interface. Context-free Number/Integer resolve instead calls CalcNumeric.as_number, whose generic leaf gate requires canonical_value. The old coerced mixed em/px Sum and Product still contained em and could not satisfy that gate; the retained original Round also cannot. Ordinary admission remains numeric-type based.
+
+Steps checks Integer.resolve; cubic-bezier checks all four Number.resolve results; linear checks output.resolve and both optional endpoint resolutions after accepted143. Their current scalar conversion remains protected by those parse guards. For the known mixed-unit inputs, old and new unresolved shapes both fail these context-free gates, just as an existing finite-step Round with the same nonleaf does. This is bounded source reasoning, not a candidate browser comparison or universal admission equivalence over arbitrary expressions. It does not resolve CSS versus WAAPI contextual easing policy. The dual infinite-value/unknown-step route, contextual leaf basis knowledge, and all other simplifiers remain unchanged and unaccepted where previously held.
+
+## Validation and limits
+
+The exact two-path patch applied and reversed without fuzz in private scratch; source and WPT postimages were byte-checked and scratch removed (a6b7b6). Inert JavaScript enumeration registered the exact 19 predecessor names without executing callbacks. The initial rustfmt invocation omitted Servo configuration and returned 1; its output is retained honestly. A second check formats both base and candidate in private scratch with servo/rustfmt.toml: their difference is exactly the three new lines (d65c9c). Inherited whole-file formatting is not silently changed or declared clean.
+
+Fresh CSS Values4 argument-range and top-level NaN rules were consulted for the separate 224-snapshot report-only matrix. That matrix includes intentionally unchanged unknown-step and leaf-NaN paths; these must not be attributed as repairs by this narrow guard. The historical 19-case WPT is retained, including positive and NaN contextual samples and two context-free integer controls. Native compilation, actual WPT lint, fresh original/candidate execution, and acceptance have not occurred for this successor. A future experiment must retain existing failures and full admission/calibration results, not waive them merely because these target cases pass.

@@ -1,0 +1,42 @@
+artifacts/css-round-remainder-bridge-v1/RemainderBridge.lean:141:30: error: Tactic `rewrite` failed: motive is not type correct:
+  fun _a => (if _a then l /. d else u /. d) = nearest a l u /. d
+Error: Application type mismatch: The argument
+  ((a - l) /. d).instDecidableLt ((u - a) /. d)
+has type
+  Decidable ((a - l) /. d < (u - a) /. d)
+but is expected to have type
+  Decidable _a
+in the application
+  @ite Rat _a (((a - l) /. d).instDecidableLt ((u - a) /. d))
+
+Explanation: The rewrite tactic rewrites an expression 'e' using an equality 'a = b' by the following process. First, it looks for all 'a' in 'e'. Second, it tries to abstract these occurrences of 'a' to create a function 'm := fun _a => ...', called the *motive*, with the property that 'm a' is definitionally equal to 'e'. Third, we observe that 'congrArg' implies that 'm a = m b', which can be used with lemmas such as 'Eq.mpr' to change the goal. However, if 'e' depends on specific properties of 'a', then the motive 'm' might not typecheck.
+
+Possible solutions: use rewrite's 'occs' configuration option to limit which occurrences are rewritten, or use 'simp' or 'conv' mode, which have strategies for certain kinds of dependencies (these tactics can handle proofs and 'Decidable' instances whose types depend on the rewritten term, and 'simp' can apply user-defined '@[congr]' theorems as well).
+
+a l u d : Int
+positive : 0 < d
+nonzero : d ≠ 0
+difference : ∀ (x y : Int), x /. d - y /. d = (x - y) /. d
+⊢ (if (a - l) /. d < (u - a) /. d then l /. d else u /. d) = nearest a l u /. d
+artifacts/css-round-remainder-bridge-v1/RemainderBridge.lean:150:67: error: Tactic `decide` failed to reduce
+  @decide (33554432 /. 11184811 < 3 ∧ 3 - 33554432 /. 11184811 = 1 /. 11184811) instDecidableAnd
+to `true` or `false`.
+
+After unfolding the instances `decEq`, `instDecidableAnd`, `instDecidableEqBool`, `instDecidableEqNat`, `instDecidableEqRat`, `Bool.decEq`, `isFalse`, `isTrue`, `Int.decEq`, `Int.decLe`, `Int.decLt`, `Int.decNonneg`, `Int.instDecidableEq`, `Nat.decEq`, `Rat.instDecidableLt`, and `instDecidableEqRat.decEq`, reduction got stuck at
+  match (Rat.sub 3 (33554432 /. 11184811)).num, 1 with
+  | Int.ofNat a, Int.ofNat b =>
+    match decEq a b with
+    | { decide := true, reflects_decide := h } => isTrue ⋯
+    | { decide := false, reflects_decide := h } => isFalse ⋯
+  | Int.ofNat a, Int.negSucc a_1 => isFalse ⋯
+  | Int.negSucc a, Int.ofNat a_1 => isFalse ⋯
+  | Int.negSucc a, Int.negSucc b =>
+    match decEq a b with
+    | { decide := true, reflects_decide := h } => isTrue ⋯
+    | { decide := false, reflects_decide := h } => isFalse ⋯
+'RoundRemainder.remainder_bounds' depends on axioms: [propext, Quot.sound]
+'RoundRemainder.adjacent_directed' depends on axioms: [propext, Quot.sound]
+'RoundRemainder.nearest_minimal_upper_tie' depends on axioms: [propext, Classical.choice, Quot.sound]
+'RoundRemainder.remainder_toward_zero' depends on axioms: [propext, Quot.sound]
+'RoundRemainder.common_denominator_order' depends on axioms: [propext, Classical.choice, Quot.sound]
+'RoundRemainder.rational_nearest_refinement' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]

@@ -1,0 +1,115 @@
+--- artifacts/css-linear-second-position-promotion-v1/install.py
++++ artifacts/css-round-context-quotient-promotion-v1/install.py
+@@ -46,7 +46,7 @@
+     held = 'servo/components/style/custom_properties.rs'
+     assert epoch['modified_native_paths'] == [held]
+     accepted_claims = {}
+-    for marker, transition, fix in [('accepted_line_height', 'line_height_transition', 141), ('accepted_random_counter', 'random_counter_transition', 142)]:
++    for marker, transition, fix in [('accepted_line_height', 'line_height_transition', 141), ('accepted_random_counter', 'random_counter_transition', 142), ('accepted_linear_guard', 'linear_guard_transition', 143)]:
+         assert epoch[marker] == policy[marker] and epoch[marker]['fix'] == fix
+         assert epoch[transition]['accepted'] is True and epoch[transition]['compiled'] is True
+         for name, pin in epoch[marker]['files'].items():
+@@ -55,7 +55,7 @@
+             assert record['identity'] == epoch['installed_identities'][name]
+             assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == pin
+             accepted_claims[name] = h.claim(ROOT, name, pin, record['identity'])
+-    assert len(accepted_claims) == 9
++    assert len(accepted_claims) == 11
+     evidence_binding = evidence.verify(ROOT, policy, epoch, h)
+     h.quiescent(RUNTIME)
+     before = s.a.verify_current(s.h, ROOT, ENV, epoch)
+@@ -63,7 +63,7 @@
+     control_claims = {n: h.claim(ROOT, str((RUNTIME / n).relative_to(ROOT)), h.digest(body)) for n, body in controls.items()}
+     record = policy['source']
+     name = record['path']
+-    assert name == 'servo/components/style/values/specified/easing.rs'
++    assert name == 'servo/components/style/values/generics/calc.rs'
+     base, desired = [h.body(ROOT / record[k]) for k in ('base_capture', 'candidate_capture')]
+     assert h.digest(base) == record['base_sha256'] and h.digest(desired) == record['candidate_sha256']
+     assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == record['base_sha256']
+@@ -74,7 +74,7 @@
+     if name in owned:
+         assert owned[name] == source_claim
+     tests, parents = {}, {}
+-    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-easing/linear-contextual-second-position-crash.html'}
++    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-values/round-context-quotient-precision.html', 'testing/web-platform/tests/css/css-values/round-context-relative-multiple.html'}
+     for test, item in policy['tests'].items():
+         tests[test] = h.body(ROOT / item['capture'])
+         assert h.digest(tests[test]) == item['sha256']
+@@ -138,7 +138,7 @@
+         current['counts']['native_modified_paths'] = 2
+         current['counts']['roles'] = len(current['pins'])
+         current['counts']['installed_identities'] = len(current['installed_identities'])
+-        current['linear_guard_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
++        current['round_quotient_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
+             'manifest_sha256':manifest, 'source_sha256':record['candidate_sha256'], 'last_phase':'install'}
+         after = s.a.verify_current(s.h, ROOT, ENV, current)
+         assert after['nested_index'] == before['nested_index']
+--- artifacts/css-linear-second-position-promotion-v1/build.py
++++ artifacts/css-round-context-quotient-promotion-v1/build.py
+@@ -28,22 +28,22 @@
+ assert s.sha(RUNTIME / "CURRENT-EPOCH.json") == expected_epoch
+ assert '/' not in label
+ epoch = s.read(RUNTIME / 'CURRENT-EPOCH.json')
+-assert epoch['linear_guard_transition']['role'] == 'candidate' and not epoch['linear_guard_transition']['compiled']
++assert epoch['round_quotient_transition']['role'] == 'candidate' and not epoch['round_quotient_transition']['compiled']
+ assert epoch['semantic_index']['head'] == policy['head']
+-for marker in ('accepted_line_height', 'accepted_random_counter'):
++for marker in ('accepted_line_height', 'accepted_random_counter', 'accepted_linear_guard'):
+     assert epoch[marker] == policy[marker]
+ for name, record in policy['preserved_accepted_payload'].items():
+     assert epoch['pins'][name] == record['sha256'] and epoch['installed_identities'][name] == record['identity']
+ assert label == policy['build_label']
+-role = {'role': 'candidate', 'variant': 'linear-both-position-guard'}
++role = {'role': 'candidate', 'variant': 'round-context-quotient'}
+ owner = s.load('page_build_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ owner.authenticate(PACKAGE, manifest)
+ policy = s.read(PACKAGE / 'POLICY.json')
+-assert epoch['linear_guard_transition']['manifest_sha256'] == manifest
++assert epoch['round_quotient_transition']['manifest_sha256'] == manifest
+ assert epoch['pins'][policy['source']['path']] == policy['source']['candidate_sha256']
+ for name, record in policy['tests'].items(): assert epoch['pins'][name] == record['sha256']
+ assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs', policy['source']['path']])
+-assert epoch['staged_working'] == {} and epoch['linear_guard_transition']['accepted'] is False
++assert epoch['staged_working'] == {} and epoch['round_quotient_transition']['accepted'] is False
+ for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+ control_claims = {n:owner.claim(ROOT,str((RUNTIME/n).relative_to(ROOT)),s.sha(RUNTIME/n)) for n in ['ROLE.json','OWNED.json']}
+ owner.quiescent(RUNTIME)
+@@ -97,7 +97,7 @@
+     if success:
+         assert inner['exit'] == 0 and inner['error'] is None and inner['stop_reason'] is None
+         assert inner['owned_group_absent'] and not inner['cleanup_errors']
+-    current['linear_guard_transition'] = dict(epoch['linear_guard_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
++    current['round_quotient_transition'] = dict(epoch['round_quotient_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
+     owner.authenticate(PACKAGE, manifest)
+     for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+     for item in control_claims.values(): owner.claim(ROOT,item['path'],item['owned_sha256'],item['identity'])
+--- artifacts/css-linear-second-position-promotion-v1/evidence.py
++++ artifacts/css-round-context-quotient-promotion-v1/evidence.py
+@@ -49,9 +49,9 @@
+         epoch_sha=candidate_policy['epoch_sha256'], policy=candidate_policy,
+         capsule_directory=policy['pair_capsule'], experiment_sha=h.digest((capsule / 'EXPERIMENT.json').read_bytes()), execution_preserved=True)
+     assert json.loads(json.dumps(replay)) == saved
+-    assert replay['comparison_gate_passed'] and replay['phase_gate_passed'] and replay['observed_subtest_count'] == 48
+-    assert set(result['phase_results']) == {'original-baseline-1', 'original-crash-1', 'candidate-1'}
+-    phases = [('original-baseline-1', 'original-baseline-wpt'), ('original-crash-1', 'original-crash-wpt'), ('candidate-1', 'candidate-wpt')]
++    assert replay['comparison_gate_passed'] and replay['observed_subtest_count'] == 696
++    assert set(result['phase_results']) == {'original-1', 'candidate-1'}
++    phases = [('original-1', 'original-wpt'), ('candidate-1', 'candidate-wpt')]
+     for phase, label in phases:
+         directory = pair / label
+         assert result['phase_results'][phase]['wrapper_exit'] == 0
+@@ -60,10 +60,9 @@
+         assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+         assert h.read(pair / (phase + '-WRAPPER-CLEANUP.json'))['restoration_safe']
+         h.group_absent(h.read(directory / 'PROCESS.json')['pgid'])
+-        if phase != 'original-baseline-1':
+-            for name, item in policy['tests'].items():
+-                relative = name.removeprefix('testing/web-platform/tests/')
+-                assert h.digest((directory / 'tests' / relative).read_bytes()) == item['sha256']
++        for name, item in policy['tests'].items():
++            relative = name.removeprefix('testing/web-platform/tests/')
++            assert h.digest((directory / 'tests' / relative).read_bytes()) == item['sha256']
+     for role in ('original', 'candidate'):
+         for name in ('build-PROCESS.json', 'WAKE-PROCESS.json'):
+             h.group_absent(h.read(pair / (role + '-build') / name)['pgid'])

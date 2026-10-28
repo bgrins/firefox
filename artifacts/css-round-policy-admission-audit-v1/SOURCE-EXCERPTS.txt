@@ -1,0 +1,376 @@
+installed/servo/components/style/values/specified/grid.rs SHA256 d5490942eb47734f188d62e0f681b718882fb969c12e6d3b121e8cb25878bc52
+138: impl TrackRepeat<LengthPercentage, Integer> {
+139:     fn parse_with_repeat_type(
+140:         context: &ParserContext,
+141:         input: &mut Parser,
+142:     ) -> Result<(Self, RepeatType), ParseError> {
+143:         input
+144:             .try_parse(|i| i.expect_function_matching("repeat").map_err(|e| e.into()))
+145:             .and_then(|_| {
+146:                 input.parse_nested_block(|input| {
+147:                     let count = RepeatCount::parse(context, input)?;
+148:                     input.expect_comma()?;
+149: 
+150:                     let is_auto = count == RepeatCount::AutoFit || count == RepeatCount::AutoFill;
+151:                     let mut repeat_type = if is_auto {
+152:                         RepeatType::Auto
+153:                     } else {
+154:                         // <fixed-size> is a subset of <track-size>, so it should work for both
+155:                         RepeatType::Fixed
+156:                     };
+157: 
+158:                     let mut names = vec![];
+159:                     let mut values = vec![];
+160:                     let mut current_names;
+161: 
+162:                     loop {
+163:                         current_names = input.try_parse(parse_line_names).unwrap_or_default();
+164:                         if let Ok(track_size) = input.try_parse(|i| TrackSize::parse(context, i)) {
+165:                             if !track_size.is_fixed() {
+166:                                 if is_auto {
+167:                                     // should be <fixed-size> for <auto-repeat>
+168:                                     return Err(ParseError::custom(
+169:                                         StyleParseErrorKind::UnspecifiedError,
+170:                                     ));
+171:                                 }
+172: 
+173:                                 if repeat_type == RepeatType::Fixed {
+174:                                     repeat_type = RepeatType::Normal // <track-size> for sure
+175:                                 }
+176:                             }
+177: 
+178:                             values.push(track_size);
+179:                             names.push(current_names);
+180:                             continue;
+181:                         }
+182:                         if values.is_empty() {
+183:                             // expecting at least one <track-size>
+184:                             return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+185:                         }
+186:                         names.push(current_names); // final `<line-names>`
+187:                         break; // no more <track-size>, breaking
+188:                     }
+189: 
+190:                     let repeat = TrackRepeat {
+191:                         count,
+192:                         track_sizes: values.into(),
+193:                         line_names: names.into(),
+194:                     };
+195: 
+196:                     Ok((repeat, repeat_type))
+197:                 })
+198:             })
+199:     }
+303: impl Parse for NameRepeat<Integer> {
+304:     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
+305:         input.expect_function_matching("repeat")?;
+306:         input.parse_nested_block(|i| {
+307:             let count = RepeatCount::parse(context, i)?;
+308: 
+309:             // TODO(Bug 2037744) - Enable calc()-expressions that can only be resolved at
+310:             // computed value time (due to relative lengths, sibling-index(), etc.).
+311:             if matches!(count, RepeatCount::Number(ref n) if n.resolve().is_none()) {
+312:                 return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+313:             }
+314: 
+315:             // NameRepeat doesn't accept `auto-fit`
+316:             // https://drafts.csswg.org/css-grid/#typedef-name-repeat
+317:             if matches!(count, RepeatCount::AutoFit) {
+318:                 return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+319:             }
+320: 
+321:             i.expect_comma()?;
+322:             let mut names_list = vec![];
+323:             names_list.push(parse_line_names(i)?); // there should be at least one
+324:             while let Ok(names) = i.try_parse(parse_line_names) {
+325:                 names_list.push(names);
+326:             }
+327: 
+328:             Ok(NameRepeat {
+329:                 count,
+330:                 line_names: names_list.into(),
+331:             })
+332:         })
+333:     }
+installed/servo/components/style/values/generics/grid.rs SHA256 136c5683798de21adc9fbac8f00b8e93423682d231cd36c1ce091a1258243b94
+505:     Copy,
+506:     Debug,
+507:     MallocSizeOf,
+508:     PartialEq,
+509:     SpecifiedValueInfo,
+510:     ToAnimatedValue,
+511:     ToComputedValue,
+512:     ToCss,
+513:     ToResolvedValue,
+514:     ToShmem,
+515: )]
+516: #[repr(C, u8)]
+517: pub enum RepeatCount<Integer> {
+518:     /// A positive integer. This is allowed only for `<track-repeat>` and `<fixed-repeat>`
+519:     Number(Integer),
+520:     /// An `<auto-fill>` keyword allowed only for `<auto-repeat>`
+521:     AutoFill,
+522:     /// An `<auto-fit>` keyword allowed only for `<auto-repeat>`
+523:     AutoFit,
+524: }
+525: 
+526: impl Parse for RepeatCount<specified::Integer> {
+527:     fn parse(context: &ParserContext, input: &mut Parser) -> Result<Self, ParseError> {
+528:         if let Ok(i) = input.try_parse(|i| specified::Integer::parse_positive(context, i)) {
+529:             return Ok(RepeatCount::Number(i));
+530:         }
+531:         try_match_ident_ignore_ascii_case! { input,
+532:             "auto-fill" => Ok(RepeatCount::AutoFill),
+533:             "auto-fit" => Ok(RepeatCount::AutoFit),
+534:         }
+535:     }
+installed/servo/components/style/values/specified/number.rs SHA256 45f521db1b5f4f4833a6c4e380669b8cd8ccc6f683effce08ea0b7d14c5c002a
+55: pub fn parse_integer_with_clamping_mode(
+56:     context: &ParserContext,
+57:     input: &mut Parser,
+58:     clamping_mode: AllowedNumericType,
+59:     percentage_context: PercentageContext,
+60: ) -> Result<Integer, ParseError> {
+61:     Ok(Integer(match *input.next()? {
+62:         Token::Number {
+63:             int_value: Some(v), ..
+64:         } if clamping_mode.is_ok(context.parsing_mode, v as f32) => NumericUnion::inline((), v),
+65:         Token::Function(ref name) => {
+66:             let function = CalcNode::math_function(context, name)?;
+67:             let calc = CalcNode::parse_number(
+68:                 context,
+69:                 input,
+70:                 clamping_mode,
+71:                 function,
+72:                 percentage_context,
+73:             )?;
+74:             NumericUnion::boxed(Box::new(calc))
+75:         },
+76:         _ => return Err(ParseError::unexpected_token()),
+77:     }))
+78: }
+478:     /// Returns the value if it can be resolved at parse time, including resolvable calc
+479:     /// expressions. Returns None for calc expressions that require computed-value context.
+480:     pub fn resolve(&self) -> Option<CSSInteger> {
+481:         Some(match self.0.unpack() {
+482:             Unpacked::Inline((), v) => v,
+483:             Unpacked::Boxed(calc) => {
+484:                 let value = calc.clamping_mode.clamp(calc.as_number()?.get());
+485:                 (f64::from(value) + 0.5).floor() as CSSInteger
+486:             },
+487:         })
+488:     }
+531:     /// Parse a positive integer (>= 1).
+532:     pub fn parse_positive(
+533:         context: &ParserContext,
+534:         input: &mut Parser,
+535:     ) -> Result<Integer, ParseError> {
+536:         parse_integer_with_clamping_mode(
+537:             context,
+538:             input,
+539:             AllowedNumericType::AtLeastOne,
+540:             PercentageContext::not_allowed(),
+541:         )
+542:     }
+566: impl ToComputedValue for Integer {
+567:     type ComputedValue = i32;
+568: 
+569:     #[inline]
+570:     fn to_computed_value(&self, context: &Context) -> i32 {
+571:         match self.0.unpack() {
+572:             Unpacked::Inline((), i) => i,
+573:             Unpacked::Boxed(calc) => {
+574:                 let value = calc.resolve(context, |result| match result {
+575:                     Ok(Leaf::Number(n)) => n.get(),
+576:                     _ => {
+577:                         debug_assert!(false, "Unexpected Integer::Calc without resolved number");
+578:                         f32::NAN
+579:                     },
+580:                 });
+581:                 let clamped = crate::values::normalize(value).min(f32::MAX).max(f32::MIN);
+582:                 (f64::from(clamped) + 0.5).floor() as i32
+583:             },
+584:         }
+installed/servo/components/style/values/specified/calc.rs SHA256 891868b3e42d0d65939e1a2f451d6ffa9d74cc3be426212838bcbca0f2f3266a
+239:             .node
+240:             .to_computed_value(Some(context), None)
+241:             .and_then(|r| r.resolve());
+242:         self.clamping_mode.clamp(leaf_to_f32(result))
+243:     }
+244: 
+245:     /// Gets this calc expression as a number
+407:                 };
+408:             },
+409:             Self::ColorComponent(_) | Self::TreeCountingFunction(_) => return None,
+410:         })
+411:     }
+412: 
+413:     fn canonical_value(&self) -> Option<f32> {
+414:         Some(match *self {
+415:             Self::Length(ref l) => l.to_px_if_absolute()?,
+416:             Self::Percentage(ref p) => match p.hint {
+417:                 // Percentages that are relative to some other value (indicated by a
+418:                 // percent hint other than "percent") cannot yet resolve to a numeric
+419:                 // value, as the percentage's basis is not available.
+420:                 Optional::Some(NumericBaseType::Percent) => p.get(),
+1569:     /// Tries to convert this expression into a `CalcNumeric`, keeping the
+1570:     /// AST for later evaluation at computed-value time.
+1571:     fn into_number(mut self, clamping_mode: AllowedNumericType) -> Result<CalcNumeric, ()> {
+1572:         self.simplify_and_sort();
+1573: 
+1574:         if self.numeric_type_as_calc_type()? != CalcType::Number {
+1575:             return Err(());
+1576:         }
+1577: 
+1578:         Ok(CalcNumeric {
+1579:             clamping_mode,
+1580:             node: self,
+1581:         })
+1582:     }
+1583: 
+1677:     /// Convenience parsing function for `<number>`.
+1678:     pub fn parse_number(
+1679:         context: &ParserContext,
+1680:         input: &mut Parser,
+1681:         clamping_mode: AllowedNumericType,
+1682:         function: MathFunction,
+1683:         percentage_context: PercentageContext,
+1684:     ) -> Result<CalcNumeric, ParseError> {
+1685:         Self::parse(
+1686:             context,
+1687:             input,
+1688:             function,
+1689:             CalcParseFlags::new(percentage_context),
+1690:         )?
+1691:         .into_number(clamping_mode)
+1692:         .map_err(|()| ParseError::custom(StyleParseErrorKind::UnspecifiedError))
+1693:     }
+generic-calc.rs SHA256 63a9b384909ddd08ef254dce9ca438ce8357346171caa759064e814447653637
+697:     /// Change all the leaf nodes to have the given value. This is useful when
+698:     /// you have `calc(1px * nan)` and you want to replace the product node with
+699:     /// `calc(nan)`, in which case the unit will be retained.
+700:     fn coerce_to_value(&mut self, value: f32) -> Result<(), ()> {
+701:         self.map(|_| value)
+702:     }
+1294:     /// Resolve this node into a value.
+1295:     pub fn resolve(&self) -> Result<L, ()> {
+1296:         self.resolve_map(|l| Ok(l.clone()))
+1297:     }
+1298: 
+1299:     /// Resolve this node into a value, given a function that maps the leaf values.
+1300:     pub fn resolve_map<F>(&self, mut leaf_to_output_fn: F) -> Result<L, ()>
+1301:     where
+1302:         F: FnMut(&L) -> Result<L, ()>,
+1303:     {
+1304:         let (value, ty) = self.resolve_internal(&mut leaf_to_output_fn)?;
+1305:         L::new_from_typed_value(value, ty)
+1306:     }
+1307: 
+1308:     fn resolve_internal<F>(&self, leaf_to_output_fn: &mut F) -> Result<(f32, NumericType), ()>
+1309:     where
+1310:         F: FnMut(&L) -> Result<L, ()>,
+1311:     {
+1312:         match self {
+1313:             Self::Leaf(l) => {
+1314:                 let result = leaf_to_output_fn(l)?;
+1315:                 let value = result.canonical_value().ok_or(())?;
+1316:                 let ty = result.numeric_type();
+1317:                 Ok((value, ty))
+1318:             },
+1331:             Self::Sum(children) => {
+1332:                 let (mut value, mut ty) = children[0].resolve_internal(leaf_to_output_fn)?;
+1333: 
+1334:                 for child in children.iter().skip(1) {
+1335:                     let (right, right_ty) = child.resolve_internal(leaf_to_output_fn)?;
+1336:                     value += right;
+1337:                     ty = NumericType::add_two_types(&ty, &right_ty)?;
+1338:                 }
+1339: 
+1340:                 Ok((value, ty))
+1341:             },
+1603:             Self::Sign(c) => {
+1604:                 let (value, _) = c.resolve_internal(leaf_to_output_fn)?;
+1605:                 let sign = crate::values::calc_sign(value);
+1606:                 Ok((sign, NumericType::number()))
+1607:             },
+1740:     fn is_negative_leaf(&self) -> Result<bool, ()> {
+1741:         Ok(match *self {
+1742:             Self::Leaf(ref l) => l.is_negative()?,
+1743:             _ => false,
+1744:         })
+1745:     }
+1746: 
+1747:     fn is_zero_leaf(&self) -> Result<bool, ()> {
+1748:         Ok(match *self {
+1749:             Self::Leaf(ref l) => l.is_zero()?,
+1750:             _ => false,
+1751:         })
+1752:     }
+1753: 
+1754:     fn is_infinite_leaf(&self) -> Result<bool, ()> {
+1755:         Ok(match *self {
+1756:             Self::Leaf(ref l) => l.is_infinite()?,
+1757:             _ => false,
+1758:         })
+1759:     }
+1760: 
+1761:     fn is_nan_leaf(&self) -> Result<bool, ()> {
+1762:         Ok(match *self {
+1763:             Self::Leaf(ref l) => l.is_nan()?,
+1764:             _ => false,
+1765:         })
+1766:     }
+1767: 
+1768:     /// Visits all the nodes in this calculation tree recursively, starting by
+1769:     /// the leaves and bubbling all the way up.
+1770:     ///
+1771:     /// This is useful for simplification, but can also be used for validation
+1772:     /// and such.
+1773:     pub fn visit_depth_first(&mut self, mut f: impl FnMut(&mut Self)) {
+1774:         self.visit_depth_first_internal(&mut f)
+1983:             Self::Round {
+1984:                 strategy,
+1985:                 ref mut value,
+1986:                 ref mut step,
+1987:             } => {
+1988:                 if value_or_stop!(step.is_zero_leaf()) {
+1989:                     value_or_stop!(value.coerce_to_value(f32::NAN));
+1990:                     replace_self_with!(&mut **value);
+1991:                     return SimplificationResult::Simplified;
+1992:                 }
+1993: 
+1994:                 if value_or_stop!(value.is_infinite_leaf())
+1995:                     && value_or_stop!(step.is_infinite_leaf())
+1996:                 {
+1997:                     value_or_stop!(value.coerce_to_value(f32::NAN));
+1998:                     replace_self_with!(&mut **value);
+1999:                     return SimplificationResult::Simplified;
+2000:                 }
+2001: 
+2002:                 if value_or_stop!(value.is_infinite_leaf()) {
+2003:                     replace_self_with!(&mut **value);
+2004:                     return SimplificationResult::Simplified;
+2005:                 }
+2006: 
+2007:                 if value_or_stop!(step.is_infinite_leaf()) {
+2008:                     match strategy {
+2009:                         RoundingStrategy::Nearest | RoundingStrategy::ToZero => {
+2010:                             let zero = if value_or_stop!(value.is_negative_leaf()) {
+2011:                                 -0.0
+2012:                             } else {
+2013:                                 0.0
+2014:                             };
+2015:                             value_or_stop!(value.coerce_to_value(zero));
+2016:                             replace_self_with!(&mut **value);
+2017:                             return SimplificationResult::Simplified;
+2018:                         },
+2019:                         RoundingStrategy::Up => {
+2020:                             if !value_or_stop!(value.is_negative_leaf())
+2021:                                 && !value_or_stop!(value.is_zero_leaf())
+2022:                             {
+2023:                                 value_or_stop!(value.coerce_to_value(f32::INFINITY));
+2024:                                 replace_self_with!(&mut **value);
+2025:                                 return SimplificationResult::Simplified;
+2026:                             } else if !value_or_stop!(value.is_negative_leaf())
+2027:                                 && value_or_stop!(value.is_zero_leaf())
+2028:                             {

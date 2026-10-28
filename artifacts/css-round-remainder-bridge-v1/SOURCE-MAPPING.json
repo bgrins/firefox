@@ -1,0 +1,26 @@
+{
+  "native_proposal": "artifacts/css-round-context-quotient-repair-v1/FILES.json",
+  "native_proposal_sha256": "a8866affcefdbbc9388c904086286b2f1027cf7a841ac5c49a81894bf3666f52",
+  "candidate_source_sha256": "ccb495c3853e444b9756edd8aa155f6ac6f7ab5224d2bd59653be31740e7968a",
+  "profile": {
+    "a": "Finite exact value represented as numerator a over shared positive denominator d.",
+    "b": "Exact absolute finite nonzero step represented as positive numerator b over d.",
+    "r": "Supplied exact truncating remainder numerator; not SMT-LIB fp.rem.",
+    "q": "Unbounded mathematical integer witnessing a=q*b+r, not a native computed quotient."
+  },
+  "contracts": [
+    "Positive step; remainder magnitude strictly less than step; remainder sign agrees with input unless zero; exact decomposition.",
+    "Nonzero remainder for directed adjacent-bounds results; exact-zero branch returns input and its mathematical multiple identity is checked separately.",
+    "Rust f32 remainder correctness relative to this contract is external.",
+    "Actual f64 reconstruction/distances and final f32 projection need their own IEEE refinement; arbitrary exponent-gap addition exactness is not assumed.",
+    "Rat identifies positive and negative zero; native copysign/signed-zero, NaN/infinity and CSS provider/type/lifetime contracts are external."
+  ],
+  "candidate_mapping": {
+    "remainder_bounds": "value-remainder with sign-directed neighboring step reconstructs consecutive multiples strictly bracketing value.",
+    "adjacent_directed": "No other integer multiple between the selected lower/upper bound and value.",
+    "nearest_minimal_upper_tie": "The chosen adjacent multiple is globally distance-minimal among all multiples; equal-distance ties cannot lie above the chosen result.",
+    "remainder_toward_zero": "Smaller-magnitude-bound selection equals value-remainder under the supplied contract.",
+    "common_denominator_order": "Positive rational scaling preserves the integer comparison.",
+    "rational_nearest_refinement": "Comparing exact rational distances chooses precisely the projected integer-scale nearest result."
+  }
+}

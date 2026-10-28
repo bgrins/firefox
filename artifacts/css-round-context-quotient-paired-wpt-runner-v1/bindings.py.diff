@@ -1,0 +1,63 @@
+--- random-v2/bindings.py
++++ round-v1/bindings.py
+@@ -4,13 +4,13 @@
+ 
+ def inventory(runtime, h):
+     files = {str(p.relative_to(runtime)): h.sha(p) for p in runtime.rglob('*')
+-             if p.is_file() and not p.is_symlink() and 'tools' not in p.relative_to(runtime).parts}
++             if p.is_file() and not p.is_symlink()}
+     links = {str(p.relative_to(runtime)): str(p.readlink()) for p in runtime.rglob('*') if p.is_symlink()}
+     return files, links
+ 
+ 
+ def bind_policy(root, here, fixed, epoch, epoch_sha, phase, h):
+-    marker = epoch['reversible_random_counter_phase']
++    marker = epoch['reversible_round_quotient_phase']
+     role = phase.split('-', 1)[0]
+     h.need(set(marker) == {'role', 'build_directory', 'source_package_manifest', 'owner_runtime'}, 'phase marker fields')
+     h.need(marker['role'] == role and marker['source_package_manifest'] == fixed['source_package_manifest'], 'phase source role')
+@@ -47,7 +47,7 @@
+     sources = set(policy['source_roles'][role])
+     allowed = sources | set(policy['rebuilt_binaries'])
+     normalized = json.loads(json.dumps(epoch))
+-    normalized.pop('reversible_random_counter_phase')
++    normalized.pop('reversible_round_quotient_phase')
+     h.need(set(epoch['pins']) == set(baseline['pins']) | sources, 'exact phase source pin roster')
+     h.need(set(epoch['installed_identities']) == set(baseline['installed_identities']) | sources, 'exact phase identity roster')
+     for name in allowed:
+@@ -61,7 +61,7 @@
+         else:
+             del normalized['installed_identities'][name]
+     expected_native = set(baseline['modified_native_paths']) | (sources if role == 'candidate' else set())
+-    h.need(set(epoch['modified_native_paths']) == expected_native, 'four-source phase scope')
++    h.need(set(epoch['modified_native_paths']) == expected_native, 'one-source phase scope')
+     h.need(epoch['counts'] == dict(baseline['counts'], roles=len(epoch['pins']), installed_identities=len(epoch['installed_identities']), native_modified_paths=len(expected_native)), 'exact local phase counts')
+     normalized['modified_native_paths'] = baseline['modified_native_paths']
+     normalized['counts'] = baseline['counts']
+@@ -70,7 +70,7 @@
+         h.need(epoch['semantic_index']['working_diff'] == baseline['semantic_index']['working_diff'], 'original working diff')
+     normalized['semantic_index']['working_diff'] = baseline['semantic_index']['working_diff']
+     h.need(normalized == baseline, 'unrelated signed context or accepted source changed')
+-    marker = epoch['reversible_random_counter_phase']
++    marker = epoch['reversible_round_quotient_phase']
+     h.need(marker['role'] == role and marker['source_package_manifest'] == policy['source_package_manifest'], 'phase marker')
+     for name, digest in policy['build_evidence'].items():
+         h.need(h.sha(root / name) == digest, 'build evidence: ' + name)
+@@ -129,13 +129,13 @@
+         h.need(current[name] == original_epoch[name], 'paired preserved ' + name)
+     for name in ('head', 'entries', 'cached_diff'):
+         h.need(current['semantic_index'][name] == original_epoch['semantic_index'][name], 'paired index ' + name)
+-    h.need(set(current['modified_native_paths']) == set(original_epoch['modified_native_paths']) | set(policy['source_roles']['candidate']), 'four-source changed native scope')
+-    parser = h.load('random_counter_original_assessor', here / 'assess.py')
+-    checks = h.load('random_counter_original_checks', root / policy['helpers']['checks'])
++    h.need(set(current['modified_native_paths']) == set(original_epoch['modified_native_paths']) | set(policy['source_roles']['candidate']), 'one-source changed native scope')
++    parser = h.load('round_quotient_original_assessor', here / 'assess.py')
++    checks = h.load('round_quotient_original_checks', root / policy['helpers']['checks'])
+     events = [json.loads(line) for line in (runtime / 'raw.jsonl').read_text().splitlines()]
+     replay = parser.assess(events, result['exit'], original_policy, checks, run_binding=metadata)
+     replay = json.loads(json.dumps(replay))
+-    publisher = h.load('random_counter_original_publisher', here / 'run.py')
++    publisher = h.load('round_quotient_original_publisher', here / 'run.py')
+     replay = publisher.augment_assessment(replay, phase='original-1', capsule_sha=binding['capsule_sha256'],
+         epoch_sha=original_policy['epoch_sha256'], policy=original_policy,
+         capsule_directory=binding['capsule'], experiment_sha=h.sha(here / 'EXPERIMENT.json'), execution_preserved=True)

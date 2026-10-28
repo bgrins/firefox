@@ -1,0 +1,20 @@
+--- random-v2/run.py
++++ round-v1/run.py
+@@ -107,7 +107,7 @@
+     need(len(sys.argv) == 6, "Usage: run.py CAPSULE_SHA original-1|candidate-1 EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT")
+     authenticate(HERE, sys.argv[1])
+     policy = read(HERE / "POLICY.json")
+-    bindings = load("random_counter_bindings", HERE / "bindings.py")
++    bindings = load("round_quotient_bindings", HERE / "bindings.py")
+     need(policy.get("execution_enabled") is True, "disabled pending successful phase build bindings")
+     phase = sys.argv[2]
+     need(phase in ("original-1", "candidate-1"), "phase label")
+@@ -205,7 +205,7 @@
+               for p in top.rglob("*") if p.is_file() and "tools" not in p.relative_to(top).parts}
+     copied["wptrunner.ini"] = sha(config_path)
+     save(out / "OWNED-INPUT-PINS.json", copied)
+-    tmp = Path(tempfile.mkdtemp(prefix="css-random-counter-wpt-", dir="/private/tmp"))
++    tmp = Path(tempfile.mkdtemp(prefix="css-round-quotient-wpt-", dir="/private/tmp"))
+     tmp_identity = (tmp.stat().st_dev, tmp.stat().st_ino)
+     env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+     raw = out / "raw.jsonl"

@@ -1,0 +1,9 @@
+# Independent canonical integration result review
+
+GO. Authenticated all 36 integration payloads, the reviewed proposal and its independent review. Read the root-authored application driver; independently recounted the actual six verification logs and corroborated the canonical report and all 2,133 source fingerprints. Actual session 32137 exited 0: 11,720 unique audited declarations, 12,304 executable cases, and 127 expected-false controls. Both deliberate ill-typed selector controls failed for the intended type mismatch. The old 11,699-audit and 12,284-case raw prefixes are unchanged; exactly 21 existing declarations and 20 controls were appended.
+
+All eight saved preimages and fourteen exact postimages match. The complete current working-file map equals the previous 3,132 files with eight replacements and six additions: 3,124 old files remain unchanged, 3,138 files total. Read-only verification confirms both absolute raw index hashes, semantic stage maps, cached diffs and HEADs remain unchanged (nested four staged paths; parent 925). No compiler rerun, canonical write, native/build/browser action or index mutation was performed.
+
+The earlier scoped proof review remains the semantic authority: one supplied finite-Round checked fragment; capacity/decoder support stays separate from CSS coverage. Registration adds no new research theorem credit and proves no native IEEE/compiler/browser refinement. Reviewer authored the inherited three capacity results and native parse-zero proposal; the decoder, finite model and integration were authored separately. This review independently checks application/results, not a claim of independent authorship of every imported lemma.
+
+Two retained initial reviewer-parser failures concern multiline axiom formatting and sorted axiom lists; the corrected final recount passes without changing producer evidence.

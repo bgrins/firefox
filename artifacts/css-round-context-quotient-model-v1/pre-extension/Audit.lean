@@ -1,0 +1,20 @@
+import Rounding
+#print axioms RoundInterval.positive_reconstruction
+#print axioms RoundInterval.negative_reconstruction
+#print axioms RoundInterval.adjacent_positive_multiples
+#print axioms RoundInterval.adjacent_negative_multiples
+#print axioms RoundInterval.chooses_endpoint
+#print axioms RoundInterval.selected_endpoint_is_multiple
+#print axioms RoundInterval.interval_preserved
+#print axioms RoundInterval.directed_strategies
+#print axioms RoundInterval.nearest_minimizes_distance
+#print axioms RoundInterval.nearest_tie_uses_upper
+#print axioms RoundInterval.toward_zero_minimizes_endpoint_magnitude
+#print axioms RoundInterval.exact_multiple_preserved
+#print axioms RoundInterval.dyadic_witness_interval
+#print axioms RoundInterval.dyadic_four_strategy_controls
+#print axioms RoundInterval.negative_dyadic_controls
+#print axioms RoundInterval.premature_quotient_rounds_up_to_three
+#print axioms RoundInterval.final_product_rounds_back_to_one
+#print axioms RoundInterval.rounded_quotient_pipeline_disagrees_with_down
+#print axioms RoundInterval.exact_quarter_control

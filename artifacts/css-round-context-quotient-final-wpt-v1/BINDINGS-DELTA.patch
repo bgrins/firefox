@@ -1,0 +1,146 @@
+--- artifacts/css-line-height-final-wpt-v1/bindings.py
++++ artifacts/css-round-context-quotient-final-wpt-v1/bindings.py
+@@ -4,10 +4,10 @@
+ import os
+ from pathlib import Path
+ 
+-FONT = 'servo/components/style/values/specified/font.rs'
++SOURCE = 'servo/components/style/values/generics/calc.rs'
+ 
+ def old_bindings_inventory(runtime, h):
+-    files = {str(p.relative_to(runtime)): h.sha(p) for p in runtime.rglob('*') if p.is_file() and not p.is_symlink() and 'tools' not in p.relative_to(runtime).parts}
++    files = {str(p.relative_to(runtime)): h.sha(p) for p in runtime.rglob('*') if p.is_file() and not p.is_symlink()}
+     links = {str(p.relative_to(runtime)): str(p.readlink()) for p in runtime.rglob('*') if p.is_symlink()}
+     return files, links
+ 
+@@ -30,32 +30,32 @@
+ 
+ def project_promotion(epoch, baseline, policy, ownership, h):
+     tests = policy['live_oracle_sources']
+-    h.need(set(ownership) == {FONT} | set(tests), 'exact installed ownership roster')
+-    h.need(ownership[FONT]['identity'] == policy['original_font_identity'], 'original font inode retained')
+-    marker = epoch['line_height_transition']
++    h.need(set(ownership) == {SOURCE} | set(tests), 'exact installed ownership roster')
++    h.need(ownership[SOURCE]['identity'] == policy['original_source_identity'], 'original Round source inode retained')
++    marker = epoch['round_quotient_transition']
+     h.need(marker == {'role': 'candidate', 'compiled': True, 'accepted': False,
+                      'manifest_sha256': policy['promotion_manifest_sha256'],
+-                     'source_sha256': policy['source_roles']['candidate'][FONT],
+-                     'last_phase': 'candidate-build-1', 'variant': 'line-height-contextual-leaves'}, 'compiled promotion marker')
++                     'source_sha256': policy['source_roles']['candidate'][SOURCE],
++                     'last_phase': 'candidate-build-1', 'variant': 'round-context-quotient'}, 'compiled promotion marker')
+     h.need(epoch['staged_working'] == baseline['staged_working'] == {}, 'empty staging')
+-    h.need(epoch['modified_native_paths'] == sorted(baseline['modified_native_paths'] + [FONT]), 'only font source added')
+-    allowed_pins = {FONT} | set(tests) | set(policy['rebuilt_binaries'])
+-    h.need(set(epoch['pins']) == set(baseline['pins']) | {FONT} | set(tests), 'exact new pin roster')
+-    h.need(set(epoch['installed_identities']) == set(baseline['installed_identities']) | {FONT} | set(tests), 'exact new identity roster')
+-    for name, digest in {FONT: policy['source_roles']['candidate'][FONT], **tests}.items():
++    h.need(epoch['modified_native_paths'] == sorted(baseline['modified_native_paths'] + [SOURCE]), 'only Round source source added')
++    allowed_pins = {SOURCE} | set(tests) | set(policy['rebuilt_binaries'])
++    h.need(set(epoch['pins']) == set(baseline['pins']) | {SOURCE} | set(tests), 'exact new pin roster')
++    h.need(set(epoch['installed_identities']) == set(baseline['installed_identities']) | {SOURCE} | set(tests), 'exact new identity roster')
++    for name, digest in {SOURCE: policy['source_roles']['candidate'][SOURCE], **tests}.items():
+         claim = ownership[name]
+         h.need(claim['path'] == name and claim['owned_sha256'] == digest and
+                epoch['pins'][name] == digest and epoch['installed_identities'][name] == claim['identity'], 'installed source/test ownership: ' + name)
+     h.need(epoch['counts'] == dict(baseline['counts'], roles=len(epoch['pins']),
+            installed_identities=len(epoch['installed_identities']), native_modified_paths=len(epoch['modified_native_paths'])), 'exact promotion counts')
+     normalized = copy.deepcopy(epoch)
+-    del normalized['line_height_transition']
++    del normalized['round_quotient_transition']
+     for name in allowed_pins:
+         if name in baseline['pins']:
+             normalized['pins'][name] = baseline['pins'][name]
+         else:
+             del normalized['pins'][name]
+-    for name in {FONT} | set(tests):
++    for name in {SOURCE} | set(tests):
+         if name in baseline['installed_identities']:
+             h.need(normalized['installed_identities'][name] == baseline['installed_identities'][name], 'existing source identity')
+         else:
+@@ -92,10 +92,10 @@
+     for name in policy['rebuilt_binaries']:
+         normalized['pins'][name] = installed['pins'][name]
+     normalized['raw_index_observation']['current'] = installed['raw_index_observation']['current']
+-    normalized['line_height_transition'] = installed['line_height_transition']
+-    expected_install = dict(epoch['line_height_transition'], compiled=False, last_phase='install')
++    normalized['round_quotient_transition'] = installed['round_quotient_transition']
++    expected_install = dict(epoch['round_quotient_transition'], compiled=False, last_phase='install')
+     del expected_install['variant']
+-    h.need(installed['line_height_transition'] == expected_install and normalized == installed, 'only build binaries/raw/compiled marker changed')
++    h.need(installed['round_quotient_transition'] == expected_install and normalized == installed, 'only build binaries/raw/compiled marker changed')
+     result = h.read(root / policy['build_result'])
+     h.need(result['command_success'] is True and result['preservation_verified'] is True and
+            result['source_role'] == 'candidate' and result['browser_build_performed'] is True and
+@@ -107,9 +107,9 @@
+     install = h.read(root / policy['owner_runtime'] / 'INSTALL-RESULT.json')
+     h.need(install['installed'] and install['preservation_verified'] and install['held_provider_preserved'] and
+            not install['accepted'] and not install['compiled'] and
+-           set(install['files']) == {FONT} | set(policy['live_oracle_sources']), 'preserved exact installation')
++           set(install['files']) == {SOURCE} | set(policy['live_oracle_sources']), 'preserved exact installation')
+     h.need(install['epoch_sha256'] == h.sha(root / policy['owner_runtime'] / 'INSTALLED-EPOCH.json'), 'installed epoch join')
+-    return {'role': 'candidate', 'build_evidence': policy['build_evidence'], 'marker': epoch['line_height_transition'],
++    return {'role': 'candidate', 'build_evidence': policy['build_evidence'], 'marker': epoch['round_quotient_transition'],
+             'native_sources': policy['source_roles']['candidate'], 'binaries': policy['phase_binaries']}
+ 
+ 
+@@ -118,8 +118,8 @@
+     baseline = h.read(here / 'PROMOTION-BASELINE-EPOCH.json')
+     helper = h.load('promotion_working_diff', root / policy['helpers']['preservation'])
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+-    h.need(hashlib.sha256(helper.git(root, env, 'diff', '--binary', '--', '.', ':(exclude)' + FONT)).hexdigest() ==
+-           baseline['semantic_index']['working_diff'], 'font-only live working delta')
++    h.need(hashlib.sha256(helper.git(root, env, 'diff', '--binary', '--', '.', ':(exclude)' + SOURCE)).hexdigest() ==
++           baseline['semantic_index']['working_diff'], 'Round source-only live working delta')
+     h.need(sorted(helper.git(root, env, 'diff', '--name-only').decode().splitlines()) == epoch['modified_native_paths'], 'exact live native paths')
+     metadata = h.application_metadata(root / policy['application_ini'], policy['frozen_head'])
+     h.need(metadata == h.read(root / policy['build_directory'] / 'APPLICATION-METADATA.json'), 'actual compiled application metadata')
+@@ -132,12 +132,12 @@
+     h.authenticate(old, policy['pair_capsule_sha256'])
+     h.need(h.sha(pair / 'FILES.json') == policy['paired_manifest_sha256'], 'paired runtime manifest')
+     manifest = h.read(pair / 'FILES.json')
+-    h.need(set(manifest) == {'files', 'status', 'symlink_inventory', 'excluded_owned_backup_directory'}, 'runtime manifest schema')
+-    for name, item in manifest['files'].items():
++    h.need(isinstance(manifest, dict) and all(isinstance(n, str) and isinstance(d, str) for n, d in manifest.items()), 'flat sealed pair payload inventory')
++    for name, digest in manifest.items():
+         path = pair / name
+-        h.need(not path.is_symlink() and path.is_file() and h.sha(path) == item['sha256'] and path.stat().st_size == item['size'], 'paired runtime payload: ' + name)
++        h.need(not path.is_symlink() and path.is_file() and h.sha(path) == digest, 'paired runtime payload: ' + name)
+     actual_files, actual_links = old_bindings_inventory(pair, h)
+-    h.need(actual_files == {**{n: v['sha256'] for n,v in manifest['files'].items()}, 'FILES.json': policy['paired_manifest_sha256']}, 'exact paired runtime file inventory')
++    h.need(actual_files == {**manifest, 'FILES.json': policy['paired_manifest_sha256']}, 'exact paired runtime file inventory')
+     h.need(actual_links == h.read(pair / 'SYMLINKS.json'), 'paired runtime symlinks')
+     old_run = h.load('final_original_runner', old / 'run.py')
+     old_bindings = h.load('final_original_bindings', old / 'bindings.py')
+@@ -150,19 +150,23 @@
+     original_epoch = h.read(original / 'EPOCH.json')
+     baseline = h.read(here / 'PROMOTION-BASELINE-EPOCH.json')
+     normalized = copy.deepcopy(original_epoch)
+-    marker = normalized.pop('reversible_line_height_phase')
++    marker = normalized.pop('reversible_round_quotient_phase')
+     h.need(marker['role'] == 'original' and marker['source_package_manifest'] == policy['source_package_manifest'] and
+            marker['owner_runtime'] == policy['paired_runtime'], 'historical original phase retained')
+-    h.need(original_epoch['installed_identities'][FONT] == policy['original_font_identity'], 'authenticated original font identity')
+-    h.need(normalized['pins'][FONT] == policy['source_roles']['original'][FONT], 'original font base')
+-    del normalized['pins'][FONT]
+-    del normalized['installed_identities'][FONT]
+-    normalized['counts']['roles'] -= 1
+-    normalized['counts']['installed_identities'] -= 1
++    h.need(original_epoch['installed_identities'][SOURCE] == policy['original_source_identity'], 'authenticated original Round source identity')
++    h.need(normalized['pins'][SOURCE] == policy['source_roles']['original'][SOURCE], 'original Round source base')
++    for field in ('pins', 'installed_identities'):
++        if SOURCE in baseline[field]:
++            h.need(normalized[field][SOURCE] == baseline[field][SOURCE], 'existing original source claim')
++        else:
++            del normalized[field][SOURCE]
++    h.need(original_epoch['counts'] == dict(baseline['counts'], roles=len(original_epoch['pins']),
++           installed_identities=len(original_epoch['installed_identities'])), 'exact experiment source augmentation counts')
++    normalized['counts'] = copy.deepcopy(baseline['counts'])
+     normalized['raw_index_observation']['current'] = baseline['raw_index_observation']['current']
+     for name in policy['rebuilt_binaries']:
+         normalized['pins'][name] = baseline['pins'][name]
+-    h.need(normalized == baseline, 'same original source/context apart from explicit local font pin and rebuilt binaries')
++    h.need(normalized == baseline, 'same original source/context apart from explicit local Round source pin and rebuilt binaries')
+     parser = h.load('final_original_assessor', here / 'assess.py')
+     checks = h.load('final_original_checks', root / policy['helpers']['checks'])
+     events = [json.loads(line) for line in (original / 'raw.jsonl').read_text().splitlines()]

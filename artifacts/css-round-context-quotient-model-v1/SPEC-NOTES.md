@@ -1,0 +1,3 @@
+# Primary specification check
+
+The current [CSS Values4 round algorithm](https://drafts.csswg.org/css-values-4/#round-func), Editor's Draft24August2026, was read through the web tool during this preparation. It preserves exact multiples, selects the lower/upper adjacent multiple by strategy, resolves nearest ties upward, and specifies signed-zero behavior. It also includes line-width, which this four-strategy model omits. Numeric precision/range remains implementation-defined. The model's integer zero has no sign and does not establish those IEEE obligations. No long verbatim quotation is retained.
