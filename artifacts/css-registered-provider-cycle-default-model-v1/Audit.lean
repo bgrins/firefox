@@ -1,0 +1,20 @@
+import Defaults
+#print axioms ProviderDefaults.marked_classifies_cyclic
+#print axioms ProviderDefaults.marked_defaults
+#print axioms ProviderDefaults.publication_preserves_participants
+#print axioms ProviderDefaults.all_marked_participants_default
+#print axioms ProviderDefaults.reentry_marks_exact_cycle
+#print axioms ProviderDefaults.unmarked_ready_retained
+#print axioms ProviderDefaults.pending_not_defaulted
+#print axioms ProviderDefaults.missing_uses_fallback
+#print axioms ProviderDefaults.rejected_does_not_retry
+#print axioms ProviderDefaults.computed_default_excludes_fallback
+#print axioms ProviderDefaults.marked_survives_fallback
+#print axioms ProviderDefaults.mutual_participants_default
+#print axioms ProviderDefaults.nonparticipant_uses_final_default
+#print axioms ProviderDefaults.early_default_hides_mutual_cycle
+#print axioms ProviderDefaults.self_fallback_cannot_rescue
+#print axioms ProviderDefaults.rejected_provider_publishes_default
+#print axioms ProviderDefaults.keyword_mutual_each_own_default
+#print axioms ProviderDefaults.missing_fallback_control
+#print axioms ProviderDefaults.prior_admission_boundary
