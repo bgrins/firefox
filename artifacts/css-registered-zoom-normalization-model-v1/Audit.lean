@@ -1,0 +1,5 @@
+import Normalization
+#print axioms RegisteredZoom.stored_canonical
+#print axioms RegisteredZoom.exports_agree
+#print axioms RegisteredZoom.consumer_scales_once
+#print axioms RegisteredZoom.computation_scale_independent
