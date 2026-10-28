@@ -1,3 +1,13 @@
+# Current CSS/Stylo continuation priority
+
+Prioritize the confirmed linear() second-position content-process crash. Original release and local probes record START without RETURN and content-process SIG11 while safe controls return; no Rust panic text or security impact is established. The narrow both-position source guard passed a configured Rust check as proposal v1. Formatting-only proposal v2 preserves the six WPT tests, but still needs an actual linked candidate build and crash-recovery WPT validation. Rebind the paired plan after signing: separately collect the original crash and 42 regression/calibration baselines; require all six candidate tests, 40 unchanged regression signatures and two passing computed-feature calibrations. No native fix ID or acceptance is assigned yet.
+
+After that narrow validation, resume the full held relative-stepped consumer work: retain complete specified expressions, satisfy owner-context evaluation/invalidation contracts, and carry existing Round/ModRem arithmetic behavior through deferred paths. Canonical-value knowledge guards and conditional Lean schedules are not native correctness proofs. Keep provider readiness/SCC and registered-initial work in scope. The branch remains 141 accepted fixes and 142 tracked, with 120 held; preserve accepted line-height fix 141, random-counter fix 142 and the unaccepted provider.
+
+Detailed current tasks and limitations: [v38 roadmap](../css-local-signing-20261028-v38/ROADMAP.md). Earlier priorities and checkpoints follow verbatim as history; the current priority above supersedes their ordering, not their unresolved obligations. All work remains local.
+
+---
+
 # CSS/Stylo continuation roadmap
 
 Fix 142 restores random indices when speculative CSS parsing fails, including registered syntax alternatives, typed math finalizers and the enclosing grid shorthand. The final installed browser passes all 46 targeted WPT assertions; 507 regression signatures and seven harness endings remain unchanged. The paired run repairs 18 failures. The standalone payload contains four Rust files and two WPT pages. After its verified signed commit, the branch has 141 accepted fixes and 142 tracked fixes, with held fix 120 excluded. The seven-claim Lean witness is conditional and post-discovery; canonical CSS-library coverage is unchanged.

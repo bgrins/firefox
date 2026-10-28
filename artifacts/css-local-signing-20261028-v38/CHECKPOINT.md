@@ -1,0 +1,15 @@
+This research-only checkpoint preserves the completed linear() second-position crash investigation, conditional guard model and independent replay/review, minimal source/WPT proposal, configured typecheck and restoration evidence, paired validation preparation, and broader relative-stepped consumer/knowledge audits. It also preserves the tooling/bootstrap restoration evidence and all final v37 checkpoint records needed to authenticate the prior signed state.
+
+The configured check passed with the easing source restored; no repaired browser or WPT result is claimed. Original release/local probes recorded no return after the target operation and confirmed content-process SIG11, with safe controls returning. The source guard, conditional model and future paired plan are research evidence, not an accepted native fix. The complete held stepped/easing work remains unresolved.
+
+Two artifact-only signed commits leave 141 accepted and 142 tracked fixes unchanged, preserve accepted line-height fix 141/random-counter fix 142 and the unaccepted provider, and retain all 75 recovery bodies. Runtime CURRENT synchronization updates signed HEAD/research/index metadata and the explicitly pinned primary roadmap postimage; original build provenance and ROLE/OWNED remain unchanged. The raw-index reconciliation preceding signing is explicit and independently recorded, with no semantic-index waiver. Follow ROADMAP.md for the next exclusive browser validation work.
+
+The formatting-only guard proposal v2 is preserved alongside v1. The successful configured check used v1; v2 keeps exactly the same six-test body and has formatting/transport checks only. The next actual candidate build must bind the final v2 source.
+
+All preserved execution capsules describe their historical pre-checkpoint bindings. Signing changes HEAD; future source/build/browser work requires a reviewed successor with actual current-state bindings. Do not rerun an old capsule by editing its sealed metadata.
+
+Root-requested primary roadmap publication is part of the checkpoint: prepend the current crash priority to artifacts/css-continuation-roadmap-20261028-v1/PLAN.md, preserving its entire old body. Exact before/after bytes are prepared here. The owned write updates only the local signing epoch before the checkpoint; final CURRENT synchronization admits only this documented existing-payload change plus the two artifact commits. No ledger count or acceptance changes.
+
+Fresh untracked audit: 563 paths remain, comprising 68 project prototypes/tests and 495 unrelated names. The 68 project hashes/inodes and 75 recovery bodies match; nested state remains only .DS_Store. The completed symbol-cleanup inventory is preserved as a read-only proposal; no cleanup is performed. A refreshed all-work readout accompanies this checkpoint.
+
+The all-work readout is artifacts/css-all-work-readout-20261028-v1/README.md, with the full 141-fix table and grouped scope. Its 309 distinct listed commits were checked as ancestors of the recorded pre-checkpoint HEAD.
