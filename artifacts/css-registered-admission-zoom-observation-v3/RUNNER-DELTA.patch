@@ -1,0 +1,12 @@
+--- observer-v2/run.py
++++ observer-v3/run.py
+@@ -87,7 +87,8 @@
+             adopted = adoption.validate(ROOT, HERE, original_path, sys.argv[9], policy, helper)
+         need(original["complete"] and original["execution_preserved"] and original["phase"].startswith("original-"), "complete original observation")
+         need((original["manifest_sha256"] == sys.argv[1] or adopted is not None) and original["native_sources"] == policy["source_roles"]["original"], "same observation capsule and original source role")
+-        need(original["application_metadata"]["revision"] == metadata["revision"], "frozen original/candidate HEAD")
++        need(original["application_metadata"]["revision"] == metadata["revision"] or
++             (adopted is not None and original["application_metadata"]["revision"] == policy["original_frozen_head"] and metadata["revision"] == policy["frozen_head"]), "frozen original/candidate HEAD")
+     out = Path(sys.argv[7])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "absent output")
+     out = out.resolve()

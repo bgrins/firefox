@@ -1,0 +1,45 @@
+--- capsule-v4/adoption.py
++++ capsule-v5/adoption.py
+@@ -4,11 +4,15 @@
+ 
+ def semantic_policy(policy):
+     result = dict(policy)
++    if "original_frozen_head" in result:
++        result["frozen_head"] = result.pop("original_frozen_head")
+     result["source_roles"] = {"original": policy["source_roles"]["original"]}
+     return result
+ 
+ 
+ def validate(root, here, baseline_path, baseline_sha, policy, helper):
++    succession = helper.load("adoption_head_succession", here / "succession.py")
++    succession.validate(root, here, policy, helper)
+     receipt = helper.read(here / "ADOPTED-ORIGINAL.json")
+     previous = root / receipt["predecessor"]
+     runtime = root / receipt["runtime"]
+@@ -19,7 +23,7 @@
+     helper.need(semantic_policy(policy) == semantic_policy(old_policy), "adopted original experiment policy drift")
+     for name in ["SOURCE-PINS.json", "SELECTED.json", "TARGET-SUBTESTS.json", "HELD-SUBTESTS.json",
+                  "HELD-COMPARISON-POLICY.json", "REGRESSION-SUBTESTS.json", "SUBSET-MANIFEST.json",
+-                 "EXISTING-MANIFEST-ENTRIES.json", "REFERENCES-TO-COPY.json", "assess.py"]:
++                 "EXISTING-MANIFEST-ENTRIES.json", "REFERENCES-TO-COPY.json"]:
+         helper.need((here / name).read_bytes() == (previous / name).read_bytes(), "adopted original fixture/assessor drift: " + name)
+     old_pins = helper.read(previous / "SOURCE-PINS.json")
+     for item in old_pins.values():
+@@ -46,7 +50,7 @@
+                 "adopted original must be complete and preserved")
+     helper.need(helper.sha(runtime / "EPOCH.json") == original["epoch_sha256"] == command["epoch_sha256"] == receipt["epoch_sha256"],
+                 "adopted epoch digest")
+-    helper.need(epoch["semantic_index"]["head"] == original["run_binding"]["revision"] == policy["frozen_head"] == receipt["frozen_head"],
++    helper.need(epoch["semantic_index"]["head"] == original["run_binding"]["revision"] == policy["original_frozen_head"] == receipt["frozen_head"],
+                 "adopted frozen HEAD")
+     helper.require_compiled_transition(epoch, "original")
+     helper.need(original["native_sources"] == policy["source_roles"]["original"], "adopted original sources")
+@@ -58,7 +62,7 @@
+     helper.need(helper.read(runtime / "PRE.json") == helper.read(runtime / "POST.json"), "adopted full preservation")
+     cleanup = helper.read(runtime / "CLEANUP.json")
+     helper.need(cleanup["owned_group_absent"] and cleanup["temporary_root_removed"], "adopted cleanup")
+-    parser = helper.load("adopted_original_assessment", here / "assess.py")
++    parser = helper.load("adopted_original_assessment", previous / "assess.py")
+     checks = helper.load("adopted_original_checks", root / policy["helpers"]["checks"])
+     events = [json.loads(line) for line in (runtime / "raw.jsonl").read_text().splitlines()]
+     derived = parser.assess(events, result["exit"], policy, checks, run_binding=original["run_binding"])

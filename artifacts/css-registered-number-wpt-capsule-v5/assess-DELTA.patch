@@ -1,0 +1,29 @@
+--- capsule-v4/assess.py
++++ capsule-v5/assess.py
+@@ -20,6 +20,11 @@
+             and isinstance(binding.get("revision"), str) and len(binding["revision"]) == 40
+             and run_info.get("browser_build_id") == binding["browser_build_id"]
+             and run_info.get("revision") == binding["revision"])
++
++
++def successor_pair(original_head, candidate_head, policy):
++    return (original_head == policy.get("original_frozen_head") and
++            candidate_head == policy.get("frozen_head") and original_head != candidate_head)
+ 
+ 
+ def assess(events, code, policy, checks, original=None, run_binding=None):
+@@ -98,11 +103,13 @@
+         if not bound_run_info(original.get("run_info"), original.get("run_binding")):
+             comparison_errors.append("original run_info lacks matching metadata/epoch binding")
+         if isinstance(run_binding, dict) and isinstance(original.get("run_binding"), dict):
+-            if run_binding.get("revision") != original["run_binding"].get("revision"):
++            if run_binding.get("revision") != original["run_binding"].get("revision") and not successor_pair(original["run_binding"].get("revision"), run_binding.get("revision"), policy):
+                 comparison_errors.append("original/candidate epoch HEAD changed")
+         if isinstance(run_info, dict) and isinstance(original.get("run_info"), dict):
+             current_stable = {k: v for k, v in run_info.items() if k != "browser_build_id"}
+             original_stable = {k: v for k, v in original["run_info"].items() if k != "browser_build_id"}
++            if successor_pair(original_stable.get("revision"), current_stable.get("revision"), policy):
++                current_stable["revision"] = original_stable["revision"]
+             if current_stable != original_stable:
+                 comparison_errors.append("run_info changed outside the independently bound BuildID")
+         if any(r.get("status") != "PASS" for r in candidate):

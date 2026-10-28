@@ -1,0 +1,40 @@
+--- capsule-v4/run.py
++++ capsule-v5/run.py
+@@ -101,6 +101,8 @@
+     need(len(sys.argv) in (6, 8), "Usage: run.py CAPSULE_SHA PHASE EPOCH_PATH EPOCH_SHA ABSENT_OUTPUT [ORIGINAL_ASSESSMENT ORIGINAL_SHA]")
+     authenticate(HERE, sys.argv[1])
+     policy = read(HERE / "POLICY.json")
++    succession = load("signed_head_succession", HERE / "succession.py")
++    succession_receipt = succession.validate(ROOT, HERE, policy, SimpleNamespace(**globals()))
+     phase = sys.argv[2]
+     need(re.fullmatch(r"(original|candidate)-[1-9][0-9]*", phase), "phase label")
+     role = phase.split("-")[0]
+@@ -125,7 +127,8 @@
+              original["phase"].startswith("original-") and
+              (original["capsule_manifest_sha256"] == sys.argv[1] or adopted is not None) and
+              original["native_sources"] == policy["source_roles"]["original"], "matching complete original")
+-        need(original["run_binding"]["revision"] == epoch["semantic_index"]["head"],
++        need(original["run_binding"]["revision"] == epoch["semantic_index"]["head"] or
++             (adopted is not None and original["run_binding"]["revision"] == policy["original_frozen_head"] and epoch["semantic_index"]["head"] == policy["frozen_head"]),
+              "original/candidate epoch HEAD must be frozen")
+     for name, pin in read(HERE / "REFERENCES.json").items():
+         need(sha(ROOT / name) == pin, "helper/source binding: " + name)
+@@ -162,7 +165,10 @@
+     need({n: fingerprint_resource(n) for n in resource_pins} == resource_pins, "source/resource/metadata inputs")
+     binary_pins = {name: h.fingerprint(ROOT, name) for name in policy["normal_binaries"]}
+     need(all(pin and epoch["pins"][name] == pin for name, pin in binary_pins.items()), "normal built binary bindings")
++    if role == "candidate":
++        need(binary_pins == succession_receipt["candidate_binaries"], "candidate build2 binaries changed after signing")
+     out.mkdir()
++    save(out / "HEAD-SUCCESSION.json", succession_receipt)
+     if adopted is not None:
+         save(out / "ORIGINAL-ADOPTION.json", adopted)
+     save(out / "EPOCH.json", epoch)
+@@ -268,6 +274,7 @@
+                 need(sha(ROOT / name) == pin, "helper/source changed: " + name)
+             if adopted is not None:
+                 need(adoption.validate(ROOT, HERE, baseline_path, sys.argv[7], policy, SimpleNamespace(**globals())) == adopted, "adopted original changed")
++            need(succession.validate(ROOT, HERE, policy, SimpleNamespace(**globals())) == succession_receipt, "signed succession changed")
+             authenticate(HERE, sys.argv[1])
+             save(out / "POST.json", post)
+         except BaseException as exc:

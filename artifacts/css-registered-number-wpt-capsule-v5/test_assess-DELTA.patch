@@ -1,0 +1,42 @@
+--- capsule-v4/test_assess.py
++++ capsule-v5/test_assess.py
+@@ -270,6 +270,33 @@
+     runner.application_metadata = saved_metadata
+ 
+ assert len(phase_rejections) == 14 and len(stale_epoch_rejections) == 2
++old_binding = dict(binding, revision=policy["original_frozen_head"])
++old_events = events("FAIL")
++old_events[0]["run_info"]["revision"] = old_binding["revision"]
++signed_original = parser.assess(old_events, 1, policy, checks, run_binding=old_binding)
++assert signed_original["complete"]
++new_binding = dict(binding, revision=policy["frozen_head"])
++new_events = events("PASS")
++new_events[0]["run_info"]["revision"] = new_binding["revision"]
++assert parser.assess(new_events, 1, policy, checks, signed_original, new_binding)["comparison_gate_passed"]
++succession_rejected = []
++for label, original_head, current_head in [
++    ("other predecessor", "c" * 40, policy["frozen_head"]),
++    ("other successor", policy["original_frozen_head"], "d" * 40),
++    ("reversed succession", policy["frozen_head"], policy["original_frozen_head"]),
++]:
++    old = copy.deepcopy(old_events)
++    new = copy.deepcopy(new_events)
++    old[0]["run_info"]["revision"] = original_head
++    new[0]["run_info"]["revision"] = current_head
++    baseline = parser.assess(old, 1, policy, checks, run_binding=dict(binding, revision=original_head))
++    outcome = parser.assess(new, 1, policy, checks, baseline, dict(binding, revision=current_head))
++    assert not outcome["comparison_gate_passed"], label
++    succession_rejected.append(label)
++new_events[0]["run_info"]["debug"] = True
++assert not parser.assess(new_events, 1, policy, checks, signed_original, new_binding)["comparison_gate_passed"]
++succession_rejected.append("nonrevision run_info drift across exact succession")
++
+ print(json.dumps({"original_expected_failures_retained": True,
+                   "matching_original_candidate_passes": True, "rejected_controls": rejected,
+                   "phase_transition_positive_controls": 2,
+@@ -277,4 +304,5 @@
+                   "stale_epoch_main_preflight_rejected": stale_epoch_rejections,
+                   "stale_epoch_test_scope": "Capsule authentication stubbed; real epoch digest check executed before live metadata or process launch",
+                   "fresh_baseline_rejected_controls": fresh_baseline_rejections,
++                  "exact_signed_head_pair_accepted": True, "signed_head_rejected_controls": succession_rejected,
+                   "build_identity_controls": build_checks}, indent=2))

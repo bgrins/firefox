@@ -1,0 +1,30 @@
+--- observer-v2/adoption.py
++++ observer-v3/adoption.py
+@@ -3,6 +3,8 @@
+ 
+ def semantic_policy(policy):
+     value = dict(policy)
++    if "original_frozen_head" in value:
++        value["frozen_head"] = value.pop("original_frozen_head")
+     value["source_roles"] = {"original": policy["source_roles"]["original"]}
+     del value["wpt_capsule"]
+     del value["wpt_capsule_manifest_sha256"]
+@@ -37,7 +39,7 @@
+     helper.need(original["complete"] and original["execution_preserved"] and original["error"] is None and
+                 original["preservation_error"] is None, "adopted observation incomplete")
+     helper.need(original["epoch_sha256"] == command["epoch_sha256"] == helper.sha(runtime / "EPOCH.json"), "observation epoch binding")
+-    helper.need(epoch["semantic_index"]["head"] == original["application_metadata"]["revision"] == policy["frozen_head"] == receipt["frozen_head"],
++    helper.need(epoch["semantic_index"]["head"] == original["application_metadata"]["revision"] == policy["original_frozen_head"] == receipt["frozen_head"],
+                 "observation frozen HEAD")
+     helper.require_compiled_transition(epoch, "original")
+     helper.need(original["native_sources"] == policy["source_roles"]["original"], "observation original native sources")
+@@ -51,6 +53,9 @@
+     helper.need(cleanup["owned_group_absent"] and cleanup["profile_removed"] and cleanup["server_thread_stopped"], "observation cleanup")
+     wrapper = root / policy["wpt_capsule"]
+     helper.authenticate(wrapper, policy["wpt_capsule_manifest_sha256"])
++    wrapper_policy = helper.read(wrapper / "POLICY.json")
++    helper.need(policy["frozen_head"] == wrapper_policy["frozen_head"] and
++                policy["original_frozen_head"] == wrapper_policy["original_frozen_head"], "exact observer signed HEAD pair")
+     normative_adoption = helper.load("observer_normative_adoption", wrapper / "adoption.py")
+     normative_path = root / receipt["normative_assessment"]
+     helper.need(command["normative_assessment"] == str(normative_path) and
