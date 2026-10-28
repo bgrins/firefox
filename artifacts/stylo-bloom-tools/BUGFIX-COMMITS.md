@@ -1,5 +1,10 @@
 # CSS verification bugfix commits
 
+Fix 143: Guard both linear easing stop positions before conversion
+
+Native: `22f97187e9f062f76211c6c01b07cbc49e71232b`. Research: `b8af01d9c0883c938fe7fca52ec0d975741233c2`. Validation: `b9075f68c523ae285982982ad33ba43370a15ad5`. Exact two-path source/WPT payload; one original page crash eliminated, six target subtests completed with PASS.
+
+
 Fix 139, registered-value zoom normalization, is committed as `0f40801f1418318e51f81b4e273c758a9a24b3e4` after research `66cd18c62e7bcd65827e1ab8595f1007711acd0e`. The standalone source0/zoom7 comparison repairs56 of70 focused assertions;14 controls remain passing. The final cleaned native build passes all86 focused assertions, including16 bounded container cases. Broad566 subtest signatures are preserved; six passing reftest messages have a separate exact-port adjudication. Historical broad failures remain failures, not new passes. Source-container normalization follows CSSWG resolved intent; the explicit draft wording gap remains disclosed. The line-height-only provider-readiness discrepancy remains separate and unaccepted. No new canonical Lean coverage or native-refinement credit is claimed. Preserve this accepted seven-file overlay and its seven WPTs when rebasing the50 parked prototypes; original snapshots remain unchanged.
 
 Fix 138, raw nested attribute cycles, is committed as `3c29fefb054855bd2b9d55587ac88e8e895067b8` after research `3e9f8cff13ecd5a9645ff6430110ddf8d0c3f386`. The fresh original/candidate comparison changes 56 PASS + 17 FAIL to 73 PASS; all 329 regression assertions and six reftests remain passing. The three-file fix requires fix 137. Three historical oracle corrections are explicit, including EOF recovery; metadata is unchanged. The earlier 66-target candidate failure remains recorded. Source/spec audit and browser reproduction found the issue. Parsing and EOF recovery remain outside the normalized Lean guard proof; no canonical coverage or native-refinement credit is added.

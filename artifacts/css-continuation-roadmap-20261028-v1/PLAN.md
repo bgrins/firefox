@@ -1,3 +1,9 @@
+# Current continuation after linear easing guard 143
+
+The narrow both-position guard has a standalone signed source/WPT entry in the accompanying checkpoint. It eliminates one reproduced content-process crash while preserving the existing contextual-easing rejection policy. Continue the full held relative-stepped/easing consumer work; first carry the deferred Round quotient arithmetic prerequisite through its own validated source change. The separate Round baseline records four known discrepancies among 34 snapshots; its candidate remains uninstalled and unaccepted. Preserve accepted 141/142/143, the held provider prototype, selected-demand/SCC requirements and complete context/invalidation semantics. Do not narrow supported syntax or treat unknown context as empty readiness.
+
+The current ledger has 142 accepted repairs and 143 tracked IDs, with 120 held. This counts one crash repair, not six failed-subtest repairs. Existing unrelated expected failures and formal-proof limits remain explicit. All previous roadmap history follows unchanged.
+
 # Current CSS/Stylo continuation priority
 
 Prioritize the confirmed linear() second-position content-process crash. Original release and local probes record START without RETURN and content-process SIG11 while safe controls return; no Rust panic text or security impact is established. The narrow both-position source guard passed a configured Rust check as proposal v1. Formatting-only proposal v2 preserves the six WPT tests, but still needs an actual linked candidate build and crash-recovery WPT validation. Rebind the paired plan after signing: separately collect the original crash and 42 regression/calibration baselines; require all six candidate tests, 40 unchanged regression signatures and two passing computed-feature calibrations. No native fix ID or acceptance is assigned yet.

@@ -1,0 +1,22 @@
+--- v37/init.py
++++ v39/init.py
+@@ -19,12 +19,15 @@
+ assert sha(runtime/'CURRENT-EPOCH.json') == inputs['initial_epoch']
+ epoch = json.loads(controls['CURRENT-EPOCH.json'])
+ assert epoch['semantic_index']['head'] == inputs['initial_head']
+-assert epoch['random_counter_transition']['role'] == 'candidate'
+-assert epoch['random_counter_transition']['compiled'] and not epoch['random_counter_transition']['accepted']
++assert epoch['linear_guard_transition']['role'] == 'candidate'
++assert epoch['linear_guard_transition']['compiled'] and not epoch['linear_guard_transition']['accepted']
+ assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs',*inputs['native_source_paths']])
+ assert epoch['staged_working'] == {}
+-assert epoch['accepted_line_height']['fix'] == 141
+-assert epoch['accepted_line_height']['files'] == inputs['preserved_line_height_files']
++for marker, expected in inputs['preserved_accepted_markers'].items(): assert epoch[marker] == expected
++for path, item in inputs['preserved_accepted_payload'].items():
++    st=(ROOT/path).lstat()
++    assert [st.st_dev,st.st_ino] == item['identity'] and sha(ROOT/path) == item['sha256']
++    assert epoch['pins'][path] == item['sha256'] and epoch['installed_identities'][path] == item['identity']
+ assert not os.path.lexists(ROOT/inputs['retired_path'])
+ assert not (runtime/'SOURCE-TRANSITION.lock').exists()
+ for n,b in controls.items():

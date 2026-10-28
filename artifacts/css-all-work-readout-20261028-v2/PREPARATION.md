@@ -1,0 +1,5 @@
+This is an unexecuted successor generator. The current committed count remains 141 accepted fixes / 142 tracked, with held120 excluded. No fix143 acceptance or native commit is asserted here.
+
+After root acceptance and the actual v39 research, validation and two-path native receipts, run `python3 -I -S -B artifacts/css-all-work-readout-20261028-v2/render.py artifacts/css-local-signing-20261028-v39`. The generator reads authenticated predecessor records, checks acceptance evidence and receipt ancestry, preserves all old fix/group/dependency records, and appends143 to Animations, timelines and transitions. It does not sign, stage, publish a ledger, or change runtime state. Review the generated table before sealing it for the checkpoint.
+
+The new entry describes one eliminated crash and six passing target callbacks, never six completed original failures. The twelve existing expected failures remain visible. The historical Bloom milestone and canonical Lean evidence limits are retained; no model is silently added to canonical totals.

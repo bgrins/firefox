@@ -1,0 +1,55 @@
+--- v37/render_checkpoint.py
++++ v39/render_checkpoint.py
+@@ -32,14 +32,16 @@
+ assert accepted['fix'] == inputs['fix']
+ assert accepted['payload_sha256'] == sha(HERE/'native-selection.json')
+ assert accepted['promoted_build_passed'] and accepted['promoted_wpt_passed'] and accepted['wpt_lint_passed']
+-assert accepted['target_pass'] == 46 and accepted['regressions_unchanged'] == 507 and accepted['ends_unchanged'] == 7
++assert accepted['target_pass'] == 6 and accepted['regressions_unchanged'] == 40 and accepted['calibrations_pass'] == 2
++assert accepted['original_target_crash'] is True and accepted['original_completed_target_subtests'] == 0
++assert accepted['group'] == 'Animations, timelines and transitions'
+ assert accepted['evidence_pins'] == inputs['evidence_pins'] and inputs['evidence_pins']
+ for name,pin in inputs['evidence_pins'].items():
+     assert sha(ROOT/name) == pin
+ signing = ROOT/inputs['signing_directory']
+ receipt = read(signing/inputs['native_receipt'])
+ assert receipt['signature_verified'] and receipt['working_bodies_and_nested_index_preserved']
+-assert sorted(receipt['files']) == payload['files'] and len(payload['files']) == 6
++assert sorted(receipt['files']) == payload['files'] and len(payload['files']) == 2
+ commit = receipt['commit']
+ assert git('rev-parse','HEAD').decode().strip() == commit
+ assert git('rev-parse',commit+'^').decode().strip() == receipt['parent']
+@@ -51,14 +53,14 @@
+     assert sha(ROOT/name) == pin == hashlib.sha256(git('show',commit+':'+name)).hexdigest()
+     assert inputs['evidence_pins'].get(name) == pin
+ subprocess.run(['git','-c','gpg.ssh.allowedSignersFile='+str(ROOT/'artifacts/css-local-signing-20261027-v1/allowed-signers'),'verify-commit',commit],cwd=ROOT,env=env,check=True)
+-paths = ['artifacts/stylo-bloom-tools/CURRENT-COMMITS.json','artifacts/stylo-bloom-tools/PLAN-OF-RECORD.md','artifacts/css-continuation-roadmap-20261028-v1/PLAN.md']
++paths = ['artifacts/stylo-bloom-tools/CURRENT-COMMITS.json','artifacts/stylo-bloom-tools/PLAN-OF-RECORD.md','artifacts/css-continuation-roadmap-20261028-v1/PLAN.md','artifacts/stylo-bloom-tools/BUGFIX-COMMITS.md']
+ assert set(inputs['ledger_preimages']) == set(paths)
+ old = {n:(ROOT/n).read_bytes() for n in paths}
+ for n,b in old.items():
+     assert hashlib.sha256(b).hexdigest() == inputs['ledger_preimages'][n]
+     assert b == git('show',commit+':'+n)
+ ledger = json.loads(old[paths[0]])
+-assert ledger['committed_native_fixes'] == inputs['previous_accepted_fixes'] == 140
++assert ledger['committed_native_fixes'] == inputs['previous_accepted_fixes'] == 141
+ assert not any(v.get('fix') == inputs['fix'] for v in ledger['new_queue'])
+ assert inputs['fix'] == max(v['fix'] for v in ledger['new_queue'] if isinstance(v.get('fix'),int)) + 1
+ entry = copy.deepcopy(accepted['ledger_entry'])
+@@ -79,11 +81,15 @@
+ entry.update(native_commit=commit,research_commit=research_receipt['commit'],validation_commit=validation_receipt['commit'],companion_commit=validation_receipt['commit'],signature_verified=True,status='COMMITTED_NATIVE_WPT',commit_verification={'path':str((signing/inputs['native_receipt']).relative_to(ROOT)),'sha256':sha(signing/inputs['native_receipt'])})
+ ledger['new_queue'].append(entry)
+ ledger['committed_native_fixes'] = inputs['previous_accepted_fixes'] + 1
+-ledger['latest_random_counter_fix'] = entry
++ledger['latest_linear_guard_fix'] = entry
+ summary = accepted['approved_checkpoint_summary']
+ assert isinstance(summary,str) and summary.strip()
++assert accepted['approved_roadmap'].encode().endswith(old[paths[2]])
+ title,rest = old[paths[1]].decode().split('\n',1)
+ planned = {paths[0]:(json.dumps(ledger,indent=2)+'\n').encode(),paths[1]:(title+'\n\n'+summary+'\n\nEarlier entries retain their historical state.\n\n'+rest).encode(),paths[2]:accepted['approved_roadmap'].encode()}
++bug_title,bug_history = old[paths[3]].decode().split('\n',1)
++bug_entry = f"Fix {inputs['fix']}: {entry['title']}\n\nNative: `{commit}`. Research: `{research_receipt['commit']}`. Validation: `{validation_receipt['commit']}`. Exact two-path source/WPT payload; one original page crash eliminated, six target subtests completed with PASS.\n\n"
++planned[paths[3]] = (bug_title+'\n\n'+bug_entry+bug_history).encode()
+ output = HERE/'prepared-checkpoint'
+ assert not output.exists() and not output.is_symlink()
+ output.mkdir()

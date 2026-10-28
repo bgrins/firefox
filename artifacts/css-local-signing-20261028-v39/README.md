@@ -1,0 +1,7 @@
+# Reviewed linear easing guard signing
+
+Root acceptance 143 and the actual final 48-subtest run, lint, build and review are bound in INPUTS. The unchanged generic helper signs 460 research files, 88 validation files, then exactly easing.rs and its renamed six-subtest WPT. The preparer executed no signing or live publication.
+
+After those three signed receipts, render, review and seal the new all-work readout. finish.py verifies its receipt joins before publishing four existing documents: CURRENT-COMMITS.json, PLAN-OF-RECORD.md, the primary continuation roadmap and BUGFIX-COMMITS.md. Actual research, validation and native hashes populate the records. Old history is preserved. The checkpoint is signed, then the canonical epoch is synchronized with full preservation checks.
+
+Accepted 141/142 and all nine body/inode claims remain guarded, as do the held provider, nested repository and unrelated untracked names. The audit verifies 564 before the native commit and expects 563 afterward, removing only the newly tracked WPT from that list. One original crash is eliminated; six target PASS outcomes are not six failed-subtest repairs. Forty regression signatures and two calibrations are preserved, including twelve expected FAIL outcomes. Historical manifests were explicitly assembled; the final renamed page was naturally classified and freshly executed. Round arithmetic remains separate unaccepted research. Counts advance to 142 accepted/143 tracked only after the signed native receipt.

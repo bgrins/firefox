@@ -1,5 +1,10 @@
 # CSS and Stylo verification plan
 
+Fix 143: the standalone linear easing guard checks both optional stop positions before conversion. One original content-process crash with zero completed target subtests is eliminated; all six target subtests and two feature calibrations pass. Forty existing regression signatures and three baseline ends are preserved, including twelve expected FAIL subtests. Final renamed WPT execution has 48 subtests (36 PASS, 12 expected FAIL) and four OK ends. The native commit contains only easing.rs and the necessary WPT. Accepted repairs are now 142 across tracked IDs through 143, excluding held 120. Accepted 141/142 and the unaccepted provider experiment remain preserved. The post-discovery four-claim model is conditional/manual correspondence, with no native-refinement or canonical-coverage increment. Historical paired manifests were explicitly assembled; the final renamed page was naturally classified and freshly executed.
+
+Earlier entries retain their historical state.
+
+
 Fix 142 restores random indices when speculative CSS parsing fails, including registered syntax alternatives, typed math finalizers and the enclosing grid shorthand. The final installed browser passes all 46 targeted WPT assertions; 507 regression signatures and seven harness endings remain unchanged. The paired run repairs 18 failures. The standalone payload contains four Rust files and two WPT pages. After its verified signed commit, the branch has 141 accepted fixes and 142 tracked fixes, with held fix 120 excluded. The seven-claim Lean witness is conditional and post-discovery; canonical CSS-library coverage is unchanged.
 
 Earlier entries retain their historical state.
