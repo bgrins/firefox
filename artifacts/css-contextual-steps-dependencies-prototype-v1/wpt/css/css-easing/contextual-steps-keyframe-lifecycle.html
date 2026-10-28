@@ -1,0 +1,106 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Contextual steps in CSS keyframes follow their target context</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#keyframe-processing">
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+async function checkContext(t, mode, override) {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "width:100px;height:100px;border:0";
+  const loaded = new Promise(resolve => frame.onload = resolve);
+  frame.srcdoc = "<!doctype html><html><head></head><body></body></html>";
+  document.body.append(frame);
+  t.add_cleanup(() => frame.remove());
+  await loaded;
+  const doc = frame.contentDocument;
+  const win = frame.contentWindow;
+  const expression = {
+    font: "1em / 1px",
+    root: "1rem / 1px",
+    container: "10cqw / 1px",
+    viewport: "10vw / 1px",
+    pseudo: "1em / 1px",
+  }[mode];
+  const easing = `steps(calc(${expression}), end)`;
+  assert_true(win.CSS.supports("animation-timing-function", easing),
+              "Contextual steps must be admitted before lifecycle checks");
+  const sheet = doc.createElement("style");
+  sheet.textContent = `
+    html { font-size: 10px }
+    body { margin: 0 }
+    #container { container-type: size; width: 100px; height: 100px }
+    #target, #reference { font-size: 10px }
+    #target::before { content: "x"; font-size: var(--size, 10px) }
+    @keyframes contextual {
+      from { opacity: 0; animation-timing-function: ${easing} }
+      to { opacity: 1 }
+    }
+    @keyframes literal { from { opacity: 0 } to { opacity: 1 } }
+    ${mode === "pseudo" ? "#target::before" : "#target"} {
+      animation: contextual 1000ms linear both paused;
+    }
+    #reference { animation: literal 1000ms steps(10, end) both paused }
+  `;
+  doc.head.append(sheet);
+  const container = doc.createElement("div");
+  container.id = "container";
+  const target = doc.createElement("div");
+  target.id = "target";
+  const reference = doc.createElement("div");
+  reference.id = "reference";
+  container.append(target, reference);
+  doc.body.append(container);
+  win.getComputedStyle(target, mode === "pseudo" ? "::before" : null).opacity;
+  const animation = target.getAnimations({subtree: true})
+    .find(item => item.animationName === "contextual");
+  assert_not_equals(animation, undefined, "The CSS animation exists");
+  const effect = animation.effect;
+  if (override) {
+    effect.setKeyframes([
+      {opacity: 0, easing: "steps(3, end)"},
+      {opacity: 1},
+    ]);
+  }
+  const snapshots = [];
+  for (const count of [10, 20, 10]) {
+    if (mode === "font") target.style.fontSize = `${count}px`;
+    if (mode === "root") doc.documentElement.style.fontSize = `${count}px`;
+    if (mode === "container") container.style.width = `${count * 10}px`;
+    if (mode === "viewport") frame.style.width = `${count * 10}px`;
+    if (mode === "pseudo") target.style.setProperty("--size", `${count}px`);
+    const expectedCount = override ? 3 : count;
+    reference.style.animationTimingFunction = `steps(${expectedCount}, end)`;
+    await new Promise(resolve => win.requestAnimationFrame(() => win.requestAnimationFrame(resolve)));
+    const current = target.getAnimations({subtree: true})
+      .find(item => item.animationName === "contextual");
+    const literal = reference.getAnimations()[0];
+    current.currentTime = 370;
+    literal.currentTime = 370;
+    const easingAtStart = current.effect.getKeyframes()
+      .find(key => key.computedOffset === 0).easing;
+    snapshots.push({
+      count, expectedCount,
+      sameAnimation: current === animation,
+      sameEffect: current.effect === effect,
+      actual: Number(win.getComputedStyle(target, mode === "pseudo" ? "::before" : null).opacity),
+      reference: Number(win.getComputedStyle(reference).opacity),
+      easingAtStart,
+    });
+  }
+  const detail = JSON.stringify(snapshots);
+  for (const row of snapshots) {
+    assert_true(row.sameAnimation && row.sameEffect, detail);
+    assert_equals(row.easingAtStart, `steps(${row.expectedCount})`, detail);
+    assert_approx_equals(row.reference, Math.floor(0.37 * row.expectedCount) / row.expectedCount, 0.00001, detail);
+    assert_approx_equals(row.actual, row.reference, 0.00001, detail);
+  }
+}
+for (const mode of ["font", "root", "container", "viewport", "pseudo"]) {
+  promise_test(t => checkContext(t, mode, false),
+    `Explicit keyframe steps follow ${mode} changes without replacing the animation`);
+}
+promise_test(t => checkContext(t, "font", true),
+  "Explicit setKeyframes override survives contextual CSS easing restyles");
+</script>

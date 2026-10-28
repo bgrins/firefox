@@ -1,0 +1,9 @@
+# Manual source correspondence
+
+The new cascade handoff visits active animation names on the real unvisited owning Context immediately before the computed style is built. It invokes specified easing conversion to record its actual dependency effects, preserving and restoring for_non_inherited_property. Contextual rules make the rule cache uncacheable. This carries font/viewport/container/tree-counting and other conversion effects into the style instead of losing them with a later temporary animation Context.
+
+This is not a cached easing representation or a complete invalidation implementation. The conversion result here is discarded. Declaration scope is not installed: tree-counting uses current_scope(), and future numerical publication must retain the selected keyframe scope. Current tree-counting records conservative flags before its scope test. The captured random function derives a fresh deterministic generator from its key/document/element seed; repeated traversal does not consume a shared stream. This is not a general effect-purity theorem.
+
+The predecessor rebuild hook applies to normal traversal, not animation-only restyles. Blindly broadening that hook is unsafe. Conditionally evaluating steps(calc(1 + max(0, sign(15px - 1em))), end) against its own animated 10px-to-20px font at progress 3/4 gives 10 -> 15 -> 10. SelfDependency.lean proves this concrete cycle, the two-element image, and absence of a fixed point for the stated natural-number model. Its false control rejects a one-pass-stability claim. The arithmetic is exact for these values; it is not IEEE/parser/native refinement and does not establish normative CSS cycle behavior.
+
+observe-self-dependency.js records six frames with literal steps(1)/steps(2) controls if syntax is supported. It has not run. The six lifecycle WPT callbacks likewise have not run. No native compilation, new accepted bug, or canonical Lean coverage credit is claimed.

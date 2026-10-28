@@ -1,0 +1,415 @@
+--- a/servo/components/style/matching.rs
++++ b/servo/components/style/matching.rs
+@@ -316,6 +316,20 @@
+             return has_animations;
+         }
+ 
++        if !context.shared.traversal_flags.for_animation_only()
++            && new_ui_style.animation_name_iter().any(|name| {
++                name.as_atom().is_some_and(|name| {
++                    context
++                        .shared
++                        .stylist
++                        .lookup_keyframes(name, *self)
++                        .is_some_and(|animation| animation.has_contextual_timing_function)
++                })
++            })
++        {
++            return true;
++        }
++
+         false
+     }
+ 
+@@ -551,12 +565,16 @@
+         use crate::animation::AnimationSetKey;
+         use crate::dom::TDocument;
+ 
+-        let style_changed = self.process_animations_for_style(
+-            context,
+-            &mut old_styles.primary,
+-            new_resolved_styles.primary_style_mut(),
+-            /* pseudo_element = */ None,
+-        );
++        let style_changed =
++            crate::style_resolver::with_default_parent_styles(*self, |parent_style, _| {
++                self.process_animations_for_style(
++                    context,
++                    &mut old_styles.primary,
++                    new_resolved_styles.primary_style_mut(),
++                    parent_style,
++                    /* pseudo_element = */ None,
++                )
++            });
+ 
+         // If we have modified animation or transitions, we recascade style for this node.
+         if style_changed {
+@@ -642,6 +660,7 @@
+             context,
+             &old_style,
+             &style,
++            Some(new_resolved_styles.primary_style()),
+             Some(pseudo_element.clone()),
+         );
+ 
+@@ -703,6 +722,7 @@
+         context: &mut StyleContext<Self>,
+         old_values: &Option<Arc<ComputedValues>>,
+         new_values: &Arc<ComputedValues>,
++        parent_style: Option<&ComputedValues>,
+         pseudo_element: Option<PseudoElement>,
+     ) -> bool {
+         use crate::animation::{AnimationSetKey, AnimationState};
+@@ -752,6 +772,7 @@
+                 *self,
+                 &shared_context,
+                 &new_values,
++                parent_style,
+                 &mut resolver,
+             );
+         }
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -443,6 +443,25 @@
+         // from being wasted effort, it will be wrong, since context.rule_cache_conditions won't be
+         // set appropriately if we didn't compute those reset properties.)
+         context.rule_cache_conditions.borrow_mut().set_uncacheable();
++    }
++
++    if matches!(cascade_mode, CascadeMode::Unvisited { .. }) {
++        if let Some(element) = originating_element {
++            let names: Vec<_> = context
++                .builder
++                .get_ui()
++                .animation_name_iter()
++                .filter_map(|name| name.as_atom().cloned())
++                .collect();
++            let was_non_inherited = context.for_non_inherited_property;
++            context.for_non_inherited_property = true;
++            for name in names {
++                if let Some(animation) = stylist.lookup_keyframes(&name, element) {
++                    animation.record_timing_function_dependencies(&context, guards.author);
++                }
++            }
++            context.for_non_inherited_property = was_non_inherited;
++        }
+     }
+ 
+     if context
+--- a/servo/components/style/servo/animation.rs
++++ b/servo/components/style/servo/animation.rs
+@@ -9,7 +9,7 @@
+ 
+ use crate::Atom;
+ use crate::FxHashMap;
+-use crate::context::{CascadeInputs, SharedStyleContext};
++use crate::context::{CascadeInputs, SharedStyleContext, TreeCountingCaches};
+ use crate::derives::*;
+ use crate::dom::{OpaqueNode, TDocument, TElement, TNode};
+ use crate::properties::AnimationDeclarations;
+@@ -20,16 +20,17 @@
+ use crate::properties::longhands::animation_play_state::computed_value::single_value::T as AnimationPlayState;
+ use crate::properties::{
+     ComputedValues, Importance, LonghandId, PropertyDeclarationBlock, PropertyDeclarationId,
+-    PropertyDeclarationIdSet,
++    PropertyDeclarationIdSet, StyleBuilder,
+ };
+ use crate::rule_tree::{CascadeLevel, CascadeOrigin, RuleCascadeFlags};
+ use crate::selector_parser::PseudoElement;
+ use crate::shared_lock::{Locked, SharedRwLock};
+ use crate::style_resolver::StyleResolverForElement;
++use crate::stylesheets::container_rule::ContainerSizeQuery;
+ use crate::stylesheets::keyframes_rule::{KeyframesAnimation, KeyframesStep, KeyframesStepValue};
+ use crate::stylesheets::layer_rule::LayerOrder;
+ use crate::values::animated::{Animate, Procedure};
+-use crate::values::computed::TimingFunction;
++use crate::values::computed::{Context, TimingFunction, ToComputedValue};
+ use crate::values::generics::easing::BeforeFlag;
+ use crate::values::specified::TransitionBehavior;
+ use debug_unreachable::debug_unreachable;
+@@ -156,6 +157,7 @@
+         animation: &KeyframesAnimation,
+         context: &SharedStyleContext,
+         base_style: &ComputedValues,
++        computed_context: &Context,
+     ) -> Vec<Self> {
+         if animation.steps.is_empty() {
+             return vec![];
+@@ -170,7 +172,7 @@
+                 intermediate_steps.push(std::mem::replace(&mut current_step, new_step));
+             }
+ 
+-            current_step.update_from_step(step, context, base_style);
++            current_step.update_from_step(step, context, base_style, computed_context);
+         }
+         intermediate_steps.push(current_step);
+ 
+@@ -187,12 +189,13 @@
+         step: &KeyframesStep,
+         context: &SharedStyleContext,
+         base_style: &ComputedValues,
++        computed_context: &Context,
+     ) {
+         // Each keyframe declaration may optionally specify a timing function, falling
+         // back to the one defined global for the animation.
+         let guard = &context.guards.author;
+         if let Some(timing_function) = step.get_animation_timing_function(&guard) {
+-            self.timing_function = Some(timing_function.to_computed_value_without_context());
++            self.timing_function = Some(timing_function.to_computed_value(computed_context));
+         }
+ 
+         // Each keyframe declaration may optionally specify a composite operation,
+@@ -420,6 +423,7 @@
+         animation: &KeyframesAnimation,
+         context: &SharedStyleContext,
+         base_style: &Arc<ComputedValues>,
++        parent_style: Option<&ComputedValues>,
+         default_timing_function: TimingFunction,
+         default_composition: AnimationComposition,
+         resolver: &mut StyleResolverForElement<E>,
+@@ -437,8 +441,28 @@
+             })
+             .collect();
+ 
+-        let intermediate_steps =
+-            IntermediateComputedKeyframe::generate_for_keyframes(animation, context, base_style);
++        let mut conditions = Default::default();
++        let mut tree_counting_caches = TreeCountingCaches::default();
++        let computed_context = Context::new_for_animation(
++            StyleBuilder::for_derived_style(
++                context.stylist.device(),
++                Some(&context.stylist),
++                base_style,
++                parent_style,
++            ),
++            false,
++            context.quirks_mode(),
++            &mut conditions,
++            ContainerSizeQuery::for_element(element, parent_style, base_style.is_pseudo_style()),
++            &element,
++            &mut tree_counting_caches,
++        );
++        let intermediate_steps = IntermediateComputedKeyframe::generate_for_keyframes(
++            animation,
++            context,
++            base_style,
++            &computed_context,
++        );
+ 
+         // Used while iterating over the keyframes to, for each property, remember the most recent and
+         // next keyframe that declares the property. That avoids a quadratic number of traversals per
+@@ -1290,6 +1314,7 @@
+         element: E,
+         context: &SharedStyleContext,
+         new_style: &Arc<ComputedValues>,
++        parent_style: Option<&ComputedValues>,
+         resolver: &mut StyleResolverForElement<E>,
+     ) where
+         E: TElement,
+@@ -1300,7 +1325,7 @@
+             }
+         }
+ 
+-        maybe_start_animations(element, &context, &new_style, self, resolver);
++        maybe_start_animations(element, &context, &new_style, parent_style, self, resolver);
+     }
+ 
+     /// Update our transitions given a new style, canceling or starting new animations
+@@ -1802,6 +1827,7 @@
+     element: E,
+     context: &SharedStyleContext,
+     new_style: &Arc<ComputedValues>,
++    parent_style: Option<&ComputedValues>,
+     animation_state: &mut ElementAnimationSet,
+     resolver: &mut StyleResolverForElement<E>,
+ ) where
+@@ -1875,6 +1901,7 @@
+             &keyframe_animation,
+             context,
+             new_style,
++            parent_style,
+             style.animation_timing_function_mod(i),
+             style.animation_composition_mod(i),
+             resolver,
+--- a/servo/components/style/stylesheets/keyframes_rule.rs
++++ b/servo/components/style/stylesheets/keyframes_rule.rs
+@@ -459,6 +459,8 @@
+     pub properties_changed: PropertyDeclarationIdSet,
+     /// Vendor prefix type the @keyframes has.
+     pub vendor_prefix: Option<VendorPrefix>,
++    /// Whether a declared easing function needs element context to compute.
++    pub has_contextual_timing_function: bool,
+ }
+ 
+ #[cfg(feature = "servo")]
+@@ -543,6 +545,27 @@
+ }
+ 
+ impl KeyframesAnimation {
++    /// Record contextual easing dependencies on the owning style before it is built.
++    pub fn record_timing_function_dependencies(
++        &self,
++        context: &crate::values::computed::Context,
++        guard: &SharedRwLockReadGuard,
++    ) {
++        use crate::values::computed::ToComputedValue;
++
++        if !self.has_contextual_timing_function {
++            return;
++        }
++        context.rule_cache_conditions.borrow_mut().set_uncacheable();
++        for step in self.steps.iter().chain(self.steps_with_range_name.iter()) {
++            if let Some(value) = step.get_animation_timing_function(guard) {
++                if value.try_to_computed_value_without_context().is_none() {
++                    let _ = value.to_computed_value(context);
++                }
++            }
++        }
++    }
++
+     /// Create a keyframes animation from a given list of keyframes.
+     ///
+     /// This will return a keyframe animation with empty steps if the list of
+@@ -562,6 +585,7 @@
+             #[cfg(feature = "servo")]
+             properties_changed: PropertyDeclarationIdSet::default(),
+             vendor_prefix,
++            has_contextual_timing_function: false,
+         };
+ 
+         if keyframes.is_empty() {
+@@ -589,6 +613,10 @@
+                     },
+                     guard,
+                 );
++
++                result.has_contextual_timing_function |= step
++                    .get_animation_timing_function(guard)
++                    .is_some_and(|value| value.try_to_computed_value_without_context().is_none());
+ 
+                 if !selector.range_name.is_none() {
+                     result.steps_with_range_name.push(step);
+--- a/servo/components/style/values/specified/easing.rs
++++ b/servo/components/style/values/specified/easing.rs
+@@ -168,16 +168,12 @@
+     }
+ }
+ 
+-// We need this for converting the specified TimingFunction into computed TimingFunction without
+-// Context (for some FFIs in glue.rs). In fact, we don't really need Context to get the computed
+-// value of TimingFunction.
+ impl TimingFunction {
+-    /// Generate the ComputedTimingFunction without Context.
+-    pub fn to_computed_value_without_context(&self) -> ComputedTimingFunction {
+-        match &self {
++    /// Compute a timing function when its inputs do not need an element context.
++    pub fn try_to_computed_value_without_context(&self) -> Option<ComputedTimingFunction> {
++        Some(match self {
+             GenericTimingFunction::Steps(steps, pos) => {
+-                // Resolvable value was enforced at parse time
+-                let count = steps.resolve().unwrap();
++                let count = steps.resolve()?;
+                 let count = if *pos == StepPosition::JumpNone && steps.get().is_none() {
+                     count.max(2)
+                 } else {
+@@ -186,27 +182,42 @@
+                 GenericTimingFunction::Steps(count, *pos)
+             },
+             GenericTimingFunction::CubicBezier { x1, y1, x2, y2 } => {
+-                // Resolvable value was enforced at parse time
+                 GenericTimingFunction::CubicBezier {
+-                    x1: x1.resolve().unwrap().clamp(0.0, 1.0),
+-                    y1: y1.resolve().unwrap(),
+-                    x2: x2.resolve().unwrap().clamp(0.0, 1.0),
+-                    y2: y2.resolve().unwrap(),
++                    x1: x1.resolve()?.clamp(0.0, 1.0),
++                    y1: y1.resolve()?,
++                    x2: x2.resolve()?.clamp(0.0, 1.0),
++                    y2: y2.resolve()?,
+                 }
+             },
+             GenericTimingFunction::Keyword(keyword) => GenericTimingFunction::Keyword(*keyword),
+             GenericTimingFunction::LinearFunction(function) => {
+-                // Resolvable value was enforced at parse time
+                 GenericTimingFunction::LinearFunction(function.clone())
+             },
+-        }
++        })
++    }
++
++    /// Generate the computed value under the current parser's context-free invariant.
++    pub fn to_computed_value_without_context(&self) -> ComputedTimingFunction {
++        self.try_to_computed_value_without_context()
++            .expect("Parser admitted an unresolved timing function")
+     }
+ }
+ 
+ impl ToComputedValue for TimingFunction {
+     type ComputedValue = ComputedTimingFunction;
+-    fn to_computed_value(&self, _: &Context) -> Self::ComputedValue {
+-        self.to_computed_value_without_context()
++    fn to_computed_value(&self, context: &Context) -> Self::ComputedValue {
++        match self {
++            GenericTimingFunction::Steps(steps, pos) => {
++                let count = steps.to_computed_value(context);
++                let count = if *pos == StepPosition::JumpNone && steps.get().is_none() {
++                    count.max(2)
++                } else {
++                    count
++                };
++                GenericTimingFunction::Steps(count, *pos)
++            },
++            _ => self.to_computed_value_without_context(),
++        }
+     }
+ 
+     fn from_computed_value(computed: &Self::ComputedValue) -> Self {
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -5239,7 +5239,10 @@
+         return false;
+     };
+ 
+-    *output = specified.to_computed_value_without_context();
++    let Some(computed) = specified.try_to_computed_value_without_context() else {
++        return false;
++    };
++    *output = computed;
+     true
+ }
+ 
+@@ -7931,12 +7934,33 @@
+     let mut current_offset = -1.;
+ 
+     let writing_mode = style.writing_mode;
++    let parent_element = if style.is_pseudo_style() {
++        Some(element)
++    } else {
++        element.inheritance_parent()
++    };
++    let parent_data = parent_element.as_ref().and_then(|e| e.borrow_data());
++    let parent_style = parent_data.as_ref().map(|d| &**d.styles.primary());
++    let container_size_query =
++        ContainerSizeQuery::for_element(element, parent_style, style.is_pseudo_style());
++    let mut conditions = Default::default();
++    let mut tree_counting_caches = TreeCountingCaches::default();
++    let context = create_context_for_animation(
++        &data,
++        style,
++        parent_style,
++        false,
++        &mut conditions,
++        container_size_query,
++        &element,
++        &mut tree_counting_caches,
++    );
+ 
+     let get_timing_func_and_composition =
+         |step: &KeyframesStep| -> (ComputedTimingFunction, CompositeOperationOrAuto) {
+             // Override timing_function if the keyframe has an animation-timing-function.
+             let timing_function = match step.get_animation_timing_function(&guard) {
+-                Some(val) => val.to_computed_value_without_context(),
++                Some(val) => val.to_computed_value(&context),
+                 None => (*inherited_timing_function).clone(),
+             };
+             // Override composite operation if the keyframe has an animation-composition.

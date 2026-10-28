@@ -1,0 +1,58 @@
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -443,6 +443,25 @@
+         // from being wasted effort, it will be wrong, since context.rule_cache_conditions won't be
+         // set appropriately if we didn't compute those reset properties.)
+         context.rule_cache_conditions.borrow_mut().set_uncacheable();
++    }
++
++    if matches!(cascade_mode, CascadeMode::Unvisited { .. }) {
++        if let Some(element) = originating_element {
++            let names: Vec<_> = context
++                .builder
++                .get_ui()
++                .animation_name_iter()
++                .filter_map(|name| name.as_atom().cloned())
++                .collect();
++            let was_non_inherited = context.for_non_inherited_property;
++            context.for_non_inherited_property = true;
++            for name in names {
++                if let Some(animation) = stylist.lookup_keyframes(&name, element) {
++                    animation.record_timing_function_dependencies(&context, guards.author);
++                }
++            }
++            context.for_non_inherited_property = was_non_inherited;
++        }
+     }
+ 
+     if context
+--- a/servo/components/style/stylesheets/keyframes_rule.rs
++++ b/servo/components/style/stylesheets/keyframes_rule.rs
+@@ -545,6 +545,27 @@
+ }
+ 
+ impl KeyframesAnimation {
++    /// Record contextual easing dependencies on the owning style before it is built.
++    pub fn record_timing_function_dependencies(
++        &self,
++        context: &crate::values::computed::Context,
++        guard: &SharedRwLockReadGuard,
++    ) {
++        use crate::values::computed::ToComputedValue;
++
++        if !self.has_contextual_timing_function {
++            return;
++        }
++        context.rule_cache_conditions.borrow_mut().set_uncacheable();
++        for step in self.steps.iter().chain(self.steps_with_range_name.iter()) {
++            if let Some(value) = step.get_animation_timing_function(guard) {
++                if value.try_to_computed_value_without_context().is_none() {
++                    let _ = value.to_computed_value(context);
++                }
++            }
++        }
++    }
++
+     /// Create a keyframes animation from a given list of keyframes.
+     ///
+     /// This will return a keyframe animation with empty steps if the list of
