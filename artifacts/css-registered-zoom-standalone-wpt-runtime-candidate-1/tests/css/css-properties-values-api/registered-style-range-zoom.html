@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered length style ranges compare canonical values under zoom</title>
+<link rel="help" href="https://drafts.csswg.org/css-conditional-5/#style-container">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#substitution">
+<link rel="help" href="https://drafts.csswg.org/css-viewport/#zoom-om">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let sequence = 0;
+for (const deferred of [false, true]) {
+  for (const ancestorZoom of [1, 2]) {
+    test(t => {
+      const id = sequence++;
+      const name = `--range-length-${id}`;
+      const containerName = `range-container-${id}`;
+      const targetId = `range-target-${id}`;
+      CSS.registerProperty({name, syntax: "<length>", inherits: false,
+                            initialValue: "1px"});
+      const ancestor = document.createElement("div");
+      ancestor.style.zoom = ancestorZoom;
+      const container = document.createElement("div");
+      container.style.cssText = `container-name:${containerName};font-size:20px;
+        --ready:5px;--range-control:5px;${name}:${deferred ? "var(--ready, 1em)" : "5px"}`;
+      const target = document.createElement("div");
+      target.id = targetId;
+      container.append(target);
+      ancestor.append(container);
+      const stylesheet = document.createElement("style");
+      const queries = [
+        ["control", "--range-control = 5px", "yes"],
+        ["equal", `${name} = 5px`, "yes"],
+        ["greater", `${name} > 4px`, "yes"],
+        ["less", `${name} < 6px`, "yes"],
+        ["false-less", `${name} < 4px`, "no"],
+        ["false-greater", `${name} > 6px`, "no"],
+      ];
+      stylesheet.textContent = `#${targetId} { ${queries.map(([key]) => `--${key}:no`).join(";")} }` +
+        queries.map(([key, condition]) =>
+          `@container ${containerName} style(${condition}) { #${targetId} { --${key}:yes } }`).join("\n");
+      document.head.append(stylesheet);
+      document.body.append(ancestor);
+      t.add_cleanup(() => { ancestor.remove(); stylesheet.remove(); });
+      const snapshots = [];
+      for (const zoom of [1, 2, 0.5, 1]) {
+        container.style.zoom = zoom;
+        const style = getComputedStyle(target);
+        snapshots.push({zoom, values: Object.fromEntries(queries.map(([key]) =>
+          [key, style.getPropertyValue(`--${key}`).trim()]))});
+      }
+      for (const snapshot of snapshots) {
+        for (const [key, , expected] of queries) {
+          assert_equals(snapshot.values[key], expected,
+                        `${key}, zoom ${snapshot.zoom}: ${JSON.stringify(snapshot.values)}`);
+        }
+      }
+    }, `Registered length style range: ${deferred ? "substituted" : "direct"}, ancestor zoom ${ancestorZoom}`);
+  }
+}
+</script>
