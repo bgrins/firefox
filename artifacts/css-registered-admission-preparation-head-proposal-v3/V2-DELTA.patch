@@ -1,0 +1,16 @@
+--- v2/servo/components/style/custom_properties.rs
++++ v3/servo/components/style/custom_properties.rs
+@@ -1887,8 +1887,11 @@
+ 
+     // If variable fallback results in a wide keyword, deal with it now.
+     if is_var {
+-        let mut input = Parser::new(&substitution.css);
+-        if let Ok(kw) = input.try_parse(CSSWideKeyword::parse) {
++        let css_wide_kw = {
++            let mut input = Parser::new(&substitution.css);
++            input.try_parse(CSSWideKeyword::parse)
++        };
++        if let Ok(kw) = css_wide_kw {
+             apply_substituted_css_wide_keyword(name, kw, registration, stylist, context);
+             return;
+         }

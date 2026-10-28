@@ -1,0 +1,22 @@
+--- v1/servo/components/style/custom_properties.rs
++++ v2/servo/components/style/custom_properties.rs
+@@ -1794,15 +1794,10 @@
+         Err(_) => return PreparedRegisteredValue::Invalid,
+     };
+     let intrinsic_references = intrinsic_registered_references(registration);
+-    let references = specified
+-        .context_references()
+-        .or_else(|| {
+-            let mut parser = Parser::new(&substitution.css);
+-            VariableValue::parse(&mut parser, None, url_data)
+-                .ok()
+-                .map(|value| value.references.flags)
+-        })
+-        .map(|references| references | intrinsic_references);
++    let mut parser = Parser::new(&substitution.css);
++    let references = VariableValue::parse(&mut parser, None, url_data)
++        .ok()
++        .map(|value| value.references.flags | intrinsic_references);
+     PreparedRegisteredValue::Value {
+         specified,
+         attr_tainted: substitution.attr_tainted,
