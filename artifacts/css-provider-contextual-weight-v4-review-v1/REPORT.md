@@ -1,0 +1,5 @@
+All eight conditional assertions fail at the provider-value check. Independent replay of the sealed raw events and the two explicit runner metadata overrides exactly reproduces the assessment fields. The eight raw failure payloads exactly reproduce OBSERVATIONS.json. All 24 snapshots show provider and font weight 800 while direct and literal controls follow 200/300/200. Registration/support, fixed-initial, line-height and container-size calibrations pass. Provider/consumer equality alone would miss this result.
+
+The saved run is complete and preserved; wrapper exit 0 and WPT exit 1 have different meanings. PRE equals POST, application metadata is unchanged, and cleanup records the owned process group absent and temporary root removed. No live state was queried.
+
+This is an observation under the explicitly conditional target-context initial-value oracle. It does not settle contextual @property admission or establish causality against the separate release MCP environment. The proposed partial ordinary-handler restoration still requires a local paired run; neither this result nor restoring the four color observations certifies recursive-default readiness.

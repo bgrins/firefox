@@ -1,0 +1,48 @@
+diff --git a/CssSemantics.lean b/CssSemantics.lean
+index 7fca861..558fe62 100644
+--- a/CssSemantics.lean
++++ b/CssSemantics.lean
+@@ -50,6 +50,7 @@ import CssSemantics.VariableStyle
+ import CssSemantics.VariablePropertyExamples
+ import CssSemantics.VariablesBrowserFixtures
+ import CssSemantics.GuardedState
++import CssSemantics.ProviderObservation
+ import CssSemantics.GuardedExpr
+ import CssSemantics.GuardedSolver
+ import CssSemantics.GuardedNormalization
+diff --git a/README.md b/README.md
+index 50f1f8e..2cc2a1d 100644
+--- a/README.md
++++ b/README.md
+@@ -154,6 +154,17 @@ records the exact dependencies per theorem. The forest's parent-depth law is
+ an explicit input obligation, not an axiom. Trust in the prose-to-model
+ interpretation and a future DOM adapter remains separate from kernel checking.
+ 
++## Provider observations
++
++Import `CssSemantics.ProviderObservation` (also exported by `CssSemantics`) to
++read an observation from the state returned by an optional forcing operation.
++`successful_state` and `successful_observation` retain both parts of a successful
++query. The query, step and history erasure laws change observations and logs
++while preserving the world and success/failure. Mutation, admission and forcing
++are independent of the log. These are generic provider-interface results;
++they do not prove CSS rectangle rules, native layout correctness or target
++lifetime. All five proofs are included in the standard axiom audit.
++
+ ## Evolving with the specification
+ 
+ Changes should identify the dated specification revision and affected
+diff --git a/tests/Audit.lean b/tests/Audit.lean
+index 8e2b5a8..52e2fcb 100644
+--- a/tests/Audit.lean
++++ b/tests/Audit.lean
+@@ -11574,3 +11574,9 @@ import CssSemantics
+ #print axioms CssSemantics.CssScopeRule.restore_iff
+ #print axioms CssSemantics.CssScopeRule.Restored.registration
+ #print axioms CssSemantics.CssScopeRule.restore_registration
++
++#print axioms CssSemantics.ProviderObservation.successful_observation
++#print axioms CssSemantics.ProviderObservation.successful_state
++#print axioms CssSemantics.ProviderObservation.query_erase
++#print axioms CssSemantics.ProviderObservation.advance_erase
++#print axioms CssSemantics.ProviderObservation.history_erase

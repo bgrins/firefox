@@ -1,0 +1,34 @@
+# Native iteration with a pending signed research commit
+
+The pending 36-file research patch can remain staged while native work continues. Signing is an external blocker to publication, not to building a different uncommitted candidate. Use a small successor transition/build adapter and an explicit later signing continuation; do not reuse the old v26 resume/synchronize assumptions.
+
+## Reusable pieces and actual constraints
+
+| Existing code | Reuse / narrow change |
+| --- | --- |
+| expanded-observation-v3/epoch.py::verify_current | Reuse unchanged for the exact pending 36 staging contract. It verifies the supplied epoch's native/binary bodies and identities, exact staged working and index blobs, signing patch, native dirt, untracked paths and nested repository. It does not hardcode v4 native hashes. |
+| provider-default-compile-repair-v1/apply.py | Reuse ownership claims, quiescence, lock, source/control backup and rollback pattern in a new artifact. Replace failed-build-only precondition with the successful v4 build/browser evidence and sealed v5 source map. Select the staged verifier explicitly. |
+| provider-default-install-v1/install.py::recovery | Reuse with authenticated role maps: 50 parked prototype bodies, 140 recovery pins and 74 untracked companions remain protected. No new accepted overlay or restoration baseline is implied. |
+| native-runtime-v1/build.py | A small new wrapper selects the staged verifier while retaining the original runtime directory and actual build command. Do not edit historical state.py/build.py. |
+| native-runtime-v1/phase.py and process_control.py | Reuse unchanged: build process, disk limit, logs, timeout and cleanup do not require empty staging. |
+| v26/resume-first.py | Not reusable unchanged: checks the old v4 working diff and publishes pins from the old v4 signing epoch. |
+| v26/finish.py and synchronize.py | Historical plan only after a native transition: sync hardcodes v4, runtime 32282 and old ROLE/OWNED hashes. A new continuation is required. |
+
+## Recommended sequence
+
+1. Freeze the successful v4 build2 and both browser observations as immutable evidence. Keep v26 selections, staged patch, expected commit tree/message and failed signing logs unchanged. Keep source snapshots matching v4; their later research commit remains about historical v4, not v5.
+2. Adopt the already authenticated staged observation epoch as an explicit metadata-only prelude. Input runtime CURRENT-EPOCH is 32282c6b…; actual staged workspace is the ca834209… observation record. Revalidate its derivation from the real build epoch, exact 36 staged patch/blob/body hashes and full state. Save both control preimages, claim CURRENT-EPOCH ownership, then publish the unchanged ca834 record with an adoption receipt. No source, index or HEAD write occurs. This makes the subsequent transition's rollback epoch truthful. It avoids trying to verify a staged workspace against the old empty-staging runtime record.
+3. Apply only the sealed v5 postimages through a successor of the owned transition. Start from the adopted staged epoch, exact v4 source hashes and current identities. Verify all inputs before writing; preserve current HEAD, index entries/cached diff, exact staged patch and all 36 staged bodies/modes/flags. Only the authenticated native paths and resulting working_diff may change. Record fresh raw-index observations without inventing a cause. Update native pins, ownership hashes/identities, exact modified-path set/count and variant; compiled=false, accepted=false. Keep staged_working exactly36 artifact entries. Rollback restores v4 sources and the adopted staged controls, with full preservation verification; do not attempt ordinary empty-index verification.
+4. Build using a small artifact-owned copy/adapter of build.py. Load the existing state helpers but explicitly select the authenticated staged verifier. Keep runtime output labels new and absent. Reuse phase.py, disk/timeout limits and process cleanup. Check the same full staged/source state before and after; only the four established binary pin entries may refresh on a real build. Preserve raw index semantics and flags. Publish the actual success/failure, role and epoch through owned control claims; a failed build must remain compiled=false. Do not edit the historical v4 build receipt or reinterpret its binaries as v5.
+5. Browser successors bind the actual v5 build epoch and the same staging contract. The old v4 ca834 capsule remains immutable and is not made to accept v5. No fresh fixed-HEAD successor is needed merely because native working bodies changed: HEAD remains 9abc, while the new source/build epoch records that change honestly.
+6. When signing is available, create a new signing continuation bound to the then-current externally pinned epoch. Its first action reauthenticates the exact old36 patch, stage tree, message and working artifact bytes; it resumes that commit without restaging, clearing or changing the patch. Verify the signature and committed tree. Only after that success, derive an empty-staging epoch by removing precisely those 36 staged entries, adding their committed research pins and updating the real HEAD/index. Keep current v5 source/binary/identity/ownership pins unchanged and verify with the ordinary guard. Subsequent research commits may reuse the generic v25/v26 commit driver from this new epoch. Publish a new synchronization receipt scoped to the actual candidate and evidence; do not run old v26 finish/synchronize.
+
+The adoption prelude and source transition can live in one small executor with separate receipts, so a source failure returns to a durable, correctly staged v4 state. No separate worktree, second build target, private replacement index, cherry-pick or signature bypass is needed. Native v5 remains experimental and no accepted count changes.
+
+## Small implementation boundary
+
+Needed: one new transition adapter, one small build adapter selecting the staged guard, and a later signing-continuation adapter. Reuse existing manifests and helpers rather than constructing a parallel framework. The fixed 36 staging contract is intentional: any additional staged path, changed message/tree/blob or signing event fails closed. A future signed HEAD change requires an explicit new continuation, not silent acceptance by this adapter.
+
+Do not simply replace the epoch verifier in state.py: that would change shared historical tooling and still leave runtime CURRENT-EPOCH describing empty staging. Do not use v26's old current epoch as a template after v5; its native and binary pins are historical. Do not clear staged_working before the research commit succeeds.
+
+This is an inspected design, not an implemented or executed transition. Read receipts 39cf09/1 (state/build read succeeded; old install.py filename absent),68e54d/0,579a75/0 and ed28aa/0. No source, index, HEAD, epoch, browser, build or signing action was performed.

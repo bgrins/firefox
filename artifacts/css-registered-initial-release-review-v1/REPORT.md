@@ -1,0 +1,13 @@
+# Independent release initial-registration review
+
+The saved evidence confirms 68 unique assertions: 27 PASS and 41 FAIL, with both harness pages ending OK. All 41 failures have the exact missing-exception message from the registration assertion. In the authenticated fixture this assertion follows the successful ordinary CSS.supports check, so these are registration-admission observations, not ordinary grammar-support failures.
+
+The original 21 results are 12 PASS / 9 FAIL and equal the local expanded-baseline semantic assertion signatures, including presence of status, expected, known_intermittent and message fields. Timestamps, stacks and process/thread identifiers are not semantic signature fields. The new 47 results are 15 PASS / 32 FAIL. PASS is a test outcome: it includes successful rejection controls as well as accepted independent values, and must not be read as 27 accepted registrations.
+
+The raw log was reparsed using the authenticated assessor and checked independently for exact names/cardinality/status counts. All saved fixture/config hashes, capsule/runtime inventory entries, BuildID/revision metadata, two normal external binaries and 110-entry external inventory binding agree. The command uses /Applications/Firefox.app. Its Version 158.0, BuildID 20261007201254 and release SourceStamp eb9a6e3a736802c8e080a76c44dc81f409d99d54 are distinct from the harness checkout revision 9abc806ef333f4cf9567ba28c3243ab9d9bc26e8. Repository sources are not attributed to the external browser.
+
+The saved pre/post snapshots are identical, including root and nested index records. The saved observation epoch joins the exact 36 staged working hashes and signing-patch digest. The wrapper's preserved-result record and cleanup receipt report no execution/preservation errors, no remaining owned process group and removal of the temporary root. This review checks stored evidence and the authenticated guard/lifecycle; it does not query current processes, application files, the live index or live epoch, and does not rerun a browser.
+
+The runtime report is appropriately bounded: installed release with current WPT preferences, not a stock-default profile; multiple probes of an admission issue, not 41 independent defects; five ambiguous normalization/image observations excluded; no @property policy conclusion, acceptance increment or security consequence. Its next-step paragraph is a proposed implementation direction, not a validated repair. No concrete report overclaim found.
+
+Replay: replay.py completed 0c6dba/0; the dependency-pin closure replay also passed (347dd3/0). No live mutation or native proof claim.

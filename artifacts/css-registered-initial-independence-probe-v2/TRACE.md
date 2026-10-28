@@ -1,0 +1,18 @@
+# Selected initial-value registration oracles
+
+Read on 2026-10-28 from the five official captures pinned in FETCH-2.json. `webspec-index query` failed with command-not-found (bf2706/127); this is a manually checked algorithm chain, not an exhaustive indexed graph trace. Initial sandbox fetch failed DNS (e39ffe/0 with per-source errors), then the public-source fetch succeeded (d62ae2/0). All cited fragment IDs are checked against those captures.
+
+Scenario: JavaScript CSS.registerProperty, fresh name, supported typed syntax, explicit initial value, inherits false. The original 21 assertions are copied byte for byte. This adds 46 assertions; neither page changes @property policy.
+
+1. [Register a custom property](https://drafts.css-houdini.org/css-properties-values-api/#the-registerproperty-function) parses initialValue, then checks the parsed result for computational independence before registration. Failure throws SyntaxError. A rejected name must remain available for the independent replacement used by the test.
+2. [Alternative matching](https://drafts.css-houdini.org/css-properties-values-api/#combinator) tries syntax components in declared order. Independence failure after selection does not authorize trying another alternative. Canvas selected as a color therefore rejects; Canvas selected as an identifier or explicit literal accepts.
+3. [Computed-value rules](https://drafts.css-houdini.org/css-properties-values-api/#calculation-of-computed-values) preserve identifiers and percentages, compute every list member, and compute lengths inside transform lists. These rules establish the later-member and independent percentage controls.
+4. [Container units](https://drafts.csswg.org/css-conditional-5/#container-lengths) use ancestor sizes selected separately by axis. All six nonzero cq units depend on CSS-controlled context. An absent container's viewport fallback does not establish general independence. Adding a nonzero px term or an independent earlier list/transform member does not remove that dependence.
+5. [Other color resolution](https://drafts.csswg.org/css-color-4/#resolving-other-colors) resolves system colors but preserves currentcolor symbolically. [Color-scheme choice](https://drafts.csswg.org/css-color-5/#light-dark) explains the CSS-controlled dependence of system colors. [Mix resolution](https://drafts.csswg.org/css-color-5/#resolving-mix) and [relative-color resolution](https://drafts.csswg.org/css-color-5/#resolving-rcs) likewise preserve currentcolor-containing computed representations. The positive tests must not be rejected merely because their eventual used colors depend on an element.
+6. [Computed images](https://drafts.csswg.org/css-images-3/#computed-image) compute their component colors and lengths. The nested currentcolor mix in a gradient remains symbolic at that stage; its absolute sibling adds no context requirement.
+
+Verdict: REACHED for the 46 new admission/rejection oracles under these scenarios. Support assertions distinguish missing ordinary grammar from a registration result. This is a spec argument, not evidence of a Firefox failure or a native proof.
+
+## Separate observations
+
+Five cases in initial-independence-observations.html have no WPT pass/fail oracle. Direct unequal image light-dark has an unresolved computed-stage interpretation; equivalent image/color branches and zero/cancelled container expressions need a normalization-sensitive independence analysis. Their verdict is INCONCLUSIVE here. The page records support, acceptance or exception into a DOM JSON report and window.initialIndependenceObservations. Do not include these five in normative pass counts. The existing equal-none image control remains unchanged in API21.

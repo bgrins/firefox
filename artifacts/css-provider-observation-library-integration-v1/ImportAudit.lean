@@ -1,0 +1,7 @@
+import CssSemantics.ProviderObservation
+
+#print axioms CssSemantics.ProviderObservation.successful_observation
+#print axioms CssSemantics.ProviderObservation.successful_state
+#print axioms CssSemantics.ProviderObservation.query_erase
+#print axioms CssSemantics.ProviderObservation.advance_erase
+#print axioms CssSemantics.ProviderObservation.history_erase

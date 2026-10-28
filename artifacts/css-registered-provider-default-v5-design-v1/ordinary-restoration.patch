@@ -1,0 +1,86 @@
+--- a/servo/components/style/custom_properties.rs
++++ b/servo/components/style/custom_properties.rs
+@@ -1676,21 +1676,42 @@
+ pub fn handle_invalid_at_computed_value_time(
+     name: &Name,
+     registration: &PropertyDescriptors,
+-    stylist: &Stylist,
+     context: &mut computed::Context,
+ ) {
+-    if let Some(value) = invalid_at_computed_value_time_value(name, registration, stylist, context)
+-    {
+-        context
+-            .builder
+-            .substitution_functions
+-            .insert_var(registration, name, value);
+-    } else {
+-        context
+-            .builder
+-            .substitution_functions
+-            .remove_var(registration, name);
+-    }
++    if !registration.is_universal() {
++        // For the root element, inherited maps are empty. We should just
++        // use the initial value if any, rather than removing the name.
++        if registration.inherits() && !context.builder.is_root_element {
++            let inherited = context.builder.inherited_style.custom_properties();
++            if let Some(value) = inherited.get(registration, name) {
++                context.builder.substitution_functions.insert_var(
++                    registration,
++                    name,
++                    value.clone(),
++                );
++                return;
++            }
++        } else if let Some(ref initial_value) = registration.initial_value
++            && let Ok(initial_value) = compute_value(
++                &initial_value.css,
++                &initial_value.url_data,
++                registration,
++                context,
++                AttrTaint::default(),
++                Some(PropertyIdRef::from(name)),
++            )
++        {
++            context
++                .builder
++                .substitution_functions
++                .insert_var(registration, name, initial_value);
++            return;
++        }
++    }
++    context
++        .builder
++        .substitution_functions
++        .remove_var(registration, name);
+ }
+ 
+ /// Replace `var()`, `env()`, and `attr()` functions in a pre-existing variable value.
+@@ -1738,7 +1759,7 @@
+ 
+     let Ok(substitution) = substitution else {
+         if is_var {
+-            handle_invalid_at_computed_value_time(name, registration, stylist, context);
++            handle_invalid_at_computed_value_time(name, registration, context);
+         } else if let Some(namespace) = namespace {
+             context
+                 .builder
+@@ -1791,7 +1812,7 @@
+             ) {
+                 Ok(v) => v,
+                 Err(()) => {
+-                    handle_invalid_at_computed_value_time(name, registration, stylist, context);
++                    handle_invalid_at_computed_value_time(name, registration, context);
+                     return;
+                 },
+             };
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -2281,7 +2281,6 @@
+                     handle_invalid_at_computed_value_time(
+                         name,
+                         self.stylist.get_custom_property_registration(name),
+-                        self.stylist,
+                         self.computed_context,
+                     );
+                 },

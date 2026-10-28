@@ -1,0 +1,49 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered initial values and computational independence</title>
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#dom-css-registerproperty">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+const cases = [
+  ["<length>", "5px", "width", true, "0px"],
+  ["<length>", "calc(2px + 3px)", "width", true, "0px"],
+  ["<length>", "10vw", "width", true, "0px"],
+  ["<length>", "1em", "width", false, "0px"],
+  ["<length>", "1rem", "width", false, "0px"],
+  ["<length>", "1lh", "width", false, "0px"],
+  ["<length>", "1cqw", "width", false, "0px"],
+  ["<length>", "1cqi", "width", false, "0px"],
+  ["<length>", "calc(1px + 1cqw)", "width", false, "0px"],
+  ["<color>", "red", "color", true, "blue"],
+  ["<color>", "currentcolor", "color", true, "blue"],
+  ["<color>", "color-mix(in srgb, red, blue)", "color", true, "blue"],
+  ["<color>", "light-dark(red, blue)", "color", false, "blue"],
+  ["<color>", "Canvas", "color", false, "blue"],
+  ["<color>", "color-mix(in srgb, Canvas, red)", "color", false, "blue"],
+  ["<image>", "linear-gradient(red, blue)", "background-image", true, "linear-gradient(red, blue)"],
+  ["<image>", "light-dark(none, none)", "background-image", true, "linear-gradient(red, blue)"],
+  ["<image>", "linear-gradient(light-dark(red, blue), green)", "background-image", false, "linear-gradient(red, blue)"],
+  ["<image>", "linear-gradient(Canvas, green)", "background-image", false, "linear-gradient(red, blue)"],
+  ["<transform-function>", "translateX(3px)", "transform", true, "translateX(0px)"],
+  ["<transform-function>", "translateX(1cqw)", "transform", false, "translateX(0px)"],
+];
+
+for (const [index, [syntax, initialValue, property, valid, replacement]] of cases.entries()) {
+  test(() => {
+    assert_true(CSS.supports(property, initialValue), "Ordinary value syntax is supported");
+    const definition = {
+      name: `--initial-independence-${index}`,
+      syntax,
+      inherits: false,
+      initialValue,
+    };
+    if (valid) {
+      CSS.registerProperty(definition);
+    } else {
+      assert_throws_dom("SyntaxError", () => CSS.registerProperty(definition));
+      CSS.registerProperty({...definition, initialValue: replacement});
+    }
+  }, `Registered initial independence: ${syntax} ${initialValue}`);
+}
+</script>

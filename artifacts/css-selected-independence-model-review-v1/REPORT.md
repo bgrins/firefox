@@ -1,0 +1,11 @@
+# Bounded selected-independence model review
+
+No concrete proof-scope or Canvas-blue probe blocker found. This is an independent read of the sealed Lean definitions, theorem statements/proofs, audit list, README and spec trace, with all manifest payloads authenticated. The compiler/replay was not rerun here.
+
+The general soundness result depends explicitly on environments agreeing at collected keys. Acceptance stability follows from the empty structural certificate in this deliberately small language. The model does not equate an arbitrary empty metadata list with soundness; `Sound` is a premise for general tracked values, and `track_sound` establishes it only for the model collector. The simplification theorem requires equality of computation for every environment as well as equal evidence. The sampled-fold witness correctly refutes replacing that universal premise with one sampled environment.
+
+Selection is defined over completed parser attempts. `failed_prefix_ignored` does not assert that arbitrary real parser rollback is correct: complete-input parsing and correct attempt construction are explicit mapping premises. The two mutants separately expose dependent-success backtracking and failed-attempt metadata contamination. Nested/list results inspect every modeled child. The README accurately excludes equal branches, cancellations, global/device information, actual parser/native correspondence, side effects and registration-map insertion.
+
+The proposed `Canvas blue` / `<color> | <custom-ident>+` control is sound under the stated ordinary grammar: a color attempt may consume Canvas but cannot consume the whole input; the later two-identifier list succeeds. Both identifiers are valid custom identifiers. This tests discarded-attempt evidence separately from the successful-dependent-color no-retry control. It is an unexecuted browser probe, not a native bug observation or a theorem about the actual parser.
+
+The 22-item audit list is consistent with the reviewed declarations. Existing kernel/negative-control outcomes are author-run evidence only; this review does not independently attest a fresh kernel replay. No native, canonical, Git, runtime or staged-artifact mutation occurred.

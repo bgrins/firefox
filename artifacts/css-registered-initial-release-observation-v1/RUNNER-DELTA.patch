@@ -1,0 +1,51 @@
+--- release-v2/run.py
++++ initial-release-v1/run.py
+@@ -56,13 +56,6 @@
+         path = directory / relative
+         digest = item["sha256"] if isinstance(item, dict) else item
+         need(stat.S_ISREG(path.lstat().st_mode) and sha(path) == digest, "payload: " + name)
+-
+-
+-def require_compiled_transition(epoch, role):
+-    transition = epoch.get("registered_number_transition")
+-    need(isinstance(transition, dict) and transition.get("role") == role and
+-         transition.get("variant") == "zoom-standalone-v1" and transition.get("compiled") is True,
+-         "phase requires matching successful standalone zoom compilation")
+ 
+ 
+ def application_target(path):
+@@ -115,7 +108,6 @@
+     need(epoch_path.is_absolute() and not epoch_path.is_symlink(), "absolute regular epoch")
+     need(sha(epoch_path) == sys.argv[4] == policy["epoch_sha256"], "externally supplied epoch digest")
+     epoch = read(epoch_path)
+-    require_compiled_transition(epoch, role)
+     bindings = load("standalone_bindings", HERE / "bindings.py")
+     phase_binding = bindings.validate_phase(ROOT, HERE, policy, epoch, SimpleNamespace(**globals()))
+     need(epoch["semantic_index"]["head"] == policy["frozen_head"], "epoch HEAD differs from frozen comparison HEAD")
+@@ -128,7 +120,7 @@
+     out = Path(sys.argv[5])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "output must be absent")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-provider-release-observation-runtime-"), "owned artifact output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-initial-release-observation-runtime-"), "owned artifact output")
+     need(all(not os.environ.get(k) for k in policy["forbidden_environment"]), "unexpected build/git/profile environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+@@ -202,7 +194,7 @@
+               for p in top.rglob("*") if p.is_file() and "tools" not in p.relative_to(top).parts}
+     copied["wptrunner.ini"] = sha(config_path)
+     save(out / "OWNED-INPUT-PINS.json", copied)
+-    tmp = Path(tempfile.mkdtemp(prefix="css-provider-release-wpt-", dir="/private/tmp"))
++    tmp = Path(tempfile.mkdtemp(prefix="css-initial-release-wpt-", dir="/private/tmp"))
+     tmp_identity = (tmp.stat().st_dev, tmp.stat().st_ino)
+     env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+     raw = out / "raw.jsonl"
+@@ -292,7 +284,7 @@
+     result = {"exit": code, "execution_error": error, "preservation_error": post_error,
+               "phase": phase, "observation_gate_passed": bool(passed),
+               "comparison_gate_passed": False,
+-              "native_fix_acceptance": False, "clean_staging_preserved": bool(post_error is None),
++              "native_fix_acceptance": False, "exact_pending_staging_preserved": bool(post_error is None),
+               "original_adoption": adopted, "observation_only": True,
+               "complete_comparison": bool(compared and compared["complete"]),
+               "comparison_summary": compared["summary"] if compared else None}

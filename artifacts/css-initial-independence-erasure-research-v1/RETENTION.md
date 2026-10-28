@@ -1,0 +1,23 @@
+# Exact selected-AST retention integration
+
+Use a distinct owned field on `properties_and_values::registry::PropertyRegistration`:
+
+```rust
+pub validated_script_initial: Option<Box<SpecifiedRegisteredValue>>,
+```
+
+This is a proposed field, not applied code. `SpecifiedRegisteredValue` means `properties_and_values::value::SpecifiedValue`, not the similarly named raw variable-token value. Store only a successfully validated typed JS initial. The existing descriptor's raw initial and URL data remain intact for CSSOM/serialization and existing universal behavior. An optional Box keeps the registration's inline cost to one pointer and uniquely owns the AST. The existing `Clone` derive deep-clones it, which is correct ownership but should be measured if registration cloning proves hot.
+
+The actual integration touches these boundaries:
+
+1. `PropertyRegistration::validate_script_initial_value` should return `Result<Option<Box<SpecifiedRegisteredValue>>, PropertyRegistrationError>`. Preserve required-initial, universal, CSS-wide/reference and normal grammar validation with their ordering. For a non-universal value, perform ordinary complete syntax selection once, then validate that selected result. No alternative retry follows a successful dependent parse. Do not map an unresolved diagnostic audit to either result. Universal/absent-initial handling can retain the current raw-token path and return None after its existing checks.
+2. `Stylist::register_custom_property` keeps name and duplicate checks before parsing/validation. Populate `validated_script_initial` with the returned owned AST only after validation succeeds, then perform the existing insertion and initial-map rebuild. Rejected attempts do not reserve the name. The selected AST retains URL data and taint fields from its real parse; do not reconstruct it from serialized CSS.
+3. `parse_property_block` constructs CSS-rule registrations with `validated_script_initial: None`. The shared existing CSS-rule validation remains unchanged pending its independent policy decision. Searchfox finds these two registration struct literals; source-root discovery should be repeated before applying a patch if upstream moves.
+4. `PropertyRegistration::compute_initial_value` keeps the no-initial error and universal shortcut. For a retained typed JS initial, use its `ToComputedValue::to_computed_value(computed_context)` directly. Import the actual trait and go through the outer Value implementation, preserving the accepted registered-value zoom boundary. Otherwise execute the existing CSS-rule parse/compute route. Do not reparse the selected JS tokens with DISALLOW_COMPUTATIONALLY_DEPENDENT.
+5. Both existing callers in `Stylist::rebuild_initial_values_for_custom_properties` can stay unchanged: script registry iteration and winning CSS-rule iteration both call compute_initial_value. Device/viewport-triggered rebuilds must recompute from the retained specified AST; storing a computed value would incorrectly freeze allowed global inputs. CSS-rule registrations keep no retained JS AST and continue their old precedence/parse path.
+
+Memory accounting is an actual constraint, not an assumed derive convenience. `PropertyRegistration` derives `MallocSizeOf`; the typed `Value` and its components already support it. An optional owned Box can use ordinary derived deep accounting. In contrast, `servo_arc::Arc<T>` deliberately does not implement ordinary MallocSizeOf: the captured allocator module offers explicit conditional/unconditional shared accounting. A bare new Arc field would therefore need a real accounting policy/custom implementation, not merely another derive or ignore annotation. The recommended Box avoids that new shared-allocation obligation. This follows the captured actual malloc source, byte-identical to the retrieved upstream body.
+
+`PropertyRegistration` does not derive ToShmem and its existing ToShmem implementation explicitly returns an error, so this field does not silently gain a cross-process serialization contract. Existing ToCssWithGuard uses name/descriptors rather than a struct-wide serialization derive; it should continue serializing the descriptor tokens. ScriptRegistry's existing MallocSizeOf traversal reaches the added owned field through the registration derive. Verify this with a native build and targeted accounting review rather than claiming the sketch has typechecked.
+
+The seven-path inactive inspector currently returns the owned AST needed for step1, but none of these retention edits are implemented or activated. This sketch deliberately does not solve the separate contextual-default completion protocol for existing CSS-rule registrations.

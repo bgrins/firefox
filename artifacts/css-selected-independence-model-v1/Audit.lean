@@ -1,0 +1,23 @@
+import Independence
+#print axioms SelectedIndependence.agreement_suffices
+#print axioms SelectedIndependence.independent_stable
+#print axioms SelectedIndependence.nested_independence
+#print axioms SelectedIndependence.list_independence
+#print axioms SelectedIndependence.choice_append
+#print axioms SelectedIndependence.failed_prefix_ignored
+#print axioms SelectedIndependence.successful_selection_no_retry
+#print axioms SelectedIndependence.dependent_selection_rejects
+#print axioms SelectedIndependence.accepted_certificate
+#print axioms SelectedIndependence.accepted_context_stable
+#print axioms SelectedIndependence.canvas_color_first_rejects
+#print axioms SelectedIndependence.canvas_ident_first_accepts
+#print axioms SelectedIndependence.preparse_rejection_changes_selection
+#print axioms SelectedIndependence.failed_branch_flags_are_not_selected_dependencies
+#print axioms SelectedIndependence.later_nested_dependency_retained
+#print axioms SelectedIndependence.later_member_changes_computation
+#print axioms SelectedIndependence.track_sound
+#print axioms SelectedIndependence.sound_empty_evidence_stable
+#print axioms SelectedIndependence.simplification_preserves_certificate
+#print axioms SelectedIndependence.erased_evidence_is_unsound
+#print axioms SelectedIndependence.sampled_fold_matches_only_sample
+#print axioms SelectedIndependence.imported_numeric_certificate

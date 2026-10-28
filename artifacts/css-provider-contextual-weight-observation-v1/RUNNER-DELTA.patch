@@ -1,0 +1,73 @@
+--- expanded-v3/run.py
++++ weight-v1/run.py
+@@ -117,8 +117,7 @@
+     need(epoch["semantic_index"]["head"] == policy["frozen_head"], "epoch HEAD differs from frozen comparison HEAD")
+     app_metadata = application_metadata(ROOT / policy["application_ini"], epoch["semantic_index"]["head"])
+     original, baseline_path = None, None
+-    baseline = load("baseline_observation", HERE / "baseline.py")
+-    adopted = baseline.validate(ROOT, HERE, policy, SimpleNamespace(**globals()))
++    adopted = None
+     for name, pin in read(HERE / "REFERENCES.json").items():
+         need(sha(ROOT / name) == pin, "helper/source binding: " + name)
+     for name, pin in policy["source_roles"][role].items():
+@@ -126,7 +125,7 @@
+     out = Path(sys.argv[5])
+     need(out.is_absolute() and not out.exists() and not out.is_symlink(), "output must be absent")
+     out = out.resolve()
+-    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-registered-provider-expanded-observation-runtime-"), "owned artifact output")
++    need(out.parent == ROOT / "artifacts" and out.name.startswith("css-provider-contextual-weight-observation-runtime-"), "owned artifact output")
+     need(all(not os.environ.get(k) for k in policy["forbidden_environment"]), "unexpected build/git/profile environment")
+     env = dict(os.environ, GIT_OPTIONAL_LOCKS="0", PYTHONDONTWRITEBYTECODE="1",
+                MOZCONFIG=str(ROOT / "mozconfig"), MOZ_OBJDIR=str(ROOT / "objdir-full.noindex"),
+@@ -200,7 +199,7 @@
+               for p in top.rglob("*") if p.is_file() and "tools" not in p.relative_to(top).parts}
+     copied["wptrunner.ini"] = sha(config_path)
+     save(out / "OWNED-INPUT-PINS.json", copied)
+-    tmp = Path(tempfile.mkdtemp(prefix="css-provider-expanded-wpt-", dir="/private/tmp"))
++    tmp = Path(tempfile.mkdtemp(prefix="css-provider-weight-wpt-", dir="/private/tmp"))
+     tmp_identity = (tmp.stat().st_dev, tmp.stat().st_ino)
+     env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+     raw = out / "raw.jsonl"
+@@ -260,8 +259,6 @@
+                  (tests_root / "tools").resolve() == ROOT / "testing/web-platform/tests/tools", "owned tools link changed")
+             for name, pin in read(HERE / "REFERENCES.json").items():
+                 need(sha(ROOT / name) == pin, "helper/source changed: " + name)
+-            if adopted is not None:
+-                need(baseline.validate(ROOT, HERE, policy, SimpleNamespace(**globals())) == adopted, "baseline evidence changed")
+             need(bindings.validate_phase(ROOT, HERE, policy, epoch, SimpleNamespace(**globals())) == phase_binding, "phase binding changed")
+             authenticate(HERE, sys.argv[1])
+             save(out / "POST.json", post)
+@@ -276,7 +273,7 @@
+                           epoch_sha256=sys.argv[4], native_sources=policy["source_roles"][role], original_adoption=adopted,
+                           capsule_directory=str(HERE.relative_to(ROOT)), experiment_sha256=sha(HERE / "EXPERIMENT.json"),
+                           observation_only=True, subtest_cardinality_policy=policy["cardinality_description"],
+-                          oracle_caveat="Provider repair candidate observations against exact775 baseline; no automatic acceptance; review full color snapshots even when FAIL persists",
++                          oracle_caveat="Conditional contextual registered initial under current compiled provider v4; preserve all24 snapshots; admission policy unresolved; no automatic native acceptance",
+                           execution_preserved=bool(error is None and post_error is None and
+                               cleanup.get("owned_group_absent") and cleanup.get("temporary_root_removed")))
+         save(out / "ASSESSMENT.json", assessment)
+--- expanded-v3/bindings.py
++++ weight-v1/bindings.py
+@@ -26,12 +26,6 @@
+     helper.need(len(sources) == 9 and policy["source_roles"] == {"candidate": sources}, "two candidate sources and seven accepted zoom sources")
+     helper.need(all(epoch["pins"].get(n) == pin and n in epoch["installed_identities"] for n, pin in sources.items()), "compiled native bodies and identities")
+     helper.need(len(policy["installed_tests"]) == 7 and all(epoch["pins"].get(n) == pin and n in epoch["installed_identities"] for n, pin in policy["installed_tests"].items()), "seven accepted test bodies and identities")
+-    baseline_record = helper.read(here / "BASELINE.json")
+-    baseline = root / baseline_record["directory"]
+-    old = helper.read(baseline / "EPOCH.json")
+-    helper.need(old["semantic_index"]["head"] == policy["frozen_head"], "baseline and candidate HEAD equality")
+-    for key in ["accepted_registered_zoom", "untracked_native", "nested_semantic_index"]:
+-        helper.need(old[key] == epoch[key], "preserved accepted baseline: " + key)
+     helper.need(epoch["accepted_registered_zoom"]["fix"] == 139, "accepted zoom repair preserved")
+     build = Path("artifacts/css-registered-number-native-runtime-v1") / policy["build_label"]
+     helper.need(policy["build_result"] == str(build / "RESULT.json") and policy["build_epoch"] == str(build / "EPOCH.json"), "actual build paths")
+--- expanded-v3/assess.py
++++ weight-v1/assess.py
+@@ -123,5 +123,5 @@
+             "unexpected": unexpected, "infrastructure_faults": faults,
+             "regression_signature": regression, "held_signature": held_signature, "comparison_errors": comparison_errors,
+             "comparison_gate_passed": original is not None and not errors and not comparison_errors,
+-            "subtest_cardinality_policy": "Exact 775 named assertions across 30 harness pages plus six reftests; all completed PASS and FAIL outcomes are observations",
+-            "oracle_caveat": "Accepted zoom139 baseline; prior668 plus107 separately attributed provider/admission observations; no new native acceptance."}
++            "subtest_cardinality_policy": "Exact eight named conditional assertions in one page; all completed PASS and FAIL outcomes are observations",
++            "oracle_caveat": "Contextual @property initial policy is unresolved; preserve complete snapshots and calibrations; no native acceptance."}

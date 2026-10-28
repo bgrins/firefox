@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Registered font-relative lengths remain canonical under zoom</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#font-relative-lengths">
+<link rel="help" href="https://drafts.css-houdini.org/css-properties-values-api-1/#calculation-of-computed-values">
+<link rel="help" href="https://drafts.csswg.org/css-viewport/#zoom-om">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let sequence = 0;
+const cases = [
+  {unit: "em", expected: [40, 60]},
+  {unit: "lh", expected: [48, 72]},
+  {unit: "rem", expected: [80, 100]},
+  {unit: "rlh", expected: [120, 140]},
+];
+for (const item of cases) {
+  for (const deferred of [false, true]) {
+    test(t => {
+      const root = document.documentElement;
+      const originalRootStyle = root.getAttribute("style");
+      t.add_cleanup(() => {
+        if (originalRootStyle === null) {
+          root.removeAttribute("style");
+        } else {
+          root.setAttribute("style", originalRootStyle);
+        }
+      });
+      const name = `--relative-zoom-${sequence++}`;
+      CSS.registerProperty({name, syntax: "<length>", inherits: false,
+                            initialValue: "1px"});
+      const parent = document.createElement("div");
+      parent.style.cssText = "zoom:2;width:400px";
+      const target = document.createElement("div");
+      target.style.cssText = `--ready:2${item.unit};${name}:${deferred ? "var(--ready, 3px)" : `2${item.unit}`};
+        width:var(${name});height:10px;box-sizing:content-box;border:0;padding:0`;
+      parent.append(target);
+      document.body.append(parent);
+      t.add_cleanup(() => parent.remove());
+      const snapshots = [];
+      for (let step = 0; step < 2; step++) {
+        root.style.fontSize = `${[40, 50][step]}px`;
+        root.style.lineHeight = `${[60, 70][step]}px`;
+        target.style.fontSize = `${[20, 30][step]}px`;
+        target.style.lineHeight = `${[24, 36][step]}px`;
+        for (const zoom of [1, 2, 0.5, 1]) {
+          target.style.zoom = zoom;
+          const style = getComputedStyle(target);
+          snapshots.push({step, zoom, value: style.getPropertyValue(name).trim(),
+                          fontSize: style.fontSize, lineHeight: style.lineHeight,
+                          width: style.width, physicalWidth: target.getBoundingClientRect().width});
+        }
+      }
+      for (const snapshot of snapshots) {
+        const label = JSON.stringify(snapshot);
+        assert_equals(snapshot.fontSize, `${[20, 30][snapshot.step]}px`, label);
+        assert_equals(snapshot.lineHeight, `${[24, 36][snapshot.step]}px`, label);
+        const expected = item.expected[snapshot.step];
+        assert_equals(snapshot.value, `${expected}px`, `${label}, registered value`);
+        assert_equals(snapshot.width, `${expected}px`, `${label}, consuming width`);
+        assert_approx_equals(snapshot.physicalWidth, expected * 2 * snapshot.zoom,
+                             0.02, `${label}, scaled width`);
+      }
+    }, `Registered relative length: ${item.unit}, ${deferred ? "substituted" : "direct"}, font mutation`);
+  }
+}
+</script>
