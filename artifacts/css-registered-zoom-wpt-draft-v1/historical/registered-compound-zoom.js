@@ -1,0 +1,72 @@
+
+let sequence = 0;
+const cases = [
+  {name: "length-percentage", syntax: "<length-percentage>", initial: "0px",
+   value: "calc(5px + 25%)", property: "width"},
+  {name: "space-separated lengths", syntax: "<length>+", initial: "0px",
+   value: "5px 7px", property: "margin", read: ["marginTop", "marginRight"]},
+  {name: "comma-separated lengths", syntax: "<length>#", initial: "0px",
+   value: "5px, 7px"},
+  {name: "length alternative", syntax: "<length> | <number>", initial: "0px",
+   value: "5px", property: "width"},
+  {name: "translation", syntax: "<transform-function>", initial: "translateX(0px)",
+   value: "translate(5px, 7px)", property: "transform"},
+  {name: "transform list", syntax: "<transform-list>", initial: "translateX(0px)",
+   value: "translate(5px, 7px) translateZ(3px) rotate(15deg)", property: "transform"},
+  {name: "matrix", syntax: "<transform-function>", initial: "translateX(0px)",
+   value: "matrix(1, 0, 0, 1, 5, 7)", property: "transform"},
+  {name: "linear gradient", syntax: "<image>", initial: "linear-gradient(red, blue)",
+   value: "linear-gradient(to right, red 5px, blue 15px)", property: "backgroundImage"},
+  {name: "radial gradient", syntax: "<image>", initial: "linear-gradient(red, blue)",
+   value: "radial-gradient(circle 5px at 7px 9px, red 0px, blue 5px)", property: "backgroundImage"},
+];
+
+for (const item of cases) {
+  for (const deferred of [false, true]) {
+    test(t => {
+      const name = `--compound-zoom-${sequence++}`;
+      CSS.registerProperty({name, syntax: item.syntax, inherits: false,
+                            initialValue: item.initial});
+      const parent = document.createElement("div");
+      parent.style.cssText = "position:relative;width:200px;height:100px;font-size:20px";
+      const target = document.createElement("div");
+      const reference = document.createElement("div");
+      for (const element of [target, reference]) {
+        element.style.cssText = "position:absolute;left:0;top:0;width:40px;height:30px;border:0;padding:0";
+        parent.append(element);
+      }
+      target.style.setProperty("--ready", item.value);
+      target.style.setProperty(name, deferred ? "var(--ready, 1em)" : item.value);
+      if (item.property) {
+        target.style[item.property] = `var(${name})`;
+        reference.style[item.property] = item.value;
+      }
+      document.body.append(parent);
+      t.add_cleanup(() => parent.remove());
+
+      const canonical = getComputedStyle(target).getPropertyValue(name).trim();
+      assert_not_equals(canonical, "", "the registered value is present");
+      assert_not_equals(canonical, item.initial, "the supplied value differs from the initial value");
+      for (const zoom of [2, 0.5, 1]) {
+        target.style.zoom = zoom;
+        reference.style.zoom = zoom;
+        const style = getComputedStyle(target);
+        const control = getComputedStyle(reference);
+        assert_equals(style.getPropertyValue(name).trim(), canonical,
+                      `registered value at zoom ${zoom}`);
+        for (const property of item.read || (item.property ? [item.property] : [])) {
+          assert_equals(style[property], control[property],
+                        `${property} agrees with direct CSS at zoom ${zoom}`);
+        }
+        if (item.property === "width" || item.property === "transform") {
+          const actual = target.getBoundingClientRect();
+          const expected = reference.getBoundingClientRect();
+          for (const dimension of ["x", "y", "width", "height"]) {
+            assert_approx_equals(actual[dimension], expected[dimension], 0.02,
+                                 `${dimension} agrees with direct CSS at zoom ${zoom}`);
+          }
+        }
+      }
+    }, `Registered ${item.name}, ${deferred ? "substituted" : "direct"} value`);
+  }
+}

@@ -1,0 +1,7 @@
+import Structural
+#print axioms RegisteredZoom.Structural.map_identity
+#print axioms RegisteredZoom.Structural.map_composition
+#print axioms RegisteredZoom.Structural.map_left_inverse
+#print axioms RegisteredZoom.Structural.nonlength_data_preserved
+#print axioms RegisteredZoom.Structural.structured_scale_unscale
+#print axioms RegisteredZoom.Structural.structured_storage_canonical

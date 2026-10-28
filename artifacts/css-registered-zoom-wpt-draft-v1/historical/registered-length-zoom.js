@@ -1,0 +1,58 @@
+
+let sequence = 0;
+const cases = [
+  {name: "literal", value: "5px", expected: 5},
+  {name: "selected primary", value: "var(--ready)", expected: 5},
+  {name: "unused relative fallback", value: "var(--ready, 1em)", expected: 5},
+  {name: "selected absolute fallback", value: "var(--missing, 7px)", expected: 7},
+  {name: "invalid relative fallback", value: "var(--missing, 1em red)", expected: 10},
+  {name: "wrong primary", value: "var(--wrong, 1em)", expected: 10},
+  {name: "invalid declaration", value: "1em red", expected: 10},
+  {name: "initial keyword", value: "initial", expected: 10},
+  {name: "substituted initial keyword", value: "var(--missing, initial)", expected: 10},
+  {name: "inherit keyword", value: "inherit", expected: 20},
+  {name: "substituted inherit keyword", value: "var(--missing, inherit)", expected: 20},
+  {name: "unset non-inherited property", value: "unset", expected: 10},
+  {name: "unset inherited property", value: "unset", inherits: true, expected: 20},
+];
+
+for (const item of cases) {
+  for (const parentZoom of [1, 2]) {
+    test(t => {
+      const name = `--length-zoom-${sequence++}`;
+      CSS.registerProperty({name, syntax: "<length>", inherits: !!item.inherits,
+                            initialValue: "10px"});
+      const parent = document.createElement("div");
+      parent.style.cssText = `zoom:${parentZoom};font-size:19px;line-height:23px;${name}:20px`;
+      const target = document.createElement("div");
+      target.style.cssText = `--ready:5px;--wrong:red;${name}:${item.value};
+        font-size:20px;box-sizing:content-box;border:0;padding:0;
+        width:var(${name});height:10px`;
+      parent.append(target);
+      document.body.append(parent);
+      t.add_cleanup(() => parent.remove());
+
+      const snapshots = [];
+      for (const zoom of [1, 2, 0.5, 1]) {
+        target.style.zoom = zoom;
+        const style = getComputedStyle(target);
+        const value = style.getPropertyValue(name).trim();
+        const width = style.width;
+        const rect = target.getBoundingClientRect();
+        snapshots.push({zoom, value, width, physicalWidth: rect.width,
+                        physicalHeight: rect.height});
+      }
+      for (const snapshot of snapshots) {
+        const label = `zoom ${snapshot.zoom}: ${JSON.stringify(snapshot)}`;
+        assert_equals(snapshot.value, `${item.expected}px`, `${label}, registered value`);
+        assert_equals(snapshot.width, `${item.expected}px`, `${label}, consuming width`);
+        assert_approx_equals(snapshot.physicalWidth,
+                             item.expected * parentZoom * snapshot.zoom,
+                             0.02, `${label}, scaled width`);
+        assert_approx_equals(snapshot.physicalHeight,
+                             10 * parentZoom * snapshot.zoom,
+                             0.02, `${label}, independent scaled height`);
+      }
+    }, `Registered length: ${item.name}, ancestor zoom ${parentZoom}`);
+  }
+}

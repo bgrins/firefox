@@ -1,0 +1,11 @@
+# Registered-value zoom regression drafts
+
+These four testharness pages are unexecuted drafts: 26 scalar, 18 compound, eight font-relative and four style-range cases (56 named tests total). Static JavaScript parsing and test-name enumeration passed; no callback ran and no browser result, native acceptance or additional specification coverage is claimed.
+
+The scalar page covers direct/substituted values, invalid defaulting, CSS-wide selection, zoom mutation and an independently zoomed ancestor. The compound page now checks the actual computed registered initial value on an undeclared element, validates ordinary literal admission, and compares consumers at zoom1 before testing zoom changes. Comma-separated lengths have an ordinary background-position consumer. These are stronger controls than comparing against the raw initial text, but they still need execution/calibration.
+
+The relative page uses fixed current/root font sizes and explicit line heights, avoiding font-size/custom-property cycles. It tests em/lh/rem/rlh through direct and var paths while mutating font references and local zoom under a zoomed ancestor. The style-range page has an unregistered literal control, positive equality/range checks and negative range checks; its grammar/evaluation is grounded in the current captured Conditional Rules 5 draft. Unsupported style ranges must fail calibration, not be silently skipped or attributed to zoom.
+
+ORACLE-REVIEW.md records the manual specification basis and residual limits. Newly fetched official Values 4 and Conditional Rules 5 HTML is pinned under spec/. Existing registered-value/Viewport and CSS-wide traces are referenced with hashes. Container-relative units remain excluded pending the distinct coordinate/provenance audit. Registration changes, custom animations/recascade, deeper nested images, and color/taint preservation remain future cases. No native files, live WPT paths, metadata, index or epoch were modified. Root must review and calibrate these drafts before installation.
+
+The historical/ directory retains the original two-page JavaScript extracts and their pre-review 44-case static receipt. They are not the executable drafts or the current validation result; STATIC-REVIEW.json binds the four current HTML sources and 56 names.
