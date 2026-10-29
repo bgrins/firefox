@@ -1,5 +1,10 @@
 # CSS verification bugfix commits
 
+Fix 147: Invalidate old-parent styles during moveBefore()
+
+Native: `ebb5d4fc489e1a5affdb8f2c1ae2d4dd50884bf9`. Research: `d6e3b47c1c7f0c504fae1548e650473eec27fb22`. Validation: `95faba10a2d1fe388dc1156d689732dd7b658df8`. Exact five-path payload: three C++ files, two-case landing WPT, and removal of obsolete expected-failure metadata. Final 70 callbacks PASS; 21 original failures repaired, with 19 control and 12 ending signatures preserved. Shared held-provider/configured-pref validation limits remain.
+
+
 Fix 146: Avoid caching reset styles that depend on sibling-count()
 
 Native: `7501711ae4a105980cde23db588e582f41b77daa`. Research: `588fa673a74701b2ed74f9c495bdb3bb35fcf562`. Validation: `cf834b1da25142d2a4748cb5e2104bc84a20fd4b`. Exact two-path source/WPT payload; two landing target failures repaired, both targets PASS and thirty-four control plus seven ending signatures preserved. No prior accepted-fix semantic prerequisite established; shared held-provider/configured-pref validation limits remain.

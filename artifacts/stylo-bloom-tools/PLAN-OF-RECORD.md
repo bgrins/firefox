@@ -1,5 +1,10 @@
 # CSS and Stylo verification plan
 
+Fix 147 restores old-parent style invalidation during moveBefore while preserving the moved subtree. The standalone payload is three C++ files, a two-case landing WPT and deletion of obsolete seven-failure metadata. The original/candidate pair repaired 21 failures; final installed browser results are 70 PASS / 12 OK, with all 19 controls preserved. The initial final wrapper rejected seven empty known_intermittent presence fields; corrected raw reassessment and fresh full-state revalidation passed without another browser run. After signed native publication the ledger contains 146 accepted fixes / 147 tracked IDs, with held 120 excluded. Shared held-provider/configured-pref limits remain; no clean-upstream, Servo-only or native-refinement claim and no canonical Lean coverage increment.
+
+Earlier entries retain their historical state.
+
+
 Fix 146 excludes reset styles that depend on sibling-count() from the rule cache. The standalone payload is one added Rust line and a two-test WPT. The focused original/final comparison repairs both width and opacity failures; final validation has 35 PASS and one preserved nested-pseudo FAIL, with all 34 control and seven ending signatures unchanged. The separate six-case experiment also passed all six cases. After the signed native commit, the ledger will contain 145 accepted repairs across 146 tracked IDs, excluding held 120. Validation used the shared branch with the unchanged held provider and configured WPT preferences; no clean-upstream execution or canonical Lean coverage increment is claimed.
 
 Earlier entries retain their historical state.

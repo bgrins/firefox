@@ -1,0 +1,11 @@
+# moveBefore old-parent removal acceptance and signing
+
+Root accepted internal fix 147 after the installed browser completed 70 PASS / 12 OK / child exit 0 and corrected raw reassessment plus fresh full-state verification passed. The original wrapper failure remains preserved: its projection wrongly removed empty known_intermittent fields from seven rows. Revalidation did not run another browser. Signed native publication will produce 146 accepted fixes / 147 tracked IDs, excluding held 120; that count change has not occurred during preparation.
+
+The standalone payload is exactly three C++ files, a two-case landing WPT and deletion of the obsolete seven-failure metadata. The pair repaired 21 failures and preserved 19 control plus 12 ending signatures. Final comparison uses the explicitly corrected metadata projection. Shared held-provider/configured-pref limits remain, with no clean-upstream, Servo-only or native-refinement claim and no new canonical Lean coverage.
+
+The unchanged V49 commit helper consumes all five paths and four present source pins. The deletion verifier separately authenticates the parent blob, null epoch pin, absent installed identity/OWNED entry, same-inode retained archive and exact M/M/M/A/D commit. All 16 current accepted payloads and historical markers remain fixed. The saved untracked audit verifies 68 project bodies against tracked recovery copies and 495 unrelated names/metadata without reading their contents; the sole additional path is the pending landing WPT.
+
+Root runs init.py, commit.py research-selection.json, commit.py validation-selection.json, commit.py native-selection.json, then finish.py sequentially with exclusive logs and stop-on-failure. No blind retry or duplicate staging is permitted. The reviewer list is the actual Herald result r?#firefox-style-system-reviewers,#layout-reviewers. WPT sync bug 2080017 records prior upstream failures; it is not assigned as a native bug ID.
+
+Completed reorder/gap models and signing-recovery evidence precede the native commit. Shadow source/WPT/system-display research is explicitly excluded and reserved for a following research-only checkpoint. Runtime control preimages and the removed metadata archive stay locally retained through successful publication; full epoch copies are hash-indexed instead of duplicated in commits.

@@ -1,0 +1,39 @@
+--- v49/init.py
++++ v52/init.py
+@@ -1,6 +1,7 @@
+ import hashlib
+ import json
+ import os
++import runpy
+ from pathlib import Path
+ import subprocess
+ import sys
+@@ -13,21 +14,24 @@
+ assert ROOT/inputs['signing_directory'] == HERE
+ sha = lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+ for name,pin in inputs['references'].items(): assert sha(ROOT/name) == pin
++runpy.run_path(str(HERE/'revalidation.py'))['verify'](ROOT,inputs)
+ assert sha(HERE/'commit.py') == inputs['commit_helper_sha256']
+ runtime = ROOT/'artifacts/css-registered-number-native-runtime-v1'
+ controls = {n:(runtime/n).read_bytes() for n in ('CURRENT-EPOCH.json','ROLE.json','OWNED.json')}
+ assert sha(runtime/'CURRENT-EPOCH.json') == inputs['initial_epoch']
+ epoch = json.loads(controls['CURRENT-EPOCH.json'])
+ assert epoch['semantic_index']['head'] == inputs['initial_head']
+-assert epoch['sibling_count_rule_cache_transition']['role'] == 'candidate'
+-assert epoch['sibling_count_rule_cache_transition']['compiled'] and not epoch['sibling_count_rule_cache_transition']['accepted']
+-assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs',*inputs['native_source_paths']])
++assert epoch['move_before_removal_transition']['role'] == 'candidate'
++assert epoch['move_before_removal_transition']['compiled'] and not epoch['move_before_removal_transition']['accepted']
++assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs',*inputs['native_source_paths'], *inputs['deleted_preimages']])
+ assert epoch['staged_working'] == {}
+ for marker, expected in inputs['preserved_accepted_markers'].items(): assert epoch[marker] == expected
+ for marker, expected in inputs['preserved_accepted_transitions'].items(): assert epoch[marker] == expected
+ native_pins=json.loads((HERE/'native-selection.json').read_bytes())['source_pins']
+ assert not set(native_pins).intersection(inputs['preserved_accepted_payload'])
+-assert set(inputs['native_source_paths']) == {'servo/components/style/values/computed/mod.rs'}
++assert set(inputs['native_source_paths']) == {'layout/base/PresShell.cpp','layout/style/RestyleManager.cpp','layout/style/RestyleManager.h'}
++assert len(inputs['preserved_accepted_payload']) == 16
++runpy.run_path(str(HERE/'deletion.py'))['verify'](ROOT,inputs,epoch,json.loads((HERE/'native-selection.json').read_bytes()),inputs['initial_head'])
+ for path, item in inputs['preserved_accepted_payload'].items():
+     st=(ROOT/path).lstat()
+     assert [st.st_dev,st.st_ino] == item['identity'] and sha(ROOT/path) == item['sha256']
