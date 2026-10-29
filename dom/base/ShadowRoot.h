@@ -181,7 +181,7 @@ class ShadowRoot final : public DocumentFragment, public DocumentOrShadowRoot {
 
   // Calls UnbindFromTree for each of our kids, and also flags us as no longer
   // being connected.
-  void Unbind();
+  void Unbind(bool aIsMove = false);
 
   // Only intended for UA widgets / special shadow roots, or for handling
   // failure cases when adopting (see BlastSubtreeToPieces).
@@ -191,7 +191,7 @@ class ShadowRoot final : public DocumentFragment, public DocumentOrShadowRoot {
 
   // Calls BindToTree on each of our kids, and also maybe flags us as being
   // connected.
-  nsresult Bind();
+  nsresult Bind(bool aIsMove = false);
 
   /**
    * Explicitly invalidates the style and layout of the flattened-tree subtree

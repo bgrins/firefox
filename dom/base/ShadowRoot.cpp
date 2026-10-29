@@ -191,7 +191,7 @@ void ShadowRoot::CloneInternalDataFrom(ShadowRoot* aOther) {
   }
 }
 
-nsresult ShadowRoot::Bind() {
+nsresult ShadowRoot::Bind(bool aIsMove) {
   MOZ_ASSERT(!IsInComposedDoc(), "Forgot to unbind?");
   if (Host()->IsInComposedDoc()) {
     SetIsConnected(true);
@@ -205,6 +205,7 @@ nsresult ShadowRoot::Bind() {
   }
 
   BindContext context(*this);
+  context.SetIsMove(aIsMove);
   for (nsIContent* child = GetFirstChild(); child;
        child = child->GetNextSibling()) {
     nsresult rv = child->BindToTree(context, *this);
@@ -214,8 +215,9 @@ nsresult ShadowRoot::Bind() {
   return NS_OK;
 }
 
-void ShadowRoot::Unbind() {
+void ShadowRoot::Unbind(bool aIsMove) {
   UnbindContext context(*this, /* aBatchState = */ nullptr);
+  context.SetIsMove(aIsMove);
   if (IsInComposedDoc()) {
     SetIsConnected(false);
     OwnerDoc()->RemoveComposedDocShadowRoot(*this);

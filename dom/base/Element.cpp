@@ -3052,7 +3052,7 @@ nsresult Element::BindToTree(BindContext& aContext, nsINode& aParent) {
   // Call BindToTree on shadow root children.
   nsresult rv;
   if (ShadowRoot* shadowRoot = GetShadowRoot()) {
-    rv = shadowRoot->Bind();
+    rv = shadowRoot->Bind(aContext.IsMove());
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -3392,7 +3392,7 @@ void Element::UnbindFromTree(UnbindContext& aContext) {
 
   // Unbind children of shadow root.
   if (ShadowRoot* shadowRoot = GetShadowRoot()) {
-    shadowRoot->Unbind();
+    shadowRoot->Unbind(aContext.IsMove());
   }
 
   MOZ_ASSERT_IF(!aContext.IsMove(), !HasAnyOfFlags(kAllServoDescendantBits));
