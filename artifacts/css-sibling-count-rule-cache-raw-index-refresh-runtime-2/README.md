@@ -1,0 +1,1 @@
+Actual root40530/c6338f/ce8db3/0 raw-only refresh succeeded with full preservation. Canonical3e6549f1351a50ee7aeab915e525ea2653f809b5f05bbdfec91455e443ce3737 differs only in raw_index_observation.current; no native acceptance or full epoch copies.

@@ -1,0 +1,51 @@
+--- executed/build.py
++++ sibling-count/build.py
+@@ -28,22 +28,22 @@
+ assert s.sha(RUNTIME / "CURRENT-EPOCH.json") == expected_epoch
+ assert '/' not in label
+ epoch = s.read(RUNTIME / 'CURRENT-EPOCH.json')
+-assert epoch['round_special_knowledge_transition']['role'] == 'candidate' and not epoch['round_special_knowledge_transition']['compiled']
++assert epoch['sibling_count_rule_cache_transition']['role'] == 'candidate' and not epoch['sibling_count_rule_cache_transition']['compiled']
+ assert epoch['semantic_index']['head'] == policy['head']
+-for marker in ('accepted_line_height', 'accepted_random_counter', 'accepted_linear_guard'):
+-    assert epoch[marker] == policy[marker]
++for marker, expected in policy['preserved_markers'].items():
++    assert epoch[marker] == expected
+ for name, record in policy['preserved_accepted_payload'].items():
+     assert epoch['pins'][name] == record['sha256'] and epoch['installed_identities'][name] == record['identity']
+ assert label == policy['build_label']
+-role = {'role': 'candidate', 'variant': 'round-infinite-step-knowledge'}
++role = {'role': 'candidate', 'variant': 'sibling-count-rule-cache'}
+ owner = s.load('page_build_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ owner.authenticate(PACKAGE, manifest)
+ policy = s.read(PACKAGE / 'POLICY.json')
+-assert epoch['round_special_knowledge_transition']['manifest_sha256'] == manifest
++assert epoch['sibling_count_rule_cache_transition']['manifest_sha256'] == manifest
+ assert epoch['pins'][policy['source']['path']] == policy['source']['candidate_sha256']
+ for name, record in policy['tests'].items(): assert epoch['pins'][name] == record['sha256']
+ assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs', policy['source']['path']])
+-assert epoch['staged_working'] == {} and epoch['round_special_knowledge_transition']['accepted'] is False
++assert epoch['staged_working'] == {} and epoch['sibling_count_rule_cache_transition']['accepted'] is False
+ for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+ control_claims = {n:owner.claim(ROOT,str((RUNTIME/n).relative_to(ROOT)),s.sha(RUNTIME/n)) for n in ['ROLE.json','OWNED.json']}
+ owner.quiescent(RUNTIME)
+@@ -55,8 +55,8 @@
+ s.save(directory / 'PRE.json', before)
+ command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'build', 'binaries', '-j2']
+ owner.authenticate(ROOT / policy['pair_capsule'], policy['pair_capsule_sha256'])
+-metadata = s.load('promotion_metadata', policy['pair_capsule'] + '/run.py')
+-s.save(directory / 'APPLICATION-METADATA-PRE.json', metadata.application_metadata(ROOT / policy['application_ini'], policy['head']))
++metadata = s.load('promotion_metadata', policy['metadata_helper'])
++s.save(directory / 'APPLICATION-METADATA-PRE.json', metadata.application_metadata(ROOT / policy['application_ini'], policy['original_build_revision']))
+ builder = s.load('fallback_builder', str((PACKAGE / 'phase.py').relative_to(ROOT)))
+ control = s.load('fallback_control', str((RUNTIME / 'process_control.py').relative_to(ROOT)))
+ flags = {name: s.h.git(ROOT / name, env, 'ls-files', '-v', '-z') for name in ('.', 'artifacts/css-spec-lean')}
+@@ -97,7 +97,7 @@
+     if success:
+         assert inner['exit'] == 0 and inner['error'] is None and inner['stop_reason'] is None
+         assert inner['owned_group_absent'] and not inner['cleanup_errors']
+-    current['round_special_knowledge_transition'] = dict(epoch['round_special_knowledge_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
++    current['sibling_count_rule_cache_transition'] = dict(epoch['sibling_count_rule_cache_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
+     owner.authenticate(PACKAGE, manifest)
+     for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+     for item in control_claims.values(): owner.claim(ROOT,item['path'],item['owned_sha256'],item['identity'])

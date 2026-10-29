@@ -1,0 +1,38 @@
+--- executed-six-case-refresh/run.py
++++ focused36-refresh/run.py
+@@ -42,7 +42,7 @@
+     result, restored = read(evidence / "RESULT.json"), read(evidence / "RESTORATION.json")
+     inner = read(evidence / "candidate-build/build-RESULT.json")
+     terminal = read(evidence / "CANDIDATE-ROOT-REPORTED-TERMINAL.json")
+-    assert terminal["session"] == 31551 and terminal["launch_receipt"] == "cf3be0" and terminal["terminal_receipt"] == "9d0dd1/0" and terminal["exit"] == 0
++    assert terminal["session"] == 71547 and terminal["launch_receipt"] == "9986f1" and terminal["terminal_receipt"] == "f0f644/0" and terminal["exit"] == 0
+     assert result["success"] is True and result["restoration_verified"] and result["runtime_controls_unchanged"] and result["empty_staging_preserved"]
+     assert result["error"] is None
+     assert result["candidate_phase"] == {"assessment_sha256": digest((evidence / "candidate-wpt/ASSESSMENT.json").read_bytes()), "raw_sha256": digest((evidence / "candidate-wpt/raw.jsonl").read_bytes()), "result_sha256": digest((evidence / "candidate-wpt/RESULT.json").read_bytes())}
+@@ -64,8 +64,15 @@
+         assessments[role] = assessment
+     assert assessments["candidate"]["comparison_gate_passed"] is True
+     assert assessments["candidate"]["comparison_errors"] == []
+-    assert len(assessments["candidate"]["rows"]) == 6
+-    assert all(row["status"] == "PASS" for row in assessments["candidate"]["rows"])
++    assert len(assessments["candidate"]["rows"]) == 36
++    assert sum(row["status"] == "PASS" for row in assessments["candidate"]["rows"]) == 35
++    failed = [(row["test"], row["subtest"]) for row in assessments["candidate"]["rows"] if row["status"] == "FAIL"]
++    assert failed == [tuple(policy["known_failure"])]
++    assert len(assessments["candidate"]["regression_signature"]) == 41
++    targets = {tuple(row) for row in policy["target_ids"]}
++    for role, status in (("original", "FAIL"), ("candidate", "PASS")):
++        selected = [row for row in assessments[role]["rows"] if (row["test"], row["subtest"]) in targets]
++        assert len(selected) == 2 and all(row["status"] == status for row in selected)
+     assert assessments["original"]["regression_signature"] == assessments["candidate"]["regression_signature"]
+     cleanup = read(evidence / "BACKUP-CLEANUP.json")
+     assert cleanup["removed"] and cleanup["verified_original_restoration"] and cleanup["retained_after_failure"] is False
+@@ -87,7 +94,7 @@
+     encoded = json.dumps(updated, indent=2, sort_keys=True).encode() + b"\n"
+     assert digest(encoded) == policy["updated_epoch_sha256"]
+     if sys.argv[1] == "--check":
+-        print("Authenticated successful six-case pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
++        print("Authenticated successful focused36 pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
+         return
+     assert policy["execution_enabled"] is True
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))

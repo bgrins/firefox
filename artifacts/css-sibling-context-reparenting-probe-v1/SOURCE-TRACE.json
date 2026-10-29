@@ -1,0 +1,37 @@
+{
+  "upstream": "searchfox-cli --get-file layout/style/RestyleManager.cpp",
+  "sha256": "6717dded3178ce5f1fb1276a7a46d51d1e44685112d4cc7ea5c34f518f26e21e",
+  "revision": "current Searchfox capture, revision not supplied by CLI",
+  "excerpts": [
+    {
+      "start": 78,
+      "end": 104,
+      "text": "void RestyleManager::ContentInserted(nsIContent* aChild) {\n  MOZ_ASSERT(aChild->GetParentNode());\n  if (aChild->IsElement()) {\n    StyleSet()->MaybeInvalidateForElementInsertion(*aChild->AsElement());\n  }\n  RestyleForInsertOrChange(aChild);\n}\n\nvoid RestyleManager::ContentAppended(nsIContent* aFirstNewContent) {\n  MOZ_ASSERT(aFirstNewContent->GetParentNode());\n\n#ifdef DEBUG\n  for (nsIContent* cur = aFirstNewContent; cur; cur = cur->GetNextSibling()) {\n    NS_ASSERTION(cur->IsRootOfNativeAnonymousSubtree() ==\n                     aFirstNewContent->IsRootOfNativeAnonymousSubtree(),\n                 \"anonymous nodes should not be in child lists\");\n  }\n#endif\n\n  // We get called explicitly with NAC by editor and view transitions code, but\n  // in those cases we don't need to do any invalidation.\n  if (MOZ_UNLIKELY(aFirstNewContent->IsRootOfNativeAnonymousSubtree())) {\n    return;\n  }\n\n  StyleSet()->MaybeInvalidateForElementAppend(*aFirstNewContent);\n\n"
+    },
+    {
+      "start": 154,
+      "end": 160,
+      "text": "  }\n\n  if (selectorFlags & NodeSelectorFlags::MayHaveTreeCountingFunction) {\n    RecascadeForTreeCountingFunctions(container);\n  }\n}\n\n"
+    },
+    {
+      "start": 207,
+      "end": 225,
+      "text": "void RestyleManager::RecascadeForTreeCountingFunctions(nsINode* aContainer) {\n  MOZ_ASSERT(aContainer->GetSelectorFlags() &\n             NodeSelectorFlags::MayHaveTreeCountingFunction);\n\n  for (nsIContent* child = aContainer->GetFirstChild(); child;\n       child = child->GetNextSibling()) {\n    auto* element = Element::FromNode(child);\n    if (!element) {\n      continue;\n    }\n\n    ForEachElementAndPseudo(element, [&](Element* aTargetElement) {\n      if (Servo_Element_UsesTreeCountingFunction(aTargetElement)) {\n        PostRestyleEvent(aTargetElement, RestyleHint::RECASCADE_SELF,\n                         nsChangeHint(0));\n      }\n    });\n  }\n}\n"
+    },
+    {
+      "start": 427,
+      "end": 443,
+      "text": "void RestyleManager::RestyleForInsertOrChange(nsIContent* aChild) {\n  nsINode* container = aChild->GetParentNode();\n  MOZ_ASSERT(container);\n\n  const auto selectorFlags =\n      container->GetSelectorFlags() & NodeSelectorFlags::AllSimpleRestyleFlags;\n  if (!selectorFlags) {\n    return;\n  }\n\n  NS_ASSERTION(!aChild->IsRootOfNativeAnonymousSubtree(),\n               \"anonymous nodes should not be in child lists\");\n\n  // The container cannot be a document.\n  MOZ_ASSERT(container->IsElement() || container->IsShadowRoot());\n\n  if (selectorFlags & NodeSelectorFlags::HasEmptySelector &&\n"
+    },
+    {
+      "start": 474,
+      "end": 503,
+      "text": "  if (selectorFlags & NodeSelectorFlags::HasEdgeChildSelector) {\n    MaybeRestyleForEdgeChildChange(container, aChild);\n  }\n\n  if (selectorFlags & NodeSelectorFlags::MayHaveTreeCountingFunction) {\n    RecascadeForTreeCountingFunctions(container);\n  }\n}\n\nvoid RestyleManager::ContentWillBeRemoved(nsIContent* aOldChild) {\n  auto* container = aOldChild->GetParentNode();\n  MOZ_ASSERT(container);\n\n  // Computed style data isn't useful for detached nodes, and we'll need to\n  // recompute it anyway if we ever insert the nodes back into a document.\n  if (auto* element = Element::FromNode(aOldChild)) {\n    RestyleManager::ClearServoDataFromSubtree(element);\n    // If this element is undisplayed or may have undisplayed descendants, we\n    // need to invalidate the cache, since there's the unlikely event of those\n    // elements getting destroyed and their addresses reused in a way that we\n    // look up the cache with their address for a different element before it's\n    // invalidated.\n    IncrementUndisplayedRestyleGeneration();\n  }\n\n  // This is called with anonymous nodes explicitly by editor and view\n  // transitions code, which manage anon content manually.\n  // See similar code in ContentAppended.\n  if (MOZ_UNLIKELY(aOldChild->IsRootOfNativeAnonymousSubtree())) {\n    MOZ_ASSERT(!aOldChild->GetNextSibling(), \"NAC doesn't have siblings\");\n"
+    },
+    {
+      "start": 619,
+      "end": 625,
+      "text": "    }\n  }\n\n  if (selectorFlags & NodeSelectorFlags::MayHaveTreeCountingFunction) {\n    RecascadeForTreeCountingFunctions(container);\n  }\n}\n"
+    }
+  ]
+}

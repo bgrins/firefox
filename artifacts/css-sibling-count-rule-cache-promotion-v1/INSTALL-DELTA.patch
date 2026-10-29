@@ -1,0 +1,55 @@
+--- executed/install.py
++++ sibling-count/install.py
+@@ -46,16 +46,14 @@
+     held = 'servo/components/style/custom_properties.rs'
+     assert epoch['modified_native_paths'] == [held]
+     accepted_claims = {}
+-    for marker, transition, fix in [('accepted_line_height', 'line_height_transition', 141), ('accepted_random_counter', 'random_counter_transition', 142), ('accepted_linear_guard', 'linear_guard_transition', 143)]:
+-        assert epoch[marker] == policy[marker] and epoch[marker]['fix'] == fix
+-        assert epoch[transition]['accepted'] is True and epoch[transition]['compiled'] is True
+-        for name, pin in epoch[marker]['files'].items():
+-            record = policy['preserved_accepted_payload'][name]
+-            assert record['sha256'] == pin == epoch['pins'][name]
+-            assert record['identity'] == epoch['installed_identities'][name]
+-            assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == pin
+-            accepted_claims[name] = h.claim(ROOT, name, pin, record['identity'])
+-    assert len(accepted_claims) == 11
++    for marker, expected in policy['preserved_markers'].items():
++        assert epoch[marker] == expected
++    for name, record in policy['preserved_accepted_payload'].items():
++        assert epoch['pins'][name] == record['sha256']
++        assert epoch['installed_identities'][name] == record['identity']
++        assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == record['sha256']
++        accepted_claims[name] = h.claim(ROOT, name, record['sha256'], record['identity'])
++    assert len(accepted_claims) == 14
+     evidence_binding = evidence.verify(ROOT, policy, epoch, h)
+     h.quiescent(RUNTIME)
+     before = s.a.verify_current(s.h, ROOT, ENV, epoch)
+@@ -63,7 +61,8 @@
+     control_claims = {n: h.claim(ROOT, str((RUNTIME / n).relative_to(ROOT)), h.digest(body)) for n, body in controls.items()}
+     record = policy['source']
+     name = record['path']
+-    assert name == 'servo/components/style/values/generics/calc.rs'
++    assert name == 'servo/components/style/values/computed/mod.rs'
++    assert name not in accepted_claims
+     base, desired = [h.body(ROOT / record[k]) for k in ('base_capture', 'candidate_capture')]
+     assert h.digest(base) == record['base_sha256'] and h.digest(desired) == record['candidate_sha256']
+     assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == record['base_sha256']
+@@ -74,7 +73,7 @@
+     if name in owned:
+         assert owned[name] == source_claim
+     tests, parents = {}, {}
+-    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-values/round-deferred-infinite-step.html'}
++    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-values/tree-counting/sibling-count-cross-parent-invalidation.html'}
+     for test, item in policy['tests'].items():
+         tests[test] = h.body(ROOT / item['capture'])
+         assert h.digest(tests[test]) == item['sha256']
+@@ -142,7 +141,7 @@
+         current['counts']['native_modified_paths'] = 2
+         current['counts']['roles'] = len(current['pins'])
+         current['counts']['installed_identities'] = len(current['installed_identities'])
+-        current['round_special_knowledge_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
++        current['sibling_count_rule_cache_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
+             'manifest_sha256':manifest, 'source_sha256':record['candidate_sha256'], 'last_phase':'install'}
+         after = s.a.verify_current(s.h, ROOT, ENV, current)
+         assert after['nested_index'] == before['nested_index']
