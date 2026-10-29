@@ -1,0 +1,57 @@
+--- artifacts/css-move-before-promotion-v1/install.py
++++ artifacts/css-shadow-move-promotion-v1/install.py
+@@ -54,13 +54,17 @@
+         assert epoch['installed_identities'][name] == record['identity']
+         assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == record['sha256']
+         accepted_claims[name] = h.claim(ROOT, name, record['sha256'], record['identity'])
+-    assert len(accepted_claims) == len(policy['preserved_accepted_payload']) == 16
++    assert len(accepted_claims) == len(policy['preserved_accepted_payload']) == 20
++    preserved_absent = policy['preserved_absent_metadata']
++    assert epoch['pins'][preserved_absent] is None and preserved_absent not in epoch['installed_identities']
++    assert preserved_absent not in json.loads(controls['OWNED.json']) and not os.path.lexists(ROOT / preserved_absent)
+     evidence_binding = evidence.verify(ROOT, policy, epoch, h)
+     h.quiescent(RUNTIME)
+     before = s.a.verify_current(s.h, ROOT, ENV, epoch)
++    assert before == h.read(ROOT / policy['supplemental_baseline']['directory'] / 'original-wpt/PRE.json')
+     flags = {n: s.h.git(ROOT / n, ENV, 'ls-files', '-v', '-z') for n in ('.', 'artifacts/css-spec-lean')}
+     control_claims = {n: h.claim(ROOT, str((RUNTIME / n).relative_to(ROOT)), h.digest(body)) for n, body in controls.items()}
+-    materializer = load('move_materializer', ROOT / 'artifacts/css-move-before-build-v1/support.py')
++    materializer = load('move_materializer', ROOT / 'artifacts/css-shadow-move-build-v1/support.py')
+     bases, desired = materializer.materialize(policy, h)
+     source_claims = {}
+     owned = json.loads(controls['OWNED.json'])
+@@ -78,7 +82,7 @@
+         source_claims[name] = item
+     deletion = policy['deleted_metadata']
+     retired = deletion['path']
+-    assert retired == 'testing/web-platform/meta/dom/nodes/moveBefore/moveBefore-child-list-selector-invalidation.html.ini'
++    assert retired == 'testing/web-platform/meta/dom/nodes/moveBefore/custom-element-move-reactions.html.ini'
+     deleted_body = h.body(ROOT / deletion['capture'])
+     assert h.digest(deleted_body) == deletion['sha256']
+     assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + retired)) == deletion['sha256']
+@@ -92,7 +96,7 @@
+     assert retired not in epoch['untracked_native'] and retired not in epoch['committed_research_working_payloads']
+     retired_parents = create.parent_pins(ROOT, ROOT / retired)
+     tests, parents = {}, {}
+-    assert set(policy['tests']) == {'testing/web-platform/tests/dom/nodes/moveBefore/sibling-functions-invalidation.html'}
++    assert set(policy['tests']) == {'testing/web-platform/tests/dom/nodes/moveBefore/shadow-descendant-iframe-preserve.html', 'testing/web-platform/tests/dom/nodes/moveBefore/shadow-descendant-css-animation-preserve.html', 'testing/web-platform/tests/dom/nodes/moveBefore/shadow-move-controls.html', 'testing/web-platform/tests/dom/nodes/moveBefore/shadow-descendant-custom-element-reactions.html'}
+     for test, item in policy['tests'].items():
+         tests[test] = h.body(ROOT / item['capture'])
+         assert h.digest(tests[test]) == item['sha256']
+@@ -109,6 +113,7 @@
+     retirement = None
+ 
+     def claims():
++        assert not os.path.lexists(ROOT / preserved_absent)
+         for item in accepted_claims.values():
+             h.claim(ROOT, item['path'], item['owned_sha256'], item['identity'])
+         for n, item in control_claims.items():
+@@ -183,7 +188,7 @@
+         current['counts']['native_modified_paths'] = len(current['modified_native_paths'])
+         current['counts']['roles'] = len(current['pins'])
+         current['counts']['installed_identities'] = len(current['installed_identities'])
+-        current['move_before_removal_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
++        current['shadow_move_context_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
+             'manifest_sha256':manifest, 'source_sha256':{n:r['candidate_sha256'] for n,r in policy['sources'].items()}, 'deleted_metadata':retired, 'last_phase':'install'}
+         after = s.a.verify_current(s.h, ROOT, ENV, current)
+         assert after['nested_index'] == before['nested_index']

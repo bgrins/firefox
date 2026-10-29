@@ -1,0 +1,35 @@
+--- artifacts/css-move-before-promotion-v1/evidence.py
++++ artifacts/css-shadow-move-promotion-v1/evidence.py
+@@ -80,7 +80,7 @@
+         replay = assessor.assess(events, phase_result['exit'], expected_policy, checks, original=original, run_binding=metadata)
+         assert json.loads(json.dumps(replay)) == h.read(directory / 'ASSESSMENT.json')
+         assert replay['complete'] and replay['errors'] == [] and replay['fixture_setup_errors'] == []
+-        assert replay['observed_subtest_count'] == 70 and len(replay['ends']) == 12
++        assert replay['observed_subtest_count'] == 98 and len(replay['ends']) == 16
+         if role == 'original':
+             original = replay
+         else:
+@@ -89,15 +89,19 @@
+             assert all(row['status'] == 'PASS' for row in replay['rows'])
+             assert phase_result['exit'] == 1
+             changed_expectations = {(r['test'], r['subtest']) for r in replay['rows'] if r.get('expected', r['status']) != r['status']}
+-            assert changed_expectations == {('/dom/nodes/moveBefore/moveBefore-child-list-selector-invalidation.html', n) for n in policy['deleted_metadata']['expected_fail_subtests']}
++            assert changed_expectations == {('/dom/nodes/moveBefore/custom-element-move-reactions.html', n) for n in policy['deleted_metadata']['expected_fail_subtests']}
+             assert result['candidate_phase'] == {'assessment_sha256': h.digest((directory / 'ASSESSMENT.json').read_bytes()), 'raw_sha256': h.digest((directory / 'raw.jsonl').read_bytes()), 'result_sha256': h.digest((directory / 'RESULT.json').read_bytes())}
+         cleanup = h.read(directory / 'CLEANUP.json')
+         assert cleanup['owned_group_absent'] and cleanup['temporary_root_removed']
+         if check_processes:
+             h.group_absent(h.read(directory / 'PROCESS.json')['pgid'])
+-        for name, item in policy['tests'].items():
++        for name in policy['primary_tests']:
++            item = policy['tests'][name]
+             relative = name.removeprefix('testing/web-platform/tests/')
+             assert h.digest((directory / 'tests' / relative).read_bytes()) == item['sha256']
+     terminal = h.read(pair / 'CANDIDATE-ROOT-REPORTED-TERMINAL.json')
+-    assert terminal['exit'] == 0
+-    return {'paired_result_sha256': policy['paired_result_sha256'], 'pair_completion_sha256': policy['pair_completion_sha256'], 'comparison_gate_passed': True, 'observed_subtests': 70, 'accepted': False}
++    assert terminal['owner_session'] == 11795 and terminal['terminal_tool_chunk'] == '916239' and terminal['terminal_exit'] == 0
++    assert terminal['result_sha256'] == policy['paired_result_sha256']
++    supplement = load('shadow_supplement_evidence', root / 'artifacts/css-shadow-move-promotion-v1/supplement.py')
++    supplement_binding = supplement.verify_original(root, policy, h, check_processes)
++    return {'supplement': supplement_binding, 'paired_result_sha256': policy['paired_result_sha256'], 'pair_completion_sha256': policy['pair_completion_sha256'], 'comparison_gate_passed': True, 'observed_subtests': 98, 'accepted': False}

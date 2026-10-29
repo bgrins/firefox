@@ -1,0 +1,57 @@
+--- artifacts/css-move-before-promotion-v1/build.py
++++ artifacts/css-shadow-move-promotion-v1/build.py
+@@ -28,21 +28,24 @@
+ assert s.sha(RUNTIME / "CURRENT-EPOCH.json") == expected_epoch
+ assert '/' not in label
+ epoch = s.read(RUNTIME / 'CURRENT-EPOCH.json')
+-assert epoch['move_before_removal_transition']['role'] == 'candidate' and not epoch['move_before_removal_transition']['compiled']
++assert epoch['shadow_move_context_transition']['role'] == 'candidate' and not epoch['shadow_move_context_transition']['compiled']
+ assert epoch['semantic_index']['head'] == policy['head']
+ for marker, expected in policy['preserved_markers'].items():
+     assert epoch[marker] == expected
+ for name, record in policy['preserved_accepted_payload'].items():
+     assert epoch['pins'][name] == record['sha256'] and epoch['installed_identities'][name] == record['identity']
+ assert label == policy['build_label']
+-role = {'role': 'candidate', 'variant': 'move-before-removal-invalidation'}
++role = {'role': 'candidate', 'variant': 'shadow-move-context'}
+ owner = s.load('page_build_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ owner.authenticate(PACKAGE, manifest)
+ policy = s.read(PACKAGE / 'POLICY.json')
+-assert epoch['move_before_removal_transition']['manifest_sha256'] == manifest
++assert epoch['shadow_move_context_transition']['manifest_sha256'] == manifest
+ for name, record in policy['sources'].items():
+     assert epoch['pins'][name] == record['candidate_sha256']
+-assert epoch['move_before_removal_transition']['source_sha256'] == {n:r['candidate_sha256'] for n,r in policy['sources'].items()}
++assert epoch['shadow_move_context_transition']['source_sha256'] == {n:r['candidate_sha256'] for n,r in policy['sources'].items()}
++preserved_absent = policy['preserved_absent_metadata']
++assert epoch['pins'][preserved_absent] is None and not os.path.lexists(ROOT / preserved_absent)
++assert preserved_absent not in epoch['installed_identities'] and preserved_absent not in s.read(RUNTIME / 'OWNED.json')
+ deleted = policy['deleted_metadata']['path']
+ assert epoch['pins'][deleted] is None and not os.path.lexists(ROOT / deleted)
+ assert deleted not in epoch['installed_identities']
+@@ -52,7 +55,7 @@
+ owner.claim(ROOT, retirement['archived_path'], policy['deleted_metadata']['sha256'], retirement['claim']['identity'])
+ for name, record in policy['tests'].items(): assert epoch['pins'][name] == record['sha256']
+ assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs', *policy['sources'], deleted])
+-assert epoch['staged_working'] == {} and epoch['move_before_removal_transition']['accepted'] is False
++assert epoch['staged_working'] == {} and epoch['shadow_move_context_transition']['accepted'] is False
+ for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+ control_claims = {n:owner.claim(ROOT,str((RUNTIME/n).relative_to(ROOT)),s.sha(RUNTIME/n)) for n in ['ROLE.json','OWNED.json']}
+ owner.quiescent(RUNTIME)
+@@ -91,6 +94,7 @@
+     error = repr(exc)
+ try:
+     assert not state, 'Owned build group remains; do not mutate sources'
++    assert not os.path.lexists(ROOT / preserved_absent)
+     current = copy.deepcopy(epoch)
+     for name in policy['rebuilt_binaries']:
+         assert name in current['pins']
+@@ -106,7 +110,7 @@
+     if success:
+         assert inner['exit'] == 0 and inner['error'] is None and inner['stop_reason'] is None
+         assert inner['owned_group_absent'] and not inner['cleanup_errors']
+-    current['move_before_removal_transition'] = dict(epoch['move_before_removal_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
++    current['shadow_move_context_transition'] = dict(epoch['shadow_move_context_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
+     owner.authenticate(PACKAGE, manifest)
+     for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+     for item in control_claims.values(): owner.claim(ROOT,item['path'],item['owned_sha256'],item['identity'])

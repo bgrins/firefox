@@ -1,0 +1,65 @@
+--- artifacts/css-move-before-promotion-v1/final.py
++++ artifacts/css-shadow-move-promotion-v1/final.py
+@@ -27,7 +27,8 @@
+     expected = copy.deepcopy(read(ROOT / policy['pair_capsule'] / 'POLICY.json')['wpt'])
+     deleted = policy['deleted_metadata']['path']
+     expected['metadata'][deleted.removeprefix('testing/web-platform/meta/')] = {'path': deleted, 'sha256': None}
+-    for name, item in policy['tests'].items():
++    for name in policy['primary_tests']:
++        item = policy['tests'][name]
+         expected['resources'][name.removeprefix('testing/web-platform/tests/')] = {'path': name, 'sha256': item['sha256']}
+     expected['harness_revision'] = policy['head']
+     expected['phase_revisions'] = {'original': policy['head'], 'candidate': policy['head']}
+@@ -81,10 +82,10 @@
+     metadata = load('move_final_metadata', ROOT / policy['metadata_helper'])
+     saved_metadata = read(build / 'APPLICATION-METADATA.json')
+     assert metadata.application_metadata(ROOT / policy['application_ini'], policy['head']) == saved_metadata
+-    marker = epoch['move_before_removal_transition']
++    marker = epoch['shadow_move_context_transition']
+     assert marker['role'] == 'candidate' and marker['compiled'] and not marker['accepted']
+     assert marker['manifest_sha256'] == binding['promotion_manifest_sha256']
+-    assert marker['variant'] == 'move-before-removal-invalidation' and marker['last_phase'] == policy['build_label']
++    assert marker['variant'] == 'shadow-move-context' and marker['last_phase'] == policy['build_label']
+     assert marker['source_sha256'] == {n:r['candidate_sha256'] for n,r in policy['sources'].items()}
+     for name, expected in policy['preserved_markers'].items():
+         assert epoch[name] == expected
+@@ -99,6 +100,9 @@
+         assert epoch['pins'][name] == claim['owned_sha256'] == pin
+         assert epoch['installed_identities'][name] == claim['identity']
+         owner.claim(ROOT, name, pin, claim['identity'])
++    preserved_absent = policy['preserved_absent_metadata']
++    assert epoch['pins'][preserved_absent] is None and not os.path.lexists(ROOT / preserved_absent)
++    assert preserved_absent not in epoch['installed_identities'] and preserved_absent not in json.loads(controls['OWNED.json'])
+     deleted = policy['deleted_metadata']['path']
+     assert epoch['pins'][deleted] is None and not os.path.lexists(ROOT / deleted)
+     assert deleted not in epoch['installed_identities'] and deleted not in json.loads(controls['OWNED.json'])
+@@ -114,6 +118,7 @@
+     def verify():
+         assert metadata.application_metadata(ROOT / policy['application_ini'], policy['head']) == saved_metadata
+         assert all((RUNTIME / name).read_bytes() == body for name, body in controls.items())
++        assert not os.path.lexists(ROOT / preserved_absent)
+         assert not os.path.lexists(ROOT / deleted)
+         owner.claim(ROOT, deletion['archived_path'], policy['deleted_metadata']['sha256'], deletion['claim']['identity'])
+         assert all(state.h.git(ROOT / name, env, 'ls-files', '-v', '-z') == body for name, body in flags.items())
+@@ -126,9 +131,20 @@
+     runner = load('move_final_phase', ROOT / 'artifacts/css-contextual-easing-reversible-browser-v4/wpt.py')
+     owned = {}
+     # The reused phase loads this capsule's strict final assessor.
+-    runner.run(ROOT, HERE, output / 'candidate-wpt', 'candidate', policy, env, verify, owned, lambda: stopped[0])
++    phase_result = runner.run(ROOT, HERE, output / 'candidate-wpt', 'candidate', policy, env, verify, owned, lambda: stopped[0])
+     assert not owned and verify() == before
++    supplement = load('shadow_final_supplement', HERE / 'supplement.py')
++    supplemental_policy = supplement.final_policy(ROOT, policy)
++    supplemental_phase = runner.run(ROOT, ROOT / policy['supplemental_capsule']['directory'],
++        output / 'supplemental-wpt', 'candidate', supplemental_policy, env, verify, owned,
++        lambda: stopped[0], original=ROOT / policy['supplemental_baseline']['directory'] / 'original-wpt')
++    assert not owned and verify() == before
++    assert read(output / 'candidate-wpt/POST.json') == read(output / 'supplemental-wpt/PRE.json')
++    assert read(output / 'candidate-wpt/APPLICATION-METADATA.json') == read(output / 'supplemental-wpt/APPLICATION-METADATA.json')
+     evidence.verify(ROOT, policy, None, owner)
++    state.save(output / 'FINAL-RESULT.json', {'success': True, 'preservation_verified': True,
++        'owned_processes': owned, 'epoch_sha256': epoch_digest, 'phase': phase_result,
++        'supplemental_phase': supplemental_phase, 'native_fix_acceptance': False})
+ 
+ 
+ if __name__ == '__main__':
