@@ -1,0 +1,3 @@
+# Corrected final assessment and full-state revalidation
+
+The actual revalidation succeeded after replaying the single completed installed browser run with the corrected seven-row empty-intermittent-field projection. PRE equals POST, the current compiled epoch and preserved sources/app/controls were verified, and historical browser results remained unchanged. The browser itself completed 70 PASS / 12 OK / child exit 0; its original wrapper exit 1 and failed comparison remain preserved. This receipt is reassessment plus fresh guards, not a second browser execution. Root subsequently authorized internal acceptance 147; counts change only with the signed native receipt and ledger publication.
