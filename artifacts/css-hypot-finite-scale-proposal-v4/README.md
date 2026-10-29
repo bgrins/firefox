@@ -1,0 +1,7 @@
+# Hypot clean-import proposal successor
+
+This artifact-only v4 removes the unused Mul import reported by root during the still-running proposal-v3 Gecko build (root observation09f732). IMPORT-DELTA.patch is the complete difference from v3: `use std::ops::{Add, Mul, Rem, Sub};` becomes `use std::ops::{Add, Rem, Sub};`. No function, behavior, type handling or WPT body changes. The actual live overlay has not been read or modified by this preparation.
+
+SOURCE-ROLES.json pins the same accepted145 base and the cleaned candidate. native.patch reconstructs that exact candidate in a removed scratch tree. The30-callback WPT, roster, manifest, exact-helper scalar harness and both check scripts are byte-identical to v3. Copied logs are inherited successful v3 evidence, not a claim that v4 was compiled or browser-tested. This low-impact import cleanup does not justify rerunning unchanged scalar/static fixtures.
+
+The active original/candidate experiment remains a historical proposal-v3 comparison with its original source hash. It must finish and restore before any further execution. Native final acceptance must use this cleaned version and require final installed build/browser validation; v4 grants no acceptance or new proof/bug credit by itself. All numerical limitations and CSS NaN/precision reasoning from v3 remain applicable. The invalid proposal-v2 preparation history remains preserved and documented by v3 and source-review-v1; none of its invalid CHECK claims are adopted here.

@@ -1,0 +1,9 @@
+# Hypot original-baseline successor
+
+Root authorized baseline execution after completed V58 research signing (session54510 terminal464f3f/0; independent final verificationf47ecd/0). This capsule binds HEAD4912ef9c6dd9ff6695cb6fc4795bb0c644726780 and canonical epoch765fc4f9d64b328921ebd8063e1e317fa0ac111a387cae789a4da90f72e37495. execution_enabled is true; candidate_execution_enabled is false. No actual baseline is bound yet and no owner has executed in this preparation.
+
+All runner bodies, source roles, proposal-v3 candidate bytes,227 callbacks,16 targets,211 controls, four endings/215 control-ending signatures, original app/build lineage and resource gates are byte-identical to the reviewed v2 inputs. The candidate still requires all30 new callbacks PASS, every originally passing signature and every strict control/ending signature preserved. Baseline has no assumedFAIL count. POLICY-DELTA.patch and DELTA-CHECK.json restrict changes to current state/flags/revisions, baseline enablement, activation notes and additive provenance references.
+
+Root must authenticate and run a fresh live --guard before --run. Guarded installed-app lineage remains unchanged. This baseline-only phase performs no Gecko build. A later candidate successor needs a completed immutable baseline with actual root terminal, raw replay and preserved state, followed by independent review. The existing candidate lifecycle remains -j2,1800-second deadline,27GiB free after backup and15GiB running stop. Root's approximate free-space observation is not admission. No native acceptance, newID, canonical update or proof credit is authorized by this package.
+
+Authenticate with `GIT_OPTIONAL_LOCKS=0 python3 -I -S -B artifacts/css-hypot-finite-scale-browser-v3/baseline.py --check <FILES-SHA256>`; root may then use --guard and --run with the same authenticated seal. No owner, browser or build ran during preparation.

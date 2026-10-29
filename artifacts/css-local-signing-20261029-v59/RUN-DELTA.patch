@@ -1,0 +1,40 @@
+--- artifacts/css-local-signing-20261029-v58/run.py
++++ artifacts/css-local-signing-20261029-v59/run.py
+@@ -63,21 +63,23 @@
+ def validate_completed_assessments(original, candidate, comparison, signature):
+     expected = {(test, name) for test, names in comparison["expected_subtests"].items() for name in names}
+     targets = {(test, name) for test, names in comparison["target_subtests"].items() for name in names}
+-    assert len(expected) == 315 and len(targets) == 41 and targets <= expected
++    assert len(expected) == 227 and len(targets) == 16 and targets <= expected
+     controls = expected - targets
+-    assert len(controls) == 274 and len(comparison["expected_subtests"]) == 22
++    assert len(controls) == 211 and len(comparison["expected_subtests"]) == 4
+     for assessment in (original, candidate):
+         assert assessment["complete"] and assessment["errors"] == [] and assessment["fixture_setup_errors"] == []
+-        assert assessment["observed_subtest_count"] == len(assessment["rows"]) == 315
++        assert assessment["observed_subtest_count"] == len(assessment["rows"]) == 227
+         assert {(row["test"], row["subtest"]) for row in assessment["rows"]} == expected
+-        assert len(assessment["ends"]) == 22 and all(end["status"] == "OK" for end in assessment["ends"])
++        assert len(assessment["ends"]) == 4 and all(end["status"] == "OK" for end in assessment["ends"])
+         assert {end["test"] for end in assessment["ends"]} == set(comparison["expected_subtests"])
+-        assert len(assessment["regression_signature"]) == 296
++        assert len(assessment["regression_signature"]) == 215
+     assert candidate["comparison_gate_passed"] and candidate["comparison_errors"] == []
+     assert candidate["regression_signature"] == original["regression_signature"]
+     old_rows = {(row["test"], row["subtest"]): row for row in original["rows"]}
+     new_rows = {(row["test"], row["subtest"]): row for row in candidate["rows"]}
+     assert all(new_rows[key]["status"] == "PASS" for key in targets)
++    assert all(row["status"] == "PASS" for row in candidate["rows"]
++               if row["test"] in comparison["candidate_required_pass_pages"])
+     assert all(signature(new_rows[key]) == signature(row) for key, row in old_rows.items()
+                if key in controls or row["status"] == "PASS")
+     assert {end["test"]: signature(end) for end in candidate["ends"]} == {end["test"]: signature(end) for end in original["ends"]}
+@@ -262,7 +264,7 @@
+         owned.write_owned(ROOT, control_claims["CURRENT-EPOCH.json"], owned.encoded(updated))
+         assert state.a.verify_current(state.h, ROOT, ENV, updated) == post
+         assert all((RUNTIME / n).read_bytes() == controls[n] for n in ("ROLE.json", "OWNED.json"))
+-        save(output / "FINAL-CHECK.json", {"head": commit, "parent": policy["head"], "tree": tree, "signature_verified": True, "runtime_epoch_synchronized": True, "current_epoch_sha256": digest(owned.encoded(updated)), "accepted_fixes": 147, "tracked_fixes": 148, "accepted_fix_increment": 0, "canonical_coverage_increment": 0, "provider_candidate_accepted": False, "easing_native_acceptance": False, "completed_pair_result_sha256": completion["evidence"][completion["result"]], "signing_performed_build_or_browser_execution": False, "native_and_binary_payloads_preserved": True, "nested_index_and_flags_preserved": True, "unselected_untracked_names_preserved": True, "untracked_before": len(untracked), "untracked_after": len(untracked_names()), "selection_count": len(selected), "full_epoch_copies_saved": 0})
++        save(output / "FINAL-CHECK.json", {"head": commit, "parent": policy["head"], "tree": tree, "signature_verified": True, "runtime_epoch_synchronized": True, "current_epoch_sha256": digest(owned.encoded(updated)), "accepted_fixes": 147, "tracked_fixes": 148, "accepted_fix_increment": 0, "canonical_coverage_increment": 0, "provider_candidate_accepted": False, "easing_native_acceptance": False, "hypot_native_acceptance": False, "completed_pair_result_sha256": completion["evidence"][completion["result"]], "signing_performed_build_or_browser_execution": False, "native_and_binary_payloads_preserved": True, "nested_index_and_flags_preserved": True, "unselected_untracked_names_preserved": True, "untracked_before": len(untracked), "untracked_after": len(untracked_names()), "selection_count": len(selected), "full_epoch_copies_saved": 0})
+         final_published = True
+         assert [lock.stat().st_dev, lock.stat().st_ino] == lock_identity
+         lock.rmdir()

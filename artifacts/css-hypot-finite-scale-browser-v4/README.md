@@ -1,0 +1,9 @@
+# Hypot candidate comparison successor
+
+Root authorized this candidate successor after fresh original baseline session82952 terminalcdf752/0. Preparation independently replayed the full raw log exactly:227 callbacks,199PASS28FAIL and fourOK endings, with215 strict control/ending signatures and no fixture/setup errors. The new page has14PASS16FAIL; the other12 failures are the existing pow controls. WPT exited1 consistently with observed assertions; the baseline wrapper succeeded and state/app metadata were preserved.
+
+Both execution flags are enabled. This successor changes only candidate enablement, actual baseline/capsule bindings and additive manifest references. All executable bodies, source roles, candidate bytes,227-case policy and resource gates remain byte-identical to v3. Candidate must pass all30 new callbacks, including16 targets, preserve211 control plus four ending full signatures and every originally passing signature. No original failure is waived. Activation notes in the inherited policy describe the workflow prerequisites now satisfied by the concrete baseline bindings; no further semantic change is made.
+
+The baseline runtime FILES.json is immutable. It seals regular files only; BASELINE-SYMLINKS.json separately records the tools symlink without following it. Future candidate completion must use a separate bounded completion manifest and must not regenerate this baseline seal. No candidate owner, build or browser has run during preparation. Root independently reviews and executes; no native acceptance, new fixID, proof credit or canonical update follows automatically.
+
+Root command: `GIT_OPTIONAL_LOCKS=0 python3 -I -S -B artifacts/css-hypot-finite-scale-browser-v4/candidate.py --check <FILES-SHA256>`; after independent raw replay/binding review, use --run with the same authenticated seal. The owner rechecks live state and admission before the one-file overlay, app backup, -j2 build and restored comparison.

@@ -1,0 +1,78 @@
+--- artifacts/css-round-context-quotient-promotion-v2/install.py
++++ artifacts/css-hypot-finite-scale-promotion-v1/install.py
+@@ -23,7 +23,9 @@
+ 
+ def main():
+     policy = json.loads((HERE / 'POLICY.json').read_bytes())
+-    assert policy['install_enabled'] is True
++    assert policy['install_enabled'] is True and policy['activation_pending'] == []
++    assert policy['reference_checkpoint']['signed_head'] == policy['head']
++    assert policy['reference_checkpoint']['final_check_sha256'] == policy['references'][policy['reference_checkpoint']['final_check']]
+     assert len(sys.argv) == 3
+     manifest, epoch_digest = sys.argv[1:]
+     assert epoch_digest == policy['epoch_sha256']
+@@ -46,16 +48,20 @@
+     held = 'servo/components/style/custom_properties.rs'
+     assert epoch['modified_native_paths'] == [held]
+     accepted_claims = {}
+-    for marker, transition, fix in [('accepted_line_height', 'line_height_transition', 141), ('accepted_random_counter', 'random_counter_transition', 142), ('accepted_linear_guard', 'linear_guard_transition', 143), ('accepted_round_special_knowledge', 'round_special_knowledge_transition', 144)]:
+-        assert epoch[marker] == policy[marker] and epoch[marker]['fix'] == fix
+-        assert epoch[transition]['accepted'] is True and epoch[transition]['compiled'] is True
+-        for name, pin in epoch[marker]['files'].items():
+-            record = policy['preserved_accepted_payload'][name]
+-            assert record['sha256'] == pin == epoch['pins'][name]
+-            assert record['identity'] == epoch['installed_identities'][name]
+-            assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == pin
+-            accepted_claims[name] = h.claim(ROOT, name, pin, record['identity'])
+-    assert len(accepted_claims) == 13
++    for marker, expected in policy['accepted_preservation_markers'].items():
++        assert epoch[marker] == expected
++    for transition, expected in policy['accepted_transitions'].items():
++        assert epoch[transition] == expected
++    for name, record in policy['preserved_accepted_payload'].items():
++        pin = record['sha256']
++        assert pin == epoch['pins'][name]
++        assert record['identity'] == epoch['installed_identities'][name]
++        assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == pin
++        accepted_claims[name] = h.claim(ROOT, name, pin, record['identity'])
++    assert len(accepted_claims) == 27
++    for name in policy['preserved_absent_metadata']:
++        assert epoch['pins'][name] is None and not os.path.lexists(ROOT / name)
++        assert name not in epoch['installed_identities'] and name not in json.loads(controls['OWNED.json'])
+     evidence_binding = evidence.verify(ROOT, policy, epoch, h)
+     h.quiescent(RUNTIME)
+     before = s.a.verify_current(s.h, ROOT, ENV, epoch)
+@@ -69,15 +75,15 @@
+     assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == record['base_sha256']
+     source_claim = accepted_claims[name]
+     assert source_claim['owned_sha256'] == record['base_sha256']
+-    assert policy['supersedes_source_pin'] == {'fix':144, 'path':name, 'sha256':record['base_sha256']}
+-    assert epoch['accepted_round_special_knowledge']['files'][name] == record['base_sha256']
++    assert policy['supersedes_source_pin'] == {'fix':145, 'path':name, 'sha256':record['base_sha256']}
++    assert epoch['accepted_round_context_quotient']['files'][name] == record['base_sha256']
+     assert epoch['pins'].get(name, record['base_sha256']) == record['base_sha256']
+     assert epoch['installed_identities'].get(name, source_claim['identity']) == source_claim['identity']
+     owned = json.loads(controls['OWNED.json'])
+     if name in owned:
+         assert owned[name] == source_claim
+     tests, parents = {}, {}
+-    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-values/round-context-quotient-precision.html'}
++    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-values/hypot-finite-scale.html'}
+     for test, item in policy['tests'].items():
+         tests[test] = h.body(ROOT / item['capture'])
+         assert h.digest(tests[test]) == item['sha256']
+@@ -145,11 +151,11 @@
+         current['counts']['native_modified_paths'] = 2
+         current['counts']['roles'] = len(current['pins'])
+         current['counts']['installed_identities'] = len(current['installed_identities'])
+-        current['round_context_quotient_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
++        current['hypot_finite_scale_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
+             'manifest_sha256':manifest, 'source_sha256':record['candidate_sha256'], 'last_phase':'install',
+             'supersedes_source_pin':policy['supersedes_source_pin']}
+-        assert current['accepted_round_special_knowledge'] == epoch['accepted_round_special_knowledge']
+-        assert current['round_special_knowledge_transition'] == epoch['round_special_knowledge_transition']
++        assert all(current[k] == epoch[k] for k in policy['accepted_preservation_markers'])
++        assert all(current[k] == epoch[k] for k in policy['accepted_transitions'])
+         after = s.a.verify_current(s.h, ROOT, ENV, current)
+         assert after['nested_index'] == before['nested_index']
+         assert all(s.h.git(ROOT / n, ENV, 'ls-files', '-v', '-z') == body for n, body in flags.items())

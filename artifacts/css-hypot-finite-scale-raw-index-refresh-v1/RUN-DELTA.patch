@@ -1,0 +1,49 @@
+--- combined-refresh-v1/run.py
++++ hypot-refresh-v1/run.py
+@@ -27,21 +27,23 @@
+ def validate_completed_assessments(original, candidate, comparison, signature):
+     expected = {(test, name) for test, names in comparison["expected_subtests"].items() for name in names}
+     targets = {(test, name) for test, names in comparison["target_subtests"].items() for name in names}
+-    assert len(expected) == 315 and len(targets) == 41 and targets <= expected
++    assert len(expected) == 227 and len(targets) == 16 and targets <= expected
+     controls = expected - targets
+-    assert len(controls) == 274 and len(comparison["expected_subtests"]) == 22
++    assert len(controls) == 211 and len(comparison["expected_subtests"]) == 4
+     for assessment in (original, candidate):
+         assert assessment["complete"] and assessment["errors"] == [] and assessment["fixture_setup_errors"] == []
+-        assert assessment["observed_subtest_count"] == len(assessment["rows"]) == 315
++        assert assessment["observed_subtest_count"] == len(assessment["rows"]) == 227
+         assert {(row["test"], row["subtest"]) for row in assessment["rows"]} == expected
+-        assert len(assessment["ends"]) == 22 and all(end["status"] == "OK" for end in assessment["ends"])
++        assert len(assessment["ends"]) == 4 and all(end["status"] == "OK" for end in assessment["ends"])
+         assert {end["test"] for end in assessment["ends"]} == set(comparison["expected_subtests"])
+-        assert len(assessment["regression_signature"]) == 296
++        assert len(assessment["regression_signature"]) == 215
+     assert candidate["comparison_gate_passed"] and candidate["comparison_errors"] == []
+     assert candidate["regression_signature"] == original["regression_signature"]
+     old_rows = {(row["test"], row["subtest"]): row for row in original["rows"]}
+     new_rows = {(row["test"], row["subtest"]): row for row in candidate["rows"]}
+     assert all(new_rows[key]["status"] == "PASS" for key in targets)
++    assert all(row["status"] == "PASS" for row in candidate["rows"]
++               if row["test"] in comparison["candidate_required_pass_pages"])
+     assert all(signature(new_rows[key]) == signature(row) for key, row in old_rows.items()
+                if key in controls or row["status"] == "PASS")
+     assert {end["test"]: signature(end) for end in candidate["ends"]} == {end["test"]: signature(end) for end in original["ends"]}
+@@ -65,7 +67,7 @@
+     result, restored = read(evidence / "RESULT.json"), read(evidence / "RESTORATION.json")
+     inner = read(evidence / "candidate-build/build-RESULT.json")
+     terminal = read(evidence / "CANDIDATE-ROOT-REPORTED-TERMINAL.json")
+-    assert terminal["session_id"] == 60401 and terminal["terminal_tool"] == "416ae1" and terminal["exit"] == 0
++    assert terminal["session_id"] == 70485 and terminal["terminal_tool"] == "0d77a9" and terminal["exit"] == 0
+     assert terminal["root_observed_terminal"] and terminal["result_sha256"] == digest((evidence / "RESULT.json").read_bytes())
+     assert result["success"] is True and result["restoration_verified"] and result["runtime_controls_unchanged"] and result["empty_staging_preserved"]
+     assert result["error"] is None
+@@ -117,7 +119,7 @@
+     encoded = json.dumps(updated, indent=2, sort_keys=True).encode() + b"\n"
+     assert digest(encoded) == policy["updated_epoch_sha256"]
+     if sys.argv[1] == "--check":
+-        print("Authenticated successful contextual easing315 pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
++        print("Authenticated successful hypot227 pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
+         return
+     assert policy["execution_enabled"] is True
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))
