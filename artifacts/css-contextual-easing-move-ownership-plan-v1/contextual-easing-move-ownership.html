@@ -1,0 +1,168 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Contextual keyframe ownership across state-preserving moves</title>
+<link rel="help" href="https://dom.spec.whatwg.org/#concept-node-move">
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-setkeyframes">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const settle = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+async function fixture(t, input) {
+  const expression = input === "sibling-index" ? "steps(sibling-index(), end)" : "steps(calc(1em / 8px), end)";
+  assert_true(CSS.supports("animation-timing-function", expression), "Contextual syntax is admitted");
+  const host = document.createElement("div");
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const root = host.attachShadow({mode: "open"});
+  root.innerHTML = `<style>
+    @keyframes progress { from { opacity:0; animation-timing-function:${expression}; } to { opacity:1; } }
+    .old, .new { font-size:16px; }
+    .font .new { font-size:24px; }
+    .target { animation:progress 1000ms linear both paused; }
+  </style><section class="${input === "inherited-font" ? "font" : "index"}"></section><aside></aside>`;
+  const section = root.querySelector("section");
+  const lanes = [];
+  for (let index = 0; index < 2; index++) {
+    const lane = document.createElement("div");
+    lane.innerHTML = `<div class="old"><i></i><div class="target"></div><i></i></div>
+      <div class="new"><i></i><i></i></div>`;
+    section.append(lane);
+    const target = lane.querySelector(".target");
+    const oldParent = lane.querySelector(".old");
+    const newParent = lane.querySelector(".new");
+    const animations = target.getAnimations();
+    assert_equals(animations.length, 1, "One initial CSS animation");
+    const animation = animations[0];
+    assert_true(animation instanceof CSSAnimation);
+    t.add_cleanup(() => animation.cancel());
+    await animation.ready;
+    animation.currentTime = 750;
+    lanes.push({target, oldParent, newParent, next:target.nextSibling,
+      animation, effect:animation.effect});
+  }
+  const references = new Map();
+  for (const count of [2, 3, 5]) {
+    const element = document.createElement("div");
+    root.querySelector("aside").append(element);
+    const animation = element.animate([{opacity:0}, {opacity:1}],
+      {duration:1000, easing:`steps(${count}, end)`, fill:"both"});
+    t.add_cleanup(() => animation.cancel());
+    animation.pause();
+    await animation.ready;
+    animation.currentTime = 750;
+    references.set(count, element);
+  }
+  const sheet = root.querySelector("style").sheet;
+  const rule = sheet.cssRules[0];
+  return {root, lanes, references, sheet, rule, keyframe:rule.cssRules[0],
+    declaration:rule.cssRules[0].style.animationTimingFunction};
+}
+
+async function snapshot(f, moved) {
+  await settle();
+  return {
+    fixedRule:f.sheet.cssRules[0] === f.rule && f.rule.cssRules[0] === f.keyframe,
+    declaration:f.keyframe.style.animationTimingFunction,
+    expected:Number(getComputedStyle(f.references.get(moved ? 3 : 2)).opacity),
+    scriptExpected:Number(getComputedStyle(f.references.get(5)).opacity),
+    lanes:f.lanes.map(lane => {
+      const computed = getComputedStyle(lane.target);
+      const actual = Number(computed.opacity);
+      const animations = lane.target.getAnimations();
+      return {
+        actual, repeat:Number(getComputedStyle(lane.target).opacity),
+        connected:lane.target.isConnected,
+        sameRoot:lane.target.getRootNode() === f.root,
+        rightParent:lane.target.parentElement === (moved ? lane.newParent : lane.oldParent),
+        originalGap:lane.target.nextSibling === lane.next,
+        index:Array.from(lane.target.parentElement.children).indexOf(lane.target) + 1,
+        count:lane.target.parentElement.children.length,
+        font:computed.fontSize, name:computed.animationName,
+        sameAnimation:animations.length === 1 && animations[0] === lane.animation,
+        sameEffect:lane.animation.effect === lane.effect,
+        sameTarget:lane.effect.target === lane.target,
+        time:lane.animation.currentTime, state:lane.animation.playState,
+        pending:lane.animation.pending, frames:JSON.stringify(lane.effect.getKeyframes()),
+      };
+    }),
+  };
+}
+
+for (const input of ["sibling-index", "inherited-font"]) {
+  for (const owner of ["CSS", "successful script override", "rejected script override"]) {
+    promise_test(async t => {
+      const f = await fixture(t, input);
+      const before = await snapshot(f, false);
+      const effect = f.lanes[0].effect;
+      let error = null;
+      if (owner !== "CSS") {
+        try {
+          effect.setKeyframes([
+            {opacity:0, offset:0, easing:"steps(5, end)"},
+            {opacity:1, offset:owner === "successful script override" ? 1 : 2},
+          ]);
+        } catch (caught) {
+          error = caught;
+        }
+      }
+      const afterCall = JSON.stringify(effect.getKeyframes());
+      const rows = [await snapshot(f, false)];
+      for (const lane of f.lanes) {
+        lane.newParent.moveBefore(lane.target, null);
+      }
+      rows.push(await snapshot(f, true));
+      for (const lane of f.lanes) {
+        lane.oldParent.moveBefore(lane.target, lane.next);
+      }
+      rows.push(await snapshot(f, false));
+      const detail = JSON.stringify({input, owner, before, afterCall, rows});
+      const scripted = owner === "successful script override";
+      assert_approx_equals(before.lanes[0].actual, 0.5, 0.0001, `Initial CSS curve; ${detail}`);
+      if (owner === "rejected script override") {
+        assert_true(error instanceof TypeError, `Invalid offset rejects; ${detail}`);
+        assert_equals(afterCall, before.lanes[0].frames, `Rejection leaves frames unchanged; ${detail}`);
+      } else {
+        assert_equals(error, null, `No script exception; ${detail}`);
+        if (scripted) {
+          assert_not_equals(afterCall, before.lanes[0].frames, `Successful call changes frames; ${detail}`);
+        }
+      }
+      assert_not_equals(rows[1].lanes[1].frames, rows[0].lanes[1].frames, `CSS control frames refresh; ${detail}`);
+      assert_equals(rows[2].lanes[1].frames, rows[0].lanes[1].frames, `CSS control frames recover; ${detail}`);
+      for (const [phase, row] of rows.entries()) {
+        const moved = phase === 1;
+        assert_true(row.fixedRule, `Same rule and keyframe objects; ${detail}`);
+        assert_equals(row.declaration, f.declaration, `Specified expression unchanged; ${detail}`);
+        assert_not_equals(row.declaration, "", `Contextual declaration retained; ${detail}`);
+        assert_approx_equals(row.expected, moved ? 2 / 3 : 0.5, 0.0001, `Literal CSS calibration; ${detail}`);
+        assert_approx_equals(row.scriptExpected, 0.6, 0.0001, `Literal script calibration; ${detail}`);
+        for (const [index, lane] of row.lanes.entries()) {
+          assert_true(lane.connected && lane.sameRoot && lane.rightParent, `Same tree and expected parent; ${detail}`);
+          assert_equals(lane.originalGap, !moved, `Original gap recovers; ${detail}`);
+          assert_equals(lane.index, moved ? 3 : 2, `Moved sibling index; ${detail}`);
+          assert_equals(lane.count, 3, `Sibling count held constant; ${detail}`);
+          assert_equals(lane.font, input === "inherited-font" && moved ? "24px" : "16px", `Own computed font; ${detail}`);
+          assert_equals(lane.name, "progress", `Animation name unchanged; ${detail}`);
+          assert_true(lane.sameAnimation && lane.sameEffect && lane.sameTarget, `Animation association preserved; ${detail}`);
+          assert_equals(lane.time, 750, `Paused currentTime preserved; ${detail}`);
+          assert_equals(lane.state, "paused", `Paused state preserved; ${detail}`);
+          assert_false(lane.pending, `No pending playback task; ${detail}`);
+          assert_approx_equals(lane.actual, index === 0 && scripted ? row.scriptExpected : row.expected,
+            0.0001, `Keyframe owner respected after move; ${detail}`);
+          assert_equals(lane.repeat, lane.actual, `Stable repeated sample; ${detail}`);
+        }
+        if (scripted) {
+          assert_equals(row.lanes[0].frames, afterCall, `Script frames survive moves; ${detail}`);
+        }
+      }
+      if (!scripted) {
+        assert_not_equals(rows[1].lanes[0].frames, rows[0].lanes[0].frames, `CSS-owned target frames refresh; ${detail}`);
+        assert_equals(rows[2].lanes[0].frames, rows[0].lanes[0].frames, `CSS-owned target frames recover; ${detail}`);
+      }
+    }, `${owner} ownership survives same-root moveBefore and ${input} context recovery`);
+  }
+}
+</script>

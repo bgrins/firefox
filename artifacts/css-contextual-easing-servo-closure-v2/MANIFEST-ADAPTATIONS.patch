@@ -1,0 +1,112 @@
+--- repository/servo/components/style/Cargo.toml
++++ isolated/servo/components/style/Cargo.toml
+@@ -18,20 +18,8 @@
+ doctest = false
+ 
+ [features]
+-gecko = [
+-    "bindgen",
+-    "malloc_size_of/gecko",
+-    "mozbuild",
+-    "nsstring",
+-    "regex",
+-    "serde",
+-    "style_traits/gecko",
+-    "toml",
+-    "selectors/to_shmem",
+-    "to_shmem/gecko",
+-]
++gecko = []
+ servo = [
+-    "arrayvec/use_union",
+     "cssparser/serde",
+     "encoding_rs",
+     "malloc_size_of/servo",
+@@ -39,7 +27,6 @@
+     "serde",
+     "servo_arc/servo",
+     "stylo_atoms",
+-    "servo_config",
+     "string_cache",
+     "style_traits/servo",
+     "url",
+@@ -70,9 +57,7 @@
+ log = "0.4"
+ malloc_size_of = { path = "../malloc_size_of" }
+ malloc_size_of_derive = { path = "../../../xpcom/rust/malloc_size_of_derive" }
+-mozbuild = {version = "0.1", optional = true}
+-web_atoms = { version = "0.1", optional = true }
+-nsstring = {path = "../../../xpcom/rust/nsstring/", optional = true}
++web_atoms = { version = "=0.1.0", optional = true }
+ num_cpus = {version = "1.1.0"}
+ num-integer = "0.1"
+ num-traits = "0.2"
+@@ -85,12 +70,11 @@
+ selectors = { path = "../selectors" }
+ serde = {version = "1.0", optional = true, features = ["derive"]}
+ servo_arc = { path = "../servo_arc" }
+-stylo_atoms = {path = "../atoms", optional = true}
+-servo_config = {path = "../config", optional = true}
++stylo_atoms = {path = "../../../support/stylo_atoms-0.22.0", optional = true}
+ smallbitvec = "2.3.0"
+ smallvec = "1.0"
+ static_assertions = "1.1"
+-static_prefs = { path = "../../../modules/libpref/init/static_prefs" }
++static_prefs = { package = "stylo_static_prefs", path = "../../../support/stylo_static_prefs-0.22.0" }
+ string_cache = { version = "0.8", optional = true }
+ strum = "0.27"
+ strum_macros = "0.27"
+@@ -98,16 +82,11 @@
+ style_traits = {path = "../style_traits"}
+ to_shmem = {path = "../to_shmem"}
+ to_shmem_derive = {path = "../to_shmem_derive"}
+-thin-vec = { version = "0.2.1", features = ["gecko-ffi"] }
++thin-vec = { version = "0.2.1", features = ["serde"] }
+ uluru = "3.0"
+ void = "1.0.2"
+-gecko-profiler = { path = "../../../tools/profiler/rust-api" }
+ url = { version = "2.5", optional = true, features = ["serde"] }
+ 
+ [build-dependencies]
+ log = { version = "0.4", features = ["std"] }
+-bindgen = {version = "0.73", optional = true, default-features = false}
+-regex = {version = "1.0", optional = true, default-features = false, features = ["perf", "std"]}
+ walkdir = "2.1.4"
+-toml = {version = "0.5", optional = true, default-features = false}
+-mozbuild = {version = "0.1", optional = true}
+--- repository/servo/components/style_traits/Cargo.toml
++++ isolated/servo/components/style_traits/Cargo.toml
+@@ -13,7 +13,7 @@
+ 
+ [features]
+ servo = ["stylo_atoms", "cssparser/serde", "url", "euclid/serde"]
+-gecko = ["nsstring"]
++gecko = []
+ 
+ [dependencies]
+ app_units = "0.7"
+@@ -22,11 +22,10 @@
+ euclid = "0.22"
+ malloc_size_of = { path = "../malloc_size_of" }
+ malloc_size_of_derive = { path = "../../../xpcom/rust/malloc_size_of_derive" }
+-nsstring = {path = "../../../xpcom/rust/nsstring/", optional = true}
+ selectors = { path = "../selectors" }
+ serde = "1.0"
+ servo_arc = { path = "../servo_arc" }
+-stylo_atoms = { path = "../atoms", optional = true }
++stylo_atoms = { path = "../../../support/stylo_atoms-0.22.0", optional = true }
+ thin-vec = "0.2"
+ to_shmem = { path = "../to_shmem" }
+ to_shmem_derive = { path = "../to_shmem_derive" }
+--- published/stylo_atoms-0.22.0/Cargo.toml
++++ isolated/support/stylo_atoms-0.22.0/Cargo.toml
+@@ -32,7 +32,7 @@
+ path = "lib.rs"
+ 
+ [dependencies.string_cache]
+-version = "0.11"
++version = "=0.8.9"
+ 
+ [build-dependencies.string_cache_codegen]
+-version = "0.11"
++version = "=0.5.4"

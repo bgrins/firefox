@@ -1,0 +1,30 @@
+>>>  347: void CSSAnimationKeyframeEffect::SetKeyframes(JSContext* aContext,
+     348:                                               JS::Handle<JSObject*> aKeyframes,
+     349:                                               ErrorResult& aRv) {
+     350:   nsTArray<Keyframe> keyframes = KeyframeUtils::GetKeyframesFromObject(
+     351:       aContext, mDocument, aKeyframes, "KeyframeEffect.setKeyframes", aRv);
+     352:   if (aRv.Failed()) {
+     353:     return;
+     354:   }
+     355: 
+     356:   // SetKeyframes below will trigger the keyframe generation (for missing 0% and
+     357:   // 100%), so we set this flag to avoid generating the keyframes if they come
+     358:   // from JS.
+     359:   // Note that this is different from CSSAnimationProperties::Keyframes below
+     360:   // because we have to avoid generating keyframes even if we don't have
+     361:   // animation, i.e. this is a keyframe-effect-specific flag for keyframes
+     362:   // generation.
+     363:   mIgnoreKeyframesGeneration = true;
+     364: 
+     365:   // This is from the JS API, so we use the associated animation's timeline and
+     366:   // range if any.
+     367:   RefPtr<const ComputedStyle> style = GetTargetComputedStyle(Flush::None);
+     368:   KeyframeEffect::SetKeyframes(
+     369:       std::move(keyframes), style,
+     370:       mAnimation ? mAnimation->GetTimeline() : nullptr,
+     371:       mAnimation ? &mAnimation->GetTimelineRange() : nullptr);
+     372: 
+     373:   if (CSSAnimation* cssAnimation = GetOwningCSSAnimation()) {
+     374:     cssAnimation->PropertiesWillSetFromJS(CSSAnimationProperties::Keyframes);
+     375:   }
+     376: }

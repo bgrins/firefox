@@ -1,0 +1,11 @@
+## Servo support compatibility and research checkpoint — 2026-10-29
+
+The corrected isolated Servo baseline reached Stylo, then Cargo exited 101 after 39.46 seconds on three missing preference macro arms and the missing `part` local name. Root observed session63528 terminal009a42/1. Candidate compilation was skipped; source preservation passed, all owned process groups were absent, and the 177,963,008-byte target remains retained. This is a shared-baseline support compatibility failure, not a candidate defect. A successful full Servo baseline/candidate comparison is still pending.
+
+Closure v2 restored seven genuine Firefox dependency path patches, with committed-source provenance and checksums audited for every remaining directory-source package. Prepared closure v3 adds three explicitly sourced boolean preference inputs to the unchanged real generator and selects unmodified published web_atoms0.1.3. Both roles resolve offline with the seven exact native source differences preserved. Literal-key and dependency-checksum audits pass. Runner v4 remains unexecuted; support adaptations and the shared held custom-properties source limit interpretation to the captured local configuration, with no runtime behavior established.
+
+The move-ownership plan records six future callbacks for same-root moves with changing numeric context and CSS/script ownership; declaring-root and WithVariables issues remain outside this plan. Fixture registration, manifest generation, and lint preparation are complete; no browser comparison, native acceptance, proof discovery, or model-to-native refinement result is claimed. The existing315 comparison and accepted147/148 fixes are unchanged.
+
+Root's untracked audit v2 verifies all563 exact historical names:68 prototypes retain their bytes, modes, identities, and committed recovery copies;495 unrelated entries retain their recorded metadata. Nested untracked state remains only.DS_Store, staging is empty, and the held provider remains unchanged. This checkpoint selects compact completed evidence and prepared recipes only. Counts remain147 accepted/148 tracked, held120 excluded. Full Servo checking and future move-ownership experiments remain separate work.
+
+

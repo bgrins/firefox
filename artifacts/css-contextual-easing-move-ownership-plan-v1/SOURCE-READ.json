@@ -1,0 +1,20 @@
+{
+  "accepted_current_Element_cpp": {
+    "excerpt": "  if (!aContext.IsMove()) {\n    if (mState.HasState(ElementState::FULLSCREEN)) {\n      // The element being removed is an ancestor of the fullscreen element,\n      // exit fullscreen state.\n      nsContentUtils::ReportToConsole(\n          nsIScriptError::warningFlag, \"DOM\"_ns, OwnerDoc(),\n          PropertiesFile::DOM_PROPERTIES, \"RemovedFullscreenElement\");\n      // Fully exit fullscreen.\n      Document::ExitFullscreenInDocTree(OwnerDoc());\n    }\n    if (document) {\n      ClearServoData(document);\n    }\n    if (auto* data = GetAnimationData()) {\n      // Ensure that CSS transitions don't continue on an element at a\n      // different place in the tree (even if reinserted before next\n      // animation refresh).\n      //\n      // We need to delete the properties while we're still in document\n      // (if we were in document) so that they can look up the\n      // PendingAnimationTracker on the document and remove their animations,\n      // and so they can find their pres context for dispatching cancel events.\n      //\n      // FIXME(bug 522599): Need a test for this.\n      // FIXME(emilio): Why not clearing the effect set as well?\n      data->ClearAllAnimationCollections();\n    }\n    if (auto* slots = GetExistingExtendedDOMSlots()) {\n      slots->mSavedScrollState = nullptr;\n    }\n  }\n",
+    "sha256": "a03f8015569af67e046b4ccbd09b745af7cdd0ffab4969ad86cadfe09bd93d09",
+    "symbol": "Element::UnbindFromTree"
+  },
+  "candidate_matching_capture": {
+    "behavior": "normal restyle requests animation update when selected keyframes have contextual timing",
+    "path": "artifacts/css-contextual-easing-scope-prototype-v1/candidate/servo/components/style/matching.rs",
+    "sha256": "2f2222ff75e9ef1ad810978481ff8209c7abdc8c6a2ca34f70a71e1151d31542"
+  },
+  "initial_sandbox_searchfox_dns_failure": true,
+  "network_read_retry_succeeded": true,
+  "searchfox_queries": [
+    "CSSAnimationKeyframeEffect::SetKeyframes",
+    "nsINode::MoveBefore",
+    "nsAnimationManager.cpp Keyframes override gate"
+  ],
+  "source_discovery_not_proof": true
+}

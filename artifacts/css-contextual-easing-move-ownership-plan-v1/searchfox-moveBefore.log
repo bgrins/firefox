@@ -1,0 +1,109 @@
+>>> 2868: void nsINode::MoveBefore(nsINode& aNode, nsINode* aChild, ErrorResult& aRv) {
+    2869:   const auto ComputeReferenceChild = [&]() -> nsINode* {
+    2870:     return &aNode == aChild ? aNode.GetNextSibling() : aChild;
+    2871:   };
+    2872:   nsINode* referenceChild = ComputeReferenceChild();
+    2873: 
+    2874:   // Move algorithm
+    2875:   // https://dom.spec.whatwg.org/#move
+    2876:   nsINode& newParent = *this;
+    2877:   const auto EnsureValidMoveRequest = [&newParent](nsINode& aNode,
+    2878:                                                    nsINode* aReferenceChild,
+    2879:                                                    ErrorResult& aRv) -> void {
+    2880:     // Step 1.
+    2881:     GetRootNodeOptions options;
+    2882:     options.mComposed = true;
+    2883:     if (newParent.GetRootNode(options) != aNode.GetRootNode(options)) {
+    2884:       aRv.ThrowHierarchyRequestError("Different root node.");
+    2885:       return;
+    2886:     }
+    2887: 
+    2888:     // Step 2.
+    2889:     if (nsContentUtils::ContentIsHostIncludingDescendantOf(&newParent,
+    2890:                                                            &aNode)) {
+    2891:       aRv.ThrowHierarchyRequestError("Node is an ancestor of the new parent.");
+    2892:       return;
+    2893:     }
+    2894: 
+    2895:     // Step 3.
+    2896:     if (aReferenceChild && aReferenceChild->GetParentNode() != &newParent) {
+    2897:       aRv.ThrowNotFoundError("Wrong reference child.");
+    2898:       return;
+    2899:     }
+    2900: 
+    2901:     // Step 4.
+    2902:     if (!aNode.IsElement() && !aNode.IsCharacterData()) {
+    2903:       aRv.ThrowHierarchyRequestError("Wrong type of node.");
+    2904:       return;
+    2905:     }
+    2906: 
+    2907:     // Step 5.
+    2908:     if (aNode.IsText() && newParent.IsDocument()) {
+    2909:       aRv.ThrowHierarchyRequestError(
+    2910:           "Can't move a text node to be a child of a document.");
+    2911:       return;
+    2912:     }
+    2913: 
+    2914:     // Step 6.
+    2915:     if (newParent.IsDocument() && aNode.IsElement() &&
+    2916:         (newParent.AsDocument()->GetRootElement() ||
+    2917:          IsDoctypeOrHasFollowingDoctype(aReferenceChild))) {
+    2918:       aRv.ThrowHierarchyRequestError(
+    2919:           "Can't move an element to be a child of the document.");
+    2920:       return;
+    2921:     }
+    2922:   };
+    2923:   EnsureValidMoveRequest(aNode, referenceChild, aRv);
+    2924:   if (MOZ_UNLIKELY(aRv.Failed())) {
+    2925:     return;
+    2926:   }
+    2927: 
+    2928:   // Step 7.
+    2929:   nsINode* oldParent = aNode.GetParentNode();
+    2930: 
+    2931:   // Step 8.
+    2932:   MOZ_ASSERT(oldParent);
+    2933: 
+    2934:   // For consistency with ReplaceOrInsertBefore(), we should allow DevTools to
+    2935:   // break on the removal of aNode.
+    2936:   if (MOZ_UNLIKELY(
+    2937:           aNode.MaybeNeedsToNotifyDevToolsOfNodeRemovalsInOwnerDoc())) {
+    2938:     nsMutationGuard guard;
+    2939:     nsContentUtils::NotifyDevToolsOfNodeRemoval(aNode);
+    2940:     // If the user modifies the DOM tree, let's check same things again.
+    2941:     if (MOZ_UNLIKELY(guard.Mutated(0))) {
+    2942:       referenceChild = ComputeReferenceChild();
+    2943:       // Step 1-6.
+    2944:       EnsureValidMoveRequest(aNode, referenceChild, aRv);
+    2945:       if (aRv.Failed()) {
+    2946:         return;
+    2947:       }
+    2948:       // Step 7.
+    2949:       oldParent = aNode.GetParentNode();
+    2950:       // Step 8.
+    2951:       MOZ_ASSERT(oldParent);
+    2952:     }
+    2953:   }
+    2954: 
+    2955:   // Steps 9-12 happen implicitly in when triggering
+    2956:   // nsIMutationObserver notifications.
+    2957:   // Step 13, and UnbindFromTree runs step 14 and step 15 and step 16,
+    2958:   // and also Step 25..
+    2959:   mozAutoDocUpdate updateBatch(GetComposedDoc(), true);
+    2960:   {  // Scope for AutoSuppressNotifyingDevToolsOfNodeRemovals
+    2961:     // XXX Do we really need to suppress notifying DevTools of this node
+    2962:     // removal? If we stop suppressing that, we need to check whether
+    2963:     // `referenceChild` is still in `oldParent` after that because the user
+    2964:     // can change the DOM with Inspector or Console.
+    2965:     AutoSuppressNotifyingDevToolsOfNodeRemovals suppressNotifyingDevTools(
+    2966:         *OwnerDoc());
+    2967:     oldParent->RemoveChildNode(aNode.AsContent(), true, nullptr, &newParent);
+    2968: 
+    2969:     // Steps 17-24 and Step 26.
+    2970:     // FIXME: I think this InsertChildBefore() call can be moved outside the
+    2971:     // scope of AutoSuppressNotifyingDevToolsOfNodeRemovals.
+    2972:     InsertChildBefore(aNode.AsContent(),
+    2973:                       referenceChild ? referenceChild->AsContent() : nullptr,
+    2974:                       true, aRv, oldParent);
+    2975:   }
+    2976: }
