@@ -1,0 +1,18 @@
+--- v1/wpt.py
++++ v3/wpt.py
+@@ -44,6 +44,7 @@
+     output.mkdir()
+     before = verify()
+     app_before = metadata_helper.application_metadata(root / settings['application_ini'], settings['phase_revisions'][role])
++    app_before.update(build_revision=app_before['revision'], harness_revision=settings['harness_revision'], source_role=role)
+     binaries = {name: sha(root / name) for name in policy['rebuilt_binaries']}
+     save(output / 'PRE.json', before)
+     save(output / 'APPLICATION-METADATA.json', app_before)
+@@ -123,6 +124,7 @@
+         save(output / 'CLEANUP.json', cleanup)
+     after = verify()
+     app_after = metadata_helper.application_metadata(root / settings['application_ini'], settings['phase_revisions'][role])
++    app_after.update(build_revision=app_after['revision'], harness_revision=settings['harness_revision'], source_role=role)
+     preserved = before == after and app_before == app_after and {name: sha(root / name) for name in binaries} == binaries
+     save(output / 'POST.json', after)
+     save(output / 'APPLICATION-METADATA-POST.json', app_after)

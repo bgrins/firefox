@@ -1,0 +1,25 @@
+--- baseline-v1/assess.py
++++ corrected-baseline-v3/assess.py
+@@ -32,6 +32,13 @@
+     ends = [e for e in events if e.get("action") == "test_end"]
+     suites = [e for e in events if e.get("action") == "suite_start"]
+     errors = []
++    fixture_setup_errors = [signature(row) for row in rows
++                            if row.get("test") in policy["fixture_target_pages"]
++                            and row.get("status") == "FAIL"
++                            and any(token in (row.get("message") or "") for token in
++                                    ("Unhandled rejection", "TypeError:", "ReferenceError:", "SyntaxError:", "RangeError:"))]
++    if fixture_setup_errors:
++        errors.append("new target fixture has an uncaught setup/runtime exception")
+     config = {"expected_subtests": {t: [] for t, kind in tests.items() if kind == "testharness"},
+               "reftests": [t for t, kind in tests.items() if kind == "reftest"]}
+     if not checks.lifecycle(events, config):
+@@ -112,7 +119,7 @@
+             comparison_errors.append("original has no demonstrated target failure")
+         if any(r.get("status") != "PASS" for r in candidate):
+             comparison_errors.append("candidate target fixture still fails")
+-    return {"complete": not errors, "errors": errors, "run_info": run_info, "run_binding": run_binding,
++    return {"complete": not errors, "errors": errors, "fixture_setup_errors": fixture_setup_errors, "run_info": run_info, "run_binding": run_binding,
+             "observed_subtest_count": len(rows), "rows": rows, "starts": starts, "ends": ends,
+             "per_test": {test: {"type": kind,
+                         "subtests": dict(Counter(r["status"] for r in rows if r["test"] == test)),

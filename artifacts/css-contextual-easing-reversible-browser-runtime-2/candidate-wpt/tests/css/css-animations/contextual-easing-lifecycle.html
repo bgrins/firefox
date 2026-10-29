@@ -1,0 +1,137 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Contextual CSS easing follows element and keyframe changes</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-1/#animation-timing-function">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const families = [
+  ["steps", "steps(calc(sibling-index()), end)", n => `steps(${n}, end)`],
+  ["steps count", "steps(calc(sibling-count()), end)", n => `steps(${n + 1}, end)`],
+  ["bezier", "cubic-bezier(0, calc(sibling-index() / 4), 1, 1)",
+   n => `cubic-bezier(0, ${n / 4}, 1, 1)`],
+  ["linear output", "linear(0, calc(sibling-index() / 4) 50%, 1)",
+   n => `linear(0, ${n / 4} 50%, 1)`],
+  ["linear second position", "linear(0 0% calc(sibling-index() * 20%), 1)",
+   n => `linear(0 0% ${n * 20}%, 1)`],
+];
+
+async function fixture(t, expression, route) {
+  const host = document.createElement("div");
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const root = host.attachShadow({mode: "open"});
+  root.innerHTML = `<style>
+    @keyframes progress { from { opacity: 0; } to { opacity: 1; } }
+    #target { animation: progress 1000ms linear both paused; }
+  </style><div id="holder"><i></i><div id="target"></div><i></i></div>
+  <div id="reference"></div>`;
+  const target = root.querySelector("#target");
+  const holder = root.querySelector("#holder");
+  const reference = root.querySelector("#reference");
+  const rule = root.querySelector("style").sheet.cssRules[0];
+  const declaration = route === "property" ? target.style : rule.cssRules[0].style;
+  declaration.animationTimingFunction = expression;
+  assert_not_equals(declaration.animationTimingFunction, "", "CSS declaration is admitted");
+  getComputedStyle(target).opacity;
+  const animation = target.getAnimations()[0];
+  assert_true(!!animation, "CSS animation exists");
+  t.add_cleanup(() => animation.cancel());
+  await animation.ready;
+  animation.currentTime = 750;
+  return {host, target, holder, reference, rule, declaration, animation};
+}
+
+async function sample(f, literal) {
+  const control = f.reference.animate([{opacity: 0}, {opacity: 1}],
+    {duration: 1000, easing: literal, fill: "both"});
+  try {
+    control.pause();
+    await control.ready;
+    control.currentTime = 750;
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const result = {
+      actual: Number(getComputedStyle(f.target).opacity),
+      expected: Number(getComputedStyle(f.reference).opacity),
+      repeat: Number(getComputedStyle(f.target).opacity),
+      sameAnimation: f.target.getAnimations()[0] === f.animation,
+      time: f.animation.currentTime,
+      index: Array.from(f.holder.children).indexOf(f.target) + 1,
+      count: f.holder.children.length,
+      specified: f.declaration.animationTimingFunction,
+      keyframes: f.animation.effect.getKeyframes().map(k => k.easing),
+    };
+    return result;
+  } finally {
+    control.cancel();
+  }
+}
+
+function check(rows) {
+  for (const row of rows) {
+    assert_true(Number.isFinite(row.expected), "Literal sample is finite");
+    assert_true(row.expected > 0 && row.expected < 1, "Literal sample is interior");
+    assert_true(Number.isFinite(row.actual), "Contextual sample is finite");
+    assert_true(row.sameAnimation, "Existing CSS animation is retained");
+    assert_equals(row.time, 750, "Paused sample time is retained");
+    assert_not_equals(row.specified, "", "Declaration remains admitted");
+    assert_equals(row.repeat, row.actual, "Repeated reads are stable");
+    assert_approx_equals(row.actual, row.expected, 0.0001,
+      "Contextual CSS easing matches the independent literal animation");
+  }
+}
+
+for (const [name, expression, literal] of families) {
+  for (const route of ["property", "keyframe"]) {
+    promise_test(async t => {
+      const f = await fixture(t, expression, route);
+      const rows = [await sample(f, literal(2))];
+      const sibling = document.createElement("i");
+      if (name === "steps count") {
+        f.holder.append(sibling);
+      } else {
+        f.holder.prepend(sibling);
+      }
+      rows.push(await sample(f, literal(3)));
+      sibling.remove();
+      rows.push(await sample(f, literal(2)));
+      check(rows);
+      assert_array_equals(rows.map(row => row.count), [3, 4, 3], "Sibling counts");
+      assert_array_equals(rows.map(row => row.index),
+        name === "steps count" ? [2, 2, 2] : [2, 3, 2], "Target indices");
+    }, `CSS ${route} ${name} easing updates after sibling insertion and removal`);
+  }
+}
+
+promise_test(async t => {
+  const f = await fixture(t, "steps(2, end)", "keyframe");
+  const rows = [await sample(f, "steps(2, end)")];
+  f.declaration.animationTimingFunction = "steps(calc(sibling-index()), end)";
+  rows.push(await sample(f, "steps(2, end)"));
+  const sibling = document.createElement("i");
+  f.holder.prepend(sibling);
+  rows.push(await sample(f, "steps(3, end)"));
+  f.declaration.animationTimingFunction = "steps(4, end)";
+  rows.push(await sample(f, "steps(4, end)"));
+  sibling.remove();
+  rows.push(await sample(f, "steps(4, end)"));
+  check(rows);
+}, "Changing a selected keyframe from literal to contextual easing installs its sibling dependency");
+
+promise_test(async t => {
+  const f = await fixture(t, "steps(calc(1 + 1em / 8px), end)", "keyframe");
+  const rows = [];
+  for (const size of [8, 16, 32, 8]) {
+    f.host.style.fontSize = `${size}px`;
+    const row = await sample(f, `steps(${1 + size / 8}, end)`);
+    row.font = getComputedStyle(f.target).fontSize;
+    row.expectedFont = `${size}px`;
+    rows.push(row);
+  }
+  check(rows);
+  for (const row of rows) {
+    assert_equals(row.font, row.expectedFont, "Host font is inherited by the target");
+  }
+}, "Keyframe easing follows inherited host font changes without animating that input");
+</script>

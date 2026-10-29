@@ -1,0 +1,55 @@
+--- a/servo/components/style/values/specified/easing.rs
++++ b/servo/components/style/values/specified/easing.rs
+@@ -158,17 +158,9 @@
+         input.expect_comma()?;
+         let y2 = Number::parse(context, input)?;
+ 
+-        // TODO(Bug 2037743) - Enable calc()-expressions that can only be resolved at
+-        // computed value time (due to relative lengths, sibling-index(), etc.).
+-        if let (Some(_), Some(_), Some(_), Some(_)) =
+-            (x1.resolve(), y1.resolve(), x2.resolve(), y2.resolve())
++        if matches!(x1.get(), Some(x) if !(0.0..=1.0).contains(&x))
++            || matches!(x2.get(), Some(x) if !(0.0..=1.0).contains(&x))
+         {
+-            if matches!(x1.get(), Some(x) if !(0.0..=1.0).contains(&x))
+-                || matches!(x2.get(), Some(x) if !(0.0..=1.0).contains(&x))
+-            {
+-                return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+-            }
+-        } else {
+             return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+         }
+ 
+@@ -183,12 +175,6 @@
+                 StepPosition::parse(i)
+             })
+             .unwrap_or(StepPosition::End);
+-
+-        // TODO(Bug 2037743) - Enable calc()-expressions that can only be resolved at
+-        // computed value time (due to relative lengths, sibling-index(), etc.).
+-        if steps.resolve().is_none() {
+-            return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+-        }
+ 
+         // Literal counts are range-checked here; calculations are clamped on computation.
+         if position == StepPosition::JumpNone && steps.get() == Some(1) {
+@@ -213,19 +199,6 @@
+                     debug_assert!(input_end.is_none(), "Input end parsed without input start?");
+                     input_start = i.try_parse(|i| Percentage::parse(context, i)).ok();
+                     input_end = i.try_parse(|i| Percentage::parse(context, i)).ok();
+-                }
+-
+-                // TODO(Bug 2037743) - Enable calc()-expressions that can only be resolved at
+-                // computed value time (due to relative lengths, sibling-index(), etc.).
+-                if output.resolve().is_none() {
+-                    return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+-                }
+-                if input_start
+-                    .iter()
+-                    .chain(input_end.iter())
+-                    .any(|p| p.resolve().is_none())
+-                {
+-                    return Err(ParseError::custom(StyleParseErrorKind::UnspecifiedError));
+                 }
+ 
+                 stops.push(LinearStop {

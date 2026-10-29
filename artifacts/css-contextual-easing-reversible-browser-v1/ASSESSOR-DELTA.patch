@@ -1,0 +1,50 @@
+--- finite-v2/assess.py
++++ activation/assess.py
+@@ -53,8 +53,9 @@
+         allowed = ("OK",) if tests.get(end.get("test")) == "testharness" else ("PASS", "FAIL")
+         if end.get("status") not in allowed:
+             errors.append("non-completed test end: " + str(end.get("test")))
+-    candidate = [r for r in rows if r.get("test") in targets]
+-    for test, expected in dict(policy["regression_subtests"], **targets, **held).items():
++    target_ids = {(test, name) for test, names in targets.items() for name in names}
++    candidate = [r for r in rows if (r.get("test"), r.get("subtest")) in target_ids]
++    for test, expected in policy["expected_subtests"].items():
+         if Counter(r.get("subtest") for r in rows if r.get("test") == test) != Counter(expected):
+             errors.append("fixture identities/cardinality differ: " + test)
+     run_info = suites[0].get("run_info") if len(suites) == 1 else None
+@@ -86,7 +87,7 @@
+             except (KeyError, IndexError, TypeError, ValueError):
+                 errors.append("held failure lacks complete mutation observation: " + event["subtest"])
+     held_signature.sort(key=lambda e: (e["test"], e["kind"], e["subtest"] or ""))
+-    regression = [signature(e) for e in rows + ends if (e.get("action") == "test_end" or e.get("test") not in targets) and e.get("test") not in held]
++    regression = [signature(e) for e in rows + ends if (e.get("action") == "test_end" or (e.get("test"), e.get("subtest")) not in target_ids) and e.get("test") not in held]
+     regression.sort(key=lambda e: (e["test"], e["kind"], e["subtest"] or ""))
+     comparison_errors = []
+     if original is not None:
+@@ -99,14 +100,15 @@
+         if not bound_run_info(original.get("run_info"), original.get("run_binding")):
+             comparison_errors.append("original run_info lacks matching metadata/epoch binding")
+         if isinstance(run_binding, dict) and isinstance(original.get("run_binding"), dict):
+-            if run_binding.get("revision") != original["run_binding"].get("revision"):
+-                comparison_errors.append("original/candidate epoch HEAD changed")
++            if (original["run_binding"].get("revision") != policy["phase_revisions"]["original"] or
++                    run_binding.get("revision") != policy["phase_revisions"]["candidate"]):
++                comparison_errors.append("phase revision differs from authenticated build lineage")
+         if isinstance(run_info, dict) and isinstance(original.get("run_info"), dict):
+-            current_stable = {k: v for k, v in run_info.items() if k != "browser_build_id"}
+-            original_stable = {k: v for k, v in original["run_info"].items() if k != "browser_build_id"}
++            current_stable = {k: v for k, v in run_info.items() if k not in ("browser_build_id", "revision")}
++            original_stable = {k: v for k, v in original["run_info"].items() if k not in ("browser_build_id", "revision")}
+             if current_stable != original_stable:
+                 comparison_errors.append("run_info changed outside the independently bound BuildID")
+-        if not any(r.get("status") == "FAIL" for r in original.get("rows", []) if r.get("test") in targets):
++        if not any(r.get("status") == "FAIL" for r in original.get("rows", []) if (r.get("test"), r.get("subtest")) in target_ids):
+             comparison_errors.append("original has no demonstrated target failure")
+         if any(r.get("status") != "PASS" for r in candidate):
+             comparison_errors.append("candidate target fixture still fails")
+@@ -120,4 +122,4 @@
+             "regression_signature": regression, "held_signature": held_signature, "comparison_errors": comparison_errors,
+             "comparison_gate_passed": original is not None and not errors and not comparison_errors,
+             "subtest_cardinality_policy": policy["cardinality_description"],
+-            "oracle_caveat": "Round finite-quotient targets; original failures are observations, not infrastructure failures."}
++            "oracle_caveat": "Contextual easing activation targets; original failures are observations, not infrastructure failures."}

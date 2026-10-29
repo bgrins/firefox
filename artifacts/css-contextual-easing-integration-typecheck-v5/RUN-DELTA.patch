@@ -1,0 +1,12 @@
+--- v4/run.py
++++ v5/run.py
+@@ -50,7 +50,8 @@
+     for package in [policy["candidate"]] + policy["capture_packages"]:
+         directory = ROOT / package["directory"]
+         owned_helper.authenticate(directory, package["sha256"])
+-        for name, pin in read(directory / "FILES.json").items():
++        for name, entry in read(directory / "FILES.json").items():
++            pin = entry["sha256"] if isinstance(entry, dict) else entry
+             capture_name = str(Path(package["directory"]) / name)
+             assert capture_name not in allowed_captures or allowed_captures[capture_name] == pin
+             allowed_captures[capture_name] = pin

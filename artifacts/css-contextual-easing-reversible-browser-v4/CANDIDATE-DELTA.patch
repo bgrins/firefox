@@ -1,0 +1,21 @@
+--- v3/candidate.py
++++ v4/candidate.py
+@@ -38,7 +38,18 @@
+     state, env, controls, original, flags, original_verify = baseline.guard(policy, ownership, roles)
+     original_before = original_verify()
+     output = ROOT / policy['runtime_output']
++    binding = policy['baseline_binding']
++    assert binding and binding['directory'] == policy['runtime_output']
++    ownership.authenticate(ROOT / policy['baseline_capsule']['directory'], policy['baseline_capsule']['sha256'])
++    old_policy = read(ROOT / policy['baseline_capsule']['directory'] / 'POLICY.json')
++    assert policy['wpt'] == old_policy['wpt']
++    assert policy['candidate'] == old_policy['candidate'] and policy['capture_packages'] == old_policy['capture_packages']
++    assert (HERE / 'SOURCE-ROLES.json').read_bytes() == (ROOT / policy['baseline_capsule']['directory'] / 'SOURCE-ROLES.json').read_bytes()
++    ownership.authenticate(output, binding['manifest_sha256'])
++    terminal = read(output / binding['terminal_path'])
++    assert terminal == binding['terminal'] and terminal['exit'] == 0
+     completed = read(output / 'BASELINE-RESULT.json')
++    assert sha(output / 'BASELINE-RESULT.json') == binding['result_sha256']
+     assert completed['success'] and completed['preservation_verified'] and completed['browser_build_performed'] is False
+     assert read(output / 'BASELINE-PRE.json')['snapshot'] == original_before
+     assert read(output / 'original-wpt/PRE.json') == read(output / 'original-wpt/POST.json') == original_before

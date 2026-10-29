@@ -1,0 +1,153 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Contextual easing on generated pseudos and newly started transitions</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#tree-counting">
+<link rel="help" href="https://drafts.csswg.org/css-transitions-1/#starting">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const settle = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+async function pseudoFixture(t, pseudo, expression) {
+  assert_not_equals(document.body, null, "Body exists before callback setup");
+  const host = document.createElement("div");
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const root = host.attachShadow({mode: "open"});
+  root.innerHTML = `<style>
+    @keyframes progress { from { opacity:0; animation-timing-function:${expression}; } to { opacity:1; } }
+    #target { font-size:16px; }
+    #target${pseudo} { content:"x"; display:block; font-size:2em;
+      animation:progress 1000ms linear both paused; }
+  </style><div id="holder"><i></i><div id="target"></div><i></i></div><div id="references"></div>`;
+  const target = root.querySelector("#target");
+  const holder = root.querySelector("#holder");
+  const controls = new Map();
+  for (const count of [3, 4]) {
+    const el = document.createElement("div");
+    root.querySelector("#references").append(el);
+    const animation = el.animate([{opacity:0}, {opacity:1}],
+      {duration:1000, easing:`steps(${count}, end)`, fill:"both"});
+    t.add_cleanup(() => animation.cancel());
+    animation.pause();
+    await animation.ready;
+    animation.currentTime = 750;
+    controls.set(count, el);
+  }
+  getComputedStyle(target, pseudo).opacity;
+  const animation = target.getAnimations({subtree:true}).find(a => a.effect.pseudoElement === pseudo);
+  assert_true(!!animation, "Generated pseudo has its CSS animation");
+  t.add_cleanup(() => animation.cancel());
+  await animation.ready;
+  animation.currentTime = 750;
+  return {root, target, holder, animation, controls, pseudo};
+}
+
+async function pseudoSample(f, count) {
+  await settle();
+  const actual = Number(getComputedStyle(f.target, f.pseudo).opacity);
+  return {
+    actual,
+    expected:Number(getComputedStyle(f.controls.get(count)).opacity),
+    repeat:Number(getComputedStyle(f.target, f.pseudo).opacity),
+    font:getComputedStyle(f.target, f.pseudo).fontSize,
+    primaryFont:getComputedStyle(f.target).fontSize,
+    same:f.target.getAnimations({subtree:true}).includes(f.animation),
+    pseudo:f.animation.effect.pseudoElement,
+    time:f.animation.currentTime,
+  };
+}
+
+function checkPseudo(rows, pseudo) {
+  for (const row of rows) {
+    assert_true(row.same, "Original CSS animation persists");
+    assert_equals(row.pseudo, pseudo, "Effect targets the intended pseudo");
+    assert_equals(row.time, 750, "Sample time is retained");
+    assert_true(Number.isFinite(row.expected) && row.expected > 0 && row.expected < 1,
+      "Literal calibration is finite and interior");
+    assert_equals(row.repeat, row.actual, "Repeated sample is stable");
+    assert_approx_equals(row.actual, row.expected, 0.0001, "Pseudo output matches literal easing");
+  }
+}
+
+for (const pseudo of ["::before", "::after"]) {
+  promise_test(async t => {
+    const f = await pseudoFixture(t, pseudo, "steps(calc(1 + sibling-index()), end)");
+    const rows = [await pseudoSample(f, 3)];
+    const extra = document.createElement("i");
+    f.holder.prepend(extra);
+    rows.push(await pseudoSample(f, 4));
+    extra.remove();
+    rows.push(await pseudoSample(f, 3));
+    checkPseudo(rows, pseudo);
+  }, `${pseudo} keyframe easing follows the originating element's sibling index`);
+
+  promise_test(async t => {
+    const f = await pseudoFixture(t, pseudo, "steps(calc(1 + 1em / 16px), end)");
+    const rows = [await pseudoSample(f, 3)];
+    f.target.style.fontSize = "24px";
+    rows.push(await pseudoSample(f, 4));
+    f.target.style.removeProperty("font-size");
+    rows.push(await pseudoSample(f, 3));
+    checkPseudo(rows, pseudo);
+    assert_array_equals(rows.map(row => row.font), ["32px", "48px", "32px"], "Pseudo font controls");
+    assert_array_equals(rows.map(row => row.primaryFont), ["16px", "24px", "16px"], "Originating font controls");
+  }, `${pseudo} keyframe easing computes em from the pseudo style, not its parent style`);
+}
+
+promise_test(async t => {
+  assert_not_equals(document.body, null, "Body exists before callback setup");
+  const host = document.createElement("div");
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const root = host.attachShadow({mode:"open"});
+  root.innerHTML = `<style>#target { opacity:0; transition-property:opacity; transition-duration:1000ms; transition-timing-function:steps(calc(sibling-index()), end); }</style>
+    <div id="holder"><i></i><div id="target"></div></div>`;
+  const target = root.querySelector("#target");
+  const holder = root.querySelector("#holder");
+  const initialCurve = getComputedStyle(target).transitionTimingFunction;
+  assert_equals(target.getAnimations().length, 0, "Initially static target has no animations");
+  const extra = document.createElement("i");
+  holder.prepend(extra);
+  await settle();
+  const beforeStartCurve = getComputedStyle(target).transitionTimingFunction;
+  target.style.opacity = "1";
+  getComputedStyle(target).opacity;
+  const first = target.getAnimations().find(a => a.transitionProperty === "opacity");
+  assert_true(!!first, "First transition starts");
+  t.add_cleanup(() => first.cancel());
+  first.pause();
+  await first.ready;
+  first.currentTime = 750;
+  const firstValue = Number(getComputedStyle(target).opacity);
+  const firstCurve = first.effect.getTiming().easing;
+  extra.remove();
+  await settle();
+  const changedPropertyCurve = getComputedStyle(target).transitionTimingFunction;
+  const retainedValue = Number(getComputedStyle(target).opacity);
+  const same = target.getAnimations().includes(first);
+  const retainedCurve = first.effect.getTiming().easing;
+  first.finish();
+  getComputedStyle(target).opacity;
+  target.style.opacity = "0";
+  getComputedStyle(target).opacity;
+  const second = target.getAnimations().find(a => a.transitionProperty === "opacity" && a !== first);
+  assert_true(!!second, "Second transition starts after completing the first");
+  t.add_cleanup(() => second.cancel());
+  second.pause();
+  await second.ready;
+  second.currentTime = 750;
+  const secondValue = Number(getComputedStyle(target).opacity);
+  assert_equals(initialCurve, "steps(2)", "Initial contextual property");
+  assert_equals(beforeStartCurve, "steps(3)", "Static sibling update precedes transition creation");
+  assert_equals(firstCurve, "steps(3)", "First transition captures new computed easing");
+  assert_true(same, "Changing only timing context retains the running transition");
+  assert_equals(changedPropertyCurve, "steps(2)", "Property recomputes after sibling removal");
+  assert_equals(retainedCurve, firstCurve, "Running transition retains captured easing");
+  assert_approx_equals(firstValue, 2 / 3, 0.0001, "First transition sample");
+  assert_approx_equals(retainedValue, 2 / 3, 0.0001, "Retained transition sample");
+  assert_equals(second.effect.getTiming().easing, "steps(2)", "Second transition captures current easing");
+  assert_approx_equals(secondValue, 0.5, 0.0001, "Second transition sample");
+}, "New transitions use updated contextual timing while running transitions retain their captured curve");
+</script>

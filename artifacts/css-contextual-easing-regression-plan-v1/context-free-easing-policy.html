@@ -1,0 +1,40 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Implementation controls for context-free easing conversion</title>
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-animationeffect-updatetiming">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+for (const [name, contextual, literal] of [
+  ["steps", "steps(calc(sibling-index()), end)", "steps(2, end)"],
+  ["bezier", "cubic-bezier(0, calc(sibling-index() / 4), 1, 1)",
+   "cubic-bezier(0, 0.5, 1, 1)"],
+  ["linear output", "linear(0, calc(sibling-index() / 4) 50%, 1)",
+   "linear(0, 0.5 50%, 1)"],
+  ["linear second position", "linear(0 0% calc(sibling-index() * 20%), 1)",
+   "linear(0 0% 40%, 1)"],
+]) {
+  test(() => {
+    const target = document.createElement("div");
+    const frames = [{opacity: 0, easing: literal}, {opacity: 1}];
+    const effect = new KeyframeEffect(target, frames, {duration: 1000, easing: literal});
+    const priorTiming = effect.getTiming().easing;
+    const priorFrames = JSON.stringify(effect.getKeyframes());
+    assert_not_equals(priorTiming, "", "Literal effect easing is accepted");
+    assert_not_equals(effect.getKeyframes()[0].easing, "", "Literal keyframe easing is accepted");
+    assert_throws_js(TypeError, () => new KeyframeEffect(target, frames,
+      {duration: 1000, easing: contextual}), "Context-free constructor conversion fails");
+    assert_throws_js(TypeError, () => effect.updateTiming({easing: contextual}),
+      "Context-free timing update conversion fails");
+    assert_equals(effect.getTiming().easing, priorTiming, "Failed timing update retains prior easing");
+    assert_throws_js(TypeError, () => effect.setKeyframes(
+      [{opacity: 0, easing: contextual}, {opacity: 1}]), "Context-free keyframe conversion fails");
+    assert_equals(JSON.stringify(effect.getKeyframes()), priorFrames,
+      "Failed keyframe update retains prior frames");
+    effect.updateTiming({easing: literal});
+    effect.setKeyframes(frames);
+    assert_equals(effect.getTiming().easing, priorTiming, "Literal timing recovery succeeds");
+    assert_equals(JSON.stringify(effect.getKeyframes()), priorFrames, "Literal keyframe recovery succeeds");
+  }, `Implementation policy: context-free ${name} conversion remains fallible`);
+}
+</script>

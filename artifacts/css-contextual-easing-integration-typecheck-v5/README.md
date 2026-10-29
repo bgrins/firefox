@@ -1,0 +1,9 @@
+# Cleanup scope configured Gecko typecheck
+
+Enabled root-owned successor after root review 8f8c2c / 1bd5fb / 9ba0d1 for signed HEAD 4f4bfa099bb141f29c70698b9d6a1fc87efbc1b2 and canonical epoch 39c802fc459b7716c9b63db2ea7c436135aadc62dfda84346e1737edbc910b44. Exact scope-v3 cleanup changes only the dom/stylist candidate bodies from the successful eight-source scope-v2 check. All eight captured bases remain signed current source. Candidate capture packages are exactly sealed scope-v1 and scope-v3.
+
+The only runner code delta normalizes already authenticated structured FILES entries to their SHA for the exact capture allowlist. The ownership helper authenticates each exact body by SHA; it does not validate the recorded size or exact manifest-entry keys. Path, symlink, source-buffer and restoration checks are unchanged. Accepted easing143 is the sole allowed accepted-source overlay; the other thirteen current accepted payloads, latest generic source145 and held provider remain fixed.
+
+Recipe: the existing configured Cargo specification and mozbuild composition produce an offline Gecko Rust graph check with two jobs, existing objdir target, 30 GiB admission and 15 GiB running stop. No app backup, new target, linked browser build, browser execution, WPT execution, parser activation or acceptance occurs. Owned process cleanup precedes reverse restoration; full canonical state stays in memory and controls remain unchanged. Compact source restoration and pre/post digests are retained.
+
+Any newly observed raw-index byte drift is recorded without canonical publication; root must separately reconcile only that observation after verified restoration. Historical raw drift was explicitly refreshed before the signed checkpoint. Root alone may run the eventual sealed --check then --run.

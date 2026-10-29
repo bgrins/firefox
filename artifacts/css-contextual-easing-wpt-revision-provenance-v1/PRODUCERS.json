@@ -1,0 +1,27 @@
+{
+  "status": "PROVENANCE_CORRECTION",
+  "source_kind": "Primary Searchfox source reads; excerpts, not native execution",
+  "lookups": [
+    "c244ac/0",
+    "51e12e/0"
+  ],
+  "saved_runtime_read": "d270f1/0",
+  "review": "4f962c/0",
+  "excerpts": [
+    {
+      "path": "testing/web-platform/tests/tools/wptrunner/wptrunner/wpttest.py",
+      "function": "RunInfo.__init__",
+      "excerpt": "class RunInfo(Dict[str, Any]):\n    def __init__(self, metadata_root, product_name, debug,\n                 browser_version=None,\n                 browser_channel=None,\n                 verify=None,\n                 extras=None,\n                 device_serials=None,\n                 adb_binary=None):\n        import mozinfo\n        self._update_mozinfo(metadata_root)\n        self.update(mozinfo.info)\n\n        from .update.tree import GitTree\n        try:\n            # GitTree.__init__ throws if we are not in a git tree.\n            rev = GitTree(log_error=False).rev\n        except (OSError, subprocess.CalledProcessError):\n            rev = None\n        if rev:\n            self[\"revision\"] = rev.decode(\"utf-8\")\n\n        self[\"python_version\"] = sys.version_info.major"
+    },
+    {
+      "path": "testing/web-platform/tests/tools/wptrunner/wptrunner/browsers/firefox.py",
+      "function": "run_info_browser_version",
+      "excerpt": "def run_info_browser_version(**kwargs):\n    try:\n        version_info = mozversion.get_version(kwargs[\"binary\"])\n    except mozversion.errors.VersionError:\n        version_info = None\n    if version_info:\n        rv = {\"browser_build_id\": version_info.get(\"application_buildid\", None),\n              \"browser_changeset\": version_info.get(\"application_changeset\", None)}\n        if \"browser_version\" not in kwargs:\n            rv[\"browser_version\"] = version_info.get(\"application_version\")\n        return rv\n    return {}\n\n"
+    },
+    {
+      "path": "testing/web-platform/tests/tools/wptrunner/wptrunner/update/tree.py",
+      "function": "GitTree.rev",
+      "excerpt": "    @property\n    def rev(self):\n        \"\"\"Current HEAD revision\"\"\"\n        if vcs.is_git_root(self.root):\n            return self.git(\"rev-parse\", \"HEAD\").strip()\n        else:\n            return None"
+    }
+  ]
+}
