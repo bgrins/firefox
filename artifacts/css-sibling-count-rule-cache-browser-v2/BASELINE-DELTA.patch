@@ -1,0 +1,14 @@
+--- executed-v4/baseline.py
++++ one-role/baseline.py
+@@ -43,8 +43,9 @@
+             path = Path(record[kind + '_capture'])
+             assert not path.is_absolute() and '..' not in path.parts and not (ROOT / path).is_symlink()
+             assert allowed[str(path)] == sha(ROOT / path) == record[kind + '_sha256']
+-    assert set(roles) == set(policy['source_paths']) and len(roles) == 8
+-    assert set(roles) & set(policy['accepted_current_payloads']) == {'servo/components/style/values/specified/easing.rs'}
++    assert set(roles) == set(policy['source_paths']) and len(roles) == 1
++    assert set(roles) == {'servo/components/style/values/computed/mod.rs'}
++    assert set(roles).isdisjoint(policy['accepted_current_payloads'])
+     assert 'servo/components/style/values/generics/calc.rs' not in roles and 'servo/components/style/custom_properties.rs' not in roles
+     return policy, ownership, roles
+ 

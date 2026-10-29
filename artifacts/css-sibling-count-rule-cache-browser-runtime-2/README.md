@@ -1,0 +1,5 @@
+# Fresh V47 original sibling-count baseline
+
+Root session 94557, launch 38aed7, terminal 5b20da exited 0. Exactly width-count and opacity-count failed; all four strict index/inherited controls passed. Six callbacks and one OK ending completed without assessment, setup or infrastructure errors. Root checked all eighteen records in the two failure messages: equal parent styles, topology, literals and stable reads calibrated; six third-target values were wrong across three phases. Source/app state, PRE/POST and owned process/temp cleanup were preserved; no build occurred.
+
+WPT inner exit 1 denotes completed assertions, not wrapper failure. The inherited assessor oracle_caveat still says contextual easing; it is a reused label, while the exact six-case policy and actual ordinary-property records define this run. Metadata feature prefs and shared held-provider context remain explicit. No factory-default, clean-upstream, native acceptance or fix validation claim. FILES.json is an immutable listed baseline snapshot for later candidate binding.

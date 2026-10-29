@@ -1,0 +1,64 @@
+--- reviewed-failed-pair-refresh/run.py
++++ successful-six-case-refresh/run.py
+@@ -42,9 +42,10 @@
+     result, restored = read(evidence / "RESULT.json"), read(evidence / "RESTORATION.json")
+     inner = read(evidence / "candidate-build/build-RESULT.json")
+     terminal = read(evidence / "CANDIDATE-ROOT-REPORTED-TERMINAL.json")
+-    assert terminal["session"] == 89683 and terminal["launch_receipt"] == "7bc083" and terminal["terminal_receipt"] == "2330a9/1" and terminal["exit"] == 1
+-    assert result["success"] is False and result["restoration_verified"] and result["runtime_controls_unchanged"] and result["empty_staging_preserved"]
+-    assert result["error"] == policy["expected_pair_error"] and result["candidate_phase"] is None
++    assert terminal["session"] == 31551 and terminal["launch_receipt"] == "cf3be0" and terminal["terminal_receipt"] == "9d0dd1/0" and terminal["exit"] == 0
++    assert result["success"] is True and result["restoration_verified"] and result["runtime_controls_unchanged"] and result["empty_staging_preserved"]
++    assert result["error"] is None
++    assert result["candidate_phase"] == {"assessment_sha256": digest((evidence / "candidate-wpt/ASSESSMENT.json").read_bytes()), "raw_sha256": digest((evidence / "candidate-wpt/raw.jsonl").read_bytes()), "result_sha256": digest((evidence / "candidate-wpt/RESULT.json").read_bytes())}
+     assert result["publication_errors"] == [] and result["native_fix_acceptance"] is False
+     assert inner["exit"] == 0 and inner["owned_group_absent"] and inner["cleanup_errors"] == []
+     assert inner["error"] is None and inner["stop_reason"] is None
+@@ -55,23 +56,19 @@
+     for role in ("original", "candidate"):
+         phase = evidence / (role + "-wpt")
+         record, assessment = read(phase / "RESULT.json"), read(phase / "ASSESSMENT.json")
+-        assert record["success"] is (role == "original")
++        assert record["success"] is True
+         assert record["preservation_verified"] and record["execution_error"] is None
+         assert assessment["complete"] and assessment["errors"] == [] and assessment["fixture_setup_errors"] == []
+         assert read(phase / "PRE.json") == read(phase / "POST.json")
+         assert read(phase / "CLEANUP.json")["owned_group_absent"] and read(phase / "CLEANUP.json")["temporary_root_removed"]
+         assessments[role] = assessment
+-    assert assessments["candidate"]["comparison_gate_passed"] is False
+-    assert assessments["candidate"]["comparison_errors"] == ["candidate target fixture still fails"]
+-    assert len(assessments["candidate"]["rows"]) == 15
+-    assert sum(row["status"] == "PASS" for row in assessments["candidate"]["rows"]) == 13
+-    failed = sorted((row["test"], row["subtest"]) for row in assessments["candidate"]["rows"] if row["status"] == "FAIL")
+-    assert failed == [tuple(row) for row in policy["failed_target_ids"]]
++    assert assessments["candidate"]["comparison_gate_passed"] is True
++    assert assessments["candidate"]["comparison_errors"] == []
++    assert len(assessments["candidate"]["rows"]) == 6
++    assert all(row["status"] == "PASS" for row in assessments["candidate"]["rows"])
+     assert assessments["original"]["regression_signature"] == assessments["candidate"]["regression_signature"]
+     cleanup = read(evidence / "BACKUP-CLEANUP.json")
+-    assert cleanup["removed"] is False and cleanup["verified_original_restoration"] and cleanup["retained_after_failure"]
+-    backup_release = read(ROOT / policy["backup_release_receipt"])
+-    assert backup_release == policy["backup_release_record"]
++    assert cleanup["removed"] and cleanup["verified_original_restoration"] and cleanup["retained_after_failure"] is False
+     assert not (evidence / "backups").exists()
+     assert epoch["semantic_index"]["head"] == policy["head"]
+     assert {k: v for k, v in pre["index"].items() if k != "raw_index"} == epoch["semantic_index"]
+@@ -90,7 +87,7 @@
+     encoded = json.dumps(updated, indent=2, sort_keys=True).encode() + b"\n"
+     assert digest(encoded) == policy["updated_epoch_sha256"]
+     if sys.argv[1] == "--check":
+-        print("Authenticated failed-target pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
++        print("Authenticated successful six-case pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
+         return
+     assert policy["execution_enabled"] is True
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))
+@@ -152,7 +149,7 @@
+             assert (lock.stat().st_dev, lock.stat().st_ino) == identity
+             lock.unlink()
+         raise
+-    print("Canonical raw-index observation refreshed; failed paired evidence unchanged", flush=True)
++    print("Canonical raw-index observation refreshed; successful paired evidence unchanged", flush=True)
+ 
+ 
+ if __name__ == "__main__":

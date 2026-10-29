@@ -1,0 +1,106 @@
+--- a/servo/components/style/values/computed/mod.rs
++++ b/servo/components/style/values/computed/mod.rs
+@@ -546,6 +546,7 @@
+     pub fn query_sibling_count(&self) -> u32 {
+         self.builder
+             .add_flags(ComputedValueFlags::USES_SIBLING_COUNT);
++        self.rule_cache_conditions.borrow_mut().set_uncacheable();
+         self.resolve_tree_counting_result().sibling_count
+     }
+ 
+--- /dev/null
++++ b/testing/web-platform/tests/css/css-values/tree-counting/sibling-count-cross-parent-invalidation.html
+@@ -0,0 +1,93 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>Sibling counts across equal-style parents and mutations</title>
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#tree-counting">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<body>
++<script>
++for (const property of ["width", "opacity"]) {
++  promise_test(async t => {
++    const frame = document.createElement("iframe");
++    frame.width = "400";
++    frame.height = "200";
++    t.add_cleanup(() => frame.remove());
++    document.body.append(frame);
++    const doc = frame.contentDocument;
++    const win = frame.contentWindow;
++    const expression = property === "width" ? "calc(sibling-count() * 10px)" : "calc(sibling-count() / 10)";
++    const literal = count => property === "width" ? `${count * 10}px` : `${count / 10}`;
++    const style = doc.createElement("style");
++    style.textContent = `.target { ${property}:${expression}; }`;
++    const left = doc.createElement("div");
++    const right = doc.createElement("div");
++    const targets = [0, 1, 2].map(() => {
++      const target = doc.createElement("div");
++      target.className = "target";
++      return target;
++    });
++    left.append(targets[0], targets[1]);
++    right.append(doc.createElement("div"), doc.createElement("div"), targets[2]);
++    const references = [2, 3, 4].map(count => {
++      const reference = doc.createElement("div");
++      reference.style.setProperty(property, literal(count));
++      return reference;
++    });
++    doc.body.append(style, left, right, ...references);
++    const extraLeft = doc.createElement("div");
++    const extraRight = doc.createElement("div");
++    const snapshots = [];
++    for (const phase of ["initial", "added", "restored"]) {
++      if (phase === "added") {
++        left.prepend(extraLeft);
++        right.append(extraRight);
++      } else if (phase === "restored") {
++        extraLeft.remove();
++        extraRight.remove();
++      }
++      await new Promise(resolve => win.requestAnimationFrame(() => win.requestAnimationFrame(resolve)));
++      const leftStyle = win.getComputedStyle(left);
++      const rightStyle = win.getComputedStyle(right);
++      snapshots.push({
++        phase,
++        parentDifferences: Array.from(leftStyle).filter(name =>
++          leftStyle.getPropertyValue(name) !== rightStyle.getPropertyValue(name)),
++        values: targets.map(target => {
++          const count = target.parentElement.children.length;
++          const reference = references[count - 2];
++          return {
++            count,
++            actual: win.getComputedStyle(target).getPropertyValue(property),
++            expected: win.getComputedStyle(reference).getPropertyValue(property),
++            repeat: win.getComputedStyle(target).getPropertyValue(property),
++            width: property === "width" ? target.getBoundingClientRect().width : null,
++            referenceWidth: property === "width" ? reference.getBoundingClientRect().width : null,
++          };
++        }),
++      });
++    }
++    assert_true(win.CSS.supports(property, expression), "Syntax is supported");
++    assert_not_equals(style.sheet.cssRules[0].style.getPropertyValue(property), "", "Declaration is retained");
++    for (const snapshot of snapshots) {
++      const counts = snapshot.phase === "added" ? [3, 3, 4] : [2, 2, 3];
++      assert_array_equals(snapshot.parentDifferences, [], `${snapshot.phase}: parents have equal computed styles`);
++      assert_array_equals(snapshot.values.map(value => value.count), counts, `${snapshot.phase}: sibling counts`);
++      for (const [index, value] of snapshot.values.entries()) {
++        assert_equals(value.expected, literal(counts[index]), `${snapshot.phase}: literal control ${index}`);
++        assert_equals(value.repeat, value.actual, `${snapshot.phase}: stable read ${index}`);
++        if (property === "width") {
++          assert_equals(value.referenceWidth, counts[index] * 10, `${snapshot.phase}: literal width ${index}`);
++        }
++      }
++    }
++    for (const snapshot of snapshots) {
++      for (const [index, value] of snapshot.values.entries()) {
++        assert_equals(value.actual, value.expected, `${snapshot.phase}: target ${index} uses its own parent's count`);
++        if (property === "width") {
++          assert_equals(value.width, value.referenceWidth, `${snapshot.phase}: target width ${index}`);
++        }
++      }
++    }
++  }, `${property} uses each parent's sibling count before and after mutations`);
++}
++</script>

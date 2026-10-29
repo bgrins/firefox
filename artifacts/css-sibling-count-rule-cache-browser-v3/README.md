@@ -1,0 +1,7 @@
+# Sibling-count cache candidate binding
+
+Enabled for root-owned candidate execution after root review f3a2c1 and independent saved-binding review 98a6ea/2a9e2d. Root completed the separate owned-symbol cleanup (be1b7a/0; c2ff70); the unchanged live disk guard still determines admission. This successor binds the actual successful V47 original baseline: two prospective target failures, four passing strict controls, one OK ending and full preservation. The original baseline manifest is immutable; later candidate evidence must be appended under a separate completion inventory.
+
+All four executable bodies, one computed/mod.rs role, six-case roster/resources and metadata settings are unchanged. Only actual baseline capsule/result/terminal references and candidate readiness state differ. Candidate execution temporarily installs the one-line uncacheable guard, builds binaries -j2 in the existing objdir, requires both targets PASS and all four control plus ending signatures unchanged, then restores exact original source/app/extras. All fourteen accepted claims remain fixed; no easing activation overlay occurs.
+
+The unchanged 30 GiB post-backup start floor and 15 GiB running stop remain mandatory. No new target directory or guard relaxation. Existing WPT feature preferences, shared held-provider context, and untested clean-upstream/Servo-only limits remain explicit. The inherited assessor easing oracle_caveat is a historical label, not the actual roster scope. No native acceptance is made by this experiment.

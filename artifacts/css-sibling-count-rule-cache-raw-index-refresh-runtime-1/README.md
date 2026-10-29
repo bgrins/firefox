@@ -1,0 +1,1 @@
+Root executed the authenticated raw-only refresh successfully (85719/5765d7/0556c0/0). Only raw_index_observation.current changed; full state preservation passed, canonical epoch is 8ff7185ad4a4b660d1b412f6468d211a408bf22565d3718885f6158eab19aaf1. No native acceptance or full epoch copy.

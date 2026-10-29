@@ -1,0 +1,48 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tree-counting functions in unitless line-height</title>
+<link rel="help" href="https://drafts.csswg.org/css-inline-3/#line-height-property">
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#tree-counting">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="container"></div>
+<script>
+for (const kind of ["sibling-index", "sibling-count"]) {
+  test(t => {
+    const numberValue = `${kind}()`;
+    const lengthValue = `calc(${kind}() * 1em)`;
+    assert_true(CSS.supports("line-height", numberValue), "unitless expression is supported");
+    assert_true(CSS.supports("line-height", lengthValue), "length control is supported");
+    const snapshots = [];
+    for (const value of [numberValue, lengthValue]) {
+      const holder = document.createElement("div");
+      holder.style.cssText = "font:10px monospace;line-height:40px";
+      holder.append(document.createElement("div"));
+      const target = document.createElement("div");
+      target.style.lineHeight = value;
+      target.textContent = "x";
+      holder.append(target);
+      document.getElementById("container").append(holder);
+      t.add_cleanup(() => holder.remove());
+      const measure = () => ({
+        lineHeight: getComputedStyle(target).lineHeight,
+        height: target.getBoundingClientRect().height,
+      });
+      const states = [measure()];
+      const added = document.createElement("div");
+      holder.prepend(added);
+      states.push(measure());
+      added.remove();
+      states.push(measure());
+      snapshots.push(states);
+    }
+    for (const index of [1, 0]) {
+      const label = index === 1 ? "length control" : "unitless value";
+      assert_array_equals(snapshots[index].map(s => s.lineHeight),
+        ["20px", "30px", "20px"], `${label} resolves and invalidates`);
+      assert_array_equals(snapshots[index].map(s => s.height),
+        [20, 30, 20], `${label} determines the line box height`);
+    }
+  }, `${kind} resolves and invalidates unitless line-height`);
+}
+</script>

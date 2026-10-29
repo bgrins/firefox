@@ -1,0 +1,99 @@
+{
+  "status": "unexecuted proposals, no additional defect prediction",
+  "probes": [
+    {
+      "name": "container reset width",
+      "css": "width: 10cqw",
+      "setup": "Same target rule under size-query containers with explicit widths 200px and 300px, equal fonts and writing modes. Change the second width 300\u2192400\u2192300; keep both target declarations unchanged.",
+      "expected_px": [
+        [
+          20,
+          30
+        ],
+        [
+          20,
+          40
+        ],
+        [
+          20,
+          30
+        ]
+      ],
+      "calibration": "Measure container content widths and literal 20/30/40px references. Visible body; collect all phases before assertions.",
+      "prediction": "preserved by existing uncacheable guard",
+      "source": "https://drafts.csswg.org/css-conditional-5/#container-lengths"
+    },
+    {
+      "name": "font reset width",
+      "css": [
+        "width: 2em",
+        "width: 1lh"
+      ],
+      "setup": "Same target rule under inherited font sizes 10/20px with explicit line heights 15/30px; second parent changes to font30px/line-height45px then restores.",
+      "expected_px": {
+        "em": [
+          [
+            20,
+            40
+          ],
+          [
+            20,
+            60
+          ],
+          [
+            20,
+            40
+          ]
+        ],
+        "lh": [
+          [
+            15,
+            30
+          ],
+          [
+            15,
+            45
+          ],
+          [
+            15,
+            30
+          ]
+        ]
+      },
+      "calibration": "Independent computed font/line-height and literal geometry, not normal line-height metrics. No animation.",
+      "prediction": "preserved by recorded cache conditions",
+      "source": "https://drafts.csswg.org/css-values-4/#font-relative-lengths"
+    },
+    {
+      "name": "logical viewport reset width",
+      "css": "width: 10vi",
+      "setup": "Fixed 400\u00d7200 visible iframe, same target rule under horizontal-tb and vertical-rl parents; toggle second writing mode then restore.",
+      "expected_px": [
+        [
+          40,
+          20
+        ],
+        [
+          40,
+          40
+        ],
+        [
+          40,
+          20
+        ]
+      ],
+      "calibration": "Assert iframe viewport dimensions and computed writing modes; literal widths.",
+      "prediction": "preserved by writing-mode cache condition",
+      "source": "https://drafts.csswg.org/css-values-4/#viewport-relative-lengths"
+    },
+    {
+      "name": "element-scoped named random reset width",
+      "css": "width: random(--reset-audit element-scoped, 10px, 90px)",
+      "setup": "Same rule on several targets across equal-style parents. Collect rule-based samples first. Afterwards assign the byte-identical expression inline to each same element and compare that element to its own prior sample; restore declaration and repeat.",
+      "expected": "Same key on same element yields same width, within admitted range. Do not assert different elements must have different samples.",
+      "calibration": "Support/declaration retention, finite range and stable repeated reads; fixed random(.25,10px,90px) should yield30px. Record current preference rather than silently skipping unsupported syntax.",
+      "prediction": "preserved by explicit element-scoped exclusion",
+      "source": "https://drafts.csswg.org/css-values-5/#random-caching"
+    }
+  ]
+}

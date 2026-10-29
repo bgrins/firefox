@@ -1,0 +1,5 @@
+# Sibling-count successful-pair raw observation refresh
+
+Enabled for root-owned raw-only publication after root and independent review. Actual session31551/cf3be0/9d0dd1 exit0 restored the one source and original app/extras; all six callbacks PASS, four control plus ending signatures unchanged, compiler/browser groups absent and verified backup automatically removed. Native acceptance remains false.
+
+Reuses the reviewed in-memory raw-refresh publication/rollback lifecycle. The evidence branch changes from a restored failed easing comparison to this exact successful six-case pair; actual candidate publication hashes and automatic backup removal replace failure/manual-release assertions. Compact source-mode/identity and index-flag anchors are recorded after restoration. Only raw_index_observation.current may change; full live state must still equal the authenticated saved post-state. No full epoch copies or source/app/index writes. The read-only flag capture emitted an fsmonitor IPC warning but exited successfully; hashes remain exact and root execution rechecks them.

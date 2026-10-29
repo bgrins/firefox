@@ -1,3 +1,13 @@
+## Current checkpoint: six-case sibling-count repair validated experimentally
+
+The one-line rule-cache exclusion candidate repaired both observed ordinary-property targets: width and opacity sibling-count now pass across equal-style parents and mutation recovery. The fresh six-case original baseline had 2 FAIL / 4 PASS; the candidate had 6 PASS, with all four control and one ending structured signatures unchanged. Actual build exited 0; its Mach export-monitor KeyError diagnostics remain archived. Source, original app and extras were restored and the verified 1,008,605,400-byte backup was removed. This is experimental validation, not native acceptance: 144 accepted / 145 tracked / held 120 remain unchanged.
+
+Next: rebind the disabled focused runner to the signed checkpoint and current epoch, then run the actual two-test landing body plus 34 strict controls across seven pages. Preserve full fresh original/candidate signatures including known failures. The completed six-case run used 30 GiB admission / 15 GiB running stop. A measured peak disk draw of about 1.686 GiB supports the separately reviewed proposal for a future experiment-local 29 GiB admission, retaining the 15 GiB stop; that change is not implemented or executed here and must align every owner/private-builder admission check. No full objdir deletion or new target is proposed.
+
+After focused validation, prepare the reviewed two-path source/WPT promotion, final installed build/lint/browser checks and an isolated native commit preceded by research. Do not allocate fix146 before explicit acceptance. The standalone landing fixture has not run yet. The native experiment did not activate contextual easing; broader easing lifecycle work and JavaScript override probes remain separate. Existing shared held-provider and WPT feature-pref context preclude clean-upstream, Servo-only or factory-default claims. The new cache-lifetime model has five standalone claims/two rejected controls with bounded review, and adds no canonical formal coverage.
+
+Historical roadmap entries follow unchanged.
+
 ## Current research checkpoint: sibling-count cache validation next
 
 Immediate next step: validate the one-line query_sibling_count rule-cache
