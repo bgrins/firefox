@@ -1,0 +1,70 @@
+--- a/dom/base/Element.cpp
++++ b/dom/base/Element.cpp
+@@ -3052,7 +3052,7 @@
+   // Call BindToTree on shadow root children.
+   nsresult rv;
+   if (ShadowRoot* shadowRoot = GetShadowRoot()) {
+-    rv = shadowRoot->Bind();
++    rv = shadowRoot->Bind(aContext.IsMove());
+     NS_ENSURE_SUCCESS(rv, rv);
+   }
+ 
+@@ -3392,7 +3392,7 @@
+ 
+   // Unbind children of shadow root.
+   if (ShadowRoot* shadowRoot = GetShadowRoot()) {
+-    shadowRoot->Unbind();
++    shadowRoot->Unbind(aContext.IsMove());
+   }
+ 
+   MOZ_ASSERT_IF(!aContext.IsMove(), !HasAnyOfFlags(kAllServoDescendantBits));
+--- a/dom/base/ShadowRoot.cpp
++++ b/dom/base/ShadowRoot.cpp
+@@ -191,7 +191,7 @@
+   }
+ }
+ 
+-nsresult ShadowRoot::Bind() {
++nsresult ShadowRoot::Bind(bool aIsMove) {
+   MOZ_ASSERT(!IsInComposedDoc(), "Forgot to unbind?");
+   if (Host()->IsInComposedDoc()) {
+     SetIsConnected(true);
+@@ -205,6 +205,7 @@
+   }
+ 
+   BindContext context(*this);
++  context.SetIsMove(aIsMove);
+   for (nsIContent* child = GetFirstChild(); child;
+        child = child->GetNextSibling()) {
+     nsresult rv = child->BindToTree(context, *this);
+@@ -214,8 +215,9 @@
+   return NS_OK;
+ }
+ 
+-void ShadowRoot::Unbind() {
++void ShadowRoot::Unbind(bool aIsMove) {
+   UnbindContext context(*this, /* aBatchState = */ nullptr);
++  context.SetIsMove(aIsMove);
+   if (IsInComposedDoc()) {
+     SetIsConnected(false);
+     OwnerDoc()->RemoveComposedDocShadowRoot(*this);
+--- a/dom/base/ShadowRoot.h
++++ b/dom/base/ShadowRoot.h
+@@ -181,7 +181,7 @@
+ 
+   // Calls UnbindFromTree for each of our kids, and also flags us as no longer
+   // being connected.
+-  void Unbind();
++  void Unbind(bool aIsMove = false);
+ 
+   // Only intended for UA widgets / special shadow roots, or for handling
+   // failure cases when adopting (see BlastSubtreeToPieces).
+@@ -191,7 +191,7 @@
+ 
+   // Calls BindToTree on each of our kids, and also maybe flags us as being
+   // connected.
+-  nsresult Bind();
++  nsresult Bind(bool aIsMove = false);
+ 
+   /**
+    * Explicitly invalidates the style and layout of the flattened-tree subtree

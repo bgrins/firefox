@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>moveBefore delivers move reactions to internal shadow descendants</title>
+<link rel="help" href="https://dom.spec.whatwg.org/#concept-node-move">
+<link rel="help" href="https://html.spec.whatwg.org/multipage/custom-elements.html#custom-element-reactions">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+let index = 0;
+for (const [shape, operation] of [
+  ["root", "self"],
+  ["light-child", "self"],
+  ["shadow-child", "self"],
+  ["nested-shadow-child", "self"],
+  ["nested-shadow-child", "cross-parent"],
+]) {
+  test(t => {
+    const name = `move-shadow-reaction-${++index}`;
+    const events = [];
+    customElements.define(name, class extends HTMLElement {
+      connectedCallback() { events.push("connected"); }
+      disconnectedCallback() { events.push("disconnected"); }
+      connectedMoveCallback() { events.push("moved"); }
+    });
+    const fixture = document.createElement("section");
+    const oldParent = document.createElement("div");
+    const newParent = document.createElement("div");
+    fixture.append(oldParent, newParent);
+    document.body.append(fixture);
+    t.add_cleanup(() => fixture.remove());
+    const target = document.createElement(name);
+    const moving = shape === "root" ? target : document.createElement("div");
+    if (shape === "light-child") {
+      moving.append(target);
+    } else if (shape === "shadow-child") {
+      moving.attachShadow({mode: "open"}).append(target);
+    } else if (shape === "nested-shadow-child") {
+      const innerHost = document.createElement("div");
+      moving.attachShadow({mode: "open"}).append(innerHost);
+      innerHost.attachShadow({mode: "open"}).append(target);
+    }
+    const next = document.createElement("div");
+    oldParent.append(moving, next);
+    assert_array_equals(events, ["connected"], "initial connection");
+    const root = target.getRootNode();
+    const sample = phase => ({
+      phase,
+      events: [...events],
+      connected: target.isConnected,
+      sameRoot: target.getRootNode() === root,
+      parent: moving.parentNode === oldParent ? "old" :
+        moving.parentNode === newParent ? "new" : "other",
+      originalGap: moving.nextSibling === next,
+    });
+    const before = sample("before");
+    events.length = 0;
+    if (operation === "self") {
+      oldParent.moveBefore(moving, moving);
+    } else {
+      newParent.moveBefore(moving, null);
+    }
+    const after = sample("after");
+    events.length = 0;
+    if (operation === "cross-parent") {
+      oldParent.moveBefore(moving, next);
+    }
+    const restored = sample("restored");
+    const detail = JSON.stringify([before, after, restored]);
+    for (const row of [before, after, restored]) {
+      assert_true(row.connected && row.sameRoot, detail);
+      assert_equals(row.parent,
+        row.phase === "after" && operation === "cross-parent" ? "new" : "old", detail);
+      assert_equals(row.originalGap,
+        !(row.phase === "after" && operation === "cross-parent"), detail);
+    }
+    assert_array_equals(after.events, ["moved"], detail);
+    assert_array_equals(restored.events, operation === "cross-parent" ? ["moved"] : [], detail);
+  }, `${shape}: connectedMoveCallback for ${operation}`);
+}
+</script>
