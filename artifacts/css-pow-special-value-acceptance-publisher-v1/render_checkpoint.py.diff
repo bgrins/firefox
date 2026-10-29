@@ -1,0 +1,54 @@
+--- artifacts/css-hypot-finite-scale-acceptance-publisher-v3/render_checkpoint.py
++++ artifacts/css-pow-special-value-acceptance-publisher-v1/render_checkpoint.py
+@@ -32,8 +32,8 @@
+ assert accepted['fix'] == inputs['fix']
+ assert accepted['payload_sha256'] == sha(HERE/'native-selection.json')
+ assert accepted['promoted_build_passed'] and accepted['promoted_wpt_passed'] and accepted['wpt_lint_passed']
+-assert accepted['target_pass'] == 16 and accepted['regressions_unchanged'] == 211
+-assert accepted['repaired_target_subtests'] == 16 and accepted['ends_unchanged'] == 4
++assert accepted['target_pass'] == 18 and accepted['regressions_unchanged'] == 129
++assert accepted['repaired_target_subtests'] == 18 and accepted['ends_unchanged'] == 2
+ assert accepted['accepted_dependencies'] == []
+ assert accepted['group'] == 'Parsing, tokens and CSS math'
+ assert accepted['evidence_pins'] == inputs['evidence_pins'] and inputs['evidence_pins']
+@@ -42,7 +42,7 @@
+ signing = ROOT/inputs['signing_directory']
+ receipt = read(signing/inputs['native_receipt'])
+ assert receipt['signature_verified'] and receipt['working_bodies_and_nested_index_preserved']
+-assert sorted(receipt['files']) == payload['files'] and len(payload['files']) == 2
++assert sorted(receipt['files']) == payload['files'] and len(payload['files']) == 3
+ commit = receipt['commit']
+ assert git('rev-parse','HEAD').decode().strip() == commit
+ assert git('rev-parse',commit+'^').decode().strip() == receipt['parent']
+@@ -61,7 +61,7 @@
+     assert hashlib.sha256(b).hexdigest() == inputs['ledger_preimages'][n]
+     assert b == git('show',commit+':'+n)
+ ledger = json.loads(old[paths[0]])
+-assert ledger['committed_native_fixes'] == inputs['previous_accepted_fixes'] == 147
++assert ledger['committed_native_fixes'] == inputs['previous_accepted_fixes'] == 148
+ assert not any(v.get('fix') == inputs['fix'] for v in ledger['new_queue'])
+ assert inputs['fix'] == max(v['fix'] for v in ledger['new_queue'] if isinstance(v.get('fix'),int)) + 1
+ entry = copy.deepcopy(accepted['ledger_entry'])
+@@ -70,19 +70,19 @@
+ checkpoint = read(ROOT/inputs['research_checkpoint']['final_check'])
+ assert sha(ROOT/inputs['research_checkpoint']['final_check']) == inputs['research_checkpoint']['final_check_sha256']
+ assert checkpoint['head'] == inputs['initial_head'] == receipt['parent']
+-assert checkpoint['signature_verified'] and checkpoint['runtime_epoch_synchronized'] and checkpoint['pending_hypot_native_payload_preserved']
++assert checkpoint['signature_verified'] and checkpoint['runtime_epoch_synchronized'] and checkpoint['pending_pow_native_payload_preserved']
+ subprocess.run(['git','-c','gpg.ssh.allowedSignersFile='+str(ROOT/'artifacts/css-local-signing-20261027-v1/allowed-signers'),'verify-commit',inputs['initial_head']],cwd=ROOT,env=env,check=True)
+ entry.update(native_commit=commit,research_commit=inputs['initial_head'],validation_commit=inputs['initial_head'],companion_commit=inputs['initial_head'],signature_verified=True,status='COMMITTED_NATIVE_WPT',commit_verification={'path':str((signing/inputs['native_receipt']).relative_to(ROOT)),'sha256':sha(signing/inputs['native_receipt'])})
+ ledger['new_queue'].append(entry)
+ ledger['committed_native_fixes'] = inputs['previous_accepted_fixes'] + 1
+-ledger['latest_hypot_finite_scale_fix'] = entry
++ledger['latest_pow_special_value_fix'] = entry
+ summary = accepted['approved_checkpoint_summary']
+ assert isinstance(summary,str) and summary.strip()
+ assert accepted['approved_roadmap'].encode().endswith(old[paths[2]])
+ title,rest = old[paths[1]].decode().split('\n',1)
+ planned = {paths[0]:(json.dumps(ledger,indent=2)+'\n').encode(),paths[1]:(title+'\n\n'+summary+'\n\nEarlier entries retain their historical state.\n\n'+rest).encode(),paths[2]:accepted['approved_roadmap'].encode()}
+ bug_title,bug_history = old[paths[3]].decode().split('\n',1)
+-bug_entry = f"Fix {inputs['fix']}: {entry['title']}\n\nNative: `{commit}`. Research and validation checkpoint: `{inputs['initial_head']}`. Exact two-path source/WPT payload; sixteen targets repaired, all thirty new-page callbacks PASS, 211 control signatures and four endings preserved. Twelve existing pow failures remain unchanged. Historical fix 145 source/commit attribution remains unchanged with explicit current full-file supersession. Shared-branch validation includes the held provider. CSS precision/range is implementation-defined; this numerical robustness fix has no settled strict-conformance claim. No clean-upstream execution or universal IEEE/native proof is claimed.\n\n"
++bug_entry = f"Fix {inputs['fix']}: {entry['title']}\n\nNative: `{commit}`. Research and validation checkpoint: `{inputs['initial_head']}`. Exact three-path payload: calc implementation, 24-case WPT and deletion of twelve obsolete expected-FAIL annotations. Eighteen targets repaired; 129 control signatures and two endings preserved. Historical fixes 149 and 145 remain intact with explicit current source supersession. Shared-branch validation includes the held provider. Scoped abstract and binary32 classification models do not prove native powf or full CSS conformance.\n\n"
+ planned[paths[3]] = (bug_title+'\n\n'+bug_entry+bug_history).encode()
+ output = HERE/'prepared-checkpoint'
+ assert not output.exists() and not output.is_symlink()

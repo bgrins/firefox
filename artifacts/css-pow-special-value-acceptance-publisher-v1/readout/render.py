@@ -1,0 +1,72 @@
+import copy
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ROOT = Path(__file__).resolve().parents[3]
+HERE = Path(__file__).resolve().parent
+OLD = ROOT / 'artifacts/css-hypot-finite-scale-acceptance-publisher-v3/readout'
+read = lambda p: json.loads(p.read_bytes())
+sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+ENV = dict(os.environ, GIT_OPTIONAL_LOCKS='0')
+
+def git(*args):
+    return subprocess.check_output(['git', *args], cwd=ROOT, env=ENV).decode().strip()
+
+signing = ROOT / sys.argv[1]
+assert signing == HERE.parent
+inputs = read(signing / 'INPUTS.json')
+assert inputs['execution_enabled'] and inputs['publication_enabled'] and inputs['activation_pending'] == []
+assert sha(OLD / 'FILES.json') == inputs['prior_readout_manifest']
+for name, pin in read(OLD / 'FILES.json').items():
+    assert sha(OLD / name) == (pin['sha256'] if isinstance(pin, dict) else pin)
+acceptance = read(ROOT / inputs['acceptance_path'])
+assert sha(ROOT / inputs['acceptance_path']) == inputs['acceptance_sha256']
+assert acceptance['status'] == 'READY_FOR_STANDALONE_SIGNED_COMMIT' and acceptance['fix'] == 150
+receipt = read(signing / 'native-fix-receipt.json')
+assert receipt['signature_verified'] and receipt['working_bodies_and_nested_index_preserved']
+assert receipt['parent'] == inputs['initial_head']
+assert git('rev-parse', receipt['commit'] + '^') == receipt['parent']
+assert git('rev-parse', receipt['commit'] + '^{tree}') == receipt['tree']
+assert git('rev-parse', 'HEAD') == receipt['commit']
+selection = read(signing / 'native-selection.json')
+assert sha(signing / 'native-selection.json') == acceptance['payload_sha256']
+assert sorted(receipt['files']) == selection['files'] and len(selection['files']) == 3
+assert sorted(git('diff-tree','--no-commit-id','--name-only','-r',receipt['commit']).splitlines()) == selection['files']
+for name, pin in selection['source_pins'].items():
+    body = subprocess.check_output(['git','show',receipt['commit']+':'+name],cwd=ROOT,env=ENV)
+    assert hashlib.sha256(body).hexdigest() == pin
+original = read(OLD / 'ACCEPTED-FIXES.json')
+assert original['accepted'] == 148 and original['tracked'] == 149 and len(original['fixes']) == 148
+assert original['held_fix_ids'] == [120] and all(row['fix'] != 150 for row in original['fixes'])
+data = copy.deepcopy(original)
+entry = copy.deepcopy(acceptance['ledger_entry'])
+entry.update(native_commit=receipt['commit'],research_commit=inputs['initial_head'],validation_commit=inputs['initial_head'],status='COMMITTED_NATIVE_WPT',signature_verified=True,acceptance={'path':inputs['acceptance_path'],'sha256':inputs['acceptance_sha256']})
+subject = git('show','-s','--format=%s',receipt['commit'])
+data['fixes'].append({'fix':150,'group':'Parsing, tokens and CSS math','ledger_record':entry,'native_commit':receipt['commit'],'subject':subject,'evidence_commits':[inputs['initial_head']]})
+assert data['fixes'][:-1] == original['fixes']
+data.update(head=receipt['commit'],accepted=149,tracked=150)
+data['group_counts']['Parsing, tokens and CSS math'] += 1
+assert len(data['fixes']) == sum(data['group_counts'].values()) == 149
+checks = copy.deepcopy(read(OLD / 'COMMIT-CHECK.json')['checks'])
+for commit in [inputs['initial_head'],receipt['commit']]:
+    checks[commit] = {'subject':git('show','-s','--format=%s',commit)}
+for commit, item in checks.items():
+    git('merge-base','--is-ancestor',commit,receipt['commit'])
+    item['ancestor_of_head'] = True
+lines = ['# CSS and Stylo work readout', '', '**149 accepted native fixes are committed locally**; tracked IDs run through 150, excluding held fix 120. Prior 148 records are preserved exactly. Two test-only repairs remain separate.', '', 'Snapshot HEAD: `'+receipt['commit']+'`. Ancestry checks cover local history; they do not certify upstream landing or clean-upstream execution.', '', acceptance['approved_checkpoint_summary'], '', '| Area | Accepted native fixes |', '|---|---:|']
+for group,count in data['group_counts'].items(): lines.append(f'| {group} | {count} |')
+lines += ['| **Total** | **149** |', '', '| Fix | Change | Native commit |', '|---|---|---|']
+for row in data['fixes']:
+    title = row.get('subject',row.get('ledger_record',{}).get('title','')).replace('|','\\|')
+    lines.append(f"| {row['fix']} | {title} | `{row['native_commit']}` |")
+lines += ['', 'Complete records and limitations: [ACCEPTED-FIXES.json](ACCEPTED-FIXES.json). Historical group assignments, held fix 120 record, test-only repairs and formal-library checkpoint remain unchanged. No canonical Lean increment or universal IEEE/native proof is claimed.']
+refs = {str((OLD/'FILES.json').relative_to(ROOT)):sha(OLD/'FILES.json'),inputs['acceptance_path']:inputs['acceptance_sha256'],str((signing/'native-fix-receipt.json').relative_to(ROOT)):sha(signing/'native-fix-receipt.json'),inputs['research_checkpoint']['final_check']:inputs['research_checkpoint']['final_check_sha256']}
+outputs = {'ACCEPTED-FIXES.json':data,'COMMIT-CHECK.json':{'head':receipt['commit'],'native_fixes':149,'unique_checked_commits':len(checks),'checks':checks},'REFERENCES.json':refs,'CHECK.json':{'accepted_rows':149,'tracked':150,'prior148_records_unchanged':True,'canonical_coverage_increment':0,'fresh_signature_browser_compiler_or_Lean_execution':False}}
+for name,value in outputs.items():
+    with (HERE/name).open('x') as stream:json.dump(value,stream,indent=2);stream.write('\n')
+with (HERE/'README.md').open('x') as stream:stream.write('\n'.join(lines)+'\n')

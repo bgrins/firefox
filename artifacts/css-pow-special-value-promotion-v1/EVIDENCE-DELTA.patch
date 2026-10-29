@@ -1,0 +1,135 @@
+--- hypot-promotion-v2/evidence.py
++++ pow-promotion-v1/evidence.py
+@@ -11,23 +11,35 @@
+ 
+ 
+ def verify(root, policy, epoch, h):
++    refresh = root / policy['raw_refresh']['runtime']
++    terminal = h.read(refresh / 'ROOT-REPORTED-TERMINAL.json')
++    assert terminal == policy['raw_refresh']['terminal'] and terminal['exit'] == 0
++    assert terminal['result_sha256'] == h.digest((refresh / 'RESULT.json').read_bytes())
++    result = h.read(refresh / 'RESULT.json')
++    assert result['success'] and result['preservation_verified']
++    assert result['updated_only'] == 'raw_index_observation.current' and not result['paired_result_reclassified']
++    assert result['epoch_sha256'] == terminal['epoch_sha256'] == policy['epoch_sha256']
++    assert result['head'] == policy['head']
+     pair = root / policy['paired_runtime']
+     result = h.read(pair / 'RESULT.json')
+-    terminal = h.read(pair / 'CANDIDATE-ROOT-REPORTED-TERMINAL.json')
++    binding = policy['pair_terminal']
++    assert binding and binding['record']
++    terminal = h.read(root / binding['path'])
++    assert terminal == binding['record'] and terminal[binding['exit_field']] == 0
++    assert terminal['session_id'] == 87473
++    assert terminal[binding['result_field']] == h.digest((pair / 'RESULT.json').read_bytes())
+     assert result['success'] and result['error'] is None and result['publication_errors'] == []
+     assert result['restoration_verified'] and result['runtime_controls_unchanged'] and result['empty_staging_preserved']
+     assert result['native_fix_acceptance'] is False
+-    assert terminal['session_id'] == 70485 and terminal['terminal_tool'] == '0d77a9' and terminal['exit'] == 0
+-    assert terminal['root_observed_terminal'] and terminal['result_sha256'] == h.digest((pair / 'RESULT.json').read_bytes())
+     restored = h.read(pair / 'RESTORATION.json')
+     assert restored['errors'] == [] and restored['owned_processes'] == {}
+     cleanup = h.read(pair / 'BACKUP-CLEANUP.json')
+     assert cleanup['removed'] and cleanup['verified_original_restoration'] and not cleanup['retained_after_failure']
+     assert not os.path.lexists(pair / 'backups')
+     browser = h.read(root / policy['paired_browser'] / 'POLICY.json')
+-    assessor = load('hypot_promotion_assessor', root / policy['paired_browser'] / 'assess.py')
+-    checker = load('hypot_promotion_completed_checker', root / policy['completed_pair_checker'])
+-    checks = load('hypot_promotion_lifecycle', root / browser['wpt']['checks_helper'])
++    assessor = load('pow_promotion_assessor', root / policy['paired_browser'] / 'assess.py')
++    checker = load('pow_promotion_completed_checker', root / policy['completed_pair_checker'])
++    checks = load('pow_promotion_lifecycle', root / browser['wpt']['checks_helper'])
+     original = None
+     for role in ('original', 'candidate'):
+         phase = pair / (role + '-wpt')
+@@ -52,63 +64,35 @@
+     assert build['error'] is None and build['stop_reason'] is None
+     source = policy['source']
+     tested = h.read(root / policy['paired_browser'] / 'SOURCE-ROLES.json')[source['path']]
+-    old = (root / tested['candidate_capture']).read_bytes()
+-    clean = (root / source['candidate_capture']).read_bytes()
+-    before = b'use std::ops::{Add, Mul, Rem, Sub};'
+-    after = b'use std::ops::{Add, Rem, Sub};'
+-    assert old.count(before) == 1 and old.replace(before, after, 1) == clean
++    assert tested['base_sha256'] == source['base_sha256']
++    assert tested['candidate_sha256'] == source['candidate_sha256']
++    assert (root / tested['candidate_capture']).read_bytes() == (root / source['candidate_capture']).read_bytes()
+     for name, item in policy['tests'].items():
+         relative = name.removeprefix('testing/web-platform/tests/')
+-        historical = (pair / 'original-wpt/tests' / relative).read_bytes()
+-        for before, after in [(b'hypot(0, -0)', b'hypot(0, -1 * 0)'), (b'1 / hypot(-0)', b'1 / hypot(-1 * 0)'), (b'1 / hypot(-0, -0)', b'1 / hypot(-1 * 0, -1 * 0)')]:
+-            assert historical.count(before) == 1
+-            historical = historical.replace(before, after, 1)
+-        assert (root / item['capture']).read_bytes() == historical
+-    fresh = policy['fresh_baseline']
+-    assert fresh['evidence'] and fresh['terminal']
+-    for name, pin in fresh['evidence'].items():
+-        assert h.digest((root / name).read_bytes()) == pin
+-    fresh_root = root / fresh['runtime']
+-    fresh_phase = fresh_root / 'original-wpt'
+-    fresh_result = h.read(fresh_root / 'BASELINE-RESULT.json')
+-    assert fresh_result['success'] and fresh_result['preservation_verified'] and not fresh_result['canonical_updated']
+-    assert fresh_result['phase'] == {'assessment_sha256': h.digest((fresh_phase / 'ASSESSMENT.json').read_bytes()),
+-        'raw_sha256': h.digest((fresh_phase / 'raw.jsonl').read_bytes()),
+-        'result_sha256': h.digest((fresh_phase / 'RESULT.json').read_bytes())}
+-    fresh_terminal = h.read(root / fresh['terminal'])
+-    assert fresh_terminal['root_observed_terminal'] and fresh_terminal['exit'] == 0
+-    assert fresh_terminal['session_id'] == fresh['terminal_session'] and fresh_terminal['terminal_tool'] == fresh['terminal_tool']
+-    assert fresh_terminal['result_sha256'] == h.digest((fresh_root / 'BASELINE-RESULT.json').read_bytes())
+-    fresh_policy = h.read(root / fresh['owner'] / 'POLICY.json')
+-    assert fresh_policy['head'] == policy['head']
+-    phase_policy = h.read(fresh_phase / 'ASSESSMENT-POLICY.json')
+-    assert all(phase_policy[key] == value for key, value in fresh_policy['wpt'].items())
+-    assert h.read(fresh_phase / 'PRE.json') == h.read(fresh_phase / 'POST.json')
+-    fresh_cleanup = h.read(fresh_phase / 'CLEANUP.json')
+-    assert fresh_cleanup['owned_group_absent'] and fresh_cleanup['temporary_root_removed']
+-    h.group_absent(h.read(fresh_phase / 'PROCESS.json')['pgid'])
+-    record = h.read(fresh_phase / 'RESULT.json')
+-    assert record['success'] and record['preservation_verified'] and record['execution_error'] is None
+-    original = assessor.assess([json.loads(line) for line in (fresh_phase / 'raw.jsonl').read_text().splitlines()],
+-        record['exit'], phase_policy, checks,
+-        run_binding=h.read(fresh_phase / 'APPLICATION-METADATA.json'))
+-    assert json.loads(json.dumps(original)) == h.read(fresh_phase / 'ASSESSMENT.json')
+-    assert original['complete'] and original['errors'] == [] and original['fixture_setup_errors'] == []
+-    assert original['observed_subtest_count'] == 227 and len(original['regression_signature']) == 215
+-    assert len(original['ends']) == 4 and all(row['status'] == 'OK' for row in original['ends'])
+-    assert original['run_binding']['harness_revision'] == policy['head']
+-    targets = {(test, name) for test, names in fresh_policy['wpt']['target_subtests'].items() for name in names}
+-    assert len(targets) == 16 and all(row['status'] == 'FAIL' for row in original['rows'] if (row['test'], row['subtest']) in targets)
+-    for name, item in policy['tests'].items():
+-        relative = name.removeprefix('testing/web-platform/tests/')
+-        assert (root / item['capture']).read_bytes() == (fresh_phase / 'tests' / relative).read_bytes()
++        body = (root / item['capture']).read_bytes()
++        assert h.digest(body) == item['sha256']
++        assert body == (pair / 'original-wpt/tests' / relative).read_bytes() == (pair / 'candidate-wpt/tests' / relative).read_bytes()
++    phase = pair / 'candidate-wpt'
++    assert result['candidate_phase'] == {'assessment_sha256':h.digest((phase / 'ASSESSMENT.json').read_bytes()),
++        'raw_sha256':h.digest((phase / 'raw.jsonl').read_bytes()),'result_sha256':h.digest((phase / 'RESULT.json').read_bytes())}
++    deletion = policy['deleted_metadata']
++    metadata = (root / deletion['capture']).read_text()
++    assert h.digest(metadata.encode()) == deletion['sha256']
++    lines = [line.strip() for line in metadata.splitlines() if line.strip()]
++    assert lines[0] == '[hypot-pow-sqrt-computed.html]'
++    assert len(lines) == 25
++    assert [line[1:-1] for line in lines[1::2]] == deletion['target_subtests']
++    assert all(line == 'expected: FAIL' for line in lines[2::2])
++    target_page = '/css/css-values/hypot-pow-sqrt-computed.html'
++    assert set(deletion['target_subtests']) == set(browser['wpt']['target_subtests'][target_page])
++    for role in ('original', 'candidate'):
++        assert (pair / (role + '-wpt/metadata/css/css-values/hypot-pow-sqrt-computed.html.ini')).read_bytes() == metadata.encode()
+     checkpoint = policy['reference_checkpoint']
+     receipt = h.read(root / checkpoint['final_check'])
+     assert receipt['head'] == checkpoint['signed_head'] == epoch['semantic_index']['head']
+-    assert receipt['signature_verified'] and receipt['runtime_epoch_synchronized']
+-    assert receipt['accepted_fix_increment'] == receipt['canonical_coverage_increment'] == 0
+-    assert receipt['completed_pair_result_sha256'] == terminal['result_sha256']
+-    return {'pair_result_sha256': terminal['result_sha256'], 'comparison_gate_passed': True,
+-            'tested_source_sha256': tested['candidate_sha256'],
+-            'clean_source_sha256': source['candidate_sha256'], 'clean_source_validated': False,
+-            'reference_checkpoint': checkpoint, 'fresh_baseline_result_sha256': h.digest((fresh_root / 'BASELINE-RESULT.json').read_bytes()), 'accepted': False}
++    assert receipt['signature_chain_verified'] and receipt['runtime_epoch_synchronized']
++    assert receipt['accepted_fix'] == 149 and receipt['accepted_fixes'] == 148 and receipt['tracked'] == 149
++    assert receipt['provider_candidate_accepted'] is False
++    return {'pair_result_sha256':terminal[binding['result_field']], 'comparison_gate_passed':True,
++            'tested_source_sha256':tested['candidate_sha256'], 'installed_source_sha256':source['candidate_sha256'],
++            'source_and_fixture_exact_tested_bytes':True, 'reference_checkpoint':checkpoint, 'accepted':False}

@@ -1,0 +1,44 @@
+--- hypot/assess.py
++++ pow/assess.py
+@@ -42,7 +42,7 @@
+             or len(expected_ids - target_ids) != policy['expected_control_count']
+             or not target_ids <= expected_ids or declared_controls != expected_ids - target_ids
+             or held):
+-        errors.append('declared hypot roster partition/counts differ')
++        errors.append('declared pow roster partition/counts differ')
+     fixture_setup_errors = [signature(row) for row in rows
+                             if row.get("test") in policy["fixture_target_pages"]
+                             and row.get("status") == "FAIL"
+@@ -73,7 +73,7 @@
+             errors.append("non-completed test end: " + str(end.get("test")))
+     candidate = [r for r in rows if (r.get("test"), r.get("subtest")) in target_ids]
+     if len(rows) != policy['expected_subtest_count'] or len(candidate) != policy['expected_target_count']:
+-        errors.append('observed hypot callback/target counts differ')
++        errors.append('observed pow callback/target counts differ')
+     for test, expected in policy["expected_subtests"].items():
+         if Counter(r.get("subtest") for r in rows if r.get("test") == test) != Counter(expected):
+             errors.append("fixture identities/cardinality differ: " + test)
+@@ -111,7 +111,7 @@
+     regression = [signature(e) for e in rows + ends if (e.get("action") == "test_end" or (e.get("test"), e.get("subtest")) not in target_ids) and e.get("test") not in held]
+     regression.sort(key=lambda e: (e["test"], e["kind"], e["subtest"] or ""))
+     if len(regression) != policy['expected_regression_signature_count']:
+-        errors.append('hypot control/ending signature count differs')
++        errors.append('pow control/ending signature count differs')
+     comparison_errors = []
+     if original is not None:
+         if not original.get("complete"):
+@@ -136,7 +136,7 @@
+             if row.get("status") == "PASS" and current_rows.get((row.get("test"), row.get("subtest"))) != signature(row):
+                 comparison_errors.append("originally passing callback signature changed: " + row["subtest"])
+         if any(r.get("status") != "PASS" for r in rows if r.get("test") in policy["candidate_required_pass_pages"]):
+-            comparison_errors.append("new finite-scale fixture must pass all30 callbacks")
++            comparison_errors.append("new special-value fixture must pass all 24 callbacks")
+         if any(r.get("status") != "PASS" for r in candidate):
+             comparison_errors.append("candidate target fixture still fails")
+     return {"complete": not errors, "errors": errors, "fixture_setup_errors": fixture_setup_errors, "run_info": run_info, "run_binding": run_binding,
+@@ -149,4 +149,4 @@
+             "regression_signature": regression, "held_signature": held_signature, "comparison_errors": comparison_errors,
+             "comparison_gate_passed": original is not None and not errors and not comparison_errors,
+             "subtest_cardinality_policy": policy["cardinality_description"],
+-            "oracle_caveat": "Hypot comparison: all30 new callbacks must pass;211controls and4endings preserve fresh-original full signatures. Original failures are observations, not infrastructure failures."}
++            "oracle_caveat": "Pow comparison: all 24 new callbacks must pass; 129 controls and two endings preserve fresh-original full signatures. Original failures are observations, not infrastructure failures."}

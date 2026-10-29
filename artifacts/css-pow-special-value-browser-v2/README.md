@@ -1,0 +1,11 @@
+# Enabled reversible pow comparison
+
+Root-only candidate owner bound to the actual fresh original: session 17634, terminal 873fe7/0. Independent raw replay cf7354/0 confirms 147 callbacks: all 18 targets FAIL, all 129 controls PASS and two endings OK, with state and application metadata preserved. The immutable baseline manifest seals 35 regular files; the tools symlink is recorded separately without traversing its target. Baseline FILES.json must remain immutable when candidate receipts are appended.
+
+Current HEAD20ab7 and epoch4548614 are unchanged. V61 signing is deferred until the pair finishes. Baseline, assessor, WPT runner and source roles are byte-identical to pow-browser-v1. candidate.py differs from executed Hypot browser-v4 only in reading the actual root terminal field exit_code instead of exit. Exact terminal content and its manifest are bound; no invented receipt is substituted. The first replay preparation used the older receipt key and stopped before writing a manifest; the successful replay uses the actual schema.
+
+The strict 147/18/129/2/131 roster and proposal-v3 fixture are unchanged. Candidate must pass all 18 targets and all 24 authored callbacks, preserve every originally passing signature, and preserve all controls/endings. Run-info comparison allows only independently bound BuildID drift. No harness revision exception, assumed failure count or gate relaxation is introduced.
+
+Only generic calc is temporarily overlaid from accepted Hypot b7a6ac85 to pow b291d6e9. All 28 accepted claims, accepted149/145 provenance and held provider are guarded. The owner backs up the installed app/extras, requires 27 GiB free after backup, builds binaries with -j2, a 1800-second cap and 15 GiB stop, runs the exact WPT selection, then restores the source and original app/extras. Canonical controls remain unchanged; raw-index byte observations are reported separately. Backups remain on failure and restoration is refused while owned process groups remain.
+
+Preparation performed no browser, build or native/canonical mutation. The experiment grants no acceptance by itself. Root command: python3 -I -S -B artifacts/css-pow-special-value-browser-v2/candidate.py --run <FILES-sha256>. --check authenticates static inputs only.

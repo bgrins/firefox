@@ -1,0 +1,1 @@
+Actual final validation → V61 signed research → bind and independently review publisher → root init → exact three-path native commit → root ledger/checkpoint finish. No acceptance from reversible pair alone.

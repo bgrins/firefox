@@ -1,0 +1,72 @@
+--- artifacts/css-hypot-finite-scale-raw-index-refresh-v1/run.py
++++ artifacts/css-pow-special-value-raw-index-refresh-v1/run.py
+@@ -27,16 +27,16 @@
+ def validate_completed_assessments(original, candidate, comparison, signature):
+     expected = {(test, name) for test, names in comparison["expected_subtests"].items() for name in names}
+     targets = {(test, name) for test, names in comparison["target_subtests"].items() for name in names}
+-    assert len(expected) == 227 and len(targets) == 16 and targets <= expected
++    assert len(expected) == 147 and len(targets) == 18 and targets <= expected
+     controls = expected - targets
+-    assert len(controls) == 211 and len(comparison["expected_subtests"]) == 4
++    assert len(controls) == 129 and len(comparison["expected_subtests"]) == 2
+     for assessment in (original, candidate):
+         assert assessment["complete"] and assessment["errors"] == [] and assessment["fixture_setup_errors"] == []
+-        assert assessment["observed_subtest_count"] == len(assessment["rows"]) == 227
++        assert assessment["observed_subtest_count"] == len(assessment["rows"]) == 147
+         assert {(row["test"], row["subtest"]) for row in assessment["rows"]} == expected
+-        assert len(assessment["ends"]) == 4 and all(end["status"] == "OK" for end in assessment["ends"])
++        assert len(assessment["ends"]) == 2 and all(end["status"] == "OK" for end in assessment["ends"])
+         assert {end["test"] for end in assessment["ends"]} == set(comparison["expected_subtests"])
+-        assert len(assessment["regression_signature"]) == 215
++        assert len(assessment["regression_signature"]) == 131
+     assert candidate["comparison_gate_passed"] and candidate["comparison_errors"] == []
+     assert candidate["regression_signature"] == original["regression_signature"]
+     old_rows = {(row["test"], row["subtest"]): row for row in original["rows"]}
+@@ -67,8 +67,8 @@
+     result, restored = read(evidence / "RESULT.json"), read(evidence / "RESTORATION.json")
+     inner = read(evidence / "candidate-build/build-RESULT.json")
+     terminal = read(evidence / "CANDIDATE-ROOT-REPORTED-TERMINAL.json")
+-    assert terminal["session_id"] == 70485 and terminal["terminal_tool"] == "0d77a9" and terminal["exit"] == 0
+-    assert terminal["root_observed_terminal"] and terminal["result_sha256"] == digest((evidence / "RESULT.json").read_bytes())
++    assert terminal["session_id"] == 87473 and terminal["terminal_chunk"] == "6a91a5" and terminal["exit_code"] == 0
++    assert terminal["both_raw_replays_exact"] and terminal["restoration_verified"] and terminal["result_sha256"] == digest((evidence / "RESULT.json").read_bytes())
+     assert result["success"] is True and result["restoration_verified"] and result["runtime_controls_unchanged"] and result["empty_staging_preserved"]
+     assert result["error"] is None
+     assert result["candidate_phase"] == {"assessment_sha256": digest((evidence / "candidate-wpt/ASSESSMENT.json").read_bytes()), "raw_sha256": digest((evidence / "candidate-wpt/raw.jsonl").read_bytes()), "result_sha256": digest((evidence / "candidate-wpt/RESULT.json").read_bytes())}
+@@ -90,15 +90,25 @@
+         assessments[role] = assessment
+     comparison = read(ROOT / policy["preservation_reference"])["wpt"]
+     assessor = load("combined_refresh_assessor", policy["comparison_assessor"])
++    checks = load("pow_refresh_checks", comparison["checks_helper"])
++    replayed = None
++    for role in ("original", "candidate"):
++        phase = evidence / (role + "-wpt")
++        saved_policy = read(phase / "ASSESSMENT-POLICY.json")
++        metadata = read(phase / "APPLICATION-METADATA.json")
++        assert metadata == read(phase / "APPLICATION-METADATA-POST.json")
++        events = [json.loads(line) for line in (phase / "raw.jsonl").read_text().splitlines()]
++        replayed = assessor.assess(events, read(phase / "RESULT.json")["exit"], saved_policy, checks, original=replayed, run_binding=metadata)
++        assert json.loads(json.dumps(replayed)) == assessments[role]
+     validate_completed_assessments(assessments["original"], assessments["candidate"], comparison, assessor.signature)
+     assert {tuple(row) for row in policy["target_ids"]} == {(test, name) for test, names in comparison["target_subtests"].items() for name in names}
+     cleanup = read(evidence / "BACKUP-CLEANUP.json")
+     assert cleanup["removed"] and cleanup["verified_original_restoration"] and cleanup["retained_after_failure"] is False
+-    assert cleanup["owned_backup_bytes"] == read(evidence / "CANDIDATE-PRE.json")["owned_backup_bytes"] == 1008622360
++    assert cleanup["owned_backup_bytes"] == read(evidence / "CANDIDATE-PRE.json")["owned_backup_bytes"] == 1008605400
+     assert not (evidence / "backups").exists()
+     assert epoch["semantic_index"]["head"] == policy["head"]
+     preservation = read(ROOT / policy["preservation_reference"])
+-    assert len(preservation["accepted_current_payloads"]) == 27
++    assert len(preservation["accepted_current_payloads"]) == 28
+     for name, record in preservation["accepted_current_payloads"].items():
+         assert epoch["pins"][name] == record["sha256"] and epoch["installed_identities"][name] == record["identity"]
+     for name, record in preservation["accepted_epoch_records"].items():
+@@ -119,7 +129,7 @@
+     encoded = json.dumps(updated, indent=2, sort_keys=True).encode() + b"\n"
+     assert digest(encoded) == policy["updated_epoch_sha256"]
+     if sys.argv[1] == "--check":
+-        print("Authenticated successful hypot227 pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
++        print("Authenticated successful pow147 pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
+         return
+     assert policy["execution_enabled"] is True
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))

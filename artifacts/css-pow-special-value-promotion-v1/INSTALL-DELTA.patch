@@ -1,0 +1,143 @@
+--- hypot-v2/install.py
++++ pow-v1/install.py
+@@ -58,7 +58,7 @@
+         assert record['identity'] == epoch['installed_identities'][name]
+         assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == pin
+         accepted_claims[name] = h.claim(ROOT, name, pin, record['identity'])
+-    assert len(accepted_claims) == 27
++    assert len(accepted_claims) == 28
+     for name in policy['preserved_absent_metadata']:
+         assert epoch['pins'][name] is None and not os.path.lexists(ROOT / name)
+         assert name not in epoch['installed_identities'] and name not in json.loads(controls['OWNED.json'])
+@@ -75,15 +75,30 @@
+     assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + name)) == record['base_sha256']
+     source_claim = accepted_claims[name]
+     assert source_claim['owned_sha256'] == record['base_sha256']
+-    assert policy['supersedes_source_pin'] == {'fix':145, 'path':name, 'sha256':record['base_sha256']}
+-    assert epoch['accepted_round_context_quotient']['files'][name] == record['base_sha256']
++    assert policy['supersedes_source_pin'] == {'fix':149, 'path':name, 'sha256':record['base_sha256']}
++    assert epoch['accepted_hypot_finite_scale']['files'][name] == record['base_sha256']
+     assert epoch['pins'].get(name, record['base_sha256']) == record['base_sha256']
+     assert epoch['installed_identities'].get(name, source_claim['identity']) == source_claim['identity']
+     owned = json.loads(controls['OWNED.json'])
+     if name in owned:
+         assert owned[name] == source_claim
++    deletion = policy['deleted_metadata']
++    retired = deletion['path']
++    assert retired == 'testing/web-platform/meta/css/css-values/hypot-pow-sqrt-computed.html.ini'
++    deleted_body = h.body(ROOT / deletion['capture'])
++    assert h.digest(deleted_body) == deletion['sha256']
++    assert h.digest(s.h.git(ROOT, ENV, 'show', policy['head'] + ':' + retired)) == deletion['sha256']
++    assert s.h.git(ROOT, ENV, 'ls-files', '--stage', '--', retired)
++    retired_claim = h.claim(ROOT, retired, deletion['sha256'])
++    assert epoch['pins'].get(retired, deletion['sha256']) == deletion['sha256']
++    assert epoch['installed_identities'].get(retired, retired_claim['identity']) == retired_claim['identity']
++    if retired in owned:
++        assert owned[retired] == retired_claim
++    assert retired not in accepted_claims and retired != name
++    assert retired not in epoch['untracked_native'] and retired not in epoch['committed_research_working_payloads']
++    retired_parents = create.parent_pins(ROOT, ROOT / retired)
+     tests, parents = {}, {}
+-    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-values/hypot-finite-scale.html'}
++    assert set(policy['tests']) == {'testing/web-platform/tests/css/css-values/pow-special-value-context.html'}
+     for test, item in policy['tests'].items():
+         tests[test] = h.body(ROOT / item['capture'])
+         assert h.digest(tests[test]) == item['sha256']
+@@ -97,6 +112,7 @@
+     lock = RUNTIME / 'SOURCE-TRANSITION.lock'
+     assert not os.path.lexists(lock)
+     changed, created, lock_claim, release = False, {}, None, False
++    retirement = None
+ 
+     def claims():
+         for item in accepted_claims.values():
+@@ -105,6 +121,7 @@
+             h.claim(ROOT, item['path'], item['owned_sha256'], item['identity'])
+             assert h.body(RUNTIME / n) == controls[n]
+         h.claim(ROOT, name, source_claim['owned_sha256'], source_claim['identity'])
++        h.claim(ROOT, retired, retired_claim['owned_sha256'], retired_claim['identity'])
+ 
+     try:
+         blocked = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
+@@ -118,6 +135,7 @@
+         h.save(output / 'PRE.json', before)
+         h.save(output / 'EVIDENCE.json', evidence_binding)
+         h.save(output / 'SOURCE-OWNERSHIP.json', source_claim)
++        h.save(output / 'DELETION-OWNERSHIP.json', retired_claim)
+         assert s.a.verify_current(s.h, ROOT, ENV, epoch) == before
+         claims()
+         assert evidence.verify(ROOT, policy, epoch, h) == evidence_binding
+@@ -142,18 +160,37 @@
+                 del current['pins'][test]
+             current = create.updated_epoch(current, test, created[test], h.digest(body))
+             owned[test] = created[test]
++        archived = output / 'DELETED-METADATA.ini'
++        assert not os.path.lexists(archived)
++        assert output.stat().st_dev == retired_claim['identity'][0]
++        assert create.parent_pins(ROOT, ROOT / retired) == retired_parents
++        h.claim(ROOT, retired, retired_claim['owned_sha256'], retired_claim['identity'])
++        blocked = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
++        try:
++            os.rename(ROOT / retired, archived)
++            retirement = {'original_path': retired, 'archived_path': str(archived.relative_to(ROOT)),
++                          'claim': dict(retired_claim, path=str(archived.relative_to(ROOT)))}
++        finally:
++            signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
++        h.claim(ROOT, retirement['archived_path'], retired_claim['owned_sha256'], retired_claim['identity'])
++        h.save(output / 'DELETION.json', retirement)
++        current['pins'][retired] = None
++        current['installed_identities'].pop(retired, None)
++        owned.pop(retired, None)
++        assert not os.path.lexists(ROOT / retired)
++
+         index = s.h.index_state(ROOT, ENV)
+         semantic = s.h.semantic_index(index)
+         assert {k:v for k,v in semantic.items() if k != 'working_diff'} == {k:v for k,v in epoch['semantic_index'].items() if k != 'working_diff'}
+         current['semantic_index'] = semantic
+         current['raw_index_observation']['current'] = index['raw_index']
+-        current['modified_native_paths'] = sorted([held, name])
+-        current['counts']['native_modified_paths'] = 2
++        current['modified_native_paths'] = sorted([held, name, retired])
++        current['counts']['native_modified_paths'] = 3
+         current['counts']['roles'] = len(current['pins'])
+         current['counts']['installed_identities'] = len(current['installed_identities'])
+-        current['hypot_finite_scale_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
++        current['pow_special_value_transition'] = {'role':'candidate', 'compiled':False, 'accepted':False,
+             'manifest_sha256':manifest, 'source_sha256':record['candidate_sha256'], 'last_phase':'install',
+-            'supersedes_source_pin':policy['supersedes_source_pin']}
++            'supersedes_source_pin':policy['supersedes_source_pin'], 'deleted_metadata':retired}
+         assert all(current[k] == epoch[k] for k in policy['accepted_preservation_markers'])
+         assert all(current[k] == epoch[k] for k in policy['accepted_transitions'])
+         after = s.a.verify_current(s.h, ROOT, ENV, current)
+@@ -172,7 +209,7 @@
+         h.save(output / 'INSTALLED-EPOCH.json', current)
+         h.save(output / 'POST.json', after)
+         h.save(output / 'INSTALL-RESULT.json', {'installed':True, 'compiled':False, 'accepted':False,
+-            'preservation_verified':True, 'files':[name, *tests],
++            'preservation_verified':True, 'files':[name, *tests], 'deleted_path':retired,
+             'held_provider_preserved':True, 'epoch_sha256':h.digest(h.body(RUNTIME / 'CURRENT-EPOCH.json'))})
+         release = True
+     except BaseException as error:
+@@ -182,6 +219,13 @@
+                 h.claim(ROOT, test, item['owned_sha256'], item['identity'])
+                 assert create.parent_pins(ROOT, ROOT / test) == parents[test]
+                 (ROOT / test).unlink()
++            if retirement is not None:
++                item = retirement['claim']
++                h.claim(ROOT, item['path'], item['owned_sha256'], item['identity'])
++                assert not os.path.lexists(ROOT / retired)
++                assert create.parent_pins(ROOT, ROOT / retired) == retired_parents
++                os.rename(ROOT / item['path'], ROOT / retired)
++            h.claim(ROOT, retired, deletion['sha256'], retired_claim['identity'])
+             if changed:
+                 h.write_owned(ROOT, source_claim, base)
+             restored = copy.deepcopy(epoch)
+@@ -204,7 +248,7 @@
+             failures.append(repr(rollback))
+         if output.exists():
+             h.save(output / 'FAILURE.json', {'error':repr(error), 'rollback_errors':failures,
+-                'manual_recovery_required':bool(failures), 'source_owner':source_claim, 'created':created})
++                'manual_recovery_required':bool(failures), 'source_owner':source_claim, 'created':created, 'retirement':retirement})
+         raise
+     finally:
+         if release and lock_claim is not None:
