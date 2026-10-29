@@ -1,0 +1,12 @@
+--- v42/commit.py
++++ hypot-v3/commit.py
+@@ -2,6 +2,9 @@
+ from pathlib import Path
+ ROOT=Path(__file__).resolve().parents[2]
+ HERE=Path(__file__).resolve().parent
++inputs=json.loads((HERE/'INPUTS.json').read_bytes())
++assert inputs['execution_enabled'] is True and inputs['final_validation_ready'] is True and inputs['activation_pending']==[]
++assert ROOT/inputs['signing_directory']==HERE
+ ENV=dict(os.environ,GIT_OPTIONAL_LOCKS='0')
+ GIT=['git','--no-optional-locks','-c','core.fsmonitor=false']
+ def git(*args,env=ENV): return subprocess.check_output(GIT+list(args),cwd=ROOT,env=env)

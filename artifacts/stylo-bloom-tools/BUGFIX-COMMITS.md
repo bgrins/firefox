@@ -1,5 +1,10 @@
 # CSS verification bugfix commits
 
+Fix 149: Avoid intermediate overflow and underflow in hypot()
+
+Native: `36b693fee75e828f87b0c34df156caac903810c8`. Research and validation checkpoint: `8f86612a97c87b56e5bbae58ec09f851200c63b7`. Exact two-path source/WPT payload; sixteen targets repaired, all thirty new-page callbacks PASS, 211 control signatures and four endings preserved. Twelve existing pow failures remain unchanged. Historical fix 145 source/commit attribution remains unchanged with explicit current full-file supersession. Shared-branch validation includes the held provider. CSS precision/range is implementation-defined; this numerical robustness fix has no settled strict-conformance claim. No clean-upstream execution or universal IEEE/native proof is claimed.
+
+
 Fix 148: Preserve move context through shadow-root traversal, including animations, custom elements and iframes
 
 Native: `9e99cf9e4c886efb9232d90ed13f0c587e240da9`. Research: `c79aace4b76dac7186ce3e67c686b8b8554b8f2e`. Validation: `369f288603917711ba2f6420aa992ee917a6c91e`. Exact eight-path payload: three DOM source files, four WPT pages with 29 callbacks, and removal of obsolete expected-failure metadata. Final 98 callbacks PASS; eight original failures repaired, with 90 control and 16 ending signatures preserved. Supplemental iframe validation separately passes eight callbacks with two repaired targets, six unchanged controls and one ending. Shared held-provider/configured-pref validation limits remain.

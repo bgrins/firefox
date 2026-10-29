@@ -1,0 +1,11 @@
+# Enabled Hypot native acceptance publisher
+
+Bound to actual signed V60 HEAD 8f86612a97c87b56e5bbae58ec09f851200c63b7 and epoch 7e2423868c3b4a8cfccc41c11d2799ff3e3de337511a19b62261e82574489642; actual terminal 89065/2beab7/0 and root post-check afe852/0. This immutable successor enables the reviewed V2 publisher. The mutation lifecycle is unchanged; generated prose is clarified. Root alone executes after final binding review.
+
+The signed research predecessor contains exact final raw evidence and native proposal captures. Fresh corrected final 227 passes all 30 new callbacks and repairs 16 targets while preserving 211 controls plus 4 endings, including 12 known pow failures. Evidence is replayed before native staging. The native selection is exactly generic calc b7a6ac85 and the 30-case WPT0be27ef0. Root approved the local standalone commit; acceptance is published only after the native signature/tree receipt and separate ledger checkpoint succeed.
+
+The executed fix 145 isolated-index/signature/publication lifecycle is reused. Historical fix 145 df7e6932 source/commit markers and all prior 147 records remain immutable; new current calc supersession is explicit. The held provider remains unchanged and unaccepted. Native 149 yields 148 accepted repairs, tracked IDs through 149, excluding held fix 120. CSS precision and range are implementation-defined: this is a numerical robustness repair without a settled strict-conformance claim. Lean magnitude models do not establish universal IEEE/native refinement or n-ary correct rounding. No clean-upstream execution or canonical Lean increment is claimed.
+
+Full INITIAL-EPOCH/BEFORE/PRE controls/native-fix-EPOCH recovery bodies stay local. Checkpoint selection records their hashes and sizes, retaining all rollback behavior. The readout appends one receipt-derived record while preserving all 147 prior records. Exact untracked census is 564 before and 563 after; only the new WPT becomes tracked. Neither preparation nor check.py executes Git writes, builds or browsers.
+
+Root-only sequence: init.py; commit.py native-selection.json; finish.py, all with python3 -I -S -B. Stop and inspect preserved receipts/state on any failure. check.py is read-only and can run before that sequence. V1/V2 remain sealed historical disabled preparations.

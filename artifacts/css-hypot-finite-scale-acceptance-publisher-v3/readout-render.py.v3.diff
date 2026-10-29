@@ -1,0 +1,18 @@
+--- v2/readout/render.py
++++ v3/readout/render.py
+@@ -58,13 +58,13 @@
+ for commit, item in checks.items():
+     git('merge-base','--is-ancestor',commit,receipt['commit'])
+     item['ancestor_of_head'] = True
+-lines = ['# CSS and Stylo work readout', '', '**148 accepted native fixes are committed locally**; tracked IDs run through149, excluding held120. Prior147 records are preserved exactly. Two test-only repairs remain separate.', '', 'Snapshot HEAD: `'+receipt['commit']+'`. Ancestry checks cover local history; they do not certify upstream landing or clean-upstream execution.', '', acceptance['approved_checkpoint_summary'], '', '| Area | Accepted native fixes |', '|---|---:|']
++lines = ['# CSS and Stylo work readout', '', '**148 accepted native fixes are committed locally**; tracked IDs run through 149, excluding held fix 120. Prior 147 records are preserved exactly. Two test-only repairs remain separate.', '', 'Snapshot HEAD: `'+receipt['commit']+'`. Ancestry checks cover local history; they do not certify upstream landing or clean-upstream execution.', '', acceptance['approved_checkpoint_summary'], '', '| Area | Accepted native fixes |', '|---|---:|']
+ for group,count in data['group_counts'].items(): lines.append(f'| {group} | {count} |')
+ lines += ['| **Total** | **148** |', '', '| Fix | Change | Native commit |', '|---|---|---|']
+ for row in data['fixes']:
+     title = row.get('subject',row.get('ledger_record',{}).get('title','')).replace('|','\\|')
+     lines.append(f"| {row['fix']} | {title} | `{row['native_commit']}` |")
+-lines += ['', 'Complete records and limitations: [ACCEPTED-FIXES.json](ACCEPTED-FIXES.json). Historical group assignments, held120 record, test-only repairs and formal-library checkpoint remain unchanged. No canonical Lean increment or universal IEEE/native proof is claimed.']
++lines += ['', 'Complete records and limitations: [ACCEPTED-FIXES.json](ACCEPTED-FIXES.json). Historical group assignments, held fix 120 record, test-only repairs and formal-library checkpoint remain unchanged. No canonical Lean increment or universal IEEE/native proof is claimed.']
+ refs = {str((OLD/'FILES.json').relative_to(ROOT)):sha(OLD/'FILES.json'),inputs['acceptance_path']:inputs['acceptance_sha256'],str((signing/'native-fix-receipt.json').relative_to(ROOT)):sha(signing/'native-fix-receipt.json'),inputs['research_checkpoint']['final_check']:inputs['research_checkpoint']['final_check_sha256']}
+ outputs = {'ACCEPTED-FIXES.json':data,'COMMIT-CHECK.json':{'head':receipt['commit'],'native_fixes':148,'unique_checked_commits':len(checks),'checks':checks},'REFERENCES.json':refs,'CHECK.json':{'accepted_rows':148,'tracked':149,'prior147_records_unchanged':True,'canonical_coverage_increment':0,'fresh_signature_browser_compiler_or_Lean_execution':False}}
+ for name,value in outputs.items():

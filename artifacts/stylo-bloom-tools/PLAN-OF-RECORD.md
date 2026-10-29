@@ -1,5 +1,10 @@
 # CSS and Stylo verification plan
 
+After the verified standalone signed native commit, hypot repair 149 brings accepted native fixes to 148 across tracked IDs through 149, excluding held fix 120. The exact payload is generic calc and the 30-case WPT. Fresh corrected original and final runs each complete 227 callbacks: 16 failures are repaired, all 30 new callbacks pass, and 211 control plus four ending signatures remain unchanged, including 12 known pow failures. Historical fix 145 source and commit metadata remain unchanged; current full-file calc pin b7a6ac85 explicitly supersedes df7e6932. Shared-branch validation retains the held provider. CSS numeric precision and range are implementation-defined, so this is a numerical robustness repair without a settled strict-conformance claim. Scalar checks and scoped Lean magnitude models do not establish universal IEEE/native refinement, n-ary correct rounding, clean-upstream execution or a canonical coverage increment.
+
+Earlier entries retain their historical state.
+
+
 Fix 148 preserves move context through shadow-root traversal, including CSS animation identity, custom-element move reactions and iframe state. The standalone payload is three DOM sources, four WPT pages with 29 callbacks and deletion of obsolete custom-element expected-FAIL metadata. Final installed results are 98 PASS / 16 OK plus a separate eight PASS / one OK on the same compiled application, preserving 90 primary and six iframe controls. After signed publication the ledger contains 147 accepted fixes / 148 tracked IDs, with held120 excluded. Source review and browser observations preceded the scoped companion; no native refinement or canonical Lean coverage increment is claimed. Shared held-provider/configured-pref limitations remain, with no clean-upstream or Servo-only execution claim.
 
 Earlier entries retain their historical state.

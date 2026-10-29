@@ -1,0 +1,134 @@
+--- v42/finish.py
++++ hypot-v3/finish.py
+@@ -35,9 +35,9 @@
+ o=load('round_quotient_sign_owner','artifacts/css-registered-number-source-transition-v4/transition.py')
+ save=s.save
+ superseded=inputs['accepted_source_supersession']
+-assert superseded['fix']==144 and superseded['path']=='servo/components/style/values/generics/calc.rs'
+-assert inputs['preserved_accepted_markers']['accepted_round_special_knowledge']['files'][superseded['path']]==superseded['sha256']
+-historical_commit=inputs['preserved_accepted_markers']['accepted_round_special_knowledge']['native_commit']
++assert superseded['fix']==145 and superseded['path']=='servo/components/style/values/generics/calc.rs'
++assert inputs['preserved_accepted_markers']['accepted_round_context_quotient']['files'][superseded['path']]==superseded['sha256']
++historical_commit=inputs['preserved_accepted_markers']['accepted_round_context_quotient']['native_commit']
+ assert hashlib.sha256(s.h.git(ROOT,ENV,'show',historical_commit+':'+superseded['path'])).hexdigest()==superseded['sha256']
+ native_pins=read(HERE/'native-selection.json')['source_pins']
+ assert set(native_pins).intersection(inputs['preserved_accepted_payload'])=={superseded['path']}
+@@ -48,14 +48,14 @@
+ 
+ 
+ epoch=read(HERE/'CURRENT-EPOCH.json')
+-assert epoch['round_context_quotient_transition']['supersedes_source_pin']==superseded
++assert epoch['hypot_finite_scale_transition']['supersedes_source_pin']==superseded
+ for marker,expected in inputs['preserved_accepted_transitions'].items():assert epoch[marker]==expected
+ before=s.a.verify_current(s.h,ROOT,ENV,epoch)
+ assert epoch['modified_native_paths']==['servo/components/style/custom_properties.rs']
+ for marker, expected in inputs['preserved_accepted_markers'].items(): assert epoch[marker] == expected
+ for path, item in inputs['preserved_accepted_payload'].items(): o.claim(ROOT,path,accepted_current_pin(path,item),item['identity'])
+ assert not os.path.lexists(ROOT/inputs['retired_path'])
+-assert epoch['round_context_quotient_transition']['compiled'] and not epoch['round_context_quotient_transition']['accepted']
++assert epoch['hypot_finite_scale_transition']['compiled'] and not epoch['hypot_finite_scale_transition']['accepted']
+ controls={n:(RUNTIME/n).read_bytes() for n in ('CURRENT-EPOCH.json','ROLE.json','OWNED.json')}
+ assert all(b==(HERE/('PRE-'+n)).read_bytes() for n,b in controls.items())
+ assert sha(RUNTIME/'CURRENT-EPOCH.json')==inputs['initial_epoch']
+@@ -63,7 +63,7 @@
+ parent=initial['semantic_index']['head']
+ assert parent==inputs['initial_head']
+ receipts={}
+-assert inputs['group_order']==['research','validation','native-fix']
++assert inputs['group_order']==['native-fix']
+ for name in inputs['group_order']:
+     r=read(HERE/(name+'-receipt.json'))
+     assert r['parent']==parent and r['signature_verified'] and r['working_bodies_and_nested_index_preserved']
+@@ -74,8 +74,10 @@
+     subprocess.run(['git','-c','gpg.ssh.allowedSignersFile='+str(ROOT/'artifacts/css-local-signing-20261027-v1/allowed-signers'),'verify-commit',r['commit']],cwd=ROOT,env=ENV,check=True)
+     parent=r['commit'];receipts[name]=r
+ assert parent==epoch['semantic_index']['head']
+-validation=read(HERE/'validation-item.json')['source_pins']
+-assert validation[inputs['acceptance_path']]==inputs['acceptance_sha256']
++assert sha(ROOT/inputs['acceptance_path'])==inputs['acceptance_sha256']
++checkpoint=read(ROOT/inputs['research_checkpoint']['final_check'])
++assert checkpoint['head']==inputs['initial_head'] and checkpoint['signature_verified'] and checkpoint['runtime_epoch_synchronized']
++assert checkpoint['pending_hypot_native_payload_preserved'] is True
+ assert all(initial['pins'].get(n)==pin for n,pin in read(HERE/'native-selection.json')['source_pins'].items())
+ audit=read(ROOT/inputs['untracked_audit'])
+ landing_tests={n for n in read(HERE/'native-selection.json')['files'] if n.startswith('testing/web-platform/tests/')}
+@@ -108,7 +110,7 @@
+ assert readout_data['head']==parent and readout_data['held_fix_ids']==[120]
+ new_rows=[row for row in readout_data['fixes'] if row['fix']==inputs['fix']]
+ assert len(new_rows)==1 and new_rows[0]['native_commit']==parent
+-assert new_rows[0]['evidence_commits']==[receipts[n]['commit'] for n in ('research','validation')]
++assert new_rows[0]['evidence_commits']==[inputs['initial_head']]
+ readout_refs=read(readout/'REFERENCES.json')
+ for ident in receipts:
+     name=str((HERE/(ident+'-receipt.json')).relative_to(ROOT))
+@@ -145,10 +147,10 @@
+     assert {k:v for k,v in semantic.items() if k!='working_diff'}=={k:v for k,v in epoch['semantic_index'].items() if k!='working_diff'}
+     current['semantic_index']=semantic
+     current['raw_index_observation']['current']=index['raw_index']
+-    current['round_context_quotient_transition']['accepted']=True
+-    current['accepted_round_context_quotient']={'fix':inputs['fix'],'native_commit':parent,'files':read(HERE/'native-selection.json')['source_pins'],'old_restoration_recipes_require_rebase':True,'supersedes_source_pin':superseded}
+-    assert current['accepted_round_special_knowledge']==inputs['preserved_accepted_markers']['accepted_round_special_knowledge']
+-    assert current['round_special_knowledge_transition']==inputs['preserved_accepted_transitions']['round_special_knowledge_transition']
++    current['hypot_finite_scale_transition']['accepted']=True
++    current['accepted_hypot_finite_scale']={'fix':inputs['fix'],'native_commit':parent,'files':read(HERE/'native-selection.json')['source_pins'],'old_restoration_recipes_require_rebase':True,'supersedes_source_pin':superseded}
++    assert current['accepted_round_context_quotient']==inputs['preserved_accepted_markers']['accepted_round_context_quotient']
++    assert current['round_context_quotient_transition']==inputs['preserved_accepted_transitions']['round_context_quotient_transition']
+     after=s.a.verify_current(s.h,ROOT,ENV,current)
+     assert after['nested_index']==before['nested_index']
+     assert all(s.h.git(ROOT/n,ENV,'ls-files','-v','-z')==body for n,body in flags.items())
+@@ -164,18 +166,29 @@
+     o.write_owned(ROOT,local_claim,o.encoded(restored))
+     raise
+ save(HERE/'ROADMAP-UPDATE.json',plan)
+-(HERE/'CHECKPOINT.md').write_text(read(ROOT/inputs['acceptance_path'])['approved_checkpoint_summary']+'\n\nHeld provider experiment remains unchanged and unaccepted. Earlier binary/restoration receipts are historical; preserve the accepted line-height, counter, linear guard, and current finite Round source overlay in future restoration; accepted fix 144 full-file hashes remain historical.\n')
++(HERE/'CHECKPOINT.md').write_text(read(ROOT/inputs['acceptance_path'])['approved_checkpoint_summary']+'\n\nHeld provider remains unchanged and unaccepted. Preserve current Hypot source in future restoration; accepted fix 145 full-file hashes remain historical.\n')
+ files=set(planned)
+ files.update(str((readout/name).relative_to(ROOT)) for name in readout_manifest)
+ files.add(str((readout/'FILES.json').relative_to(ROOT)))
+ files.update(inputs['prior_checkpoint_evidence'])
+-for n in ('commit.py','init.py','finish.py','render_checkpoint.py','INPUTS.json','native-selection.json','INITIAL-EPOCH.json','INITIAL-UNTRACKED.json','BEFORE.json','PRE-CURRENT-EPOCH.json','PRE-ROLE.json','PRE-OWNED.json','ROADMAP-UPDATE.json','CHECKPOINT.md','README.md','CHECK.json','PAYLOAD.json','INVENTORY.json','PLAN.md','PRIOR-CHECKPOINT-PINS.json','PENDING-NATIVE-PAYLOAD.json','UNTRACKED-CHECKPOINT.json','init.py.diff','finish.py.diff','render_checkpoint.py.diff','prepare_inventory.py','PACKAGES.json','EXTRA-PINS.json','readout-render.log','ACCEPTANCE-DRAFT.json','PREPARATION-UNTRACKED.json','REFERENCE-CLOSURE.json'):
++files.update(str((HERE/name).relative_to(ROOT)) for name in read(HERE/'FILES.json'))
++for extra in ('FILES.json','evidence.py','check.py','commit.py.diff'):
++    files.add(str((HERE/extra).relative_to(ROOT)))
++files.update(str(p.relative_to(ROOT)) for p in (HERE/'predecessor').iterdir() if p.is_file())
++for n in ('commit.py','init.py','finish.py','render_checkpoint.py','INPUTS.json','native-selection.json','INITIAL-EPOCH.json','INITIAL-UNTRACKED.json','BEFORE.json','PRE-CURRENT-EPOCH.json','PRE-ROLE.json','PRE-OWNED.json','ROADMAP-UPDATE.json','CHECKPOINT.md','README.md','CHECK.json','PLAN.md','UNTRACKED-CHECKPOINT.json','init.py.diff','finish.py.diff','render_checkpoint.py.diff','readout-render.log','ACCEPTANCE-DRAFT.json'):
+     files.add(str((HERE/n).relative_to(ROOT)))
+ for ident in receipts:
+     for suffix in ('-selection.json','-item.json','-receipt.json','-signature.log','-message.txt','-commit.log','-EPOCH.json'):
+         filename='native-selection.json' if ident=='native-fix' and suffix=='-selection.json' else ident+suffix
+         files.add(str((HERE/filename).relative_to(ROOT)))
+ files.update(str(p.relative_to(ROOT)) for p in prepared.rglob('*') if p.is_file())
++local_recovery = {'INITIAL-EPOCH.json','BEFORE.json','PRE-CURRENT-EPOCH.json','PRE-OWNED.json','PRE-ROLE.json', 'native-fix-EPOCH.json'}
++local_recovery_paths = {str((HERE/name).relative_to(ROOT)) for name in local_recovery}
++assert local_recovery_paths <= files
++recovery_references = {name:{'sha256':sha(ROOT/name),'bytes':(ROOT/name).stat().st_size} for name in sorted(local_recovery_paths)}
++save(HERE/'LOCAL-RECOVERY-REFERENCES.json', {'local_only':recovery_references,'recovery_bodies_retained':True,'committed_full_recovery_snapshots':False})
++files.difference_update(local_recovery_paths)
++files.add(str((HERE/'LOCAL-RECOVERY-REFERENCES.json').relative_to(ROOT)))
+ pins={};archived={}
+ for n in sorted(files):
+     body=(ROOT/n).read_bytes()
+@@ -183,7 +196,7 @@
+     (archived if existing.returncode==0 and existing.stdout==body else pins)[n]=hashlib.sha256(body).hexdigest()
+ save(HERE/'CHECKPOINT-ARCHIVE.json',{'already_committed_identical':archived,'parent':parent})
+ pins[str((HERE/'CHECKPOINT-ARCHIVE.json').relative_to(ROOT))]=sha(HERE/'CHECKPOINT-ARCHIVE.json')
+-save(HERE/'checkpoint-selection.json',{'id':'checkpoint','files':sorted(pins),'source_pins':pins,'message':'No bug - Record validated finite Round quotient repair and CSS continuation checkpoint. r?#firefox-style-system-reviewers'})
++save(HERE/'checkpoint-selection.json',{'id':'checkpoint','files':sorted(pins),'source_pins':pins,'message':'No bug - Record validated finite-scale hypot repair and CSS continuation checkpoint. r?#firefox-style-system-reviewers'})
+ with (HERE/'checkpoint-driver.log').open('x') as log:
+     subprocess.run([sys.executable,'-I','-S','-B',str(HERE/'commit.py'),str(HERE/'checkpoint-selection.json')],cwd=ROOT,env=ENV,stdout=log,stderr=subprocess.STDOUT,check=True)
+ final=read(HERE/'CURRENT-EPOCH.json');final_snapshot=s.a.verify_current(s.h,ROOT,ENV,final)
+@@ -192,7 +205,7 @@
+ assert final['modified_native_paths']==['servo/components/style/custom_properties.rs']
+ for marker, expected in inputs['preserved_accepted_markers'].items(): assert final[marker] == expected
+ for marker, expected in inputs['preserved_accepted_transitions'].items(): assert final[marker] == expected
+-assert final['accepted_round_context_quotient']['supersedes_source_pin']==superseded
++assert final['accepted_hypot_finite_scale']['supersedes_source_pin']==superseded
+ for path, item in inputs['preserved_accepted_payload'].items(): o.claim(ROOT,path,accepted_current_pin(path,item),item['identity'])
+ assert final['registered_number_transition'] == initial['registered_number_transition']
+ assert not os.path.lexists(ROOT/inputs['retired_path'])
+@@ -210,4 +223,4 @@
+     save(HERE/'SYNCHRONIZATION-FAILURE.json',{'error':repr(error),'rollback_errors':failures,'manual_recovery_required':True,'signed_head':final['semantic_index']['head'],'note':'Signed commits remain; restored prior runtime epoch does not certify new HEAD.'})
+     raise
+ save(HERE/'FINAL-CHECK.json',{'head':final['semantic_index']['head'],'native_commit':parent,'accepted_fix':inputs['fix'],'accepted_fixes':inputs['previous_accepted_fixes']+1,'tracked':inputs['fix'],'tracked_fixes':inputs['fix'],'signature_chain_verified':True,'held_excluded':120,'native_dirty_paths':1,'provider_candidate_accepted':False,'runtime_epoch_synchronized':True,'untracked_root':len(actual_untracked),'untracked_project':len(project),'unrelated_untracked':audit['unrelated_count'],'current_epoch_sha256':sha(RUNTIME/'CURRENT-EPOCH.json')})
+-print('Signed standalone finite Round quotient checkpoint; provider experiment remains held')
++print('Signed standalone finite-scale hypot checkpoint; provider experiment remains held')

@@ -1,3 +1,11 @@
+Current continuation after validated Hypot repair 149
+
+After the verified standalone signed native commit, hypot repair 149 brings accepted native fixes to 148 across tracked IDs through 149, excluding held fix 120. The exact payload is generic calc and the 30-case WPT. Fresh corrected original and final runs each complete 227 callbacks: 16 failures are repaired, all 30 new callbacks pass, and 211 control plus four ending signatures remain unchanged, including 12 known pow failures. Historical fix 145 source and commit metadata remain unchanged; current full-file calc pin b7a6ac85 explicitly supersedes df7e6932. Shared-branch validation retains the held provider. CSS numeric precision and range are implementation-defined, so this is a numerical robustness repair without a settled strict-conformance claim. Scalar checks and scoped Lean magnitude models do not establish universal IEEE/native refinement, n-ary correct rounding, clean-upstream execution or a canonical coverage increment.
+
+Next: separately review the pow exceptional-value proposal and its abstract guard/folding model against the existing twelve observed failures. That proposal remains unaccepted; no new fix ID or execution is implied. Contextual easing remains unaccepted despite its successful 315-case comparison; preserve its recorded ownership/refinement limits and the held provider. Preserve current Hypot source and accepted fix 145 history in future overlays or restoration.
+
+Earlier roadmap follows unchanged.
+
 ## 2026-10-29: exact-source hypot final validation complete; native commit pending
 
 Clean generic calc b7a6ac and corrected proposal-v5 WPT0be27 completed final
