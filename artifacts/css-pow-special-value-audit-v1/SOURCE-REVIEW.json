@@ -1,0 +1,12 @@
+{
+  "blocks": {
+    "resolver": "Self::Pow(a, b) => {\n                let (a, a_ty) = a.resolve_internal(leaf_to_output_fn)?;\n                let (b, b_ty) = b.resolve_internal(leaf_to_output_fn)?;\n                if !a_ty.is_number() || !b_ty.is_number() {\n                    return Err(());\n                }\n                Ok((a.powf(b), NumericType::number()))\n            },",
+    "simplifier": "Self::Pow(ref mut a, ref mut b) => {\n                if let (CalcNode::Leaf(la), CalcNode::Leaf(lb)) = (&**a, &**b)\n                    && let (Some(a_val), Some(b_val)) = (la.as_number(), lb.as_number())\n                {\n                    let mut result = Self::Leaf(L::new_number(a_val.powf(b_val)));\n                    replace_self_with!(&mut result);\n                    return SimplificationResult::Simplified;\n                }\n                SimplificationResult::Unchanged\n            },"
+  },
+  "call_behavior": "Both paths invoke f32 powf directly without CSS special-value guards.",
+  "local_base_sha256": "df7e69322b099aefed14dd6876a3e634ff4133f25161b99bd93bf8fc1f0c0e16",
+  "local_captured_base": "artifacts/css-hypot-finite-scale-proposal-v3/base/servo/components/style/values/generics/calc.rs",
+  "pow_blocks_identical_to_captured_local_base": true,
+  "searchfox_capture_sha256": "b0d6627e12569d9460d4fd098eaea05fbef39bf40ac733db3b1c347812732ab8",
+  "searchfox_url": "https://searchfox.org/firefox-main/source/servo/components/style/values/generics/calc.rs"
+}

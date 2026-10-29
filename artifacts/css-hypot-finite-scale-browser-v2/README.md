@@ -1,0 +1,13 @@
+# Disabled hypot Gecko comparison capsule
+
+Both execution flags are false; no baseline is bound and no owner has executed. This capsule binds HEAD45a7747e3f5bea4ed0119ccde65f27cb12b31896 and canonical epoch9cf9fe29568e4ea1aafe3635dd611a071641efe8e3f2bcf73bc1a5c9d73e4e66. Any research checkpoint requires a reviewed successor with refreshed HEAD/epoch/flags before execution.
+
+The one-file generic calc overlay comes from proposal-v3 (direct widened square/sum/sqrt helper), retaining accepted fix145's exact df7e6932 base. There is no contextual-easing overlay. Current27 accepted claims, all accepted markers, both removed metadata absences and the held custom-properties provider remain guarded. Installed original app metadata is recorded; root's live guard must verify current controls, source identities, app/build lineage, root/nested flags, binary pins, process quiescence and metadata absences before activation.
+
+The fresh original must complete all227 callbacks and four OK endings with no assumed FAIL count. Candidate must pass all30 new callbacks (including16 targets), preserve211 control and four ending full signatures, and preserve every originally passing callback signature. Existing upstream failures are preserved observations. No held waiver or missing-resource waiver exists. The assessor mutation suite checks29 rejections and four passing synthetic scenarios; it executes no browser callbacks.
+
+The candidate owner and WPT shim are byte-identical to the reviewed combined315 v3 bodies. RUNNER-DELTA.patch contains only one-path/count/input guards, the all-new30 PASS gate and adapted assessor checks. Existing build/app/source backup, owned-process termination, restoration and failure publication lifecycle are reused unchanged: existing objdir, -j2,1800-second build deadline,27GiB free after backup and15GiB running stop. Resource observation is not admission; free space must pass at execution. All raw browser/build logs and receipts remain retained. Baseline completion must be sealed separately before a candidate-enabled successor can bind its actual root terminal. No native acceptance, new ID, proof credit or canonical update is authorized by this capsule.
+
+Root can authenticate with `GIT_OPTIONAL_LOCKS=0 python3 -I -S -B artifacts/css-hypot-finite-scale-browser-v2/baseline.py --check <FILES-SHA256>` and review RUNNER-DELTA.patch before a live --guard. Neither command enables execution. Root alone executes an independently reviewed enabled successor.
+
+This successor corrects the draft v1 count guard: sequential numeric substitutions accidentally changed227 to47; static authentication rejected it before any execution. v1 is unusable. All other bodies/policy remain byte-identical.

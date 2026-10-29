@@ -1,0 +1,102 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>hypot avoids avoidable overflow and underflow for finite inputs</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#exponent-funs">
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#exponent-argument-ranges">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const high = "18446744073709551616";
+const highDouble = "36893488147419103232";
+const highQuadruple = "73786976294838206464";
+const low = "0.00000000000000000000000082718061255302767487140869206996285356581211090087890625";
+const lowDouble = "0.0000000000000000000000016543612251060553497428173841399257071316242218017578125";
+const lowQuadruple = "0.000000000000000000000003308722450212110699485634768279851414263248443603515625";
+const staticCases = [
+  ["large single argument", `hypot(${high}) / ${highDouble}`, 0.5],
+  ["large argument and zero", `hypot(${high}, 0) / ${highDouble}`, 0.5],
+  ["large zero and argument", `hypot(0, ${high}) / ${highDouble}`, 0.5],
+  ["large negative argument", `hypot(-${high}, 0) / ${highDouble}`, 0.5],
+  ["tiny single argument", `hypot(${low}) / ${lowDouble}`, 0.5],
+  ["tiny argument and zero", `hypot(${low}, 0) / ${lowDouble}`, 0.5],
+  ["tiny zero and argument", `hypot(0, ${low}) / ${lowDouble}`, 0.5],
+  ["tiny negative argument", `hypot(-${low}, 0) / ${lowDouble}`, 0.5],
+  ["large four equal arguments", `hypot(${high}, ${high}, ${high}, ${high}) / ${highQuadruple}`, 0.5],
+  ["tiny four equal arguments", `hypot(${low}, ${low}, ${low}, ${low}) / ${lowQuadruple}`, 0.5],
+  ["ordinary Pythagorean inputs", "hypot(3, 4) / 10", 0.5],
+  ["ordinary three arguments", "hypot(2, 3, 6) / 14", 0.5],
+  ["moderate magnitude", "hypot(3e9, 4e9) / 1e10", 0.5],
+  ["large direct ratio control", `${high} / ${highDouble}`, 0.5],
+  ["tiny direct ratio control", `${low} / ${lowDouble}`, 0.5],
+  ["zero magnitude", "hypot(0, -0)", 0],
+  ["single negative zero becomes positive", "1 / hypot(-0)", 1],
+  ["multiple negative zeros become positive", "1 / hypot(-0, -0)", 1],
+  ["positive infinity", "hypot(infinity, 1)", 1],
+  ["negative infinity magnitude", "hypot(-infinity, 1)", 1],
+  ["NaN before infinity", "hypot(NaN, infinity)", 0],
+  ["NaN after infinity", "hypot(infinity, NaN)", 0],
+  ["NaN after large finite pair", `hypot(${high}, ${high}, NaN)`, 0],
+  ["large absolute lengths", `hypot(${high}px, 0px) / ${highDouble}px`, 0.5],
+  ["tiny absolute lengths", `hypot(${low}px, 0px) / ${lowDouble}px`, 0.5],
+  ["mixed absolute length units", "hypot(3in, 384px) / 960px", 0.5],
+];
+for (const [name, expression, expected] of staticCases) {
+  test(t => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    target.style.opacity = `calc(${expression})`;
+    assert_not_equals(target.style.opacity, "", "Declaration is admitted");
+    assert_approx_equals(Number(getComputedStyle(target).opacity), expected, 0.00001);
+  }, `hypot finite-scale: ${name}`);
+}
+for (const [name, value, denominator] of [
+  ["large", high, highQuadruple], ["tiny", low, lowQuadruple],
+]) {
+  test(t => {
+    const holder = document.createElement("div");
+    const target = document.createElement("div");
+    const sibling = document.createElement("div");
+    holder.append(target);
+    document.body.append(holder);
+    t.add_cleanup(() => holder.remove());
+    target.style.opacity = `calc(hypot(${value} * sibling-index(), 0) / ${denominator})`;
+    assert_not_equals(target.style.opacity, "", "Contextual declaration is admitted");
+    const samples = [Number(getComputedStyle(target).opacity)];
+    holder.insertBefore(sibling, target);
+    samples.push(Number(getComputedStyle(target).opacity));
+    sibling.remove();
+    samples.push(Number(getComputedStyle(target).opacity));
+    for (const [index, actual] of samples.entries()) {
+      assert_approx_equals(actual, index === 1 ? 0.5 : 0.25, 0.00001);
+    }
+  }, `hypot finite-scale: ${name} deferred sibling context and recovery`);
+}
+for (const [name, value, denominator] of [
+  ["large", high, highDouble], ["tiny", low, lowDouble],
+]) {
+  test(t => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    t.add_cleanup(() => host.remove());
+    const root = host.attachShadow({mode:"open"});
+    root.innerHTML = `<style>
+      .holder { font-size:16px; }
+      .holder.changed { font-size:32px; }
+    </style><div class="holder"><div></div></div>`;
+    const holder = root.querySelector(".holder");
+    const target = holder.firstElementChild;
+    target.style.opacity = `calc(hypot(${value}em, 0px) / (${denominator} * 16px))`;
+    assert_not_equals(target.style.opacity, "", "Mixed relative and absolute units are admitted");
+    const samples = [Number(getComputedStyle(target).opacity)];
+    holder.classList.add("changed");
+    samples.push(Number(getComputedStyle(target).opacity));
+    holder.classList.remove("changed");
+    samples.push(Number(getComputedStyle(target).opacity));
+    for (const [index, actual] of samples.entries()) {
+      assert_approx_equals(actual, index === 1 ? 1 : 0.5, 0.00001);
+    }
+  }, `hypot finite-scale: ${name} mixed em and px context and recovery`);
+}
+</script>

@@ -1,0 +1,11 @@
+{
+  "literal_browser_witness_primarily_tests_simplifier": true,
+  "local_branches": {
+    "resolve_internal": "            Self::Hypot(children) => {\n                let (mut value, mut ty) = children[0].resolve_internal(leaf_to_output_fn)?;\n                value = value.powi(2);\n\n                for child in children.iter().skip(1) {\n                    let (child_value, child_ty) = child.resolve_internal(leaf_to_output_fn)?;\n                    ty = NumericType::add_two_types(&ty, &child_ty)?;\n                    value += child_value.powi(2);\n                }\n\n                Ok((value.sqrt(), ty))\n            },\n",
+    "simplifier": "            Self::Hypot(ref children) => {\n                let mut result = value_or_stop!(children[0].try_op(&children[0], Mul::mul));\n\n                for child in children.iter().skip(1) {\n                    let square = value_or_stop!(child.try_op(child, Mul::mul));\n                    result = value_or_stop!(result.try_op(&square, Add::add));\n                }\n\n                result = value_or_stop!(result.try_op(&result, |a, _| a.sqrt()));\n\n                replace_self_with!(&mut result);\n                SimplificationResult::Simplified\n            },\n"
+  },
+  "local_capture": "artifacts/css-contextual-easing-servo-closure-v3/baseline/servo/components/style/values/generics/calc.rs",
+  "local_sha256": "df7e69322b099aefed14dd6876a3e634ff4133f25161b99bd93bf8fc1f0c0e16",
+  "resolver_execution_not_observed": true,
+  "searchfox_capture_sha256": "b0d6627e12569d9460d4fd098eaea05fbef39bf40ac733db3b1c347812732ab8"
+}

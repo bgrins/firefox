@@ -1,0 +1,30 @@
+--- closure-v3/audit_literals.py
++++ target-cleanup-v1/audit_retained.py
+@@ -4,7 +4,7 @@
+ import re
+ import tomllib
+ 
+-HERE = Path(__file__).resolve().parent
++HERE = Path('/Users/bgrins/code/firefox/artifacts/css-contextual-easing-servo-closure-v3')
+ ROOT = HERE.parents[1]
+ sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+ support = HERE / 'baseline/support/stylo_atoms-0.22.0'
+@@ -37,7 +37,7 @@
+         relative = path.relative_to(HERE / role).as_posix()
+         if not relative.startswith('support/'):
+             sources.append((role + '/' + relative, relative, path))
+-for path in sorted((ROOT / 'artifacts/css-contextual-easing-servo-compile-runtime-2/target/debug/build').glob('style-*/out/*.rs')):
++for path in [Path('/Users/bgrins/code/firefox/artifacts/css-contextual-easing-servo-target-cleanup-v1/retained/properties.rs')]:
+     sources.append(('prior-generated/' + path.name, path.name, path))
+ 
+ records = []
+@@ -70,5 +70,8 @@
+ result = {'method': 'Lexical quoted literal inventory with manually reviewed Gecko cfg exclusions; not a replacement for compiler checking.',
+           'unique_keys': {kind: len({r['key'] for r in records if r['macro'] == kind}) for kind in known},
+           'unresolved_literals': 0, 'generated_properties': generated, 'records': records}
+-(HERE / 'LITERAL-AUDIT.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
++expected = json.loads((HERE / 'LITERAL-AUDIT.json').read_text())
++for key in ('method', 'unique_keys', 'unresolved_literals', 'records'):
++    assert result[key] == expected[key], key
++assert [x['sha256'] for x in generated] == [x['sha256'] for x in expected['generated_properties']]
+ print(json.dumps({key: value for key, value in result.items() if key != 'records'}, sort_keys=True))

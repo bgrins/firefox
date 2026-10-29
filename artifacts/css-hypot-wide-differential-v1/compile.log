@@ -1,0 +1,19 @@
+warning: panic message contains unused formatting placeholders
+  --> artifacts/css-hypot-wide-differential-v1/check.rs:14:77
+   |
+14 |   let ulp=value.to_bits().abs_diff(reference.to_bits());assert!(ulp<=1,"ulp {ulp}: {a:?} {b:?}");
+   |                                                                             ^^^^^  ^^^^^ ^^^^^
+   |
+   = note: this message is not used as a format string when given without arguments, but will be in Rust 2021
+   = note: `#[warn(non_fmt_panics)]` (part of `#[warn(rust_2021_compatibility)]`) on by default
+help: add the missing arguments
+   |
+14 |   let ulp=value.to_bits().abs_diff(reference.to_bits());assert!(ulp<=1,"ulp {ulp}: {a:?} {b:?}", ...);
+   |                                                                                                +++++
+help: or add a "{}" format string to use the message literally
+   |
+14 |   let ulp=value.to_bits().abs_diff(reference.to_bits());assert!(ulp<=1,"{}", "ulp {ulp}: {a:?} {b:?}");
+   |                                                                        +++++
+
+warning: 1 warning emitted
+
