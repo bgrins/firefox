@@ -1,0 +1,11 @@
+# Final installed sibling-count validation review
+
+Independent saved replay is clear (636383/0). Both original and final raw event streams reproduce their complete saved assessments exactly. Original:33 PASS and3 FAIL. Final:35 PASS and1 existing nested-pseudo-element FAIL. Both landing width/opacity targets change from FAIL to PASS; all34 control signatures and seven OK endings remain exact, including expected/intermittent/message field presence. There are no final unexpected outcomes, setup errors or infrastructure faults.
+
+The final captured landing body matches the installed/build epoch pin. Final binary hashes match the compiled epoch; the final application's saved metadata matches the promoted build's BuildID20261028191010 and revision0ebf4903e6e7f7216c8ba35d0941958d45c24f73. PRE and POST snapshots and application metadata agree. Saved cleanup reports the owned group absent and temporary root removed; FINAL-DRIVER reports success, no errors and an empty process registry. No independent live process query was performed.
+
+The final archive's35 regular payloads and exact tests/tools symlink authenticate. The saved root-reported terminal records session58262, launch7a9f50, terminalaf3f5e/0; this reviewer did not execute that browser. Earlier full six-case source-cause comparison and focused36 candidate comparison remain distinct historical evidence. The inherited assessor's contextual-easing wording is a historical label; exact resource and callback identities are the sibling-count roster.
+
+The result supports the narrow one-line reset RuleCache exclusion and standalone two-test WPT. Existing configured feature preferences and the shared held-provider prototype remain part of the local validation context. No clean-upstream build, performance conclusion, security consequence, native Lean refinement or canonical formal coverage increment is claimed. Root approval and signed receipts remain necessary before native acceptance or readout count changes. The frozen v6 renderer is unchanged.
+
+replay.py reruns only saved-data authentication and assessment; it does not run browsers, native compilation, live preservation guards, Git mutation or canonical publication. Initial replay d50d0b/0 passed before the final archive seal became available;636383 adds exact archive/symlink/terminal authentication.

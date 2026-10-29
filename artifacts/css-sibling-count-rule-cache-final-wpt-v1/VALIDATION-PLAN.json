@@ -1,0 +1,38 @@
+{
+  "acceptance_gate": "Actual final build, installed lint, final36WPT, independent/root review and explicit root acceptance; no native ID from this plan.",
+  "commands_for_root_after_install": [
+    {
+      "argv": [
+        "/Users/bgrins/venvs/firefox/bin/python",
+        "./mach",
+        "lint",
+        "--linter",
+        "wpt",
+        "--include-third-party",
+        "testing/web-platform/tests/css/css-values/tree-counting/sibling-count-cross-parent-invalidation.html"
+      ],
+      "env": {
+        "GIT_OPTIONAL_LOCKS": "0",
+        "MOZ_SKIP_PATH_PERFORMANCE_CHECK": "1"
+      },
+      "output_requirement": "Preserve complete stdout/stderr log and actual terminal; require exit0 and no lint errors.",
+      "purpose": "Installed WPT lint"
+    },
+    {
+      "argv": [
+        "/Users/bgrins/venvs/firefox/bin/python",
+        "./mach",
+        "file-info",
+        "reviewers",
+        "servo/components/style/values/computed/mod.rs",
+        "testing/web-platform/tests/css/css-values/tree-counting/sibling-count-cross-parent-invalidation.html"
+      ],
+      "env": {
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "output_requirement": "Root owns actual query and authoritative reviewer evidence.",
+      "purpose": "Reviewer lookup"
+    }
+  ],
+  "execution_enabled": false
+}

@@ -1,0 +1,3 @@
+Final installed sibling-count rule-cache validation completed 36 callbacks: 35 PASS and one preserved existing nested-pseudo FAIL. Both landing targets pass; 34 control and seven ending structured signatures match the original baseline. BuildID 20261028191010 and harness/build revision 0ebf4903 are bound to the installed source and WPT. PRE/POST and application metadata preservation, empty process ownership and temporary-root cleanup passed.
+
+The inherited assessor oracle_caveat label mentions contextual easing; the exact sealed sibling-count roster and recorded observations are authoritative. No native acceptance is implied by this runtime archive. Root terminal provenance is recorded separately.

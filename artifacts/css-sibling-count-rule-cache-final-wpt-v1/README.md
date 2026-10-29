@@ -1,0 +1,7 @@
+# Installed focused validation
+
+Enabled for root-owned final WPT after root ff4b64/6953aa and independent8b76e9 review. Actual install/build/epoch/app pins are now authenticated. This adapter invokes the executed focused WPT lifecycle with the exact36-case roster and original raw replay. Its resource entry for the new landing test points to the installed live WPT, whose hash and owned identity are checked before and after execution. The installed computed source, all14 accepted current claims, historical accepted markers, compiled app and full epoch/index/control state are authenticated. Original harness/app provenance remains unchanged; final candidate BuildID is bound from the actual promoted build.
+
+The helper supplies owned browser-group/temp cleanup and full setup/lifecycle/signature gates. The adapter adds no compiler, source write or canonical publication. Both landing targets must pass and34control+7ending signatures match the fresh original; known nested-pseudo failure remains a control. Root executes real installed WPT lint separately and archives command/log/exit before any acceptance. Promotion build/lint/final WPT must all succeed before ID146 may be considered.
+
+The actual build EPOCH must equal the current compiled canonical epoch exactly, with variant sibling-count-rule-cache and last_phase matching the build directory. The saved build application metadata must equal the policy-bound current app metadata. An unrelated successful build receipt cannot satisfy these joins.
