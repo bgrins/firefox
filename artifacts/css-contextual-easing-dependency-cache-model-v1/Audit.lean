@@ -1,0 +1,13 @@
+import Dependency
+#print axioms ContextualEasing.expr_locality
+#print axioms ContextualEasing.parameters_locality
+#print axioms ContextualEasing.key_agreement
+#print axioms ContextualEasing.cache_sound
+#print axioms ContextualEasing.omitted_second_position
+#print axioms ContextualEasing.parent_font_is_not_pseudo_font
+#print axioms ContextualEasing.pseudo_first_snapshot_wrong_binding
+#print axioms ContextualEasing.index_is_not_count
+#print axioms ContextualEasing.field_support_does_not_identify_rule
+#print axioms ContextualEasing.context_changes_retain_capture
+#print axioms ContextualEasing.new_transition_captures_latest
+#print axioms ContextualEasing.property_refresh_is_not_effect_refresh

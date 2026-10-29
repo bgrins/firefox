@@ -1,0 +1,3 @@
+# Infrastructure-only baseline failure
+
+Root session 74314, launch 08d09f, terminal 5c313a exited 1. Mach failed before browser launch while opening its virtualenv mach.lock outside the workspace. No raw WPT log or CSS observations exist. The wrapper then failed to read the absent raw log. PRE and POST snapshots are equal; metadata, original source/binary hashes and canonical controls remain unchanged. Owned process cleanup and temporary-directory removal completed. No source overlay or browser build occurred. Retry requires a fresh runtime and root-authorized access for Mach; this occupied runtime remains immutable.

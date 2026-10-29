@@ -1,0 +1,131 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Script keyframe overrides and contextual CSS easing updates</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+<link rel="help" href="https://drafts.csswg.org/web-animations-1/#dom-keyframeeffect-setkeyframes">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const settle = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+async function fixture(t, basis) {
+  assert_not_equals(document.body, null, "Body exists before callback setup");
+  const host = document.createElement("div");
+  host.style.fontSize = "16px";
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const root = host.attachShadow({mode:"open"});
+  const expression = basis === "sibling" ? "steps(calc(1 + sibling-index()), end)" :
+    "steps(calc(1 + 1em / 16px), end)";
+  root.innerHTML = `<style>
+    @keyframes progress { from { opacity:0; animation-timing-function:${expression}; } to { opacity:1; } }
+    .target { animation:progress 1000ms linear both paused; }
+  </style><div id="left"><i></i><div class="target"></div></div>
+  <div id="right"><i></i><div class="target"></div></div><div id="references"></div>`;
+  const target = root.querySelector("#left .target");
+  const control = root.querySelector("#right .target");
+  const animations = [target, control].map(el => el.getAnimations()[0]);
+  for (const animation of animations) {
+    assert_true(!!animation, "CSS animation exists");
+    t.add_cleanup(() => animation.cancel());
+    await animation.ready;
+    animation.currentTime = 750;
+  }
+  const references = new Map();
+  for (const count of [2, 3, 4, 5]) {
+    const el = document.createElement("div");
+    root.querySelector("#references").append(el);
+    const animation = el.animate([{opacity:0}, {opacity:1}],
+      {duration:1000, easing:`steps(${count}, end)`, fill:"both"});
+    t.add_cleanup(() => animation.cancel());
+    animation.pause();
+    await animation.ready;
+    animation.currentTime = 750;
+    references.set(count, el);
+  }
+  const extras = [document.createElement("i"), document.createElement("i")];
+  return {host, root, target, control, animation:animations[0], controlAnimation:animations[1],
+    effect:animations[0].effect, references, extras,
+    specified:root.querySelector("style").sheet.cssRules[0].cssRules[0].style.animationTimingFunction};
+}
+
+async function snapshot(f, expectedCount) {
+  await settle();
+  return {
+    actual:Number(getComputedStyle(f.target).opacity),
+    control:Number(getComputedStyle(f.control).opacity),
+    expected:Number(getComputedStyle(f.references.get(expectedCount)).opacity),
+    overrideExpected:Number(getComputedStyle(f.references.get(5)).opacity),
+    repeat:Number(getComputedStyle(f.target).opacity),
+    same:f.target.getAnimations().includes(f.animation) && f.animation.effect === f.effect,
+    sameControl:f.control.getAnimations().includes(f.controlAnimation),
+    frames:JSON.stringify(f.effect.getKeyframes()),
+    time:f.animation.currentTime,
+    index:Array.from(f.target.parentElement.children).indexOf(f.target) + 1,
+    font:getComputedStyle(f.target).fontSize,
+  };
+}
+
+for (const basis of ["sibling", "font"]) {
+  for (const succeeds of [true, false]) {
+    promise_test(async t => {
+      const f = await fixture(t, basis);
+      const initialCount = basis === "sibling" ? 3 : 2;
+      const before = await snapshot(f, initialCount);
+      let error = null;
+      try {
+        f.effect.setKeyframes([
+          {opacity:0, offset:0, easing:"steps(5, end)"},
+          {opacity:1, offset:succeeds ? 1 : 2},
+        ]);
+      } catch (caught) {
+        error = caught;
+      }
+      const framesAfterCall = JSON.stringify(f.effect.getKeyframes());
+      const rows = [await snapshot(f, initialCount)];
+      if (basis === "sibling") {
+        f.root.querySelector("#left").prepend(f.extras[0]);
+        f.root.querySelector("#right").prepend(f.extras[1]);
+      } else {
+        f.host.style.fontSize = "32px";
+      }
+      rows.push(await snapshot(f, initialCount + 1));
+      if (basis === "sibling") {
+        f.extras.forEach(el => el.remove());
+      } else {
+        f.host.style.fontSize = "16px";
+      }
+      rows.push(await snapshot(f, initialCount));
+      const details = JSON.stringify({specified:f.specified, before, framesAfterCall, rows});
+      assert_not_equals(f.specified, "", `Contextual CSS declaration admitted; ${details}`);
+      assert_approx_equals(before.actual, before.expected, 0.0001, `Initial CSS curve; ${details}`);
+      if (succeeds) {
+        assert_equals(error, null, `Literal override succeeds; ${details}`);
+        assert_not_equals(framesAfterCall, before.frames, `Override changes keyframes; ${details}`);
+      } else {
+        assert_true(error instanceof TypeError, `Out-of-range offset throws TypeError; ${details}`);
+        assert_equals(framesAfterCall, before.frames, `Rejected call preserves keyframes; ${details}`);
+      }
+      assert_array_equals(rows.map(row => row.index), basis === "sibling" ? [2, 3, 2] : [2, 2, 2],
+        `Sibling calibration; ${details}`);
+      assert_array_equals(rows.map(row => row.font), basis === "font" ? ["16px", "32px", "16px"] :
+        ["16px", "16px", "16px"], `Font calibration; ${details}`);
+      for (const row of rows) {
+        assert_true(row.same && row.sameControl, `Same target effect and control animation; ${details}`);
+        assert_equals(row.time, 750, `Paused sample time; ${details}`);
+        assert_true(Number.isFinite(row.expected) && row.expected > 0 && row.expected < 1,
+          `CSS literal calibration; ${details}`);
+        assert_approx_equals(row.overrideExpected, 0.6, 0.0001, `Override literal calibration; ${details}`);
+        assert_approx_equals(row.control, row.expected, 0.0001, `Unmodified CSS control updates; ${details}`);
+        assert_equals(row.repeat, row.actual, `Stable repeated sample; ${details}`);
+        assert_approx_equals(row.actual, succeeds ? row.overrideExpected : row.expected, 0.0001,
+          `Target follows the appropriate owner; ${details}`);
+        if (succeeds) {
+          assert_equals(row.frames, framesAfterCall, `JS keyframes survive contextual reconstruction; ${details}`);
+        }
+      }
+    }, `${succeeds ? "Successful" : "Rejected"} setKeyframes ${succeeds ? "overrides" : "preserves"} CSS easing across ${basis} mutation and recovery`);
+  }
+}
+</script>

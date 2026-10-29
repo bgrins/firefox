@@ -1,0 +1,66 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Static contextual easing properties follow sibling context</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#tree-counting">
+<link rel="help" href="https://drafts.csswg.org/css-easing-2/#easing-functions">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="support/contextual-easing-static-sharing.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+let observationPromise;
+function observations() {
+  if (!observationPromise) {
+    assert_not_equals(document.body, null, "Body exists before callback setup");
+    observationPromise = observeContextualEasingSharing().then(value => {
+      window.contextualEasingSharingObservations = value;
+      document.getElementById("observations").textContent = JSON.stringify(value);
+      return value;
+    });
+  }
+  return observationPromise;
+}
+
+for (const property of ["animation-timing-function", "transition-timing-function"]) {
+  for (const name of ["steps index", "steps count", "bezier", "linear output", "linear second position"]) {
+    promise_test(async () => {
+      const value = await observations();
+      assert_equals(value.schema, 1, "Observation schema");
+      assert_equals(value.results.length, 10, "All ten cases were collected before assertions");
+      assert_equals(value.results.reduce((n, row) => n + row.snapshots.reduce(
+        (m, snapshot) => m + snapshot.values.length, 0), 0), 90, "All ninety records retained");
+      const matching = value.results.filter(row => row.property === property && row.name === name);
+      assert_equals(matching.length, 1, "Unique named observation");
+      const row = matching[0];
+      const details = JSON.stringify(row);
+      assert_true(row.supported, `Contextual easing syntax is supported; ${details}`);
+      assert_not_equals(row.specified, "", `Declaration is retained; ${details}`);
+      assert_array_equals(row.snapshots.map(snapshot => snapshot.phase),
+        ["initial", "siblings added", "restored"], `All mutation phases retained; ${details}`);
+      for (let phase = 0; phase < row.snapshots.length; ++phase) {
+        const snapshot = row.snapshots[phase];
+        const positions = phase === 1 ? [2, 3, 3] : [1, 2, 3];
+        const counts = phase === 1 ? [3, 3, 4] : [2, 2, 3];
+        assert_equals(snapshot.values.length, 3, `Three same-rule targets; ${details}`);
+        assert_array_equals(snapshot.values.map(item => item.position), positions, `Sibling index calibration; ${details}`);
+        assert_array_equals(snapshot.values.map(item => item.count), counts, `Sibling count calibration; ${details}`);
+        for (let index = 0; index < snapshot.values.length; ++index) {
+          const item = snapshot.values[index];
+          assert_equals(item.expectedInput, name === "steps count" ? counts[index] : positions[index],
+            `Literal reference uses the intended context; ${details}`);
+          assert_not_equals(item.literalSpecified, "", `Literal reference is admitted; ${details}`);
+          assert_not_equals(item.expected, "", `Literal computed value exists; ${details}`);
+          assert_not_equals(item.expected, "ease", `Literal reference did not fall back to the initial value; ${details}`);
+          assert_equals(item.animations, 0, `Targets have no active animations; ${details}`);
+          assert_equals(item.animationName, "none", `CSS animations remain disabled; ${details}`);
+          assert_equals(item.transitionProperty, "none", `Transitions remain disabled; ${details}`);
+          assert_equals(item.repeat, item.actual, `Repeated computation is stable; ${details}`);
+          assert_equals(item.actual, item.expected,
+            `${snapshot.phase}, target ${index}: computed easing matches independent literal; ${details}`);
+        }
+      }
+    }, `${property}: static ${name} recomputes across sibling mutation and recovery`);
+  }
+}
+</script>

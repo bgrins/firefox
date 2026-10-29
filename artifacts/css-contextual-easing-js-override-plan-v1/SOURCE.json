@@ -1,0 +1,64 @@
+{
+  "layout/style/nsAnimationManager.cpp": {
+    "head": "182db9b1c69b7dc890498f7c6264da768cb3d956",
+    "git_blob": "e52f9741967ad10120e170b2536ac128e8e6e2c7",
+    "sha256": "3b24c4e0eeb6c6fb4a1799848c4a3c6ec3d968e8176fafbf4fa535e8b7447075",
+    "excerpts": [
+      {
+        "symbol": "UpdateOldAnimationPropertiesWithNew",
+        "text": "  // identity (and any expando properties attached to it).\n  if (dom::AnimationEffect* oldEffect = aOld.GetEffect()) {\n    // Copy across the changes that are not overridden\n    TimingParams updatedTiming = oldEffect->SpecifiedTiming();\n    if (~aOverriddenProperties & CSSAnimationProperties::Duration) {\n      updatedTiming.SetDuration(aNewTiming.Duration());\n    }\n    if (~aOverriddenProperties & CSSAnimationProperties::IterationCount) {\n      updatedTiming.SetIterations(aNewTiming.Iterations());\n    }\n    if (~aOverriddenProperties & CSSAnimationProperties::Direction) {\n      updatedTiming.SetDirection(aNewTiming.Direction());\n    }\n    if (~aOverriddenProperties & CSSAnimationProperties::Delay) {\n      updatedTiming.SetDelay(aNewTiming.Delay());\n    }\n    if (~aOverriddenProperties & CSSAnimationProperties::FillMode) {\n      updatedTiming.SetFill(aNewTiming.Fill());\n    }\n\n    animationChanged = oldEffect->SpecifiedTiming() != updatedTiming;\n    oldEffect->SetSpecifiedTiming(std::move(updatedTiming));\n\n    if (KeyframeEffect* oldKeyframeEffect = oldEffect->AsKeyframeEffect()) {\n      if (~aOverriddenProperties & CSSAnimationProperties::Keyframes) {\n        // FIXME(emilio): Should we update the effect target on top if different\n        // or something?\n        auto* style = oldKeyframeEffect->GetAnimationTarget() == aTarget\n                          ? aBuilder.Style()\n                          : nullptr;\n        oldKeyframeEffect->SetKeyframes(std::move(aNewKeyframes), style,\n                                        aTimeline, &aTimelineRange);\n\n        // The default timing function and default composite for CSS Keyframes\n        // processing.\n        if (auto* cssEffect =\n                oldKeyframeEffect->AsCSSAnimationKeyframeEffect()) {\n          cssEffect->SetDefaultTimingFunction(aNewTimingFunction);\n          cssEffect->SetDefaultComposite(aNewComposite);\n        }\n      }\n\n      if (~aOverriddenProperties & CSSAnimationProperties::Composition) {\n        animationChanged = oldKeyframeEffect->Composite() != aNewComposite;\n        oldKeyframeEffect->SetCompositeFromStyle(aNewComposite);\n      }\n    }\n  }"
+      },
+      {
+        "symbol": "existing object path",
+        "text": "    // for each animation (matching on name only) that was also in the\n    // old list of animations.\n    // This means that we honor dynamic changes, which isn't what the\n    // spec says to do, but WebKit seems to honor at least some of\n    // them.  See\n    // http://lists.w3.org/Archives/Public/www-style/2011Apr/0079.html\n    // In order to honor what the spec said, we'd copy more data over.\n    UpdateOldAnimationPropertiesWithNew(\n        *oldAnim, std::move(timing), std::move(keyframes), isStylePaused,\n        oldAnim->PropertiesOverridenByJS(), aBuilder, aTarget, timeline.get(),\n        timelineName, timingFunction, composition, std::move(range),\n        aTimelineNamesToAnimationMap);\n    // For now, only name-referenced timeline, or `none`, which is represented\n    // as IsTimeline with the empty atom, can result in no timeline.\n    MOZ_ASSERT_IF(timelineName.mName && !timeline, styleTimeline.IsTimeline());\n    return oldAnim.forget();\n  }\n\n  KeyframeEffectParams effectOptions(composition);"
+      }
+    ]
+  },
+  "dom/animation/CSSAnimation.cpp": {
+    "head": "182db9b1c69b7dc890498f7c6264da768cb3d956",
+    "git_blob": "d3cd899277e3305e33802bd10244e61b52a159fe",
+    "sha256": "d2c41e63de33efdb2a2c04ca56eb72fd0f4738d42474a78ba7d47292555b1cde",
+    "excerpts": [
+      {
+        "symbol": "CSSAnimationKeyframeEffect::SetKeyframes",
+        "text": "void CSSAnimationKeyframeEffect::SetKeyframes(JSContext* aContext,\n                                              JS::Handle<JSObject*> aKeyframes,\n                                              ErrorResult& aRv) {\n  nsTArray<Keyframe> keyframes = KeyframeUtils::GetKeyframesFromObject(\n      aContext, mDocument, aKeyframes, \"KeyframeEffect.setKeyframes\", aRv);\n  if (aRv.Failed()) {\n    return;\n  }\n\n  // SetKeyframes below will trigger the keyframe generation (for missing 0% and\n  // 100%), so we set this flag to avoid generating the keyframes if they come\n  // from JS.\n  // Note that this is different from CSSAnimationProperties::Keyframes below\n  // because we have to avoid generating keyframes even if we don't have\n  // animation, i.e. this is a keyframe-effect-specific flag for keyframes\n  // generation.\n  mIgnoreKeyframesGeneration = true;\n\n  // This is from the JS API, so we use the associated animation's timeline and\n  // range if any.\n  RefPtr<const ComputedStyle> style = GetTargetComputedStyle(Flush::None);\n  KeyframeEffect::SetKeyframes(\n      std::move(keyframes), style,\n      mAnimation ? mAnimation->GetTimeline() : nullptr,\n      mAnimation ? &mAnimation->GetTimelineRange() : nullptr);\n\n  if (CSSAnimation* cssAnimation = GetOwningCSSAnimation()) {\n    cssAnimation->PropertiesWillSetFromJS(CSSAnimationProperties::Keyframes);\n  }\n}"
+      }
+    ]
+  },
+  "dom/animation/CSSAnimation.h": {
+    "head": "182db9b1c69b7dc890498f7c6264da768cb3d956",
+    "git_blob": "4372f37030b304b4c6a2574ad4792f3a29da77d9",
+    "sha256": "156cdd665d48b2afdfb6e2bcfd64c0a51b987e0613cb4d4dbdf018570f565b0e",
+    "excerpts": [
+      {
+        "symbol": "override flag accessors",
+        "text": "\n  void PropertiesWillSetFromJS(CSSAnimationProperties aProperties) override {\n    mOverriddenProperties |= aProperties;\n  }\n  CSSAnimationProperties PropertiesOverridenByJS() const override {\n    return mOverriddenProperties;\n  }\n"
+      }
+    ]
+  },
+  "dom/animation/KeyframeEffect.cpp": {
+    "head": "182db9b1c69b7dc890498f7c6264da768cb3d956",
+    "git_blob": "015c83312b8461a16577f847906b01028138c322",
+    "sha256": "8ec54d488bde7ba5a681e0319f5c0687a35e79391f7e70368539b174e400f239",
+    "excerpts": [
+      {
+        "symbol": "JS argument failure before mutation",
+        "text": "}\n\n// https://drafts.csswg.org/web-animations/#dom-keyframeeffect-setkeyframes\nvoid KeyframeEffect::SetKeyframes(JSContext* aContext,\n                                  JS::Handle<JSObject*> aKeyframes,\n                                  ErrorResult& aRv) {\n  nsTArray<Keyframe> keyframes = KeyframeUtils::GetKeyframesFromObject(\n      aContext, mDocument, aKeyframes, \"KeyframeEffect.setKeyframes\", aRv);\n  if (aRv.Failed()) {\n    return;\n  }\n\n  // This is from the JS API, so we use the associated animation's timeline and\n  // range if any.\n  RefPtr<const ComputedStyle> style = GetTargetComputedStyle(Flush::None);\n  SetKeyframes(std::move(keyframes), style,\n               mAnimation ? mAnimation->GetTimeline() : nullptr,"
+      }
+    ]
+  },
+  "testing/web-platform/tests/css/css-animations/KeyframeEffect-setKeyframes.tentative.html": {
+    "head": "182db9b1c69b7dc890498f7c6264da768cb3d956",
+    "git_blob": "7d8f845413a38daae9bcc9d6ce251e44cda582cb",
+    "sha256": "e26a7ad460a6503c261aaef12211a253fd51dc839a967c0c12306a948b527748",
+    "existing_cases": [
+      "successful call ignores later @keyframes changes",
+      "successful call ignores later animation-timing-function changes",
+      "throwing call does not ignore later @keyframes changes"
+    ]
+  },
+  "artifacts/css-contextual-easing-scope-prototype-v1/candidate/servo/components/style/matching.rs": {
+    "sha256": "2f2222ff75e9ef1ad810978481ff8209c7abdc8c6a2ca34f70a71e1151d31542",
+    "excerpt": "            return has_animations;\n        }\n\n        if !context.shared.traversal_flags.for_animation_only()\n            && new_ui_style.animation_name_iter().any(|name| {\n                name.as_atom().is_some_and(|name| {\n                    context\n                        .shared\n                        .stylist\n                        .lookup_keyframes(name, *self)\n                        .is_some_and(|animation| animation.has_contextual_timing_function)\n                })\n            })\n        {\n            return true;\n        }\n\n        false\n    }\n"
+  }
+}
