@@ -1,0 +1,3 @@
+The eighteen-case move observation completed with 15 PASS and three unexpected FAIL; the one harness ending is OK. All failures are cross-parent moveBefore sibling-count cases for width, opacity and font-weight. The old parent's stationary target keeps its old count-derived value after the move; same-parent reorder and sibling-index controls pass. Per-case failure JSON retains observations.
+
+The observation wrapper exits 0 because complete failure evidence was preserved; the child WPT exits 1 and comparison_gate_passed remains false. This is not an all-target success or new acceptance. PRE equals POST, source/app/index/controls are preserved, and the owned process group and temporary directory are gone. The source cause and repair remain under investigation.

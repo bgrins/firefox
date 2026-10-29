@@ -1,3 +1,11 @@
+Current continuation after moveBefore removal observations
+
+The accepted 146 app passed six ordinary reparenting callbacks. Broader move observations found three sibling-count failures and nine selector/index failures, while their 24 other callbacks passed. All 42 callbacks completed and source/app/state were preserved. These are local witnesses of the known upstream selector failures recorded by WPT sync bug 2080017/PR63408; no new repair is accepted.
+
+Next validate the reviewed three-source removal-notification proposal with a fresh original/candidate browser comparison and the existing upstream selector plus frame/state preservation suite. The proposal remains uncompiled. Review resources for its C++/header rebuild and retain exact restoration. Follow with independently landable WPT coverage, avoiding an unnecessary dependency on accepted 146. Do not reopen easing activation until this boundary is resolved; the reviewed 19-case easing plan remains unexecuted.
+
+Preserve 145 accepted repairs across 146 tracked IDs, held 120 excluded, all accepted source overlays and the held provider. No canonical formal-coverage increment or clean-upstream execution is claimed. Earlier roadmap history follows unchanged.
+
 Current continuation after sibling-count rule-cache repair 146
 
 Fix 146 excludes reset styles that depend on sibling-count() from the rule cache. The standalone payload is one added Rust line and a two-test WPT. The focused original/final comparison repairs both width and opacity failures; final validation has 35 PASS and one preserved nested-pseudo FAIL, with all 34 control and seven ending signatures unchanged. The separate six-case experiment also passed all six cases. After the signed native commit, the ledger will contain 145 accepted repairs across 146 tracked IDs, excluding held 120. Validation used the shared branch with the unchanged held provider and configured WPT preferences; no clean-upstream execution or canonical Lean coverage increment is claimed.

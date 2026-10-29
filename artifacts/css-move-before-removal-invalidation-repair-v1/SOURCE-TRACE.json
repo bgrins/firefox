@@ -1,0 +1,45 @@
+{
+  "head": "4006c6bf3cad5e67c8331b93738a2373739e2466",
+  "sources": {
+    "layout/base/PresShell.cpp": {
+      "sha256": "dac6d53e3029fcc447e26c0a26d576ba89819f3b077a87f7a14f6531adceaf6d",
+      "excerpts": [
+        {
+          "start": 3071,
+          "end": 3101,
+          "text": "void PresShell::DestroyFramesForAndRestyle(Element* aElement) {\n#ifdef DEBUG\n  auto postCondition = MakeScopeExit([&]() {\n    MOZ_ASSERT(!aElement->GetPrimaryFrame());\n    AssertNoFramesOrStyleDataInDescendants(*aElement);\n  });\n#endif\n\n  MOZ_ASSERT(aElement);\n  if (!aElement->HasServoData()) {\n    // Nothing to do here, the element already is out of the flat tree or is not\n    // styled.\n    return;\n  }\n\n  // Mark ourselves as not safe to flush while we're doing frame destruction.\n  nsAutoScriptBlocker scriptBlocker;\n  ++mChangeNestCount;\n\n  const bool didReconstruct = FrameConstructor()->DestroyFramesFor(aElement);\n  // Clear the style data from all the flattened tree descendants, but _not_\n  // from us, since otherwise we wouldn't see the reframe.\n  RestyleManager::ClearServoDataFromSubtree(aElement,\n                                            RestyleManager::IncludeRoot::No);\n  auto changeHint =\n      didReconstruct ? nsChangeHint(0) : nsChangeHint_ReconstructFrame;\n  mPresContext->RestyleManager()->PostRestyleEvent(\n      aElement, RestyleHint::RestyleSubtree(), changeHint);\n\n  --mChangeNestCount;\n}\n"
+        },
+        {
+          "start": 4890,
+          "end": 4947,
+          "text": "  if (aInfo.mOldParent) {\n    MaybeDestroyFramesAndStyles(aChild, *mPresContext);\n  }\n\n  nsAutoCauseReflowNotifier crNotifier(this);\n\n  // Call this here so it only happens for real content mutations and\n  // not cases when the frame constructor calls its own methods to force\n  // frame reconstruction.\n  mPresContext->RestyleManager()->ContentInserted(aChild);\n\n  mFrameConstructor->ContentInserted(\n      aChild, nsCSSFrameConstructor::InsertionKind::Async);\n}\n\nMOZ_CAN_RUN_SCRIPT_BOUNDARY void PresShell::ContentWillBeRemoved(\n    nsIContent* aChild, const ContentRemoveInfo& aInfo) {\n  MOZ_ASSERT(!nsContentUtils::IsSafeToRunScript());\n  MOZ_ASSERT(!mIsDocumentGone, \"Unexpected ContentRemoved\");\n  MOZ_ASSERT(aChild->OwnerDoc() == mDocument, \"Unexpected document\");\n  // Notify the ESM that the content has been removed, so that\n  // it can clean up any state related to the content.\n\n  mPresContext->EventStateManager()->ContentRemoved(mDocument, aChild, aInfo);\n\n#ifdef ACCESSIBILITY\n  if (mDocAccessible) {\n    mDocAccessible->ContentRemoved(aChild);\n  }\n#endif\n\n  nsAutoCauseReflowNotifier crNotifier(this);\n\n  for (AutoConnectedAncestorTracker* tracker = mLastConnectedAncestorTracker;\n       tracker; tracker = tracker->mPreviousTracker) {\n    if (tracker->ConnectedNode().IsInclusiveFlatTreeDescendantOf(aChild)) {\n      tracker->mConnectedAncestor = aChild->GetFlattenedTreeParentElement();\n    }\n  }\n\n  if (aInfo.mNewParent && aChild->IsElement()) {\n    if (aInfo.mNewParent->IsElement() &&\n        aInfo.mNewParent->AsElement()->HasServoData() &&\n        !Servo_Element_IsDisplayNone(aInfo.mNewParent->AsElement())) {\n      DestroyFramesForAndRestyle(aChild->AsElement());\n      return;\n    }\n  }\n\n  mFrameConstructor->ContentWillBeRemoved(\n      aChild, nsCSSFrameConstructor::RemovalKind::Dom);\n\n  // NOTE(emilio): It's important that this goes after the frame constructor\n  // stuff, otherwise the frame constructor can't see elements which are\n  // display: contents / display: none, because we'd have cleared all the style\n  // data from there.\n  mPresContext->RestyleManager()->ContentWillBeRemoved(aChild);\n}\n"
+        }
+      ]
+    },
+    "layout/style/RestyleManager.cpp": {
+      "sha256": "86f42df089c5235265669f4d7e6615c0ea1e06b62bb7e1cc08b84a3ffda0dd96",
+      "excerpts": [
+        {
+          "start": 207,
+          "end": 225,
+          "text": "\nvoid RestyleManager::RecascadeForTreeCountingFunctions(nsINode* aContainer) {\n  MOZ_ASSERT(aContainer->GetSelectorFlags() &\n             NodeSelectorFlags::MayHaveTreeCountingFunction);\n\n  for (nsIContent* child = aContainer->GetFirstChild(); child;\n       child = child->GetNextSibling()) {\n    auto* element = Element::FromNode(child);\n    if (!element) {\n      continue;\n    }\n\n    ForEachElementAndPseudo(element, [&](Element* aTargetElement) {\n      if (Servo_Element_UsesTreeCountingFunction(aTargetElement)) {\n        PostRestyleEvent(aTargetElement, RestyleHint::RECASCADE_SELF,\n                         nsChangeHint(0));\n      }\n    });\n  }\n"
+        },
+        {
+          "start": 484,
+          "end": 518,
+          "text": "void RestyleManager::ContentWillBeRemoved(nsIContent* aOldChild) {\n  auto* container = aOldChild->GetParentNode();\n  MOZ_ASSERT(container);\n\n  // Computed style data isn't useful for detached nodes, and we'll need to\n  // recompute it anyway if we ever insert the nodes back into a document.\n  if (auto* element = Element::FromNode(aOldChild)) {\n    RestyleManager::ClearServoDataFromSubtree(element);\n    // If this element is undisplayed or may have undisplayed descendants, we\n    // need to invalidate the cache, since there's the unlikely event of those\n    // elements getting destroyed and their addresses reused in a way that we\n    // look up the cache with their address for a different element before it's\n    // invalidated.\n    IncrementUndisplayedRestyleGeneration();\n  }\n\n  // This is called with anonymous nodes explicitly by editor and view\n  // transitions code, which manage anon content manually.\n  // See similar code in ContentAppended.\n  if (MOZ_UNLIKELY(aOldChild->IsRootOfNativeAnonymousSubtree())) {\n    MOZ_ASSERT(!aOldChild->GetNextSibling(), \"NAC doesn't have siblings\");\n    MOZ_ASSERT(aOldChild->GetProperty(nsGkAtoms::restylableAnonymousNode),\n               \"anonymous nodes should not be in child lists (bug 439258)\");\n    return;\n  }\n\n  if (aOldChild->IsElement()) {\n    StyleSet()->MaybeInvalidateForElementRemove(*aOldChild->AsElement());\n  }\n\n  const auto selectorFlags =\n      container->GetSelectorFlags() & NodeSelectorFlags::AllSimpleRestyleFlags;\n  if (!selectorFlags) {\n    return;\n  }\n"
+        },
+        {
+          "start": 619,
+          "end": 626,
+          "text": "      }\n    }\n  }\n\n  if (selectorFlags & NodeSelectorFlags::MayHaveTreeCountingFunction) {\n    RecascadeForTreeCountingFunctions(container);\n  }\n}\n"
+        },
+        {
+          "start": 2569,
+          "end": 2588,
+          "text": "void RestyleManager::ClearServoDataFromSubtree(Element* aElement,\n                                               IncludeRoot aIncludeRoot) {\n  if (aElement->HasServoData()) {\n    StyleChildrenIterator it(aElement);\n    for (nsIContent* n = it.GetNextChild(); n; n = it.GetNextChild()) {\n      if (n->IsElement()) {\n        ClearServoDataFromSubtree(n->AsElement(), IncludeRoot::Yes);\n      }\n    }\n  }\n\n  if (MOZ_LIKELY(aIncludeRoot == IncludeRoot::Yes)) {\n    aElement->ClearServoData();\n    MOZ_ASSERT(!aElement->HasAnyOfFlags(Element::kAllServoDescendantBits |\n                                        NODE_NEEDS_FRAME));\n    MOZ_ASSERT(aElement != aElement->OwnerDoc()->GetServoRestyleRoot());\n  }\n}\n\n/* static */\n"
+        }
+      ]
+    }
+  }
+}

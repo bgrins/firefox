@@ -1,0 +1,3 @@
+Eighteen-case sibling-context move observation on the unchanged accepted146 app, using the exact executed six-case driver and assessor. Fresh output only; current4006/ee3e and app BuildID191010/buildrevision0ebf remain bound. The new sealed one-page fixture covers three move operations, three ordinary properties and count/index pairs with162 asserted records. Missing moveBefore is explicit FAIL.
+
+Exact callback/end completion, setup-error rejection, native/app/index/control preservation and owned process cleanup remain required. Feature failures are observations, not acceptance. Full per-case records appear in failure messages; no separate complete162-record export is promised. Configured feature preferences remain explicit. No build, source overlay or canonical write.

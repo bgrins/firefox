@@ -1,0 +1,68 @@
+--- artifacts/css-sibling-count-rule-cache-final-wpt-v1/run.py
++++ artifacts/css-sibling-context-reparenting-browser-v1/run.py
+@@ -38,19 +38,20 @@
+     epoch = json.loads(controls['CURRENT-EPOCH.json'])
+     assert epoch['semantic_index']['head'] == policy['head']
+     transition = epoch['sibling_count_rule_cache_transition']
+-    assert transition['role'] == 'candidate' and transition['compiled'] and not transition['accepted']
++    assert transition['role'] == 'candidate' and transition['compiled'] and transition['accepted']
+     assert transition['manifest_sha256'] == policy['promotion_manifest_sha256']
+     owned.authenticate(ROOT / policy['promotion_capsule'], policy['promotion_manifest_sha256'])
+     for marker, expected in policy['preserved_markers'].items():
+         assert epoch[marker] == expected
+-    assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs', policy['source']['path']])
++    assert epoch['modified_native_paths'] == ['servo/components/style/custom_properties.rs']
+     assert epoch['staged_working'] == {}
+-    installed = ROOT / policy['promotion_runtime'] / 'INSTALL-RESULT.json'
+-    assert owned.digest(installed.read_bytes()) == policy['installed_result_sha256']
+-    installation = owned.read(installed)
+-    assert installation['installed'] and installation['preservation_verified'] and not installation['accepted']
+     build = ROOT / policy['build_directory']
+-    assert owned.read(build / 'EPOCH.json') == epoch
++    built_epoch = owned.read(build / 'EPOCH.json')
++    native_pins = {name: pin for name, pin in built_epoch['pins'].items() if not name.startswith('artifacts/')}
++    assert native_pins and all(epoch['pins'].get(name) == pin for name, pin in native_pins.items())
++    changed = state.h.git(ROOT, ENV, 'diff', '--name-only', policy['build_revision'], policy['head']).decode().splitlines()
++    assert {name for name in changed if not name.startswith('artifacts/')} <= set(epoch['accepted_sibling_count_rule_cache']['files'])
++    assert built_epoch['semantic_index']['head'] == policy['build_revision']
+     assert transition['variant'] == 'sibling-count-rule-cache'
+     assert transition['last_phase'] == build.name
+     assert owned.read(build / 'APPLICATION-METADATA.json') == policy['application_metadata']
+@@ -60,7 +61,6 @@
+     assert inner['exit'] == 0 and inner['owned_group_absent'] and inner['error'] is None and inner['stop_reason'] is None and inner['cleanup_errors'] == []
+     for name in ('build-PROCESS.json', 'WAKE-PROCESS.json'):
+         owned.group_absent(owned.read(build / name)['pgid'])
+-    owned.authenticate(ROOT / policy['original_runtime'], policy['original_manifest_sha256'])
+     owned.quiescent(RUNTIME)
+     assert not (RUNTIME / 'SOURCE-TRANSITION.lock').exists()
+     claims = []
+@@ -72,7 +72,7 @@
+         assert epoch['pins'][name] == pin
+         claims.append(owned.claim(ROOT, name, pin, epoch['installed_identities'][name]))
+     metadata = load('final_metadata', ROOT / policy['wpt']['metadata_helper'])
+-    assert metadata.application_metadata(ROOT / policy['wpt']['application_ini'], policy['head']) == policy['application_metadata']
++    assert metadata.application_metadata(ROOT / policy['wpt']['application_ini'], policy['build_revision']) == policy['application_metadata']
+     flags = {name: state.h.git(ROOT / name, ENV, 'ls-files', '-v', '-z') for name in ('.', 'artifacts/css-spec-lean')}
+     before = state.a.verify_current(state.h, ROOT, ENV, epoch)
+     def verify():
+@@ -94,7 +94,7 @@
+     owned_processes = {}
+     error = None
+     try:
+-        runner.run(ROOT, HERE, output, 'candidate', policy, ENV, verify, owned_processes, lambda: stopped[0], original=ROOT / policy['original_wpt'])
++        runner.run(ROOT, HERE, output, 'original', policy, ENV, verify, owned_processes, lambda: stopped[0])
+     except BaseException as caught:
+         error = repr(caught)
+     preservation_error = None
+@@ -104,9 +104,9 @@
+     except BaseException as caught:
+         preservation_error = repr(caught)
+     if output.exists():
+-        state.save(output / 'FINAL-DRIVER.json', {'success': error is None and preservation_error is None, 'error': error, 'preservation_error': preservation_error, 'owned_processes': owned_processes, 'native_acceptance': False})
++        state.save(output / 'OBSERVATION-DRIVER.json', {'success': error is None and preservation_error is None, 'error': error, 'preservation_error': preservation_error, 'owned_processes': owned_processes, 'native_acceptance': False})
+     assert error is None and preservation_error is None, (error, preservation_error)
+-    print('Installed focused WPT validation passed; no acceptance or canonical mutation')
++    print('Reparenting observation completed; no acceptance or canonical mutation')
+ 
+ 
+ if __name__ == '__main__':

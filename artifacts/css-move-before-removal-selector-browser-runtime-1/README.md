@@ -1,0 +1,3 @@
+The selector-removal observation completed eighteen callbacks: nine ordinary-operation PASS and nine moveBefore FAIL, with one OK harness ending. These are multiple witnesses of the known missing-removal invalidation family, not nine newly accepted bugs. Full failure JSON retains three-phase DOM, selector-match and computed/layout observations.
+
+The observation driver exits 0 after complete evidence and preservation; child WPT exits 1 and comparison_gate_passed remains false. Setup/infrastructure errors are empty. PRE equals POST, app/source/index/controls are preserved, and owned processes/temporary directory were cleaned up. No candidate build, repair acceptance or canonical mutation occurred.

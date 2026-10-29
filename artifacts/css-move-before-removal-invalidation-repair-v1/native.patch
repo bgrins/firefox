@@ -1,0 +1,45 @@
+--- a/layout/base/PresShell.cpp
++++ b/layout/base/PresShell.cpp
+@@ -4932,6 +4932,8 @@
+         aInfo.mNewParent->AsElement()->HasServoData() &&
+         !Servo_Element_IsDisplayNone(aInfo.mNewParent->AsElement())) {
+       DestroyFramesForAndRestyle(aChild->AsElement());
++      mPresContext->RestyleManager()->ContentWillBeRemoved(
++          aChild, /* aPreserveRootStyle = */ true);
+       return;
+     }
+   }
+--- a/layout/style/RestyleManager.cpp
++++ b/layout/style/RestyleManager.cpp
+@@ -481,14 +481,17 @@
+   }
+ }
+ 
+-void RestyleManager::ContentWillBeRemoved(nsIContent* aOldChild) {
++void RestyleManager::ContentWillBeRemoved(nsIContent* aOldChild,
++                                          bool aPreserveRootStyle) {
+   auto* container = aOldChild->GetParentNode();
+   MOZ_ASSERT(container);
+ 
+   // Computed style data isn't useful for detached nodes, and we'll need to
+   // recompute it anyway if we ever insert the nodes back into a document.
++  // State-preserving moves retain the root style so pending reframes are seen.
+   if (auto* element = Element::FromNode(aOldChild)) {
+-    RestyleManager::ClearServoDataFromSubtree(element);
++    RestyleManager::ClearServoDataFromSubtree(
++        element, aPreserveRootStyle ? IncludeRoot::No : IncludeRoot::Yes);
+     // If this element is undisplayed or may have undisplayed descendants, we
+     // need to invalidate the cache, since there's the unlikely event of those
+     // elements getting destroyed and their addresses reused in a way that we
+--- a/layout/style/RestyleManager.h
++++ b/layout/style/RestyleManager.h
+@@ -300,7 +300,8 @@
+   void ContentAppended(nsIContent* aFirstNewContent);
+ 
+   // Restyling for a content removal that is about to happen.
+-  void ContentWillBeRemoved(nsIContent* aOldChild);
++  void ContentWillBeRemoved(nsIContent* aOldChild,
++                            bool aPreserveRootStyle = false);
+ 
+   // Restyling for a ContentInserted (notification after insertion) or
+   // for some CharacterDataChanged.

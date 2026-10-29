@@ -1,0 +1,8 @@
+import Coverage
+#print axioms MoveCoverage.fresh_iff_covered
+#print axioms MoveCoverage.adding_notifications_preserves_freshness
+#print axioms MoveCoverage.destination_only_stale_count
+#print axioms MoveCoverage.unchanged_source_index_can_pass
+#print axioms MoveCoverage.both_parent_notifications_fresh
+#print axioms MoveCoverage.same_parent_destination_fresh
+#print axioms MoveCoverage.moving_first_exposes_stale_index

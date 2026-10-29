@@ -1,0 +1,3 @@
+Observation-only selector removal diagnostic: nine old-parent boundaries crossed with appendChild and moveBefore, eighteen callbacks and full three-phase calibration before equality. Uses the exact executed current-app driver/assessor, unchanged accepted146 source/app/state and configured preferences. Missing support remains explicit failure. Failures are retained, not accepted fixes.
+
+This investigates a known family represented by bug2080017/PR63408 and existing moveBefore-child-list-selector-invalidation WPT; no novelty or repair count is claimed. That existing WPT and its metadata remain required future candidate controls, separate from this diagnostic roster. No build or source overlay.

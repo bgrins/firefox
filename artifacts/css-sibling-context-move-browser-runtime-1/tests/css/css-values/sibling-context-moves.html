@@ -1,0 +1,116 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Sibling-dependent values across child reordering and state-preserving moves</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#tree-counting">
+<link rel="help" href="https://dom.spec.whatwg.org/#dom-parentnode-movebefore">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+for (const operation of ["reorder-insertBefore", "reorder-moveBefore", "reparent-moveBefore"]) {
+  for (const property of ["width", "opacity", "font-weight"]) {
+    for (const basis of ["index", "count"]) {
+      promise_test(async t => {
+        const frame = document.createElement("iframe");
+        frame.width = "400";
+        frame.height = "200";
+        t.add_cleanup(() => frame.remove());
+        document.body.append(frame);
+        const doc = frame.contentDocument;
+        const win = frame.contentWindow;
+        const reparent = operation.startsWith("reparent");
+        const method = operation.endsWith("insertBefore") ? "insertBefore" : "moveBefore";
+        assert_equals(typeof win.Element.prototype[method], "function", `${method} is available`);
+        const expression = property === "width" ? `calc(sibling-${basis}() * 10px)` :
+          property === "opacity" ? `calc(sibling-${basis}() / 10)` : `calc(sibling-${basis}() * 100)`;
+        const literal = input => property === "width" ? `${input * 10}px` :
+          property === "opacity" ? `${input / 10}` : `${input * 100}`;
+        const style = doc.createElement("style");
+        style.textContent = `.target { animation-name:none; transition-property:none; ${property}:${expression}; }`;
+        const left = doc.createElement("div");
+        const right = doc.createElement("div");
+        const targets = [0, 1, 2].map(() => {
+          const target = doc.createElement("div");
+          target.className = "target";
+          return target;
+        });
+        if (reparent) {
+          left.append(targets[0], targets[1]);
+          right.append(targets[2], doc.createElement("div"));
+        } else {
+          left.append(...targets);
+        }
+        const references = [1, 2, 3].map(input => {
+          const reference = doc.createElement("div");
+          reference.style.setProperty(property, literal(input));
+          return reference;
+        });
+        doc.body.append(style, left, right, ...references);
+        const snapshots = [];
+        for (const phase of ["initial", "moved", "restored"]) {
+          if (phase === "moved") {
+            if (reparent) {
+              right[method](targets[1], null);
+            } else {
+              left[method](targets[2], targets[0]);
+            }
+          } else if (phase === "restored") {
+            left[method](targets[reparent ? 1 : 2], null);
+          }
+          await new Promise(resolve => win.requestAnimationFrame(() => win.requestAnimationFrame(resolve)));
+          const leftStyle = win.getComputedStyle(left);
+          const rightStyle = win.getComputedStyle(right);
+          snapshots.push({phase,
+            parentDifferences: Array.from(leftStyle).filter(name =>
+              leftStyle.getPropertyValue(name) !== rightStyle.getPropertyValue(name)),
+            values: targets.map(target => {
+              const index = Array.from(target.parentElement.children).indexOf(target) + 1;
+              const count = target.parentElement.children.length;
+              const input = basis === "index" ? index : count;
+              const reference = references[input - 1];
+              return {index, count, input,
+                parent: target.parentElement === left ? "left" : target.parentElement === right ? "right" : "unexpected",
+                actual: win.getComputedStyle(target).getPropertyValue(property),
+                repeat: win.getComputedStyle(target).getPropertyValue(property),
+                expected: win.getComputedStyle(reference).getPropertyValue(property),
+                width: property === "width" ? target.getBoundingClientRect().width : null,
+                referenceWidth: property === "width" ? reference.getBoundingClientRect().width : null,
+                animations: target.getAnimations().length};
+            })});
+        }
+        const details = JSON.stringify({operation, property, basis, snapshots});
+        assert_true(win.CSS.supports(property, expression), `Syntax is supported; ${details}`);
+        assert_not_equals(style.sheet.cssRules[0].style.getPropertyValue(property), "", `Declaration retained; ${details}`);
+        for (const snapshot of snapshots) {
+          const moved = snapshot.phase === "moved";
+          const indices = reparent ? (moved ? [1, 3, 1] : [1, 2, 1]) : (moved ? [2, 3, 1] : [1, 2, 3]);
+          const counts = reparent ? (moved ? [1, 3, 3] : [2, 2, 2]) : [3, 3, 3];
+          const parents = reparent ? (moved ? ["left", "right", "right"] : ["left", "left", "right"]) : ["left", "left", "left"];
+          assert_array_equals(snapshot.parentDifferences, [], `Equal parent styles; ${details}`);
+          assert_array_equals(snapshot.values.map(value => value.index), indices, `Indices; ${details}`);
+          assert_array_equals(snapshot.values.map(value => value.count), counts, `Counts; ${details}`);
+          assert_array_equals(snapshot.values.map(value => value.parent), parents, `Parents; ${details}`);
+          for (const [i, value] of snapshot.values.entries()) {
+            const input = basis === "index" ? indices[i] : counts[i];
+            assert_equals(value.input, input, `Reference input; ${details}`);
+            assert_equals(value.expected, literal(input), `Literal calibration; ${details}`);
+            assert_equals(value.repeat, value.actual, `Stable read; ${details}`);
+            assert_equals(value.animations, 0, `No active animation; ${details}`);
+            if (property === "width") {
+              assert_equals(value.referenceWidth, input * 10, `Literal geometry; ${details}`);
+            }
+          }
+        }
+        for (const snapshot of snapshots) {
+          for (const value of snapshot.values) {
+            assert_equals(value.actual, value.expected, `Own sibling context; ${details}`);
+            if (property === "width") {
+              assert_equals(value.width, value.referenceWidth, `Target geometry; ${details}`);
+            }
+          }
+        }
+      }, `${operation}: ${property} sibling-${basis}`);
+    }
+  }
+}
+</script>

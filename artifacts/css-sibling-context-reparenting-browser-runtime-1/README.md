@@ -1,0 +1,1 @@
+All six sibling-context reparenting callbacks passed on the accepted146 app; one harness ending completed OK. The sealed fixture asserts54 records, but this runtime archives WPT outcomes rather than a separate raw54 corpus. Source/app/index/control preservation and owned process/temporary cleanup passed. No new repair or acceptance is claimed.
