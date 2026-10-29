@@ -1,0 +1,47 @@
+{
+  "commit": "4d26a0d0b80b56b95f9f7958a6d16dd4dfb35c1a",
+  "claim": "source-based avoidance of accepted146 reset-count prerequisite, not clean-upstream execution",
+  "sources": {
+    "servo/components/style/values/computed/mod.rs": {
+      "sha256": "b883676d20438161c276b678e5d71583e78ed1cdd4a3ea4de88464d2a475d680",
+      "excerpts": {
+        "query_sibling_index(": {
+          "found": false
+        },
+        "query_sibling_count(": {
+          "found": false
+        }
+      }
+    },
+    "servo/components/style/properties/cascade.rs": {
+      "sha256": "ecbbf6d8996c1e6d89f1a386fa743d3adf670ded8efdaef74f9666623a7ca3b9",
+      "excerpts": {
+        "late_group_only_inherited": "                LonghandIdSet::late_group_only_inherited()\n            } else {\n                LonghandIdSet::late_group()\n            }\n        },\n    };\n\n    cascade.apply_non_prioritary_properties(\n        &mut context,\n        &declarations.longhand_declarations,\n        &mut shorthand_cache,\n        &properties_to_apply,\n        &mut attribute_tracker,\n    );\n\n    context.builder.attribute_references = attribute_tracker.finalize();\n\n    cascade.finished_applying_properties(&mut context.builder);\n\n    std::mem::drop(cascade);\n\n    context.builder.clear_modified_reset();\n\n    if matches!(cascade_mode, CascadeMode::Unvisited { .. }) {\n        StyleAdjuster::new(&mut context.builder).adjust(\n            layout_parent_style.unwrap_or(inherited_style),\n            element,\n            try_tactic,\n        );\n    }\n\n    if context.builder.modified_reset() || using_cached_reset_properties {\n        // If we adjusted any reset structs, we can't cache this ComputedValues.\n        //\n        // Also, if we re-used existing reset structs, don't bother caching it back again. (Aside\n        // from being wasted effort, it will be wrong, since context.rule_cache_conditions won't be\n        // set appropriately if we didn't compute those reset properties.)\n        context.rule_cache_conditions.borrow_mut().set_uncacheable();\n    }\n\n    context.builder.build()\n}\n\n/// For ignored colors mode, we sometimes want to do something equivalent to\n/// \"revert-or-initial\", where we `revert` for a given origin, but then apply a\n/// given initial value if nothing in other origins did override it.\n///\n/// This is a bit of a clunky way of achieving this.\ntype DeclarationsToApplyUnlessOverriden = S"
+      }
+    }
+  },
+  "origin_symbol_limit": "The locally recorded origin/main computed/mod.rs has neither query_sibling_index nor query_sibling_count; its source transport is not a claim of WPT feature availability.",
+  "signed_branch_sources": {
+    "servo/components/style/values/computed/mod.rs": {
+      "commit": "4006c6bf3cad5e67c8331b93738a2373739e2466",
+      "sha256": "557bcb142d276c32822f5484045e27a5186de1ded244dbd599986f8eba79ee6c",
+      "excerpts": {
+        "query_sibling_index": "    pub fn query_sibling_index(&self) -> u32 {\n        self.builder\n            .add_flags(ComputedValueFlags::USES_SIBLING_INDEX);\n        self.rule_cache_conditions.borrow_mut().set_uncacheable();\n        self.resolve_tree_counting_result().sibling_index\n    }\n\n    /// Returns the random base value for the given random cache key. This constructs a\n    /// PRNG seed by hashing the components of the key's specified random cache name,\n    /// and then generating a random value from the seed. This ensures that the same\n    /// random cache name always results in the same random base value.\n    /// https://drafts.csswg.org/css-values-5/#random-caching\n    pub fn random_base_value(&self, key: &RandomCacheKey) -> f32 {\n        let mut hasher = FxHasher::default();\n        key.name.hash(&mut hasher);\n        key.ua_ident.hash(&mut hasher);\n        if key.is_element_scoped {\n            debug_assert!(\n                self.element_context.opaque_element().is_some(),\n                \"Element-scoped random without element context\"\n            );\n            self.builder\n                .add_flags(ComputedValueFlags::USES_ELEMENT_SCOPED_RANDOM);\n            self.rule_cache_conditions.borrow_mut().set_uncacheable();\n            self.element_context.opaque_element().hash(&mut hasher);\n        }\n        self.device().document_random_seed().hash(&mut hasher);\n\n        // Returns a float in the range [0, 1).\n        SmallRng::seed_from_u64(hasher.finish()).r#gen()\n    }\n\n    /// Whether we'r",
+        "query_sibling_count": "    pub fn query_sibling_count(&self) -> u32 {\n        self.builder\n            .add_flags(ComputedValueFlags::USES_SIBLING_COUNT);\n        self.rule_cache_conditions.borrow_mut().set_uncacheable();\n        self.resolve_tree_counting_result().sibling_count\n    }\n\n    /// Returns the 1-based index of the element that matches the declaration amongst its\n    /// siblings. Also marks the style as depending on sibling-index().\n    pub fn query_sibling_index(&self) -> u32 {\n        self.builder\n            .add_flags(ComputedValueFlags::USES_SIBLING_INDEX);\n        self.rule_cache_conditions.borrow_mut().set_uncacheable();\n        self.resolve_tree_counting_result().sibling_index\n    }\n\n    /// Returns the random base value for the given random cache key. This constructs a\n    /// PRNG seed by hashing the components of the key's specified random cache name,\n    /// and then generating a random value from the seed. This ensures that the same\n    /// random cache name always results in the same random base value.\n    /// https://drafts.csswg.org/css-values-5/#random-caching\n    pub fn random_base_value(&self, key: &RandomCacheKey) -> f32 {\n        let mut hasher = FxHasher::default();\n        key.name.hash(&mut hasher);\n        key.ua_ident.hash(&mut hasher);\n        if key.is_element_scoped {\n            debug_assert!(\n                self.element_context.opaque_element().is_some(),\n                \"Element-scoped random without element context\"\n            );\n            self.build"
+      }
+    },
+    "servo/components/style/properties/cascade.rs": {
+      "commit": "4006c6bf3cad5e67c8331b93738a2373739e2466",
+      "sha256": "2cc7b3d4047b9759277f41809ad7ba7baef99431c26b608bcf459b2d83764656",
+      "excerpts": {
+        "late_group_only_inherited": "                LonghandIdSet::late_group_only_inherited()\n            } else {\n                LonghandIdSet::late_group()\n            }\n        },\n    };\n\n    cascade.apply_non_prioritary_properties(\n        &mut context,\n        &declarations.longhand_declarations,\n        &mut shorthand_cache,\n        properties_to_apply,\n        &mut attribute_tracker,\n    );\n\n    context.builder.attribute_references = attribute_tracker.finalize();\n\n    cascade.finished_applying_properties(&mut context.builder);\n\n    context.builder.clear_modified_reset();\n\n    if let CascadeMode::Unvisited { visited_rules } = cascade_mode {\n        // NOTE: This relies on finished_applying_properties() having already happened.\n        if let Some(visited_rules) = visited_rules {\n            cascade.compute_visited_style_if_needed(\n                &mut context,\n                element,\n                parent_style,\n                layout_parent_style,\n                try_tactic,\n                visited_rules,\n                guards,\n            );\n        }\n\n        StyleAdjuster::new(&mut context.builder).adjust(\n            layout_parent_style.unwrap_or(inherited_style),\n            element,\n            try_tactic,\n            &cascade.author_or_user_specified,\n        );\n    }\n\n    if context.builder.modified_reset() || using_cached_reset_properties {\n        // If we adjusted any reset structs, we can't cache this ComputedValues.\n        //\n        // Also, if we re-used existing reset structs, don't"
+      }
+    }
+  },
+  "prior_upstream_capture": {
+    "path": "artifacts/css-sibling-count-standalone-review-v1/UPSTREAM.txt",
+    "sha256": "96495b12d5f7b2a7ea90988ce878d9b93d9f931bb7a76a79a047c3cf9577f4f8",
+    "query_sibling_index": "pub fn query_sibling_index(&self) -> u32 {\n        self.builder\n            .add_flags(ComputedValueFlags::USES_SIBLING_INDEX);\n        self.rule_cache_conditions.borrow_mut().set_uncacheable();\n        self.resolve_tree_counting_result().sibling_index\n    }\n\n    /// Returns the random base value for the given random cache key. This const",
+    "fresh_identifier_discovery": "11fa35/0 current Searchfox identifies same function; no fresh full-body equivalence claim"
+  }
+}

@@ -1,0 +1,83 @@
+--- /dev/null
++++ b/testing/web-platform/tests/dom/nodes/moveBefore/sibling-functions-invalidation.html
+@@ -0,0 +1,80 @@
++<!DOCTYPE html>
++<meta charset="utf-8">
++<title>moveBefore updates sibling functions in both parents</title>
++<link rel="help" href="https://dom.spec.whatwg.org/#dom-parentnode-movebefore">
++<link rel="help" href="https://drafts.csswg.org/css-values-5/#tree-counting">
++<script src="/resources/testharness.js"></script>
++<script src="/resources/testharnessreport.js"></script>
++<style>
++  .fixture, .parent { width: 100px; }
++  .parent > div, .literal { height: 0; padding: 0; border: 0; }
++  .count > div { font-weight: calc(100 * sibling-count()); }
++  .index > div { width: calc(10px * sibling-index()); }
++</style>
++<body>
++<script>
++for (const [kind, property, factor, unit, inputs] of [
++  ["count", "font-weight", 100, "", [[2, 2, 2], [1, 3, 3], [2, 2, 2]]],
++  ["index", "width", 10, "px", [[2, 1, 1], [1, 3, 1], [2, 1, 1]]],
++]) {
++  test(t => {
++    const fixture = document.createElement("div");
++    fixture.className = "fixture";
++    fixture.innerHTML = `<div class="parent ${kind}"><div></div><div></div></div>
++      <div class="parent ${kind}"><div></div><div></div></div>`;
++    const [left, right] = fixture.children;
++    const [moved, oldSibling] = left.children;
++    const newSibling = right.firstElementChild;
++    const targets = [oldSibling, moved, newSibling];
++    const literals = [1, 2, 3].map(value => {
++      const element = document.createElement("div");
++      element.className = "literal";
++      element.style.setProperty(property, `${value * factor}${unit}`);
++      fixture.append(element);
++      return element;
++    });
++    document.body.append(fixture);
++    t.add_cleanup(() => fixture.remove());
++    const snapshots = [];
++    function sample(phase) {
++      snapshots.push(targets.map((element, i) => {
++        const siblings = [...element.parentElement.children];
++        const input = inputs[phase][i];
++        const literal = literals[input - 1];
++        return {
++          phase, target: i, input,
++          count: siblings.length, index: siblings.indexOf(element) + 1,
++          parent: element.parentElement === left ? "left" : "right",
++          actual: getComputedStyle(element).getPropertyValue(property),
++          repeat: getComputedStyle(element).getPropertyValue(property),
++          expected: getComputedStyle(literal).getPropertyValue(property),
++          geometry: element.getBoundingClientRect().width,
++        };
++      }));
++    }
++    sample(0);
++    right.moveBefore(moved, null);
++    sample(1);
++    left.moveBefore(moved, oldSibling);
++    sample(2);
++    const diagnostic = JSON.stringify(snapshots);
++    for (const rows of snapshots) {
++      for (const row of rows) {
++        assert_equals(row[kind], row.input, `topology: ${diagnostic}`);
++        const parent = row.target === 2 || (row.target === 1 && row.phase === 1)
++          ? "right" : "left";
++        assert_equals(row.parent, parent, `parent: ${diagnostic}`);
++        assert_equals(row.expected, `${row.input * factor}${unit}`,
++                      `literal calibration: ${diagnostic}`);
++      }
++    }
++    for (const row of snapshots.flat()) {
++      assert_equals(row.actual, row.expected, diagnostic);
++      assert_equals(row.repeat, row.actual, diagnostic);
++      if (property === "width") {
++        assert_equals(row.geometry, row.input * factor, diagnostic);
++      }
++    }
++  }, `moveBefore updates ${property} using sibling-${kind}() across parents and back`);
++}
++</script>

@@ -1,0 +1,66 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Sibling-dependent values when an already-styled element moves parents</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-5/#tree-counting">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="support/reparented-sibling-context.js"></script>
+<body>
+<pre id="observations" hidden></pre>
+<script>
+let observationPromise;
+function observations() {
+  if (!observationPromise) {
+    assert_not_equals(document.body, null, "Body exists before callback setup");
+    observationPromise = observeReparentedSiblingContext().then(value => {
+      window.reparentedSiblingObservations = value;
+      document.getElementById("observations").textContent = JSON.stringify(value);
+      return value;
+    });
+  }
+  return observationPromise;
+}
+for (const property of ["width", "opacity", "font-weight"]) {
+  for (const basis of ["count", "index"]) {
+    promise_test(async () => {
+      const value = await observations();
+      assert_equals(value.results.length, 6, "All six cases collected before assertions");
+      const matches = value.results.filter(row => row.property === property && row.basis === basis);
+      assert_equals(matches.length, 1, "Unique named result");
+      const row = matches[0];
+      const details = JSON.stringify(row);
+      assert_true(row.supported, `Syntax supported; ${details}`);
+      assert_not_equals(row.specified, "", `Declaration retained; ${details}`);
+      assert_array_equals(row.snapshots.map(snapshot => snapshot.phase),
+        ["initial", "moved", "restored"], `Mutation phases; ${details}`);
+      for (let phase = 0; phase < row.snapshots.length; ++phase) {
+        const snapshot = row.snapshots[phase];
+        const indices = phase === 1 ? [1, 3, 1] : [1, 2, 1];
+        const counts = phase === 1 ? [1, 3, 3] : [2, 2, 2];
+        assert_equals(snapshot.parentDifferences.length, 0, `Parents have equal computed styles; ${details}`);
+        assert_equals(snapshot.values.length, 3, `Three target records; ${details}`);
+        assert_array_equals(snapshot.values.map(item => item.role), ["left-stationary", "moved", "right-stationary"], `Target roles; ${details}`);
+        assert_array_equals(snapshot.values.map(item => item.parent), phase === 1 ? ["left", "right", "right"] : ["left", "left", "right"], `Parent identity; ${details}`);
+        assert_array_equals(snapshot.values.map(item => item.index), indices, `Index calibration; ${details}`);
+        assert_array_equals(snapshot.values.map(item => item.count), counts, `Count calibration; ${details}`);
+        for (let i = 0; i < snapshot.values.length; ++i) {
+          const item = snapshot.values[i];
+          const input = basis === "count" ? counts[i] : indices[i];
+          assert_equals(item.input, input, `Reference input; ${details}`);
+          assert_not_equals(item.literalSpecified, "", `Literal admitted; ${details}`);
+          const expected = property === "width" ? `${input * 10}px` :
+            property === "opacity" ? `${input / 10}` : `${input * 100}`;
+          assert_equals(item.expected, expected, `Independent literal calibration; ${details}`);
+          assert_equals(item.animations, 0, `No active animations; ${details}`);
+          assert_equals(item.repeat, item.actual, `Stable repeated read; ${details}`);
+          assert_equals(item.actual, item.expected, `Ordinary property matches own sibling context; ${details}`);
+          if (property === "width") {
+            assert_equals(item.literalWidth, input * 10, `Literal geometry; ${details}`);
+            assert_equals(item.width, item.literalWidth, `Target geometry; ${details}`);
+          }
+        }
+      }
+    }, `${property}: sibling-${basis} after reparenting and restoration`);
+  }
+}
+</script>

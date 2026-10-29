@@ -1,0 +1,10 @@
+import Parent
+#print axioms ParentCoverage.destination_excludes_moved
+#print axioms ParentCoverage.old_list_removes_one
+#print axioms ParentCoverage.moved_changes_parent
+#print axioms ParentCoverage.move_well_formed
+#print axioms ParentCoverage.outside_siblings_unchanged
+#print axioms ParentCoverage.outside_values_unchanged
+#print axioms ParentCoverage.both_domains_fresh
+#print axioms ParentCoverage.valid_move_fresh
+#print axioms ParentCoverage.concrete_valid_move_and_stale_source

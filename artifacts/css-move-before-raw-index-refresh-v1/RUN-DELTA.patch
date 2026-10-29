@@ -1,0 +1,49 @@
+--- /Users/bgrins/code/firefox/artifacts/css-sibling-count-rule-cache-raw-index-refresh-v2/run.py
++++ /Users/bgrins/code/firefox/artifacts/css-move-before-raw-index-refresh-v1/run.py
+@@ -42,7 +42,7 @@
+     result, restored = read(evidence / "RESULT.json"), read(evidence / "RESTORATION.json")
+     inner = read(evidence / "candidate-build/build-RESULT.json")
+     terminal = read(evidence / "CANDIDATE-ROOT-REPORTED-TERMINAL.json")
+-    assert terminal["session"] == 71547 and terminal["launch_receipt"] == "9986f1" and terminal["terminal_receipt"] == "f0f644/0" and terminal["exit"] == 0
++    assert terminal["session"] == 81773 and terminal["launch_receipt"] == "5c540d" and terminal["terminal_receipt"] == "7ef7a6/0" and terminal["exit"] == 0
+     assert result["success"] is True and result["restoration_verified"] and result["runtime_controls_unchanged"] and result["empty_staging_preserved"]
+     assert result["error"] is None
+     assert result["candidate_phase"] == {"assessment_sha256": digest((evidence / "candidate-wpt/ASSESSMENT.json").read_bytes()), "raw_sha256": digest((evidence / "candidate-wpt/raw.jsonl").read_bytes()), "result_sha256": digest((evidence / "candidate-wpt/RESULT.json").read_bytes())}
+@@ -64,15 +64,20 @@
+         assessments[role] = assessment
+     assert assessments["candidate"]["comparison_gate_passed"] is True
+     assert assessments["candidate"]["comparison_errors"] == []
+-    assert len(assessments["candidate"]["rows"]) == 36
+-    assert sum(row["status"] == "PASS" for row in assessments["candidate"]["rows"]) == 35
+-    failed = [(row["test"], row["subtest"]) for row in assessments["candidate"]["rows"] if row["status"] == "FAIL"]
+-    assert failed == [tuple(policy["known_failure"])]
+-    assert len(assessments["candidate"]["regression_signature"]) == 41
++    assert len(assessments["candidate"]["rows"]) == 70
++    assert all(row["status"] == "PASS" for row in assessments["candidate"]["rows"])
++    assert len(assessments["candidate"]["regression_signature"]) == 31
+     targets = {tuple(row) for row in policy["target_ids"]}
+-    for role, status in (("original", "FAIL"), ("candidate", "PASS")):
+-        selected = [row for row in assessments[role]["rows"] if (row["test"], row["subtest"]) in targets]
+-        assert len(selected) == 2 and all(row["status"] == status for row in selected)
++    original_targets = [row for row in assessments["original"]["rows"] if (row["test"], row["subtest"]) in targets]
++    candidate_targets = [row for row in assessments["candidate"]["rows"] if (row["test"], row["subtest"]) in targets]
++    assert len(original_targets) == len(candidate_targets) == 51
++    assert sum(row["status"] == "FAIL" for row in original_targets) == 21
++    assert all(row["status"] in ("PASS", "FAIL") for row in original_targets)
++    assert all(row["status"] == "PASS" for row in candidate_targets)
++    unexpected = assessments["candidate"]["unexpected"]
++    assert len(unexpected) == 7
++    assert all(row["status"] == "PASS" and row["expected"] == "FAIL" for row in unexpected)
++    assert {(row["test"], row["subtest"]) for row in unexpected} == {tuple(row) for row in policy["expected_unexpected_pass_ids"]}
+     assert assessments["original"]["regression_signature"] == assessments["candidate"]["regression_signature"]
+     cleanup = read(evidence / "BACKUP-CLEANUP.json")
+     assert cleanup["removed"] and cleanup["verified_original_restoration"] and cleanup["retained_after_failure"] is False
+@@ -94,7 +99,7 @@
+     encoded = json.dumps(updated, indent=2, sort_keys=True).encode() + b"\n"
+     assert digest(encoded) == policy["updated_epoch_sha256"]
+     if sys.argv[1] == "--check":
+-        print("Authenticated successful focused36 pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
++        print("Authenticated successful moveBefore70 pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
+         return
+     assert policy["execution_enabled"] is True
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))

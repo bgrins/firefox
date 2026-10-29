@@ -1,0 +1,1 @@
+Root completed the guarded raw-only refresh successfully: session 96335, launch d9add7, terminal f7434b exit 0. Only raw_index_observation.current changed; preservation passed, and candidate outcome/acceptance were not reclassified. Full epoch copies were not saved.
