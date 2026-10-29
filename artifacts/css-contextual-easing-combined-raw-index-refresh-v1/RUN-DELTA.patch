@@ -1,0 +1,77 @@
+--- artifacts/css-contextual-easing-after-moves-raw-index-refresh-v1/run.py
++++ artifacts/css-contextual-easing-combined-raw-index-refresh-v1/run.py
+@@ -24,6 +24,29 @@
+     return module
+ 
+ 
++def validate_completed_assessments(original, candidate, comparison, signature):
++    expected = {(test, name) for test, names in comparison["expected_subtests"].items() for name in names}
++    targets = {(test, name) for test, names in comparison["target_subtests"].items() for name in names}
++    assert len(expected) == 315 and len(targets) == 41 and targets <= expected
++    controls = expected - targets
++    assert len(controls) == 274 and len(comparison["expected_subtests"]) == 22
++    for assessment in (original, candidate):
++        assert assessment["complete"] and assessment["errors"] == [] and assessment["fixture_setup_errors"] == []
++        assert assessment["observed_subtest_count"] == len(assessment["rows"]) == 315
++        assert {(row["test"], row["subtest"]) for row in assessment["rows"]} == expected
++        assert len(assessment["ends"]) == 22 and all(end["status"] == "OK" for end in assessment["ends"])
++        assert {end["test"] for end in assessment["ends"]} == set(comparison["expected_subtests"])
++        assert len(assessment["regression_signature"]) == 296
++    assert candidate["comparison_gate_passed"] and candidate["comparison_errors"] == []
++    assert candidate["regression_signature"] == original["regression_signature"]
++    old_rows = {(row["test"], row["subtest"]): row for row in original["rows"]}
++    new_rows = {(row["test"], row["subtest"]): row for row in candidate["rows"]}
++    assert all(new_rows[key]["status"] == "PASS" for key in targets)
++    assert all(signature(new_rows[key]) == signature(row) for key, row in old_rows.items()
++               if key in controls or row["status"] == "PASS")
++    assert {end["test"]: signature(end) for end in candidate["ends"]} == {end["test"]: signature(end) for end in original["ends"]}
++
++
+ def main():
+     assert len(sys.argv) == 3 and sys.argv[1] in ("--check", "--run")
+     assert digest((HERE / "FILES.json").read_bytes()) == sys.argv[2]
+@@ -42,7 +65,7 @@
+     result, restored = read(evidence / "RESULT.json"), read(evidence / "RESTORATION.json")
+     inner = read(evidence / "candidate-build/build-RESULT.json")
+     terminal = read(evidence / "CANDIDATE-ROOT-REPORTED-TERMINAL.json")
+-    assert terminal["session_id"] == 2315 and terminal["terminal_tool"] == "1921d1" and terminal["exit"] == 0
++    assert terminal["session_id"] == 60401 and terminal["terminal_tool"] == "416ae1" and terminal["exit"] == 0
+     assert terminal["root_observed_terminal"] and terminal["result_sha256"] == digest((evidence / "RESULT.json").read_bytes())
+     assert result["success"] is True and result["restoration_verified"] and result["runtime_controls_unchanged"] and result["empty_staging_preserved"]
+     assert result["error"] is None
+@@ -63,22 +86,10 @@
+         assert read(phase / "PRE.json") == read(phase / "POST.json")
+         assert read(phase / "CLEANUP.json")["owned_group_absent"] and read(phase / "CLEANUP.json")["temporary_root_removed"]
+         assessments[role] = assessment
+-    assert assessments["candidate"]["comparison_gate_passed"] is True
+-    assert assessments["candidate"]["comparison_errors"] == []
+-    assert len(assessments["candidate"]["rows"]) == 19
+-    assert all(row["status"] == "PASS" for row in assessments["candidate"]["rows"])
+-    assert len(assessments["candidate"]["regression_signature"]) == 3
+-    assert all(len(a["ends"]) == 3 and all(row["status"] == "OK" for row in a["ends"]) for a in assessments.values())
+-    targets = {tuple(row) for row in policy["target_ids"]}
+-    original_targets = [row for row in assessments["original"]["rows"] if (row["test"], row["subtest"]) in targets]
+-    candidate_targets = [row for row in assessments["candidate"]["rows"] if (row["test"], row["subtest"]) in targets]
+-    assert len(original_targets) == len(candidate_targets) == 19
+-    assert sum(row["status"] == "FAIL" for row in original_targets) == 19
+-    assert all(row["status"] in ("PASS", "FAIL") for row in original_targets)
+-    assert all(row["status"] == "PASS" for row in candidate_targets)
+-    unexpected = assessments["candidate"]["unexpected"]
+-    assert unexpected == []
+-    assert assessments["original"]["regression_signature"] == assessments["candidate"]["regression_signature"]
++    comparison = read(ROOT / policy["preservation_reference"])["wpt"]
++    assessor = load("combined_refresh_assessor", policy["comparison_assessor"])
++    validate_completed_assessments(assessments["original"], assessments["candidate"], comparison, assessor.signature)
++    assert {tuple(row) for row in policy["target_ids"]} == {(test, name) for test, names in comparison["target_subtests"].items() for name in names}
+     cleanup = read(evidence / "BACKUP-CLEANUP.json")
+     assert cleanup["removed"] and cleanup["verified_original_restoration"] and cleanup["retained_after_failure"] is False
+     assert cleanup["owned_backup_bytes"] == read(evidence / "CANDIDATE-PRE.json")["owned_backup_bytes"] == 1008622360
+@@ -106,7 +117,7 @@
+     encoded = json.dumps(updated, indent=2, sort_keys=True).encode() + b"\n"
+     assert digest(encoded) == policy["updated_epoch_sha256"]
+     if sys.argv[1] == "--check":
+-        print("Authenticated successful contextual easing19 pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
++        print("Authenticated successful contextual easing315 pair with verified restoration; only canonical raw observation changes", policy["updated_epoch_sha256"])
+         return
+     assert policy["execution_enabled"] is True
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))

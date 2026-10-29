@@ -1,0 +1,52 @@
+--- artifacts/css-contextual-easing-servo-compile-v1/run.py
++++ artifacts/css-contextual-easing-servo-compile-v2/run.py
+@@ -46,7 +46,10 @@
+     for signum, grace in ((signal.SIGTERM, 5), (signal.SIGKILL, 5)):
+         if not group_alive(pgid):
+             break
+-        os.killpg(pgid, signum)
++        try:
++            os.killpg(pgid, signum)
++        except ProcessLookupError:
++            break
+         deadline = time.monotonic() + grace
+         while time.monotonic() < deadline:
+             process.poll()
+@@ -57,13 +60,18 @@
+     assert not group_alive(pgid), f'Owned process group remains: {pgid}'
+ 
+ 
+-def resources(target, runtime):
++def resources(target, runtime, *, allow_missing=False):
+     apparent = allocated = 0
+     if target.exists():
+         assert target.is_dir() and not target.is_symlink()
+         for directory, _, names in os.walk(target, followlinks=False):
+             for name in names:
+-                info = (Path(directory) / name).lstat()
++                try:
++                    info = (Path(directory) / name).lstat()
++                except FileNotFoundError:
++                    if allow_missing:
++                        continue
++                    raise
+                 if stat.S_ISREG(info.st_mode):
+                     apparent += info.st_size
+                     allocated += info.st_blocks * 512
+@@ -117,6 +125,7 @@
+         with contextlib.redirect_stdout(output):
+             runpy.run_path(str(closure / 'verify.py'))
+         save(runtime / f'{label}.json', {'verified': True, 'closure_sha256': policy['closure_sha256'],
++                                       'verifier_output_scope': 'Verifier behavior only; compile execution is recorded separately in phase results.',
+                                        'verifier_output': output.getvalue()})
+ 
+     def execute(label, command, cwd, timeout):
+@@ -143,7 +152,7 @@
+             try:
+                 while True:
+                     elapsed = time.monotonic() - started
+-                    latest = resources(target, runtime)
++                    latest = resources(target, runtime, allow_missing=True)
+                     samples.write(json.dumps(dict(latest, elapsed_seconds=elapsed), sort_keys=True) + '\n')
+                     samples.flush()
+                     if stopped:

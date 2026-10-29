@@ -1,0 +1,141 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Contextual keyframe expression edits preserve script ownership</title>
+<link rel="help" href="https://drafts.csswg.org/css-animations-1/#animations">
+<link rel="help" href="https://drafts.csswg.org/css-animations-2/#animations">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const settle = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+const expression = extra => `steps(calc(${extra} + sibling-index()), end)`;
+
+async function fixture(t) {
+  assert_not_equals(document.body, null, "Body exists before callback setup");
+  assert_true(CSS.supports("animation-timing-function", expression(1)), "Contextual syntax is admitted");
+  const host = document.createElement("div");
+  document.body.append(host);
+  t.add_cleanup(() => host.remove());
+  const root = host.attachShadow({mode:"open"});
+  root.innerHTML = `<style>
+    @keyframes progress { from { opacity:0; animation-timing-function:${expression(1)}; } to { opacity:1; } }
+    .target { font-size:16px; animation:progress 1000ms linear both paused; }
+  </style><div id="left"><i></i><div class="target"></div></div>
+  <div id="right"><i></i><div class="target"></div></div><div id="references"></div>`;
+  const target = root.querySelector("#left .target");
+  const control = root.querySelector("#right .target");
+  const animations = [target, control].map(element => element.getAnimations()[0]);
+  for (const animation of animations) {
+    assert_true(!!animation, "CSS animation exists");
+    t.add_cleanup(() => animation.cancel());
+    await animation.ready;
+    animation.currentTime = 750;
+  }
+  const references = new Map();
+  for (const count of [3, 4, 5]) {
+    const element = document.createElement("div");
+    root.querySelector("#references").append(element);
+    const animation = element.animate([{opacity:0}, {opacity:1}],
+      {duration:1000, easing:`steps(${count}, end)`, fill:"both"});
+    t.add_cleanup(() => animation.cancel());
+    animation.pause();
+    await animation.ready;
+    animation.currentTime = 750;
+    references.set(count, element);
+  }
+  const rule = root.querySelector("style").sheet.cssRules[0];
+  return {root, target, control, rule, keyframe:rule.cssRules[0], references,
+    animation:animations[0], controlAnimation:animations[1], effect:animations[0].effect,
+    controlEffect:animations[1].effect, parent:target.parentElement, controlParent:control.parentElement};
+}
+
+async function snapshot(f, count) {
+  await settle();
+  const actual = Number(getComputedStyle(f.target).opacity);
+  return {
+    actual, repeat:Number(getComputedStyle(f.target).opacity),
+    control:Number(getComputedStyle(f.control).opacity),
+    expected:Number(getComputedStyle(f.references.get(count)).opacity),
+    scriptExpected:Number(getComputedStyle(f.references.get(5)).opacity),
+    same:f.target.getAnimations().includes(f.animation) && f.animation.effect === f.effect,
+    sameControl:f.control.getAnimations().includes(f.controlAnimation) &&
+      f.controlAnimation.effect === f.controlEffect,
+    sameAssociation:f.target.getRootNode() === f.root && f.control.getRootNode() === f.root &&
+      f.target.parentElement === f.parent && f.control.parentElement === f.controlParent &&
+      f.root.querySelector("style").sheet.cssRules[0] === f.rule && f.rule.cssRules[0] === f.keyframe,
+    contexts:[f.target, f.control].map(element => ({
+      index:Array.from(element.parentElement.children).indexOf(element) + 1,
+      count:element.parentElement.children.length,
+      font:getComputedStyle(element).fontSize,
+      name:getComputedStyle(element).animationName,
+    })),
+    times:[f.animation.currentTime, f.controlAnimation.currentTime],
+    frames:JSON.stringify(f.effect.getKeyframes()),
+    controlFrames:JSON.stringify(f.controlEffect.getKeyframes()),
+    specified:f.keyframe.style.animationTimingFunction,
+  };
+}
+
+for (const owner of ["CSS", "successful script override", "rejected script override"]) {
+  promise_test(async t => {
+    const f = await fixture(t);
+    const before = await snapshot(f, 3);
+    let error = null;
+    if (owner !== "CSS") {
+      try {
+        f.effect.setKeyframes([
+          {opacity:0, offset:0, easing:"steps(5, end)"},
+          {opacity:1, offset:owner === "successful script override" ? 1 : 2},
+        ]);
+      } catch (caught) {
+        error = caught;
+      }
+    }
+    const afterCall = JSON.stringify(f.effect.getKeyframes());
+    const rows = [await snapshot(f, 3)];
+    f.keyframe.style.animationTimingFunction = expression(2);
+    rows.push(await snapshot(f, 4));
+    f.keyframe.style.animationTimingFunction = expression(1);
+    rows.push(await snapshot(f, 3));
+    const details = JSON.stringify({owner, before, afterCall, rows});
+    const scripted = owner === "successful script override";
+    assert_approx_equals(before.actual, 2 / 3, 0.0001, `Initial contextual curve; ${details}`);
+    if (owner === "rejected script override") {
+      assert_true(error instanceof TypeError, `Invalid offset rejects the call; ${details}`);
+      assert_equals(afterCall, before.frames, `Rejection preserves prior frames; ${details}`);
+    } else {
+      assert_equals(error, null, `No script error; ${details}`);
+      if (scripted) {
+        assert_not_equals(afterCall, before.frames, `Script changes frames; ${details}`);
+      }
+    }
+    assert_not_equals(rows[1].specified, rows[0].specified, `CSSOM expression changes; ${details}`);
+    assert_equals(rows[2].specified, rows[0].specified, `CSSOM expression recovers; ${details}`);
+    assert_not_equals(rows[1].controlFrames, rows[0].controlFrames, `CSS control frames update; ${details}`);
+    assert_equals(rows[2].controlFrames, rows[0].controlFrames, `CSS control frames recover; ${details}`);
+    for (const [index, row] of rows.entries()) {
+      assert_true(row.same && row.sameControl && row.sameAssociation, `Association persists; ${details}`);
+      assert_array_equals(row.times, [750, 750], `Paused times persist; ${details}`);
+      assert_equals(JSON.stringify(row.contexts), JSON.stringify(before.contexts),
+        `Numeric inputs and animation names stay fixed; ${details}`);
+      for (const context of row.contexts) {
+        assert_equals(context.index, 2, `Fixed sibling index; ${details}`);
+        assert_equals(context.count, 2, `Fixed sibling count; ${details}`);
+        assert_equals(context.font, "16px", `Fixed own font; ${details}`);
+        assert_equals(context.name, "progress", `Fixed animation name; ${details}`);
+      }
+      assert_not_equals(row.specified, "", `Contextual declaration retained; ${details}`);
+      assert_approx_equals(row.expected, index === 1 ? 0.75 : 2 / 3, 0.0001,
+        `Literal CSS calibration; ${details}`);
+      assert_approx_equals(row.scriptExpected, 0.6, 0.0001, `Literal script calibration; ${details}`);
+      assert_approx_equals(row.control, row.expected, 0.0001, `Unmodified CSS control follows expression; ${details}`);
+      assert_approx_equals(row.actual, scripted ? row.scriptExpected : row.expected, 0.0001,
+        `Target follows its keyframe owner; ${details}`);
+      assert_equals(row.repeat, row.actual, `Repeated sample stable; ${details}`);
+      if (scripted) {
+        assert_equals(row.frames, afterCall, `Script frames survive CSSOM expression edits; ${details}`);
+      }
+    }
+  }, `${owner} ownership across contextual keyframe expression edits with unchanged dependency inputs`);
+}
+</script>
