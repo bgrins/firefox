@@ -1,0 +1,58 @@
+--- artifacts/css-sibling-count-rule-cache-promotion-v1/build.py
++++ artifacts/css-move-before-promotion-v1/build.py
+@@ -28,22 +28,31 @@
+ assert s.sha(RUNTIME / "CURRENT-EPOCH.json") == expected_epoch
+ assert '/' not in label
+ epoch = s.read(RUNTIME / 'CURRENT-EPOCH.json')
+-assert epoch['sibling_count_rule_cache_transition']['role'] == 'candidate' and not epoch['sibling_count_rule_cache_transition']['compiled']
++assert epoch['move_before_removal_transition']['role'] == 'candidate' and not epoch['move_before_removal_transition']['compiled']
+ assert epoch['semantic_index']['head'] == policy['head']
+ for marker, expected in policy['preserved_markers'].items():
+     assert epoch[marker] == expected
+ for name, record in policy['preserved_accepted_payload'].items():
+     assert epoch['pins'][name] == record['sha256'] and epoch['installed_identities'][name] == record['identity']
+ assert label == policy['build_label']
+-role = {'role': 'candidate', 'variant': 'sibling-count-rule-cache'}
++role = {'role': 'candidate', 'variant': 'move-before-removal-invalidation'}
+ owner = s.load('page_build_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ owner.authenticate(PACKAGE, manifest)
+ policy = s.read(PACKAGE / 'POLICY.json')
+-assert epoch['sibling_count_rule_cache_transition']['manifest_sha256'] == manifest
+-assert epoch['pins'][policy['source']['path']] == policy['source']['candidate_sha256']
++assert epoch['move_before_removal_transition']['manifest_sha256'] == manifest
++for name, record in policy['sources'].items():
++    assert epoch['pins'][name] == record['candidate_sha256']
++assert epoch['move_before_removal_transition']['source_sha256'] == {n:r['candidate_sha256'] for n,r in policy['sources'].items()}
++deleted = policy['deleted_metadata']['path']
++assert epoch['pins'][deleted] is None and not os.path.lexists(ROOT / deleted)
++assert deleted not in epoch['installed_identities']
++assert deleted not in s.read(RUNTIME / 'OWNED.json')
++retirement = s.read(HERE / 'DELETION.json')
++assert retirement['original_path'] == deleted
++owner.claim(ROOT, retirement['archived_path'], policy['deleted_metadata']['sha256'], retirement['claim']['identity'])
+ for name, record in policy['tests'].items(): assert epoch['pins'][name] == record['sha256']
+-assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs', policy['source']['path']])
+-assert epoch['staged_working'] == {} and epoch['sibling_count_rule_cache_transition']['accepted'] is False
++assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs', *policy['sources'], deleted])
++assert epoch['staged_working'] == {} and epoch['move_before_removal_transition']['accepted'] is False
+ for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+ control_claims = {n:owner.claim(ROOT,str((RUNTIME/n).relative_to(ROOT)),s.sha(RUNTIME/n)) for n in ['ROLE.json','OWNED.json']}
+ owner.quiescent(RUNTIME)
+@@ -66,7 +75,7 @@
+     stopped[0] = True
+ for sig in (signal.SIGTERM, signal.SIGINT):
+     signal.signal(sig, stop)
+-deadline = time.monotonic() + 1800
++deadline = time.monotonic() + 5400
+ error = None
+ try:
+     owner.authenticate(PACKAGE, manifest)
+@@ -97,7 +106,7 @@
+     if success:
+         assert inner['exit'] == 0 and inner['error'] is None and inner['stop_reason'] is None
+         assert inner['owned_group_absent'] and not inner['cleanup_errors']
+-    current['sibling_count_rule_cache_transition'] = dict(epoch['sibling_count_rule_cache_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
++    current['move_before_removal_transition'] = dict(epoch['move_before_removal_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
+     owner.authenticate(PACKAGE, manifest)
+     for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+     for item in control_claims.values(): owner.claim(ROOT,item['path'],item['owned_sha256'],item['identity'])

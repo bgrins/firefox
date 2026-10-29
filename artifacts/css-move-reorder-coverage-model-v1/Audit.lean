@@ -1,0 +1,12 @@
+import Reorder
+#print axioms ReorderCoverage.reorder_well_formed
+#print axioms ReorderCoverage.reinsert_length
+#print axioms ReorderCoverage.every_count_unchanged
+#print axioms ReorderCoverage.outside_siblings_unchanged
+#print axioms ReorderCoverage.outside_values_unchanged
+#print axioms ReorderCoverage.counts_need_no_refresh
+#print axioms ReorderCoverage.parent_notification_fresh
+#print axioms ReorderCoverage.shared_prefix_index
+#print axioms ReorderCoverage.shared_suffix_index
+#print axioms ReorderCoverage.outside_moved_interval_index
+#print axioms ReorderCoverage.example_count_stable_index_changes

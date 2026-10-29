@@ -1,0 +1,3 @@
+# V51 signing recovery completion
+
+The initial signing command failed with the 1Password buffer error after staging the exact 233-path tree. The explicit user-authorized retry committed that same tree without restaging. Actual FINAL-CHECK records signed HEAD cc6c431d7262b22fdd282ac9e7db0302a1cfa0b0 and synchronized epoch448eb386, full preservation, 563 untracked names, and no native acceptance increment. The original failed log/receipt remain separate from the successful retry log/signature. PRE records remain locally retained and hash-indexed rather than duplicated in this checkpoint. Credential unlock state was not asserted by the retry authorization.

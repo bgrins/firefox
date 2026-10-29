@@ -1,0 +1,19 @@
+--- sealed-promotion/assess.py
++++ revalidation/assess.py
+@@ -32,14 +32,14 @@
+         row = matches[0]
+         assert row['status'] == 'PASS' and row['expected'] == 'FAIL' and row['expected_field_present']
+         assert row['known_intermittent'] == [] and row['intermittent_field_present']
+-        row.update(expected='PASS', expected_field_present=False, intermittent_field_present=False)
++        row.update(expected='PASS', expected_field_present=False)
+     return sorted(rows, key=lambda row: (row['test'], row['kind'], row['subtest'] or ''))
+ 
+ 
+ def assess(events, code, policy, checks, original=None, run_binding=None):
+     assert original is None
+     result = implementation.assess(events, code, policy, checks, run_binding=run_binding)
+-    settings = json.loads((HERE / 'POLICY.json').read_bytes())
++    settings = json.loads((ROOT / 'artifacts/css-move-before-promotion-v1/POLICY.json').read_bytes())
+     expected = projected_candidate(settings)
+     actual = sorted([signature(row) for row in result['rows'] + result['ends']],
+                     key=lambda row: (row['test'], row['kind'], row['subtest'] or ''))

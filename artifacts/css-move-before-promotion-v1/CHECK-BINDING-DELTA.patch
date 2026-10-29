@@ -1,0 +1,17 @@
+--- disabled/check.py
++++ bound/check.py
+@@ -21,8 +21,12 @@
+ for source in HERE.glob('*.py'):
+     ast.parse(source.read_text(), filename=str(source))
+ policy = json.loads((HERE / 'POLICY.json').read_bytes())
+-assert not policy['install_enabled'] and not policy['build_enabled']
+-assert policy['head'] is None and policy['epoch_sha256'] is None
++assert policy['install_enabled'] and policy['build_enabled']
++bound = json.loads((HERE / 'ACTUAL-BINDING.json').read_bytes())
++assert policy['head'] == bound['head']
++assert policy['epoch_sha256'] == bound['controls']['CURRENT-EPOCH.json']
++assert policy['role_sha256'] == bound['controls']['ROLE.json']
++assert policy['owned_sha256'] == bound['controls']['OWNED.json']
+ owner = load('saved_owner', ROOT / 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ evidence = load('saved_evidence', HERE / 'evidence.py')
+ saved = evidence.verify(ROOT, policy, None, owner, check_processes=False)
