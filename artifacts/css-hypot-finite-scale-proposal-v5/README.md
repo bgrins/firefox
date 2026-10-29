@@ -1,0 +1,7 @@
+# Hypot negative-zero fixture correction
+
+This artifact-only v5 changes exactly three zero-control expressions from v4: `hypot(0, -1 * 0)`, `1 / hypot(-1 * 0)`, and `1 / hypot(-1 * 0, -1 * 0)`. CSS numeric literal `-0` parses as positive zero; multiplication produces the intended negative-zero intermediate. The earlier controls therefore exercised positive zero despite their names. FIXTURE-DELTA.patch records the entire fixture delta. Names, expected values, the other 27 callbacks and all 30 callback registrations remain unchanged.
+
+The accepted145 base, clean-import native candidate, native.patch, source roles, scalar harness and experiment roster are byte-identical to v4. Inherited arithmetic-check.log is prior v3 scalar evidence, not a v5 native execution. The earlier reversible Gecko comparison remains historical evidence for its original source and fixture; it does not establish these corrected negative-zero controls.
+
+A fresh original 227-callback baseline with this fixture is required before final installed comparison. Preserve all original passing rows, the 211 control and four ending signatures, and require all 30 new-page callbacks to pass. No browser, build, native installation, acceptance, proof credit or canonical mutation occurred while preparing v5. V4 and all prior sealed packages remain immutable. Earlier proposal-v2 invalid preparation history remains documented by v3.

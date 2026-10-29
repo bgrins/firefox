@@ -1,0 +1,78 @@
+--- artifacts/css-round-context-quotient-promotion-v2/build.py
++++ artifacts/css-hypot-finite-scale-final-build-v1/build.py
+@@ -12,7 +12,7 @@
+ PACKAGE = Path(__file__).resolve().parent
+ ROOT = PACKAGE.parents[1]
+ policy = json.loads((PACKAGE / 'POLICY.json').read_bytes())
+-assert policy['build_enabled'] is True
++assert policy['build_enabled'] is True and policy['activation_pending'] == []
+ HERE = ROOT / policy['runtime_output']
+ RUNTIME = ROOT / 'artifacts/css-registered-number-native-runtime-v1'
+ spec = importlib.util.spec_from_file_location('fallback_state', RUNTIME / 'state.py')
+@@ -28,28 +28,34 @@
+ assert s.sha(RUNTIME / "CURRENT-EPOCH.json") == expected_epoch
+ assert '/' not in label
+ epoch = s.read(RUNTIME / 'CURRENT-EPOCH.json')
+-assert epoch['round_context_quotient_transition']['role'] == 'candidate' and not epoch['round_context_quotient_transition']['compiled']
++assert epoch['hypot_finite_scale_transition']['role'] == 'candidate' and not epoch['hypot_finite_scale_transition']['compiled']
+ assert epoch['semantic_index']['head'] == policy['head']
+-for marker in ('accepted_line_height', 'accepted_random_counter', 'accepted_linear_guard', 'accepted_round_special_knowledge'):
+-    assert epoch[marker] == policy[marker]
++for marker, expected in policy['accepted_preservation_markers'].items():
++    assert epoch[marker] == expected
++for transition, expected in policy['accepted_transitions'].items():
++    assert epoch[transition] == expected
+ for name, record in policy['preserved_accepted_payload'].items():
+     expected = policy['source']['candidate_sha256'] if name == policy['source']['path'] else record['sha256']
+     assert epoch['pins'][name] == expected and epoch['installed_identities'][name] == record['identity']
+-assert policy['supersedes_source_pin'] == {'fix':144, 'path':policy['source']['path'], 'sha256':policy['source']['base_sha256']}
+-assert epoch['round_context_quotient_transition']['supersedes_source_pin'] == policy['supersedes_source_pin']
+-assert epoch['accepted_round_special_knowledge']['files'][policy['source']['path']] == policy['source']['base_sha256']
+-assert epoch['round_special_knowledge_transition']['accepted'] and epoch['round_special_knowledge_transition']['compiled']
+-assert epoch['round_special_knowledge_transition']['source_sha256'] == policy['source']['base_sha256']
++assert policy['supersedes_source_pin'] == {'fix':145, 'path':policy['source']['path'], 'sha256':policy['source']['base_sha256']}
++assert epoch['hypot_finite_scale_transition']['supersedes_source_pin'] == policy['supersedes_source_pin']
++assert epoch['accepted_round_context_quotient']['files'][policy['source']['path']] == policy['source']['base_sha256']
++assert epoch['round_context_quotient_transition']['accepted'] and epoch['round_context_quotient_transition']['compiled']
++assert epoch['round_context_quotient_transition']['source_sha256'] == policy['source']['base_sha256']
+ assert label == policy['build_label']
+-role = {'role': 'candidate', 'variant': 'round-finite-context-quotient'}
++role = {'role': 'candidate', 'variant': 'hypot-finite-wide'}
+ owner = s.load('page_build_ownership', 'artifacts/css-registered-number-source-transition-v4/transition.py')
+ owner.authenticate(PACKAGE, manifest)
+ policy = s.read(PACKAGE / 'POLICY.json')
+-assert epoch['round_context_quotient_transition']['manifest_sha256'] == manifest
++owner.authenticate(ROOT / policy['installation_package'], policy['installation_manifest'])
++assert epoch['hypot_finite_scale_transition']['manifest_sha256'] == policy['installation_manifest']
++assert s.sha(HERE / 'INSTALLED-EPOCH.json') == expected_epoch
++installed = s.read(HERE / 'INSTALL-RESULT.json')
++assert installed['installed'] and installed['preservation_verified'] and not installed['compiled'] and not installed['accepted']
+ assert epoch['pins'][policy['source']['path']] == policy['source']['candidate_sha256']
+ for name, record in policy['tests'].items(): assert epoch['pins'][name] == record['sha256']
+ assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs', policy['source']['path']])
+-assert epoch['staged_working'] == {} and epoch['round_context_quotient_transition']['accepted'] is False
++assert epoch['staged_working'] == {} and epoch['hypot_finite_scale_transition']['accepted'] is False
+ for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+ control_claims = {n:owner.claim(ROOT,str((RUNTIME/n).relative_to(ROOT)),s.sha(RUNTIME/n)) for n in ['ROLE.json','OWNED.json']}
+ owner.quiescent(RUNTIME)
+@@ -60,9 +66,8 @@
+ directory.mkdir()
+ s.save(directory / 'PRE.json', before)
+ command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'build', 'binaries', '-j2']
+-owner.authenticate(ROOT / policy['pair_capsule'], policy['pair_capsule_sha256'])
+-metadata = s.load('promotion_metadata', policy['pair_capsule'] + '/run.py')
+-s.save(directory / 'APPLICATION-METADATA-PRE.json', metadata.application_metadata(ROOT / policy['application_ini'], policy['head']))
++metadata = s.load('promotion_metadata', policy['metadata_helper'])
++s.save(directory / 'APPLICATION-METADATA-PRE.json', metadata.application_metadata(ROOT / policy['application_ini'], policy['original_build_revision']))
+ builder = s.load('fallback_builder', str((PACKAGE / 'phase.py').relative_to(ROOT)))
+ control = s.load('fallback_control', str((RUNTIME / 'process_control.py').relative_to(ROOT)))
+ flags = {name: s.h.git(ROOT / name, env, 'ls-files', '-v', '-z') for name in ('.', 'artifacts/css-spec-lean')}
+@@ -103,7 +108,7 @@
+     if success:
+         assert inner['exit'] == 0 and inner['error'] is None and inner['stop_reason'] is None
+         assert inner['owned_group_absent'] and not inner['cleanup_errors']
+-    current['round_context_quotient_transition'] = dict(epoch['round_context_quotient_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
++    current['hypot_finite_scale_transition'] = dict(epoch['hypot_finite_scale_transition'], variant=role['variant'], compiled=success, last_phase=label, accepted=False)
+     owner.authenticate(PACKAGE, manifest)
+     for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
+     for item in control_claims.values(): owner.claim(ROOT,item['path'],item['owned_sha256'],item['identity'])

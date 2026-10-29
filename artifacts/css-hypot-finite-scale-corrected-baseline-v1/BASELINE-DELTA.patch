@@ -1,0 +1,44 @@
+--- artifacts/css-hypot-finite-scale-browser-v4/baseline.py
++++ artifacts/css-hypot-finite-scale-corrected-baseline-v1/baseline.py
+@@ -52,10 +52,19 @@
+     assert policy['wpt']['expected_subtests'] == experiment['expected_subtests']
+     assert policy['wpt']['target_subtests'] == experiment['target_subtests']
+     assert policy['wpt']['candidate_required_pass_pages'] == experiment['candidate_required_pass_pages']
+-    assert policy['wpt']['resources'] == read(input_directory / 'RESOURCES.json')
++    expected_resources = read(input_directory / 'RESOURCES.json')
++    expected_resources['css/css-values/hypot-finite-scale.html'] = {'path': policy['candidate']['directory'] + '/hypot-finite-scale.html', 'sha256': '0be27ef03f09ea3429ec27f0d6ea3906b6112689cf92b81db19ccad92269f0fc'}
++    assert policy['wpt']['resources'] == expected_resources
+     assert policy['wpt']['metadata'] == read(input_directory / 'METADATA.json')
+-    assert roles == read(input_directory / 'SOURCE-ROLES.json')
+-    assert policy['wpt']['manifest']['path'] == str((input_directory / 'SUBSET-MANIFEST.json').relative_to(ROOT))
++    old_roles = read(input_directory / 'SOURCE-ROLES.json')
++    assert set(roles) == set(old_roles)
++    assert all(row['base_sha256'] == old_roles[name]['base_sha256'] for name, row in roles.items())
++    combined = read(input_directory / 'SUBSET-MANIFEST.json')
++    corrected = read(ROOT / policy['candidate']['directory'] / 'SUBSET-MANIFEST.json')
++    combined['items']['testharness']['css']['css-values']['hypot-finite-scale.html'] = corrected['items']['testharness']['css']['css-values']['hypot-finite-scale.html']
++    assert read(HERE / 'SUBSET-MANIFEST.json') == combined
++    assert policy['wpt']['manifest']['path'] == str((HERE / 'SUBSET-MANIFEST.json').relative_to(ROOT))
++    assert sha(HERE / 'SUBSET-MANIFEST.json') == policy['wpt']['manifest']['sha256']
+     assert policy['wpt']['expected_subtest_count'] == experiment['expected_subtest_count'] == 227
+     assert policy['wpt']['expected_page_count'] == experiment['expected_page_count'] == 4
+     assert policy['wpt']['expected_target_count'] == 16
+@@ -73,6 +82,9 @@
+     state = load('activation_state', policy['state_helper'])
+     controls = {name: (RUNTIME / name).read_bytes() for name in ('CURRENT-EPOCH.json', 'ROLE.json', 'OWNED.json')}
+     assert {name: hashlib.sha256(body).hexdigest() for name, body in controls.items()} == policy['controls']
++    checkpoint = read(ROOT / policy['reference_checkpoint']['path'])
++    assert sha(ROOT / policy['reference_checkpoint']['path']) == policy['reference_checkpoint']['sha256']
++    assert checkpoint['head'] == policy['head'] and checkpoint['signature_verified'] and checkpoint['runtime_epoch_synchronized']
+     epoch = json.loads(controls['CURRENT-EPOCH.json'])
+     assert epoch['semantic_index']['head'] == policy['head'] and epoch['staged_working'] == {}
+     assert epoch['modified_native_paths'] == ['servo/components/style/custom_properties.rs']
+@@ -147,7 +159,7 @@
+         verify()
+         print('Live baseline bindings verified; no browser, build, or state mutation')
+         return
+-    assert policy['execution_enabled']
++    assert policy['execution_enabled'] and policy['activation_pending'] == []
+     state, env, controls, epoch, flags, verify = guard(policy, ownership, roles)
+     before = verify()
+     output = ROOT / policy['runtime_output']

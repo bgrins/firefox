@@ -1,0 +1,94 @@
+--- artifacts/css-hypot-finite-scale-final-wpt-v1/run.py
++++ artifacts/css-hypot-finite-scale-final-wpt-v2/run.py
+@@ -4,9 +4,7 @@
+ import os
+ from pathlib import Path
+ import signal
+-import subprocess
+ import sys
+-import time
+ 
+ assert sys.flags.isolated and sys.flags.no_site and not sys.flags.optimize
+ sys.dont_write_bytecode = True
+@@ -35,7 +33,7 @@
+     state = load('final_state', policy['state_helper'])
+     owner.authenticate(HERE, sys.argv[1])
+     assert policy['baseline_receipts'] and policy['build_receipts']
+-    references = {**policy['references'], **policy['baseline_receipts'], **policy['build_receipts']}
++    references = {**policy['references'], **policy['baseline_receipts'], **policy['build_receipts'], **policy['lint_receipts']}
+     for name, pin in references.items():
+         assert sha(ROOT / name) == pin, name
+     for directory, pin in policy['packages'].items():
+@@ -77,7 +75,12 @@
+     baseline = ROOT / policy['baseline_runtime']
+     base_result = read(baseline / 'BASELINE-RESULT.json')
+     assert base_result['success'] and base_result['preservation_verified'] and not base_result['canonical_updated']
++    terminal = read(ROOT / policy['baseline_terminal'])
++    assert terminal['root_observed_terminal'] and terminal['exit'] == 0
++    assert terminal['session_id'] == 21394 and terminal['terminal_tool'] == 'f64837'
++    assert terminal['result_sha256'] == sha(baseline / 'BASELINE-RESULT.json')
+     original = baseline / 'original-wpt'
++    assert base_result['phase'] == {'assessment_sha256': sha(original / 'ASSESSMENT.json'), 'raw_sha256': sha(original / 'raw.jsonl'), 'result_sha256': sha(original / 'RESULT.json')}
+     assert read(original / 'RESULT.json')['success'] and read(original / 'RESULT.json')['preservation_verified']
+     assert read(original / 'PRE.json') == read(original / 'POST.json')
+     assert read(original / 'CLEANUP.json')['owned_group_absent'] and read(original / 'CLEANUP.json')['temporary_root_removed']
+@@ -99,6 +102,8 @@
+     assert policy['wpt']['harness_revision'] == policy['head']
+     assert read(original / 'APPLICATION-METADATA.json')['harness_revision'] == policy['head']
+     assert read(build / 'APPLICATION-METADATA.json')['revision'] == policy['head']
++    metadata = load('final_metadata', policy['wpt']['metadata_helper'])
++    assert metadata.application_metadata(ROOT / policy['wpt']['application_ini'], policy['head']) == read(build / 'APPLICATION-METADATA.json')
+     for name in policy['rebuilt_binaries']:
+         assert sha(ROOT / name) == epoch['pins'][name]
+     owner.quiescent(RUNTIME)
+@@ -114,42 +119,22 @@
+         for name, path in [('root', ROOT), ('nested', ROOT / 'artifacts/css-spec-lean')]:
+             assert state.h.git(path, env, 'ls-files', '-v', '-z') == flags[name]
+         return state.a.verify_current(state.h, ROOT, env, epoch)
++    lint = read(ROOT / policy['lint_result'])
++    assert lint['exit'] == 0 and lint['errors'] == 0
++    assert lint['source_sha256'] == sha(installed)
++    assert lint['log_sha256'] == sha(ROOT / policy['lint_log'])
++    assert lint['command'] == policy['lint_command']
++    assert '--include-third-party' in lint['command'] and 'wpt' in lint['command']
++    assert lint['command'][-1] == str(installed.relative_to(ROOT))
+     before = verify()
+     output = ROOT / policy['runtime_output']
+     assert output.parent == ROOT / 'artifacts' and not os.path.lexists(output)
+     output.mkdir()
+     state.save(output / 'PRE.json', before)
+-    state.save(output / 'BINDINGS.json', {'controls': policy['controls'], 'baseline_receipts': policy['baseline_receipts'], 'build_receipts': policy['build_receipts'], 'source': source, 'fixture_sha256': sha(installed)})
++    state.save(output / 'BINDINGS.json', {'controls': policy['controls'], 'baseline_receipts': policy['baseline_receipts'], 'build_receipts': policy['build_receipts'], 'lint_receipts': policy['lint_receipts'], 'source': source, 'fixture_sha256': sha(installed)})
+     stopped = [False]
+     for sig in (signal.SIGINT, signal.SIGTERM):
+         signal.signal(sig, lambda signum, frame: stopped.__setitem__(0, True))
+-    lint = output / 'lint'
+-    lint.mkdir()
+-    command = ['/Users/bgrins/venvs/firefox/bin/python', './mach', 'lint', '--linter', 'wpt', '--include-third-party', str(installed.relative_to(ROOT))]
+-    state.save(lint / 'COMMAND.json', {'command': command, 'timeout_seconds': policy['lint_timeout_seconds']})
+-    process, code, error, cleanup = None, None, None, None
+-    control = load('final_lint_control', policy['wpt']['control_helper'])
+-    try:
+-        with (lint / 'output.log').open('x') as stream:
+-            process = subprocess.Popen(command, cwd=ROOT, env=env, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
+-            state.save(lint / 'PROCESS.json', {'pid': process.pid, 'pgid': process.pid})
+-            deadline = time.monotonic() + policy['lint_timeout_seconds']
+-            while process.poll() is None:
+-                assert not stopped[0] and time.monotonic() < deadline, 'Lint cancelled or timed out'
+-                time.sleep(0.2)
+-            code = process.wait()
+-    except BaseException as exc:
+-        error = repr(exc)
+-    finally:
+-        try:
+-            cleanup = control.terminate(process)
+-            assert cleanup['owned_group_absent']
+-        except BaseException as exc:
+-            error = error or repr(exc)
+-        state.save(lint / 'CLEANUP.json', cleanup)
+-    preserved = verify() == before
+-    state.save(lint / 'RESULT.json', {'exit': code, 'error': error, 'preservation_verified': preserved, 'success': code == 0 and error is None and preserved})
+-    assert code == 0 and error is None and preserved and cleanup['owned_group_absent']
+     runner = load('final_wpt', str((HERE / 'wpt.py').relative_to(ROOT)))
+     owned = {}
+     phase = runner.run(ROOT, HERE, output / 'candidate-wpt', 'candidate', policy, env, verify, owned, lambda: stopped[0], original=original)

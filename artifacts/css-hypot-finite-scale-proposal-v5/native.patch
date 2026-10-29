@@ -1,0 +1,61 @@
+--- a/servo/components/style/values/generics/calc.rs
++++ b/servo/components/style/values/generics/calc.rs
+@@ -20,12 +20,18 @@
+ use smallvec::SmallVec;
+ use std::convert::AsRef;
+ use std::fmt::{self, Write};
+-use std::ops::{Add, Mul, Rem, Sub};
++use std::ops::{Add, Rem, Sub};
+ use std::{cmp, mem};
+ use strum_macros::AsRefStr;
+ use style_traits::{CssWriter, ToCss};
+ 
+ use thin_vec::ThinVec;
++
++fn hypot(a: f32, b: f32) -> f32 {
++    let a = a as f64;
++    let b = b as f64;
++    (a * a + b * b).sqrt() as f32
++}
+ 
+ /// Whether we're a `min` or `max` function.
+ #[derive(
+@@ -1577,15 +1583,15 @@
+             },
+             Self::Hypot(children) => {
+                 let (mut value, mut ty) = children[0].resolve_internal(leaf_to_output_fn)?;
+-                value = value.powi(2);
++                value = value.abs();
+ 
+                 for child in children.iter().skip(1) {
+                     let (child_value, child_ty) = child.resolve_internal(leaf_to_output_fn)?;
+                     ty = NumericType::add_two_types(&ty, &child_ty)?;
+-                    value += child_value.powi(2);
+-                }
+-
+-                Ok((value.sqrt(), ty))
++                    value = hypot(value, child_value);
++                }
++
++                Ok((value, ty))
+             },
+             Self::Log(a, b) => {
+                 let (a, a_ty) = a.resolve_internal(leaf_to_output_fn)?;
+@@ -2439,14 +2445,11 @@
+                 SimplificationResult::Unchanged
+             },
+             Self::Hypot(ref children) => {
+-                let mut result = value_or_stop!(children[0].try_op(&children[0], Mul::mul));
++                let mut result = value_or_stop!(children[0].try_op(&children[0], |a, _| a.abs()));
+ 
+                 for child in children.iter().skip(1) {
+-                    let square = value_or_stop!(child.try_op(child, Mul::mul));
+-                    result = value_or_stop!(result.try_op(&square, Add::add));
+-                }
+-
+-                result = value_or_stop!(result.try_op(&result, |a, _| a.sqrt()));
++                    result = value_or_stop!(result.try_op(child, hypot));
++                }
+ 
+                 replace_self_with!(&mut result);
+                 SimplificationResult::Simplified

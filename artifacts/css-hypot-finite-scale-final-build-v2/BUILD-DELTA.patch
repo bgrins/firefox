@@ -1,0 +1,31 @@
+--- artifacts/css-hypot-finite-scale-final-build-v1/build.py
++++ artifacts/css-hypot-finite-scale-final-build-v2/build.py
+@@ -25,7 +25,7 @@
+            PYTHONDONTWRITEBYTECODE='1')
+ assert not any(os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'CC', 'CXX', 'RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'CARGO_TARGET_DIR', 'RUSTC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER', 'MOZ_ARTIFACT_BUILDS', 'MOZ_CONFIGURE_OPTIONS', 'MOZ_PROFILE'))
+ label, expected_epoch, manifest = sys.argv[1:]
+-assert s.sha(RUNTIME / "CURRENT-EPOCH.json") == expected_epoch
++assert s.sha(RUNTIME / "CURRENT-EPOCH.json") == expected_epoch == policy['installed_epoch_sha256']
+ assert '/' not in label
+ epoch = s.read(RUNTIME / 'CURRENT-EPOCH.json')
+ assert epoch['hypot_finite_scale_transition']['role'] == 'candidate' and not epoch['hypot_finite_scale_transition']['compiled']
+@@ -52,11 +52,19 @@
+ assert s.sha(HERE / 'INSTALLED-EPOCH.json') == expected_epoch
+ installed = s.read(HERE / 'INSTALL-RESULT.json')
+ assert installed['installed'] and installed['preservation_verified'] and not installed['compiled'] and not installed['accepted']
++assert installed['epoch_sha256'] == expected_epoch
++assert set(installed['files']) == {policy['source']['path'], *policy['tests']}
+ assert epoch['pins'][policy['source']['path']] == policy['source']['candidate_sha256']
+ for name, record in policy['tests'].items(): assert epoch['pins'][name] == record['sha256']
+ assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs', policy['source']['path']])
+ assert epoch['staged_working'] == {} and epoch['hypot_finite_scale_transition']['accepted'] is False
+ for name, pin in policy['references'].items(): assert s.sha(ROOT/name) == pin
++lint = s.read(ROOT / policy['lint_result'])
++assert lint['exit'] == 0 and lint['errors'] == 0
++assert lint['source_sha256'] == next(iter(policy['tests'].values()))['sha256']
++assert lint['log_sha256'] == s.sha(ROOT / policy['lint_log'])
++assert lint['command'] == policy['lint_command'] and '--include-third-party' in lint['command']
++assert lint['command'][-1] == next(iter(policy['tests']))
+ control_claims = {n:owner.claim(ROOT,str((RUNTIME/n).relative_to(ROOT)),s.sha(RUNTIME/n)) for n in ['ROLE.json','OWNED.json']}
+ owner.quiescent(RUNTIME)
+ owner.quiescent(HERE)

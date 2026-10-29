@@ -1,0 +1,65 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>pow special values with deferred number operands</title>
+<link rel="help" href="https://drafts.csswg.org/css-values-4/#exponent-argument-ranges">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const controls = [
+  ["ordinary positive power", "pow(2, 3) / 16", 0.5],
+  ["ordinary negative base odd power", "pow(-2, 3) / -16", 0.5],
+  ["ordinary negative base even power", "pow(-2, 2) / 8", 0.5],
+  ["negative base fractional power", "pow(-2, 0.5)", 0],
+  ["positive zero to zero", "pow(0, 0)", 1],
+  ["negative zero to zero", "pow((-1 * 0), 0)", 1],
+  ["positive infinity to zero", "pow(infinity, 0)", 1],
+  ["negative infinity to zero", "pow(-infinity, 0)", 1],
+  ["negative zero odd power sign", "1 / pow((-1 * 0), 3)", 0],
+  ["negative zero even power sign", "1 / pow((-1 * 0), 2)", 1],
+  ["negative zero negative odd power", "pow((-1 * 0), -3)", 0],
+  ["negative zero negative even power", "pow((-1 * 0), -2)", 1],
+  ["magnitude below one positive infinite power", "pow(0.5, infinity)", 0],
+  ["magnitude below one negative infinite power", "pow(0.5, -infinity)", 1],
+  ["NaN base ordinary exponent", "pow(NaN, 1)", 0],
+  ["ordinary base NaN exponent", "pow(2, NaN)", 0],
+];
+for (const [name, expression, expected] of controls) {
+  test(t => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    t.add_cleanup(() => target.remove());
+    target.style.opacity = `calc(${expression})`;
+    assert_not_equals(target.style.opacity, "", "Declaration is admitted");
+    assert_approx_equals(Number(getComputedStyle(target).opacity), expected, 0.00001);
+  }, `pow special-value control: ${name}`);
+}
+const contextual = [
+  ["positive unit base positive infinity", "pow(sibling-index(), infinity)", [0, 1, 0]],
+  ["negative unit base positive infinity", "pow(-1 * sibling-index(), infinity)", [0, 1, 0]],
+  ["positive unit base negative infinity", "1 / (1 + pow(sibling-index(), -infinity))", [0, 1, 0]],
+  ["negative unit base negative infinity", "1 / (1 + pow(-1 * sibling-index(), -infinity))", [0, 1, 0]],
+  ["NaN base deferred zero exponent", "pow(NaN, sibling-index() - 1)", [0, 0, 0]],
+  ["deferred unit base NaN exponent", "pow(sibling-index(), NaN)", [0, 0, 0]],
+  ["finite base context calibration", "pow(sibling-index(), 2) / 8", [0.125, 0.5, 0.125]],
+  ["finite exponent context calibration", "pow(2, sibling-index()) / 8", [0.25, 0.5, 0.25]],
+];
+for (const [name, expression, expected] of contextual) {
+  test(t => {
+    const holder = document.createElement("div");
+    const target = document.createElement("div");
+    const sibling = document.createElement("div");
+    holder.append(target);
+    document.body.append(holder);
+    t.add_cleanup(() => holder.remove());
+    target.style.opacity = `calc(${expression})`;
+    assert_not_equals(target.style.opacity, "", "Deferred declaration is admitted");
+    const samples = [Number(getComputedStyle(target).opacity)];
+    holder.insertBefore(sibling, target);
+    samples.push(Number(getComputedStyle(target).opacity));
+    sibling.remove();
+    samples.push(Number(getComputedStyle(target).opacity));
+    assert_array_approx_equals(samples, expected, 0.00001, "Context mutation and recovery");
+  }, `pow special-value context: ${name}`);
+}
+</script>
