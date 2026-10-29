@@ -1,0 +1,83 @@
+--- artifacts/css-local-signing-20261028-v41/finish.py
++++ artifacts/css-local-signing-20261028-v49/finish.py
+@@ -31,16 +31,17 @@
+     return module
+ 
+ 
+-s=load('round_special_sign_state','artifacts/css-registered-number-native-runtime-v1/state.py')
+-o=load('round_special_sign_owner','artifacts/css-registered-number-source-transition-v4/transition.py')
++s=load('sibling_count_sign_state','artifacts/css-registered-number-native-runtime-v1/state.py')
++o=load('sibling_count_sign_owner','artifacts/css-registered-number-source-transition-v4/transition.py')
+ save=s.save
+ epoch=read(HERE/'CURRENT-EPOCH.json')
+ before=s.a.verify_current(s.h,ROOT,ENV,epoch)
+ assert epoch['modified_native_paths']==['servo/components/style/custom_properties.rs']
+ for marker, expected in inputs['preserved_accepted_markers'].items(): assert epoch[marker] == expected
++for marker, expected in inputs['preserved_accepted_transitions'].items(): assert epoch[marker] == expected
+ for path, item in inputs['preserved_accepted_payload'].items(): o.claim(ROOT,path,item['sha256'],item['identity'])
+ assert not os.path.lexists(ROOT/inputs['retired_path'])
+-assert epoch['round_special_knowledge_transition']['compiled'] and not epoch['round_special_knowledge_transition']['accepted']
++assert epoch['sibling_count_rule_cache_transition']['compiled'] and not epoch['sibling_count_rule_cache_transition']['accepted']
+ controls={n:(RUNTIME/n).read_bytes() for n in ('CURRENT-EPOCH.json','ROLE.json','OWNED.json')}
+ assert all(b==(HERE/('PRE-'+n)).read_bytes() for n,b in controls.items())
+ assert sha(RUNTIME/'CURRENT-EPOCH.json')==inputs['initial_epoch']
+@@ -130,8 +131,8 @@
+     assert {k:v for k,v in semantic.items() if k!='working_diff'}=={k:v for k,v in epoch['semantic_index'].items() if k!='working_diff'}
+     current['semantic_index']=semantic
+     current['raw_index_observation']['current']=index['raw_index']
+-    current['round_special_knowledge_transition']['accepted']=True
+-    current['accepted_round_special_knowledge']={'fix':inputs['fix'],'native_commit':parent,'files':read(HERE/'native-selection.json')['source_pins'],'old_restoration_recipes_require_rebase':True}
++    current['sibling_count_rule_cache_transition']['accepted']=True
++    current['accepted_sibling_count_rule_cache']={'fix':inputs['fix'],'native_commit':parent,'files':read(HERE/'native-selection.json')['source_pins'],'old_restoration_recipes_require_rebase':True}
+     after=s.a.verify_current(s.h,ROOT,ENV,current)
+     assert after['nested_index']==before['nested_index']
+     assert all(s.h.git(ROOT/n,ENV,'ls-files','-v','-z')==body for n,body in flags.items())
+@@ -147,18 +148,23 @@
+     o.write_owned(ROOT,local_claim,o.encoded(restored))
+     raise
+ save(HERE/'ROADMAP-UPDATE.json',plan)
+-(HERE/'CHECKPOINT.md').write_text(read(ROOT/inputs['acceptance_path'])['approved_checkpoint_summary']+'\n\nHeld provider experiment remains unchanged and unaccepted. Earlier binary/restoration receipts are historical; preserve the accepted line-height, counter, linear guard, and Round special-knowledge overlays in future restoration.\n')
++(HERE/'CHECKPOINT.md').write_text(read(ROOT/inputs['acceptance_path'])['approved_checkpoint_summary']+'\n\nHeld provider experiment remains unchanged and unaccepted. Earlier binary/restoration receipts are historical; preserve the accepted line-height, counter, linear guard, current Round145, historical Round144 and new sibling-count overlays in future restoration.\n')
+ files=set(planned)
+ files.update(str((readout/name).relative_to(ROOT)) for name in readout_manifest)
+ files.add(str((readout/'FILES.json').relative_to(ROOT)))
+ files.update(inputs['prior_checkpoint_evidence'])
+-for n in ('commit.py','init.py','finish.py','render_checkpoint.py','INPUTS.json','native-selection.json','INITIAL-EPOCH.json','INITIAL-UNTRACKED.json','BEFORE.json','PRE-CURRENT-EPOCH.json','PRE-ROLE.json','PRE-OWNED.json','ROADMAP-UPDATE.json','CHECKPOINT.md','README.md','CHECK.json','PAYLOAD.json','INVENTORY.json','PLAN.md','PRIOR-CHECKPOINT-PINS.json','PENDING-NATIVE-PAYLOAD.json','UNTRACKED-CHECKPOINT.json','init.py.diff','finish.py.diff','render_checkpoint.py.diff','prepare_inventory.py','PACKAGES.json','EXTRA-PINS.json','readout-render.log'):
++for n in ('commit.py','init.py','finish.py','render_checkpoint.py','INPUTS.json','native-selection.json','INITIAL-EPOCH.json','INITIAL-UNTRACKED.json','BEFORE.json','PRE-CURRENT-EPOCH.json','PRE-ROLE.json','PRE-OWNED.json','ROADMAP-UPDATE.json','CHECKPOINT.md','README.md','CHECK.json','PAYLOAD.json','INVENTORY.json','PLAN.md','PRIOR-CHECKPOINT-PINS.json','PENDING-NATIVE-PAYLOAD.json','UNTRACKED-CHECKPOINT.json','init.py.diff','finish.py.diff','render_checkpoint.py.diff','prepare_inventory.py','PACKAGES.json','EXTRA-PINS.json','VALIDATION-EXTRA-PINS.json','ACCEPTANCE-PREREQUISITES.json','REFERENCE-CLOSURE.json','SELECTION-CHECK.json','ROADMAP-PREFIX.md','FILES.json','readout-render.log'):
+     files.add(str((HERE/n).relative_to(ROOT)))
+ for ident in receipts:
+     for suffix in ('-selection.json','-item.json','-receipt.json','-signature.log','-message.txt','-commit.log','-EPOCH.json'):
+         filename='native-selection.json' if ident=='native-fix' and suffix=='-selection.json' else ident+suffix
+         files.add(str((HERE/filename).relative_to(ROOT)))
+ files.update(str(p.relative_to(ROOT)) for p in prepared.rglob('*') if p.is_file())
++recovery_names={'INITIAL-EPOCH.json','BEFORE.json','PRE-CURRENT-EPOCH.json','PRE-ROLE.json','PRE-OWNED.json'}
++recovery={n:sha(ROOT/n) for n in files if str(Path(n).parent)==str(HERE.relative_to(ROOT)) and (Path(n).name in recovery_names or Path(n).name.endswith('-EPOCH.json'))}
++files.difference_update(recovery)
++save(HERE/'RECOVERY-PREIMAGES.json',{'retained_runtime_files':recovery,'reason':'Exact local recovery preimages retained; full epoch copies excluded from research checkpoint.'})
++files.add(str((HERE/'RECOVERY-PREIMAGES.json').relative_to(ROOT)))
+ pins={};archived={}
+ for n in sorted(files):
+     body=(ROOT/n).read_bytes()
+@@ -166,7 +172,7 @@
+     (archived if existing.returncode==0 and existing.stdout==body else pins)[n]=hashlib.sha256(body).hexdigest()
+ save(HERE/'CHECKPOINT-ARCHIVE.json',{'already_committed_identical':archived,'parent':parent})
+ pins[str((HERE/'CHECKPOINT-ARCHIVE.json').relative_to(ROOT))]=sha(HERE/'CHECKPOINT-ARCHIVE.json')
+-save(HERE/'checkpoint-selection.json',{'id':'checkpoint','files':sorted(pins),'source_pins':pins,'message':'No bug - Record validated Round infinite-step guard and CSS continuation checkpoint. r?#firefox-style-system-reviewers'})
++save(HERE/'checkpoint-selection.json',{'id':'checkpoint','files':sorted(pins),'source_pins':pins,'message':'No bug - Record validated sibling-count rule-cache exclusion and CSS continuation checkpoint. r?#firefox-style-system-reviewers'})
+ with (HERE/'checkpoint-driver.log').open('x') as log:
+     subprocess.run([sys.executable,'-I','-S','-B',str(HERE/'commit.py'),str(HERE/'checkpoint-selection.json')],cwd=ROOT,env=ENV,stdout=log,stderr=subprocess.STDOUT,check=True)
+ final=read(HERE/'CURRENT-EPOCH.json');final_snapshot=s.a.verify_current(s.h,ROOT,ENV,final)
+@@ -174,6 +180,7 @@
+ assert r['parent']==parent and r['commit']==final['semantic_index']['head'] and r['signature_verified'] and r['working_bodies_and_nested_index_preserved']
+ assert final['modified_native_paths']==['servo/components/style/custom_properties.rs']
+ for marker, expected in inputs['preserved_accepted_markers'].items(): assert final[marker] == expected
++for marker, expected in inputs['preserved_accepted_transitions'].items(): assert final[marker] == expected
+ for path, item in inputs['preserved_accepted_payload'].items(): o.claim(ROOT,path,item['sha256'],item['identity'])
+ assert final['registered_number_transition'] == initial['registered_number_transition']
+ assert not os.path.lexists(ROOT/inputs['retired_path'])
+@@ -191,4 +198,4 @@
+     save(HERE/'SYNCHRONIZATION-FAILURE.json',{'error':repr(error),'rollback_errors':failures,'manual_recovery_required':True,'signed_head':final['semantic_index']['head'],'note':'Signed commits remain; restored prior runtime epoch does not certify new HEAD.'})
+     raise
+ save(HERE/'FINAL-CHECK.json',{'head':final['semantic_index']['head'],'native_commit':parent,'accepted_fix':inputs['fix'],'accepted_fixes':inputs['previous_accepted_fixes']+1,'tracked':inputs['fix'],'tracked_fixes':inputs['fix'],'signature_chain_verified':True,'held_excluded':120,'native_dirty_paths':1,'provider_candidate_accepted':False,'runtime_epoch_synchronized':True,'untracked_root':len(actual_untracked),'untracked_project':len(project),'unrelated_untracked':audit['unrelated_count'],'current_epoch_sha256':sha(RUNTIME/'CURRENT-EPOCH.json')})
+-print('Signed standalone Round infinite-step guard checkpoint; provider experiment remains held')
++print('Signed standalone sibling-count rule-cache exclusion checkpoint; provider experiment remains held')

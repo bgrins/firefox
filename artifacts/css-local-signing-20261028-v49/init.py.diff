@@ -1,0 +1,20 @@
+--- artifacts/css-local-signing-20261028-v41/init.py
++++ artifacts/css-local-signing-20261028-v49/init.py
+@@ -19,11 +19,15 @@
+ assert sha(runtime/'CURRENT-EPOCH.json') == inputs['initial_epoch']
+ epoch = json.loads(controls['CURRENT-EPOCH.json'])
+ assert epoch['semantic_index']['head'] == inputs['initial_head']
+-assert epoch['round_special_knowledge_transition']['role'] == 'candidate'
+-assert epoch['round_special_knowledge_transition']['compiled'] and not epoch['round_special_knowledge_transition']['accepted']
++assert epoch['sibling_count_rule_cache_transition']['role'] == 'candidate'
++assert epoch['sibling_count_rule_cache_transition']['compiled'] and not epoch['sibling_count_rule_cache_transition']['accepted']
+ assert epoch['modified_native_paths'] == sorted(['servo/components/style/custom_properties.rs',*inputs['native_source_paths']])
+ assert epoch['staged_working'] == {}
+ for marker, expected in inputs['preserved_accepted_markers'].items(): assert epoch[marker] == expected
++for marker, expected in inputs['preserved_accepted_transitions'].items(): assert epoch[marker] == expected
++native_pins=json.loads((HERE/'native-selection.json').read_bytes())['source_pins']
++assert not set(native_pins).intersection(inputs['preserved_accepted_payload'])
++assert set(inputs['native_source_paths']) == {'servo/components/style/values/computed/mod.rs'}
+ for path, item in inputs['preserved_accepted_payload'].items():
+     st=(ROOT/path).lstat()
+     assert [st.st_dev,st.st_ino] == item['identity'] and sha(ROOT/path) == item['sha256']

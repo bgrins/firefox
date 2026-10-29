@@ -1,5 +1,10 @@
 # CSS and Stylo verification plan
 
+Fix 146 excludes reset styles that depend on sibling-count() from the rule cache. The standalone payload is one added Rust line and a two-test WPT. The focused original/final comparison repairs both width and opacity failures; final validation has 35 PASS and one preserved nested-pseudo FAIL, with all 34 control and seven ending signatures unchanged. The separate six-case experiment also passed all six cases. After the signed native commit, the ledger will contain 145 accepted repairs across 146 tracked IDs, excluding held 120. Validation used the shared branch with the unchanged held provider and configured WPT preferences; no clean-upstream execution or canonical Lean coverage increment is claimed.
+
+Earlier entries retain their historical state.
+
+
 Fix 145 preserves finite multiples when resolving round(), including normal finite operands whose quotient overflows. The standalone payload is one generic calc source file and one 21-subtest WPT. The complete paired 738-subtest experiment passed all 26 targets with 13 repairs; all 712 controls and 12 endings were preserved. Final installed execution completed 737 subtests: 727 PASS and ten preserved existing FAIL, with all 25 targets PASS. Four exposure cases remain validation-only. The sole omitted historical both-infinite row passed in both paired phases and was removed by authenticated one-line fixture projection; no failed gate was waived. After the verified signed native commit, accepted repairs total 144 across tracked IDs through 145, excluding held 120. Historical fix 144 source and native-commit pins remain unchanged; the new current source explicitly supersedes its full-file pin. No semantic prerequisite on accepted125/126/128/144 or clean-upstream execution is claimed. The held provider remains unchanged and unaccepted. Existing arithmetic/model checks and the four bounded overflow witness facts add no canonical Lean coverage or universal IEEE/native refinement claim.
 
 Earlier entries retain their historical state.

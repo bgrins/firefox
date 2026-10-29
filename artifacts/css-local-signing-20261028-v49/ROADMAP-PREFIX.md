@@ -1,0 +1,6 @@
+Current continuation after sibling-count rule-cache repair 146
+
+Fix 146 excludes reset styles that depend on sibling-count() from the rule cache. The standalone payload is one added Rust line and a two-test WPT. The focused original/final comparison repairs both width and opacity failures; final validation has 35 PASS and one preserved nested-pseudo FAIL, with all 34 control and seven ending signatures unchanged. The separate six-case experiment also passed all six cases. After the signed native commit, the ledger will contain 145 accepted repairs across 146 tracked IDs, excluding held 120. Validation used the shared branch with the unchanged held provider and configured WPT preferences; no clean-upstream execution or canonical Lean coverage increment is claimed.
+
+Next run the prepared sibling-context reparenting probe and revisit the two held contextual-easing sibling-count failures on the new source. Preserve the new cache exclusion and all earlier accepted source overlays when rebasing or restoring experiments. Contextual easing activation, JS overrides, provider readiness and broader lifecycle obligations remain open. The updated table and signed recovery copies account for completed work; 68 unfinished project files and 495 unrelated paths remain untracked after the landing WPT is committed. Earlier roadmap history follows unchanged.
+

@@ -1,5 +1,10 @@
 # CSS verification bugfix commits
 
+Fix 146: Avoid caching reset styles that depend on sibling-count()
+
+Native: `7501711ae4a105980cde23db588e582f41b77daa`. Research: `588fa673a74701b2ed74f9c495bdb3bb35fcf562`. Validation: `cf834b1da25142d2a4748cb5e2104bc84a20fd4b`. Exact two-path source/WPT payload; two landing target failures repaired, both targets PASS and thirty-four control plus seven ending signatures preserved. No prior accepted-fix semantic prerequisite established; shared held-provider/configured-pref validation limits remain.
+
+
 Fix 145: Preserve finite multiples when resolving round()
 
 Native: `eb52086488112d1809062cf369f5e8feda6c2c38`. Research: `68c4b558957437fdad07a2685bd71fb76dc5fd4c`. Validation: `2fc2dbca7d5af460391e4c944cb11f5eea275977`. Exact two-path source/WPT payload; thirteen target failures repaired, all twenty-five validation targets PASS and seven hundred twelve control signatures preserved. The landing WPT contains twenty-one subtests; four exposure cases remain validation-only. Historical fix 144 source attribution remains unchanged; the current full-file source pin is explicitly superseded. No semantic prerequisite or independent upstream execution is claimed.

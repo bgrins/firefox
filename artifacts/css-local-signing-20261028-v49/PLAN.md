@@ -1,0 +1,3 @@
+Execute init.py, commit.py research-selection.json, commit.py validation-selection.json, commit.py native-selection.json, then finish.py, sequentially and stop on any failure. Root owns all Git, canonical state and signing operations. The generic commit helper is unchanged from executed V41/V42.
+
+The initial snapshot permits exactly the pending computed source plus the held provider as dirty native files. Fourteen prior accepted current payloads and all historical accepted markers/transitions remain fixed, including historical144 and latest145 source provenance. Finish verifies the three signed receipts before rendering the readout and publishing ledger changes. Runtime recovery preimages remain intact on disk.

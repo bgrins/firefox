@@ -1,0 +1,5 @@
+Root accepted sibling-count reset-style cache exclusion as internal repair 146. Signing remains a separate root-owned action: research, validation, standalone two-path native commit, then receipt-derived table/ledger/checkpoint. The research selection has 194 files and the validation selection has 91; the native payload contains only computed/mod.rs and the two-test tree-counting WPT.
+
+Actual final validation: 35 PASS and one preserved nested-pseudo FAIL; both targets pass, 34 control and seven ending signatures match the original. The installed build and WPT lint passed. Validation retains the held provider and configured WPT preferences; no clean-upstream run or canonical Lean increment is claimed.
+
+The bounded untracked audit found exactly 564 paths before native signing: 68 unfinished project files with committed recovery copies, the new landing WPT, and 495 unrelated paths inspected only by names/metadata. Native signing removes only the landing WPT from that census. Live unfinished prototypes remain untracked. Full runtime recovery preimages remain locally available and are hash-indexed instead of duplicated in this checkpoint.
