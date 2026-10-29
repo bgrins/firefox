@@ -481,14 +481,17 @@ void RestyleManager::RestyleForInsertOrChange(nsIContent* aChild) {
   }
 }
 
-void RestyleManager::ContentWillBeRemoved(nsIContent* aOldChild) {
+void RestyleManager::ContentWillBeRemoved(nsIContent* aOldChild,
+                                          bool aPreserveRootStyle) {
   auto* container = aOldChild->GetParentNode();
   MOZ_ASSERT(container);
 
   // Computed style data isn't useful for detached nodes, and we'll need to
   // recompute it anyway if we ever insert the nodes back into a document.
+  // State-preserving moves retain the root style so pending reframes are seen.
   if (auto* element = Element::FromNode(aOldChild)) {
-    RestyleManager::ClearServoDataFromSubtree(element);
+    RestyleManager::ClearServoDataFromSubtree(
+        element, aPreserveRootStyle ? IncludeRoot::No : IncludeRoot::Yes);
     // If this element is undisplayed or may have undisplayed descendants, we
     // need to invalidate the cache, since there's the unlikely event of those
     // elements getting destroyed and their addresses reused in a way that we

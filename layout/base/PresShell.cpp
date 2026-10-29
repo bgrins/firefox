@@ -4932,6 +4932,8 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY void PresShell::ContentWillBeRemoved(
         aInfo.mNewParent->AsElement()->HasServoData() &&
         !Servo_Element_IsDisplayNone(aInfo.mNewParent->AsElement())) {
       DestroyFramesForAndRestyle(aChild->AsElement());
+      mPresContext->RestyleManager()->ContentWillBeRemoved(
+          aChild, /* aPreserveRootStyle = */ true);
       return;
     }
   }

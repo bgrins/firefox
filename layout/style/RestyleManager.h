@@ -300,7 +300,8 @@ class RestyleManager {
   void ContentAppended(nsIContent* aFirstNewContent);
 
   // Restyling for a content removal that is about to happen.
-  void ContentWillBeRemoved(nsIContent* aOldChild);
+  void ContentWillBeRemoved(nsIContent* aOldChild,
+                            bool aPreserveRootStyle = false);
 
   // Restyling for a ContentInserted (notification after insertion) or
   // for some CharacterDataChanged.
