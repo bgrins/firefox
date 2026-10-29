@@ -1,0 +1,13 @@
+# Correction: preserve the resolved one-result fallback
+
+**Reject the zero-return native/WPT proposal.** The later CSSWG resolution establishes one for failed tree-counting references. The observed Firefox158 result agrees with that resolution and the existing WPT. This is not a newly demonstrated implementation defect, and adds no accepted count.
+
+[CSSWG issue13736](https://github.com/w3c/csswg-drafts/issues/13736) explains why zero is undesirable: ordinary counting starts at one, and index-minus-one formulas would otherwise become negative. Its [24June2026 resolution](https://github.com/w3c/csswg-drafts/issues/13736#issuecomment-4791604896) chooses one when these functions fail to find a thing to count. The issue is still open with Needs Edits; the published draft's zero text has not incorporated the decision. The 26June comment links the updated WPT.
+
+[Bug2050171](https://bugzilla.mozilla.org/show_bug.cgi?id=2050171) explicitly cites this resolution. [D308700](https://phabricator.services.mozilla.com/D308700) changes TreeCountingResult's default from0/0 to1/1 and the outer-part WPT expectation from0 to1. [WPT commit418c211](https://github.com/web-platform-tests/wpt/commit/418c211b1c850d5c1c7d44aab41c78aff026bdce), dated26June2026, preserves that rationale. These primary records supersede the March2025 draft wording and explain the apparent conflict; a later resolution was actually found, not inferred from implementation convergence.
+
+The earlier sealed css-tree-counting-part-zero-review-v1 remains an immutable investigation record. Its REACHED conclusion applies only to the unupdated draft text and is withdrawn as an actionable implementation oracle. Its proposed new(0,0) branch and four-test zero expectations must not land or become acceptance gates. The source audit and System158 raw observations remain truthful; the inference that current value1 was a bug does not. The local zero baseline should remain disabled; no native overlay or candidate browser run is authorized by this report.
+
+The contextual easing scope prototype's outer-reference expectation must likewise be1 under the later resolution. At750/1000ms, steps(1+sibling-index(),end) from the containing tree gives steps(2,end), opacity1/2; same-tree index2 gives2/3 and index3 gives3/4. This still distinguishes lost scope. Preserve sealed zero-based fixture history and correct only a successor. Exact declaring-root lookup and animated/self-dependency gaps remain separate.
+
+The bounded history check covered all3 comments of issue9573, the current WPT file's three commits, bug2050171, D308700, and both comments of issue13736. Primary evidence is compactly captured here. No claim of exhaustive CSSWG issue search, new proof coverage, or security impact is made.

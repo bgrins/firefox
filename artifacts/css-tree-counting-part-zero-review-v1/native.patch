@@ -1,0 +1,98 @@
+--- a/servo/components/style/values/computed/mod.rs
++++ b/servo/components/style/values/computed/mod.rs
+@@ -527,13 +527,13 @@
+         // As a loosely-matched reference, the tree-counting function can only match if
+         // the declaration is in the same or descendant shadow tree of the element. It
+         // does not match if the declaration is in a containing tree, so it must return
+-        // the default sibling index and count of 1.
++        // zero for both sibling index and count.
+         if self
+             .current_scope()
+             .shadow_order()
+             .is_in_same_or_containing_tree()
+         {
+-            return TreeCountingResult::default();
++            return TreeCountingResult::new(0, 0);
+         }
+ 
+         self.tree_counting_caches
+--- a/testing/web-platform/tests/css/css-values/tree-counting/tree-scoped-sibling-function.html
++++ b/testing/web-platform/tests/css/css-values/tree-counting/tree-scoped-sibling-function.html
+@@ -19,9 +19,9 @@
+ <script>
+   test(() => {
+     const style = getComputedStyle(host1.shadowRoot.querySelector("#t1"));
+-    assert_equals(style.zIndex, "1", "z-index should be 1");
+-    assert_equals(style.order, "1", "order should be 1");
+-  }, "sibling-index() and sibling-count() evaluates to 1 from outer tree with ::part");
++    assert_equals(style.zIndex, "0", "z-index should be 0");
++    assert_equals(style.order, "0", "order should be 0");
++  }, "sibling-index() and sibling-count() evaluate to 0 from outer tree with ::part");
+ </script>
+ 
+ <div>
+@@ -47,3 +47,64 @@
+     assert_equals(style.order, "5", ":host total sibling count is 5");
+   }, "sibling-index() and sibling-count() evaluate as normal from inner tree");
+ </script>
++
++<script>
++async function observeTreeCountingPartZero() {
++  const frame = document.createElement("iframe");
++  document.body.append(frame);
++  try {
++    const doc = frame.contentDocument;
++    doc.open();
++    doc.write(`<!doctype html><style>
++      #host::part(target) { width: calc(sibling-index() * 10px); height: calc(sibling-count() * 10px); border-left: 7px solid; }
++    </style><div id="host"></div>`);
++    doc.close();
++    const win = frame.contentWindow;
++    const root = doc.getElementById("host").attachShadow({mode: "open"});
++    root.innerHTML = `<style>
++      [part] { display: block; box-sizing: content-box; margin-left: calc(sibling-index() * 10px); padding-left: calc(sibling-count() * 10px); }
++    </style><div id="holder"><i></i><div part="target"></div><i></i></div>`;
++    const holder = root.getElementById("holder");
++    const target = holder.children[1];
++    const extra = doc.createElement("i");
++    const snapshots = [];
++    for (const phase of ["initial", "prepend", "restore"]) {
++      if (phase === "prepend") holder.prepend(extra);
++      if (phase === "restore") extra.remove();
++      const read = () => {
++        const s = win.getComputedStyle(target);
++        return {width: s.width, height: s.height, marginLeft: s.marginLeft, paddingLeft: s.paddingLeft, borderLeftWidth: s.borderLeftWidth};
++      };
++      snapshots.push({phase, expectedIndex: phase === "prepend" ? 3 : 2,
++        expectedCount: phase === "prepend" ? 4 : 3, first: read(), second: read()});
++    }
++    return JSON.parse(JSON.stringify({
++      support: {index: win.CSS.supports("width", "calc(sibling-index() * 10px)"),
++        count: win.CSS.supports("height", "calc(sibling-count() * 10px)")},
++      authored: doc.styleSheets[0].cssRules[0].cssText,
++      expectedOuterPixels: 0, snapshots
++    }));
++  } finally {
++    frame.remove();
++  }
++}
++
++let partObservation;
++for (const [property, functionName] of [["width", "sibling-index()"], ["height", "sibling-count()"]]) {
++  promise_test(async () => {
++    partObservation ??= observeTreeCountingPartZero();
++    const result = await partObservation;
++    assert_true(result.support.index, "sibling-index() supported");
++    assert_true(result.support.count, "sibling-count() supported");
++    for (const row of result.snapshots) {
++      assert_equals(row.first.borderLeftWidth, "7px", row.phase + " outer rule applies");
++      assert_equals(row.first.marginLeft, row.expectedIndex * 10 + "px", row.phase + " same-tree index");
++      assert_equals(row.first.paddingLeft, row.expectedCount * 10 + "px", row.phase + " same-tree count");
++      assert_equals(JSON.stringify(row.first), JSON.stringify(row.second), row.phase + " stable read");
++    }
++    for (const row of result.snapshots) {
++      assert_equals(row.first[property], "0px", row.phase + " outer scope returns zero");
++    }
++  }, functionName + " from an outer part rule stays zero across sibling mutations");
++}
++</script>

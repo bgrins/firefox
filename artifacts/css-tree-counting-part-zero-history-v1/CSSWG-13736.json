@@ -1,0 +1,28 @@
+{
+  "api": "https://api.github.com/repos/w3c/csswg-drafts/issues/13736",
+  "issue": {
+    "html_url": "https://github.com/w3c/csswg-drafts/issues/13736",
+    "title": "[css-values-5] sibling-index()/count() should return 1, not 0, when the tree ref fails",
+    "body": "The [Tree-Counting Functions](https://drafts.csswg.org/css-values-5/#tree-counting) use tree-scoped name/ref machinery to avoid exposing DOM information from the shadow up to the light tree. \n\nThe spec currently says that when this mechanism successfully blocks a tree-counting function, it causes it to resolve to 0. But 0 is not a value that can ever be returned by tree-counting functions normally; the smallest possible value is 1, when the element is by itself, and thus is also index 1 among its siblings.\n\nI don't think there's a good reason to return 0 in particular here, and doing so would screw up code that, does, say, `calc( (sibling-index() - 1) * 20px)` to give a gradually-increasing value; it would get `-20px` with the current spec when the ref failed.\n\nI think we should return 1 for both of these functions.",
+    "state": "open",
+    "updated_at": "2026-06-26T05:25:12Z",
+    "comments": 2
+  },
+  "labels": [
+    "Needs Edits",
+    "Needs Testcase (WPT)",
+    "css-values-5"
+  ],
+  "comments": [
+    {
+      "url": "https://github.com/w3c/csswg-drafts/issues/13736#issuecomment-4791604896",
+      "created": "2026-06-24T16:44:51Z",
+      "body": "The CSS Working Group just discussed `[css-values-5] sibling-index()/count() should return 1, not 0, when the tree ref fails`, and agreed to the following:\n\n* `RESOLVED: if sibling-index() or sibling-count() fails to find a thing to count, it will return 1`\n\n<details><summary>The full IRC log of that discussion</summary>\n&lt;JoshT> +1<br>\n&lt;kbabbitt> fantasai: 1 seems fine to me<br>\n&lt;flackr> +1<br>\n&lt;kizu> +1<br>\n&lt;kbabbitt> astearns: Proposed resolution: if sibling-index() or sibling-count() fails to find a thing to count, it will return 1<br>\n&lt;lea> +1<br>\n&lt;kbabbitt> sgtm<br>\n&lt;kbabbitt> RESOLVED: if sibling-index() or sibling-count() fails to find a thing to count, it will return 1<br>\n</details>\n"
+    },
+    {
+      "url": "https://github.com/w3c/csswg-drafts/issues/13736#issuecomment-4806617328",
+      "created": "2026-06-26T05:25:12Z",
+      "body": "I've updated the existing tree-scoped WPT as part of a Firefox patch: https://github.com/web-platform-tests/wpt/pull/60895"
+    }
+  ]
+}

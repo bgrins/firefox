@@ -1,0 +1,27 @@
+--- v2/run.py
++++ v3/run.py
+@@ -46,7 +46,14 @@
+         print("Disabled preparation: candidate source roster and manifest remain unbound")
+         return
+     owned_helper = load("typecheck_ownership", policy["ownership_helper"])
+-    owned_helper.authenticate(ROOT / policy["candidate"]["directory"], policy["candidate"]["sha256"])
++    allowed_captures = {}
++    for package in [policy["candidate"]] + policy["capture_packages"]:
++        directory = ROOT / package["directory"]
++        owned_helper.authenticate(directory, package["sha256"])
++        for name, pin in read(directory / "FILES.json").items():
++            capture_name = str(Path(package["directory"]) / name)
++            assert capture_name not in allowed_captures or allowed_captures[capture_name] == pin
++            allowed_captures[capture_name] = pin
+     assert (HERE / "SOURCE-ROLES.json").read_bytes() == (ROOT / policy["candidate"]["directory"] / "SOURCE-ROLES.json").read_bytes()
+     roles = read(HERE / "SOURCE-ROLES.json")
+     assert set(roles) == set(policy["source_paths"]) and roles
+@@ -58,7 +65,7 @@
+         assert name.startswith("servo/") and ".." not in Path(name).parts
+         for kind, target in (("base", base), ("candidate", candidate)):
+             capture = Path(record[kind + "_capture"])
+-            assert capture.is_relative_to(policy["candidate"]["directory"])
++            assert allowed_captures.get(str(capture)) == record[kind + "_sha256"]
+             assert not capture.is_absolute() and ".." not in capture.parts
+             assert not (ROOT / capture).is_symlink()
+             target[name] = (ROOT / capture).read_bytes()

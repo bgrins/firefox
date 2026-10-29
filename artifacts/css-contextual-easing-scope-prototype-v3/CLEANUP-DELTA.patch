@@ -1,0 +1,94 @@
+--- a/servo/components/style/dom.rs
++++ b/servo/components/style/dom.rs
+@@ -839,16 +839,16 @@
+             }
+         }
+ 
+-        let mut own_shadow_order = ShadowCascadeOrder::for_outermost_shadow_tree();
+-        let mut slot = target.assigned_slot();
+-        while let Some(current) = slot {
+-            own_shadow_order.dec();
+-            slot = current.assigned_slot();
+-        }
+-
+         if let Some(shadow) = target.shadow_root()
+             && let Some(data) = shadow.style_data()
+         {
++            let mut own_shadow_order = ShadowCascadeOrder::for_outermost_shadow_tree();
++            let mut slot = target.assigned_slot();
++            while let Some(current) = slot {
++                own_shadow_order.dec();
++                slot = current.assigned_slot();
++            }
++
+             f(
+                 data,
+                 shadow.host(),
+--- a/servo/components/style/stylist.rs
++++ b/servo/components/style/stylist.rs
+@@ -1799,52 +1799,6 @@
+         self.any_applicable_rule_data(element, |data| data.mapped_ids.contains(id))
+     }
+ 
+-    /// Looks up a CascadeData-dependent rule for a given element.
+-    ///
+-    /// NOTE(emilio): This is a best-effort thing, the right fix is a bit TBD because it involves
+-    /// "recording" which tree the name came from, see [1][2].
+-    ///
+-    /// [1]: https://github.com/w3c/csswg-drafts/issues/1995
+-    /// [2]: https://bugzil.la/1458189
+-    #[inline]
+-    fn lookup_element_dependent_at_rule<'a, T, F, E>(
+-        &'a self,
+-        element: E,
+-        find_in: F,
+-    ) -> Option<&'a T>
+-    where
+-        E: TElement + 'a,
+-        F: Fn(&'a CascadeData) -> Option<&'a T>,
+-    {
+-        macro_rules! try_find_in {
+-            ($data:expr) => {
+-                if let Some(thing) = find_in(&$data) {
+-                    return Some(thing);
+-                }
+-            };
+-        }
+-
+-        let mut result = None;
+-        let doc_rules_apply =
+-            element.each_applicable_non_document_style_rule_data(|data, _host| {
+-                if result.is_none() {
+-                    result = find_in(data);
+-                }
+-            });
+-
+-        if result.is_some() {
+-            return result;
+-        }
+-
+-        if doc_rules_apply {
+-            try_find_in!(self.cascade_data.author);
+-        }
+-        try_find_in!(self.cascade_data.user);
+-        try_find_in!(self.cascade_data.user_agent.cascade_data);
+-
+-        None
+-    }
+-
+     /// Returns the registered `@keyframes` animation for the specified name.
+     #[inline]
+     pub fn lookup_keyframes<'a, E>(
+@@ -1860,6 +1814,12 @@
+     }
+ 
+     /// Returns the selected keyframes and their element-relative declaration scope.
++    ///
++    /// NOTE(emilio): This is a best-effort thing, the right fix is a bit TBD because it involves
++    /// "recording" which tree the name came from, see [1][2].
++    ///
++    /// [1]: https://github.com/w3c/csswg-drafts/issues/1995
++    /// [2]: https://bugzil.la/1458189
+     pub fn lookup_keyframes_with_scope<'a, E>(
+         &'a self,
+         name: &Atom,

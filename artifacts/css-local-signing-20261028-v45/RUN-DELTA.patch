@@ -1,0 +1,19 @@
+--- v44/run.py
++++ v45/run.py
+@@ -41,12 +41,15 @@
+     directory = ROOT / directory
+     assert digest((directory / "FILES.json").read_bytes()) == pin
+     result = {}
+-    for name, expected in read(directory / "FILES.json").items():
++    for name, entry in read(directory / "FILES.json").items():
++        expected = entry["sha256"] if isinstance(entry, dict) else entry
+         part = Path(name)
+         assert not part.is_absolute() and ".." not in part.parts
+         path = directory / part
+         assert stat.S_ISREG(path.lstat().st_mode) and not path.is_symlink()
+         assert digest(path.read_bytes()) == expected, str(path)
++        if isinstance(entry, dict):
++            assert set(entry) == {"sha256", "bytes"} and path.stat().st_size == entry["bytes"]
+         result[str(path.relative_to(ROOT))] = expected
+     result[str((directory / "FILES.json").relative_to(ROOT))] = pin
+     return result

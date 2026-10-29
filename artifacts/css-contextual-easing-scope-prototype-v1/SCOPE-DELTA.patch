@@ -1,0 +1,274 @@
+--- a/servo/components/style/dom.rs
++++ b/servo/components/style/dom.rs
+@@ -14,6 +14,7 @@
+ use crate::data::{ElementData, ElementDataMut, ElementDataRef};
+ use crate::device::Device;
+ use crate::properties::{AnimationDeclarations, ComputedValues, PropertyDeclarationBlock};
++use crate::rule_tree::{CascadeLevel, ShadowCascadeOrder};
+ use crate::selector_map::PrecomputedHashMap;
+ use crate::selector_parser::{AttrValue, Lang, PseudoElement, RestyleDamage, SelectorImpl};
+ use crate::shared_lock::{Locked, SharedRwLock};
+@@ -809,27 +810,53 @@
+         Self: 'a,
+         F: FnMut(&'a CascadeData, Self),
+     {
++        self.each_applicable_non_document_style_rule_data_with_scope(|data, host, _| f(data, host))
++            .is_some()
++    }
++
++    /// Visits the same rule data with its element-relative scope and document fallback scope.
++    fn each_applicable_non_document_style_rule_data_with_scope<'a, F>(
++        &self,
++        mut f: F,
++    ) -> Option<CascadeLevel>
++    where
++        Self: 'a,
++        F: FnMut(&'a CascadeData, Self, CascadeLevel),
++    {
+         use crate::rule_collector::containing_shadow_ignoring_svg_use;
+ 
+         let target = self.ultimate_originating_element();
+         let matches_user_and_content_rules = target.matches_user_and_content_rules();
+-        let mut doc_rules_apply = matches_user_and_content_rules;
++        let mut document_scope =
++            matches_user_and_content_rules.then_some(CascadeLevel::same_tree_author_normal());
+ 
+         // Use the same rules to look for the containing host as we do for rule
+         // collection.
+         if let Some(shadow) = containing_shadow_ignoring_svg_use(target) {
+-            doc_rules_apply = false;
++            document_scope = None;
+             if let Some(data) = shadow.style_data() {
+-                f(data, shadow.host());
++                f(data, shadow.host(), CascadeLevel::same_tree_author_normal());
+             }
++        }
++
++        let mut own_shadow_order = ShadowCascadeOrder::for_outermost_shadow_tree();
++        let mut slot = target.assigned_slot();
++        while let Some(current) = slot {
++            own_shadow_order.dec();
++            slot = current.assigned_slot();
+         }
+ 
+         if let Some(shadow) = target.shadow_root()
+             && let Some(data) = shadow.style_data()
+         {
+-            f(data, shadow.host());
+-        }
+-
++            f(
++                data,
++                shadow.host(),
++                CascadeLevel::author_normal(own_shadow_order),
++            );
++        }
++
++        let mut slot_order = ShadowCascadeOrder::for_outermost_shadow_tree();
+         let mut current = target.assigned_slot();
+         while let Some(slot) = current {
+             // Slots can only have assigned nodes when in a shadow tree.
+@@ -837,14 +864,16 @@
+             if let Some(data) = shadow.style_data()
+                 && data.any_slotted_rule()
+             {
+-                f(data, shadow.host());
++                f(data, shadow.host(), CascadeLevel::author_normal(slot_order));
+             }
+             current = slot.assigned_slot();
++            slot_order.dec();
+         }
+ 
+         if target.has_part_attr()
+             && let Some(mut inner_shadow) = target.containing_shadow()
+         {
++            let mut part_order = ShadowCascadeOrder::for_innermost_containing_tree();
+             loop {
+                 let inner_shadow_host = inner_shadow.host();
+                 match inner_shadow_host.containing_shadow() {
+@@ -852,26 +881,28 @@
+                         if let Some(data) = shadow.style_data()
+                             && data.any_part_rule()
+                         {
+-                            f(data, shadow.host())
++                            f(data, shadow.host(), CascadeLevel::author_normal(part_order))
+                         }
+                         // TODO: Could be more granular.
+                         if !inner_shadow_host.exports_any_part() {
+                             break;
+                         }
+                         inner_shadow = shadow;
++                        part_order.inc();
+                     },
+                     None => {
+                         // TODO(emilio): Should probably distinguish with
+                         // MatchesDocumentRules::{No,Yes,IfPart} or something so that we could
+                         // skip some work.
+-                        doc_rules_apply = matches_user_and_content_rules;
++                        document_scope = matches_user_and_content_rules
++                            .then_some(CascadeLevel::author_normal(part_order));
+                         break;
+                     },
+                 }
+             }
+         }
+ 
+-        doc_rules_apply
++        document_scope
+     }
+ 
+     /// Returns true if one of the transitions needs to be updated on this element. We check all
+--- a/servo/components/style/properties/cascade.rs
++++ b/servo/components/style/properties/cascade.rs
+@@ -456,8 +456,13 @@
+             let was_non_inherited = context.for_non_inherited_property;
+             context.for_non_inherited_property = true;
+             for name in names {
+-                if let Some(animation) = stylist.lookup_keyframes(&name, element) {
+-                    animation.record_timing_function_dependencies(&context, guards.author);
++                if let Some((animation, scope)) =
++                    stylist.lookup_keyframes_with_scope(&name, element)
++                {
++                    let previous_scope = context.scope;
++                    context.scope = scope;
++                    animation.record_timing_function_dependencies(&context, scope.guard(guards));
++                    context.scope = previous_scope;
+                 }
+             }
+             context.for_non_inherited_property = was_non_inherited;
+--- a/servo/components/style/servo/animation.rs
++++ b/servo/components/style/servo/animation.rs
+@@ -193,7 +193,7 @@
+     ) {
+         // Each keyframe declaration may optionally specify a timing function, falling
+         // back to the one defined global for the animation.
+-        let guard = &context.guards.author;
++        let guard = computed_context.current_scope().guard(&context.guards);
+         if let Some(timing_function) = step.get_animation_timing_function(&guard) {
+             self.timing_function = Some(timing_function.to_computed_value(computed_context));
+         }
+@@ -421,6 +421,7 @@
+     fn generate_for_keyframes<E>(
+         element: E,
+         animation: &KeyframesAnimation,
++        scope: CascadeLevel,
+         context: &SharedStyleContext,
+         base_style: &Arc<ComputedValues>,
+         parent_style: Option<&ComputedValues>,
+@@ -443,7 +444,7 @@
+ 
+         let mut conditions = Default::default();
+         let mut tree_counting_caches = TreeCountingCaches::default();
+-        let computed_context = Context::new_for_animation(
++        let mut computed_context = Context::new_for_animation(
+             StyleBuilder::for_derived_style(
+                 context.stylist.device(),
+                 Some(&context.stylist),
+@@ -457,6 +458,7 @@
+             &element,
+             &mut tree_counting_caches,
+         );
++        computed_context.scope = scope;
+         let intermediate_steps = IntermediateComputedKeyframe::generate_for_keyframes(
+             animation,
+             context,
+@@ -1846,7 +1848,9 @@
+             continue;
+         }
+ 
+-        let Some(keyframe_animation) = context.stylist.lookup_keyframes(name, element) else {
++        let Some((keyframe_animation, scope)) =
++            context.stylist.lookup_keyframes_with_scope(name, element)
++        else {
+             continue;
+         };
+ 
+@@ -1899,6 +1903,7 @@
+         let computed_steps = ComputedKeyframe::generate_for_keyframes(
+             element,
+             &keyframe_animation,
++            scope,
+             context,
+             new_style,
+             parent_style,
+--- a/servo/components/style/stylist.rs
++++ b/servo/components/style/stylist.rs
+@@ -1855,7 +1855,47 @@
+     where
+         E: TElement + 'a,
+     {
+-        self.lookup_element_dependent_at_rule(element, |data| data.animations.get(name))
++        self.lookup_keyframes_with_scope(name, element)
++            .map(|(animation, _)| animation)
++    }
++
++    /// Returns the selected keyframes and their element-relative declaration scope.
++    pub fn lookup_keyframes_with_scope<'a, E>(
++        &'a self,
++        name: &Atom,
++        element: E,
++    ) -> Option<(&'a KeyframesAnimation, CascadeLevel)>
++    where
++        E: TElement + 'a,
++    {
++        let mut result = None;
++        let document_scope = element.each_applicable_non_document_style_rule_data_with_scope(
++            |data, _host, scope| {
++                if result.is_none() {
++                    result = data
++                        .animations
++                        .get(name)
++                        .map(|animation| (animation, scope));
++                }
++            },
++        );
++        if result.is_some() {
++            return result;
++        }
++        if let Some(scope) = document_scope {
++            if let Some(animation) = self.cascade_data.author.animations.get(name) {
++                return Some((animation, scope));
++            }
++        }
++        if let Some(animation) = self.cascade_data.user.animations.get(name) {
++            return Some((animation, CascadeLevel::new(CascadeOrigin::User)));
++        }
++        self.cascade_data
++            .user_agent
++            .cascade_data
++            .animations
++            .get(name)
++            .map(|animation| (animation, CascadeLevel::new(CascadeOrigin::UA)))
+     }
+ 
+     /// Returns the last @view-transition rule
+--- a/servo/ports/geckolib/glue.rs
++++ b/servo/ports/geckolib/glue.rs
+@@ -7922,8 +7922,8 @@
+     let data = raw_data.borrow();
+     let name = unsafe { Atom::from_raw(name) };
+ 
+-    let animation = match data.stylist.lookup_keyframes(&name, element) {
+-        Some(animation) => animation,
++    let (animation, scope) = match data.stylist.lookup_keyframes_with_scope(&name, element) {
++        Some(selected) => selected,
+         None => return false,
+     };
+ 
+@@ -7945,7 +7945,7 @@
+         ContainerSizeQuery::for_element(element, parent_style, style.is_pseudo_style());
+     let mut conditions = Default::default();
+     let mut tree_counting_caches = TreeCountingCaches::default();
+-    let context = create_context_for_animation(
++    let mut context = create_context_for_animation(
+         &data,
+         style,
+         parent_style,
+@@ -7955,6 +7955,7 @@
+         &element,
+         &mut tree_counting_caches,
+     );
++    context.scope = scope;
+ 
+     let get_timing_func_and_composition =
+         |step: &KeyframesStep| -> (ComputedTimingFunction, CompositeOperationOrAuto) {

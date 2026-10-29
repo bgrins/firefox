@@ -1,0 +1,7 @@
+# Specified Linear serde compile correction
+
+The actual configured Gecko check of v1 failed with ten E0277 diagnostics: specified Number and Percentage do not implement Serialize/Deserialize. Source and application were restored; the original failure log and result remain pinned, not rewritten. This successor removes those two derives from LinearStop and LinearFunction only. The retained derives include ownership accounting, shared-memory conversion and value information. No numeric AST serde implementation is added.
+
+The shared generic TimingFunction serde derives are conditional on its type parameters. The specified alias already includes Number/Integer without serde and therefore did not promise that trait. Computed TimingFunction uses scalar numeric parameters and the unchanged serializable PiecewiseLinearFunction. No computed/generic easing or serialization consumer is modified. This correction needs the actual compiler rerun; no success is inferred from the failed check or Rustfmt parsing.
+
+Five candidate bodies and all six base captures reuse the immutable v1 capsule; SOURCE-ROLES provides explicit capture/hash joins. Base bodies were verified against signed5d9487828523. Only one new source body is stored. The complete six-source patch remains available for the existing checker. All parser guards stay closed and the prior scope/invalidation/API limitations remain. The independent scope successor will incorporate these same two derive removals, without changing sealed v1.

@@ -1,0 +1,46 @@
+--- v1/run.py
++++ v2/run.py
+@@ -41,12 +41,12 @@
+     result, restored = read(evidence / "RESULT.json"), read(evidence / "RESTORATION.json")
+     inner = read(evidence / "build-RESULT.json")
+     terminal = read(HERE / "ROOT-REPORTED-TERMINAL.json")
+-    assert terminal["session"] == 13662 and terminal["launch_receipt"] == "e9cfe6" and terminal["terminal_receipt"] == "d41692/1" and terminal["exit"] == 1
+-    assert result["success"] is False and result["actual_cargo_success"] is False
+-    assert result["error"] == "AssertionError()" and result["preservation_error"] is None
++    assert terminal["session"] == 25662 and terminal["launch_receipt"] == "349cfa" and terminal["terminal_receipt"] == "a9684b/0" and terminal["exit"] == 0
++    assert result["success"] is True and result["actual_cargo_success"] is True
++    assert result["error"] is None and result["preservation_error"] is None
+     assert result["source_restored"] and result["preservation_verified"] and result["runtime_controls_unchanged"]
+     assert result["owned_processes"] == {} and result["publication_errors"] == []
+-    assert inner["exit"] == 101 and inner["owned_group_absent"] and inner["cleanup_errors"] == []
++    assert inner["exit"] == 0 and inner["owned_group_absent"] and inner["cleanup_errors"] == []
+     assert inner["error"] is None and inner["stop_reason"] is None
+     assert restored["errors"] == [] and restored["owned_processes"] == {}
+     assert pre["epoch_sha256"] == post["epoch_sha256"] == policy["controls"]["CURRENT-EPOCH.json"]
+@@ -68,7 +68,7 @@
+         full = {"index": snapshot["index"], "nested_index": snapshot["nested_index"], "current_raw_stable_during_check": True, "working_sources_binaries_research_preserved": True}
+         assert digest(json.dumps(full, sort_keys=True).encode()) == snapshot["snapshot_sha256"]
+     if sys.argv[1] == "--check":
+-        print("Authenticated failed Cargo/restored source evidence; only canonical raw observation changes", policy["updated_epoch_sha256"])
++        print("Authenticated successful Cargo/restored source evidence; only canonical raw observation changes", policy["updated_epoch_sha256"])
+         return
+     assert policy["execution_enabled"] is True
+     assert not any(os.environ.get(k) for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"))
+@@ -110,7 +110,7 @@
+         owned.write_owned(ROOT, claims["CURRENT-EPOCH.json"], encoded)
+         assert state.a.verify_current(state.h, ROOT, ENV, updated) == before
+         assert all((RUNTIME / n).read_bytes() == controls[n] for n in ("ROLE.json", "OWNED.json"))
+-        state.save(output / "RESULT.json", {"success": True, "preservation_verified": True, "updated_only": "raw_index_observation.current", "epoch_sha256": digest(encoded), "before": pre["index"]["raw_index"], "after": post["index"]["raw_index"], "head": policy["head"], "cargo_result_reclassified": False, "cargo_exit": 101, "full_epoch_copies_saved": 0})
++        state.save(output / "RESULT.json", {"success": True, "preservation_verified": True, "updated_only": "raw_index_observation.current", "epoch_sha256": digest(encoded), "before": pre["index"]["raw_index"], "after": post["index"]["raw_index"], "head": policy["head"], "cargo_result_reclassified": False, "cargo_exit": 0, "full_epoch_copies_saved": 0})
+         published = True
+         assert (lock.stat().st_dev, lock.stat().st_ino) == identity
+         lock.unlink()
+@@ -128,7 +128,7 @@
+             assert (lock.stat().st_dev, lock.stat().st_ino) == identity
+             lock.unlink()
+         raise
+-    print("Canonical raw-index observation refreshed; failed Cargo evidence unchanged", flush=True)
++    print("Canonical raw-index observation refreshed; successful Cargo evidence unchanged", flush=True)
+ 
+ 
+ if __name__ == "__main__":

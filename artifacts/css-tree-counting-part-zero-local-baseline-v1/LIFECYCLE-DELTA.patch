@@ -1,0 +1,53 @@
+--- inherited/run_baseline.py
++++ local-part/expanded.py
+@@ -90,8 +90,6 @@
+ page = tests / policy['target'].lstrip('/')
+ page.parent.mkdir(parents=True)
+ page.write_bytes((HERE / 'fixture/baseline.html').read_bytes())
+-(page.parent / 'record.py').write_bytes((HERE / 'fixture/record.py').read_bytes())
+-(page.parent / 'observation.js').write_bytes((ROOT / policy['observation_path']).read_bytes())
+ for name, pin in policy['resources'].items():
+     original = ROOT / 'testing/web-platform/tests' / name
+     assert digest(original) == pin
+@@ -159,36 +157,13 @@
+ assessment_error = None
+ summary = {}
+ try:
+-    events = [json.loads(line) for line in (output / 'raw.jsonl').read_text().splitlines()]
+-    rows = [e for e in events if e.get('action') == 'test_status']
+-    ends = [e for e in events if e.get('action') == 'test_end']
+-    expected = {f'{kind} {mode} {sign}' for mode in ['nearest', 'up', 'down', 'to-zero'] for sign in [1, -1]
+-                for kind in ['nan-step', 'relative-leaf-step', 'fixed-finite-step']}
+-    assert len(rows) == 24 and {e['subtest'] for e in rows} == expected
+-    assert all(e['test'] == policy['target'] and e['status'] in ['PASS', 'FAIL'] for e in rows)
+-    assert len(ends) == 1 and ends[0]['test'] == policy['target'] and ends[0]['status'] == 'OK'
+-    assert not any(e.get('action') in ['crash', 'process_error'] or (e.get('action') == 'log' and e.get('level') == 'ERROR') for e in events)
+-    assert code in [0, 1]
+-    observation = read(output / 'observation.json')
+-    assert observation['caseCount'] == 24 and observation['snapshotCount'] == len(observation['snapshots']) == 72
+-    identities = {(x['kind'], x['mode'], x['sign'], x['phase']) for x in observation['snapshots']}
+-    assert identities == {(kind, mode, sign, phase) for kind in ['nan-step', 'relative-leaf-step', 'fixed-finite-step']
+-                          for mode in ['nearest', 'up', 'down', 'to-zero'] for sign in [1, -1] for phase in range(3)}
+-    calibration_errors = []
+-    for row in observation['snapshots']:
+-        c = row['inputCalibration']
+-        expected_value = 0 if row['kind'] == 'nan-step' or (row['kind'] == 'relative-leaf-step' and row['font'] == 0) else 0.5 + 0.25 * row['sign']
+-        valid = row['expected'] == expected_value
+-        valid = valid and row['font'] == [8, 0, 8][row['phase']] and row['supported'] and row['specified'] and row['actual'] == row['repeated']
+-        valid = valid and c['font'] == c['width'] == str(row['font']) + 'px' and c['nanSupported'] and c['nanSpecified']
+-        valid = valid and float(c['nanEncoding']) == 0 and float(row['literal']) == row['expected']
+-        if not valid:
+-            calibration_errors.append([row['kind'], row['mode'], row['sign'], row['phase']])
+-    assert not calibration_errors, calibration_errors
+-    summary = {'pass': sum(e['status'] == 'PASS' for e in rows), 'fail': sum(e['status'] == 'FAIL' for e in rows),
+-               'snapshots': 72, 'calibration_errors': calibration_errors, 'known_mismatches_are_observations': True}
++    spec = importlib.util.spec_from_file_location('part_baseline_assessment', HERE / 'assess.py')
++    assessment = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(assessment)
++    summary = assessment.assess(output, code, policy)
+ except BaseException as exc:
+     assessment_error = repr(exc)
++
+ success = error is None and assessment_error is None and preserved and cleanup and cleanup.get('temporary_root_removed')
+ save(output / 'RESULT.json', {'success': bool(success), 'harness_exit': code, 'execution_error': error,
+      'assessment_error': assessment_error, 'preservation_verified': preserved, 'summary': summary, 'native_fix_acceptance': False})
